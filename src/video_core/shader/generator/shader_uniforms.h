@@ -84,7 +84,9 @@ struct VSUniformData {
 #endif
 
     // CitraVR: VR data at the end to ensure it doesn't interfere with existing uniforms' alignment
-    alignas(4) float vr_immersive_mode_factor;
+    // CitraFrame: 1 by default; 0 (value-initialised) made the shader divide by zero until
+    // SetVRData ran, which only CitraVR's Android frontend did every frame.
+    alignas(4) float vr_immersive_mode_factor = 1.0f;
 };
 #ifdef ENABLE_FREECAM
 static_assert(sizeof(VSUniformData) == 112,

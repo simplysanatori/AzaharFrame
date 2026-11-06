@@ -7,6 +7,7 @@
 
 #include "common/logging/log.h"
 #include "frame_xr/controls.h"
+#include "frame_xr/immersive.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/picker/library.h"
 #include "frame_xr/picker/library_loader.h"
@@ -195,6 +196,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     panels.top = {ToInput(place.top_pose), place.top_size.width, place.top_size.height, true};
     panels.bottom = {ToInput(place.bottom_pose), place.bottom_size.width,
                      place.bottom_size.height, true};
+    Immersive::OnGameInput(in, panels.top.visible, panels.bottom.visible); // immersive.cpp
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
 

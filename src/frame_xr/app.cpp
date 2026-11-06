@@ -17,6 +17,7 @@
 #include "common/logging/log.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
+#include "frame_xr/immersive.h" // CitraFrame immersive mode
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -345,7 +346,9 @@ void Runtime::FrameLoop() {
                 std::scoped_lock lock{placement_mutex};
                 place = placement;
             }
-            const auto add_screen = [&](VideoCore::XrScreen s, const XrPosef& pose,
+            // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
+            const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
+            const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye) {
                 const ScreenChain& chain = screens[static_cast<std::size_t>(s)];
                 if (!chain.handle || !chain.has_image) {
@@ -359,15 +362,17 @@ void Runtime::FrameLoop() {
                 q.pose = pose;
                 q.size = size;
                 q.eye = eye;
-                quad_layers.push_back(MakeQuad(local_space, q));
+                quad_layers.push_back(MakeQuad(space, q));
             };
             // Each eye sees its own top image on the same quad.
-            add_screen(VideoCore::XrScreen::TopLeft, place.top_pose, place.top_size,
-                       XR_EYE_VISIBILITY_LEFT);
-            add_screen(VideoCore::XrScreen::TopRight, place.top_pose, place.top_size,
-                       XR_EYE_VISIBILITY_RIGHT);
-            add_screen(VideoCore::XrScreen::Bottom, place.bottom_pose, place.bottom_size,
-                       XR_EYE_VISIBILITY_BOTH);
+            add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
+                       shown.top_size, XR_EYE_VISIBILITY_LEFT);
+            add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
+                       shown.top_size, XR_EYE_VISIBILITY_RIGHT);
+            if (shown.show_bottom) {
+                add_screen(VideoCore::XrScreen::Bottom, local_space, place.bottom_pose,
+                           place.bottom_size, XR_EYE_VISIBILITY_BOTH);
+            }
         }
         if (fs.shouldRender) {
             std::scoped_lock lock{quads_mutex};
@@ -433,6 +438,7 @@ bool Start(const StartOptions& options) {
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
     g_runtime->StartThread();
+    Immersive::Install(); // CitraFrame immersive mode
     LOG_INFO(Frontend, "xr: started");
     return true;
 }
@@ -444,6 +450,7 @@ void Shutdown() {
     LOG_INFO(Frontend, "xr: shutting down");
     VideoCore::SetXrScreenSink(nullptr);
     g_runtime->StopThread();
+    Immersive::Uninstall(); // CitraFrame immersive mode
     g_runtime->Destroy();
     g_runtime.reset();
 }

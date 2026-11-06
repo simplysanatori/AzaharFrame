@@ -51,6 +51,7 @@ private:
     void ReadUtilityValues();
     void ReadWebServiceValues();
     void ReadVideoDumpingValues();
+    void ReadVrValues(); // CitraFrame
 
     void SaveValues();
     void SaveAudioValues();
@@ -72,6 +73,7 @@ private:
     void SaveUtilityValues();
     void SaveWebServiceValues();
     void SaveVideoDumpingValues();
+    void SaveVrValues(); // CitraFrame
 
     /**
      * Reads a setting from the qt_config.

@@ -5,6 +5,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     app.cpp
     controls.cpp
     frame_xr.h
+    immersive.cpp
+    immersive.h
     overlays.cpp
     session.cpp
     session.h

@@ -292,6 +292,12 @@ void RasterizerAccelerated::SetVRData(const int32_t &vrImmersiveMode, const floa
         vs_data_dirty = true;
     }
 
+    // CitraFrame: the view matrix register is patched while the PICA uniforms are uploaded,
+    // so upload them again with the new pose (and once more after leaving a view mode).
+    if (vrImmersiveMode > 1 || vr_immersive_mode > 1) {
+        pica.vs_setup.uniforms_dirty = true;
+    }
+
     vr_uoffset = uoffset;
     vr_immersive_mode = vrImmersiveMode;
     vr_game_pos_scaler = gamePosScaler;

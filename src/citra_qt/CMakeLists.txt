@@ -46,6 +46,8 @@ add_library(citra_qt STATIC EXCLUDE_FROM_ALL
     configuration/configure_enhancements.cpp
     configuration/configure_enhancements.h
     configuration/configure_enhancements.ui
+    configuration/configure_frame_vr.cpp # CitraFrame
+    configuration/configure_frame_vr.h
     configuration/configure_layout.cpp
     configuration/configure_layout.h
     configuration/configure_layout.ui

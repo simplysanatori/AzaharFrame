@@ -290,6 +290,7 @@ void QtConfig::ReadValues() {
     ReadAudioValues();
     ReadSystemValues();
     ReadUtilityValues();
+    ReadVrValues(); // CitraFrame
 }
 
 void QtConfig::ReadAudioValues() {
@@ -480,6 +481,18 @@ void QtConfig::ReadUtilityValues() {
     ReadGlobalSetting(Settings::values.custom_textures);
     ReadGlobalSetting(Settings::values.preload_textures);
     ReadGlobalSetting(Settings::values.async_custom_loading);
+
+    qt_config->endGroup();
+}
+
+// CitraFrame: CitraVR's immersive mode settings, in CitraVR's "VR" section with its keys.
+void QtConfig::ReadVrValues() {
+    qt_config->beginGroup(QStringLiteral("VR"));
+
+    ReadGlobalSetting(Settings::values.vr_immersive_mode);
+    ReadGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
+    ReadGlobalSetting(Settings::values.vr_si_mode_register_offset);
+    ReadGlobalSetting(Settings::values.vr_immersive_eye_indicator);
 
     qt_config->endGroup();
 }
@@ -955,6 +968,7 @@ void QtConfig::SaveValues() {
     SaveAudioValues();
     SaveSystemValues();
     SaveUtilityValues();
+    SaveVrValues(); // CitraFrame
     qt_config->sync();
 }
 
@@ -1083,6 +1097,18 @@ void QtConfig::SaveUtilityValues() {
     WriteGlobalSetting(Settings::values.custom_textures);
     WriteGlobalSetting(Settings::values.preload_textures);
     WriteGlobalSetting(Settings::values.async_custom_loading);
+
+    qt_config->endGroup();
+}
+
+// CitraFrame
+void QtConfig::SaveVrValues() {
+    qt_config->beginGroup(QStringLiteral("VR"));
+
+    WriteGlobalSetting(Settings::values.vr_immersive_mode);
+    WriteGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
+    WriteGlobalSetting(Settings::values.vr_si_mode_register_offset);
+    WriteGlobalSetting(Settings::values.vr_immersive_eye_indicator);
 
     qt_config->endGroup();
 }
