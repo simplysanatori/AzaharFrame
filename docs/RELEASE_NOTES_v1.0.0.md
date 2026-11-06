@@ -24,6 +24,7 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for 
 - The Steam Frame controllers in CitraVR's layout, with the real D-pad where the Quest needed the thumbrest.
 - Each trigger decides by itself between ZL or ZR and touch. The grips move the screens, the bumpers are L and R.
 - Hide Bottom Screen, per game, for games that do not need it.
+- Screen Shape, per game: Widescreen (16:9) or Ultrawide (21:9) top screen for mods that draw widescreen.
 - The layout is a profile in Azahar's controls window, so you can change it.
 
 ### Immersive mode

@@ -153,13 +153,17 @@ Turn it on in the game's properties, on the **Graphics** tab, in the **VR** grou
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
 - **Full (6DoF): Other Games:** the same, for games the other mode does not fit; it finds the camera while you play.
 
-Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** show or hide the bottom screen, and the right stick click re-centres the view. [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** show or hide the bottom screen, and the right stick click re-centres the view. [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 <!-- VERIFY: the whole section -->
 
 ### Hide Bottom Screen
 
-Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Bottom Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. The setting is read when the game starts. [docs/CONTROLS.md](docs/CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod.
+Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Bottom Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. The setting is read when the game starts. [docs/CONTROLS.md](docs/CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience.
+
+### Screen Shape
+
+Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to **Widescreen (16:9)** or **Ultrawide (21:9)** to stretch the top screen in VR to match. It keeps its height and gets wider, and the bottom screen stays where it was. It is also the shape of the screen in immersive mode. The setting is read when the game starts, and it has to agree with the mod's own aspect option.
 
 ## Performance
 

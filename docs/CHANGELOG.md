@@ -30,6 +30,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click is Home.
 - Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
 - A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
+- A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 
 ### Immersive mode
@@ -37,6 +38,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - Ocarina of Time 3D and Majora's Mask 3D can wrap the view around you, as in CitraVR: Wide, Full for those two games, and Full for other games.
 - SteamVR has no cylinder layer, so the screen is a flat quad that stays in front of your eyes, sized to the game's camera, or fixed in the room in Wide mode.
 - The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
+- A per-game **Immersive Game FOV** setting replaces the fixed 60 degree game camera that sizes the screen, for mods that change the game's FOV.
 - Both bumpers and View show the bottom screen (the left bumper is L here) and the right stick click re-centres the view.
 - Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
 
