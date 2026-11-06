@@ -3,7 +3,7 @@
 #   steam-frame/release/azaharframe-<version>-linux-arm64.tar.gz
 #   steam-frame/release/SHA256SUMS
 # The tarball holds the stripped emulator (azahar), the launch wrapper, and at the top
-# level install.sh, uninstall.sh and steam-cef.py, so the unpacked archive installs itself
+# level install.sh, uninstall.sh and steam-cef.py, plus the Steam library art in art/, so the unpacked archive installs itself
 # (this is how Frametanium runs it).  Files are packed by name, so settings, saves, keys,
 # logs and game files cannot end up in it.
 #   steam-frame/release/make-release.sh [version [build-dir]]
@@ -16,7 +16,7 @@ REPO=$(cd "$SF/.." && pwd)
 VERSION=${1:-1.0.0}
 BUILD=${2:-${AZAHARFRAME_BUILD:-$REPO/build/bin/Release}}
 [ -x "$BUILD/azahar" ] || { echo "no azahar program in $BUILD (run steam-frame/build.sh first)" >&2; exit 1; }
-for f in "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md"; do
+for f in "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md"; do
   [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
 done
 
@@ -25,9 +25,11 @@ trap 'rm -rf "$STAGE"' EXIT
 strip --strip-unneeded -o "$STAGE/azahar" "$BUILD/azahar"
 cp "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$STAGE/"
 cp "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$STAGE/"
+mkdir -p "$STAGE/art"
+cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$STAGE/art/"
 chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh"
 echo "$VERSION" > "$STAGE/VERSION"
-FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md"
+FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art"
 
 NAME=azaharframe-$VERSION-linux-arm64.tar.gz
 tar --owner=0 --group=0 --numeric-owner -czf "$HERE/$NAME" -C "$STAGE" $FILES

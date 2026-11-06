@@ -72,5 +72,22 @@ def evaluate(expr, title='SharedJSContext'):
                 raise RuntimeError(json.dumps(r['exceptionDetails'].get('exception', r['exceptionDetails']))[:2000])
             return r['result'].get('value')
 
+def apply_art(appid, artdir):
+    """Set the library art of a non-Steam shortcut from ARTDIR (portrait, wide, hero, logo, icon .png).
+    The images are large, so they are sent from here and not as a command line argument."""
+    for name, kind in (('portrait', 0), ('hero', 1), ('logo', 2), ('wide', 3)):
+        path = os.path.join(artdir, name + '.png')
+        if not os.path.isfile(path):
+            print('no ' + path + ', skipped', file=sys.stderr)
+            continue
+        b64 = base64.b64encode(open(path, 'rb').read()).decode()
+        evaluate("SteamClient.Apps.SetCustomArtworkForApp(%d, '%s', 'png', %d)" % (int(appid), b64, kind))
+    icon = os.path.join(artdir, 'icon.png')
+    if os.path.isfile(icon):
+        evaluate("SteamClient.Apps.SetShortcutIcon(%d, %s)" % (int(appid), json.dumps(icon)))
+
 if __name__ == '__main__':
-    print(json.dumps(evaluate(sys.argv[1]), indent=1))
+    if len(sys.argv) == 4 and sys.argv[1] == '--art':
+        apply_art(sys.argv[2], sys.argv[3])   # steam-cef.py --art APPID DIR
+    else:
+        print(json.dumps(evaluate(sys.argv[1]), indent=1))

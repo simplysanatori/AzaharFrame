@@ -26,6 +26,14 @@ notice "Copyright Citra Emulator Project / Azahar Emulator Project, licensed
 under GPLv3 or any later version". The GPLv2 text is kept in the repository
 in [misc/licenses/gplv2.txt](misc/licenses/gplv2.txt).
 
+## Artwork
+
+The Steam library art, the README cover and the social image in `steam-frame/art/` and `docs/images/` are made from the pieces below. The sources and what was changed are in [steam-frame/art/CREDITS.md](steam-frame/art/CREDITS.md).
+
+- **Azahar logo and wordmark.** The Azahar Emu Logo, (c) 2024 angyartanddraw and PabloMK7, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changed: the word "Emulator" in the official lockup is replaced with "for Frame", in the same typeface and style. The flower and "Azahar" are unchanged.
+- **Typeface.** Blooming Grove Bold by Nathan Eady, released into the public domain by the author. It is the font in Azahar's wordmark.
+- **Backgrounds.** Community uploads for "Azahar (Emulator)" on [SteamGridDB](https://www.steamgriddb.com/game/5480678) by GarfieldGaming0624: hero 132546 and grid 554631. The hero is scaled down and used as the background of the wide image, the cover and the social image. In the portrait the "Azahar Emulator" text is replaced by "Azahar for Frame".
+
 ## Qt themes
 
 The dark window themes are QDarkStyleSheet (MIT): [dist/qt_themes/qdarkstyle/LICENSE.md](dist/qt_themes/qdarkstyle/LICENSE.md) and [dist/qt_themes/qdarkstyle_midnight_blue/LICENSE.rst](dist/qt_themes/qdarkstyle_midnight_blue/LICENSE.rst). The other themes are Azahar's and Citra's.

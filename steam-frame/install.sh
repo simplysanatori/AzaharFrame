@@ -50,10 +50,13 @@ mkdir -p "$DEST" "$DATA/user"
 # put SRC DST: each file is put in place in one step, in case it is in use.
 put() { cp "$1" "$2.new" && mv "$2.new" "$2"; }
 FILES="azahar azaharframe.sh steam-cef.py uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md"
+ARTFILES="portrait.png wide.png hero.png logo.png icon.png"
 if [ -n "$UNPACKED" ]; then
   echo "installing the unpacked release in $UNPACKED"
   if [ "$(readlink -f "$UNPACKED")" != "$(readlink -f "$DEST")" ]; then
     for f in $FILES; do [ -f "$UNPACKED/$f" ] && put "$UNPACKED/$f" "$DEST/$f"; done
+    mkdir -p "$DEST/art"
+    for f in $ARTFILES; do [ -f "$UNPACKED/art/$f" ] && put "$UNPACKED/art/$f" "$DEST/art/$f"; done
   fi
 elif [ -n "$TARBALL" ]; then
   echo "installing $TARBALL"
@@ -62,12 +65,16 @@ elif [ -n "$TARBALL" ]; then
   tar -xzf "$TARBALL" -C "$STAGE"
   [ -x "$STAGE/azahar" ] || { echo "$TARBALL has no azahar program" >&2; exit 1; }
   for f in $FILES; do [ -f "$STAGE/$f" ] && put "$STAGE/$f" "$DEST/$f"; done
+  mkdir -p "$DEST/art"
+  for f in $ARTFILES; do [ -f "$STAGE/art/$f" ] && put "$STAGE/art/$f" "$DEST/art/$f"; done
 else
   echo "installing the build in $BUILD"
   strip --strip-unneeded -o "$DEST/azahar.new" "$BUILD/azahar" && mv "$DEST/azahar.new" "$DEST/azahar"
   for f in azaharframe.sh steam-cef.py uninstall.sh install.sh; do put "$HERE/$f" "$DEST/$f"; done
   [ -f "$HERE/../LICENSE.txt" ] && put "$HERE/../LICENSE.txt" "$DEST/LICENSE.txt"
   [ -f "$HERE/../THIRD_PARTY_NOTICES.md" ] && put "$HERE/../THIRD_PARTY_NOTICES.md" "$DEST/THIRD_PARTY_NOTICES.md"
+  mkdir -p "$DEST/art"
+  for f in $ARTFILES; do [ -f "$HERE/art/$f" ] && put "$HERE/art/$f" "$DEST/art/$f"; done
 fi
 chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh" 2> /dev/null || true
 
@@ -84,6 +91,7 @@ elif ! curl -s --max-time 3 127.0.0.1:8080/json > /dev/null; then
   STEAM_NOTE="Steam's debugging port is not reachable, so the library entry was skipped. Start Steam and run install.sh again."
 else
   CEF="python3 $DEST/steam-cef.py"
+  CEF_ART="python3 $DEST/steam-cef.py --art"
   EXISTING=$($CEF "(() => { for (const a of (appStore.allApps || [])) { if (a.display_name === '$NAME' && a.app_type === 1073741824) return a.appid; } return 0; })()" 2> /dev/null || echo 0)
   if [ -n "$EXISTING" ] && [ "$EXISTING" != "0" ]; then
     APPID=$EXISTING
@@ -91,6 +99,10 @@ else
     $CEF "(() => { SteamClient.Apps.SetShortcutExe($APPID, '\"$DEST/azaharframe.sh\"'); SteamClient.Apps.SetShortcutStartDir($APPID, '\"$DEST\"'); return 1; })()" > /dev/null
   else
     APPID=$($CEF "(async () => { const id = await SteamClient.Apps.AddShortcut('$NAME', '$DEST/azaharframe.sh', '$DEST', ''); SteamClient.Apps.SetShortcutName(id, '$NAME'); return id; })()")
+  fi
+  # Library art: portrait, wide, hero, logo and the dock icon, set live through Steam.
+  if [ -f "$DEST/art/portrait.png" ]; then
+    $CEF_ART "$APPID" "$DEST/art" || echo "note: could not set the library art; run install.sh again with Steam up"
   fi
   # 120 Hz, no throttling, no motion smoothing: the 3DS's 60 frames a second are
   # shown on every other refresh.  azaharframe.sh sets these again at every launch.
