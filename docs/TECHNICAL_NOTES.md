@@ -86,7 +86,7 @@ steam-frame/install.sh          # installs that tarball and adds the Steam entry
 
 The build uses Ninja, Release, `ENABLE_FFMPEG=OFF`, `USE_AUDIOTRACK=OFF`, Vulkan on and OpenGL off, tests, the room server, the web service, Discord and scripting off. It runs at the lowest priority and waits while the headset is in use (`~/.cache/headset-in-use`), because a build next to a VR session ruins the session. `ccache` is used when it is installed. The build directory, the flags and the job count can be changed with the environment variables listed at the top of `steam-frame/build.sh`.
 
-The release tarball holds `azahar` (stripped), `azaharframe.sh`, `install.sh`, `uninstall.sh`, `steam-cef.py`, `VERSION`, `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`. `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build without building. Tarballs and `SHA256SUMS` in `steam-frame/release/` are ignored by git.
+The release tarball holds `azahar` (stripped), `azaharframe.sh`, `install.sh`, `uninstall.sh`, `steam-cef.py`, `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and `art/` (the Steam library art, which `install.sh` sets on the shortcut). `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build without building. Tarballs and `SHA256SUMS` in `steam-frame/release/` are ignored by git.
 
 <!-- VERIFY: the build as written needs ENABLE_FRAME_XR and the OpenXR headers path; check CMake configures from a clean checkout -->
 

@@ -4,31 +4,41 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
 It is the [Azahar](https://github.com/azahar-emu/azahar) emulator with the VR mode from amwatson's [CitraVR](https://github.com/amwatson/CitraVR).
 
 ![Azahar for Frame](docs/images/cover.jpg)
-<!-- image: docs/images/cover.jpg, added before the release -->
+
+The emulator runs on the Frame itself, inside SteamVR. Azahar draws the 3DS screens with Vulkan straight into SteamVR, so nothing is streamed from a PC. You supply your own games.
+
+## Status
+
+I build it from source on the Frame. The first release is not out yet, and the install steps below are written for it.
+The parts that depend on the VR code are checked against the finished build before it is published.
 
 <!-- VERIFY: everything below that depends on the XR code is checked against the finished build before publishing. -->
 
-## Features
-
-- No Lepton, APK, adb or PC needed
-- Stereoscopic 3D top screen and a bottom touch screen, floating in front of you
-- A game picker in VR, with the icons and titles from your folders
-- Steam Frame controllers with the real D-pad
-- Azahar's own settings window on the SteamVR dashboard
-- Immersive mode for Ocarina of Time 3D and Majora's Mask 3D
-
-## How it works
-
-The emulator runs on the Frame itself, inside SteamVR.
-Azahar draws the 3DS screens with Vulkan straight into SteamVR.
-Nothing is streamed from a PC.
-
-## Known issues
+Known issues:
 
 - Immersive mode only has settings for Ocarina of Time 3D and Majora's Mask 3D. It is experimental.
 - The 3D slider is held on while you are in VR.
 
 <!-- VERIFY: both items -->
+
+The changes are listed in [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## What this adds
+
+Compared with CitraVR on the Quest:
+
+- It runs as a Linux program on the Frame. There is no Lepton, APK, adb or PC.
+- It draws with Vulkan into SteamVR through OpenXR.
+- It uses the Steam Frame controllers, with the real D-pad where CitraVR needed a trick.
+- It has a game picker in VR, with the icons and titles from your folders.
+- Azahar's own settings window is on the SteamVR dashboard.
+- Immersive mode runs on SteamVR.
+
+Compared with Azahar on a PC:
+
+- There is a stereoscopic 3D top screen and a bottom touch screen, floating in front of you.
+- You aim at the screens with a controller.
+- The 3D slider is held on.
 
 ## Requirements
 
@@ -55,14 +65,23 @@ Nothing is streamed from a PC.
 
 3. Launch **Azahar for Frame** from your Steam library.
 
-Another installer: [Frametanium](https://github.com/Cogential/frametanium), add `simplysanatori/AzaharFrame`.
+The installer adds the library entry with its artwork and sets SteamVR to 120 Hz for it. Another installer: [Frametanium](https://github.com/Cogential/frametanium), add `simplysanatori/AzaharFrame`.
 
-## Games
+### Update
 
-Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.cci`, `.3ds`, `.cxi`, `.cia` and `.3dsx` files.
+Download the new tarball and install it. Your settings, saves and keys stay.
 
-- Decrypted dumps work as they are.
-- Encrypted dumps need `aes_keys.txt` from your own console in `~/.local/share/AzaharFrame/user/sysdata/`.
+```sh
+steam-frame/install.sh ~/Downloads/azaharframe-<version>-linux-arm64.tar.gz
+```
+
+### Uninstall
+
+Quit the emulator first. Add `--purge` to also delete your settings, saves, keys and shader caches. Your games are never touched.
+
+```sh
+steam-frame/uninstall.sh
+```
 
 ## First run
 
@@ -74,6 +93,13 @@ The picker is empty the first time.
 4. Point at one and pull the trigger.
 
 <!-- VERIFY: steps 1 to 4 -->
+
+### Games
+
+Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.cci`, `.3ds`, `.cxi`, `.cia` and `.3dsx` files.
+
+- Decrypted dumps work as they are.
+- Encrypted dumps need `aes_keys.txt` from your own console in `~/.local/share/AzaharFrame/user/sysdata/`.
 
 ## Controls
 
@@ -103,7 +129,7 @@ Per-game settings work as in Azahar: right-click a game in the list and choose *
 
 The 3D slider is held on while you are in VR.
 
-## Immersive mode
+### Immersive mode
 
 Normally the top screen floats two metres away. In immersive mode the game's world wraps around you and follows your head.
 Turn it on in the game's properties, on the **Graphics** tab, in the **VR** group. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs.
@@ -118,31 +144,18 @@ The first time a game draws a new effect, the emulator compiles its shaders and 
 If a game drops frames, lower the internal resolution under **Emulation > Configure > Graphics**.
 Keep other heavy work off the Frame while you play.
 
-## Update
-
-Download the new tarball and install it. Your settings, saves and keys stay.
-
-```sh
-steam-frame/install.sh ~/Downloads/azaharframe-<version>-linux-arm64.tar.gz
-```
-
-## Uninstall
-
-Quit the emulator first. Add `--purge` to also delete your settings, saves, keys and shader caches. Your games are never touched.
-
-```sh
-steam-frame/uninstall.sh
-```
-
 ## Files
 
 | What | Where |
 |---|---|
 | Program and launcher | `~/Games/AzaharFrame/app` |
+| Steam library art | `~/Games/AzaharFrame/app/art` |
 | Settings, saves, keys, shader caches | `~/.local/share/AzaharFrame/user` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
+
+How the port works: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## Troubleshooting
 
@@ -160,30 +173,35 @@ Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFra
 They hold file paths and the names of your games. They hold no account names or network addresses. Check them before sharing.
 If the same thing happens in Azahar on a PC, report it to [Azahar](https://github.com/azahar-emu/azahar/issues) instead.
 
-## More
+## Build from source
 
-- [Controls](docs/CONTROLS.md)
-- [How the port works](docs/TECHNICAL.md)
-- [Building from source](docs/TECHNICAL_NOTES.md#building)
-- [Changelog](docs/CHANGELOG.md)
+On the Frame, with a C++ compiler, CMake 3.24 or newer, Ninja, the Qt 6 and SDL2 development files and Python 3:
+
+```sh
+steam-frame/build.sh 1.0.0
+steam-frame/install.sh
+```
+
+The first build takes about an hour and loads every core. It waits while the headset is in use. `build.sh` packs `steam-frame/release/azaharframe-1.0.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. The options are in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#building).
 
 ## Support
 
 Support upstream first: star [CitraVR](https://github.com/amwatson/CitraVR) and [Azahar](https://github.com/azahar-emu/azahar). Azahar for Frame's changes are not offered to them.
-For more Steam Frame ports, you can [buy me a coffee](https://ko-fi.com/sana748653).
+If you find a bug that also happens in Azahar on a PC, report it to [Azahar](https://github.com/azahar-emu/azahar/issues).
+If you would like more Steam Frame ports, you can also [buy me a coffee](https://ko-fi.com/sana748653).
 
 ## Credits
 
-- Built by [simplysanatori](https://github.com/simplysanatori)
 - [CitraVR](https://github.com/amwatson/CitraVR) by amwatson: the VR port this is built on
 - [Azahar](https://github.com/azahar-emu/azahar) and [Citra](https://github.com/citra-emu/citra): the emulator
+- The Azahar logo is by angyartanddraw and PabloMK7 (CC BY 4.0). The artwork backgrounds are SteamGridDB uploads by GarfieldGaming0624
 - Valve: SteamVR and the Frame
 
-Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). CitraVR's README: [README.upstream.md](README.upstream.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Nintendo 3DS is a trademark of Nintendo.
+Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Artwork sources: [steam-frame/art/CREDITS.md](steam-frame/art/CREDITS.md). CitraVR's README: [README.upstream.md](README.upstream.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Nintendo 3DS is a trademark of Nintendo.
 
 ## Licence
 
-GPLv3 or any later version, as upstream. See [LICENSE.txt](LICENSE.txt). Third-party parts keep their own licences.
+GPLv3 or any later version, same as upstream. See [LICENSE.txt](LICENSE.txt). Third-party parts keep their own licences.
 
 ## How this was made
 
