@@ -9,7 +9,7 @@
 #include "core/tracer/recorder.h"
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/renderer_base.h"
-#include "video_core/vr_immersive.h" // CitraFrame
+#include "video_core/vr_immersive.h" // AzaharFrame
 
 namespace VideoCore {
 
@@ -27,7 +27,7 @@ u32 RendererBase::GetResolutionScaleFactor() {
     }
 
     const u32 scale_factor = Settings::values.resolution_factor.GetValue();
-    // CitraFrame: two steps more in immersive mode (vr_immersive.h).
+    // AzaharFrame: two steps more in immersive mode (vr_immersive.h).
     return VideoCore::Immersive::AdjustResolution(
         scale_factor != 0 ? scale_factor : render_window.GetFramebufferLayout().GetScalingRatio());
 }

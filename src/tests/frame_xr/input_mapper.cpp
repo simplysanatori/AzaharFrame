@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include "frame_xr/input/mapper.h"
 #include "tests/frame_xr/input_test_util.h"
 
-// CitraFrame
+// AzaharFrame
 using Catch::Approx;
 using namespace FrameXr::Input;
 using namespace FrameXr::Input::TestUtil;

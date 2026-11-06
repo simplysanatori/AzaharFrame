@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -53,7 +53,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     mode_combo->addItem(tr("Off"));
     mode_combo->addItem(tr("Wide (3DoF)"));
     mode_combo->addItem(tr("Full (6DoF): Ocarina of Time, Majora's Mask"));
-    mode_combo->addItem(tr("Full (6DoF): Other Applications"));
+    mode_combo->addItem(tr("Full (6DoF): Other Games"));
     mode_row = MakeRow(
         this, QStringLiteral("frame_vr_mode_row"), tr("Immersive Mode"),
         tr("Draws a wider view of the game around you. Full also turns the game camera with "
@@ -79,7 +79,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     register_spin->setSpecialValueText(tr("Auto"));
     register_row = MakeRow(this, QStringLiteral("frame_vr_register_row"),
                            tr("View Matrix Register"),
-                           tr("Full (6DoF): Other Applications only. Auto finds it while you "
+                           tr("Full (6DoF): Other Games only. Auto finds it while you "
                               "play."),
                            {register_scope, register_spin});
     layout->addWidget(register_row);
@@ -88,7 +88,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     eye_edit = new QLineEdit(this);
     eye_edit->setPlaceholderText(tr("Auto (e.g. 87,2)"));
     eye_row = MakeRow(this, QStringLiteral("frame_vr_eye_row"), tr("Eye Indicator Register"),
-                      tr("Full (6DoF): Other Applications only. Register and index that tell "
+                      tr("Full (6DoF): Other Games only. Register and index that tell "
                          "the eyes apart. Leave empty to find it automatically."),
                       {eye_scope, eye_edit});
     layout->addWidget(eye_row);

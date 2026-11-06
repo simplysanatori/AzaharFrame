@@ -11,7 +11,7 @@
 #include "input_common/gcadapter/gc_adapter.h"
 #include "input_common/gcadapter/gc_poller.h"
 #endif
-#include "input_common/frame_xr.h" // CitraFrame
+#include "input_common/frame_xr.h" // AzaharFrame
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
@@ -49,7 +49,7 @@ void Init() {
     Input::RegisterFactory<Input::TouchDevice>("touch_from_button",
                                                std::make_shared<TouchFromButtonFactory>());
 
-    FrameXr::Register(); // CitraFrame
+    FrameXr::Register(); // AzaharFrame
 
     sdl = SDL::Init();
 
@@ -66,7 +66,7 @@ void Shutdown() {
     Input::UnregisterFactory<Input::ButtonDevice>("keyboard");
     keyboard.reset();
     Input::UnregisterFactory<Input::AnalogDevice>("analog_from_button");
-    FrameXr::Unregister(); // CitraFrame
+    FrameXr::Unregister(); // AzaharFrame
     Input::UnregisterFactory<Input::MotionDevice>("motion_emu");
     motion_emu.reset();
     Input::UnregisterFactory<Input::TouchDevice>("emu_window");
@@ -86,7 +86,7 @@ std::string ButtonToText(const Common::ParamPackage& param) {
         return param.Serialize();
     }
 
-    if (engine_str == "frame_xr") { // CitraFrame
+    if (engine_str == "frame_xr") { // AzaharFrame
         return FrameXr::ButtonToText(param);
     }
 
@@ -139,7 +139,7 @@ std::string AnalogToText(const Common::ParamPackage& param, const std::string& d
         return ButtonToText(Common::ParamPackage{param.Get(dir, "")});
     }
 
-    if (engine_str == "frame_xr") { // CitraFrame
+    if (engine_str == "frame_xr") { // AzaharFrame
         return FrameXr::AnalogToText(param, dir);
     }
 
@@ -284,7 +284,7 @@ std::vector<std::unique_ptr<DevicePoller>> GetPollers(DeviceType type) {
     }
 #endif
 
-    FrameXr::AppendPollers(pollers, type); // CitraFrame
+    FrameXr::AppendPollers(pollers, type); // AzaharFrame
 
     return pollers;
 }

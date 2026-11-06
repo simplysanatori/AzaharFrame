@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -10,7 +10,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 
-// CitraFrame
+// AzaharFrame
 // Pure controller logic: InputFrame + where the two screens are -> virtual gamepad, touch events,
 // panel drag commands and the cursor. No OpenXR, Qt or emulator calls; call Update once per
 // display frame from the XR thread. The mapping is described in MAPPING.md.
@@ -54,7 +54,7 @@ struct TouchEvent {
     float y = 0.0f;
 };
 
-/// The pointer dot. Lane A draws it as a small quad at `position`, facing `orientation`, `scale_m`
+/// The pointer dot. The XR core draws it as a small quad at `position`, facing `orientation`, `scale_m`
 /// wide (it grows slowly with distance so it stays visible on a far screen, as in CitraVR).
 struct Cursor {
     bool visible = false;
@@ -84,7 +84,7 @@ struct PanelCommands {
     /// stick is within the threshold. Only non-zero while top_drag_active.
     float top_depth_delta_z = 0.0f;
     /// Put both screens back to their default poses (right stick click). Also the "recentre":
-    /// lane A places the defaults in front of the current head heading.
+    /// the XR core places the defaults in front of the current head heading.
     bool reset_panels = false;
     /// View was held long enough: stop the game and return to the picker. Fires once per hold.
     bool stop_game = false;

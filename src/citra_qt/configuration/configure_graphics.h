@@ -17,7 +17,7 @@ namespace ConfigurationShared {
 enum class CheckState;
 }
 
-class ConfigureFrameVr; // CitraFrame
+class ConfigureFrameVr; // AzaharFrame
 
 class ConfigureGraphics : public QWidget {
     Q_OBJECT
@@ -50,5 +50,5 @@ private:
     ConfigurationShared::CheckState simulate_3ds_gpu_timings;
     std::unique_ptr<Ui::ConfigureGraphics> ui;
     QColor bg_color;
-    ConfigureFrameVr* frame_vr = nullptr; // CitraFrame: the VR group (immersive mode)
+    ConfigureFrameVr* frame_vr = nullptr; // AzaharFrame: the VR group (immersive mode)
 };

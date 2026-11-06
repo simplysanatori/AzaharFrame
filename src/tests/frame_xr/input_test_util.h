@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -7,7 +7,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/mapper.h"
 
-// CitraFrame
+// AzaharFrame
 // Shared fixtures for the frame_xr input tests.
 namespace FrameXr::Input::TestUtil {
 

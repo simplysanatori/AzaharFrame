@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs the CitraFrame binary against the mock OpenXR runtime (tools/xrmock)
+# Runs the Azahar for Frame binary against the mock OpenXR runtime (tools/xrmock)
 # and collects what it did.
 #
 #   mockrun.sh [--bin PATH] [--rom PATH] [--seconds N] [--script FILE]
@@ -9,7 +9,7 @@
 # Runs `BIN --vr ROM [extra args]` under XR_RUNTIME_JSON pointing at the mock
 # for N seconds of wall time (default 20), then ends it with SIGTERM (SIGKILL
 # after 15 s).  Writes into DIR (default
-# ~/Games/CitraFrame/reports/mock/<timestamp>/): emulator.log, trace.txt (the
+# ~/Games/AzaharFrame/reports/mock/<timestamp>/): emulator.log, trace.txt (the
 # mock's trace), dumps/*.png (swapchain images, MOCK_XR_DUMP_*), and
 # summary.txt.  Exit status 0 when the run passed (see RESULT in summary.txt).
 #
@@ -25,7 +25,7 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 XRM=$HERE/xrmock
-CF=$HOME/Games/CitraFrame
+CF=$HOME/Games/AzaharFrame
 BIN=$CF/build-xrcore/bin/Release/azahar
 BUILD=${XRMOCK_BUILD:-$CF/build-xrmock}
 ROM="" SECS=20 SCRIPT="" OUT="" VVL=0 DISP=xvfb HZ="" BUSY="" DUMPF=last
@@ -120,7 +120,7 @@ END=$(date +%s)
 cf_unlock
 
 # The emulator's own log, when it writes one in the usual place.
-for d in "$HOME/.local/share/azahar-emu/log" "$HOME/.local/share/CitraFrame/log"; do
+for d in "$HOME/.local/share/azahar-emu/log" "$HOME/.local/share/AzaharFrame/log"; do
     for f in "$d"/*.txt; do
         [ -f "$f" ] && [ "$f" -nt "$MARK" ] && cp "$f" "$OUT/app_$(basename "$f")"
     done

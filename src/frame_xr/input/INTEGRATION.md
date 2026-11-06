@@ -1,13 +1,13 @@
-# Wiring the controller input into the XR core (for lane A)
+# Wiring the controller input into the XR core
 
 Everything below runs on the XR thread (the one that calls `xrWaitFrame`) unless noted. Nothing in
-this lane has been compiled or run yet (builds are forbidden on the Frame right now), so expect a
+this code has been compiled or run yet, so expect a
 round of compile fixes.
 
 ## 1. CMake
 
 `src/input_common/CMakeLists.txt` already lists `frame_xr.cpp` / `frame_xr.h`, and
-`src/input_common/main.cpp` registers the engine (marked `// CitraFrame`, six small hooks: include,
+`src/input_common/main.cpp` registers the engine (marked `// AzaharFrame`, six small hooks: include,
 Register, Unregister, ButtonToText, AnalogToText, pollers).
 
 Add to the `frame_xr` target:
@@ -96,7 +96,7 @@ if (actions.Sync(session, local_space, frame_state.predictedDisplayTime, in)) {
 ```
 
 `Process` does the rest: it writes the virtual pad that the emulation thread reads (atomics, no
-locking) and sends touch press / move / release to the touch sink. If another part of lane A already
+locking) and sends touch press / move / release to the touch sink. If another part of the XR core already
 calls `xrSyncActions`, pass `sync = false` to `Actions::Sync` and include `actions.action_set()` in
 that call's active action sets.
 

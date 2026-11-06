@@ -1,4 +1,4 @@
-# CitraFrame in-VR application picker.
+# Azahar for Frame in-VR application picker.
 #
 #   frame_xr_picker_core  library scan + icon cache + picker state/drawing. No emulator
 #                         dependencies, so it is unit-tested on its own.

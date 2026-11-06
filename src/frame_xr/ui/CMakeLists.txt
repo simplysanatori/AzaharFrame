@@ -1,4 +1,4 @@
-# CitraFrame in-VR UI canvas: CPU rasteriser and baked bitmap font. No dependencies.
+# Azahar for Frame in-VR UI canvas: CPU rasteriser and baked bitmap font. No dependencies.
 add_library(frame_xr_ui STATIC
     ui_canvas.cpp
     ui_canvas.h

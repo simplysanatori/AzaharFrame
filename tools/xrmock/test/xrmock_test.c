@@ -1,5 +1,5 @@
 // A tiny OpenXR app to prove the mock runtime (../xrmock.c) works without any
-// of CitraFrame's code: XR_KHR_vulkan_enable2 instance and device, a session,
+// of Azahar for Frame's code: XR_KHR_vulkan_enable2 instance and device, a session,
 // one 400x240 quad swapchain, 120 frames of acquire / wait / clear / fence /
 // release / endFrame, and the frame_controller actions of ../README.md.
 //

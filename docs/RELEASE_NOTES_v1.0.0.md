@@ -1,8 +1,8 @@
-# CitraFrame 1.0.0
+# Azahar for Frame 1.0.0
 
 > **DRAFT.** Checked against the finished build before it is published. <!-- VERIFY -->
 
-Nintendo 3DS games in VR, running natively on the Valve Steam Frame. CitraFrame is a fork of amwatson's CitraVR, built on Azahar, with its own SteamVR presentation and Frame controls. You need your own games; no game data is included.
+Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for Frame is a fork of amwatson's CitraVR, built on Azahar, with its own SteamVR presentation and Frame controls. You need your own games; no game data is included.
 
 ### The emulator on the Frame
 
@@ -33,12 +33,12 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. CitraFrame 
 
 ## Download
 
-- `citraframe-1.0.0-linux-arm64.tar.gz`
+- `azaharframe-1.0.0-linux-arm64.tar.gz`
 - `SHA256SUMS`
 
 ## Install
 
-Run `steam-frame/install.sh` from the repository with the tarball as its argument. It installs the program and creates the Steam library entry. The [README](https://github.com/simplysanatori/CitraFrame/blob/steam-frame/README.md) has the steps, how to add your games and the controls.
+Run `steam-frame/install.sh` from the repository with the tarball as its argument. It installs the program and creates the Steam library entry. The [README](https://github.com/simplysanatori/AzaharFrame/blob/steam-frame/README.md) has the steps, how to add your games and the controls.
 
 ## Known
 
@@ -49,4 +49,4 @@ Run `steam-frame/install.sh` from the repository with the tarball as its argumen
 
 ## Reporting problems
 
-Open an issue with what you did, what you expected and what happened, and `launch.log` and `user/log/citravr_log.txt` from `~/.local/share/CitraFrame`.
+Open an issue with what you did, what you expected and what happened, and `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame`.

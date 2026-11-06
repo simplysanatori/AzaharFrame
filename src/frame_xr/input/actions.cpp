@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,9 +8,9 @@
 #include <vector>
 #include "common/logging/log.h"
 #include "frame_xr/input/actions.h"
-#include "frame_xr/xr_calls.h" // CitraFrame: calls through the run-time loader
+#include "frame_xr/xr_calls.h" // AzaharFrame: calls through the run-time loader
 
-// CitraFrame
+// AzaharFrame
 namespace FrameXr::Input {
 
 struct Actions::Impl {
@@ -138,8 +138,8 @@ bool Actions::Create(XrInstance instance, bool has_frame_controller) {
     s.hand_path[1] = ToPath(instance, "/user/hand/right");
 
     XrActionSetCreateInfo set_info{XR_TYPE_ACTION_SET_CREATE_INFO};
-    std::strcpy(set_info.actionSetName, "citraframe_input");
-    std::strcpy(set_info.localizedActionSetName, "CitraFrame");
+    std::strcpy(set_info.actionSetName, "azaharframe_input");
+    std::strcpy(set_info.localizedActionSetName, "Azahar for Frame");
     if (XR_FAILED(xrCreateActionSet(instance, &set_info, &action_set_))) {
         LOG_ERROR(Input, "xrCreateActionSet failed");
         return false;

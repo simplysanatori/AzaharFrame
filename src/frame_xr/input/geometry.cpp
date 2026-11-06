@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -6,7 +6,7 @@
 #include <cmath>
 #include "frame_xr/input/geometry.h"
 
-// CitraFrame
+// AzaharFrame
 namespace FrameXr::Input {
 
 Vec3f operator+(const Vec3f& a, const Vec3f& b) {

@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: the "VR" group on the Graphics tab (global and per application): CitraVR's
+// AzaharFrame: the "VR" group on the Graphics tab (global and per application): CitraVR's
 // immersive mode settings, with CitraVR's keys (Settings::values.vr_*). Built in code, no .ui.
 
 #pragma once

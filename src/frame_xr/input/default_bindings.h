@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include "common/settings.h"
 #include "frame_xr/input/controls.h"
 
-// CitraFrame
+// AzaharFrame
 // The default VR input profile: which virtual gamepad control drives which 3DS button or stick.
 // This is CitraVR's mapping with the Frame's real D-pad as the D-pad. The table is the single
 // source of truth: the default profile strings, the tests and MAPPING.md all follow it.

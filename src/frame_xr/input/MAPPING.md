@@ -1,4 +1,4 @@
-# CitraFrame controller mapping (input lane)
+# Azahar for Frame controller mapping (input)
 
 Source of truth for docs/CONTROLS.md. Owner decision (plan Q3): keep CitraVR's mapping, with the
 Steam Frame's real D-pad as the 3DS D-pad. Every row below is implemented in `mapper.cpp` and
@@ -64,10 +64,10 @@ picker. (CitraVR had an Exit button in its menu ribbon.)
 
 - The menu ribbon (Select, Start, Exit, performance stats, settings, positional menu) that the
   left Menu button opened. Select, Start and Exit are now buttons; settings are in the Qt window;
-  stats are lane A's.
+  stats are the XR core's.
 - The positional menu paused the emulation while screens were arranged and could also drag the
   bottom screen from the ribbon. Here only the top screen is dragged, and it never pauses the
-  game. The bottom screen moves only with a reset (lane A may let it follow the top screen).
+  game. The bottom screen moves only with a reset (the XR core may let it follow the top screen).
 - CitraVR forwarded the sticks to the game even while dragging; here the dragging hand's stick is
   held back, because it drives the depth.
 - CitraVR switched the pointing hand with either trigger and used one shared "cursor visible"

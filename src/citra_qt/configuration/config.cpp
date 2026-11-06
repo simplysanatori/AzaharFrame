@@ -290,7 +290,7 @@ void QtConfig::ReadValues() {
     ReadAudioValues();
     ReadSystemValues();
     ReadUtilityValues();
-    ReadVrValues(); // CitraFrame
+    ReadVrValues(); // AzaharFrame
 }
 
 void QtConfig::ReadAudioValues() {
@@ -485,7 +485,7 @@ void QtConfig::ReadUtilityValues() {
     qt_config->endGroup();
 }
 
-// CitraFrame: CitraVR's immersive mode settings, in CitraVR's "VR" section with its keys.
+// AzaharFrame: CitraVR's immersive mode settings, in CitraVR's "VR" section with its keys.
 void QtConfig::ReadVrValues() {
     qt_config->beginGroup(QStringLiteral("VR"));
 
@@ -968,7 +968,7 @@ void QtConfig::SaveValues() {
     SaveAudioValues();
     SaveSystemValues();
     SaveUtilityValues();
-    SaveVrValues(); // CitraFrame
+    SaveVrValues(); // AzaharFrame
     qt_config->sync();
 }
 
@@ -1101,7 +1101,7 @@ void QtConfig::SaveUtilityValues() {
     qt_config->endGroup();
 }
 
-// CitraFrame
+// AzaharFrame
 void QtConfig::SaveVrValues() {
     qt_config->beginGroup(QStringLiteral("VR"));
 

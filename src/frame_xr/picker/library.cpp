@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 
 #include "frame_xr/picker/library.h"
@@ -274,10 +274,10 @@ void IconCache::Store(const std::string& path, int64_t mtime, uint64_t size,
 
 std::string DefaultIconCacheDir() {
     if (const char* xdg = std::getenv("XDG_CACHE_HOME"); xdg && *xdg) {
-        return std::string(xdg) + "/citraframe/icons";
+        return std::string(xdg) + "/azaharframe/icons";
     }
     if (const char* home = std::getenv("HOME"); home && *home) {
-        return std::string(home) + "/.cache/citraframe/icons";
+        return std::string(home) + "/.cache/azaharframe/icons";
     }
     return {};
 }

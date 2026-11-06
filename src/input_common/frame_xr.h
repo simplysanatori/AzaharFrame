@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -17,7 +17,7 @@
 #include "frame_xr/input/controls.h"
 #include "input_common/main.h"
 
-// CitraFrame
+// AzaharFrame
 // The "frame_xr" input engine: the Steam Frame controllers as a virtual gamepad.
 //
 // The XR thread (frame_xr/input/input_bridge) writes the pad state once per display frame with
@@ -29,7 +29,7 @@
 
 namespace InputCommon::FrameXr {
 
-/// Where touches on the bottom screen go (lane A wires it to GRenderWindow::TouchPressed /
+/// Where touches on the bottom screen go (the XR core wires it to GRenderWindow::TouchPressed /
 /// TouchMoved / TouchReleased). Coordinates are the 3DS bottom screen's native pixels, 0..320 x
 /// 0..240, origin top left; scale them with the framebuffer layout's bottom_screen rectangle.
 /// Called on the XR thread.
@@ -71,7 +71,7 @@ void SendTouchPressed(float x, float y);
 void SendTouchMoved(float x, float y);
 void SendTouchReleased();
 
-/// The default VR profile: CitraVR's mapping with the Frame's D-pad (see MAPPING.md). Lane A
+/// The default VR profile: CitraVR's mapping with the Frame's D-pad (see MAPPING.md). The XR core
 /// applies it when VR starts so the Qt Controls dialog edits a profile that already works.
 struct DefaultProfile {
     std::string name;

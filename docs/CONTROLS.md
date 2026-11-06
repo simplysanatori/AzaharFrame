@@ -1,8 +1,8 @@
 # Controls
 
-> **DRAFT.** This is the layout decided for the first release. The final mapping is written by the input code in `src/frame_xr/input/MAPPING.md`; this table is replaced from it before the release. <!-- VERIFY: replace with MAPPING.md -->
+<!-- VERIFY: every row is checked against src/frame_xr/input/MAPPING.md and in the headset before the release. -->
 
-CitraFrame keeps CitraVR's layout and uses the Steam Frame controllers' real D-pad where CitraVR needed a trick on the Quest. The emulator sees a 3DS with a New 3DS's C-Stick, ZL and ZR. The layout is the default **VR** controls profile in Azahar's **Emulation > Configure > Controls** window, so you can change any of it there.
+Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' real D-pad where CitraVR needed a trick on the Quest. The emulator sees a 3DS with a New 3DS's C-Stick, ZL and ZR. The layout is the default **VR** controls profile in Azahar's **Emulation > Configure > Controls** window, so you can change any of it there.
 
 ## Buttons
 
@@ -17,24 +17,36 @@ CitraFrame keeps CitraVR's layout and uses the Steam Frame controllers' real D-p
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
 | **Menu** | Start | |
-| **View** | Select | Hold for 1.5 seconds to go back to the game picker |
-| Bumpers | Not mapped | |
+| **View** | Select | Hold for 1.5 seconds to stop the game and go back to the picker |
+| Left stick click | Home | |
+| Right stick click | Resets the screen positions | |
+| Bumpers | Not mapped | They can be bound in the Controls window |
+
+The left Steam button belongs to SteamVR and is never bound.
 
 ## Pointing
 
-Each controller has a laser. A dot shows where it hits a screen.
+Each controller has a laser. A dot shows where it hits a screen. The hand that pulled its trigger last owns the dot.
 
 | Aim at | Trigger | Stick |
 |---|---|---|
 | Bottom screen | Touch. Hold and move to drag | |
-| Top screen | Hold to move the screen with the controller | Up and down: nearer and farther |
+| Top screen | Hold to move the screen. It stays the same distance from you and turns to face you | Up and down: nearer and farther. That stick does not reach the game while you drag |
 | The game picker | Select a game | Scroll |
 
-The screens keep their place when you let go. The reset command puts both back where they start. <!-- VERIFY: how reset is bound -->
+What a trigger does is decided when you pull it. If the laser is on neither screen, it is ZL or ZR, and stays that for as long as you hold it.
 
-## Home and recentre
+The screens keep their place when you let go. The right stick click puts both back where they start.
 
-<!-- VERIFY: Home and recentre bindings are taken from CitraVR (vr_main.cpp) and mapped to Menu and View in the input code. Fill in from MAPPING.md. -->
+## Immersive mode
+
+| Control | What it does |
+|---|---|
+| Left bumper | Shows or hides the bottom screen. Every game starts with it hidden |
+| Right stick click | Also re-centres the view on your head |
+| Triggers | ZL and ZR while the bottom screen is hidden |
+
+More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
 ## Other controllers
 
@@ -42,4 +54,4 @@ SDL game controllers still work, and keyboard and mouse work in the desktop wind
 
 ## Rumble
 
-<!-- VERIFY: v1 has no rumble unless lane C adds it; delete this section if it is not in MAPPING.md. -->
+None. <!-- VERIFY: delete if rumble gets added -->

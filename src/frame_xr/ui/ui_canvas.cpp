@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 //
 // Adapted from GalaxyFrame's ui_canvas (same author).

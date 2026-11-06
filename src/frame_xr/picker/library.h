@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 
 // The application library behind the in-VR picker: finds 3DS files in a list of
@@ -100,7 +100,7 @@ private:
     std::string dir;
 };
 
-/// "~/.cache/citraframe/icons" (honours XDG_CACHE_HOME), or "" if no home is known.
+/// "~/.cache/azaharframe/icons" (honours XDG_CACHE_HOME), or "" if no home is known.
 std::string DefaultIconCacheDir();
 
 class Library {

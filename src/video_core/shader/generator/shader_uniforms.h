@@ -84,7 +84,7 @@ struct VSUniformData {
 #endif
 
     // CitraVR: VR data at the end to ensure it doesn't interfere with existing uniforms' alignment
-    // CitraFrame: 1 by default; 0 (value-initialised) made the shader divide by zero until
+    // AzaharFrame: 1 by default; 0 (value-initialised) made the shader divide by zero until
     // SetVRData ran, which only CitraVR's Android frontend did every frame.
     alignas(4) float vr_immersive_mode_factor = 1.0f;
 };

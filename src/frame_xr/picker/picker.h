@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 
 // State, layout and drawing of the in-VR application picker: a grid of icon tiles,

@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: CitraVR's immersive mode on the Steam Frame (see IMMERSIVE.md).
+// AzaharFrame: CitraVR's immersive mode on the Steam Frame (see IMMERSIVE.md).
 //
 // Settings::values.vr_immersive_mode (CitraVR's key, per game in the Qt window):
 //   0  Off.

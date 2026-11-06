@@ -5,7 +5,7 @@
 #include <QColorDialog>
 #include <QStandardItemModel>
 #include "citra_qt/configuration/configuration_shared.h"
-#include "citra_qt/configuration/configure_frame_vr.h" // CitraFrame
+#include "citra_qt/configuration/configure_frame_vr.h" // AzaharFrame
 #include "citra_qt/configuration/configure_graphics.h"
 #include "common/settings.h"
 #include "ui_configure_graphics.h"
@@ -17,7 +17,7 @@ ConfigureGraphics::ConfigureGraphics(QString gl_renderer, std::span<const QStrin
                                      bool is_powered_on, QWidget* parent)
     : QWidget(parent), ui(std::make_unique<Ui::ConfigureGraphics>()) {
     ui->setupUi(this);
-#ifdef ENABLE_FRAME_XR // CitraFrame: the VR group, above the spacer at the end
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the VR group, above the spacer at the end
     frame_vr = new ConfigureFrameVr(this);
     ui->verticalLayout->insertWidget(ui->verticalLayout->count() - 1, frame_vr);
 #endif
@@ -162,7 +162,7 @@ void ConfigureGraphics::SetConfiguration() {
             Settings::values.use_display_refresh_rate_detection.GetValue());
     }
     ui->simulate_3ds_gpu_timings->setChecked(Settings::values.simulate_3ds_gpu_timings.GetValue());
-    if (frame_vr) { // CitraFrame
+    if (frame_vr) { // AzaharFrame
         frame_vr->SetConfiguration();
     }
 }
@@ -205,7 +205,7 @@ void ConfigureGraphics::ApplyConfiguration() {
         Settings::values.use_display_refresh_rate_detection =
             ui->toggle_display_refresh_rate_detection->isChecked();
     }
-    if (frame_vr) { // CitraFrame
+    if (frame_vr) { // AzaharFrame
         frame_vr->ApplyConfiguration();
     }
 }

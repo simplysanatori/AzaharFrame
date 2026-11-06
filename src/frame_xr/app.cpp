@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
@@ -17,7 +17,7 @@
 #include "common/logging/log.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
-#include "frame_xr/immersive.h" // CitraFrame immersive mode
+#include "frame_xr/immersive.h" // AzaharFrame immersive mode
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -190,7 +190,7 @@ bool Runtime::PollEvents() {
             LOG_WARNING(Frontend, "xr: events lost");
             break;
         default:
-            // Interaction profile changes and the like: for the input lane's
+            // Interaction profile changes and the like: for the input code's
             // state callbacks to look up with their own calls.
             break;
         }
@@ -438,7 +438,7 @@ bool Start(const StartOptions& options) {
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
     g_runtime->StartThread();
-    Immersive::Install(); // CitraFrame immersive mode
+    Immersive::Install(); // AzaharFrame immersive mode
     LOG_INFO(Frontend, "xr: started");
     return true;
 }
@@ -450,7 +450,7 @@ void Shutdown() {
     LOG_INFO(Frontend, "xr: shutting down");
     VideoCore::SetXrScreenSink(nullptr);
     g_runtime->StopThread();
-    Immersive::Uninstall(); // CitraFrame immersive mode
+    Immersive::Uninstall(); // AzaharFrame immersive mode
     g_runtime->Destroy();
     g_runtime.reset();
 }

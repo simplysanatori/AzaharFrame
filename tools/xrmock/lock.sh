@@ -32,7 +32,7 @@ cf_wait_and_lock() {
         if why=$(cf_busy "$1"); then
             [ "$why" != "$last" ] && echo "waiting: $why" >&2
             last=$why
-        elif ( set -o noclobber; echo citraframe > "$CF_LOCK_FILE" ) 2>/dev/null; then
+        elif ( set -o noclobber; echo azaharframe > "$CF_LOCK_FILE" ) 2>/dev/null; then
             CF_HAVE_LOCK=1
             return 0
         else

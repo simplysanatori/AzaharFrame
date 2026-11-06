@@ -1,12 +1,12 @@
 # Third-party notices
 
-CitraFrame, and the program built from it, contain or are derived from the
+Azahar for Frame, and the program built from it, contain or are derived from the
 following works, used under their licences. Each licence text is in the
 repository next to the code, at the path given.
 
 ## CitraVR
 
-CitraFrame is a fork of CitraVR by amwatson
+Azahar for Frame is a fork of CitraVR by amwatson
 (https://github.com/amwatson/CitraVR), a VR front end for the 3DS emulator on
 the Meta Quest. The renderer changes that make the 3DS picture work in VR (the
 immersive mode factor in the vertex shader, the view matrix hook in the
@@ -19,9 +19,9 @@ later version: see [LICENSE.txt](LICENSE.txt). CitraVR's own README is kept as
 
 The emulator is Azahar (https://github.com/azahar-emu/azahar), which continues
 the Citra project (https://github.com/citra-emu/citra). CitraVR carries Azahar
-2127.0-alpha4, which CitraFrame is merged with. Citra's code is under the GNU
+2127.0-alpha4, which Azahar for Frame is merged with. Citra's code is under the GNU
 General Public License, version 2 or later; Azahar's changes are under version 3
-or any later version, and so is CitraFrame as a whole. Source files carry the
+or any later version, and so is Azahar for Frame as a whole. Source files carry the
 notice "Copyright Citra Emulator Project / Azahar Emulator Project, licensed
 under GPLv3 or any later version". The GPLv2 text is kept in the repository
 in [misc/licenses/gplv2.txt](misc/licenses/gplv2.txt).
@@ -33,12 +33,12 @@ The dark window themes are QDarkStyleSheet (MIT): [dist/qt_themes/qdarkstyle/LIC
 ## Qt
 
 The settings window is Qt 6 (https://www.qt.io), under the GNU Lesser General
-Public License, version 3. CitraFrame does not include Qt: the program links the
+Public License, version 3. Azahar for Frame does not include Qt: the program links the
 Qt 6 libraries that SteamOS provides.
 
 ## OpenXR
 
-CitraFrame talks to SteamVR through OpenXR (https://www.khronos.org/openxr/).
+Azahar for Frame talks to SteamVR through OpenXR (https://www.khronos.org/openxr/).
 
 - The OpenXR headers used to build the VR code come from the Khronos
   OpenXR-SDK-Source (https://github.com/KhronosGroup/OpenXR-SDK-Source), under
@@ -120,10 +120,10 @@ not part of the program.
 
 ## Not included
 
-- Game data, game keys, firmware or BIOS dumps. CitraFrame contains none.
+- Game data, game keys, firmware or BIOS dumps. Azahar for Frame contains none.
   Games, and the keys that decrypt some of them, come from your own 3DS.
 - Valve's SteamVR and OpenXR loader, which are on the Frame and are not copied.
 
-3DS, Nintendo and their logos are trademarks of Nintendo. CitraFrame is an
+3DS, Nintendo and their logos are trademarks of Nintendo. Azahar for Frame is an
 unofficial fan project, not affiliated with or endorsed by Nintendo, Valve, the
 Azahar team or the CitraVR author.

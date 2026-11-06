@@ -20,7 +20,7 @@
 #include "video_core/renderer_software/sw_blitter.h"
 #include "video_core/right_eye_disabler.h"
 #include "video_core/video_core.h"
-#include "video_core/vr_immersive.h" // CitraFrame
+#include "video_core/vr_immersive.h" // AzaharFrame
 
 namespace VideoCore {
 
@@ -571,7 +571,7 @@ void GPU::VBlankCallback(std::uintptr_t user_data, s64 cycles_late) {
 
     // Present renderered frame.
     impl->renderer->SwapBuffers();
-    // CitraFrame: the newest immersive-mode head pose for the next frame (vr_immersive.h).
+    // AzaharFrame: the newest immersive-mode head pose for the next frame (vr_immersive.h).
     VideoCore::Immersive::ApplyPending(impl->rasterizer);
 
     // Reschedule recurrent event

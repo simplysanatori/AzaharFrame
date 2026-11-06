@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 
 #include "frame_xr/picker/picker.h"
@@ -80,7 +80,7 @@ constexpr float kScrollRepeatDelay = 0.5f;
 constexpr float kScrollRepeatEvery = 0.35f;
 
 std::string Plural(int n) {
-    return std::to_string(n) + (n == 1 ? " Application" : " Applications");
+    return std::to_string(n) + (n == 1 ? " Game" : " Games");
 }
 
 } // namespace
@@ -243,7 +243,7 @@ void Picker::Draw() {
     canvas.Clear(kBackground);
 
     // Header.
-    canvas.Text(kMargin, 76.0f, ui::kFontLarge, "CitraFrame", kText);
+    canvas.Text(kMargin, 76.0f, ui::kFontLarge, "Azahar for Frame", kText);
     const std::string count = scanning ? std::string("Scanning") : Plural(static_cast<int>(entries.size()));
     if (scanning || !entries.empty()) {
         canvas.Text(RescanButton().x0 - 28.0f, 66.0f, ui::kFontSmall, count.c_str(), kTextDim, 2);
@@ -254,16 +254,16 @@ void Picker::Draw() {
     if (entries.empty()) {
         const float cx = kWidth * 0.5f;
         if (!has_dirs) {
-            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Application Folders Set", kText, 1);
+            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Game Folders Set", kText, 1);
             canvas.Text(cx, 520.0f, ui::kFontSmall,
-                        "Add One in the CitraFrame Window on the Dashboard", kTextDim, 1);
-            canvas.Text(cx, 560.0f, ui::kFontSmall, "Then Select Rescan", kTextDim, 1);
+                        "Add one in the Azahar for Frame window on the dashboard", kTextDim, 1);
+            canvas.Text(cx, 560.0f, ui::kFontSmall, "Then select Rescan", kTextDim, 1);
         } else if (scanning) {
-            canvas.Text(cx, 480.0f, ui::kFontLarge, "Scanning Applications", kText, 1);
+            canvas.Text(cx, 480.0f, ui::kFontLarge, "Scanning Games", kText, 1);
         } else {
-            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Applications Found", kText, 1);
+            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Games Found", kText, 1);
             canvas.Text(cx, 520.0f, ui::kFontSmall,
-                        "Check the Folders in the CitraFrame Window, Then Select Rescan", kTextDim, 1);
+                        "Check the folders in the Azahar for Frame window, then select Rescan", kTextDim, 1);
         }
     } else {
         for (int slot = 0; slot < kTilesPerPage; slot++) {
@@ -286,7 +286,7 @@ void Picker::Draw() {
         canvas.Text(kWidth * 0.5f, 938.0f, ui::kFontSmall, buf, kTextDim, 1);
     }
     canvas.Text(kWidth * 0.5f, 1000.0f, ui::kFontSmall,
-                "Settings Are in the CitraFrame Window on the Dashboard", kTextDim, 1);
+                "Settings are in the Azahar for Frame window on the dashboard", kTextDim, 1);
 }
 
 } // namespace frame_xr::picker

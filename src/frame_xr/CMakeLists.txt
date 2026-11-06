@@ -1,4 +1,4 @@
-# CitraFrame: the OpenXR frontend. The OpenXR headers are vendored
+# AzaharFrame: the OpenXR frontend. The OpenXR headers are vendored
 # (third_party/openxr, Khronos, Apache-2.0 OR MIT); the loader is opened at run
 # time (SteamVR's, frame_xr/xr_loader.cpp), so nothing here links to OpenXR.
 add_library(frame_xr STATIC EXCLUDE_FROM_ALL
@@ -16,7 +16,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     xr_includes.h
     xr_loader.cpp
     xr_loader.h
-    # Controller input (lane C): actions, mapping, bridge to input_common.
+    # Controller input (input): actions, mapping, bridge to input_common.
     input/actions.cpp
     input/actions.h
     input/controls.h
@@ -33,7 +33,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
 
 create_target_directory_groups(frame_xr)
 
-# The in-VR application picker and its UI canvas (lane D).
+# The in-VR application picker and its UI canvas (picker).
 add_subdirectory(picker)
 
 target_include_directories(frame_xr PUBLIC ${PROJECT_SOURCE_DIR}/third_party/openxr/include)

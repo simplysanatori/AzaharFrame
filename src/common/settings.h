@@ -712,7 +712,7 @@ struct Values {
 
     // VR
     Setting<bool> vr_extra_performance_mode_enabled{false, "vr_extra_performance_mode"};
-    // CitraFrame: switchable, so the Qt window can set them per game (same keys as CitraVR).
+    // AzaharFrame: switchable, so the Qt window can set them per game (same keys as CitraVR).
     SwitchableSetting<u32> vr_immersive_mode{0, "vr_immersive_mode"};
     SwitchableSetting<int32_t> vr_si_mode_register_offset{-1, "vr_si_mode_register_offset"};
     SwitchableSetting<u32> vr_immersive_positional_game_scaler{

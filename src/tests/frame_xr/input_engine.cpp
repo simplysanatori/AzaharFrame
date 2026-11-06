@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -12,7 +12,7 @@
 #include "frame_xr/input/default_bindings.h"
 #include "input_common/frame_xr.h"
 
-// CitraFrame
+// AzaharFrame
 using Catch::Approx;
 namespace Fx = InputCommon::FrameXr;
 using FrameXr::Input::AnalogControl;

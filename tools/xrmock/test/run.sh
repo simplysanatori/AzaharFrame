@@ -3,7 +3,7 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 TOOLS=$(cd "$HERE/../.." && pwd)
-BUILD=${XRMOCK_BUILD:-$HOME/Games/CitraFrame/build-xrmock}
+BUILD=${XRMOCK_BUILD:-$HOME/Games/AzaharFrame/build-xrmock}
 "$TOOLS/xrmock/build.sh" "$BUILD"
 OUT=${1:-$BUILD/test-run}
 rm -rf "$OUT"

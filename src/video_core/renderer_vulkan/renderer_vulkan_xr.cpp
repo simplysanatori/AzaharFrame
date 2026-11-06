@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: RendererVulkan::RenderToXr, called from SwapBuffers after the
+// AzaharFrame: RendererVulkan::RenderToXr, called from SwapBuffers after the
 // window was drawn. Draws each of the three screens full size into its own XR
 // swapchain image (top-left eye, top-right eye, bottom), submits once, and hands
 // the images to the release thread (vk_xr_target.cpp), which releases them to

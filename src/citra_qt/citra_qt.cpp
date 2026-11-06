@@ -138,7 +138,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <SDL.h>
 #endif
 
-#ifdef ENABLE_FRAME_XR // CitraFrame
+#ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
@@ -463,7 +463,7 @@ GMainWindow::GMainWindow(Core::System& system_)
         }
 
         if (args[i] == QStringLiteral("--version") || args[i] == QStringLiteral("-v")) {
-            const std::string version_string = std::string("Azahar ") + Common::g_build_fullname;
+            const std::string version_string = std::string("Azahar for Frame ") + Common::g_build_fullname;
             ShowCommandOutput("Version", version_string);
             exit(0);
         }
@@ -474,7 +474,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             continue;
         }
 
-#ifdef ENABLE_FRAME_XR // CitraFrame
+#ifdef ENABLE_FRAME_XR // AzaharFrame
         if (args[i] == QStringLiteral("--vr")) {
             g_frame_xr_requested = true;
             continue;
@@ -636,7 +636,7 @@ GMainWindow::GMainWindow(Core::System& system_)
     physical_devices = GetVulkanPhysicalDevices();
 #endif
 
-#ifdef ENABLE_FRAME_XR // CitraFrame: the XR session starts before any game boots.
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the XR session starts before any game boots.
     if (g_frame_xr_requested) {
         FrameXr::StartOptions xr_options;
         xr_options.window_type = FrameXrWindowSystemType();
@@ -680,11 +680,11 @@ GMainWindow::GMainWindow(Core::System& system_)
             });
             signal_timer->start(100);
 
-            // Test driver (headless runs): CITRAFRAME_TEST_BOOTS="a.3ds|b.cci" boots
-            // each ROM in turn after the first, each for CITRAFRAME_TEST_SECONDS (15).
-            const QString boots = qEnvironmentVariable("CITRAFRAME_TEST_BOOTS");
+            // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
+            // each ROM in turn after the first, each for AZAHARFRAME_TEST_SECONDS (15).
+            const QString boots = qEnvironmentVariable("AZAHARFRAME_TEST_BOOTS");
             if (!boots.isEmpty()) {
-                const int seconds = qEnvironmentVariableIntValue("CITRAFRAME_TEST_SECONDS");
+                const int seconds = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_SECONDS");
                 const int period_ms = (seconds > 0 ? seconds : 15) * 1000;
                 int at_ms = game_path.isEmpty() ? 1000 : period_ms;
                 for (const QString& rom : boots.split(QLatin1Char('|'), Qt::SkipEmptyParts)) {
@@ -1795,7 +1795,7 @@ void GMainWindow::BootGame(const QString& filename) {
         QtConfig per_game_config(config_file_name, QtConfig::ConfigType::PerGameConfig);
     }
 
-#ifdef ENABLE_FRAME_XR // CitraFrame: in VR the 3D slider is always on (stereo top screen).
+#ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).
     if (FrameXr::IsStarted() && Settings::values.factor_3d.GetValue() == 0) {
         LOG_INFO(Frontend, "xr: 3D slider was 0, set to 50 for VR");
         Settings::values.factor_3d.SetValue(50);
@@ -1903,7 +1903,7 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
-#ifdef ENABLE_FRAME_XR // CitraFrame: hides the picker
+#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker
     FrameXr::SetGameRunning(true);
 #endif
     if (ui->action_Fullscreen->isChecked()) {
@@ -2005,7 +2005,7 @@ void GMainWindow::ShutdownGame() {
     UpdateSaveStates();
 
     emulation_running = false;
-#ifdef ENABLE_FRAME_XR // CitraFrame: back to the picker (folders may have changed)
+#ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker (folders may have changed)
     if (FrameXr::IsStarted()) {
         FrameXr::SetGameRunning(false);
         FrameXrPushGameDirs();
@@ -4742,12 +4742,12 @@ void GMainWindow::UpdateWindowTitle() {
     const QString full_name = QString::fromUtf8(Common::g_build_fullname);
 
     if (game_title.isEmpty()) {
-        setWindowTitle(QStringLiteral("Azahar %1").arg(full_name));
+        setWindowTitle(QStringLiteral("Azahar for Frame %1").arg(full_name));
     } else {
-        setWindowTitle(QStringLiteral("Azahar %1 | %2").arg(full_name, game_title));
+        setWindowTitle(QStringLiteral("Azahar for Frame %1 | %2").arg(full_name, game_title));
         render_window->setWindowTitle(
-            QStringLiteral("Azahar %1 | %2 | %3").arg(full_name, game_title, tr("Primary Window")));
-        secondary_window->setWindowTitle(QStringLiteral("Azahar %1 | %2 | %3")
+            QStringLiteral("Azahar for Frame %1 | %2 | %3").arg(full_name, game_title, tr("Primary Window")));
+        secondary_window->setWindowTitle(QStringLiteral("Azahar for Frame %1 | %2 | %3")
                                              .arg(full_name, game_title, tr("Secondary Window")));
     }
 }
@@ -5018,7 +5018,7 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     app.processEvents();
 
     int result = app.exec();
-#ifdef ENABLE_FRAME_XR // CitraFrame: no renderer exists any more.
+#ifdef ENABLE_FRAME_XR // AzaharFrame: no renderer exists any more.
     InputCommon::FrameXr::SetTouchSink(nullptr);
     g_frame_xr_touch_sink.reset();
     FrameXr::Shutdown();

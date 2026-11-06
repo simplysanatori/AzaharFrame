@@ -35,7 +35,7 @@ Unit tests (not built unless `ENABLE_TESTS`): `src/tests/frame_xr/`, target
 using namespace frame_xr::picker;
 
 // 1. Create (any thread; starts one idle worker thread). The icon cache lives in
-//    ~/.cache/citraframe/icons (XDG_CACHE_HOME honoured).
+//    ~/.cache/azaharframe/icons (XDG_CACHE_HOME honoured).
 auto library = std::make_shared<Library>(ReadMetadataWithLoader, DefaultIconCacheDir());
 Picker picker(library);          // 1536 x 1024 texture, fonts decoded here
 

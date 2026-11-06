@@ -1,6 +1,6 @@
 # xrmock
 
-A mock OpenXR runtime for testing CitraFrame's XR code without the headset,
+A mock OpenXR runtime for testing Azahar for Frame's XR code without the headset,
 and `../mockrun.sh`, which runs the emulator against it. Ported from
 GalaxyFrame's `tools/xrmock` (Unlicense); the OpenXR headers in `include/` are
 Khronos's (Apache-2.0 or MIT).
@@ -8,7 +8,7 @@ Khronos's (Apache-2.0 or MIT).
 ## Build
 
 `tools/xrmock/build.sh [out dir]` builds `libxrmock.so`, `runtime.json` and the
-test program `xrmock_test` into `~/Games/CitraFrame/build-xrmock` (or the out
+test program `xrmock_test` into `~/Games/AzaharFrame/build-xrmock` (or the out
 dir). It needs a C compiler, the Vulkan headers (found in the repo's
 `externals/vulkan-headers`, or set `VULKAN_INCLUDE`) and nothing of the
 emulator's build. Select the runtime with `XR_RUNTIME_JSON=<out>/runtime.json`.
@@ -103,16 +103,16 @@ GalaxyFrame app uses: `/user/hand/{left,right}/input/` with `thumbstick`,
                      [--out DIR] [--vvl] [--display xvfb|offscreen|host]
                      [--hz N] [--busy MS] [--dump-frame N|last] [-- extra args]
 
-Runs `BIN --vr ROM` (default `~/Games/CitraFrame/build-xrcore/bin/Release/azahar`)
+Runs `BIN --vr ROM` (default `~/Games/AzaharFrame/build-xrcore/bin/Release/azahar`)
 for N wall-clock seconds (default 20), ends it with SIGTERM, and writes
 `emulator.log`, `trace.txt`, `dumps/`, and `summary.txt` into the out dir
-(default `~/Games/CitraFrame/reports/mock/<timestamp>/`). The summary ends in
+(default `~/Games/AzaharFrame/reports/mock/<timestamp>/`). The summary ends in
 `RESULT: PASS` or `RESULT: FAIL: ...`, which is also the exit status.
 
 ## Test
 
 `test/xrmock_test.c` is a small app that has nothing to do with
-CitraFrame: Vulkan instance and device through the runtime, a session, one
+Azahar for Frame: Vulkan instance and device through the runtime, a session, one
 400x240 quad swapchain, 120 frames of acquire / clear / fence / release /
 `xrEndFrame`, and a few `frame_controller` actions. `test/run.sh` builds and
 runs it through `mockrun.sh` with `test/input.script` and checks the result.

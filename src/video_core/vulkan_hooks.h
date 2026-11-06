@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: seams between the Vulkan renderer and an OpenXR frontend
+// AzaharFrame: seams between the Vulkan renderer and an OpenXR frontend
 // (src/frame_xr), which installs them before the first renderer is made.
 // video_core only sees these interfaces, never OpenXR.
 //

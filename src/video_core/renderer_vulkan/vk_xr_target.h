@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: the renderer's side of the XR output (VideoCore::XrScreenSink).
+// AzaharFrame: the renderer's side of the XR output (VideoCore::XrScreenSink).
 // RendererVulkan::RenderToXr (renderer_vulkan_xr.cpp) draws the three screens into
 // the XR swapchains after the window; this class owns what that needs on the
 // device (render pass, pipeline, framebuffers of the swapchain images) and the
@@ -97,7 +97,7 @@ private:
     std::mutex mutex;
     std::condition_variable_any cv;
     std::deque<PendingRelease> queue;
-    bool skip_gpu_wait = false; ///< CITRAFRAME_XR_NO_GPU_WAIT=1: negative test only
+    bool skip_gpu_wait = false; ///< AZAHARFRAME_XR_NO_GPU_WAIT=1: negative test only
     std::jthread release_thread;
 };
 

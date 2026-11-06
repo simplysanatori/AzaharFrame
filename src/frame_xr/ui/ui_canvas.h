@@ -1,7 +1,7 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 //
-// A CPU canvas for CitraFrame's own panels (the in-VR application picker):
+// A CPU canvas for Azahar for Frame's own panels (the in-VR application picker):
 // anti-aliased rounded shapes, scaled image blits and text from the baked
 // glyph atlas in ui_font.h, into premultiplied RGBA8 pixels (R in the low
 // byte, sRGB-encoded colours), rows top down.

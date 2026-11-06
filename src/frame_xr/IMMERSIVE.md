@@ -16,7 +16,7 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | 0 | Off | normal | the normal screens |
 | 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.5 m ahead, fixed in the room, 1.25 x 0.75 m. Its middle third (the game's own frame) has the angular size of the normal top screen |
 | 2 | Full (6DoF): Ocarina of Time, Majora's Mask | 1.4x wider; view matrix register 4 follows the head (rotation and position) | head-locked, 0.5 m ahead, both eyes on one quad |
-| 3 | Full (6DoF): Other Applications | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye |
+| 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye |
 
 The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
 Multiplier: 0 = 1x, 1 = 10x, 2 = 100x; how far the camera moves with your head, times the 3D
@@ -71,8 +71,8 @@ fields; that race is gone.
 - **Size of the head-locked screen.** It shows the game's view at the angle the game drew it, so
   that turning your head turns the game camera by the same angle as the picture moves and the
   world stays put: 2 x 0.5 m x 1.4 x tan(60 / 2) = 0.81 m high (78 degrees), 1.35 m wide, for a
-  game camera 60 degrees high (Ocarina of Time's). `CITRAFRAME_IMMERSIVE_FOV` sets that angle.
-  The plan's "normal top screen x 1.4" is `CITRAFRAME_IMMERSIVE_FOV=28`.
+  game camera 60 degrees high (Ocarina of Time's). `AZAHARFRAME_IMMERSIVE_FOV` sets that angle.
+  The plan's "normal top screen x 1.4" is `AZAHARFRAME_IMMERSIVE_FOV=28`.
 - **Mode 3 eye offset** from the located eye poses (half your IPD), not a fixed 32.5 mm.
 - **Reference pose.** CitraVR used Quest's LOCAL space, whose origin is the head at start. SteamVR's
   LOCAL origin can be anywhere, and the head position is multiplied by 5 or more, so the pose is
@@ -92,9 +92,9 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CITRAFRAME_IMMERSIVE_FOV` | 60 | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size |
-| `CITRAFRAME_IMMERSIVE_DISTANCE` | 0.5 | metres to the top screen (0.2..5); sizes scale with it, so only stereo depth changes |
-| `CITRAFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
+| `AZAHARFRAME_IMMERSIVE_FOV` | 60 | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size |
+| `AZAHARFRAME_IMMERSIVE_DISTANCE` | 0.5 | metres to the top screen (0.2..5); sizes scale with it, so only stereo depth changes |
+| `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
 
 ## Testing
 
@@ -127,16 +127,16 @@ Set the mode without the dialog (global config, `qt-config.ini` of the user dire
    screen; the HUD is readable.
 3. Turn your head slowly left and right: the game camera turns with it and the forest stays put
    in the world. If the world swims along with your head, the screen is too small: raise
-   `CITRAFRAME_IMMERSIVE_FOV` (try 70, 80); if it swims against your head, lower it (50).
+   `AZAHARFRAME_IMMERSIVE_FOV` (try 70, 80); if it swims against your head, lower it (50).
    Note the value that feels still.
 4. Lean and crouch: the camera moves a little with your head (Depth Factor Multiplier 1x).
 5. Depth: the forest looks 3D, not doubled. If it is uncomfortable, try
-   `CITRAFRAME_IMMERSIVE_DISTANCE=1.0`.
+   `AZAHARFRAME_IMMERSIVE_DISTANCE=1.0`.
 6. Left Bumper: normal screens come back with the bottom screen, touch works; Left Bumper again:
    immersive again. Right Stick Click while looking 45 degrees to the side: that becomes
    straight ahead in the game.
 7. Mode 1: a big screen in front of you, fixed in the room, the middle of it about the size of
-   the normal top screen. Mode 3 (Other Applications) on Ocarina of Time: also works after a
+   the normal top screen. Mode 3 (Other Games) on Ocarina of Time: also works after a
    while (the heuristic needs about 5000 uniform uploads).
 8. Watch for: judder or swimming that does not depend on FOV (would point at latency, note the
    frame rate shown in the log summary), black or stretched top screen, a crash when stopping

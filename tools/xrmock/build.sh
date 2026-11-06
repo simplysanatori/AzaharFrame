@@ -2,16 +2,16 @@
 # Builds the mock OpenXR runtime and its test program:
 #   tools/xrmock/build.sh [out dir]
 # Writes libxrmock.so, runtime.json (for XR_RUNTIME_JSON) and xrmock_test into
-# the out dir (default ~/Games/CitraFrame/build-xrmock).  Standalone: a C
+# the out dir (default ~/Games/AzaharFrame/build-xrmock).  Standalone: a C
 # compiler, the Vulkan headers and the OpenXR headers kept in include/.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
-OUT=${1:-$HOME/Games/CitraFrame/build-xrmock}
+OUT=${1:-$HOME/Games/AzaharFrame/build-xrmock}
 CC=${CC:-$(command -v clang || command -v gcc)}
 XRINC=${OPENXR_INCLUDE:-$HERE/include}
 VKINC=${VULKAN_INCLUDE:-}
-for d in "$REPO/externals/vulkan-headers/include" "$HOME/Games/CitraFrame/src/externals/vulkan-headers/include" /usr/include; do
+for d in "$REPO/externals/vulkan-headers/include" "$HOME/Games/AzaharFrame/src/externals/vulkan-headers/include" /usr/include; do
     [ -n "$VKINC" ] && break
     [ -f "$d/vulkan/vulkan.h" ] && VKINC=$d
 done

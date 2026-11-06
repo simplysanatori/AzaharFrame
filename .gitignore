@@ -64,6 +64,6 @@ GIT-TAG
 
 # verify-release.sh downloads
 verify/
-# CitraFrame release tarballs
+# Azahar for Frame release tarballs
 steam-frame/release/*.tar.gz
 steam-frame/release/SHA256SUMS

@@ -46,7 +46,7 @@ add_library(citra_qt STATIC EXCLUDE_FROM_ALL
     configuration/configure_enhancements.cpp
     configuration/configure_enhancements.h
     configuration/configure_enhancements.ui
-    configuration/configure_frame_vr.cpp # CitraFrame
+    configuration/configure_frame_vr.cpp # AzaharFrame
     configuration/configure_frame_vr.h
     configuration/configure_layout.cpp
     configuration/configure_layout.h
@@ -304,7 +304,7 @@ endif()
 create_target_directory_groups(citra_qt)
 
 target_link_libraries(citra_qt PRIVATE audio_core citra_common citra_core input_common network video_core)
-if (ENABLE_FRAME_XR) # CitraFrame
+if (ENABLE_FRAME_XR) # AzaharFrame
     target_link_libraries(citra_qt PRIVATE frame_xr)
 endif()
 target_link_libraries(citra_qt PUBLIC Boost::boost Qt6::Widgets)

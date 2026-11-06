@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
@@ -71,10 +71,10 @@ XrPresentTarget::XrPresentTarget(const Instance& instance_, Scheduler& scheduler
                                  vk::PipelineLayout pipeline_layout)
     : instance{instance_}, scheduler{scheduler_}, sink{sink_}, device{instance.GetDevice()},
       format{static_cast<vk::Format>(sink.SwapchainFormat())} {
-    const char* no_wait = std::getenv("CITRAFRAME_XR_NO_GPU_WAIT");
+    const char* no_wait = std::getenv("AZAHARFRAME_XR_NO_GPU_WAIT");
     skip_gpu_wait = no_wait && no_wait[0] == '1';
     if (skip_gpu_wait) {
-        LOG_WARNING(Render_Vulkan, "xr: CITRAFRAME_XR_NO_GPU_WAIT=1, images are released "
+        LOG_WARNING(Render_Vulkan, "xr: AZAHARFRAME_XR_NO_GPU_WAIT=1, images are released "
                                    "without waiting for the GPU (test only)");
     }
     CreateRenderPass();

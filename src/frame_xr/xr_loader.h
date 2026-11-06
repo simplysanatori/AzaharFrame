@@ -1,9 +1,9 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
 // The OpenXR loader, opened at run time (SteamVR ships its own, with no soname)
-// and the entry points CitraFrame uses, resolved through xrGetInstanceProcAddr.
+// and the entry points Azahar for Frame uses, resolved through xrGetInstanceProcAddr.
 // Nothing links libopenxr_loader: a build without a headset runtime still starts.
 
 #pragma once
@@ -85,7 +85,7 @@ struct XrFunctions {
 /// The resolved entry points (all null until LoadLoader / LoadInstanceFunctions).
 XrFunctions& Xr();
 
-/// Opens the loader: $CITRAFRAME_OPENXR_LOADER, else SteamVR's, else the system's.
+/// Opens the loader: $AZAHARFRAME_OPENXR_LOADER, else SteamVR's, else the system's.
 bool LoadLoader();
 
 /// Resolves the instance and extension entry points. False if a core one is missing.

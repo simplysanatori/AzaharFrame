@@ -1,4 +1,4 @@
-> This is the README of the upstream project, [CitraVR](https://github.com/amwatson/CitraVR) by amwatson, kept as it was when CitraFrame was forked. It describes the Meta Quest app. CitraFrame's own README is [README.md](README.md).
+> This is the README of the upstream project, [CitraVR](https://github.com/amwatson/CitraVR) by amwatson, kept as it was when Azahar for Frame was forked. It describes the Meta Quest app. Azahar for Frame's own README is [README.md](README.md).
 
 <h1 align="center">
   <br>

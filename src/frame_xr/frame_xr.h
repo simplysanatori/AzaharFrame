@@ -1,11 +1,11 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame's OpenXR frontend: one XrInstance, Vulkan device and XrSession for
+// Azahar for Frame's OpenXR frontend: one XrInstance, Vulkan device and XrSession for
 // the whole run of citra_qt --vr, a frame loop thread at display rate that shows
 // the game's three screens as quad layers, and the extension points the input,
-// picker and immersive lanes build on.
+// picker and immersive code build on.
 //
 // Threads: Start / Shutdown on the GUI thread. The renderer (emu thread) draws the
 // screens into the swapchains through VideoCore::XrScreenSink. The XR thread waits,
@@ -32,7 +32,7 @@ namespace FrameXr {
 struct StartOptions {
     /// The window system of the Qt window (picks the Vulkan surface extension).
     Frontend::WindowSystemType window_type{};
-    /// Instance extensions enabled when the runtime offers them (lanes add theirs).
+    /// Instance extensions enabled when the runtime offers them (other parts add theirs).
     std::vector<std::string> optional_extensions{"XR_FB_display_refresh_rate",
                                                  "XR_VALVE_frame_controller_interaction"};
 };
@@ -135,7 +135,7 @@ struct LibraryDir {
 };
 void SetLibraryDirs(const std::vector<LibraryDir>& dirs);
 
-/// Handles for the other lanes (XR_NULL_HANDLE before Start / before the first game).
+/// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();
 XrSystemId System();
 XrSession Session();

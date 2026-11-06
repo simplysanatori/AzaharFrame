@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include <cstdint>
 #include "frame_xr/input/types.h"
 
-// CitraFrame
+// AzaharFrame
 namespace FrameXr::Input {
 
 /// One hand of the Steam Frame controllers, as read by Actions::Sync.

@@ -4,9 +4,9 @@ Technical notes for people working on the port. For playing, see the [README](..
 
 > Parts of this document describe code that is written after the notes. Each such section is marked `VERIFY` in the source of this file and is checked against the finished build before the release.
 
-## What CitraFrame is
+## What Azahar for Frame is
 
-CitraFrame is one process: Azahar's Qt program (`azahar`, still called that) plus a new `src/frame_xr/` that owns the OpenXR session. The Qt window is the settings dialog and stays on the SteamVR dashboard. The emulator's emulation thread renders the 3DS's screens as usual; a copy of those screens goes to SteamVR.
+Azahar for Frame is one process: Azahar's Qt program (`azahar`, still called that) plus a new `src/frame_xr/` that owns the OpenXR session. The Qt window is the settings dialog and stays on the SteamVR dashboard. The emulator's emulation thread renders the 3DS's screens as usual; a copy of those screens goes to SteamVR.
 
 Everything CitraVR changed in the emulator's core (the vertex shader factor, the view matrix hook in the rasterizer, the forced 3D slider) is kept and is Vulkan-ready as it stands. The rest of CitraVR (about 5,700 lines of OpenXR code in `jni/vr`, plus the Kotlin app) is Android only and is not built.
 
@@ -55,7 +55,7 @@ SteamVR on the Frame has no cylinder layer and no passthrough, only quads and pr
 
 <!-- VERIFY -->
 
-One quad, 1.6 m wide, 2 m in front of you, drawn on the CPU (the same UI canvas and bitmap font as GalaxyFrame). It lists the games in the folders the Qt window knows (`UISettings::values.game_dirs`) with the 48x48 icon and title read from each game's SMDH. Icons are cached in `~/.cache/citraframe/icons`. Pointing at a tile highlights it; the trigger or **A** boots it through the same code as double-clicking in the Qt list (`GMainWindow::BootGame`, queued onto the Qt thread). **B** goes back, the stick scrolls. A **Rescan** tile rereads the folders.
+One quad, 1.6 m wide, 2 m in front of you, drawn on the CPU (the same UI canvas and bitmap font as GalaxyFrame). It lists the games in the folders the Qt window knows (`UISettings::values.game_dirs`) with the 48x48 icon and title read from each game's SMDH. Icons are cached in `~/.cache/azaharframe/icons`. Pointing at a tile highlights it; the trigger or **A** boots it through the same code as double-clicking in the Qt list (`GMainWindow::BootGame`, queued onto the Qt thread). **B** goes back, the stick scrolls. A **Rescan** tile rereads the folders.
 
 In a game, holding **View** for 1.5 seconds calls `ShutdownGame` and returns to the picker.
 
@@ -71,7 +71,7 @@ In a game, holding **View** for 1.5 seconds calls `ShutdownGame` and returns to 
 
 CitraVR's trick: the vertex shader divides `gl_Position.xy` by `vr_immersive_mode_factor`, so the game's world is drawn larger on the screen, and the rasterizer multiplies the game's own view matrix register by the inverse of the head pose (`SetVRData` / `ApplyVRDataToPicaVSUniforms`). It guesses where the matrix is, which only works for a few games.
 
-CitraFrame feeds the head pose once a frame from the `frame_xr` thread, as an atomic snapshot the emulation thread reads, where CitraVR let the two threads race. The top screen is a quad in view space 0.5 m in front of the head, sized by the factor, with an offset of 0.0325 m for each eye in mode 3. Immersive mode raises the internal resolution by two steps. The settings are per game in the Qt dialog, with CitraVR's keys (`vr_immersive_mode` and the ones next to it). The heuristics cover Ocarina of Time 3D and Majora's Mask 3D.
+Azahar for Frame feeds the head pose once a frame from the `frame_xr` thread, as an atomic snapshot the emulation thread reads, where CitraVR let the two threads race. The top screen is a quad in view space 0.5 m in front of the head, sized by the factor, with an offset of 0.0325 m for each eye in mode 3. Immersive mode raises the internal resolution by two steps. The settings are per game in the Qt dialog, with CitraVR's keys (`vr_immersive_mode` and the ones next to it). The heuristics cover Ocarina of Time 3D and Majora's Mask 3D.
 
 ## Shader caches
 
@@ -79,6 +79,6 @@ Azahar's Vulkan renderer writes a disk cache of translated shaders and one of th
 
 ## Launcher and files
 
-`citraframe.sh` starts inside `~/.local/share/CitraFrame`, which holds a `user/` folder, and so Azahar uses it as its portable user directory instead of `~/.local/share/azahar-emu`. It unsets the Mesa overrides and `LD_LIBRARY_PATH` that Steam sets for games, sets `XR_RUNTIME_JSON` to SteamVR's runtime file only if nothing else names a runtime, sets SteamVR's per-app settings, and creates `~/.cache/headset-in-use` while the emulator runs so other work on the Frame waits.
+`azaharframe.sh` starts inside `~/.local/share/AzaharFrame`, which holds a `user/` folder, and so Azahar uses it as its portable user directory instead of `~/.local/share/azahar-emu`. It unsets the Mesa overrides and `LD_LIBRARY_PATH` that Steam sets for games, sets `XR_RUNTIME_JSON` to SteamVR's runtime file only if nothing else names a runtime, sets SteamVR's per-app settings, and creates `~/.cache/headset-in-use` while the emulator runs so other work on the Frame waits.
 
 The OpenXR loader is SteamVR's own, `/opt/steamvr/bin/linuxarm64/libopenxr_loader.so`, opened at run time; the headers are vendored in `third_party/openxr`. The program links the Qt 6 and SDL2 libraries SteamOS has; OpenAL Soft and Cubeb are built in.

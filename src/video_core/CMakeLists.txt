@@ -199,7 +199,7 @@ if (ENABLE_VULKAN)
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/vk_swapchain.h>
         renderer_vulkan/vk_texture_runtime.cpp
         renderer_vulkan/vk_texture_runtime.h
-        # CitraFrame: XR output (no OpenXR here; frame_xr implements the sink)
+        # AzaharFrame: XR output (no OpenXR here; frame_xr implements the sink)
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/renderer_vulkan_xr.cpp>
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/vk_xr_target.cpp>
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/vk_xr_target.h>

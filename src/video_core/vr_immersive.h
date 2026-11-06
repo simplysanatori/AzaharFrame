@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: the hand-off for CitraVR's immersive mode between the frame_xr thread and the
+// AzaharFrame: the hand-off for CitraVR's immersive mode between the frame_xr thread and the
 // emulation thread.
 //
 // CitraVR called RasterizerInterface::SetVRData from its OpenXR thread while the emulation

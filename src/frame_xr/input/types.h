@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include <cmath>
 #include <cstdint>
 
-// CitraFrame
+// AzaharFrame
 // Plain math types for the controller input code. This header (and everything in
 // frame_xr/input except actions.*) has no OpenXR or Qt dependency so it can be unit tested.
 // Conventions follow OpenXR: right handed, +Y up, -Z forward, quaternions are x,y,z,w, and a quad

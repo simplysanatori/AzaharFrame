@@ -192,7 +192,7 @@ endif()
 if(ENABLE_FREECAM)
     add_compile_definitions(ENABLE_FREECAM)
 endif()
-if(ENABLE_FRAME_XR) # CitraFrame
+if(ENABLE_FRAME_XR) # AzaharFrame
     add_compile_definitions(ENABLE_FRAME_XR)
 endif()
 
@@ -207,7 +207,7 @@ if (ENABLE_TESTS)
     add_subdirectory(tests)
 endif()
 
-if (ENABLE_FRAME_XR) # CitraFrame
+if (ENABLE_FRAME_XR) # AzaharFrame
     add_subdirectory(frame_xr)
 endif()
 

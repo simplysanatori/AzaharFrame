@@ -24,7 +24,7 @@
 #include "common/settings.h"
 #include "core/frontend/emu_window.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
-#include "video_core/vulkan_hooks.h" // CitraFrame
+#include "video_core/vulkan_hooks.h" // AzaharFrame
 
 namespace Vulkan {
 
@@ -385,7 +385,7 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
     }
 #endif
 
-    // CitraFrame: an OpenXR frontend makes the instance once per process and every
+    // AzaharFrame: an OpenXR frontend makes the instance once per process and every
     // Instance adopts it (Instance::~Instance releases it instead of destroying it).
     if (auto* hooks = VideoCore::GetVulkanHooks()) {
         const VkInstance adopted =

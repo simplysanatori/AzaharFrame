@@ -1,8 +1,8 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// CitraFrame: CitraVR's immersive mode (vr_main.cpp UpdateImmersiveModeIfNeeded and
+// AzaharFrame: CitraVR's immersive mode (vr_main.cpp UpdateImmersiveModeIfNeeded and
 // GameSurfaceLayer.cpp FrameTopPanel) for SteamVR, which has no cylinder layers: the top screen
 // is a quad, head-locked in VIEW space for modes 2 and 3, fixed in the room for mode 1. See
 // IMMERSIVE.md for the behaviour and the differences from CitraVR.
@@ -60,9 +60,9 @@ float EnvFloat(const char* name, float fallback, float lo, float hi) {
 // Headset tuning without a rebuild (IMMERSIVE.md).
 Tuning ReadTuning() {
     Tuning t;
-    t.distance = EnvFloat("CITRAFRAME_IMMERSIVE_DISTANCE", kDefaultDistance, 0.2f, 5.0f);
-    t.game_fov_y_deg = EnvFloat("CITRAFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
-    const char* local = std::getenv("CITRAFRAME_IMMERSIVE_LOCAL");
+    t.distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", kDefaultDistance, 0.2f, 5.0f);
+    t.game_fov_y_deg = EnvFloat("AZAHARFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
+    const char* local = std::getenv("AZAHARFRAME_IMMERSIVE_LOCAL");
     t.local_space = local && std::string(local) == "1";
     return t;
 }

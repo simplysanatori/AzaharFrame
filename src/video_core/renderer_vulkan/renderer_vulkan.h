@@ -12,7 +12,7 @@
 #else
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_present_window.h"
-#include "video_core/renderer_vulkan/vk_xr_target.h" // CitraFrame
+#include "video_core/renderer_vulkan/vk_xr_target.h" // AzaharFrame
 #endif
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_render_manager.h"
@@ -105,7 +105,7 @@ private:
     void RenderToWindow(PresentWindow& window, const Layout::FramebufferLayout& layout,
                         bool flipped);
 #ifndef HAVE_LIBRETRO
-    void RenderToXr(); // CitraFrame: renderer_vulkan_xr.cpp
+    void RenderToXr(); // AzaharFrame: renderer_vulkan_xr.cpp
 #endif
 
     void DrawScreens(Frame* frame, const Layout::FramebufferLayout& layout, bool flipped);
@@ -138,7 +138,7 @@ private:
 #endif
     Scheduler scheduler;
 #ifndef HAVE_LIBRETRO
-    XrQueueRegistration xr_queue_registration{scheduler}; // CitraFrame
+    XrQueueRegistration xr_queue_registration{scheduler}; // AzaharFrame
 #endif
     RenderManager renderpass_cache;
     PresentWindow main_present_window;
@@ -167,7 +167,7 @@ private:
     bool screenRendered;
     u64 previous_frame_tick{};
 #ifndef HAVE_LIBRETRO
-    std::unique_ptr<XrPresentTarget> xr_target; // CitraFrame
+    std::unique_ptr<XrPresentTarget> xr_target; // AzaharFrame
 #endif
 };
 

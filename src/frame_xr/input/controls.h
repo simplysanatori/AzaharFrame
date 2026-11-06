@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include <cstddef>
 #include "frame_xr/input/types.h"
 
-// CitraFrame
+// AzaharFrame
 // The "frame_xr" input engine exposes the Steam Frame controllers as a virtual gamepad. These are
 // the engine's inputs: the physical controls after the mapper has decided which of them are for
 // the game (a trigger that is aiming at a screen is a touch or a drag, not ZL/ZR). The default

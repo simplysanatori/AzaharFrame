@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
@@ -83,7 +83,7 @@ bool Runtime::Create(const StartOptions& options) {
     }
 
     XrInstanceCreateInfo ci{XR_TYPE_INSTANCE_CREATE_INFO};
-    std::strncpy(ci.applicationInfo.applicationName, "CitraFrame",
+    std::strncpy(ci.applicationInfo.applicationName, "Azahar for Frame",
                  XR_MAX_APPLICATION_NAME_SIZE - 1);
     ci.applicationInfo.applicationVersion = 1;
     std::strncpy(ci.applicationInfo.engineName, "Azahar", XR_MAX_ENGINE_NAME_SIZE - 1);

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Steam shortcut target for CitraFrame.  Runs the emulator in VR (azahar --vr).
+# Steam shortcut target for Azahar for Frame.  Runs the emulator in VR (azahar --vr).
 #
-# The data folder is ~/.local/share/CitraFrame (CITRAFRAME_HOME).  The emulator
+# The data folder is ~/.local/share/AzaharFrame (AZAHARFRAME_HOME).  The emulator
 # starts inside it, and because it holds a folder called user/, the emulator
 # keeps its settings, saves, keys and shader caches there (its portable mode)
 # instead of in ~/.local/share/azahar-emu.  This wrapper's own output goes to
@@ -9,16 +9,16 @@
 #
 # Test settings for one launch from the Steam library, which passes no
 # environment of its own: VAR=value lines in session.env in the data folder.
-#   CITRAFRAME_FLAT=1       start without --vr (the desktop window only)
-#   CITRAFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
+#   AZAHARFRAME_FLAT=1       start without --vr (the desktop window only)
+#   AZAHARFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
 #   QT_SCALE_FACTOR=1.25    scale the settings window, if it is too small
 HERE=$(dirname "$(readlink -f "$0")")
-DATA=${CITRAFRAME_HOME:-$HOME/.local/share/CitraFrame}
+DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 mkdir -p "$DATA/user" || exit 1
 cd "$DATA" || exit 1
 [ -f launch.log ] && mv -f launch.log launch.log.prev
 exec > launch.log 2>&1
-echo "== $(date -Is) CitraFrame (SteamAppId=${SteamAppId:-none})"
+echo "== $(date -Is) Azahar for Frame (SteamAppId=${SteamAppId:-none})"
 
 if [ -f "$DATA/session.env" ]; then
   echo "session.env:"; cat "$DATA/session.env"
@@ -39,7 +39,7 @@ echo "XR_RUNTIME_JSON=${XR_RUNTIME_JSON:-default lookup}"
 # SteamVR's per-app settings, every launch: the 3DS runs at 60 frames a second,
 # shown on every refresh of the display, with no throttling and no motion
 # smoothing.  SteamAppId is set by Steam when launched from the library.
-HZ=${CITRAFRAME_REFRESH_HZ:-120}
+HZ=${AZAHARFRAME_REFRESH_HZ:-120}
 case "$HZ" in 90 | 120) ;; *) HZ=120 ;; esac
 VRCMD=/opt/steamvr/bin/linuxarm64/vrcmd
 if [ -n "$SteamAppId" ] && [ -x "$VRCMD" ]; then
@@ -55,7 +55,7 @@ MADE_MARK=
 if [ ! -e "$MARK" ] && mkdir -p "$HOME/.cache" && : > "$MARK"; then MADE_MARK=1; fi
 
 ARGS=(--vr)
-[ "$CITRAFRAME_FLAT" = 1 ] && ARGS=()
+[ "$AZAHARFRAME_FLAT" = 1 ] && ARGS=()
 # Not exec: the wrapper stays to remove the marker.  A signal for the wrapper
 # (Steam stopping the app) goes on to the emulator.
 "$HERE/azahar" "${ARGS[@]}" "$@" &

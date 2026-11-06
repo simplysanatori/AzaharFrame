@@ -12,7 +12,7 @@
 #include "video_core/custom_textures/custom_format.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
-#include "video_core/vulkan_hooks.h" // CitraFrame
+#include "video_core/vulkan_hooks.h" // AzaharFrame
 
 #include <vk_mem_alloc.h>
 
@@ -151,7 +151,7 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
                physical_device_index, num_physical_devices);
 
     physical_device = physical_devices[physical_device_index];
-    // CitraFrame: the OpenXR runtime decides the GPU when it made the instance.
+    // AzaharFrame: the OpenXR runtime decides the GPU when it made the instance.
     if (auto* hooks = VideoCore::GetVulkanHooks(); hooks && hooks->OwnsInstance(*instance)) {
         if (const VkPhysicalDevice wanted = hooks->PickPhysicalDevice(*instance)) {
             physical_device = vk::PhysicalDevice{wanted};
@@ -175,7 +175,7 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
 
 Instance::~Instance() {
     vmaDestroyAllocator(allocator);
-    // CitraFrame: handles made by the XR frontend live for the whole process.
+    // AzaharFrame: handles made by the XR frontend live for the whole process.
     if (auto* hooks = VideoCore::GetVulkanHooks()) {
         if (device && hooks->OwnsDevice(*device)) {
             static_cast<void>(device.release());
@@ -660,7 +660,7 @@ bool Instance::CreateDevice() {
     return true;
 #else
     try {
-        // CitraFrame: the XR frontend makes the device once and hands it to every Instance.
+        // AzaharFrame: the XR frontend makes the device once and hands it to every Instance.
         VkDevice adopted = VK_NULL_HANDLE;
         if (auto* hooks = VideoCore::GetVulkanHooks(); hooks && hooks->OwnsInstance(*instance)) {
             adopted = hooks->CreateDevice(

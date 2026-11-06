@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -6,7 +6,7 @@
 
 #include "frame_xr/input/mapper.h"
 
-// CitraFrame
+// AzaharFrame
 // Glue between the mapper and the emulator: runs the mapper on an InputFrame, writes the virtual
 // pad that the "frame_xr" input engine reads, and sends touches to the touch sink. The panel
 // commands and the cursor are returned for the frame loop to apply. XR thread only.

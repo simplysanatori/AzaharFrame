@@ -17,8 +17,8 @@
 - Tracked files: <!-- result -->
 - Paths under `/home/steamos` and `127.0.0.1` (Steam's local debugging port, used by `install.sh` and `steam-cef.py`) are generic and stay.
 - Published history: <!-- tokens, keys, network identifiers; commit and tag identities -->
-- The release tarball holds only `azahar`, `citraframe.sh`, `install.sh`, `uninstall.sh`, `steam-cef.py`, `VERSION`, `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`. `steam-frame/release/make-release.sh` packs those files by name, so settings, saves, logs and keys cannot end up in a tarball. <!-- result of the binary strings check -->
-- The emulator's log (`user/log/citravr_log.txt`) and `launch.log` hold file paths and the names of the games the user loaded. They hold no account names or network addresses. The README says to check them before attaching them to a report.
+- The release tarball holds only `azahar`, `azaharframe.sh`, `install.sh`, `uninstall.sh`, `steam-cef.py`, `VERSION`, `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`. `steam-frame/release/make-release.sh` packs those files by name, so settings, saves, logs and keys cannot end up in a tarball. <!-- result of the binary strings check -->
+- The emulator's log (`user/log/azahar_log.txt`) and `launch.log` hold file paths and the names of the games the user loaded. They hold no account names or network addresses. The README says to check them before attaching them to a report.
 - There is no log-collection script in the repository.
 
 ## Verification
@@ -52,8 +52,8 @@ git log -p --all --tags | grep -cE 'ghp_[A-Za-z0-9]{20}|github_pat_[A-Za-z0-9_]{
 git log --first-parent --format='%ae%n%ce' citravr/master..HEAD | grep -vc 'users.noreply.github.com'
 
 # The release tarball: only the files listed above, and nothing personal in the binary
-tar -tzf steam-frame/release/citraframe-<version>-linux-arm64.tar.gz
-tar -xzOf steam-frame/release/citraframe-<version>-linux-arm64.tar.gz azahar | strings | grep -cP '/home/(?!steamos\b)[a-z]+/|DESKTOP-|ghp_'
+tar -tzf steam-frame/release/azaharframe-<version>-linux-arm64.tar.gz
+tar -xzOf steam-frame/release/azaharframe-<version>-linux-arm64.tar.gz azahar | strings | grep -cP '/home/(?!steamos\b)[a-z]+/|DESKTOP-|ghp_'
 ```
 
 Before publishing new docs, logs or probe output, run these again. Replace anything they find with a placeholder such as `<ip-address>`, `<pc-hostname>`, `<ssid>` or `<serial>`.

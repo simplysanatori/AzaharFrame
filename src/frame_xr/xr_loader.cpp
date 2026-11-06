@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
@@ -27,7 +27,7 @@ bool LoadLoader() {
     if (g_loader) {
         return true;
     }
-    const char* candidates[] = {std::getenv("CITRAFRAME_OPENXR_LOADER"), kSteamVrLoader,
+    const char* candidates[] = {std::getenv("AZAHARFRAME_OPENXR_LOADER"), kSteamVrLoader,
                                 "libopenxr_loader.so.1", "libopenxr_loader.so"};
     for (const char* path : candidates) {
         if (!path || !*path) {

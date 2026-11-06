@@ -3,7 +3,7 @@
 // runtime.json.in), in the app's process.
 //
 // Ported from GalaxyFrame's tools/xrmock (Unlicense), which was written for
-// GalaxyFrame's xr_app.cpp.  CitraFrame's changes: Vulkan only, thread-safe
+// GalaxyFrame's xr_app.cpp.  Azahar for Frame's changes: Vulkan only, thread-safe
 // (the app calls it from several threads), real action state with scripted
 // input, action-space and reference-space poses, quad layer details, swapchain
 // image dumps to PNG, and a per-second summary in the trace.

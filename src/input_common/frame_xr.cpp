@@ -1,4 +1,4 @@
-// Copyright 2026 CitraFrame contributors
+// Copyright 2026 AzaharFrame contributors
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include "frame_xr/input/default_bindings.h"
 #include "input_common/frame_xr.h"
 
-// CitraFrame
+// AzaharFrame
 namespace InputCommon::FrameXr {
 
 namespace {
@@ -228,7 +228,7 @@ void SendTouchReleased() {
 
 DefaultProfile GetDefaultProfile() {
     DefaultProfile profile;
-    profile.name = "CitraFrame VR";
+    profile.name = "Azahar for Frame VR";
     for (const auto& binding : ::FrameXr::Input::kDefaultButtonBindings) {
         profile.buttons[binding.button] =
             Common::ParamPackage{{"engine", "frame_xr"},
