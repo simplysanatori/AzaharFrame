@@ -26,6 +26,9 @@ std::string FindArtFile(const std::string& name) {
         dirs.push_back(dir / "art");
         dirs.push_back(dir / ".." / ".." / ".." / "steam-frame" / "art");
     }
+#ifdef AZAHARFRAME_SOURCE_ART
+    dirs.emplace_back(AZAHARFRAME_SOURCE_ART); // the checkout this was built from
+#endif
     for (const fs::path& dir : dirs) {
         const fs::path p = dir / name;
         if (fs::is_regular_file(p, ec)) {
