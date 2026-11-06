@@ -142,7 +142,7 @@ private:
     bool adapter_scan_thread_running;
     bool restart_scan_thread;
 
-    libusb_context* libusb_ctx;
+    libusb_context* libusb_ctx{}; // AzaharFrame: was uninitialized, so a failed libusb init crashed in ~Adapter
 
     u8 input_endpoint{0};
     u8 output_endpoint{0};

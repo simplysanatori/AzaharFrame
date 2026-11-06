@@ -17,7 +17,7 @@ cf_busy() {
     [ -e "$HOME/.cache/headset-in-use" ] && { echo "headset in use"; return 0; }
     pgrep -x lasrecomp >/dev/null 2>&1 && { echo "lasrecomp running"; return 0; }
     # [S] keeps pgrep from matching a shell whose command line holds this text.
-    if [ "$1" = "--games" ] && pgrep -f '[S]teamLaunch' >/dev/null 2>&1; then
+    if [ "$1" = "--games" ] && pgrep -af '[S]teamLaunch' 2>/dev/null | grep -qv claude-rc-terminal; then
         echo "a Steam game is running"
         return 0
     fi

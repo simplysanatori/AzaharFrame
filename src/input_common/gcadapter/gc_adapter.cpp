@@ -36,6 +36,7 @@ Adapter::Adapter() {
         adapter_scan_thread = std::thread(&Adapter::AdapterScanThread, this);
     } else {
         LOG_ERROR(Input, "libusb could not be initialized. failed with error = {}", init_res);
+        libusb_ctx = nullptr; // AzaharFrame: never libusb_exit a context that failed
     }
 }
 
