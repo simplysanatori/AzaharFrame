@@ -75,6 +75,15 @@ Runtime* GetRuntime() {
 
 // ---- Placement --------------------------------------------------------------
 
+XrExtent2Df NormalTopSize() {
+    // AzaharFrame: 240 px of the native screen per metre, so the top screen is 1 m high; its width
+    // follows "VR Screen Shape" (Immersive::TopAspect, 5:3 = the 400x240 of the 3DS).
+    constexpr float kDensity = 240.0f;
+    constexpr float kTopHeightPx = 240.0f;
+    const float height = kTopHeightPx / kDensity;
+    return {height * Immersive::TopAspect(), height};
+}
+
 ScreenPlacement DefaultScreenPlacement() {
     // As CitraVR (GameSurfaceLayer.cpp): 240 px of the native screen per metre,
     // the top screen 2 m ahead at eye height; the bottom one 0.75 m lower, 0.5 m
@@ -84,7 +93,7 @@ ScreenPlacement DefaultScreenPlacement() {
     constexpr float kPitch = -0.785398163f; // -45 degrees about +X
     ScreenPlacement p{};
     p.top_pose = {{0, 0, 0, 1}, {0.0f, 0.0f, -2.0f}};
-    p.top_size = {400.0f / kDensity, 240.0f / kDensity};
+    p.top_size = NormalTopSize(); // AzaharFrame: 400 / 240 m for the 3DS shape, wider otherwise
     p.bottom_pose = {{std::sin(kPitch / 2), 0, 0, std::cos(kPitch / 2)}, {0.0f, -0.75f, -1.5f}};
     p.bottom_size = {320.0f / kDensity * kBottomScale, 240.0f / kDensity * kBottomScale};
     return p;
@@ -93,7 +102,9 @@ ScreenPlacement DefaultScreenPlacement() {
 ScreenPlacement GetScreenPlacement() {
     if (auto* rt = GetRuntime()) {
         std::scoped_lock lock{rt->placement_mutex};
-        return rt->placement;
+        ScreenPlacement place = rt->placement;
+        place.top_size = NormalTopSize(); // the shape is per game; the stored size may be stale
+        return place;
     }
     return DefaultScreenPlacement();
 }
@@ -355,6 +366,7 @@ void Runtime::FrameLoop() {
                 std::scoped_lock lock{placement_mutex};
                 place = placement;
             }
+            place.top_size = NormalTopSize(); // AzaharFrame: "VR Screen Shape" of this game
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,

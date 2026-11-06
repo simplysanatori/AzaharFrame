@@ -111,6 +111,8 @@ struct ScreenPlacement {
     XrPosef bottom_pose;
     XrExtent2Df bottom_size;
 };
+/// The normal top screen's size in metres: 1 m high, as wide as "VR Screen Shape" says.
+XrExtent2Df NormalTopSize();
 ScreenPlacement DefaultScreenPlacement();
 ScreenPlacement GetScreenPlacement();
 void SetScreenPlacement(const ScreenPlacement& placement);
