@@ -1,6 +1,6 @@
 # Changelog
 
-> **DRAFT.** Written before the first headset session; every line is checked against the finished build before it is published. <!-- VERIFY -->
+> **DRAFT.** Checked against the finished build before it is published. <!-- VERIFY -->
 
 ## 1.0.0 (November 2026)
 
@@ -8,27 +8,41 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 
 ### The emulator on the Frame
 
-- A Linux Arm64 build that runs in the Frame's SteamVR. No Lepton, APK, adb or PC.
-- Azahar 2127.0-alpha4, with CitraVR's VR changes to the renderer. Azahar's Vulkan renderer draws straight onto SteamVR's device.
-- Azahar's settings window on the SteamVR dashboard, for every setting the emulator has.
-- Settings, saves, keys and shader caches in one folder, `~/.local/share/AzaharFrame`.
+- A Linux Arm64 build that runs in the Frame's SteamVR, where CitraVR is an Android app for the Quest. No Lepton, APK, adb or PC.
+- Azahar 2127.0-alpha4 with CitraVR's VR changes to the renderer.
+- Azahar's Vulkan renderer draws straight onto SteamVR's own graphics device, one device for the whole run, so changing games does not rebuild the VR session.
+- Each screen is handed to SteamVR only once the GPU has finished drawing it.
+- Azahar's own settings window on the SteamVR dashboard, with every setting the emulator has. CitraVR has a small menu of its own on the Quest.
+- Settings, saves, keys and shader caches in one plain folder, `~/.local/share/AzaharFrame`.
+- A clean exit when Steam stops the app.
 
 ### The screens
 
-- The top screen in stereoscopic 3D, one image for each eye, and the bottom screen as a touch screen, both floating in front of you.
-- Drag the top screen with the trigger and move it nearer and farther with the stick. Touch the bottom screen with the trigger.
-- A game picker in VR, with the icons and titles from your game folders.
+- The top screen in stereoscopic 3D, one image for each eye, and the bottom screen as a touch screen, both floating in front of you as in CitraVR. Internal resolution up to 8x.
+- Aim a controller at the bottom screen and pull the trigger to touch it. Hold the trigger on the top screen to drag it, and use the stick to move it nearer and farther. The bottom screen follows. The right stick click puts both back.
+- A dot shows where each controller points.
+- A game picker in VR with the icons and titles from your game folders, the installed titles, pages and a Rescan button. A folder you add in the Azahar window appears in it at once.
+- Hold View for 1.5 seconds to stop the game and go back to the picker.
+- The 3D depth starts at 50 %, and is set to 50 % when it is 0, so the top screen is always stereoscopic.
 
 ### Controls
 
-- The Steam Frame controllers, with the real D-pad, in CitraVR's layout. Grips are L and R, triggers are ZL and ZR, the left stick is the Circle Pad and the right stick is the C-Stick.
-- The layout is a default profile in Azahar's controls window, so you can change it.
+- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Grips are L and R, triggers are ZL and ZR, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click is Home.
+- Each hand decides for itself whether its trigger is ZL or ZR, a touch or a drag, when you pull it. In CitraVR one shared flag blocked both triggers.
+- The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 
 ### Immersive mode
 
-- Ocarina of Time 3D and Majora's Mask 3D can wrap the view around you, with the head pose fed to the game's camera.
+- Ocarina of Time 3D and Majora's Mask 3D can wrap the view around you, as in CitraVR: Wide, Full for those two games, and Full for other games.
+- SteamVR has no cylinder layer, so the screen is a flat quad that stays in front of your eyes, sized to the game's camera, or fixed in the room in Wide mode.
+- The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
+- The left bumper shows the bottom screen and the right stick click re-centres the view.
+- Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
 
 ### Install
 
-- An installer that copies the program, adds an Azahar for Frame entry to your Steam library and sets SteamVR's per-app settings (120 Hz, no throttling, no motion smoothing).
-- It installs and updates through Frametanium too. Your settings, saves and keys stay on an update.
+- An installer that copies the program, adds an Azahar for Frame entry to your Steam library with its artwork and icon, gives SteamVR's dock the name and icon, and sets SteamVR's per-app settings (120 Hz, no throttling, no motion smoothing) and sets them again at every launch.
+- `install.sh --dry-run` lists everything it would do without doing it.
+- Installing again updates the same entry. Your settings, saves and keys stay.
+- An uninstaller that removes the entry, the program and the dock icon files, and `--purge` for your data.
+- It installs, updates and removes through Frametanium too.
