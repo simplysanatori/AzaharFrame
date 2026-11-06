@@ -2589,6 +2589,11 @@ void GMainWindow::OnGameListAddDirectory() {
     if (!UISettings::values.game_dirs.contains(game_dir)) {
         UISettings::values.game_dirs.append(game_dir);
         game_list->PopulateAsync(UISettings::values.game_dirs);
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the picker in VR lists the new folder at once
+        if (FrameXr::IsStarted()) {
+            FrameXrPushGameDirs();
+        }
+#endif
     } else {
         LOG_WARNING(Frontend, "Selected directory is already in the application list");
     }
