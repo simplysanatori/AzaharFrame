@@ -1,7 +1,8 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
+// Licensed under GPLv3 or any later version
+// Refer to the LICENSE.txt file included.
 
+#include <cstring>
 #include "common/alignment.h"
 #include "common/settings.h"
 #include "common/math_util.h"
@@ -95,7 +96,7 @@ void RasterizerAccelerated::AddTriangle(const Pica::OutputVertex& v0, const Pica
 }
 
 RasterizerAccelerated::VertexArrayInfo RasterizerAccelerated::AnalyzeVertexArray(
-    bool is_indexed, u32 stride_alignment) {
+    bool is_indexed, u32 stride_alignment) [[hot]] {
     const auto& vertex_attributes = regs.pipeline.vertex_attributes;
 
     u32 vertex_min;
@@ -104,6 +105,11 @@ RasterizerAccelerated::VertexArrayInfo RasterizerAccelerated::AnalyzeVertexArray
         const auto& index_info = regs.pipeline.index_array;
         const PAddr address = vertex_attributes.GetPhysicalBaseAddress() + index_info.offset;
         const u8* index_address_8 = memory.GetPhysicalPointer(address);
+        if (index_address_8 == nullptr) {
+            // Mario & Luigi: Superstar Saga sets an invalid base address
+            // for the vertex attributes. Return early if that is the case.
+            return {0, 0, 0};
+        }
         const u16* index_address_16 = reinterpret_cast<const u16*>(index_address_8);
         const bool index_u16 = index_info.format != 0;
 
@@ -141,6 +147,15 @@ RasterizerAccelerated::VertexArrayInfo RasterizerAccelerated::AnalyzeVertexArray
     return {vertex_min, vertex_max, vs_input_size};
 }
 
+#ifdef ENABLE_FREECAM
+void RasterizerAccelerated::SetFreeCam(const std::array<f32, 16>& matrix, bool skip_2d) {
+    static_assert(sizeof(vs_data.freecam_matrix) == sizeof(matrix));
+    std::memcpy(vs_data.freecam_matrix.data(), matrix.data(), sizeof(matrix));
+    vs_data.freecam_skip_2d = skip_2d ? 1u : 0u;
+    vs_data_dirty = true;
+}
+#endif
+
 void RasterizerAccelerated::SyncDrawUniforms() {
     auto& dirty = pica.dirty_regs;
 
@@ -148,7 +163,7 @@ void RasterizerAccelerated::SyncDrawUniforms() {
     // that we don't depend on. So avoid the dirty table and check manually
     const bool is_flipped = regs.framebuffer.framebuffer.IsFlipped();
     const bool prev_flipped = std::exchange(vs_data.flip_viewport, is_flipped);
-    vs_data_dirty = is_flipped != prev_flipped;
+    vs_data_dirty |= is_flipped != prev_flipped;
 
     // Sync clip plane uniforms
     if (dirty.CheckClipping()) {

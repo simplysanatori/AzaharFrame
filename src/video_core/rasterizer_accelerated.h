@@ -1,6 +1,6 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
+// Licensed under GPLv3 or any later version
+// Refer to the LICENSE.txt file included.
 
 #pragma once
 
@@ -25,6 +25,10 @@ public:
 
     void AddTriangle(const Pica::OutputVertex& v0, const Pica::OutputVertex& v1,
                      const Pica::OutputVertex& v2) override;
+
+#ifdef ENABLE_FREECAM
+    void SetFreeCam(const std::array<f32, 16>& matrix, bool skip_2d) override;
+#endif
 
 protected:
     /// Sync vertex and framgent uniforms from PICA registers
@@ -52,6 +56,10 @@ protected:
         u32 vs_input_index_min;
         u32 vs_input_index_max;
         u32 vs_input_size;
+
+        bool Invalid() const {
+            return vs_input_index_min == 0 && vs_input_index_max == 0 && vs_input_size == 0;
+        }
     };
 
     /// Retrieve the range and the size of the input vertex

@@ -1,6 +1,6 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+// Copyright 2022-2026 Citra Emulator Project / Azahar Emulator Project
+// Licensed under GPLv3 or any later version
+// Refer to the LICENSE.txt file included.
 
 #pragma once
 
@@ -68,6 +68,7 @@ public:
     void SaveDiskCaches() {
         pipeline_cache.SaveDriverPipelineDiskCache();
     }
+    bool DiskResourcesLoadCrashed(u64 title_id) override;
 
 private:
     /// Syncs pipeline state from PICA registers
