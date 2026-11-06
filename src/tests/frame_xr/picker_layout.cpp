@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <atomic>
@@ -391,4 +392,35 @@ TEST_CASE("picker: follows its Library and Rescan starts a scan", "[frame_xr][pi
 
     std::error_code ec;
     fs::remove_all(dir, ec);
+}
+
+TEST_CASE("picker: the logo replaces the header text and is drawn 1:1", "[frame_xr][picker]") {
+    // A 500 x 200 opaque red image: scaled to 108 px tall it is 270 x 108 at (48, 10).
+    Picker plain, logo;
+    const std::vector<uint8_t> red = [] {
+        std::vector<uint8_t> v(500 * 200 * 4, 0);
+        for (size_t i = 0; i < v.size(); i += 4) {
+            v[i] = 255;
+            v[i + 3] = 255;
+        }
+        return v;
+    }();
+    plain.SetLibraryState({}, true, false);
+    logo.SetLogo(red, 500, 200);
+    logo.SetLibraryState({}, true, false);
+    plain.Update({});
+    logo.Update({});
+    const auto px = [](const Picker& p, int x, int y) {
+        const uint8_t* q = p.Pixels() + (static_cast<size_t>(y) * kWidth + x) * 4;
+        return std::array<int, 3>{q[0], q[1], q[2]};
+    };
+    // Inside the logo: pure red. Without it: the background colour.
+    CHECK(px(logo, 48 + 135, 10 + 54) == std::array<int, 3>{255, 0, 0});
+    CHECK(px(plain, 48 + 135, 10 + 54) != std::array<int, 3>{255, 0, 0});
+    // An empty or malformed logo falls back to the text.
+    Picker bad;
+    bad.SetLogo({}, 0, 0);
+    bad.SetLibraryState({}, true, false);
+    bad.Update({});
+    CHECK(std::memcmp(bad.Pixels(), plain.Pixels(), plain.PixelBytes()) == 0);
 }

@@ -24,8 +24,10 @@ target_compile_features(frame_xr_picker_core PUBLIC cxx_std_20)
 add_library(frame_xr_picker STATIC
     library_loader.cpp
     library_loader.h
+    logo_loader.cpp
+    logo_loader.h
 )
-target_link_libraries(frame_xr_picker PUBLIC frame_xr_picker_core PRIVATE citra_core citra_common)
+target_link_libraries(frame_xr_picker PUBLIC frame_xr_picker_core PRIVATE citra_core citra_common lodepng)
 
 if (ENABLE_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/frame_xr/CMakeLists.txt)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../tests/frame_xr ${CMAKE_CURRENT_BINARY_DIR}/tests)

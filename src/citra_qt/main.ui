@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string notr="true">Azahar</string>
+   <string notr="true">Azahar for Frame</string>
   </property>
   <property name="windowIcon">
    <iconset>
@@ -353,7 +353,7 @@
   </action>
   <action name="action_About">
    <property name="text">
-    <string>About Azahar</string>
+    <string>About Azahar for Frame</string>
    </property>
    <property name="menuRole">
     <enum>QAction::AboutRole</enum>

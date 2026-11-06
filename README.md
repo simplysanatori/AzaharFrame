@@ -65,7 +65,7 @@ Compared with Azahar on a PC:
 
 3. Launch **Azahar for Frame** from your Steam library.
 
-The installer adds the library entry with its artwork and sets SteamVR to 120 Hz for it. Another installer: [Frametanium](https://github.com/Cogential/frametanium), add `simplysanatori/AzaharFrame`.
+The installer adds the library entry with its artwork and icon, gives SteamVR's dock the name and icon, and sets SteamVR to 120 Hz for it. `install.sh --dry-run` lists everything it would do without doing it. Another installer: [Frametanium](https://github.com/Cogential/frametanium), add `simplysanatori/AzaharFrame`.
 
 ### Update
 
@@ -149,7 +149,8 @@ Keep other heavy work off the Frame while you play.
 | What | Where |
 |---|---|
 | Program and launcher | `~/Games/AzaharFrame/app` |
-| Steam library art | `~/Games/AzaharFrame/app/art` |
+| Steam library art and icons | `~/Games/AzaharFrame/app/art` |
+| Dock icon files | `~/.local/share/applications/azaharframe.desktop`, `azaharframe.png` and `azahar.png` in `~/.local/share/icons/hicolor` |
 | Settings, saves, keys, shader caches | `~/.local/share/AzaharFrame/user` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
@@ -160,6 +161,7 @@ How the port works: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 ## Troubleshooting
 
 - **Steam's debugging port is not reachable.** Start Steam and run `install.sh` again.
+- **SteamVR's dock shows a question mark instead of the flower.** Steam reads the icon when it starts. Restart Steam once.
 - **The screens do not appear in the headset.** Start SteamVR first, then Azahar for Frame. `launch.log` says which OpenXR runtime it found.
 - **The Azahar window is too small on the dashboard.** Add `QT_SCALE_FACTOR=1.25` to `session.env`.
 - **An encrypted game does not start.** It needs `aes_keys.txt` in `user/sysdata/`.

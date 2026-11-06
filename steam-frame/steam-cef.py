@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Evaluate JavaScript in Steam's SharedJSContext over the CEF remote debugging port.
-Usage: steam-cef.py 'JS expression'   (awaits promises; prints JSON result)"""
+Usage: steam-cef.py 'JS expression'   (awaits promises; prints JSON result)
+       steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)"""
 import json, os, socket, struct, sys, base64, urllib.request
 
 def ws_connect(url):
@@ -72,22 +73,33 @@ def evaluate(expr, title='SharedJSContext'):
                 raise RuntimeError(json.dumps(r['exceptionDetails'].get('exception', r['exceptionDetails']))[:2000])
             return r['result'].get('value')
 
-def apply_art(appid, artdir):
+def apply_art(appid, artdir, dry_run=False):
     """Set the library art of a non-Steam shortcut from ARTDIR (portrait, wide, hero, logo, icon .png).
-    The images are large, so they are sent from here and not as a command line argument."""
+    The images are large, so they are sent from here and not as a command line argument.
+    With dry_run it only prints each call (and does not connect to Steam).
+    The icon (a full-bleed 512 px square) is what the library and SteamVR's dock show."""
     for name, kind in (('portrait', 0), ('hero', 1), ('logo', 2), ('wide', 3)):
         path = os.path.join(artdir, name + '.png')
         if not os.path.isfile(path):
             print('no ' + path + ', skipped', file=sys.stderr)
             continue
+        if dry_run:
+            print("[dry run] would call Steam (CEF): SteamClient.Apps.SetCustomArtworkForApp(%d, <%s, %d bytes, base64>, 'png', %d)"
+                  % (int(appid) if str(appid).isdigit() else 0, path, os.path.getsize(path), kind))
+            continue
         b64 = base64.b64encode(open(path, 'rb').read()).decode()
         evaluate("SteamClient.Apps.SetCustomArtworkForApp(%d, '%s', 'png', %d)" % (int(appid), b64, kind))
     icon = os.path.join(artdir, 'icon.png')
     if os.path.isfile(icon):
-        evaluate("SteamClient.Apps.SetShortcutIcon(%d, %s)" % (int(appid), json.dumps(icon)))
+        if dry_run:
+            print("[dry run] would call Steam (CEF): SteamClient.Apps.SetShortcutIcon(%s, %s)" % (appid, json.dumps(icon)))
+        else:
+            evaluate("SteamClient.Apps.SetShortcutIcon(%d, %s)" % (int(appid), json.dumps(icon)))
+    else:
+        print('no ' + icon + ', the icon is not set', file=sys.stderr)
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] == '--art':
-        apply_art(sys.argv[2], sys.argv[3])   # steam-cef.py --art APPID DIR
+    if len(sys.argv) in (4, 5) and sys.argv[1] == '--art':
+        apply_art(sys.argv[2], sys.argv[3], dry_run=sys.argv[4:] == ['--dry-run'])   # steam-cef.py --art APPID DIR [--dry-run]
     else:
         print(json.dumps(evaluate(sys.argv[1]), indent=1))

@@ -104,6 +104,11 @@ public:
     /// Per-frame update; redraws only when something visible changed.
     PickerResult Update(const PickerInput& input);
 
+    /// The "Azahar for Frame" lockup as straight (non-premultiplied) RGBA8, `width` x `height`,
+    /// rows top down. Drawn in the header and on the empty screens, scaled down once here so
+    /// it stays crisp; without it (or with an empty image) those places show the name as text.
+    void SetLogo(const std::vector<uint8_t>& rgba, int width, int height);
+
     /// Feeds the state the picker would otherwise take from its Library.
     void SetLibraryState(std::vector<GameEntry> entries, bool has_dirs, bool scanning);
 
@@ -147,6 +152,14 @@ private:
     void DrawButton(const layout::Rect& r, const char* label, bool enabled, bool hovered);
     void SetPage(int page);
 
+    /// The logo scaled to a given height (straight RGBA8); empty when there is no logo.
+    struct LogoImage {
+        std::vector<uint8_t> rgba;
+        int w = 0, h = 0;
+    };
+    /// Draws `img` with its top-left corner at (x, y); false when there is no image.
+    bool DrawLogo(const LogoImage& img, float x, float y);
+
     std::shared_ptr<Library> library;
     uint64_t seen_generation = ~0ull;
 
@@ -161,6 +174,9 @@ private:
     // Stick paging: one page per push, repeating while held.
     bool scroll_latched = false;
     float scroll_hold = 0.0f;
+
+    LogoImage logo_header; // in the header, next to the Rescan button
+    LogoImage logo_large;  // above the message of the empty screens
 
     ui::Canvas canvas;
 };
