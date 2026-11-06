@@ -1,0 +1,6 @@
+# Scripted input for xrmock_test (XRMOCK_TEST_INPUT=1): time or fN, path, values.
+f10  /user/hand/right/input/a/click 1
+f40  /user/hand/right/input/a/click 0
+f20  /user/hand/left/input/thumbstick 0.5 -0.25
+f30  /user/hand/right/input/trigger/value 0.8
+f5   /user/hand/right/input/aim/pose 0.1 0.2 -0.3 15 -10
