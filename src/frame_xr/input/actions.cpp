@@ -8,6 +8,7 @@
 #include <vector>
 #include "common/logging/log.h"
 #include "frame_xr/input/actions.h"
+#include "frame_xr/xr_calls.h" // CitraFrame: calls through the run-time loader
 
 // CitraFrame
 namespace FrameXr::Input {

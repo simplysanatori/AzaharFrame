@@ -1,4 +1,9 @@
 add_executable(tests
+    frame_xr/input_engine.cpp # CitraFrame
+    frame_xr/input_geometry.cpp # CitraFrame
+    frame_xr/input_mapper.cpp # CitraFrame
+    ../frame_xr/input/geometry.cpp # CitraFrame
+    ../frame_xr/input/mapper.cpp # CitraFrame
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp
@@ -31,6 +36,7 @@ if (BSD STREQUAL "NetBSD")
 endif()
 
 target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core)
+target_link_libraries(tests PRIVATE input_common) # CitraFrame
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)

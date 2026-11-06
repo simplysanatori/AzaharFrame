@@ -5,7 +5,7 @@
 #pragma once
 
 #include <array>
-#include <openxr/openxr.h>
+#include "frame_xr/xr_includes.h" // CitraFrame: OpenXR without prototypes
 #include "frame_xr/input/input_frame.h"
 
 // CitraFrame

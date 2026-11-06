@@ -64,6 +64,8 @@ struct Stats {
     std::atomic<uint32_t> end_frame_errors{0};
 };
 
+class VrUi;
+
 class Runtime final : public VideoCore::XrScreenSink {
 public:
     Runtime();
@@ -96,6 +98,7 @@ public:
     XrSpace local_space = XR_NULL_HANDLE;
     XrSpace view_space = XR_NULL_HANDLE;
     std::unique_ptr<VulkanBridge> vulkan;
+    std::unique_ptr<VrUi> ui; ///< controllers, picker, pointer (controls.cpp)
     std::vector<std::string> enabled_extensions;
     VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
 

@@ -115,6 +115,26 @@ ScreenPlacement DefaultScreenPlacement();
 ScreenPlacement GetScreenPlacement();
 void SetScreenPlacement(const ScreenPlacement& placement);
 
+// ---- Qt side -------------------------------------------------------------------
+
+/// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
+struct FrontendHooks {
+    std::function<void(const std::string& path)> launch_game; ///< picker selection
+    std::function<void()> stop_game;                          ///< View held 1.5 s
+};
+void SetFrontendHooks(FrontendHooks hooks);
+
+/// A game started (BootGame done) or stopped (ShutdownGame done). GUI thread.
+void SetGameRunning(bool running);
+
+/// The folders the picker scans (UISettings::values.game_dirs). GUI thread; rescans.
+struct LibraryDir {
+    std::string path;
+    bool deep_scan = false;
+    int max_depth = -1; ///< >= 0 overrides the depth deep_scan implies
+};
+void SetLibraryDirs(const std::vector<LibraryDir>& dirs);
+
 /// Handles for the other lanes (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();
 XrSystemId System();

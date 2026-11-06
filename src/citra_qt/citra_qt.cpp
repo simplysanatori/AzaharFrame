@@ -142,6 +142,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <csignal>
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
+#include "input_common/frame_xr.h"
 
 namespace {
 // --vr: the OpenXR session (frame_xr) for the whole run.
@@ -151,6 +152,54 @@ volatile std::sig_atomic_t g_frame_xr_terminate = 0;
 void FrameXrOnSignal(int) {
     g_frame_xr_terminate = 1;
 }
+// Touches on the bottom screen panel (3DS pixels) into the render window's layout.
+class FrameXrTouchSink final : public InputCommon::FrameXr::TouchSink {
+public:
+    explicit FrameXrTouchSink(Frontend::EmuWindow& window_) : window{window_} {}
+    void TouchPressed(float x, float y) override {
+        const auto [fx, fy] = Map(x, y);
+        window.TouchPressed(fx, fy);
+    }
+    void TouchMoved(float x, float y) override {
+        const auto [fx, fy] = Map(x, y);
+        window.TouchMoved(fx, fy);
+    }
+    void TouchReleased() override {
+        window.TouchReleased();
+    }
+
+private:
+    std::pair<unsigned, unsigned> Map(float x, float y) const {
+        const auto& r = window.GetFramebufferLayout().bottom_screen;
+        const float u = std::clamp(x / 320.0f, 0.0f, 1.0f);
+        const float v = std::clamp(y / 240.0f, 0.0f, 1.0f);
+        return {r.left + static_cast<unsigned>(u * (r.GetWidth() - 1)),
+                r.top + static_cast<unsigned>(v * (r.GetHeight() - 1))};
+    }
+    Frontend::EmuWindow& window;
+};
+std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
+
+void FrameXrPushGameDirs() {
+    std::vector<FrameXr::LibraryDir> dirs;
+    const std::string title_root = FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir) +
+                                   "Nintendo 3DS/00000000000000000000000000000000/"
+                                   "00000000000000000000000000000000/title/";
+    for (const auto& d : UISettings::values.game_dirs) {
+        if (d.path == QStringLiteral("SYSTEM")) {
+            continue;
+        }
+        if (d.path == QStringLiteral("INSTALLED")) {
+            // As the game list: installed games and demos, two levels deep.
+            dirs.push_back({title_root + "00040000", false, 2});
+            dirs.push_back({title_root + "00040002", false, 2});
+            continue;
+        }
+        dirs.push_back({d.path.toStdString(), d.deep_scan});
+    }
+    FrameXr::SetLibraryDirs(dirs);
+}
+
 Frontend::WindowSystemType FrameXrWindowSystemType() {
     const QString platform = QGuiApplication::platformName();
     if (platform == QStringLiteral("xcb")) {
@@ -594,6 +643,30 @@ GMainWindow::GMainWindow(Core::System& system_)
         if (Settings::values.graphics_api.GetValue() != Settings::GraphicsAPI::Vulkan) {
             LOG_ERROR(Frontend, "xr: --vr needs the Vulkan renderer; running flat");
         } else if (FrameXr::Start(xr_options)) {
+            // The Frame controllers as the input profile (unless already bound).
+            if (!InputCommon::FrameXr::ProfileUsesFrameXr(Settings::values.current_input_profile)) {
+                InputCommon::FrameXr::ApplyDefaultProfile(Settings::values.current_input_profile);
+                system.ApplySettings();
+                LOG_INFO(Frontend, "xr: Frame controller bindings applied to the input profile");
+            }
+            // Touch needs the bottom screen in the window's layout.
+            if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SingleScreen) {
+                Settings::values.layout_option.SetValue(Settings::LayoutOption::Default);
+            }
+            g_frame_xr_touch_sink = std::make_unique<FrameXrTouchSink>(*render_window);
+            InputCommon::FrameXr::SetTouchSink(g_frame_xr_touch_sink.get());
+            FrameXr::FrontendHooks hooks;
+            hooks.launch_game = [this](const std::string& path) {
+                QMetaObject::invokeMethod(
+                    this, [this, rom = QString::fromStdString(path)] { BootGame(rom); },
+                    Qt::QueuedConnection);
+            };
+            hooks.stop_game = [this] {
+                QMetaObject::invokeMethod(this, [this] { ShutdownGame(); }, Qt::QueuedConnection);
+            };
+            FrameXr::SetFrontendHooks(std::move(hooks));
+            FrameXrPushGameDirs();
+
             std::signal(SIGTERM, FrameXrOnSignal);
             std::signal(SIGINT, FrameXrOnSignal);
             auto* signal_timer = new QTimer(this);
@@ -1830,6 +1903,9 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
+#ifdef ENABLE_FRAME_XR // CitraFrame: hides the picker
+    FrameXr::SetGameRunning(true);
+#endif
     if (ui->action_Fullscreen->isChecked()) {
         ShowFullscreen();
     }
@@ -1929,6 +2005,12 @@ void GMainWindow::ShutdownGame() {
     UpdateSaveStates();
 
     emulation_running = false;
+#ifdef ENABLE_FRAME_XR // CitraFrame: back to the picker (folders may have changed)
+    if (FrameXr::IsStarted()) {
+        FrameXr::SetGameRunning(false);
+        FrameXrPushGameDirs();
+    }
+#endif
 
     game_title.clear();
     UpdateWindowTitle();
@@ -4937,6 +5019,8 @@ int LaunchQtFrontend(int argc, char* argv[]) {
 
     int result = app.exec();
 #ifdef ENABLE_FRAME_XR // CitraFrame: no renderer exists any more.
+    InputCommon::FrameXr::SetTouchSink(nullptr);
+    g_frame_xr_touch_sink.reset();
     FrameXr::Shutdown();
 #endif
     return result;

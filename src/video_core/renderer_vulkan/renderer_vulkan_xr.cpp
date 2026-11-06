@@ -88,7 +88,8 @@ void RendererVulkan::RenderToXr() {
                 .offset = {0, 0},
                 .extent = {target.width, target.height},
             };
-            const vk::ClearValue clear{.color = vk::ClearColorValue{std::array{0.f, 0.f, 0.f, 1.f}}};
+            const vk::ClearValue clear{
+                .color = vk::ClearColorValue{.float32 = std::array{0.f, 0.f, 0.f, 1.f}}};
             const vk::RenderPassBeginInfo begin_info = {
                 .renderPass = renderpass,
                 .framebuffer = target.framebuffer,

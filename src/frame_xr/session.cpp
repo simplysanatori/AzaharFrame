@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "common/logging/log.h"
+#include "frame_xr/controls.h"
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -181,11 +182,18 @@ bool Runtime::Create(const StartOptions& options) {
     }
     LOG_INFO(Frontend, "xr: session made; screen swapchains in VkFormat {}",
              static_cast<int>(swapchain_format));
+
+    ui = std::make_unique<VrUi>();
+    ui->Create(*this);
     return true;
 }
 
 void Runtime::Destroy() {
     auto& xr = Xr();
+    if (ui) {
+        ui->Destroy();
+        ui.reset();
+    }
     for (auto& chain : screens) {
         if (chain.handle && xr.xrDestroySwapchain) {
             xr.xrDestroySwapchain(chain.handle);

@@ -16,6 +16,7 @@
 
 #include "common/logging/log.h"
 #include "common/thread.h"
+#include "frame_xr/controls.h"
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -252,6 +253,7 @@ void Runtime::FrameLoop() {
     bool exit_requested = false;
     auto exit_deadline = Clock::time_point::max();
     std::vector<XrCompositionLayerQuad> quad_layers;
+    std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
 
     while (true) {
@@ -329,6 +331,10 @@ void Runtime::FrameLoop() {
                 cb(info);
             }
         }
+        ui_quads.clear();
+        if (ui) {
+            ui->Frame(*this, info, ui_quads);
+        }
 
         // Layers. screens_mutex keeps the swapchains alive through xrEndFrame.
         std::scoped_lock screens_lock{screens_mutex};
@@ -375,6 +381,10 @@ void Runtime::FrameLoop() {
                              [](const Quad* a, const Quad* b) { return a->order < b->order; });
             for (const Quad* q : extra) {
                 quad_layers.push_back(MakeQuad(local_space, *q));
+            }
+            // The picker and the pointer dot last (the dot on top of everything).
+            for (const Quad& q : ui_quads) {
+                quad_layers.push_back(MakeQuad(local_space, q));
             }
         }
         layer_ptrs.clear();
@@ -521,6 +531,24 @@ ViewPose LatestViewPose() {
         return rt->view_pose;
     }
     return {};
+}
+
+void SetFrontendHooks(FrontendHooks hooks) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetFrontendHooks(std::move(hooks));
+    }
+}
+
+void SetGameRunning(bool running) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetGameRunning(running);
+    }
+}
+
+void SetLibraryDirs(const std::vector<LibraryDir>& dirs) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetLibraryDirs(dirs);
+    }
 }
 
 XrInstance Instance() {
