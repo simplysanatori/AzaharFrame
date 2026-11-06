@@ -13,6 +13,7 @@
 #include <QImage>
 #include <QStringList>
 #include <QPainter>
+#include <QScreen>
 #include <QWidget>
 #include <QWindow>
 
@@ -81,8 +82,18 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     refresh_timer.start();
 
     // The window gets the panel's size (also on the desktop), unless maximised.
+    // On its screen if it fits, so Qt does not move menus and dropdowns to stay on it.
     if (!main->isMaximized() && !main->isFullScreen()) {
         main->resize(window_size);
+        if (const QScreen* screen = main->screen()) {
+            const QRect avail = screen->availableGeometry();
+            QRect r = main->geometry();
+            if (r.width() <= avail.width() && r.height() <= avail.height() && !avail.contains(r)) {
+                r.moveLeft(std::clamp(r.left(), avail.left(), avail.right() + 1 - r.width()));
+                r.moveTop(std::clamp(r.top(), avail.top(), avail.bottom() + 1 - r.height()));
+                main->move(r.topLeft() + (main->pos() - main->geometry().topLeft()));
+            }
+        }
     }
     qApp->installEventFilter(this);
 
