@@ -69,8 +69,10 @@ private:
     bool logged = false;
     int captures = 0;
     int published = 0;
+    int last_cost_ms = 0;
+    qint64 total_cost_ms = 0;
     QTimer capture_timer; ///< single shot, at most every 33 ms
-    QTimer refresh_timer; ///< a capture twice a second, for repaints Qt does not report
+    QTimer refresh_timer; ///< a capture once a second, for repaints Qt does not report
     QElapsedTimer since_capture;
     QElapsedTimer clock;
     std::shared_ptr<const FrameXr::HomePanelImage> last_image;

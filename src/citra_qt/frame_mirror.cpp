@@ -77,7 +77,7 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     since_capture.start();
     capture_timer.setSingleShot(true);
     connect(&capture_timer, &QTimer::timeout, this, [this] { Capture(); });
-    refresh_timer.setInterval(500);
+    refresh_timer.setInterval(1000);
     connect(&refresh_timer, &QTimer::timeout, this, [this] { Capture(); });
     refresh_timer.start();
 
@@ -123,8 +123,8 @@ void FrameMirror::SetGameRunning(bool running) {
     if (running) {
         capture_timer.stop();
         refresh_timer.stop();
-        LOG_INFO(Frontend, "xr: home panel hidden ({} captures, {} images sent)", captures,
-                 published);
+        LOG_INFO(Frontend, "xr: home panel hidden ({} captures, {} images sent, {} ms per capture)",
+                 captures, published, captures ? total_cost_ms / captures : 0);
     } else {
         refresh_timer.start();
         MarkDirty();
@@ -247,8 +247,9 @@ void FrameMirror::MarkDirty() {
     }
     dirty = true;
     if (!capture_timer.isActive()) {
-        capture_timer.start(static_cast<int>(
-            std::max<qint64>(0, kCaptureMs - since_capture.elapsed())));
+        // At most 30 a second, and the GUI thread keeps at least half of its time.
+        const qint64 gap = std::max(kCaptureMs, 2 * last_cost_ms);
+        capture_timer.start(static_cast<int>(std::max<qint64>(0, gap - since_capture.elapsed())));
     }
 }
 
@@ -258,6 +259,12 @@ void FrameMirror::Capture() {
     }
     dirty = false;
     since_capture.restart();
+    QElapsedTimer cost;
+    cost.start();
+    const auto account = [&] {
+        last_cost_ms = static_cast<int>(cost.elapsed());
+        total_cost_ms += last_cost_ms;
+    };
     const QRect canvas = Canvas();
     if (canvas.isEmpty()) {
         return;
@@ -306,12 +313,14 @@ void FrameMirror::Capture() {
     const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
     const std::size_t bytes = static_cast<std::size_t>(px.width()) * px.height() * 4;
     if (rgba.bytesPerLine() != px.width() * 4) {
+        account();
         return; // cannot happen for 4-byte pixels
     }
     const uchar* bits = rgba.constBits();
     if (last_image && last_image->width == static_cast<uint32_t>(px.width()) &&
         last_image->height == static_cast<uint32_t>(px.height()) &&
         std::memcmp(last_image->rgba.data(), bits, bytes) == 0) {
+        account();
         return; // unchanged
     }
     auto out = std::make_shared<FrameXr::HomePanelImage>();
@@ -321,6 +330,7 @@ void FrameMirror::Capture() {
     last_image = out;
     published++;
     FrameXr::SetHomePanelImage(std::move(out));
+    account();
     if (!logged) {
         logged = true;
         LOG_INFO(Frontend, "xr: home panel: window {}x{} at {:.2f} pixels per pixel -> {}x{}",
@@ -442,5 +452,9 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     default:
         break;
     }
-    MarkDirty();
+    // A hover that changes something repaints (and so is captured); a plain move must not
+    // cost a capture.
+    if (e.type != Type::Move) {
+        MarkDirty();
+    }
 }
