@@ -15,6 +15,22 @@
 HERE=$(dirname "$(readlink -f "$0")")
 DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 mkdir -p "$DATA/user" || exit 1
+
+# First run only: custom textures on (texture packs go in user/load/textures/<TitleID>/),
+# loaded in the background (not preloaded, which costs memory the Frame shares with
+# SteamVR).  Never touches a config that exists, so the owner's choices stay.
+CONF="$DATA/user/config/qt-config.ini"
+if [ ! -e "$CONF" ]; then
+  mkdir -p "$DATA/user/config" && cat > "$CONF" << 'EOF'
+[Utility]
+async_custom_loading=true
+async_custom_loading\default=true
+custom_textures=true
+custom_textures\default=false
+preload_textures=false
+preload_textures\default=true
+EOF
+fi
 cd "$DATA" || exit 1
 [ -f launch.log ] && mv -f launch.log launch.log.prev
 exec > launch.log 2>&1

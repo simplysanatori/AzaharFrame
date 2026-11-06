@@ -104,6 +104,15 @@ Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.3d
 - Decrypted dumps work as they are.
 - Encrypted dumps need `aes_keys.txt` from your own console in `~/.local/share/AzaharFrame/user/sysdata/`.
 
+### Texture packs and mods
+
+Custom textures and game mods go in the data folder, in a folder named for the game's title ID (the 16 characters shown in the emulator's log, for example `0004000000033500`):
+
+- `~/.local/share/AzaharFrame/user/load/textures/<TitleID>/` for texture packs (the pack's `pack.json` goes directly in that folder).
+- `~/.local/share/AzaharFrame/user/load/mods/<TitleID>/` for mods (a `romfs/` folder, `exheader.bin` or `code.ips`).
+
+Custom textures are on from the first launch, and they load in the background while you play, so a new area can show the original textures for a moment. If you already have your own settings file, turn on **Emulation > Configure > Graphics > Advanced > Use custom textures** yourself.
+
 ## Controls
 
 | Steam Frame | 3DS |
