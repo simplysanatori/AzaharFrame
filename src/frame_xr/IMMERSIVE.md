@@ -31,12 +31,24 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 
 | Control | In immersive mode |
 | --- | --- |
-| Left Bumper | Shows or hides the bottom screen (CitraVR's left Menu button). Every game starts with it hidden. In modes 2 and 3, showing it pauses immersive mode (normal screens, the game camera stops following the head) until you hide it again; in mode 1 the bottom screen shows in its normal place, over the wide screen. |
+| Left Bumper + Right Bumper + View | Shows or hides the bottom screen (CitraVR's left Menu button; the left bumper is L here, so it is a chord). Hold both bumpers, then press View. Every game starts with it hidden. The game does not see that View press. In modes 2 and 3, showing it pauses immersive mode (normal screens, the game camera stops following the head) until you hide it again; in mode 1 the bottom screen shows in its normal place, over the wide screen. |
 | Right Stick Click | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). SteamVR's own re-centre does the same. |
-| Triggers | ZL / ZR while the bottom screen is hidden (nothing to point at). The top screen cannot be dragged. |
+| Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). The top screen cannot be grabbed with a grip. |
 
-The left bumper is still a frame_xr input in the Controls dialog; if you bind it to a 3DS button
-there, it does both.
+With the bottom screen shown (mode 1, or modes 2 and 3 while paused), a grip squeezed on it moves
+the screens as usual.
+
+## Hide Bottom Screen (without immersive mode)
+
+Setting `vr_hide_bottom_screen` (section `VR`, per game in the Qt window: Properties, **Graphics**
+tab, **VR** group, **Hide Bottom Screen**) draws only the top screen in the normal placement.
+It is read when a game starts, and the game starts with the bottom screen hidden. The bumper chord
+above brings it back (and hides it again); nothing else changes: the top screen can be grabbed
+with a grip, the right stick click resets the placement, the triggers are ZL/ZR.
+
+The two compose: with immersive mode on, hiding the bottom screen changes nothing (immersive mode
+hides it already) and the chord behaves as described above. With the chord the bottom screen shows
+for touch-only moments, in mode 1 and with the setting alone at its normal place.
 
 ## How it works
 
@@ -115,7 +127,7 @@ What to look for:
   <!-- VERIFY: the default of 60 degrees in the headset -->
 - Leaning and crouching move the camera a little (Depth Factor Multiplier 1x).
 - If the depth is uncomfortable, try `AZAHARFRAME_IMMERSIVE_DISTANCE=1.0`.
-- Left Bumper brings the normal screens and touch back; Left Bumper again returns to immersive mode.
+- Left Bumper + Right Bumper + View brings the normal screens and touch back; the chord again returns to immersive mode.
   Right Stick Click while looking 45 degrees to the side makes that direction straight ahead.
 - Mode 1: a big screen in front of you, fixed in the room, the middle of it about the size of the
   normal top screen. Mode 3 (Other Games) also works on Ocarina of Time 3D, after a while (the

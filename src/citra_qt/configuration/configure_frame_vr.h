@@ -8,7 +8,9 @@
 #pragma once
 
 #include <QGroupBox>
+#include "citra_qt/configuration/configuration_shared.h"
 
+class QCheckBox;
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
@@ -27,6 +29,9 @@ public:
 private:
     void SetupPerGameUI();
 
+    QCheckBox* hide_bottom_check;
+    /// Per application: the tristate tracker (Use global / on / off).
+    ConfigurationShared::CheckState hide_bottom_state = ConfigurationShared::CheckState::Global;
     QWidget* mode_row;
     QComboBox* mode_combo;
     QWidget* depth_row;

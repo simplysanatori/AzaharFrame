@@ -718,6 +718,9 @@ struct Values {
     SwitchableSetting<u32> vr_immersive_positional_game_scaler{
         0, "vr_immersive_positional_game_scaler"};
     SwitchableSetting<std::string> vr_immersive_eye_indicator{"", "vr_immersive_eye_indicator"};
+    // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper
+    // chord, see frame_xr/immersive.h). Read when a game starts.
+    SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};
 };
 
 extern Values values;

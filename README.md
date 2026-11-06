@@ -112,14 +112,15 @@ Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.3d
 | Right stick | C-Stick |
 | Left D-pad | D-pad |
 | **A**, **B**, **X**, **Y** | A, B, X, Y |
-| Left and right grip | L and R |
+| Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
-| Trigger aimed at the top screen | Drag the screen. The stick of that hand moves it nearer and farther |
+| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther |
 | **Menu** (right controller) | Start |
 | **View** (left controller) | Select. Hold for 1.5 seconds to go back to the picker |
 | Left stick click | Home |
 | Right stick click | Reset the screen positions |
+| Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 
 In the picker the trigger or **A** selects, **B** and the sticks turn the pages.
 
@@ -143,9 +144,13 @@ Turn it on in the game's properties, on the **Graphics** tab, in the **VR** grou
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
 - **Full (6DoF): Other Games:** the same, for games the other mode does not fit; it finds the camera while you play.
 
-Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. The left bumper shows or hides the bottom screen, and the right stick click re-centres the view. [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** show or hide the bottom screen, and the right stick click re-centres the view. [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 <!-- VERIFY: the whole section -->
+
+### Hide Bottom Screen
+
+Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Bottom Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. The setting is read when the game starts. [docs/CONTROLS.md](docs/CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod.
 
 ## Performance
 
