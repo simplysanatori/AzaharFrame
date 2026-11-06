@@ -40,11 +40,15 @@ if [ -z "$AZAHARFRAME_NO_BUILD" ]; then
     LAUNCHER=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
   fi
 
+  # The binary names its sources relative to the checkout, not with this machine's paths.
+  PREFIX_MAP="-ffile-prefix-map=$REPO/= -ffile-prefix-map=$BLD/=build/"
+
   # Vulkan only (the Frame's SteamVR is Vulkan), no FFmpeg (no video recording), no Android audio.
   # The OpenXR code (ENABLE_FRAME_XR) is on by default on Linux aarch64.
   nice -n 19 cmake -S "$REPO" -B "$BLD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     "${LAUNCHER[@]}" \
+    -DCMAKE_C_FLAGS="$PREFIX_MAP" -DCMAKE_CXX_FLAGS="$PREFIX_MAP" -DAZAHARFRAME_RELEASE=ON \
     -DENABLE_FFMPEG=OFF -DUSE_AUDIOTRACK=OFF \
     -DENABLE_QT=ON -DENABLE_QT_TRANSLATION=ON -DENABLE_QT_UPDATE_CHECKER=OFF \
     -DENABLE_VULKAN=ON -DENABLE_OPENGL=OFF -DENABLE_SOFTWARE_RENDERER=ON \

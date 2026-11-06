@@ -1,5 +1,5 @@
 // Copyright 2026 AzaharFrame contributors
-// Licensed under GPLv2 or any later version
+// Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
 // AzaharFrame: CitraVR's immersive mode on the Steam Frame (see IMMERSIVE.md).

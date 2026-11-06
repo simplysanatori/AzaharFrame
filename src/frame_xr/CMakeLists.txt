@@ -36,6 +36,17 @@ create_target_directory_groups(frame_xr)
 # The in-VR application picker and its UI canvas (picker).
 add_subdirectory(picker)
 
+# Release packages (steam-frame/build.sh) must not carry this machine's checkout path:
+# drop the picker's development fallback to <checkout>/steam-frame/art.
+option(AZAHARFRAME_RELEASE "Build for a release package" OFF)
+if (AZAHARFRAME_RELEASE AND TARGET frame_xr_picker)
+    get_target_property(picker_defs frame_xr_picker COMPILE_DEFINITIONS)
+    if (picker_defs)
+        list(FILTER picker_defs EXCLUDE REGEX "^AZAHARFRAME_SOURCE_ART=")
+        set_target_properties(frame_xr_picker PROPERTIES COMPILE_DEFINITIONS "${picker_defs}")
+    endif()
+endif()
+
 target_include_directories(frame_xr PUBLIC ${PROJECT_SOURCE_DIR}/third_party/openxr/include)
 target_link_libraries(frame_xr PUBLIC citra_common citra_core video_core input_common vulkan-headers vma)
 target_link_libraries(frame_xr PRIVATE frame_xr_picker ${CMAKE_DL_LIBS} Threads::Threads)

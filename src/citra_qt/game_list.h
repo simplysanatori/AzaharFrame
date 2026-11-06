@@ -107,6 +107,7 @@ signals:
     void AddDirectory();
     void ShowList(bool show);
     void PopulatingCompleted();
+    void GameDirsChanged(); // AzaharFrame: a folder removed or its subfolder scan toggled
 #ifdef ENABLE_DEVELOPER_OPTIONS
     void StartingLaunchStressTest(const QString& game_path);
 #endif
