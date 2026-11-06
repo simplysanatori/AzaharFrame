@@ -1,6 +1,8 @@
 add_library(input_common STATIC EXCLUDE_FROM_ALL
     analog_from_button.cpp
     analog_from_button.h
+    frame_xr.cpp # CitraFrame
+    frame_xr.h # CitraFrame
     keyboard.cpp
     keyboard.h
     main.cpp
