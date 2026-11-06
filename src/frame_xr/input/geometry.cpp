@@ -172,10 +172,13 @@ std::optional<Posef> SolveSphereDrag(const Posef& current, const Vec3f& target_p
                                      const Vec3f& viewer, const Vec3f* other_panel_position,
                                      const DragLimits& limits) {
     const float radius = Length(current.position - viewer);
-    const Vec3f direction = Normalized(target_point - viewer);
-    if (Length(direction) < 0.5f) {
+    const Vec3f to_target = target_point - viewer;
+    // As documented: a target closer than max_z (or behind the viewer) is refused. (The
+    // old check tested the normalized direction's length, which is always 1.)
+    if (to_target.z >= limits.max_z || Length(to_target) < 1e-4f) {
         return std::nullopt;
     }
+    const Vec3f direction = Normalized(to_target);
     const Vec3f position = viewer + direction * radius;
     if (position.z >= limits.max_z) {
         return std::nullopt;

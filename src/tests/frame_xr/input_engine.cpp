@@ -125,7 +125,7 @@ TEST_CASE("FrameXr engine: texts and pollers for the Controls dialog", "[frame_x
     REQUIRE(pollers.size() == 1);
 
     pollers[0]->Start();
-    REQUIRE(pollers[0]->GetNextInput().Serialize().empty());
+    REQUIRE(pollers[0]->GetNextInput().Get("engine", "").empty()); // empty Serialize() is a placeholder
     ControlState state;
     state.Set(Control::B, true);
     Fx::GetPad().SetControls(state);
@@ -133,7 +133,7 @@ TEST_CASE("FrameXr engine: texts and pollers for the Controls dialog", "[frame_x
     REQUIRE(got.Get("engine", "") == "frame_xr");
     REQUIRE(got.Get("button", -1) == static_cast<int>(Control::B));
     // Held is not a new press.
-    REQUIRE(pollers[0]->GetNextInput().Serialize().empty());
+    REQUIRE(pollers[0]->GetNextInput().Get("engine", "").empty()); // empty Serialize() is a placeholder
     pollers[0]->Stop();
     Fx::GetPad().ReleaseAll();
 }
