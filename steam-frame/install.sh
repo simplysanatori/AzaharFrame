@@ -154,7 +154,7 @@ else
   case "$APPID" in '' | 0 | *[!0-9]*)
     echo "note: Steam did not return an appid for the entry, so the library entry, its art and the dock icon were skipped; run install.sh again with Steam up"
     APPID=none
-    STEAM_NOTE="The Steam library entry could not be added (see above)."
+    STEAM_NOTE="Steam was not reachable, so the library entry, its art and the dock icon were skipped. Run install.sh again with Steam up."
     ;;
   esac
 fi

@@ -1,7 +1,7 @@
 # Azahar for Frame controller mapping (input)
 
-Source of truth for docs/CONTROLS.md. Owner decision (plan Q3): keep CitraVR's mapping, with the
-Steam Frame's real D-pad as the 3DS D-pad. Every row below is implemented in `mapper.cpp` and
+Source of truth for docs/CONTROLS.md. CitraVR's mapping is kept, with the Steam Frame's real D-pad
+as the 3DS D-pad. Every row below is implemented in `mapper.cpp` and
 `default_bindings.h`; the tests in `src/tests/frame_xr/` check them.
 
 The Steam Frame controllers are a gamepad split in two. Right controller: A, B, X, Y, Menu, stick,
@@ -45,20 +45,22 @@ What a trigger does is decided when it is pulled, from what that hand's ray hits
 - Only one touch and one top-screen drag at a time. A second trigger pulled on a screen while the
   first is busy does nothing (and is not ZL/ZR either).
 - While dragging the top screen, that hand's stick Y moves it nearer or further (full deflection is
-  3 m/s, away = stick up, never nearer than the bottom screen, never further than 10 m, ignored
+  3 m/s, away = stick up, never nearer than 1 m, never further than 10 m, ignored
   below 0.5 deflection). That hand's stick does not reach the game while the drag lasts.
 - Horizontal lock is on by default as in CitraVR: dragging never moves the top screen sideways
   (the target's x is zeroed). `MapperConfig::horizontal_lock`.
+- The top screen goes no nearer than 1 m (`kNearestTopZ` in `controls.cpp`) and no further than
+  10 m. The bottom screen follows it: 0.75 m lower, 0.5 m nearer, tilted back 45 degrees.
 - The cursor is a dot at the hit point, 0.01 m + 0.003 m per metre of distance wide (CitraVR's
   scale rule). It shows only while a ray is on a screen or a touch/drag is in progress.
-- A drag is refused (the screen stays) when the target is nearer than 0.5 m, as in CitraVR, and
-  optionally when it would land on the bottom screen (`DragLimits::min_distance_from_other`).
+- A drag is refused (the screen stays) when the target is nearer than 1 m (CitraVR: 0.5 m; the
+  bottom screen sits 0.5 m nearer than the top one).
 
 ## Stopping the game
 
 Hold View for 1.5 s: the mapper reports `stop_game` once and a `stop_hold_progress` of 0..1 while
-holding, for an on-screen "Hold View to quit" bar. The frame loop calls ShutdownGame and shows the
-picker. (CitraVR had an Exit button in its menu ribbon.)
+holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows the picker.
+(CitraVR had an Exit button in its menu ribbon.)
 
 ## Where CitraVR's behaviour is not reproduced
 
@@ -75,6 +77,8 @@ picker. (CitraVR had an Exit button in its menu ribbon.)
 - The thumbrest-touch D-pad (Quest) and stick-click stall markers (a debugging aid) are gone.
 - The horizontal-lock toggle has no menu button yet; it is a mapper option.
 - No haptics (nothing in the mapping needs them).
+- Bumpers are free in the default profile, but the left bumper also shows or hides the bottom
+  screen in immersive mode (IMMERSIVE.md).
 
 ## Default input profile (Qt Controls dialog)
 
