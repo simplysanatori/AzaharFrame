@@ -114,6 +114,7 @@ void VrUi::Destroy() {
         bridge.Release();
         bridge_live = false;
     }
+    mirror.Destroy(uploader);
     uploader.DestroyChain(picker_chain);
     uploader.DestroyChain(cursor_chain);
     uploader.Shutdown();
@@ -132,9 +133,17 @@ void VrUi::SetGameRunning(bool running) {
     launch_pending = false;
 }
 
+void VrUi::SetHomePanel(std::function<void(const HomePanelEvent&)> on_event) {
+    mirror.SetHandler(std::move(on_event));
+}
+
+void VrUi::SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
+    mirror.SetImage(std::move(image));
+}
+
 void VrUi::SetLibraryDirs(const std::vector<LibraryDir>& dirs) {
-    if (!library) {
-        return;
+    if (!library || mirror.Enabled()) {
+        return; // the mirrored Qt window has its own game list
     }
     std::vector<picker::GameDir> out;
     for (const auto& d : dirs) {
@@ -182,13 +191,23 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         if (picker_shown) {
             picker_shown = false;
         }
+        mirror.Hide();
         GameFrame(rt, info, in, have_input, layers);
     } else {
         if (bridge_live) {
             bridge.Release();
             bridge_live = false;
         }
-        PickerFrame(rt, info, in, have_input, layers);
+        if (mirror.Enabled()) {
+            std::optional<XrPosef> cursor;
+            mirror.Frame(rt.session, rt.swapchain_format, uploader, info, in, have_input, layers,
+                         cursor);
+            if (cursor) {
+                AddCursor(*cursor, 0.02f, layers);
+            }
+        } else {
+            PickerFrame(rt, info, in, have_input, layers);
+        }
     }
     last_time = info.display_time;
 }

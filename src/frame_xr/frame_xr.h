@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -134,6 +135,33 @@ struct LibraryDir {
     int max_depth = -1; ///< >= 0 overrides the depth deep_scan implies
 };
 void SetLibraryDirs(const std::vector<LibraryDir>& dirs);
+
+// ---- The home panel: Azahar's Qt window mirrored into VR (citra_qt/frame_mirror.cpp) ----
+
+/// An image of the Qt window: RGBA8, sRGB values, opaque, rows top down.
+struct HomePanelImage {
+    uint32_t width = 0;
+    uint32_t height = 0;
+    std::vector<uint8_t> rgba;
+};
+
+/// What the controllers did on the home panel. u, v: 0..1 across the image (v down).
+struct HomePanelEvent {
+    enum class Type : u8 { Move, Leave, Press, Release, Wheel, Escape };
+    enum class Button : u8 { Left, Right };
+    Type type = Type::Move;
+    Button button = Button::Left;
+    float u = 0.0f;
+    float v = 0.0f;
+    float wheel = 0.0f; ///< Wheel: notches, positive scrolls up
+};
+
+/// Non-empty: the home panel replaces the picker while no game runs, and `on_event`
+/// gets its input (called on the XR thread: queue to the GUI thread). Empty: the
+/// picker again. Call after Start.
+void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
+/// The home panel's newest image (any thread). Shown from the next frame on.
+void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
 
 /// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();

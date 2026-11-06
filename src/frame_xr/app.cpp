@@ -567,6 +567,18 @@ void SetLibraryDirs(const std::vector<LibraryDir>& dirs) {
     }
 }
 
+void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetHomePanel(std::move(on_event));
+    }
+}
+
+void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetHomePanelImage(std::move(image));
+    }
+}
+
 XrInstance Instance() {
     return g_runtime ? g_runtime->instance : XR_NULL_HANDLE;
 }

@@ -142,6 +142,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
 #include "citra_qt/frame_branding.h"
+#include "citra_qt/frame_mirror.h"
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "input_common/frame_xr.h"
@@ -192,6 +193,8 @@ private:
     std::chrono::steady_clock::time_point last_log{};
 };
 std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
+// The VR home panel: this window mirrored (frame_mirror.cpp); null with the picker.
+QPointer<FrameMirror> g_frame_mirror;
 
 void FrameXrPushGameDirs() {
     std::vector<FrameXr::LibraryDir> dirs;
@@ -686,6 +689,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                 QMetaObject::invokeMethod(this, [this] { ShutdownGame(); }, Qt::QueuedConnection);
             };
             FrameXr::SetFrontendHooks(std::move(hooks));
+            if (FrameMirror::Wanted()) {
+                g_frame_mirror = new FrameMirror(this);
+            }
             FrameXrPushGameDirs();
 
             std::signal(SIGTERM, FrameXrOnSignal);
@@ -1931,8 +1937,11 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
-#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker
+#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel
     FrameXr::SetGameRunning(true);
+    if (g_frame_mirror) {
+        g_frame_mirror->SetGameRunning(true);
+    }
 #endif
     if (ui->action_Fullscreen->isChecked()) {
         ShowFullscreen();
@@ -2033,10 +2042,13 @@ void GMainWindow::ShutdownGame() {
     UpdateSaveStates();
 
     emulation_running = false;
-#ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker (folders may have changed)
+#ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker or home panel (folders may have changed)
     if (FrameXr::IsStarted()) {
         FrameXr::SetGameRunning(false);
         FrameXrPushGameDirs();
+    }
+    if (g_frame_mirror) {
+        g_frame_mirror->SetGameRunning(false);
     }
 #endif
 

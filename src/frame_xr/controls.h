@@ -6,8 +6,9 @@
 // the Frame controllers drive the virtual pad and the bottom-screen touch
 // (frame_xr/input), grab and push the top screen (the bottom one follows it), the
 // right stick click resets both in front of the head, holding View stops the game.
-// Without a game: the application picker panel (frame_xr/picker), pointed at with
-// either controller. A pointer dot is drawn where the ray hits a panel.
+// Without a game: Azahar's own Qt window mirrored on a panel (frame_xr/qt_mirror) or,
+// when the Qt side set no home panel, the application picker panel (frame_xr/picker),
+// pointed at with either controller. A pointer dot is drawn where the ray hits a panel.
 
 #pragma once
 
@@ -21,6 +22,7 @@
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/overlays.h"
+#include "frame_xr/qt_mirror/mirror_panel.h"
 
 namespace frame_xr::picker {
 class Library;
@@ -49,6 +51,9 @@ public:
     void SetFrontendHooks(FrontendHooks hooks);
     void SetGameRunning(bool running);
     void SetLibraryDirs(const std::vector<LibraryDir>& dirs);
+    // Any thread: the mirrored Qt window replaces the picker (frame_xr/qt_mirror).
+    void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
+    void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
 
 private:
     void GameFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
@@ -69,6 +74,7 @@ private:
     std::shared_ptr<frame_xr::picker::Library> library;
     std::unique_ptr<frame_xr::picker::Picker> picker;
     bool picker_shown = false;
+    MirrorPanel mirror; ///< the home panel when the Qt side set one, instead of the picker
     XrPosef picker_pose{{0, 0, 0, 1}, {0, 0, -2}};
 
     // Edges for the picker (the mapper keeps its own for the game).
