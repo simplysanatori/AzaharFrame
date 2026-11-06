@@ -33,7 +33,8 @@
 //   MOCK_XR_DUMP_DIR=<dir>    write swapchain images as PNG into this dir
 //   MOCK_XR_DUMP_FRAME=<n|last>  the first image of each swapchain released at
 //                             or after frame n, or (default) the last image
-//                             released, written when the session ends
+//                             released, written when the session ends; a
+//                             comma list n1,n2,... dumps once after each
 //
 // Checks (ERROR lines in the trace, and a summary on stderr when the session
 // ends): acquire / wait / release order per swapchain; frame call order; a
@@ -858,7 +859,7 @@ typedef struct {
     int live;
     long releases;    // total
     int lastRel;      // index of the image released last (-1: none)
-    int dumped;
+    int dumped;       // how many of gDumpFrames were dumped
 } Chain;
 static Chain gChains[MAXSC];
 static int gChainCount = 0;
@@ -975,6 +976,9 @@ static void secTick(void) {
 
 static const char* gDumpDir = NULL;
 static int gDumpFrame = -1;  // -1: the last image of each swapchain, at the end
+#define MAXDUMPS 64
+static int gDumpFrames[MAXDUMPS];  // ascending; gDumpFrame = gDumpFrames[0]
+static int gDumpCount = 0;
 
 static uint32_t crcTab[256];
 static uint32_t crc32(uint32_t crc, const uint8_t* p, size_t n) {
@@ -1158,11 +1162,11 @@ static XrResult XRAPI_CALL mRelease(XrSwapchain sc, const XrSwapchainImageReleas
         }
     }
     int idx = ((c->next - c->acquired) % c->count + c->count) % c->count;
-    if (gDumpDir && gDumpFrame >= 0 && gFrame >= gDumpFrame && !c->dumped) {
+    if (gDumpDir && gDumpFrame >= 0 && c->dumped < gDumpCount && gFrame >= gDumpFrames[c->dumped]) {
         char tag[32];
         snprintf(tag, sizeof(tag), "f%d", gFrame);
         dumpImage(chainId(sc), idx, tag);
-        c->dumped = 1;
+        while (c->dumped < gDumpCount && gFrame >= gDumpFrames[c->dumped]) c->dumped++;
     }
     c->acquired--;
     c->waited--;
@@ -1529,7 +1533,15 @@ static void init(void) {
     if (gDumpDir) {
         mkdir(gDumpDir, 0755);
         const char* df = getenv("MOCK_XR_DUMP_FRAME");
-        if (df && strcmp(df, "last")) gDumpFrame = atoi(df);
+        if (df && strcmp(df, "last")) {
+            char* copy = strdup(df);
+            for (char* tok = strtok(copy, ","); tok && gDumpCount < MAXDUMPS; tok = strtok(NULL, ",")) {
+                int n = atoi(tok);
+                if (gDumpCount == 0 || n > gDumpFrames[gDumpCount - 1]) gDumpFrames[gDumpCount++] = n;
+            }
+            free(copy);
+            if (gDumpCount > 0) gDumpFrame = gDumpFrames[0];
+        }
     }
     const char* script = getenv("MOCK_XR_INPUT_SCRIPT");
     if (script) loadScript(script);
