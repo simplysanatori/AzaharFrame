@@ -1,0 +1,59 @@
+#!/bin/bash
+# Builds CitraFrame on the Steam Frame (Linux aarch64) and packages it for the Releases
+# page: steam-frame/release/citraframe-<version>-linux-arm64.tar.gz and SHA256SUMS.
+#   steam-frame/build.sh [version]
+# Needs, from SteamOS's packages: clang or gcc, CMake 3.24 or newer, Ninja, Qt 6 and SDL2
+# development files, Python 3.  ccache is used when it is installed.
+# The build takes a long time the first time (about an hour on the Frame) and loads every
+# core, so it waits while the headset is in use (~/.cache/headset-in-use, or a game running
+# under Steam) and runs at the lowest priority.
+# Environment:
+#   CITRAFRAME_BUILD_DIR=DIR   the CMake build directory (default <repo>/build)
+#   CITRAFRAME_JOBS=N          parallel jobs (default 4)
+#   CITRAFRAME_NO_WAIT=1       do not wait for the headset (do not use this while you play)
+#   CITRAFRAME_NO_BUILD=1      only package the existing build
+#   CF_EXTRA_CMAKE_FLAGS=...   more CMake flags
+set -e
+HERE=$(cd "$(dirname "$0")" && pwd)
+REPO=$(cd "$HERE/.." && pwd)
+VERSION=${1:-1.0.0}
+BLD=${CITRAFRAME_BUILD_DIR:-$REPO/build}
+JOBS=${CITRAFRAME_JOBS:-4}
+
+if [ -z "$CITRAFRAME_NO_BUILD" ]; then
+  mkdir -p "$HOME/.cache/citraframe/ccache" "$BLD"
+  exec 9> "$HOME/.cache/citraframe-build.lock"
+  flock 9
+
+  # A build running beside a VR session ruins it.
+  if [ -z "$CITRAFRAME_NO_WAIT" ]; then
+    while [ -e "$HOME/.cache/headset-in-use" ] || pgrep -f SteamLaunch > /dev/null 2>&1; do
+      echo "$(date +%T) headset in use, waiting 60 s..."
+      sleep 60
+    done
+  fi
+
+  export CCACHE_DIR=$HOME/.cache/citraframe/ccache
+  export CCACHE_MAXSIZE=10G
+  LAUNCHER=()
+  if command -v ccache > /dev/null; then
+    LAUNCHER=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+  fi
+
+  # Vulkan only (the Frame's SteamVR is Vulkan), no FFmpeg (no video recording), no Android audio.
+  # The OpenXR code (ENABLE_FRAME_XR) is on by default on Linux aarch64.
+  nice -n 19 cmake -S "$REPO" -B "$BLD" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    "${LAUNCHER[@]}" \
+    -DENABLE_FFMPEG=OFF -DUSE_AUDIOTRACK=OFF \
+    -DENABLE_QT=ON -DENABLE_QT_TRANSLATION=ON -DENABLE_QT_UPDATE_CHECKER=OFF \
+    -DENABLE_VULKAN=ON -DENABLE_OPENGL=OFF -DENABLE_SOFTWARE_RENDERER=ON \
+    -DENABLE_TESTS=OFF -DENABLE_ROOM=OFF -DENABLE_ROOM_STANDALONE=OFF \
+    -DENABLE_WEB_SERVICE=OFF -DENABLE_DISCORD_RPC=OFF -DENABLE_SCRIPTING=OFF \
+    -DENABLE_LTO=OFF -DCITRA_WARNINGS_AS_ERRORS=OFF \
+    -DENABLE_CUBEB=ON -DENABLE_OPENAL=ON -DENABLE_SDL2=ON -DUSE_SYSTEM_SDL2=ON \
+    ${CF_EXTRA_CMAKE_FLAGS}
+  nice -n 19 ninja -C "$BLD" -j"$JOBS"
+fi
+
+"$HERE/release/make-release.sh" "$VERSION" "$BLD/bin/Release"
