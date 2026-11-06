@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <chrono> // AzaharFrame
 #include <clocale>
 #include <format>
 #include <iostream>
@@ -158,13 +159,23 @@ public:
     explicit FrameXrTouchSink(Frontend::EmuWindow& window_) : window{window_} {}
     void TouchPressed(float x, float y) override {
         const auto [fx, fy] = Map(x, y);
+        LOG_INFO(Frontend, "xr: touch down bottom {:.0f},{:.0f} -> window {},{}", x, y, fx, fy);
+        last_log = std::chrono::steady_clock::now();
         window.TouchPressed(fx, fy);
     }
     void TouchMoved(float x, float y) override {
         const auto [fx, fy] = Map(x, y);
+        // At most two lines a second while dragging.
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_log >= std::chrono::milliseconds(500)) {
+            last_log = now;
+            LOG_INFO(Frontend, "xr: touch move bottom {:.0f},{:.0f} -> window {},{}", x, y, fx,
+                     fy);
+        }
         window.TouchMoved(fx, fy);
     }
     void TouchReleased() override {
+        LOG_INFO(Frontend, "xr: touch up");
         window.TouchReleased();
     }
 
@@ -177,6 +188,7 @@ private:
                 r.top + static_cast<unsigned>(v * (r.GetHeight() - 1))};
     }
     Frontend::EmuWindow& window;
+    std::chrono::steady_clock::time_point last_log{};
 };
 std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
 
@@ -650,7 +662,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                 LOG_INFO(Frontend, "xr: Frame controller bindings applied to the input profile");
             }
             // Touch needs the bottom screen in the window's layout.
-            if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SingleScreen) {
+            // No separate windows either: the second window stays hidden in VR.
+            if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SingleScreen ||
+                Settings::values.layout_option.GetValue() ==
+                    Settings::LayoutOption::SeparateWindows) {
                 Settings::values.layout_option.SetValue(Settings::LayoutOption::Default);
             }
             g_frame_xr_touch_sink = std::make_unique<FrameXrTouchSink>(*render_window);

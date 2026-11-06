@@ -37,6 +37,7 @@ Runtime::Runtime() {
 }
 
 Runtime::~Runtime() {
+    StopThread(); // no-op after Shutdown; never destroy under a running frame loop
     Destroy();
 }
 
@@ -243,8 +244,10 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
         return true;
     }
     auto& xr = Xr();
+    // Runtimes may use the app's queue here (layout transitions), so under the queue lock
+    // (order: screens_mutex, then the queue lock, as in EndFrame).
     if (chain.handle) {
-        xr.xrDestroySwapchain(chain.handle);
+        queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
         chain = {};
     }
     XrSwapchainCreateInfo ci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
@@ -257,7 +260,8 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
     ci.faceCount = 1;
     ci.arraySize = 1;
     ci.mipCount = 1; // SteamVR on the Frame allocates level 0 only
-    const XrResult r = xr.xrCreateSwapchain(session, &ci, &chain.handle);
+    const XrResult r =
+        queue_lock.With([&] { return xr.xrCreateSwapchain(session, &ci, &chain.handle); });
     if (XR_FAILED(r)) {
         LOG_ERROR(Frontend, "xr: xrCreateSwapchain {} {}x{}: {}", ScreenName(i), width, height,
                   ResultName(r));
@@ -291,6 +295,21 @@ int32_t Runtime::Acquire(VideoCore::XrScreen screen) {
     // Only the renderer acquires, releases and recreates, from the emu thread and
     // its release thread (which the renderer orders): no screens_mutex here.
     ScreenChain& chain = screens[i];
+    if (screen == VideoCore::XrScreen::TopLeft) {
+        // Once per emulated frame: its period for the per-second summary.
+        const auto now = std::chrono::steady_clock::now();
+        const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now - last_emu_frame)
+                            .count();
+        if (last_emu_frame.time_since_epoch().count() != 0 && us > 0 && us < 1'000'000) {
+            stats.emu_frames++;
+            stats.emu_frame_us_sum += static_cast<uint64_t>(us);
+            uint32_t prev = stats.emu_frame_us_max.load();
+            while (static_cast<uint32_t>(us) > prev &&
+                   !stats.emu_frame_us_max.compare_exchange_weak(prev, static_cast<uint32_t>(us))) {
+            }
+        }
+        last_emu_frame = now;
+    }
     if (!chain.handle || chain.waited) {
         return -1;
     }
@@ -351,6 +370,13 @@ void Runtime::SetQueueMutex(std::mutex* mutex) {
 }
 
 void Runtime::SetScreensLive(bool live) {
+    {
+        // Nothing of the previous game is shown until this one releases an image.
+        std::scoped_lock lock{screens_mutex};
+        for (ScreenChain& chain : screens) {
+            chain.has_image = false;
+        }
+    }
     screens_live = live;
     LOG_INFO(Frontend, "xr: game screens {}", live ? "live" : "gone");
 }

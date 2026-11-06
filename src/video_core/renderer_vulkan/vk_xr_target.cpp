@@ -294,8 +294,12 @@ bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
         if (!sink.EnsureSwapchain(which, size.width, size.height)) {
             return false;
         }
-        std::array<VkImage, 8> images{};
-        const u32 count = std::min<u32>(sink.SwapchainImages(which, images.data(), 8), 8);
+        // As many images as the runtime made (an index past them would leave a waited
+        // image that is never released).
+        std::vector<VkImage> images(sink.SwapchainImages(which, nullptr, 0));
+        const u32 count = std::min<u32>(
+            sink.SwapchainImages(which, images.data(), static_cast<u32>(images.size())),
+            static_cast<u32>(images.size()));
         for (u32 n = 0; n < count; n++) {
             const vk::ImageViewCreateInfo view_info = {
                 .image = vk::Image{images[n]},
@@ -336,7 +340,14 @@ const XrPresentTarget::Target* XrPresentTarget::Acquire(VideoCore::XrScreen whic
         }
     }
     const int32_t index = sink.Acquire(which);
-    if (index < 0 || static_cast<std::size_t>(index) >= screen.framebuffers.size()) {
+    if (index < 0) {
+        return nullptr;
+    }
+    if (static_cast<std::size_t>(index) >= screen.framebuffers.size()) {
+        // Acquired and waited, so it must go back or the swapchain is stuck.
+        LOG_ERROR(Render_Vulkan, "xr: image index {} past the {} framebuffers", index,
+                  screen.framebuffers.size());
+        sink.Release(which, true);
         return nullptr;
     }
     screen.acquired = true;
@@ -399,8 +410,13 @@ void XrPresentTarget::ReleaseThread(std::stop_token token) {
     }
 }
 
-XrQueueRegistration::XrQueueRegistration(Scheduler& scheduler)
-    : sink{VideoCore::GetXrScreenSink()} {
+bool UsesXrDevice(const Instance& instance) {
+    const VideoCore::VulkanHooks* hooks = VideoCore::GetVulkanHooks();
+    return hooks && hooks->OwnsDevice(static_cast<VkDevice>(instance.GetDevice()));
+}
+
+XrQueueRegistration::XrQueueRegistration(const Instance& instance, Scheduler& scheduler)
+    : sink{UsesXrDevice(instance) ? VideoCore::GetXrScreenSink() : nullptr} {
     if (sink) {
         sink->SetQueueMutex(&scheduler.submit_mutex);
     }

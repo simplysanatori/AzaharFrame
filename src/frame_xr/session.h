@@ -10,6 +10,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -62,6 +63,10 @@ struct Stats {
     std::atomic<uint32_t> unfinished[kScreens]{};
     std::atomic<uint32_t> skipped_acquires{0};
     std::atomic<uint32_t> end_frame_errors{0};
+    // Emulated frames: time between the renderer's top-left acquires (emu thread).
+    std::atomic<uint32_t> emu_frames{0};
+    std::atomic<uint64_t> emu_frame_us_sum{0};
+    std::atomic<uint32_t> emu_frame_us_max{0};
 };
 
 class VrUi;
@@ -109,6 +114,7 @@ public:
     std::atomic<bool> screens_live{false};
 
     QueueLock queue_lock;
+    std::chrono::steady_clock::time_point last_emu_frame{}; // emu thread only
     Stats stats;
 
     // Session state (XR thread writes, others read).

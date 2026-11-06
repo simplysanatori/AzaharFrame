@@ -75,6 +75,8 @@ private:
     bool prev_select = false;
     bool prev_back = false;
     XrTime last_time = 0;
+    uint64_t logged_generation = 0; // last library generation logged ("xr: picker: N games")
+    bool stop_hold_logged = false;  // "xr: View hold started" logged for this press
 
     std::mutex hooks_mutex;
     FrontendHooks hooks;

@@ -71,7 +71,8 @@ bool OverlayUploader::CreateChain(XrSession session, VkFormat format, uint32_t w
     ci.faceCount = 1;
     ci.arraySize = 1;
     ci.mipCount = 1;
-    const XrResult r = xr.xrCreateSwapchain(session, &ci, &chain.handle);
+    const auto create = [&] { return xr.xrCreateSwapchain(session, &ci, &chain.handle); };
+    const XrResult r = queue_lock ? queue_lock->With(create) : create(); // may use the queue
     if (XR_FAILED(r)) {
         LOG_ERROR(Frontend, "xr: overlay swapchain {}x{}: {}", width, height, ResultName(r));
         chain = {};
@@ -94,7 +95,8 @@ bool OverlayUploader::CreateChain(XrSession session, VkFormat format, uint32_t w
 
 void OverlayUploader::DestroyChain(OverlayChain& chain) {
     if (chain.handle) {
-        Xr().xrDestroySwapchain(chain.handle);
+        const auto destroy = [&] { return Xr().xrDestroySwapchain(chain.handle); };
+        queue_lock ? queue_lock->With(destroy) : destroy();
     }
     chain = {};
 }

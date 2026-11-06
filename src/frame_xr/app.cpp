@@ -12,8 +12,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <string>
 #include <vector>
 
+#include <fmt/format.h>
 #include "common/logging/log.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
@@ -235,13 +237,20 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     }
     const uint32_t skipped = take(stats.skipped_acquires);
     const uint32_t end_errors = take(stats.end_frame_errors);
+    const uint32_t emu_frames = take(stats.emu_frames);
+    const uint64_t emu_sum_us = stats.emu_frame_us_sum.exchange(0);
+    const uint32_t emu_max_us = take(stats.emu_frame_us_max);
+    const std::string emu =
+        emu_frames ? fmt::format("emu frame {:.1f} ms avg ({:.1f} max)",
+                                 emu_sum_us / 1000.0 / emu_frames, emu_max_us / 1000.0)
+                   : std::string{"emu frame -"};
     LOG_INFO(Frontend,
              "xr: {:.1f}s display {} frames, waitFrame period {:.2f} ms (max {:.2f}), releases "
              "TL/TR/B {}/{}/{}, late {}/{}/{}, before GPU done {}/{}/{}, acquire timeouts {}, "
-             "endFrame errors {}, state {}, screens {}",
+             "endFrame errors {}, state {}, screens {}, {}",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
-             StateName(state.load()), screens_live.load() ? "live" : "off");
+             StateName(state.load()), screens_live.load() ? "live" : "off", emu);
 }
 
 void Runtime::FrameLoop() {
@@ -437,8 +446,8 @@ bool Start(const StartOptions& options) {
     }
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
+    Immersive::Install(); // AzaharFrame immersive mode; before the XR thread reads its state
     g_runtime->StartThread();
-    Immersive::Install(); // AzaharFrame immersive mode
     LOG_INFO(Frontend, "xr: started");
     return true;
 }

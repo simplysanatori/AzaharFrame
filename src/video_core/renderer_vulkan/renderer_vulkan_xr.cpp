@@ -9,7 +9,9 @@
 // the runtime once the GPU is done.
 
 #include <algorithm>
+#include <utility>
 
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/vulkan_hooks.h"
@@ -39,6 +41,15 @@ std::array<f32, 4 * 4> Orthographic(u32 width, u32 height) {
 void RendererVulkan::RenderToXr() {
     VideoCore::XrScreenSink* sink = VideoCore::GetXrScreenSink();
     if (!sink || !sink->IsActive()) {
+        return;
+    }
+    if (!UsesXrDevice(instance)) {
+        // The swapchain images belong to the runtime's device; never draw into them
+        // from another one.
+        static bool logged = false;
+        if (!std::exchange(logged, true)) {
+            LOG_ERROR(Render_Vulkan, "xr: the renderer is not on the XR device, no XR screens");
+        }
         return;
     }
     if (!xr_target) {

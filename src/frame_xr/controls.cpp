@@ -221,7 +221,16 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         place.bottom_pose = BottomFromTop(place.top_pose);
         SetScreenPlacement(place);
     }
+    // From 20 % on, so a short View press (Select) logs nothing.
+    if (cmd.stop_hold_progress > 0.2f && !stop_hold_logged) {
+        stop_hold_logged = true;
+        LOG_INFO(Frontend, "xr: View hold started (the game stops when it completes)");
+    } else if (cmd.stop_hold_progress <= 0.0f && stop_hold_logged && !cmd.stop_game) {
+        stop_hold_logged = false;
+        LOG_INFO(Frontend, "xr: View hold let go before the stop");
+    }
     if (cmd.stop_game) {
+        stop_hold_logged = false;
         std::scoped_lock lock{hooks_mutex};
         if (hooks.stop_game) {
             LOG_INFO(Frontend, "xr: View held, stopping the game");
@@ -278,6 +287,13 @@ void VrUi::PickerFrame(Runtime& rt, const FrameInfo& info, const Input::InputFra
                                        : in.hand[0].stick;
         const float s = std::abs(stick.x) > std::abs(stick.y) ? stick.x : -stick.y;
         pin.scroll = std::abs(s) > kStickPage ? s : 0.0f;
+    }
+
+    // One log line per finished scan.
+    if (library && !library->IsScanning() && library->Generation() != logged_generation) {
+        logged_generation = library->Generation();
+        const auto snapshot = library->Snapshot();
+        LOG_INFO(Frontend, "xr: picker: {} games", snapshot ? snapshot->size() : 0);
     }
 
     const picker::PickerResult r = picker->Update(pin);

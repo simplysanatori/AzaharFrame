@@ -104,9 +104,13 @@ private:
 /// Lends the scheduler's submit mutex to the XR thread for the renderer's whole
 /// life: a member of RendererVulkan declared right after its Scheduler, so it is
 /// in place before anything submits and gone only after everything has.
+/// True when the instance's device is the XR runtime's (adopted through VulkanHooks): only
+/// then may the renderer use the XR swapchain images and lend its queue lock.
+bool UsesXrDevice(const Instance& instance);
+
 class XrQueueRegistration {
 public:
-    explicit XrQueueRegistration(Scheduler& scheduler);
+    XrQueueRegistration(const Instance& instance, Scheduler& scheduler);
     ~XrQueueRegistration();
 
     XrQueueRegistration(const XrQueueRegistration&) = delete;

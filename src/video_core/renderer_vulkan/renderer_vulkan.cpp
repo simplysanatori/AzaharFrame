@@ -129,7 +129,14 @@ RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
     CompileShaders();
     BuildLayouts();
     BuildPipelines();
-    if (secondary_window) {
+    // AzaharFrame: in VR the hidden second window is never shown (no separate-windows
+    // layout); creating its surface fails on some X servers, so skip it.
+#ifndef HAVE_LIBRETRO
+    const bool xr_active = VideoCore::GetXrScreenSink() != nullptr;
+#else
+    const bool xr_active = false;
+#endif
+    if (secondary_window && !xr_active) {
         secondary_present_window_ptr = std::make_unique<PresentWindow>(
             *secondary_window, instance, scheduler, IsLowRefreshRate());
     }

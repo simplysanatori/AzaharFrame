@@ -138,7 +138,7 @@ private:
 #endif
     Scheduler scheduler;
 #ifndef HAVE_LIBRETRO
-    XrQueueRegistration xr_queue_registration{scheduler}; // AzaharFrame
+    XrQueueRegistration xr_queue_registration{instance, scheduler}; // AzaharFrame
 #endif
     RenderManager renderpass_cache;
     PresentWindow main_present_window;

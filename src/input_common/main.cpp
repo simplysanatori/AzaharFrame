@@ -62,6 +62,7 @@ void Shutdown() {
     Input::UnregisterFactory<Input::AnalogDevice>("gcpad");
     gcbuttons.reset();
     gcanalog.reset();
+    gcadapter.reset(); // AzaharFrame: not at static destruction, after libusb's own
 #endif
     Input::UnregisterFactory<Input::ButtonDevice>("keyboard");
     keyboard.reset();

@@ -9,6 +9,7 @@
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
+#include "video_core/vulkan_hooks.h" // AzaharFrame
 
 MICROPROFILE_DEFINE(Vulkan_Acquire, "Vulkan", "Swapchain Acquire", MP_RGB(185, 66, 245));
 MICROPROFILE_DEFINE(Vulkan_Present, "Vulkan", "Swapchain Present", MP_RGB(66, 185, 245));
@@ -196,6 +197,16 @@ void Swapchain::SetPresentMode() {
         LOG_WARNING(Render_Vulkan, "Forcing Fifo present mode as no alternatives are available");
         return;
     }
+
+#ifndef HAVE_LIBRETRO
+    // AzaharFrame: in VR the desktop window must never hold the queue: present runs under
+    // the queue lock that the XR thread and the XR release thread also take, and FIFO
+    // can block for long on a hidden or unfocused window.
+    if (VideoCore::GetXrScreenSink() != nullptr) {
+        present_mode = has_mailbox ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eImmediate;
+        return;
+    }
+#endif
 
     // If the user has disabled vsync use immediate mode for the least latency.
     // This may have screen tearing.
