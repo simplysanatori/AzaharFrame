@@ -39,6 +39,9 @@ struct MapperConfig {
     int64_t stop_hold_ns = 1'500'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
     float depth_threshold = 0.5f;
+    // A right stick click while the stick is pushed further than this is ignored (the stick
+    // clicks by accident during free camera), so it never resets the screens.
+    float reset_click_max_deflection = 0.5f;
     /// Speed of the depth change at full deflection, metres per second. CitraVR moves 0.05 m per
     /// displayed frame, about 3.6 m/s at 72 Hz.
     float depth_speed_mps = 3.0f;

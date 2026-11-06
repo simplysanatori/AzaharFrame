@@ -154,9 +154,14 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.Set(Control::View, view && !stop_fired_);
 
     // ---- Right stick click: reset panel positions (once per click) ----
+    // Ignored while the stick is pushed over, so the free camera cannot reset by accident.
     const bool click_r = frame.hand[1].stick_click;
     if (click_r && !stick_click_r_prev_) {
-        out.commands.reset_panels = true;
+        const Vec2f stick_r = frame.hand[1].stick;
+        const float deflection = std::sqrt(stick_r.x * stick_r.x + stick_r.y * stick_r.y);
+        if (deflection <= config_.reset_click_max_deflection) {
+            out.commands.reset_panels = true;
+        }
     }
     stick_click_r_prev_ = click_r;
 

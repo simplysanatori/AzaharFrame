@@ -26,7 +26,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | Menu | Start | |
 | View | Select | Hold 1.5 s instead stops the game, see below. |
 | Left stick click | Home | |
-| Right stick click | (none) | Resets the screen positions (once per click). |
+| Right stick click | (none) | Resets the screen positions (once per click). Ignored while the stick is pushed past half way, so free camera cannot reset by accident. |
 | Left bumper + right bumper + View | (none) | Only in games that hide the bottom screen (Hide Bottom Screen, immersive mode): shows or hides it. That View press never reaches the game. Everywhere else the game sees L, R and Select. |
 
 Select follows View at once, so a tap is a normal Select. While the stop hold is running the game

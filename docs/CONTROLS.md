@@ -20,7 +20,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **Menu** (right controller) | Start | |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to the picker |
 | Left stick click | Home | |
-| Right stick click | Resets the screen positions | Nothing reaches the game |
+| Right stick click | Resets the screen positions | Nothing reaches the game. Ignored while the stick is pushed more than half way, so free camera cannot reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
 
 The left Steam button belongs to SteamVR and is never bound.
@@ -58,7 +58,7 @@ Two things hide the bottom screen: immersive mode, and the **Hide Bottom Screen*
 | Control | What it does |
 |---|---|
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen. Hold both bumpers, then press View. Every game starts with it hidden. The game sees none of the three |
-| Right stick click | Also re-centres the view on your head in immersive mode |
+| Right stick click | Also re-centres the view on your head in immersive mode (same half-way rule) |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 The top screen cannot be grabbed in immersive mode. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).

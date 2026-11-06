@@ -587,6 +587,30 @@ TEST_CASE("FrameXr mapper: right stick click resets the screens once", "[frame_x
     REQUIRE(runner.Step(frame).commands.reset_panels);
 }
 
+TEST_CASE("FrameXr mapper: a right stick click with the stick pushed over is ignored",
+          "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    // Free camera: the stick is pushed over while it clicks. No reset, even after it recentres.
+    frame.hand[1].stick = {0.0f, 0.8f};
+    frame.hand[1].stick_click = true;
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick = {0.0f, 0.0f};
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick_click = false;
+    runner.Step(frame);
+    // A diagonal push also counts, by its length.
+    frame.hand[1].stick = {0.5f, 0.5f};
+    frame.hand[1].stick_click = true;
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick_click = false;
+    runner.Step(frame);
+    // Nearly centred still resets.
+    frame.hand[1].stick = {0.2f, 0.1f};
+    frame.hand[1].stick_click = true;
+    REQUIRE(runner.Step(frame).commands.reset_panels);
+}
+
 TEST_CASE("FrameXr mapper: the hand that pulled last points", "[frame_xr]") {
     Runner runner;
     REQUIRE(runner.mapper.preferred_hand() == Hand::Right);
