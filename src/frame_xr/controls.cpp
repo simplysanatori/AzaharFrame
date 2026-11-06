@@ -11,6 +11,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/picker/library.h"
 #include "frame_xr/picker/library_loader.h"
+#include "frame_xr/picker/logo_loader.h"
 #include "frame_xr/picker/picker.h"
 #include "frame_xr/session.h"
 
@@ -95,6 +96,16 @@ bool VrUi::Create(Runtime& rt) {
     library = std::make_shared<picker::Library>(picker::ReadMetadataWithLoader,
                                                 picker::DefaultIconCacheDir());
     picker = std::make_unique<picker::Picker>(library);
+    { // AzaharFrame: the "Azahar for Frame" lockup for the picker's header (text when missing).
+        std::vector<uint8_t> logo;
+        int logo_w = 0, logo_h = 0;
+        const std::string logo_path = picker::FindArtFile("logo.png");
+        if (!logo_path.empty() && picker::LoadPngFile(logo_path, logo, logo_w, logo_h)) {
+            picker->SetLogo(logo, logo_w, logo_h);
+        } else {
+            LOG_WARNING(Frontend, "xr: art/logo.png not found, the picker shows the name as text");
+        }
+    }
     return true;
 }
 

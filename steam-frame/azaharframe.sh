@@ -29,6 +29,9 @@ fi
 unset MESA_GL_VERSION_OVERRIDE MESA_GLSL_VERSION_OVERRIDE
 # Steam points LD_LIBRARY_PATH at its own runtime; the emulator wants the system's libraries.
 unset LD_LIBRARY_PATH QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH QT_QPA_PLATFORMTHEME
+# The window class of the flat Qt window (settings): azaharframe, so the SteamVR dock finds the
+# Azahar for Frame icon and name (dock-icon.py installs the matching icon and desktop file).
+export RESOURCE_NAME=azaharframe
 # The OpenXR runtime: SteamVR's.  Only when the default lookup would find none.
 if [ -z "$XR_RUNTIME_JSON" ] && [ ! -e "$HOME/.config/openxr/1/active_runtime.json" ] &&
    [ -e /opt/steamvr/steamxr_linuxarm64.json ]; then

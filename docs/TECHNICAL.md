@@ -55,7 +55,7 @@ SteamVR on the Frame has no cylinder layer and no passthrough, only quads and pr
 
 <!-- VERIFY -->
 
-One quad, 1.6 m wide, 2 m in front of you, drawn on the CPU (the same UI canvas and bitmap font as GalaxyFrame). It lists the games in the folders the Qt window knows (`UISettings::values.game_dirs`) with the 48x48 icon and title read from each game's SMDH. Icons are cached in `~/.cache/azaharframe/icons`. Pointing at a tile highlights it; the trigger or **A** boots it through the same code as double-clicking in the Qt list (`GMainWindow::BootGame`, queued onto the Qt thread). **B** goes back, the stick scrolls. A **Rescan** tile rereads the folders.
+One quad, 1.6 m wide, 2 m in front of you, drawn on the CPU (the same UI canvas and bitmap font as GalaxyFrame). It lists the games in the folders the Qt window knows (`UISettings::values.game_dirs`) with the 48x48 icon and title read from each game's SMDH. Icons are cached in `~/.cache/azaharframe/icons`. Pointing at a tile highlights it; the trigger or **A** boots it through the same code as double-clicking in the Qt list (`GMainWindow::BootGame`, queued onto the Qt thread). **B** goes back, the stick scrolls. A **Rescan** tile rereads the folders. The header shows the "Azahar for Frame" lockup from `art/logo.png` (decoded with lodepng and scaled once, so it is drawn 1:1); without that file it shows the name as text.
 
 In a game, holding **View** for 1.5 seconds calls `ShutdownGame` and returns to the picker.
 

@@ -61,6 +61,43 @@ Hit HitTest(float x, float y, int page, int entry_count) {
 
 namespace {
 
+// AzaharFrame: the logo is scaled to the size it is drawn at (area average, in premultiplied
+// alpha so transparent edges do not turn dark), so it is blitted 1:1 and stays crisp.
+std::vector<uint8_t> BoxScaleRGBA(const std::vector<uint8_t>& src, int sw, int sh, int dw, int dh) {
+    std::vector<uint8_t> out(static_cast<size_t>(dw) * dh * 4);
+    const float fx = static_cast<float>(sw) / dw, fy = static_cast<float>(sh) / dh;
+    for (int y = 0; y < dh; y++) {
+        const int sy0 = std::min(sh - 1, static_cast<int>(std::floor(y * fy)));
+        const int sy1 = std::clamp(static_cast<int>(std::ceil((y + 1) * fy)), sy0 + 1, sh);
+        for (int x = 0; x < dw; x++) {
+            const int sx0 = std::min(sw - 1, static_cast<int>(std::floor(x * fx)));
+            const int sx1 = std::clamp(static_cast<int>(std::ceil((x + 1) * fx)), sx0 + 1, sw);
+            float r = 0, g = 0, b = 0, a = 0;
+            for (int sy = sy0; sy < sy1; sy++) {
+                for (int sx = sx0; sx < sx1; sx++) {
+                    const uint8_t* p = &src[(static_cast<size_t>(sy) * sw + sx) * 4];
+                    const float pa = p[3] / 255.0f;
+                    r += p[0] * pa;
+                    g += p[1] * pa;
+                    b += p[2] * pa;
+                    a += pa;
+                }
+            }
+            const float n = static_cast<float>((sy1 - sy0) * (sx1 - sx0));
+            uint8_t* o = &out[(static_cast<size_t>(y) * dw + x) * 4];
+            if (a > 0.0f) {
+                o[0] = static_cast<uint8_t>(std::lround(std::min(255.0f, r / a)));
+                o[1] = static_cast<uint8_t>(std::lround(std::min(255.0f, g / a)));
+                o[2] = static_cast<uint8_t>(std::lround(std::min(255.0f, b / a)));
+            } else {
+                o[0] = o[1] = o[2] = 0;
+            }
+            o[3] = static_cast<uint8_t>(std::lround(std::min(255.0f, a / n * 255.0f)));
+        }
+    }
+    return out;
+}
+
 // Colours (sRGB values).
 const ui::Color kBackground = ui::rgb(16, 18, 26);
 const ui::Color kTile = ui::rgb(34, 38, 52);
@@ -88,6 +125,32 @@ std::string Plural(int n) {
 Picker::Picker(std::shared_ptr<Library> lib) : library(std::move(lib)) {
     ui::InitFonts();
     canvas.Init(layout::kWidth, layout::kHeight);
+}
+
+void Picker::SetLogo(const std::vector<uint8_t>& rgba, int width, int height) {
+    logo_header = {};
+    logo_large = {};
+    if (width > 0 && height > 0 && rgba.size() >= static_cast<size_t>(width) * height * 4) {
+        // Header: 108 px tall, between the top edge and the first row of tiles.
+        // Empty screens: 200 px tall, above the message.
+        const auto scaled = [&](int dh) {
+            const int dw = std::max(1, static_cast<int>(std::lround(static_cast<float>(dh) * width / height)));
+            return LogoImage{BoxScaleRGBA(rgba, width, height, dw, dh), dw, dh};
+        };
+        logo_header = scaled(108);
+        logo_large = scaled(200);
+    }
+    needs_draw = true;
+}
+
+bool Picker::DrawLogo(const LogoImage& img, float x, float y) {
+    if (img.rgba.empty()) {
+        return false;
+    }
+    // Whole pixels, 1:1: BlitRGBA is then an exact copy (blended over the background).
+    const float x0 = std::floor(x), y0 = std::floor(y);
+    canvas.BlitRGBA(img.rgba.data(), img.w, img.h, x0, y0, x0 + img.w, y0 + img.h);
+    return true;
 }
 
 void Picker::SetLibraryState(std::vector<GameEntry> new_entries, bool dirs, bool is_scanning) {
@@ -242,8 +305,10 @@ void Picker::Draw() {
     using namespace layout;
     canvas.Clear(kBackground);
 
-    // Header.
-    canvas.Text(kMargin, 76.0f, ui::kFontLarge, "Azahar for Frame", kText);
+    // Header: the "Azahar for Frame" lockup, or its name as text when the logo is missing.
+    if (!DrawLogo(logo_header, kMargin, 10.0f)) {
+        canvas.Text(kMargin, 76.0f, ui::kFontLarge, "Azahar for Frame", kText);
+    }
     const std::string count = scanning ? std::string("Scanning") : Plural(static_cast<int>(entries.size()));
     if (scanning || !entries.empty()) {
         canvas.Text(RescanButton().x0 - 28.0f, 66.0f, ui::kFontSmall, count.c_str(), kTextDim, 2);
@@ -253,6 +318,8 @@ void Picker::Draw() {
     const int total = static_cast<int>(entries.size());
     if (entries.empty()) {
         const float cx = kWidth * 0.5f;
+        // The empty screens are what someone sees first: the big lockup above the message.
+        DrawLogo(logo_large, cx - logo_large.w * 0.5f, 170.0f);
         if (!has_dirs) {
             canvas.Text(cx, 460.0f, ui::kFontLarge, "No Game Folders Set", kText, 1);
             canvas.Text(cx, 520.0f, ui::kFontSmall,

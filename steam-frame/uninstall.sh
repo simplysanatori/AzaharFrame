@@ -5,7 +5,9 @@
 #   steam-frame/uninstall.sh [--purge]
 # Environment: AZAHARFRAME_APP, AZAHARFRAME_HOME and AZAHARFRAME_SKIP_STEAM as in install.sh.
 # If Steam is not running the entry stays; run this again with Steam up, or remove it in Steam.
-# SteamVR's per-app settings for the entry are left alone.
+# SteamVR's per-app settings for the entry are left alone.  The dock icon files go too:
+# ~/.local/share/applications/azaharframe.desktop, the azaharframe and azahar PNGs in
+# ~/.local/share/icons/hicolor, and the SteamVR app manifest.
 # It never asks a question, so Frametanium can run it.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -34,6 +36,12 @@ elif curl -s --max-time 3 127.0.0.1:8080/json > /dev/null; then
 else
   echo "Steam is not reachable, so the '$NAME' entry stays; remove it in Steam, or run this again with Steam up."
 fi
+
+# The dock icon files (icon-theme PNGs, azaharframe.desktop, SteamVR's app manifest); dock-icon.py
+# is next to this script, or in the program folder when this copy is the installed one.
+DOCKPY=$HERE/dock-icon.py
+[ -f "$DOCKPY" ] || DOCKPY=$DEST/dock-icon.py
+if [ -f "$DOCKPY" ]; then python3 -I "$DOCKPY" remove "$DEST" || echo "note: could not remove the dock icon files (see above)"; fi
 
 # Remove the program folder last: this script may be running from it.
 if [ -d "$DEST" ]; then rm -rf "$DEST"; echo "removed $DEST"; fi

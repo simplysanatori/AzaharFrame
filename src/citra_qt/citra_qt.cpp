@@ -140,6 +140,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
+#include "citra_qt/frame_branding.h"
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "input_common/frame_xr.h"
@@ -580,6 +581,11 @@ GMainWindow::GMainWindow(Core::System& system_)
     UpdateWindowTitle();
 
     QIcon azahar_icon = QIcon(QString::fromStdString(":/icons/default/256x256/azahar.png"));
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the Azahar for Frame icon on every window
+    azahar_icon = FrameBranding::AppIcon(azahar_icon);
+    QApplication::setWindowIcon(azahar_icon);
+    setWindowIcon(azahar_icon);
+#endif
     render_window->setWindowIcon(azahar_icon);
     secondary_window->setWindowIcon(azahar_icon);
 
@@ -4955,7 +4961,11 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     QCoreApplication::setOrganizationName(QStringLiteral("Azahar Developers"));
     QCoreApplication::setOrganizationDomain(QStringLiteral("azahar_emu.org"));
     QCoreApplication::setApplicationName(QStringLiteral("Azahar"));
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the name the desktop and SteamVR know this app by
+    QGuiApplication::setDesktopFileName(QStringLiteral("azaharframe"));
+#else
     QGuiApplication::setDesktopFileName(QStringLiteral("org.azahar_emu.Azahar"));
+#endif
 
     auto rounding_policy = GetHighDpiRoundingPolicy();
     QApplication::setHighDpiScaleFactorRoundingPolicy(rounding_policy);
