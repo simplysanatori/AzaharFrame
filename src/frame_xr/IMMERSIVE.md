@@ -14,7 +14,7 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | Value | Name in the Qt window | Game | Top screen |
 | --- | --- | --- | --- |
 | 0 | Off | normal | the normal screens |
-| 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.5 m ahead, fixed in the room, 1.25 x 0.75 m. Its middle third (the game's own frame) has the angular size of the normal top screen |
+| 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.5 m ahead, fixed in the room, 1.25 x 0.75 m for the 3DS screen shape (1.33 x 0.75 m for Widescreen). Its middle third (the game's own frame) has the angular size of the normal top screen |
 | 2 | Full (6DoF): Ocarina of Time, Majora's Mask | 1.4x wider; view matrix register 4 follows the head (rotation and position) | head-locked, 0.5 m ahead, both eyes on one quad |
 | 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye. The game is shown a 3D depth of about 0: the two eyes come from your head |
 
@@ -50,6 +50,29 @@ The two compose: with immersive mode on, hiding the bottom screen changes nothin
 hides it already) and the chord behaves as described above. With the chord the bottom screen shows
 for touch-only moments, in mode 1 and with the setting alone at its normal place.
 
+## Screen Shape and Immersive Game FOV
+
+Two more per-game settings, in the same **VR** group, both read when a game starts:
+
+- `vr_top_aspect`, **Screen Shape**: 0 = 3DS (5:3, the 400x240 of the screen), 1 = Widescreen (16:9),
+  2 = Ultrawide (21:9). For games and mods that render widescreen into the 400x240 top screen
+  (Ocarina of Time 3D with the Single Screen Experience mod draws a squeezed 16:9 picture and
+  expects the emulator to stretch it). The renderer is not touched; only the quad is wider. The
+  normal top screen keeps its height (1 m) and its place, 2 m ahead, and gets wider; the bottom
+  screen stays below it as before.
+- `vr_immersive_game_fov`, **Immersive Game FOV**: the game camera's vertical angle in degrees,
+  30 to 110, default 60 (Ocarina of Time's). It sizes the head-locked screen of modes 2 and 3. The
+  environment variable `AZAHARFRAME_IMMERSIVE_FOV` still wins when it is set.
+
+In the immersive modes the quad has to show the game's picture at the angle the game drew it, so
+its aspect must be the aspect of the game's projection. The vertical half angle comes from the FOV
+setting and the horizontal one from the shape: `tan(h / 2) = aspect x tan(v / 2)`. In modes 2 and 3
+the quad is `2 x d x 1.4 x tan(v / 2)` high and that times the aspect wide (60 degrees with
+Widescreen: 0.81 m high, 1.44 m wide, 110 degrees across). In mode 1 the width is the normal top
+screen's angular size times 3, and the height is the width over the aspect. If the shape in
+Azahar for Frame and the mod's own aspect option disagree, the picture is stretched, and in modes
+2 and 3 the world drifts against your head turns.
+
 ## How it works
 
 Three threads, and the rasterizer is only touched by the one that draws:
@@ -82,8 +105,9 @@ fields; that race is gone.
   wrap-around cylinder (a flat quad cannot wrap around you).
 - **Size of the head-locked screen.** It shows the game's view at the angle the game drew it, so
   that turning your head turns the game camera by the same angle as the picture moves and the
-  world stays put: 2 x 0.5 m x 1.4 x tan(60 / 2) = 0.81 m high (78 degrees), 1.35 m wide, for a
-  game camera 60 degrees high (Ocarina of Time's). `AZAHARFRAME_IMMERSIVE_FOV` sets that angle.
+  world stays put: 2 x 0.5 m x 1.4 x tan(60 / 2) = 0.81 m high (78 degrees), 1.35 m wide with the
+  3DS screen shape (1.44 m with Widescreen), for a game camera 60 degrees high (Ocarina of Time's).
+  The Immersive Game FOV setting sets that angle, and `AZAHARFRAME_IMMERSIVE_FOV` overrides it.
   `AZAHARFRAME_IMMERSIVE_FOV=28` gives the normal top screen's size times 1.4.
 - **Mode 3 eye offset** from the located eye poses (half your IPD), not a fixed 32.5 mm.
 - **Reference pose.** CitraVR used Quest's LOCAL space, whose origin is the head at start. SteamVR's
@@ -104,7 +128,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `AZAHARFRAME_IMMERSIVE_FOV` | 60 | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size |
+| `AZAHARFRAME_IMMERSIVE_FOV` | unset | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size and wins over the Immersive Game FOV setting (default 60, 30..110) |
 | `AZAHARFRAME_IMMERSIVE_DISTANCE` | 0.5 | metres to the top screen (0.2..5); sizes scale with it, so only stereo depth changes |
 | `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
 
@@ -123,7 +147,7 @@ What to look for:
 - Mode 2 in Ocarina of Time 3D: the top screen fills most of your view and stays in front of your eyes;
   there is no bottom screen. Turn your head slowly: the game camera turns with it and the world stays
   put. If the world swims along with your head, the screen is too small: raise
-  `AZAHARFRAME_IMMERSIVE_FOV` (try 70, 80). If it swims against your head, lower it (50).
+  **Immersive Game FOV** (try 70, 80; a mod that changes the game's FOV needs the same value here). If it swims against your head, lower it (50).
   <!-- VERIFY: the default of 60 degrees in the headset -->
 - Leaning and crouching move the camera a little (Depth Factor Multiplier 1x).
 - If the depth is uncomfortable, try `AZAHARFRAME_IMMERSIVE_DISTANCE=1.0`.

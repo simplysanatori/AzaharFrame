@@ -7,6 +7,11 @@
 // Also "Hide Bottom Screen" (Settings::values.vr_hide_bottom_screen, per game): the bottom screen
 // is not drawn and cannot be touched or grabbed, with or without immersive mode.
 //
+// "VR Screen Shape" (Settings::values.vr_top_aspect, per game) sets the top screen's width over
+// its height: 5:3 (the 3DS), 16:9 or 21:9, for games and mods that draw widescreen squeezed into
+// the 400x240 top screen. "Immersive Game FOV" (vr_immersive_game_fov, per game) is the game
+// camera's vertical angle that sizes the immersive screen. Both are read when a game starts.
+//
 // Settings::values.vr_immersive_mode (CitraVR's key, per game in the Qt window):
 //   0  Off.
 //   1  Wide: the game draws a 3x wider view (the shader divides gl_Position.xy by 3) on a big
@@ -35,6 +40,10 @@ namespace FrameXr::Immersive {
 void Install();
 /// Before the frame loop stops (publishes "off", removes the callback).
 void Uninstall();
+
+/// The top screen's width over its height for the game on view (5:3, 16:9 or 21:9; 5:3 when no
+/// game has started). Latched when a game starts. Any thread.
+float TopAspect();
 
 /// Where the game screens go this frame.
 struct ScreenLayers {

@@ -56,6 +56,18 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "hide the bottom screen. Takes effect when the game starts."));
     layout->addWidget(hide_bottom_check);
 
+    // Values 0..2 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
+    shape_combo = new QComboBox(this);
+    shape_combo->addItem(tr("3DS (5:3)"));
+    shape_combo->addItem(tr("Widescreen (16:9)"));
+    shape_combo->addItem(tr("Ultrawide (21:9)"));
+    shape_row = MakeRow(
+        this, QStringLiteral("frame_vr_shape_row"), tr("Screen Shape"),
+        tr("Widen the top screen in VR for games or mods that render widescreen. Takes effect "
+           "when the game starts."),
+        {shape_combo});
+    layout->addWidget(shape_row);
+
     // Values 0..3 are Settings::values.vr_immersive_mode (frame_xr/immersive.h).
     mode_combo = new QComboBox(this);
     mode_combo->addItem(tr("Off"));
@@ -69,6 +81,16 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "View to show the bottom screen."),
         {mode_combo});
     layout->addWidget(mode_row);
+
+    fov_scope = MakeScopeCombo(this);
+    fov_spin = new QSpinBox(this);
+    fov_spin->setRange(30, 110);
+    fov_spin->setSuffix(QStringLiteral("\u00B0"));
+    fov_row = MakeRow(this, QStringLiteral("frame_vr_fov_row"), tr("Immersive Game FOV"),
+                      tr("The game camera's vertical field of view in degrees. Change it only if a "
+                         "mod changes the game's FOV. Takes effect when the game starts."),
+                      {fov_scope, fov_spin});
+    layout->addWidget(fov_row);
 
     // Values 0..2 are 10^n (Settings::values.vr_immersive_positional_game_scaler).
     depth_combo = new QComboBox(this);
@@ -111,8 +133,11 @@ void ConfigureFrameVr::SetupPerGameUI() {
     if (Settings::IsConfiguringGlobal()) {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
+        fov_scope->setVisible(false);
         // A running application that overrides them blocks the global values.
         hide_bottom_check->setEnabled(Settings::values.vr_hide_bottom_screen.UsingGlobal());
+        shape_combo->setEnabled(Settings::values.vr_top_aspect.UsingGlobal());
+        fov_spin->setEnabled(Settings::values.vr_immersive_game_fov.UsingGlobal());
         mode_combo->setEnabled(Settings::values.vr_immersive_mode.UsingGlobal());
         depth_combo->setEnabled(Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
         register_spin->setEnabled(Settings::values.vr_si_mode_register_offset.UsingGlobal());
@@ -123,6 +148,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
     ConfigurationShared::SetColoredTristate(
         hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
     ConfigurationShared::SetColoredComboBox(
+        shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         depth_combo, depth_row,
@@ -131,6 +158,10 @@ void ConfigureFrameVr::SetupPerGameUI() {
     connect(register_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         register_spin->setEnabled(index == 1);
         ConfigurationShared::SetHighlight(register_row, index == 1);
+    });
+    connect(fov_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
+        fov_spin->setEnabled(index == 1);
+        ConfigurationShared::SetHighlight(fov_row, index == 1);
     });
     connect(eye_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         eye_edit->setEnabled(index == 1);
@@ -146,14 +177,22 @@ void ConfigureFrameVr::SetConfiguration() {
 
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue());
     register_spin->setValue(reg.GetValue());
+    fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue());
     eye_edit->setText(QString::fromStdString(eye.GetValue()));
 
     if (Settings::IsConfiguringGlobal()) {
+        shape_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_top_aspect.GetValue()));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue()));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
         return;
     }
 
+    ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
+    ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
+    fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
+    fov_spin->setEnabled(!Settings::values.vr_immersive_game_fov.UsingGlobal());
+    ConfigurationShared::SetHighlight(fov_row,
+                                      !Settings::values.vr_immersive_game_fov.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(mode_combo, &mode);
     ConfigurationShared::SetHighlight(mode_row, !mode.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(depth_combo, &depth);
@@ -170,6 +209,9 @@ void ConfigureFrameVr::SetConfiguration() {
 void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
+                                             [this](s32) { return fov_spin->value(); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);

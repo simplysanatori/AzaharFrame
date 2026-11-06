@@ -40,7 +40,7 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `src/citra_qt/aboutdialog.cpp` | the Azahar for Frame icon |
 | `src/citra_qt/configuration/config.{h,cpp}` | reads and saves the `[VR]` section (CitraVR's keys) |
 | `src/citra_qt/configuration/configure_graphics.{h,cpp}` | the **VR** group |
-| `src/common/settings.{h,cpp}` | the four `vr_*` immersive settings as per-game settings |
+| `src/common/settings.{h,cpp}` | the `vr_*` immersive settings, `vr_hide_bottom_screen`, `vr_top_aspect` and `vr_immersive_game_fov` as per-game settings |
 | `src/input_common/main.cpp` | registers the `frame_xr` engine, its pollers and texts; resets the GC adapter before static destruction |
 | `src/input_common/gcadapter/gc_adapter.{h,cpp}` | a failed libusb init no longer crashes at exit |
 | `src/video_core/gpu.cpp` | applies the newest head pose after each frame |
@@ -143,7 +143,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 |---|---|---|
 | `AZAHARFRAME_FLAT=1` | `azaharframe.sh` | start without `--vr`: the desktop window only |
 | `AZAHARFRAME_REFRESH_HZ` | `azaharframe.sh` | 90 or 120 (default 120), set in SteamVR for the entry |
-| `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning, see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
+| `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning (the FOV one overrides the Immersive Game FOV setting), see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
 | `AZAHARFRAME_ART` | picker, Qt icon | folder with `logo.png` and `icon.png` (default: `art/` next to the program) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
