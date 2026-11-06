@@ -11,6 +11,7 @@
 #include "input_common/gcadapter/gc_adapter.h"
 #include "input_common/gcadapter/gc_poller.h"
 #endif
+#include "input_common/frame_xr.h" // CitraFrame
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
@@ -48,6 +49,8 @@ void Init() {
     Input::RegisterFactory<Input::TouchDevice>("touch_from_button",
                                                std::make_shared<TouchFromButtonFactory>());
 
+    FrameXr::Register(); // CitraFrame
+
     sdl = SDL::Init();
 
     udp = CemuhookUDP::Init();
@@ -63,6 +66,7 @@ void Shutdown() {
     Input::UnregisterFactory<Input::ButtonDevice>("keyboard");
     keyboard.reset();
     Input::UnregisterFactory<Input::AnalogDevice>("analog_from_button");
+    FrameXr::Unregister(); // CitraFrame
     Input::UnregisterFactory<Input::MotionDevice>("motion_emu");
     motion_emu.reset();
     Input::UnregisterFactory<Input::TouchDevice>("emu_window");
@@ -80,6 +84,10 @@ std::string ButtonToText(const Common::ParamPackage& param) {
     // to be handled at the frontend
     if (engine_str == "keyboard") {
         return param.Serialize();
+    }
+
+    if (engine_str == "frame_xr") { // CitraFrame
+        return FrameXr::ButtonToText(param);
     }
 
     if (engine_str == "sdl") {
@@ -129,6 +137,10 @@ std::string AnalogToText(const Common::ParamPackage& param, const std::string& d
     const auto engine_str = param.Get("engine", "");
     if (engine_str == "analog_from_button") {
         return ButtonToText(Common::ParamPackage{param.Get(dir, "")});
+    }
+
+    if (engine_str == "frame_xr") { // CitraFrame
+        return FrameXr::AnalogToText(param, dir);
     }
 
     const auto axis_x_str = param.Get("axis_x", "");
@@ -271,6 +283,8 @@ std::vector<std::unique_ptr<DevicePoller>> GetPollers(DeviceType type) {
         break;
     }
 #endif
+
+    FrameXr::AppendPollers(pollers, type); // CitraFrame
 
     return pollers;
 }
