@@ -59,8 +59,28 @@ What a trigger does is decided when it is pulled, from what that hand's ray hits
 ## Stopping the game
 
 Hold View for 1.5 s: the mapper reports `stop_game` once and a `stop_hold_progress` of 0..1 while
-holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows the picker.
+holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows the home panel again.
 (CitraVR had an Exit button in its menu ribbon.)
+
+## The home panel (no game running)
+
+Without a game, Azahar's own Qt window (game list, menus, dialogs) is mirrored on a panel 1.6 m
+wide, 2 m ahead (`frame_xr/qt_mirror`, `citra_qt/frame_mirror.cpp`). The controllers drive it like
+a mouse; double-click a game to start it. `AZAHARFRAME_VR_PICKER=1` shows the old picker instead.
+
+| Frame control | On the home panel |
+| --- | --- |
+| Aim ray | Mouse pointer (hover opens submenus, shows tooltips). The hand that pulled its trigger or grip on the panel last points; if it points elsewhere, the other hand's ray is used. |
+| Trigger, or A | Left button (press above 0.55, release below 0.40). |
+| Grip, or X | Right button: context menus (game Properties for per-game settings). |
+| B | Escape: closes a menu or a dialog. |
+| Stick Y (either) | Mouse wheel, up to 12 notches a second; nothing below 0.2. |
+| Bumper on the panel | Drag the panel around you (it keeps its distance and turns to face you). |
+| Right stick click | Panel back 2 m ahead. |
+
+A press keeps its point while the ray moves less than 1.2 cm, and a second press within 450 ms
+of the release lands on the same point, so double clicks work with a shaking hand.
+There is no text entry yet (OpenXR has no system keyboard); text fields need the desktop.
 
 ## Where CitraVR's behaviour is not reproduced
 
