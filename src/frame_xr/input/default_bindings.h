@@ -10,8 +10,8 @@
 
 // AzaharFrame
 // The default VR input profile: which virtual gamepad control drives which 3DS button or stick.
-// This is CitraVR's mapping with the Frame's real D-pad as the D-pad. The table is the single
-// source of truth: the default profile strings, the tests and MAPPING.md all follow it.
+// This is CitraVR's mapping with the Frame's real D-pad as the D-pad, and with L and R on the
+// bumpers (the grips only grab the screens). The table is the single source of truth: the default profile strings, the tests and MAPPING.md all follow it.
 
 namespace FrameXr::Input {
 
@@ -25,8 +25,9 @@ struct AnalogBinding {
     Settings::NativeAnalog::Values analog;
 };
 
-/// Controls that are deliberately unbound by default: BumperL, BumperR (free for the user),
-/// StickClickR (reset panel positions, handled by the mapper before the game sees it).
+/// Controls that are deliberately unbound by default: GripL, GripR (they grab the screens, handled
+/// by the mapper), StickClickR (reset panel positions, handled by the mapper before the game
+/// sees it).
 inline constexpr std::array<ButtonBinding, 15> kDefaultButtonBindings{{
     {Control::A, Settings::NativeButton::A},
     {Control::B, Settings::NativeButton::B},
@@ -36,8 +37,8 @@ inline constexpr std::array<ButtonBinding, 15> kDefaultButtonBindings{{
     {Control::DpadDown, Settings::NativeButton::Down},
     {Control::DpadLeft, Settings::NativeButton::Left},
     {Control::DpadRight, Settings::NativeButton::Right},
-    {Control::GripL, Settings::NativeButton::L},
-    {Control::GripR, Settings::NativeButton::R},
+    {Control::BumperL, Settings::NativeButton::L},
+    {Control::BumperR, Settings::NativeButton::R},
     {Control::TriggerL, Settings::NativeButton::ZL},
     {Control::TriggerR, Settings::NativeButton::ZR},
     {Control::Menu, Settings::NativeButton::Start},

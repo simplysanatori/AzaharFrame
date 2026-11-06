@@ -254,6 +254,25 @@ void ApplyDefaultProfile(Settings::InputProfile& profile) {
     }
 }
 
+bool MigrateGripBindings(Settings::InputProfile& profile) {
+    using ::FrameXr::Input::Control;
+    bool changed = false;
+    const auto move = [&](Settings::NativeButton::Values button, Control from, Control to) {
+        std::string& text = profile.buttons[button];
+        const Common::ParamPackage param{text};
+        if (param.Get("engine", "") == "frame_xr" &&
+            param.Get("button", -1) == static_cast<int>(from)) {
+            text = Common::ParamPackage{{"engine", "frame_xr"},
+                                        {"button", std::to_string(static_cast<int>(to))}}
+                       .Serialize();
+            changed = true;
+        }
+    };
+    move(Settings::NativeButton::L, Control::GripL, Control::BumperL);
+    move(Settings::NativeButton::R, Control::GripR, Control::BumperR);
+    return changed;
+}
+
 bool ProfileUsesFrameXr(const Settings::InputProfile& profile) {
     for (const std::string& button : profile.buttons) {
         if (Common::ParamPackage{button}.Get("engine", "") == "frame_xr") {

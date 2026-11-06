@@ -85,6 +85,11 @@ DefaultProfile GetDefaultProfile();
 /// Core::System::ReloadInputDevices() so the HID service picks it up.
 void ApplyDefaultProfile(Settings::InputProfile& profile);
 
+/// Moves L and R from the grips (the first default, `button:8`/`button:9`) to the bumpers
+/// (`button:12`/`button:13`) in a profile saved by an older build. Other bindings stay. Returns
+/// true when something changed.
+bool MigrateGripBindings(Settings::InputProfile& profile);
+
 /// True when the profile already binds frame_xr to at least one button (a user profile saved
 /// earlier), so VR start-up can leave their bindings alone.
 bool ProfileUsesFrameXr(const Settings::InputProfile& profile);
