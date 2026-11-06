@@ -12,6 +12,7 @@
 #include "video_core/custom_textures/custom_format.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
+#include "video_core/vulkan_hooks.h" // CitraFrame
 
 #include <vk_mem_alloc.h>
 
@@ -150,6 +151,12 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
                physical_device_index, num_physical_devices);
 
     physical_device = physical_devices[physical_device_index];
+    // CitraFrame: the OpenXR runtime decides the GPU when it made the instance.
+    if (auto* hooks = VideoCore::GetVulkanHooks(); hooks && hooks->OwnsInstance(*instance)) {
+        if (const VkPhysicalDevice wanted = hooks->PickPhysicalDevice(*instance)) {
+            physical_device = vk::PhysicalDevice{wanted};
+        }
+    }
     available_extensions = GetSupportedExtensions(physical_device);
     properties = physical_device.getProperties();
     if (properties.apiVersion < TargetVulkanApiVersion) {
@@ -168,6 +175,16 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
 
 Instance::~Instance() {
     vmaDestroyAllocator(allocator);
+    // CitraFrame: handles made by the XR frontend live for the whole process.
+    if (auto* hooks = VideoCore::GetVulkanHooks()) {
+        if (device && hooks->OwnsDevice(*device)) {
+            static_cast<void>(device.release());
+        }
+        if (instance && hooks->OwnsInstance(*instance)) {
+            debug_callback = {};
+            static_cast<void>(instance.release());
+        }
+    }
 }
 
 const FormatTraits& Instance::GetTraits(VideoCore::PixelFormat pixel_format) const {
@@ -643,7 +660,18 @@ bool Instance::CreateDevice() {
     return true;
 #else
     try {
-        device = physical_device.createDeviceUnique(device_chain.get());
+        // CitraFrame: the XR frontend makes the device once and hands it to every Instance.
+        VkDevice adopted = VK_NULL_HANDLE;
+        if (auto* hooks = VideoCore::GetVulkanHooks(); hooks && hooks->OwnsInstance(*instance)) {
+            adopted = hooks->CreateDevice(
+                physical_device, static_cast<const VkDeviceCreateInfo&>(device_chain.get()),
+                queue_family_index);
+        }
+        if (adopted != VK_NULL_HANDLE) {
+            device = vk::UniqueDevice{vk::Device{adopted}};
+        } else {
+            device = physical_device.createDeviceUnique(device_chain.get());
+        }
     } catch (vk::ExtensionNotPresentError& err) {
         LOG_CRITICAL(Render_Vulkan, "Some required extensions are not available {}", err.what());
         return false;

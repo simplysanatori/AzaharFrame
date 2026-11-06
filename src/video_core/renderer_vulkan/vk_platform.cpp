@@ -24,6 +24,7 @@
 #include "common/settings.h"
 #include "core/frontend/emu_window.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
+#include "video_core/vulkan_hooks.h" // CitraFrame
 
 namespace Vulkan {
 
@@ -383,6 +384,19 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
         instance_ci.pNext = &layer_settings_ci;
     }
 #endif
+
+    // CitraFrame: an OpenXR frontend makes the instance once per process and every
+    // Instance adopts it (Instance::~Instance releases it instead of destroying it).
+    if (auto* hooks = VideoCore::GetVulkanHooks()) {
+        const VkInstance adopted =
+            hooks->CreateInstance(vkGetInstanceProcAddr, static_cast<const VkInstanceCreateInfo&>(instance_ci));
+        if (adopted != VK_NULL_HANDLE) {
+            vk::UniqueInstance instance{vk::Instance{adopted}};
+            VULKAN_HPP_DEFAULT_DISPATCHER.init(*instance);
+            return instance;
+        }
+        LOG_ERROR(Render_Vulkan, "The XR frontend could not make the Vulkan instance");
+    }
 
     auto instance = vk::createInstanceUnique(instance_ci);
 

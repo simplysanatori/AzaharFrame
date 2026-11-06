@@ -152,6 +152,14 @@ CMAKE_DEPENDENT_OPTION(ENABLE_OPENGL "Enables the OpenGL renderer" ${DEFAULT_ENA
 # NetBSD doesn't support Vulkan yet, remove this check when it does.
 CMAKE_DEPENDENT_OPTION(ENABLE_VULKAN "Enables the Vulkan renderer" ON "NOT (BSD MATCHES \"NetBSD\")" OFF)
 
+# CitraFrame: the OpenXR frontend (src/frame_xr, citra_qt --vr). On by default for
+# Linux aarch64 (the Steam Frame); the OpenXR loader is opened at run time.
+set(DEFAULT_ENABLE_FRAME_XR OFF)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(DEFAULT_ENABLE_FRAME_XR ON)
+endif()
+CMAKE_DEPENDENT_OPTION(ENABLE_FRAME_XR "Enables the OpenXR frontend (CitraFrame)" ${DEFAULT_ENABLE_FRAME_XR} "ENABLE_VULKAN;ENABLE_QT;NOT ANDROID;NOT ENABLE_LIBRETRO" OFF)
+
 option(ENABLE_DISCORD_RPC "Enables Discord Rich Presence" OFF)
 
 option(ENABLE_MICROPROFILE "Enables microprofile capabilities" OFF)

@@ -192,6 +192,9 @@ endif()
 if(ENABLE_FREECAM)
     add_compile_definitions(ENABLE_FREECAM)
 endif()
+if(ENABLE_FRAME_XR) # CitraFrame
+    add_compile_definitions(ENABLE_FRAME_XR)
+endif()
 
 add_subdirectory(common)
 add_subdirectory(core)
@@ -202,6 +205,10 @@ add_subdirectory(input_common)
 
 if (ENABLE_TESTS)
     add_subdirectory(tests)
+endif()
+
+if (ENABLE_FRAME_XR) # CitraFrame
+    add_subdirectory(frame_xr)
 endif()
 
 if (ENABLE_QT)

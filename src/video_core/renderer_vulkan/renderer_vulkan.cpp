@@ -139,7 +139,16 @@ RendererVulkan::~RendererVulkan() {
     vk::Device device = instance.GetDevice();
     scheduler.Finish();
     main_present_window.WaitPresent();
+#ifndef HAVE_LIBRETRO
+    xr_target.reset(); // CitraFrame: releases what is in flight, then the XR images
+    {
+        // CitraFrame: the XR thread may use the queue (xrEndFrame) under this mutex.
+        std::scoped_lock lock{scheduler.submit_mutex};
+        device.waitIdle();
+    }
+#else
     device.waitIdle();
+#endif
 
     device.destroyShaderModule(present_vertex_shader);
     for (u32 i = 0; i < PRESENT_PIPELINES; i++) {
@@ -1148,6 +1157,9 @@ void RendererVulkan::SwapBuffers() {
     RenderScreenshot();
     isSecondaryWindow = false;
     RenderToWindow(main_present_window, layout, false);
+#ifndef HAVE_LIBRETRO
+    RenderToXr(); // CitraFrame: the three screens into the XR swapchains
+#endif
 #ifndef ANDROID
     if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
         ASSERT(secondary_window);

@@ -138,6 +138,32 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <SDL.h>
 #endif
 
+#ifdef ENABLE_FRAME_XR // CitraFrame
+#include <csignal>
+#include "core/frontend/emu_window.h"
+#include "frame_xr/frame_xr.h"
+
+namespace {
+// --vr: the OpenXR session (frame_xr) for the whole run.
+bool g_frame_xr_requested = false;
+// SIGTERM / SIGINT: stop the game and quit, so the XR session ends cleanly.
+volatile std::sig_atomic_t g_frame_xr_terminate = 0;
+void FrameXrOnSignal(int) {
+    g_frame_xr_terminate = 1;
+}
+Frontend::WindowSystemType FrameXrWindowSystemType() {
+    const QString platform = QGuiApplication::platformName();
+    if (platform == QStringLiteral("xcb")) {
+        return Frontend::WindowSystemType::X11;
+    }
+    if (platform == QStringLiteral("wayland") || platform == QStringLiteral("wayland-egl")) {
+        return Frontend::WindowSystemType::Wayland;
+    }
+    return Frontend::WindowSystemType::Headless;
+}
+} // namespace
+#endif
+
 constexpr int default_mouse_timeout = 2500;
 
 /**
@@ -399,6 +425,13 @@ GMainWindow::GMainWindow(Core::System& system_)
             continue;
         }
 
+#ifdef ENABLE_FRAME_XR // CitraFrame
+        if (args[i] == QStringLiteral("--vr")) {
+            g_frame_xr_requested = true;
+            continue;
+        }
+#endif
+
         // Launch game at path
         if (i == args.size() - 1 && !args[i].startsWith(QChar::fromLatin1('-'))) {
             game_path = args[i];
@@ -552,6 +585,49 @@ GMainWindow::GMainWindow(Core::System& system_)
 
 #ifdef ENABLE_VULKAN
     physical_devices = GetVulkanPhysicalDevices();
+#endif
+
+#ifdef ENABLE_FRAME_XR // CitraFrame: the XR session starts before any game boots.
+    if (g_frame_xr_requested) {
+        FrameXr::StartOptions xr_options;
+        xr_options.window_type = FrameXrWindowSystemType();
+        if (Settings::values.graphics_api.GetValue() != Settings::GraphicsAPI::Vulkan) {
+            LOG_ERROR(Frontend, "xr: --vr needs the Vulkan renderer; running flat");
+        } else if (FrameXr::Start(xr_options)) {
+            std::signal(SIGTERM, FrameXrOnSignal);
+            std::signal(SIGINT, FrameXrOnSignal);
+            auto* signal_timer = new QTimer(this);
+            connect(signal_timer, &QTimer::timeout, this, [this] {
+                if (g_frame_xr_terminate) {
+                    g_frame_xr_terminate = 0;
+                    LOG_INFO(Frontend, "xr: termination signal, stopping");
+                    ShutdownGame();
+                    close();
+                }
+            });
+            signal_timer->start(100);
+
+            // Test driver (headless runs): CITRAFRAME_TEST_BOOTS="a.3ds|b.cci" boots
+            // each ROM in turn after the first, each for CITRAFRAME_TEST_SECONDS (15).
+            const QString boots = qEnvironmentVariable("CITRAFRAME_TEST_BOOTS");
+            if (!boots.isEmpty()) {
+                const int seconds = qEnvironmentVariableIntValue("CITRAFRAME_TEST_SECONDS");
+                const int period_ms = (seconds > 0 ? seconds : 15) * 1000;
+                int at_ms = game_path.isEmpty() ? 1000 : period_ms;
+                for (const QString& rom : boots.split(QLatin1Char('|'), Qt::SkipEmptyParts)) {
+                    QTimer::singleShot(at_ms, this, [this] {
+                        LOG_INFO(Frontend, "xr test: stopping the game");
+                        ShutdownGame();
+                    });
+                    QTimer::singleShot(at_ms + 2000, this, [this, rom] {
+                        LOG_INFO(Frontend, "xr test: booting {}", rom.toStdString());
+                        BootGame(rom);
+                    });
+                    at_ms += 2000 + period_ms;
+                }
+            }
+        }
+    }
 #endif
 
     if (!game_path.isEmpty()) {
@@ -1645,6 +1721,13 @@ void GMainWindow::BootGame(const QString& filename) {
         LOG_INFO(Frontend, "Loading per application config file for title {}", config_file_name);
         QtConfig per_game_config(config_file_name, QtConfig::ConfigType::PerGameConfig);
     }
+
+#ifdef ENABLE_FRAME_XR // CitraFrame: in VR the 3D slider is always on (stereo top screen).
+    if (FrameXr::IsStarted() && Settings::values.factor_3d.GetValue() == 0) {
+        LOG_INFO(Frontend, "xr: 3D slider was 0, set to 50 for VR");
+        Settings::values.factor_3d.SetValue(50);
+    }
+#endif
 
     // Artic Server cannot accept a client multiple times, so multiple loaders are not
     // possible. Instead register the app loader early and do not create it again on system load.
@@ -4853,5 +4936,8 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     app.processEvents();
 
     int result = app.exec();
+#ifdef ENABLE_FRAME_XR // CitraFrame: no renderer exists any more.
+    FrameXr::Shutdown();
+#endif
     return result;
 }

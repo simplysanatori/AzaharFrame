@@ -12,6 +12,7 @@
 #else
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_present_window.h"
+#include "video_core/renderer_vulkan/vk_xr_target.h" // CitraFrame
 #endif
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_render_manager.h"
@@ -103,6 +104,9 @@ private:
     void PrepareDraw(Frame* frame, const Layout::FramebufferLayout& layout);
     void RenderToWindow(PresentWindow& window, const Layout::FramebufferLayout& layout,
                         bool flipped);
+#ifndef HAVE_LIBRETRO
+    void RenderToXr(); // CitraFrame: renderer_vulkan_xr.cpp
+#endif
 
     void DrawScreens(Frame* frame, const Layout::FramebufferLayout& layout, bool flipped);
     void DrawBottomScreen(const Layout::FramebufferLayout& layout,
@@ -133,6 +137,9 @@ private:
     Instance instance;
 #endif
     Scheduler scheduler;
+#ifndef HAVE_LIBRETRO
+    XrQueueRegistration xr_queue_registration{scheduler}; // CitraFrame
+#endif
     RenderManager renderpass_cache;
     PresentWindow main_present_window;
     StreamBuffer vertex_buffer;
@@ -159,6 +166,9 @@ private:
     bool secondaryWindowEnabled;
     bool screenRendered;
     u64 previous_frame_tick{};
+#ifndef HAVE_LIBRETRO
+    std::unique_ptr<XrPresentTarget> xr_target; // CitraFrame
+#endif
 };
 
 } // namespace Vulkan
