@@ -493,6 +493,7 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     ReadGlobalSetting(Settings::values.vr_si_mode_register_offset);
     ReadGlobalSetting(Settings::values.vr_immersive_eye_indicator);
+    ReadGlobalSetting(Settings::values.vr_hide_bottom_screen);
 
     qt_config->endGroup();
 }
@@ -1109,6 +1110,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     WriteGlobalSetting(Settings::values.vr_si_mode_register_offset);
     WriteGlobalSetting(Settings::values.vr_immersive_eye_indicator);
+    WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
 
     qt_config->endGroup();
 }

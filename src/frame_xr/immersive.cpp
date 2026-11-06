@@ -153,7 +153,8 @@ struct State {
     bool live = false;           ///< a game shows its screens and the session is visible
     bool engaged = false;        ///< immersive this frame
     bool bottom_toggled = false; ///< CitraVR's lower menu toggle (starts off in immersive mode)
-    bool prev_bumper = false;
+    bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
+    bool screens_were_live = false;
     bool prev_click = false;
     bool recentre = false;
     bool have_ref = false;
@@ -169,6 +170,11 @@ bool IsViewMode(u32 mode) {
     return mode >= 2;
 }
 
+/// "Hide Bottom Screen" is on and the bottom screen was not brought back with the bumper chord.
+bool BottomHiddenByOption() {
+    return g.hide_bottom && !g.bottom_toggled;
+}
+
 void OnFrame(const FrameInfo& info) {
     const u32 mode = Settings::values.vr_immersive_mode.GetValue();
     const bool visible =
@@ -177,7 +183,12 @@ void OnFrame(const FrameInfo& info) {
         // No game: the next one starts with the bottom screen hidden, as in CitraVR.
         g.bottom_toggled = false;
         g.have_ref = false;
+    } else if (!g.screens_were_live) {
+        // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
+        g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
+        LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
     }
+    g.screens_were_live = info.screens_live;
     g.mode = mode;
     g.live = info.screens_live && visible;
     g.view = LatestViewPose();
@@ -264,7 +275,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     out.top_space = local_space;
     out.top_pose[0] = out.top_pose[1] = placement.top_pose;
     out.top_size = placement.top_size;
-    out.show_bottom = true;
+    out.show_bottom = !BottomHiddenByOption();
     if (!g.engaged) {
         return out;
     }
@@ -304,14 +315,19 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     return out;
 }
 
-void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_pointable) {
-    const bool bumper = in.hand[0].bumper;
-    if (bumper && !g.prev_bumper && g.mode != 0 && g.live) {
-        g.bottom_toggled = !g.bottom_toggled;
-        LOG_INFO(Frontend, "xr: immersive: bottom screen {}", g.bottom_toggled ? "shown" : "hidden");
-    }
-    g.prev_bumper = bumper;
+bool CanToggleBottom() {
+    return g.live && (g.mode != 0 || g.hide_bottom);
+}
 
+void ToggleBottom() {
+    if (!CanToggleBottom()) {
+        return;
+    }
+    g.bottom_toggled = !g.bottom_toggled;
+    LOG_INFO(Frontend, "xr: bottom screen {}", g.bottom_toggled ? "shown" : "hidden");
+}
+
+void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_pointable) {
     const bool click = in.hand[1].stick_click;
     if (click && !g.prev_click) {
         g.recentre = true;
@@ -323,6 +339,10 @@ void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_
         if (IsViewMode(g.mode) || !g.bottom_toggled) {
             bottom_pointable = false;
         }
+    }
+    // Hidden by the setting (no touch, no grab); immersive modes above already hide it.
+    if (BottomHiddenByOption()) {
+        bottom_pointable = false;
     }
 }
 

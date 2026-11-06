@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <initializer_list>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -48,6 +49,13 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     setTitle(tr("VR"));
     auto* layout = new QVBoxLayout(this);
 
+    hide_bottom_check = new QCheckBox(tr("Hide Bottom Screen"), this);
+    hide_bottom_check->setObjectName(QStringLiteral("frame_vr_hide_bottom_check"));
+    hide_bottom_check->setToolTip(
+        tr("Shows only the top screen in VR. Press Left Bumper + Right Bumper + View to show or "
+           "hide the bottom screen. Takes effect when the game starts."));
+    layout->addWidget(hide_bottom_check);
+
     // Values 0..3 are Settings::values.vr_immersive_mode (frame_xr/immersive.h).
     mode_combo = new QComboBox(this);
     mode_combo->addItem(tr("Off"));
@@ -57,8 +65,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     mode_row = MakeRow(
         this, QStringLiteral("frame_vr_mode_row"), tr("Immersive Mode"),
         tr("Draws a wider view of the game around you. Full also turns the game camera with "
-           "your head. Many games show graphical glitches. Left Bumper shows the bottom "
-           "screen."),
+           "your head. Many games show graphical glitches. Press Left Bumper + Right Bumper + "
+           "View to show the bottom screen."),
         {mode_combo});
     layout->addWidget(mode_row);
 
@@ -104,6 +112,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
         // A running application that overrides them blocks the global values.
+        hide_bottom_check->setEnabled(Settings::values.vr_hide_bottom_screen.UsingGlobal());
         mode_combo->setEnabled(Settings::values.vr_immersive_mode.UsingGlobal());
         depth_combo->setEnabled(Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
         register_spin->setEnabled(Settings::values.vr_si_mode_register_offset.UsingGlobal());
@@ -111,6 +120,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
         return;
     }
 
+    ConfigurationShared::SetColoredTristate(
+        hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -133,6 +144,7 @@ void ConfigureFrameVr::SetConfiguration() {
     const auto& reg = Settings::values.vr_si_mode_register_offset;
     const auto& eye = Settings::values.vr_immersive_eye_indicator;
 
+    hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue());
     register_spin->setValue(reg.GetValue());
     eye_edit->setText(QString::fromStdString(eye.GetValue()));
 
@@ -156,6 +168,8 @@ void ConfigureFrameVr::SetConfiguration() {
 }
 
 void ConfigureFrameVr::ApplyConfiguration() {
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
+                                             hide_bottom_check, hide_bottom_state);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);
