@@ -41,7 +41,11 @@ fi
 # is next to this script, or in the program folder when this copy is the installed one.
 DOCKPY=$HERE/dock-icon.py
 [ -f "$DOCKPY" ] || DOCKPY=$DEST/dock-icon.py
-if [ -f "$DOCKPY" ]; then python3 -I "$DOCKPY" remove "$DEST" || echo "note: could not remove the dock icon files (see above)"; fi
+if [ -n "$AZAHARFRAME_SKIP_STEAM" ]; then
+  echo "AZAHARFRAME_SKIP_STEAM set: the dock icon files and SteamVR's manifest left alone"
+elif [ -f "$DOCKPY" ]; then
+  python3 -I "$DOCKPY" remove "$DEST" || echo "note: could not remove the dock icon files (see above)"
+fi
 
 # Remove the program folder last: this script may be running from it.
 if [ -d "$DEST" ]; then rm -rf "$DEST"; echo "removed $DEST"; fi
