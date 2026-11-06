@@ -18,6 +18,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <mutex>
 #include <vector>
 
@@ -52,6 +53,7 @@ private:
     void Deliver(const FrameXr::HomePanelEvent& e);
     void MarkDirty();
     void Capture();
+    void LogLayout(const QRect& canvas);
     void FitDialog(QWidget* dialog);
     QRect Canvas() const;
     qreal Scale(const QSize& canvas) const;
@@ -67,6 +69,8 @@ private:
     bool capturing = false;
     bool dirty = true;
     bool logged = false;
+    bool log_layout = false;
+    std::string last_layout;
     int captures = 0;
     int published = 0;
     int last_cost_ms = 0;

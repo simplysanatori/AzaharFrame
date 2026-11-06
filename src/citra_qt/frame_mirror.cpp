@@ -7,15 +7,20 @@
 #include <algorithm>
 #include <cstring>
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QEvent>
 #include <QFont>
 #include <QImage>
-#include <QStringList>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPainter>
 #include <QScreen>
+#include <QStringList>
+#include <QTreeView>
 #include <QWidget>
 #include <QWindow>
+#include <fmt/format.h>
 
 #include "citra_qt/frame_mirror.h"
 #include "common/logging/log.h"
@@ -73,6 +78,7 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     if (ok && env_scale >= 1.0 && env_scale <= 4.0) {
         scale = env_scale;
     }
+    log_layout = qEnvironmentVariableIntValue("AZAHARFRAME_MIRROR_LOG_LAYOUT") != 0;
     clock.start();
     since_capture.start();
     capture_timer.setSingleShot(true);
@@ -309,6 +315,9 @@ void FrameMirror::Capture() {
     }
     capturing = false;
     captures++;
+    if (log_layout) {
+        LogLayout(canvas);
+    }
 
     const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
     const std::size_t bytes = static_cast<std::size_t>(px.width()) * px.height() * 4;
@@ -456,5 +465,81 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     // cost a capture.
     if (e.type != Type::Move) {
         MarkDirty();
+    }
+}
+
+// Test aid (AZAHARFRAME_MIRROR_LOG_LAYOUT=1): where the menu entries, game list rows and
+// dialog buttons are on the panel (window pixels, and u,v), logged when they change,
+// so scripted controller input (tools/xrmock) can aim at them.
+void FrameMirror::LogLayout(const QRect& canvas) {
+    std::vector<std::string> lines;
+    const auto add = [&](const char* kind, const QString& text, const QRect& global_rect,
+                         bool enabled) {
+        const QRect r = global_rect.translated(-canvas.topLeft());
+        const QPoint c = r.center();
+        lines.push_back(fmt::format("xr layout: {} \"{}\"{} at {},{} {}x{} centre {},{} (u {:.4f} v {:.4f})",
+                                    kind, text.toStdString(), enabled ? "" : " (disabled)",
+                                    r.x(), r.y(), r.width(), r.height(), c.x(), c.y(),
+                                    (c.x() + 0.5) / canvas.width(),
+                                    (c.y() + 0.5) / canvas.height()));
+    };
+    if (auto* bar = main->findChild<QMenuBar*>(); bar && bar->isVisible()) {
+        for (QAction* a : bar->actions()) {
+            const QRect g = bar->actionGeometry(a);
+            if (!g.isEmpty()) {
+                add("menubar", a->text(), QRect(bar->mapToGlobal(g.topLeft()), g.size()),
+                    a->isEnabled());
+            }
+        }
+    }
+    if (auto* tree = main->findChild<QTreeView*>(); tree && tree->isVisible() && tree->model()) {
+        const auto* model = tree->model();
+        for (int r = 0; r < model->rowCount(); r++) {
+            const QModelIndex parent = model->index(r, 0);
+            const auto row = [&](const QModelIndex& index) {
+                const QRect v = tree->visualRect(index);
+                if (!v.isEmpty()) {
+                    add("game list", index.data().toString().simplified(),
+                        QRect(tree->viewport()->mapToGlobal(v.topLeft()), v.size()), true);
+                }
+            };
+            row(parent);
+            for (int c = 0; c < model->rowCount(parent); c++) {
+                row(model->index(c, 0, parent));
+            }
+        }
+    }
+    for (QWidget* w : Stack()) {
+        if (auto* menu = qobject_cast<QMenu*>(w)) {
+            for (QAction* a : menu->actions()) {
+                const QRect g = menu->actionGeometry(a);
+                if (!g.isEmpty() && !a->isSeparator()) {
+                    add("menu item", a->text(), QRect(menu->mapToGlobal(g.topLeft()), g.size()),
+                        a->isEnabled());
+                }
+            }
+        } else if (IsDialogLike(w)) {
+            add("dialog", w->windowTitle(), w->geometry(), true);
+            for (QAbstractButton* b : w->findChildren<QAbstractButton*>()) {
+                if (b->isVisible() && !b->text().isEmpty()) {
+                    add("button", b->text(), QRect(b->mapToGlobal(QPoint()), b->size()),
+                        b->isEnabled());
+                }
+            }
+        }
+    }
+    std::string all;
+    for (const auto& l : lines) {
+        all += l;
+        all += '\n';
+    }
+    if (all == last_layout) {
+        return;
+    }
+    last_layout = all;
+    LOG_INFO(Frontend, "xr layout: canvas {}x{} at {},{}", canvas.width(), canvas.height(),
+             canvas.x(), canvas.y());
+    for (const auto& l : lines) {
+        LOG_INFO(Frontend, "{}", l);
     }
 }
