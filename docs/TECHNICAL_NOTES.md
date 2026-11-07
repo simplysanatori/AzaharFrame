@@ -160,9 +160,7 @@ Azahar decodes a PNG texture on a worker thread when a surface first needs it: a
 
 **The encoder.** `af-ktxenc.cpp` links ARM's astcenc library (pinned to 5.7.1, built with NEON by `build-astcenc.sh`) and decodes PNGs with the stb_image that astcenc ships, so it needs nothing that SteamOS lacks besides git, CMake and a compiler. One texture per process, single-threaded, at astcenc's `medium` effort by default. Python has no image library on SteamOS (no Pillow, ImageMagick or libvips), which is why the mip chain is made in C++.
 
-Numbers for the Ocarina of Time 3D 4K pack (2308 PNGs, 4.5 GB, 4.5 billion texels): about 6.0 GB as ASTC 4x4 with mips, 2.7 GB as 6x6, 2.0 GB as 8x6. A 4096×4096 texture is 22 MB as ASTC 4x4 with its chain, against 89 MB of GPU memory as RGBA8 with generated mips.
-
-<!-- VERIFY: conversion time on the Frame, measured on one 4096x4096 texture and on the whole pack -->
+Numbers for the Ocarina of Time 3D 4K pack (2308 PNGs, 4.5 GB, 4.53 billion texels in level 0): 6.03 GB as ASTC 4x4 with mips (from `--estimate`), about 2.7 GB as 6x6, 2.0 GB as 8x6. A 4096×4096 texture is 22.4 MB as ASTC 4x4 with its 13 levels (10.0 MB as 6x6), against 89 MB of GPU memory as RGBA8 with generated mips. Encoding one 4096×4096 texture on one Frame core, with a build running beside it at the same priority: 18 s at `medium`, 6.4 s at `fast`, 22 s for 6x6 at `medium`. For the whole pack that is about 82 CPU minutes at `medium` (about 15 to 20 minutes on seven cores) and 29 at `fast`. Decoded and compared with the flipped PNG, level 0 is 47.5 to 48 dB PSNR in colour at `medium` (fast 0.7 dB less, 6x6 about 40.5 dB), and the channel means match to 0.05, so nothing is lightened or darkened. Building astcenc and the encoder took 14 s with two jobs.
 
 ## Environment variables
 
