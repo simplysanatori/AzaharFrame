@@ -132,6 +132,21 @@ is let go, and Menu neither sends Start nor opens the in-game menu. The game see
 bumper press to the switch (holding them back would delay every L and R). Outside a game (the home
 panel, the in-game menu, flat without a game) `VrUi::ModeChord` finds the four itself.
 
+After any switch, `VrUi` arms `ChordLatch` (`chord_latch.h`) in `RequestToggleVr` and again when
+the new mode begins (`Create`, `DestroyXr`): the four buttons read as up for everything (mapper,
+`ModeChord`, panels) until all four were seen up, no earlier than 1 s after the first frame of the
+new mode. Waiting for the release alone was not enough: in flat, SDL opens Steam Input's gamepad
+anew after the session ends, its first read is all up, and the still-held chord then came in as a
+fresh press and switched back to VR 0.3 s later.
+
+**Fast forward.** View pressed first (with no bumper down, as for Quick Save), then the Right
+Trigger: `toggle_fast_forward`, once per pull and at most once a second (`quick_cooldown_ns`).
+That pull is neither ZR nor a touch until the trigger is let go, and View stays away from the game
+(no Select, no stop hold) until it is let go. The Left Trigger with View is plain ZL. The Qt side
+keeps the state: Azahar's turbo speed (`SetTurboEnabled`) and the "Fast Forward" label
+(`FrameXr::SetFastForwardShown`, a row of the toast atlas in `hud.cpp`), off again when the game
+stops, the in-game menu opens (flat: Menu held pauses) or the mode switches.
+
 ## Stopping the game
 
 Hold View for 1.5 s: the mapper reports `stop_game` once and a `stop_hold_progress` of 0..1 while

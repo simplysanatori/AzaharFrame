@@ -885,6 +885,18 @@ void QtConfig::ReadVideoDumpingValues() {
     qt_config->endGroup();
 }
 
+namespace {
+// AzaharFrame: the Frame build starts with the dark theme ("Dark", qdarkstyle): Azahar's window
+// is a big panel in the headset, and the light one is glaring there.
+QString DefaultTheme() {
+#ifdef ENABLE_FRAME_XR
+    return QString::fromUtf8(UISettings::themes[2].second);
+#else
+    return QString::fromUtf8(UISettings::themes[0].second);
+#endif
+}
+} // namespace
+
 void QtConfig::ReadUIValues() {
     qt_config->beginGroup(QStringLiteral("UI"));
 
@@ -892,8 +904,7 @@ void QtConfig::ReadUIValues() {
 
     if (global) {
         UISettings::values.theme =
-            ReadSetting(Settings::QKeys::theme, QString::fromUtf8(UISettings::themes[0].second))
-                .toString();
+            ReadSetting(Settings::QKeys::theme, DefaultTheme()).toString();
 #ifdef ENABLE_DISCORD_RPC
         ReadBasicSetting(UISettings::values.enable_discord_presence);
 #endif
@@ -1457,8 +1468,7 @@ void QtConfig::SaveUIValues() {
     SavePathValues();
 
     if (global) {
-        WriteSetting(Settings::QKeys::theme, UISettings::values.theme,
-                     QString::fromUtf8(UISettings::themes[0].second));
+        WriteSetting(Settings::QKeys::theme, UISettings::values.theme, DefaultTheme());
 #ifdef ENABLE_DISCORD_RPC
         WriteBasicSetting(UISettings::values.enable_discord_presence);
 #endif

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Evaluate JavaScript in Steam's SharedJSContext over the CEF remote debugging port.
 Usage: steam-cef.py 'JS expression'   (awaits promises; prints JSON result)
-       steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)"""
-import json, os, socket, struct, sys, base64, urllib.request
+       steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)
+       steam-cef.py --screen theater|dashboard APPID [SECONDS]   (where SteamVR shows the app's
+           flat window: theater = the big screen, dashboard = back inside the dashboard)"""
+import json, os, socket, struct, subprocess, sys, time, base64, urllib.request
 
 def ws_connect(url):
     # ws://host:port/path
@@ -98,8 +100,50 @@ def apply_art(appid, artdir, dry_run=False):
     else:
         print('no ' + icon + ', the icon is not set', file=sys.stderr)
 
+VRCMD_PATHS = ('/opt/steamvr/bin/linuxarm64/vrcmd', '/opt/steamvr/bin/linux64/vrcmd')
+
+def vrcmd(*args):
+    exe = os.environ.get('AZAHARFRAME_VRCMD') or next((p for p in VRCMD_PATHS if os.path.isfile(p)), None)
+    if not exe:
+        raise RuntimeError('no vrcmd')
+    env = dict(os.environ)
+    env.pop('LD_PRELOAD', None)  # Steam's overlay library, not for a SteamVR tool
+    return subprocess.run([exe] + list(args), capture_output=True, text=True, timeout=10, env=env).stdout
+
+def overlay_exists(key):
+    """vrcmd --overlays lists one overlay per line as 'key' -- 'name', ..."""
+    return any(line.startswith("'%s' " % key) for line in vrcmd('--overlays').splitlines())
+
+def screen(where, appid, seconds=8.0):
+    """Moves the frame of the app's flat window (gamescope's overlay valve.steam.desktopgame.APPID) to
+    the theater screen or back into the dashboard, through vrcmd --dock-overlay (SteamVR's dashboard,
+    onVrCmdDockOverlayRequested), then hides the dashboard. The SteamVR dashboard docks a game window
+    in the theater on its own only when the frame first comes alive and the app is not the scene app
+    (dashboard.autoShowGameTheater, on by default); after an OpenXR session the frame already exists,
+    so nothing moves it, and with that setting off a flat window only shows while the dashboard is open.
+    The dock is only asked for once the overlay exists: for an unknown key the dashboard docks
+    whichever frame is active instead."""
+    key = 'valve.steam.desktopgame.%d' % int(appid)
+    deadline = time.monotonic() + seconds
+    while not overlay_exists(key):
+        if where != 'theater' or time.monotonic() >= deadline:
+            print('%s: no overlay %s, nothing moved' % (where, key))
+            return 1
+        time.sleep(0.25)
+    if where == 'theater':
+        time.sleep(0.75)  # the dashboard makes the window's frame a moment after the overlay
+        if not overlay_exists(key):
+            print('theater: overlay %s went away, nothing moved' % key)
+            return 1
+    vrcmd('--dock-overlay', where, key)
+    vrcmd('--hidedashboard')
+    print('%s: docked %s, dashboard hidden' % (where, key))
+    return 0
+
 if __name__ == '__main__':
-    if len(sys.argv) in (4, 5) and sys.argv[1] == '--art':
+    if len(sys.argv) in (4, 5) and sys.argv[1] == '--screen' and sys.argv[2] in ('theater', 'dashboard'):
+        sys.exit(screen(sys.argv[2], sys.argv[3], float(sys.argv[4]) if len(sys.argv) == 5 else 8.0))
+    elif len(sys.argv) in (4, 5) and sys.argv[1] == '--art':
         apply_art(sys.argv[2], sys.argv[3], dry_run=sys.argv[4:] == ['--dry-run'])   # steam-cef.py --art APPID DIR [--dry-run]
     else:
         print(json.dumps(evaluate(sys.argv[1]), indent=1))

@@ -177,6 +177,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AF_KTXENC` | `convert_texture_pack.py` | the encoder to use (default: `~/.local/share/AzaharFrame/tools/af-ktxenc`) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
 | `QT_SCALE_FACTOR` | Qt | scales the settings window |
+| `AZAHARFRAME_FLAT_SCREEN` | `citra_qt/frame_mode.cpp` | where SteamVR shows the window in Flat (Game Mode only): `theater` (default; the big screen, through `steam-cef.py --screen`, which runs `vrcmd --dock-overlay`), `dashboard` (only inside the dashboard, as before) or `off` (Steam is not asked) |
 | `AZAHARFRAME_MODELS` | `frame_xr/vis/controller_models.cpp` | folder with `frame_controller_left.model` and `frame_controller_right.model` (default: `user/frame-models` in the data folder) |
 | `AZAHARFRAME_MODEL_EYE_PX` | `frame_xr/vis/controller_models.cpp` | the most pixels one eye of the controller layer may be high, 200 or more (default 1000). Below it the layer is about half the recommended size |
 | `AZAHARFRAME_MODEL_TEXTURE`, `AZAHARFRAME_MODEL_TRIANGLES` | `frame-controller-models.py` | the models' texture size (default 1024) and a triangle budget |

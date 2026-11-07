@@ -195,6 +195,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Hold View (1.5 s)", "Stop Game");
     Row(g, "Hold View + Left Bumper", "Quick Load");
     Row(g, "Hold View + Right Bumper", "Quick Save");
+    Row(g, "Hold View + Right Trigger", "Fast Forward On / Off");
     Row(g, "Both Bumpers + View", "Show or Hide Bottom Screen");
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----

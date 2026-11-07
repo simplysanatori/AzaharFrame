@@ -4,6 +4,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/mapper.h"
 #include "tests/frame_xr/input_test_util.h"
@@ -977,5 +978,226 @@ TEST_CASE("FrameXr mapper: the hand that pulled last points", "[frame_xr]") {
         const MapperOutput out = runner.Step(frame);
         REQUIRE(out.cursor.visible);
         REQUIRE(out.cursor.hand == Hand::Left);
+    }
+}
+
+TEST_CASE("FrameXr mapper: View, then the Right Trigger, toggles fast forward", "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    const auto pull = [&](float value) { frame.hand[1].trigger = value; };
+
+    SECTION("on, once per pull, and the game sees neither Select nor ZR") {
+        frame.view = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        pull(1.0f);
+        out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_fast_forward);
+        REQUIRE_FALSE(out.controls.Get(Control::TriggerR));
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        for (int i = 0; i < 200; ++i) { // held on for 2 s: nothing more, and no stop
+            out = runner.Step(frame);
+            REQUIRE_FALSE(out.commands.toggle_fast_forward);
+            REQUIRE_FALSE(out.commands.stop_game);
+            REQUIRE(out.commands.stop_hold_progress == Approx(0.0f));
+            REQUIRE_FALSE(out.controls.Get(Control::TriggerR));
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+        }
+        pull(0.0f);
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View)); // View still held: still swallowed
+        frame.view = false;
+        runner.Step(frame);
+        for (int i = 0; i < 12; ++i) { // no late Select pulse
+            out = runner.Step(frame);
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+        }
+    }
+    SECTION("the same combo again is the second toggle (off)") {
+        frame.view = true;
+        runner.Step(frame);
+        pull(1.0f);
+        REQUIRE(runner.Step(frame).commands.toggle_fast_forward);
+        pull(0.0f);
+        frame.view = false;
+        runner.Step(frame);
+        runner.now += 1'000'000'000;
+        frame.view = true;
+        runner.Step(frame);
+        pull(1.0f);
+        REQUIRE(runner.Step(frame).commands.toggle_fast_forward);
+    }
+    SECTION("a bounce within 1 s does not toggle back") {
+        frame.view = true;
+        runner.Step(frame);
+        pull(1.0f);
+        REQUIRE(runner.Step(frame).commands.toggle_fast_forward);
+        pull(0.0f);
+        runner.Step(frame);
+        pull(1.0f);
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+        REQUIRE_FALSE(out.controls.Get(Control::TriggerR)); // still swallowed
+        pull(0.0f);
+        runner.Step(frame);
+        runner.now += 1'000'000'000;
+        pull(1.0f);
+        REQUIRE(runner.Step(frame).commands.toggle_fast_forward); // View still held: allowed
+    }
+    SECTION("the Left Trigger with View is plain ZL") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[0].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+        REQUIRE(out.controls.Get(Control::TriggerL));
+    }
+    SECTION("the trigger first, then View, is ZR and not the combo") {
+        pull(1.0f);
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+    }
+    SECTION("a bumper held first is not the combo") {
+        frame.hand[0].bumper = true;
+        runner.Step(frame);
+        frame.view = true;
+        runner.Step(frame);
+        pull(1.0f);
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+    }
+    SECTION("a trigger pulled on the bottom screen without View is still a touch") {
+        Point(frame, Hand::Right, kOnBottomCentre);
+        pull(1.0f);
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+        REQUIRE(CountTouch(out, TouchEventType::Pressed) == 1);
+    }
+    SECTION("Quick Save still works after fast forward, with View held") {
+        frame.view = true;
+        runner.Step(frame);
+        pull(1.0f);
+        REQUIRE(runner.Step(frame).commands.toggle_fast_forward);
+        pull(0.0f);
+        runner.Step(frame);
+        frame.hand[1].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.toggle_fast_forward);
+    }
+}
+
+TEST_CASE("FrameXr chord latch: the VR / flat chord fires once per press", "[frame_xr]") {
+    constexpr int64_t kFlatFrameNs = 8'000'000; // the flat loop's period
+    const auto chord = [](InputFrame& frame, bool down) {
+        frame.hand[0].bumper = down;
+        frame.hand[1].bumper = down;
+        frame.view = down;
+        frame.menu = down;
+    };
+
+    SECTION("Filter does nothing until armed") {
+        ChordLatch latch;
+        InputFrame frame = IdleFrame();
+        chord(frame, true);
+        REQUIRE_FALSE(latch.Filter(frame));
+        REQUIRE(frame.view);
+        REQUIRE(frame.menu);
+        REQUIRE(frame.hand[0].bumper);
+    }
+    SECTION("held through the switch: masked until let go, after the cooldown") {
+        ChordLatch latch;
+        latch.Arm();
+        InputFrame frame = IdleFrame(5'000'000'000); // the new mode's clock
+        chord(frame, true);
+        frame.a = true;
+        REQUIRE(latch.Filter(frame));
+        REQUIRE_FALSE(frame.view);
+        REQUIRE_FALSE(frame.menu);
+        REQUIRE_FALSE(frame.hand[0].bumper);
+        REQUIRE_FALSE(frame.hand[1].bumper);
+        REQUIRE(frame.a); // only the chord's buttons
+        frame = IdleFrame(5'000'000'000 + 3'000'000'000LL);
+        chord(frame, true); // still held 3 s later
+        REQUIRE(latch.Filter(frame));
+        frame = IdleFrame(5'000'000'000 + 3'010'000'000LL);
+        REQUIRE_FALSE(latch.Filter(frame)); // all up, past the cooldown
+        REQUIRE_FALSE(latch.latched());
+        chord(frame, true);
+        REQUIRE_FALSE(latch.Filter(frame)); // a new press goes through
+        REQUIRE(frame.view);
+    }
+    SECTION("a gamepad that first reads all up does not clear it") {
+        ChordLatch latch;
+        latch.Arm();
+        int64_t t = 0;
+        InputFrame frame = IdleFrame(t); // SDL's first read of a newly opened pad: zeros
+        REQUIRE(latch.Filter(frame));
+        for (int i = 0; i < 40; ++i) { // then the held chord, 0.32 s
+            t += kFlatFrameNs;
+            frame = IdleFrame(t);
+            chord(frame, true);
+            REQUIRE(latch.Filter(frame));
+            REQUIRE_FALSE(frame.view);
+        }
+    }
+    SECTION("the cooldown starts at the first frame after Arm, in that frame's clock") {
+        ChordLatch latch(1'000'000'000);
+        latch.Arm();
+        InputFrame frame = IdleFrame(900'000'000'000LL); // a huge OpenXR time is irrelevant
+        REQUIRE(latch.Filter(frame));
+        frame = IdleFrame(900'000'000'000LL + 999'000'000);
+        REQUIRE(latch.Filter(frame));
+        frame = IdleFrame(900'000'000'000LL + 1'000'000'000);
+        REQUIRE_FALSE(latch.Filter(frame));
+    }
+    SECTION("with the mapper (flat after VR): no second switch while held") {
+        // The log that showed it: VR -> flat, then flat -> VR 0.29 s later, the chord held.
+        Mapper mapper;
+        PanelGeometry panels;
+        ChordLatch latch;
+        int64_t t = 0;
+        int toggles = 0;
+        const auto step = [&](InputFrame frame) {
+            frame.time_ns = t;
+            t += kFlatFrameNs;
+            latch.Filter(frame);
+            const MapperOutput out = mapper.Update(frame, panels);
+            if (out.commands.toggle_vr) {
+                ++toggles;
+                latch.Arm(); // as VrUi::RequestToggleVr does
+            }
+            return out;
+        };
+        latch.Arm(); // DestroyXr: flat begins
+        mapper.Reset(); // a fresh bridge in flat: edges start over
+        InputFrame frame = IdleFrame();
+        step(frame); // the first read: all up
+        chord(frame, true);
+        for (int i = 0; i < 100; ++i) { // held 0.8 s
+            const MapperOutput out = step(frame);
+            REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        }
+        REQUIRE(toggles == 0);
+        chord(frame, false);
+        for (int i = 0; i < 50; ++i) { // let go; the cooldown ends meanwhile
+            step(frame);
+        }
+        REQUIRE_FALSE(latch.latched());
+        // A real new press: both bumpers, Menu, then View (the chord's order).
+        frame.hand[0].bumper = frame.hand[1].bumper = true;
+        frame.menu = true;
+        step(frame);
+        frame.view = true;
+        step(frame);
+        REQUIRE(toggles == 1);
+        REQUIRE(latch.latched());
     }
 }

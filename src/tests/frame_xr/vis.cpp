@@ -49,6 +49,7 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Right Stick Click") == "Reset Screens");
         REQUIRE(ActionFor(page.game, "Hold View + Left Bumper") == "Quick Load");
         REQUIRE(ActionFor(page.game, "Hold View + Right Bumper") == "Quick Save");
+        REQUIRE(ActionFor(page.game, "Hold View + Right Trigger") == "Fast Forward On / Off");
         REQUIRE(ActionFor(page.window, "Both Bumpers + View + Menu") == "Switch VR / Flat");
         REQUIRE(page.footer.find("By Position (Nintendo)") != std::string::npos);
     }

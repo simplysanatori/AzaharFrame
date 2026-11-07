@@ -153,6 +153,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
 | **View**, then the right bumper | Quick Save. Then the left bumper instead: Quick Load |
+| **View**, then the right trigger | Fast Forward on or off |
 
 On Azahar's window and in the in-game menu:
 
@@ -178,13 +179,15 @@ All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.m
 
 I wanted to be able to play a 3DS game in a window as well, like any other flat game on the Frame, with other apps open beside it, instead of loading the app and having black all around me. So the same library entry starts in one of two modes: VR, as above, or Flat, which is Azahar's normal window on the headset's virtual screen. It starts in the mode you used last, and VR the first time. Press both bumpers, **View** and **Menu** together to switch between them while it runs; [CONTROLS.md](CONTROLS.md#playing-in-a-window-flat) says how to start in Flat once.
 
-Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar is not forced to full screen, so it stays in its window. The Frame controllers come through Steam Input as a gamepad and are mapped by position, like the 3DS, in their own controls profile, **Flat Gamepad**, so your VR controls are left alone. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
+Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar is not forced to full screen, so it stays in its window, on SteamVR's big screen (the theater), and stays there when you close the dashboard. Switching back to VR takes a few seconds while the window goes back into the dashboard. The Frame controllers come through Steam Input as a gamepad and are mapped by position, like the 3DS, in their own controls profile, **Flat Gamepad**, so your VR controls are left alone. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
 
 <!-- VERIFY: the VR/flat switch in the headset; it is built and mock-tested only -->
 
 ## Settings
 
-Everything is in the Azahar window on the SteamVR dashboard, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar.
+Everything is in the Azahar window on the SteamVR dashboard, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar. Azahar for Frame starts with the **Dark** theme, which is easier on the eyes in the headset; **Emulation > Configure > General > UI > Theme** changes it.
+
+**Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, use that game's **Properties**. While a game with its own value runs, that row is greyed out in **Configure** and shows the value for all games.
 Per-game settings work as in Azahar: right-click a game in the list and choose **Properties**.
 
 The first time VR starts, the buttons and sticks of the current controls profile are replaced with the Frame layout (**Emulation > Configure > Controls**). After that your changes stay. In VR the Single Screen and Separate Windows layouts are changed to Default, and the 3D depth is set to 50 % if it is 0.
@@ -207,6 +210,10 @@ In the **VR** group of the Graphics tab (global, not per game): **Background** i
 ### Quick Save and Quick Load
 
 Hold **View** and press the right bumper to Quick Save, or the left bumper to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
+
+### Fast Forward
+
+Hold **View** and pull the right trigger to run the game at Azahar's turbo speed; do it again to go back to normal speed. "Fast Forward" shows in front of you while it is on. It goes off by itself when the game stops, when the in-game menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
 
 ### Show Controllers and Show Stats
 

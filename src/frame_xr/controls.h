@@ -20,6 +20,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/actions.h"
+#include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/overlays.h"
@@ -95,6 +96,8 @@ private:
     void RequestToggleVr(const char* where);
     /// View, then a bumper (the mapper's quick_save / quick_load): asks the Qt side.
     void RequestQuick(const Input::PanelCommands& cmd, const char* where);
+    /// View, then the Right Trigger (the mapper's toggle_fast_forward): asks the Qt side.
+    void RequestFastForward(const Input::PanelCommands& cmd, const char* where);
     /// Everything held stays away from the game until let go (a new mode, the menu closed).
     void SwallowHeld();
     void AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layers);
@@ -147,6 +150,9 @@ private:
     bool stop_hold_logged = false;  // "xr: View hold started" logged for this press
 
     bool chord_down = false; ///< ModeChord's edge
+    /// After a VR / flat switch the chord's buttons stay away from everything until all four
+    /// were let go, at least 1 s into the new mode (see ChordLatch).
+    Input::ChordLatch mode_latch;
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes

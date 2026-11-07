@@ -211,6 +211,11 @@ std::function<void(bool open)> g_frame_xr_set_menu;
 // buttons, and View + a bumper); GUI thread. Set in GMainWindow::InitializeHotkeys-time code below.
 std::function<void()> g_frame_xr_quick_save;
 std::function<void()> g_frame_xr_quick_load;
+// Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
+// "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
+// mode switches. GUI thread.
+std::function<void(bool on, const char* why)> g_frame_xr_fast_forward;
+bool g_frame_xr_fast_forward_on = false;
 QPointer<QPushButton> g_frame_xr_passthrough_button;
 
 void FrameXrPushGameDirs() {
@@ -757,6 +762,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                     this,
                     [this] {
                         if (!FrameXr::VrShowing()) {
+                            if (g_frame_xr_fast_forward) {
+                                g_frame_xr_fast_forward(false, "paused");
+                            }
                             OnPauseContinueGame(); // flat: Menu held 1 s pauses or continues
                         } else if (g_frame_mirror && g_frame_xr_set_menu) {
                             g_frame_xr_set_menu(!g_frame_mirror->MenuOpen());
@@ -794,6 +802,16 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            hooks.toggle_fast_forward = [this] { // View, then the Right Trigger
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_xr_fast_forward) {
+                            g_frame_xr_fast_forward(!g_frame_xr_fast_forward_on, "asked for");
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             hooks.vr_changed = [this](bool vr) {
                 QMetaObject::invokeMethod(
                     this,
@@ -817,16 +835,47 @@ GMainWindow::GMainWindow(Core::System& system_)
             FrameXr::SetFrontendHooks(std::move(hooks));
             FrameXr::SetFlatInput(FrameMode::ReadGamepad);
             // Both bumpers + View + Menu, in VR or flat: the other mode, kept for the next start.
-            g_frame_xr_switch = [](bool vr) {
-                if (!FrameXr::SetVr(vr)) {
-                    LOG_WARNING(Frontend, "xr: cannot switch to {} (no XR any more)",
-                                vr ? "VR" : "flat");
+            g_frame_xr_switch = [this](bool vr) {
+                const auto apply = [vr] {
+                    if (!FrameXr::SetVr(vr)) {
+                        LOG_WARNING(Frontend, "xr: cannot switch to {} (no XR any more)",
+                                    vr ? "VR" : "flat");
+                        return;
+                    }
+                    FrameMode::WriteModeFile(vr);
+                };
+                if (!vr) {
+                    apply();
                     return;
                 }
-                FrameMode::WriteModeFile(vr);
+                // Flat to VR: the window's frame back from the theater first (Game Mode).
+                static bool leaving = false;
+                if (leaving) {
+                    return;
+                }
+                leaving = true;
+                FrameMode::LeaveFlat(this, [apply] {
+                    leaving = false;
+                    apply();
+                });
+            };
+            g_frame_xr_fast_forward = [this](bool on, const char* why) {
+                if (on && (!emulation_running || !system.IsPoweredOn())) {
+                    return;
+                }
+                if (on == g_frame_xr_fast_forward_on) {
+                    return;
+                }
+                g_frame_xr_fast_forward_on = on;
+                SetTurboEnabled(on); // Azahar's turbo speed limit (Settings, turbo_limit)
+                FrameXr::SetFastForwardShown(on);
+                LOG_INFO(Frontend, "xr: fast forward {} ({})", on ? "on" : "off", why);
             };
             g_frame_xr_mode_changed = [this](bool vr) {
                 LOG_INFO(Frontend, "xr: now {}", vr ? "in VR" : "flat");
+                if (g_frame_xr_fast_forward) {
+                    g_frame_xr_fast_forward(false, "the mode switched");
+                }
                 if (g_frame_mirror) {
                     if (!vr && g_frame_mirror->MenuOpen()) {
                         // The game stays paused; Menu held 1 s (or Emulation) continues it.
@@ -957,6 +1006,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (open && (!emulation_running || !emu_thread)) {
                         return;
                     }
+                    if (open && g_frame_xr_fast_forward) {
+                        g_frame_xr_fast_forward(false, "the in-game menu opened");
+                    }
                     if (open && emu_thread->IsRunning() &&
                         !system.frame_limiter.IsFrameAdvancing()) {
                         OnPauseGame();
@@ -982,6 +1034,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                 } else {
                     g_frame_mirror->SetVrShowing(false);
                 }
+            }
+            if (!FrameXr::VrShowing()) {
+                FrameMode::StartFlat(this); // the window to SteamVR's theater (Game Mode)
             }
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
@@ -2373,6 +2428,9 @@ void GMainWindow::ShutdownGame() {
     emulation_running = false;
 #ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker or home panel (folders may have changed)
     if (FrameXr::IsStarted()) {
+        if (g_frame_xr_fast_forward) {
+            g_frame_xr_fast_forward(false, "the game stopped");
+        }
         FrameXr::SetInGameMenu(false);
         FrameXr::SetGameRunning(false);
         FrameXrPushGameDirs();

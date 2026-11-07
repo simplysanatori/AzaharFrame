@@ -19,10 +19,13 @@ namespace {
 constexpr uint32_t kToastWidth = 512;
 constexpr uint32_t kToastHeight = 96;
 constexpr int kToastKinds = 3;
+// The "Fast Forward" label, one row under the toasts in the atlas.
+constexpr int kFastForwardRow = kToastKinds;
+constexpr int kAtlasRows = kToastKinds + 1;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
-constexpr uint32_t kAtlasHeight = kToastHeight * kToastKinds + kPassthroughSize;
+constexpr uint32_t kAtlasHeight = kToastHeight * kAtlasRows + kPassthroughSize;
 constexpr XrTime kToastNs = 2'000'000'000;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
 constexpr float kToastDrop = 0.25f;     // metres below eye level
@@ -37,7 +40,7 @@ const char* ToastText(int kind) {
     case Toast::NoQuickSave:
         return "No Quick Save";
     }
-    return "";
+    return kind == kFastForwardRow ? "Fast Forward" : "";
 }
 
 } // namespace
@@ -48,6 +51,7 @@ void Hud::Create(Runtime& rt) {
     logged_unsupported = false;
     shown_kind = -1;
     toast_kind = -1;
+    ff_placed = false;
 
     if (uploader.CreateChain(rt.session, rt.swapchain_format, kToastWidth, kAtlasHeight,
                              toast_chain)) {
@@ -55,7 +59,7 @@ void Hud::Create(Runtime& rt) {
         frame_xr::ui::Canvas canvas;
         canvas.Init(kToastWidth, kAtlasHeight); // all transparent black, then the toasts
         canvas.Clear(frame_xr::ui::rgb(0, 0, 0, 0.0f));
-        for (int kind = 0; kind < kToastKinds; ++kind) {
+        for (int kind = 0; kind < kAtlasRows; ++kind) {
             const float top = static_cast<float>(kind * kToastHeight);
             canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 36,
                              frame_xr::ui::rgb(28, 28, 34, 0.92f));
@@ -122,32 +126,50 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
         toast_kind = -1;
         return false;
     }
-    const int requested = toast_kind.exchange(-1);
-    if (requested >= 0 && requested < kToastKinds && head.valid) {
-        // In front of where you look now, level, and it stays there.
+    // In front of where you look now, level, and it stays there.
+    const auto ahead = [&head] {
         const XrQuaternionf q = head.head.orientation;
         const float fx = -2.0f * (q.x * q.z + q.w * q.y);
         const float fz = -(1.0f - 2.0f * (q.x * q.x + q.y * q.y));
         const float yaw = std::atan2(-fx, -fz);
         const float len = std::max(std::hypot(fx, fz), 1e-4f);
-        shown_pose.orientation = {0.0f, std::sin(yaw / 2), 0.0f, std::cos(yaw / 2)};
-        shown_pose.position = {head.head.position.x + fx / len * kToastDistance,
-                               head.head.position.y - kToastDrop,
-                               head.head.position.z + fz / len * kToastDistance};
+        XrPosef pose;
+        pose.orientation = {0.0f, std::sin(yaw / 2), 0.0f, std::cos(yaw / 2)};
+        pose.position = {head.head.position.x + fx / len * kToastDistance,
+                         head.head.position.y - kToastDrop,
+                         head.head.position.z + fz / len * kToastDistance};
+        return pose;
+    };
+    const int requested = toast_kind.exchange(-1);
+    if (requested >= 0 && requested < kToastKinds && head.valid) {
+        shown_pose = ahead();
         shown_kind = requested;
         shown_since = time;
     }
-    if (shown_kind < 0) {
-        return false;
-    }
-    if (time - shown_since > kToastNs) {
+    if (shown_kind >= 0 && time - shown_since > kToastNs) {
         shown_kind = -1;
+    }
+    int row = shown_kind;
+    XrPosef pose = shown_pose;
+    if (!fast_forward) {
+        ff_placed = false;
+    } else if (row < 0) {
+        if (!ff_placed && head.valid) {
+            ff_pose = ahead();
+            ff_placed = true;
+        }
+        if (ff_placed) {
+            row = kFastForwardRow;
+            pose = ff_pose;
+        }
+    }
+    if (row < 0) {
         return false;
     }
     quad.swapchain = toast_chain.handle;
-    quad.image_rect = {{0, static_cast<int32_t>(shown_kind * static_cast<int>(kToastHeight))},
+    quad.image_rect = {{0, static_cast<int32_t>(row * static_cast<int>(kToastHeight))},
                        {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
-    quad.pose = shown_pose;
+    quad.pose = pose;
     quad.size = {kToastWidthM, kToastWidthM * kToastHeight / kToastWidth};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
