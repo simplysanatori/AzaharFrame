@@ -81,6 +81,20 @@ private:
     void Capture();
     void LogLayout(const QRect& canvas);
     void FitDialog(QWidget* dialog);
+    // AzaharFrame vrfocus: in VR no other top-level window may map on the gamescope screen (it
+    // could take the keyboard focus and die, and gamescope asserts on a focus that is gone).
+    // They are shown with Qt::WA_DontShowOnScreen: Qt keeps them visible, painted and delivering
+    // events, only the X window is never mapped, and the mirror renders them like before.
+    /// True when `w` is a top-level window that must stay off the screen in VR.
+    bool Transient(const QWidget* w) const;
+    /// Marks `w` (a hidden top-level window) as not to map; true when it was.
+    bool KeepOffscreen(QWidget* w);
+    /// VR filter: tooltips off, windows off the screen, log lines, focus back to the main window.
+    bool FilterVr(QObject* object, QEvent* event);
+    /// Back in flat: the windows that were kept off the screen show again.
+    void ReleaseOffscreen();
+    /// The main window takes the keyboard focus again (it stays mapped; gamescope needs a holder).
+    void RefocusMain();
     /// The panel's area (global): the main window and any dialog over it.
     QRect Canvas() const;
     /// Around the main window: top-level windows here belong on the panel.

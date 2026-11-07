@@ -113,6 +113,9 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     // The window gets the panel's size (also on the desktop), unless maximised.
     ApplyWindowSize();
     qApp->installEventFilter(this);
+    for (QWidget* w : QApplication::topLevelWidgets()) {
+        KeepOffscreen(w); // AzaharFrame vrfocus: (VR is the start state)
+    }
 
     // AzaharFrame vrqol: the in-game menu's button row, under the menu bar.
     if (auto* window = qobject_cast<QMainWindow*>(main.data())) {
@@ -165,6 +168,15 @@ void FrameMirror::SetVrShowing(bool showing) {
         return;
     }
     vr_showing = showing;
+    if (showing) {
+        // Windows that exist already (menus and dialogs shown again and again) were polished
+        // before; take the hidden ones off the screen now.
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            KeepOffscreen(w);
+        }
+    } else {
+        ReleaseOffscreen();
+    }
     ApplyWindowSize(); // the Window Scale in VR, 100 % in flat
     Shown();
 }
@@ -366,7 +378,93 @@ QWidget* FrameMirror::WindowAt(const QPoint& global) const {
     return main;
 }
 
+bool FrameMirror::Transient(const QWidget* w) const {
+    return w && w != main && w->isWindow() && w->windowType() != Qt::Desktop &&
+           !w->inherits("GRenderWindow");
+}
+
+bool FrameMirror::KeepOffscreen(QWidget* w) {
+    if (!Transient(w) || w->isVisible()) {
+        return false; // (a window already on the screen cannot be taken off before it shows)
+    }
+    w->setAttribute(Qt::WA_DontShowOnScreen, true);
+    return true;
+}
+
+void FrameMirror::RefocusMain() {
+    QPointer<QWidget> window = main;
+    QTimer::singleShot(0, this, [window] {
+        // Not while a popup or modal dialog still has the keyboard (activating the main window
+        // would close the popup under it).
+        if (window && !QApplication::activePopupWidget() && !QApplication::activeModalWidget()) {
+            window->raise();
+            window->activateWindow();
+        }
+    });
+}
+
+bool FrameMirror::FilterVr(QObject* object, QEvent* event) {
+    switch (event->type()) {
+    case QEvent::ToolTip:
+        return true; // no tooltips in VR (they are windows, and cannot be hovered anyway)
+    case QEvent::Polish:
+    case QEvent::ShowToParent:
+    case QEvent::WinIdChange:
+        if (auto* w = qobject_cast<QWidget*>(object)) {
+            KeepOffscreen(w);
+        }
+        return false;
+    case QEvent::Show:
+    case QEvent::Hide: {
+        auto* w = qobject_cast<QWidget*>(object);
+        if (!w || w == main || !w->isWindow() || w->windowType() == Qt::Desktop) {
+            return false;
+        }
+        const bool shown = event->type() == QEvent::Show;
+        LOG_INFO(Frontend, "xr: top-level {} {} in VR ({}, window type {})",
+                 w->metaObject()->className(), shown ? "mapped" : "unmapped",
+                 w->testAttribute(Qt::WA_DontShowOnScreen) ? "offscreen, not on the screen"
+                                                           : "ON THE SCREEN",
+                 static_cast<int>(w->windowType()));
+        if (!shown) {
+            RefocusMain();
+        }
+        return false;
+    }
+    default:
+        return false;
+    }
+}
+
+void FrameMirror::ReleaseOffscreen() {
+    for (QWidget* w : QApplication::topLevelWidgets()) {
+        if (!w->testAttribute(Qt::WA_DontShowOnScreen) || !Transient(w)) {
+            continue;
+        }
+        w->setAttribute(Qt::WA_DontShowOnScreen, false);
+        if (w->isVisible()) {
+            // Open while VR ended: it never had an X window on the screen, and mapping one under
+            // a running exec() is not safe. Closing it (a dialog is rejected) is.
+            LOG_INFO(Frontend, "xr: closing {} (it was open when VR ended)",
+                     w->metaObject()->className());
+            QPointer<QWidget> window = w;
+            QTimer::singleShot(0, this, [window] {
+                if (window) {
+                    window->close();
+                }
+            });
+        }
+    }
+    if (main) {
+        main->raise();
+        main->activateWindow();
+    }
+}
+
 bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
+    if (vr_showing && FilterVr(object, event)) {
+        return true;
+    }
     if (!Capturing() || capturing) {
         return false;
     }
@@ -628,7 +726,9 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     if (!win) {
         return;
     }
-    const QPointF local = global - QPointF(win->geometry().topLeft());
+    // The widget's geometry, not the QWindow's: a window kept off the screen (vrfocus) never
+    // has its QWindow moved.
+    const QPointF local = global - QPointF(target->geometry().topLeft());
     const Qt::MouseButton button =
         e.button == FrameXr::HomePanelEvent::Button::Right ? Qt::RightButton : Qt::LeftButton;
     const auto move = [&] {
