@@ -17,8 +17,8 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
-| **Menu** (right controller) | Start | |
-| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to the picker |
+| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu, see below. The game does not see that hold |
+| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
 | Left stick click | Home | |
 | Right stick click | Resets the screen positions | Nothing reaches the game. Ignored while the stick is pushed more than half way, so free camera cannot reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
@@ -29,6 +29,8 @@ Grips press at 60 % and let go at 40 %, triggers press at 55 % and let go at 40 
 
 While you hold **View**, the game sees Select held. When the 1.5 seconds are up the game sees it released and stops.
 
+A tap of **Menu** reaches the game as Start when you let go.
+
 ## Pointing
 
 Each controller has a laser. The hand that pulled its trigger last owns the dot, which shows over the bottom screen.
@@ -37,19 +39,31 @@ Each controller has a laser. The hand that pulled its trigger last owns the dot,
 |---|---|---|---|
 | Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: nearer and farther |
 | Top screen | ZL or ZR, as everywhere in the game | Move both screens. They stay the same distance from you and turn to face you | While you move them: nearer and farther. It does not reach the game then |
-| The game picker | Select a game | | Pages |
 
 The trigger is only a touch when the laser is on the bottom screen when you pull it. Anywhere else it is ZL or ZR, and stays that for as long as you hold it. A second trigger pulled on the bottom screen while it is already being touched does nothing. A grip grabs the screen under the laser when you squeeze it; a grip squeezed with the laser on neither screen does nothing.
 
 The top screen goes no nearer than 1 m, and no further than 10 m. Moving them never moves the screens sideways. The bottom screen follows the top one, 0.75 m lower and 0.5 m nearer, tilted back. The screens keep their place when you let go. The right stick click puts both back where they start.
 
-## The game picker
+## Azahar's window
+
+When no game runs, Azahar's own window floats in front of you: the game list, the menus and every dialog. The laser is the mouse. Double-click a game to start it, and use **Emulation > Configure...** for the settings. When a game stops, the window comes back.
 
 | Control | What it does |
 |---|---|
-| Trigger or **A** | Starts the game under the dot. Also presses Rescan, Previous and Next |
-| **B** | Previous page |
-| Either stick | Right or down: next page. Left or up: previous page. Hold it to keep turning |
+| Trigger or **A** | Left click. Hold it to drag |
+| Right stick click | Right click, for example on a game for **Properties** |
+| Right stick click, held for 1 second | Brings the window back in front of you |
+| **B** | Back: closes a menu or a dialog |
+| Grip aimed at the window | Moves the window. It stays the same distance from you and turns to face you |
+| Either stick, up or down | Scrolls |
+
+**X**, **Y** and the bumpers do nothing on the window. There is no typing in VR yet, so a text field needs a keyboard.
+
+## The in-game menu
+
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once; the VR settings apply the next time a game starts.
+
+To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Immersive mode shows the normal screens while the menu is open.
 
 ## Hiding the bottom screen
 

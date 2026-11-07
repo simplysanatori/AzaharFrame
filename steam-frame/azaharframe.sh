@@ -11,7 +11,8 @@
 # environment of its own: VAR=value lines in session.env in the data folder.
 #   AZAHARFRAME_FLAT=1       start without --vr (the desktop window only)
 #   AZAHARFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
-#   QT_SCALE_FACTOR=1.25    scale the settings window, if it is too small
+#   QT_SCALE_FACTOR=1.25    scale Azahar's window, if it is too small
+#   AZAHARFRAME_VR_PICKER=1  the old VR game picker instead of Azahar's window in VR
 HERE=$(dirname "$(readlink -f "$0")")
 DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 mkdir -p "$DATA/user" || exit 1

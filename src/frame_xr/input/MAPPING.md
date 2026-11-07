@@ -23,7 +23,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | Left stick | Circle Pad | Radial deadzone 0.12, rest rescaled. |
 | Right stick | C-Stick | Same. |
 | D-pad up / down / left / right | D-Pad up / down / left / right | The Frame's real D-pad (replaces CitraVR's thumbrest-touch plus stick trick). |
-| Menu | Start | |
+| Menu | Start | A tap: Start, sent as Menu is let go (for 100 ms). Held 1 s: the in-game menu, see below; the game never sees that hold. |
 | View | Select | Hold 1.5 s instead stops the game, see below. |
 | Left stick click | Home | |
 | Right stick click | (none) | Resets the screen positions (once per click). Ignored while the stick is pushed past half way, so free camera cannot reset by accident. |
@@ -89,26 +89,50 @@ holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows t
 Without a game, Azahar's own Qt window (game list, menus, dialogs) is mirrored on a panel 1.6 m
 wide, 2 m ahead (`frame_xr/qt_mirror`, `citra_qt/frame_mirror.cpp`). The controllers drive it like
 a mouse; double-click a game to start it. `AZAHARFRAME_VR_PICKER=1` shows the old picker instead.
+The bindings are SteamOS-like and listed in one place at the top of `qt_mirror/mirror_panel.cpp`.
 
-| Frame control | On the home panel |
+| Frame control | On the panel |
 | --- | --- |
 | Aim ray | Mouse pointer (hover opens submenus, shows tooltips). The hand that pulled its trigger or grip on the panel last points; if it points elsewhere, the other hand's ray is used. |
-| Trigger, or A | Left button (press above 0.55, release below 0.40). |
-| Grip, or X | Right button: context menus (game Properties for per-game settings). |
-| B | Escape: closes a menu or a dialog. |
+| Trigger of the pointing hand, or A | Left button (press above 0.55, release below 0.40). Hold to drag. |
+| Right stick click, short | Right click, sent when let go: context menus (a game's Properties has its per-game settings). |
+| Right stick click, held 1 s | The panel back where it was placed (in front). No right click then. |
+| B | Back (Escape): closes a menu or a dialog. |
+| Grip on the panel | Move the panel around you (it keeps its distance and turns to face you). |
 | Stick Y (either) | Mouse wheel, up to 12 notches a second; nothing below 0.2. |
-| Bumper on the panel | Drag the panel around you (it keeps its distance and turns to face you). |
-| Right stick click | Panel back 2 m ahead. |
+| X, Y, bumpers | Nothing. |
 
 A press keeps its point while the ray moves less than 1.2 cm, and a second press within 450 ms
-of the release lands on the same point, so double clicks work with a shaking hand.
-There is no text entry yet (OpenXR has no system keyboard); text fields need the desktop.
+of the release lands on the same point, so double clicks work with a shaking hand. Stick clicks
+are ignored while that stick is pushed past half way.
+
+## The in-game menu
+
+Menu held 1 s in a game pauses the emulation (as Emulation > Pause) and shows the same panel in
+front of the game's screens, which stay visible behind a dark veil. The panel goes 1.2 m ahead
+(nearer if the screens are nearer), as wide as the home panel looks. It is driven as above, so
+Emulation > Configure, a game's Properties and the Emulation menu all work; settings that apply
+live (resolution, filters) apply at once, the VR ones at the next game start.
+
+- Hidden again, and the game resumed, by: Menu held 1 s again, B with no menu or dialog open, or
+  Emulation > Continue. View held 1.5 s still stops the game; Emulation > Stop does too.
+- The game never sees the Menu hold (`menu_toggle` from the mapper; no Start), and while the
+  panel shows the game sees no controller input. Buttons still held as the menu closes stay away
+  from the game until they are let go.
+- Immersive modes 2 and 3 pause while it shows (normal screens), as with the bottom screen shown.
+
+## Not yet
+
+- Text entry on the panel. An idea: SteamOS on the Frame types with the SteamVR keyboard; an
+  OpenVR overlay-type `VR_Init` beside the OpenXR session could open it with
+  `IVROverlay::ShowKeyboard`. Until then text fields need the desktop window.
+- When the ray leaves the panel, the last hover stays highlighted (Qt has no public leave event).
 
 ## Where CitraVR's behaviour is not reproduced
 
 - The menu ribbon (Select, Start, Exit, performance stats, settings, positional menu) that the
-  left Menu button opened. Select, Start and Exit are now buttons; settings are in the Qt window;
-  stats are the XR core's.
+  left Menu button opened. Select, Start and Exit are now buttons; settings are in the in-game
+  menu (Azahar's window, Menu held 1 s); stats are the XR core's.
 - The positional menu paused the emulation while screens were arranged and could also drag the
   bottom screen from the ribbon. Here a grip drags either screen (the pair moves together), and it
   never pauses the game.
