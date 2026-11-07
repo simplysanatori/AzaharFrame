@@ -19,7 +19,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 ### The screens
 
 - The top screen in stereoscopic 3D, one image for each eye, and the bottom screen as a touch screen, both floating in front of you as in CitraVR. Internal resolution up to 8x.
-- Aim a controller at the bottom screen and pull the trigger to touch it. Squeeze a grip on either screen to move it, and use the stick of that hand to move it nearer and farther. The other screen follows. The right stick click puts both back.
+- Aim a controller at the bottom screen and pull the trigger to touch it. Squeeze a grip on either screen to move it, and use the stick of that hand to move it nearer and farther. The other screen follows. Hold the right stick click for 1 second to put both back, and tap it to swap which screen is the main one.
 - A dot shows where each controller points.
 - A game picker in VR with the icons and titles from your game folders, the installed titles, pages and a Rescan button. A folder you add in the Azahar window appears in it at once.
 - Hold View for 1.5 seconds to stop the game and go back to the picker.
@@ -27,7 +27,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 
 ### Controls
 
-- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click is Home.
+- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click, held for 1 second, is Home. A tap of the left stick click hides or shows the screen that is not in focus.
 - Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
 - A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
 - A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.

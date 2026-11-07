@@ -51,7 +51,9 @@ bool Mapper::Reset() {
     menu_down_ = false;
     menu_fired_ = false;
     start_pulse_ = false;
-    stick_click_r_prev_ = false;
+    click_l_.Reset();
+    click_r_.Reset();
+    home_pulse_ = false;
     swallow_view_ = false;
     view_prev_ = false;
     view_held_back_ = false;
@@ -163,8 +165,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     }
     controls.Set(Control::BumperL, frame.hand[0].bumper && !swallow_bumper_[0]);
     controls.Set(Control::BumperR, frame.hand[1].bumper && !swallow_bumper_[1]);
-    controls.Set(Control::StickClickL, frame.hand[0].stick_click);
-    controls.Set(Control::StickClickR, frame.hand[1].stick_click);
+    controls.Set(Control::StickClickR, frame.hand[1].stick_click); // unbound unless the player binds it
 
     // ---- Grips: grab a screen (no 3DS button; see the drag below) ----
     for (int h = 0; h < kNumHands; ++h) {
@@ -289,17 +290,32 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     }
     controls.Set(Control::Menu, start_pulse_);
 
-    // ---- Right stick click: reset panel positions (once per click) ----
-    // Ignored while the stick is pushed over, so the free camera cannot reset by accident.
-    const bool click_r = frame.hand[1].stick_click;
-    if (click_r && !stick_click_r_prev_) {
-        const Vec2f stick_r = frame.hand[1].stick;
-        const float deflection = std::sqrt(stick_r.x * stick_r.x + stick_r.y * stick_r.y);
-        if (deflection <= config_.reset_click_max_deflection) {
-            out.commands.reset_panels = true;
+    // ---- Stick clicks: a tap acts when it is let go, a hold of 1 s acts once ----
+    // Right: tap swaps the screens, hold resets them. Left: tap hides or shows the other screen,
+    // hold is Home (a short pulse; the game sees nothing else of the click). A click that starts
+    // while its stick is pushed over is ignored, so the free camera cannot trigger it.
+    {
+        const auto deflection = [](Vec2f stick) {
+            return std::sqrt(stick.x * stick.x + stick.y * stick.y);
+        };
+        const auto left = click_l_.Update(frame.hand[0].stick_click, deflection(frame.hand[0].stick),
+                                          frame.time_ns, config_.stick_click_hold_ns,
+                                          config_.reset_click_max_deflection);
+        const auto right = click_r_.Update(frame.hand[1].stick_click, deflection(frame.hand[1].stick),
+                                           frame.time_ns, config_.stick_click_hold_ns,
+                                           config_.reset_click_max_deflection);
+        out.commands.toggle_other_screen = left == ClickGesture::Result::Tap;
+        out.commands.swap_screens = right == ClickGesture::Result::Tap;
+        out.commands.reset_panels = right == ClickGesture::Result::Hold;
+        if (left == ClickGesture::Result::Hold) {
+            home_pulse_ = true;
+            home_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
         }
+        if (home_pulse_ && frame.time_ns >= home_pulse_until_ns_) {
+            home_pulse_ = false;
+        }
+        controls.Set(Control::StickClickL, home_pulse_);
     }
-    stick_click_r_prev_ = click_r;
 
     // ---- Triggers: ZL/ZR, or touch when the bottom screen is the nearest thing under the ray ----
     const Hand order[kNumHands] = {preferred_hand_, OtherHand(preferred_hand_)};

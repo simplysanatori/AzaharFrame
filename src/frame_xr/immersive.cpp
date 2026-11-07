@@ -178,6 +178,7 @@ struct State {
     bool engaged = false;        ///< immersive this frame
     bool bottom_toggled = false; ///< CitraVR's lower menu toggle (starts off in immersive mode)
     bool menu_open = false;      ///< the in-game menu shows (immersive modes 2 and 3 pause)
+    bool bottom_focus = false;   ///< the bottom screen is the main one (screen swap): all modes pause
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), read at start
     bool screens_were_live = false;
@@ -229,7 +230,7 @@ void OnFrame(const FrameInfo& info) {
     g.view = LatestViewPose();
 
     const bool was_engaged = g.engaged;
-    g.engaged = mode != 0 && g.live &&
+    g.engaged = mode != 0 && g.live && !g.bottom_focus &&
                 (!IsViewMode(mode) || (!g.bottom_toggled && !g.menu_open && g.view.valid));
 
     if (g.engaged && g.view.valid && (!g.have_ref || g.recentre)) {
@@ -369,6 +370,10 @@ bool CanToggleBottom() {
 
 void SetMenuOpen(bool open) {
     g.menu_open = open;
+}
+
+void SetBottomFocus(bool focus) {
+    g.bottom_focus = focus;
 }
 
 void ToggleBottom() {

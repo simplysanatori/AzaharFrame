@@ -25,6 +25,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/actions.h
     input/controls.h
     input/default_bindings.h
+    input/click_gesture.h
     input/geometry.cpp
     input/geometry.h
     input/input_bridge.cpp
@@ -34,6 +35,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/mapper.h
     input/motion.cpp
     input/motion.h
+    input/screen_view.cpp
+    input/screen_view.h
     input/types.h
     # The Qt window mirrored as the VR home panel, XR side (qt_mirror; no Qt here).
     qt_mirror/mirror_panel.cpp
@@ -57,6 +60,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/controller_models.h
     vis/help_content.cpp
     vis/help_content.h
+    vis/help_layout.cpp
+    vis/help_layout.h
     vis/model_file.cpp
     vis/model_file.h
     vis/model_shaders.h

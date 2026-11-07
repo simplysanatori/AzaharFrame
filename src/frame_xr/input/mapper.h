@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include "frame_xr/input/click_gesture.h"
 #include "frame_xr/input/controls.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
@@ -48,9 +49,12 @@ struct MapperConfig {
     int64_t quick_cooldown_ns = 1'000'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
     float depth_threshold = 0.5f;
-    // A right stick click while the stick is pushed further than this is ignored (the stick
-    // clicks by accident during free camera), so it never resets the screens.
+    // A stick click that starts while its stick is pushed further than this is ignored (the stick
+    // clicks by accident during free camera), so it never swaps, hides or resets the screens.
     float reset_click_max_deflection = 0.5f;
+    /// A stick click held this long is the long action (reset the screens, Home); a shorter one
+    /// acts when it is let go (swap the screens, hide or show the other one).
+    int64_t stick_click_hold_ns = 1'000'000'000;
     /// Speed of the depth change at full deflection, metres per second. CitraVR moves 0.05 m per
     /// displayed frame, about 3.6 m/s at 72 Hz.
     float depth_speed_mps = 3.0f;
@@ -109,9 +113,13 @@ struct PanelCommands {
     /// Add to the top screen's position.z this frame (negative = further away). Zero when the
     /// stick is within the threshold. Only non-zero while top_drag_active.
     float top_depth_delta_z = 0.0f;
-    /// Put both screens back to their default poses (right stick click). Also the "recentre":
-    /// the XR core places the defaults in front of the current head heading.
+    /// Put both screens back to their default poses (right stick click held 1 s). Also the
+    /// "recentre": the XR core places the defaults in front of the current head heading.
     bool reset_panels = false;
+    /// Right stick click, tap: the other screen becomes the main one (ScreenView::Swap).
+    bool swap_screens = false;
+    /// Left stick click, tap: hide or show the screen that is not in focus.
+    bool toggle_other_screen = false;
     /// Left Bumper + Right Bumper held and View pressed while `bottom_toggle_enabled`: show or
     /// hide the bottom screen. Fires once per press.
     bool toggle_bottom = false;
@@ -196,7 +204,11 @@ private:
     bool start_pulse_ = false;
     int64_t start_pulse_until_ns_ = 0;
 
-    bool stick_click_r_prev_ = false;
+    // Stick clicks: tap or hold (click_gesture.h). Left held 1 s is Home, sent as a short pulse.
+    ClickGesture click_l_;
+    ClickGesture click_r_;
+    bool home_pulse_ = false;
+    int64_t home_pulse_until_ns_ = 0;
 
     // Bumper chord (bottom screen toggle). `swallow_view_` keeps that View press from the game.
     bool swallow_view_ = false;
