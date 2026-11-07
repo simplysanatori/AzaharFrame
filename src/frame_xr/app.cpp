@@ -472,25 +472,38 @@ void Runtime::FrameLoop() {
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
-            const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(place) : VrUi::ScreenDraw{};
+            const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
+            // Quad layers are drawn in the order they are submitted, with no depth test: the
+            // farther screen goes first, so the nearer one is never drawn through.
             if (draw.swapped) {
+                // The bottom screen in the main slot, the top one in the nearer secondary slot.
+                add_screen(VideoCore::XrScreen::Bottom, local_space, draw.bottom_pose,
+                           draw.bottom_size, XR_EYE_VISIBILITY_BOTH);
                 if (draw.top_visible) {
                     add_screen(VideoCore::XrScreen::TopLeft, local_space, draw.top_pose,
                                draw.top_size, XR_EYE_VISIBILITY_LEFT);
                     add_screen(VideoCore::XrScreen::TopRight, local_space, draw.top_pose,
                                draw.top_size, XR_EYE_VISIBILITY_RIGHT);
                 }
-                add_screen(VideoCore::XrScreen::Bottom, local_space, draw.bottom_pose,
-                           draw.bottom_size, XR_EYE_VISIBILITY_BOTH);
             } else {
                 // Each eye sees its own top image on the same quad.
-                add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
-                           shown.top_size, XR_EYE_VISIBILITY_LEFT);
-                add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
-                           shown.top_size, XR_EYE_VISIBILITY_RIGHT);
-                if (shown.show_bottom && draw.bottom_visible) {
-                    add_screen(VideoCore::XrScreen::Bottom, local_space, place.bottom_pose,
-                               place.bottom_size, XR_EYE_VISIBILITY_BOTH);
+                const auto add_bottom = [&] {
+                    if (shown.show_bottom && draw.bottom_visible) {
+                        add_screen(VideoCore::XrScreen::Bottom, local_space, shown.bottom_pose,
+                                   shown.bottom_size, XR_EYE_VISIBILITY_BOTH);
+                    }
+                };
+                if (shown.bottom_first) {
+                    add_bottom();
+                }
+                if (shown.show_top) {
+                    add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
+                               shown.top_size, XR_EYE_VISIBILITY_LEFT);
+                    add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
+                               shown.top_size, XR_EYE_VISIBILITY_RIGHT);
+                }
+                if (!shown.bottom_first) {
+                    add_bottom();
                 }
             }
         }

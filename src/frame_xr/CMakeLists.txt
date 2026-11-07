@@ -7,6 +7,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     frame_xr.h
     immersive.cpp
     immersive.h
+    immersive_layout.cpp
+    immersive_layout.h
     hud.cpp # AzaharFrame vrqol
     hud.h # AzaharFrame vrqol
     presets.cpp # AzaharFrame vrqol

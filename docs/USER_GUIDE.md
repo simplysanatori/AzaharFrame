@@ -245,7 +245,9 @@ Three games start with a setup already, from CitraVR's playtest notes: Mario Kar
 
 <!-- VERIFY: the three presets in the headset. They come from CitraVR's Quest notes, which may not hold on SteamVR. -->
 
-The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen, and holding the right stick click for 1 second re-centres the view. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen, and holding the right stick click for 1 second re-centres the view.
+
+The screen starts a little below eye level, with the whole picture in view. Squeeze a grip and move your hand up or down to move it; the stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left). The world stays where it is while you move the screen, and each game remembers where you left it. Hold the right stick click for 1 second while you hold the screen to put it back. A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 <!-- VERIFY: the whole section -->
 

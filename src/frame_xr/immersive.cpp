@@ -15,9 +15,11 @@
 #include <string>
 
 #include <fmt/format.h>
+#include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "frame_xr/immersive.h"
+#include "frame_xr/immersive_layout.h"
 #include "frame_xr/input/input_frame.h"
 #include "video_core/vr_immersive.h"
 
@@ -25,17 +27,19 @@ namespace FrameXr::Immersive {
 
 namespace {
 
-// CitraVR vr_main.cpp:84 immersiveScaleFactor: 3.0 for mode 1, 1.4 for modes 2 and 3.
-constexpr float kWideFactor = 3.0f;
-constexpr float kFullFactor = 1.4f;
-// CitraVR puts the top screen 0.5 m ahead in immersive mode (vr_main.cpp:413 and
-// GameSurfaceLayer.cpp kSuperImmersiveRadius).
-constexpr float kDefaultDistance = 0.5f;
+namespace L = Layout;
+
+// CitraVR vr_main.cpp:84 immersiveScaleFactor: 3.0 for mode 1; modes 2 and 3 use 1.0 to 1.4
+// (CitraVR's 1.4), see immersive_layout.h.
+constexpr float kWideFactor = L::kWideFactor;
+// CitraVR put the screen 0.5 m ahead (vr_main.cpp:413, GameSurfaceLayer.cpp
+// kSuperImmersiveRadius); here 0.75 m, and the grips move it (immersive_layout.h).
+constexpr float kDefaultDistance = L::kDefaultDistance;
 // The vertical field of view a game's camera is assumed to have (Ocarina of Time uses 60
-// degrees); "Immersive Game FOV" (vr_immersive_game_fov) replaces it per game. The head-locked
-// screen shows it 1.4x wider, so that turning the head turns the game camera by the same angle
-// as the view moves (the world stays put).
+// degrees); "Immersive Game FOV" (vr_immersive_game_fov) replaces it per game.
 constexpr float kDefaultGameFovY = 60.0f;
+// The file the placement is saved in, per game, in the user directory.
+constexpr const char* kPlacementFile = "immersive-placement.txt";
 // Half of rasterizer_accelerated.cpp's VR_IPD, used when the eye poses are not known.
 constexpr float kDefaultHalfIpd = 0.065f / 2.0f;
 // The top screen's width over its height: the 3DS's 400x240, and the two wide shapes of "VR
@@ -59,7 +63,7 @@ float AspectFor(u32 shape) {
 }
 
 struct Tuning {
-    float distance = kDefaultDistance;
+    float distance = kDefaultDistance; ///< the default distance (a saved placement wins)
     float game_fov_y_deg = kDefaultGameFovY;
     bool fov_from_env = false; ///< AZAHARFRAME_IMMERSIVE_FOV is set: it wins over the setting
     bool local_space = false; ///< head-locked screen placed in LOCAL from the head pose
@@ -82,7 +86,8 @@ float EnvFloat(const char* name, float fallback, float lo, float hi) {
 // Headset tuning without a rebuild (IMMERSIVE.md).
 Tuning ReadTuning() {
     Tuning t;
-    t.distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", kDefaultDistance, 0.2f, 5.0f);
+    t.distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", kDefaultDistance, L::kMinDistance,
+                          L::kMaxDistance);
     const char* fov_env = std::getenv("AZAHARFRAME_IMMERSIVE_FOV");
     t.fov_from_env = fov_env && *fov_env;
     t.game_fov_y_deg = EnvFloat("AZAHARFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
@@ -167,6 +172,36 @@ void FillInverseView(const XrQuaternionf& q, const XrVector3f& position, float s
     inv[14] = -p.z * scaler;
 }
 
+Input::Posef ToIn(const XrPosef& p) {
+    return {{p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w},
+            {p.position.x, p.position.y, p.position.z}};
+}
+
+XrPosef ToXr(const Input::Posef& p) {
+    return {{p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w},
+            {p.position.x, p.position.y, p.position.z}};
+}
+
+/// The eye's FOV in head angles: its own angles plus how far the eye is turned (canted displays).
+L::EyeFov EyeInHead(const XrPosef& head, const XrPosef& eye, const XrFovf& fov) {
+    const XrVector3f f = Rotate(Conj(head.orientation), Rotate(eye.orientation, {0.0f, 0.0f, -1.0f}));
+    L::EyeFov e{fov.angleLeft, fov.angleRight, fov.angleUp, fov.angleDown};
+    e.yaw = std::atan2(-f.x, -f.z);
+    e.pitch = std::atan2(f.y, std::hypot(f.x, f.z));
+    return e;
+}
+
+std::string PlacementPath() {
+    return FileUtil::GetUserPath(FileUtil::UserPath::UserDir) + kPlacementFile;
+}
+
+float Deg(float rad) {
+    return rad / L::kDegToRad;
+}
+
+// The title id of the game being started (SetGameTitleId, GUI thread).
+std::atomic<uint64_t> g_title_id{0};
+
 // ---- State --------------------------------------------------------------------------
 
 struct State {
@@ -176,19 +211,29 @@ struct State {
     u32 mode = 0;
     bool live = false;           ///< a game shows its screens and the session is visible
     bool engaged = false;        ///< immersive this frame
-    bool bottom_toggled = false; ///< CitraVR's lower menu toggle (starts off in immersive mode)
+    bool bottom_toggled = false; ///< the bottom screen's visibility flipped (the bumper chord)
+    bool focus_bottom = false;   ///< the bottom screen is in focus (SetBottomFocused)
     bool menu_open = false;      ///< the in-game menu shows (immersive modes 2 and 3 pause)
-    bool bottom_focus = false;   ///< the bottom screen is the main one (screen swap): all modes pause
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), read at start
     bool screens_were_live = false;
-    bool prev_click = false;
     bool recentre = false;
     bool have_ref = false;
     XrPosef ref{{0, 0, 0, 1}, {0, 0, 0}}; ///< head position and heading when immersive began
     ViewPose view;
     float half_ipd = kDefaultHalfIpd;
     bool hw_shader_warned = false;
+    // The placement (immersive_layout.h): per game, head-locked (modes 2, 3) and wide (mode 1).
+    uint64_t title_id = 0;
+    L::Store store;
+    bool store_loaded = false;
+    L::Placement head_place;
+    L::Placement wide_place;
+    L::ViewFov view_fov;
+    bool view_fov_logged = false;
+    L::HeadLocked solved;
+    L::Adjuster adjuster;
+    int64_t last_input_ns = 0;
 };
 
 State g;
@@ -197,9 +242,53 @@ bool IsViewMode(u32 mode) {
     return mode >= 2;
 }
 
-/// "Hide Bottom Screen" is on and the bottom screen was not brought back with the bumper chord.
-bool BottomHiddenByOption() {
-    return g.hide_bottom && !g.bottom_toggled;
+L::ScreenDecision Decision() {
+    L::ScreenState s;
+    s.mode = g.mode;
+    s.live = g.live;
+    s.hide_bottom = g.hide_bottom;
+    s.bottom_toggled = g.bottom_toggled;
+    s.bottom_focused = g.focus_bottom;
+    s.menu_open = g.menu_open;
+    s.view_valid = g.view.valid;
+    return L::Decide(s);
+}
+
+bool BottomShown() {
+    return Decision().show_bottom;
+}
+
+L::Placement DefaultPlacement() {
+    L::Placement p;
+    p.distance = g.tuning.distance;
+    return p;
+}
+
+void LoadStore() {
+    if (g.store_loaded) {
+        return;
+    }
+    g.store_loaded = true;
+    std::string text;
+    if (FileUtil::ReadFileToString(true, PlacementPath(), text) > 0) {
+        g.store.Parse(text);
+    }
+}
+
+void SaveStore() {
+    const std::string path = PlacementPath();
+    const std::string tmp = path + ".new";
+    const std::string text = g.store.Format();
+    if (FileUtil::WriteStringToFile(true, tmp, text) != text.size() ||
+        !FileUtil::Rename(tmp, path)) {
+        LOG_WARNING(Frontend, "xr: immersive: could not save the screen placement");
+    }
+}
+
+void LogPlacement(const char* what, const L::Placement& p, bool wide) {
+    LOG_INFO(Frontend, "xr: immersive {} placement ({}): {:.1f} degrees from the view's middle, "
+                       "{:.2f} m, size {:.2f}",
+             wide ? "wide" : "head-locked", what, p.pitch_deg, p.distance, p.size);
 }
 
 void OnFrame(const FrameInfo& info) {
@@ -209,7 +298,9 @@ void OnFrame(const FrameInfo& info) {
     if (!info.screens_live) {
         // No game: the next one starts with the bottom screen hidden, as in CitraVR.
         g.bottom_toggled = false;
+        g.focus_bottom = false;
         g.have_ref = false;
+        g.adjuster.Cancel();
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
         g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
@@ -223,6 +314,18 @@ void OnFrame(const FrameInfo& info) {
                 : static_cast<float>(Settings::values.vr_immersive_game_fov.GetValue());
         LOG_INFO(Frontend, "xr: top screen shape {} ({:.3f}), game camera {:.0f} degrees high",
                  shape, g_top_aspect.load(), g.game_fov_y_deg);
+        // The saved placement of this game.
+        g.title_id = g_title_id.load();
+        LoadStore();
+        const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
+        const auto wide = g.title_id ? g.store.Get(g.title_id, true) : std::nullopt;
+        g.head_place = head.value_or(DefaultPlacement());
+        g.wide_place = wide.value_or(DefaultPlacement());
+        if (mode != 0) {
+            const bool is_wide = !IsViewMode(mode);
+            LogPlacement((is_wide ? wide : head) ? "saved" : "default",
+                         is_wide ? g.wide_place : g.head_place, is_wide);
+        }
     }
     g.screens_were_live = info.screens_live;
     g.mode = mode;
@@ -230,8 +333,7 @@ void OnFrame(const FrameInfo& info) {
     g.view = LatestViewPose();
 
     const bool was_engaged = g.engaged;
-    g.engaged = mode != 0 && g.live && !g.bottom_focus &&
-                (!IsViewMode(mode) || (!g.bottom_toggled && !g.menu_open && g.view.valid));
+    g.engaged = Decision().immersive;
 
     if (g.engaged && g.view.valid && (!g.have_ref || g.recentre)) {
         g.ref = {YawOnly(g.view.head.orientation), g.view.head.position};
@@ -244,16 +346,40 @@ void OnFrame(const FrameInfo& info) {
                                           Sub(g.view.eye[1].position, g.view.eye[0].position));
         const float half = std::abs(between.x) / 2;
         g.half_ipd = (half > 0.02f && half < 0.045f) ? half : kDefaultHalfIpd;
+        g.view_fov = L::BothEyes(EyeInHead(g.view.head, g.view.eye[0], g.view.fov[0]),
+                                 EyeInHead(g.view.head, g.view.eye[1], g.view.fov[1]));
+        if (!g.view_fov_logged) {
+            g.view_fov_logged = true;
+            LOG_INFO(Frontend,
+                     "xr: immersive: both eyes see {:.1f} to {:.1f} degrees across, {:.1f} to "
+                     "{:.1f} up (left eye {:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                     Deg(g.view_fov.left), Deg(g.view_fov.right), Deg(g.view_fov.down),
+                     Deg(g.view_fov.up), Deg(g.view.fov[0].angleLeft),
+                     Deg(g.view.fov[0].angleRight), Deg(g.view.fov[0].angleDown),
+                     Deg(g.view.fov[0].angleUp));
+        }
+    }
+    if (IsViewMode(mode)) {
+        // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
+        const float d = L::Clamped(g.head_place).distance;
+        g.solved = L::SolveHeadLocked(g.head_place, g.game_fov_y_deg, TopAspect(), g.view_fov,
+                                      mode == 2 ? g.half_ipd / d : 0.0f);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
     if (g.engaged) {
         data.mode = static_cast<s32>(mode);
-        data.factor = mode < 2 ? kWideFactor : kFullFactor;
+        data.factor = mode < 2 ? kWideFactor : g.solved.factor;
         data.uoffset = -1;
         if (g.view.valid) {
-            const XrQuaternionf q =
-                Normalized(Mul(Conj(g.ref.orientation), g.view.head.orientation));
+            XrQuaternionf q = Normalized(Mul(Conj(g.ref.orientation), g.view.head.orientation));
+            if (IsViewMode(mode)) {
+                // The screen's pitch (and the gain of a resized screen) go into the game camera
+                // too, so the world stays where it is (immersive_layout.h).
+                const Input::Quatf c =
+                    L::GameCameraRotation({q.x, q.y, q.z, q.w}, g.solved);
+                q = {c.x, c.y, c.z, c.w};
+            }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
             // CitraVR: 10^multiplier x (the 3D slider / 10, an integer).
@@ -269,8 +395,17 @@ void OnFrame(const FrameInfo& info) {
 
     if (g.engaged != was_engaged) {
         if (g.engaged) {
-            LOG_INFO(Frontend, "xr: immersive mode {} on (factor {:.1f}, {})", mode, data.factor,
-                     IsViewMode(mode) ? "head-locked top screen" : "wide top screen");
+            if (IsViewMode(mode)) {
+                LOG_INFO(Frontend,
+                         "xr: immersive mode {} on (factor {:.2f}, head-locked top screen "
+                         "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, gain {:.2f})",
+                         mode, data.factor, Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
+                         Deg(2 * std::atan(g.solved.tan_half_y)), Deg(g.solved.pitch_rad),
+                         g.solved.gain);
+            } else {
+                LOG_INFO(Frontend, "xr: immersive mode {} on (factor {:.1f}, wide top screen)",
+                         mode, data.factor);
+            }
             if (IsViewMode(mode) && !Settings::values.use_hw_shader.GetValue() &&
                 !g.hw_shader_warned) {
                 g.hw_shader_warned = true;
@@ -280,9 +415,19 @@ void OnFrame(const FrameInfo& info) {
             }
         } else {
             LOG_INFO(Frontend, "xr: immersive mode off ({})",
-                     mode == 0 ? "setting off" : (!g.live ? "no game on view" : "bottom screen"));
+                     mode == 0      ? "setting off"
+                     : !g.live      ? "no game on view"
+                     : g.focus_bottom ? "bottom screen in focus"
+                     : g.menu_open  ? "in-game menu"
+                                    : "bottom screen");
         }
     }
+}
+
+float DistanceTo(const XrPosef& pose) {
+    const XrVector3f eye = g.view.valid ? g.view.head.position : XrVector3f{0, 0, 0};
+    const XrVector3f d = Sub(pose.position, eye);
+    return std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
 }
 
 } // namespace
@@ -292,10 +437,12 @@ void Install() {
     g_top_aspect = kAspect3ds;
     g.tuning = ReadTuning();
     g.game_fov_y_deg = g.tuning.game_fov_y_deg;
+    g.head_place = g.wide_place = DefaultPlacement();
     VideoCore::Immersive::g_xr_active = true;
     g.callback_id = AddFrameCallback(OnFrame);
     LOG_INFO(Frontend,
-             "xr: immersive: screen {:.2f} m ahead, game camera {}, {} space", g.tuning.distance,
+             "xr: immersive: screen {:.2f} m ahead by default, game camera {}, {} space",
+             g.tuning.distance,
              g.tuning.fov_from_env ? fmt::format("{:.0f} degrees high (environment)",
                                                  g.tuning.game_fov_y_deg)
                                    : std::string{"angle from the game's setting"},
@@ -321,46 +468,50 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     out.top_space = local_space;
     out.top_pose[0] = out.top_pose[1] = placement.top_pose;
     out.top_size = placement.top_size;
-    out.show_bottom = !BottomHiddenByOption();
-    if (!g.engaged) {
-        return out;
-    }
-    const float d = g.tuning.distance;
+    out.bottom_pose = placement.bottom_pose;
+    out.bottom_size = placement.bottom_size;
+    out.show_bottom = BottomShown();
 
-    if (!IsViewMode(g.mode)) {
+    if (g.engaged && !IsViewMode(g.mode)) {
         // Mode 1: fixed in the room, ahead of where the head was when the game started (or the
         // last re-centre). The game's own frame, the middle third, keeps the angular size of
-        // the normal top screen (whatever its shape); the rest is the wider view.
+        // the normal top screen (whatever its shape) times the size; the rest is the wider view.
+        const L::Placement p = L::Clamped(g.wide_place);
         const ScreenPlacement normal = DefaultScreenPlacement();
         const float normal_tan = normal.top_size.width / 2 / std::abs(normal.top_pose.position.z);
-        const float width = 2 * d * kWideFactor * normal_tan;
-        const XrPosef ahead{{0, 0, 0, 1}, {0.0f, 0.0f, -d}};
-        out.top_pose[0] = out.top_pose[1] = Compose(g.ref, ahead);
+        const float width = 2 * p.distance * kWideFactor * normal_tan * p.size;
+        const float pitch = L::ViewMiddlePitch(g.view_fov) + p.pitch_deg * L::kDegToRad;
+        const Input::Posef rest = ToIn(g.ref);
+        out.top_pose[0] = out.top_pose[1] = ToXr(L::WideQuadPose(rest, pitch, p.distance));
         out.top_size = {width, width / TopAspect()};
-        out.show_bottom = g.bottom_toggled;
-        return out;
-    }
-
-    // Modes 2 and 3: head-locked. Mode 3 centres each eye's screen on that eye (CitraVR
-    // GameSurfaceLayer.cpp GetTopPanelFromHeadPose), mode 2 uses one pose for both.
-    constexpr float kDegToRad = 3.14159265f / 180.0f;
-    // The game draws its view with its vertical angle (Immersive Game FOV) and the aspect of the
-    // top screen's shape, so the horizontal half angle has tan = aspect x tan(fov_y / 2). The
-    // quad is as wide as it is high times that aspect, which keeps both angles right.
-    const float height = 2 * d * kFullFactor * std::tan(g.game_fov_y_deg * kDegToRad / 2);
-    out.top_size = {height * TopAspect(), height};
-    for (int eye = 0; eye < 2; eye++) {
-        const float x = g.mode == 3 ? (eye == 0 ? -g.half_ipd : g.half_ipd) : 0.0f;
-        const XrPosef in_view{{0, 0, 0, 1}, {x, 0.0f, -d}};
-        if (g.tuning.local_space && g.view.valid) {
-            out.top_space = local_space;
-            out.top_pose[eye] = Compose(g.view.head, in_view);
-        } else {
-            out.top_space = view_space;
-            out.top_pose[eye] = in_view;
+        out.top_pointable = false;
+        // The bottom screen (when shown) below the wide screen's middle and nearer than it,
+        // so it is drawn over it and never through it.
+        const L::BottomQuad b = L::WideBottomQuad(rest, pitch, p.distance);
+        out.bottom_pose = ToXr(b.pose);
+        out.bottom_size = {b.width, b.height};
+    } else if (g.engaged) {
+        // Modes 2 and 3: head-locked. Mode 3 centres each eye's screen on that eye (CitraVR
+        // GameSurfaceLayer.cpp GetTopPanelFromHeadPose), mode 2 uses one pose for both. The
+        // size, pitch and distance come from the placement (immersive_layout.h).
+        out.top_size = {g.solved.width(), g.solved.height()};
+        for (int eye = 0; eye < 2; eye++) {
+            const float x = g.mode == 3 ? (eye == 0 ? -g.half_ipd : g.half_ipd) : 0.0f;
+            const XrPosef in_view = ToXr(L::HeadLockedQuadPose(g.solved, x));
+            if (g.tuning.local_space && g.view.valid) {
+                out.top_space = local_space;
+                out.top_pose[eye] = Compose(g.view.head, in_view);
+            } else {
+                out.top_space = view_space;
+                out.top_pose[eye] = in_view;
+            }
         }
+        out.top_pointable = false;
+        out.show_bottom = false;
     }
-    out.show_bottom = false;
+    const float top_distance = out.top_space == view_space ? g.solved.distance
+                                                           : DistanceTo(out.top_pose[0]);
+    out.bottom_first = DistanceTo(out.bottom_pose) > top_distance;
     return out;
 }
 
@@ -372,35 +523,78 @@ void SetMenuOpen(bool open) {
     g.menu_open = open;
 }
 
-void SetBottomFocus(bool focus) {
-    g.bottom_focus = focus;
-}
-
 void ToggleBottom() {
     if (!CanToggleBottom()) {
         return;
     }
     g.bottom_toggled = !g.bottom_toggled;
-    LOG_INFO(Frontend, "xr: bottom screen {}", g.bottom_toggled ? "shown" : "hidden");
+    LOG_INFO(Frontend, "xr: bottom screen {}", BottomShown() ? "shown" : "hidden");
 }
 
-void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_pointable) {
-    const bool click = in.hand[1].stick_click;
-    if (click && !g.prev_click) {
-        g.recentre = true;
+void SetBottomFocused(bool focused) {
+    if (focused != g.focus_bottom) {
+        g.focus_bottom = focused;
+        g.adjuster.Cancel();
     }
-    g.prev_click = click;
+}
 
-    if (g.engaged) {
-        top_pointable = false;
-        if (IsViewMode(g.mode) || !g.bottom_toggled) {
-            bottom_pointable = false;
+bool HoldingScreen() {
+    return g.adjuster.Active();
+}
+
+void OnResetPanels() {
+    g.recentre = true;
+    if (!g.adjuster.Active() || g.mode == 0 || !g.live) {
+        return;
+    }
+    g.adjuster.Cancel();
+    const bool wide = !IsViewMode(g.mode);
+    L::Placement& p = wide ? g.wide_place : g.head_place;
+    p = DefaultPlacement();
+    if (g.title_id && g.store.Get(g.title_id, wide)) {
+        g.store.Erase(g.title_id, wide);
+        SaveStore();
+    }
+    LogPlacement("reset", p, wide);
+}
+
+void OnGameInput(Input::InputFrame& in) {
+    const float dt = g.last_input_ns && in.time_ns > g.last_input_ns
+                         ? static_cast<float>(in.time_ns - g.last_input_ns) * 1e-9f
+                         : 0.0f;
+    g.last_input_ns = in.time_ns;
+    // The immersive screen on view: the grips hold it (mode 1 with the bottom screen shown too,
+    // whose place follows the wide screen). Not while it is paused: the normal screens are
+    // grabbed as usual then.
+    const bool enabled = g.engaged && g.view.valid;
+    const bool wide = !IsViewMode(g.mode);
+    L::Placement& place = wide ? g.wide_place : g.head_place;
+    // Modes 2 and 3 move with the head; mode 1 is fixed around the rest pose.
+    const Input::Posef frame = ToIn(wide ? g.ref : g.view.head);
+    const L::Adjuster::Result r = g.adjuster.Update(in, frame, dt, enabled, place);
+    if (enabled) {
+        for (auto& hand : in.hand) {
+            hand.grip = 0.0f; // the mapper grabs nothing
+        }
+        if (r.active) {
+            in.hand[static_cast<std::size_t>(r.hand)].stick = {};
         }
     }
-    // Hidden by the setting (no touch, no grab); immersive modes above already hide it.
-    if (BottomHiddenByOption()) {
-        bottom_pointable = false;
+    if (r.released) {
+        LogPlacement("moved", place, wide);
+        if (g.title_id) {
+            g.store.Set(g.title_id, wide, place);
+            SaveStore();
+        }
     }
 }
 
 } // namespace FrameXr::Immersive
+
+namespace FrameXr {
+
+void SetGameTitleId(uint64_t title_id) {
+    Immersive::g_title_id = title_id;
+}
+
+} // namespace FrameXr

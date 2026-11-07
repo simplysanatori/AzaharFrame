@@ -195,6 +195,8 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     }
     Row(g, "Grip on a Screen", With("Move Screens", grips.empty() ? grips : "3DS " + grips));
     Row(g, "Stick While Moving", "Nearer or Farther");
+    Row(g, "Grip (Immersive)", "Move Immersive Screen");
+    Row(g, "Sideways While Moving", "Immersive Screen Size");
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
     Row(g, "Hold View + Left Bumper", "Quick Load");

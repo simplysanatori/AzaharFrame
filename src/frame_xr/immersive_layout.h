@@ -1,0 +1,228 @@
+// Copyright 2026 AzaharFrame contributors
+// Licensed under GPLv3 or any later version
+// Refer to the license.txt file included.
+
+// AzaharFrame: the maths of the immersive screen's placement (IMMERSIVE.md, "Placement"), the
+// grip gesture that moves and resizes it, and the per-game file it is saved in. No OpenXR, no
+// settings, no emulator: unit tested in src/tests/frame_xr/immersive_layout.cpp.
+//
+// Head-locked modes (2, 3). The game's camera turns with the head, and the quad shows the
+// game's picture. The world stays put when a head turn moves the picture by the same angle, so:
+//   - Distance: the quad's size scales with it, the angle does not change (no drift; only the
+//     stereo depth of the flat picture in mode 2 changes, nothing at all in mode 3).
+//   - Pitch: the quad turns down about the eye by `pitch`, and the same rotation is added to the
+//     head rotation given to the game (camera = head x pitch), so the game looks down with it:
+//     the world stays where it was and is seen through a lower window (no drift).
+//   - Size: first the game's periphery factor (CitraVR's 1.4, `gl_Position.xy /= factor`) goes
+//     between 1.0 and 1.4: the quad and the game's view grow together (no drift, more or less
+//     of the edges). Past those limits the quad is scaled against the game's view, and the head
+//     rotation given to the game is scaled by `gain` = game angle / screen angle so that the
+//     picture still moves with the head at the middle of the screen. The cost: a big head turn
+//     turns the game camera by `gain` times as much (more or less of the game world).
+//
+// The default size fits the whole quad, its edges included, inside the part of the view both
+// eyes see (from the runtime's per-eye FOV, minus a margin), centred a few degrees below the
+// middle of that view. If the game's own frame (factor 1) does not fit, the default is already
+// scaled and the gain is above 1.
+
+#pragma once
+
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <string>
+
+#include "frame_xr/input/geometry.h"
+#include "frame_xr/input/input_frame.h"
+
+namespace FrameXr::Immersive::Layout {
+
+// ---- Tuning (easy to change; see IMMERSIVE.md) ----
+inline constexpr float kFactorMax = 1.4f; ///< CitraVR's periphery factor for modes 2 and 3
+inline constexpr float kFactorMin = 1.0f; ///< the game's own frame, no periphery
+inline constexpr float kWideFactor = 3.0f; ///< mode 1
+inline constexpr float kDefaultDistance = 0.75f; ///< metres (CitraVR 0.5)
+inline constexpr float kMinDistance = 0.3f;
+inline constexpr float kMaxDistance = 3.0f;
+/// The screen's centre this far below the middle of the view (negative = down), degrees.
+inline constexpr float kDefaultPitchDeg = -5.0f;
+inline constexpr float kMinPitchDeg = -40.0f;
+inline constexpr float kMaxPitchDeg = 25.0f;
+/// Size, times the default (fitted) size.
+inline constexpr float kMinSize = 0.6f;
+inline constexpr float kMaxSize = 1.5f;
+/// Kept clear inside the view on every side when fitting, degrees.
+inline constexpr float kFitMarginDeg = 2.5f;
+/// The view assumed before the runtime reports one, half angles in degrees.
+inline constexpr float kFallbackHalfFovDeg = 45.0f;
+/// Grip gesture: the stick beyond this moves the screen (as in the normal placement).
+inline constexpr float kStickThreshold = 0.5f;
+/// Full stick: distance and size change by e^(rate x seconds).
+inline constexpr float kDistanceRate = 1.0f;
+inline constexpr float kSizeRate = 0.5f;
+inline constexpr float kGripPress = 0.60f;
+inline constexpr float kGripRelease = 0.40f;
+
+inline constexpr float kDegToRad = 3.14159265f / 180.0f;
+
+/// The part of the view the screen must fit in: angles in radians from the head's forward axis
+/// (OpenXR XrFovf signs: left and down are negative).
+struct ViewFov {
+    float left = -kFallbackHalfFovDeg * kDegToRad;
+    float right = kFallbackHalfFovDeg * kDegToRad;
+    float up = kFallbackHalfFovDeg * kDegToRad;
+    float down = -kFallbackHalfFovDeg * kDegToRad;
+};
+
+/// One eye's FOV and the eye's yaw and pitch relative to the head (canted displays), radians.
+struct EyeFov {
+    float left, right, up, down;
+    float yaw = 0.0f;   ///< positive = turned left
+    float pitch = 0.0f; ///< positive = turned up
+};
+
+/// What both eyes see: the intersection of the two eyes' FOVs, in head angles.
+ViewFov BothEyes(const EyeFov& left, const EyeFov& right);
+
+/// What the player chose (saved per game). Defaults: kDefault*.
+struct Placement {
+    float pitch_deg = kDefaultPitchDeg; ///< relative to the middle of the view
+    float distance = kDefaultDistance;
+    float size = 1.0f; ///< times the default size
+    bool operator==(const Placement&) const = default;
+};
+Placement Clamped(Placement p);
+
+/// Modes 2 and 3, solved for one frame.
+struct HeadLocked {
+    float factor = kFactorMax; ///< the game draws this much wider (gl_Position.xy /= factor)
+    float tan_half_y = 0.0f;   ///< the quad's half height over its distance
+    float aspect = 5.0f / 3.0f;
+    float pitch_rad = 0.0f; ///< the quad and the game camera turn by this about the eye
+    float distance = kDefaultDistance;
+    /// Head rotation x gain is given to the game. 1 when the quad has the game's angle.
+    float gain = 1.0f;
+    float width() const {
+        return 2.0f * distance * tan_half_y * aspect;
+    }
+    float height() const {
+        return 2.0f * distance * tan_half_y;
+    }
+};
+
+/// The middle of the view, as a pitch (radians).
+float ViewMiddlePitch(const ViewFov& view);
+
+/// The largest tan(half height) a quad of `aspect`, turned down by `pitch_rad` about the eye
+/// (and seen from `eye_shift` times its distance to the side, mode 2's shared quad), can have
+/// with all four corners inside `view` shrunk by `margin_rad` on every side.
+float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float margin_rad,
+                  float eye_shift = 0.0f);
+
+HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
+                           const ViewFov& view, float eye_shift = 0.0f);
+
+/// A rotation about +X by `pitch` (positive = up).
+Input::Quatf PitchRotation(float pitch_rad);
+
+/// `q` with its angle times `gain` (the same axis). gain 1 returns q.
+Input::Quatf ScaleRotation(const Input::Quatf& q, float gain);
+
+/// The rotation given to the game: the head (relative to the rest pose) with the gain, then the
+/// screen's pitch, so the game camera looks where the screen is.
+Input::Quatf GameCameraRotation(const Input::Quatf& head_rel, const HeadLocked& solved);
+
+/// The head-locked quad's pose in the head's (VIEW) space for an eye `eye_x` to the side.
+Input::Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x);
+
+/// Mode 1: the wide screen around the rest pose (room-fixed), at `pitch` (the player's pitch
+/// plus the middle of the view) and `distance`, `width` wide.
+Input::Posef WideQuadPose(const Input::Posef& rest, float pitch_rad, float distance);
+
+/// Mode 1 with the bottom screen shown: below the wide screen's centre, nearer than it (so it is
+/// drawn over it, never through it), with the normal bottom screen's angular size.
+struct BottomQuad {
+    Input::Posef pose;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+BottomQuad WideBottomQuad(const Input::Posef& rest, float wide_pitch_rad, float wide_distance);
+
+// ---- Which screens show ----
+
+struct ScreenState {
+    uint32_t mode = 0;          ///< vr_immersive_mode
+    bool live = false;          ///< a game shows its screens and the session is visible
+    bool hide_bottom = false;   ///< "Hide Bottom Screen" (per game)
+    bool bottom_toggled = false; ///< the bumper chord flipped the bottom screen
+    bool bottom_focused = false; ///< the bottom screen is the screen in focus
+    bool menu_open = false;     ///< the in-game menu shows
+    bool view_valid = false;    ///< the head pose is known
+};
+
+struct ScreenDecision {
+    bool immersive = false;   ///< immersive mode is on this frame (not paused)
+    bool show_bottom = false; ///< the bottom screen is drawn (and can be touched)
+};
+
+/// The bottom screen starts hidden with "Hide Bottom Screen" or any immersive mode; the bumper
+/// chord flips it; it always shows while in focus. Immersive mode pauses (modes 2 and 3) while
+/// the bottom screen shows or the in-game menu is open, and (all modes) while the bottom screen
+/// is in focus. A hidden bottom screen is never drawn.
+ScreenDecision Decide(const ScreenState& s);
+
+// ---- The grip gesture ----
+
+/// One grip at a time. A grip squeezed (not one already down) starts it; that hand's aim moves
+/// the screen up and down (the point under the ray stays under it, on the sphere of the screen's
+/// distance around `head`); that hand's stick Y moves it farther (up) or nearer, X makes it
+/// bigger (right) or smaller. While it runs the hand's grip and stick do not reach the game.
+class Adjuster {
+public:
+    struct Result {
+        bool active = false;  ///< a hand holds the screen this frame
+        int hand = -1;        ///< which (0 left, 1 right) while active
+        bool changed = false; ///< the placement changed this frame
+        bool released = false; ///< the grip was let go this frame (save now)
+    };
+
+    /// `head`: the frame the screen is placed in (the head for modes 2 and 3, the rest pose for
+    /// mode 1), in the aim poses' space. `enabled` false cancels a gesture in progress.
+    Result Update(const Input::InputFrame& in, const Input::Posef& head, float dt,
+                  bool enabled, Placement& placement);
+    void Cancel();
+    bool Active() const {
+        return hand_ >= 0;
+    }
+
+private:
+    int hand_ = -1;
+    float start_elevation_ = 0.0f;
+    float start_pitch_deg_ = 0.0f;
+    bool grip_down_[2]{};
+};
+
+/// The elevation (radians) of the point where `aim` (in `head`'s space) hits the sphere of
+/// `radius` around `head`, or of the ray's direction when it does not.
+float AimElevation(const Input::Posef& head, const Input::Posef& aim, float radius);
+
+// ---- The per-game file ----
+
+/// Lines "<title id, 16 hex digits> <head|wide> <pitch degrees> <distance m> <size>"; '#'
+/// starts a comment. Unknown or broken lines are kept out (and dropped when saving).
+class Store {
+public:
+    void Parse(const std::string& text);
+    std::string Format() const;
+    std::optional<Placement> Get(uint64_t title_id, bool wide) const;
+    void Set(uint64_t title_id, bool wide, const Placement& placement);
+    void Erase(uint64_t title_id, bool wide);
+    std::size_t Size() const {
+        return entries_.size();
+    }
+
+private:
+    std::map<std::string, Placement> entries_;
+};
+
+} // namespace FrameXr::Immersive::Layout

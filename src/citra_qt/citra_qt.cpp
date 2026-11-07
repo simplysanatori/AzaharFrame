@@ -2211,6 +2211,10 @@ void GMainWindow::BootGame(const QString& filename) {
 #endif
     }
 
+#ifdef ENABLE_FRAME_XR // AzaharFrame: the immersive screen's placement is saved per title id.
+    FrameXr::SetGameTitleId(Loader::ResultStatus::Success == res ? title_id : 0);
+#endif
+
 #ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).
     if (FrameXr::IsStarted() && Settings::values.factor_3d.GetValue() == 0) {
         LOG_INFO(Frontend, "xr: 3D slider was 0, set to 50 for VR");

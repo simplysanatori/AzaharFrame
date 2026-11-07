@@ -33,6 +33,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.
 - The face buttons go by position, as on the 3DS: the Frame's A (bottom) is the 3DS's B, B (right) is A, X (left) is Y and Y (top) is X. The **Face Buttons** setting (**VR** group) switches to by label.
 - Motion controls: the right controller (or the left, or none, in the **Motion Controls** setting) is the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS, such as the first-person items in Ocarina of Time 3D.
+- Fast Forward: hold View, then pull the right trigger, to run the game at Azahar's turbo speed, and do it again to go back. "Fast Forward" shows in front of you while it is on.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 - A **Controls** panel in VR lists what every control does in a game, on Azahar's window and in the in-game menu, named from your own controls profile. It opens the first time VR starts, and from the **Controls** button above Azahar's window after that.
 - The Frame controllers show in your hands, with the buttons and sticks moving, and a soft beam that fades when you put a controller down (**Show Controllers**, on by default). The models are made from SteamVR's own on your Frame.
@@ -45,7 +46,8 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - SteamVR has no cylinder layer, so the screen is a flat quad that stays in front of your eyes, sized to the game's camera, or fixed in the room in Wide mode.
 - The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
 - A per-game **Immersive Game FOV** setting replaces the fixed 60 degree game camera that sizes the screen, for mods that change the game's FOV.
-- Both bumpers and View show the bottom screen (the left bumper is L here) and the right stick click re-centres the view.
+- Both bumpers and View show the bottom screen (the left bumper is L here), and holding the right stick click for 1 second re-centres the view.
+- The screen is fitted into the part of the view both eyes see, a little below eye level, so the whole picture and the HUD are in view. Squeeze a grip to move it up or down, and use the stick of that hand to move it nearer or farther and make it bigger or smaller, with the world staying put. Each game remembers where you left it.
 - Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
 
 ### Install
