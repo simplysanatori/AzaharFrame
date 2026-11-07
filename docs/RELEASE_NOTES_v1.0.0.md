@@ -94,7 +94,6 @@ Download the tarball and run `steam-frame/install.sh` from the repository with i
 
 - The 3DS camera isn't available.
 - Mario Kart 7's menus show white panels in Full (6DoF): Other Games mode.
-- Pressing the headset's volume key can crash SteamOS's compositor. That is a SteamOS bug.
 
 ## Reporting problems
 

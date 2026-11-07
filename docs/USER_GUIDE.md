@@ -10,7 +10,6 @@ Known issues:
 
 - The 3DS camera isn't available. Games that ask for it see no camera.
 - Mario Kart 7's menus show white panels in **Full (6DoF): Other Games**.
-- Pressing the headset's volume key can crash SteamOS's compositor. That is a SteamOS bug.
 
 ## What this adds
 
