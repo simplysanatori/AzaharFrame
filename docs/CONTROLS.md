@@ -20,7 +20,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu, see below. The game does not see that hold |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
 | Left stick click, tap | Hides or shows the screen that is not in focus | Nothing reaches the game. See Swapping the screens |
-| Left stick click, held for 1 second | Home | The game sees a short Home press when the second is up, and nothing before |
+| Left stick click, held for 1 second | Nothing | A tap hides or shows the screen only when you let go, so a hold does nothing |
 | Right stick click, tap | Swaps the screens: the other screen becomes the main one | Nothing reaches the game. Tap again to swap back. See Swapping the screens |
 | Right stick click, held for 1 second | Resets the screen positions | Nothing reaches the game. A stick click is ignored (tap and hold) while that stick is pushed more than half way, so free camera cannot swap or reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
@@ -39,7 +39,7 @@ While you hold **View**, the game sees Select held. When the 1.5 seconds are up 
 
 A tap of **Menu** reaches the game as Start when you let go.
 
-A tap of a stick click acts when you let go, so a hold never also taps: the left stick click is Home only after a full second, and the right one resets only after a full second.
+A tap of a stick click acts when you let go, so a hold never also taps: a hold of the left stick click does nothing, and the right one resets only after a full second.
 
 Because **View** also starts Quick Save, Quick Load and Fast Forward, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
 
@@ -56,7 +56,7 @@ Hold **View**, then press the right bumper to Quick Save or the left bumper to Q
 
 ## Fast Forward
 
-Hold **View**, then pull the right trigger to turn Fast Forward on: the game runs at Azahar's turbo speed (**Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it). "Fast Forward" shows in front of you while it is on. Do the same again to turn it off. It also goes off when the game stops, when the in-game menu opens (in Flat: when holding **Menu** pauses), and when you switch between VR and Flat.
+Hold **View**, then pull the right trigger to turn Fast Forward on: the game runs at Azahar's turbo speed (**Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it). "Fast Forward" shows in front of you for 2 seconds, then fades. Do the same again to turn it off; "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens (in Flat: when holding **Menu** pauses), and when you switch between VR and Flat.
 
 - The same rules as Quick Save: **View** has to go down first, with no bumper held, and a second pull within a second does nothing.
 - The game sees neither Select nor ZR, and the stop timer starts over, so holding **View** while you pull never stops the game. Aimed at the bottom screen, that pull is not a touch either.
@@ -257,7 +257,6 @@ In Flat the Frame controllers reach the game as a gamepad from Steam Input, and 
 | Left and right trigger | ZL and ZR |
 | **Menu** | Start |
 | **View** | Select |
-| Left stick click | Home |
 
 The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse. Every button can be changed in **Emulation > Configure > Controls**, and your changes in **Flat Gamepad** stay; it is only added when it is missing. The layout of the screens, 3D and everything else in Azahar's settings are the ones you already have.
 

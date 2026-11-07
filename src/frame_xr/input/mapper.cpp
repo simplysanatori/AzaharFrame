@@ -53,7 +53,6 @@ bool Mapper::Reset() {
     start_pulse_ = false;
     click_l_.Reset();
     click_r_.Reset();
-    home_pulse_ = false;
     swallow_view_ = false;
     view_prev_ = false;
     view_held_back_ = false;
@@ -320,8 +319,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
 
     // ---- Stick clicks: a tap acts when it is let go, a hold of 1 s acts once ----
     // Right: tap swaps the screens, hold resets them. Left: tap hides or shows the other screen,
-    // hold is Home (a short pulse; the game sees nothing else of the click). A click that starts
-    // while its stick is pushed over is ignored, so the free camera cannot trigger it.
+    // hold does nothing (the game never sees the click). A click that starts while its stick is
+    // pushed over is ignored, so the free camera cannot trigger it.
     {
         const auto deflection = [](Vec2f stick) {
             return std::sqrt(stick.x * stick.x + stick.y * stick.y);
@@ -335,14 +334,6 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         out.commands.toggle_other_screen = left == ClickGesture::Result::Tap;
         out.commands.swap_screens = right == ClickGesture::Result::Tap;
         out.commands.reset_panels = right == ClickGesture::Result::Hold;
-        if (left == ClickGesture::Result::Hold) {
-            home_pulse_ = true;
-            home_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
-        }
-        if (home_pulse_ && frame.time_ns >= home_pulse_until_ns_) {
-            home_pulse_ = false;
-        }
-        controls.Set(Control::StickClickL, home_pulse_);
     }
 
     // ---- Triggers: ZL/ZR, or touch when the bottom screen is the nearest thing under the ray ----

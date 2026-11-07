@@ -26,7 +26,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | Menu | Start | A tap: Start, sent as Menu is let go (for 100 ms). Held 1 s: the in-game menu, see below; the game never sees that hold. |
 | View | Select | Hold 1.5 s instead stops the game, see below. |
 | Left stick click, tap | (none) | Hides or shows the screen that is not in focus (`toggle_other_screen`, on release). |
-| Left stick click, held 1 s | Home | The pad's `StickClickL`, bound to Home, is pulsed for 100 ms when the second is up (`stick_click_hold_ns`, `start_pulse_ns`). The game sees nothing before. |
+| Left stick click, held 1 s | (none) | Does nothing, and the release hides nothing. Azahar has no HOME Menu without system files, so there is no Home binding. |
 | Right stick click, tap | (none) | Swaps the screens (`swap_screens`, on release). |
 | Right stick click, held 1 s | (none) | Resets the screen positions (`reset_panels`, once per hold). |
 
@@ -161,8 +161,8 @@ fresh press and switched back to VR 0.3 s later.
 Trigger: `toggle_fast_forward`, once per pull and at most once a second (`quick_cooldown_ns`).
 That pull is neither ZR nor a touch until the trigger is let go, and View stays away from the game
 (no Select, no stop hold) until it is let go. The Left Trigger with View is plain ZL. The Qt side
-keeps the state: Azahar's turbo speed (`SetTurboEnabled`) and the "Fast Forward" label
-(`FrameXr::SetFastForwardShown`, a row of the toast atlas in `hud.cpp`), off again when the game
+keeps the state: Azahar's turbo speed (`SetTurboEnabled`) and the "Fast Forward" and
+"Normal Speed" toasts (`FrameXr::SetFastForwardShown`, rows of the toast atlas in `hud.cpp`, 2 s each), off again when the game
 stops, the in-game menu opens (flat: Menu held pauses) or the mode switches.
 
 ## Stopping the game
@@ -293,10 +293,9 @@ live (resolution, filters) apply at once, the VR ones at the next game start.
 | L, R | `engine:frame_xr,button:12` (left bumper), `button:13` (right bumper) |
 | ZL, ZR | `engine:frame_xr,button:10` (left trigger), `button:11` (right trigger) |
 | Start, Select | `engine:frame_xr,button:14` (Menu), `button:15` (View) |
-| Home | `engine:frame_xr,button:16` (left stick click) |
 | Circle Pad | `engine:frame_xr,analog:0` (left stick) |
 | C-Stick | `engine:frame_xr,analog:1` (right stick) |
-| Debug, Gpio14, Power | empty |
+| Home, Debug, Gpio14, Power | empty |
 | Motion | `engine:frame_xr` (set at VR start-up in place of the default `motion_emu`, see Motion) |
 
 The Controls dialog shows these as "Frame A", "Frame Left Grip", "Frame Menu", and so on, and its

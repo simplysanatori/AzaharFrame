@@ -57,12 +57,13 @@ TEST_CASE("FrameXr engine: default profile devices follow the pad", "[frame_xr]"
     SECTION("every default-bound 3DS button has a frame_xr param") {
         using namespace Settings::NativeButton;
         for (const Values button : {A, B, X, Y, Up, Down, Left, Right, L, R, Start, Select, ZL,
-                                    ZR, Home}) {
+                                    ZR}) {
             const Common::ParamPackage param{profile.buttons[button]};
             REQUIRE(param.Get("engine", "") == "frame_xr");
             REQUIRE(param.Has("button"));
         }
-        // Debug, Gpio14 and Power stay empty.
+        // Home, Debug, Gpio14 and Power stay empty.
+        REQUIRE(profile.buttons[Home].empty());
         REQUIRE(profile.buttons[Debug].empty());
         REQUIRE(profile.buttons[Gpio14].empty());
         REQUIRE(profile.buttons[Power].empty());

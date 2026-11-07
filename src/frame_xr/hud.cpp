@@ -18,10 +18,8 @@ namespace {
 
 constexpr uint32_t kToastWidth = 512;
 constexpr uint32_t kToastHeight = 96;
-constexpr int kToastKinds = 3;
-// The "Fast Forward" label, one row under the toasts in the atlas.
-constexpr int kFastForwardRow = kToastKinds;
-constexpr int kAtlasRows = kToastKinds + 1;
+constexpr int kToastKinds = 5;
+constexpr int kAtlasRows = kToastKinds;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
@@ -39,8 +37,12 @@ const char* ToastText(int kind) {
         return "Quick Loaded";
     case Toast::NoQuickSave:
         return "No Quick Save";
+    case Toast::FastForward:
+        return "Fast Forward";
+    case Toast::NormalSpeed:
+        return "Normal Speed";
     }
-    return kind == kFastForwardRow ? "Fast Forward" : "";
+    return "";
 }
 
 } // namespace
@@ -51,7 +53,6 @@ void Hud::Create(Runtime& rt) {
     logged_unsupported = false;
     shown_kind = -1;
     toast_kind = -1;
-    ff_placed = false;
 
     if (uploader.CreateChain(rt.session, rt.swapchain_format, kToastWidth, kAtlasHeight,
                              toast_chain)) {
@@ -149,27 +150,14 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
     if (shown_kind >= 0 && time - shown_since > kToastNs) {
         shown_kind = -1;
     }
-    int row = shown_kind;
-    XrPosef pose = shown_pose;
-    if (!fast_forward) {
-        ff_placed = false;
-    } else if (row < 0) {
-        if (!ff_placed && head.valid) {
-            ff_pose = ahead();
-            ff_placed = true;
-        }
-        if (ff_placed) {
-            row = kFastForwardRow;
-            pose = ff_pose;
-        }
-    }
+    const int row = shown_kind;
     if (row < 0) {
         return false;
     }
     quad.swapchain = toast_chain.handle;
     quad.image_rect = {{0, static_cast<int32_t>(row * static_cast<int>(kToastHeight))},
                        {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
-    quad.pose = pose;
+    quad.pose = shown_pose;
     quad.size = {kToastWidthM, kToastWidthM * kToastHeight / kToastWidth};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;

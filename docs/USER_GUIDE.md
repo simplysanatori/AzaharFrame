@@ -149,7 +149,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
 | Right stick click | Swap the screens: the other screen becomes the main one. Tap again to swap back. Hold for 1 second to reset the screen positions |
-| Left stick click | Hide or show the screen that is not in focus. Hold for 1 second for Home |
+| Left stick click | Hide or show the screen that is not in focus |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
 | **View**, then the right bumper | Quick Save. Then the left bumper instead: Quick Load |
@@ -221,7 +221,7 @@ Hold **View** and press the right bumper to Quick Save, or the left bumper to Qu
 
 ### Fast Forward
 
-Hold **View** and pull the right trigger to run the game at Azahar's turbo speed; do it again to go back to normal speed. "Fast Forward" shows in front of you while it is on. It goes off by itself when the game stops, when the in-game menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
+Hold **View** and pull the right trigger to run the game at Azahar's turbo speed; do it again to go back to normal speed. "Fast Forward" shows in front of you for 2 seconds, then fades; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
 
 ### Show Controllers and Show Stats
 

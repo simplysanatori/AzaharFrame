@@ -10,8 +10,7 @@
 //  - A toast: a short message ("Quick Saved") on a small quad in front of you for two seconds.
 //    The messages are drawn once into one swapchain when the session is made, so showing
 //    one needs no GPU work (the XR thread does none while a game runs).
-//  - "Fast Forward": the same kind of quad, shown as long as fast forward is on (placed in
-//    front of you when it comes on); a toast takes its place for its two seconds.
+//    "Fast Forward" and "Normal Speed" are toasts too (fast forward turned on or off).
 
 #pragma once
 
@@ -43,10 +42,6 @@ public:
 
     /// Any thread.
     void ShowToast(Toast kind);
-    /// Any thread: the "Fast Forward" label on or off.
-    void SetFastForward(bool on) {
-        fast_forward = on;
-    }
     /// XR thread, each frame: the toast quad while one shows. `time` is the display time.
     bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad);
 
@@ -59,10 +54,6 @@ private:
     int shown_kind = -1;
     XrTime shown_since = 0;
     XrPosef shown_pose{{0, 0, 0, 1}, {0, 0, 0}};
-
-    std::atomic<bool> fast_forward{false};
-    bool ff_placed = false; ///< ff_pose is where the label went when fast forward came on
-    XrPosef ff_pose{{0, 0, 0, 1}, {0, 0, 0}};
 };
 
 } // namespace FrameXr

@@ -29,9 +29,9 @@ struct AnalogBinding {
 /// Frame's buttons by position (or not, "Face Buttons" setting), so this table does not change.
 ///
 /// Controls that are deliberately unbound by default: GripL, GripR (they grab the screens, handled
-/// by the mapper), StickClickR (reset panel positions, handled by the mapper before the game
-/// sees it).
-inline constexpr std::array<ButtonBinding, 15> kDefaultButtonBindings{{
+/// by the mapper), StickClickL and StickClickR (tap or hold
+/// acts on the screens, handled by the mapper before the game sees it).
+inline constexpr std::array<ButtonBinding, 14> kDefaultButtonBindings{{
     {Control::A, Settings::NativeButton::A},
     {Control::B, Settings::NativeButton::B},
     {Control::X, Settings::NativeButton::X},
@@ -46,7 +46,6 @@ inline constexpr std::array<ButtonBinding, 15> kDefaultButtonBindings{{
     {Control::TriggerR, Settings::NativeButton::ZR},
     {Control::Menu, Settings::NativeButton::Start},
     {Control::View, Settings::NativeButton::Select},
-    {Control::StickClickL, Settings::NativeButton::Home},
 }};
 
 inline constexpr std::array<AnalogBinding, 2> kDefaultAnalogBindings{{

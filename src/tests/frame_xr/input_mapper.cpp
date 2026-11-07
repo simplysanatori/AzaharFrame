@@ -79,10 +79,10 @@ TEST_CASE("FrameXr mapper: default bindings keep CitraVR's mapping", "[frame_xr]
     REQUIRE(only(pad_for(Control::DpadRight), Right));
     REQUIRE(only(pad_for(Control::Menu), Start));
     REQUIRE(only(pad_for(Control::View), Select));
-    REQUIRE(only(pad_for(Control::StickClickL), Home));
 
-    SECTION("grips and the reset click are unbound") {
-        for (const Control control : {Control::GripL, Control::GripR, Control::StickClickR}) {
+    SECTION("grips and the stick clicks are unbound") {
+        for (const Control control :
+             {Control::GripL, Control::GripR, Control::StickClickL, Control::StickClickR}) {
             const ThreeDsPadState pad = pad_for(control);
             for (const bool pressed : pad.buttons) {
                 REQUIRE_FALSE(pressed);
@@ -240,7 +240,7 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         out = runner.Step(frame);
         REQUIRE(out.controls.GetStick(AnalogControl::StickR).x == Approx(1.0f));
     }
-    SECTION("bumpers reach the pad, a left stick click does not until it is held (Home)") {
+    SECTION("bumpers reach the pad, a left stick click does not") {
         InputFrame frame = IdleFrame();
         frame.hand[0].bumper = true;
         frame.hand[0].stick_click = true;
@@ -932,7 +932,7 @@ constexpr int64_t kHold = 1'000'000'000; // MapperConfig::stick_click_hold_ns
 
 /// Presses and holds one stick's click for `ns`, one frame at a time; collects what fired.
 struct ClickRun {
-    int taps_swap = 0, taps_hide = 0, resets = 0, home_frames = 0, game_frames = 0;
+    int taps_swap = 0, taps_hide = 0, resets = 0, game_frames = 0;
     bool game_saw_left = false, game_saw_right = false;
 };
 
@@ -943,7 +943,6 @@ void Hold(Runner& runner, InputFrame& frame, int hand, int64_t ns, ClickRun& run
         run.taps_swap += out.commands.swap_screens;
         run.taps_hide += out.commands.toggle_other_screen;
         run.resets += out.commands.reset_panels;
-        run.home_frames += out.controls.Get(Control::StickClickL);
         run.game_saw_left |= out.controls.Get(Control::StickClickL);
     }
 }
@@ -954,7 +953,6 @@ void Release(Runner& runner, InputFrame& frame, int hand, ClickRun& run) {
     run.taps_swap += out.commands.swap_screens;
     run.taps_hide += out.commands.toggle_other_screen;
     run.resets += out.commands.reset_panels;
-    run.home_frames += out.controls.Get(Control::StickClickL);
 }
 
 } // namespace
@@ -993,7 +991,7 @@ TEST_CASE("FrameXr mapper: right stick click, tap swaps the screens, hold resets
         Hold(runner, frame, 1, 3 * kHold, run);
         Release(runner, frame, 1, run);
         REQUIRE(run.taps_hide == 0);
-        REQUIRE(run.home_frames == 0);
+        REQUIRE_FALSE(run.game_saw_left);
     }
     SECTION("pushed more than half way at the press: no tap, no hold") {
         frame.hand[1].stick = {0.0f, 0.8f};
@@ -1022,44 +1020,40 @@ TEST_CASE("FrameXr mapper: right stick click, tap swaps the screens, hold resets
     }
 }
 
-TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold is Home",
+TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold does nothing",
           "[frame_xr]") {
     Runner runner;
     InputFrame frame = IdleFrame();
     ClickRun run;
 
-    SECTION("a tap acts when it is let go and the game sees no Home") {
+    SECTION("a tap acts when it is let go and the game sees no click") {
         Hold(runner, frame, 0, 300'000'000, run);
         REQUIRE(run.taps_hide == 0);
         Release(runner, frame, 0, run);
         REQUIRE(run.taps_hide == 1);
-        REQUIRE(run.home_frames == 0);
         REQUIRE_FALSE(run.game_saw_left);
         REQUIRE(run.taps_swap == 0);
         REQUIRE(run.resets == 0);
     }
-    SECTION("a hold of 1 s sends Home as a 100 ms pulse and the release hides nothing") {
-        Hold(runner, frame, 0, kHold - 2 * kFrameNs, run);
-        REQUIRE(run.home_frames == 0);
+    SECTION("a hold does nothing, and the release hides nothing") {
         Hold(runner, frame, 0, 3 * kHold, run);
-        // 100 ms at 11.1 ms a frame is 9 or 10 frames, and only once.
-        REQUIRE(run.home_frames >= 8);
-        REQUIRE(run.home_frames <= 10);
         Release(runner, frame, 0, run);
         REQUIRE(run.taps_hide == 0);
-        // The next hold sends Home again.
-        const int first = run.home_frames;
-        Hold(runner, frame, 0, 2 * kHold, run);
-        REQUIRE(run.home_frames > first);
+        REQUIRE(run.taps_swap == 0);
+        REQUIRE(run.resets == 0);
+        REQUIRE_FALSE(run.game_saw_left);
+        // A tap after it still hides the other screen.
+        Hold(runner, frame, 0, 100'000'000, run);
+        Release(runner, frame, 0, run);
+        REQUIRE(run.taps_hide == 1);
     }
-    SECTION("a click while the left stick is pushed over is ignored (no tap, no Home)") {
+    SECTION("a click while the left stick is pushed over is ignored (no tap)") {
         frame.hand[0].stick = {0.9f, 0.0f};
         Hold(runner, frame, 0, 100'000'000, run);
         Release(runner, frame, 0, run);
         Hold(runner, frame, 0, 2 * kHold, run);
         Release(runner, frame, 0, run);
         REQUIRE(run.taps_hide == 0);
-        REQUIRE(run.home_frames == 0);
     }
     SECTION("both sticks at once are independent") {
         frame.hand[0].stick_click = true;

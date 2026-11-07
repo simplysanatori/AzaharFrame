@@ -184,9 +184,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Menu", OrNothing(ThreeDs(b, Control::Menu)));
     Row(g, "View", OrNothing(ThreeDs(b, Control::View)));
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
-    // The left hold is the pad's Home pulse, so it follows the profile.
     Row(g, "Left Stick Click", "Hide or Show Other Screen");
-    Row(g, "Hold Left Stick Click (1 s)", OrNothing(ThreeDs(b, Control::StickClickL)));
     Row(g, "Right Stick Click", With("Swap Screens", ThreeDs(b, Control::StickClickR)));
     Row(g, "Hold Right Stick Click (1 s)", "Reset Screens");
     std::string grips = Names(BoundTo(b, Control::GripL));

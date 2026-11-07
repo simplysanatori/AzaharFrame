@@ -52,7 +52,7 @@ struct MapperConfig {
     // A stick click that starts while its stick is pushed further than this is ignored (the stick
     // clicks by accident during free camera), so it never swaps, hides or resets the screens.
     float reset_click_max_deflection = 0.5f;
-    /// A stick click held this long is the long action (reset the screens, Home); a shorter one
+    /// A stick click held this long is the long action (reset the screens); a shorter one
     /// acts when it is let go (swap the screens, hide or show the other one).
     int64_t stick_click_hold_ns = 1'000'000'000;
     /// Speed of the depth change at full deflection, metres per second. CitraVR moves 0.05 m per
@@ -208,11 +208,9 @@ private:
     bool start_pulse_ = false;
     int64_t start_pulse_until_ns_ = 0;
 
-    // Stick clicks: tap or hold (click_gesture.h). Left held 1 s is Home, sent as a short pulse.
+    // Stick clicks: tap or hold (click_gesture.h). Left held 1 s does nothing.
     ClickGesture click_l_;
     ClickGesture click_r_;
-    bool home_pulse_ = false;
-    int64_t home_pulse_until_ns_ = 0;
 
     // Bumper chord (bottom screen toggle). `swallow_view_` keeps that View press from the game.
     bool swallow_view_ = false;

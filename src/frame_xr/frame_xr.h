@@ -216,9 +216,15 @@ void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
 void SetInGameMenu(bool open);
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
-enum class Toast { QuickSaved = 0, QuickLoaded = 1, NoQuickSave = 2 };
+enum class Toast {
+    QuickSaved = 0,
+    QuickLoaded = 1,
+    NoQuickSave = 2,
+    FastForward = 3,
+    NormalSpeed = 4,
+};
 void ShowToast(Toast kind);
-/// "Fast Forward" in front of you while on (VR only; a toast shows over it). Any thread.
+/// Fast forward turned on or off: the "Fast Forward" or "Normal Speed" toast (VR only). Any thread.
 void SetFastForwardShown(bool on);
 
 /// True when the runtime can show the room behind the screens (Settings "Background:

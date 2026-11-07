@@ -27,13 +27,13 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 
 ### Controls
 
-- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click, held for 1 second, is Home. A tap of the left stick click hides or shows the screen that is not in focus.
+- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start and View is Select. A tap of the left stick click hides or shows the screen that is not in focus.
 - Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
 - A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
 - A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.
 - The face buttons go by position, as on the 3DS: the Frame's A (bottom) is the 3DS's B, B (right) is A, X (left) is Y and Y (top) is X. The **Face Buttons** setting (**VR** group) switches to by label.
 - Motion controls: the right controller (or the left, or none, in the **Motion Controls** setting) is the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS, such as the first-person items in Ocarina of Time 3D.
-- Fast Forward: hold View, then pull the right trigger, to run the game at Azahar's turbo speed, and do it again to go back. "Fast Forward" shows in front of you while it is on.
+- Fast Forward: hold View, then pull the right trigger, to run the game at Azahar's turbo speed, and do it again to go back. "Fast Forward" shows in front of you for 2 seconds, and "Normal Speed" when you go back.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 - A **Controls** panel in VR lists what every control does in a game, on Azahar's window and in the in-game menu, named from your own controls profile. It opens the first time VR starts, and from the **Controls** button above Azahar's window after that.
 - The Frame controllers show in your hands, with the buttons and sticks moving, and a soft beam that fades when you put a controller down (**Show Controllers**, on by default). The models are made from SteamVR's own on your Frame.

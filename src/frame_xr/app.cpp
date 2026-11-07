@@ -852,7 +852,7 @@ void ShowToast(Toast kind) {
 
 void SetFastForwardShown(bool on) {
     if (auto* rt = GetRuntime()) {
-        rt->hud.SetFastForward(on);
+        rt->hud.ShowToast(on ? Toast::FastForward : Toast::NormalSpeed);
     }
 }
 
