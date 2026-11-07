@@ -102,7 +102,6 @@ Tests: `src/tests/frame_xr/immersive_layout.cpp`.
 - The 3DS camera lists no cameras: Qt Multimedia has no backend in the bundle (see Portable build).
 - Mario Kart 7's menus show white panels in mode 3 (Full (6DoF): Other Games, the preset for it).
 - The headset's volume key can crash SteamOS's compositor (gamescope). It is a SteamOS bug, not this program's.
-- In Flat the game reads the Flat Gamepad profile through SDL directly, so it also sees the buttons of the View and Menu holds and chords (Select, Start, L, R, ZR). The mapper sees the same gamepad only for the holds and chords.
 
 ## The VR panels and controller models
 

@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -177,6 +178,9 @@ private:
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
+    /// Test driver: what the game was sent in flat (LogFlatGameButtons).
+    void LogFlatGameButtons(const Input::ControlState& controls);
+    std::array<bool, Input::kNumControls> flat_sent{};
 
     std::mutex hooks_mutex;
     FrontendHooks hooks;

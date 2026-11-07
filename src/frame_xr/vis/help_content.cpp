@@ -207,7 +207,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     auto& w = page.window;
     Heading(w, "Azahar's Window", !ctx.game_running || ctx.in_menu);
     Row(w, "Trigger or A", "Click");
-    Row(w, "Right Stick Click", "Right-Click");
+    Row(w, "Right Stick Click", "Right Click");
     Row(w, "Hold Right Stick Click (1 s)", "Bring Window Back");
     Row(w, "B", "Back");
     Row(w, "Grip", "Move Window");

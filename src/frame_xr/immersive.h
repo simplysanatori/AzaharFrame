@@ -10,7 +10,7 @@
 // "VR Screen Shape" (Settings::values.vr_top_aspect, per game) sets the top screen's width over
 // its height: 5:3 (the 3DS), 16:9, 21:9, 4:3, 3:2 or 16:10, for games and mods that draw widescreen squeezed into
 // the 400x240 top screen. "Immersive Game FOV" (vr_immersive_game_fov, per game) is the game
-// camera's vertical angle that sizes the immersive screen. Both are read when a game starts.
+// camera's vertical angle that sizes the immersive screen. Both are read every frame while a game runs.
 //
 // Settings::values.vr_immersive_mode (CitraVR's key, per game in the Qt window):
 //   0  Off.
@@ -42,7 +42,7 @@ void Install();
 void Uninstall();
 
 /// The top screen's width over its height for the game on view (5:3, 16:9, 21:9, 4:3, 3:2 or 16:10; 5:3 when no
-/// game has started). Latched when a game starts. Any thread.
+/// game has started). Read from the settings every frame while a game runs. Any thread.
 float TopAspect();
 
 /// Where the game screens go this frame. The bottom screen and, unless `top_space` is the VIEW

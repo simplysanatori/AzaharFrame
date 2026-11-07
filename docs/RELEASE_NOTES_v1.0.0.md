@@ -28,7 +28,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - Tap the right stick click to swap the screens. Hold it for a second to put them back.
 - Tap the left stick click to hide or show the other screen.
 - **Hide Bottom Screen**, per game, for games that do not need it. Both bumpers and View bring it back.
-- **Screen Shape**, per game: 5:3, 16:9, 21:9, 4:3, 3:2 or 16:10, for mods and cheats that change the game's aspect.
+- **Screen Shape**, per game: 5:3, 16:9, 21:9, 4:3, 3:2 or 16:10, for mods and cheats that change the game's aspect. A change shows at once.
 - **Background**: black, or passthrough to see the room. The in-game menu has a button for it.
 
 ### Immersive mode
@@ -38,7 +38,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - The default size keeps the HUD at the sides in the sharp middle of the lenses. You can make it up to 2.5 times bigger.
 - **Wider View**, per game, shows more of the game around a bigger screen.
 - **Squeeze Width**, per game, makes the screen 10 or 20% narrower. The HUD at the sides moves into view.
-- **Immersive Game FOV**, per game, for mods that change the game's field of view.
+- **Immersive Game FOV**, per game, for mods that change the game's field of view. A change shows at once.
 - Mario Kart 7, Super Mario 3D Land and Asphalt 3D start in Full (6DoF) mode, set up for each game.
 
 ### Controls
@@ -60,7 +60,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 
 - Press both bumpers, View and Menu to switch between VR and a flat window. The game keeps running.
 - In Flat, Azahar's window sits on SteamVR's big screen, the theater. It stays there when you close the dashboard.
-- Flat has its own controls profile, by position, so your VR layout stays as it is.
+- In Flat the controllers work as in VR, with the same holds and combos. A tap of View or Menu is still Select or Start.
 - The next start uses the mode you used last.
 
 ### Texture packs

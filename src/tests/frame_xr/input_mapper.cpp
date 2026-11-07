@@ -1357,3 +1357,91 @@ TEST_CASE("FrameXr chord latch: the VR / flat chord fires once per press", "[fra
         REQUIRE(latch.latched());
     }
 }
+
+TEST_CASE("FrameXr mapper: flat (no screens) keeps the holds and chords from the game",
+          "[frame_xr]") {
+    // As VrUi::FlatFrame: both screens not visible, no bottom screen toggle, hands active.
+    Runner runner;
+    runner.panels.top.visible = false;
+    runner.panels.bottom.visible = false;
+    runner.panels.bottom_toggle_enabled = false;
+    const auto flat_frame = [] {
+        InputFrame f = IdleFrame();
+        for (auto& hand : f.hand) {
+            hand.active = true;
+            hand.aim = {};
+        }
+        return f;
+    };
+    InputFrame frame = flat_frame();
+    // Runs `n` frames and says whether the game saw `control` in any of them.
+    const auto saw = [&](int n, Control control) {
+        bool any = false;
+        for (int i = 0; i < n; ++i) {
+            any |= runner.Step(frame).controls.Get(control);
+        }
+        return any;
+    };
+
+    SECTION("a View tap is Select, sent as it is let go") {
+        frame.view = true;
+        REQUIRE_FALSE(saw(3, Control::View));
+        frame.view = false;
+        REQUIRE(saw(3, Control::View));
+    }
+    SECTION("a Menu tap is Start, sent as it is let go") {
+        frame.menu = true;
+        REQUIRE_FALSE(saw(3, Control::Menu));
+        frame.menu = false;
+        REQUIRE(saw(3, Control::Menu));
+    }
+    SECTION("Menu held 1 s pauses and sends no Start") {
+        frame.menu = true;
+        bool toggled = false;
+        for (int i = 0; i < 100; ++i) {
+            const MapperOutput out = runner.Step(frame);
+            toggled |= out.commands.menu_toggle;
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        }
+        REQUIRE(toggled);
+        frame.menu = false;
+        REQUIRE_FALSE(saw(12, Control::Menu));
+    }
+    SECTION("View, then the Right Bumper, is Quick Save: no Select, no R") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[1].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.quick_save);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        REQUIRE_FALSE(saw(20, Control::View));
+        frame.view = false;
+        frame.hand[1].bumper = false;
+        REQUIRE_FALSE(saw(12, Control::View));
+    }
+    SECTION("View, then the Right Trigger, is Fast Forward: no Select, no ZR") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_fast_forward);
+        REQUIRE_FALSE(saw(20, Control::TriggerR));
+        frame.view = false;
+        frame.hand[1].trigger = 0.0f;
+        REQUIRE_FALSE(saw(12, Control::View));
+    }
+    SECTION("both bumpers + View + Menu switch to VR: no Select, no Start") {
+        frame.hand[0].bumper = frame.hand[1].bumper = true;
+        runner.Step(frame);
+        frame.menu = true;
+        runner.Step(frame);
+        frame.view = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_vr);
+        REQUIRE_FALSE(saw(10, Control::View));
+        frame = flat_frame();
+        REQUIRE_FALSE(saw(12, Control::View));
+        REQUIRE_FALSE(saw(12, Control::Menu));
+    }
+}

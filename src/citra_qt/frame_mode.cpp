@@ -7,6 +7,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <vector>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -41,7 +43,87 @@ std::chrono::steady_clock::time_point g_next_scan{};
 } // namespace
 #endif
 
+namespace {
+
+// Test driver: AZAHARFRAME_TEST_FLAT_PAD=FILE is the gamepad instead of SDL's, for mock runs
+// without a controller. One event per line, "<seconds since start> <control> <value>", lasting
+// until changed: a b x y menu view lb rb ls rs up down left right (0 or 1), lt rt lx ly rx ry
+// (-1 to 1, stick y up).
+struct TestPadEvent {
+    double at;
+    std::string control;
+    float value;
+};
+
+const std::chrono::steady_clock::time_point g_start = std::chrono::steady_clock::now();
+
+const std::vector<TestPadEvent>* TestPadScript() {
+    static const std::unique_ptr<std::vector<TestPadEvent>> script = [] {
+        std::unique_ptr<std::vector<TestPadEvent>> out;
+        const QString path = qEnvironmentVariable("AZAHARFRAME_TEST_FLAT_PAD");
+        QFile file(path);
+        if (path.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            return out;
+        }
+        out = std::make_unique<std::vector<TestPadEvent>>();
+        while (!file.atEnd()) {
+            const QStringList f = QString::fromUtf8(file.readLine())
+                                      .simplified()
+                                      .split(QLatin1Char(' '), Qt::SkipEmptyParts);
+            if (f.size() == 3 && !f[0].startsWith(QLatin1Char('#'))) {
+                out->push_back({f[0].toDouble(), f[1].toStdString(), f[2].toFloat()});
+            }
+        }
+        std::stable_sort(out->begin(), out->end(),
+                         [](const auto& l, const auto& r) { return l.at < r.at; });
+        LOG_INFO(Frontend, "xr test: flat gamepad from {} ({} events)", path.toStdString(),
+                 out->size());
+        return out;
+    }();
+    return script.get();
+}
+
+void ReadTestPad(const std::vector<TestPadEvent>& script, FrameXr::Input::InputFrame& frame) {
+    const double now =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - g_start).count();
+    auto& l = frame.hand[0];
+    auto& r = frame.hand[1];
+    for (const auto& e : script) {
+        if (e.at > now) {
+            break;
+        }
+        const bool on = e.value > 0.5f;
+        const std::string& c = e.control;
+        if (c == "a") frame.a = on;
+        else if (c == "b") frame.b = on;
+        else if (c == "x") frame.x = on;
+        else if (c == "y") frame.y = on;
+        else if (c == "menu") frame.menu = on;
+        else if (c == "view") frame.view = on;
+        else if (c == "up") frame.dpad_up = on;
+        else if (c == "down") frame.dpad_down = on;
+        else if (c == "left") frame.dpad_left = on;
+        else if (c == "right") frame.dpad_right = on;
+        else if (c == "lb") l.bumper = on;
+        else if (c == "rb") r.bumper = on;
+        else if (c == "ls") l.stick_click = on;
+        else if (c == "rs") r.stick_click = on;
+        else if (c == "lt") l.trigger = e.value;
+        else if (c == "rt") r.trigger = e.value;
+        else if (c == "lx") l.stick.x = e.value;
+        else if (c == "ly") l.stick.y = e.value;
+        else if (c == "rx") r.stick.x = e.value;
+        else if (c == "ry") r.stick.y = e.value;
+    }
+}
+
+} // namespace
+
 bool ReadGamepad(FrameXr::Input::InputFrame& frame) {
+    if (const auto* script = TestPadScript()) {
+        ReadTestPad(*script, frame);
+        return true;
+    }
 #ifndef HAVE_SDL2
     static_cast<void>(frame);
     return false;
