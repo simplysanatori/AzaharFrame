@@ -112,17 +112,57 @@ TEST_CASE("FrameXr mapper: default bindings keep CitraVR's mapping", "[frame_xr]
 TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
     Runner runner;
 
-    SECTION("face buttons and the D-pad pass straight through") {
+    SECTION("face buttons go by position (Nintendo) by default, the D-pad passes through") {
+        // Frame A (bottom) = 3DS B, Frame B (right) = 3DS A, Frame X (left) = 3DS Y,
+        // Frame Y (top) = 3DS X. The pad's A, B, X, Y are bound to the 3DS A, B, X, Y.
+        const auto face = [&runner](bool a, bool b, bool x, bool y) {
+            InputFrame frame = IdleFrame();
+            frame.a = a;
+            frame.b = b;
+            frame.x = x;
+            frame.y = y;
+            return runner.Step(frame).controls;
+        };
+        ControlState pad = face(true, false, false, false);
+        REQUIRE(pad.Get(Control::B));
+        REQUIRE_FALSE(pad.Get(Control::A));
+        pad = face(false, true, false, false);
+        REQUIRE(pad.Get(Control::A));
+        REQUIRE_FALSE(pad.Get(Control::B));
+        pad = face(false, false, true, false);
+        REQUIRE(pad.Get(Control::Y));
+        REQUIRE_FALSE(pad.Get(Control::X));
+        pad = face(false, false, false, true);
+        REQUIRE(pad.Get(Control::X));
+        REQUIRE_FALSE(pad.Get(Control::Y));
+
+        InputFrame frame = IdleFrame();
+        frame.dpad_left = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::DpadLeft));
+        REQUIRE_FALSE(out.controls.Get(Control::DpadRight));
+    }
+    SECTION("face buttons go by label (Xbox) when asked") {
+        MapperConfig config;
+        config.face_buttons_by_position = false;
+        Runner by_label{config};
         InputFrame frame = IdleFrame();
         frame.a = true;
         frame.y = true;
-        frame.dpad_left = true;
-        const MapperOutput out = runner.Step(frame);
+        const MapperOutput out = by_label.Step(frame);
         REQUIRE(out.controls.Get(Control::A));
         REQUIRE(out.controls.Get(Control::Y));
         REQUIRE_FALSE(out.controls.Get(Control::B));
-        REQUIRE(out.controls.Get(Control::DpadLeft));
-        REQUIRE_FALSE(out.controls.Get(Control::DpadRight));
+        REQUIRE_FALSE(out.controls.Get(Control::X));
+    }
+    SECTION("the setting can change between frames") {
+        InputFrame frame = IdleFrame();
+        frame.a = true;
+        REQUIRE(runner.Step(frame).controls.Get(Control::B));
+        runner.mapper.SetFaceButtonsByPosition(false);
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::A));
+        REQUIRE_FALSE(out.controls.Get(Control::B));
     }
     SECTION("View is View while tapped") {
         InputFrame frame = IdleFrame();

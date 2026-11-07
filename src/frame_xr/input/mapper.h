@@ -56,6 +56,12 @@ struct MapperConfig {
     bool horizontal_lock = true;
     /// A touch only moves when it changed by at least this many 3DS pixels.
     float touch_move_epsilon_px = 0.25f;
+    /// How the Frame's face buttons reach the pad. On (the default, "By Position"): by where the
+    /// button is, so Frame A (bottom) is the pad's B, Frame B (right) is A, Frame X (left) is Y
+    /// and Frame Y (top) is X, as on a 3DS. Off ("By Label"): A is A, B is B, X is X, Y is Y.
+    /// The pad's A, B, X and Y are always the 3DS-named ones that default_bindings.h binds to
+    /// the 3DS A, B, X and Y.
+    bool face_buttons_by_position = true;
 };
 
 enum class Panel : int { None = 0, Top = 1, Bottom = 2 };
@@ -143,6 +149,10 @@ public:
 
     const MapperConfig& config() const {
         return config_;
+    }
+    /// Takes effect with the next Update.
+    void SetFaceButtonsByPosition(bool by_position) {
+        config_.face_buttons_by_position = by_position;
     }
     Hand preferred_hand() const {
         return preferred_hand_;

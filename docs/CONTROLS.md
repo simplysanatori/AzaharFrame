@@ -8,7 +8,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 
 | Steam Frame | 3DS | Notes |
 |---|---|---|
-| **A**, **B**, **X**, **Y** (right controller) | A, B, X, Y | |
+| **A** (bottom), **B** (right), **X** (left), **Y** (top) on the right controller | B, A, Y, X | By position, as on the 3DS, where A is on the right and B is below it. **Face Buttons** in the VR settings changes it to by label |
 | Left bumper | L | |
 | Right bumper | R | |
 | Left trigger | ZL | Also when you aim at the top screen. On the bottom screen it is a touch instead |
@@ -25,6 +25,8 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
 
 The left Steam button belongs to SteamVR and is never bound.
+
+The Steam Frame buttons are labelled like an Xbox controller, and the 3DS is not: its A is on the right, B at the bottom, X at the top and Y on the left. So by default each button does what the 3DS button in the same place does. In the picker, **A** and **B** are not game buttons and keep their names (see below). If you would rather have A as A, set **Face Buttons** to **By Label (Xbox)**, see Settings.
 
 Grips press at 60 % and let go at 40 %, triggers press at 55 % and let go at 40 %, and both sticks have a 12 % dead zone.
 
@@ -109,7 +111,7 @@ The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 69
 | What it does | 3DS | Steam Frame |
 |---|---|---|
 | Open the Items menu | Select | **View**, a quick tap. A hold of 1.5 s stops the game |
-| Close the menus | Select, Start or B | **View**, **Menu** or **B** |
+| Close the menus | Select, Start or B | **View**, **Menu** or **A** |
 | Item I, Item II | D-pad left, D-pad down | D-pad left, D-pad down |
 | Fairy (Navi) and Look Up, Ocarina | D-pad up, D-pad right | D-pad up, D-pad right |
 | Show or hide the minimap | ZL | Left trigger |
@@ -117,9 +119,9 @@ The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 69
 | Camera speed up or down | L + R + D-pad up or down | Both bumpers + D-pad up or down |
 | Invert camera axes | L + R + D-pad left or right | Both bumpers + D-pad left or right |
 | HUD size (75, 100, 125 %, off) | L + R + ZR, held | Both bumpers + right trigger, held. The HUD size is also in Options |
-| Manual jump (Options > Manual jump) | ZR, or X (the X item moves to ZR) | Right trigger, or **X** (the X item moves to the right trigger) |
+| Manual jump (Options > Manual jump) | ZR, or X (the X item moves to ZR) | Right trigger, or **Y** (the X item moves to the right trigger) |
 | Pause menu: pages | L and R | Left and right bumper |
-| Pause menu: move, choose, back | D-pad or Circle Pad, A, B | D-pad or left stick, **A**, **B** |
+| Pause menu: move, choose, back | D-pad or Circle Pad, A, B | D-pad or left stick, **B**, **A** |
 | Options menu: columns | L and R | Left and right bumper |
 
 The mod's HUD is a controller-neutral, Switch-style diamond of the items, so it does not name ZL or ZR. The mod does the 3DS touch buttons for you from the D-pad and View. If you ever need the real bottom screen, press both bumpers and **View**.
@@ -135,9 +137,26 @@ Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for 
 
 The buttons are the same as in the table above. Both bumpers and **View** bring back the bottom screen if you ever need it.
 
+## Settings
+
+Two settings of the **VR** group (**Emulation > Configure > Graphics**, global only, not per game) belong to the controllers.
+
+| Setting | Choices | What it does |
+|---|---|---|
+| **Face Buttons** | **By Position (Nintendo)** (default), **By Label (Xbox)** | How the Frame's A, B, X and Y map to the 3DS. By Position matches the 3DS layout. Read every frame |
+| **Motion Controls** | **Off**, **Right Controller** (default), **Left Controller** | Uses a controller as the 3DS's gyroscope and accelerometer. Going from Off to a controller takes effect the next time VR starts. Switching between the controllers, or back to Off, takes effect at once |
+
+## Motion controls
+
+Some games aim by moving the 3DS, like the first-person items in Ocarina of Time 3D (the slingshot, the bow, the hookshot). The 3DS has a gyroscope and an accelerometer for that, and in VR the controller you chose in **Motion Controls** stands in for them. Hold it as if it were the 3DS in front of you, with its beam pointing into the screen. Turn it left and right to turn like the 3DS, and tilt it up and down to tilt it. The tilt of the beam also tells the game which way is down. The game is not told about the movement of your hand through the room, only about how the controller turns and which way it hangs.
+
+The same controller still points at the screens, so moving it to aim also moves its beam. Choose the controller you do not use for pointing in **Motion Controls** if that gets in the way. A game that does not use the sensors is not affected, and **Off** leaves the 3DS lying flat and still. A motion device you chose yourself in **Emulation > Configure > Controls > Motion/Touch** is left alone.
+
+<!-- VERIFY: gyro aiming in the headset (direction of each axis, how fast it turns, the beam held level or tilted) -->
+
 ## Changing the layout
 
-The layout is a controls profile in Azahar's **Emulation > Configure > Controls** window, where the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile are replaced with this layout, unless one of them already is a Frame control. After that your changes stay. A profile saved by an earlier version, with L and R on the grips, gets them moved to the bumpers (the grips only grab the screens now). Keep a PC profile of your own under another name if you also use the window with a keyboard.
+The layout (apart from Face Buttons, see Settings) is a controls profile in Azahar's **Emulation > Configure > Controls** window, where the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile are replaced with this layout, unless one of them already is a Frame control. After that your changes stay. The face buttons there are the 3DS-named ones, so they follow the **Face Buttons** setting: with By Position, **Frame A** is the button in the 3DS's A place, which is the Frame's **B**. A profile saved by an earlier version, with L and R on the grips, gets them moved to the bumpers (the grips only grab the screens now). Keep a PC profile of your own under another name if you also use the window with a keyboard.
 
 SDL game controllers still work, and keyboard and mouse work in the desktop window.
 

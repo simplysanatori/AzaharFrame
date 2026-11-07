@@ -95,10 +95,19 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     };
 
     // ---- Plain buttons ----
-    controls.Set(Control::A, frame.a);
-    controls.Set(Control::B, frame.b);
-    controls.Set(Control::X, frame.x);
-    controls.Set(Control::Y, frame.y);
+    if (config_.face_buttons_by_position) {
+        // The Frame has Xbox labels (A bottom, B right, X left, Y top), the 3DS has A right, B
+        // bottom, X top, Y left: swap by position. The picker reads frame.a / frame.b itself.
+        controls.Set(Control::A, frame.b);
+        controls.Set(Control::B, frame.a);
+        controls.Set(Control::X, frame.y);
+        controls.Set(Control::Y, frame.x);
+    } else {
+        controls.Set(Control::A, frame.a);
+        controls.Set(Control::B, frame.b);
+        controls.Set(Control::X, frame.x);
+        controls.Set(Control::Y, frame.y);
+    }
     controls.Set(Control::DpadUp, frame.dpad_up);
     controls.Set(Control::DpadDown, frame.dpad_down);
     controls.Set(Control::DpadLeft, frame.dpad_left);

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "frame_xr/input/mapper.h"
+#include "frame_xr/input/motion.h"
 
 // AzaharFrame
 // Glue between the mapper and the emulator: runs the mapper on an InputFrame, writes the virtual
@@ -30,6 +31,7 @@ public:
 
 private:
     Mapper mapper_;
+    MotionTracker motion_;
     MapperOutput last_;
 };
 

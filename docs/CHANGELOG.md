@@ -31,6 +31,8 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
 - A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
 - A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.
+- The face buttons go by position, as on the 3DS: the Frame's A (bottom) is the 3DS's B, B (right) is A, X (left) is Y and Y (top) is X. The **Face Buttons** setting (**VR** group) switches to by label.
+- Motion controls: the right controller (or the left, or none, in the **Motion Controls** setting) is the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS, such as the first-person items in Ocarina of Time 3D.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 
 ### Immersive mode

@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <string>
+#include <tuple>
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -179,4 +180,48 @@ TEST_CASE("FrameXr engine: touch sink", "[frame_xr]") {
     Fx::SetTouchSink(nullptr);
     Fx::SendTouchPressed(5.0f, 5.0f);
     REQUIRE(sink.log == std::vector<std::string>{"press 10,20", "move 30,40", "release"});
+}
+
+TEST_CASE("FrameXr engine: motion device", "[frame_xr]") {
+    EngineScope scope;
+
+    SECTION("nobody feeding it reads as a 3DS lying flat and still") {
+        Fx::GetMotion().Reset();
+        const auto device = Input::CreateDevice<Input::MotionDevice>("engine:frame_xr");
+        REQUIRE(device != nullptr);
+        const auto [accel, gyro] = device->GetStatus();
+        REQUIRE(accel.x == 0.0f);
+        REQUIRE(accel.y == Approx(-1.0f));
+        REQUIRE(accel.z == 0.0f);
+        REQUIRE(gyro.x == 0.0f);
+        REQUIRE(gyro.y == 0.0f);
+        REQUIRE(gyro.z == 0.0f);
+    }
+    SECTION("the device follows what the XR thread writes, and Unregister resets it") {
+        const auto device = Input::CreateDevice<Input::MotionDevice>("engine:frame_xr");
+        Fx::GetMotion().Set(Common::Vec3f{0.0f, 0.0f, -1.0f}, Common::Vec3f{1.0f, 2.0f, 3.0f});
+        auto [accel, gyro] = device->GetStatus();
+        REQUIRE(accel.z == Approx(-1.0f));
+        REQUIRE(gyro.y == Approx(2.0f));
+        Fx::Unregister();
+        std::tie(accel, gyro) = Fx::GetMotion().Get();
+        REQUIRE(accel.y == Approx(-1.0f));
+        REQUIRE(gyro.z == 0.0f);
+        Fx::Register(); // EngineScope unregisters again
+    }
+    SECTION("UseFrameMotionDevice replaces the default, not the user's own choice") {
+        Settings::InputProfile input;
+        input.motion_device = "engine:motion_emu,update_period:100,sensitivity:0.01,tilt_clamp:90.0";
+        REQUIRE(Fx::UseFrameMotionDevice(input));
+        REQUIRE(Common::ParamPackage{input.motion_device}.Get("engine", "") == "frame_xr");
+        REQUIRE_FALSE(Fx::UseFrameMotionDevice(input)); // already ours
+
+        Settings::InputProfile empty;
+        REQUIRE(Fx::UseFrameMotionDevice(empty));
+
+        Settings::InputProfile udp;
+        udp.motion_device = "engine:cemuhookudp,port:0";
+        REQUIRE_FALSE(Fx::UseFrameMotionDevice(udp));
+        REQUIRE(udp.motion_device == "engine:cemuhookudp,port:0");
+    }
 }

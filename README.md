@@ -118,7 +118,7 @@ Custom textures are on from the first launch, and they load in the background wh
 | Left stick | Circle Pad |
 | Right stick | C-Stick |
 | Left D-pad | D-pad |
-| **A**, **B**, **X**, **Y** | A, B, X, Y |
+| **A** (bottom), **B** (right), **X** (left), **Y** (top) | B, A, Y, X, by position as on the 3DS |
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
@@ -140,6 +140,8 @@ On Azahar's window and in the in-game menu:
 | Grip | Move the window |
 | Stick up and down | Scroll |
 
+The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
+
 All controls: [docs/CONTROLS.md](docs/CONTROLS.md).
 
 <!-- VERIFY: the table in the headset. It matches src/frame_xr/input/MAPPING.md. -->
@@ -150,6 +152,15 @@ Everything is in the Azahar window on the SteamVR dashboard, under **Emulation >
 Per-game settings work as in Azahar: right-click a game in the list and choose **Properties**.
 
 The first time VR starts, the buttons and sticks of the current controls profile are replaced with the Frame layout (**Emulation > Configure > Controls**). After that your changes stay. In VR the Single Screen and Separate Windows layouts are changed to Default, and the 3D depth is set to 50 % if it is 0.
+
+### Face Buttons and Motion Controls
+
+In the **VR** group of the Graphics tab (global settings, not per game):
+
+- **Face Buttons**: **By Position (Nintendo)** (default) makes the Frame's A, B, X and Y do what the 3DS button in the same place does. **By Label (Xbox)** makes A, B, X and Y the 3DS's A, B, X and Y.
+- **Motion Controls**: **Off**, **Right Controller** (default) or **Left Controller**. The controller becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS.
+
+<!-- VERIFY: motion axes and speed in the headset -->
 
 ### Immersive mode
 

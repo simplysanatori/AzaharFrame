@@ -728,6 +728,14 @@ struct Values {
     // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
     // immersive screen (frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};
+    // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
+    // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
+    // (frame_xr/input/mapper.h).
+    SwitchableSetting<u32, true> vr_face_buttons{0, 0, 1, "vr_face_buttons"};
+    // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer (global only):
+    // 0 = off, 1 = right controller, 2 = left controller. Read every frame
+    // (frame_xr/input/motion.h).
+    SwitchableSetting<u32, true> vr_motion_controls{1, 0, 2, "vr_motion_controls"};
 };
 
 extern Values values;
