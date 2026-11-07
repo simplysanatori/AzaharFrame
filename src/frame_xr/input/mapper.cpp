@@ -48,6 +48,9 @@ bool Mapper::Reset() {
     grip_was_down_ = {};
     view_down_ = false;
     stop_fired_ = false;
+    menu_down_ = false;
+    menu_fired_ = false;
+    start_pulse_ = false;
     stick_click_r_prev_ = false;
     swallow_view_ = false;
     view_prev_ = false;
@@ -96,7 +99,6 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.Set(Control::DpadDown, frame.dpad_down);
     controls.Set(Control::DpadLeft, frame.dpad_left);
     controls.Set(Control::DpadRight, frame.dpad_right);
-    controls.Set(Control::Menu, frame.menu);
     controls.Set(Control::BumperL, frame.hand[0].bumper);
     controls.Set(Control::BumperR, frame.hand[1].bumper);
     controls.Set(Control::StickClickL, frame.hand[0].stick_click);
@@ -152,6 +154,39 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     }
     // Once the stop fired, the game no longer sees View (it would still be Select-down).
     controls.Set(Control::View, view && !stop_fired_);
+
+    // ---- Menu: Start when tapped (sent as it is let go), held 1 s: the in-game menu ----
+    // The game never sees a held Menu, so opening the menu sends no Start.
+    if (frame.menu) {
+        if (!menu_down_) {
+            menu_down_ = true;
+            menu_down_since_ns_ = frame.time_ns;
+            menu_fired_ = false;
+        }
+        const int64_t held = frame.time_ns - menu_down_since_ns_;
+        if (!menu_fired_) {
+            out.commands.menu_hold_progress =
+                config_.menu_hold_ns > 0
+                    ? Clamp01(static_cast<float>(held) / static_cast<float>(config_.menu_hold_ns))
+                    : 1.0f;
+            if (held >= config_.menu_hold_ns) {
+                out.commands.menu_toggle = true;
+                menu_fired_ = true;
+                out.commands.menu_hold_progress = 0.0f;
+            }
+        }
+    } else if (menu_down_) {
+        menu_down_ = false;
+        if (!menu_fired_) {
+            start_pulse_ = true;
+            start_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
+        }
+        menu_fired_ = false;
+    }
+    if (start_pulse_ && (frame.time_ns >= start_pulse_until_ns_ || frame.menu)) {
+        start_pulse_ = false;
+    }
+    controls.Set(Control::Menu, start_pulse_);
 
     // ---- Right stick click: reset panel positions (once per click) ----
     // Ignored while the stick is pushed over, so the free camera cannot reset by accident.

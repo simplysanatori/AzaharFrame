@@ -126,7 +126,17 @@ FrameMirror::~FrameMirror() {
 
 void FrameMirror::SetGameRunning(bool running) {
     game_running = running;
-    if (running) {
+    menu_open = false;
+    Shown();
+}
+
+void FrameMirror::SetMenuOpen(bool open) {
+    menu_open = open;
+    Shown();
+}
+
+void FrameMirror::Shown() {
+    if (!Capturing()) {
         capture_timer.stop();
         refresh_timer.stop();
         LOG_INFO(Frontend, "xr: home panel hidden ({} captures, {} images sent, {} ms per capture)",
@@ -214,7 +224,7 @@ QWidget* FrameMirror::WindowAt(const QPoint& global) const {
 }
 
 bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
-    if (game_running || capturing) {
+    if (!Capturing() || capturing) {
         return false;
     }
     switch (event->type()) {
@@ -265,7 +275,7 @@ void FrameMirror::FitDialog(QWidget* dialog) {
 }
 
 void FrameMirror::MarkDirty() {
-    if (game_running || capturing) {
+    if (!Capturing() || capturing) {
         return;
     }
     dirty = true;
@@ -277,7 +287,7 @@ void FrameMirror::MarkDirty() {
 }
 
 void FrameMirror::Capture() {
-    if (!main || game_running || capturing) {
+    if (!main || !Capturing() || capturing) {
         return;
     }
     dirty = false;
@@ -401,6 +411,16 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         return;
     }
     if (e.type == Type::Escape) {
+        // In the in-game menu, B with no menu or dialog open closes it (and resumes the game).
+        if (menu_open && close_menu && !QApplication::activePopupWidget() &&
+            !QApplication::activeModalWidget()) {
+            const auto stack = Stack();
+            if (std::none_of(stack.begin(), stack.end(), [](QWidget* w) { return IsDialogLike(w); })) {
+                LOG_INFO(Frontend, "xr: home panel: B closes the in-game menu");
+                close_menu();
+                return;
+            }
+        }
         QWidget* target = QApplication::activePopupWidget();
         if (!target) {
             target = QApplication::activeModalWidget();

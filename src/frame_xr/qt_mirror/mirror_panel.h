@@ -9,9 +9,9 @@
 // shows the image on a quad, casts the controller rays at it and sends hover, clicks,
 // wheel and Escape. Only while no game runs (no GPU work on the XR thread in a game).
 //
-//   trigger (or A)        left button       grip (or X)   right button
-//   B                     Escape            stick Y       wheel
-//   bumper on the panel   drag the panel    right stick click  panel back ahead
+// The controls are listed (and bound) at the top of mirror_panel.cpp: Trigger or A click,
+// a short Right Stick Click right-clicks, B is back (Escape), Grip moves the panel, stick Y
+// scrolls, Right Stick Click held 1 s puts the panel back.
 
 #pragma once
 
@@ -41,6 +41,31 @@ public:
                std::vector<Quad>& layers, std::optional<XrPosef>& cursor);
     /// XR thread: the panel is not shown (a game runs). Lets go of held buttons once.
     void Hide();
+    /// XR thread: puts the panel here, this wide (its height follows the image); Right Stick
+    /// Click brings it back here.
+    void Place(const XrPosef& pose, float width_m);
+    XrPosef Pose() const {
+        return pose;
+    }
+    float Width() const {
+        return width_m;
+    }
+    /// The panel's height for a width, from the newest image (3:2 before the first one).
+    float HeightFor(float width) const;
+    /// Where the panel is, and where Right Stick Click held puts it back (kept while the
+    /// in-game menu moves the panel).
+    struct Placement {
+        XrPosef pose;
+        XrPosef placed;
+        float width;
+    };
+    Placement GetPlacement() const {
+        return {pose, placed_pose, width_m};
+    }
+    void SetPlacement(const Placement& p) {
+        Place(p.placed, p.width);
+        pose = p.pose;
+    }
     /// XR thread, before the session ends.
     void Destroy(OverlayUploader& uploader);
 
@@ -56,16 +81,18 @@ private:
     std::shared_ptr<const HomePanelImage> uploaded;
     OverlayChain chain;
     XrPosef pose{{0, 0, 0, 1}, {0, 0, -2}};
+    XrPosef placed_pose{{0, 0, 0, 1}, {0, 0, -2}};
     float width_m = 1.6f;
-    float height_m = 1.0f;
+    float height_m = 1.6f * 2.0f / 3.0f;
+    float aspect = 2.0f / 3.0f; ///< height over width of the image
     bool shown = false;
     int active_hand = 1; // the hand that pulled its trigger last points
     bool trigger_down[2]{};
     bool grip_down[2]{};
-    bool bumper_prev[2]{};
     bool left_down = false;  // sent Press(Left) without its Release
-    bool right_down = false; // sent Press(Right) without its Release
-    bool prev_a = false, prev_b = false, prev_x = false, prev_reset = true;
+    bool prev_a = false, prev_b = false, prev_stick_click = true;
+    bool stick_click_valid = false; // a Right Stick Click in progress that may still act
+    XrTime stick_click_since = 0;
     bool pointer_in = false; // sent Move without a Leave
     float last_u = -1.0f, last_v = -1.0f;
     // Click stickiness: a press, and a second press soon after it, keep their point
@@ -76,7 +103,7 @@ private:
     XrTime sticky_until = 0;
     float wheel_acc = 0.0f;
     XrTime last_time = 0;
-    // Panel drag with a bumper.
+    // Panel drag with a grip.
     int drag_hand = -1;
     float drag_t = 0.0f;
     Input::Vec3f drag_offset; // panel centre minus the grabbed point

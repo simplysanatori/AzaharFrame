@@ -591,6 +591,12 @@ void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
     }
 }
 
+void SetInGameMenu(bool open) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetInGameMenu(open);
+    }
+}
+
 XrInstance Instance() {
     return g_runtime ? g_runtime->instance : XR_NULL_HANDLE;
 }

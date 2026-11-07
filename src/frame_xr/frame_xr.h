@@ -124,6 +124,7 @@ void SetScreenPlacement(const ScreenPlacement& placement);
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
     std::function<void()> stop_game;                          ///< View held 1.5 s
+    std::function<void()> toggle_menu; ///< Menu held 1 s in a game: open or close the in-game menu
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -164,6 +165,9 @@ struct HomePanelEvent {
 void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
 /// The home panel's newest image (any thread). Shown from the next frame on.
 void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
+/// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
+/// the controllers drive the panel and not the game. GUI thread, after the game paused.
+void SetInGameMenu(bool open);
 
 /// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();

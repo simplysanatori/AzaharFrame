@@ -67,6 +67,10 @@ void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_
 /// chord and keeps that View press from the game (PanelGeometry::bottom_toggle_enabled).
 bool CanToggleBottom();
 
+/// The in-game menu (Azahar's window over the paused game) is open: immersive modes 2 and 3
+/// pause, as when the bottom screen is shown. XR thread.
+void SetMenuOpen(bool open);
+
 /// Shows the bottom screen, or hides it again. In immersive modes 2 and 3 showing it pauses
 /// immersive mode, as in CitraVR. Starts hidden at every game start. XR thread.
 void ToggleBottom();

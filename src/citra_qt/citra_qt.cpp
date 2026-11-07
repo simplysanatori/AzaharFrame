@@ -195,6 +195,8 @@ private:
 std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
 // The VR home panel: this window mirrored (frame_mirror.cpp); null with the picker.
 QPointer<FrameMirror> g_frame_mirror;
+// Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
+std::function<void(bool open)> g_frame_xr_set_menu;
 
 void FrameXrPushGameDirs() {
     std::vector<FrameXr::LibraryDir> dirs;
@@ -693,9 +695,44 @@ GMainWindow::GMainWindow(Core::System& system_)
             hooks.stop_game = [this] {
                 QMetaObject::invokeMethod(this, [this] { ShutdownGame(); }, Qt::QueuedConnection);
             };
+            hooks.toggle_menu = [this] {
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_mirror && g_frame_xr_set_menu) {
+                            g_frame_xr_set_menu(!g_frame_mirror->MenuOpen());
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             FrameXr::SetFrontendHooks(std::move(hooks));
             if (FrameMirror::Wanted()) {
                 g_frame_mirror = new FrameMirror(this);
+                // Menu held 1 s in a game: pause (Emulation > Pause) and show this window over
+                // the game; held again, B with nothing open, or Emulation > Continue: resume.
+                g_frame_xr_set_menu = [this](bool open) {
+                    if (!g_frame_mirror || g_frame_mirror->MenuOpen() == open) {
+                        return;
+                    }
+                    if (open && (!emulation_running || !emu_thread)) {
+                        return;
+                    }
+                    if (open && emu_thread->IsRunning() &&
+                        !system.frame_limiter.IsFrameAdvancing()) {
+                        OnPauseGame();
+                    }
+                    g_frame_mirror->SetMenuOpen(open);
+                    FrameXr::SetInGameMenu(open);
+                    LOG_INFO(Frontend, "xr: in-game menu {}", open ? "open, game paused" : "closed");
+                    if (!open && emulation_running && system.frame_limiter.IsFrameAdvancing()) {
+                        OnResumeGame(false);
+                    }
+                };
+                g_frame_mirror->SetCloseMenuHandler([] {
+                    if (g_frame_xr_set_menu) {
+                        g_frame_xr_set_menu(false);
+                    }
+                });
             }
             FrameXrPushGameDirs();
 
@@ -1942,7 +1979,8 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
-#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel
+#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel (and the in-game menu)
+    FrameXr::SetInGameMenu(false);
     FrameXr::SetGameRunning(true);
     if (g_frame_mirror) {
         g_frame_mirror->SetGameRunning(true);
@@ -2049,6 +2087,7 @@ void GMainWindow::ShutdownGame() {
     emulation_running = false;
 #ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker or home panel (folders may have changed)
     if (FrameXr::IsStarted()) {
+        FrameXr::SetInGameMenu(false);
         FrameXr::SetGameRunning(false);
         FrameXrPushGameDirs();
     }
@@ -3004,6 +3043,11 @@ void GMainWindow::OnResumeGame(bool first_start) {
 
     UpdateSaveStates();
     UpdateStatusButtons();
+#ifdef ENABLE_FRAME_XR // AzaharFrame: Emulation > Continue closes the in-game menu
+    if (g_frame_mirror && g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+        g_frame_xr_set_menu(false);
+    }
+#endif
 }
 
 void GMainWindow::OnRestartGame() {

@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <mutex>
@@ -43,6 +44,15 @@ public:
 
     /// A game started (no capture while it runs) or stopped (capture again). GUI thread.
     void SetGameRunning(bool running);
+    /// The in-game menu opened (the window is captured over the paused game) or closed.
+    void SetMenuOpen(bool open);
+    bool MenuOpen() const {
+        return menu_open;
+    }
+    /// What B does in the in-game menu when no menu or dialog is open: close it.
+    void SetCloseMenuHandler(std::function<void()> handler) {
+        close_menu = std::move(handler);
+    }
 
 protected:
     bool eventFilter(QObject* object, QEvent* event) override;
@@ -68,7 +78,14 @@ private:
     QPointer<QWidget> main;
     QSize window_size{1056, 704}; // 3:2, the picker's shape
     qreal scale = 2.75;
+    bool Capturing() const {
+        return !game_running || menu_open;
+    }
+    void Shown();
+
     bool game_running = false;
+    bool menu_open = false;
+    std::function<void()> close_menu;
     bool capturing = false;
     bool dirty = true;
     bool logged = false;

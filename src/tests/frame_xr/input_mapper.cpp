@@ -124,14 +124,45 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         REQUIRE(out.controls.Get(Control::DpadLeft));
         REQUIRE_FALSE(out.controls.Get(Control::DpadRight));
     }
-    SECTION("Menu and View are Menu and View while View is tapped") {
+    SECTION("View is View while tapped") {
         InputFrame frame = IdleFrame();
-        frame.menu = true;
         frame.view = true;
         const MapperOutput out = runner.Step(frame);
-        REQUIRE(out.controls.Get(Control::Menu));
         REQUIRE(out.controls.Get(Control::View));
         REQUIRE_FALSE(out.commands.stop_game);
+    }
+    SECTION("a short Menu press is Menu (Start) when let go, for 100 ms") {
+        InputFrame frame = IdleFrame();
+        frame.menu = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        frame.menu = false;
+        out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::Menu));
+        REQUIRE_FALSE(out.commands.menu_toggle);
+        out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::Menu));
+        runner.now += 120'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::Menu));
+    }
+    SECTION("Menu held 1 s opens the in-game menu once and never reaches the game") {
+        InputFrame frame = IdleFrame();
+        frame.menu = true;
+        bool toggled = false;
+        for (int i = 0; i < 90; ++i) { // 1.5 s at 60 Hz
+            const MapperOutput out = runner.Step(frame);
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+            if (out.commands.menu_toggle) {
+                REQUIRE_FALSE(toggled);
+                toggled = true;
+            }
+        }
+        REQUIRE(toggled);
+        frame.menu = false;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        REQUIRE_FALSE(out.commands.menu_toggle);
     }
     SECTION("grips have hysteresis") {
         InputFrame frame = IdleFrame();
