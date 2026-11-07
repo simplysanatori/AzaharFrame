@@ -227,6 +227,17 @@ bool Runtime::PollEvents() {
         case XR_TYPE_EVENT_DATA_EVENTS_LOST:
             LOG_WARNING(Frontend, "xr: events lost");
             break;
+        case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING: {
+            // SteamVR's recenter (hold the Steam button) moves the LOCAL space. Re-centre the
+            // immersive view with it, as the right stick click hold does.
+            const auto& e =
+                reinterpret_cast<const XrEventDataReferenceSpaceChangePending&>(event);
+            if (e.referenceSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL) {
+                LOG_INFO(Frontend, "xr: SteamVR recentred, re-centring the immersive view");
+                Immersive::OnResetPanels();
+            }
+            break;
+        }
         default:
             // Interaction profile changes and the like: for the input code's
             // state callbacks to look up with their own calls.

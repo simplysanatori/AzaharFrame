@@ -90,7 +90,7 @@ Puts you inside the game instead of in front of a floating screen.
 
 Many games show graphical glitches in immersive mode. Set it per game, in **Properties**. Mario Kart 7, Super Mario 3D Land and Asphalt 3D start in **Full (6DoF): Other Games** unless you set something else.
 
-The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second re-centres the view. Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
+The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second re-centres the view, and so does SteamVR's own recenter (hold the Steam button). Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
 
 ## Immersive Offset
 

@@ -36,6 +36,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 
 - Grip the immersive screen and move your hand to raise or lower it. The stick of that hand moves it nearer or farther, and makes it bigger or smaller.
 - Each game keeps the screen where you leave it.
+- SteamVR's recenter (hold the Steam button) also re-centres the immersive view.
 - The default size keeps the HUD at the sides in the sharp middle of the lenses. You can make it up to 2.5 times bigger.
 - While you hold it, the D-pad shifts it half a degree at a time to fit your lenses. **Immersive Offset** is the same in every game, and a label shows it as you go.
 - **Wider View**, per game, shows more of the game around a bigger screen.

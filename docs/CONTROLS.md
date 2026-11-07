@@ -154,7 +154,7 @@ Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Sc
 |---|---|
 | Both bumpers, then **View** | Shows or hides the bottom screen. The game sees none of the three |
 | Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
-| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look |
+| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look. SteamVR's recenter (hold the Steam button) does the same |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 ## Moving the immersive screen
