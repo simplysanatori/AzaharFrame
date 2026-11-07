@@ -5,6 +5,7 @@
 #include <cstdlib>
 
 #include "common/assert.h"
+#include "common/debug_stall.h"
 #include "common/logging/log.h"
 #include "common/thread.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -394,6 +395,7 @@ void XrPresentTarget::ReleaseThread(std::stop_token token) {
             master->Wait(release.tick);
         }
         const bool finished = master->IsFree(release.tick);
+        Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
         for (std::size_t i = 0; i < kScreens; i++) {
             if (release.screens[i]) {
                 sink.Release(static_cast<VideoCore::XrScreen>(i), finished);

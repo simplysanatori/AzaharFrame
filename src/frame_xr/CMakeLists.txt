@@ -18,6 +18,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     session.h
     vulkan_bridge.cpp
     vulkan_bridge.h
+    watchdog.cpp
+    watchdog.h
     xr_calls.h
     xr_includes.h
     xr_loader.cpp

@@ -4,14 +4,17 @@
 
 #pragma once
 
+#include <chrono> // AzaharFrame
 #include <type_traits>
 #include <boost/container/small_vector.hpp>
 #include <boost/range/iterator_range.hpp>
 #include "common/alignment.h"
+#include "common/debug_stall.h" // AzaharFrame
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "core/memory.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
 #include "video_core/pica/regs_external.h"
@@ -102,8 +105,16 @@ RasterizerCache<T>::~RasterizerCache() {
 
 template <class T>
 void RasterizerCache<T>::TickFrame() {
+    // AzaharFrame: custom texture uploads run here, on the emu thread after the frame
     custom_tex_manager.TickFrame();
+    Common::DebugStall::Maybe(Common::DebugStall::Where::Tick);
+    const auto gc_start = std::chrono::steady_clock::now();
     RunGarbageCollector();
+    Common::StallTelemetry::Get().surface_gc_us.fetch_add(
+        static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::steady_clock::now() - gc_start)
+                             .count()),
+        std::memory_order_relaxed);
 
     const auto new_filter = Settings::values.texture_filter.GetValue();
     if (filter != new_filter) [[unlikely]] {
@@ -1203,8 +1214,14 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
         // and the page table keeps surface_id
         if (!target.IsCustom() || (level == 0 && target.material != material)) {
             const SurfaceBase old_surface{target};
+            const auto image_start = std::chrono::steady_clock::now(); // AzaharFrame
             const SurfaceId old_id =
                 slot_surfaces.swap_and_insert(surface_id, runtime, old_surface, material);
+            Common::StallTelemetry::Get().custom_image_us.fetch_add(
+                static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                     std::chrono::steady_clock::now() - image_start)
+                                     .count()),
+                std::memory_order_relaxed);
             Surface& replaced = slot_surfaces[old_id];
             replaced.flags &= ~SurfaceFlagBits::Registered;
             // The sentenced copy inherited the flag set above. A guest image is not custom

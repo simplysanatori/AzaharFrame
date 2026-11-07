@@ -2,9 +2,12 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <chrono>
 #include <mutex>
 #include <utility>
+#include "common/debug_stall.h"  // AzaharFrame
 #include "common/microprofile.h"
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "common/thread.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -184,8 +187,20 @@ void Scheduler::SubmitExecution(vk::Semaphore signal_semaphore, vk::Semaphore wa
 
     Record([signal_semaphore, wait_semaphore, signal_value, this](vk::CommandBuffer cmdbuf) {
         MICROPROFILE_SCOPE(Vulkan_Submit);
+        // AzaharFrame: the XR thread takes this mutex for xrBeginFrame / xrEndFrame; how long
+        // it is waited for and held goes into the XR thread's per-second line.
+        using SteadyClock = std::chrono::steady_clock;
+        const auto asked = SteadyClock::now();
         std::scoped_lock lock{submit_mutex};
+        const auto locked = SteadyClock::now();
+        Common::DebugStall::Maybe(Common::DebugStall::Where::Submit);
         master_semaphore->SubmitWork(cmdbuf, wait_semaphore, signal_semaphore, signal_value);
+        const auto us = [](SteadyClock::duration d) {
+            return static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(d).count());
+        };
+        auto& telemetry = Common::StallTelemetry::Get();
+        Common::UpdateMax(telemetry.queue_submit_wait_max_us, us(locked - asked));
+        Common::UpdateMax(telemetry.queue_submit_max_us, us(SteadyClock::now() - locked));
     });
 
     master_semaphore->Refresh();

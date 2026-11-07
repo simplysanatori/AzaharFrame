@@ -3,11 +3,14 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <algorithm>
+#include <chrono> // AzaharFrame
 #include <json.hpp>
 #include "common/file_util.h"
 #include "common/literals.h"
 #include "common/memory_detect.h"
 #include "common/microprofile.h"
+#include "common/scope_exit.h"      // AzaharFrame
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "common/settings.h"
 #include "common/string_util.h"
 #include "common/texture.h"
@@ -72,6 +75,36 @@ void CustomTexManager::TickFrame() {
     }
     std::size_t num_uploads = 0;
     u64 upload_bytes = 0;
+    // AzaharFrame: how long the uploads of this tick took, for the stall line (perf_stats.cpp)
+    // and a line of its own when a tick is long
+    auto& telemetry = Common::StallTelemetry::Get();
+    const auto tick_start = std::chrono::steady_clock::now();
+    const u64 image_us_before = telemetry.custom_image_us.load(std::memory_order_relaxed);
+    const u64 staging_us_before = telemetry.staging_wait_us.load(std::memory_order_relaxed);
+    SCOPE_EXIT({
+        if (num_uploads == 0) {
+            return;
+        }
+        const u64 us = static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                            std::chrono::steady_clock::now() - tick_start)
+                                            .count());
+        telemetry.custom_upload_us.fetch_add(us, std::memory_order_relaxed);
+        telemetry.custom_upload_count.fetch_add(num_uploads, std::memory_order_relaxed);
+        telemetry.custom_upload_bytes.fetch_add(upload_bytes, std::memory_order_relaxed);
+        if (us >= 20'000) {
+            LOG_WARNING(Render,
+                        "custom textures: {} uploads, {:.1f} MiB in {:.1f} ms (images {:.1f} ms, "
+                        "stream buffer waits {:.1f} ms), {} queued",
+                        num_uploads, upload_bytes / 1048576.0, us / 1000.0,
+                        (telemetry.custom_image_us.load(std::memory_order_relaxed) -
+                         image_us_before) /
+                            1000.0,
+                        (telemetry.staging_wait_us.load(std::memory_order_relaxed) -
+                         staging_us_before) /
+                            1000.0,
+                        async_uploads.size());
+        }
+    });
     for (auto it = async_uploads.begin(); it != async_uploads.end();) {
         if (num_uploads >= MAX_UPLOADS_PER_TICK || upload_bytes >= MAX_UPLOAD_BYTES_PER_TICK) {
             return;

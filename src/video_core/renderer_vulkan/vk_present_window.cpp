@@ -2,8 +2,10 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <chrono> // AzaharFrame
 #include "common/microprofile.h"
 #include "common/settings.h"
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "common/thread.h"
 #include "core/frontend/emu_window.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -501,6 +503,7 @@ void PresentWindow::CopyToSwapchain(Frame* frame) {
     };
 
     std::scoped_lock submit_lock{scheduler.submit_mutex, recreate_surface_mutex};
+    const auto locked = std::chrono::steady_clock::now(); // AzaharFrame
 
     try {
         graphics_queue.submit(submit_info, frame->present_done);
@@ -510,6 +513,11 @@ void PresentWindow::CopyToSwapchain(Frame* frame) {
     }
 
     swapchain.Present();
+    // AzaharFrame: the window's submit and present hold the queue lock the XR thread needs
+    Common::UpdateMax(Common::StallTelemetry::Get().window_present_max_us,
+                      static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                           std::chrono::steady_clock::now() - locked)
+                                           .count()));
 }
 
 vk::RenderPass PresentWindow::CreateRenderpass() {

@@ -19,10 +19,12 @@
 #include "common/logging/log.h"
 #include "common/frame_flat.h"
 #include "common/settings.h" // AzaharFrame vrqol: Background
+#include "common/stall_telemetry.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
 #include "frame_xr/session.h"
+#include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
 
 namespace FrameXr {
@@ -32,6 +34,18 @@ namespace {
 std::unique_ptr<Runtime> g_runtime;
 
 using Clock = std::chrono::steady_clock;
+
+double Ms(Clock::duration d) {
+    return std::chrono::duration<double, std::milli>(d).count();
+}
+
+std::string PhasesText(const LoopPhases& p) {
+    return fmt::format("waitFrame {:.1f}, beginFrame {:.1f} + queue lock {:.1f}, frame work {:.1f}, "
+                       "screens lock {:.1f}, layers {:.1f}, endFrame {:.1f} + queue lock {:.1f}, "
+                       "events {:.1f}",
+                       p.wait_ms, p.begin_ms, p.begin_lock_ms, p.frame_ms, p.screens_lock_ms,
+                       p.layers_ms, p.end_ms, p.end_lock_ms, p.poll_ms);
+}
 
 const char* StateName(XrSessionState s) {
     switch (s) {
@@ -123,6 +137,7 @@ void SetScreenPlacement(const ScreenPlacement& placement) {
 void Runtime::StartThread() {
     stop = false;
     loop_alive = true; // SetVr works from now on
+    Watchdog::Start();
     thread = std::thread([this] { FrameLoop(); });
 }
 
@@ -131,6 +146,7 @@ void Runtime::StopThread() {
     if (thread.joinable()) {
         thread.join();
     }
+    Watchdog::Stop();
 }
 
 void Runtime::OnState(XrSessionState new_state) {
@@ -242,7 +258,30 @@ void Runtime::LocateViews(XrTime time) {
     view_pose = pose;
 }
 
-void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms) {
+void Runtime::NoteLoopPeriod(const LoopPhases& phases, LoopPhases& worst, XrDuration period_ns) {
+    if (phases.period_ms > worst.period_ms) {
+        worst = phases;
+    }
+    // A frame that took more than three display periods: where it went, at once (at most a few
+    // lines a second; a stall shows as one long frame).
+    const double period_ms = period_ns > 0 ? period_ns / 1e6 : 8.33;
+    if (phases.period_ms > 3.0 * period_ms + 2.0) {
+        static auto window = Clock::time_point{};
+        static int in_window = 0;
+        const auto now = Clock::now();
+        if (now - window > std::chrono::seconds(1)) {
+            window = now;
+            in_window = 0;
+        }
+        if (in_window++ < 3) {
+            LOG_WARNING(Frontend, "xr: display frame took {:.1f} ms: {}", phases.period_ms,
+                        PhasesText(phases));
+        }
+    }
+}
+
+void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
+                         const LoopPhases& worst) {
     const auto take = [](std::atomic<uint32_t>& a) { return a.exchange(0); };
     const uint32_t frames = take(stats.display_frames);
     uint32_t rel[kScreens], late[kScreens], unfinished[kScreens];
@@ -257,6 +296,14 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     const uint64_t emu_sum_us = stats.emu_frame_us_sum.exchange(0);
     const uint32_t emu_max_us = take(stats.emu_frame_us_max);
     const uint32_t window_presents = take(stats.window_presents);
+    // The queue: the XR thread's longest wait for it, and the emulator's longest submit holding it.
+    auto& telemetry = Common::StallTelemetry::Get();
+    const double queue_wait_ms = queue_lock.TakeMaxWaitUs() / 1000.0;
+    const double emu_submit_ms = telemetry.queue_submit_max_us.exchange(0) / 1000.0;
+    const double emu_submit_wait_ms = telemetry.queue_submit_wait_max_us.exchange(0) / 1000.0;
+    const double window_present_ms = telemetry.window_present_max_us.exchange(0) / 1000.0;
+    const double alloc_ms = telemetry.device_alloc_max_us.exchange(0) / 1000.0;
+    const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     stats.window_us_sum.exchange(0);
     take(stats.window_us_max);
@@ -267,10 +314,16 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     LOG_INFO(Frontend,
              "xr: {:.1f}s display {} frames, waitFrame period {:.2f} ms (max {:.2f}), releases "
              "TL/TR/B {}/{}/{}, late {}/{}/{}, before GPU done {}/{}/{}, acquire timeouts {}, "
-             "endFrame errors {}, state {}, screens {}, {}, window presents {}",
+             "endFrame errors {}, state {}, screens {}, {}, window presents {}, XR queue lock wait "
+             "max {:.2f} ms, emu submit max {:.2f} ms (lock wait {:.2f}), window present max "
+             "{:.2f} ms, vkAllocateMemory max {:.1f} ms (largest {:.0f} MiB), slowest frame "
+             "{:.1f} ms ({})",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
-             StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents);
+             StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
+             queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
+             worst.period_ms,
+             PhasesText(worst));
 }
 
 void Runtime::LogFlatSummary(double seconds) {
@@ -303,11 +356,16 @@ void Runtime::FlatStep(double& log_seconds) {
 
 void Runtime::FrameLoop() {
     Common::SetCurrentThreadName("FrameXR");
+    QueueLock::MarkXrThread();
     auto& xr = Xr();
     auto last_log = Clock::now();
     auto last_wait = Clock::time_point{};
     double wait_sum_ms = 0.0, wait_max_ms = 0.0;
     uint32_t wait_count = 0;
+    // Where the time between two xrWaitFrame returns went: `phases` fills during a frame,
+    // `worst` keeps the slowest period of the second for the summary line.
+    LoopPhases phases, worst;
+    auto loop_top = Clock::now();
     bool exit_requested = false;
     auto exit_deadline = Clock::time_point::max();
     double flat_seconds = 0.0;
@@ -317,12 +375,15 @@ void Runtime::FrameLoop() {
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
 
     while (true) {
+        loop_top = Clock::now();
+        Watchdog::Beat("events");
         if (!PollEvents() || lost) {
             break;
         }
 
         // ---- Flat: no session ----
         if (!session) {
+            Watchdog::Idle();
             if (stop) {
                 break;
             }
@@ -387,11 +448,15 @@ void Runtime::FrameLoop() {
             continue;
         }
         if (!running) {
+            Watchdog::Idle();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
 
         XrFrameState fs{XR_TYPE_FRAME_STATE};
+        const auto wait_start = Clock::now();
+        phases.poll_ms = Ms(wait_start - loop_top);
+        Watchdog::Beat("xrWaitFrame");
         XrResult r = xr.xrWaitFrame(session, nullptr, &fs);
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrWaitFrame: {}", ResultName(r));
@@ -399,19 +464,29 @@ void Runtime::FrameLoop() {
             continue;
         }
         const auto now = Clock::now();
+        phases.wait_ms = Ms(now - wait_start);
         if (last_wait != Clock::time_point{}) {
-            const double ms = std::chrono::duration<double, std::milli>(now - last_wait).count();
+            const double ms = Ms(now - last_wait);
             wait_sum_ms += ms;
             wait_max_ms = std::max(wait_max_ms, ms);
             wait_count++;
+            phases.period_ms = ms;
+            NoteLoopPeriod(phases, worst, fs.predictedDisplayPeriod);
         }
         last_wait = now;
+        phases = {};
 
+        auto mark = Clock::now();
+        Watchdog::Beat("xrBeginFrame (with the queue lock)");
         r = queue_lock.With([&] { return xr.xrBeginFrame(session, nullptr); });
+        phases.begin_lock_ms = QueueLock::LastWaitUs() / 1000.0;
+        phases.begin_ms = Ms(Clock::now() - mark) - phases.begin_lock_ms;
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrBeginFrame: {}", ResultName(r));
             continue;
         }
+        mark = Clock::now();
+        Watchdog::Beat("frame work (views, callbacks, controls, panels)");
 
         LocateViews(fs.predictedDisplayTime);
 
@@ -442,7 +517,13 @@ void Runtime::FrameLoop() {
         }
 
         // Layers. screens_mutex keeps the swapchains alive through xrEndFrame.
+        phases.frame_ms = Ms(Clock::now() - mark);
+        mark = Clock::now();
+        Watchdog::Beat("the screens lock");
         std::scoped_lock screens_lock{screens_mutex};
+        phases.screens_lock_ms = Ms(Clock::now() - mark);
+        mark = Clock::now();
+        Watchdog::Beat("layers");
         quad_layers.clear();
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
@@ -579,7 +660,12 @@ void Runtime::FrameLoop() {
                                               : XR_ENVIRONMENT_BLEND_MODE_OPAQUE; // AzaharFrame vrqol
         ei.layerCount = static_cast<uint32_t>(layer_ptrs.size());
         ei.layers = layer_ptrs.empty() ? nullptr : layer_ptrs.data();
+        phases.layers_ms = Ms(Clock::now() - mark);
+        mark = Clock::now();
+        Watchdog::Beat("xrEndFrame (with the queue lock)");
         r = queue_lock.With([&] { return xr.xrEndFrame(session, &ei); });
+        phases.end_lock_ms = QueueLock::LastWaitUs() / 1000.0;
+        phases.end_ms = Ms(Clock::now() - mark) - phases.end_lock_ms;
         if (XR_FAILED(r)) {
             stats.end_frame_errors++;
             static int logged = 0;
@@ -592,12 +678,14 @@ void Runtime::FrameLoop() {
         const auto log_now = Clock::now();
         const double since = std::chrono::duration<double>(log_now - last_log).count();
         if (since >= 1.0) {
-            LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms);
+            LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
             last_log = log_now;
             wait_sum_ms = wait_max_ms = 0.0;
             wait_count = 0;
+            worst = {};
         }
     }
+    Watchdog::Idle();
     running = false;
     loop_alive = false;
     LOG_INFO(Frontend, "xr: frame loop ended (state {})", StateName(state.load()));
