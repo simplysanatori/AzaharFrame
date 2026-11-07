@@ -114,7 +114,3 @@ Settings for one launch go in `~/.local/share/AzaharFrame/session.env` (one `VAR
 ## Without a headset
 
 `tools/xrmock/` is a mock OpenXR runtime and `tools/mockrun.sh` runs the emulator against it, and `src/tests/frame_xr/` holds the unit tests. The mock has no SteamVR render models: run `python3 -I steam-frame/tools/frame-controller-models.py DIR` on the Frame once and point `AZAHARFRAME_MODELS` at `DIR` to see the controllers in a mock.
-
-## How this was made
-
-I started this project and used AI (Claude Opus 5.5) to speed up development. I write, review and fix code by hand all the way through, keep the AI's work checked and reined in, and aim to keep the port as lightweight as possible. I test it on my own Steam Frame.
