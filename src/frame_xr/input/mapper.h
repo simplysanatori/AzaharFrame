@@ -20,6 +20,11 @@ namespace FrameXr::Input {
 struct PanelGeometry {
     PanelQuad top;
     PanelQuad bottom;
+    /// The game hides the bottom screen on its own (per-game "Hide Bottom Screen", immersive
+    /// mode), so Left Bumper + Right Bumper + View shows or hides it: the mapper reports
+    /// `toggle_bottom` and keeps that View press from reaching the game. Off: the chord is
+    /// nothing special and the game sees L, R and Select as pressed.
+    bool bottom_toggle_enabled = false;
 };
 
 struct MapperConfig {
@@ -34,6 +39,9 @@ struct MapperConfig {
     int64_t stop_hold_ns = 1'500'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
     float depth_threshold = 0.5f;
+    // A right stick click while the stick is pushed further than this is ignored (the stick
+    // clicks by accident during free camera), so it never resets the screens.
+    float reset_click_max_deflection = 0.5f;
     /// Speed of the depth change at full deflection, metres per second. CitraVR moves 0.05 m per
     /// displayed frame, about 3.6 m/s at 72 Hz.
     float depth_speed_mps = 3.0f;
@@ -69,16 +77,19 @@ struct Cursor {
     /// Position on the panel pointed at, 0..1 from the left / top edge, clamped.
     float u = 0.0f;
     float v = 0.0f;
-    /// The trigger is down on the panel (a touch or a drag is in progress).
+    /// The trigger is down on the panel (a touch is in progress) or a grip holds it (a drag).
     bool pressed = false;
 };
 
 struct PanelCommands {
-    /// The top screen is being grabbed (trigger held on it). While true, apply
+    /// A screen is being grabbed (a grip held on it; either screen moves both, the bottom one
+    /// follows the top). While true, apply
     /// SolveSphereDrag(top pose, top_drag_target, viewer, &bottom position, limits) each frame.
     bool top_drag_active = false;
     /// The point the top screen's centre should head toward (grab offset already removed; x is
     /// zeroed when horizontal_lock is on, which keeps the screen on the centre line like CitraVR).
+    /// When the bottom screen was grabbed it is the top screen's centre moved by the same amount
+    /// as the grabbed bottom point.
     Vec3f top_drag_target;
     /// Add to the top screen's position.z this frame (negative = further away). Zero when the
     /// stick is within the threshold. Only non-zero while top_drag_active.
@@ -86,6 +97,9 @@ struct PanelCommands {
     /// Put both screens back to their default poses (right stick click). Also the "recentre":
     /// the XR core places the defaults in front of the current head heading.
     bool reset_panels = false;
+    /// Left Bumper + Right Bumper held and View pressed while `bottom_toggle_enabled`: show or
+    /// hide the bottom screen. Fires once per press.
+    bool toggle_bottom = false;
     /// View was held long enough: stop the game and return to the picker. Fires once per hold.
     bool stop_game = false;
     /// 0..1 while View is held, for an on-screen "hold to quit" bar; 0 otherwise.
@@ -121,18 +135,22 @@ public:
     }
 
 private:
-    enum class Gesture : int { None, Passthrough, Touch, Drag, Blocked };
+    /// What a pulled trigger does until it is released.
+    enum class Gesture : int { None, Passthrough, Touch, Blocked };
 
     struct HandState {
         bool trigger_down = false;
         bool grip_down = false;
         Gesture gesture = Gesture::None;
+        /// This hand's grip holds a screen (drag_panel_).
+        bool dragging = false;
     };
 
     Vec2f ApplyStickDeadzone(Vec2f stick) const;
 
     MapperConfig config_;
     std::array<HandState, kNumHands> hands_{};
+    std::array<bool, kNumHands> grip_was_down_{};
     Hand preferred_hand_ = Hand::Right;
 
     // View hold (stop game)
@@ -142,12 +160,17 @@ private:
 
     bool stick_click_r_prev_ = false;
 
+    // Bumper chord (bottom screen toggle). `swallow_view_` keeps that View press from the game.
+    bool swallow_view_ = false;
+    bool view_prev_ = false;
+
     // Touch in progress
     bool touch_active_ = false;
     Vec2f touch_last_px_;
 
-    // Drag in progress
+    // Drag in progress (a grip held on a screen)
     bool drag_active_ = false;
+    Panel drag_panel_ = Panel::None;
     Vec3f drag_grab_offset_;
     Vec3f drag_last_target_;
 

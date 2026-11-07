@@ -16,13 +16,15 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for 
 
 - The top screen in stereoscopic 3D and the bottom screen as a touch screen, floating in front of you, as in CitraVR.
 - A game picker in VR with the icons and titles from your game folders.
-- Drag the top screen and move it nearer and farther. Touch the bottom screen by pointing and pulling the trigger.
+- Squeeze a grip on a screen to move it nearer and farther. Touch the bottom screen by pointing and pulling the trigger.
 - Hold View to go back to the picker.
 
 ### Controls
 
 - The Steam Frame controllers in CitraVR's layout, with the real D-pad where the Quest needed the thumbrest.
-- Each trigger decides by itself between ZL or ZR, touch and drag.
+- Each trigger decides by itself between ZL or ZR and touch. The grips move the screens, the bumpers are L and R.
+- Hide Bottom Screen, per game, for games that do not need it.
+- Screen Shape, per game: Widescreen (16:9) or Ultrawide (21:9) top screen for mods that draw widescreen.
 - The layout is a profile in Azahar's controls window, so you can change it.
 
 ### Immersive mode

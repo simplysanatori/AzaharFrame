@@ -669,6 +669,11 @@ GMainWindow::GMainWindow(Core::System& system_)
                 InputCommon::FrameXr::ApplyDefaultProfile(Settings::values.current_input_profile);
                 system.ApplySettings();
                 LOG_INFO(Frontend, "xr: Frame controller bindings applied to the input profile");
+            } else if (InputCommon::FrameXr::MigrateGripBindings(
+                           Settings::values.current_input_profile)) {
+                // Older builds had L and R on the grips; the grips now only grab the screens.
+                system.ApplySettings();
+                LOG_INFO(Frontend, "xr: L and R moved from the grips to the bumpers");
             }
             // Touch needs the bottom screen in the window's layout.
             // No separate windows either: the second window stays hidden in VR.

@@ -68,8 +68,8 @@ TEST_CASE("FrameXr mapper: default bindings keep CitraVR's mapping", "[frame_xr]
     REQUIRE(only(pad_for(Control::B), B));
     REQUIRE(only(pad_for(Control::X), X));
     REQUIRE(only(pad_for(Control::Y), Y));
-    REQUIRE(only(pad_for(Control::GripL), L));
-    REQUIRE(only(pad_for(Control::GripR), R));
+    REQUIRE(only(pad_for(Control::BumperL), L));
+    REQUIRE(only(pad_for(Control::BumperR), R));
     REQUIRE(only(pad_for(Control::TriggerL), ZL));
     REQUIRE(only(pad_for(Control::TriggerR), ZR));
     REQUIRE(only(pad_for(Control::DpadUp), Up));
@@ -80,8 +80,8 @@ TEST_CASE("FrameXr mapper: default bindings keep CitraVR's mapping", "[frame_xr]
     REQUIRE(only(pad_for(Control::View), Select));
     REQUIRE(only(pad_for(Control::StickClickL), Home));
 
-    SECTION("bumpers and the reset click are unbound") {
-        for (const Control control : {Control::BumperL, Control::BumperR, Control::StickClickR}) {
+    SECTION("grips and the reset click are unbound") {
+        for (const Control control : {Control::GripL, Control::GripR, Control::StickClickR}) {
             const ThreeDsPadState pad = pad_for(control);
             for (const bool pressed : pad.buttons) {
                 REQUIRE_FALSE(pressed);
@@ -197,6 +197,33 @@ TEST_CASE("FrameXr mapper: triggers away from the screens are ZL and ZR", "[fram
     }
 }
 
+TEST_CASE("FrameXr mapper: a trigger over the top screen is ZL and ZR", "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, Vec3f{0.5f, 0.2f, -2.0f});
+    frame.hand[1].trigger = 1.0f;
+    MapperOutput out = runner.Step(frame);
+    REQUIRE(out.controls.Get(Control::TriggerR));
+    REQUIRE_FALSE(out.commands.top_drag_active);
+    REQUIRE(out.touch_event_count == 0);
+    // No dot over the top screen: nothing to aim at there.
+    REQUIRE_FALSE(out.cursor.visible);
+
+    SECTION("moving the ray around keeps ZR until release") {
+        Point(frame, Hand::Right, Vec3f{-0.5f, -0.1f, -2.0f});
+        REQUIRE(runner.Step(frame).controls.Get(Control::TriggerR));
+        frame.hand[1].trigger = 0.0f;
+        REQUIRE_FALSE(runner.Step(frame).controls.Get(Control::TriggerR));
+    }
+    SECTION("the left trigger is ZL there too") {
+        Point(frame, Hand::Left, kOnTopCentre);
+        frame.hand[0].trigger = 1.0f;
+        out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::TriggerL));
+        REQUIRE_FALSE(out.commands.top_drag_active);
+    }
+}
+
 TEST_CASE("FrameXr mapper: touching the bottom screen", "[frame_xr]") {
     Runner runner;
     InputFrame frame = IdleFrame();
@@ -267,13 +294,13 @@ TEST_CASE("FrameXr mapper: touching the bottom screen", "[frame_xr]") {
     }
 }
 
-TEST_CASE("FrameXr mapper: dragging the top screen", "[frame_xr]") {
+TEST_CASE("FrameXr mapper: a grip drags the screen under the ray", "[frame_xr]") {
     MapperConfig config;
     config.horizontal_lock = false;
     Runner runner(config);
     InputFrame frame = IdleFrame();
     Point(frame, Hand::Right, Vec3f{0.5f, 0.2f, -2.0f});
-    frame.hand[1].trigger = 1.0f;
+    frame.hand[1].grip = 1.0f;
 
     SECTION("grabbing off-centre does not make the screen jump") {
         const MapperOutput out = runner.Step(frame);
@@ -326,12 +353,73 @@ TEST_CASE("FrameXr mapper: dragging the top screen", "[frame_xr]") {
         REQUIRE(out.controls.GetStick(AnalogControl::StickL).y == Approx(1.0f));
         REQUIRE(out.commands.top_depth_delta_z == Approx(0.0f));
     }
-    SECTION("letting go ends the drag") {
+    SECTION("the stick reaches the game again once the grip lets go") {
         runner.Step(frame);
-        frame.hand[1].trigger = 0.0f;
+        frame.hand[1].grip = 0.0f;
+        frame.hand[1].stick = Vec2f{0.0f, 1.0f};
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.top_drag_active);
+        REQUIRE(out.controls.GetStick(AnalogControl::StickR).y == Approx(1.0f));
+    }
+    SECTION("the other hand's trigger is still ZL during the drag") {
+        runner.Step(frame);
+        Point(frame, Hand::Left, kOnTopCentre);
+        frame.hand[0].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.top_drag_active);
+        REQUIRE(out.controls.Get(Control::TriggerL));
+    }
+    SECTION("a second grip does not start a second drag") {
+        runner.Step(frame);
+        Point(frame, Hand::Left, Vec3f{-0.5f, 0.0f, -2.0f});
+        frame.hand[0].grip = 1.0f;
+        runner.Step(frame);
+        // Letting go of the first hand ends it; the second hand's grip was never a drag.
+        frame.hand[1].grip = 0.0f;
         const MapperOutput out = runner.Step(frame);
         REQUIRE_FALSE(out.commands.top_drag_active);
     }
+    SECTION("a grip already held when the ray sweeps onto the screen grabs nothing") {
+        Runner other(config);
+        InputFrame sweep = IdleFrame();
+        sweep.hand[1].grip = 1.0f;
+        REQUIRE_FALSE(other.Step(sweep).commands.top_drag_active);
+        Point(sweep, Hand::Right, kOnTopCentre);
+        REQUIRE_FALSE(other.Step(sweep).commands.top_drag_active);
+    }
+    SECTION("a grip away from both screens grabs nothing") {
+        Runner other(config);
+        InputFrame idle = IdleFrame();
+        idle.hand[1].grip = 1.0f;
+        const MapperOutput out = other.Step(idle);
+        REQUIRE_FALSE(out.commands.top_drag_active);
+        REQUIRE_FALSE(out.controls.Get(Control::TriggerR));
+    }
+}
+
+TEST_CASE("FrameXr mapper: a grip on the bottom screen moves both screens", "[frame_xr]") {
+    MapperConfig config;
+    config.horizontal_lock = false;
+    Runner runner(config);
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Left, Vec3f{0.1f, -0.7f, -1.5f}); // 0.1 m right of the bottom centre
+    frame.hand[0].grip = 1.0f;
+
+    MapperOutput out = runner.Step(frame);
+    REQUIRE(out.commands.top_drag_active);
+    // No jump: the top screen stays where it is.
+    REQUIRE(out.commands.top_drag_target.x == Approx(0.0f).margin(1e-3));
+    REQUIRE(out.commands.top_drag_target.y == Approx(0.0f).margin(1e-3));
+    REQUIRE(out.commands.top_drag_target.z == Approx(-2.0f).margin(1e-3));
+    REQUIRE(out.cursor.panel == Panel::Bottom);
+    REQUIRE(out.touch_event_count == 0);
+
+    // The grabbed point goes 0.2 m right and 0.1 m up: the top screen goes the same way.
+    Point(frame, Hand::Left, Vec3f{0.3f, -0.6f, -1.5f});
+    out = runner.Step(frame);
+    REQUIRE(out.commands.top_drag_target.x == Approx(0.2f).margin(1e-3));
+    REQUIRE(out.commands.top_drag_target.y == Approx(0.1f).margin(1e-3));
+    REQUIRE(out.commands.top_drag_target.z == Approx(-2.0f).margin(1e-3));
 }
 
 TEST_CASE("FrameXr mapper: the nearer screen wins", "[frame_xr]") {
@@ -344,6 +432,113 @@ TEST_CASE("FrameXr mapper: the nearer screen wins", "[frame_xr]") {
     const MapperOutput out = runner.Step(frame);
     REQUIRE(CountTouch(out, TouchEventType::Pressed) == 1);
     REQUIRE_FALSE(out.commands.top_drag_active);
+    REQUIRE_FALSE(out.controls.Get(Control::TriggerR));
+}
+
+TEST_CASE("FrameXr mapper: the top screen in front of the bottom one is ZR, not touch",
+          "[frame_xr]") {
+    Runner runner;
+    runner.panels.bottom.pose.position = Vec3f{0.0f, 0.0f, -3.0f};
+    runner.panels.bottom.width_m = 4.0f;
+    runner.panels.bottom.height_m = 3.0f;
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, Vec3f{0.0f, 0.0f, -2.0f});
+    frame.hand[1].trigger = 1.0f;
+    const MapperOutput out = runner.Step(frame);
+    REQUIRE(out.touch_event_count == 0);
+    REQUIRE(out.controls.Get(Control::TriggerR));
+}
+
+TEST_CASE("FrameXr mapper: a hidden bottom screen is neither touched nor grabbed", "[frame_xr]") {
+    Runner runner;
+    runner.panels.bottom.visible = false;
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, kOnBottomCentre);
+
+    SECTION("the trigger is ZR") {
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.touch_event_count == 0);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+        REQUIRE_FALSE(out.cursor.visible);
+    }
+    SECTION("the grip grabs nothing") {
+        runner.Step(frame);
+        frame.hand[1].grip = 1.0f;
+        REQUIRE_FALSE(runner.Step(frame).commands.top_drag_active);
+    }
+    SECTION("the top screen can still be grabbed") {
+        Point(frame, Hand::Right, kOnTopCentre);
+        frame.hand[1].grip = 1.0f;
+        REQUIRE(runner.Step(frame).commands.top_drag_active);
+    }
+}
+
+TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[frame_xr]") {
+    Runner runner;
+    runner.panels.bottom_toggle_enabled = true;
+    InputFrame frame = IdleFrame();
+    frame.hand[0].bumper = true;
+    frame.hand[1].bumper = true;
+    MapperOutput out = runner.Step(frame);
+    REQUIRE_FALSE(out.commands.toggle_bottom);
+    REQUIRE(out.controls.Get(Control::BumperL));
+    REQUIRE(out.controls.Get(Control::BumperR));
+
+    SECTION("View pressed with both bumpers held toggles once and never reaches the game") {
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        // The bumpers let go first: the same press still stays away from the game.
+        frame.hand[0].bumper = false;
+        frame.hand[1].bumper = false;
+        REQUIRE_FALSE(runner.Step(frame).controls.Get(Control::View));
+        frame.view = false;
+        runner.Step(frame);
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE(out.controls.Get(Control::View));
+    }
+    SECTION("the chord does not start the stop hold") {
+        frame.view = true;
+        runner.Step(frame);
+        runner.now += 2'000'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.stop_game);
+        REQUIRE(out.commands.stop_hold_progress == Approx(0.0f));
+    }
+    SECTION("one bumper is not the chord") {
+        frame.hand[1].bumper = false;
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE(out.controls.Get(Control::View));
+    }
+    SECTION("View held first, bumpers pressed after, is Select and no toggle") {
+        Runner other;
+        other.panels.bottom_toggle_enabled = true;
+        InputFrame view_first = IdleFrame();
+        view_first.view = true;
+        other.Step(view_first);
+        view_first.hand[0].bumper = true;
+        view_first.hand[1].bumper = true;
+        out = other.Step(view_first);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE(out.controls.Get(Control::View));
+    }
+    SECTION("without the toggle enabled the game sees L, R and Select") {
+        runner.panels.bottom_toggle_enabled = false;
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE(out.controls.Get(Control::View));
+        REQUIRE(out.controls.Get(Control::BumperL));
+    }
 }
 
 TEST_CASE("FrameXr mapper: View held stops the game", "[frame_xr]") {
@@ -388,6 +583,30 @@ TEST_CASE("FrameXr mapper: right stick click resets the screens once", "[frame_x
     REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
     frame.hand[1].stick_click = false;
     runner.Step(frame);
+    frame.hand[1].stick_click = true;
+    REQUIRE(runner.Step(frame).commands.reset_panels);
+}
+
+TEST_CASE("FrameXr mapper: a right stick click with the stick pushed over is ignored",
+          "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    // Free camera: the stick is pushed over while it clicks. No reset, even after it recentres.
+    frame.hand[1].stick = {0.0f, 0.8f};
+    frame.hand[1].stick_click = true;
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick = {0.0f, 0.0f};
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick_click = false;
+    runner.Step(frame);
+    // A diagonal push also counts, by its length.
+    frame.hand[1].stick = {0.5f, 0.5f};
+    frame.hand[1].stick_click = true;
+    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
+    frame.hand[1].stick_click = false;
+    runner.Step(frame);
+    // Nearly centred still resets.
+    frame.hand[1].stick = {0.2f, 0.1f};
     frame.hand[1].stick_click = true;
     REQUIRE(runner.Step(frame).commands.reset_panels);
 }

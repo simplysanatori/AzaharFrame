@@ -227,8 +227,12 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     panels.bottom = {ToInput(place.bottom_pose), place.bottom_size.width,
                      place.bottom_size.height, true};
     Immersive::OnGameInput(in, panels.top.visible, panels.bottom.visible); // immersive.cpp
+    panels.bottom_toggle_enabled = Immersive::CanToggleBottom();
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
+    if (out.commands.toggle_bottom) {
+        Immersive::ToggleBottom(); // Left Bumper + Right Bumper + View
+    }
 
     const auto& cmd = out.commands;
     if (cmd.reset_panels) {

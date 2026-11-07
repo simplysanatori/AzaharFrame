@@ -19,7 +19,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 ### The screens
 
 - The top screen in stereoscopic 3D, one image for each eye, and the bottom screen as a touch screen, both floating in front of you as in CitraVR. Internal resolution up to 8x.
-- Aim a controller at the bottom screen and pull the trigger to touch it. Hold the trigger on the top screen to drag it, and use the stick to move it nearer and farther. The bottom screen follows. The right stick click puts both back.
+- Aim a controller at the bottom screen and pull the trigger to touch it. Squeeze a grip on either screen to move it, and use the stick of that hand to move it nearer and farther. The other screen follows. The right stick click puts both back.
 - A dot shows where each controller points.
 - A game picker in VR with the icons and titles from your game folders, the installed titles, pages and a Rescan button. A folder you add in the Azahar window appears in it at once.
 - Hold View for 1.5 seconds to stop the game and go back to the picker.
@@ -27,8 +27,10 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 
 ### Controls
 
-- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Grips are L and R, triggers are ZL and ZR, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click is Home.
-- Each hand decides for itself whether its trigger is ZL or ZR, a touch or a drag, when you pull it. In CitraVR one shared flag blocked both triggers.
+- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start, View is Select and the left stick click is Home.
+- Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
+- A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
+- A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9) or Ultrawide (21:9) for mods that draw widescreen, in the normal view and in immersive mode. It is read when the game starts.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
 
 ### Immersive mode
@@ -36,7 +38,8 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - Ocarina of Time 3D and Majora's Mask 3D can wrap the view around you, as in CitraVR: Wide, Full for those two games, and Full for other games.
 - SteamVR has no cylinder layer, so the screen is a flat quad that stays in front of your eyes, sized to the game's camera, or fixed in the room in Wide mode.
 - The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
-- The left bumper shows the bottom screen and the right stick click re-centres the view.
+- A per-game **Immersive Game FOV** setting replaces the fixed 60 degree game camera that sizes the screen, for mods that change the game's FOV.
+- Both bumpers and View show the bottom screen (the left bumper is L here) and the right stick click re-centres the view.
 - Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
 
 ### Install

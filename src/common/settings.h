@@ -718,6 +718,16 @@ struct Values {
     SwitchableSetting<u32> vr_immersive_positional_game_scaler{
         0, "vr_immersive_positional_game_scaler"};
     SwitchableSetting<std::string> vr_immersive_eye_indicator{"", "vr_immersive_eye_indicator"};
+    // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper
+    // chord, see frame_xr/immersive.h). Read when a game starts.
+    SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};
+    // AzaharFrame: the shape of the top screen in VR (0 = 3DS 5:3, 1 = Widescreen 16:9,
+    // 2 = Ultrawide 21:9) for games and mods that render widescreen into the 400x240 frame.
+    // Read when a game starts (frame_xr/immersive.h).
+    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 2, "vr_top_aspect"};
+    // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
+    // immersive screen (frame_xr/immersive.h). Read when a game starts.
+    SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};
 };
 
 extern Values values;

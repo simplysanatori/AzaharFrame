@@ -98,6 +98,37 @@ TEST_CASE("FrameXr engine: default profile devices follow the pad", "[frame_xr]"
         const auto device = Input::CreateDevice<Input::ButtonDevice>("engine:frame_xr,button:99");
         REQUIRE_FALSE(device->GetStatus());
     }
+    SECTION("L and R are the bumpers; the grips are unbound") {
+        using namespace Settings::NativeButton;
+        REQUIRE(Common::ParamPackage{profile.buttons[L]}.Get("button", -1) ==
+                static_cast<int>(Control::BumperL));
+        REQUIRE(Common::ParamPackage{profile.buttons[R]}.Get("button", -1) ==
+                static_cast<int>(Control::BumperR));
+        for (const std::string& button : profile.buttons) {
+            const int index = Common::ParamPackage{button}.Get("button", -1);
+            REQUIRE(index != static_cast<int>(Control::GripL));
+            REQUIRE(index != static_cast<int>(Control::GripR));
+        }
+    }
+    SECTION("MigrateGripBindings moves an older profile's L and R to the bumpers") {
+        using namespace Settings::NativeButton;
+        Settings::InputProfile input;
+        input.buttons[L] = "button:8,engine:frame_xr";
+        input.buttons[R] = "button:9,engine:frame_xr";
+        input.buttons[ZL] = "button:10,engine:frame_xr";
+        REQUIRE(Fx::MigrateGripBindings(input));
+        REQUIRE(Common::ParamPackage{input.buttons[L]}.Get("button", -1) ==
+                static_cast<int>(Control::BumperL));
+        REQUIRE(Common::ParamPackage{input.buttons[R]}.Get("button", -1) ==
+                static_cast<int>(Control::BumperR));
+        REQUIRE(input.buttons[ZL] == "button:10,engine:frame_xr");
+        // Nothing left to move, and a keyboard L stays alone.
+        REQUIRE_FALSE(Fx::MigrateGripBindings(input));
+        Settings::InputProfile keyboard;
+        keyboard.buttons[L] = "code:81,engine:keyboard";
+        REQUIRE_FALSE(Fx::MigrateGripBindings(keyboard));
+        REQUIRE(keyboard.buttons[L] == "code:81,engine:keyboard");
+    }
     SECTION("ApplyDefaultProfile fills only buttons and analogs") {
         Settings::InputProfile input;
         input.name = "mine";

@@ -45,11 +45,15 @@ Mapper::Mapper(const MapperConfig& config) : config_(config) {}
 bool Mapper::Reset() {
     const bool was_touching = touch_active_;
     hands_ = {};
+    grip_was_down_ = {};
     view_down_ = false;
     stop_fired_ = false;
     stick_click_r_prev_ = false;
+    swallow_view_ = false;
+    view_prev_ = false;
     touch_active_ = false;
     drag_active_ = false;
+    drag_panel_ = Panel::None;
     have_last_time_ = false;
     return was_touching;
 }
@@ -98,12 +102,13 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.Set(Control::StickClickL, frame.hand[0].stick_click);
     controls.Set(Control::StickClickR, frame.hand[1].stick_click);
 
-    // ---- Grips (the 3DS shoulder buttons) ----
+    // ---- Grips: grab a screen (no 3DS button; see the drag below) ----
     for (int h = 0; h < kNumHands; ++h) {
         HandState& state = hands_[static_cast<std::size_t>(h)];
         state.grip_down = Hysteresis(state.grip_down, frame.hand[static_cast<std::size_t>(h)].grip,
                                      config_.grip_press, config_.grip_release);
     }
+    // Reported so the Controls dialog can bind them; unbound by default.
     controls.Set(Control::GripL, hands_[0].grip_down);
     controls.Set(Control::GripR, hands_[1].grip_down);
 
@@ -111,8 +116,19 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.SetStick(AnalogControl::StickL, ApplyStickDeadzone(frame.hand[0].stick));
     controls.SetStick(AnalogControl::StickR, ApplyStickDeadzone(frame.hand[1].stick));
 
-    // ---- View: Select, or held to stop the game ----
-    if (frame.view) {
+    // ---- View: Select, or held to stop the game; with both bumpers, the bottom screen toggle ----
+    const bool view_edge = frame.view && !view_prev_;
+    if (view_edge && panels.bottom_toggle_enabled && frame.hand[0].bumper &&
+        frame.hand[1].bumper) {
+        out.commands.toggle_bottom = true;
+        swallow_view_ = true;
+    }
+    if (!frame.view) {
+        swallow_view_ = false;
+    }
+    view_prev_ = frame.view;
+    const bool view = frame.view && !swallow_view_;
+    if (view) {
         if (!view_down_) {
             view_down_ = true;
             view_down_since_ns_ = frame.time_ns;
@@ -135,16 +151,21 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         stop_fired_ = false;
     }
     // Once the stop fired, the game no longer sees View (it would still be Select-down).
-    controls.Set(Control::View, frame.view && !stop_fired_);
+    controls.Set(Control::View, view && !stop_fired_);
 
     // ---- Right stick click: reset panel positions (once per click) ----
+    // Ignored while the stick is pushed over, so the free camera cannot reset by accident.
     const bool click_r = frame.hand[1].stick_click;
     if (click_r && !stick_click_r_prev_) {
-        out.commands.reset_panels = true;
+        const Vec2f stick_r = frame.hand[1].stick;
+        const float deflection = std::sqrt(stick_r.x * stick_r.x + stick_r.y * stick_r.y);
+        if (deflection <= config_.reset_click_max_deflection) {
+            out.commands.reset_panels = true;
+        }
     }
     stick_click_r_prev_ = click_r;
 
-    // ---- Triggers: ZL/ZR, or touch, or drag, depending on what the ray points at ----
+    // ---- Triggers: ZL/ZR, or touch when the bottom screen is the nearest thing under the ray ----
     const Hand order[kNumHands] = {preferred_hand_, OtherHand(preferred_hand_)};
     for (const Hand hand : order) {
         const int h = HandIndex(hand);
@@ -167,22 +188,16 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
                 touch_last_px_ = HitToPixels(target.hit, kBottomScreenWidthPx,
                                              kBottomScreenHeightPx, true);
                 push_touch(TouchEventType::Pressed, touch_last_px_);
-            } else if (target.panel == Panel::Top && !drag_active_) {
-                state.gesture = Gesture::Drag;
-                drag_active_ = true;
-                drag_grab_offset_ = target.hit.point_world - panels.top.pose.position;
-                drag_last_target_ = panels.top.pose.position;
-            } else if (target.panel != Panel::None) {
-                state.gesture = Gesture::Blocked; // a second touch or drag: not ZL/ZR either
+            } else if (target.panel == Panel::Bottom) {
+                state.gesture = Gesture::Blocked; // a second touch: not ZL/ZR either
             } else {
+                // Over the top screen or over nothing: always ZL/ZR.
                 state.gesture = Gesture::Passthrough;
             }
         } else if (!pressed && was_pressed) {
             if (state.gesture == Gesture::Touch) {
                 touch_active_ = false;
                 push_touch(TouchEventType::Released, touch_last_px_);
-            } else if (state.gesture == Gesture::Drag) {
-                drag_active_ = false;
             }
             state.gesture = Gesture::None;
         } else if (!pressed) {
@@ -206,10 +221,53 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             }
             break;
         }
-        case Gesture::Drag: {
-            const QuadHit hit = IntersectQuad(ray, panels.top);
+        case Gesture::Blocked:
+        case Gesture::None:
+            break;
+        }
+    }
+
+    // ---- Grips: grab the screen under the ray and move it (one drag at a time) ----
+    for (int h = 0; h < kNumHands; ++h) {
+        HandState& state = hands_[static_cast<std::size_t>(h)];
+        const HandInput& input = frame.hand[static_cast<std::size_t>(h)];
+        const Hand hand = h == 0 ? Hand::Left : Hand::Right;
+        const Ray ray = RayFromPose(input.aim);
+
+        if (state.dragging && (!state.grip_down || !input.active)) {
+            state.dragging = false;
+            drag_active_ = false;
+            drag_panel_ = Panel::None;
+        }
+        if (state.grip_down && !state.dragging && !drag_active_ && input.active &&
+            !grip_was_down_[static_cast<std::size_t>(h)]) {
+            const PanelHit target = NearestInBounds(ray, panels);
+            if (target.panel != Panel::None) {
+                state.dragging = true;
+                drag_active_ = true;
+                drag_panel_ = target.panel;
+                const PanelQuad& grabbed = target.panel == Panel::Top ? panels.top : panels.bottom;
+                drag_grab_offset_ = target.hit.point_world - grabbed.pose.position;
+                drag_last_target_ = panels.top.pose.position;
+            }
+        }
+        grip_was_down_[static_cast<std::size_t>(h)] = state.grip_down;
+
+        if (state.dragging) {
+            const PanelQuad& grabbed = drag_panel_ == Panel::Top ? panels.top : panels.bottom;
+            const QuadHit hit = IntersectQuad(ray, grabbed);
             if (hit.on_plane) {
-                drag_last_target_ = hit.point_world - drag_grab_offset_;
+                const Vec3f wanted = hit.point_world - drag_grab_offset_;
+                if (drag_panel_ == Panel::Top) {
+                    drag_last_target_ = wanted;
+                } else {
+                    // The bottom screen follows the top one rigidly: move the top screen by the
+                    // same amount the grabbed bottom point should move.
+                    drag_last_target_ = {
+                        panels.top.pose.position.x + wanted.x - panels.bottom.pose.position.x,
+                        panels.top.pose.position.y + wanted.y - panels.bottom.pose.position.y,
+                        panels.top.pose.position.z + wanted.z - panels.bottom.pose.position.z};
+                }
             }
             // The dragging hand's stick is the depth control and does not move the game.
             controls.SetStick(hand == Hand::Left ? AnalogControl::StickL : AnalogControl::StickR,
@@ -218,11 +276,6 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             if (std::abs(stick_y) > config_.depth_threshold) {
                 out.commands.top_depth_delta_z = -stick_y * config_.depth_speed_mps * dt;
             }
-            break;
-        }
-        case Gesture::Blocked:
-        case Gesture::None:
-            break;
         }
     }
 
@@ -236,15 +289,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
 
     // ---- Cursor ----
     {
-        // A hand in a gesture owns the cursor; otherwise the pointing hand, then the other one.
-        const Hand* owner = nullptr;
-        for (const Hand& hand : order) {
-            const Gesture g = hands_[static_cast<std::size_t>(HandIndex(hand))].gesture;
-            if (g == Gesture::Touch || g == Gesture::Drag) {
-                owner = &hand;
-                break;
-            }
-        }
+        // A hand in a touch or a drag owns the cursor; otherwise the dot only hovers over the
+        // bottom screen (the top screen's trigger is ZL/ZR, nothing to aim at there).
         const auto fill = [&out](Hand hand, Panel panel, const QuadHit& hit,
                                  const PanelQuad& quad, bool pressed) {
             Cursor& cursor = out.cursor;
@@ -263,14 +309,27 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             }
             cursor.pressed = pressed;
         };
+        const Hand* owner = nullptr;
+        Panel owner_panel = Panel::None;
+        for (const Hand& hand : order) {
+            const HandState& state = hands_[static_cast<std::size_t>(HandIndex(hand))];
+            if (state.gesture == Gesture::Touch) {
+                owner = &hand;
+                owner_panel = Panel::Bottom;
+                break;
+            }
+            if (state.dragging) {
+                owner = &hand;
+                owner_panel = drag_panel_;
+                break;
+            }
+        }
         if (owner != nullptr) {
             const HandInput& input = frame.hand[static_cast<std::size_t>(HandIndex(*owner))];
-            const Gesture g = hands_[static_cast<std::size_t>(HandIndex(*owner))].gesture;
-            const Panel panel = g == Gesture::Touch ? Panel::Bottom : Panel::Top;
-            const PanelQuad& quad = g == Gesture::Touch ? panels.bottom : panels.top;
+            const PanelQuad& quad = owner_panel == Panel::Bottom ? panels.bottom : panels.top;
             const QuadHit hit = IntersectQuad(RayFromPose(input.aim), quad);
             if (hit.on_plane) {
-                fill(*owner, panel, hit, quad, true);
+                fill(*owner, owner_panel, hit, quad, true);
             }
         } else {
             for (const Hand& hand : order) {
@@ -279,9 +338,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
                     continue;
                 }
                 const PanelHit target = NearestInBounds(RayFromPose(input.aim), panels);
-                if (target.panel != Panel::None) {
-                    fill(hand, target.panel, target.hit,
-                         target.panel == Panel::Top ? panels.top : panels.bottom, false);
+                if (target.panel == Panel::Bottom) {
+                    fill(hand, target.panel, target.hit, panels.bottom, false);
                     break;
                 }
             }
