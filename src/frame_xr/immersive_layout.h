@@ -84,6 +84,30 @@ inline constexpr float kGripRelease = 0.40f;
 
 inline constexpr float kDegToRad = 3.14159265f / 180.0f;
 
+// ---- Immersive Offset (global: it is about the player's lenses, not the game) ----
+
+/// Grip + D-pad: one press turns the immersive screen this far about the eye, degrees.
+inline constexpr float kOffsetStepDeg = 0.5f;
+/// The offset stays within this either way, on each axis, degrees.
+inline constexpr float kMaxOffsetDeg = 10.0f;
+
+/// The global "Immersive Offset" (Settings::values.vr_immersive_offset_x, _y), degrees:
+/// positive = right, up. The immersive screen, and in modes 2 and 3 the game camera with it,
+/// turn by it about the eye, after the per-game placement: it is an angle, so it is the same at
+/// every distance and size, and the world stays where it is (only the window onto it moves).
+struct LensOffset {
+    float right_deg = 0.0f;
+    float up_deg = 0.0f;
+    bool operator==(const LensOffset&) const = default;
+};
+/// Within +-kMaxOffsetDeg, on the kOffsetStepDeg grid; not a number = 0.
+LensOffset ClampedOffset(LensOffset o);
+/// `o` moved by `right_steps` and `up_steps` presses of kOffsetStepDeg, clamped.
+LensOffset NudgedOffset(LensOffset o, int right_steps, int up_steps);
+/// The toast for the axis just nudged: "Offset Right 1.5°", "Offset Up 0.5°",
+/// "Offset Centred" (UTF-8).
+std::string OffsetToast(const LensOffset& o, bool horizontal);
+
 /// The part of the view the screen must fit in: angles in radians from the head's forward axis
 /// (OpenXR XrFovf signs: left and down are negative).
 struct ViewFov {
@@ -132,6 +156,9 @@ struct HeadLocked {
     float gain = 1.0f;
     /// The head's yaw x gain_x is given to the game: gain / (1 - squeeze).
     float gain_x = 1.0f;
+    /// The Immersive Offset's yaw (positive = left, about +Y). Its pitch is in pitch_rad; the
+    /// size is fitted without either.
+    float yaw_rad = 0.0f;
     float width() const {
         return 2.0f * distance * tan_half_y * aspect;
     }
@@ -156,9 +183,14 @@ float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const
                       float eye_shift, bool wider_view);
 
 /// `aspect` is the game picture's width over its height (the Screen Shape).
+/// `offset` turns the solved screen (yaw_rad, and pitch_rad on top of the placement's pitch);
+/// the size is fitted for the placement alone, so nudging never resizes the screen.
 HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
                            const ViewFov& view, float eye_shift = 0.0f,
-                           const Options& options = {});
+                           const Options& options = {}, const LensOffset& offset = {});
+
+/// The head-locked quad's rotation about the eye: the offset's yaw, then the pitch.
+Input::Quatf QuadRotation(const HeadLocked& solved);
 
 /// A size saved by builds before the comfortable default (the "head" lines of the file) was
 /// relative to the old default, which filled the whole view both eyes see (at most 1.4 times
@@ -178,15 +210,17 @@ Input::Quatf ScaleRotation(const Input::Quatf& q, float gain);
 Input::Quatf ScaleYawPitch(const Input::Quatf& q, float yaw_gain, float pitch_gain);
 
 /// The rotation given to the game: the head (relative to the rest pose) with the gains, then the
-/// screen's pitch, so the game camera looks where the screen is.
+/// screen's rotation (QuadRotation), so the game camera looks where the screen is.
 Input::Quatf GameCameraRotation(const Input::Quatf& head_rel, const HeadLocked& solved);
 
 /// The head-locked quad's pose in the head's (VIEW) space for an eye `eye_x` to the side.
 Input::Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x);
 
 /// Mode 1: the wide screen around the rest pose (room-fixed), at `pitch` (the player's pitch
-/// plus the middle of the view) and `distance`, `width` wide.
-Input::Posef WideQuadPose(const Input::Posef& rest, float pitch_rad, float distance);
+/// plus the middle of the view) and `distance`, turned by `yaw` (positive = left; the
+/// Immersive Offset).
+Input::Posef WideQuadPose(const Input::Posef& rest, float pitch_rad, float distance,
+                          float yaw_rad = 0.0f);
 
 /// Mode 1 with the bottom screen shown: below the wide screen's centre, nearer than it (so it is
 /// drawn over it, never through it), with the normal bottom screen's angular size.
@@ -195,7 +229,8 @@ struct BottomQuad {
     float width = 0.0f;
     float height = 0.0f;
 };
-BottomQuad WideBottomQuad(const Input::Posef& rest, float wide_pitch_rad, float wide_distance);
+BottomQuad WideBottomQuad(const Input::Posef& rest, float wide_pitch_rad, float wide_distance,
+                          float yaw_rad = 0.0f);
 
 // ---- Which screens show ----
 

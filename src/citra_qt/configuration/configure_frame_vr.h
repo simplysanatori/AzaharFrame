@@ -12,7 +12,9 @@
 
 class QCheckBox;
 class QComboBox;
+class QLabel;
 class QLineEdit;
+class QPushButton;
 class QSpinBox;
 class QWidget;
 
@@ -28,6 +30,7 @@ public:
 
 private:
     void SetupPerGameUI();
+    void ShowOffset(float right_deg, float up_deg);
 
     QCheckBox* hide_bottom_check;
     /// Per application: the tristate tracker (Use global / on / off).
@@ -47,6 +50,10 @@ private:
     QComboBox* shape_combo;
     QWidget* mode_row;
     QComboBox* mode_combo;
+    QWidget* offset_row; ///< AzaharFrame vrsize, global only: the Immersive Offset and a reset
+    QLabel* offset_label;
+    QPushButton* offset_reset;
+    bool offset_reset_pending = false; ///< Reset pressed: OK sets the offset to 0
     QWidget* fov_row;
     QComboBox* fov_scope; ///< per application only: global / this application
     QSpinBox* fov_spin;

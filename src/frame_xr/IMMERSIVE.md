@@ -35,6 +35,7 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Left Stick Click, tap | Shows or hides the bottom screen, the same switch as the chord (screen focus, [docs/CONTROLS.md](../../docs/CONTROLS.md#swapping-the-screens)). |
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. A Right Stick Click tap meanwhile puts the screen back to its default placement (the saved one is forgotten) instead of swapping, and a Left Stick Click tap does nothing (`Immersive::HoldingScreen`, `ResetHeldScreen`). |
+| D-Pad, while a grip holds the screen | Nudges the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s), right / left / up / down, and shows "Offset Right 1.5°" (etc.) as a toast for 2 s. The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
 | Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). SteamVR's own re-centre does the same. With a grip holding the immersive screen, it also goes back to its default placement. |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
@@ -92,8 +93,8 @@ camera turned. Each of the three things a grip changes keeps that:
   game camera gets (camera = head x pitch, `GameCameraRotation`), so the camera looks where the
   screen is: the world stays where it was and you see it through a lower window. In mode 2 the
   register's rotation is replaced by that rotation; in mode 3 it multiplies the game's own view
-  matrix. Both take it as a plain rotation. Yaw would work the same way; the gesture keeps the
-  normal placement's horizontal lock, so it is always 0.
+  matrix. Both take it as a plain rotation. The grip gesture keeps the normal placement's
+  horizontal lock, so its yaw is always 0; the Immersive Offset below adds one.
 - **Size.** The quad is scaled against the game's view, and the head's yaw and pitch given to the
   game are scaled by `gain` = game angle / screen angle (tangents; `ScaleYawPitch`: the head
   rotation split into yaw, pitch and roll, the roll kept, since a picture turned in its plane keeps
@@ -140,6 +141,21 @@ Saved sizes are relative to that default. The file's `view` lines are written by
 lines come from earlier builds, whose default filled the whole view both eyes see: once the view is
 known they are converted so the screen keeps its angle (`SizeFromOldDefault`; a 1.5 there is about
 1.9 now), logged as `placement (converted from an earlier build)`, and saved as `view` lines.
+
+**Immersive Offset** (`vr_immersive_offset_x`, `_y`, degrees right and up, global only, -10 to 10 in
+0.5 steps; `LensOffset` in `immersive_layout.h`). The Frame's lenses sit a little differently for
+each person, so one player sees the screen's right edge and not its left. Grip + D-pad turns the
+solved quad about the eye by that yaw and pitch, after the per-game placement, and the same
+rotation goes into the game camera (`QuadRotation`, used by both `HeadLockedQuadPose` and
+`GameCameraRotation`), exactly as the pitch above: the world stays where it is and only the window
+onto it moves, the angle is the same at every distance and size, the gains still apply to the head
+turn alone, and the size is fitted without it (nudging never resizes the screen). A re-centre
+only resets the rest pose, so it keeps the offset. Mode 1 turns its wide screen (and the bottom
+screen under it) about the rest pose by the same angles. It is global, not per game: it is about
+the player's eyes. Putting a game's screen back (right stick click while holding) keeps it;
+**Immersive Offset** in the VR settings shows it and resets it. The XR thread writes the setting
+and asks the Qt side to save the config (`FrontendHooks::immersive_offset_changed`, saved half a
+second after the last press); it is read every frame and logged as `xr: immersive offset`.
 
 Mode 1 is fixed in the room, so its pitch and distance are a plain move (the size scales with the
 distance) and its size is free.

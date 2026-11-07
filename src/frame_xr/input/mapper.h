@@ -47,7 +47,8 @@ struct MapperConfig {
     int64_t chord_grace_ns = 150'000'000;
     /// After a Quick Save or Quick Load, the next one waits this long (a bumper that bounces).
     int64_t quick_cooldown_ns = 1'000'000'000;
-    /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
+    /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5),
+    /// and stick X beyond it makes the screens bigger or smaller (AzaharFrame vrsize).
     float depth_threshold = 0.5f;
     // A stick click that starts while its stick is pushed further than this is ignored (the stick
     // clicks by accident during free camera), so it never swaps, hides or resets the screens.
@@ -59,6 +60,7 @@ struct MapperConfig {
     /// displayed frame, about 3.6 m/s at 72 Hz.
     float depth_speed_mps = 3.0f;
     /// CitraVR default: dragging the top screen never moves it sideways ("horizontal axis lock").
+    /// AzaharFrame vrsize: it keeps the sideways place the D-pad nudge gave it (screen_rig.h).
     bool horizontal_lock = true;
     /// A touch only moves when it changed by at least this many 3DS pixels.
     float touch_move_epsilon_px = 0.25f;
@@ -113,6 +115,10 @@ struct PanelCommands {
     /// Add to the top screen's position.z this frame (negative = further away). Zero when the
     /// stick is within the threshold. Only non-zero while top_drag_active.
     float top_depth_delta_z = 0.0f;
+    /// AzaharFrame vrsize: the dragging hand's stick X beyond the threshold, as -1..1 (right =
+    /// bigger), and this frame's seconds: ScreenRig::ScaleWithStick. 0 otherwise.
+    float top_scale_stick = 0.0f;
+    float top_scale_dt = 0.0f;
     /// Put both screens back to their default poses (right stick click held 1 s). Also the
     /// "recentre": the XR core places the defaults in front of the current head heading.
     bool reset_panels = false;
@@ -176,6 +182,16 @@ public:
     }
     Hand preferred_hand() const {
         return preferred_hand_;
+    }
+    /// AzaharFrame vrsize: a grip holds a screen (after the last Update).
+    bool DragActive() const {
+        return drag_active_;
+    }
+    /// AzaharFrame vrsize: the screens were moved under the dragging hand (the D-pad nudge): at
+    /// the next Update the grab point is taken again from the screens where they are then, so
+    /// the drag carries on from there instead of pulling them back.
+    void ReanchorDrag() {
+        drag_reanchor_ = true;
     }
 
 private:
@@ -263,6 +279,8 @@ private:
     Panel drag_panel_ = Panel::None;
     Vec3f drag_grab_offset_;
     Vec3f drag_last_target_;
+    bool drag_reanchor_ = false; ///< ReanchorDrag
+
 
     int64_t last_time_ns_ = 0;
     bool have_last_time_ = false;

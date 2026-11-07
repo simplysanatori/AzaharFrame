@@ -40,6 +40,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/mapper.h
     input/motion.cpp
     input/motion.h
+    input/screen_rig.cpp
+    input/screen_rig.h
     input/screen_view.cpp
     input/screen_view.h
     input/types.h

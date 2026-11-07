@@ -415,6 +415,48 @@ TEST_CASE("FrameXr mapper: a grip drags the screen under the ray", "[frame_xr]")
         REQUIRE(out.commands.top_drag_target.x == Approx(0.0f));
         REQUIRE(out.commands.top_drag_target.y == Approx(0.4f).margin(1e-3));
     }
+    SECTION("the horizontal lock keeps a nudged screen where it is sideways") {
+        // AzaharFrame vrsize: the D-pad turned the pair 0.3 m to the right.
+        MapperConfig locked;
+        locked.horizontal_lock = true;
+        Runner locked_runner(locked);
+        locked_runner.panels.top.pose.position.x = 0.3f;
+        Point(frame, Hand::Right, Vec3f{0.8f, 0.2f, -2.0f});
+        locked_runner.Step(frame);
+        Point(frame, Hand::Right, Vec3f{1.2f, 0.6f, -2.0f});
+        const MapperOutput out = locked_runner.Step(frame);
+        REQUIRE(out.commands.top_drag_target.x == Approx(0.3f));
+        REQUIRE(out.commands.top_drag_target.y == Approx(0.4f).margin(1e-3));
+    }
+    SECTION("after ReanchorDrag the drag carries on from where the screens are now") {
+        // AzaharFrame vrsize: the D-pad moved them under the hand.
+        runner.Step(frame);
+        runner.panels.top.pose.position.y = 0.1f;
+        runner.mapper.ReanchorDrag();
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.top_drag_target.y == Approx(0.1f).margin(1e-3));
+        // Without it the hand would have pulled them back to y = 0.
+        runner.panels.top.pose.position.y = 0.2f;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.top_drag_target.y == Approx(0.1f).margin(1e-3));
+    }
+    SECTION("stick X beyond the threshold resizes the screens; the stick stays off the game") {
+        // AzaharFrame vrsize
+        runner.Step(frame);
+        REQUIRE(runner.mapper.DragActive());
+        frame.hand[1].stick = Vec2f{1.0f, 0.0f};
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.top_scale_stick == Approx(1.0f));
+        REQUIRE(out.commands.top_scale_dt == Approx(0.0111111f).epsilon(0.01));
+        REQUIRE(out.commands.top_depth_delta_z == Approx(0.0f));
+        REQUIRE(out.controls.GetStick(AnalogControl::StickR).x == Approx(0.0f));
+        frame.hand[1].stick = Vec2f{0.3f, 0.0f};
+        out = runner.Step(frame);
+        REQUIRE(out.commands.top_scale_stick == Approx(0.0f));
+        frame.hand[1].grip = 0.0f;
+        runner.Step(frame);
+        REQUIRE_FALSE(runner.mapper.DragActive());
+    }
     SECTION("stick Y beyond the threshold moves the screen in depth; the stick stays off the game") {
         runner.Step(frame);
         frame.hand[1].stick = Vec2f{0.0f, 1.0f};

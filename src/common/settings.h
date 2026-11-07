@@ -755,6 +755,11 @@ struct Values {
     // (100, 150 or 200 in the settings; any value in between works). Read by the home panel
     // (citra_qt/frame_mirror.cpp); flat mode ignores it.
     SwitchableSetting<u32, true> vr_window_scale{150, 100, 200, "vr_window_scale"};
+    // AzaharFrame vrsize (global only: it fits the player's lenses, not a game): the immersive
+    // screen turned this many degrees right (x) and up (y), in 0.5 degree steps. Grip + D-pad in
+    // VR sets it; read every frame (frame_xr/immersive_layout.h).
+    SwitchableSetting<float, true> vr_immersive_offset_x{0.f, -10.f, 10.f, "vr_immersive_offset_x"};
+    SwitchableSetting<float, true> vr_immersive_offset_y{0.f, -10.f, 10.f, "vr_immersive_offset_y"};
 };
 
 extern Values values;

@@ -3,13 +3,16 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <cmath>
 #include <initializer_list>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QSpinBox>
+#include <QStringList>
 #include <QVBoxLayout>
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
@@ -147,6 +150,21 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {mode_combo});
     layout->addWidget(mode_row);
 
+    // AzaharFrame vrsize: global only (Settings::values.vr_immersive_offset_x, _y). Grip + D-pad
+    // sets it in VR; here it shows, and Reset puts it back.
+    offset_label = new QLabel(this);
+    offset_reset = new QPushButton(tr("Reset"), this);
+    offset_row = MakeRow(
+        this, QStringLiteral("frame_vr_offset_row"), tr("Immersive Offset"),
+        tr("Moves the immersive screen a little to fit your lenses, in every game. In VR, hold "
+           "the immersive screen with a grip and press the D-pad."),
+        {offset_label, offset_reset});
+    layout->addWidget(offset_row);
+    connect(offset_reset, &QPushButton::clicked, this, [this] {
+        offset_reset_pending = true;
+        ShowOffset(0.0f, 0.0f);
+    });
+
     fov_scope = MakeScopeCombo(this);
     fov_spin = new QSpinBox(this);
     fov_spin->setRange(30, 110);
@@ -221,6 +239,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     motion_row->setVisible(Settings::IsConfiguringGlobal());
     window_scale_row->setVisible(Settings::IsConfiguringGlobal());
     background_row->setVisible(Settings::IsConfiguringGlobal());
+    offset_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrsize
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
     if (Settings::IsConfiguringGlobal()) {
@@ -309,6 +328,9 @@ void ConfigureFrameVr::SetConfiguration() {
         window_scale_combo->setCurrentIndex(std::clamp(
             (static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 100 + 25) / 50, 0, 2));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue(true)));
+        offset_reset_pending = false;
+        ShowOffset(Settings::values.vr_immersive_offset_x.GetValue(),
+                   Settings::values.vr_immersive_offset_y.GetValue());
         return;
     }
 
@@ -334,8 +356,28 @@ void ConfigureFrameVr::SetConfiguration() {
     ConfigurationShared::SetHighlight(eye_row, !eye.UsingGlobal());
 }
 
+void ConfigureFrameVr::ShowOffset(float right_deg, float up_deg) {
+    // As the toast in VR: "Right 1.5°, Up 0.5°", or None.
+    QStringList parts;
+    if (right_deg != 0.0f) {
+        parts << (right_deg > 0.0f ? tr("Right %1\u00B0") : tr("Left %1\u00B0"))
+                     .arg(QString::number(std::abs(right_deg), 'f', 1));
+    }
+    if (up_deg != 0.0f) {
+        parts << (up_deg > 0.0f ? tr("Up %1\u00B0") : tr("Down %1\u00B0"))
+                     .arg(QString::number(std::abs(up_deg), 'f', 1));
+    }
+    offset_label->setText(parts.isEmpty() ? tr("None") : parts.join(QStringLiteral(", ")));
+    offset_reset->setEnabled(!parts.isEmpty());
+}
+
 void ConfigureFrameVr::ApplyConfiguration() {
     if (Settings::IsConfiguringGlobal()) {
+        if (offset_reset_pending) { // AzaharFrame vrsize
+            offset_reset_pending = false;
+            Settings::values.vr_immersive_offset_x.SetValue(0.0f);
+            Settings::values.vr_immersive_offset_y.SetValue(0.0f);
+        }
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
         Settings::values.vr_motion_controls.SetValue(
             static_cast<u32>(motion_combo->currentIndex()));

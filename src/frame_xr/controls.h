@@ -23,6 +23,7 @@
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/overlays.h"
@@ -130,6 +131,9 @@ private:
     Input::Actions actions;
     Input::InputBridge bridge;
     Input::ScreenView screen_view; ///< AzaharFrame screenswap: focus and hiding, XR thread only
+    /// AzaharFrame vrsize: grip + D-pad turns the held screen a step (XR thread only).
+    Input::ScreenRig::DpadNudger nudger;
+    bool normal_dragging = false; ///< a grip held the normal screens last frame (for the log)
     bool actions_ok = false;
     bool bridge_live = false;
 

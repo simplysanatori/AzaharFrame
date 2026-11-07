@@ -246,6 +246,9 @@ struct State {
     bool view_fov_logged = false;
     L::HeadLocked solved;
     L::Adjuster adjuster;
+    /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
+    L::LensOffset offset;
+    bool offset_logged = false;
     int64_t last_input_ns = 0;
 };
 
@@ -339,6 +342,19 @@ void OnFrame(const FrameInfo& info) {
         }
     }
     g.screens_were_live = info.screens_live;
+    {
+        // AzaharFrame vrsize: global (the player's lenses), every frame, so a reset in Configure
+        // shows at once. NudgeOffset writes it on this thread.
+        const L::LensOffset offset = L::ClampedOffset(
+            {Settings::values.vr_immersive_offset_x.GetValue(),
+             Settings::values.vr_immersive_offset_y.GetValue()});
+        if (!g.offset_logged || !(offset == g.offset)) {
+            LOG_INFO(Frontend, "xr: immersive offset {:.1f} degrees right, {:.1f} up{}",
+                     offset.right_deg, offset.up_deg, g.offset_logged ? " (changed)" : "");
+            g.offset = offset;
+            g.offset_logged = true;
+        }
+    }
     if (info.screens_live) {
         // Every frame, so that a change in Configure or a game's Properties shows at once.
         const u32 shape = Settings::values.vr_top_aspect.GetValue();
@@ -403,7 +419,7 @@ void OnFrame(const FrameInfo& info) {
             }
         }
         g.solved = L::SolveHeadLocked(g.head_place, g.game_fov_y_deg, TopAspect(), g.view_fov,
-                                      eye_shift, g.options);
+                                      eye_shift, g.options, g.offset);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -438,11 +454,12 @@ void OnFrame(const FrameInfo& info) {
             if (IsViewMode(mode)) {
                 LOG_INFO(Frontend,
                          "xr: immersive mode {} on (factor {:.2f}, head-locked top screen "
-                         "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, gain {:.2f}, "
-                         "yaw gain {:.2f}, size {:.2f})",
+                         "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, {:.1f} "
+                         "to the right, gain {:.2f}, yaw gain {:.2f}, size {:.2f})",
                          mode, data.factor, Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
                          Deg(2 * std::atan(g.solved.tan_half_y)), Deg(g.solved.pitch_rad),
-                         g.solved.gain, g.solved.gain_x, L::Clamped(g.head_place).size);
+                         -Deg(g.solved.yaw_rad), g.solved.gain, g.solved.gain_x,
+                         L::Clamped(g.head_place).size);
             } else {
                 LOG_INFO(Frontend, "xr: immersive mode {} on (factor {:.1f}, wide top screen)",
                          mode, data.factor);
@@ -521,14 +538,17 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         const ScreenPlacement normal = DefaultScreenPlacement();
         const float normal_tan = normal.top_size.width / 2 / std::abs(normal.top_pose.position.z);
         const float width = 2 * p.distance * kWideFactor * normal_tan * p.size;
-        const float pitch = L::ViewMiddlePitch(g.view_fov) + p.pitch_deg * L::kDegToRad;
+        // The Immersive Offset turns it about the rest pose too (immersive_layout.h).
+        const float pitch = L::ViewMiddlePitch(g.view_fov) +
+                            (p.pitch_deg + g.offset.up_deg) * L::kDegToRad;
+        const float yaw = -g.offset.right_deg * L::kDegToRad;
         const Input::Posef rest = ToIn(g.ref);
-        out.top_pose[0] = out.top_pose[1] = ToXr(L::WideQuadPose(rest, pitch, p.distance));
+        out.top_pose[0] = out.top_pose[1] = ToXr(L::WideQuadPose(rest, pitch, p.distance, yaw));
         out.top_size = {width, width / TopAspect()};
         out.top_pointable = false;
         // The bottom screen (when shown) below the wide screen's middle and nearer than it,
         // so it is drawn over it and never through it.
-        const L::BottomQuad b = L::WideBottomQuad(rest, pitch, p.distance);
+        const L::BottomQuad b = L::WideBottomQuad(rest, pitch, p.distance, yaw);
         out.bottom_pose = ToXr(b.pose);
         out.bottom_size = {b.width, b.height};
     } else if (g.engaged) {
@@ -581,6 +601,25 @@ void SetBottomFocused(bool focused) {
 
 bool HoldingScreen() {
     return g.adjuster.Active();
+}
+
+bool NudgeOffset(int right_steps, int up_steps) {
+    if (!g.adjuster.Active() || !g.engaged || (right_steps == 0 && up_steps == 0)) {
+        return false;
+    }
+    const L::LensOffset before = g.offset;
+    const L::LensOffset after = L::NudgedOffset(before, right_steps, up_steps);
+    // The toast for the axis pressed, also at the limit (where nothing changes).
+    ShowToastText(L::OffsetToast(after, right_steps != 0));
+    if (after == before) {
+        return false;
+    }
+    g.offset = after;
+    Settings::values.vr_immersive_offset_x.SetValue(after.right_deg);
+    Settings::values.vr_immersive_offset_y.SetValue(after.up_deg);
+    LOG_INFO(Frontend, "xr: immersive offset nudged to {:.1f} degrees right, {:.1f} up",
+             after.right_deg, after.up_deg);
+    return true;
 }
 
 void OnResetPanels() {

@@ -9,6 +9,7 @@
 #include "common/archives.h"
 #include "common/assert.h"
 #include "common/frame_flat.h" // AzaharFrame
+#include "common/frame_vr_depth.h" // AzaharFrame vrsize
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -88,7 +89,8 @@ Handler::Handler(Core::Timing& timing, u64 override_init_time) : timing(timing) 
 
     float slidestate = Settings::frame_flat_mono ? 0.0f : // AzaharFrame: flat, one eye
             Settings::values.vr_immersive_mode.GetValue() < 3 ?
-            Settings::values.factor_3d.GetValue() / 100.0f :
+            Settings::values.factor_3d.GetValue() / 100.0f *
+                Settings::frame_vr_depth_scale.load() : // AzaharFrame vrsize
             0.01f;
     shared_page.sliderstate_3d = static_cast<float_le>(slidestate);
 

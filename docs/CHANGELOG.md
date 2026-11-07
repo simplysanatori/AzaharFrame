@@ -26,7 +26,8 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 
 ### The screens
 
-- Grip a screen to move both. The stick of that hand moves them nearer or farther.
+- Grip a screen to move both. The stick of that hand moves them nearer or farther, and makes them bigger or smaller, up to 3 times: big enough to fill the whole view.
+- While you hold them, the D-pad nudges them half a degree at a time, for a big screen with an edge just out of view.
 - Tap the right stick click to swap the screens. Hold it for a second to put them back.
 - Tap the left stick click to hide or show the other screen.
 - **Hide Bottom Screen**, per game, for games that do not need it. Both bumpers and View bring it back.
@@ -38,6 +39,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - Grip the immersive screen and move your hand to raise or lower it. The stick of that hand moves it nearer or farther, and makes it bigger or smaller.
 - Each game keeps the screen where you leave it.
 - The default size keeps the HUD at the sides in the sharp middle of the lenses. You can make it up to 2.5 times bigger.
+- While you hold it, the D-pad shifts it half a degree at a time to fit your lenses. **Immersive Offset** is the same in every game, and a label shows it as you go.
 - **Wider View**, per game, shows more of the game around a bigger screen.
 - **Squeeze Width**, per game, makes the screen 10 or 20% narrower. The HUD at the sides moves into view.
 - **Immersive Game FOV**, per game, for mods that change the game's field of view. A change shows at once.

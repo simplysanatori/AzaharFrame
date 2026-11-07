@@ -8,6 +8,7 @@
 #include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h"
 #include "frame_xr/immersive_layout.h"
 #include "video_core/vr_view_matrix.h"
 
@@ -604,4 +605,113 @@ TEST_CASE("FrameXr immersive: mode 3 patches only world cameras", "[frame_xr]") 
     REQUIRE_FALSE(LooksLikeWorldView(scaled));
     const float skew[3][3] = {{1.0f, 0.0f, 0.0f}, {0.6f, 0.8f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     REQUIRE_FALSE(LooksLikeWorldView(skew));
+}
+
+// ---- AzaharFrame vrsize: the Immersive Offset ----
+
+TEST_CASE("FrameXr immersive: the offset's steps and limits", "[frame_xr]") {
+    REQUIRE(ClampedOffset({0.26f, -0.74f}) == LensOffset{0.5f, -0.5f});
+    REQUIRE(ClampedOffset({25.0f, -25.0f}) == LensOffset{kMaxOffsetDeg, -kMaxOffsetDeg});
+    REQUIRE(ClampedOffset({NAN, INFINITY}) == LensOffset{});
+    // -0.1 rounds to 0, never -0 (the toast and the file would show "-0.0").
+    REQUIRE(!std::signbit(ClampedOffset({-0.1f, -0.1f}).right_deg));
+    LensOffset o;
+    o = NudgedOffset(o, 1, 0);
+    o = NudgedOffset(o, 1, 0);
+    o = NudgedOffset(o, 1, -1);
+    REQUIRE(o == LensOffset{1.5f, -0.5f});
+    // 100 presses right stop at the limit.
+    REQUIRE(NudgedOffset(o, 100, 0).right_deg == Approx(kMaxOffsetDeg));
+    REQUIRE(NudgedOffset(LensOffset{kMaxOffsetDeg, 0}, 1, 0).right_deg == Approx(kMaxOffsetDeg));
+}
+
+TEST_CASE("FrameXr immersive: the offset's toast", "[frame_xr]") {
+    REQUIRE(OffsetToast({1.5f, 0.0f}, true) == "Offset Right 1.5\xC2\xB0");
+    REQUIRE(OffsetToast({-0.5f, 0.0f}, true) == "Offset Left 0.5\xC2\xB0");
+    REQUIRE(OffsetToast({0.0f, 2.0f}, false) == "Offset Up 2.0\xC2\xB0");
+    REQUIRE(OffsetToast({3.0f, -10.0f}, false) == "Offset Down 10.0\xC2\xB0");
+    REQUIRE(OffsetToast({0.0f, 1.0f}, true) == "Offset Centred");
+}
+
+TEST_CASE("FrameXr immersive: the offset turns the screen and the camera together",
+          "[frame_xr]") {
+    const ViewFov view = Symmetric(50);
+    const HeadLocked base = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, view, 0.0f);
+    const LensOffset offset{2.0f, 1.5f};
+    const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, view, 0.0f, {}, offset);
+    // Only turned: the same size, factor and gains.
+    REQUIRE(s.tan_half_y == Approx(base.tan_half_y));
+    REQUIRE(s.aspect == Approx(base.aspect));
+    REQUIRE(s.gain == Approx(base.gain));
+    REQUIRE(s.gain_x == Approx(base.gain_x));
+    REQUIRE(s.distance == Approx(base.distance));
+    REQUIRE(s.pitch_rad == Approx(base.pitch_rad + Rad(1.5f)));
+    REQUIRE(s.yaw_rad == Approx(-Rad(2.0f)));
+    // The same angles at every distance: the quad's centre is 2 degrees to the right and its
+    // elevation 1.5 above the base's, wherever it is.
+    for (const float d : {kMinDistance, kDefaultDistance, kMaxDistance}) {
+        Placement p;
+        p.distance = d;
+        const HeadLocked sd = SolveHeadLocked(p, 60.0f, kAspect3ds, view, 0.0f, {}, offset);
+        const HeadLocked bd = SolveHeadLocked(p, 60.0f, kAspect3ds, view, 0.0f);
+        const Vec3f c = HeadLockedQuadPose(sd, 0.0f).position;
+        const Vec3f cb = HeadLockedQuadPose(bd, 0.0f).position;
+        REQUIRE(In::Length(c) == Approx(d));
+        REQUIRE(std::atan2(c.x, -c.z) == Approx(Rad(2.0f)).epsilon(1e-3));
+        REQUIRE(Elevation(c) - Elevation(cb) == Approx(Rad(1.5f)).epsilon(1e-3));
+    }
+    // The quad faces the eye, upright (no roll).
+    const Posef pose = HeadLockedQuadPose(s, 0.0f);
+    const Vec3f n = In::Rotate(pose.orientation, Vec3f{0.0f, 0.0f, 1.0f});
+    REQUIRE(In::Dot(n, In::Normalized(pose.position * -1.0f)) == Approx(1.0f));
+    REQUIRE(In::Rotate(pose.orientation, Vec3f{1.0f, 0.0f, 0.0f}).y == Approx(0.0f).margin(1e-6));
+    // The world stays where it is: with the head still, the game camera looks where the quad's
+    // centre is, so only the window onto the world moved.
+    const Vec3f cam = Forward(GameCameraRotation(Quatf{}, s));
+    REQUIRE(In::Dot(cam, In::Normalized(pose.position)) == Approx(1.0f));
+    // Mode 3: each eye's quad is the same, moved by the eye.
+    const Posef left = HeadLockedQuadPose(s, -0.032f);
+    REQUIRE(left.position.x - pose.position.x == Approx(-0.032f));
+    // Head turns still turn the camera by the gain on top of the offset.
+    const Vec3f turned = Forward(GameCameraRotation(YawRotation(Rad(1.0f)), s));
+    REQUIRE(std::atan2(-turned.x, -turned.z) - std::atan2(-cam.x, -cam.z) ==
+            Approx(Rad(1.0f) * s.gain_x).epsilon(3e-2));
+}
+
+TEST_CASE("FrameXr immersive: the offset turns the wide screen too", "[frame_xr]") {
+    const Posef rest{YawRotation(Rad(30)), Vec3f{0.0f, 1.6f, 0.0f}};
+    const Posef plain = WideQuadPose(rest, 0.0f, 1.0f);
+    const Posef turned = WideQuadPose(rest, 0.0f, 1.0f, -Rad(3.0f)); // 3 degrees right
+    const Posef to_rest = In::Inverse(rest);
+    const Vec3f a = In::Transform(to_rest, plain.position);
+    const Vec3f b = In::Transform(to_rest, turned.position);
+    REQUIRE(std::atan2(b.x, -b.z) - std::atan2(a.x, -a.z) == Approx(Rad(3.0f)).epsilon(1e-3));
+    REQUIRE(In::Length(b) == Approx(1.0f));
+    // Its bottom screen follows.
+    const BottomQuad bp = WideBottomQuad(rest, 0.0f, 1.0f);
+    const BottomQuad bt = WideBottomQuad(rest, 0.0f, 1.0f, -Rad(3.0f));
+    const Vec3f pa = In::Transform(to_rest, bp.pose.position);
+    const Vec3f pb = In::Transform(to_rest, bt.pose.position);
+    REQUIRE(std::atan2(pb.x, -pb.z) - std::atan2(pa.x, -pa.z) == Approx(Rad(3.0f)).epsilon(1e-3));
+}
+
+TEST_CASE("FrameXr immersive: the offset setting is global and in range", "[frame_xr]") {
+    auto& x = Settings::values.vr_immersive_offset_x;
+    auto& y = Settings::values.vr_immersive_offset_y;
+    REQUIRE(x.GetDefault() == 0.0f);
+    REQUIRE(x.GetLabel() == "vr_immersive_offset_x");
+    REQUIRE(y.GetLabel() == "vr_immersive_offset_y");
+    x.SetValue(25.0f);
+    y.SetValue(-25.0f);
+    REQUIRE(x.GetValue() == Approx(kMaxOffsetDeg));
+    REQUIRE(y.GetValue() == Approx(-kMaxOffsetDeg));
+    // After a game it is the global value again (and the Qt config only reads and writes it in
+    // the global file).
+    x.SetGlobal(false);
+    Settings::RestoreGlobalState(false);
+    REQUIRE(x.UsingGlobal());
+    REQUIRE(y.UsingGlobal());
+    REQUIRE(x.GetValue() == Approx(kMaxOffsetDeg));
+    x.SetValue(0.0f);
+    y.SetValue(0.0f);
 }

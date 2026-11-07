@@ -18,11 +18,13 @@
 #include <fmt/format.h>
 #include "common/logging/log.h"
 #include "common/frame_flat.h"
+#include "common/frame_vr_depth.h" // AzaharFrame vrsize
 #include "common/settings.h" // AzaharFrame vrqol: Background
 #include "common/stall_telemetry.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
+#include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
@@ -91,12 +93,13 @@ Runtime* GetRuntime() {
 
 // ---- Placement --------------------------------------------------------------
 
-XrExtent2Df NormalTopSize() {
+XrExtent2Df NormalTopSize(float scale) {
     // AzaharFrame: 240 px of the native screen per metre, so the top screen is 1 m high; its width
-    // follows "VR Screen Shape" (Immersive::TopAspect, 5:3 = the 400x240 of the 3DS).
+    // follows "VR Screen Shape" (Immersive::TopAspect, 5:3 = the 400x240 of the 3DS). vrsize:
+    // times the scale the grip and the stick gave it.
     constexpr float kDensity = 240.0f;
     constexpr float kTopHeightPx = 240.0f;
-    const float height = kTopHeightPx / kDensity;
+    const float height = kTopHeightPx / kDensity * Input::ScreenRig::ClampScale(scale);
     return {height * Immersive::TopAspect(), height};
 }
 
@@ -119,7 +122,8 @@ ScreenPlacement GetScreenPlacement() {
     if (auto* rt = GetRuntime()) {
         std::scoped_lock lock{rt->placement_mutex};
         ScreenPlacement place = rt->placement;
-        place.top_size = NormalTopSize(); // the shape is per game; the stored size may be stale
+        // The shape is per game; the stored size may be stale.
+        place.top_size = NormalTopSize(place.top_scale);
         return place;
     }
     return DefaultScreenPlacement();
@@ -537,7 +541,7 @@ void Runtime::FrameLoop() {
                 std::scoped_lock lock{placement_mutex};
                 place = placement;
             }
-            place.top_size = NormalTopSize(); // AzaharFrame: "VR Screen Shape" of this game
+            place.top_size = NormalTopSize(place.top_scale); // AzaharFrame: "VR Screen Shape"
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
             Vis::NoteTopHeadLocked(shown.top_space == view_space); // AzaharFrame vrvis: stats
@@ -560,6 +564,12 @@ void Runtime::FrameLoop() {
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
+            // AzaharFrame vrsize: a normal top screen bigger than its normal size gets that much
+            // less 3D depth (common/frame_vr_depth.h); the immersive and the swapped one do not.
+            Settings::frame_vr_depth_scale =
+                shown.top_pointable && !draw.swapped
+                    ? Input::ScreenRig::DepthScale(place.top_scale)
+                    : 1.0f;
             // Quad layers are drawn in the order they are submitted, with no depth test: the
             // farther screen goes first, so the nearer one is never drawn through.
             if (draw.swapped) {
@@ -853,6 +863,12 @@ ViewPose LatestViewPose() {
 void ShowToast(Toast kind) {
     if (auto* rt = GetRuntime()) {
         rt->hud.ShowToast(kind);
+    }
+}
+
+void ShowToastText(const std::string& text) {
+    if (auto* rt = GetRuntime()) {
+        rt->hud.ShowToastText(text);
     }
 }
 

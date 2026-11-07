@@ -137,8 +137,40 @@ float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const
     return std::min(fit, (wider_view ? kFactorMax : kFactorMin) * GameTan(game_fov_y_deg));
 }
 
+LensOffset ClampedOffset(LensOffset o) {
+    const auto axis = [](float deg) {
+        if (!std::isfinite(deg)) {
+            return 0.0f;
+        }
+        const float steps = std::round(std::clamp(deg, -kMaxOffsetDeg, kMaxOffsetDeg) /
+                                       kOffsetStepDeg);
+        return steps == 0.0f ? 0.0f : steps * kOffsetStepDeg; // never -0
+    };
+    return {axis(o.right_deg), axis(o.up_deg)};
+}
+
+LensOffset NudgedOffset(LensOffset o, int right_steps, int up_steps) {
+    o = ClampedOffset(o);
+    o.right_deg += static_cast<float>(right_steps) * kOffsetStepDeg;
+    o.up_deg += static_cast<float>(up_steps) * kOffsetStepDeg;
+    return ClampedOffset(o);
+}
+
+std::string OffsetToast(const LensOffset& o_in, bool horizontal) {
+    const LensOffset o = ClampedOffset(o_in);
+    const float v = horizontal ? o.right_deg : o.up_deg;
+    if (v == 0.0f) {
+        return "Offset Centred";
+    }
+    const char* dir = horizontal ? (v > 0.0f ? "Right" : "Left") : (v > 0.0f ? "Up" : "Down");
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "Offset %s %.1f\xC2\xB0", dir, std::abs(v));
+    return buf;
+}
+
 HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
-                           const ViewFov& view, float eye_shift, const Options& options) {
+                           const ViewFov& view, float eye_shift, const Options& options,
+                           const LensOffset& offset_in) {
     const Placement p = Clamped(placement);
     const float squeeze = std::clamp(options.squeeze, 0.0f, 0.5f);
     HeadLocked s;
@@ -158,6 +190,10 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     s.tan_half_y = wanted;
     s.gain = std::clamp(s.factor * t / wanted, kMinGain, kMaxGain);
     s.gain_x = std::clamp(s.gain / (1.0f - squeeze), kMinGain, kMaxGain);
+    // The Immersive Offset last: it turns the screen fitted above, never resizes it.
+    const LensOffset offset = ClampedOffset(offset_in);
+    s.pitch_rad += offset.up_deg * kDegToRad;
+    s.yaw_rad = -offset.right_deg * kDegToRad;
     return s;
 }
 
@@ -213,27 +249,39 @@ Quatf ScaleYawPitch(const Quatf& q_in, float yaw_gain, float pitch_gain) {
         Input::Multiply(about_y(yaw * yaw_gain), PitchRotation(pitch * pitch_gain)), roll));
 }
 
+namespace {
+Quatf YawPitch(float yaw_rad, float pitch_rad) {
+    const Quatf yaw{0.0f, std::sin(yaw_rad / 2.0f), 0.0f, std::cos(yaw_rad / 2.0f)};
+    return Input::Normalized(Input::Multiply(yaw, PitchRotation(pitch_rad)));
+}
+} // namespace
+
+Quatf QuadRotation(const HeadLocked& solved) {
+    return YawPitch(solved.yaw_rad, solved.pitch_rad);
+}
+
 Quatf GameCameraRotation(const Quatf& head_rel, const HeadLocked& solved) {
     return Input::Normalized(Input::Multiply(ScaleYawPitch(head_rel, solved.gain_x, solved.gain),
-                                             PitchRotation(solved.pitch_rad)));
+                                             QuadRotation(solved)));
 }
 
 Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x) {
-    const Quatf q = PitchRotation(solved.pitch_rad);
+    const Quatf q = QuadRotation(solved);
     return {q, Vec3f{eye_x, 0.0f, 0.0f} + Input::Rotate(q, Vec3f{0.0f, 0.0f, -solved.distance})};
 }
 
-Posef WideQuadPose(const Posef& rest, float pitch_rad, float distance) {
-    const Quatf q = PitchRotation(pitch_rad);
+Posef WideQuadPose(const Posef& rest, float pitch_rad, float distance, float yaw_rad) {
+    const Quatf q = YawPitch(yaw_rad, pitch_rad);
     return Compose(rest, {q, Input::Rotate(q, Vec3f{0.0f, 0.0f, -distance})});
 }
 
-BottomQuad WideBottomQuad(const Posef& rest, float wide_pitch_rad, float wide_distance) {
+BottomQuad WideBottomQuad(const Posef& rest, float wide_pitch_rad, float wide_distance,
+                          float yaw_rad) {
     const float normal_distance = std::hypot(kNormalBottomY, kNormalBottomZ);
     const float below = std::atan2(kNormalBottomY, -kNormalBottomZ); // -26.6 degrees
     const float d = kWideBottomNearer * wide_distance;
     BottomQuad b;
-    b.pose = WideQuadPose(rest, wide_pitch_rad + below, d);
+    b.pose = WideQuadPose(rest, wide_pitch_rad + below, d, yaw_rad);
     b.width = kNormalBottomWidth * d / normal_distance;
     b.height = kNormalBottomHeight * d / normal_distance;
     return b;

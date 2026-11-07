@@ -116,12 +116,21 @@ game.
 - One drag at a time. A trigger (ZL/ZR or touch) works during a drag.
 - While dragging, that hand's stick Y moves the screens nearer or further (full deflection is
   3 m/s, away = stick up, never nearer than 1 m, never further than 10 m, ignored below 0.5
-  deflection). That hand's stick does not reach the game while the drag lasts; the other hand's
-  does.
+  deflection), and its stick X makes them bigger (right) or smaller (`top_scale_stick`; the scale
+  changes by e^(0.5 x seconds) at full deflection, 0.5 to 3 times; above 1 the games get the 3D
+  depth setting divided by it, `ScreenRig::DepthScale`, `common/frame_vr_depth.h`). That hand's stick does not
+  reach the game while the drag lasts; the other hand's does.
+- While dragging, the D-pad turns the pair 0.5 degrees per press about the head (same distance,
+  turned to face you; held: again after 0.4 s, then every 0.1 s; at most 60 degrees from straight
+  ahead and never nearer than 1 m ahead) and a "Moved Right" (etc.) toast shows for 2 s. The
+  D-pad does not reach the game during the drag, nor a direction pressed then until it is let go.
+  The mapper takes the grab point again from the moved screens (`Mapper::ReanchorDrag`), so the
+  hand carries on from there. `input/screen_rig.h`.
 - Horizontal lock is on by default as in CitraVR: dragging never moves the screens sideways (the
-  target's x is zeroed). `MapperConfig::horizontal_lock`.
-- The top screen goes no nearer than 1 m (`kNearestTopZ` in `controls.cpp`) and no further than
-  10 m. The bottom screen follows it: 0.75 m lower, 0.5 m nearer, tilted back 45 degrees.
+  target keeps the top screen's x: 0 unless the D-pad moved it). `MapperConfig::horizontal_lock`.
+- The top screen goes no nearer than 1 m (`ScreenRig::kNearestTopZ`) and no further than 10 m.
+  The bottom screen follows it, 0.5 m nearer, tilted back 45 degrees, 0.25 m under the top
+  screen's bottom edge (0.75 m below its middle at size 1). It keeps its own size.
 - A drag is refused (the screens stay) when the target is nearer than 1 m.
 
 **Bottom screen toggle.** In games that hide the bottom screen on their own (the per-game Hide

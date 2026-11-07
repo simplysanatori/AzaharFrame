@@ -11,14 +11,20 @@
 //    The messages are drawn once into one swapchain when the session is made, so showing
 //    one needs no GPU work (the XR thread does none while a game runs).
 //    "Fast Forward" and "Normal Speed" are toasts too (fast forward turned on or off).
+//    AzaharFrame vrsize: a toast of any text ("Offset Right 1.5°", ShowToastText) is drawn into
+//    one of two spare rows of the atlas when asked for, and the swapchain copy never waits for
+//    the GPU (vis/async_overlay.h); it shows once that copy is done, until then the toast before.
 
 #pragma once
 
 #include <atomic>
+#include <mutex>
+#include <string>
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
-#include "frame_xr/overlays.h"
+#include "frame_xr/ui/ui_canvas.h"
+#include "frame_xr/vis/async_overlay.h"
 
 namespace FrameXr {
 
@@ -42,18 +48,26 @@ public:
 
     /// Any thread.
     void ShowToast(Toast kind);
+    /// Any thread. One line of UTF-8; "°" is drawn as a small ring (the font has none).
+    void ShowToastText(const std::string& text);
     /// XR thread, each frame: the toast quad while one shows. `time` is the display time.
     bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad);
 
 private:
-    OverlayUploader uploader;
-    OverlayChain toast_chain; ///< the toasts and the passthrough layer's transparent square
+    /// The toasts and the passthrough layer's transparent square.
+    Vis::AsyncOverlay toast_chain;
+    frame_xr::ui::Canvas atlas; ///< its pixels (the text rows are redrawn)
     bool logged_unsupported = false;
 
     std::atomic<int> toast_kind{-1}; ///< a request not yet taken by the XR thread
-    int shown_kind = -1;
+    int shown_kind = -1; ///< the atlas row on view, -1 none
     XrTime shown_since = 0;
     XrPosef shown_pose{{0, 0, 0, 1}, {0, 0, 0}};
+
+    std::mutex text_mutex;
+    std::string text_request; ///< ShowToastText not yet taken (text_requested)
+    bool text_requested = false;
+    int text_row_waiting = -1; ///< a text row uploaded, shown once the copy is done
 };
 
 } // namespace FrameXr
