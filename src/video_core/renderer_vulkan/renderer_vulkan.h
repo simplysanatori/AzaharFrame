@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <chrono> // AzaharFrame
 #include "common/common_types.h"
 #include "common/math_util.h"
 #include "video_core/renderer_base.h"
@@ -105,7 +106,8 @@ private:
     void RenderToWindow(PresentWindow& window, const Layout::FramebufferLayout& layout,
                         bool flipped);
 #ifndef HAVE_LIBRETRO
-    void RenderToXr(); // AzaharFrame: renderer_vulkan_xr.cpp
+    bool RenderToXr(); // AzaharFrame: renderer_vulkan_xr.cpp; true: drew and submitted
+    bool XrShowsScreens() const; // AzaharFrame: the headset shows the screens (no window)
 #endif
 
     void DrawScreens(Frame* frame, const Layout::FramebufferLayout& layout, bool flipped);
@@ -168,6 +170,8 @@ private:
     u64 previous_frame_tick{};
 #ifndef HAVE_LIBRETRO
     std::unique_ptr<XrPresentTarget> xr_target; // AzaharFrame
+    u64 xr_target_generation = 0;               // AzaharFrame: of the swapchains it uses
+    std::chrono::steady_clock::time_point xr_window_alive{}; // AzaharFrame: last window present in VR
 #endif
 };
 

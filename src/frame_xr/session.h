@@ -5,6 +5,12 @@
 // Internal: the state behind frame_xr.h. session.cpp makes and destroys the
 // instance, session, spaces and the screen swapchains (VideoCore::XrScreenSink);
 // app.cpp runs the frame loop thread and the public extension points.
+//
+// VR <-> flat: the instance and the Vulkan device live for the whole run; the session (with
+// its spaces, swapchains and the UI's actions and overlay chains) is made by CreateSession and
+// ended by DestroySession, both on the XR thread once it runs. `chains_mutex` keeps the renderer's
+// swapchain calls out while DestroySession destroys the swapchains, and `generation` tells
+// the renderer to drop what it made of their images.
 
 #pragma once
 
@@ -14,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
 
 #include "frame_xr/frame_xr.h"
@@ -67,6 +74,10 @@ struct Stats {
     std::atomic<uint32_t> emu_frames{0};
     std::atomic<uint64_t> emu_frame_us_sum{0};
     std::atomic<uint32_t> emu_frame_us_max{0};
+    // The desktop window drawn and presented (once a second in VR; every game frame in flat).
+    std::atomic<uint32_t> window_presents{0};
+    std::atomic<uint64_t> window_us_sum{0};
+    std::atomic<uint32_t> window_us_max{0};
 };
 
 class VrUi;
@@ -77,7 +88,13 @@ public:
     ~Runtime() override;
 
     // session.cpp
-    bool Create(const StartOptions& options);
+    /// The instance, the system and the Vulkan device (once per run).
+    bool CreateInstance(const StartOptions& options);
+    /// A session with its spaces and the UI's XR parts. False: none (all undone).
+    bool CreateSession();
+    /// Ends what CreateSession made; the instance and device stay. XR thread (or no thread).
+    void DestroySession();
+    /// Everything.
     void Destroy();
     bool HasExtension(const char* name) const;
 
@@ -92,6 +109,8 @@ public:
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
     void NoteLateRelease(VideoCore::XrScreen screen) override;
+    uint64_t SwapchainGeneration() const override;
+    void NoteWindowPresent(uint32_t cpu_us) override;
 
     // app.cpp
     void StartThread();
@@ -120,7 +139,16 @@ public:
     // Session state (XR thread writes, others read).
     std::atomic<XrSessionState> state{XR_SESSION_STATE_UNKNOWN};
     std::atomic<bool> running{false}; ///< between xrBeginSession and xrEndSession
-    std::atomic<bool> lost{false};    ///< exiting / loss pending / instance lost
+    std::atomic<bool> lost{false};    ///< the instance is lost (the frame loop ends)
+    std::atomic<bool> session_ended{false}; ///< EXITING / LOSS_PENDING: DestroySession next
+    std::atomic<bool> detaching{false};     ///< the session is being ended: no new XR images
+
+    // VR <-> flat.
+    std::atomic<bool> want_vr{true};
+    std::atomic<bool> has_session{false}; ///< `session` is valid (read from other threads)
+    std::atomic<bool> loop_alive{false};
+    std::atomic<uint64_t> generation{1};
+    std::shared_mutex chains_mutex; ///< shared: renderer swapchain calls; unique: DestroySession
 
     // Extension points (app.cpp).
     std::mutex callbacks_mutex;
@@ -136,6 +164,8 @@ public:
 
 private:
     void FrameLoop();
+    void FlatStep(double& log_seconds);
+    void LogFlatSummary(double seconds);
     bool PollEvents();
     void OnState(XrSessionState new_state);
     void LocateViews(XrTime time);

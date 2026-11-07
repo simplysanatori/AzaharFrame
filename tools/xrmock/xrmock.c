@@ -33,7 +33,11 @@
 //   MOCK_XR_DUMP_DIR=<dir>    write swapchain images as PNG into this dir
 //   MOCK_XR_DUMP_FRAME=<n|last>  the first image of each swapchain released at
 //                             or after frame n, or (default) the last image
-//                             released, written when the session ends
+//                             released, written when the session ends; a
+//                             comma list n1,n2,... dumps once after each
+//   MOCK_XR_DUMP_SHOWN=t1,t2,...  at the first endFrame at or after each time
+//                             (s since the session began), the image each
+//                             submitted quad shows
 //
 // Checks (ERROR lines in the trace, and a summary on stderr when the session
 // ends): acquire / wait / release order per swapchain; frame call order; a
@@ -133,6 +137,10 @@ static XrQuaternionf qyawpitch(float yawDeg, float pitchDeg) {
 
 static int gSway = 1;
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
+// Sessions begun so far. A later session (an app that ended its session and made a new one)
+// keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
+// first xrBeginSession; the refresh count is resynced (gResync) at its first xrWaitFrame.
+static int gSessionsBegun = 0, gResync = 0;
 
 // The head: 1.6 m up, turning about the vertical axis.
 static XrPosef headAt(XrTime t) {
@@ -482,7 +490,19 @@ static XrResult XRAPI_CALL mDestroyHandle(uint64_t h) {
     (void)h;
     return XR_SUCCESS;
 }
-static XrResult XRAPI_CALL mDestroyActionSet(XrActionSet h) { return mDestroyHandle((uint64_t)(uintptr_t)h); }
+// The app has one action set: destroying it frees its action names and bindings, so a new
+// session can make, suggest and attach them again (as a runtime does).
+static XrResult XRAPI_CALL mDestroyActionSet(XrActionSet h) {
+    LOCK();
+    gActCount = 0;
+    gBindCount = 0;
+    memset(gProfileSuggested, 0, sizeof(gProfileSuggested));
+    gAttached = 0;
+    gProfile = -1;
+    trace("destroyActionSet");
+    UNLOCK();
+    return mDestroyHandle((uint64_t)(uintptr_t)h);
+}
 static XrResult XRAPI_CALL mDestroyAction(XrAction h) { return mDestroyHandle((uint64_t)(uintptr_t)h); }
 
 static XrResult XRAPI_CALL mStringToPath(XrInstance i, const char* s, XrPath* p) {
@@ -736,6 +756,8 @@ static XrResult XRAPI_CALL mCreateSession(XrInstance i, const XrSessionCreateInf
         mock_error("createSession: no graphics binding the mock knows");
         return XR_ERROR_GRAPHICS_DEVICE_INVALID;
     }
+    static int sessions = 0;
+    if (sessions++ > 0) trace("createSession again (%d)", sessions);
     *out = (XrSession)(uintptr_t)2;
     pushState(XR_SESSION_STATE_IDLE);
     pushState(XR_SESSION_STATE_READY);
@@ -858,7 +880,7 @@ typedef struct {
     int live;
     long releases;    // total
     int lastRel;      // index of the image released last (-1: none)
-    int dumped;
+    int dumped;       // how many of gDumpFrames were dumped
 } Chain;
 static Chain gChains[MAXSC];
 static int gChainCount = 0;
@@ -975,6 +997,14 @@ static void secTick(void) {
 
 static const char* gDumpDir = NULL;
 static int gDumpFrame = -1;  // -1: the last image of each swapchain, at the end
+#define MAXDUMPS 64
+static int gDumpFrames[MAXDUMPS];  // ascending; gDumpFrame = gDumpFrames[0]
+static int gDumpCount = 0;
+// MOCK_XR_DUMP_SHOWN=t1,t2,...: at the first xrEndFrame at or after each time (seconds
+// since the session began), the image each submitted quad shows (its last released
+// one), as sc<id>_shown_f<frame>.png.
+static double gShownTimes[MAXDUMPS];
+static int gShownCount = 0, gShownNext = 0;
 
 static uint32_t crcTab[256];
 static uint32_t crc32(uint32_t crc, const uint8_t* p, size_t n) {
@@ -1158,11 +1188,11 @@ static XrResult XRAPI_CALL mRelease(XrSwapchain sc, const XrSwapchainImageReleas
         }
     }
     int idx = ((c->next - c->acquired) % c->count + c->count) % c->count;
-    if (gDumpDir && gDumpFrame >= 0 && gFrame >= gDumpFrame && !c->dumped) {
+    if (gDumpDir && gDumpFrame >= 0 && c->dumped < gDumpCount && gFrame >= gDumpFrames[c->dumped]) {
         char tag[32];
         snprintf(tag, sizeof(tag), "f%d", gFrame);
         dumpImage(chainId(sc), idx, tag);
-        c->dumped = 1;
+        while (c->dumped < gDumpCount && gFrame >= gDumpFrames[c->dumped]) c->dumped++;
     }
     c->acquired--;
     c->waited--;
@@ -1181,15 +1211,19 @@ static XrResult XRAPI_CALL mBeginSession(XrSession s, const XrSessionBeginInfo* 
     (void)s;
     (void)bi;
     LOCK();
-    gT0 = nowNs();
     secReset();
-    const char* secs = getenv("MOCK_XR_SECONDS");
-    double limit = secs ? atof(secs) : 20.0;  // 0: no limit
-    gEndAt = limit > 0 ? gT0 + (int64_t)(limit * 1e9) : 0;
+    if (gSessionsBegun++ == 0) {
+        gT0 = nowNs();
+        const char* secs = getenv("MOCK_XR_SECONDS");
+        double limit = secs ? atof(secs) : 20.0;  // 0: no limit
+        gEndAt = limit > 0 ? gT0 + (int64_t)(limit * 1e9) : 0;
+    } else {
+        gResync = 1;
+    }
     pushState(XR_SESSION_STATE_SYNCHRONIZED);
     pushState(XR_SESSION_STATE_VISIBLE);
     pushState(XR_SESSION_STATE_FOCUSED);
-    trace("beginSession");
+    trace("beginSession %d at %.2f s", gSessionsBegun, (double)(nowNs() - gT0) / 1e9);
     UNLOCK();
     return XR_SUCCESS;
 }
@@ -1266,7 +1300,8 @@ static XrResult XRAPI_CALL mWaitFrame(XrSession s, const XrFrameWaitInfo* wi, Xr
     static int skip = -1;
     if (skip < 0) skip = getenv("MOCK_XR_SKIP") != NULL;
     LOCK();
-    if (skip && gT0 && now > gT0 + (int64_t)gWaits * gPeriod + gPeriod / 2) {
+    if (gResync || (skip && gT0 && now > gT0 + (int64_t)gWaits * gPeriod + gPeriod / 2)) {
+        gResync = 0;
         gWaits = (int)((now - gT0) / gPeriod) + 1;
     }
     int64_t wake = gT0 + (int64_t)gWaits * gPeriod;
@@ -1326,6 +1361,8 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     }
     gBegun = 0;
     int quads = 0, projs = 0;
+    int shown[32];
+    int nshown = 0;
     XrResult res = XR_SUCCESS;
     for (uint32_t i = 0; i < ei->layerCount; i++) {
         const XrCompositionLayerBaseHeader* l = ei->layers[i];
@@ -1348,6 +1385,11 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
         } else if (l->type == XR_TYPE_COMPOSITION_LAYER_QUAD) {
             const XrCompositionLayerQuad* q = (const XrCompositionLayerQuad*)l;
             quads++;
+            if (nshown < 32 && chainOf(q->subImage.swapchain)) {
+                int id = chainId(q->subImage.swapchain), dup = 0;
+                for (int k = 0; k < nshown; k++) dup |= shown[k] == id;
+                if (!dup) shown[nshown++] = id;
+            }
             Chain* c = chainOf(q->subImage.swapchain);
             Space* sp = spaceOf(q->space);
             if (!c) {
@@ -1394,6 +1436,16 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     if ((int)ei->layerCount < gSec.layersMin) gSec.layersMin = (int)ei->layerCount;
     if ((int)ei->layerCount > gSec.layersMax) gSec.layersMax = (int)ei->layerCount;
     trace("endFrame layers=%u%s", ei->layerCount, buf);
+    const double since = (nowNs() - gT0) * 1e-9;
+    if (gDumpDir && gShownNext < gShownCount && since >= gShownTimes[gShownNext]) {
+        trace("shown f%d t=%.2f: %d quad swapchains", gFrame, since, nshown);
+        for (int k = 0; k < nshown; k++) {
+            char tag[32];
+            snprintf(tag, sizeof(tag), "shown_f%d", gFrame);
+            dumpImage(shown[k], gChains[shown[k]].lastRel, tag);
+        }
+        while (gShownNext < gShownCount && since >= gShownTimes[gShownNext]) gShownNext++;
+    }
     secTick();
     UNLOCK();
     return res;
@@ -1529,7 +1581,24 @@ static void init(void) {
     if (gDumpDir) {
         mkdir(gDumpDir, 0755);
         const char* df = getenv("MOCK_XR_DUMP_FRAME");
-        if (df && strcmp(df, "last")) gDumpFrame = atoi(df);
+        if (df && strcmp(df, "last")) {
+            char* copy = strdup(df);
+            for (char* tok = strtok(copy, ","); tok && gDumpCount < MAXDUMPS; tok = strtok(NULL, ",")) {
+                int n = atoi(tok);
+                if (gDumpCount == 0 || n > gDumpFrames[gDumpCount - 1]) gDumpFrames[gDumpCount++] = n;
+            }
+            free(copy);
+            if (gDumpCount > 0) gDumpFrame = gDumpFrames[0];
+        }
+    }
+    const char* shownList = getenv("MOCK_XR_DUMP_SHOWN");
+    if (gDumpDir && shownList) {
+        char* copy = strdup(shownList);
+        for (char* tok = strtok(copy, ","); tok && gShownCount < MAXDUMPS; tok = strtok(NULL, ",")) {
+            double t = atof(tok);
+            if (gShownCount == 0 || t > gShownTimes[gShownCount - 1]) gShownTimes[gShownCount++] = t;
+        }
+        free(copy);
     }
     const char* script = getenv("MOCK_XR_INPUT_SCRIPT");
     if (script) loadScript(script);

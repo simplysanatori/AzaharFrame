@@ -17,6 +17,7 @@
 
 #include <fmt/format.h>
 #include "common/logging/log.h"
+#include "common/frame_flat.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
@@ -120,6 +121,7 @@ void SetScreenPlacement(const ScreenPlacement& placement) {
 
 void Runtime::StartThread() {
     stop = false;
+    loop_alive = true; // SetVr works from now on
     thread = std::thread([this] { FrameLoop(); });
 }
 
@@ -156,8 +158,10 @@ void Runtime::OnState(XrSessionState new_state) {
     }
     case XR_SESSION_STATE_EXITING:
     case XR_SESSION_STATE_LOSS_PENDING:
+        // The session is over (asked for, or the runtime ended it): the frame loop destroys it
+        // and carries on flat. The instance stays.
         running = false;
-        lost = true;
+        session_ended = true;
         break;
     default:
         break;
@@ -251,6 +255,9 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     const uint32_t emu_frames = take(stats.emu_frames);
     const uint64_t emu_sum_us = stats.emu_frame_us_sum.exchange(0);
     const uint32_t emu_max_us = take(stats.emu_frame_us_max);
+    const uint32_t window_presents = take(stats.window_presents);
+    stats.window_us_sum.exchange(0);
+    take(stats.window_us_max);
     const std::string emu =
         emu_frames ? fmt::format("emu frame {:.1f} ms avg ({:.1f} max)",
                                  emu_sum_us / 1000.0 / emu_frames, emu_max_us / 1000.0)
@@ -258,10 +265,38 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     LOG_INFO(Frontend,
              "xr: {:.1f}s display {} frames, waitFrame period {:.2f} ms (max {:.2f}), releases "
              "TL/TR/B {}/{}/{}, late {}/{}/{}, before GPU done {}/{}/{}, acquire timeouts {}, "
-             "endFrame errors {}, state {}, screens {}, {}",
+             "endFrame errors {}, state {}, screens {}, {}, window presents {}",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
-             StateName(state.load()), screens_live.load() ? "live" : "off", emu);
+             StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents);
+}
+
+void Runtime::LogFlatSummary(double seconds) {
+    const auto take = [](std::atomic<uint32_t>& a) { return a.exchange(0); };
+    const uint32_t presents = take(stats.window_presents);
+    const uint64_t us_sum = stats.window_us_sum.exchange(0);
+    const uint32_t us_max = take(stats.window_us_max);
+    LOG_INFO(Frontend,
+             "xr: flat {:.1f}s, window presents {} ({:.2f} ms avg, {:.2f} max on the emu thread), "
+             "screens {}",
+             seconds, presents, presents ? us_sum / 1000.0 / presents : 0.0, us_max / 1000.0,
+             screens_live.load() ? "live" : "off");
+}
+
+// Flat: no session. The gamepad (FlatFrame) about 120 times a second, a line a second.
+void Runtime::FlatStep(double& log_seconds) {
+    constexpr auto kPeriod = std::chrono::milliseconds(8);
+    const auto now = Clock::now();
+    if (ui) {
+        ui->FlatFrame(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch())
+                          .count());
+    }
+    log_seconds += std::chrono::duration<double>(kPeriod).count();
+    if (log_seconds >= 1.0) {
+        LogFlatSummary(log_seconds);
+        log_seconds = 0.0;
+    }
+    std::this_thread::sleep_for(kPeriod);
 }
 
 void Runtime::FrameLoop() {
@@ -273,6 +308,7 @@ void Runtime::FrameLoop() {
     uint32_t wait_count = 0;
     bool exit_requested = false;
     auto exit_deadline = Clock::time_point::max();
+    double flat_seconds = 0.0;
     std::vector<XrCompositionLayerQuad> quad_layers;
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
@@ -281,26 +317,71 @@ void Runtime::FrameLoop() {
         if (!PollEvents() || lost) {
             break;
         }
-        if (stop && !exit_requested) {
-            // Shutdown: let the runtime take the session through STOPPING
-            // (xrEndSession) and EXITING, so it ends cleanly.
-            exit_requested = true;
-            exit_deadline = Clock::now() + std::chrono::seconds(3);
-            if (running) {
-                const XrResult r = xr.xrRequestExitSession(session);
-                if (XR_FAILED(r)) {
-                    LOG_ERROR(Frontend, "xr: xrRequestExitSession: {}", ResultName(r));
-                    break;
-                }
-            } else {
+
+        // ---- Flat: no session ----
+        if (!session) {
+            if (stop) {
                 break;
             }
+            if (want_vr) {
+                LOG_INFO(Frontend, "xr: VR again: making a session");
+                const bool made = CreateSession();
+                if (!made) {
+                    LOG_ERROR(Frontend, "xr: no session, staying flat");
+                    want_vr = false;
+                }
+                if (ui) {
+                    ui->NotifyVr(made);
+                }
+                last_wait = Clock::time_point{};
+                last_log = Clock::now();
+                continue;
+            }
+            FlatStep(flat_seconds);
+            continue;
         }
-        if (exit_requested && (!running || Clock::now() > exit_deadline)) {
+
+        // ---- Ending the session: shutdown, or flat asked for ----
+        const bool end_wanted = stop || !want_vr;
+        if (end_wanted && !exit_requested) {
+            // Let the runtime take the session through STOPPING (xrEndSession) and EXITING, so
+            // it ends cleanly. From here the renderer starts no new swapchain image.
+            exit_requested = true;
+            detaching = true;
+            exit_deadline = Clock::now() + std::chrono::seconds(3);
+            LOG_INFO(Frontend, "xr: ending the session ({})", stop ? "shutdown" : "flat");
             if (running) {
+                const XrResult r = xr.xrRequestExitSession(session);
+                LOG_INFO(Frontend, "xr: xrRequestExitSession: {}", ResultName(r));
+                if (XR_FAILED(r)) {
+                    exit_deadline = Clock::now(); // destroy it right away
+                }
+            } else {
+                exit_deadline = Clock::now(); // not begun (idle): nothing to end first
+            }
+        }
+        const bool timed_out = exit_requested && Clock::now() >= exit_deadline;
+        if (session_ended || timed_out) {
+            if (timed_out && !session_ended && running) {
                 LOG_WARNING(Frontend, "xr: the runtime did not end the session in time");
             }
-            break;
+            const bool asked = exit_requested;
+            exit_requested = false;
+            exit_deadline = Clock::time_point::max();
+            DestroySession();
+            if (stop) {
+                break;
+            }
+            if (!asked) {
+                // SteamVR ended it (quit from its dashboard, the headset gone): carry on flat.
+                LOG_WARNING(Frontend, "xr: the runtime ended the session; flat now");
+                want_vr = false;
+            }
+            flat_seconds = 0.0;
+            if (ui) {
+                ui->NotifyVr(false);
+            }
+            continue;
         }
         if (!running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -442,6 +523,7 @@ void Runtime::FrameLoop() {
         }
     }
     running = false;
+    loop_alive = false;
     LOG_INFO(Frontend, "xr: frame loop ended (state {})", StateName(state.load()));
 }
 
@@ -452,9 +534,18 @@ bool Start(const StartOptions& options) {
         return true;
     }
     auto rt = std::make_unique<Runtime>();
-    if (!rt->Create(options)) {
-        LOG_ERROR(Frontend, "xr: no VR session; running flat");
+    if (!rt->CreateInstance(options)) {
+        LOG_ERROR(Frontend, "xr: no XR instance; running flat");
         return false;
+    }
+    if (options.vr && !rt->CreateSession()) {
+        LOG_ERROR(Frontend, "xr: no VR session now; flat (the VR / flat chord tries again)");
+        rt->want_vr = false;
+    } else if (!options.vr) {
+        LOG_INFO(Frontend, "xr: starting flat (instance and device made, no session)");
+    }
+    if (!rt->has_session) {
+        Settings::frame_flat_mono = true; // games draw one eye for the window
     }
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
@@ -474,6 +565,7 @@ void Shutdown() {
     Immersive::Uninstall(); // AzaharFrame immersive mode
     g_runtime->Destroy();
     g_runtime.reset();
+    Settings::frame_flat_mono = false;
 }
 
 bool IsStarted() {
@@ -482,6 +574,33 @@ bool IsStarted() {
 
 bool HasExtension(const char* name) {
     return g_runtime && g_runtime->HasExtension(name);
+}
+
+bool SetVr(bool vr) {
+    auto* rt = GetRuntime();
+    if (!rt || !rt->loop_alive) {
+        return false;
+    }
+    if (rt->want_vr.exchange(vr) != vr) {
+        LOG_INFO(Frontend, "xr: {} asked for", vr ? "VR" : "flat");
+    }
+    return true;
+}
+
+bool WantsVr() {
+    auto* rt = GetRuntime();
+    return rt && rt->want_vr;
+}
+
+bool VrShowing() {
+    auto* rt = GetRuntime();
+    return rt && rt->loop_alive && rt->has_session;
+}
+
+void SetFlatInput(FlatInputSource source) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetFlatInput(std::move(source));
+    }
 }
 
 int AddFrameCallback(FrameCallback callback) {
@@ -576,6 +695,24 @@ void SetGameRunning(bool running) {
 void SetLibraryDirs(const std::vector<LibraryDir>& dirs) {
     if (auto* rt = GetRuntime(); rt && rt->ui) {
         rt->ui->SetLibraryDirs(dirs);
+    }
+}
+
+void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetHomePanel(std::move(on_event));
+    }
+}
+
+void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetHomePanelImage(std::move(image));
+    }
+}
+
+void SetInGameMenu(bool open) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetInGameMenu(open);
     }
 }
 

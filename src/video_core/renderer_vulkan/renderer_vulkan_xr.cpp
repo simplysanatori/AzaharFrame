@@ -38,10 +38,10 @@ std::array<f32, 4 * 4> Orthographic(u32 width, u32 height) {
 
 } // Anonymous namespace
 
-void RendererVulkan::RenderToXr() {
+bool RendererVulkan::RenderToXr() {
     VideoCore::XrScreenSink* sink = VideoCore::GetXrScreenSink();
     if (!sink || !sink->IsActive()) {
-        return;
+        return false;
     }
     if (!UsesXrDevice(instance)) {
         // The swapchain images belong to the runtime's device; never draw into them
@@ -50,9 +50,15 @@ void RendererVulkan::RenderToXr() {
         if (!std::exchange(logged, true)) {
             LOG_ERROR(Render_Vulkan, "xr: the renderer is not on the XR device, no XR screens");
         }
-        return;
+        return false;
+    }
+    if (xr_target && xr_target_generation != sink->SwapchainGeneration()) {
+        // The session ended and a new one made new swapchains (VR -> flat -> VR): what was
+        // made of the old images goes (after its releases drained, in the destructor).
+        xr_target.reset();
     }
     if (!xr_target) {
+        xr_target_generation = sink->SwapchainGeneration();
         xr_target = std::make_unique<XrPresentTarget>(instance, scheduler, *sink,
                                                       present_vertex_shader,
                                                       *present_pipeline_layout);
@@ -65,7 +71,7 @@ void RendererVulkan::RenderToXr() {
         vk::Extent2D{kBottomWidth * scale, kScreenHeight * scale},
     };
     if (!xr_target->Prepare(sizes)) {
-        return;
+        return false;
     }
 
     const auto sampler = present_samplers[!Settings::values.filter_mode.GetValue()];
@@ -123,12 +129,13 @@ void RendererVulkan::RenderToXr() {
         scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
     }
     if (!any) {
-        return;
+        return false;
     }
     // The tick this submission signals (Scheduler::SubmitExecution).
     const u64 tick = scheduler.CurrentTick();
     scheduler.Flush();
     xr_target->QueueRelease(tick);
+    return true;
 }
 
 } // namespace Vulkan

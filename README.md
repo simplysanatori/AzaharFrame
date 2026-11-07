@@ -30,8 +30,8 @@ Compared with CitraVR on the Quest:
 - It runs as a Linux program on the Frame. There is no Lepton, APK, adb or PC.
 - It draws with Vulkan into SteamVR through OpenXR.
 - It uses the Steam Frame controllers, with the real D-pad where CitraVR needed a trick.
-- It has a game picker in VR, with the icons and titles from your folders.
-- Azahar's own settings window is on the SteamVR dashboard.
+- Azahar's own window is in VR, with the game list, menus and settings, and the laser is the mouse.
+- Holding **Menu** pauses the game and opens that window over it.
 - Immersive mode runs on SteamVR.
 
 Compared with Azahar on a PC:
@@ -87,19 +87,17 @@ steam-frame/uninstall.sh
 
 ## First run
 
-The picker is empty the first time.
+The game list is empty the first time.
 
-1. Open the **Azahar for Frame** window on the SteamVR dashboard.
-2. Double-click the empty game list and select your game folder. The picker in VR lists it at once.
-3. Point at a game in the picker and pull the trigger (or press **A**).
-
-Point at **Rescan** after you copy new games into a folder.
+1. Azahar's window floats in front of you. Point at the empty game list and double-click it with the trigger (or **A**).
+2. Select your game folder.
+3. Double-click a game to start it.
 
 <!-- VERIFY: steps 1 to 3 -->
 
 ### Games
 
-Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.3ds`, `.cci`, `.cxi`, `.app` and `.3dsx` files, and the compressed `.zcci`, `.zcxi` and `.z3dsx` ones. A `.cia` is installed first, from **File > Install CIA...** in the Azahar window; it then appears in the picker with your other games.
+Put your games in `~/Documents/Roms/3ds/`, or any folder you like. It plays `.3ds`, `.cci`, `.cxi`, `.app` and `.3dsx` files, and the compressed `.zcci`, `.zcxi` and `.z3dsx` ones. A `.cia` is installed first, from **File > Install CIA...** in the Azahar window; it then appears in the game list with your other games.
 
 - Decrypted dumps work as they are.
 - Encrypted dumps need `aes_keys.txt` from your own console in `~/.local/share/AzaharFrame/user/sysdata/`.
@@ -125,13 +123,22 @@ Custom textures are on from the first launch, and they load in the background wh
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
 | Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther |
-| **Menu** (right controller) | Start |
-| **View** (left controller) | Select. Hold for 1.5 seconds to go back to the picker |
+| **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
+| **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
 | Left stick click | Home |
 | Right stick click | Reset the screen positions |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
+| Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
 
-In the picker the trigger or **A** selects, **B** and the sticks turn the pages.
+On Azahar's window and in the in-game menu:
+
+| Frame | Window |
+|---|---|
+| Trigger or **A** | Left click |
+| Right stick click | Right click. Hold for 1 second to bring the window back in front of you |
+| **B** | Back. In the in-game menu with nothing open, back to the game |
+| Grip | Move the window |
+| Stick up and down | Scroll |
 
 All controls: [docs/CONTROLS.md](docs/CONTROLS.md).
 
@@ -179,7 +186,7 @@ Keep other heavy work off the Frame while you play.
 | Program and launcher | `~/Games/AzaharFrame/app` |
 | Steam library art and icons | `~/Games/AzaharFrame/app/art` |
 | Dock icon files | `~/.local/share/applications/azaharframe.desktop`, `azaharframe.png` and `azahar.png` in `~/.local/share/icons/hicolor`, `azaharframe.vrmanifest` in the program folder |
-| Icon cache of the picker | `~/.cache/azaharframe/icons` |
+| Icon cache of the old VR picker (`AZAHARFRAME_VR_PICKER=1`) | `~/.cache/azaharframe/icons` |
 | Settings, saves, keys, shader caches | `~/.local/share/AzaharFrame/user` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
@@ -192,7 +199,7 @@ How the port works: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 - **Steam's debugging port is not reachable.** Start Steam and run `install.sh` again.
 - **SteamVR's dock shows a question mark instead of the flower.** Steam reads the icon when it starts. Restart Steam once.
 - **The screens do not appear in the headset.** Start SteamVR first, then Azahar for Frame. `launch.log` says which OpenXR runtime it found, and the emulator log says `running flat` when it could not start VR.
-- **The picker says No Game Folders Set.** Add a folder in the Azahar window, then select **Rescan**.
+- **A game in a subfolder is not in the list.** Right-click the game folder in the list (right stick click) and tick **Scan Subfolders**.
 - **The Azahar window is too small on the dashboard.** Add `QT_SCALE_FACTOR=1.25` to `session.env`.
 - **An encrypted game does not start.** It needs `aes_keys.txt` in `user/sysdata/`.
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.

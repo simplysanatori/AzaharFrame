@@ -2,10 +2,10 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// Azahar for Frame's OpenXR frontend: one XrInstance, Vulkan device and XrSession for
-// the whole run of citra_qt --vr, a frame loop thread at display rate that shows
-// the game's three screens as quad layers, and the extension points the input,
-// picker and immersive code build on.
+// Azahar for Frame's OpenXR frontend: one XrInstance and Vulkan device for the whole run of
+// citra_qt --vr / --flat, an XrSession while in VR (ended for flat, made again for VR), a frame
+// loop thread at display rate that shows the game's three screens as quad layers, and the
+// extension points the input, picker and immersive code build on.
 //
 // Threads: Start / Shutdown on the GUI thread. The renderer (emu thread) draws the
 // screens into the swapchains through VideoCore::XrScreenSink. The XR thread waits,
@@ -16,10 +16,12 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "common/common_types.h"
+#include "frame_xr/input/input_frame.h"
 #include "frame_xr/xr_includes.h"
 #include "video_core/vulkan_hooks.h"
 
@@ -35,11 +37,14 @@ struct StartOptions {
     /// Instance extensions enabled when the runtime offers them (other parts add theirs).
     std::vector<std::string> optional_extensions{"XR_FB_display_refresh_rate",
                                                  "XR_VALVE_frame_controller_interaction"};
+    /// True: VR at once (the session too). False: flat first (no session until SetVr(true)).
+    bool vr = true;
 };
 
-/// Makes the XR instance, the Vulkan device (through Azahar's own create infos),
-/// the session and the frame loop thread. Call before any game boots. False: no
-/// XR (the emulator runs flat; nothing is installed).
+/// Makes the XR instance, the Vulkan device (through Azahar's own create infos), the
+/// session (StartOptions::vr) and the frame loop thread. Call before any game boots. False:
+/// no XR (the emulator runs flat for good; nothing is installed). True with vr set but no
+/// session made: flat for now (VrShowing() false), SetVr(true) tries again.
 bool Start(const StartOptions& options);
 
 /// Ends the session and destroys everything Start made. Call once no renderer
@@ -51,6 +56,25 @@ bool IsStarted();
 
 /// True if an instance extension was enabled.
 bool HasExtension(const char* name);
+
+// ---- VR and flat in one run --------------------------------------------------------
+// VR: a session runs, the headset shows the screens, the renderer draws only into the XR
+// swapchains. Flat: no session (the instance and the Vulkan device stay), the renderer draws
+// Azahar's window only, games see the 3D slider at 0, and the controllers come from
+// SetFlatInput (Steam Input's gamepad) through the same mapping as in VR.
+
+/// Asks for VR (true: make a session) or flat (false: end it). Any thread; the XR thread does
+/// it, and FrontendHooks::vr_changed reports the result. False when XR is not started.
+bool SetVr(bool vr);
+/// The mode asked for last.
+bool WantsVr();
+/// A session exists (VR). False in flat, before Start and after the instance was lost.
+bool VrShowing();
+
+/// Flat: fills one frame of controller input (buttons, sticks, triggers; no aim) and returns
+/// true, or false when no gamepad is there. Called on the XR thread about 120 times a second.
+using FlatInputSource = std::function<bool(Input::InputFrame& frame)>;
+void SetFlatInput(FlatInputSource source);
 
 // ---- Extension points ------------------------------------------------------
 
@@ -123,6 +147,13 @@ void SetScreenPlacement(const ScreenPlacement& placement);
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
     std::function<void()> stop_game;                          ///< View held 1.5 s
+    std::function<void()> toggle_menu; ///< Menu held 1 s in a game: open or close the in-game menu
+    /// Left Bumper + Right Bumper + View + Menu (VR or flat): switch modes (the Qt side calls
+    /// SetVr, writes the mode file, fades the window).
+    std::function<void()> toggle_vr;
+    /// The XR thread made a session (true) or ended it (false), asked for or not (the runtime
+    /// may end it, or a new one may fail): the mode now in effect.
+    std::function<void(bool vr)> vr_changed;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -136,6 +167,36 @@ struct LibraryDir {
     int max_depth = -1; ///< >= 0 overrides the depth deep_scan implies
 };
 void SetLibraryDirs(const std::vector<LibraryDir>& dirs);
+
+// ---- The home panel: Azahar's Qt window mirrored into VR (citra_qt/frame_mirror.cpp) ----
+
+/// An image of the Qt window: RGBA8, sRGB values, opaque, rows top down.
+struct HomePanelImage {
+    uint32_t width = 0;
+    uint32_t height = 0;
+    std::vector<uint8_t> rgba;
+};
+
+/// What the controllers did on the home panel. u, v: 0..1 across the image (v down).
+struct HomePanelEvent {
+    enum class Type : u8 { Move, Leave, Press, Release, Wheel, Escape };
+    enum class Button : u8 { Left, Right };
+    Type type = Type::Move;
+    Button button = Button::Left;
+    float u = 0.0f;
+    float v = 0.0f;
+    float wheel = 0.0f; ///< Wheel: notches, positive scrolls up
+};
+
+/// Non-empty: the home panel replaces the picker while no game runs, and `on_event`
+/// gets its input (called on the XR thread: queue to the GUI thread). Empty: the
+/// picker again. Call after Start.
+void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
+/// The home panel's newest image (any thread). Shown from the next frame on.
+void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
+/// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
+/// the controllers drive the panel and not the game. GUI thread, after the game paused.
+void SetInGameMenu(bool open);
 
 /// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();

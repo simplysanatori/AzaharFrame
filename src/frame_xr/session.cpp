@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "common/logging/log.h"
+#include "common/frame_flat.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
@@ -46,7 +47,7 @@ bool Runtime::HasExtension(const char* name) const {
            enabled_extensions.end();
 }
 
-bool Runtime::Create(const StartOptions& options) {
+bool Runtime::CreateInstance(const StartOptions& options) {
     if (!LoadLoader()) {
         return false;
     }
@@ -134,7 +135,21 @@ bool Runtime::Create(const StartOptions& options) {
         Destroy();
         return false;
     }
+    want_vr = options.vr;
+    ui = std::make_unique<VrUi>();
+    ui->Init();
+    return true;
+}
 
+bool Runtime::CreateSession() {
+    if (session) {
+        return true;
+    }
+    auto& xr = Xr();
+    XrResult r = XR_SUCCESS;
+    session_ended = false;
+    detaching = false;
+    state = XR_SESSION_STATE_UNKNOWN;
     XrGraphicsBindingVulkan2KHR binding{XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR};
     binding.instance = vulkan->Instance();
     binding.physicalDevice = vulkan->PhysicalDevice();
@@ -148,7 +163,6 @@ bool Runtime::Create(const StartOptions& options) {
     if (XR_FAILED(r)) {
         LOG_ERROR(Frontend, "xr: xrCreateSession: {}", ResultName(r));
         session = XR_NULL_HANDLE;
-        Destroy();
         return false;
     }
 
@@ -162,11 +176,12 @@ bool Runtime::Create(const StartOptions& options) {
     }
     if (XR_FAILED(r)) {
         LOG_ERROR(Frontend, "xr: xrCreateReferenceSpace: {}", ResultName(r));
-        Destroy();
+        DestroySession();
         return false;
     }
 
     uint32_t format_count = 0;
+    swapchain_format = VK_FORMAT_UNDEFINED;
     xr.xrEnumerateSwapchainFormats(session, 0, &format_count, nullptr);
     std::vector<int64_t> formats(format_count);
     xr.xrEnumerateSwapchainFormats(session, format_count, &format_count, formats.data());
@@ -178,28 +193,45 @@ bool Runtime::Create(const StartOptions& options) {
     }
     if (swapchain_format == VK_FORMAT_UNDEFINED) {
         LOG_ERROR(Frontend, "xr: the runtime offers no 8-bit RGBA swapchain format");
-        Destroy();
+        DestroySession();
         return false;
     }
     LOG_INFO(Frontend, "xr: session made; screen swapchains in VkFormat {}",
              static_cast<int>(swapchain_format));
 
-    ui = std::make_unique<VrUi>();
-    ui->Create(*this);
+    if (ui) {
+        ui->Create(*this);
+    }
+    has_session = true;
+    Settings::frame_flat_mono = false; // stereo again for the headset
     return true;
 }
 
-void Runtime::Destroy() {
+void Runtime::DestroySession() {
     auto& xr = Xr();
-    if (ui) {
-        ui->Destroy();
-        ui.reset();
+    detaching = true; // the renderer starts no new acquire from here on (IsActive)
+    running = false;
+    if (has_session.exchange(false)) {
+        Settings::frame_flat_mono = true; // the window shows one eye: games draw one
     }
-    for (auto& chain : screens) {
-        if (chain.handle && xr.xrDestroySwapchain) {
-            xr.xrDestroySwapchain(chain.handle);
+    if (ui) {
+        ui->DestroyXr();
+    }
+    {
+        // Waits for a renderer swapchain call in progress (an acquire waits 100 ms at most).
+        std::unique_lock chains_lock{chains_mutex};
+        std::scoped_lock lock{screens_mutex};
+        for (auto& chain : screens) {
+            if (chain.handle && xr.xrDestroySwapchain) {
+                const XrResult r =
+                    queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
+                if (XR_FAILED(r)) {
+                    LOG_ERROR(Frontend, "xr: xrDestroySwapchain: {}", ResultName(r));
+                }
+            }
+            chain = {};
         }
-        chain = {};
+        generation++;
     }
     if (view_space && xr.xrDestroySpace) {
         xr.xrDestroySpace(view_space);
@@ -209,9 +241,21 @@ void Runtime::Destroy() {
     }
     view_space = local_space = XR_NULL_HANDLE;
     if (session && xr.xrDestroySession) {
-        xr.xrDestroySession(session);
+        const XrResult r = xr.xrDestroySession(session);
+        LOG_INFO(Frontend, "xr: session destroyed ({})", ResultName(r));
     }
     session = XR_NULL_HANDLE;
+    state = XR_SESSION_STATE_UNKNOWN;
+    session_ended = false;
+}
+
+void Runtime::Destroy() {
+    auto& xr = Xr();
+    DestroySession();
+    if (ui) {
+        ui->Destroy();
+        ui.reset();
+    }
     if (vulkan) {
         if (VideoCore::GetVulkanHooks() == vulkan.get()) {
             VideoCore::SetVulkanHooks(nullptr);
@@ -229,7 +273,19 @@ void Runtime::Destroy() {
 // ---- VideoCore::XrScreenSink ---------------------------------------------------
 
 bool Runtime::IsActive() const {
-    return session != XR_NULL_HANDLE && running.load() && !lost.load();
+    return has_session.load() && running.load() && !lost.load() && !detaching.load();
+}
+
+uint64_t Runtime::SwapchainGeneration() const {
+    return generation.load();
+}
+
+void Runtime::NoteWindowPresent(uint32_t cpu_us) {
+    stats.window_presents++;
+    stats.window_us_sum += cpu_us;
+    uint32_t prev = stats.window_us_max.load();
+    while (cpu_us > prev && !stats.window_us_max.compare_exchange_weak(prev, cpu_us)) {
+    }
 }
 
 VkFormat Runtime::SwapchainFormat() const {
@@ -238,10 +294,14 @@ VkFormat Runtime::SwapchainFormat() const {
 
 bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32_t height) {
     const auto i = static_cast<std::size_t>(screen);
+    std::shared_lock chains_lock{chains_mutex};
     std::scoped_lock lock{screens_mutex};
     ScreenChain& chain = screens[i];
     if (chain.handle && chain.width == width && chain.height == height) {
         return true;
+    }
+    if (!session || detaching) {
+        return false; // flat, or the session is ending
     }
     auto& xr = Xr();
     // Runtimes may use the app's queue here (layout transitions), so under the queue lock
@@ -283,6 +343,7 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
 }
 
 uint32_t Runtime::SwapchainImages(VideoCore::XrScreen screen, VkImage* images, uint32_t capacity) {
+    std::shared_lock chains_lock{chains_mutex};
     std::scoped_lock lock{screens_mutex};
     const ScreenChain& chain = screens[static_cast<std::size_t>(screen)];
     const uint32_t n = std::min<uint32_t>(capacity, static_cast<uint32_t>(chain.images.size()));
@@ -310,7 +371,8 @@ int32_t Runtime::Acquire(VideoCore::XrScreen screen) {
         }
         last_emu_frame = now;
     }
-    if (!chain.handle || chain.waited) {
+    std::shared_lock chains_lock{chains_mutex}; // the swapchain stays until this returns
+    if (!chain.handle || chain.waited || detaching) {
         return -1;
     }
     auto& xr = Xr();
@@ -344,9 +406,10 @@ int32_t Runtime::Acquire(VideoCore::XrScreen screen) {
 
 void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     const auto i = static_cast<std::size_t>(screen);
+    std::shared_lock chains_lock{chains_mutex};
     ScreenChain& chain = screens[i];
     if (!chain.handle || !chain.waited) {
-        return;
+        return; // also when the session ended in between (the chain was reset)
     }
     XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
     const XrResult r =

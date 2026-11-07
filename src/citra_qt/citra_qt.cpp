@@ -2,7 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
-#include <chrono> // AzaharFrame
+#include <algorithm> // AzaharFrame
+#include <chrono>    // AzaharFrame
 #include <clocale>
 #include <format>
 #include <iostream>
@@ -142,13 +143,22 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
 #include "citra_qt/frame_branding.h"
+#include "citra_qt/frame_mirror.h"
+#include "citra_qt/frame_mode.h"
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "input_common/frame_xr.h"
 
 namespace {
-// --vr: the OpenXR session (frame_xr) for the whole run.
+// --vr: the OpenXR instance (frame_xr) for the whole run, starting in VR; --flat: the same,
+// starting flat (no session until the VR / flat chord).
 bool g_frame_xr_requested = false;
+bool g_frame_xr_start_flat = false;
+// The launcher's profile for flat without XR (SDL). With XR both modes use the Frame profile.
+constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
+// Switches between VR and flat (writes the mode file); the XR thread's answer, the mode now.
+std::function<void(bool vr)> g_frame_xr_switch;
+std::function<void(bool vr)> g_frame_xr_mode_changed;
 // SIGTERM / SIGINT: stop the game and quit, so the XR session ends cleanly.
 volatile std::sig_atomic_t g_frame_xr_terminate = 0;
 void FrameXrOnSignal(int) {
@@ -192,6 +202,10 @@ private:
     std::chrono::steady_clock::time_point last_log{};
 };
 std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
+// The VR home panel: this window mirrored (frame_mirror.cpp); null with the picker.
+QPointer<FrameMirror> g_frame_mirror;
+// Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
+std::function<void(bool open)> g_frame_xr_set_menu;
 
 void FrameXrPushGameDirs() {
     std::vector<FrameXr::LibraryDir> dirs;
@@ -492,6 +506,11 @@ GMainWindow::GMainWindow(Core::System& system_)
             g_frame_xr_requested = true;
             continue;
         }
+        if (args[i] == QStringLiteral("--flat")) {
+            g_frame_xr_requested = true;
+            g_frame_xr_start_flat = true;
+            continue;
+        }
 #endif
 
         // Launch game at path
@@ -658,9 +677,27 @@ GMainWindow::GMainWindow(Core::System& system_)
     if (g_frame_xr_requested) {
         FrameXr::StartOptions xr_options;
         xr_options.window_type = FrameXrWindowSystemType();
+        xr_options.vr = !g_frame_xr_start_flat;
         if (Settings::values.graphics_api.GetValue() != Settings::GraphicsAPI::Vulkan) {
             LOG_ERROR(Frontend, "xr: --vr needs the Vulkan renderer; running flat");
         } else if (FrameXr::Start(xr_options)) {
+            // A flat start from the launcher picked its SDL profile; with XR the controllers come
+            // through frame_xr in VR and in flat, so the other profile, chosen by name, never
+            // edited (a copy when there is none).
+            if (Settings::values.current_input_profile.name == kFlatGamepadProfile) {
+                const auto& profiles = Settings::values.input_profiles;
+                const auto other = std::find_if(profiles.begin(), profiles.end(), [](const auto& p) {
+                    return p.name != kFlatGamepadProfile;
+                });
+                if (other != profiles.end()) {
+                    Settings::LoadProfile(static_cast<int>(other - profiles.begin()));
+                } else {
+                    Settings::CreateProfile("Frame");
+                }
+                system.ApplySettings();
+                LOG_INFO(Frontend, "xr: input profile {} (not {}): the Frame controllers in both modes",
+                         Settings::values.current_input_profile.name, kFlatGamepadProfile);
+            }
             // The Frame controllers as the input profile (unless already bound).
             if (!InputCommon::FrameXr::ProfileUsesFrameXr(Settings::values.current_input_profile)) {
                 InputCommon::FrameXr::ApplyDefaultProfile(Settings::values.current_input_profile);
@@ -690,7 +727,100 @@ GMainWindow::GMainWindow(Core::System& system_)
             hooks.stop_game = [this] {
                 QMetaObject::invokeMethod(this, [this] { ShutdownGame(); }, Qt::QueuedConnection);
             };
+            hooks.toggle_menu = [this] {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        if (!FrameXr::VrShowing()) {
+                            OnPauseContinueGame(); // flat: Menu held 1 s pauses or continues
+                        } else if (g_frame_mirror && g_frame_xr_set_menu) {
+                            g_frame_xr_set_menu(!g_frame_mirror->MenuOpen());
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
+            hooks.toggle_vr = [this] {
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_xr_switch) {
+                            g_frame_xr_switch(!FrameXr::WantsVr());
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
+            hooks.vr_changed = [this](bool vr) {
+                QMetaObject::invokeMethod(
+                    this,
+                    [vr] {
+                        if (g_frame_xr_mode_changed) {
+                            g_frame_xr_mode_changed(vr);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             FrameXr::SetFrontendHooks(std::move(hooks));
+            FrameXr::SetFlatInput(FrameMode::ReadGamepad);
+            // Both bumpers + View + Menu, in VR or flat: the other mode, kept for the next start.
+            g_frame_xr_switch = [](bool vr) {
+                if (!FrameXr::SetVr(vr)) {
+                    LOG_WARNING(Frontend, "xr: cannot switch to {} (no XR any more)",
+                                vr ? "VR" : "flat");
+                    return;
+                }
+                FrameMode::WriteModeFile(vr);
+            };
+            g_frame_xr_mode_changed = [this](bool vr) {
+                LOG_INFO(Frontend, "xr: now {}", vr ? "in VR" : "flat");
+                if (g_frame_mirror) {
+                    if (!vr && g_frame_mirror->MenuOpen()) {
+                        // The game stays paused; Menu held 1 s (or Emulation) continues it.
+                        g_frame_mirror->SetMenuOpen(false);
+                        FrameXr::SetInGameMenu(false);
+                    }
+                    g_frame_mirror->SetVrShowing(vr);
+                }
+                if (vr) {
+                    if (g_frame_mirror) {
+                        FrameMode::FadeWindow(this, true); // the panel is the window in VR
+                    }
+                } else {
+                    FrameMode::ReturnToFlat(this);
+                }
+            };
+            if (FrameMirror::Wanted()) {
+                g_frame_mirror = new FrameMirror(this);
+                // Menu held 1 s in a game: pause (Emulation > Pause) and show this window over
+                // the game; held again, B with nothing open, or Emulation > Continue: resume.
+                g_frame_xr_set_menu = [this](bool open) {
+                    if (!g_frame_mirror || g_frame_mirror->MenuOpen() == open) {
+                        return;
+                    }
+                    if (open && (!emulation_running || !emu_thread)) {
+                        return;
+                    }
+                    if (open && emu_thread->IsRunning() &&
+                        !system.frame_limiter.IsFrameAdvancing()) {
+                        OnPauseGame();
+                    }
+                    g_frame_mirror->SetMenuOpen(open);
+                    FrameXr::SetInGameMenu(open);
+                    LOG_INFO(Frontend, "xr: in-game menu {}", open ? "open, game paused" : "closed");
+                    if (!open && emulation_running && system.frame_limiter.IsFrameAdvancing()) {
+                        OnResumeGame(false);
+                    }
+                };
+                g_frame_mirror->SetCloseMenuHandler([] {
+                    if (g_frame_xr_set_menu) {
+                        g_frame_xr_set_menu(false);
+                    }
+                });
+                if (FrameXr::VrShowing()) {
+                    FrameMode::FadeWindow(this, true);
+                } else {
+                    g_frame_mirror->SetVrShowing(false);
+                }
+            }
             FrameXrPushGameDirs();
 
             std::signal(SIGTERM, FrameXrOnSignal);
@@ -705,6 +835,20 @@ GMainWindow::GMainWindow(Core::System& system_)
                 }
             });
             signal_timer->start(100);
+
+            // Test driver: AZAHARFRAME_TEST_VR_TOGGLES="20,35" switches VR / flat at those seconds
+            // after start, as the chord does.
+            for (const QString& at :
+                 qEnvironmentVariable("AZAHARFRAME_TEST_VR_TOGGLES").split(QLatin1Char(','),
+                                                                          Qt::SkipEmptyParts)) {
+                const int ms = static_cast<int>(at.toDouble() * 1000.0);
+                QTimer::singleShot(ms, this, [ms] {
+                    LOG_INFO(Frontend, "xr test: VR / flat switch at {} ms", ms);
+                    if (g_frame_xr_switch) {
+                        g_frame_xr_switch(!FrameXr::WantsVr());
+                    }
+                });
+            }
 
             // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
             // each ROM in turn after the first, each for AZAHARFRAME_TEST_SECONDS (15).
@@ -1936,8 +2080,12 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
-#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker
+#ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel (and the in-game menu)
+    FrameXr::SetInGameMenu(false);
     FrameXr::SetGameRunning(true);
+    if (g_frame_mirror) {
+        g_frame_mirror->SetGameRunning(true);
+    }
 #endif
     if (ui->action_Fullscreen->isChecked()) {
         ShowFullscreen();
@@ -2038,10 +2186,14 @@ void GMainWindow::ShutdownGame() {
     UpdateSaveStates();
 
     emulation_running = false;
-#ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker (folders may have changed)
+#ifdef ENABLE_FRAME_XR // AzaharFrame: back to the picker or home panel (folders may have changed)
     if (FrameXr::IsStarted()) {
+        FrameXr::SetInGameMenu(false);
         FrameXr::SetGameRunning(false);
         FrameXrPushGameDirs();
+    }
+    if (g_frame_mirror) {
+        g_frame_mirror->SetGameRunning(false);
     }
 #endif
 
@@ -2992,6 +3144,11 @@ void GMainWindow::OnResumeGame(bool first_start) {
 
     UpdateSaveStates();
     UpdateStatusButtons();
+#ifdef ENABLE_FRAME_XR // AzaharFrame: Emulation > Continue closes the in-game menu
+    if (g_frame_mirror && g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+        g_frame_xr_set_menu(false);
+    }
+#endif
 }
 
 void GMainWindow::OnRestartGame() {

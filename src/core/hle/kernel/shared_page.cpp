@@ -8,6 +8,7 @@
 #include <boost/serialization/binary_object.hpp>
 #include "common/archives.h"
 #include "common/assert.h"
+#include "common/frame_flat.h" // AzaharFrame
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -85,7 +86,8 @@ Handler::Handler(Core::Timing& timing, u64 override_init_time) : timing(timing) 
                                              std::bind(&Handler::UpdateTimeCallback, this, _1, _2));
     timing.ScheduleEvent(0, update_time_event, 0, 0);
 
-    float slidestate = Settings::values.vr_immersive_mode.GetValue() < 3 ?
+    float slidestate = Settings::frame_flat_mono ? 0.0f : // AzaharFrame: flat, one eye
+            Settings::values.vr_immersive_mode.GetValue() < 3 ?
             Settings::values.factor_3d.GetValue() / 100.0f :
             0.01f;
     shared_page.sliderstate_3d = static_cast<float_le>(slidestate);
