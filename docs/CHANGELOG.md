@@ -53,7 +53,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - Hold Menu for a second to open the in-game menu: Azahar's window over the paused game. It has Quick Save, Quick Load and Passthrough buttons.
 - Hold View for 1.5 seconds to stop the game.
 - The right controller is the 3DS's gyroscope, for games that aim by moving the 3DS.
-- A **Controls** panel lists every control, named from your own controls profile.
+- A **Controls** panel shows both controllers, with a line from each button to what it does, named from your own controls profile. It has a page for the game and one for Azahar's window.
 - A **Stats** panel shows the frame rate, the emulation speed and the frame times.
 - The Frame controllers show in your hands, with soft beams that fade when you put them down.
 - The layout is a controls profile in Azahar's window, so you can change it.
