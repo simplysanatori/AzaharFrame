@@ -5,9 +5,10 @@
 # proof.  Nothing here is ever bundled.  Started from Moonlight XR for Frame's list and cut down to what
 # the program, Qt and its plugins really need.
 
-# glibc: the base of the system.  The program is built against 2.39, the oldest SteamOS has had.
+# glibc: the base of the system (libmvec is glibc's vector math library, in all three SteamOS lists).  The program is built against 2.39, the oldest SteamOS has had.
 libc.so.6
 libm.so.6
+libmvec.so.1
 ld-linux-aarch64.so.1
 libdl.so.2
 libpthread.so.0

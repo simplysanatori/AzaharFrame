@@ -7,7 +7,7 @@
 #                             the Qt of the machine it was built on: that is only allowed for a local trial
 #                             (a warning), and an error when AZAHARFRAME_REQUIRE_PORTABLE=1.
 #   portable_verify TARBALL   unpacks the tarball into a scratch folder and runs tools/check-bundle.sh on it,
-#                             then starts the program there headless (--version, LD_LIBRARY_PATH unset) and
+#                             then starts the program there headless (-v, LD_LIBRARY_PATH unset) and
 #                             checks that Qt came from the folder.  Fails (exit 1) on any problem.
 # Needs the program's own architecture to run it: on another machine the start is skipped with a note.
 
@@ -42,13 +42,21 @@ portable_verify() {
   if [ "$(uname -m)" = aarch64 ]; then
     local out rc=0
     out=$(cd "$app" && env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH QT_QPA_PLATFORM=offscreen LD_DEBUG=libs HOME="$scratch/home" \
-          timeout 60 ./azahar --version 2>&1) || rc=$?
-    if [ "$rc" != 0 ]; then echo "$out" | tail -n 20 >&2; rm -rf "$scratch" "$tarball"; echo "make-release: azahar --version failed (status $rc)" >&2; exit 1; fi
+          timeout 60 ./azahar -v 2>&1) || rc=$?
+    if [ "$rc" != 0 ]; then echo "$out" | tail -n 20 >&2; rm -rf "$scratch" "$tarball"; echo "make-release: azahar -v failed (status $rc)" >&2; exit 1; fi
     # every Qt, ICU and SDL library the program really loaded came from the folder
     local outside
     outside=$(grep -oE 'calling init: [^ ]+' <<<"$out" | sed 's/^calling init: //' | grep -E '/lib(Qt6|icu|SDL)' | grep -v "^$app/" || true)
     if [ -n "$outside" ]; then echo "$outside" >&2; rm -rf "$scratch" "$tarball"; echo "make-release: loaded libraries from outside the release" >&2; exit 1; fi
-    echo "make-release: azahar --version starts with only its own libraries and the allowlisted ones"
+    # -v prints "Azahar for Frame <version>" (the first line is the program's; LD_DEBUG writes the rest)
+    local said
+    said=$(grep -E '^Azahar for Frame ' <<<"$out" | head -n 1)
+    if [ -z "$said" ]; then echo "$out" | tail -n 5 >&2; rm -rf "$scratch" "$tarball"; echo "make-release: azahar -v did not print its name" >&2; exit 1; fi
+    # a real release names its version in the program
+    if [ "${AZAHARFRAME_REQUIRE_PORTABLE:-0}" = 1 ] && [ -f "$app/VERSION" ] && [ "$said" != "Azahar for Frame $(head -n 1 "$app/VERSION")" ]; then
+      rm -rf "$scratch" "$tarball"; echo "make-release: azahar -v says \"$said\", not the release version $(head -n 1 "$app/VERSION") (build with AZAHARFRAME_VERSION)" >&2; exit 1
+    fi
+    echo "make-release: azahar -v ($said) starts with only its own libraries and the allowlisted ones"
   else
     echo "make-release: not an aarch64 machine, the start test is skipped"
   fi

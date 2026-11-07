@@ -5,7 +5,7 @@
 # Mounts: /src-ro (the checkout, read only), /ext-ro (a checkout whose externals/ is filled, read only,
 # optional), /work (source copy and build tree, kept between runs), /ccache, /out (the result).
 # Environment: JOBS, GIT_COMMIT, GIT_TAG (written to GIT-COMMIT and GIT-TAG for the version text),
-# CF_EXTRA_CMAKE_FLAGS.
+# AZAHARFRAME_VERSION (a release's version: written to GIT-TAG instead of GIT_TAG), CF_EXTRA_CMAKE_FLAGS.
 set -euo pipefail
 JOBS=${JOBS:-4}
 SRC=/work/src
@@ -28,9 +28,18 @@ for d in /src-ro/externals/*/; do
     mkdir -p "$SRC/externals/$n"
     rsync -a --delete "$from" "$SRC/externals/$n/"
 done
-# the version text: no .git here, so the build reads these two files
+# dist/compatibility_list is a submodule as well (the game list the Qt window shows; the build embeds its json)
+CL=dist/compatibility_list
+if [ -n "$(ls -A "/src-ro/$CL" 2> /dev/null)" ]; then from="/src-ro/$CL/"
+elif [ -n "$(ls -A "/ext-ro/$CL" 2> /dev/null)" ]; then from="/ext-ro/$CL/"
+else echo "$CL is empty (git submodule update --init, or mount a checkout that has it at /ext-ro)"; exit 1; fi
+mkdir -p "$SRC/$CL"
+rsync -a --delete --exclude=.git "$from" "$SRC/$CL/"
+# the version text: no .git here, so the build reads these two files.  A release names its version
+# (AZAHARFRAME_VERSION, e.g. 1.0.0), so that "azahar -v" prints "Azahar for Frame 1.0.0"; otherwise the tag
+# or short hash git describe gave.
 echo "${GIT_COMMIT:-unknown}" > "$SRC/GIT-COMMIT"
-echo "${GIT_TAG:-unknown}" > "$SRC/GIT-TAG"
+echo "${AZAHARFRAME_VERSION:-${GIT_TAG:-unknown}}" > "$SRC/GIT-TAG"
 
 export CCACHE_DIR=/ccache CCACHE_MAXSIZE=10G CCACHE_BASEDIR=/work
 PREFIX_MAP="-ffile-prefix-map=$SRC/= -ffile-prefix-map=$BLD/=build/"

@@ -115,7 +115,7 @@ while true; do
   "$ENGINE" run --rm --init --name "$CONTAINER" --cpus "$JOBS" \
       -v "$REPO:/src-ro:ro" "${EXT_ARGS[@]}" \
       -v "$CACHE/work:/work" -v "$CACHE/ccache:/ccache" -v "$CACHE/out:/out" \
-      -e JOBS="$JOBS" -e GIT_COMMIT="$GIT_COMMIT" -e GIT_TAG="$GIT_TAG" -e CF_EXTRA_CMAKE_FLAGS="${CF_EXTRA_CMAKE_FLAGS:-}" \
+      -e JOBS="$JOBS" -e GIT_COMMIT="$GIT_COMMIT" -e GIT_TAG="$GIT_TAG" -e AZAHARFRAME_VERSION="$VERSION" -e CF_EXTRA_CMAKE_FLAGS="${CF_EXTRA_CMAKE_FLAGS:-}" \
       "$IMAGE" /src-ro/steam-frame/portable/container-build.sh &
   RUN_PID=$!
   STOP=
