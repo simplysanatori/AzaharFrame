@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "common/debug_stall.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
@@ -131,6 +132,7 @@ bool RendererVulkan::RenderToXr() {
     if (!any) {
         return false;
     }
+    Common::DebugStall::Maybe(Common::DebugStall::Where::Acquire); // AzaharFrame: test only
     // The tick this submission signals (Scheduler::SubmitExecution).
     const u64 tick = scheduler.CurrentTick();
     scheduler.Flush();

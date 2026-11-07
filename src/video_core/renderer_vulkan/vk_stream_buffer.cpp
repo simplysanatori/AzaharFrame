@@ -7,10 +7,12 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <algorithm>
+#include <chrono> // AzaharFrame
 #include <limits>
 #include "common/alignment.h"
 #include "common/assert.h"
 #include "common/literals.h"
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_memory_util.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -275,7 +277,14 @@ void StreamBuffer::WaitPendingOperations(u64 requested_upper_bound) {
     while (requested_upper_bound > wait_bound && wait_cursor < *invalidation_mark) {
         auto& watch = previous_watches[wait_cursor];
         wait_bound = watch.upper_bound;
+        // AzaharFrame: a full buffer waiting for the GPU shows in the stall lines
+        const auto start = std::chrono::steady_clock::now();
         scheduler.Wait(watch.tick);
+        Common::StallTelemetry::Get().staging_wait_us.fetch_add(
+            static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                 std::chrono::steady_clock::now() - start)
+                                 .count()),
+            std::memory_order_relaxed);
         ++wait_cursor;
     }
 }

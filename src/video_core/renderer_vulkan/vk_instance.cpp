@@ -6,8 +6,11 @@
 #include <boost/container/static_vector.hpp>
 #include <fmt/ranges.h>
 
+#include <chrono>  // AzaharFrame
+#include <cstdlib> // AzaharFrame
 #include "common/assert.h"
 #include "common/settings.h"
+#include "common/stall_telemetry.h" // AzaharFrame
 #include "core/frontend/emu_window.h"
 #include "video_core/custom_textures/custom_format.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -19,6 +22,43 @@
 namespace Vulkan {
 
 namespace {
+
+// AzaharFrame: vkAllocateMemory, timed. On the Frame (Turnip, msm) an allocation holds up every
+// vkQueueSubmit on the device for as long as it takes (about 18 ms for 256 MiB, far more when
+// the system is short of memory), so the XR thread's xrEndFrame and the emulator's submits under
+// the queue lock wait for it. The longest one goes into the XR thread's per-second line.
+PFN_vkAllocateMemory g_real_allocate_memory = nullptr;
+
+VKAPI_ATTR VkResult VKAPI_CALL TimedAllocateMemory(VkDevice device,
+                                                   const VkMemoryAllocateInfo* info,
+                                                   const VkAllocationCallbacks* callbacks,
+                                                   VkDeviceMemory* memory) {
+    const auto start = std::chrono::steady_clock::now();
+    const VkResult result = g_real_allocate_memory(device, info, callbacks, memory);
+    const u64 us = static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                        std::chrono::steady_clock::now() - start)
+                                        .count());
+    auto& telemetry = Common::StallTelemetry::Get();
+    telemetry.device_alloc_us.fetch_add(us, std::memory_order_relaxed);
+    telemetry.device_alloc_count.fetch_add(1, std::memory_order_relaxed);
+    Common::UpdateMax(telemetry.device_alloc_max_us, us);
+    Common::UpdateMax(telemetry.device_alloc_max_bytes, info->allocationSize);
+    if (us >= 20'000) {
+        LOG_WARNING(Render_Vulkan, "vkAllocateMemory of {:.1f} MiB took {:.1f} ms",
+                    info->allocationSize / 1048576.0, us / 1000.0);
+    }
+    return result;
+}
+
+// AzaharFrame: VMA's memory blocks; AZAHARFRAME_VMA_BLOCK_MIB sets their size (0 or unset:
+// VMA's default, 256 MiB for a large heap), to compare.
+VkDeviceSize PreferredBlockSize(VkDevice) {
+    constexpr VkDeviceSize MiB = 1024 * 1024;
+    if (const char* v = std::getenv("AZAHARFRAME_VMA_BLOCK_MIB"); v && *v) {
+        return static_cast<VkDeviceSize>(std::strtoull(v, nullptr, 10)) * MiB;
+    }
+    return 0;
+}
 
 vk::Format MakeFormat(VideoCore::PixelFormat format) {
     switch (format) {
@@ -706,14 +746,20 @@ bool Instance::CreateDevice() {
 }
 
 void Instance::CreateAllocator() {
+    // AzaharFrame: allocations are timed (TimedAllocateMemory)
+    g_real_allocate_memory = reinterpret_cast<PFN_vkAllocateMemory>(
+        VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceProcAddr(static_cast<VkDevice>(GetDevice()),
+                                                        "vkAllocateMemory"));
     const VmaVulkanFunctions functions = {
         .vkGetInstanceProcAddr = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceProcAddr,
+        .vkAllocateMemory = g_real_allocate_memory ? TimedAllocateMemory : nullptr,
     };
 
     const VmaAllocatorCreateInfo allocator_info = {
         .physicalDevice = physical_device,
         .device = GetDevice(),
+        .preferredLargeHeapBlockSize = PreferredBlockSize(static_cast<VkDevice>(GetDevice())),
         .pVulkanFunctions = &functions,
         .instance = GetInstance(),
         .vulkanApiVersion = TargetVulkanApiVersion,

@@ -45,6 +45,28 @@ struct StallTelemetry {
     // User-initiated stall markers (thumbstick click in VR).
     std::atomic<std::uint32_t> user_marker_count{0};
 
+    // AzaharFrame: the renderer's queue. Interval maxima, taken (reset to 0) by the XR
+    // thread's per-second line: the longest vkQueueSubmit under the scheduler's submit
+    // mutex, and the longest the scheduler waited for that mutex.
+    std::atomic<std::uint64_t> queue_submit_max_us{0};
+    std::atomic<std::uint64_t> queue_submit_wait_max_us{0};
+    // The desktop window's submit and vkQueuePresentKHR under that mutex (interval max).
+    std::atomic<std::uint64_t> window_present_max_us{0};
+    // AzaharFrame: custom texture uploads on the emu thread (RasterizerCache::TickFrame),
+    // cumulative, and the longest image creation of one upload (interval max).
+    std::atomic<std::uint64_t> custom_upload_us{0};
+    std::atomic<std::uint64_t> custom_upload_count{0};
+    std::atomic<std::uint64_t> custom_upload_bytes{0};
+    std::atomic<std::uint64_t> custom_image_us{0};  ///< of custom_upload_us: making the images
+    std::atomic<std::uint64_t> staging_wait_us{0}; ///< a stream buffer full: waited for the GPU
+    std::atomic<std::uint64_t> surface_gc_us{0};   ///< freeing replaced surfaces (TickFrame)
+    // AzaharFrame: vkAllocateMemory (any thread): cumulative, and interval maxima taken by the
+    // XR thread's per-second line.
+    std::atomic<std::uint64_t> device_alloc_us{0};
+    std::atomic<std::uint64_t> device_alloc_count{0};
+    std::atomic<std::uint64_t> device_alloc_max_us{0};
+    std::atomic<std::uint64_t> device_alloc_max_bytes{0};
+
     static StallTelemetry& Get() {
         static StallTelemetry instance;
         return instance;

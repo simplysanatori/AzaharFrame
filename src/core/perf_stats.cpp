@@ -94,6 +94,12 @@ void PerfStats::BeginSystemFrame() {
     frame_begin_swap_time = accumulated_swap_time;
     frame_begin_shader_compiles =
         Common::StallTelemetry::Get().shader_compile_count.load(std::memory_order_relaxed);
+    frame_begin_custom_upload_us =
+        Common::StallTelemetry::Get().custom_upload_us.load(std::memory_order_relaxed);
+    frame_begin_staging_wait_us =
+        Common::StallTelemetry::Get().staging_wait_us.load(std::memory_order_relaxed);
+    frame_begin_surface_gc_us =
+        Common::StallTelemetry::Get().surface_gc_us.load(std::memory_order_relaxed);
 }
 
 void PerfStats::EndSystemFrame() {
@@ -169,11 +175,23 @@ void PerfStats::UpdateStallTracking(Clock::time_point frame_end, Clock::duration
         telemetry.shader_compile_count.load(std::memory_order_relaxed) -
         frame_begin_shader_compiles;
 
+    // AzaharFrame: custom texture uploads (after the swap, so part of "other") and waits for
+    // a full stream buffer (wherever they happened)
+    const double tex_ms =
+        (telemetry.custom_upload_us.load(std::memory_order_relaxed) - frame_begin_custom_upload_us) /
+        1000.0;
+    const double stream_wait_ms =
+        (telemetry.staging_wait_us.load(std::memory_order_relaxed) - frame_begin_staging_wait_us) /
+        1000.0;
+    const double gc_ms =
+        (telemetry.surface_gc_us.load(std::memory_order_relaxed) - frame_begin_surface_gc_us) /
+        1000.0;
     LOG_WARNING(Core,
                 "[STALL] Emu frame took {:.1f} ms (budget {:.1f} ms): svc={:.1f} ipc={:.1f} "
-                "gpu={:.1f} swap={:.1f} other={:.1f} ms; {} draw-time shader compile(s) this frame",
-                frame_ms, ToMs(kFrameBudget), svc_ms, ipc_ms, gpu_ms, swap_ms, other_ms,
-                compiles_this_frame);
+                "gpu={:.1f} swap={:.1f} other={:.1f} ms (custom textures {:.1f}, surface frees "
+                "{:.1f}, stream buffer waits {:.1f}); {} draw-time shader compile(s) this frame",
+                frame_ms, ToMs(kFrameBudget), svc_ms, ipc_ms, gpu_ms, swap_ms, other_ms, tex_ms,
+                gc_ms, stream_wait_ms, compiles_this_frame);
 }
 
 void PerfStats::EndGameFrame() {
@@ -251,6 +269,13 @@ PerfStats::Results PerfStats::GetAndResetStats(microseconds current_system_time_
     reset_point_system_us = current_system_time_us;
     accumulated_frametime = Clock::duration::zero();
     system_frames = 0;
+    // AzaharFrame: a frame in progress keeps its own start values relative to the new zero, so
+    // the breakdown of a stall that spans this reset (the status bar's, once a second) stays right
+    // instead of going negative and leaving everything in "other"
+    frame_begin_svc_time -= accumulated_svc_time;
+    frame_begin_ipc_time -= accumulated_ipc_time;
+    frame_begin_gpu_time -= accumulated_gpu_time;
+    frame_begin_swap_time -= accumulated_swap_time;
     accumulated_svc_time = Clock::duration::zero();
     accumulated_ipc_time = Clock::duration::zero();
     accumulated_gpu_time = Clock::duration::zero();

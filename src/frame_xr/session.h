@@ -32,6 +32,8 @@ namespace FrameXr {
 constexpr std::size_t kScreens = static_cast<std::size_t>(VideoCore::XrScreen::Count);
 
 /// Guards the renderer's VkQueue for the OpenXR calls that may use it.
+/// How long each call waited for the lock is kept for the caller's thread (LastWaitUs) and,
+/// on the XR thread (MarkXrThread), as a per-second maximum for its summary line.
 class QueueLock {
 public:
     void Set(std::mutex* mutex) {
@@ -40,17 +42,48 @@ public:
     }
     template <typename F>
     auto With(F&& f) {
+        const auto asked = std::chrono::steady_clock::now();
         std::scoped_lock lock{registry};
         if (queue) {
             std::scoped_lock queue_lock{*queue};
+            NoteWait(asked);
             return f();
         }
+        NoteWait(asked);
         return f();
+    }
+    /// The wait of this thread's last With call, in microseconds.
+    static uint64_t LastWaitUs() {
+        return last_wait_us;
+    }
+    /// The frame loop's thread: its waits count for TakeMaxWaitUs.
+    static void MarkXrThread() {
+        xr_thread = true;
+    }
+    uint64_t TakeMaxWaitUs() {
+        return max_wait_us.exchange(0, std::memory_order_relaxed);
     }
 
 private:
+    void NoteWait(std::chrono::steady_clock::time_point asked) {
+        last_wait_us = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - asked)
+                .count());
+        if (!xr_thread) {
+            return;
+        }
+        uint64_t prev = max_wait_us.load(std::memory_order_relaxed);
+        while (last_wait_us > prev &&
+               !max_wait_us.compare_exchange_weak(prev, last_wait_us, std::memory_order_relaxed)) {
+        }
+    }
+
     std::mutex registry;
     std::mutex* queue = nullptr;
+    std::atomic<uint64_t> max_wait_us{0};
+    static inline thread_local uint64_t last_wait_us = 0;
+    static inline thread_local bool xr_thread = false;
 };
 
 struct ScreenChain {
@@ -62,6 +95,16 @@ struct ScreenChain {
     bool acquired = false;   ///< an image is acquired and not yet waited for
     bool waited = false;     ///< an image is waited for and not yet released
     bool has_image = false;  ///< released at least once since made (may be shown)
+};
+
+/// Where one display frame's time went (milliseconds), from one xrWaitFrame return to the next.
+struct LoopPhases {
+    double period_ms = 0;
+    double begin_lock_ms = 0, begin_ms = 0; ///< xrBeginFrame: waiting for the queue lock, the call
+    double frame_ms = 0;                    ///< views, callbacks, controls, panels
+    double screens_lock_ms = 0, layers_ms = 0;
+    double end_lock_ms = 0, end_ms = 0;     ///< xrEndFrame: waiting for the queue lock, the call
+    double poll_ms = 0, wait_ms = 0;        ///< xrPollEvent and the session, xrWaitFrame
 };
 
 struct Stats {
@@ -172,7 +215,9 @@ private:
     bool PollEvents();
     void OnState(XrSessionState new_state);
     void LocateViews(XrTime time);
-    void LogSummary(double seconds, double wait_avg_ms, double wait_max_ms);
+    void LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
+                    const LoopPhases& worst);
+    void NoteLoopPeriod(const LoopPhases& phases, LoopPhases& worst, XrDuration period_ns);
 
     std::thread thread;
     std::atomic<bool> stop{false};

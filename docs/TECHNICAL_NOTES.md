@@ -181,6 +181,9 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_MODEL_EYE_PX` | `frame_xr/vis/controller_models.cpp` | the most pixels one eye of the controller layer may be high, 200 or more (default 1000). Below it the layer is about half the recommended size |
 | `AZAHARFRAME_MODEL_TEXTURE`, `AZAHARFRAME_MODEL_TRIANGLES` | `frame-controller-models.py` | the models' texture size (default 1024) and a triangle budget |
 | `AZAHARFRAME_XR_NO_GPU_WAIT=1` | `vk_xr_target.cpp` | releases images before the GPU is done. A negative test, never for playing |
+| `AZAHARFRAME_XR_WATCHDOG=1` | `frame_xr/watchdog.cpp` | logs a frame loop phase that lasts over 50 ms, with the kernel state, wait channel and system call of the frame loop's thread and of the emulator's busy threads. For finding display stalls |
+| `AZAHARFRAME_DEBUG_STALL=<where>:<ms>[:<s>]` | `common/debug_stall.h` | sleeps `ms` every `s` seconds (default 5) at `tick` (emu thread after a frame, no lock), `submit` (inside the queue lock), `acquire` (XR images acquired, release not queued) or `release` (the release thread). A test, never for playing |
+| `AZAHARFRAME_VMA_BLOCK_MIB` | `vk_instance.cpp` | the size of VMA's memory blocks in MiB (default and `0`: VMA's own, 256), to compare |
 | `AZAHARFRAME_TEST_BOOTS`, `AZAHARFRAME_TEST_SECONDS` | `citra_qt.cpp` | boot the listed games (`a.3ds\|b.cci`) in turn, each for that many seconds. For the headless runs |
 
 For scripts: `AZAHARFRAME_APP`, `AZAHARFRAME_HOME`, `AZAHARFRAME_SKIP_STEAM`, `AZAHARFRAME_DRY_RUN` (`install.sh`, `uninstall.sh`), `AZAHARFRAME_BUILD` (`install.sh`, `make-release.sh`), `AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD` (`build.sh`), `AZAHARFRAME_VRCMD` and `AZAHARFRAME_VRSERVER_RUNNING` (`dock-icon.py`).

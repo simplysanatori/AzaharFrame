@@ -193,6 +193,9 @@ private:
     Clock::duration frame_begin_gpu_time = Clock::duration::zero();
     Clock::duration frame_begin_swap_time = Clock::duration::zero();
     u32 frame_begin_shader_compiles = 0;
+    u64 frame_begin_custom_upload_us = 0; // AzaharFrame
+    u64 frame_begin_staging_wait_us = 0;  // AzaharFrame
+    u64 frame_begin_surface_gc_us = 0;    // AzaharFrame
     /// Peak frame walltime since the last stats reset
     Clock::duration interval_peak_frametime = Clock::duration::zero();
     u32 interval_slow_frames = 0;
