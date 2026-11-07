@@ -132,8 +132,10 @@ TEST_CASE("FrameXr vis: a still controller fades, a lost one goes", "[frame_xr]"
     REQUIRE(a.Beam() == Approx(0.0f));
     REQUIRE(a.Model() == Approx(1.0f));
     a.Update(t, hand, true); // used: back
-    t += 200'000'000;
-    a.Update(t, hand, false);
+    for (const int64_t end = t + 200'000'000; t < end;) {
+        t += step; // frame by frame: Update clamps one step to 0.1 s
+        a.Update(t, hand, false);
+    }
     REQUIRE(a.Beam() == Approx(1.0f));
     hand.active = false;
     t += 100'000'000;

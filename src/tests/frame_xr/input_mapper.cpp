@@ -591,6 +591,10 @@ TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[fr
         frame.view = true;
         out = runner.Step(frame);
         REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View)); // held back while a bumper may follow
+        runner.now += 150'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
         REQUIRE(out.controls.Get(Control::View));
     }
     SECTION("the chord does not start the stop hold") {
