@@ -236,7 +236,7 @@ inline void Run(QWidget* parent, u64 program_id, const QString& name) {
     if (build.isEmpty() ||
         QMessageBox::question(parent, Tr("Optimize Texture Pack"),
                               Tr("The texture encoder is built once before the first use. This "
-                                 "takes about 2 minutes and needs git, CMake and a C++ "
+                                 "takes under a minute and needs git, CMake and a C++ "
                                  "compiler.\n\nBuild it now?"),
                               QMessageBox::Yes | QMessageBox::No,
                               QMessageBox::Yes) != QMessageBox::Yes) {

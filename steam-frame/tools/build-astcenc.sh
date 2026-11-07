@@ -1,8 +1,8 @@
 #!/bin/bash
 # Builds the texture pack encoder once: ARM's astcenc library (Apache-2.0) from a pinned tag,
-# with NEON, and af-ktxenc.cpp (next to this script) linked against it.  About two minutes on
+# with NEON, and af-ktxenc.cpp (next to this script) linked against it.  Under a minute on
 # the Frame, at the lowest priority.  Needs git, cmake and a C++ compiler (g++ or clang++).
-#   build-astcenc.sh [--force]
+#   build-astcenc.sh [--force]        (AZAHARFRAME_JOBS=N limits the compile jobs)
 # Result: $AZAHARFRAME_HOME/tools/af-ktxenc (default ~/.local/share/AzaharFrame/tools).
 # The astcenc checkout and build stay in $AZAHARFRAME_HOME/tools/src for a rebuild; delete
 # that folder to free the space (about 40 MB).
@@ -28,7 +28,7 @@ if [ -z "$CXX" ]; then
   if command -v g++ > /dev/null; then CXX=g++; elif command -v clang++ > /dev/null; then CXX=clang++; fi
 fi
 [ -n "$CXX" ] || { echo "build-astcenc.sh needs a C++ compiler (g++ or clang++)" >&2; exit 1; }
-JOBS=$(nproc 2> /dev/null || echo 4)
+JOBS=${AZAHARFRAME_JOBS:-$(nproc 2> /dev/null || echo 4)}
 NICE="nice -n 19"
 command -v ionice > /dev/null && NICE="$NICE ionice -c 3"
 
@@ -36,7 +36,7 @@ mkdir -p "$TOOLS/src"
 if [ ! -f "$SRC/Source/astcenc.h" ]; then
   echo "fetching astcenc $ASTCENC_TAG"
   rm -rf "$SRC.tmp"
-  git clone --quiet --depth 1 --branch "$ASTCENC_TAG" https://github.com/ARM-software/astc-encoder.git "$SRC.tmp"
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$ASTCENC_TAG" https://github.com/ARM-software/astc-encoder.git "$SRC.tmp"
   mv "$SRC.tmp" "$SRC"
 fi
 [ -f "$SRC/Source/ThirdParty/stb_image.h" ] || { echo "astcenc $ASTCENC_TAG has no Source/ThirdParty/stb_image.h" >&2; exit 1; }
