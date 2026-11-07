@@ -141,8 +141,25 @@ int FrameMirror::Timestamp() const {
     return static_cast<int>(clock.elapsed());
 }
 
+QRect FrameMirror::Near() const {
+    const QRect r = main ? main->geometry() : QRect{};
+    return r.adjusted(-r.width(), -r.height(), r.width(), r.height());
+}
+
 QRect FrameMirror::Canvas() const {
-    return main ? main->geometry() : QRect{};
+    if (!main) {
+        return {};
+    }
+    // The main window, grown to hold a dialog that does not fit on it (with its title strip).
+    QRect r = main->geometry();
+    const QRect near = Near();
+    for (QWidget* w : QApplication::topLevelWidgets()) {
+        if (w != main && w->isVisible() && IsDialogLike(w) && !w->inherits("GRenderWindow") &&
+            w->geometry().intersects(near)) {
+            r |= w->geometry().adjusted(-1, -kTitleHeight, 1, 1);
+        }
+    }
+    return r;
 }
 
 qreal FrameMirror::Scale(const QSize& canvas) const {
@@ -156,10 +173,10 @@ std::vector<QWidget*> FrameMirror::Stack() const {
     std::vector<QWidget*> windows, popups, tips;
     QWidget* const modal = QApplication::activeModalWidget();
     QWidget* const popup = QApplication::activePopupWidget();
-    const QRect canvas = Canvas();
+    const QRect near = Near();
     for (QWidget* w : QApplication::topLevelWidgets()) {
         if (w == main || !w->isVisible() || w->windowType() == Qt::Desktop ||
-            w->inherits("GRenderWindow") || !w->geometry().intersects(canvas)) {
+            w->inherits("GRenderWindow") || !w->geometry().intersects(near)) {
             continue;
         }
         switch (w->windowType()) {
@@ -231,16 +248,16 @@ void FrameMirror::FitDialog(QWidget* dialog) {
     if (!main || !dialog->isVisible()) {
         return;
     }
-    // Centred over the main window and no larger than it, title strip included.
-    const QRect canvas = Canvas();
-    const QSize room(canvas.width() - 16, canvas.height() - kTitleHeight - 16);
+    // Centred over the main window and, where its minimum size allows, no larger than it
+    // (title strip included). A larger one grows the panel (Canvas).
+    const QRect area = main->geometry();
+    const QSize room(area.width() - 16, area.height() - kTitleHeight - 16);
     const QSize size = dialog->size().boundedTo(room).expandedTo(dialog->minimumSize());
     if (size != dialog->size()) {
         dialog->resize(size);
     }
-    const int top = canvas.top() + (canvas.height() - size.height() - kTitleHeight) / 2;
-    const QPoint pos(canvas.left() + (canvas.width() - size.width()) / 2,
-                     std::max(canvas.top() + kTitleHeight, top + kTitleHeight));
+    const QPoint pos(area.left() + (area.width() - size.width()) / 2,
+                     area.top() + (area.height() - size.height() + kTitleHeight) / 2);
     if (dialog->geometry().topLeft() != pos) {
         dialog->move(pos + (dialog->pos() - dialog->geometry().topLeft())); // frame offset
     }
@@ -283,7 +300,8 @@ void FrameMirror::Capture() {
     capturing = true;
     {
         QPainter p(&img);
-        main->render(&p, QPoint(), QRegion(), QWidget::DrawWindowBackground | QWidget::DrawChildren);
+        main->render(&p, main->geometry().topLeft() - canvas.topLeft(), QRegion(),
+                     QWidget::DrawWindowBackground | QWidget::DrawChildren);
         bool dimmed = false;
         QWidget* const modal = QApplication::activeModalWidget();
         for (QWidget* w : Stack()) {

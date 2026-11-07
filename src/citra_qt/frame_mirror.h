@@ -55,7 +55,10 @@ private:
     void Capture();
     void LogLayout(const QRect& canvas);
     void FitDialog(QWidget* dialog);
+    /// The panel's area (global): the main window and any dialog over it.
     QRect Canvas() const;
+    /// Around the main window: top-level windows here belong on the panel.
+    QRect Near() const;
     qreal Scale(const QSize& canvas) const;
     /// Visible top-level windows other than the main window, bottom to top.
     std::vector<QWidget*> Stack() const;
