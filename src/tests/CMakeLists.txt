@@ -2,8 +2,10 @@ add_executable(tests
     frame_xr/input_engine.cpp # AzaharFrame
     frame_xr/input_geometry.cpp # AzaharFrame
     frame_xr/input_mapper.cpp # AzaharFrame
+    frame_xr/keyboard_layout.cpp # AzaharFrame
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame
+    ../frame_xr/keyboard/layout.cpp # AzaharFrame
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

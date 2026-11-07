@@ -21,7 +21,8 @@ namespace {
 //   B                                    back (Escape: closes a menu or a dialog)
 //   Grip on the panel                    move the panel
 //   Stick Y (either stick)               scroll
-//   X, Y, the bumpers                    nothing
+//   Y                                    the headset keyboard (frame_xr/keyboard)
+//   X, the bumpers                       nothing
 bool LeftButton(const Input::InputFrame& in) {
     return in.a; // and the pointing hand's trigger (with hysteresis, in Pointer)
 }

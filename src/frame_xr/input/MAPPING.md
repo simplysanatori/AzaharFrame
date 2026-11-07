@@ -123,11 +123,42 @@ The bindings are SteamOS-like and listed in one place at the top of `qt_mirror/m
 | B | Back (Escape): closes a menu or a dialog. |
 | Grip on the panel | Move the panel around you (it keeps its distance and turns to face you). |
 | Stick Y (either) | Mouse wheel, up to 12 notches a second; nothing below 0.2. |
-| X, Y, bumpers | Nothing. |
+| Y | Shows or hides the headset keyboard (below). |
+| X, bumpers | Nothing. |
 
 A press keeps its point while the ray moves less than 1.2 cm, and a second press within 450 ms
 of the release lands on the same point, so double clicks work with a shaking hand. Stick clicks
 are ignored while that stick is pushed past half way.
+
+## The headset keyboard
+
+Moonlight XR's Compact keyboard (same author), US QWERTY, under the window (`frame_xr/keyboard`,
+`citra_qt/frame_mirror.cpp`). It shows only with the window (home panel or in-game menu): 0.55 of
+the window's width, its top edge 0.035 widths under the window's bottom edge and 0.02 widths
+nearer. Its place is kept against the window's bottom edge in window widths, so it follows the
+window and sits the same under the in-game menu.
+
+| Frame control | On the keyboard |
+| --- | --- |
+| Y | Show or hide (Moonlight XR's default for `app:keyboard`; Y is free on the window). Opens on the small letters. |
+| Trigger on a key (either hand), or A | Press the key under that ray (A: the pointing ray). One key per press, no repeat. |
+| Trigger or grip on the bar (the pill under it) | Move it around you (keeps its distance, turns to face you); that hand's stick Y pushes it away or pulls it nearer, 1 m/s at full tilt, 0.4 to 4 m. |
+| Trigger on nothing (not the keyboard, its bar or the window) | Hide. |
+| Shift, Ctrl, Alt, Win | Tap: for the next key. Held 500 ms: locked until tapped again. A locked Shift keeps the capitals. |
+
+- A key goes to Qt as a press and a release (`qt_handleKeyEvent`) with its text, to the open
+  popup, else the modal dialog, else the topmost dialog, else the main window, whose focused
+  widget gets it. Ctrl, Alt and Win go as modifiers; a capital or a shifted character also
+  carries Shift.
+- A left click let go on an editable line, spin box, combo box or text box that then has the
+  keys opens the keyboard. It closes when no such widget has the keys any more (checked after
+  each key and every 250 ms), unless Y opened it.
+- The window does not see the hands on the keyboard or its bar (unless they hold a press that
+  began on the window), nor presses that began there, nor A while it presses a key.
+- Keys are drawn on the CPU (1120 x 448) and uploaded when what they show changes; the ring on
+  the key under the ray (it swells while held) and the bar's pill are quads of their own. The
+  labels are Noto Sans Regular from `/usr/share/fonts/noto` (or `AZAHARFRAME_KEYBOARD_FONT`, or
+  `art/NotoSans-Regular.ttf`); without it the picker's font.
 
 ## The in-game menu
 
@@ -146,9 +177,8 @@ live (resolution, filters) apply at once, the VR ones at the next game start.
 
 ## Not yet
 
-- Text entry on the panel. An idea: SteamOS on the Frame types with the SteamVR keyboard; an
-  OpenVR overlay-type `VR_Init` beside the OpenXR session could open it with
-  `IVROverlay::ShowKeyboard`. Until then text fields need the desktop window.
+- The headset keyboard's AZERTY and QWERTZ maps and its Full (tenkeyless) layout, which
+  Moonlight XR has.
 - When the ray leaves the panel, the last hover stays highlighted (Qt has no public leave event).
 
 ## Where CitraVR's behaviour is not reproduced

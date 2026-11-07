@@ -32,7 +32,19 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     # The Qt window mirrored as the VR home panel, XR side (qt_mirror; no Qt here).
     qt_mirror/mirror_panel.cpp
     qt_mirror/mirror_panel.h
+    # The headset keyboard under the home panel (keyboard; no Qt here).
+    keyboard/art.cpp
+    keyboard/art.h
+    keyboard/keyboard.h
+    keyboard/keyboard_panel.cpp
+    keyboard/keyboard_panel.h
+    keyboard/layout.cpp
+    keyboard/layout.h
+    keyboard/stb_truetype.cpp
+    keyboard/stb_truetype.h
 )
+# stb_truetype is vendored unchanged (MIT or public domain): its warnings are not ours.
+set_source_files_properties(keyboard/stb_truetype.cpp PROPERTIES COMPILE_OPTIONS "-w")
 
 create_target_directory_groups(frame_xr)
 
