@@ -72,6 +72,7 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Bumper") == "Nothing");
         REQUIRE(ActionFor(page.game, "Grip on a Screen") == "3DS L, Move Screens");
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
+        REQUIRE(ActionFor(page.game, "Right Stick Click While Moving") == "Reset Immersive Screen");
         REQUIRE(ActionFor(page.game, "D-Pad Up") == "Nothing");
         REQUIRE(ActionFor(page.game, "D-Pad Down") == "3DS D-Pad Down");
         REQUIRE(page.footer.find("Profile: Mine") != std::string::npos);

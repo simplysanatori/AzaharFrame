@@ -197,6 +197,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Stick While Moving", "Nearer or Farther");
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
     Row(g, "Sideways While Moving", "Immersive Screen Size");
+    Row(g, "Right Stick Click While Moving", "Reset Immersive Screen");
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
     Row(g, "Hold View + Left Bumper", "Quick Load");
