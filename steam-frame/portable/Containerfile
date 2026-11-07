@@ -1,0 +1,46 @@
+# The portable build environment for Azahar for Frame (steam-frame/build-portable.sh builds and runs it).
+#
+# Why this exists: SteamOS updates move Qt (6.8 to 6.10), SDL2 (to sdl2-compat), ICU and FFmpeg, and
+# a program built against the Frame's own packages stops starting.  So the release carries its own Qt,
+# and is built here, on Ubuntu 24.04, whose glibc 2.39 is the oldest any SteamOS build has had.  A
+# program built against glibc 2.39 runs on every newer glibc.  The Ubuntu base image is pinned by digest, Qt by
+# version and by the hash of the installed tree.
+#
+#   podman build -t azaharframe-portable -f steam-frame/portable/Containerfile steam-frame/portable
+FROM docker.io/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+
+ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
+
+# Build tools, and the development files of the libraries the program only loads from the system
+# (the glvnd GL libraries, xkbcommon) or opens at run time (Vulkan, PulseAudio, ALSA, udev, X11, Wayland: SDL2 and the
+# audio code are built with their support but open the libraries when they run).  Nothing here ends up
+# in the release unless stage-bundle.sh copies it, and it only copies what tools/host-libs.allow does not list.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build pkg-config python3 python3-venv git ca-certificates curl rsync \
+        patchelf file binutils ccache xz-utils \
+        libgl-dev libglx-dev libopengl-dev libegl-dev libvulkan-dev libxkbcommon-dev \
+        libx11-dev libxext-dev libxcursor-dev libxi-dev libxrandr-dev libxfixes-dev libxinerama-dev libxss-dev \
+        libwayland-dev wayland-protocols libdbus-1-dev libudev-dev libpulse-dev libasound2-dev \
+        libpipewire-0.3-dev libfontconfig1-dev libfreetype-dev libglib2.0-dev \
+        libxcb1-dev libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+        libxcb-xkb1 libxcb-shape0 libxcb-xinerama0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 \
+        libxcb-glx0 libxcb-xinput0 libxkbcommon-x11-0 libwayland-cursor0 libwayland-egl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Qt from the Qt Company's own builds (aqtinstall), the same 6.10 series the program was made and tried with.
+ARG AQT_VERSION=3.3.0
+ARG QT_VERSION=6.10.3
+# The hash of the installed Qt tree (sorted file list with hashes).  Empty: just print it, so it can be
+# copied here.  The build stops if a set value differs.
+ARG QT_TREE_SHA256=
+RUN python3 -m venv /opt/aqt-venv \
+    && /opt/aqt-venv/bin/pip install --no-cache-dir "aqtinstall==${AQT_VERSION}" \
+    && /opt/aqt-venv/bin/aqt install-qt linux_arm64 desktop "${QT_VERSION}" linux_gcc_arm64 \
+           -m qtmultimedia qtshadertools --outputdir /opt/qt \
+    && cd /opt/qt && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1 > /opt/qt-tree.sha256 \
+    && echo "Qt tree sha256: $(cat /opt/qt-tree.sha256)" \
+    && if [ -n "${QT_TREE_SHA256}" ] && [ "$(cat /opt/qt-tree.sha256)" != "${QT_TREE_SHA256}" ]; then \
+         echo "the Qt tree does not match QT_TREE_SHA256" >&2; exit 1; fi \
+    && ln -s "/opt/qt/${QT_VERSION}/gcc_arm64" /opt/qt/prefix \
+    && rm -rf /opt/aqt-venv /root/.cache
+ENV QT_PREFIX=/opt/qt/prefix

@@ -1,0 +1,64 @@
+# The release candidate: the portable tarball, built by the same script and container as on the Frame
+# (steam-frame/build-portable.sh, steam-frame/portable/Containerfile: Ubuntu 24.04, glibc 2.39, Qt 6.10.3),
+# checked by steam-frame/tools/check-bundle.sh and started once headless.  Releases publish this artifact.
+# Needs an arm64 runner.  GitHub's standard arm64 runners are free for public repositories only; for a
+# private one, use a larger runner or build on the Frame.
+name: portable
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the tarball name
+        default: '1.0.0'
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    env:
+      CONTAINER_ENGINE: docker
+      AZAHARFRAME_NO_LOCK: '1'          # a CI runner is not the shared Frame
+      AZAHARFRAME_PORTABLE_CACHE: ${{ github.workspace }}/../portable-cache
+      ALLOW_MISSING_HOST: '1'           # the runner has no SteamOS libraries beyond those installed below
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0                # git describe needs the tags
+
+      # the libraries tools/host-libs.allow takes from the system, so that the checked program can start here
+      - name: Install the host libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libopengl0 libgl1 libegl1 libxkbcommon0 libxkbcommon-x11-0 libglib2.0-0t64 libdbus-1-3 \
+            libfontconfig1 libfreetype6 libatomic1 libpng16-16t64 libharfbuzz0b libbrotli1 libzstd1 \
+            libexpat1 libxcb1 libx11-6 libx11-xcb1 libwayland-client0 libwayland-cursor0 libwayland-egl1 \
+            libvulkan1 rsync
+
+      - name: Cache the compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.AZAHARFRAME_PORTABLE_CACHE }}/ccache
+          key: portable-ccache-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: portable-ccache-${{ runner.arch }}-
+
+      - name: Build, bundle, check
+        run: |
+          mkdir -p "$AZAHARFRAME_PORTABLE_CACHE"
+          V="${{ github.event.inputs.version || github.ref_name }}"
+          steam-frame/build-portable.sh "${V#v}"
+
+      - name: Upload the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: azaharframe-linux-arm64
+          path: |
+            steam-frame/release/azaharframe-*-linux-arm64.tar.gz
+            steam-frame/release/SHA256SUMS
