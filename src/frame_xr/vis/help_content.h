@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "common/settings.h"
+#include "frame_xr/vis/controller_diagram.h"
 
 namespace FrameXr::Vis {
 
@@ -52,5 +53,45 @@ struct HelpPage {
 HelpBindings DefaultHelpBindings();
 
 HelpPage BuildHelp(const HelpBindings& bindings, const HelpContext& context);
+
+// AzaharFrame ctrldiag: the same, as labels on drawings of the controllers (panels.h), in the
+// style of CitraVR's controller pages. The list above stays for when the models are missing.
+
+/// One line of a label: `key` (dim, may be empty) and what it does.
+struct DiagramLine {
+    std::string key;
+    std::string action;
+    bool title = false;   ///< the control's own line (bold)
+    bool heading = false; ///< the head of a sub-list ("Hold View +"): `key` only
+    bool sub = false;     ///< in a sub-list (indented)
+};
+
+/// A label, and the parts of one controller its leader line points at (the middle of them).
+struct DiagramLabel {
+    int hand = 0; ///< 0 left, 1 right
+    std::vector<CtrlPart> parts;
+    std::vector<DiagramLine> lines;
+};
+
+enum class DiagramPageId : int { Game, Window, Count };
+
+struct DiagramPage {
+    std::string name;
+    std::vector<DiagramLabel> labels;
+};
+
+struct HelpDiagram {
+    std::array<DiagramPage, 2> pages;
+    DiagramPageId now = DiagramPageId::Game; ///< the page for where the player is
+    std::string footer;
+};
+
+HelpDiagram BuildHelpDiagram(const HelpBindings& bindings, const HelpContext& context);
+
+/// The page for where the player is: In Game while a game runs, else Azahar's Window.
+DiagramPageId HelpDiagramPageFor(const HelpContext& context);
+
+/// The label of `part` of `hand` on `page`, or null (unit tests).
+const DiagramLabel* FindDiagramLabel(const DiagramPage& page, int hand, CtrlPart part);
 
 } // namespace FrameXr::Vis

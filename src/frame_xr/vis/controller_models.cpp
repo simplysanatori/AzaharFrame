@@ -114,8 +114,9 @@ struct PushConstants {
 };
 static_assert(sizeof(PushConstants) == 128);
 
-// AZAHARFRAME_MODELS, else <user dir>/frame-models (the launcher and installer write them there).
-std::string ModelDir() {
+} // namespace
+
+std::string ControllerModelDir() {
     if (const char* env = std::getenv("AZAHARFRAME_MODELS"); env && *env) {
         std::string dir = env;
         return dir.back() == '/' ? dir : dir + "/";
@@ -123,7 +124,18 @@ std::string ModelDir() {
     return FileUtil::GetUserPath(FileUtil::UserPath::UserDir) + "frame-models/";
 }
 
-} // namespace
+bool ReadControllerModels(std::array<ModelFile, 2>& files, std::string& error) {
+    const std::string dir = ControllerModelDir();
+    const char* names[2] = {"frame_controller_left.model", "frame_controller_right.model"};
+    for (int h = 0; h < 2; h++) {
+        std::string why;
+        if (!LoadModelFile(dir + names[h], files[h], why)) {
+            error = dir + names[h] + ": " + why;
+            return false;
+        }
+    }
+    return true;
+}
 
 struct ControllerModels::Files {
     std::array<ModelFile, 2> hand;
@@ -322,18 +334,14 @@ void ControllerModels::DestroyXr() {
 
 namespace {
 
-// Reads both hands and compiles the shaders (the loader thread).
+// Reads both hands (the loader thread).
 bool ReadFiles(std::array<ModelFile, 2>& files) {
-    const std::string dir = ModelDir();
-    const char* names[2] = {"frame_controller_left.model", "frame_controller_right.model"};
-    for (int h = 0; h < 2; h++) {
-        std::string error;
-        if (!LoadModelFile(dir + names[h], files[h], error)) {
-            LOG_WARNING(Frontend, "xr: controller models: {}{}: {} (only the beams are drawn; "
-                                  "steam-frame/tools/frame-controller-models.py makes them)",
-                        dir, names[h], error);
-            return false;
-        }
+    std::string error;
+    if (!ReadControllerModels(files, error)) {
+        LOG_WARNING(Frontend, "xr: controller models: {} (only the beams are drawn; "
+                              "steam-frame/tools/frame-controller-models.py makes them)",
+                    error);
+        return false;
     }
     return true;
 }

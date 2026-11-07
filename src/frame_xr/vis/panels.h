@@ -13,7 +13,9 @@
 #include <string>
 #include <vector>
 
+#include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
+#include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/panel_art.h"
 
 namespace FrameXr::Vis {
@@ -49,6 +51,25 @@ void DrawHelp(PanelArt& atlas, const HelpPage& page);
 /// Only the close button (under the ray or not), cheap enough to draw on any frame.
 void DrawHelpClose(PanelArt& atlas, bool close_hot);
 void DrawStrip(PanelArt& atlas, const StripView& view);
+
+// AzaharFrame ctrldiag: the controls help as a diagram (help_content.h BuildHelpDiagram): line
+// drawings of the controllers made on the device from the model files (controller_diagram.h),
+// each label joined to its control by a leader line. Two tabs in the title row switch between
+// its pages; without the model files the help is the list (DrawHelp).
+struct HelpArt {
+    std::array<DiagramImage, 2> top;   ///< left, right: from above, the front at the top
+    std::array<DiagramImage, 2> front; ///< left, right: from the front, cut below the trigger
+};
+/// The drawings, a few hundred milliseconds of work: off the XR thread.
+HelpArt MakeHelpArt(const ModelFile& left, const ModelFile& right);
+/// Where the drawings show each part, in help panel pixels.
+DiagramAnchors HelpArtAnchors(const HelpArt& art);
+void DrawHelpDiagram(PanelArt& atlas, const HelpDiagram& diagram, DiagramPageId page,
+                     const HelpArt& art);
+/// Only the tabs (one under the ray or not, -1 none).
+void DrawHelpTabs(PanelArt& atlas, const HelpDiagram& diagram, DiagramPageId page, int hot);
+/// The tab at panel pixels (px, py), or -1.
+int HelpTabAt(float px, float py);
 void DrawBeam(PanelArt& atlas);
 
 /// The stats panel's own art.

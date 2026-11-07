@@ -106,7 +106,7 @@ Tests: `src/tests/frame_xr/immersive_layout.cpp`.
 
 ## The VR panels and controller models
 
-`src/frame_xr/vis/` holds them; [docs/TECHNICAL.md](docs/TECHNICAL.md#controllers-beams-the-controls-help-and-the-stats) explains the design. Keep its rules: no CPU waits on the XR thread, the queue lock only around submits and swapchain calls, at most one image per swapchain in flight, and an image released only after its fence has signalled. The controller pass is the one exception to "no GPU work on the XR thread in a game". It adds three swapchains; SteamVR allows 16 per session, so share the atlas before adding a new one. The help text comes from `help_content.cpp` (unit-tested in `src/tests/frame_xr/vis.cpp`): a new control or chord goes there as well as in [docs/CONTROLS.md](docs/CONTROLS.md).
+`src/frame_xr/vis/` holds them; [docs/TECHNICAL.md](docs/TECHNICAL.md#controllers-beams-the-controls-help-and-the-stats) explains the design. Keep its rules: no CPU waits on the XR thread, the queue lock only around submits and swapchain calls, at most one image per swapchain in flight, and an image released only after its fence has signalled. The controller pass is the one exception to "no GPU work on the XR thread in a game". It adds three swapchains; SteamVR allows 16 per session, so share the atlas before adding a new one. The help text comes from `help_content.cpp` (unit-tested in `src/tests/frame_xr/vis.cpp`): a new control or chord goes in both `BuildHelp` (the list) and `BuildHelpDiagram` (the diagram's labels), as well as in [docs/CONTROLS.md](docs/CONTROLS.md). The layout test in `vis.cpp` fails if a new label no longer fits.
 
 ## Environment variables and test settings
 

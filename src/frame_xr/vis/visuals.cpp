@@ -3,12 +3,15 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include <fmt/format.h>
 #include "common/file_util.h"
@@ -223,10 +226,32 @@ struct Visuals::Impl {
     struct HelpKey {
         uint64_t bindings_seq = 0;
         bool face = true, in_menu = false, game = false;
+        bool diagram = false; ///< the diagram, else the list
+        DiagramPageId page = DiagramPageId::Game;
         bool operator==(const HelpKey&) const = default;
     };
     HelpKey help_key{};
     bool help_close_hot_drawn = false;
+
+    // AzaharFrame ctrldiag: the controls help as a diagram. Its drawings are made once a run on
+    // a thread from the controller model files; without them the help is the list.
+    std::thread help_art_thread;
+    std::atomic<int> help_art_state{0}; ///< 0 not started, 1 being made, 2 ready, 3 no models
+    std::unique_ptr<HelpArt> help_art;
+    std::chrono::steady_clock::time_point help_art_started{};
+    DiagramPageId help_page = DiagramPageId::Game;
+    bool help_page_chosen = false; ///< a tab was pressed since the help opened
+    bool help_was_open = false;
+    int tab_hot = -1, tab_hot_drawn = -1;
+    HelpDiagram help_diagram; ///< what the atlas shows (its tab names)
+    void StartHelpArt();
+    /// The drawings, once made (XR thread).
+    const HelpArt* HelpArtReady();
+    ~Impl() {
+        if (help_art_thread.joinable()) {
+            help_art_thread.join();
+        }
+    }
     std::array<bool, 2> trigger_down{};
     std::array<bool, 2> ours{}; ///< the hand is on our panels (taken from the window)
 
@@ -270,9 +295,44 @@ void Visuals::Impl::LoadSeen() {
     LOG_INFO(Frontend, "xr: first VR start: the controls help is shown");
 }
 
+void Visuals::Impl::StartHelpArt() {
+    if (help_art_state != 0) {
+        return;
+    }
+    help_art_state = 1;
+    help_art_started = std::chrono::steady_clock::now();
+    help_art_thread = std::thread([this] {
+        std::array<ModelFile, 2> files;
+        std::string error;
+        if (!ReadControllerModels(files, error)) {
+            LOG_WARNING(Frontend, "xr: controls help: {}: the list is shown", error);
+            help_art_state = 3;
+            return;
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        help_art = std::make_unique<HelpArt>(MakeHelpArt(files[0], files[1]));
+        LOG_INFO(Frontend, "xr: controls help: controller drawings made in {} ms",
+                 std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - t0)
+                     .count());
+        help_art_state = 2;
+    });
+}
+
+const HelpArt* Visuals::Impl::HelpArtReady() {
+    if (help_art_state != 2) {
+        return nullptr;
+    }
+    if (help_art_thread.joinable()) {
+        help_art_thread.join();
+    }
+    return help_art.get();
+}
+
 void Visuals::Create(Runtime& rt) {
     Impl& m = *impl;
     m.rt = &rt;
+    m.StartHelpArt();
     const VkDevice device = rt.vulkan->Device();
     const VkPhysicalDevice physical = rt.vulkan->PhysicalDevice();
     const uint32_t family = rt.vulkan->QueueFamily();
@@ -326,6 +386,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     Impl& m = *impl;
     static_cast<void>(info);
     int hover = -1;
+    int tab_hot = -1;
     bool close_hot = false;
     for (int h = 0; h < Input::kNumHands; h++) {
         auto& hand = in.hand[static_cast<std::size_t>(h)];
@@ -376,6 +437,15 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
                     m.UserSetHelp(false);
                     LOG_INFO(Frontend, "xr: controls help closed");
                 }
+                // AzaharFrame ctrldiag: the diagram's tabs.
+                if (const int tab = m.help_key.diagram ? HelpTabAt(px, py) : -1; tab >= 0) {
+                    tab_hot = tab;
+                    if (edge) {
+                        m.help_page = static_cast<DiagramPageId>(tab);
+                        m.help_page_chosen = true;
+                        LOG_INFO(Frontend, "xr: controls help: page {}", tab);
+                    }
+                }
             }
             hand.active = false; // the window and the keyboard do not see this hand
             hand.trigger = 0.0f;
@@ -388,6 +458,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     }
     m.strip_view.hover = hover;
     m.close_hot = close_hot;
+    m.tab_hot = tab_hot;
 }
 
 std::vector<StatsRow> Visuals::Impl::StatsRows() {
@@ -451,6 +522,9 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     }
 
     // ---- The help panel and the buttons, next to Azahar's window ----
+    if (!m.help_open) {
+        m.help_was_open = false;
+    }
     const bool with_window = window.shown && where != Where::Game;
     m.strip_shown = m.help_shown = false;
     if (with_window && m.atlas.Valid()) {
@@ -487,21 +561,51 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             key.face = Settings::values.vr_face_buttons.GetValue() == 0;
             key.in_menu = where == Where::Menu;
             key.game = where != Where::Home;
-            if (!m.help_drawn || !(key == m.help_key)) {
+            HelpContext ctx;
+            ctx.face_by_position = key.face;
+            ctx.in_menu = key.in_menu;
+            ctx.game_running = key.game;
+            // AzaharFrame ctrldiag: the diagram once its drawings are made (a fraction of a
+            // second after VR starts; until then the panel waits, at most 3 s), else the list.
+            const HelpArt* art = m.HelpArtReady();
+            const bool waiting = m.help_art_state == 1 &&
+                                 std::chrono::steady_clock::now() - m.help_art_started <
+                                     std::chrono::seconds(3);
+            key.diagram = art != nullptr;
+            if (!m.help_was_open) {
+                m.help_page_chosen = false; // each time it opens, the page for where you are
+            }
+            m.help_was_open = true;
+            if (key.diagram) {
+                if (!m.help_page_chosen) {
+                    m.help_page = HelpDiagramPageFor(ctx);
+                }
+                key.page = m.help_page;
+            }
+            if (waiting) {
+                // Nothing yet: the panel shows once the drawings are made.
+            } else if (!m.help_drawn || !(key == m.help_key)) {
                 // A few milliseconds of drawing, only when what it says changes.
-                HelpContext ctx;
-                ctx.face_by_position = key.face;
-                ctx.in_menu = key.in_menu;
-                ctx.game_running = key.game;
-                DrawHelp(m.atlas_art, BuildHelp(bindings, ctx));
+                if (key.diagram) {
+                    m.help_diagram = BuildHelpDiagram(bindings, ctx);
+                    DrawHelpDiagram(m.atlas_art, m.help_diagram, key.page, *art);
+                } else {
+                    DrawHelp(m.atlas_art, BuildHelp(bindings, ctx));
+                }
                 m.help_key = key;
                 m.help_close_hot_drawn = false;
+                m.tab_hot_drawn = -1;
                 m.help_drawn = true;
                 m.atlas_dirty = true;
             }
-            if (m.close_hot != m.help_close_hot_drawn) {
+            if (m.help_drawn && m.close_hot != m.help_close_hot_drawn) {
                 DrawHelpClose(m.atlas_art, m.close_hot);
                 m.help_close_hot_drawn = m.close_hot;
+                m.atlas_dirty = true;
+            }
+            if (m.help_drawn && m.help_key.diagram && m.tab_hot != m.tab_hot_drawn) {
+                DrawHelpTabs(m.atlas_art, m.help_diagram, m.help_key.page, m.tab_hot);
+                m.tab_hot_drawn = m.tab_hot;
                 m.atlas_dirty = true;
             }
         }

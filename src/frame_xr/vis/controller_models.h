@@ -26,6 +26,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <string>
 #include <thread>
 
 #include "frame_xr/frame_xr.h"
@@ -37,6 +38,12 @@ class Runtime;
 }
 
 namespace FrameXr::Vis {
+
+/// The folder of the model files: AZAHARFRAME_MODELS, else <user dir>/frame-models (the
+/// launcher and the installer write them there).
+std::string ControllerModelDir();
+/// Reads both hands' files from it (any thread). False with the file and the reason in `error`.
+bool ReadControllerModels(std::array<ModelFile, 2>& files, std::string& error);
 
 class ControllerModels {
 public:

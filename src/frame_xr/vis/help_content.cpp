@@ -2,6 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
+
 #include "common/param_package.h"
 #include "frame_xr/input/controls.h"
 #include "frame_xr/input/default_bindings.h"
@@ -123,6 +125,80 @@ void Heading(std::vector<HelpRow>& rows, std::string text, bool now) {
     rows.push_back({HelpRow::Kind::Heading, std::move(text), {}, now});
 }
 
+// The Frame's face buttons, and the pad control each drives (mapper.cpp: by position, the
+// Frame's A is the pad's B, and so on).
+struct Face {
+    const char* frame;
+    Control pad;
+};
+std::array<Face, 4> Faces(bool by_position) {
+    return {{
+        {"A", by_position ? Control::B : Control::A},
+        {"B", by_position ? Control::A : Control::B},
+        {"X", by_position ? Control::Y : Control::X},
+        {"Y", by_position ? Control::X : Control::Y},
+    }};
+}
+
+// The D-pad drives the 3DS's D-pad, one direction each.
+bool DpadPlain(const HelpBindings& b) {
+    return BoundTo(b, Control::DpadUp) == std::vector<int>{NB::Up} &&
+           BoundTo(b, Control::DpadDown) == std::vector<int>{NB::Down} &&
+           BoundTo(b, Control::DpadLeft) == std::vector<int>{NB::Left} &&
+           BoundTo(b, Control::DpadRight) == std::vector<int>{NB::Right};
+}
+
+// The 3DS buttons on the grips ("3DS L + R"), or empty.
+std::string Grips(const HelpBindings& b) {
+    std::string grips = Names(BoundTo(b, Control::GripL));
+    if (const std::string r = Names(BoundTo(b, Control::GripR)); !r.empty()) {
+        grips += (grips.empty() ? "" : " + ") + r;
+    }
+    return grips.empty() ? grips : "3DS " + grips;
+}
+
+std::string Footer(const HelpBindings& given, bool by_position) {
+    std::string footer = std::string{"Face Buttons: "} +
+                         (by_position ? "By Position (Nintendo)" : "By Label (Xbox)");
+    if (!given.valid) {
+        footer += "  \xC2\xB7  Default Controls";
+    } else if (!given.profile_name.empty()) {
+        footer += "  \xC2\xB7  Profile: " + given.profile_name;
+    }
+    return footer;
+}
+
+// ---- The diagram's labels ----
+
+constexpr int kLeft = 0;
+constexpr int kRight = 1;
+constexpr int kBoth = 2;
+
+DiagramLine Title(std::string key, std::string action) {
+    return {std::move(key), std::move(action), true, false, false};
+}
+DiagramLine Line(std::string key, std::string action) {
+    return {std::move(key), std::move(action), false, false, false};
+}
+DiagramLine Sub(std::string key, std::string action) {
+    return {std::move(key), std::move(action), false, false, true};
+}
+DiagramLine SubHeading(std::string text) {
+    return {std::move(text), {}, false, true, false};
+}
+
+void Label(DiagramPage& page, int hand, std::vector<CtrlPart> parts, std::vector<DiagramLine> lines) {
+    page.labels.push_back({hand, std::move(parts), std::move(lines)});
+}
+
+// A trigger: the 3DS button it is, and the touch on the bottom screen, which it always is.
+std::vector<DiagramLine> TriggerLines(const char* name, const std::string& bound) {
+    if (bound.empty()) {
+        return {Title(name, "Touch on Bottom Screen")};
+    }
+    return {Title(name, bound), Line("", "Touch on Bottom Screen")};
+}
+
 } // namespace
 
 HelpBindings DefaultHelpBindings() {
@@ -146,27 +222,12 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     // ---- In Game ----
     auto& g = page.game;
     Heading(g, "In Game", ctx.game_running && !ctx.in_menu);
-    // The Frame's face buttons, and the pad control each drives (mapper.cpp: by position, the
-    // Frame's A is the pad's B, and so on).
     const bool pos = ctx.face_by_position;
-    const struct {
-        const char* frame;
-        Control pad;
-    } faces[] = {
-        {"A", pos ? Control::B : Control::A},
-        {"B", pos ? Control::A : Control::B},
-        {"X", pos ? Control::Y : Control::X},
-        {"Y", pos ? Control::X : Control::Y},
-    };
-    for (const auto& f : faces) {
+    for (const Face& f : Faces(pos)) {
         Row(g, f.frame, OrNothing(ThreeDs(b, f.pad)));
     }
     // The D-pad as one row when it is the 3DS's D-pad, else one row per direction.
-    const bool dpad_plain = BoundTo(b, Control::DpadUp) == std::vector<int>{NB::Up} &&
-                            BoundTo(b, Control::DpadDown) == std::vector<int>{NB::Down} &&
-                            BoundTo(b, Control::DpadLeft) == std::vector<int>{NB::Left} &&
-                            BoundTo(b, Control::DpadRight) == std::vector<int>{NB::Right};
-    if (dpad_plain) {
+    if (DpadPlain(b)) {
         Row(g, "D-Pad", "3DS D-Pad");
     } else {
         Row(g, "D-Pad Up", OrNothing(ThreeDs(b, Control::DpadUp)));
@@ -187,11 +248,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Left Stick Click", "Hide or Show Other Screen");
     Row(g, "Right Stick Click", With("Swap Screens", ThreeDs(b, Control::StickClickR)));
     Row(g, "Hold Right Stick Click (1 s)", "Reset Screens");
-    std::string grips = Names(BoundTo(b, Control::GripL));
-    if (const std::string r = Names(BoundTo(b, Control::GripR)); !r.empty()) {
-        grips += (grips.empty() ? "" : " + ") + r;
-    }
-    Row(g, "Grip on a Screen", With("Move Screens", grips.empty() ? grips : "3DS " + grips));
+    Row(g, "Grip on a Screen", With("Move Screens", Grips(b)));
     Row(g, "Stick While Moving", "Nearer or Farther");
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
     Row(g, "Sideways While Moving", "Immersive Screen Size");
@@ -220,14 +277,106 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Heading(w, "Everywhere", false);
     Row(w, "Both Bumpers + View + Menu", "Switch VR / Flat");
 
-    page.footer = std::string{"Face Buttons: "} +
-                  (pos ? "By Position (Nintendo)" : "By Label (Xbox)");
-    if (!given.valid) {
-        page.footer += "  \xC2\xB7  Default Controls";
-    } else if (!given.profile_name.empty()) {
-        page.footer += "  \xC2\xB7  Profile: " + given.profile_name;
-    }
+    page.footer = Footer(given, pos);
     return page;
+}
+
+HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) {
+    const HelpBindings b = given.valid ? given : DefaultHelpBindings();
+    const bool pos = ctx.face_by_position;
+    HelpDiagram d;
+    d.now = HelpDiagramPageFor(ctx);
+    d.footer = Footer(given, pos);
+
+    // ---- In Game ----
+    DiagramPage& g = d.pages[static_cast<std::size_t>(DiagramPageId::Game)];
+    g.name = "In Game";
+    Label(g, kLeft, {CtrlPart::Bumper}, {Title("Left Bumper", OrNothing(ThreeDs(b, Control::BumperL)))});
+    Label(g, kLeft, {CtrlPart::Trigger}, TriggerLines("Left Trigger", ThreeDs(b, Control::TriggerL)));
+    {
+        // The 3DS's D-pad, and a line for each direction the profile changed (all four when
+        // none is left).
+        const struct {
+            const char* name;
+            Control control;
+            int button;
+        } dirs[] = {{"Up", Control::DpadUp, NB::Up},
+                    {"Down", Control::DpadDown, NB::Down},
+                    {"Left", Control::DpadLeft, NB::Left},
+                    {"Right", Control::DpadRight, NB::Right}};
+        std::vector<DiagramLine> lines;
+        bool any_plain = false;
+        for (const auto& d : dirs) {
+            if (BoundTo(b, d.control) == std::vector<int>{d.button}) {
+                any_plain = true;
+            } else {
+                lines.push_back(Sub(d.name, OrNothing(ThreeDs(b, d.control))));
+            }
+        }
+        lines.insert(lines.begin(), any_plain ? Title("D-Pad", "3DS D-Pad") : SubHeading("D-Pad"));
+        Label(g, kLeft, {CtrlPart::Dpad}, std::move(lines));
+    }
+    Label(g, kLeft, {CtrlPart::View},
+          {Title("View", OrNothing(ThreeDs(b, Control::View))), Line("Hold (1.5 s)", "Stop Game"),
+           SubHeading("Hold View +"), Sub("Left Bumper", "Quick Load"),
+           Sub("Right Bumper", "Quick Save"), Sub("Right Trigger", "Fast Forward On / Off"),
+           SubHeading("Both Bumpers +"), Sub("View", "Show or Hide Bottom Screen"),
+           Sub("View + Menu", "Switch VR / Flat")});
+    // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
+    Label(g, kLeft, {CtrlPart::Stick},
+          {Title("Left Stick", OrNothing(StickTo(b, AnalogControl::StickL))),
+           Line("Click", "Hide or Show Other Screen")});
+    std::vector<DiagramLine> faces;
+    for (const Face& f : Faces(pos)) {
+        faces.push_back(Title(f.frame, OrNothing(ThreeDs(b, f.pad))));
+    }
+    Label(g, kRight, {CtrlPart::A, CtrlPart::B, CtrlPart::X, CtrlPart::Y}, std::move(faces));
+    Label(g, kRight, {CtrlPart::Bumper}, {Title("Right Bumper", OrNothing(ThreeDs(b, Control::BumperR)))});
+    Label(g, kRight, {CtrlPart::Trigger}, TriggerLines("Right Trigger", ThreeDs(b, Control::TriggerR)));
+    Label(g, kRight, {CtrlPart::Menu},
+          {Title("Menu", OrNothing(ThreeDs(b, Control::Menu))), Line("Hold (1 s)", "In-Game Menu")});
+    Label(g, kRight, {CtrlPart::Stick},
+          {Title("Right Stick", OrNothing(StickTo(b, AnalogControl::StickR))),
+           Line("Click", With("Swap Screens", ThreeDs(b, Control::StickClickR))),
+           Line("Hold Click (1 s)", "Reset Screens")});
+    Label(g, kBoth, {CtrlPart::Grip},
+          {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("While Moving"),
+           Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Immersive Screen Size"),
+           Sub("Right Stick Click", "Reset Immersive Screen")});
+
+    // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
+    DiagramPage& w = d.pages[static_cast<std::size_t>(DiagramPageId::Window)];
+    w.name = "Azahar's Window";
+    Label(w, kLeft, {CtrlPart::Trigger}, {Title("Left Trigger", "Click")});
+    Label(w, kLeft, {CtrlPart::View},
+          {SubHeading("In-Game Menu"), Sub("Hold View (1.5 s)", "Stop Game"),
+           SubHeading("Both Bumpers +"), Sub("View + Menu", "Switch VR / Flat")});
+    Label(w, kLeft, {CtrlPart::Stick}, {Title("Left Stick", "Scroll")});
+    Label(w, kRight, {CtrlPart::A, CtrlPart::B, CtrlPart::X, CtrlPart::Y},
+          {Title("A", "Click"), Title("B", "Back"), Title("Y", "Keyboard")});
+    Label(w, kRight, {CtrlPart::Trigger}, {Title("Right Trigger", "Click")});
+    Label(w, kRight, {CtrlPart::Menu},
+          {SubHeading("In-Game Menu"), Sub("Hold Menu (1 s)", "Back to Game"),
+           Sub("B (Nothing Open)", "Back to Game")});
+    Label(w, kRight, {CtrlPart::Stick},
+          {Title("Right Stick", "Scroll"), Line("Click", "Right-Click"),
+           Line("Hold Click (1 s)", "Bring Window Back")});
+    Label(w, kBoth, {CtrlPart::Grip}, {Title("Grip", "Move Window")});
+    return d;
+}
+
+DiagramPageId HelpDiagramPageFor(const HelpContext& ctx) {
+    return ctx.game_running ? DiagramPageId::Game : DiagramPageId::Window;
+}
+
+const DiagramLabel* FindDiagramLabel(const DiagramPage& page, int hand, CtrlPart part) {
+    for (const DiagramLabel& l : page.labels) {
+        if ((l.hand == hand || l.hand == kBoth) &&
+            std::find(l.parts.begin(), l.parts.end(), part) != l.parts.end()) {
+            return &l;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace FrameXr::Vis

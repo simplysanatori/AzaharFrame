@@ -241,6 +241,25 @@ void PanelArt::Put(int x, int y, const uint8_t* rgba, int width, int height) {
     }
 }
 
+void PanelArt::PutOver(int x, int y, const uint8_t* rgba, int width, int height) {
+    for (int yy = std::max(0, -y); yy < height && y + yy < h; yy++) {
+        for (int xx = std::max(0, -x); xx < width && x + xx < w; xx++) {
+            const uint8_t* p = rgba + (static_cast<std::size_t>(yy) * width + xx) * 4;
+            if (p[3] == 0) {
+                continue;
+            }
+            uint32_t& d = store.px[static_cast<std::size_t>(y + yy) * w + (x + xx)];
+            const uint32_t keep = 255u - p[3];
+            uint32_t out = 0;
+            for (int k = 0; k < 4; k++) {
+                const uint32_t dst = (d >> (8 * k)) & 0xFFu;
+                out |= std::min(255u, p[k] + (dst * keep + 127u) / 255u) << (8 * k);
+            }
+            d = out;
+        }
+    }
+}
+
 void PanelArt::FillRRect(float x0, float y0, float x1, float y1, float radius, uint32_t argb) {
     store.RoundRect(x0, y0, x1, y1, radius, ToColor(argb));
 }
