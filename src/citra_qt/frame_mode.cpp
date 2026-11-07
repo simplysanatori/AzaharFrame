@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <memory>
 #include <mutex>
 
 #include <QCoreApplication>
@@ -129,28 +131,109 @@ bool InGameMode() {
     return qEnvironmentVariable("XDG_CURRENT_DESKTOP") == QStringLiteral("gamescope");
 }
 
-void AskSteamForFlatScreen(const QString& when) {
-    const QString app_id = qEnvironmentVariable("SteamAppId").trimmed();
-    const QString cef = QCoreApplication::applicationDirPath() + QStringLiteral("/steam-cef.py");
-    if (!InGameMode() || app_id.isEmpty() || !QFileInfo::exists(cef)) {
-        return;
+// Where the flat window goes in the headset: "theater" (default), "dashboard" (only shown in
+// the dashboard, as before) or "off" (Steam is not asked at all). AZAHARFRAME_FLAT_SCREEN.
+QString FlatScreenMode() {
+    const QString mode = qEnvironmentVariable("AZAHARFRAME_FLAT_SCREEN").trimmed().toLower();
+    if (mode == QStringLiteral("dashboard") || mode == QStringLiteral("off")) {
+        return mode;
     }
-    const QString js =
-        QStringLiteral("SteamClient.OpenVR.VROverlay.ShowDashboard('valve.steam.desktopgame.%1')")
-            .arg(app_id);
+    return QStringLiteral("theater");
+}
+
+QString SteamAppId() {
+    return qEnvironmentVariable("SteamAppId").trimmed();
+}
+
+QString CefScript() {
+    return QCoreApplication::applicationDirPath() + QStringLiteral("/steam-cef.py");
+}
+
+/// Under gamescope, started by Steam, with steam-cef.py next to the program.
+bool CanAskSteam() {
+    return InGameMode() && !SteamAppId().isEmpty() && QFileInfo::exists(CefScript()) &&
+           FlatScreenMode() != QStringLiteral("off");
+}
+
+// steam-cef.py ARGS in the background; `done` gets the exit code and the output (GUI thread).
+QProcess* RunCef(const QStringList& args, std::function<void(int, const QString&)> done) {
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.remove(QStringLiteral("LD_LIBRARY_PATH"));
+    env.remove(QStringLiteral("LD_PRELOAD")); // Steam's overlay library: only noise in Python
     auto* process = new QProcess(qApp);
     process->setProcessEnvironment(env);
     process->setProcessChannelMode(QProcess::MergedChannels);
     QObject::connect(process, &QProcess::finished, process,
-                     [process, when](int code, QProcess::ExitStatus) {
-                         LOG_INFO(Frontend, "xr: asked Steam for the flat screen {}: {} {}",
-                                  when.toStdString(), code == 0 ? "done" : "failed",
-                                  process->readAll().trimmed().toStdString());
+                     [process, done = std::move(done)](int code, QProcess::ExitStatus status) {
+                         const QString out = QString::fromUtf8(process->readAll()).trimmed();
+                         done(status == QProcess::NormalExit ? code : -1, out);
                          process->deleteLater();
                      });
-    process->start(QStringLiteral("python3"), {QStringLiteral("-I"), cef, js});
+    QStringList argv{QStringLiteral("-I"), CefScript()};
+    argv << args;
+    process->start(QStringLiteral("python3"), argv);
+    return process;
+}
+
+// Shows the window in the dashboard right away (ShowDashboard of its overlay). The dashboard
+// hides it again when it closes unless the window's frame is in the theater (DockWindow).
+void AskSteamForFlatScreen(const QString& when) {
+    if (!CanAskSteam()) {
+        return;
+    }
+    const QString js =
+        QStringLiteral("SteamClient.OpenVR.VROverlay.ShowDashboard('valve.steam.desktopgame.%1')")
+            .arg(SteamAppId());
+    RunCef({js}, [when](int code, const QString& out) {
+        // ShowDashboard returns nothing: "null" is its normal answer.
+        LOG_INFO(Frontend, "xr: asked Steam to show the window in the dashboard {}: {}{}",
+                 when.toStdString(), code == 0 ? "done" : "failed",
+                 code == 0 ? "" : (" " + out.toStdString()));
+    });
+}
+
+// The window's frame: in the theater (the big screen, stays when the dashboard closes) or back
+// in the dashboard. vrcmd --dock-overlay through steam-cef.py --screen; a few seconds (each
+// vrcmd call takes about 2 s). One at a time; a new request ends the one before.
+QPointer<QProcess> g_screen_helper;
+bool g_in_theater = false; ///< this run docked the window's frame in the theater
+
+void StopScreenHelper() {
+    if (g_screen_helper) {
+        g_screen_helper->disconnect();
+        g_screen_helper->kill();
+        g_screen_helper->deleteLater();
+        g_screen_helper = nullptr;
+    }
+}
+
+void DockWindow(bool theater, int wait_s, std::function<void()> then = {}) {
+    StopScreenHelper();
+    if (!CanAskSteam() || (theater && FlatScreenMode() != QStringLiteral("theater"))) {
+        if (then) {
+            then();
+        }
+        return;
+    }
+    const QString where = theater ? QStringLiteral("theater") : QStringLiteral("dashboard");
+    LOG_INFO(Frontend, "xr: moving the window's frame to the {}", where.toStdString());
+    if (theater) {
+        // From now on: a move cut short may still have happened (vrcmd runs on), and moving a
+        // frame that is in the dashboard already back to it changes nothing.
+        g_in_theater = true;
+    }
+    g_screen_helper = RunCef(
+        {QStringLiteral("--screen"), where, SteamAppId(), QString::number(wait_s)},
+        [theater, then](int code, const QString& out) {
+            // 0: moved. 1: the window's overlay was not there, nothing moved.
+            if (code == 0 || code == 1) {
+                g_in_theater = theater && code == 0;
+            }
+            LOG_INFO(Frontend, "xr: window frame: {}", out.toStdString());
+            if (then) {
+                then();
+            }
+        });
 }
 
 // Logs the window's states, and after VR waits for it to be exposed again.
@@ -169,9 +252,16 @@ public:
 
     void StartReturn() {
         ++generation;
-        returning = true;
         since.start();
         Log("after VR");
+        if (window->isExposed()) {
+            // Under gamescope the window stays mapped (only see-through) in VR, so it usually
+            // never stopped being exposed and no expose event will come.
+            returning = false;
+            was_exposed = true;
+            return;
+        }
+        returning = true;
         const int gen = generation;
         for (int ms : {1000, 3000}) {
             QTimer::singleShot(ms, this, [this, gen, ms] {
@@ -196,9 +286,16 @@ public:
         QTimer::singleShot(6000, this, [this, gen] {
             if (gen == generation && returning) {
                 returning = false;
-                Log("still not exposed 6 s after VR; nothing more to try");
+                Log(window && window->isExposed() ? "exposed 6 s after VR (no expose event)"
+                                                  : "still not exposed 6 s after VR");
             }
         });
+    }
+
+    /// VR again: the return watch above ends.
+    void StopReturn() {
+        ++generation;
+        returning = false;
     }
 
 protected:
@@ -213,9 +310,6 @@ protected:
                 returning = false;
                 LOG_INFO(Frontend, "xr: window exposed {} ms after VR",
                          static_cast<long long>(since.elapsed()));
-                // Once more now that it can be drawn (asked right away, the dashboard may open
-                // before the window is back and show nothing).
-                AskSteamForFlatScreen(QStringLiteral("once the window was exposed"));
             }
         } else if (object == window && event->type() == QEvent::PlatformSurface) {
             Log("platform surface changed");
@@ -287,10 +381,40 @@ void ReturnToFlat(QWidget* window) {
     if (WindowWatch* watch = WatchOf(window)) {
         watch->StartReturn();
     }
-    for (int ms : {0, 1000, 2500}) {
-        QTimer::singleShot(ms, qApp, [ms] {
-            AskSteamForFlatScreen(QStringLiteral("%1 ms after VR").arg(ms));
-        });
+    // SteamVR does not bring the window back by itself after a session: show it in the
+    // dashboard now, then move it to the theater so that it stays when the dashboard closes.
+    AskSteamForFlatScreen(QStringLiteral("after VR"));
+    DockWindow(true, 10);
+}
+
+void StartFlat(QWidget* window) {
+    WatchOf(window);
+    DockWindow(true, 20); // a flat start: the window may take a while to show
+}
+
+void LeaveFlat(QWidget* window, std::function<void()> then) {
+    if (WindowWatch* watch = WatchOf(window)) {
+        watch->StopReturn();
+    }
+    if (g_in_theater) {
+        // Back into the dashboard while the window is still opaque (its overlay goes away once it
+        // is see-through), so the theater screen does not stay over the VR game.
+        // Once, when the move is done or after 8 s at the latest (vrcmd may hang).
+        auto once = std::make_shared<std::function<void()>>(std::move(then));
+        const auto run = [once] {
+            if (*once) {
+                auto f = std::move(*once);
+                *once = nullptr;
+                f();
+            }
+        };
+        DockWindow(false, 0, run);
+        QTimer::singleShot(8000, qApp, run);
+    } else {
+        StopScreenHelper(); // a move to the theater may still be under way
+        if (then) {
+            then();
+        }
     }
 }
 

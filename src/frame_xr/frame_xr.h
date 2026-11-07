@@ -155,6 +155,9 @@ struct FrontendHooks {
     std::function<void()> quick_save;
     /// View, then the Left Bumper: Quick Load.
     std::function<void()> quick_load;
+    /// View, then the Right Trigger (VR or flat, in a game): fast forward on or off (Azahar's
+    /// turbo speed). Queue to the GUI thread.
+    std::function<void()> toggle_fast_forward;
     /// The XR thread made a session (true) or ended it (false), asked for or not (the runtime
     /// may end it, or a new one may fail): the mode now in effect.
     std::function<void(bool vr)> vr_changed;
@@ -208,6 +211,8 @@ void SetInGameMenu(bool open);
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast { QuickSaved = 0, QuickLoaded = 1, NoQuickSave = 2 };
 void ShowToast(Toast kind);
+/// "Fast Forward" in front of you while on (VR only; a toast shows over it). Any thread.
+void SetFastForwardShown(bool on);
 
 /// True when the runtime can show the room behind the screens (Settings "Background:
 /// Passthrough" then works): it offers XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND. False before Start.

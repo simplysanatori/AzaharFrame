@@ -735,6 +735,12 @@ void ShowToast(Toast kind) {
     }
 }
 
+void SetFastForwardShown(bool on) {
+    if (auto* rt = GetRuntime()) {
+        rt->hud.SetFastForward(on);
+    }
+}
+
 bool PassthroughSupported() {
     auto* rt = GetRuntime();
     return rt && rt->alpha_blend_supported;

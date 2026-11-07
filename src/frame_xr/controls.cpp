@@ -108,6 +108,7 @@ bool VrUi::Create(Runtime& rt) {
     bridge_live = false;
     chord_down = false;
     SwallowHeld(); // the buttons of the chord that made this session are still held
+    mode_latch.Arm();
     actions_ok = actions.Create(rt.instance, rt.HasExtension(Input::Actions::kFrameControllerExtension));
     if (actions_ok) {
         actions_ok = actions.Attach(rt.session);
@@ -156,6 +157,7 @@ void VrUi::DestroyXr() {
     picker_shown = false;
     chord_down = false;
     SwallowHeld(); // flat starts with the chord still held
+    mode_latch.Arm(); // and its gamepad may first report the chord up, then held again
 }
 
 void VrUi::Destroy() {
@@ -188,10 +190,22 @@ bool VrUi::ModeChord(const Input::InputFrame& in) {
 }
 
 void VrUi::RequestToggleVr(const char* where) {
+    mode_latch.Arm(); // once per chord, whatever the input says until it is let go
     std::scoped_lock lock{hooks_mutex};
     if (hooks.toggle_vr) {
         LOG_INFO(Frontend, "xr: both bumpers + View + Menu ({}): switching VR / flat", where);
         hooks.toggle_vr();
+    }
+}
+
+void VrUi::RequestFastForward(const Input::PanelCommands& cmd, const char* where) {
+    if (!cmd.toggle_fast_forward) {
+        return;
+    }
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.toggle_fast_forward) {
+        LOG_INFO(Frontend, "xr: {}: View, then Right Trigger: fast forward on / off", where);
+        hooks.toggle_fast_forward();
     }
 }
 
@@ -216,6 +230,9 @@ void VrUi::FlatFrame(int64_t now_ns) {
         have = flat_input && flat_input(in);
     }
     in.time_ns = now_ns;
+    if (have) {
+        mode_latch.Filter(in);
+    }
     if (have != flat_had_input) {
         flat_had_input = have;
         LOG_INFO(Frontend, "xr: flat: {}", have ? "gamepad input" : "no gamepad");
@@ -251,6 +268,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
         RequestToggleVr("flat");
     }
     RequestQuick(cmd, "flat"); // AzaharFrame vrqol
+    RequestFastForward(cmd, "flat");
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {
@@ -497,6 +515,9 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     in.time_ns = info.display_time;
     const bool have_input = focused && actions_ok &&
                             actions.Sync(info.session, info.local_space, info.display_time, in);
+    if (have_input) {
+        mode_latch.Filter(in); // the chord that made this session stays away until let go
+    }
 
     if (launch_pending && info.display_time - launch_time > 10'000'000'000LL) {
         launch_pending = false; // the boot failed or was refused; allow another pick
@@ -618,6 +639,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         RequestToggleVr("game");
     }
     RequestQuick(cmd, "game"); // AzaharFrame vrqol
+    RequestFastForward(cmd, "game");
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {

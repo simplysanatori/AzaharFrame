@@ -189,13 +189,20 @@ void ConfigureFrameVr::SetupPerGameUI() {
         eye_scope->setVisible(false);
         fov_scope->setVisible(false);
         // A running application that overrides them blocks the global values.
-        hide_bottom_check->setEnabled(Settings::values.vr_hide_bottom_screen.UsingGlobal());
-        shape_combo->setEnabled(Settings::values.vr_top_aspect.UsingGlobal());
-        fov_spin->setEnabled(Settings::values.vr_immersive_game_fov.UsingGlobal());
-        mode_combo->setEnabled(Settings::values.vr_immersive_mode.UsingGlobal());
-        depth_combo->setEnabled(Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
-        register_spin->setEnabled(Settings::values.vr_si_mode_register_offset.UsingGlobal());
-        eye_edit->setEnabled(Settings::values.vr_immersive_eye_indicator.UsingGlobal());
+        const auto lock = [this](QWidget* widget, bool using_global) {
+            widget->setEnabled(using_global);
+            if (!using_global) {
+                widget->setToolTip(tr("The running game has its own setting for this. Change it "
+                                      "in the game's Properties."));
+            }
+        };
+        lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
+        lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
+        lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
+        lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
+        lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
+        lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
+        lock(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
         return;
     }
 
@@ -229,14 +236,20 @@ void ConfigureFrameVr::SetConfiguration() {
     const auto& reg = Settings::values.vr_si_mode_register_offset;
     const auto& eye = Settings::values.vr_immersive_eye_indicator;
 
-    hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue());
-    register_spin->setValue(reg.GetValue());
-    fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue());
-    eye_edit->setText(QString::fromStdString(eye.GetValue()));
+    // AzaharFrame: the global window shows the global values, also while a running game
+    // overrides some (those rows are disabled). GetValue() alone gave the game's own value
+    // there, and if the game stopped while the window was open (the in-game menu in VR can stop
+    // it), OK would then have saved that value as the global one.
+    const bool global = Settings::IsConfiguringGlobal();
+    hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
+    register_spin->setValue(reg.GetValue(global));
+    fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
+    eye_edit->setText(QString::fromStdString(eye.GetValue(global)));
 
-    if (Settings::IsConfiguringGlobal()) {
-        shape_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_top_aspect.GetValue()));
-        mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue()));
+    if (global) {
+        shape_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
+        mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
@@ -244,7 +257,7 @@ void ConfigureFrameVr::SetConfiguration() {
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
         show_stats_check->setChecked(Settings::values.vr_show_stats.GetValue());
-        depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
+        depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue(true)));
         return;
     }
 

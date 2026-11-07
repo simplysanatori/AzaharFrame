@@ -132,6 +132,10 @@ struct PanelCommands {
     bool quick_save = false;
     /// The same with the Left Bumper: Quick Load.
     bool quick_load = false;
+    /// View pressed first (no bumper down yet), then the Right Trigger: fast forward on or off.
+    /// Fires once per trigger pull, at most once per quick_cooldown_ns; the game sees neither
+    /// Select nor ZR of it. The Left Trigger stays ZL.
+    bool toggle_fast_forward = false;
 };
 
 struct MapperOutput {
@@ -215,6 +219,12 @@ private:
     std::array<bool, kNumHands> bumper_prev_{};
     bool quick_done_ = false; ///< an action fired at least once; quick_last_ns_ is valid
     int64_t quick_last_ns_ = 0;
+    // Fast forward: View first (quick_armed_), then the Right Trigger. Its own edge state and
+    // cooldown; the pull stays away from the game (ZR, touch) until the trigger is let go.
+    bool ff_trigger_prev_ = false;
+    bool ff_done_ = false;
+    int64_t ff_last_ns_ = 0;
+    bool swallow_trigger_r_ = false;
     // After the VR / flat chord: each of these stays away from the game until let go.
     bool swallow_menu_ = false;
     std::array<bool, kNumHands> swallow_bumper_{};

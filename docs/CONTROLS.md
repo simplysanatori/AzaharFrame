@@ -25,6 +25,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
 | **View**, then the right bumper | Quick Save | Hold **View** first, then press the bumper. The game sees none of the three. See Quick Save and Quick Load |
 | **View**, then the left bumper | Quick Load | The same |
+| **View**, then the right trigger | Fast Forward on or off | Hold **View** first, then pull the trigger. The game sees neither Select nor ZR. See Fast Forward |
 
 The left Steam button belongs to SteamVR and is never bound.
 
@@ -36,7 +37,7 @@ While you hold **View**, the game sees Select held. When the 1.5 seconds are up 
 
 A tap of **Menu** reaches the game as Start when you let go.
 
-Because **View** also starts Quick Save and Quick Load, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
+Because **View** also starts Quick Save, Quick Load and Fast Forward, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
 
 ## Quick Save and Quick Load
 
@@ -48,6 +49,17 @@ Hold **View**, then press the right bumper to Quick Save or the left bumper to Q
 - It works in a game in VR and in Flat. In the in-game menu the same two actions are buttons in the row at the top, see below.
 
 <!-- VERIFY: the combo and the message in the headset -->
+
+## Fast Forward
+
+Hold **View**, then pull the right trigger to turn Fast Forward on: the game runs at Azahar's turbo speed (**Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it). "Fast Forward" shows in front of you while it is on. Do the same again to turn it off. It also goes off when the game stops, when the in-game menu opens (in Flat: when holding **Menu** pauses), and when you switch between VR and Flat.
+
+- The same rules as Quick Save: **View** has to go down first, with no bumper held, and a second pull within a second does nothing.
+- The game sees neither Select nor ZR, and the stop timer starts over, so holding **View** while you pull never stops the game. Aimed at the bottom screen, that pull is not a touch either.
+- The left trigger with **View** held stays ZL.
+- It works in a game in VR and in Flat. In Flat there is no label; the speed in the status bar shows it.
+
+<!-- VERIFY: Fast Forward and its label in the headset -->
 
 ## Pointing
 
@@ -118,6 +130,8 @@ The models are made from the ones SteamVR has for the Frame. The installer makes
 ## VR and Flat
 
 Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on the Frame's screen, as a normal app, and the game draws one eye only; back in VR the 3D comes back. The next start uses the mode you switched to last.
+
+SteamVR shows the window on its big screen (the theater), so it stays when you close the dashboard; when you switch back to VR, the window goes back into the dashboard first, which takes a few seconds. A chord still held after a switch does nothing until you let go of all four buttons, at least one second later, so one press switches once.
 
 The buttons mean the same in both modes. In Flat the controllers reach Azahar as Steam Input's gamepad, so there is no laser: the triggers are ZL and ZR, the mouse is the touch screen, and the Frame's pointer is the mouse for Azahar's menus. Holding **Menu** for 1 second pauses or continues the game, and holding **View** for 1.5 seconds stops it, as in VR.
 

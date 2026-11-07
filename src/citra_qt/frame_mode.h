@@ -12,13 +12,21 @@
 // - The window in Game Mode (gamescope): never unmapped or hidden (gamescope asserted in
 //   wlr_seat_keyboard_notify_enter when a window went away under it in Moonlight XR); in VR
 //   it is only made fully see-through (_NET_WM_WINDOW_OPACITY 0 on xcb, which gamescope
-//   skips), in flat opaque again. SteamVR closes the game's flat screen when a session starts
-//   and does not open it again when the session ends, so after VR Steam is asked to show it
-//   (steam-cef.py next to the program, ShowDashboard of valve.steam.desktopgame.<SteamAppId>)
-//   at 0, 1000 and 2500 ms and once the window was exposed; the window is shown and raised
-//   again at 1 s and 3 s if it is not exposed. Every state change of the window is logged.
+//   skips), in flat opaque again. gamescope turns an opaque window into the SteamVR overlay
+//   valve.steam.desktopgame.<SteamAppId>, which the SteamVR dashboard shows in a "frame".
+//   SteamVR closes the game's flat screen when a session starts and does not open it again when
+//   the session ends, and the dashboard only docks a window in the theater by itself when its
+//   frame first comes alive (dashboard.autoShowGameTheater; the frame stays alive across
+//   sessions). So after VR the window is shown in the dashboard (ShowDashboard through
+//   steam-cef.py) and its frame moved to the theater (steam-cef.py --screen theater, which runs
+//   vrcmd --dock-overlay), where it stays when the dashboard closes; a flat start does the
+//   latter too. Before VR again the frame goes back into the dashboard while the window is still
+//   opaque. AZAHARFRAME_FLAT_SCREEN=dashboard keeps it in the dashboard, =off asks Steam
+//   nothing. Every state change of the window is logged.
 
 #pragma once
+
+#include <functional>
 
 #include "frame_xr/input/input_frame.h"
 
@@ -41,5 +49,12 @@ void FadeWindow(QWidget* window, bool out);
 
 /// Flat after VR: asks Steam for the flat screen and watches the window come back (logged).
 void ReturnToFlat(QWidget* window);
+
+/// A flat start: the window's frame to the theater once Steam shows it.
+void StartFlat(QWidget* window);
+
+/// VR asked for in flat: the window's frame back into the dashboard if this run moved it to the
+/// theater, then `then` (a few seconds later in that case, else right away). GUI thread.
+void LeaveFlat(QWidget* window, std::function<void()> then);
 
 } // namespace FrameMode

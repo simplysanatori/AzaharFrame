@@ -32,6 +32,7 @@
 #include <fmt/format.h>
 
 #include "citra_qt/frame_mirror.h"
+#include "citra_qt/uisettings.h"
 #include "common/logging/log.h"
 
 QT_BEGIN_NAMESPACE
@@ -340,6 +341,22 @@ void FrameMirror::MarkDirty() {
     }
 }
 
+namespace {
+// What is behind the windows on the panel: the dark themes colour widgets with their style
+// sheet and leave the palette as it is (light), so the palette alone filled the gaps white.
+QColor PanelBackground(const QWidget* main) {
+    const QString& theme = UISettings::values.theme;
+    if (theme == QStringLiteral("qdarkstyle") || theme == QStringLiteral("colorful_dark")) {
+        return QColor(0x31, 0x36, 0x3b); // qdarkstyle/style.qss, QWidget background-color
+    }
+    if (theme == QStringLiteral("qdarkstyle_midnight_blue") ||
+        theme == QStringLiteral("colorful_midnight_blue")) {
+        return QColor(0x19, 0x23, 0x2d);
+    }
+    return main->palette().color(QPalette::Window);
+}
+} // namespace
+
 void FrameMirror::Capture() {
     if (!main || !Capturing() || capturing) {
         return;
@@ -360,7 +377,7 @@ void FrameMirror::Capture() {
     const QSize px(qRound(canvas.width() * s), qRound(canvas.height() * s));
     QImage img(px, QImage::Format_ARGB32_Premultiplied);
     img.setDevicePixelRatio(s);
-    img.fill(main->palette().color(QPalette::Window));
+    img.fill(PanelBackground(main));
     capturing = true;
     {
         QPainter p(&img);

@@ -60,6 +60,9 @@ bool Mapper::Reset() {
     view_quick_wait_ = false;
     bumper_prev_ = {};
     quick_done_ = false;
+    ff_trigger_prev_ = false;
+    ff_done_ = false;
+    swallow_trigger_r_ = false;
     swallow_menu_ = false;
     swallow_bumper_ = {};
     touch_active_ = false;
@@ -160,6 +163,31 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             }
         }
         bumper_prev_ = {frame.hand[0].bumper, frame.hand[1].bumper};
+    }
+
+    // ---- Fast forward: View first (as for Quick Save), then the Right Trigger: on / off ----
+    {
+        const HandInput& right = frame.hand[1];
+        const bool down = Hysteresis(ff_trigger_prev_, right.trigger, config_.trigger_press,
+                                     config_.trigger_release);
+        const bool edge = down && !ff_trigger_prev_;
+        ff_trigger_prev_ = down;
+        if (!down) {
+            swallow_trigger_r_ = false;
+        }
+        // A pull that is already a touch or ZR (trigger before View) is not this gesture.
+        if (quick_armed_ && edge && hands_[1].gesture == Gesture::None) {
+            const bool cooled = !ff_done_ || frame.time_ns - ff_last_ns_ >= config_.quick_cooldown_ns;
+            if (cooled) {
+                out.commands.toggle_fast_forward = true;
+                ff_done_ = true;
+                ff_last_ns_ = frame.time_ns;
+            }
+            swallow_trigger_r_ = true; // until let go: no ZR, no touch
+            swallow_view_ = true;      // until let go: no Select, no stop hold
+            view_quick_wait_ = false;
+            select_pulse_ = false;
+        }
     }
     controls.Set(Control::BumperL, frame.hand[0].bumper && !swallow_bumper_[0]);
     controls.Set(Control::BumperR, frame.hand[1].bumper && !swallow_bumper_[1]);
@@ -307,9 +335,10 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         const int h = HandIndex(hand);
         HandState& state = hands_[static_cast<std::size_t>(h)];
         const HandInput& input = frame.hand[static_cast<std::size_t>(h)];
-        const bool pressed = input.active && Hysteresis(state.trigger_down, input.trigger,
-                                                        config_.trigger_press,
-                                                        config_.trigger_release);
+        const bool swallowed = h == 1 && swallow_trigger_r_; // the fast forward pull
+        const bool pressed = input.active && !swallowed &&
+                             Hysteresis(state.trigger_down, input.trigger, config_.trigger_press,
+                                        config_.trigger_release);
         const bool was_pressed = state.trigger_down;
         state.trigger_down = pressed;
         const Ray ray = RayFromPose(input.aim);
