@@ -16,7 +16,7 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset != nullptr);
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
-        REQUIRE(preset->wider_view); // Mario Kart 7 holds up past its own view
+        REQUIRE_FALSE(preset->wider_view); // off by default in every game
     }
     for (const uint64_t id : {0x0004000000054000ull, 0x0004000000053F00ull, 0x0004000000054100ull,
                               0x0004000000089D00ull, 0x0004000000089E00ull}) {
