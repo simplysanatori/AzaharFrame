@@ -14,7 +14,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 
 | Frame control | 3DS | Notes |
 | --- | --- | --- |
-| A, B, X, Y | A, B, X, Y | Same names. |
+| A (bottom), B (right), X (left), Y (top) | B, A, Y, X | By position, as on the 3DS (A right, B bottom, X top, Y left). The setting `vr_face_buttons` ("Face Buttons", `MapperConfig::face_buttons_by_position`) 1 gives by label: A, B, X, Y. See below. |
 | Left bumper | L | |
 | Right bumper | R | |
 | Left grip, right grip (squeeze) | (none) | Grab a screen, see below. Pressed above 0.60, released below 0.40. |
@@ -31,6 +31,49 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 
 Select follows View at once, so a tap is a normal Select. While the stop hold is running the game
 sees Select held; when the 1.5 s are up the game sees Select released and the game stops.
+
+### Face buttons
+
+The Frame's face buttons are labelled and placed like an Xbox controller's (A bottom, B right, X
+left, Y top). The 3DS has A right, B bottom, X top, Y left. The default (`vr_face_buttons` 0,
+"By Position (Nintendo)") maps by position:
+
+| Frame button | Position | 3DS |
+| --- | --- | --- |
+| A | bottom | B |
+| B | right | A |
+| X | left | Y |
+| Y | top | X |
+
+"By Label (Xbox)" (`vr_face_buttons` 1) maps A to A, B to B, X to X, Y to Y. The swap is done by the
+mapper, so the pad's `Control::A`, `B`, `X`, `Y` (named "Frame A" ... in the Controls dialog) are
+the controls in the positions of the 3DS A, B, X and Y, and `default_bindings.h` binds them to the
+3DS A, B, X and Y as before. The setting is read every frame (`InputBridge::Process`) and is
+global. The game picker and the other places that read the raw `InputFrame` (`controls.cpp`:
+A = select, B = previous page) are not game input and do not swap.
+
+## Motion (gyroscope and accelerometer)
+
+`motion.h`. The controller chosen by `vr_motion_controls` (0 off, 1 right, 2 left; default right)
+drives the 3DS's sensors through the `frame_xr` motion device (`engine:frame_xr`, shared state in
+`input_common/frame_xr.h`), written once per display frame by the `InputBridge` and read by the HID
+service. VR start-up replaces the profile's default motion device (`motion_emu`, the mouse) with
+it; any other device the user picked is kept.
+
+The 3DS axes are those of Azahar's other motion devices (`motion_emu.cpp`; the Android sensors in
+`ndk_motion.cpp`): right handed, x toward the 3DS's left, y out of the screen, z toward the top of
+the 3DS. The accelerometer is the direction of gravity in these axes, in g (a 3DS lying flat,
+screen up, reads (0, -1, 0)); the gyroscope is the angular rate about them in degrees per second.
+
+The controller is held as a window: its aim ray (-Z) goes into the screen. Controller (OpenXR aim
+pose) to 3DS axes: x3 = -x, y3 = z, z3 = y. So the ray pointing level with the controller upright
+reads gravity (0, 0, -1) (a 3DS held up facing you); the ray pointing down is a 3DS lying flat
+(0, -1, 0). The gyroscope is the rotation between two consecutive aim orientations, in the
+controller's own axes, divided by the time between their display times, then converted the same
+way. Rates under 1.5 deg/s read as zero, they are capped at 2000 deg/s, and a gap of more than
+100 ms between two frames restarts the tracking. The base space is assumed to be gravity aligned
+(+Y up), as OpenXR's LOCAL space is. Hand movement through the room is not sent (no linear
+acceleration).
 
 ## Pointing at the screens
 
@@ -124,6 +167,7 @@ holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows t
 | Circle Pad | `engine:frame_xr,analog:0` (left stick) |
 | C-Stick | `engine:frame_xr,analog:1` (right stick) |
 | Debug, Gpio14, Power | empty |
+| Motion | `engine:frame_xr` (set at VR start-up in place of the default `motion_emu`, see Motion) |
 
 The Controls dialog shows these as "Frame A", "Frame Left Grip", "Frame Menu", and so on, and its
 "press a button" capture works for the Frame controls (pollers). Unused engine inputs: grips

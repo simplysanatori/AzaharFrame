@@ -32,6 +32,11 @@ private:
     QCheckBox* hide_bottom_check;
     /// Per application: the tristate tracker (Use global / on / off).
     ConfigurationShared::CheckState hide_bottom_state = ConfigurationShared::CheckState::Global;
+    /// Global settings only (hidden in a game's properties).
+    QWidget* face_row;
+    QComboBox* face_combo;
+    QWidget* motion_row;
+    QComboBox* motion_combo;
     QWidget* shape_row;
     QComboBox* shape_combo;
     QWidget* mode_row;

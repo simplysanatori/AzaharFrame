@@ -61,6 +61,20 @@ private:
     AnalogControl control;
 };
 
+class FrameXrMotion final : public Input::MotionDevice {
+public:
+    std::tuple<Common::Vec3<float>, Common::Vec3<float>> GetStatus() const override {
+        return GetMotion().Get();
+    }
+};
+
+class MotionFactory final : public Input::Factory<Input::MotionDevice> {
+public:
+    std::unique_ptr<Input::MotionDevice> Create(const Common::ParamPackage&) override {
+        return std::make_unique<FrameXrMotion>();
+    }
+};
+
 class ButtonFactory final : public Input::Factory<Input::ButtonDevice> {
 public:
     std::unique_ptr<Input::ButtonDevice> Create(const Common::ParamPackage& params) override {
@@ -189,15 +203,38 @@ PadState& GetPad() {
     return pad;
 }
 
+void MotionState::Set(const Common::Vec3f& accel, const Common::Vec3f& gyro) {
+    std::lock_guard lock{mutex_};
+    accel_ = accel;
+    gyro_ = gyro;
+}
+
+void MotionState::Reset() {
+    Set(Common::Vec3f{0.0f, -1.0f, 0.0f}, Common::Vec3f{0.0f, 0.0f, 0.0f});
+}
+
+std::tuple<Common::Vec3f, Common::Vec3f> MotionState::Get() const {
+    std::lock_guard lock{mutex_};
+    return {accel_, gyro_};
+}
+
+MotionState& GetMotion() {
+    static MotionState motion;
+    return motion;
+}
+
 void Register() {
     Input::RegisterFactory<Input::ButtonDevice>("frame_xr", std::make_shared<ButtonFactory>());
     Input::RegisterFactory<Input::AnalogDevice>("frame_xr", std::make_shared<AnalogFactory>());
+    Input::RegisterFactory<Input::MotionDevice>("frame_xr", std::make_shared<MotionFactory>());
 }
 
 void Unregister() {
     Input::UnregisterFactory<Input::ButtonDevice>("frame_xr");
     Input::UnregisterFactory<Input::AnalogDevice>("frame_xr");
+    Input::UnregisterFactory<Input::MotionDevice>("frame_xr");
     GetPad().ReleaseAll();
+    GetMotion().Reset();
 }
 
 void SetTouchSink(TouchSink* sink) {
@@ -271,6 +308,18 @@ bool MigrateGripBindings(Settings::InputProfile& profile) {
     move(Settings::NativeButton::L, Control::GripL, Control::BumperL);
     move(Settings::NativeButton::R, Control::GripR, Control::BumperR);
     return changed;
+}
+
+bool UseFrameMotionDevice(Settings::InputProfile& profile) {
+    const Common::ParamPackage param{profile.motion_device};
+    const std::string engine = param.Get("engine", "motion_emu");
+    if (engine != "motion_emu") {
+        return false; // the user picked something else (or it is already ours)
+    }
+    Common::ParamPackage frame_param;
+    frame_param.Set("engine", "frame_xr");
+    profile.motion_device = frame_param.Serialize();
+    return true;
 }
 
 bool ProfileUsesFrameXr(const Settings::InputProfile& profile) {

@@ -8,11 +8,13 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <tuple>
 #include <vector>
 #include "common/param_package.h"
 #include "common/settings.h"
+#include "common/vector_math.h"
 #include "core/frontend/input.h"
 #include "frame_xr/input/controls.h"
 #include "input_common/main.h"
@@ -25,7 +27,9 @@
 // devices. Parameters of a device:
 //     engine:frame_xr,button:N     N = int(FrameXr::Input::Control)
 //     engine:frame_xr,analog:N     N = int(FrameXr::Input::AnalogControl)
-// An unbound control, or a pad nobody feeds, reads as released / centred.
+//     engine:frame_xr              (motion device) a Frame controller as the 3DS's motion sensors
+// An unbound control, or a pad nobody feeds, reads as released / centred; a motion device
+// nobody feeds reads as a 3DS lying flat.
 
 namespace InputCommon::FrameXr {
 
@@ -56,8 +60,27 @@ private:
     std::array<std::atomic<std::uint64_t>, ::FrameXr::Input::kNumAnalogControls> sticks_{};
 };
 
+/// The motion sensors shared between the XR thread (writer) and the emulation thread (the HID
+/// service reads them through the "frame_xr" motion device). Axes and units are the ones of
+/// Azahar's other motion devices: accelerometer = gravity direction in g (a 3DS lying flat
+/// reads (0, -1, 0)), gyroscope in degrees per second; see frame_xr/input/motion.h.
+class MotionState {
+public:
+    void Set(const Common::Vec3f& accel, const Common::Vec3f& gyro);
+    /// Back to a 3DS lying flat and still.
+    void Reset();
+    std::tuple<Common::Vec3f, Common::Vec3f> Get() const;
+
+private:
+    mutable std::mutex mutex_;
+    Common::Vec3f accel_{0.0f, -1.0f, 0.0f};
+    Common::Vec3f gyro_{0.0f, 0.0f, 0.0f};
+};
+
 /// The process wide pad. Valid whether or not the engine is registered.
 PadState& GetPad();
+/// The process wide motion sensors. Valid whether or not the engine is registered.
+MotionState& GetMotion();
 
 /// Registers the "frame_xr" button and analog factories (called from InputCommon::Init).
 void Register();
@@ -89,6 +112,11 @@ void ApplyDefaultProfile(Settings::InputProfile& profile);
 /// (`button:12`/`button:13`) in a profile saved by an older build. Other bindings stay. Returns
 /// true when something changed.
 bool MigrateGripBindings(Settings::InputProfile& profile);
+
+/// Points the profile's motion device at the Frame controller ("engine:frame_xr") unless the user
+/// chose another device in Configure > Controls: only the default (Mouse, "motion_emu") or an
+/// empty setting is replaced. Returns true when something changed.
+bool UseFrameMotionDevice(Settings::InputProfile& profile);
 
 /// True when the profile already binds frame_xr to at least one button (a user profile saved
 /// earlier), so VR start-up can leave their bindings alone.

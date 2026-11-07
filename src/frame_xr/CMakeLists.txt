@@ -28,6 +28,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/input_frame.h
     input/mapper.cpp
     input/mapper.h
+    input/motion.cpp
+    input/motion.h
     input/types.h
 )
 

@@ -4,6 +4,8 @@ add_executable(tests
     frame_xr/input_mapper.cpp # AzaharFrame
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame
+    ../frame_xr/input/motion.cpp # AzaharFrame
+    frame_xr/input_motion.cpp # AzaharFrame
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

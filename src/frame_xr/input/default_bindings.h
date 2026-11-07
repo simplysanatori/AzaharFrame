@@ -25,6 +25,9 @@ struct AnalogBinding {
     Settings::NativeAnalog::Values analog;
 };
 
+/// The pad's A, B, X, Y are the controls in the places of the 3DS's A, B, X, Y: the mapper swaps the
+/// Frame's buttons by position (or not, "Face Buttons" setting), so this table does not change.
+///
 /// Controls that are deliberately unbound by default: GripL, GripR (they grab the screens, handled
 /// by the mapper), StickClickR (reset panel positions, handled by the mapper before the game
 /// sees it).

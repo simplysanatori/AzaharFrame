@@ -56,6 +56,30 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "hide the bottom screen. Takes effect when the game starts."));
     layout->addWidget(hide_bottom_check);
 
+    // Global only. Values 0..1 are Settings::values.vr_face_buttons (frame_xr/input/mapper.h).
+    face_combo = new QComboBox(this);
+    face_combo->addItem(tr("By Position (Nintendo)"));
+    face_combo->addItem(tr("By Label (Xbox)"));
+    face_row = MakeRow(
+        this, QStringLiteral("frame_vr_face_row"), tr("Face Buttons"),
+        tr("How the Frame's A, B, X and Y buttons map to the 3DS. By Position matches the 3DS "
+           "layout."),
+        {face_combo});
+    layout->addWidget(face_row);
+
+    // Global only. Values 0..2 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
+    motion_combo = new QComboBox(this);
+    motion_combo->addItem(tr("Off"));
+    motion_combo->addItem(tr("Right Controller"));
+    motion_combo->addItem(tr("Left Controller"));
+    motion_row = MakeRow(
+        this, QStringLiteral("frame_vr_motion_row"), tr("Motion Controls"),
+        tr("Uses a controller as the 3DS's gyroscope and accelerometer, for games that aim by "
+           "moving the 3DS. Hold it like a 3DS, with its beam pointing into the screen. Going "
+           "from Off to a controller takes effect the next time VR starts."),
+        {motion_combo});
+    layout->addWidget(motion_row);
+
     // Values 0..2 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
@@ -130,6 +154,9 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
 ConfigureFrameVr::~ConfigureFrameVr() = default;
 
 void ConfigureFrameVr::SetupPerGameUI() {
+    // Face Buttons and Motion Controls are not per game.
+    face_row->setVisible(Settings::IsConfiguringGlobal());
+    motion_row->setVisible(Settings::IsConfiguringGlobal());
     if (Settings::IsConfiguringGlobal()) {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
@@ -183,6 +210,9 @@ void ConfigureFrameVr::SetConfiguration() {
     if (Settings::IsConfiguringGlobal()) {
         shape_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_top_aspect.GetValue()));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue()));
+        face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
+        motion_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
         return;
     }
@@ -207,6 +237,11 @@ void ConfigureFrameVr::SetConfiguration() {
 }
 
 void ConfigureFrameVr::ApplyConfiguration() {
+    if (Settings::IsConfiguringGlobal()) {
+        Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
+        Settings::values.vr_motion_controls.SetValue(
+            static_cast<u32>(motion_combo->currentIndex()));
+    }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);

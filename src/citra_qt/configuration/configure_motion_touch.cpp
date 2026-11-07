@@ -75,10 +75,12 @@ void CalibrationConfigurationDialog::UpdateButtonText(const QString& text) {
     cancel_button->setText(text);
 }
 
-constexpr std::array<std::pair<const char*, const char*>, 3> MotionProviders = {{
+constexpr std::array<std::pair<const char*, const char*>, 4> MotionProviders = {{
     {"motion_emu", QT_TRANSLATE_NOOP("ConfigureMotionTouch", "Mouse (Right Click)")},
     {"cemuhookudp", "CemuhookUDP"},
     {"sdl", "SDL"},
+    // AzaharFrame: VR only, the controller chosen by Motion Controls in the VR group
+    {"frame_xr", QT_TRANSLATE_NOOP("ConfigureMotionTouch", "Frame Controller (VR)")},
 }};
 
 constexpr std::array<std::pair<const char*, const char*>, 2> TouchProviders = {{

@@ -672,6 +672,14 @@ GMainWindow::GMainWindow(Core::System& system_)
                 system.ApplySettings();
                 LOG_INFO(Frontend, "xr: L and R moved from the grips to the bumpers");
             }
+            // AzaharFrame: a Frame controller as the 3DS gyroscope and accelerometer (Motion
+            // Controls), unless the profile has another motion device.
+            if (Settings::values.vr_motion_controls.GetValue() != 0 &&
+                InputCommon::FrameXr::UseFrameMotionDevice(
+                    Settings::values.current_input_profile)) {
+                system.ApplySettings();
+                LOG_INFO(Frontend, "xr: the Frame controller is the motion device");
+            }
             // Touch needs the bottom screen in the window's layout.
             // No separate windows either: the second window stays hidden in VR.
             if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SingleScreen ||
