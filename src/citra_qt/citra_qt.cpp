@@ -850,8 +850,15 @@ GMainWindow::GMainWindow(Core::System& system_)
             const auto notify = [this](FrameXr::Toast kind, const QString& text) {
                 if (FrameXr::VrShowing() && !(g_frame_mirror && g_frame_mirror->MenuOpen())) {
                     FrameXr::ShowToast(kind);
-                } else {
-                    statusBar()->showMessage(text, 3000);
+                } else if (!message_label_used_for_movie) {
+                    // Every widget in Azahar's status bar is permanent, so showMessage() has no
+                    // room there: the message label (left, stretched) shows it for 3 s instead.
+                    message_label->setText(text);
+                    QTimer::singleShot(3000, this, [this, text] {
+                        if (!message_label_used_for_movie && message_label->text() == text) {
+                            message_label->clear();
+                        }
+                    });
                 }
             };
             g_frame_xr_quick_save = [this, notify] {
