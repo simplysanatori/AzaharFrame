@@ -84,6 +84,8 @@ private:
     bool ModeChord(const Input::InputFrame& in);
     /// Asks the Qt side to switch between VR and flat (FrontendHooks::toggle_vr).
     void RequestToggleVr(const char* where);
+    /// View, then a bumper (the mapper's quick_save / quick_load): asks the Qt side.
+    void RequestQuick(const Input::PanelCommands& cmd, const char* where);
     /// Everything held stays away from the game until let go (a new mode, the menu closed).
     void SwallowHeld();
     void AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layers);

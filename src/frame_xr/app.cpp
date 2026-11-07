@@ -18,6 +18,7 @@
 #include <fmt/format.h>
 #include "common/logging/log.h"
 #include "common/frame_flat.h"
+#include "common/settings.h" // AzaharFrame vrqol: Background
 #include "common/thread.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
@@ -493,14 +494,33 @@ void Runtime::FrameLoop() {
             for (const Quad& q : ui_quads) {
                 quad_layers.push_back(MakeQuad(local_space, q));
             }
+            // AzaharFrame vrqol: a toast (Quick Saved ...) in front of everything.
+            Quad toast;
+            if (hud.ToastQuad(LatestViewPose(), fs.predictedDisplayTime, toast)) {
+                quad_layers.push_back(MakeQuad(local_space, toast));
+            }
         }
         layer_ptrs.clear();
+        // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
+        // projection layer when the frame is ended with the alpha blend mode.
+        XrCompositionLayerProjection passthrough_layer{};
+        XrCompositionLayerProjectionView passthrough_views[2]{};
+        bool passthrough = false;
+        if (fs.shouldRender && hud.PassthroughActive(*this)) {
+            passthrough = hud.PassthroughLayer(LatestViewPose(), local_space, passthrough_layer,
+                                               passthrough_views);
+        }
+        if (passthrough) {
+            layer_ptrs.push_back(
+                reinterpret_cast<const XrCompositionLayerBaseHeader*>(&passthrough_layer));
+        }
         for (const auto& l : quad_layers) {
             layer_ptrs.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&l));
         }
         XrFrameEndInfo ei{XR_TYPE_FRAME_END_INFO};
         ei.displayTime = fs.predictedDisplayTime;
-        ei.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+        ei.environmentBlendMode = passthrough ? XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
+                                              : XR_ENVIRONMENT_BLEND_MODE_OPAQUE; // AzaharFrame vrqol
         ei.layerCount = static_cast<uint32_t>(layer_ptrs.size());
         ei.layers = layer_ptrs.empty() ? nullptr : layer_ptrs.data();
         r = queue_lock.With([&] { return xr.xrEndFrame(session, &ei); });
@@ -678,6 +698,17 @@ ViewPose LatestViewPose() {
         return rt->view_pose;
     }
     return {};
+}
+
+void ShowToast(Toast kind) {
+    if (auto* rt = GetRuntime()) {
+        rt->hud.ShowToast(kind);
+    }
+}
+
+bool PassthroughSupported() {
+    auto* rt = GetRuntime();
+    return rt && rt->alpha_blend_supported;
 }
 
 void SetFrontendHooks(FrontendHooks hooks) {

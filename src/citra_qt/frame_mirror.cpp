@@ -12,11 +12,14 @@
 #include <QEvent>
 #include <QFont>
 #include <QImage>
+#include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
+#include <QPushButton>
 #include <QScreen>
 #include <QStringList>
+#include <QToolBar>
 #include <QTreeView>
 #include <QWidget>
 #include <QWindow>
@@ -109,6 +112,18 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     }
     qApp->installEventFilter(this);
 
+    // AzaharFrame vrqol: the in-game menu's button row, under the menu bar.
+    if (auto* window = qobject_cast<QMainWindow*>(main.data())) {
+        vr_bar = new QToolBar(QObject::tr("VR"), window);
+        vr_bar->setObjectName(QStringLiteral("frame_vr_bar"));
+        vr_bar->setMovable(false);
+        vr_bar->setFloatable(false);
+        vr_bar->setContextMenuPolicy(Qt::PreventContextMenu);
+        vr_bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        window->addToolBar(Qt::TopToolBarArea, vr_bar);
+        vr_bar->hide();
+    }
+
     inbox = std::make_shared<FrameMirrorInbox>();
     inbox->owner = this;
     FrameXr::SetHomePanel([inbox = inbox](const FrameXr::HomePanelEvent& e) {
@@ -151,7 +166,30 @@ void FrameMirror::SetVrShowing(bool showing) {
     Shown();
 }
 
+QPushButton* FrameMirror::AddVrMenuButton(const QString& label, std::function<void()> callback) {
+    if (!vr_bar) {
+        return nullptr;
+    }
+    auto* button = new QPushButton(label, vr_bar);
+    button->setMinimumHeight(32);
+    button->setFocusPolicy(Qt::NoFocus);
+    connect(button, &QPushButton::clicked, this, [callback = std::move(callback)] {
+        if (callback) {
+            callback();
+        }
+    });
+    vr_bar->addWidget(button);
+    return button;
+}
+
+void FrameMirror::UpdateVrBar() {
+    if (vr_bar) {
+        vr_bar->setVisible(vr_showing && game_running && menu_open);
+    }
+}
+
 void FrameMirror::Shown() {
+    UpdateVrBar();
     if (!Capturing()) {
         capture_timer.stop();
         refresh_timer.stop();

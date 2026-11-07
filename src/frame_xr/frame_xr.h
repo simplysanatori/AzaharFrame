@@ -151,6 +151,10 @@ struct FrontendHooks {
     /// Left Bumper + Right Bumper + View + Menu (VR or flat): switch modes (the Qt side calls
     /// SetVr, writes the mode file, fades the window).
     std::function<void()> toggle_vr;
+    /// View, then the Right Bumper (VR or flat, in a game): Quick Save. Queue to the GUI thread.
+    std::function<void()> quick_save;
+    /// View, then the Left Bumper: Quick Load.
+    std::function<void()> quick_load;
     /// The XR thread made a session (true) or ended it (false), asked for or not (the runtime
     /// may end it, or a new one may fail): the mode now in effect.
     std::function<void(bool vr)> vr_changed;
@@ -197,6 +201,14 @@ void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
 /// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
 /// the controllers drive the panel and not the game. GUI thread, after the game paused.
 void SetInGameMenu(bool open);
+
+/// A short message on a small panel in front of you for two seconds (any thread; VR only).
+enum class Toast { QuickSaved = 0, QuickLoaded = 1, NoQuickSave = 2 };
+void ShowToast(Toast kind);
+
+/// True when the runtime can show the room behind the screens (Settings "Background:
+/// Passthrough" then works): it offers XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND. False before Start.
+bool PassthroughSupported();
 
 /// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();

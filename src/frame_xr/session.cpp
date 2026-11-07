@@ -117,6 +117,31 @@ bool Runtime::CreateInstance(const StartOptions& options) {
         Destroy();
         return false;
     }
+    // AzaharFrame vrqol: the room behind the screens needs the alpha blend mode.
+    {
+        uint32_t modes = 0;
+        std::vector<XrEnvironmentBlendMode> blend;
+        if (XR_SUCCEEDED(xr.xrEnumerateEnvironmentBlendModes(
+                instance, system, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &modes, nullptr)) &&
+            modes > 0) {
+            blend.resize(modes);
+            xr.xrEnumerateEnvironmentBlendModes(instance, system,
+                                                XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, modes,
+                                                &modes, blend.data());
+        }
+        std::string text;
+        alpha_blend_supported = false;
+        for (const auto mode : blend) {
+            text += mode == XR_ENVIRONMENT_BLEND_MODE_OPAQUE        ? " opaque"
+                    : mode == XR_ENVIRONMENT_BLEND_MODE_ADDITIVE    ? " additive"
+                    : mode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND ? " alpha_blend"
+                                                                    : " other";
+            alpha_blend_supported |= mode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
+        }
+        LOG_INFO(Frontend, "xr: environment blend modes:{} (passthrough background {})", text,
+                 alpha_blend_supported ? "available" : "not available");
+    }
+
     XrSystemProperties sys{XR_TYPE_SYSTEM_PROPERTIES};
     xr.xrGetSystemProperties(instance, system, &sys);
     LOG_INFO(Frontend, "xr: system {} (max {} layers, {}x{} max swapchain)", sys.systemName,
@@ -202,6 +227,7 @@ bool Runtime::CreateSession() {
     if (ui) {
         ui->Create(*this);
     }
+    hud.Create(*this); // AzaharFrame vrqol
     has_session = true;
     Settings::frame_flat_mono = false; // stereo again for the headset
     return true;
@@ -214,6 +240,7 @@ void Runtime::DestroySession() {
     if (has_session.exchange(false)) {
         Settings::frame_flat_mono = true; // the window shows one eye: games draw one
     }
+    hud.Destroy(); // AzaharFrame vrqol
     if (ui) {
         ui->DestroyXr();
     }

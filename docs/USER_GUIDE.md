@@ -11,7 +11,7 @@ The parts that depend on the VR code are checked against the finished build befo
 
 Known issues:
 
-- Immersive mode only has settings for Ocarina of Time 3D and Majora's Mask 3D. It is experimental.
+- Immersive mode only has settings for Ocarina of Time 3D and Majora's Mask 3D, and presets for Mario Kart 7, Super Mario 3D Land and Asphalt 3D. It is experimental.
 - The 3D depth is set to 50 % when it is 0, so the top screen is always stereoscopic in VR.
 
 <!-- VERIFY: both items -->
@@ -152,6 +152,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Right stick click | Reset the screen positions |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
+| **View**, then the right bumper | Quick Save. Then the left bumper instead: Quick Load |
 
 On Azahar's window and in the in-game menu:
 
@@ -195,6 +196,16 @@ In the **VR** group of the Graphics tab (global settings, not per game):
 
 <!-- VERIFY: motion axes and speed in the headset -->
 
+### Background
+
+In the **VR** group of the Graphics tab (global, not per game): **Background** is **Black** (default) or **Passthrough**. Passthrough shows the room behind the screens, through the headset's cameras, if SteamVR offers it to apps; the log says at start whether it does ("environment blend modes"). The in-game menu has a **Passthrough** button for it too, and the choice is kept.
+
+<!-- VERIFY: Passthrough in the headset. It needs SteamVR to offer the alpha blend mode; if it does not, the button is greyed out and the background stays black. -->
+
+### Quick Save and Quick Load
+
+Hold **View** and press the right bumper to Quick Save, or the left bumper to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
+
 ### Immersive mode
 
 Normally the top screen floats two metres away. In immersive mode the game draws a wider view, and in the Full modes its camera follows your head.
@@ -203,6 +214,10 @@ Turn it on in the game's properties, on the **Graphics** tab, in the **VR** grou
 - **Wide (3DoF):** a big screen fixed in the room.
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
 - **Full (6DoF): Other Games:** the same, for games the other mode does not fit; it finds the camera while you play.
+
+Three games start with a setup already, from CitraVR's playtest notes: Mario Kart 7, Super Mario 3D Land and Asphalt 3D (every region the compatibility list knows) start in **Full (6DoF): Other Games**, with **View Matrix Register** 90 for the first two and 8 for Asphalt 3D. It only applies when the game's own properties have no **Immersive Mode** (or register) of their own and the global one is still **Off** (or **Auto**). If you would rather play one of them without it, set **Immersive Mode** to **Off** in that game's properties; any value you set yourself wins.
+
+<!-- VERIFY: the three presets in the headset. They come from CitraVR's Quest notes, which may not hold on SteamVR. -->
 
 The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** show or hide the bottom screen, and the right stick click re-centres the view. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 

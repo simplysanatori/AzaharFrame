@@ -44,6 +44,8 @@ struct MapperConfig {
     /// View pressed with both bumpers held waits this long for Menu (the VR / flat chord) before
     /// it is the bottom screen toggle or Select.
     int64_t chord_grace_ns = 150'000'000;
+    /// After a Quick Save or Quick Load, the next one waits this long (a bumper that bounces).
+    int64_t quick_cooldown_ns = 1'000'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
     float depth_threshold = 0.5f;
     // A right stick click while the stick is pushed further than this is ignored (the stick
@@ -124,6 +126,12 @@ struct PanelCommands {
     /// Left Bumper + Right Bumper + View + Menu all down: switch between VR and flat. Fires once
     /// per chord; the game sees no View or Menu of it, and L and R only until it fires.
     bool toggle_vr = false;
+    /// View pressed first (no bumper down yet), then the Right Bumper: Quick Save (the 3DS save
+    /// state slot of the Quick Save menu item). Fires once per bumper press; the game sees none
+    /// of the three buttons. View pressed first is held back for chord_grace_ns, as the chord's.
+    bool quick_save = false;
+    /// The same with the Left Bumper: Quick Load.
+    bool quick_load = false;
 };
 
 struct MapperOutput {
@@ -199,6 +207,14 @@ private:
     int64_t view_held_back_since_ns_ = 0;
     bool select_pulse_ = false; ///< a View tap shorter than the grace, sent late
     int64_t select_pulse_until_ns_ = 0;
+    // Quick Save / Quick Load: View pressed with no bumper down, then one bumper. The View press
+    // is held back for chord_grace_ns (a bumper may follow); `quick_armed_` lasts as long as View.
+    bool quick_armed_ = false;
+    bool view_quick_wait_ = false;
+    int64_t view_quick_since_ns_ = 0;
+    std::array<bool, kNumHands> bumper_prev_{};
+    bool quick_done_ = false; ///< an action fired at least once; quick_last_ns_ is valid
+    int64_t quick_last_ns_ = 0;
     // After the VR / flat chord: each of these stays away from the game until let go.
     bool swallow_menu_ = false;
     std::array<bool, kNumHands> swallow_bumper_{};

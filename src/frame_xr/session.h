@@ -24,6 +24,7 @@
 #include <thread>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/hud.h" // AzaharFrame vrqol
 #include "frame_xr/vulkan_bridge.h"
 
 namespace FrameXr {
@@ -123,6 +124,8 @@ public:
     XrSpace view_space = XR_NULL_HANDLE;
     std::unique_ptr<VulkanBridge> vulkan;
     std::unique_ptr<VrUi> ui; ///< controllers, picker, pointer (controls.cpp)
+    Hud hud;                  ///< passthrough background and toasts (hud.cpp)
+    bool alpha_blend_supported = false; ///< the runtime offers XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
     std::vector<std::string> enabled_extensions;
     VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
 
