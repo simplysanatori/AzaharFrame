@@ -74,6 +74,13 @@ MERGE_SUBJECTS = {
     "c75001811": "Merge packaging and docs into the Steam Frame branch",
     "095799f8f": "Merge the in-VR application picker into the OpenXR core work",
     "c2baeb8dd": "Merge the controller input engine into the OpenXR core work",
+    "85afd2abc": "Merge the 1.0.0 docs: README for players, controls checked against the code",
+    "a033d7906": "Merge the XR screens handoff: the emulator thread never waits for the handoff",
+    "afeb6d39e": "Merge the XR screens handoff fix: return a held image before its swapchain is destroyed",
+    "2329efc29": "Merge Quick Save, Quick Load and Fast Forward on release, and flat rendering after leaving VR",
+    "d494f0e11": "Merge the Controls panel diagram: the Frame controllers with a line to each button",
+    "7f3439ec6": "Merge the README note on the fork, the settings page and the controls picture",
+    "48bc1314b": "Merge the screen nudge (grip + D-pad), the immersive lens offset and bigger normal screens",
 }
 msg = sys.stdin.read()
 lines = [l for l in msg.split("\n") if not re.match(r"(?i)\s*co-authored-by:", l)]
