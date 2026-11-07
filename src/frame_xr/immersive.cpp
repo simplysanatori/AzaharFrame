@@ -544,6 +544,10 @@ bool HoldingScreen() {
 
 void OnResetPanels() {
     g.recentre = true;
+    ResetHeldScreen();
+}
+
+void ResetHeldScreen() {
     if (!g.adjuster.Active() || g.mode == 0 || !g.live) {
         return;
     }

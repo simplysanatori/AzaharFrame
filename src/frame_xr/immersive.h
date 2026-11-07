@@ -90,9 +90,14 @@ void ToggleBottom();
 /// shows, and resumes after. Cleared when no game is on view. XR thread.
 void SetBottomFocused(bool focused);
 
-/// A grip holds the immersive screen now (OnGameInput). The screen swap and hide taps wait
-/// until it is let go, so they cannot cancel a move half way. XR thread.
+/// A grip holds the immersive screen now (OnGameInput). The stick click taps do not swap or
+/// hide the screens then (a swap would cancel the move half way); a right stick click tap
+/// calls ResetHeldScreen instead. XR thread.
 bool HoldingScreen();
+
+/// While a grip holds the immersive screen: it goes back to its default placement for this game
+/// (the saved one is forgotten). No re-centre. Does nothing otherwise. XR thread.
+void ResetHeldScreen();
 
 /// Right Stick Click held for 1 second (reset_panels): re-centres the view on the head; while a grip holds the
 /// immersive screen, the screen also goes back to its default placement for this game (the

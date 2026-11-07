@@ -181,7 +181,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Grip, then move the hand up or down | Moves the screen up or down. Squeeze anywhere, the laser does not have to be on the screen |
 | Stick of that hand, up or down | Moves the screen farther or nearer. It keeps its size in your view |
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
-| Right stick click, held for 1 second, while holding the screen | Puts the screen back where it starts, and re-centres the view. A tap of either stick click does nothing while you hold the screen |
+| Right stick click while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one. Held for 1 second it also re-centres the view and resets the normal screens |
 
 The screen stays where you leave it, for each game. The grip and that hand's stick do not reach the game while you hold the screen. While the bottom screen shows or is in focus (or the in-game menu is open), the grips move the normal screens as usual. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 <!-- VERIFY: the immersive screen's default place and the grip gesture in the headset -->

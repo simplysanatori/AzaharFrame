@@ -649,7 +649,11 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (cmd.toggle_bottom) {
             effect = screen_view.ToggleBottom(managed); // Left Bumper + Right Bumper + View
         } else if (Immersive::HoldingScreen()) {
-            // A grip holds the immersive screen: the stick taps wait (a swap would cancel it).
+            // A grip holds the immersive screen: a right stick click tap puts it back where it
+            // starts (immersive2); no swap or hide meanwhile (a swap would cancel the move).
+            if (cmd.swap_screens) {
+                Immersive::ResetHeldScreen();
+            }
         } else if (cmd.swap_screens) {
             effect = screen_view.Swap(managed); // right stick click, tap
             LOG_INFO(Frontend, "xr: {} screen in focus",
