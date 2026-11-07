@@ -198,6 +198,12 @@ In the **VR** group of the Graphics tab (global settings, not per game):
 
 <!-- VERIFY: motion axes and speed in the headset -->
 
+### Window Scale
+
+In the **VR** group of the Graphics tab (global, not per game): **Window Scale** is **100%**, **150%** or **200%** (default). It makes Azahar's window look larger in the headset, so that the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (at 200% about a third of the area of 100%, so the game list is shorter) and the panel is wider, 30% at 200%. Windows that are larger than Azahar's window, such as the configuration window, make the panel wider still (up to 50%, and no taller than it is wide), so they look larger than at 100%, but not twice as large. The change shows as soon as you press **OK**. Flat mode always uses 100%: the window is on the screen there, and `QT_SCALE_FACTOR` in `session.env` is how to enlarge it.
+
+<!-- VERIFY: Window Scale in the headset (size of the text, the panel's width) -->
+
 ### Background
 
 In the **VR** group of the Graphics tab (global, not per game): **Background** is **Black** (default) or **Passthrough**. Passthrough shows the room behind the screens, through the headset's cameras, if SteamVR offers it to apps; the log says at start whether it does ("environment blend modes"). The in-game menu has a **Passthrough** button for it too, and the choice is kept.
@@ -274,7 +280,7 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **SteamVR's dock shows a question mark instead of the flower.** Steam reads the icon when it starts. Restart Steam once.
 - **The screens do not appear in the headset.** Start SteamVR first, then Azahar for Frame. `launch.log` says which OpenXR runtime it found, and the emulator log says `running flat` when it could not start VR.
 - **A game in a subfolder is not in the list.** Right-click the game folder in the list (right stick click) and tick **Scan Subfolders**.
-- **The Azahar window is too small on the dashboard.** Add `QT_SCALE_FACTOR=1.25` to `session.env`.
+- **Azahar's window is too small in VR.** Set **Window Scale** in the **VR** group of the Graphics tab to 150% or 200%. In flat mode, add `QT_SCALE_FACTOR=1.25` to `session.env`.
 - **An encrypted game does not start.** It needs `aes_keys.txt` in `user/sysdata/`.
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.
 - **No controllers in VR, only the beams.** The models are made from SteamVR's. Delete `user/frame-models` and start once more, then read `frame-models.log`.

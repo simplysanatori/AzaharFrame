@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <initializer_list>
 #include <QCheckBox>
 #include <QComboBox>
@@ -77,6 +78,19 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "The in-game menu has a button for it too."),
         {background_combo});
     layout->addWidget(background_row);
+
+    // Global only. The items are 100, 150 and 200 % of Settings::values.vr_window_scale; another
+    // value in the file shows as the nearest one (citra_qt/frame_mirror.cpp).
+    window_scale_combo = new QComboBox(this);
+    window_scale_combo->addItem(tr("100%"), 100);
+    window_scale_combo->addItem(tr("150%"), 150);
+    window_scale_combo->addItem(tr("200%"), 200);
+    window_scale_row = MakeRow(
+        this, QStringLiteral("frame_vr_window_scale_row"), tr("Window Scale"),
+        tr("How large this window looks in VR. Larger shows text and buttons bigger and "
+           "fits less of the window on the panel. Flat mode is not affected."),
+        {window_scale_combo});
+    layout->addWidget(window_scale_row);
 
     // Global only. Values 0..2 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
     motion_combo = new QComboBox(this);
@@ -181,6 +195,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     // Face Buttons and Motion Controls are not per game.
     face_row->setVisible(Settings::IsConfiguringGlobal());
     motion_row->setVisible(Settings::IsConfiguringGlobal());
+    window_scale_row->setVisible(Settings::IsConfiguringGlobal());
     background_row->setVisible(Settings::IsConfiguringGlobal());
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
@@ -244,6 +259,8 @@ void ConfigureFrameVr::SetConfiguration() {
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
         show_stats_check->setChecked(Settings::values.vr_show_stats.GetValue());
+        window_scale_combo->setCurrentIndex(std::clamp(
+            (static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 100 + 25) / 50, 0, 2));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
         return;
     }
@@ -276,6 +293,12 @@ void ConfigureFrameVr::ApplyConfiguration() {
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
         Settings::values.vr_show_stats.SetValue(show_stats_check->isChecked());
+        // Kept as it is when the item shown is still the nearest one (a value typed into the file).
+        const int percent = window_scale_combo->currentData().toInt();
+        if (std::clamp((static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 75) / 50,
+                       0, 2) != window_scale_combo->currentIndex()) {
+            Settings::values.vr_window_scale.SetValue(static_cast<u32>(percent));
+        }
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
