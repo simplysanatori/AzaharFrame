@@ -50,14 +50,18 @@ VKAPI_ATTR VkResult VKAPI_CALL TimedAllocateMemory(VkDevice device,
     return result;
 }
 
-// AzaharFrame: VMA's memory blocks; AZAHARFRAME_VMA_BLOCK_MIB sets their size (0 or unset:
-// VMA's default, 256 MiB for a large heap), to compare.
-VkDeviceSize PreferredBlockSize(VkDevice) {
+// AzaharFrame: VMA's memory blocks. Its default for a large heap is 256 MiB, and a new block is
+// one vkAllocateMemory that holds up the XR thread's queue calls (see TimedAllocateMemory):
+// on the XR device, 32 MiB blocks (a 4096x4096 ASTC texture with its mips, 21 MiB, then gets
+// an allocation of its own, as does anything over half a block). AZAHARFRAME_VMA_BLOCK_MIB sets
+// another size (0: VMA's default), to compare.
+VkDeviceSize PreferredBlockSize(VkDevice device) {
     constexpr VkDeviceSize MiB = 1024 * 1024;
     if (const char* v = std::getenv("AZAHARFRAME_VMA_BLOCK_MIB"); v && *v) {
         return static_cast<VkDeviceSize>(std::strtoull(v, nullptr, 10)) * MiB;
     }
-    return 0;
+    const VideoCore::VulkanHooks* hooks = VideoCore::GetVulkanHooks();
+    return hooks && hooks->OwnsDevice(device) ? 32 * MiB : 0;
 }
 
 vk::Format MakeFormat(VideoCore::PixelFormat format) {
