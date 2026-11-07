@@ -37,7 +37,9 @@ by accident. The right click is still reported to the pad as `StickClickR` (unbo
 
 | Left bumper + right bumper + View | (none) | Only in games that hide the bottom screen (Hide Bottom Screen, immersive mode): shows or hides it. That View press never reaches the game. Everywhere else the game sees L, R and Select. |
 
-Select follows View at once, so a tap is a normal Select. While the stop hold is running the game
+View pressed with no bumper down is held back for `chord_grace_ns` (150 ms), since a bumper or the
+Right Trigger may follow (Quick Save, Quick Load, Fast Forward). After that Select follows View; a
+tap shorter than the wait is sent late as a 100 ms pulse. While the stop hold is running the game
 sees Select held; when the 1.5 s are up the game sees Select released and the game stops.
 
 ### Face buttons

@@ -231,8 +231,8 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 ## Trying it
 
 Set the mode in the Qt window: Properties of a game, **Graphics** tab, **VR** group, **Immersive Mode**
-(the same group is under **Emulation > Configure > Graphics** for all games). Start the game from the
-picker. Without the window, the global config (`qt-config.ini` in the user directory) takes:
+(the same group is under **Emulation > Configure > Graphics** for all games). Start the game from
+Azahar's window. Without the window, the global config (`qt-config.ini` in the user directory) takes:
 
     [VR]
     vr_immersive_mode\default=false
@@ -244,12 +244,10 @@ What to look for:
   its edges and the HUD inside the view, and stays in front of your eyes; there is no bottom screen. Turn your head slowly: the game camera turns with it and the world stays
   put. If the world swims along with your head, the screen is too small: raise
   **Immersive Game FOV** (try 70, 80; a mod that changes the game's FOV needs the same value here). If it swims against your head, lower it (50).
-  <!-- VERIFY: the default of 60 degrees in the headset -->
 - Leaning and crouching move the camera a little (Depth Factor Multiplier 1x).
 - Squeeze a grip and move the hand down: the screen goes lower and the world stays where it was.
   Push the stick of that hand up: the screen goes farther (mode 2) without changing size. Push it
   right: bigger. Let go, stop the game, start it again: the screen is where you left it.
-  <!-- VERIFY: the default placement and the grip gesture in the headset -->
 - Left Bumper + Right Bumper + View brings the normal screens and touch back; the chord again returns to immersive mode.
   Right Stick Click, held for 1 s, while looking 45 degrees to the side makes that direction straight ahead.
 - Mode 1: a big screen in front of you, fixed in the room, the middle of it about the size of the

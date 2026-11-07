@@ -92,8 +92,6 @@ The remotes are `azahar` (azahar-emu/azahar), `citravr` (amwatson/CitraVR) and `
 
 After either merge, rebuild with `steam-frame/build.sh`, run a game, and check the markers and the immersive shader change as above.
 
-<!-- VERIFY: the cherry-pick procedure on the first real CitraVR update -->
-
 ## Building
 
 All on the Frame, with the tools SteamOS has: a C++ compiler (clang or gcc), CMake 3.24 or newer, Ninja, Qt 6 and SDL2 development files, Python 3, and SteamVR installed for running it.
@@ -105,7 +103,9 @@ steam-frame/install.sh          # installs that tarball and adds the Steam entry
 
 The build uses Ninja, Release, `ENABLE_FFMPEG=OFF`, `USE_AUDIOTRACK=OFF`, Vulkan on and OpenGL off, tests, the room server, the web service, Discord and scripting off. `ENABLE_FRAME_XR` is on by default on Linux aarch64. It runs at the lowest priority and waits while the headset is in use (`~/.cache/headset-in-use`, or a game running under Steam), because a build next to a VR session ruins the session. `ccache` is used when it is installed (`~/.cache/azaharframe/ccache`). `CF_EXTRA_CMAKE_FLAGS` adds CMake flags, for example `-DENABLE_TESTS=ON` to build the unit tests in `src/tests/frame_xr`.
 
-<!-- VERIFY: the build as written needs ENABLE_FRAME_XR and the OpenXR headers path; check CMake configures from a clean checkout -->
+`ENABLE_FRAME_XR` needs no flag: `CMakeLists.txt` turns it on for Linux aarch64 (with Vulkan and Qt on), and `src/frame_xr/CMakeLists.txt` takes the OpenXR headers from `third_party/openxr/include` in the tree.
+
+That build links the Qt 6 and SDL2 SteamOS has. The release is the portable build, `steam-frame/build-portable.sh 1.0.0`, which carries its own Qt and builds SDL2 in; see [AGENTS.md](../AGENTS.md#portable-build).
 
 `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build without building or touching Steam. Tarballs and `SHA256SUMS` in `steam-frame/release/` are ignored by git.
 
@@ -119,7 +119,9 @@ The release tarball holds, at its top level and without a folder around them:
 | `steam-cef.py`, `dock-icon.py` | the Steam library entry and the SteamVR dock icon |
 | `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` | |
 | `art/` | the library art (`portrait`, `wide`, `hero`, `logo`) and the icon in four sizes; the program itself reads `logo.png` and `icon.png` |
-| `tools/` | the texture pack converter (see [Texture packs in ASTC](#texture-packs-in-astc)) |
+| `tools/` | the texture pack converter (see [Texture packs in ASTC](#texture-packs-in-astc)) and `frame-controller-models.py` |
+| `framedrop-run.sh`, `make-framedrop-zip.py` | FrameDrop's start script and the zip builder (see [FrameDrop](#framedrop)) |
+| `lib/`, `plugins/`, `qt.conf` | the portable build's own Qt, ICU and plugins |
 
 Files are packed by name, so settings, saves, keys, logs and game files cannot end up in it.
 
@@ -208,11 +210,17 @@ What the owner adds so that Frametanium offers it:
 
    or, from the Frametanium page or headset app, add `simplysanatori/AzaharFrame` with mode "installer". The release must be published, not a draft. Until the repository is public Frametanium needs a GitHub token (read access to releases is enough) in its `config.json`, `github_token`.
 2. **Upstream**, `suggestions.json` in Cogential/frametanium takes `{"repo": "simplysanatori/AzaharFrame", "name": "Azahar for Frame (Nintendo 3DS VR)", "note": "Azahar with CitraVR's VR mode, native; needs your own 3DS games"}`, as in the open pull request for the other ports.
-3. **The release** carries `azaharframe-<version>-linux-arm64.tar.gz` (and may carry `SHA256SUMS`). Nothing else matching `*arm64*` should be attached, or the asset pattern in the entry has to be exact.
+3. **The release** carries `azaharframe-<version>-linux-arm64.tar.gz` (and may carry `SHA256SUMS`). The FrameDrop zip ends in `.zip`, so the asset pattern in the entry does not match it.
 
 After the first install through Frametanium the library entry is the same one `install.sh` makes by hand ("Azahar for Frame"), so installing both ways does not add a second entry.
 
 **No shader warm-up script.** GalaxyFrame ships `warm-shaders.sh` because its shaders can be compiled ahead of play. Azahar's disk cache is filled only by drawing a game on the emulator, so there is nothing to run before the first launch.
+
+## FrameDrop
+
+[FrameDrop](https://framedropvr.com) installs from a manifest. `make-release.sh` also writes `azaharframe-<version>-framedrop-linux-arm64.zip` and `azaharframe.framedrop.json` with `release/make-framedrop-zip.py`: the zip holds the tarball's files plus `run.sh` (`steam-frame/framedrop-run.sh`) at the top, and the manifest (`framedrop.install/v1`) gives the zip's release URL for the tag and its sha256. Attach all three to the release. The install link is `https://framedropvr.com/install?manifest=` followed by the URL-encoded `https://github.com/simplysanatori/AzaharFrame/releases/latest/download/azaharframe.framedrop.json`.
+
+FrameDrop adds its own library entry for `run.sh`. On the first start, and whenever the zip's `VERSION` differs from the one it installed last (kept in `~/.local/state/framedrop-azaharframe/installed-version`), `run.sh` runs `install.sh` with `AZAHARFRAME_SKIP_STEAM=1`, so no second entry is made, and logs to `install.log` in the same folder. Then it starts the installed `azaharframe.sh`. It also gives back the executable bits a zip unpack can lose. If the install fails it starts the version installed before. `FRAMEDROP_RUN_DRY=1` installs if needed and prints what it would start.
 
 ## Before publishing a release
 

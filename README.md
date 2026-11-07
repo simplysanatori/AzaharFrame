@@ -1,33 +1,34 @@
 # Azahar for Frame
 
 Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
-It is the [Azahar](https://github.com/azahar-emu/azahar) emulator with the VR mode from amwatson's [CitraVR](https://github.com/amwatson/CitraVR).
+It is the [Azahar](https://github.com/azahar-emu/azahar) emulator with the VR modes from amwatson's [CitraVR](https://github.com/amwatson/CitraVR).
 
 ![Azahar for Frame](docs/images/cover.jpg)
 
 ## Features
 
-- Stereoscopic 3D top screen and touch bottom screen, floating in front of you
-- Steam Frame controllers, with the real D-pad
-- Azahar's own window in VR: game list, menus, settings
-- Flat mode in the same app, in a normal window
+- Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
+- Immersive modes, with a screen you move and resize per game
+- Steam Frame controls, with Quick Save, Quick Load and Fast Forward
+- Azahar's own window and settings in VR
+- Flat mode in the same app, on SteamVR's big screen
 - Texture packs, mods and a converter for HD packs
-- Immersive mode for Ocarina of Time 3D and Majora's Mask 3D (experimental)
 
 ## How it works
 
-The emulator runs on the Frame itself. It draws both eyes through SteamVR. Nothing is streamed from a PC. You supply your own games.
+The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothing is streamed from a PC. You supply your own games.
 
 ## Requirements
 
 - A Steam Frame with SteamOS and SteamVR, and about 500 MB free
+- SteamOS Stable, Beta or Preview. The release brings its own Qt and libraries
 - Your own 3DS games, dumped from your own console
 - A terminal on the Frame: SSH, or Konsole
 - Steam running while you install
 
-## Install
+The 3DS camera is not supported.
 
-The first release is not out yet. These steps are for it.
+## Install
 
 1. Get the repository:
 
@@ -36,23 +37,20 @@ The first release is not out yet. These steps are for it.
    cd AzaharFrame
    ```
 
-2. Download `azaharframe-1.0.0-linux-arm64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases). Check and install:
+2. Download `azaharframe-1.0.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
 
    ```sh
-   (cd ~/Downloads && sha256sum -c --ignore-missing SHA256SUMS)
    steam-frame/install.sh ~/Downloads/azaharframe-1.0.0-linux-arm64.tar.gz
    ```
 
 3. Launch **Azahar for Frame** from your Steam library.
 
-You can also install with [Frametanium](https://github.com/Cogential/frametanium): add `simplysanatori/AzaharFrame`.
+Other installers:
 
-To build it yourself (about an hour on the Frame), from the repository:
+- [Frametanium](https://github.com/Cogential/frametanium): add `simplysanatori/AzaharFrame`.
+- [FrameDrop](https://framedropvr.com): [Install with FrameDrop](https://framedropvr.com/install?manifest=https%3A%2F%2Fgithub.com%2Fsimplysanatori%2FAzaharFrame%2Freleases%2Flatest%2Fdownload%2Fazaharframe.framedrop.json).
 
-```sh
-steam-frame/build.sh 1.0.0
-steam-frame/install.sh
-```
+Checksums and building: [user guide](docs/USER_GUIDE.md#install-update-and-uninstall).
 
 ## First run
 
@@ -60,29 +58,29 @@ steam-frame/install.sh
 2. Select your game folder.
 3. Double-click a game to start it.
 
-Games, keys for encrypted dumps and texture packs: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 
 ## Controls
 
 | Steam Frame | 3DS |
 |---|---|
-| Left stick, right stick, left D-pad | Circle Pad, C-Stick, D-pad |
-| **A**, **B**, **X**, **Y** | 3DS B, A, Y, X (by position) |
-| Bumpers, triggers | L and R, ZL and ZR. A trigger aimed at the bottom screen is a touch |
+| Left stick, right stick, D-pad | Circle Pad, C-Stick, D-pad |
+| **A**, **B**, **X**, **Y** | B, A, Y, X (by position) |
+| Bumpers, triggers | L and R, ZL and ZR. A trigger on the bottom screen touches |
 | Grips | Move the screens or the window |
-| **Menu** | Start. Hold 1 second: pause and open Azahar's window |
+| **Menu** | Start. Hold 1 second: in-game menu |
 | **View** | Select. Hold 1.5 seconds: stop the game |
-| Right stick click | Swap the screens. Hold 1 second: reset the screen positions |
-| Left stick click | Hide or show the other screen. Hold 1 second: Home |
-| Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
+| Hold **View**, then right or left bumper | Quick Save or Quick Load |
+| Hold **View**, then right trigger | Fast Forward on or off |
+| Right stick click | Swap Screens. Hold 1 second: Reset Screens |
+| Left stick click | Hide or Show Other Screen |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
-| **Y** on Azahar's window | Open the keyboard |
 
-In VR, the **Controls** button above Azahar's window lists them all, with your own changes. Every control and setting: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
+The **Controls** button above Azahar's window lists them all. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Update
 
-Quit the emulator, then install the new tarball the same way.
+Quit the emulator, then install the new tarball.
 
 ```sh
 steam-frame/install.sh ~/Downloads/azaharframe-<version>-linux-arm64.tar.gz
@@ -101,18 +99,19 @@ steam-frame/uninstall.sh
 - The installer says Steam was not reachable: start Steam and run `install.sh` again.
 - The SteamVR dock shows a question mark: restart Steam once.
 - The screens do not appear: start SteamVR first, then Azahar for Frame.
-- An encrypted game does not start: it needs `aes_keys.txt` from your own console, in `~/.local/share/AzaharFrame/user/sysdata/`.
+- An encrypted game does not start: it needs `aes_keys.txt` in `~/.local/share/AzaharFrame/user/sysdata/`.
 
 More: [docs/USER_GUIDE.md](docs/USER_GUIDE.md#troubleshooting).
 
 ## Reporting a problem
 
-Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues). They hold your user name, game names and hardware details. Read them before sharing.
+Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues). They hold your user name and game names. Check them before sharing.
 
 ## More
 
 - [User guide](docs/USER_GUIDE.md)
-- [AGENTS.md](AGENTS.md), for developers and AI agents
+- [AGENTS.md](AGENTS.md): for developers and AI agents
+- [Building from source](docs/TECHNICAL_NOTES.md#building)
 - [Changelog](docs/CHANGELOG.md)
 
 ## Support
@@ -122,11 +121,14 @@ If you would like more Steam Frame ports, you can also [buy me a coffee](https:/
 
 ## Credits
 
-- [CitraVR](https://github.com/amwatson/CitraVR) by amwatson: the VR port this is built on
-- [Azahar](https://github.com/azahar-emu/azahar): the emulator
+- [Azahar](https://github.com/azahar-emu/azahar), which continues [Citra](https://github.com/citra-emu/citra): the emulator
+- [CitraVR](https://github.com/amwatson/CitraVR) by amwatson: the VR modes
+- [Qt](https://www.qt.io), [SDL](https://www.libsdl.org), [OpenXR](https://www.khronos.org/openxr/): window, gamepad, VR
+- [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder
+- Azahar logo by angyartanddraw and PabloMK7; backgrounds by GarfieldGaming0624 on [SteamGridDB](https://www.steamgriddb.com/game/5480678)
 - Valve: SteamVR and the Frame
 
-Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author.
 
 ## Licence
 

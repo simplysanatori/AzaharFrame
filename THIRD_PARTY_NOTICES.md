@@ -41,8 +41,12 @@ The dark window themes are QDarkStyleSheet (MIT): [dist/qt_themes/qdarkstyle/LIC
 ## Qt
 
 The settings window is Qt 6 (https://www.qt.io), under the GNU Lesser General
-Public License, version 3. Azahar for Frame does not include Qt: the program links the
-Qt 6 libraries that SteamOS provides.
+Public License, version 3. The release carries the Qt Company's own Qt 6.10.3
+libraries and plugins, unchanged, in `lib/` and `plugins/`, with the ICU libraries
+(Unicode licence) and the few other libraries they need. The Qt source is at https://download.qt.io. You can
+replace those libraries with your own build of the same Qt version. A program
+built on the Frame with `steam-frame/build.sh` links the Qt 6 that SteamOS provides
+instead.
 
 ## OpenXR
 
@@ -50,9 +54,8 @@ Azahar for Frame talks to SteamVR through OpenXR (https://www.khronos.org/openxr
 
 - The OpenXR headers used to build the VR code come from the Khronos
   OpenXR-SDK-Source (https://github.com/KhronosGroup/OpenXR-SDK-Source), under
-  the Apache License 2.0 (dual licensed with MIT for part of the files). The
-  copy in `externals/openxr-sdk-src/` keeps its licence files in
-  `externals/openxr-sdk-src/LICENSES/`. <!-- VERIFY: add the vendored header path (third_party/openxr) once the XR code lands -->
+  the Apache License 2.0 or MIT. They are vendored in `third_party/openxr/include/`,
+  with the licence in [third_party/openxr/LICENSE](third_party/openxr/LICENSE).
 - The OpenXR loader that runs on the Frame is SteamVR's own
   (`/opt/steamvr/bin/linuxarm64/libopenxr_loader.so`). It is not part of this
   repository or of the release.
@@ -74,9 +77,10 @@ The controller models' converter (`steam-frame/tools/frame-controller-models.py`
 ## SDL
 
 SDL 2 (https://www.libsdl.org) reads game controllers and, in the Azahar
-build, plays sound. zlib licence. The program links the SDL 2 library SteamOS
-provides; the copy in `externals/sdl2/SDL/` is Azahar's pin
-([licence](externals/sdl2/SDL/LICENSE.txt)).
+build, plays sound. zlib licence. The release builds in the copy in
+`externals/sdl2/SDL/`, Azahar's pin ([licence](externals/sdl2/SDL/LICENSE.txt)).
+A program built on the Frame with `steam-frame/build.sh` links the SDL 2 library
+SteamOS provides.
 
 ## Azahar's external libraries
 

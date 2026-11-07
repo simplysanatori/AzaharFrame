@@ -1,60 +1,85 @@
 # Changelog
 
-> **DRAFT.** Checked against the finished build before it is published. <!-- VERIFY -->
-
 ## 1.0.0 (November 2026)
 
-The first release of Azahar for Frame, Nintendo 3DS games in VR running natively on the Valve Steam Frame. It is a fork of amwatson's CitraVR, built on Azahar.
+The first release of Azahar for Frame: Nintendo 3DS games in VR, running natively on the Valve Steam Frame. It is the Azahar emulator with the VR modes of amwatson's CitraVR.
+
+### Compared with CitraVR through Lepton
+
+Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, through Lepton.
+
+- It runs natively on the Frame. There is no Android layer, APK or adb.
+- It starts in under a second.
+- It does far less work for each frame. In Ocarina of Time 3D at 120 Hz with a 4K texture pack, SteamVR re-projects far fewer frames, and each frame costs much less CPU and GPU time.
+- Less work for the chip means better battery life.
+- Texture packs load as ASTC with no stutter. CitraVR loads PNGs and stalls while it decodes them.
+- Super Mario 3D Land and Mario Kart 7 run smoother under heavy load.
 
 ### The emulator on the Frame
 
-- A Linux Arm64 build that runs in the Frame's SteamVR, where CitraVR is an Android app for the Quest. No Lepton, APK, adb or PC.
-- Azahar 2127.0-alpha4 with CitraVR's VR changes to the renderer.
-- Azahar's Vulkan renderer draws straight onto SteamVR's own graphics device, one device for the whole run, so changing games does not rebuild the VR session.
-- Each screen is handed to SteamVR only once the GPU has finished drawing it.
-- Azahar's own settings window on the SteamVR dashboard, with every setting the emulator has. CitraVR has a small menu of its own on the Quest.
-- Settings, saves, keys and shader caches in one plain folder, `~/.local/share/AzaharFrame`.
-- A clean exit when Steam stops the app.
+- A native OpenXR app in the Frame's SteamVR, at 120 Hz, or 90 Hz if you prefer.
+- The release brings its own Qt and libraries. It runs on SteamOS Stable, Beta and Preview.
+- Azahar's own window floats in front of you: the game list, the menus and every setting. The beam is the mouse.
+- A keyboard opens under the window when you click a text field.
+- **Window Scale** makes the window bigger in VR: 100%, 150% or 200%. 150% is the default.
+- It starts with Azahar's dark theme.
+- Settings, saves, keys and shader caches live in one folder, `~/.local/share/AzaharFrame`.
 
 ### The screens
 
-- The top screen in stereoscopic 3D, one image for each eye, and the bottom screen as a touch screen, both floating in front of you as in CitraVR. Internal resolution up to 8x.
-- Aim a controller at the bottom screen and pull the trigger to touch it. Squeeze a grip on either screen to move it, and use the stick of that hand to move it nearer and farther. The other screen follows. Hold the right stick click for 1 second to put both back, and tap it to swap which screen is the main one.
-- A dot shows where each controller points.
-- A game picker in VR with the icons and titles from your game folders, the installed titles, pages and a Rescan button. A folder you add in the Azahar window appears in it at once.
-- Hold View for 1.5 seconds to stop the game and go back to the picker.
-- The 3D depth starts at 50 %, and is set to 50 % when it is 0, so the top screen is always stereoscopic.
-
-### Controls
-
-- The Steam Frame controllers, in CitraVR's layout, with the real D-pad instead of the Quest's thumbrest trick. Bumpers are L and R, triggers are ZL and ZR (a touch on the bottom screen), grips move the screens, the left stick is the Circle Pad and the right stick is the C-Stick, Menu is Start and View is Select. A tap of the left stick click hides or shows the screen that is not in focus.
-- Each hand decides for itself whether its trigger is ZL or ZR, or a touch, when you pull it. In CitraVR one shared flag blocked both triggers, and a trigger aimed at the top screen dragged it instead of being ZL or ZR.
-- A per-game **Hide Bottom Screen** setting (properties, **Graphics**, **VR**) shows only the top screen, for games that do not need the bottom one. Both bumpers and View bring it back.
-- A per-game **Screen Shape** setting (**VR** group) widens the top screen to Widescreen (16:9), Ultrawide (21:9), 4:3, 3:2 or 16:10 for mods and cheats that change the game's aspect, in the normal view and in immersive mode. It is read when the game starts.
-- The face buttons go by position, as on the 3DS: the Frame's A (bottom) is the 3DS's B, B (right) is A, X (left) is Y and Y (top) is X. The **Face Buttons** setting (**VR** group) switches to by label.
-- Motion controls: the right controller (or the left, or none, in the **Motion Controls** setting) is the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS, such as the first-person items in Ocarina of Time 3D.
-- Fast Forward: hold View, then pull the right trigger, to run the game at Azahar's turbo speed, and do it again to go back. "Fast Forward" shows in front of you for 2 seconds, and "Normal Speed" when you go back.
-- The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
-- A **Controls** panel in VR lists what every control does in a game, on Azahar's window and in the in-game menu, named from your own controls profile. It opens the first time VR starts, and from the **Controls** button above Azahar's window after that.
-- The Frame controllers show in your hands, with the buttons and sticks moving, and a soft beam that fades when you put a controller down (**Show Controllers**, on by default). The models are made from SteamVR's own on your Frame.
-- A **Stats** panel under the top screen shows the frame rate, the emulation speed, the frame times, the headset's late frames, the CPU load and the GPU clock (**Show Stats**, or the **Stats** button).
-- A **Window Scale** setting (**VR** group, 100%, 150% or 200%, 150% by default) makes Azahar's window look larger in VR: text, buttons and list rows are easier to read and to hit with the beam. Flat mode stays at 100%.
+- Grip a screen to move both. The stick of that hand moves them nearer or farther.
+- Tap the right stick click to swap the screens. Hold it for a second to put them back.
+- Tap the left stick click to hide or show the other screen.
+- **Hide Bottom Screen**, per game, for games that do not need it. Both bumpers and View bring it back.
+- **Screen Shape**, per game: 5:3, 16:9, 21:9, 4:3, 3:2 or 16:10, for mods and cheats that change the game's aspect.
+- **Background**: black, or passthrough to see the room. The in-game menu has a button for it.
 
 ### Immersive mode
 
-- Ocarina of Time 3D and Majora's Mask 3D can wrap the view around you, as in CitraVR: Wide, Full for those two games, and Full for other games.
-- SteamVR has no cylinder layer, so the screen is a flat quad that stays in front of your eyes, sized to the game's camera, or fixed in the room in Wide mode.
-- The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
-- A per-game **Immersive Game FOV** setting replaces the fixed 60 degree game camera that sizes the screen, for mods that change the game's FOV.
-- Both bumpers and View show the bottom screen (the left bumper is L here), and holding the right stick click for 1 second re-centres the view.
-- The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. Squeeze a grip to move it up or down, and use the stick of that hand to move it nearer or farther and make it bigger or smaller, with the world staying put. Each game remembers where you left it.
-- A bigger screen enlarges the game's picture and never shows past it, where games stop drawing their scenery. A per-game **Wider View** setting brings back CitraVR's wider view, and **Squeeze Width** makes the screen 10 or 20% narrower so the HUD at the sides comes into view.
-- Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
+- Grip the immersive screen and move your hand to raise or lower it. The stick of that hand moves it nearer or farther, and makes it bigger or smaller.
+- Each game keeps the screen where you leave it.
+- The default size keeps the HUD at the sides in the sharp middle of the lenses. You can make it up to 2.5 times bigger.
+- **Wider View**, per game, shows more of the game around a bigger screen.
+- **Squeeze Width**, per game, makes the screen 10 or 20% narrower. The HUD at the sides moves into view.
+- **Immersive Game FOV**, per game, for mods that change the game's field of view.
+- Mario Kart 7, Super Mario 3D Land and Asphalt 3D start in Full (6DoF) mode, set up for each game.
+
+### Controls
+
+- The Steam Frame controllers, with the real D-pad.
+- The face buttons go by position, as on a 3DS. **Face Buttons** switches them to by label.
+- A trigger aimed at the bottom screen is a touch. Anywhere else it is ZL or ZR. Each hand decides on its own.
+- Hold View, then the right bumper, to Quick Save. Hold View, then the left bumper, to Quick Load.
+- Hold View, then pull the right trigger, to turn Fast Forward on or off. "Fast Forward" or "Normal Speed" shows for 2 seconds.
+- Hold Menu for a second to open the in-game menu: Azahar's window over the paused game. It has Quick Save, Quick Load and Passthrough buttons.
+- Hold View for 1.5 seconds to stop the game.
+- The right controller is the 3DS's gyroscope, for games that aim by moving the 3DS.
+- A **Controls** panel lists every control, named from your own controls profile.
+- A **Stats** panel shows the frame rate, the emulation speed and the frame times.
+- The Frame controllers show in your hands, with soft beams that fade when you put them down.
+- The layout is a controls profile in Azahar's window, so you can change it.
+
+### VR and Flat
+
+- Press both bumpers, View and Menu to switch between VR and a flat window. The game keeps running.
+- In Flat, Azahar's window sits on SteamVR's big screen, the theater. It stays there when you close the dashboard.
+- Flat has its own controls profile, by position, so your VR layout stays as it is.
+- The next start uses the mode you used last.
+
+### Texture packs
+
+- **Optimize Texture Pack for Frame** in the game list converts a PNG pack to ASTC. The original stays as it is.
+- **Use Original Texture Pack** switches back.
+- Packs that ship DDS or KTX files keep their own mip levels.
 
 ### Install
 
-- An installer that copies the program, adds an Azahar for Frame entry to your Steam library with its artwork and icon, gives SteamVR's dock the name and icon, and sets SteamVR's per-app settings (120 Hz, no throttling, no motion smoothing) and sets them again at every launch.
-- `install.sh --dry-run` lists everything it would do without doing it.
+- An installer that adds the library entry with its art, names the SteamVR dock entry, and sets SteamVR to 120 Hz with no motion smoothing. It sets them again at every launch.
+- `install.sh --dry-run` shows what it would do first.
 - Installing again updates the same entry. Your settings, saves and keys stay.
-- An uninstaller that removes the entry, the program and the dock icon files, and `--purge` for your data.
-- It installs, updates and removes through Frametanium too.
+- It installs and updates through Frametanium and FrameDrop too.
+- An uninstaller, with `--purge` for your data.
+
+### From Azahar and CitraVR
+
+- The emulation, the game list and the settings are Azahar 2127.0-alpha4's, and the 3D screens and immersive modes are CitraVR's. Thanks to the Azahar team and amwatson.
