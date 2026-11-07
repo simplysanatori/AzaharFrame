@@ -212,7 +212,7 @@ The mod's HUD is a controller-neutral, Switch-style diamond of the items, so it 
 
 Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Bottom Screen** for the game.
 
-- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed.
+- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **4:3**, **3:2** and **16:10**, which match game cheats that change the game's own aspect; it must match what the game renders, or the picture stretches.
 - Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value so immersive mode keeps the world still when you turn your head.
 - If it stutters, turn off the mod's 60 FPS option first.
 - Keep real-time shadows off, and draw distance at 100 to 150 %.

@@ -42,11 +42,14 @@ constexpr float kDefaultGameFovY = 60.0f;
 constexpr const char* kPlacementFile = "immersive-placement.txt";
 // Half of rasterizer_accelerated.cpp's VR_IPD, used when the eye poses are not known.
 constexpr float kDefaultHalfIpd = 0.065f / 2.0f;
-// The top screen's width over its height: the 3DS's 400x240, and the two wide shapes of "VR
-// Screen Shape" (vr_top_aspect 0, 1, 2).
+// The top screen's width over its height: the 3DS's 400x240, and the other shapes of "VR
+// Screen Shape" (vr_top_aspect 0 to 5).
 constexpr float kAspect3ds = 400.0f / 240.0f;
 constexpr float kAspectWide = 16.0f / 9.0f;
 constexpr float kAspectUltrawide = 21.0f / 9.0f;
+constexpr float kAspect4x3 = 4.0f / 3.0f;
+constexpr float kAspect3x2 = 3.0f / 2.0f;
+constexpr float kAspect16x10 = 16.0f / 10.0f;
 
 // The latched aspect (TopAspect). Outside State: it is read from other threads.
 std::atomic<float> g_top_aspect{kAspect3ds};
@@ -57,6 +60,12 @@ float AspectFor(u32 shape) {
         return kAspectWide;
     case 2:
         return kAspectUltrawide;
+    case 3:
+        return kAspect4x3;
+    case 4:
+        return kAspect3x2;
+    case 5:
+        return kAspect16x10;
     default:
         return kAspect3ds;
     }

@@ -257,7 +257,7 @@ Some games do not need the bottom screen. In a game's properties, on the **Graph
 
 ### Screen Shape
 
-Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to **Widescreen (16:9)** or **Ultrawide (21:9)** to stretch the top screen in VR to match. It keeps its height and gets wider, and the bottom screen stays where it was. It is also the shape of the screen in immersive mode. The setting is read when the game starts, and it has to agree with the mod's own aspect option.
+Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to **Widescreen (16:9)**, **Ultrawide (21:9)**, **4:3**, **3:2** or **16:10** to stretch the top screen in VR to match. It keeps its height and gets wider, and the bottom screen stays where it was. It is also the shape of the screen in immersive mode. The setting is read when the game starts, and it has to agree with the mod's own aspect option. The 4:3, 3:2 and 16:10 choices match game cheats that change the game's own aspect. Screen Shape must match what the game renders, or the picture stretches.
 
 ## Performance
 

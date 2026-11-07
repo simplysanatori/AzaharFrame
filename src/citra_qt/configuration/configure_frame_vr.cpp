@@ -118,11 +118,14 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "this window switches it too."));
     layout->addWidget(show_stats_check);
 
-    // Values 0..2 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
+    // Values 0..5 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
     shape_combo->addItem(tr("Widescreen (16:9)"));
     shape_combo->addItem(tr("Ultrawide (21:9)"));
+    shape_combo->addItem(tr("4:3"));
+    shape_combo->addItem(tr("3:2"));
+    shape_combo->addItem(tr("16:10"));
     shape_row = MakeRow(
         this, QStringLiteral("frame_vr_shape_row"), tr("Screen Shape"),
         tr("Widen the top screen in VR for games or mods that render widescreen. Takes effect "
