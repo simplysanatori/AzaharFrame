@@ -50,6 +50,7 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_INPUT_SCRIPT=<file>` | scripted input, below |
 | `MOCK_XR_DUMP_DIR=<dir>` | write swapchain images as PNG |
 | `MOCK_XR_DUMP_FRAME=<n\|last>` | `n`: the first image of each swapchain released at or after frame n. `last` (default): the last image released, written when the session ends (`xrEndSession`), so the app has to end its session before it is killed. `n1,n2,...` (ascending): one dump per swapchain after each listed frame (`sc<id>_f<frame>.png`; a swapchain that releases nothing between two listed frames is dumped once for both) |
+| `MOCK_XR_DUMP_SHOWN=t1,t2,...` | at the first `xrEndFrame` at or after each listed time (seconds since the session began, as in input scripts), the image every submitted quad layer shows (its last released image) as `sc<id>_shown_f<frame>.png`, and a `shown` trace line. What is on screen then, whether or not anything was released; a hidden layer is not dumped |
 
 ## Trace and checks
 
