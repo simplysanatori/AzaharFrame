@@ -1,8 +1,6 @@
 # Controls
 
-Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' real D-pad where CitraVR needed a trick on the Quest. The emulator sees a 3DS with a New 3DS's C-Stick, ZL and ZR.
-
-<!-- VERIFY: the whole table in the headset, every row. The rows follow src/frame_xr/input/MAPPING.md and default_bindings.h. -->
+Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' real D-pad where CitraVR needed a trick on the Quest. The emulator sees a New 3DS, with its C-Stick, ZL and ZR.
 
 ## Buttons
 
@@ -11,96 +9,87 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **A** (bottom), **B** (right), **X** (left), **Y** (top) on the right controller | B, A, Y, X | By position, as on the 3DS, where A is on the right and B is below it. **Face Buttons** in the VR settings changes it to by label |
 | Left bumper | L | |
 | Right bumper | R | |
-| Left trigger | ZL | Also when you aim at the top screen. On the bottom screen it is a touch instead |
-| Right trigger | ZR | Same |
-| Left and right grip | Grab a screen and move it | Nothing reaches the game. See Pointing |
+| Left trigger | ZL | Aimed at the bottom screen it is a touch instead |
+| Right trigger | ZR | The same |
+| Left and right grip | Move the screens | Nothing reaches the game. See Pointing |
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
-| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu, see below. The game does not see that hold |
+| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
-| Left stick click, tap | Hides or shows the screen that is not in focus | Nothing reaches the game. See Swapping the screens |
-| Left stick click, held for 1 second | Nothing | A tap hides or shows the screen only when you let go, so a hold does nothing |
-| Right stick click, tap | Swaps the screens: the other screen becomes the main one | Nothing reaches the game. Tap again to swap back. See Swapping the screens |
-| Right stick click, held for 1 second | Resets the screen positions | Nothing reaches the game. A stick click is ignored (tap and hold) while that stick is pushed more than half way, so free camera cannot swap or reset by accident |
-| Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
-| Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
-| **View**, then the right bumper | Quick Save | Hold **View** first, then press the bumper. The game sees none of the three. See Quick Save and Quick Load |
-| **View**, then the left bumper | Quick Load | The same |
-| **View**, then the right trigger | Fast Forward on or off | Hold **View** first, then pull the trigger. The game sees neither Select nor ZR. See Fast Forward |
+| Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
+| Left stick click, held | Nothing | There is no Home button in VR |
+| Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back. Nothing reaches the game |
+| Right stick click, held for 1 second | Reset Screens | Nothing reaches the game |
+| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below. The game does not see that press |
+| Both bumpers + **View** + **Menu** | Switch between VR and Flat | The game sees no Select or Start |
+| Hold **View**, then the right bumper | Quick Save | The game sees none of the three |
+| Hold **View**, then the left bumper | Quick Load | The same |
+| Hold **View**, then the right trigger | Fast Forward on or off | The game sees neither Select nor ZR |
 
 The left Steam button belongs to SteamVR and is never bound.
 
-The Steam Frame buttons are labelled like an Xbox controller, and the 3DS is not: its A is on the right, B at the bottom, X at the top and Y on the left. So by default each button does what the 3DS button in the same place does. In the picker, **A** and **B** are not game buttons and keep their names (see below). If you would rather have A as A, set **Face Buttons** to **By Label (Xbox)**, see Settings.
+The Frame's buttons are labelled like an Xbox controller, and the 3DS's are not: its A is on the right, B at the bottom, X at the top and Y on the left. So by default each button does what the 3DS button in the same place does. If you would rather have A as A, set **Face Buttons** to **By Label (Xbox)**, see Settings.
 
-Grips press at 60 % and let go at 40 %, triggers press at 55 % and let go at 40 %, and both sticks have a 12 % dead zone.
-
-While you hold **View**, the game sees Select held. When the 1.5 seconds are up the game sees it released and stops.
+Grips press at 60 % and let go at 40 %. Triggers press at 55 % and let go at 40 %. Both sticks have a 12 % dead zone.
 
 A tap of **Menu** reaches the game as Start when you let go.
 
-A tap of a stick click acts when you let go, so a hold never also taps: a hold of the left stick click does nothing, and the right one resets only after a full second.
+A stick click acts when you let go, so a hold never also taps. The right one resets after a full second. A stick click is ignored while that stick is pushed more than half way, so the free camera cannot swap or reset by accident.
 
-Because **View** also starts Quick Save, Quick Load and Fast Forward, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
+**View** also starts Quick Save, Quick Load and Fast Forward, so the game sees it a moment late. Select starts 0.15 seconds after you press **View**. A quick tap is a 0.1 second Select, sent when you let go. Holding **View** for 1.5 seconds stops the game, counted from when Select starts. While you hold it the game sees Select held, and it sees Select let go when the game stops.
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It is the same Quick Save slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded" (or "No Quick Save" when there is nothing to load). The game sees neither bumper nor Select, and the stop timer starts over.
+Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
 
-- **View** has to go down first, with no bumper already held. Bumpers first, then **View**, is still the bottom screen button.
-- Pressing the other bumper while the first is held does the other action, and never the bottom screen button.
+- **View** has to go down first, with no bumper held. Bumpers first, then **View**, is the bottom screen button.
+- Pressing the other bumper while the first is held does the other action.
 - A second press within a second does nothing, so a bounce cannot load twice.
-- It works in a game in VR and in Flat. In the in-game menu the same two actions are buttons in the row at the top, see below.
-
-<!-- VERIFY: the combo and the message in the headset -->
+- It works in a game in VR and in Flat. The in-game menu has **Quick Save** and **Quick Load** buttons too, see below.
 
 ## Fast Forward
 
-Hold **View**, then pull the right trigger to turn Fast Forward on: the game runs at Azahar's turbo speed (**Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it). "Fast Forward" shows in front of you for 2 seconds, then fades. Do the same again to turn it off; "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens (in Flat: when holding **Menu** pauses), and when you switch between VR and Flat.
+Hold **View**, then pull the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
 
-- The same rules as Quick Save: **View** has to go down first, with no bumper held, and a second pull within a second does nothing.
-- The game sees neither Select nor ZR, and the stop timer starts over, so holding **View** while you pull never stops the game. Aimed at the bottom screen, that pull is not a touch either.
+- **View** has to go down first, with no bumper held. A second pull within a second does nothing.
+- The game sees neither Select nor ZR, and the stop timer starts over. Aimed at the bottom screen, that pull is not a touch either.
 - The left trigger with **View** held stays ZL.
-- It works in a game in VR and in Flat. In Flat there is no label; the speed in the status bar shows it.
-
-<!-- VERIFY: Fast Forward and its label in the headset -->
+- It works in a game in VR and in Flat. In Flat there is no message; the speed in the status bar shows it.
 
 ## Pointing
 
-Each controller has a laser. The hand that pulled its trigger last owns the dot, which shows over the bottom screen.
+Each controller has a beam. The hand that pulled its trigger last owns the dot, which shows over the bottom screen.
 
 | Aim at | Trigger | Grip | Stick of that hand |
 |---|---|---|---|
 | Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: nearer and farther |
-| Top screen | ZL or ZR, as everywhere in the game | Move both screens. They stay the same distance from you and turn to face you | While you move them: nearer and farther. It does not reach the game then |
+| Top screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther. It does not reach the game then |
 
-The trigger is only a touch when the laser is on the bottom screen when you pull it. Anywhere else it is ZL or ZR, and stays that for as long as you hold it. A second trigger pulled on the bottom screen while it is already being touched does nothing. A grip grabs the screen under the laser when you squeeze it; a grip squeezed with the laser on neither screen does nothing.
+The trigger is a touch only when the beam is on the bottom screen as you pull it. Anywhere else it is ZL or ZR, for as long as you hold it. A second trigger pulled on the bottom screen while it is already touched does nothing. A grip grabs the screen under the beam when you squeeze it. A grip squeezed with the beam on neither screen does nothing.
 
-The top screen goes no nearer than 1 m, and no further than 10 m. Moving them never moves the screens sideways. The bottom screen follows the top one, 0.75 m lower and 0.5 m nearer, tilted back. The screens keep their place when you let go. Hold the right stick click for 1 second to put both back where they start.
+The top screen starts 2 m ahead at eye height, 1 m tall. It goes no nearer than 1 m and no further than 10 m. Moving the screens never moves them sideways. The bottom screen follows the top one, 0.75 m lower and 0.5 m nearer, tilted back 45 degrees. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
 
 ## Swapping the screens
 
-<!-- VERIFY: the swap, the hide, the touch in both focuses and immersive mode in the headset. -->
-
-The screens have two places: the main one, where the top screen starts (2 m ahead, 1 m high), and the second one below it, where the bottom screen starts (tilted back, smaller). The screen in the main place is the one in focus. Every game starts with the top screen in focus and the screens placed as above.
+The screens have two places. The main one is where the top screen starts. The second one is below it, where the bottom screen starts, tilted back and smaller. The screen in the main place is the one in focus. Every game starts with the top screen in focus.
 
 | Control | What it does |
 |---|---|
-| Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the same height as the top screen had (so its pixels are the same size), and the top screen goes to the second place, with the bottom screen's tilt and offsets. Tap again to swap back. The move is instant |
-| Left stick click, tap | Hides or shows the screen that is not in focus: the bottom screen while the top one is in focus, the top screen while the bottom one is in focus |
+| Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the top screen's height, and the top screen goes to the second place. Tap again to swap back |
+| Left stick click, tap | Hides or shows the screen that is not in focus |
 | Right stick click, held for 1 second | Resets the screen positions. The focus and what is hidden stay as they are |
 
-- Moving the screens with a grip works in both focuses and moves the main place and the second place together. Wherever you leave them, both focuses use them.
-- Touch works on the bottom screen in either focus, at its new size and place. The trigger aimed at the top screen is ZL or ZR in either place.
-- The screen in focus is always shown. A hidden bottom screen is shown when it takes the focus, and hidden again when the focus goes back to the top screen. Hiding the top screen lasts until the focus changes: the top screen is shown again whenever it is the main one.
-- The bottom screen is hidden at the start in games with **Hide Bottom Screen** on, and in immersive mode. There the left stick click, with the top screen in focus, does what both bumpers + **View** does (they are one switch: either one shows it and either one hides it again). With the bottom screen in focus, both bumpers + **View** hides the bottom screen and puts the top screen back in focus.
-- In every other game the left stick click hides and shows the bottom screen on its own, and both bumpers + **View** is still L, R and Select for the game.
-- Immersive mode pauses while the bottom screen is in focus, as it does when the bottom screen shows, and picks up again when you swap back.
-- Every new game starts with the top screen in focus.
+- A grip moves both places together, in either focus.
+- Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
+- The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the main one.
+- In games with **Hide Bottom Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
+- In every other game the left stick click hides and shows the bottom screen, and both bumpers + **View** is L, R and Select for the game.
+- Immersive mode pauses while the bottom screen is in focus, and picks up again when you swap back.
 
 ## Azahar's window
 
-When no game runs, Azahar's own window floats in front of you: the game list, the menus and every dialog. The laser is the mouse. Double-click a game to start it, and use **Emulation > Configure...** for the settings. When a game stops, the window comes back.
+When no game runs, Azahar's own window floats in front of you: the game list, the menus and every dialog. The beam is the mouse. Double-click a game to start it, and use **Emulation > Configure...** for the settings. When a game stops, the window comes back.
 
 | Control | What it does |
 |---|---|
@@ -108,7 +97,7 @@ When no game runs, Azahar's own window floats in front of you: the game list, th
 | Right stick click | Right click, for example on a game for **Properties** |
 | Right stick click, held for 1 second | Brings the window back in front of you |
 | **B** | Back: closes a menu or a dialog |
-| Grip aimed at the window | Moves the window. It stays the same distance from you and turns to face you |
+| Grip aimed at the window | Moves the window. It keeps its distance from you and turns to face you |
 | Either stick, up or down | Scrolls |
 | **Y** | Shows or hides the keyboard, see below |
 
@@ -116,60 +105,52 @@ When no game runs, Azahar's own window floats in front of you: the game list, th
 
 ### The keyboard
 
-<!-- VERIFY: the keyboard rows in the headset, and the font (Noto Sans from SteamOS). -->
-
-The keyboard is the one from my Moonlight XR. It hangs under the window and types into the field that has the keys. Click a text field and it opens by itself; it closes again when the field loses the keys, unless you opened it with **Y**. It goes where the window goes, and never shows in a game, where **Y** is the 3DS's Y.
+The keyboard is the one from my Moonlight XR. It hangs under the window and types into the field that has the keys. Click a text field and it opens. It closes again when the field loses the keys, unless you opened it with **Y**. It goes where the window goes, and never shows in a game, where **Y** is the 3DS's X.
 
 | Control | What it does |
 |---|---|
 | Trigger on a key, or **A** | Presses the key. Either hand can type |
 | **?123**, **ABC** | Switch between the letters and the symbols |
 | **Fn** (on the symbols) | Esc, Tab, F1 to F12, Insert, Delete, Home, End, Page Up and Down, the arrows, Ctrl, Alt and Win |
-| Shift, Ctrl, Alt, Win | A tap holds it for the next key. Hold it for half a second to lock it (it turns blue), tap it again to let go. A locked Shift keeps the capitals |
+| Shift, Ctrl, Alt, Win | A tap holds it for the next key. Hold it for half a second to lock it, and tap it again to let go. A locked Shift keeps the capitals |
 | Grip or trigger on the bar under it | Moves the keyboard. The stick of that hand pushes it away or pulls it nearer |
-| **Hide**, **Y**, or a trigger pulled at nothing | Hides it |
+| The hide key, **Y**, or a trigger pulled at nothing | Hides it |
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once; the VR settings apply the next time a game starts.
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once. The VR settings apply the next time a game starts.
 
-A row of buttons shows at the top of the window, under Azahar's menu bar, only while the in-game menu is open in VR: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar at the bottom. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it (see Settings in the user guide).
+A row of buttons shows under Azahar's menu bar while the in-game menu is open: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it.
 
-To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Immersive mode shows the normal screens while the menu is open.
+To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Holding **View** for 1.5 seconds stops the game. The Full immersive modes show the normal screens while the menu is open.
 
 ## The controls help, the controllers and the stats
 
-<!-- VERIFY: the help panel, the two buttons, the beams, the controller models and the stats panel in the headset. They are built and mock-tested only. -->
-
 Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar's window, on the home window and in the in-game menu. Point at one and pull the trigger or press **A**.
 
-**Controls** opens a panel to the left of the window that lists what every Frame control does: in a game, on Azahar's window and in the in-game menu, with the holds and the button chords. The names come from the controls profile you use, so a button you changed in **Emulation > Configure > Controls** shows its new job, and one you cleared shows **Nothing**. The face buttons follow the **Face Buttons** setting. The part that applies where you are is marked **Now**. The panel opens by itself the first time VR starts, and when the in-game menu opens in a game (it closes with the menu again, unless you opened it yourself). Once you have closed it with the **X** or the **Controls** button, the in-game menu leaves it closed until you open it again. Close it with the **X** in its corner or with the **Controls** button again.
+**Controls** opens a panel to the left of the window. It lists what every Frame control does in a game, on Azahar's window and in the in-game menu, with the holds and the chords. The names come from your controls profile: a button you changed in **Emulation > Configure > Controls** shows its new job, and one you cleared shows **Nothing**. The face buttons follow the **Face Buttons** setting. The part that applies where you are is marked. The panel opens by itself the first time VR starts, and when the in-game menu opens, and closes with the menu. Once you close it with the **X** in its corner or the **Controls** button, the in-game menu leaves it closed until you open it again.
 
-**Stats** shows a small panel under the top screen while a game runs: the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and its late frames, how busy the CPU is and the GPU's clock. In immersive mode it hangs low in front of you instead. The **Show Stats** setting is the same switch, and the button changes the setting.
+**Stats** shows a small panel under the top screen while a game runs. It shows the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and late frames, the CPU load and the GPU clock. In immersive mode it hangs low in front of you. The **Show Stats** setting is the same switch.
 
-Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The laser is a soft beam from its tip. On Azahar's window and the panels it ends where it points, and pointing at nothing shows a short faint stub. In a game the beam shows only on the way to the dot over the bottom screen. A controller you have not moved or pressed for 4 seconds fades its beam and dot, and after 30 seconds the model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
+Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The beam is soft and comes from its tip. On Azahar's window and the panels it ends where it points; pointing at nothing shows a short, faint stub. In a game the beam shows only on the way to the dot over the bottom screen. A controller you leave still for 4 seconds fades its beam and dot, and after 30 seconds its model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
 
-The models are made from the ones SteamVR has for the Frame. The installer makes them, and when they are missing the launcher makes them in the background on the next start, so the first start can be without them. Turn them off with **Show Controllers**.
+The models are made from SteamVR's own Frame models when you install. If they are missing, the launcher makes them in the background and they show from the next start. Turn them off with **Show Controllers**.
 
 ## VR and Flat
 
-Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on the Frame's screen, as a normal app, and the game draws one eye only; back in VR the 3D comes back. The next start uses the mode you switched to last.
+Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on SteamVR's big screen (the theater), as a normal app, and stays there when you close the dashboard. Back in VR the 3D comes back; the window first goes back into the dashboard, which takes a few seconds. The next start uses the mode you switched to last.
 
-SteamVR shows the window on its big screen (the theater), so it stays when you close the dashboard; when you switch back to VR, the window goes back into the dashboard first, which takes a few seconds. A chord still held after a switch does nothing until you let go of all four buttons, at least one second later, so one press switches once.
-
-The buttons mean the same in both modes. In Flat the controllers reach Azahar as Steam Input's gamepad, so there is no laser: the triggers are ZL and ZR, the mouse is the touch screen, and the Frame's pointer is the mouse for Azahar's menus. Holding **Menu** for 1 second pauses or continues the game, and holding **View** for 1.5 seconds stops it, as in VR.
-
-Hold both bumpers first. **View** with both bumpers waits a moment for **Menu** before it does anything else (the bottom screen, or Select). The game sees L and R until the switch, then nothing of the four until you let go.
+Hold both bumpers first. **View** with both bumpers held waits a moment for **Menu** before it is the bottom screen button or Select. The game sees L and R until the switch, then nothing of the four until you let go. After a switch the chord does nothing until you let go of all four buttons, and at least one second has passed, so one press switches once.
 
 ## Hiding the bottom screen
 
-Two things hide the bottom screen: immersive mode, and the **Hide Bottom Screen** setting of a game (properties, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is never drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
+Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
 
 | Control | What it does |
 |---|---|
-| Left bumper + right bumper + **View** | Shows or hides the bottom screen. Hold both bumpers, then press View. Every game starts with it hidden. The game sees none of the three |
-| Right stick click, held for 1 second | Also re-centres the view on your head in immersive mode (same half-way rule) |
-| Left stick click, tap | Shows or hides the bottom screen, the same switch as the bumper chord. See Swapping the screens |
+| Both bumpers, then **View** | Shows or hides the bottom screen. The game sees none of the three |
+| Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
+| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 ## Moving the immersive screen
@@ -178,17 +159,17 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 
 | Control | What it does |
 |---|---|
-| Grip, then move the hand up or down | Moves the screen up or down. Squeeze anywhere, the laser does not have to be on the screen |
+| Grip, then move the hand up or down | Moves the screen up or down. Squeeze anywhere; the beam does not have to be on the screen |
 | Stick of that hand, up or down | Moves the screen farther or nearer. It keeps its size in your view |
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
-| Right stick click while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one. Held for 1 second it also re-centres the view and resets the normal screens |
+| Right stick click, tap, while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one |
+| Right stick click, held for 1 second, while holding the screen | Also re-centres the view and resets the normal screens |
 
-The screen starts with its sides, and the HUD there, inside the sharp middle of the lenses. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** on (see the [User Guide](USER_GUIDE.md#immersive-mode)). The screen stays where you leave it, for each game. The grip and that hand's stick do not reach the game while you hold the screen. While the bottom screen shows or is in focus (or the in-game menu is open), the grips move the normal screens as usual. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
-<!-- VERIFY: the immersive screen's default place and the grip gesture in the headset -->
+The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. It can grow to 2.5 times that size. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** on (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip and that hand's stick do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
 ## Ocarina of Time 3D with Ocarina ReFramed
 
-The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the top screen. Turn on **Hide Bottom Screen** for the game. The mod reads the 3DS buttons below; the shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
+The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the top screen. Turn on **Hide Bottom Screen** for the game. The mod reads the 3DS buttons below. The shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
 
 | What it does | 3DS | Steam Frame |
 |---|---|---|
@@ -206,14 +187,14 @@ The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 69
 | Pause menu: move, choose, back | D-pad or Circle Pad, A, B | D-pad or left stick, **B**, **A** |
 | Options menu: columns | L and R | Left and right bumper |
 
-The mod's HUD is a controller-neutral, Switch-style diamond of the items, so it does not name ZL or ZR. The mod does the 3DS touch buttons for you from the D-pad and View. If you ever need the real bottom screen, press both bumpers and **View**.
+The mod's HUD is a Switch-style diamond of the items, so it does not name ZL or ZR. The mod does the 3DS touch buttons for you from the D-pad and View. If you ever need the real bottom screen, press both bumpers and **View**.
 
 ## Ocarina of Time 3D with Single Screen Experience
 
 Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Bottom Screen** for the game.
 
-- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **4:3**, **3:2** and **16:10**, which match game cheats that change the game's own aspect; it must match what the game renders, or the picture stretches.
-- Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value so immersive mode keeps the world still when you turn your head.
+- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **4:3**, **3:2** and **16:10**, which match game cheats that change the game's own aspect. It must match what the game renders, or the picture stretches.
+- Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value, so immersive mode keeps the world still when you turn your head.
 - If it stutters, turn off the mod's 60 FPS option first.
 - Keep real-time shadows off, and draw distance at 100 to 150 %.
 
@@ -221,28 +202,39 @@ The buttons are the same as in the table above. Both bumpers and **View** bring 
 
 ## Settings
 
-Four settings of the **VR** group (**Emulation > Configure > Graphics**, global only, not per game) belong to the controllers.
+The VR settings are in the **VR** group at the bottom of the **Graphics** tab, in **Emulation > Configure** for every game and in a game's **Properties** for that game. The settings marked global only are not in **Properties**.
 
-| Setting | Choices | What it does |
-|---|---|---|
-| **Face Buttons** | **By Position (Nintendo)** (default), **By Label (Xbox)** | How the Frame's A, B, X and Y map to the 3DS. By Position matches the 3DS layout. Read every frame |
-| **Motion Controls** | **Off**, **Right Controller** (default), **Left Controller** | Uses a controller as the 3DS's gyroscope and accelerometer. Going from Off to a controller takes effect the next time VR starts. Switching between the controllers, or back to Off, takes effect at once |
-| **Show Controllers** | on (default) or off | Shows the Frame controllers in VR. They hide when you put them down. Takes effect at once |
-| **Show Stats** | off (default) or on | Shows the stats panel under the top screen while a game runs. The **Stats** button above Azahar's window switches it too |
+| Setting | Choices | Default | Where |
+|---|---|---|---|
+| **Hide Bottom Screen** | on or off | off | Global and per game. Read when the game starts |
+| **Face Buttons** | **By Position (Nintendo)**, **By Label (Xbox)** | By Position (Nintendo) | Global only. Takes effect at once |
+| **Background** | **Black**, **Passthrough** | Black | Global only. Passthrough shows the room, if SteamVR offers it |
+| **Window Scale** | **100%**, **150%**, **200%** | 150% | Global only. How large Azahar's window looks in VR. Flat is not affected |
+| **Motion Controls** | **Off**, **Right Controller**, **Left Controller** | Right Controller | Global only. From Off to a controller takes effect the next time VR starts; the other changes at once |
+| **Show Controllers** | on or off | on | Global only. Takes effect at once |
+| **Show Stats** | on or off | off | Global only. The **Stats** button switches it too |
+| **Screen Shape** | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **4:3**, **3:2**, **16:10** | 3DS (5:3) | Global and per game. Read when the game starts |
+| **Immersive Mode** | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | Global and per game. Three games have a preset, see the user guide |
+| **Immersive Game FOV** | 30° to 110° | 60° | Global and per game. Read when the game starts |
+| **Wider View** | on or off | off | Global and per game. Full modes only. Read when the game starts |
+| **Squeeze Width** | **Off**, **10%**, **20%** | Off | Global and per game. Full modes only. Read when the game starts |
+| **Depth Factor Multiplier** | **1x**, **10x**, **100x** | 1x | Global and per game |
+| **View Matrix Register** | **Auto**, 0 to 92 | Auto | Global and per game. Full (6DoF): Other Games only |
+| **Eye Indicator Register** | empty for auto, or a register and index such as `87,2` | empty | Global and per game. Full (6DoF): Other Games only |
+
+What each one does is in the [user guide](USER_GUIDE.md#settings).
 
 ## Motion controls
 
-Some games aim by moving the 3DS, like the first-person items in Ocarina of Time 3D (the slingshot, the bow, the hookshot). The 3DS has a gyroscope and an accelerometer for that, and in VR the controller you chose in **Motion Controls** stands in for them. Hold it as if it were the 3DS in front of you, with its beam pointing into the screen. Turn it left and right to turn like the 3DS, and tilt it up and down to tilt it. The tilt of the beam also tells the game which way is down. The game is not told about the movement of your hand through the room, only about how the controller turns and which way it hangs.
+Some games aim by moving the 3DS, like the first-person items in Ocarina of Time 3D (the slingshot, the bow, the hookshot). In VR the controller you chose in **Motion Controls** is the 3DS's gyroscope and accelerometer. Hold it as if it were the 3DS in front of you, with its beam pointing into the screen. Turn it left and right to turn, and tilt it up and down to tilt. The tilt of the beam also tells the game which way is down. The game is told how the controller turns and which way it hangs, not how your hand moves through the room.
 
-The same controller still points at the screens, so moving it to aim also moves its beam. Choose the controller you do not use for pointing in **Motion Controls** if that gets in the way. A game that does not use the sensors is not affected, and **Off** leaves the 3DS lying flat and still. A motion device you chose yourself in **Emulation > Configure > Controls > Motion/Touch** is left alone.
-
-<!-- VERIFY: gyro aiming in the headset (direction of each axis, how fast it turns, the beam held level or tilted) -->
+The same controller still points at the screens, so aiming also moves its beam. If that gets in the way, choose the controller you do not point with. A game that does not use the sensors is not affected, and **Off** leaves the 3DS lying flat and still. A motion device you chose yourself in **Emulation > Configure > Controls > Motion/Touch** is left alone.
 
 ## Playing in a window (Flat)
 
-The same library entry can also run Azahar as a flat window on the Frame's virtual screen, with other apps usable beside it. It starts in the mode you used last (VR the first time), kept in the file `mode` in `~/.local/share/AzaharFrame` as the single word `vr` or `flat`. To start in Flat once without changing that, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR); from a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, press both bumpers, **View** and **Menu** together, see [VR and Flat](#vr-and-flat).
+The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat).
 
-In Flat the Frame controllers reach the game as a gamepad from Steam Input, and Azahar uses its own controls profile for them, **Flat Gamepad**, added the first time Flat starts. The profile that VR uses is not touched, and the one in use follows the mode. The buttons are placed like the 3DS, by position:
+In Flat the Frame controllers reach Azahar as a gamepad from Steam Input. Azahar uses its own controls profile for them, **Flat Gamepad**, added the first time Flat starts. The VR profile is not touched, and the one in use follows the mode. The buttons are placed like the 3DS, by position:
 
 | Frame, as a gamepad | 3DS |
 |---|---|
@@ -257,14 +249,19 @@ In Flat the Frame controllers reach the game as a gamepad from Steam Input, and 
 | Left and right trigger | ZL and ZR |
 | **Menu** | Start |
 | **View** | Select |
+| Left stick click | Home |
 
-The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse. Every button can be changed in **Emulation > Configure > Controls**, and your changes in **Flat Gamepad** stay; it is only added when it is missing. The layout of the screens, 3D and everything else in Azahar's settings are the ones you already have.
+There is no beam in Flat. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse, and the triggers are always ZL and ZR.
+
+The holds and chords work as in VR. Holding **Menu** for 1 second pauses or continues the game, and holding **View** for 1.5 seconds stops it. Quick Save, Quick Load, Fast Forward and the switch to VR work too. In Flat the game also sees the buttons of a hold or chord, as Start, Select, L, R or ZR.
+
+Every button can be changed in **Emulation > Configure > Controls**, and your changes in **Flat Gamepad** stay. It is only added when it is missing. The layout of the screens, 3D and everything else are the settings you already have.
 
 ## Changing the layout
 
-The layout (apart from Face Buttons, see Settings) is a controls profile in Azahar's **Emulation > Configure > Controls** window, where the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile are replaced with this layout, unless one of them already is a Frame control. After that your changes stay. The face buttons there are the 3DS-named ones, so they follow the **Face Buttons** setting: with By Position, **Frame A** is the button in the 3DS's A place, which is the Frame's **B**. A profile saved by an earlier version, with L and R on the grips, gets them moved to the bumpers (the grips only grab the screens now). Keep a PC profile of your own under another name if you also use the window with a keyboard.
+The VR layout (apart from Face Buttons) is a controls profile in **Emulation > Configure > Controls**. There the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile get this layout, unless one of them already is a Frame control. After that your changes stay. The face buttons there are the 3DS-named ones, so they follow **Face Buttons**: with By Position, **Frame A** is the button in the 3DS's A place, which is the Frame's **B**. Keep a profile of your own under another name if you also use the window with a keyboard.
 
-SDL game controllers still work, and keyboard and mouse work in the desktop window.
+SDL game controllers still work, and so do a keyboard and mouse on the window.
 
 ## Rumble
 

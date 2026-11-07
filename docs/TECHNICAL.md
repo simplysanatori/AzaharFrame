@@ -4,7 +4,7 @@ Technical notes for people working on the port. For playing, see the [README](..
 
 ## What Azahar for Frame is
 
-Azahar for Frame is one process: Azahar's Qt program (`azahar`, still called that) plus a new `src/frame_xr/` that owns the OpenXR session. The Qt window is the settings dialog and the game list; it is shown on the SteamVR dashboard as a desktop window. <!-- VERIFY: the window on the dashboard --> The emulator's emulation thread renders the 3DS's screens as usual; a copy of those screens goes to SteamVR.
+Azahar for Frame is one process: Azahar's Qt program (`azahar`, still called that) plus a new `src/frame_xr/` that owns the OpenXR session. The Qt window is the settings dialog and the game list. In VR it is drawn onto a panel in front of you (`citra_qt/frame_mirror.cpp`, `src/frame_xr/qt_mirror/`), and the beam drives it as a mouse. In Flat it is a normal window on SteamVR's big screen. The emulator's emulation thread renders the 3DS's screens as usual; a copy of those screens goes to SteamVR.
 
 Everything CitraVR changed in the emulator's core (the vertex shader factor, the view matrix hook in the rasterizer, the 3D depth default) is kept and works with the Vulkan renderer as it stands. The rest of CitraVR (about 5,700 lines of OpenXR code in `jni/vr`, plus the Kotlin app) is Android only and is not built.
 
@@ -40,19 +40,21 @@ The three screens are the 3DS's own images: the right eye is the 3DS's right ima
 ## Threads
 
 - The emulation thread renders the 3DS at 60 frames a second.
-- The `frame_xr` thread runs `xrWaitFrame`, `xrBeginFrame` and `xrEndFrame` at the display's rate and submits the quad layers with the last released images each time. It also syncs the controller actions, runs the frame callbacks (immersive mode) and draws the picker and the pointer dot. It does no GPU work while a game runs; the dot is a small pre-rendered quad.
+- The `frame_xr` thread runs `xrWaitFrame`, `xrBeginFrame` and `xrEndFrame` at the display's rate and submits the quad layers with the last released images each time. It also syncs the controller actions, runs the frame callbacks (immersive mode) and draws Azahar's window panel (or the picker) and the pointer dot. It does no GPU work while a game runs; the dot is a small pre-rendered quad.
 - Tracking uses the LOCAL space; immersive mode also uses VIEW.
 - The display rate is not asked for in the code. `azaharframe.sh` sets SteamVR's per-app settings (120 Hz by default, no throttling, no motion smoothing) before every launch, and `install.sh` sets them for the library entry.
 
-SteamVR on the Frame has no cylinder layer and no passthrough, only quads and projection layers. The screens are quad layers.
+SteamVR on the Frame has no cylinder layer, only quads and projection layers. The screens are quad layers. Passthrough is the alpha-blended environment mode, used for **Background: Passthrough** when the runtime offers it (`hud.cpp`).
 
 ## The game picker
+
+In VR, Azahar's own window is the home panel. The VR game picker below is the older one, still there with `AZAHARFRAME_VR_PICKER=1`.
 
 One quad, 1.6 m wide, 2 m in front of you, 1536x1024 texels drawn on the CPU (the same UI canvas and bitmap font as GalaxyFrame), a grid of four columns and two rows. It lists the folders the Qt window knows (`UISettings::values.game_dirs`, pushed to the picker by `FrameXrPushGameDirs`: at VR start, when a game folder is added and when a game ends) with the 48x48 icon and title read from each game's SMDH. The installed titles folder is listed too. Icons are cached in `~/.cache/azaharframe/icons`. The file types are the ones the Qt game list accepts (`.3ds`, `.cci`, `.cxi`, `.app`, `.3dsx`, `.elf`, `.axf` and the compressed `.z3dsx`, `.zcci`, `.zcxi`, `.bcci`); a CIA is installed first from **File > Install CIA...**.
 
 Pointing at a tile highlights it; the trigger or **A** boots it through the same code as double-clicking in the Qt list (`GMainWindow::BootGame`, queued onto the Qt thread). **B** goes to the previous page, a stick turns the pages, and **Rescan** rereads the folders. The header shows the "Azahar for Frame" lockup from `art/logo.png` (decoded with lodepng and scaled once, so it is drawn 1:1); without that file it shows the name as text. `art/` is looked for in `$AZAHARFRAME_ART`, next to the program, and in the checkout the build came from.
 
-In a game, holding **View** for 1.5 seconds calls `ShutdownGame` and returns to the picker.
+In a game, holding **View** for 1.5 seconds calls `ShutdownGame` and returns to Azahar's window (or the picker).
 
 ## Controls
 
@@ -89,4 +91,4 @@ Azahar's Vulkan renderer writes a disk cache of translated shaders and one of th
 
 `azaharframe.sh` starts inside `~/.local/share/AzaharFrame`, which holds a `user/` folder, and so Azahar uses it as its portable user directory instead of `~/.local/share/azahar-emu`. It unsets the Mesa overrides and `LD_LIBRARY_PATH` that Steam sets for games, sets `XR_RUNTIME_JSON` to SteamVR's runtime file only if nothing else names a runtime, sets SteamVR's per-app settings, and creates `~/.cache/headset-in-use` while the emulator runs so other work on the Frame waits. It picks the mode (VR or flat) from `--flat` / `--vr`, else `AZAHARFRAME_FLAT`, else the file `mode` in the data folder, and in `user/config/qt-config.ini` it adds the input profile "Flat Gamepad" (SDL gamepad by position, `maptype:all`, so no GUID or port) when it is missing and selects the profile that goes with the mode. Settings for one launch go in `session.env` in the data folder. The environment variables are listed in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md#environment-variables).
 
-The OpenXR loader is SteamVR's own, `/opt/steamvr/bin/linuxarm64/libopenxr_loader.so`, opened at run time (`$AZAHARFRAME_OPENXR_LOADER` first, the system's loader last); the headers are vendored in `third_party/openxr`. The program links the Qt 6 and SDL2 libraries SteamOS has; OpenAL Soft and Cubeb are built in.
+The OpenXR loader is SteamVR's own, `/opt/steamvr/bin/linuxarm64/libopenxr_loader.so`, opened at run time (`$AZAHARFRAME_OPENXR_LOADER` first, the system's loader last); the headers are vendored in `third_party/openxr`. The release carries its own Qt 6 in `lib/` and `plugins/`, and SDL2, OpenAL Soft and Cubeb are built in, so a SteamOS update does not break it (the portable build in [AGENTS.md](../AGENTS.md#portable-build)). A local `steam-frame/build.sh` build links the Qt 6 and SDL2 SteamOS has.
