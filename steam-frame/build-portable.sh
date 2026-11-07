@@ -27,6 +27,9 @@ VERSION=${1:-1.0.0}
 ENGINE=${CONTAINER_ENGINE:-podman}
 CACHE=${AZAHARFRAME_PORTABLE_CACHE:-$HOME/.cache/azaharframe/portable}
 JOBS=${AZAHARFRAME_JOBS:-4}
+# the container CPU limit cannot exceed the machine (GitHub's arm64 runners have 2 CPUs)
+CPUS=$(nproc 2> /dev/null || echo "$JOBS")
+[ "$JOBS" -lt "$CPUS" ] && CPUS=$JOBS
 SLOT_MIN=${AZAHARFRAME_SLOT_MIN:-20}
 command -v "$ENGINE" > /dev/null || { echo "build-portable: $ENGINE is not installed" >&2; exit 1; }
 mkdir -p "$CACHE/work" "$CACHE/ccache" "$CACHE/out"
@@ -112,7 +115,7 @@ while true; do
   CONTAINER=azaharframe-portable-$$
   echo "$(date +%T) building in $IMAGE, -j$JOBS"
   "$ENGINE" rm -f "$CONTAINER" > /dev/null 2>&1 || true
-  "$ENGINE" run --rm --init --name "$CONTAINER" --cpus "$JOBS" \
+  "$ENGINE" run --rm --init --name "$CONTAINER" --cpus "$CPUS" \
       -v "$REPO:/src-ro:ro" "${EXT_ARGS[@]}" \
       -v "$CACHE/work:/work" -v "$CACHE/ccache:/ccache" -v "$CACHE/out:/out" \
       -e JOBS="$JOBS" -e GIT_COMMIT="$GIT_COMMIT" -e GIT_TAG="$GIT_TAG" -e AZAHARFRAME_VERSION="$VERSION" -e CF_EXTRA_CMAKE_FLAGS="${CF_EXTRA_CMAKE_FLAGS:-}" \
