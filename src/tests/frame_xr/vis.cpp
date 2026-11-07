@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -9,6 +10,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/vis/beam.h"
+#include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/model_file.h"
@@ -240,4 +242,303 @@ TEST_CASE("FrameXr vis: model files", "[frame_xr]") {
     REQUIRE(parts.size() == 1);
     REQUIRE(parts[0].transform[13] == Approx(-0.002f));
     std::remove(path.c_str());
+}
+
+// ---- AzaharFrame ctrldiag: the controls diagram ----
+
+namespace {
+
+const DiagramLine* LineFor(const DiagramLabel* label, const std::string& key) {
+    if (!label) {
+        return nullptr;
+    }
+    for (const auto& l : label->lines) {
+        if (l.key == key) {
+            return &l;
+        }
+    }
+    return nullptr;
+}
+
+std::string DiagramAction(const DiagramPage& page, int hand, CtrlPart part, const std::string& key) {
+    const DiagramLine* l = LineFor(FindDiagramLabel(page, hand, part), key);
+    return l ? l->action : "(missing)";
+}
+
+// Where the Steam Frame controllers' drawings put each part (panel pixels, measured from the
+// on-device models): hand, part, the anchor, the bounds.
+const struct {
+    int hand;
+    CtrlPart part;
+    float x, y, x0, y0, x1, y1;
+} kFrameAnchors[] = {
+    {0, CtrlPart::Stick, 547, 431, 523, 406, 572, 455},
+    {0, CtrlPart::Dpad, 473, 404, 441, 372, 506, 436},
+    {0, CtrlPart::View, 518, 375, 505, 368, 532, 381},
+    {0, CtrlPart::System, 497, 462, 485, 449, 509, 474},
+    {0, CtrlPart::Bumper, 516, 190, 477, 167, 561, 218},
+    {0, CtrlPart::Trigger, 523, 227, 482, 200, 560, 254},
+    {0, CtrlPart::Grip, 532, 509, 522, 497, 542, 519},
+    {1, CtrlPart::Stick, 693, 431, 668, 406, 717, 455},
+    {1, CtrlPart::Menu, 722, 375, 708, 368, 735, 381},
+    {1, CtrlPart::System, 743, 462, 731, 449, 755, 474},
+    {1, CtrlPart::A, 769, 428, 756, 416, 781, 440},
+    {1, CtrlPart::B, 790, 402, 777, 390, 802, 415},
+    {1, CtrlPart::X, 743, 407, 731, 394, 755, 419},
+    {1, CtrlPart::Y, 764, 381, 752, 369, 776, 393},
+    {1, CtrlPart::Bumper, 724, 190, 679, 167, 763, 218},
+    {1, CtrlPart::Trigger, 717, 227, 680, 200, 758, 254},
+    {1, CtrlPart::Grip, 708, 509, 698, 497, 718, 519},
+};
+
+DiagramAnchors FrameAnchors() {
+    DiagramAnchors an;
+    for (const auto& a : kFrameAnchors) {
+        const auto p = static_cast<std::size_t>(a.part);
+        an.at[a.hand][p] = DiagramPoint{a.x, a.y};
+        an.bounds[a.hand][p] = {a.x0, a.y0, a.x1, a.y1};
+    }
+    return an;
+}
+
+// Does the segment p-q pass through the rectangle (x0, y0, x1, y1)?
+bool Crosses(const DiagramPoint& p, const DiagramPoint& q, float x0, float y0, float x1, float y1) {
+    for (int i = 0; i <= 200; i++) {
+        const float t = static_cast<float>(i) / 200.0f;
+        const float x = p.x + (q.x - p.x) * t, y = p.y + (q.y - p.y) * t;
+        if (x > x0 && x < x1 && y > y0 && y < y1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// One part of the box model below: a box with its own face normals.
+void AddBox(ModelFile& m, const char* name, const char* path, float x0, float y0, float z0,
+            float x1, float y1, float z1) {
+    ModelComponent c;
+    c.name = name;
+    c.path = path;
+    c.first_index = static_cast<uint32_t>(m.indices.size());
+    const float n[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (const auto& f : n) {
+        const auto base = static_cast<uint32_t>(m.vertices.size() / kModelVertexFloats);
+        // The face's four corners: the box corners on that side.
+        std::vector<std::array<float, 3>> corners;
+        for (const float x : {x0, x1}) {
+            for (const float y : {y0, y1}) {
+                for (const float z : {z0, z1}) {
+                    const float c3[3] = {x, y, z};
+                    const float lo[3] = {x0, y0, z0}, hi[3] = {x1, y1, z1};
+                    bool on = false;
+                    for (int k = 0; k < 3; k++) {
+                        on = on || (f[k] > 0 && c3[k] == hi[k]) || (f[k] < 0 && c3[k] == lo[k]);
+                    }
+                    if (on) {
+                        corners.push_back({x, y, z});
+                    }
+                }
+            }
+        }
+        for (const auto& p : corners) {
+            const float v[kModelVertexFloats] = {p[0], p[1], p[2], f[0], f[1], f[2], 1, 0, 0, 1, 0, 0};
+            m.vertices.insert(m.vertices.end(), v, v + kModelVertexFloats);
+        }
+        // Corners 0..3 in the order above: 0-1-3 and 0-3-2 cover the face.
+        for (const uint32_t i : {0u, 1u, 3u, 0u, 3u, 2u}) {
+            m.indices.push_back(base + i);
+        }
+    }
+    c.index_count = static_cast<uint32_t>(m.indices.size()) - c.first_index;
+    c.input = -1;
+    m.components.push_back(c);
+}
+
+} // namespace
+
+TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[frame_xr]") {
+    HelpContext ctx;
+    ctx.game_running = true;
+    SECTION("default profile, by position") {
+        const HelpDiagram d = BuildHelpDiagram(DefaultHelpBindings(), ctx);
+        REQUIRE(d.now == DiagramPageId::Game);
+        const DiagramPage& g = d.pages[0];
+        REQUIRE(g.name == "In Game");
+        REQUIRE(d.pages[1].name == "Azahar's Window");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::A, "A") == "3DS B");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Y, "Y") == "3DS X");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Dpad, "D-Pad") == "3DS D-Pad");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Left Stick") == "Circle Pad");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Click") == "Hide or Show Other Screen");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Right Stick") == "C-Stick");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Click") == "Swap Screens");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Reset Screens");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Bumper, "Left Bumper") == "3DS L");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "Right Trigger") == "3DS ZR");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "") == "Touch on Bottom Screen");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Menu, "Menu") == "3DS Start");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Menu, "Hold (1 s)") == "In-Game Menu");
+        // The holds and the chords, under View.
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "View") == "3DS Select");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Hold (1.5 s)") == "Stop Game");
+        const DiagramLabel* view = FindDiagramLabel(g, 0, CtrlPart::View);
+        REQUIRE(LineFor(view, "Hold View +"));
+        REQUIRE(LineFor(view, "Hold View +")->heading);
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Left Bumper") == "Quick Load");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Right Bumper") == "Quick Save");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Right Trigger") == "Fast Forward On / Off");
+        REQUIRE(LineFor(view, "Both Bumpers +"));
+        REQUIRE(std::any_of(view->lines.begin(), view->lines.end(), [](const DiagramLine& l) {
+            return l.sub && l.key == "View" && l.action == "Show or Hide Bottom Screen";
+        }));
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "View + Menu") == "Switch VR / Flat");
+        // One label for both grips.
+        REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Grip) == FindDiagramLabel(g, 1, CtrlPart::Grip));
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") == "Move Screens");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Right Stick Click") == "Reset Immersive Screen");
+        // The window's page.
+        const DiagramPage& w = d.pages[1];
+        REQUIRE(DiagramAction(w, 1, CtrlPart::A, "A") == "Click");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::B, "B") == "Back");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::Y, "Y") == "Keyboard");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Bring Window Back");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::Menu, "Hold Menu (1 s)") == "Back to Game");
+        REQUIRE(DiagramAction(w, 0, CtrlPart::View, "View + Menu") == "Switch VR / Flat");
+        REQUIRE(DiagramAction(w, 0, CtrlPart::Grip, "Grip") == "Move Window");
+        REQUIRE(FindDiagramLabel(w, 0, CtrlPart::Dpad) == nullptr);
+    }
+    SECTION("by label, and the window's page with no game") {
+        ctx.face_by_position = false;
+        ctx.game_running = false;
+        const HelpDiagram d = BuildHelpDiagram(DefaultHelpBindings(), ctx);
+        REQUIRE(d.now == DiagramPageId::Window);
+        REQUIRE(DiagramAction(d.pages[0], 1, CtrlPart::A, "A") == "3DS A");
+        REQUIRE(DiagramAction(d.pages[0], 1, CtrlPart::X, "X") == "3DS X");
+        REQUIRE(d.footer.find("By Label (Xbox)") != std::string::npos);
+    }
+    SECTION("a changed profile shows what it binds, as the list does") {
+        HelpBindings b = DefaultHelpBindings();
+        b.buttons[Settings::NativeButton::L] = "engine:frame_xr,button:8"; // GripL
+        b.buttons[Settings::NativeButton::Up] = "engine:sdl,button:3";
+        b.buttons[Settings::NativeButton::Start] = "";
+        b.profile_name = "Mine";
+        const HelpDiagram d = BuildHelpDiagram(b, ctx);
+        const HelpPage list = BuildHelp(b, ctx);
+        const DiagramPage& g = d.pages[0];
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Bumper, "Left Bumper") == "Nothing");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Menu, "Menu") == "Nothing");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") ==
+                ActionFor(list.game, "Grip on a Screen"));
+        // A direction changed: the 3DS's D-pad, and that direction.
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Dpad, "D-Pad") == "3DS D-Pad");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Dpad, "Up") == "Nothing");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Dpad, "Down") == "(missing)");
+        REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Dpad)->lines.size() == 2);
+        REQUIRE(d.footer == list.footer);
+        REQUIRE(d.footer.find("Profile: Mine") != std::string::npos);
+    }
+}
+
+TEST_CASE("FrameXr vis: the diagram's labels fit and their lines are clear", "[frame_xr]") {
+    // A stand-in for Noto Sans, a little wide: every character 0.48 em, bold ones 0.51.
+    const TextMeasure measure = [](float size, bool bold, const std::string& text) {
+        return static_cast<float>(text.size()) * size * (bold ? 0.51f : 0.48f);
+    };
+    const DiagramAnchors an = FrameAnchors();
+    HelpBindings one = DefaultHelpBindings();
+    one.buttons[Settings::NativeButton::Up] = "engine:sdl,button:3";
+    HelpBindings all = one; // a five-line D-pad
+    all.buttons[Settings::NativeButton::Down] = "";
+    all.buttons[Settings::NativeButton::Left] = "engine:frame_xr,button:1";
+    all.buttons[Settings::NativeButton::Right] = "engine:frame_xr,button:0";
+    for (const HelpBindings& b : {DefaultHelpBindings(), one, all}) {
+        HelpContext ctx;
+        ctx.game_running = true;
+        const HelpDiagram d = BuildHelpDiagram(b, ctx);
+        for (const DiagramPage& page : d.pages) {
+            const auto placed = LayoutHelpDiagram(page, an, measure);
+            INFO(page.name);
+            REQUIRE(placed.size() == page.labels.size());
+            for (std::size_t i = 0; i < placed.size(); i++) {
+                const DiagramPlaced& p = placed[i];
+                INFO(p.label->lines.front().key);
+                // Inside the panel, under the title row, over the footer.
+                REQUIRE(p.x0 >= 30.0f);
+                REQUIRE(p.x1 <= kDiagramPanelW - 30.0f);
+                REQUIRE(p.y0 >= kDiagramTop - 0.01f);
+                REQUIRE(p.y1 <= kDiagramBottom + 0.01f);
+                REQUIRE_FALSE(p.leaders.empty());
+                for (std::size_t j = 0; j < placed.size(); j++) {
+                    if (i == j) {
+                        continue;
+                    }
+                    const DiagramPlaced& q = placed[j];
+                    // No two labels overlap, and no line runs through another label.
+                    REQUIRE((p.x1 <= q.x0 || q.x1 <= p.x0 || p.y1 <= q.y0 || q.y1 <= p.y0));
+                    for (const DiagramLeader& l : p.leaders) {
+                        REQUIRE_FALSE(Crosses(l.from, l.to, q.x0, q.y0, q.x1, q.y1));
+                    }
+                }
+                // No line runs over a control it does not point at (a little inside its edge).
+                for (const DiagramLeader& l : p.leaders) {
+                    for (const auto& a : kFrameAnchors) {
+                        const auto& parts = p.label->parts;
+                        if (std::find(parts.begin(), parts.end(), a.part) != parts.end() ||
+                            DiagramPartInFront(a.part)) {
+                            continue;
+                        }
+                        INFO("crosses part " << static_cast<int>(a.part) << " of hand " << a.hand);
+                        REQUIRE_FALSE(Crosses(l.from, l.to, a.x0 + 3, a.y0 + 3, a.x1 - 3, a.y1 - 3));
+                    }
+                }
+            }
+        }
+    }
+    SECTION("a label whose parts do not show is left out") {
+        DiagramAnchors none;
+        const HelpDiagram d = BuildHelpDiagram(DefaultHelpBindings(), {});
+        REQUIRE(LayoutHelpDiagram(d.pages[0], none, measure).empty());
+    }
+}
+
+TEST_CASE("FrameXr vis: controller drawings", "[frame_xr]") {
+    // A box for a body, a button on top, a trigger underneath at the front.
+    ModelFile m;
+    AddBox(m, "body", "", -0.03f, -0.02f, 0.0f, 0.03f, 0.0f, 0.1f);
+    AddBox(m, "button_a", "/input/a/click", 0.01f, 0.0f, 0.02f, 0.02f, 0.004f, 0.03f);
+    AddBox(m, "trigger", "/input/trigger", -0.01f, -0.035f, 0.0f, 0.01f, -0.02f, 0.02f);
+    REQUIRE(PartOfComponent(m.components[1]) == CtrlPart::A);
+    REQUIRE(PartOfComponent(m.components[2]) == CtrlPart::Trigger);
+    REQUIRE_FALSE(PartOfComponent(m.components[0]));
+
+    const DiagramAngle top{0.0f, 90.0f};
+    const float scale = DiagramScale({&m}, top, 120, 200);
+    REQUIRE(scale > 0.0f);
+    const DiagramImage img = DrawDiagram(m, top, scale, 120, 200);
+    REQUIRE(img.rgba.size() == 120u * 200u * 4u);
+    // Seen from above: the button shows right of the middle, nearer the front (the top); the
+    // trigger is under the body.
+    const auto& a = img.anchor[static_cast<std::size_t>(CtrlPart::A)];
+    REQUIRE(a);
+    REQUIRE(a->x > 60.0f);
+    REQUIRE(a->y < 100.0f);
+    REQUIRE_FALSE(img.anchor[static_cast<std::size_t>(CtrlPart::Trigger)]);
+    // Outlines are drawn: some pixels are the line colour, the middle of the body is fill.
+    int line = 0;
+    for (std::size_t i = 0; i < img.rgba.size(); i += 4) {
+        line += img.rgba[i] > 0xD0 && img.rgba[i + 3] > 0xF0;
+    }
+    REQUIRE(line > 100);
+    const uint8_t* mid = &img.rgba[(150u * 120u + 30u) * 4u];
+    REQUIRE(mid[3] == 0xFF);
+    REQUIRE(mid[0] < 0x60);
+
+    // From the front, the trigger shows; cut to its rows, its anchor moves with them.
+    const DiagramImage front = DrawDiagram(m, {180.0f, 165.0f}, scale, 120, 200);
+    const auto& t = front.anchor[static_cast<std::size_t>(CtrlPart::Trigger)];
+    REQUIRE(t);
+    const DiagramImage cut = CropDiagram(front, 20, 180, 10);
+    REQUIRE(cut.height == 160);
+    REQUIRE(cut.anchor[static_cast<std::size_t>(CtrlPart::Trigger)]);
+    REQUIRE(cut.anchor[static_cast<std::size_t>(CtrlPart::Trigger)]->y == Approx(t->y - 20.0f));
 }

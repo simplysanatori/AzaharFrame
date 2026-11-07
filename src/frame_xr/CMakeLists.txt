@@ -61,6 +61,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/async_overlay.h
     vis/beam.cpp
     vis/beam.h
+    vis/controller_diagram.cpp
+    vis/controller_diagram.h
     vis/controller_models.cpp
     vis/controller_models.h
     vis/help_content.cpp

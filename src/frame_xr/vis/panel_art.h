@@ -61,6 +61,8 @@ public:
     void ClearRect(int x, int y, int width, int height);
     /// Copies premultiplied RGBA8 pixels (rows top down) to x, y.
     void Put(int x, int y, const uint8_t* rgba, int width, int height);
+    /// The same, drawn over what is there (premultiplied "over").
+    void PutOver(int x, int y, const uint8_t* rgba, int width, int height);
     void FillRRect(float x0, float y0, float x1, float y1, float radius, uint32_t argb);
     void StrokeRRect(float x0, float y0, float x1, float y1, float radius, float width,
                      uint32_t argb);
