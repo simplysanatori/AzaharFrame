@@ -2207,6 +2207,13 @@ void GMainWindow::BootGame(const QString& filename) {
                 LOG_INFO(Frontend, "xr: {}: View Matrix Register preset {}", preset->name,
                          preset->register_offset);
             }
+            auto& wider = Settings::values.vr_immersive_wider_view;
+            if (preset->wider_view && mode.GetValue() == preset->mode && wider.UsingGlobal() &&
+                !wider.GetValue()) {
+                wider.SetGlobal(false);
+                wider.SetValue(true);
+                LOG_INFO(Frontend, "xr: {}: Wider View preset", preset->name);
+            }
         }
 #endif
     }

@@ -19,6 +19,8 @@ struct ImmersivePreset {
     uint32_t mode;
     /// Settings::values.vr_si_mode_register_offset (the view matrix register)
     int32_t register_offset;
+    /// Settings::values.vr_immersive_wider_view: the game's scenery holds up past its own view.
+    bool wider_view = false;
 };
 
 /// The preset for the game with this title id (any region), or null.

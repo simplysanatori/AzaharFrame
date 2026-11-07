@@ -2,8 +2,10 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/immersive_layout.h"
@@ -142,34 +144,87 @@ TEST_CASE("FrameXr immersive: fitting the screen in the view", "[frame_xr]") {
     }
 }
 
+TEST_CASE("FrameXr immersive: the default fits a comfortable width", "[frame_xr]") {
+    // The Frame's view (a headset log): both eyes see -50.3 to 50.4 across, -59.6 to 49.5 up.
+    ViewFov frame;
+    frame.left = Rad(-50.3f);
+    frame.right = Rad(50.4f);
+    frame.down = Rad(-59.6f);
+    frame.up = Rad(49.5f);
+    for (const float fov : {60.0f, 75.0f}) {
+        for (const float aspect : {kAspect3ds, 16.0f / 9.0f}) {
+            const HeadLocked s = SolveHeadLocked(Placement{}, fov, aspect, frame);
+            const Posef pose = HeadLockedQuadPose(s, 0.0f);
+            for (const Vec3f& c : Corners(pose, s.width(), s.height())) {
+                const float h = std::atan2(c.x, -c.z);
+                const float e = std::atan2(c.y, -c.z);
+                REQUIRE(std::abs(h) < frame.right - Rad(kFitMarginDeg));
+                REQUIRE(e >= frame.down + Rad(kFitMarginDeg) - 1e-3f);
+                REQUIRE(e <= frame.up - Rad(kFitMarginDeg) + 1e-3f);
+            }
+            // The HUD at the sides ends at the comfortable limit, not at the lens edge.
+            REQUIRE(std::atan(s.tan_half_y * s.aspect) == Approx(Rad(kComfortHalfWidthDeg)));
+            REQUIRE(s.factor == Approx(kFactorMin));
+            REQUIRE(s.gain > 1.0f);
+            REQUIRE(s.tan_half_y * s.gain == Approx(std::tan(Rad(fov / 2)))); // world locked
+        }
+    }
+    SECTION("a game frame already inside the limit is shown at its own angle") {
+        const HeadLocked s = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, frame);
+        REQUIRE(s.factor == Approx(kFactorMin));
+        REQUIRE(s.gain == Approx(1.0f));
+        REQUIRE(s.tan_half_y == Approx(std::tan(Rad(20))));
+    }
+    SECTION("a narrow view still fits the whole screen") {
+        const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(30));
+        REQUIRE(std::atan(s.tan_half_y * s.aspect) < Rad(30 - kFitMarginDeg) + 1e-3f);
+    }
+}
+
 TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
     const float t = std::tan(Rad(30)); // a game camera 60 degrees high
-    SECTION("a roomy view: CitraVR's 1.4 at the game's angle, no gain") {
-        const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(70));
-        REQUIRE(s.factor == Approx(kFactorMax));
-        REQUIRE(s.gain == Approx(1.0f));
-        REQUIRE(s.tan_half_y == Approx(kFactorMax * t));
+    const ViewFov roomy = Symmetric(70);
+    const HeadLocked base = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, roomy);
+    SECTION("resizing never widens the game's view") {
+        for (const float size : {kMinSize, 0.8f, 1.0f, 1.5f, 2.0f, kMaxSize}) {
+            Placement p;
+            p.size = size;
+            const HeadLocked s = SolveHeadLocked(p, 60.0f, kAspect3ds, roomy);
+            REQUIRE(s.factor == Approx(kFactorMin));
+            REQUIRE(s.tan_half_y == Approx(base.tan_half_y * size));
+            // Screen x gain = the game's angle wherever the gain is inside its limits.
+            if (s.gain > kMinGain && s.gain < kMaxGain) {
+                REQUIRE(s.tan_half_y * s.gain == Approx(t));
+            }
+            REQUIRE(s.gain >= kMinGain);
+            REQUIRE(s.gain <= kMaxGain);
+        }
     }
-    SECTION("smaller: the factor goes down first, the world stays locked") {
+    SECTION("the gain range covers the sizes of a 60 degree game") {
+        Placement big;
+        big.size = kMaxSize;
+        REQUIRE(SolveHeadLocked(big, 60.0f, kAspect3ds, roomy).gain > kMinGain);
+        Placement small;
+        small.size = 0.8f;
+        REQUIRE(SolveHeadLocked(small, 60.0f, kAspect3ds, roomy).gain < kMaxGain);
+        REQUIRE(kMaxSize >= 2.0f);
+    }
+    SECTION("Wider View: the factor grows with the size, up to 1.4, before any gain below 1") {
+        Options wider;
+        wider.wider_view = true;
+        const float t40 = std::tan(Rad(20));
+        const HeadLocked d = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, roomy, 0.0f, wider);
+        REQUIRE(d.factor > kFactorMin);
+        REQUIRE(d.factor < kFactorMax);
+        REQUIRE(d.gain == Approx(1.0f));
         Placement p;
-        p.size = 0.85f;
-        const HeadLocked s = SolveHeadLocked(p, 60.0f, kAspect3ds, Symmetric(70));
-        REQUIRE(s.factor == Approx(kFactorMax * 0.85f));
-        REQUIRE(s.gain == Approx(1.0f));
-    }
-    SECTION("bigger than 1.4: scaled, with the gain that keeps the middle locked") {
-        Placement p;
-        p.size = 1.2f;
-        const HeadLocked s = SolveHeadLocked(p, 60.0f, kAspect3ds, Symmetric(70));
+        p.size = 2.0f;
+        const HeadLocked s = SolveHeadLocked(p, 40.0f, kAspect3ds, roomy, 0.0f, wider);
         REQUIRE(s.factor == Approx(kFactorMax));
-        REQUIRE(s.tan_half_y == Approx(kFactorMax * t * 1.2f));
-        REQUIRE(s.gain == Approx(1.0f / 1.2f));
-    }
-    SECTION("a view smaller than the game's own frame: factor 1, gain above 1") {
-        const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(42));
-        REQUIRE(s.factor == Approx(kFactorMin));
-        REQUIRE(s.gain > 1.0f);
-        REQUIRE(s.tan_half_y * s.gain == Approx(t)); // screen x gain = the game's angle
+        REQUIRE(s.gain < 1.0f);
+        REQUIRE(s.tan_half_y * s.gain == Approx(kFactorMax * t40));
+        // Off: the same sizes keep the game's own frame.
+        REQUIRE(SolveHeadLocked(p, 40.0f, kAspect3ds, roomy).factor == Approx(kFactorMin));
     }
     SECTION("distance keeps the angle") {
         Placement near_p, far_p;
@@ -191,28 +246,27 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
     }
 }
 
-TEST_CASE("FrameXr immersive: the world stays put when the screen is moved", "[frame_xr]") {
-    Placement p;
-    p.pitch_deg = -12.0f;
-    const HeadLocked s = SolveHeadLocked(p, 60.0f, kAspect3ds, Symmetric(70));
-    REQUIRE(s.gain == Approx(1.0f));
-    // The game camera's forward is drawn at the screen's middle. For the world to stay put, that
-    // middle must point (in the room) where the camera looks in the game, for any head pose.
-    for (const float yaw : {0.0f, 30.0f, -75.0f}) {
-        for (const float pitch : {0.0f, 20.0f, -35.0f}) {
-            const Quatf head = In::Normalized(
-                In::Multiply(YawRotation(Rad(yaw)), PitchRotation(Rad(pitch))));
-            const Vec3f camera = Forward(GameCameraRotation(head, s));
-            const Posef quad = HeadLockedQuadPose(s, 0.0f);
-            const Vec3f middle = In::Rotate(head, In::Normalized(quad.position));
-            REQUIRE(camera.x == Approx(middle.x).margin(1e-4));
-            REQUIRE(camera.y == Approx(middle.y).margin(1e-4));
-            REQUIRE(camera.z == Approx(middle.z).margin(1e-4));
-            // and the quad faces the eye
-            const Vec3f normal = In::Rotate(quad.orientation, Vec3f{0.0f, 0.0f, 1.0f});
-            REQUIRE(In::Dot(normal, In::Normalized(quad.position)) == Approx(-1.0f));
-        }
-    }
+TEST_CASE("FrameXr immersive: Squeeze Width", "[frame_xr]") {
+    const ViewFov roomy = Symmetric(70);
+    REQUIRE(SqueezeFor(0) == 0.0f);
+    REQUIRE(SqueezeFor(1) == Approx(0.1f));
+    REQUIRE(SqueezeFor(2) == Approx(0.2f));
+    REQUIRE(SqueezeFor(7) == 0.0f);
+    const HeadLocked plain = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, roomy);
+    Options o;
+    o.squeeze = SqueezeFor(2);
+    const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, roomy, 0.0f, o);
+    // Same height and pitch gain, 20 % narrower, the yaw gain makes up for it.
+    REQUIRE(s.tan_half_y == Approx(plain.tan_half_y));
+    REQUIRE(s.gain == Approx(plain.gain));
+    REQUIRE(s.width() == Approx(plain.width() * 0.8f));
+    REQUIRE(s.gain_x == Approx(plain.gain / 0.8f));
+    // The yaw gain is the game's horizontal angle over the screen's (tangents), as the pitch gain
+    // is for the vertical: the middle stays locked both ways.
+    const float t = std::tan(Rad(30));
+    REQUIRE(s.factor * t * kAspect3ds / (s.tan_half_y * s.aspect) == Approx(s.gain_x));
+    REQUIRE(s.factor * t / s.tan_half_y == Approx(s.gain));
+    REQUIRE(plain.gain_x == Approx(plain.gain));
 }
 
 TEST_CASE("FrameXr immersive: the rotation gain", "[frame_xr]") {
@@ -226,6 +280,49 @@ TEST_CASE("FrameXr immersive: the rotation gain", "[frame_xr]") {
     // A pitch is scaled about its own axis.
     const Vec3f up = Forward(ScaleRotation(PitchRotation(Rad(10)), 0.5f));
     REQUIRE(Elevation(up) == Approx(Rad(5)));
+}
+
+TEST_CASE("FrameXr immersive: separate yaw and pitch gains", "[frame_xr]") {
+    const Quatf roll{0.0f, 0.0f, std::sin(Rad(8) / 2), std::cos(Rad(8) / 2)};
+    for (const float yaw : {0.0f, 25.0f, -60.0f}) {
+        for (const float pitch : {0.0f, 15.0f, -30.0f}) {
+            const Quatf head = In::Normalized(In::Multiply(
+                In::Multiply(YawRotation(Rad(yaw)), PitchRotation(Rad(pitch))), roll));
+            const Quatf q = ScaleYawPitch(head, 1.5f, 1.2f);
+            const Vec3f f = Forward(q);
+            REQUIRE(std::atan2(-f.x, -f.z) == Approx(Rad(yaw * 1.5f)).margin(1e-4));
+            REQUIRE(Elevation(f) == Approx(Rad(pitch * 1.2f)).margin(1e-4));
+            // The roll is kept: the camera's up, seen from its forward, is turned by 8 degrees.
+            const Quatf aim = In::Multiply(YawRotation(Rad(yaw * 1.5f)),
+                                           PitchRotation(Rad(pitch * 1.2f)));
+            const Vec3f up = In::Rotate(In::Conjugate(aim), In::Rotate(q, Vec3f{0, 1, 0}));
+            REQUIRE(std::atan2(-up.x, up.y) == Approx(Rad(8)).margin(1e-4));
+        }
+    }
+    // Both gains 1: unchanged; equal gains: the same forward as the isotropic gain.
+    const Quatf h = In::Normalized(In::Multiply(YawRotation(Rad(20)), PitchRotation(Rad(-10))));
+    REQUIRE(ScaleYawPitch(h, 1.0f, 1.0f).x == h.x);
+    const Vec3f a = Forward(ScaleYawPitch(YawRotation(Rad(20)), 1.3f, 1.3f));
+    const Vec3f b = Forward(ScaleRotation(YawRotation(Rad(20)), 1.3f));
+    REQUIRE(a.x == Approx(b.x).margin(1e-5));
+    REQUIRE(a.z == Approx(b.z).margin(1e-5));
+}
+
+TEST_CASE("FrameXr immersive: the middle stays locked with a gain", "[frame_xr]") {
+    // The default on the Frame (gain about 1.3), squeezed: a small head turn moves the game camera
+    // by gain times as much, which moves the picture back by the turn at the screen's middle.
+    Options o;
+    o.squeeze = SqueezeFor(1);
+    const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(50), 0.0f, o);
+    REQUIRE(s.gain > 1.1f);
+    const float turn = Rad(0.5f);
+    // Yaw: the camera turns by gain_x x turn; the game's straight-ahead point is then that far to
+    // the side in the picture, which is (tan ratio gain_x) turn on the screen.
+    const Vec3f cy = Forward(GameCameraRotation(YawRotation(turn), s));
+    const float game_yaw = std::atan2(-cy.x, -cy.z);
+    REQUIRE(game_yaw / s.gain_x == Approx(turn).epsilon(2e-2));
+    const Vec3f cp = Forward(GameCameraRotation(PitchRotation(turn), s));
+    REQUIRE((Elevation(cp) - s.pitch_rad) / s.gain == Approx(turn).epsilon(2e-2));
 }
 
 TEST_CASE("FrameXr immersive: mode 1 bottom screen sits in front of the wide screen", "[frame_xr]") {
@@ -419,10 +516,74 @@ TEST_CASE("FrameXr immersive: the per-game file", "[frame_xr]") {
         REQUIRE(c.size == Approx(kMaxSize));
         REQUIRE(s.Get(0x0004000000054000ULL, true)->size == Approx(1.1f));
     }
+    SECTION("new lines are view lines") {
+        REQUIRE(store.Format().find("0004000000033500 view -9.50 1.250 0.900") !=
+                std::string::npos);
+        REQUIRE_FALSE(again.OldSize(0x0004000000033500ULL));
+    }
     SECTION("erase") {
         again.Erase(0x0004000000033500ULL, false);
         REQUIRE_FALSE(again.Get(0x0004000000033500ULL, false).has_value());
         REQUIRE(again.Get(0x0004000000033500ULL, true).has_value());
+    }
+}
+
+TEST_CASE("FrameXr immersive: files of earlier builds", "[frame_xr]") {
+    // The owner's file before the comfortable default (sizes relative to the old default).
+    const std::string old_file = "# Azahar for Frame: immersive screen placement per game\n"
+                                 "0004000000030800 head -3.37 2.982 1.500\n"
+                                 "0004000000033500 head -4.30 0.811 0.960\n"
+                                 "0004000000054000 head -6.79 0.750 1.500\n";
+    Store s;
+    s.Parse(old_file);
+    REQUIRE(s.Size() == 3);
+    REQUIRE(s.OldSize(0x0004000000054000ULL));
+    const Placement old = s.Get(0x0004000000054000ULL, false).value();
+    REQUIRE(old.size == Approx(1.5f));
+    REQUIRE(old.distance == Approx(0.75f));
+    // Kept as old lines until converted.
+    Store kept;
+    kept.Parse(s.Format());
+    REQUIRE(kept.OldSize(0x0004000000030800ULL));
+    REQUIRE(kept.Get(0x0004000000030800ULL, false)->distance == Approx(2.982f));
+
+    SECTION("converting keeps the screen's angle") {
+        ViewFov frame;
+        frame.left = Rad(-50.3f);
+        frame.right = Rad(50.4f);
+        frame.down = Rad(-59.6f);
+        frame.up = Rad(49.5f);
+        Placement now = old;
+        now.size = SizeFromOldDefault(old.size, old, 60.0f, kAspect3ds, frame, 0.0f, false);
+        REQUIRE(now.size > 1.5f); // the default is smaller now
+        // The old screen: the whole view at most 1.4x the game's angle, times the old size.
+        const float pitch = ViewMiddlePitch(frame) + Rad(old.pitch_deg);
+        const float old_tan =
+            std::min(FitTanHalfY(frame, kAspect3ds, pitch, Rad(kFitMarginDeg)),
+                     kFactorMax * std::tan(Rad(30))) *
+            old.size;
+        REQUIRE(SolveHeadLocked(now, 60.0f, kAspect3ds, frame).tan_half_y ==
+                Approx(old_tan).epsilon(1e-3));
+        s.Set(0x0004000000054000ULL, false, now);
+        REQUIRE_FALSE(s.OldSize(0x0004000000054000ULL));
+        REQUIRE(s.Format().find("0004000000054000 view") != std::string::npos);
+        REQUIRE(s.Format().find("0004000000030800 head") != std::string::npos);
+    }
+    SECTION("a view line wins over an old line, in either order") {
+        for (const char* text : {"0004000000054000 head -6 0.75 1.5\n0004000000054000 view -2 1 1.2\n",
+                                 "0004000000054000 view -2 1 1.2\n0004000000054000 head -6 0.75 1.5\n"}) {
+            Store m;
+            m.Parse(text);
+            REQUIRE(m.Size() == 1);
+            REQUIRE_FALSE(m.OldSize(0x0004000000054000ULL));
+            REQUIRE(m.Get(0x0004000000054000ULL, false)->size == Approx(1.2f));
+        }
+    }
+    SECTION("wide lines are unchanged") {
+        Store w;
+        w.Parse("0004000000033500 wide -3 0.8 1.1\n");
+        REQUIRE(w.Get(0x0004000000033500ULL, true)->size == Approx(1.1f));
+        REQUIRE(w.Format().find("0004000000033500 wide -3.00 0.800 1.100") != std::string::npos);
     }
 }
 

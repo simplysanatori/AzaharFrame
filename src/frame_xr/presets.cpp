@@ -12,7 +12,9 @@ namespace {
 
 // CitraVR's v0.4 notes: "Mario Kart 7 or Super Mario 3D Land: Super Immersive Mode Profile 2
 // (our mode 3), Register Offset 90. Asphalt: Profile 2, Register Offset 8."
-constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90};
+// Mario Kart 7 showed no gaps with the wider view (a headset test at CitraVR's 1.4); Super
+// Mario 3D Land shows black boxes at the edges with it.
+constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90, true};
 constexpr ImmersivePreset kSuperMario3DLand{"Super Mario 3D Land", 3, 90};
 constexpr ImmersivePreset kAsphalt3D{"Asphalt 3D", 3, 8};
 

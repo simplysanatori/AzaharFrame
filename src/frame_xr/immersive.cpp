@@ -216,6 +216,7 @@ struct State {
     bool menu_open = false;      ///< the in-game menu shows (immersive modes 2 and 3 pause)
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), read at start
+    L::Options options; ///< "Wider View" and "Squeeze Width" (per game), read at start
     bool screens_were_live = false;
     bool recentre = false;
     bool have_ref = false;
@@ -228,6 +229,7 @@ struct State {
     L::Store store;
     bool store_loaded = false;
     L::Placement head_place;
+    bool head_old_size = false; ///< head_place.size is an earlier build's (converted once seen)
     L::Placement wide_place;
     L::ViewFov view_fov;
     bool view_fov_logged = false;
@@ -314,12 +316,17 @@ void OnFrame(const FrameInfo& info) {
                 : static_cast<float>(Settings::values.vr_immersive_game_fov.GetValue());
         LOG_INFO(Frontend, "xr: top screen shape {} ({:.3f}), game camera {:.0f} degrees high",
                  shape, g_top_aspect.load(), g.game_fov_y_deg);
+        g.options.wider_view = Settings::values.vr_immersive_wider_view.GetValue();
+        g.options.squeeze = L::SqueezeFor(Settings::values.vr_immersive_squeeze.GetValue());
+        LOG_INFO(Frontend, "xr: immersive: Wider View {}, Squeeze Width {:.0f}%",
+                 g.options.wider_view ? "on" : "off", g.options.squeeze * 100.0f);
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
         const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
         const auto wide = g.title_id ? g.store.Get(g.title_id, true) : std::nullopt;
         g.head_place = head.value_or(DefaultPlacement());
+        g.head_old_size = head && g.store.OldSize(g.title_id);
         g.wide_place = wide.value_or(DefaultPlacement());
         if (mode != 0) {
             const bool is_wide = !IsViewMode(mode);
@@ -362,8 +369,21 @@ void OnFrame(const FrameInfo& info) {
     if (IsViewMode(mode)) {
         // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
         const float d = L::Clamped(g.head_place).distance;
+        const float eye_shift = mode == 2 ? g.half_ipd / d : 0.0f;
+        if (g.head_old_size && g.view_fov_logged) {
+            // Saved by an earlier build, relative to its larger default: keep the screen's angle.
+            g.head_old_size = false;
+            g.head_place.size =
+                L::SizeFromOldDefault(g.head_place.size, g.head_place, g.game_fov_y_deg,
+                                      TopAspect(), g.view_fov, eye_shift, g.options.wider_view);
+            LogPlacement("converted from an earlier build", g.head_place, false);
+            if (g.title_id) {
+                g.store.Set(g.title_id, false, g.head_place);
+                SaveStore();
+            }
+        }
         g.solved = L::SolveHeadLocked(g.head_place, g.game_fov_y_deg, TopAspect(), g.view_fov,
-                                      mode == 2 ? g.half_ipd / d : 0.0f);
+                                      eye_shift, g.options);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -398,10 +418,11 @@ void OnFrame(const FrameInfo& info) {
             if (IsViewMode(mode)) {
                 LOG_INFO(Frontend,
                          "xr: immersive mode {} on (factor {:.2f}, head-locked top screen "
-                         "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, gain {:.2f})",
+                         "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, gain {:.2f}, "
+                         "yaw gain {:.2f}, size {:.2f})",
                          mode, data.factor, Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
                          Deg(2 * std::atan(g.solved.tan_half_y)), Deg(g.solved.pitch_rad),
-                         g.solved.gain);
+                         g.solved.gain, g.solved.gain_x, L::Clamped(g.head_place).size);
             } else {
                 LOG_INFO(Frontend, "xr: immersive mode {} on (factor {:.1f}, wide top screen)",
                          mode, data.factor);
@@ -555,6 +576,9 @@ void ResetHeldScreen() {
     const bool wide = !IsViewMode(g.mode);
     L::Placement& p = wide ? g.wide_place : g.head_place;
     p = DefaultPlacement();
+    if (!wide) {
+        g.head_old_size = false;
+    }
     if (g.title_id && g.store.Get(g.title_id, wide)) {
         g.store.Erase(g.title_id, wide);
         SaveStore();
@@ -586,6 +610,9 @@ void OnGameInput(Input::InputFrame& in) {
     }
     if (r.released) {
         LogPlacement("moved", place, wide);
+        if (!wide) {
+            g.head_old_size = false;
+        }
         if (g.title_id) {
             g.store.Set(g.title_id, wide, place);
             SaveStore();

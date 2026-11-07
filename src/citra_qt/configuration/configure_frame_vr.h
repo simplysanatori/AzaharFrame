@@ -50,6 +50,10 @@ private:
     QWidget* fov_row;
     QComboBox* fov_scope; ///< per application only: global / this application
     QSpinBox* fov_spin;
+    QCheckBox* wider_view_check;
+    ConfigurationShared::CheckState wider_view_state = ConfigurationShared::CheckState::Global;
+    QWidget* squeeze_row;
+    QComboBox* squeeze_combo;
     QWidget* depth_row;
     QComboBox* depth_combo;
     QWidget* register_row;

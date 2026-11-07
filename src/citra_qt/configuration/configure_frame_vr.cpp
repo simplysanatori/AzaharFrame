@@ -154,6 +154,27 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                       {fov_scope, fov_spin});
     layout->addWidget(fov_row);
 
+    // Settings::values.vr_immersive_wider_view (frame_xr/immersive_layout.h).
+    wider_view_check = new QCheckBox(tr("Wider View"), this);
+    wider_view_check->setObjectName(QStringLiteral("frame_vr_wider_view_check"));
+    wider_view_check->setToolTip(
+        tr("Full (6DoF) only. Making the screen bigger also shows more around the game's view. "
+           "Some games show black or missing scenery at the edges. Takes effect when the game "
+           "starts."));
+    layout->addWidget(wider_view_check);
+
+    // Values 0..2 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
+    squeeze_combo = new QComboBox(this);
+    squeeze_combo->addItem(tr("Off"));
+    squeeze_combo->addItem(QStringLiteral("10%"));
+    squeeze_combo->addItem(QStringLiteral("20%"));
+    squeeze_row = MakeRow(
+        this, QStringLiteral("frame_vr_squeeze_row"), tr("Squeeze Width"),
+        tr("Full (6DoF) only. Makes the screen narrower so the HUD at the sides moves into "
+           "view. The game looks slightly thinner. Takes effect when the game starts."),
+        {squeeze_combo});
+    layout->addWidget(squeeze_row);
+
     // Values 0..2 are 10^n (Settings::values.vr_immersive_positional_game_scaler).
     depth_combo = new QComboBox(this);
     depth_combo->addItem(QStringLiteral("1x"));
@@ -214,6 +235,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
         lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
         lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
+        lock(wider_view_check, Settings::values.vr_immersive_wider_view.UsingGlobal());
+        lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
         lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
         lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
         lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
@@ -225,6 +248,11 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
     ConfigurationShared::SetColoredComboBox(
         shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
+    ConfigurationShared::SetColoredTristate(
+        wider_view_check, Settings::values.vr_immersive_wider_view, wider_view_state);
+    ConfigurationShared::SetColoredComboBox(
+        squeeze_combo, squeeze_row,
+        static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -259,11 +287,14 @@ void ConfigureFrameVr::SetConfiguration() {
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
+    wider_view_check->setChecked(Settings::values.vr_immersive_wider_view.GetValue(global));
     eye_edit->setText(QString::fromStdString(eye.GetValue(global)));
 
     if (global) {
         shape_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
+        squeeze_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
@@ -280,6 +311,9 @@ void ConfigureFrameVr::SetConfiguration() {
 
     ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
     ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
+    ConfigurationShared::SetPerGameSetting(squeeze_combo, &Settings::values.vr_immersive_squeeze);
+    ConfigurationShared::SetHighlight(squeeze_row,
+                                      !Settings::values.vr_immersive_squeeze.UsingGlobal());
     fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
     fov_spin->setEnabled(!Settings::values.vr_immersive_game_fov.UsingGlobal());
     ConfigurationShared::SetHighlight(fov_row,
@@ -318,6 +352,10 @@ void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view,
+                                             wider_view_check, wider_view_state);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_squeeze,
+                                             squeeze_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);

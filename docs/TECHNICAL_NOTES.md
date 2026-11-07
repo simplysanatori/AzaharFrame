@@ -42,7 +42,7 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `src/citra_qt/aboutdialog.cpp` | the Azahar for Frame icon |
 | `src/citra_qt/configuration/config.{h,cpp}` | reads and saves the `[VR]` section (CitraVR's keys) |
 | `src/citra_qt/configuration/configure_graphics.{h,cpp}` | the **VR** group |
-| `src/common/settings.{h,cpp}` | the `vr_*` immersive settings, `vr_hide_bottom_screen`, `vr_top_aspect` and `vr_immersive_game_fov` as per-game settings, the global `vr_show_controllers` and `vr_show_stats` |
+| `src/common/settings.{h,cpp}` | the `vr_*` immersive settings, `vr_hide_bottom_screen`, `vr_top_aspect`, `vr_immersive_game_fov`, `vr_immersive_wider_view` and `vr_immersive_squeeze` as per-game settings, the global `vr_show_controllers` and `vr_show_stats` |
 | `src/input_common/main.cpp` | registers the `frame_xr` engine, its pollers and texts; resets the GC adapter before static destruction |
 | `src/input_common/gcadapter/gc_adapter.{h,cpp}` | a failed libusb init no longer crashes at exit |
 | `src/video_core/gpu.cpp` | applies the newest head pose after each frame |

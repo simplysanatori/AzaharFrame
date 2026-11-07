@@ -183,7 +183,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | Right stick click while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one. Held for 1 second it also re-centres the view and resets the normal screens |
 
-The screen stays where you leave it, for each game. The grip and that hand's stick do not reach the game while you hold the screen. While the bottom screen shows or is in focus (or the in-game menu is open), the grips move the normal screens as usual. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
+The screen starts with its sides, and the HUD there, inside the sharp middle of the lenses. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** on (see the [User Guide](USER_GUIDE.md#immersive-mode)). The screen stays where you leave it, for each game. The grip and that hand's stick do not reach the game while you hold the screen. While the bottom screen shows or is in focus (or the in-game menu is open), the grips move the normal screens as usual. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 <!-- VERIFY: the immersive screen's default place and the grip gesture in the headset -->
 
 ## Ocarina of Time 3D with Ocarina ReFramed
