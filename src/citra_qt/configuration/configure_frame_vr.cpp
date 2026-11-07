@@ -54,7 +54,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     hide_bottom_check->setObjectName(QStringLiteral("frame_vr_hide_bottom_check"));
     hide_bottom_check->setToolTip(
         tr("Shows only the top screen in VR. Press Left Bumper + Right Bumper + View to show or "
-           "hide the bottom screen. Takes effect when the game starts."));
+           "hide the bottom screen. A tap of Left Stick Click shows or hides the other screen. "
+           "Takes effect when the game starts."));
     layout->addWidget(hide_bottom_check);
 
     // Global only. Values 0..1 are Settings::values.vr_face_buttons (frame_xr/input/mapper.h).
@@ -87,8 +88,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     window_scale_combo->addItem(tr("200%"), 200);
     window_scale_row = MakeRow(
         this, QStringLiteral("frame_vr_window_scale_row"), tr("Window Scale"),
-        tr("How large this window looks in VR. Larger shows text and buttons bigger and "
-           "fits less of the window on the panel. Flat mode is not affected."),
+        tr("Larger makes text and buttons bigger and shows less of the window at once. Flat "
+           "mode is not affected."),
         {window_scale_combo});
     layout->addWidget(window_scale_row);
 
@@ -123,13 +124,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     shape_combo->addItem(tr("3DS (5:3)"));
     shape_combo->addItem(tr("Widescreen (16:9)"));
     shape_combo->addItem(tr("Ultrawide (21:9)"));
-    shape_combo->addItem(tr("4:3"));
+    shape_combo->addItem(tr("Standard (4:3)"));
     shape_combo->addItem(tr("3:2"));
     shape_combo->addItem(tr("16:10"));
     shape_row = MakeRow(
         this, QStringLiteral("frame_vr_shape_row"), tr("Screen Shape"),
-        tr("Widen the top screen in VR for games or mods that render widescreen. Takes effect "
-           "when the game starts."),
+        tr("The shape of the top screen in VR, for games or mods that change the aspect."),
         {shape_combo});
     layout->addWidget(shape_row);
 
@@ -153,7 +153,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     fov_spin->setSuffix(QStringLiteral("\u00B0"));
     fov_row = MakeRow(this, QStringLiteral("frame_vr_fov_row"), tr("Immersive Game FOV"),
                       tr("The game camera's vertical field of view in degrees. Change it only if a "
-                         "mod changes the game's FOV. Takes effect when the game starts."),
+                         "mod changes the game's FOV."),
                       {fov_scope, fov_spin});
     layout->addWidget(fov_row);
 

@@ -77,7 +77,8 @@ export AZAHARFRAME_MODE=$MODE
 # Flat Gamepad profile is added once, and only when it is missing, so nothing you changed
 # is overwritten.  It maps the gamepad by position, like the 3DS (the bottom face button
 # is B, the right one A, the left one Y, the top one X), and then this picks the profile
-# that goes with the mode.  A profile is never edited, only chosen.
+# that goes with the mode.  A profile is never edited, only chosen (apart from removing the
+# Home binding earlier versions added to Flat Gamepad).
 python3 -I - "$CONF" "$MODE" << 'PY' || echo "could not prepare the input profile (see above)"
 import os, sys
 
@@ -141,7 +142,7 @@ if NAME not in names:
         "button_l": btn(9, "LB"), "button_r": btn(10, "RB"),
         "button_zl": trig(4, "Left Trigger"), "button_zr": trig(5, "Right Trigger"),
         "button_start": btn(6, "Start"), "button_select": btn(4, "Back/Select"),
-        "button_home": btn(7, "LS Click"),
+        "button_home": "[empty]",  # no Home, as in VR
         "circle_pad": stick(0, 1, "Left Stick X", "Left Stick Y"),
         "c_stick": stick(2, 3, "Right Stick X", "Right Stick Y"),
     }
@@ -156,6 +157,14 @@ if NAME not in names:
     names.append(NAME)
     put("profiles\\size", str(size))
     print("added the input profile '%s'" % NAME)
+
+# Earlier versions put 3DS Home on the left stick click, as VR no longer has it: drop that
+# binding when it is still exactly the one they added.
+OLD_HOME = '"api:controller,button:7,engine:sdl,maptype:all,name:LS Click"'
+pre = "profiles\\%d\\" % (names.index(NAME) + 1)
+if get(pre + "button_home") == OLD_HOME:
+    put(pre + "button_home", "[empty]")
+    print("removed Home from the input profile '%s'" % NAME)
 
 flat_at = names.index(NAME)          # 0-based, as in the "profile" key
 want = flat_at if mode == "flat" else next((i for i, nm in enumerate(names) if nm != NAME), 0)

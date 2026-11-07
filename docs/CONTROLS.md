@@ -15,7 +15,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
-| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold |
+| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold. A bumper or **View** pressed during the hold cancels it |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
 | Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
 | Left stick click, held | Nothing | There is no Home button in VR |
@@ -23,9 +23,9 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Right stick click, held for 1 second | Reset Screens | Nothing reaches the game |
 | Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below. The game does not see that press |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | The game sees no Select or Start |
-| Hold **View**, then the right bumper | Quick Save | The game sees none of the three |
+| Hold **View**, then the right bumper | Quick Save | When you let go of the bumper. The game sees none of the three |
 | Hold **View**, then the left bumper | Quick Load | The same |
-| Hold **View**, then the right trigger | Fast Forward on or off | The game sees neither Select nor ZR |
+| Hold **View**, then the right trigger | Fast Forward on or off | When you let go of the trigger. The game sees neither Select nor ZR |
 
 The left Steam button belongs to SteamVR and is never bound.
 
@@ -41,18 +41,18 @@ A stick click acts when you let go, so a hold never also taps. The right one res
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
+Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It happens when you let go of the bumper, with **View** still held. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
 
 - **View** has to go down first, with no bumper held. Bumpers first, then **View**, is the bottom screen button.
-- Pressing the other bumper while the first is held does the other action.
+- Pressing the other bumper or **Menu** while the bumper is held cancels it, so forming the VR / Flat switch never saves or loads. So does letting go of **View** first.
 - A second press within a second does nothing, so a bounce cannot load twice.
 - It works in a game in VR and in Flat. The in-game menu has **Quick Save** and **Quick Load** buttons too, see below.
 
 ## Fast Forward
 
-Hold **View**, then pull the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
 
-- **View** has to go down first, with no bumper held. A second pull within a second does nothing.
+- **View** has to go down first, with no bumper held. A bumper or **Menu** pressed while you pull cancels it. A second pull within a second does nothing.
 - The game sees neither Select nor ZR, and the stop timer starts over. Aimed at the bottom screen, that pull is not a touch either.
 - The left trigger with **View** held stays ZL.
 - It works in a game in VR and in Flat. In Flat there is no message; the speed in the status bar shows it.
@@ -118,7 +118,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once. The VR settings apply the next time a game starts.
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Hide Bottom Screen**, **Wider View** and **Squeeze Width** apply the next time the game starts.
 
 A row of buttons shows under Azahar's menu bar while the in-game menu is open: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it.
 
@@ -193,7 +193,7 @@ The mod's HUD is a Switch-style diamond of the items, so it does not name ZL or 
 
 Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Bottom Screen** for the game.
 
-- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **4:3**, **3:2** and **16:10**, which match game cheats that change the game's own aspect. It must match what the game renders, or the picture stretches.
+- If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **Standard (4:3)**, **3:2** and **16:10**, which match game cheats that change the game's own aspect. It must match what the game renders, or the picture stretches.
 - Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value, so immersive mode keeps the world still when you turn your head.
 - If it stutters, turn off the mod's 60 FPS option first.
 - Keep real-time shadows off, and draw distance at 100 to 150 %.
@@ -213,9 +213,9 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab, i
 | **Motion Controls** | **Off**, **Right Controller**, **Left Controller** | Right Controller | Global only. From Off to a controller takes effect the next time VR starts; the other changes at once |
 | **Show Controllers** | on or off | on | Global only. Takes effect at once |
 | **Show Stats** | on or off | off | Global only. The **Stats** button switches it too |
-| **Screen Shape** | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **4:3**, **3:2**, **16:10** | 3DS (5:3) | Global and per game. Read when the game starts |
+| **Screen Shape** | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | Global and per game. Takes effect at once |
 | **Immersive Mode** | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | Global and per game. Three games have a preset, see the user guide |
-| **Immersive Game FOV** | 30° to 110° | 60° | Global and per game. Read when the game starts |
+| **Immersive Game FOV** | 30° to 110° | 60° | Global and per game. Takes effect at once |
 | **Wider View** | on or off | off | Global and per game. Full modes only. Read when the game starts |
 | **Squeeze Width** | **Off**, **10%**, **20%** | Off | Global and per game. Full modes only. Read when the game starts |
 | **Depth Factor Multiplier** | **1x**, **10x**, **100x** | 1x | Global and per game |
@@ -234,28 +234,18 @@ The same controller still points at the screens, so aiming also moves its beam. 
 
 The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat).
 
-In Flat the Frame controllers reach Azahar as a gamepad from Steam Input. Azahar uses its own controls profile for them, **Flat Gamepad**, added the first time Flat starts. The VR profile is not touched, and the one in use follows the mode. The buttons are placed like the 3DS, by position:
+In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Azahar maps it the same way as in VR: the same controls profile, the same buttons, holds and chords. A tap of **View** is still Select and a tap of **Menu** is still Start, so the game's own menus work.
 
-| Frame, as a gamepad | 3DS |
-|---|---|
-| Left stick | Circle Pad |
-| Right stick | C-Stick |
-| D-pad | D-pad |
-| **A** (bottom) | B |
-| **B** (right) | A |
-| **X** (left) | Y |
-| **Y** (top) | X |
-| Left and right bumper | L and R |
-| Left and right trigger | ZL and ZR |
-| **Menu** | Start |
-| **View** | Select |
-| Left stick click | Home |
+The differences:
 
-There is no beam in Flat. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse, and the triggers are always ZL and ZR.
+- There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
+- The triggers are always ZL and ZR, and the grips do nothing.
+- The stick clicks do nothing, because the window always shows both screens.
+- Holding **Menu** for 1 second pauses or continues the game instead of opening the in-game menu. If the in-game menu is open when you switch to Flat, it closes and the game goes on.
 
-The holds and chords work as in VR. Holding **Menu** for 1 second pauses or continues the game, and holding **View** for 1.5 seconds stops it. Quick Save, Quick Load, Fast Forward and the switch to VR work too. In Flat the game also sees the buttons of a hold or chord, as Start, Select, L, R or ZR.
+Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Forward and the switch to VR work as in VR, and the game sees the same of their buttons as in VR (see [Buttons](#buttons)).
 
-Every button can be changed in **Emulation > Configure > Controls**, and your changes in **Flat Gamepad** stay. It is only added when it is missing. The layout of the screens, 3D and everything else are the settings you already have.
+If VR cannot start at all (no SteamVR, or a renderer other than Vulkan), Azahar runs in its window with a plain controls profile of its own, **Flat Gamepad**, by position like the 3DS, without the holds and chords. The launcher adds it once, when it is missing.
 
 ## Changing the layout
 

@@ -56,10 +56,10 @@ for touch-only moments, in mode 1 and with the setting alone at its normal place
 
 ## Screen Shape and Immersive Game FOV
 
-Two more per-game settings, in the same **VR** group, both read when a game starts:
+Two more per-game settings, in the same **VR** group, both read every frame while a game runs (`OnFrame`), so a change in Configure or Properties shows at once (logged as "top screen shape ... (changed)"):
 
 - `vr_top_aspect`, **Screen Shape**: 0 = 3DS (5:3, the 400x240 of the screen), 1 = Widescreen (16:9),
-  2 = Ultrawide (21:9), 3 = 4:3, 4 = 3:2, 5 = 16:10. For games and mods that render widescreen into the 400x240 top screen
+  2 = Ultrawide (21:9), 3 = Standard (4:3), 4 = 3:2, 5 = 16:10. For games and mods that render widescreen into the 400x240 top screen
   (Ocarina of Time 3D with the Single Screen Experience mod draws a squeezed 16:9 picture and
   expects the emulator to stretch it). The renderer is not touched; only the quad is wider. The
   normal top screen keeps its height (1 m) and its place, 2 m ahead, and gets wider; the bottom

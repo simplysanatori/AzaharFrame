@@ -51,7 +51,7 @@ constexpr float kAspect4x3 = 4.0f / 3.0f;
 constexpr float kAspect3x2 = 3.0f / 2.0f;
 constexpr float kAspect16x10 = 16.0f / 10.0f;
 
-// The latched aspect (TopAspect). Outside State: it is read from other threads.
+// The aspect in use (TopAspect). Outside State: it is read from other threads.
 std::atomic<float> g_top_aspect{kAspect3ds};
 
 float AspectFor(u32 shape) {
@@ -224,7 +224,9 @@ struct State {
     bool focus_bottom = false;   ///< the bottom screen is in focus (SetBottomFocused)
     bool menu_open = false;      ///< the in-game menu shows (immersive modes 2 and 3 pause)
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
-    float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), read at start
+    float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), every frame
+    u32 shape = 0;             ///< "Screen Shape" (per game), every frame (g_top_aspect)
+    bool shape_logged = false; ///< both logged for this game
     L::Options options; ///< "Wider View" and "Squeeze Width" (per game), read at start
     bool screens_were_live = false;
     bool recentre = false;
@@ -316,15 +318,8 @@ void OnFrame(const FrameInfo& info) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
         g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
-        // The screen shape and the game camera's angle, per game as well.
-        const u32 shape = Settings::values.vr_top_aspect.GetValue();
-        g_top_aspect = AspectFor(shape);
-        g.game_fov_y_deg =
-            g.tuning.fov_from_env
-                ? g.tuning.game_fov_y_deg
-                : static_cast<float>(Settings::values.vr_immersive_game_fov.GetValue());
-        LOG_INFO(Frontend, "xr: top screen shape {} ({:.3f}), game camera {:.0f} degrees high",
-                 shape, g_top_aspect.load(), g.game_fov_y_deg);
+        // The screen shape and the game camera's angle (per game as well) are read below.
+        g.shape_logged = false;
         g.options.wider_view = Settings::values.vr_immersive_wider_view.GetValue();
         g.options.squeeze = L::SqueezeFor(Settings::values.vr_immersive_squeeze.GetValue());
         LOG_INFO(Frontend, "xr: immersive: Wider View {}, Squeeze Width {:.0f}%",
@@ -344,6 +339,22 @@ void OnFrame(const FrameInfo& info) {
         }
     }
     g.screens_were_live = info.screens_live;
+    if (info.screens_live) {
+        // Every frame, so that a change in Configure or a game's Properties shows at once.
+        const u32 shape = Settings::values.vr_top_aspect.GetValue();
+        const float fov = g.tuning.fov_from_env
+                              ? g.tuning.game_fov_y_deg
+                              : static_cast<float>(Settings::values.vr_immersive_game_fov.GetValue());
+        if (!g.shape_logged || shape != g.shape || fov != g.game_fov_y_deg) {
+            g.shape = shape;
+            g_top_aspect = AspectFor(shape);
+            g.game_fov_y_deg = fov;
+            LOG_INFO(Frontend, "xr: top screen shape {} ({:.3f}), game camera {:.0f} degrees high{}",
+                     shape, g_top_aspect.load(), g.game_fov_y_deg,
+                     g.shape_logged ? " (changed)" : "");
+            g.shape_logged = true;
+        }
+    }
     g.mode = mode;
     g.live = info.screens_live && visible;
     g.view = LatestViewPose();

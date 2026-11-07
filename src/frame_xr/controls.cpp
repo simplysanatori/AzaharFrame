@@ -3,7 +3,9 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdlib>
 
 #include "common/logging/log.h"
 #include "frame_xr/controls.h"
@@ -263,6 +265,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
     panels.bottom_toggle_enabled = false; // the window shows both screens
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
+    LogFlatGameButtons(out.controls);
     const auto& cmd = out.commands;
     if (cmd.toggle_vr) {
         RequestToggleVr("flat");
@@ -281,6 +284,25 @@ void VrUi::FlatFrame(int64_t now_ns) {
         if (hooks.stop_game) {
             LOG_INFO(Frontend, "xr: flat: View held, stopping the game");
             hooks.stop_game();
+        }
+    }
+}
+
+// Test driver (with AZAHARFRAME_TEST_FLAT_PAD, citra_qt/frame_mode.cpp): what the game is sent
+// in flat, one line per change, so a mock run can check what reaches it.
+void VrUi::LogFlatGameButtons(const Input::ControlState& controls) {
+    static const bool enabled = std::getenv("AZAHARFRAME_TEST_FLAT_PAD") != nullptr;
+    if (!enabled) {
+        return;
+    }
+    static constexpr std::array<const char*, Input::kNumControls> kNames{
+        "A",  "B",  "X",    "Y",      "Up",  "Down",   "Left",        "Right",       "GripL",
+        "GripR", "ZL", "ZR", "L", "R", "Start", "Select", "StickClickL", "StickClickR"};
+    for (int i = 0; i < Input::kNumControls; i++) {
+        const bool now = controls.buttons[static_cast<std::size_t>(i)];
+        if (now != flat_sent[static_cast<std::size_t>(i)]) {
+            flat_sent[static_cast<std::size_t>(i)] = now;
+            LOG_INFO(Frontend, "xr test: flat: the game sees {} {}", kNames[i], now ? "down" : "up");
         }
     }
 }
@@ -413,6 +435,11 @@ void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         RequestToggleVr("in-game menu");
     }
     if (have_input) {
+        if (in.menu && (in.hand[0].bumper || in.hand[1].bumper || in.view)) {
+            // A chord being formed (VR / flat): no close; a new Menu press starts a new hold.
+            menu_hold.armed = false;
+            menu_hold.down = false;
+        }
         if (menu_hold.Update(in.menu, info.display_time, kMenuHoldNs)) {
             std::scoped_lock lock{hooks_mutex};
             if (hooks.toggle_menu) {

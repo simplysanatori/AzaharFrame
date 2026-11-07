@@ -876,12 +876,18 @@ GMainWindow::GMainWindow(Core::System& system_)
                 if (g_frame_xr_fast_forward) {
                     g_frame_xr_fast_forward(false, "the mode switched");
                 }
+                if (!vr && g_frame_mirror && g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+                    // Flat has no in-game menu: leave it as every other way out of it does
+                    // (Menu held, B, Emulation > Continue), which continues the game. Kept
+                    // paused, the window would show VR's last clear, not the game.
+                    g_frame_xr_set_menu(false);
+                } else if (!vr && emulation_running && system.frame_limiter.IsFrameAdvancing()) {
+                    // Paused in flat before VR: one frame, so the window shows the game again
+                    // (in VR it only got a clear once a second). It stays paused.
+                    system.frame_limiter.AdvanceFrame();
+                    LOG_INFO(Frontend, "xr: flat, paused: one frame for the window");
+                }
                 if (g_frame_mirror) {
-                    if (!vr && g_frame_mirror->MenuOpen()) {
-                        // The game stays paused; Menu held 1 s (or Emulation) continues it.
-                        g_frame_mirror->SetMenuOpen(false);
-                        FrameXr::SetInGameMenu(false);
-                    }
                     g_frame_mirror->SetVrShowing(vr);
                 }
                 if (vr) {
@@ -1082,6 +1088,23 @@ GMainWindow::GMainWindow(Core::System& system_)
                 QTimer::singleShot(ms, this, [ms, factor] {
                     LOG_INFO(Frontend, "xr test: Internal Resolution {} at {} ms", factor, ms);
                     Settings::values.resolution_factor.SetValue(factor);
+                });
+            }
+
+            // Test driver: AZAHARFRAME_TEST_SHAPES="20:3,35:0" sets Screen Shape (vr_top_aspect)
+            // at those seconds after start, as the settings would.
+            for (const QString& step :
+                 qEnvironmentVariable("AZAHARFRAME_TEST_SHAPES").split(QLatin1Char(','),
+                                                                      Qt::SkipEmptyParts)) {
+                const auto parts = step.split(QLatin1Char(':'));
+                if (parts.size() != 2) {
+                    continue;
+                }
+                const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
+                const u32 shape = parts[1].toUInt();
+                QTimer::singleShot(ms, this, [ms, shape] {
+                    LOG_INFO(Frontend, "xr test: Screen Shape {} at {} ms", shape, ms);
+                    Settings::values.vr_top_aspect.SetValue(shape);
                 });
             }
 

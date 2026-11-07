@@ -179,7 +179,7 @@ All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.m
 
 I wanted to play a 3DS game in a window as well, like any other flat game on the Frame, with other apps open beside it. So the same library entry starts in one of two modes: VR, as above, or Flat, which is Azahar's normal window on SteamVR's big screen. It starts in the mode you used last, VR the first time. Press both bumpers, **View** and **Menu** together to switch while it runs. [CONTROLS.md](CONTROLS.md#playing-in-a-window-flat) says how to start in Flat once.
 
-Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar stays in its window on SteamVR's big screen (the theater), and stays there when you close the dashboard. Switching back to VR takes a few seconds while the window goes back into the dashboard. The Frame controllers come through Steam Input as a gamepad, mapped by position like the 3DS, in their own controls profile, **Flat Gamepad**. Your VR controls are left alone. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
+Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar stays in its window on SteamVR's big screen (the theater), and stays there when you close the dashboard. Switching back to VR takes a few seconds while the window goes back into the dashboard. The Frame controllers come through Steam Input as a gamepad and do the same as in VR, with your VR controls profile: a tap of **View** or **Menu** is Select or Start, and the holds and combos work. Holding **Menu** pauses or continues the game; an in-game menu that is open when you switch closes and the game goes on. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
 
 ## Settings
 
@@ -231,7 +231,7 @@ Normally the top screen floats two metres away. In immersive mode the game draws
 
 Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Super Mario 3D Land and Asphalt 3D. They start in **Full (6DoF): Other Games**, with **View Matrix Register** 90 for the first two and 8 for Asphalt 3D. That applies only when the game's own properties have no **Immersive Mode** or register of their own, and the global one is still **Off** or **Auto**. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
 
-**Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
+**Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. A change shows at once. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
 The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Click the right stick while you hold the screen to put it back. A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
@@ -244,11 +244,11 @@ The other settings of the group are for **Full (6DoF): Other Games**: **Depth Fa
 
 ### Hide Bottom Screen
 
-Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Bottom Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. The setting is read when the game starts. [CONTROLS.md](CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience.
+Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Bottom Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. A tap of the left stick click does the same. The setting is read when the game starts. [CONTROLS.md](CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience.
 
 ### Screen Shape
 
-Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to match: **Widescreen (16:9)** or **Ultrawide (21:9)** for a wider top screen, or **4:3**, **3:2** or **16:10** for game cheats that change the game's own aspect. The top screen keeps its height and its width follows the shape. The bottom screen stays where it was. It is also the shape of the screen in immersive mode. The setting is read when the game starts. It must match what the game renders, or the picture stretches.
+Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to match: **Widescreen (16:9)** or **Ultrawide (21:9)** for a wider top screen, or **Standard (4:3)**, **3:2** or **16:10** for game cheats and mods that change the game's own aspect. The top screen keeps its height and its width follows the shape. The bottom screen stays where it was. It is also the shape of the screen in immersive mode. A change shows at once, also from the in-game menu, so you can match a mod's own aspect setting while you play. It must match what the game renders, or the picture stretches.
 
 ## Performance
 
