@@ -15,7 +15,8 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
 - Steam Frame controls, with Quick Save, Quick Load and Fast Forward
 - Azahar's own window and settings in VR
 - Flat mode in the same app, on SteamVR's big screen
-- Texture packs, mods and a converter for HD packs
+- **Optimize Texture Pack for Frame**: converts HD texture packs so they load with no stutter
+- Texture packs and mods
 
 ## How it works
 
@@ -28,8 +29,6 @@ The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothi
 - Your own 3DS games, dumped from your own console
 - A terminal on the Frame: SSH, or Konsole
 - Steam running while you install
-
-The 3DS camera is not supported.
 
 ## Install
 
@@ -57,9 +56,8 @@ Checksums and building: [user guide](docs/USER_GUIDE.md#install-update-and-unins
 
 ## First run
 
-1. Point at the empty game list in Azahar's window and double-click it with the trigger.
-2. Select your game folder.
-3. Double-click a game to start it.
+1. Double-click the empty game list and select the folder with your games.
+2. Double-click a game to start it.
 
 Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 
