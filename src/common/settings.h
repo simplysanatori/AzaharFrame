@@ -746,7 +746,7 @@ struct Values {
     // AzaharFrame (global only): how large Azahar's window looks on the VR panel, in percent
     // (100, 150 or 200 in the settings; any value in between works). Read by the home panel
     // (citra_qt/frame_mirror.cpp); flat mode ignores it.
-    SwitchableSetting<u32, true> vr_window_scale{200, 100, 200, "vr_window_scale"};
+    SwitchableSetting<u32, true> vr_window_scale{150, 100, 200, "vr_window_scale"};
 };
 
 extern Values values;
