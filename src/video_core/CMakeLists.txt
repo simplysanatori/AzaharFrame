@@ -17,6 +17,7 @@ add_library(video_core STATIC EXCLUDE_FROM_ALL
     precompiled_headers.h
     rasterizer_accelerated.cpp
     rasterizer_accelerated.h
+    vr_view_matrix.h # AzaharFrame
     rasterizer_interface.h
     renderer_base.cpp
     renderer_base.h

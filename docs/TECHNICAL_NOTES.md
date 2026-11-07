@@ -47,7 +47,7 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `src/input_common/gcadapter/gc_adapter.{h,cpp}` | a failed libusb init no longer crashes at exit |
 | `src/video_core/gpu.cpp` | applies the newest head pose after each frame |
 | `src/video_core/renderer_base.cpp` | two resolution steps more in immersive mode |
-| `src/video_core/rasterizer_accelerated.cpp` | uploads the PICA uniforms again when the head pose changes |
+| `src/video_core/rasterizer_accelerated.cpp` | uploads the PICA uniforms again when the head pose changes; mode 3 patches only draws whose register holds a world camera (`vr_view_matrix.h`, new) |
 | `src/video_core/renderer_vulkan/vk_platform.cpp`, `vk_instance.cpp` | the instance and device hooks; a device it did not create is not destroyed; `textureCompressionASTC_LDR` and `textureCompressionBC` enabled, and a compressed custom format counts as supported only with its feature |
 | `src/video_core/custom_textures/{material,custom_format,custom_tex_manager}.{h,cpp}` | DDS and KTX keep their whole mip chain; KTX/DDS data is dropped after upload and read again when needed; a byte limit for uploads in one frame; DDS allowed with `skip_mipmap`; a file that fails to load fails its material |
 | `src/video_core/rasterizer_cache/rasterizer_cache.h` | no generated mipmaps for a texture with a stored mip chain; a custom format the GPU cannot sample keeps the original texture |

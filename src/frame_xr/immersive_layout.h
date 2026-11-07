@@ -199,6 +199,7 @@ private:
     int hand_ = -1;
     float start_elevation_ = 0.0f;
     float start_pitch_deg_ = 0.0f;
+    float start_radius_ = kDefaultDistance;
     bool grip_down_[2]{};
 };
 
