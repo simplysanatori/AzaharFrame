@@ -15,7 +15,7 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | --- | --- | --- | --- |
 | 0 | Off | normal | the normal screens |
 | 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.75 m ahead, fixed in the room, 1.88 x 1.13 m for the 3DS screen shape. Its middle third (the game's own frame) has the angular size of the normal top screen |
-| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | 1.0x to 1.4x wider (see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 0.75 m ahead, both eyes on one quad, fitted into the view |
+| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.0x to 1.4x wider with Wider View, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 0.75 m ahead, both eyes on one quad, fitted into the view |
 | 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye, fitted into the view. The game is shown a 3D depth of about 0: the two eyes come from your head |
 
 The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
@@ -69,11 +69,10 @@ Two more per-game settings, in the same **VR** group, both read when a game star
   30 to 110, default 60 (Ocarina of Time's). It sizes the head-locked screen of modes 2 and 3. The
   environment variable `AZAHARFRAME_IMMERSIVE_FOV` still wins when it is set.
 
-In the immersive modes the quad has to show the game's picture at the angle the game drew it, so
-its aspect must be the aspect of the game's projection. The vertical half angle comes from the FOV
-setting and the horizontal one from the shape: `tan(h / 2) = aspect x tan(v / 2)`. In modes 2 and 3
-the quad is `2 x d x 1.4 x tan(v / 2)` high and that times the aspect wide (60 degrees with
-Widescreen: 0.81 m high, 1.44 m wide, 110 degrees across). In mode 1 the width is the normal top
+In the immersive modes the quad has to show the game's picture at the angle the game drew it (or
+that angle over the gain, see Placement), so its aspect must be the aspect of the game's projection.
+The vertical half angle comes from the FOV setting and the horizontal one from the shape:
+`tan(h / 2) = aspect x tan(v / 2)`. In mode 1 the width is the normal top
 screen's angular size times 3, and the height is the width over the aspect. If the shape in
 Azahar for Frame and the mod's own aspect option disagree, the picture is stretched, and in modes
 2 and 3 the world drifts against your head turns.
@@ -95,28 +94,59 @@ camera turned. Each of the three things a grip changes keeps that:
   register's rotation is replaced by that rotation; in mode 3 it multiplies the game's own view
   matrix. Both take it as a plain rotation. Yaw would work the same way; the gesture keeps the
   normal placement's horizontal lock, so it is always 0.
-- **Size.** First the periphery factor (`gl_Position.xy /= factor`) moves between 1.0 and CitraVR's
-  1.4: the game's view widens with the quad, so the world stays locked and only more or less of the
-  edges shows. Past those limits the quad is scaled against the game's view, and the head rotation
-  given to the game is scaled by `gain` = game angle / screen angle (`ScaleRotation`), which keeps the
-  picture moving with the head at the middle of the screen. The cost of a gain other than 1: a big
-  head turn turns the game camera `gain` times as far (more or less of the game world than you
-  turned), and the edges of a planar picture move a little against the head. The gain stays within
-  0.6 to 1.8 (past that the screen keeps its size and the world drifts a little), and the size
-  within 0.6 to 1.5 times the default.
+- **Size.** The quad is scaled against the game's view, and the head's yaw and pitch given to the
+  game are scaled by `gain` = game angle / screen angle (tangents; `ScaleYawPitch`: the head
+  rotation split into yaw, pitch and roll, the roll kept, since a picture turned in its plane keeps
+  its angle at any scale). That keeps the picture moving with the head at the middle of the screen.
+  The game's own view does not change: past it a game's culling and scenery run out (black boxes
+  at the edges of Super Mario 3D Land, broken edges in Ocarina of Time 3D when earlier builds
+  widened it). The cost of a gain other than 1: a big head turn turns the game camera `gain` times
+  as far, and away from the middle the planar picture moves a little against the head: at an angle
+  `e` from the middle, by `(1 + gain^2 tan^2 e) / (1 + tan^2 e)` times the turn (1.25 at gain 1.3
+  and 37 degrees, 0.77 at gain 0.6 and 37 degrees). The gain stays within 0.4 to 2.0 (past that the
+  screen keeps its size and the world drifts a little), and the size within 0.6 to 2.5 times the
+  default.
 
-The default fits the whole quad, its edges and so the game's HUD included, inside the part of the
-view both eyes see, from the runtime's per-eye FOV (logged once: `xr: immersive: both eyes see ...`)
-minus 2.5 degrees on every side, centred 5 degrees below the middle of that view. If the view has
-room for more than 1.4, the factor stays 1.4. If the game's own frame does not fit (a wide game FOV
-or a narrow view), the factor is 1.0 and the gain is above 1. The line `xr: immersive mode N on` logs
-the factor, the screen's angles, its pitch and the gain.
+The default puts the quad's sides, and the HUD there, at 37 degrees either side of straight ahead
+(`kComfortHalfWidthDeg`), the sharp middle of the lenses; the full width both eyes see (about
++-50 degrees on the Frame) left the HUD of most games in the blurry lens edge. The whole quad also
+stays inside the part of the view both eyes see, from the runtime's per-eye FOV (logged once:
+`xr: immersive: both eyes see ...`) minus 2.5 degrees on every side, centred 5 degrees below the
+middle of that view. It is never larger than the game's own angle (gain 1 for a game whose frame
+already fits); a 60 degree 5:3 game gets a 74 x 49 degree screen and gain 1.28. The grips make it
+bigger, up to 2.5 times (about 125 degrees across). The line `xr: immersive mode N on` logs the
+factor, the screen's angles, its pitch, both gains and the size.
+
+Two per-game settings change this (**VR** group, read when a game starts, logged as
+`xr: immersive: Wider View ..., Squeeze Width ...`):
+
+- **Wider View** (`vr_immersive_wider_view`, off): the periphery factor (`gl_Position.xy /= factor`)
+  follows the size between 1.0 and CitraVR's 1.4 first, so the game's view widens with the quad
+  (gain 1, more of the edges shows); past 1.4 the gain takes over. The default may then be up to
+  1.4 times the game's angle. This was the only behaviour of earlier builds. The Mario Kart 7
+  preset turns it on (no gaps in a headset test at 1.4); Super Mario 3D Land shows black boxes
+  with it.
+- **Squeeze Width** (`vr_immersive_squeeze`: 0 off, 1 = 10 %, 2 = 20 %): the quad keeps its height
+  and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
+  and the yaw gets its own gain, `gain_x = gain / (1 - squeeze)`, so the middle stays locked both
+  ways. The HUD at the sides moves in (from 37 to 34 or 31 degrees by default) without changing the
+  vertical size. The cost: the world looks 10 or 20 % thinner, a left-right turn turns the game
+  camera more than an up-down turn (a diagonal turn is a little off), the stereo depth in mode 3 is
+  that much flatter, a head roll cannot be matched exactly in a squeezed picture (kept 1:1), and the
+  edges move a little more against the head (the formula above with `gain_x`). It costs nothing to
+  draw.
+
+Saved sizes are relative to that default. The file's `view` lines are written by this build; `head`
+lines come from earlier builds, whose default filled the whole view both eyes see: once the view is
+known they are converted so the screen keeps its angle (`SizeFromOldDefault`; a 1.5 there is about
+1.9 now), logged as `placement (converted from an earlier build)`, and saved as `view` lines.
 
 Mode 1 is fixed in the room, so its pitch and distance are a plain move (the size scales with the
 distance) and its size is free.
 
-Numbers to tweak, all in `immersive_layout.h`: `kDefaultPitchDeg` (-5), `kDefaultDistance` (0.75 m),
-`kFitMarginDeg` (2.5), `kFactorMax` (1.4), `kMinSize` / `kMaxSize`, the gesture rates.
+Numbers to tweak, all in `immersive_layout.h`: `kComfortHalfWidthDeg` (37), `kDefaultPitchDeg` (-5),
+`kDefaultDistance` (0.75 m), `kFitMarginDeg` (2.5), `kFactorMax` (1.4), `kMinSize` / `kMaxSize` (0.6,
+2.5), `kMinGain` / `kMaxGain` (0.4, 2.0), `kSqueezeSteps`, the gesture rates.
 
 ## Layer order
 
@@ -134,7 +164,8 @@ Three threads, and the rasterizer is only touched by the one that draws:
    game started or at the last re-centre), and builds CitraVR's `SetVRData` arguments as
    `vr_main.cpp` `UpdateImmersiveModeIfNeeded` did: the inverse of the camera rotation (the head's,
    with the screen's pitch and gain, see Placement), the inverse head position rotated into the
-   camera frame times `10^multiplier x (3D slider / 10)`, factor 3.0 (mode 1) or 1.0 to 1.4. Not immersive (setting 0, no game, bottom screen shown in modes 2/3): CitraVR's "off"
+   camera frame times `10^multiplier x (3D slider / 10)`, factor 3.0 (mode 1), 1.0 (modes 2, 3) or
+   1.0 to 1.4 with Wider View. Not immersive (setting 0, no game, bottom screen shown in modes 2/3): CitraVR's "off"
    values (mode 1, factor 1, identity). It publishes them into a seqlock of atomics
    (`video_core/vr_immersive.h`, one writer).
 2. **Emulation thread** (`GPU::VBlankCallback`, right after `SwapBuffers`, once per guest frame):
@@ -160,8 +191,9 @@ fields; that race is gone.
   (`GameSurfaceLayer.cpp`). That is smaller than the game's 1.4x view (107 x 78 degrees for a camera
   60 degrees high), so its world moves with the head a little. Earlier builds here drew the quad at
   the full 107 x 78 degrees to keep the world still, which is more than the Frame shows: the top of
-  the picture and the HUD were cut off, and the screen sat high. Here it is fitted into the view
-  and placed lower, without losing the world lock (see Placement), and the grips move it.
+  the picture and the HUD were cut off, and the screen sat high. Here it is fitted to a comfortable
+  width and placed lower, without losing the world lock (see Placement), and the grips move it.
+  The game draws its own view, not CitraVR's 1.4x wider one, unless Wider View is on.
   The Immersive Game FOV setting sets the game camera's angle, and `AZAHARFRAME_IMMERSIVE_FOV` overrides it.
 - **Mode 3 eye offset** from the located eye poses (half your IPD), not a fixed 32.5 mm.
 - **Reference pose.** CitraVR used Quest's LOCAL space, whose origin is the head at start. SteamVR's

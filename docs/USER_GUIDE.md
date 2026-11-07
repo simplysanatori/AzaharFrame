@@ -247,7 +247,14 @@ Three games start with a setup already, from CitraVR's playtest notes: Mario Kar
 
 The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen, and holding the right stick click for 1 second re-centres the view.
 
-The screen starts a little below eye level, with the whole picture in view. Squeeze a grip and move your hand up or down to move it; the stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left). The world stays where it is while you move the screen, and each game remembers where you left it. Click the right stick while you hold the screen to put it back. A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+The screen starts a little below eye level, with the whole picture in view and its sides, where most games keep the HUD, inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it; the stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left). The world stays where it is while you move the screen, and each game remembers where you left it. Click the right stick while you hold the screen to put it back. A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+
+Two more settings in the same group, per game, for the Full modes; both are read when the game starts:
+
+- **Wider View** (off by default): a bigger screen also shows more of the game around its own picture, up to CitraVR's 1.4 times, instead of only enlarging it. Most games stop drawing their scenery just past their own view, so the edges show black boxes or missing scenery (Super Mario 3D Land does).
+- **Squeeze Width** (**Off**, **10%**, **20%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner, and turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture still stays in place.
+
+<!-- VERIFY: Wider View and Squeeze Width in the headset -->
 
 <!-- VERIFY: the whole section -->
 

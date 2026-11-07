@@ -13,17 +13,26 @@
 //   - Pitch: the quad turns down about the eye by `pitch`, and the same rotation is added to the
 //     head rotation given to the game (camera = head x pitch), so the game looks down with it:
 //     the world stays where it was and is seen through a lower window (no drift).
-//   - Size: first the game's periphery factor (CitraVR's 1.4, `gl_Position.xy /= factor`) goes
-//     between 1.0 and 1.4: the quad and the game's view grow together (no drift, more or less
-//     of the edges). Past those limits the quad is scaled against the game's view, and the head
-//     rotation given to the game is scaled by `gain` = game angle / screen angle so that the
-//     picture still moves with the head at the middle of the screen. The cost: a big head turn
-//     turns the game camera by `gain` times as much (more or less of the game world).
+//   - Size: the quad is scaled against the game's view, and the head's yaw and pitch given to
+//     the game are scaled by `gain` = game angle / screen angle (tangents, at the middle), so
+//     the picture still moves with the head at the middle of the screen. The cost: a big head
+//     turn turns the game camera `gain` times as far, and the edges of the planar picture move a
+//     little against the head. The game's own view never widens with the size: past its edges
+//     its culling and scenery run out (black boxes in Super Mario 3D Land).
+//   - Wider View (per game, off by default): as in earlier builds, the game's periphery factor
+//     (CitraVR's 1.4, `gl_Position.xy /= factor`) then goes between 1.0 and 1.4 with the size,
+//     so the quad and the game's view grow together (gain 1 in that range).
+//   - Squeeze Width (per game, off by default): the quad is narrower than the game's picture
+//     by 10 or 20 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
+//     the HUD at the sides moves in while the middle stays locked. The world looks that much
+//     thinner.
 //
-// The default size fits the whole quad, its edges included, inside the part of the view both
-// eyes see (from the runtime's per-eye FOV, minus a margin), centred a few degrees below the
-// middle of that view. If the game's own frame (factor 1) does not fit, the default is already
-// scaled and the gain is above 1.
+// The default size fits the quad's width (at its middle row) inside +-kComfortHalfWidthDeg (the
+// HUD at the sides
+// stays out of the blurry lens edge) and the whole quad inside the part of the view both eyes see
+// (from the runtime's per-eye FOV, minus a margin), centred a few degrees below the middle of
+// that view, never larger than the game's own angle (gain 1). When the game's frame is wider than
+// that, the default is already scaled and the gain is above 1.
 
 #pragma once
 
@@ -50,7 +59,17 @@ inline constexpr float kMinPitchDeg = -40.0f;
 inline constexpr float kMaxPitchDeg = 25.0f;
 /// Size, times the default (fitted) size.
 inline constexpr float kMinSize = 0.6f;
-inline constexpr float kMaxSize = 1.5f;
+inline constexpr float kMaxSize = 2.5f;
+/// The default screen is no wider than this either side of its middle, degrees (the HUD at the
+/// sides stays in the sharp part of the lenses). The grips make it bigger.
+inline constexpr float kComfortHalfWidthDeg = 37.0f;
+/// The rotation gain stays within these (past them the screen keeps its size and the world drifts
+/// a little). At the screen's edge, angle e, a head turn moves the picture by
+/// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
+inline constexpr float kMinGain = 0.4f;
+inline constexpr float kMaxGain = 2.0f;
+/// Squeeze Width (vr_immersive_squeeze 0, 1, 2): the screen this much narrower than the picture.
+inline constexpr float kSqueezeSteps[] = {0.0f, 0.10f, 0.20f};
 /// Kept clear inside the view on every side when fitting, degrees.
 inline constexpr float kFitMarginDeg = 2.5f;
 /// The view assumed before the runtime reports one, half angles in degrees.
@@ -93,15 +112,26 @@ struct Placement {
 };
 Placement Clamped(Placement p);
 
+/// The per-game options of the head-locked screen.
+struct Options {
+    bool wider_view = false; ///< the periphery factor grows with the size (1.0 to 1.4)
+    float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.2)
+};
+
+/// Squeeze Width's setting (0, 1, 2) as a fraction; other values are 0.
+float SqueezeFor(uint32_t setting);
+
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
     float factor = kFactorMax; ///< the game draws this much wider (gl_Position.xy /= factor)
     float tan_half_y = 0.0f;   ///< the quad's half height over its distance
-    float aspect = 5.0f / 3.0f;
+    float aspect = 5.0f / 3.0f; ///< the quad's width over its height (the picture's x (1 - squeeze))
     float pitch_rad = 0.0f; ///< the quad and the game camera turn by this about the eye
     float distance = kDefaultDistance;
-    /// Head rotation x gain is given to the game. 1 when the quad has the game's angle.
+    /// The head's pitch x gain is given to the game. 1 when the quad has the game's angle.
     float gain = 1.0f;
+    /// The head's yaw x gain_x is given to the game: gain / (1 - squeeze).
+    float gain_x = 1.0f;
     float width() const {
         return 2.0f * distance * tan_half_y * aspect;
     }
@@ -119,8 +149,22 @@ float ViewMiddlePitch(const ViewFov& view);
 float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float margin_rad,
                   float eye_shift = 0.0f);
 
+/// The default screen's tan(half height) (size 1): the quad's width (at its middle row) inside
+/// +-kComfortHalfWidthDeg, the quad inside `view` minus kFitMarginDeg, no larger than the game's
+/// own angle (times 1.4 with Wider View). `aspect` is the picture's (unsqueezed).
+float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const ViewFov& view,
+                      float eye_shift, bool wider_view);
+
+/// `aspect` is the game picture's width over its height (the Screen Shape).
 HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
-                           const ViewFov& view, float eye_shift = 0.0f);
+                           const ViewFov& view, float eye_shift = 0.0f,
+                           const Options& options = {});
+
+/// A size saved by builds before the comfortable default (the "head" lines of the file) was
+/// relative to the old default, which filled the whole view both eyes see (at most 1.4 times
+/// the game's angle). The size that keeps that screen's angle now.
+float SizeFromOldDefault(float old_size, const Placement& placement, float game_fov_y_deg,
+                         float aspect, const ViewFov& view, float eye_shift, bool wider_view);
 
 /// A rotation about +X by `pitch` (positive = up).
 Input::Quatf PitchRotation(float pitch_rad);
@@ -128,7 +172,12 @@ Input::Quatf PitchRotation(float pitch_rad);
 /// `q` with its angle times `gain` (the same axis). gain 1 returns q.
 Input::Quatf ScaleRotation(const Input::Quatf& q, float gain);
 
-/// The rotation given to the game: the head (relative to the rest pose) with the gain, then the
+/// `q` as yaw (about +Y), then pitch (about +X), then roll (about -Z), with the yaw times
+/// `yaw_gain` and the pitch times `pitch_gain`; the roll is kept (a picture turned in its plane
+/// keeps its angle at any scale). Both gains 1 return q.
+Input::Quatf ScaleYawPitch(const Input::Quatf& q, float yaw_gain, float pitch_gain);
+
+/// The rotation given to the game: the head (relative to the rest pose) with the gains, then the
 /// screen's pitch, so the game camera looks where the screen is.
 Input::Quatf GameCameraRotation(const Input::Quatf& head_rel, const HeadLocked& solved);
 
@@ -209,13 +258,17 @@ float AimElevation(const Input::Posef& head, const Input::Posef& aim, float radi
 
 // ---- The per-game file ----
 
-/// Lines "<title id, 16 hex digits> <head|wide> <pitch degrees> <distance m> <size>"; '#'
-/// starts a comment. Unknown or broken lines are kept out (and dropped when saving).
+/// Lines "<title id, 16 hex digits> <kind> <pitch degrees> <distance m> <size>"; '#' starts a
+/// comment. Kinds: "view" (modes 2 and 3), "wide" (mode 1), and "head" (modes 2 and 3, saved by
+/// earlier builds: its size is relative to their default, see SizeFromOldDefault; kept as it is
+/// until converted). Unknown or broken lines are kept out (and dropped when saving).
 class Store {
 public:
     void Parse(const std::string& text);
     std::string Format() const;
     std::optional<Placement> Get(uint64_t title_id, bool wide) const;
+    /// The head-locked placement of this game is an old "head" line (its size needs converting).
+    bool OldSize(uint64_t title_id) const;
     void Set(uint64_t title_id, bool wide, const Placement& placement);
     void Erase(uint64_t title_id, bool wide);
     std::size_t Size() const {
@@ -223,7 +276,11 @@ public:
     }
 
 private:
-    std::map<std::string, Placement> entries_;
+    struct Entry {
+        Placement placement;
+        bool old_size = false;
+    };
+    std::map<std::string, Entry> entries_;
 };
 
 } // namespace FrameXr::Immersive::Layout

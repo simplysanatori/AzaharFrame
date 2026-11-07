@@ -12,6 +12,8 @@ namespace {
 
 // CitraVR's v0.4 notes: "Mario Kart 7 or Super Mario 3D Land: Super Immersive Mode Profile 2
 // (our mode 3), Register Offset 90. Asphalt: Profile 2, Register Offset 8."
+// Wider View stays off in every preset: it is the player's choice per game. Super Mario 3D
+// Land shows black boxes at the edges with it.
 constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90};
 constexpr ImmersivePreset kSuperMario3DLand{"Super Mario 3D Land", 3, 90};
 constexpr ImmersivePreset kAsphalt3D{"Asphalt 3D", 3, 8};

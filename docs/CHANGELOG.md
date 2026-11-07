@@ -47,7 +47,8 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - The head pose reaches the game once a frame as one snapshot, where CitraVR let the emulation and VR threads race over it. The eye distance comes from your headset.
 - A per-game **Immersive Game FOV** setting replaces the fixed 60 degree game camera that sizes the screen, for mods that change the game's FOV.
 - Both bumpers and View show the bottom screen (the left bumper is L here), and holding the right stick click for 1 second re-centres the view.
-- The screen is fitted into the part of the view both eyes see, a little below eye level, so the whole picture and the HUD are in view. Squeeze a grip to move it up or down, and use the stick of that hand to move it nearer or farther and make it bigger or smaller, with the world staying put. Each game remembers where you left it.
+- The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. Squeeze a grip to move it up or down, and use the stick of that hand to move it nearer or farther and make it bigger or smaller, with the world staying put. Each game remembers where you left it.
+- A bigger screen enlarges the game's picture and never shows past it, where games stop drawing their scenery. A per-game **Wider View** setting brings back CitraVR's wider view, and **Squeeze Width** makes the screen 10 or 20% narrower so the HUD at the sides comes into view.
 - Fixed from CitraVR: the immersive factor had no default outside the Quest app, which divided the picture by zero.
 
 ### Install

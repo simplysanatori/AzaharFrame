@@ -16,6 +16,7 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset != nullptr);
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
+        REQUIRE_FALSE(preset->wider_view); // off by default in every game
     }
     for (const uint64_t id : {0x0004000000054000ull, 0x0004000000053F00ull, 0x0004000000054100ull,
                               0x0004000000089D00ull, 0x0004000000089E00ull}) {
@@ -23,6 +24,7 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset != nullptr);
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
+        REQUIRE_FALSE(preset->wider_view); // Super Mario 3D Land shows black boxes with it
     }
     const auto* asphalt = FindImmersivePreset(0x0004000000034C00ull);
     REQUIRE(asphalt != nullptr);

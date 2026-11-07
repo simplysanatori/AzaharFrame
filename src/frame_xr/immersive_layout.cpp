@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 #include <sstream>
 
 #include "frame_xr/immersive_layout.h"
@@ -28,8 +29,6 @@ constexpr float kNormalBottomWidth = 0.75f;
 constexpr float kNormalBottomHeight = 0.5625f;
 // Mode 1's bottom screen sits at this fraction of the wide screen's distance.
 constexpr float kWideBottomNearer = 0.7f;
-constexpr float kMinGain = 0.6f;
-constexpr float kMaxGain = 1.8f;
 
 Posef Compose(const Posef& a, const Posef& b) {
     return {Input::Normalized(Input::Multiply(a.orientation, b.orientation)),
@@ -112,23 +111,67 @@ float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float marg
     return lo;
 }
 
+float SqueezeFor(uint32_t setting) {
+    return setting < std::size(kSqueezeSteps) ? kSqueezeSteps[setting] : 0.0f;
+}
+
+namespace {
+float GameTan(float game_fov_y_deg) {
+    return std::tan(std::clamp(game_fov_y_deg, 10.0f, 150.0f) * kDegToRad / 2.0f);
+}
+float PlacementPitch(const Placement& p, const ViewFov& view) {
+    return ViewMiddlePitch(view) + p.pitch_deg * kDegToRad;
+}
+} // namespace
+
+float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const ViewFov& view,
+                      float eye_shift, bool wider_view) {
+    // The whole quad inside the view, and its middle row (where the log measures its width)
+    // no wider than +-kComfortHalfWidthDeg. A lower screen's bottom corners reach a little
+    // farther out, its top ones a little less.
+    const float fit =
+        std::min(FitTanHalfY(view, aspect, pitch_rad, kFitMarginDeg * kDegToRad, eye_shift),
+                 std::tan(kComfortHalfWidthDeg * kDegToRad) / aspect);
+    // Never larger than the game's own angle (CitraVR's 1.4 with Wider View): no magnifying
+    // gain by default, even when the view has room for more.
+    return std::min(fit, (wider_view ? kFactorMax : kFactorMin) * GameTan(game_fov_y_deg));
+}
+
 HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
-                           const ViewFov& view, float eye_shift) {
+                           const ViewFov& view, float eye_shift, const Options& options) {
     const Placement p = Clamped(placement);
+    const float squeeze = std::clamp(options.squeeze, 0.0f, 0.5f);
     HeadLocked s;
-    s.aspect = aspect;
+    s.aspect = aspect * (1.0f - squeeze);
     s.distance = p.distance;
-    s.pitch_rad = ViewMiddlePitch(view) + p.pitch_deg * kDegToRad;
-    const float t = std::tan(std::clamp(game_fov_y_deg, 10.0f, 150.0f) * kDegToRad / 2.0f);
-    const float fit = FitTanHalfY(view, aspect, s.pitch_rad, kFitMarginDeg * kDegToRad, eye_shift);
-    // No bigger than CitraVR's 1.4 by default, even when the view has room for more.
-    const float wanted = std::min(fit, kFactorMax * t) * p.size;
-    s.factor = std::clamp(wanted / t, kFactorMin, kFactorMax);
+    s.pitch_rad = PlacementPitch(p, view);
+    const float t = GameTan(game_fov_y_deg);
+    // The height comes from the picture's own shape; the squeeze only narrows it.
+    const float wanted =
+        DefaultTanHalfY(game_fov_y_deg, aspect, s.pitch_rad, view, eye_shift, options.wider_view) *
+        p.size;
+    // Without Wider View the game always draws its own frame: a bigger screen magnifies it
+    // (gain below 1) and never shows past it, where its culling and scenery run out.
+    s.factor = options.wider_view ? std::clamp(wanted / t, kFactorMin, kFactorMax) : kFactorMin;
     // The game's half height (tan) at that factor over the screen's: 1 = the same angle. The
     // screen keeps its size when the gain hits a limit (the world then drifts a little).
     s.tan_half_y = wanted;
     s.gain = std::clamp(s.factor * t / wanted, kMinGain, kMaxGain);
+    s.gain_x = std::clamp(s.gain / (1.0f - squeeze), kMinGain, kMaxGain);
     return s;
+}
+
+float SizeFromOldDefault(float old_size, const Placement& placement, float game_fov_y_deg,
+                         float aspect, const ViewFov& view, float eye_shift, bool wider_view) {
+    const Placement p = Clamped(placement);
+    const float pitch = PlacementPitch(p, view);
+    // Earlier builds: the whole view both eyes see, at most 1.4 times the game's angle.
+    const float old_default =
+        std::min(FitTanHalfY(view, aspect, pitch, kFitMarginDeg * kDegToRad, eye_shift),
+                 kFactorMax * GameTan(game_fov_y_deg));
+    const float now = DefaultTanHalfY(game_fov_y_deg, aspect, pitch, view, eye_shift, wider_view);
+    const float size = std::isfinite(old_size) ? old_size : 1.0f;
+    return std::clamp(size * old_default / now, kMinSize, kMaxSize);
 }
 
 Quatf PitchRotation(float pitch_rad) {
@@ -152,9 +195,27 @@ Quatf ScaleRotation(const Quatf& q_in, float gain) {
     return {q.x * k, q.y * k, q.z * k, std::cos(angle / 2.0f)};
 }
 
+Quatf ScaleYawPitch(const Quatf& q_in, float yaw_gain, float pitch_gain) {
+    if (yaw_gain == 1.0f && pitch_gain == 1.0f) {
+        return q_in;
+    }
+    const Quatf q = Input::Normalized(q_in);
+    // q = yaw x pitch x roll: the forward axis gives yaw and pitch, what is left is the roll.
+    const Vec3f f = Input::Rotate(q, Vec3f{0.0f, 0.0f, -1.0f});
+    const float yaw = std::atan2(-f.x, -f.z);
+    const float pitch = std::atan2(f.y, std::hypot(f.x, f.z));
+    const auto about_y = [](float a) {
+        return Quatf{0.0f, std::sin(a / 2.0f), 0.0f, std::cos(a / 2.0f)};
+    };
+    const Quatf aim = Input::Multiply(about_y(yaw), PitchRotation(pitch));
+    const Quatf roll = Input::Normalized(Input::Multiply(Input::Conjugate(aim), q));
+    return Input::Normalized(Input::Multiply(
+        Input::Multiply(about_y(yaw * yaw_gain), PitchRotation(pitch * pitch_gain)), roll));
+}
+
 Quatf GameCameraRotation(const Quatf& head_rel, const HeadLocked& solved) {
-    return Input::Normalized(
-        Input::Multiply(ScaleRotation(head_rel, solved.gain), PitchRotation(solved.pitch_rad)));
+    return Input::Normalized(Input::Multiply(ScaleYawPitch(head_rel, solved.gain_x, solved.gain),
+                                             PitchRotation(solved.pitch_rad)));
 }
 
 Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x) {
@@ -297,22 +358,34 @@ void Store::Parse(const std::string& text) {
             continue;
         }
         if (id.size() != 16 || id.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos ||
-            (kind != "head" && kind != "wide")) {
+            (kind != "view" && kind != "head" && kind != "wide")) {
             continue;
         }
         const uint64_t title = std::strtoull(id.c_str(), nullptr, 16);
-        entries_[Key(title, kind == "wide")] = Clamped(p);
+        const bool old_size = kind == "head";
+        const std::string key = Key(title, kind == "wide");
+        // A converted line wins over an old one for the same game, whatever the order.
+        if (const auto it = entries_.find(key);
+            old_size && it != entries_.end() && !it->second.old_size) {
+            continue;
+        }
+        // Old sizes were 0.6 to 1.5, inside today's range: clamping changes none of them.
+        entries_[key] = Entry{Clamped(p), old_size};
     }
 }
 
 std::string Store::Format() const {
     std::string out = "# Azahar for Frame: immersive screen placement per game\n"
-                      "# title id, head (modes 2 and 3) or wide (mode 1), pitch in degrees, "
+                      "# title id, view (modes 2 and 3) or wide (mode 1), pitch in degrees, "
                       "distance in metres, size\n";
-    for (const auto& [key, p] : entries_) {
+    for (const auto& [key, e] : entries_) {
+        std::string line = key;
+        if (line.size() > 5 && line.compare(line.size() - 5, 5, " head") == 0) {
+            line.replace(line.size() - 4, 4, e.old_size ? "head" : "view");
+        }
         char buf[96];
-        std::snprintf(buf, sizeof(buf), "%s %.2f %.3f %.3f\n", key.c_str(), p.pitch_deg,
-                      p.distance, p.size);
+        std::snprintf(buf, sizeof(buf), "%s %.2f %.3f %.3f\n", line.c_str(),
+                      e.placement.pitch_deg, e.placement.distance, e.placement.size);
         out += buf;
     }
     return out;
@@ -323,11 +396,16 @@ std::optional<Placement> Store::Get(uint64_t title_id, bool wide) const {
     if (it == entries_.end()) {
         return std::nullopt;
     }
-    return it->second;
+    return it->second.placement;
+}
+
+bool Store::OldSize(uint64_t title_id) const {
+    const auto it = entries_.find(Key(title_id, false));
+    return it != entries_.end() && it->second.old_size;
 }
 
 void Store::Set(uint64_t title_id, bool wide, const Placement& placement) {
-    entries_[Key(title_id, wide)] = Clamped(placement);
+    entries_[Key(title_id, wide)] = Entry{Clamped(placement), false};
 }
 
 void Store::Erase(uint64_t title_id, bool wide) {
