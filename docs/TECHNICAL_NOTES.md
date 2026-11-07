@@ -8,7 +8,7 @@ New code, in files of its own:
 
 | Path | What |
 |---|---|
-| `src/frame_xr/` | the OpenXR session, the frame loop, input (`input/`), the game picker (`picker/`, `ui/`), immersive mode |
+| `src/frame_xr/` | the OpenXR session, the frame loop, input (`input/`), the game picker (`picker/`, `ui/`), immersive mode, the controller models, beams, controls help and stats (`vis/`) |
 | `src/video_core/vulkan_hooks.h` | the instance and device hooks, and the screen sink |
 | `src/video_core/vr_immersive.h` | the head pose snapshot for immersive mode |
 | `src/video_core/renderer_vulkan/vk_xr_target.*` | the three OpenXR swapchains and the release thread |
@@ -38,11 +38,11 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 |---|---|
 | `CMakeLists.txt`, `src/CMakeLists.txt` | `ENABLE_FRAME_XR` (on by default on Linux aarch64) and its compile definition, the `frame_xr` subdirectory |
 | `src/citra_qt/CMakeLists.txt`, `src/video_core/CMakeLists.txt`, `src/input_common/CMakeLists.txt`, `src/tests/CMakeLists.txt` | the new source files and tests |
-| `src/citra_qt/citra_qt.cpp` | `--vr` option, starts and stops `frame_xr`, hands it the boot and shutdown calls, the touch sink, the game folders for the picker, the Frame controls profile, the 3D depth default, the name and icon |
+| `src/citra_qt/citra_qt.cpp` | `--vr` option, starts and stops `frame_xr`, hands it the boot and shutdown calls, the touch sink, the game folders for the picker, the Frame controls profile, the 3D depth default, the name and icon, the controls and stats it sends the VR panels, the **Show Stats** switch from VR |
 | `src/citra_qt/aboutdialog.cpp` | the Azahar for Frame icon |
 | `src/citra_qt/configuration/config.{h,cpp}` | reads and saves the `[VR]` section (CitraVR's keys) |
 | `src/citra_qt/configuration/configure_graphics.{h,cpp}` | the **VR** group |
-| `src/common/settings.{h,cpp}` | the `vr_*` immersive settings, `vr_hide_bottom_screen`, `vr_top_aspect` and `vr_immersive_game_fov` as per-game settings |
+| `src/common/settings.{h,cpp}` | the `vr_*` immersive settings, `vr_hide_bottom_screen`, `vr_top_aspect` and `vr_immersive_game_fov` as per-game settings, the global `vr_show_controllers` and `vr_show_stats` |
 | `src/input_common/main.cpp` | registers the `frame_xr` engine, its pollers and texts; resets the GC adapter before static destruction |
 | `src/input_common/gcadapter/gc_adapter.{h,cpp}` | a failed libusb init no longer crashes at exit |
 | `src/video_core/gpu.cpp` | applies the newest head pose after each frame |
@@ -177,6 +177,9 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AF_KTXENC` | `convert_texture_pack.py` | the encoder to use (default: `~/.local/share/AzaharFrame/tools/af-ktxenc`) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
 | `QT_SCALE_FACTOR` | Qt | scales the settings window |
+| `AZAHARFRAME_MODELS` | `frame_xr/vis/controller_models.cpp` | folder with `frame_controller_left.model` and `frame_controller_right.model` (default: `user/frame-models` in the data folder) |
+| `AZAHARFRAME_MODEL_EYE_PX` | `frame_xr/vis/controller_models.cpp` | the most pixels one eye of the controller layer may be high, 200 or more (default 1000). Below it the layer is about half the recommended size |
+| `AZAHARFRAME_MODEL_TEXTURE`, `AZAHARFRAME_MODEL_TRIANGLES` | `frame-controller-models.py` | the models' texture size (default 1024) and a triangle budget |
 | `AZAHARFRAME_XR_NO_GPU_WAIT=1` | `vk_xr_target.cpp` | releases images before the GPU is done. A negative test, never for playing |
 | `AZAHARFRAME_TEST_BOOTS`, `AZAHARFRAME_TEST_SECONDS` | `citra_qt.cpp` | boot the listed games (`a.3ds\|b.cci`) in turn, each for that many seconds. For the headless runs |
 

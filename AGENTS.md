@@ -6,7 +6,7 @@ This file holds the technical detail moved out of the README: how the port is bu
 
 | What | File |
 |---|---|
-| How the port works (one process, Vulkan device, screens into SteamVR, threads, controls, immersive mode, launcher) | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
+| How the port works (one process, Vulkan device, screens into SteamVR, threads, controls, controller models and VR panels, immersive mode, launcher) | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
 | Files changed upstream, merging new versions, building, packaging, installer, Frametanium, environment variables, mocks | [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md) |
 | Controller mapping, developer version | [src/frame_xr/input/MAPPING.md](src/frame_xr/input/MAPPING.md) |
 | Immersive mode, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
@@ -42,13 +42,17 @@ The first build takes about an hour and loads every core. It waits while the hea
 
 Frametanium: the release must carry `azaharframe-<version>-linux-arm64.tar.gz`. The catalog id is `azaharframe`, mode "installer". The entry and the upstream suggestion are in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#frametanium).
 
+## The VR panels and controller models
+
+`src/frame_xr/vis/` holds them; [docs/TECHNICAL.md](docs/TECHNICAL.md#controllers-beams-the-controls-help-and-the-stats) explains the design. Keep its rules: no CPU waits on the XR thread, the queue lock only around submits and swapchain calls, at most one image per swapchain in flight, and an image released only after its fence has signalled. The controller pass is the one exception to "no GPU work on the XR thread in a game". It adds three swapchains; SteamVR allows 16 per session, so share the atlas before adding a new one. The help text comes from `help_content.cpp` (unit-tested in `src/tests/frame_xr/vis.cpp`): a new control or chord goes there as well as in [docs/CONTROLS.md](docs/CONTROLS.md).
+
 ## Environment variables and test settings
 
 Settings for one launch go in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line), because the Steam library passes no environment. The full list is in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#environment-variables). The ones a player may meet are `AZAHARFRAME_FLAT=1` (start in Flat once, `0` forces VR), `AZAHARFRAME_REFRESH_HZ` (90 or 120), `QT_SCALE_FACTOR=1.25` and `AZAHARFRAME_VR_PICKER=1` (the old VR game picker instead of Azahar's window in VR).
 
 ## Without a headset
 
-`tools/xrmock/` is a mock OpenXR runtime and `tools/mockrun.sh` runs the emulator against it, and `src/tests/frame_xr/` holds the unit tests. Features that depend on a real headset session (motion controls direction, the keyboard on Azahar's window, the VR and Flat switch, the texture pack optimizer) are built and mock-tested only. Their VERIFY notes are in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
+`tools/xrmock/` is a mock OpenXR runtime and `tools/mockrun.sh` runs the emulator against it, and `src/tests/frame_xr/` holds the unit tests. Features that depend on a real headset session (motion controls direction, the keyboard on Azahar's window, the VR and Flat switch, the texture pack optimizer, the controller models, beams, controls help and stats panel) are built and mock-tested only. The mock has no SteamVR render models: run `python3 -I steam-frame/tools/frame-controller-models.py DIR` on the Frame once and point `AZAHARFRAME_MODELS` at `DIR` to see the controllers in a mock. Their VERIFY notes are in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## How this was made
 
