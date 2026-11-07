@@ -1,7 +1,10 @@
 # Azahar for Frame
 
 Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
-It is the [Azahar](https://github.com/azahar-emu/azahar) emulator with the VR modes from amwatson's [CitraVR](https://github.com/amwatson/CitraVR).
+
+> This is my personal, unofficial fork of [Azahar](https://github.com/azahar-emu/azahar). It brings over the VR modes of amwatson's [CitraVR](https://github.com/amwatson/CitraVR), which is built on [Citra](https://github.com/citra-emu/citra).
+> It is not an official Azahar project. The Azahar team and the CitraVR author did not make or endorse it.
+> If you're one of Azahar's maintainers and want the repo renamed or changed, open an issue or a pull request. I'll happily do it.
 
 ![Azahar for Frame](docs/images/cover.jpg)
 
@@ -16,12 +19,12 @@ It is the [Azahar](https://github.com/azahar-emu/azahar) emulator with the VR mo
 
 ## How it works
 
-The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothing is streamed from a PC. You supply your own games.
+The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothing is streamed from a PC.
 
 ## Requirements
 
 - A Steam Frame with SteamOS and SteamVR, and about 500 MB free
-- SteamOS Stable, Beta or Preview. The release brings its own Qt and libraries
+- SteamOS Stable, Beta or Preview
 - Your own 3DS games, dumped from your own console
 - A terminal on the Frame: SSH, or Konsole
 - Steam running while you install
@@ -62,21 +65,22 @@ Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 
 ## Controls
 
-| Steam Frame | 3DS |
+![The Controls panel in VR, showing what each Frame button does in a game](docs/images/controls.png)
+
+| Steam Frame | What it does |
 |---|---|
-| Left stick, right stick, D-pad | Circle Pad, C-Stick, D-pad |
-| **A**, **B**, **X**, **Y** | B, A, Y, X (by position) |
-| Bumpers, triggers | L and R, ZL and ZR. A trigger on the bottom screen touches |
-| Grips | Move the screens or the window |
-| **Menu** | Start. Hold 1 second: in-game menu |
-| **View** | Select. Hold 1.5 seconds: stop the game |
+| **A**, **B**, **X**, **Y** | 3DS B, A, Y, X (by position) |
+| Hold **Menu** for 1 second | In-game menu |
+| Hold **View** for 1.5 seconds | Stop the game |
 | Hold **View**, then right or left bumper | Quick Save or Quick Load |
 | Hold **View**, then right trigger | Fast Forward on or off |
-| Right stick click | Swap Screens. Hold 1 second: Reset Screens |
-| Left stick click | Hide or Show Other Screen |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 
-The **Controls** button above Azahar's window shows them all on a picture of the controllers. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
+The **Controls** button above Azahar's window shows this panel in VR. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
+
+## Settings
+
+The VR settings are in **Emulation > Configure**, on the **Graphics** tab, in the **VR** group. For one game, right-click it and choose **Properties**. [docs/SETTINGS.md](docs/SETTINGS.md) explains each one.
 
 ## Update
 
@@ -128,7 +132,7 @@ If you would like more Steam Frame ports, you can also [buy me a coffee](https:/
 - Azahar logo by angyartanddraw and PabloMK7; backgrounds by GarfieldGaming0624 on [SteamGridDB](https://www.steamgriddb.com/game/5480678)
 - Valve: SteamVR and the Frame
 
-Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author.
+Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Not affiliated with Nintendo or Valve.
 
 ## Licence
 
