@@ -72,7 +72,8 @@ Games, keys for encrypted dumps and texture packs: [docs/USER_GUIDE.md](docs/USE
 | Grips | Move the screens or the window |
 | **Menu** | Start. Hold 1 second: pause and open Azahar's window |
 | **View** | Select. Hold 1.5 seconds: stop the game |
-| Left stick click, right stick click | Home, reset the screen positions |
+| Right stick click | Swap the screens. Hold 1 second: reset the screen positions |
+| Left stick click | Hide or show the other screen. Hold 1 second: Home |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | **Y** on Azahar's window | Open the keyboard |

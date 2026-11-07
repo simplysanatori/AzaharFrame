@@ -509,7 +509,32 @@ void VrUi::AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layer
     layers.push_back(q);
 }
 
+VrUi::ScreenDraw VrUi::ScreenDrawFor(const ScreenPlacement& place) const {
+    const Input::PanelQuad main_slot{ToInput(place.top_pose), place.top_size.width,
+                                     place.top_size.height, true};
+    const Input::PanelQuad secondary_slot{ToInput(place.bottom_pose), place.bottom_size.width,
+                                          place.bottom_size.height, true};
+    const Input::ScreenQuads quads =
+        screen_view.Layout(main_slot, secondary_slot, Immersive::CanToggleBottom());
+    ScreenDraw draw;
+    draw.swapped = screen_view.bottom_focus();
+    draw.top_visible = quads.top.visible;
+    draw.bottom_visible = quads.bottom.visible;
+    draw.top_pose = ToXr(quads.top.pose);
+    draw.top_size = {quads.top.width_m, quads.top.height_m};
+    draw.bottom_pose = ToXr(quads.bottom.pose);
+    draw.bottom_size = {quads.bottom.width_m, quads.bottom.height_m};
+    return draw;
+}
+
 void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) {
+    if (!info.screens_live) {
+        // No game: the next one starts with the top screen in focus and the bottom screen as its
+        // settings say (immersive.cpp forgets its half of the state at the same moment).
+        screen_view.Reset();
+        recentre_next = false;
+        Immersive::SetBottomFocus(false);
+    }
     const bool focused = info.state == XR_SESSION_STATE_FOCUSED;
     Input::InputFrame in;
     in.time_ns = info.display_time;
@@ -594,29 +619,64 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
+    // AzaharFrame screenswap: the placement holds two slots (main, secondary); the focus says
+    // which screen is in which, and the mapper gets the screens where they are drawn.
+    const bool managed = Immersive::CanToggleBottom();
+    bool top_pointable = true, bottom_pointable = true;
+    Input::InputFrame immersive_in = in;
+    immersive_in.hand[1].stick_click = recentre_next; // a reset hold, not a swap tap, recentres
+    recentre_next = false;
+    Immersive::OnGameInput(immersive_in, top_pointable, bottom_pointable); // immersive.cpp
+    if (screen_view.bottom_focus()) {
+        top_pointable = bottom_pointable = true; // immersive is paused, both screens are shown
+    }
+    const Input::PanelQuad main_slot{ToInput(place.top_pose), place.top_size.width,
+                                     place.top_size.height, top_pointable};
+    const Input::PanelQuad secondary_slot{ToInput(place.bottom_pose), place.bottom_size.width,
+                                          place.bottom_size.height, bottom_pointable};
+    const Input::ScreenQuads quads = screen_view.Layout(main_slot, secondary_slot, managed);
     Input::PanelGeometry panels;
-    panels.top = {ToInput(place.top_pose), place.top_size.width, place.top_size.height, true};
-    panels.bottom = {ToInput(place.bottom_pose), place.bottom_size.width,
-                     place.bottom_size.height, true};
-    Immersive::OnGameInput(in, panels.top.visible, panels.bottom.visible); // immersive.cpp
-    panels.bottom_toggle_enabled = Immersive::CanToggleBottom();
+    panels.top = quads.top;
+    panels.bottom = quads.bottom;
+    panels.bottom_toggle_enabled = managed;
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
-    if (out.commands.toggle_bottom) {
-        Immersive::ToggleBottom(); // Left Bumper + Right Bumper + View
-    }
 
     const auto& cmd = out.commands;
+    {
+        Input::ScreenView::Effect effect;
+        if (cmd.toggle_bottom) {
+            effect = screen_view.ToggleBottom(managed); // Left Bumper + Right Bumper + View
+        } else if (cmd.swap_screens) {
+            effect = screen_view.Swap(managed); // right stick click, tap
+            LOG_INFO(Frontend, "xr: {} screen in focus",
+                     screen_view.bottom_focus() ? "bottom" : "top");
+        } else if (cmd.toggle_other_screen) {
+            effect = screen_view.ToggleOther(managed); // left stick click, tap
+            LOG_INFO(Frontend, "xr: {} screen {}", screen_view.bottom_focus() ? "top" : "bottom",
+                     (screen_view.bottom_focus() ? !screen_view.top_hidden()
+                                                 : screen_view.BottomShown(managed))
+                         ? "shown"
+                         : "hidden");
+        }
+        if (effect.toggle_immersive_bottom) {
+            Immersive::ToggleBottom();
+        }
+        Immersive::SetBottomFocus(screen_view.bottom_focus());
+    }
     if (cmd.reset_panels) {
         ResetPlacement(rt);
+        recentre_next = true; // immersive re-centres on the reset hold, not on a swap tap
     } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f) {
         Input::Posef top = ToInput(place.top_pose);
         if (cmd.top_drag_active) {
             Input::DragLimits limits;
             limits.max_z = kNearestTopZ;
+            // The mapper's "top" screen is in the secondary slot while the bottom one is in focus.
+            const Input::Vec3f target =
+                screen_view.MainDragTarget(cmd.top_drag_target, quads.top, main_slot);
             // The bottom screen follows the top one: no distance check between them.
-            if (auto moved = Input::SolveSphereDrag(top, cmd.top_drag_target, {0, 0, 0}, nullptr,
-                                                    limits)) {
+            if (auto moved = Input::SolveSphereDrag(top, target, {0, 0, 0}, nullptr, limits)) {
                 top = *moved;
             }
         }

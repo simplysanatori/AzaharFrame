@@ -240,13 +240,13 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         out = runner.Step(frame);
         REQUIRE(out.controls.GetStick(AnalogControl::StickR).x == Approx(1.0f));
     }
-    SECTION("bumpers and stick clicks reach the pad") {
+    SECTION("bumpers reach the pad, a left stick click does not until it is held (Home)") {
         InputFrame frame = IdleFrame();
         frame.hand[0].bumper = true;
         frame.hand[0].stick_click = true;
         const MapperOutput out = runner.Step(frame);
         REQUIRE(out.controls.Get(Control::BumperL));
-        REQUIRE(out.controls.Get(Control::StickClickL));
+        REQUIRE_FALSE(out.controls.Get(Control::StickClickL));
         REQUIRE_FALSE(out.commands.reset_panels);
     }
 }
@@ -926,40 +926,202 @@ TEST_CASE("FrameXr mapper: View, then a bumper, is Quick Save or Quick Load", "[
     }
 }
 
-TEST_CASE("FrameXr mapper: right stick click resets the screens once", "[frame_xr]") {
-    Runner runner;
-    InputFrame frame = IdleFrame();
-    frame.hand[1].stick_click = true;
-    REQUIRE(runner.Step(frame).commands.reset_panels);
-    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
-    frame.hand[1].stick_click = false;
-    runner.Step(frame);
-    frame.hand[1].stick_click = true;
-    REQUIRE(runner.Step(frame).commands.reset_panels);
+namespace {
+
+constexpr int64_t kHold = 1'000'000'000; // MapperConfig::stick_click_hold_ns
+
+/// Presses and holds one stick's click for `ns`, one frame at a time; collects what fired.
+struct ClickRun {
+    int taps_swap = 0, taps_hide = 0, resets = 0, home_frames = 0, game_frames = 0;
+    bool game_saw_left = false, game_saw_right = false;
+};
+
+void Hold(Runner& runner, InputFrame& frame, int hand, int64_t ns, ClickRun& run) {
+    frame.hand[static_cast<std::size_t>(hand)].stick_click = true;
+    for (int64_t t = 0; t < ns; t += kFrameNs) {
+        const MapperOutput out = runner.Step(frame);
+        run.taps_swap += out.commands.swap_screens;
+        run.taps_hide += out.commands.toggle_other_screen;
+        run.resets += out.commands.reset_panels;
+        run.home_frames += out.controls.Get(Control::StickClickL);
+        run.game_saw_left |= out.controls.Get(Control::StickClickL);
+    }
 }
 
-TEST_CASE("FrameXr mapper: a right stick click with the stick pushed over is ignored",
+void Release(Runner& runner, InputFrame& frame, int hand, ClickRun& run) {
+    frame.hand[static_cast<std::size_t>(hand)].stick_click = false;
+    const MapperOutput out = runner.Step(frame);
+    run.taps_swap += out.commands.swap_screens;
+    run.taps_hide += out.commands.toggle_other_screen;
+    run.resets += out.commands.reset_panels;
+    run.home_frames += out.controls.Get(Control::StickClickL);
+}
+
+} // namespace
+
+TEST_CASE("FrameXr mapper: right stick click, tap swaps the screens, hold resets them",
           "[frame_xr]") {
     Runner runner;
     InputFrame frame = IdleFrame();
-    // Free camera: the stick is pushed over while it clicks. No reset, even after it recentres.
-    frame.hand[1].stick = {0.0f, 0.8f};
-    frame.hand[1].stick_click = true;
-    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
-    frame.hand[1].stick = {0.0f, 0.0f};
-    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
-    frame.hand[1].stick_click = false;
+    ClickRun run;
+
+    SECTION("a tap acts when it is let go, once") {
+        Hold(runner, frame, 1, 300'000'000, run);
+        REQUIRE(run.taps_swap == 0); // still down: nothing yet
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 1);
+        REQUIRE(run.resets == 0);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 1);
+    }
+    SECTION("a hold of 1 s resets once, and the release is not also a swap") {
+        Hold(runner, frame, 1, kHold - 2 * kFrameNs, run);
+        REQUIRE(run.resets == 0);
+        Hold(runner, frame, 1, 4 * kFrameNs, run);
+        REQUIRE(run.resets == 1);
+        Hold(runner, frame, 1, 2'000'000'000, run);
+        REQUIRE(run.resets == 1); // once per hold
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 0);
+        // A new click works again.
+        Hold(runner, frame, 1, 100'000'000, run);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 1);
+        REQUIRE(run.resets == 1);
+    }
+    SECTION("neither the tap nor the hold touches the left stick's actions") {
+        Hold(runner, frame, 1, 3 * kHold, run);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_hide == 0);
+        REQUIRE(run.home_frames == 0);
+    }
+    SECTION("pushed more than half way at the press: no tap, no hold") {
+        frame.hand[1].stick = {0.0f, 0.8f};
+        Hold(runner, frame, 1, 2 * kHold, run);
+        frame.hand[1].stick = {0.0f, 0.0f}; // it recentres while the click is still down
+        Hold(runner, frame, 1, 2 * kHold, run);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 0);
+        REQUIRE(run.resets == 0);
+        // A diagonal push counts by its length.
+        frame.hand[1].stick = {0.5f, 0.5f};
+        Hold(runner, frame, 1, 100'000'000, run);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 0);
+        // Nearly centred still works.
+        frame.hand[1].stick = {0.2f, 0.1f};
+        Hold(runner, frame, 1, 100'000'000, run);
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 1);
+    }
+    SECTION("Reset forgets a click in progress") {
+        Hold(runner, frame, 1, 300'000'000, run);
+        runner.mapper.Reset();
+        Release(runner, frame, 1, run);
+        REQUIRE(run.taps_swap == 0);
+    }
+}
+
+TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold is Home",
+          "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    ClickRun run;
+
+    SECTION("a tap acts when it is let go and the game sees no Home") {
+        Hold(runner, frame, 0, 300'000'000, run);
+        REQUIRE(run.taps_hide == 0);
+        Release(runner, frame, 0, run);
+        REQUIRE(run.taps_hide == 1);
+        REQUIRE(run.home_frames == 0);
+        REQUIRE_FALSE(run.game_saw_left);
+        REQUIRE(run.taps_swap == 0);
+        REQUIRE(run.resets == 0);
+    }
+    SECTION("a hold of 1 s sends Home as a 100 ms pulse and the release hides nothing") {
+        Hold(runner, frame, 0, kHold - 2 * kFrameNs, run);
+        REQUIRE(run.home_frames == 0);
+        Hold(runner, frame, 0, 3 * kHold, run);
+        // 100 ms at 11.1 ms a frame is 9 or 10 frames, and only once.
+        REQUIRE(run.home_frames >= 8);
+        REQUIRE(run.home_frames <= 10);
+        Release(runner, frame, 0, run);
+        REQUIRE(run.taps_hide == 0);
+        // The next hold sends Home again.
+        const int first = run.home_frames;
+        Hold(runner, frame, 0, 2 * kHold, run);
+        REQUIRE(run.home_frames > first);
+    }
+    SECTION("a click while the left stick is pushed over is ignored (no tap, no Home)") {
+        frame.hand[0].stick = {0.9f, 0.0f};
+        Hold(runner, frame, 0, 100'000'000, run);
+        Release(runner, frame, 0, run);
+        Hold(runner, frame, 0, 2 * kHold, run);
+        Release(runner, frame, 0, run);
+        REQUIRE(run.taps_hide == 0);
+        REQUIRE(run.home_frames == 0);
+    }
+    SECTION("both sticks at once are independent") {
+        frame.hand[0].stick_click = true;
+        frame.hand[1].stick_click = true;
+        runner.Step(frame);
+        frame.hand[0].stick_click = false;
+        frame.hand[1].stick_click = false;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_other_screen);
+        REQUIRE(out.commands.swap_screens);
+    }
+}
+
+TEST_CASE("FrameXr mapper: touch follows the bottom screen when it is the main one",
+          "[frame_xr]") {
+    Runner runner;
+    // The bottom screen in the top screen's place (ScreenView::Layout with the bottom in focus):
+    // 2 m ahead, 0.96 m high, 4:3 so 1.28 m wide; the top screen is in the lower, smaller slot.
+    runner.panels.bottom = {Posef{Quatf{}, Vec3f{0.0f, 0.0f, -2.0f}}, 1.28f, 0.96f, true};
+    runner.panels.top = {Posef{Quatf{}, Vec3f{0.0f, -0.8f, -1.5f}}, 0.75f, 0.45f, true};
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, Vec3f{0.0f, 0.0f, -2.0f});
     runner.Step(frame);
-    // A diagonal push also counts, by its length.
-    frame.hand[1].stick = {0.5f, 0.5f};
-    frame.hand[1].stick_click = true;
-    REQUIRE_FALSE(runner.Step(frame).commands.reset_panels);
-    frame.hand[1].stick_click = false;
-    runner.Step(frame);
-    // Nearly centred still resets.
-    frame.hand[1].stick = {0.2f, 0.1f};
-    frame.hand[1].stick_click = true;
-    REQUIRE(runner.Step(frame).commands.reset_panels);
+
+    SECTION("the centre of the big screen is the centre of the 3DS screen") {
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(CountTouch(out, TouchEventType::Pressed) == 1);
+        REQUIRE(out.touch_events[0].x == Approx(160.0f).margin(0.5));
+        REQUIRE(out.touch_events[0].y == Approx(120.0f).margin(0.5));
+        REQUIRE_FALSE(out.controls.Get(Control::TriggerR));
+    }
+    SECTION("a corner maps to the 3DS corner (u and v are of the bigger quad)") {
+        Point(frame, Hand::Right, Vec3f{-0.64f + 0.128f, 0.48f - 0.096f, -2.0f}); // 10 % in
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.touch_events[0].x == Approx(32.0f).margin(0.5));
+        REQUIRE(out.touch_events[0].y == Approx(24.0f).margin(0.5));
+    }
+    SECTION("the small slot, now holding the top screen, is ZL and ZR, not a touch") {
+        Point(frame, Hand::Right, Vec3f{0.0f, -0.8f, -1.5f});
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(CountTouch(out, TouchEventType::Pressed) == 0);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+    }
+    SECTION("a hidden top screen in the small slot lets the trigger through the same way") {
+        runner.panels.top.visible = false;
+        Point(frame, Hand::Right, Vec3f{0.0f, -0.8f, -1.5f});
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(CountTouch(out, TouchEventType::Pressed) == 0);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+    }
+    SECTION("the hover dot reads the 3DS pixel under the ray") {
+        Point(frame, Hand::Right, Vec3f{0.32f, 0.24f, -2.0f}); // three quarters across, a quarter down
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.cursor.visible);
+        REQUIRE(out.cursor.panel == Panel::Bottom);
+        REQUIRE(out.cursor.px == Approx(240.0f).margin(0.5));
+        REQUIRE(out.cursor.py == Approx(60.0f).margin(0.5));
+    }
 }
 
 TEST_CASE("FrameXr mapper: the hand that pulled last points", "[frame_xr]") {

@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "frame_xr/vis/beam.h"
+#include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/panels.h"
 
 namespace FrameXr::Vis {
@@ -80,9 +81,17 @@ void DrawHelp(PanelArt& a, const HelpPage& page) {
     const float top = y + 104.0f, bottom = y + R.h - 64.0f;
     const float row_h = std::min({30.0f, RowHeightFor(page.game, bottom - top),
                                   RowHeightFor(page.window, bottom - top)});
-    const float size = std::clamp(row_h * 0.68f, 15.0f, 20.0f);
-    Column(a, page.game, x + 44, x + 640, x + 312, top, row_h, size);
-    Column(a, page.window, x + 684, x + R.w - 44, x + 980, top, row_h, size);
+    // One text size for both columns, the largest that cuts no label, and the actions start after
+    // each column's widest control label (AzaharFrame screenswap: "Hold View + Right Bumper" used
+    // to be cut).
+    const float max_size = std::clamp(row_h * 0.68f, 15.0f, 20.0f);
+    const HelpColumnSpan game_span{x + 44, x + 640}, window_span{x + 684, x + R.w - 44};
+    const HelpTextLayout fit = LayoutHelpText(
+        page, game_span, window_span, max_size,
+        [&a](float size, bool bold, const std::string& text) { return a.TextWidth(size, bold, text); });
+    Column(a, page.game, game_span.x0, game_span.x1, fit.game.action_x, top, row_h, fit.size);
+    Column(a, page.window, window_span.x0, window_span.x1, fit.window.action_x, top, row_h,
+           fit.size);
     a.FillRRect(x + 44, y + R.h - 58, x + R.w - 44, y + R.h - 56, 1.0f, Ink::kRule);
     a.Text(x + 44, y + R.h - 24, 18.0f, false, Ink::kDim, page.footer);
 }

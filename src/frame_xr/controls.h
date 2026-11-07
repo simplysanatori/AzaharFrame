@@ -22,6 +22,7 @@
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
@@ -68,6 +69,21 @@ public:
         return visuals.MaxLayers();
     }
 
+    /// AzaharFrame screenswap, XR thread (app.cpp, while building the layers): where each 3DS
+    /// screen goes for this placement, with the focus (right stick click) and hiding (left stick
+    /// click) applied. When `swapped` is false the screens go where `place` and immersive.cpp say,
+    /// and only `bottom_visible` is new (the bottom screen hidden by the left stick click).
+    struct ScreenDraw {
+        bool swapped = false; ///< the bottom screen is in focus: use the poses and sizes below
+        bool top_visible = true;
+        bool bottom_visible = true;
+        XrPosef top_pose{{0, 0, 0, 1}, {0, 0, 0}};
+        XrExtent2Df top_size{};
+        XrPosef bottom_pose{{0, 0, 0, 1}, {0, 0, 0}};
+        XrExtent2Df bottom_size{};
+    };
+    ScreenDraw ScreenDrawFor(const ScreenPlacement& place) const;
+
     // GUI thread.
     void SetFrontendHooks(FrontendHooks hooks);
     void SetGameRunning(bool running);
@@ -107,6 +123,8 @@ private:
 
     Input::Actions actions;
     Input::InputBridge bridge;
+    Input::ScreenView screen_view; ///< AzaharFrame screenswap: focus and hiding, XR thread only
+    bool recentre_next = false;    ///< AzaharFrame screenswap: tell immersive after a reset hold
     bool actions_ok = false;
     bool bridge_live = false;
 

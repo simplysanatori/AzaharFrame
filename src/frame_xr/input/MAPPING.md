@@ -25,8 +25,16 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | D-pad up / down / left / right | D-Pad up / down / left / right | The Frame's real D-pad (replaces CitraVR's thumbrest-touch plus stick trick). |
 | Menu | Start | A tap: Start, sent as Menu is let go (for 100 ms). Held 1 s: the in-game menu, see below; the game never sees that hold. |
 | View | Select | Hold 1.5 s instead stops the game, see below. |
-| Left stick click | Home | |
-| Right stick click | (none) | Resets the screen positions (once per click). Ignored while the stick is pushed past half way, so free camera cannot reset by accident. |
+| Left stick click, tap | (none) | Hides or shows the screen that is not in focus (`toggle_other_screen`, on release). |
+| Left stick click, held 1 s | Home | The pad's `StickClickL`, bound to Home, is pulsed for 100 ms when the second is up (`stick_click_hold_ns`, `start_pulse_ns`). The game sees nothing before. |
+| Right stick click, tap | (none) | Swaps the screens (`swap_screens`, on release). |
+| Right stick click, held 1 s | (none) | Resets the screen positions (`reset_panels`, once per hold). |
+
+A stick click is a `ClickGesture` (`click_gesture.h`): a tap acts when it is let go, a hold acts once at
+1 s and its release does nothing. A click that starts while its stick is pushed past half way
+(`reset_click_max_deflection`) is ignored whole, tap and hold, so free camera cannot swap, hide or reset
+by accident. The right click is still reported to the pad as `StickClickR` (unbound by default).
+
 | Left bumper + right bumper + View | (none) | Only in games that hide the bottom screen (Hide Bottom Screen, immersive mode): shows or hides it. That View press never reaches the game. Everywhere else the game sees L, R and Select. |
 
 Select follows View at once, so a tap is a normal Select. While the stop hold is running the game
@@ -120,6 +128,16 @@ hides it (IMMERSIVE.md). The mapper reports `toggle_bottom` once, keeps that Vie
 the game until it is released, and does not start the stop-hold timer for it. View held first and
 bumpers added later is plain Select. With the toggle disabled (every other game) the game sees L, R
 and Select as pressed.
+
+**Screen focus** (`screen_view.h`, used by `controls.cpp`; the mapper only reports the clicks). The
+placement has a main slot (where the top screen starts) and a secondary slot (where the bottom screen
+starts). With the bottom screen in focus, `ScreenView::Layout` gives the mapper the bottom screen in the
+main slot (same height, 4:3) and the top screen in the secondary slot (that slot's height, the top
+screen's aspect), so touch (`panels.bottom`, 320x240 pixels from u and v), ZL/ZR (`panels.top`) and the
+dot follow the new places without any change in the mapper. The mapper's drag target is "its" top
+screen's; `ScreenView::MainDragTarget` turns it into the same movement of the main slot. The bumper
+chord's `toggle_bottom`, the left click and the swap go through `ScreenView`, which keeps one "bottom
+screen shown" flag with Immersive in games it manages and a flag of its own otherwise.
 
 **VR / flat chord.** Left Bumper + Right Bumper + View + Menu, in any order once both bumpers are
 held, switches between VR and flat (`toggle_vr`, once per chord). So that it can share View with

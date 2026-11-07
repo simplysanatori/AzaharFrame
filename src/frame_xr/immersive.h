@@ -71,6 +71,11 @@ bool CanToggleBottom();
 /// pause, as when the bottom screen is shown. XR thread.
 void SetMenuOpen(bool open);
 
+/// The bottom screen is the main one (screen swap, controls.cpp): immersive pauses in every mode
+/// while it is, as it does for the in-game menu, and resumes when the top screen is main again.
+/// XR thread.
+void SetBottomFocus(bool focus);
+
 /// Shows the bottom screen, or hides it again. In immersive modes 2 and 3 showing it pauses
 /// immersive mode, as in CitraVR. Starts hidden at every game start. XR thread.
 void ToggleBottom();

@@ -148,8 +148,8 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
-| Left stick click | Home |
-| Right stick click | Reset the screen positions |
+| Right stick click | Swap the screens: the other screen becomes the main one. Tap again to swap back. Hold for 1 second to reset the screen positions |
+| Left stick click | Hide or show the screen that is not in focus. Hold for 1 second for Home |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
 | **View**, then the right bumper | Quick Save. Then the left bumper instead: Quick Load |
@@ -165,6 +165,8 @@ On Azahar's window and in the in-game menu:
 | Grip | Move the window |
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
+
+The bottom screen in focus is the one in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus is always shown; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
@@ -237,7 +239,7 @@ Three games start with a setup already, from CitraVR's playtest notes: Mario Kar
 
 <!-- VERIFY: the three presets in the headset. They come from CitraVR's Quest notes, which may not hold on SteamVR. -->
 
-The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** show or hide the bottom screen, and the right stick click re-centres the view. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+The **Immersive Game FOV** setting next to it is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. Only Ocarina of Time 3D and Majora's Mask 3D have the settings it needs. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen, and holding the right stick click for 1 second re-centres the view. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 <!-- VERIFY: the whole section -->
 

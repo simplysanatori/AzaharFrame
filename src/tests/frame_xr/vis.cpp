@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/vis/beam.h"
 #include "frame_xr/vis/help_content.h"
+#include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/model_file.h"
 
 // AzaharFrame vrvis
@@ -45,8 +46,10 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Trigger") == "3DS ZL, Touch on Bottom Screen");
         REQUIRE(ActionFor(page.game, "Menu") == "3DS Start");
         REQUIRE(ActionFor(page.game, "View") == "3DS Select");
-        REQUIRE(ActionFor(page.game, "Left Stick Click") == "3DS Home");
-        REQUIRE(ActionFor(page.game, "Right Stick Click") == "Reset Screens");
+        REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Other Screen");
+        REQUIRE(ActionFor(page.game, "Hold Left Stick Click (1 s)") == "3DS Home");
+        REQUIRE(ActionFor(page.game, "Right Stick Click") == "Swap Screens");
+        REQUIRE(ActionFor(page.game, "Hold Right Stick Click (1 s)") == "Reset Screens");
         REQUIRE(ActionFor(page.game, "Hold View + Left Bumper") == "Quick Load");
         REQUIRE(ActionFor(page.game, "Hold View + Right Bumper") == "Quick Save");
         REQUIRE(ActionFor(page.game, "Hold View + Right Trigger") == "Fast Forward On / Off");
@@ -85,6 +88,54 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
             }
         }
         REQUIRE(menu_now);
+    }
+}
+
+TEST_CASE("FrameXr vis: the help text is sized so no label is cut", "[frame_xr]") {
+    // A stand-in for the font: every character is 0.58 em wide, bold ones 0.64.
+    const TextMeasure measure = [](float size, bool bold, const std::string& text) {
+        return static_cast<float>(text.size()) * size * (bold ? 0.64f : 0.58f);
+    };
+    const HelpColumnSpan game{44.0f, 640.0f}, window{684.0f, 1196.0f}; // as panels.cpp
+    for (const bool in_menu : {false, true}) {
+        HelpContext ctx;
+        ctx.game_running = true;
+        ctx.in_menu = in_menu;
+        const HelpPage page = BuildHelp(DefaultHelpBindings(), ctx);
+        const HelpTextLayout layout = LayoutHelpText(page, game, window, 20.0f, measure);
+        REQUIRE(layout.fits);
+        REQUIRE(layout.size >= kHelpMinTextSize);
+        REQUIRE(layout.size <= 20.0f);
+        // Every row fits between its column's edges, whatever the widest label is.
+        const auto check = [&](const std::vector<HelpRow>& rows, const HelpColumnSpan& span,
+                               float action_x) {
+            for (const auto& r : rows) {
+                if (r.kind != HelpRow::Kind::Row) {
+                    continue;
+                }
+                REQUIRE(span.x0 + measure(layout.size, true, r.control) + kHelpColumnGap <=
+                        action_x + 0.001f);
+                REQUIRE(action_x + measure(layout.size, false, r.action) <= span.x1 + 0.001f);
+            }
+        };
+        check(page.game, game, layout.game.action_x);
+        check(page.window, window, layout.window.action_x);
+    }
+    SECTION("a narrow column shrinks the text until it fits") {
+        HelpContext ctx;
+        const HelpPage page = BuildHelp(DefaultHelpBindings(), ctx);
+        const HelpTextLayout wide = LayoutHelpText(page, game, window, 20.0f, measure);
+        const HelpTextLayout narrow =
+            LayoutHelpText(page, {44.0f, 500.0f}, window, 20.0f, measure);
+        REQUIRE(narrow.fits);
+        REQUIRE(narrow.size < wide.size);
+    }
+    SECTION("a column that cannot fit says so, at the smallest size") {
+        HelpContext ctx;
+        const HelpPage page = BuildHelp(DefaultHelpBindings(), ctx);
+        const HelpTextLayout none = LayoutHelpText(page, {0.0f, 50.0f}, window, 20.0f, measure);
+        REQUIRE_FALSE(none.fits);
+        REQUIRE(none.size == Approx(kHelpMinTextSize));
     }
 }
 

@@ -19,8 +19,10 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu, see below. The game does not see that hold |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
-| Left stick click | Home | |
-| Right stick click | Resets the screen positions | Nothing reaches the game. Ignored while the stick is pushed more than half way, so free camera cannot reset by accident |
+| Left stick click, tap | Hides or shows the screen that is not in focus | Nothing reaches the game. See Swapping the screens |
+| Left stick click, held for 1 second | Home | The game sees a short Home press when the second is up, and nothing before |
+| Right stick click, tap | Swaps the screens: the other screen becomes the main one | Nothing reaches the game. Tap again to swap back. See Swapping the screens |
+| Right stick click, held for 1 second | Resets the screen positions | Nothing reaches the game. A stick click is ignored (tap and hold) while that stick is pushed more than half way, so free camera cannot swap or reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
 | Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
 | **View**, then the right bumper | Quick Save | Hold **View** first, then press the bumper. The game sees none of the three. See Quick Save and Quick Load |
@@ -36,6 +38,8 @@ Grips press at 60 % and let go at 40 %, triggers press at 55 % and let go at 40 
 While you hold **View**, the game sees Select held. When the 1.5 seconds are up the game sees it released and stops.
 
 A tap of **Menu** reaches the game as Start when you let go.
+
+A tap of a stick click acts when you let go, so a hold never also taps: the left stick click is Home only after a full second, and the right one resets only after a full second.
 
 Because **View** also starts Quick Save, Quick Load and Fast Forward, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
 
@@ -72,7 +76,27 @@ Each controller has a laser. The hand that pulled its trigger last owns the dot,
 
 The trigger is only a touch when the laser is on the bottom screen when you pull it. Anywhere else it is ZL or ZR, and stays that for as long as you hold it. A second trigger pulled on the bottom screen while it is already being touched does nothing. A grip grabs the screen under the laser when you squeeze it; a grip squeezed with the laser on neither screen does nothing.
 
-The top screen goes no nearer than 1 m, and no further than 10 m. Moving them never moves the screens sideways. The bottom screen follows the top one, 0.75 m lower and 0.5 m nearer, tilted back. The screens keep their place when you let go. The right stick click puts both back where they start.
+The top screen goes no nearer than 1 m, and no further than 10 m. Moving them never moves the screens sideways. The bottom screen follows the top one, 0.75 m lower and 0.5 m nearer, tilted back. The screens keep their place when you let go. Hold the right stick click for 1 second to put both back where they start.
+
+## Swapping the screens
+
+<!-- VERIFY: the swap, the hide, the touch in both focuses and immersive mode in the headset. -->
+
+The screens have two places: the main one, where the top screen starts (2 m ahead, 1 m high), and the second one below it, where the bottom screen starts (tilted back, smaller). The screen in the main place is the one in focus. Every game starts with the top screen in focus and the screens placed as above.
+
+| Control | What it does |
+|---|---|
+| Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the same height as the top screen had (so its pixels are the same size), and the top screen goes to the second place, with the bottom screen's tilt and offsets. Tap again to swap back. The move is instant |
+| Left stick click, tap | Hides or shows the screen that is not in focus: the bottom screen while the top one is in focus, the top screen while the bottom one is in focus |
+| Right stick click, held for 1 second | Resets the screen positions. The focus and what is hidden stay as they are |
+
+- Moving the screens with a grip works in both focuses and moves the main place and the second place together. Wherever you leave them, both focuses use them.
+- Touch works on the bottom screen in either focus, at its new size and place. The trigger aimed at the top screen is ZL or ZR in either place.
+- The screen in focus is always shown. A hidden bottom screen is shown when it takes the focus, and hidden again when the focus goes back to the top screen. Hiding the top screen lasts until the focus changes: the top screen is shown again whenever it is the main one.
+- The bottom screen is hidden at the start in games with **Hide Bottom Screen** on, and in immersive mode. There the left stick click, with the top screen in focus, does what both bumpers + **View** does (they are one switch: either one shows it and either one hides it again). With the bottom screen in focus, both bumpers + **View** hides the bottom screen and puts the top screen back in focus.
+- In every other game the left stick click hides and shows the bottom screen on its own, and both bumpers + **View** is still L, R and Select for the game.
+- Immersive mode pauses while the bottom screen is in focus, as it does when the bottom screen shows, and picks up again when you swap back.
+- Every new game starts with the top screen in focus.
 
 ## Azahar's window
 
@@ -144,7 +168,8 @@ Two things hide the bottom screen: immersive mode, and the **Hide Bottom Screen*
 | Control | What it does |
 |---|---|
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen. Hold both bumpers, then press View. Every game starts with it hidden. The game sees none of the three |
-| Right stick click | Also re-centres the view on your head in immersive mode (same half-way rule) |
+| Right stick click, held for 1 second | Also re-centres the view on your head in immersive mode (same half-way rule) |
+| Left stick click, tap | Shows or hides the bottom screen, the same switch as the bumper chord. See Swapping the screens |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 The top screen cannot be grabbed in immersive mode. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
