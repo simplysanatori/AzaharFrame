@@ -190,7 +190,7 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         InputFrame frame = IdleFrame();
         frame.menu = true;
         bool toggled = false;
-        for (int i = 0; i < 90; ++i) { // 1.5 s at 60 Hz
+        for (int i = 0; i < 135; ++i) { // 1.5 s at 90 Hz (kFrameNs)
             const MapperOutput out = runner.Step(frame);
             REQUIRE_FALSE(out.controls.Get(Control::Menu));
             if (out.commands.menu_toggle) {
