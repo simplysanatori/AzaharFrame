@@ -9,6 +9,8 @@ add_executable(tests
     ../frame_xr/input/mapper.cpp # AzaharFrame
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
+    ../frame_xr/immersive_layout.cpp # AzaharFrame
+    frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/input_motion.cpp # AzaharFrame
     ../frame_xr/vis/beam.cpp # AzaharFrame vrvis
     ../frame_xr/vis/help_content.cpp # AzaharFrame vrvis

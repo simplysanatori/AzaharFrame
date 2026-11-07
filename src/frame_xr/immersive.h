@@ -45,22 +45,32 @@ void Uninstall();
 /// game has started). Latched when a game starts. Any thread.
 float TopAspect();
 
-/// Where the game screens go this frame.
+/// Where the game screens go this frame. The bottom screen and, unless `top_space` is the VIEW
+/// space, the top screen are in the LOCAL space.
 struct ScreenLayers {
     XrSpace top_space = XR_NULL_HANDLE;
     XrPosef top_pose[2]{}; ///< left eye, right eye
     XrExtent2Df top_size{};
-    bool show_bottom = true; ///< at the normal bottom placement
+    bool show_top = true;
+    /// The top screen is in LOCAL space and is not the immersive screen: it can be aimed at and
+    /// grabbed.
+    bool top_pointable = true;
+    XrPosef bottom_pose{};
+    XrExtent2Df bottom_size{};
+    bool show_bottom = true;
+    /// The bottom screen is farther away than the top one: submit it first. Quad layers are
+    /// drawn in submission order, with no depth test, so the nearer one has to come last.
+    bool bottom_first = false;
 };
 
-/// XR thread, while building the layers. Not in immersive mode: the normal placement in
-/// `local_space` (both eyes on one pose, bottom shown).
+/// XR thread, while building the layers and the pointer targets. Not in immersive mode: the
+/// normal placement in `local_space`.
 ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacement& placement);
 
-/// XR thread, once per game frame before the mapper runs. Right stick click: re-centres the
-/// immersive view on the head. Clears the pointer targets that are not on view (the top screen
-/// is not grabbable in immersive mode; the hidden bottom screen cannot be touched or grabbed).
-void OnGameInput(const Input::InputFrame& in, bool& top_pointable, bool& bottom_pointable);
+/// XR thread, once per game frame before the mapper runs, with the frame the mapper will get.
+/// While the immersive screen is on view the grips move and resize it (immersive_layout.h);
+/// the grips, and the stick of the hand that holds the screen, are then taken out of `in`.
+void OnGameInput(Input::InputFrame& in);
 
 /// Whether Left Bumper + Right Bumper + View may show or hide the bottom screen now: a game is
 /// on view and either immersive mode or "Hide Bottom Screen" is on. The mapper then reports the
@@ -71,8 +81,18 @@ bool CanToggleBottom();
 /// pause, as when the bottom screen is shown. XR thread.
 void SetMenuOpen(bool open);
 
-/// Shows the bottom screen, or hides it again. In immersive modes 2 and 3 showing it pauses
-/// immersive mode, as in CitraVR. Starts hidden at every game start. XR thread.
+/// Left Bumper + Right Bumper + View: shows the bottom screen, or hides it again. In immersive
+/// modes 2 and 3 showing it pauses immersive mode, as in CitraVR. XR thread.
 void ToggleBottom();
+
+/// The bottom screen is the screen in focus (it has the top screen's place; the screen layout
+/// itself is not changed here). Immersive mode pauses while it is, as when the bottom screen
+/// shows, and resumes after. Cleared when no game is on view. XR thread.
+void SetBottomFocused(bool focused);
+
+/// Right Stick Click (reset_panels): re-centres the view on the head; while a grip holds the
+/// immersive screen, the screen also goes back to its default placement for this game (the
+/// saved one is forgotten). XR thread.
+void OnResetPanels();
 
 } // namespace FrameXr::Immersive

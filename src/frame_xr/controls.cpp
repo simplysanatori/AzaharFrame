@@ -573,13 +573,20 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
+    // The screens where they are drawn this frame (immersive.cpp): the pointer and the touch
+    // follow them; a hidden screen or the immersive screen is not a target.
+    const Immersive::ScreenLayers shown =
+        Immersive::Screens(info.local_space, info.view_space, place);
     Input::PanelGeometry panels;
-    panels.top = {ToInput(place.top_pose), place.top_size.width, place.top_size.height, true};
-    panels.bottom = {ToInput(place.bottom_pose), place.bottom_size.width,
-                     place.bottom_size.height, true};
-    Immersive::OnGameInput(in, panels.top.visible, panels.bottom.visible); // immersive.cpp
+    panels.top = {ToInput(shown.top_pose[0]), shown.top_size.width, shown.top_size.height,
+                  shown.show_top && shown.top_pointable};
+    panels.bottom = {ToInput(shown.bottom_pose), shown.bottom_size.width,
+                     shown.bottom_size.height, shown.show_bottom};
     panels.bottom_toggle_enabled = Immersive::CanToggleBottom();
-    const Input::MapperOutput& out = bridge.Process(in, panels);
+    // While the immersive screen is on view the grips move it, not the mapper.
+    Input::InputFrame game_in = in;
+    Immersive::OnGameInput(game_in); // immersive.cpp
+    const Input::MapperOutput& out = bridge.Process(game_in, panels);
     bridge_live = true;
     if (out.commands.toggle_bottom) {
         Immersive::ToggleBottom(); // Left Bumper + Right Bumper + View
@@ -588,13 +595,18 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const auto& cmd = out.commands;
     if (cmd.reset_panels) {
         ResetPlacement(rt);
+        Immersive::OnResetPanels(); // re-centre; with a grip on the immersive screen, its reset
     } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f) {
         Input::Posef top = ToInput(place.top_pose);
         if (cmd.top_drag_active) {
             Input::DragLimits limits;
             limits.max_z = kNearestTopZ;
+            // The target is for the top screen as drawn (panels.top); move the stored top
+            // placement by the same amount (they are the same pose unless the layout differs).
+            const Input::Vec3f target =
+                top.position + (cmd.top_drag_target - panels.top.pose.position);
             // The bottom screen follows the top one: no distance check between them.
-            if (auto moved = Input::SolveSphereDrag(top, cmd.top_drag_target, {0, 0, 0}, nullptr,
+            if (auto moved = Input::SolveSphereDrag(top, target, {0, 0, 0}, nullptr,
                                                     limits)) {
                 top = *moved;
             }

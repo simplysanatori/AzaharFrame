@@ -470,14 +470,26 @@ void Runtime::FrameLoop() {
                 q.eye = eye;
                 quad_layers.push_back(MakeQuad(space, q));
             };
-            // Each eye sees its own top image on the same quad.
-            add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
-                       shown.top_size, XR_EYE_VISIBILITY_LEFT);
-            add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
-                       shown.top_size, XR_EYE_VISIBILITY_RIGHT);
-            if (shown.show_bottom) {
-                add_screen(VideoCore::XrScreen::Bottom, local_space, place.bottom_pose,
-                           place.bottom_size, XR_EYE_VISIBILITY_BOTH);
+            // Each eye sees its own top image on the same quad. Quad layers are drawn in the
+            // order they are submitted, with no depth test: the farther screen goes first, so
+            // the nearer one is never drawn through.
+            const auto add_bottom = [&] {
+                if (shown.show_bottom) {
+                    add_screen(VideoCore::XrScreen::Bottom, local_space, shown.bottom_pose,
+                               shown.bottom_size, XR_EYE_VISIBILITY_BOTH);
+                }
+            };
+            if (shown.bottom_first) {
+                add_bottom();
+            }
+            if (shown.show_top) {
+                add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
+                           shown.top_size, XR_EYE_VISIBILITY_LEFT);
+                add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
+                           shown.top_size, XR_EYE_VISIBILITY_RIGHT);
+            }
+            if (!shown.bottom_first) {
+                add_bottom();
             }
         }
         if (fs.shouldRender) {

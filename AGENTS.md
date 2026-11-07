@@ -50,6 +50,19 @@ Frametanium: the release must carry `azaharframe-<version>-linux-arm64.tar.gz`. 
 - **Presets** (`frame_xr/presets.{h,cpp}`): title ids with an Immersive Mode and View Matrix Register, applied in `BootGame` after the per-game config loaded, only if `UsingGlobal()` and the global value is still the default.
 - Rendering notes (SPD13's SteamVR findings, checked against this tree): quad layers may be depth-sorted, so nothing may share a plane (the dim quad of the in-game menu is 2 cm behind the window); swapchains over 1000 px high may get Valve's foveation (the screens are 960 px at 4x and 1440 at 6x); the lower screen is not filtered down.
 
+## Immersive screen placement
+
+`src/frame_xr/immersive_layout.{h,cpp}` holds the maths, the grip gesture and the per-game file (`immersive-placement.txt` in the user directory); `immersive.cpp` applies it; [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md#placement) explains it. The rule behind it: in modes 2 and 3 the world only stays put when a head turn moves the picture by the angle the game camera turned, so nothing may change the screen's angle against the game's view without paying for it.
+
+- Distance scales the quad, so the angle is kept.
+- Pitch turns the quad about the eye and is multiplied into the camera rotation given to the game (`GameCameraRotation`), so the camera looks where the screen is. Both view-matrix hooks (mode 2 replaces the register's rotation, mode 3 multiplies the game's matrix) take it as a plain rotation.
+- Size first moves the periphery factor between 1.0 and 1.4 (the game's view widens with the quad: no drift); past that the quad is scaled and the head rotation gets a gain of game angle / screen angle (`ScaleRotation`), which keeps the middle of the picture locked. The cost, documented for players as "the world stays where it is": big turns cover more or less of the game world. Gain 0.6 to 1.8, size 0.6 to 1.5.
+- The default fits the whole quad (HUD included) into the view both eyes see, from the runtime's per-eye FOV, 5 degrees below its middle. The tunables are the `k*` constants at the top of `immersive_layout.h`.
+- Screens are submitted farther first (`ScreenLayers::bottom_first`): quad layers have no depth test. A hidden bottom screen is never submitted (`Layout::Decide`).
+- `Immersive::SetBottomFocused` pauses immersive mode while the bottom screen is the screen in focus.
+
+Tests: `src/tests/frame_xr/immersive_layout.cpp`.
+
 ## The VR panels and controller models
 
 `src/frame_xr/vis/` holds them; [docs/TECHNICAL.md](docs/TECHNICAL.md#controllers-beams-the-controls-help-and-the-stats) explains the design. Keep its rules: no CPU waits on the XR thread, the queue lock only around submits and swapchain calls, at most one image per swapchain in flight, and an image released only after its fence has signalled. The controller pass is the one exception to "no GPU work on the XR thread in a game". It adds three swapchains; SteamVR allows 16 per session, so share the atlas before adding a new one. The help text comes from `help_content.cpp` (unit-tested in `src/tests/frame_xr/vis.cpp`): a new control or chord goes there as well as in [docs/CONTROLS.md](docs/CONTROLS.md).

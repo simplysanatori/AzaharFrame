@@ -167,6 +167,10 @@ void SetFrontendHooks(FrontendHooks hooks);
 /// A game started (BootGame done) or stopped (ShutdownGame done). GUI thread.
 void SetGameRunning(bool running);
 
+/// The title id of the game being started (0 for none or homebrew without one), before it
+/// runs. The immersive screen's placement is saved per title id. Any thread.
+void SetGameTitleId(uint64_t title_id);
+
 /// The folders the picker scans (UISettings::values.game_dirs). GUI thread; rescans.
 struct LibraryDir {
     std::string path;
