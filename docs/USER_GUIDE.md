@@ -242,7 +242,7 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 
 ## Troubleshooting
 
-- **Steam's debugging port is not reachable.** Start Steam and run `install.sh` again.
+- **The installer says Steam was not reachable.** Start Steam and run `install.sh` again.
 - **SteamVR's dock shows a question mark instead of the flower.** Steam reads the icon when it starts. Restart Steam once.
 - **The screens do not appear in the headset.** Start SteamVR first, then Azahar for Frame. `launch.log` says which OpenXR runtime it found, and the emulator log says `running flat` when it could not start VR.
 - **A game in a subfolder is not in the list.** Right-click the game folder in the list (right stick click) and tick **Scan Subfolders**.

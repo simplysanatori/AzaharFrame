@@ -69,11 +69,11 @@ Games, keys for encrypted dumps and texture packs: [docs/USER_GUIDE.md](docs/USE
 | Left stick, right stick, left D-pad | Circle Pad, C-Stick, D-pad |
 | **A**, **B**, **X**, **Y** | 3DS B, A, Y, X (by position) |
 | Bumpers, triggers | L and R, ZL and ZR. A trigger aimed at the bottom screen is a touch |
-| Grips | Move the screens |
+| Grips | Move the screens or the window |
 | **Menu** | Start. Hold 1 second: pause and open Azahar's window |
 | **View** | Select. Hold 1.5 seconds: stop the game |
 | Left stick click, right stick click | Home, reset the screen positions |
-| Both bumpers + **View** | Show or hide the bottom screen |
+| Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | **Y** on Azahar's window | Open the keyboard |
 
@@ -97,10 +97,10 @@ steam-frame/uninstall.sh
 
 ## Troubleshooting
 
-- **Steam's debugging port is not reachable.** Start Steam and run `install.sh` again.
-- **The dock shows a question mark.** Restart Steam once.
-- **The screens do not appear.** Start SteamVR first, then Azahar for Frame.
-- **An encrypted game does not start.** It needs `aes_keys.txt` from your own console.
+- The installer says Steam was not reachable: start Steam and run `install.sh` again.
+- The SteamVR dock shows a question mark: restart Steam once.
+- The screens do not appear: start SteamVR first, then Azahar for Frame.
+- An encrypted game does not start: it needs `aes_keys.txt` from your own console, in `~/.local/share/AzaharFrame/user/sysdata/`.
 
 More: [docs/USER_GUIDE.md](docs/USER_GUIDE.md#troubleshooting).
 
