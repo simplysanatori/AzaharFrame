@@ -3,3 +3,9 @@
 ^src/tests/	[\w)\]]\.(?:3ds|cci|cia)\b
 ^(docs/TECHNICAL_NOTES\.md|src/citra_qt/citra_qt\.cpp)$	a\.3ds\\?\|b\.cci
 ^docs/PRIVACY_AUDIT\.md$	192\.168\.|/home/\w*|Wi-Fi name
+^steam-frame/test-release\.sh$	someone@example\.org|192\.168\.1\.5|/home/steamos/x|Some Game \(USA\) \(En,Fr\)\.3ds
+# The bundled Qt and OpenSSL libraries (lib/ and plugins/ in the release) are Qt's own builds: their debug strings carry Qt's build
+# folder, the PEM header names Qt parses, and a list of USB vendor names with their country tags.  Not ours, and not in azahar itself.
+/(?:lib|plugins)/.*\.so[^/]*$	/home/qt/work/\S*
+/(?:lib|plugins)/.*\.so[^/]*$	-----BEGIN (?:RSA |DSA |EC |ENCRYPTED )?PRIVATE KEY-----
+/(?:lib|plugins)/.*\.so[^/]*$	\((?:USA|Europe)\) (?:Inc|Ltd|GmbH|SA|AB|BV)\b

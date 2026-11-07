@@ -5,7 +5,8 @@
 #                                                added lines, identities and messages
 #   steam-frame/privacy-check.sh --tree          only the tree
 #   steam-frame/privacy-check.sh --history       only our commits (those not reachable from the azahar and citravr remotes
-#                                                or from a tag), plus uncommitted changes
+#                                                or from a tag), plus uncommitted changes; AZAHARFRAME_PRIVACY_REVS="--branches"
+#                                                scans from those tips instead of HEAD
 #   steam-frame/privacy-check.sh DIR|FILE...     every file under each DIR, inside each .tar.gz / .zip, or the plain FILE (the unpacked
 #                                                release archives, the FrameDrop zip); add --tree / --history to scan
 #                                                those as well
@@ -112,7 +113,7 @@ def scan_data(rel, data):
 
 # ---- the tree: steam-frame/, files our commits added, new files
 if do_tree or do_hist:
-    OURS = ["HEAD", "--not", "--remotes=azahar", "--remotes=citravr", "--tags"]   # a range: ours, not upstream's
+    OURS = os.environ.get("AZAHARFRAME_PRIVACY_REVS", "HEAD").split() + ["--not", "--remotes=azahar", "--remotes=citravr", "--tags"]   # a range: ours, not upstream's
     revs = git("rev-list", *OURS).split()
     if not revs:
         print("privacy-check: no commits of ours found (are the azahar and citravr remotes fetched?)", file=sys.stderr)
