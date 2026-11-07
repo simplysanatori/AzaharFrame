@@ -96,6 +96,29 @@ Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for 
 
 The buttons are the same as in the table above. Both bumpers and **View** bring back the bottom screen if you ever need it.
 
+## Playing in a window (Flat)
+
+The same library entry can also run Azahar as a flat window on the Frame's virtual screen, with other apps usable beside it. It starts in the mode you used last (VR the first time), kept in the file `mode` in `~/.local/share/AzaharFrame` as the single word `vr` or `flat`. To start in Flat once without changing that, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR); from a terminal, `azaharframe.sh --flat` or `--vr` does the same. Switching with a button chord while it runs is coming <!-- VERIFY: chord (both bumpers + View + Menu) -->.
+
+In Flat the Frame controllers reach the game as a gamepad from Steam Input, and Azahar uses its own controls profile for them, **Flat Gamepad**, added the first time Flat starts. The profile that VR uses is not touched, and the one in use follows the mode. The buttons are placed like the 3DS, by position:
+
+| Frame, as a gamepad | 3DS |
+|---|---|
+| Left stick | Circle Pad |
+| Right stick | C-Stick |
+| D-pad | D-pad |
+| **A** (bottom) | B |
+| **B** (right) | A |
+| **X** (left) | Y |
+| **Y** (top) | X |
+| Left and right bumper | L and R |
+| Left and right trigger | ZL and ZR |
+| **Menu** | Start |
+| **View** | Select |
+| Left stick click | Home |
+
+The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse. Every button can be changed in **Emulation > Configure > Controls**, and your changes in **Flat Gamepad** stay; it is only added when it is missing. The layout of the screens, 3D and everything else in Azahar's settings are the ones you already have.
+
 ## Changing the layout
 
 The layout is a controls profile in Azahar's **Emulation > Configure > Controls** window, where the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile are replaced with this layout, unless one of them already is a Frame control. After that your changes stay. A profile saved by an earlier version, with L and R on the grips, gets them moved to the bumpers (the grips only grab the screens now). Keep a PC profile of your own under another name if you also use the window with a keyboard.

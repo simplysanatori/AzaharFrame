@@ -126,13 +126,16 @@ $MISSING"
 
 APPID=none
 STEAM_NOTE=
-# Steam's appid for a non-Steam shortcut is crc32(Exe + AppName) | 0x80000000 (Exe with its quotes);
-# a dry run shows that one.
-DRY_APPID=$(python3 -I -c 'import sys, zlib; print(zlib.crc32((sys.argv[1] + sys.argv[2]).encode()) | 0x80000000)' "\"$DEST/azaharframe.sh\"" "$NAME")
+# Steam picks the appid itself when AddShortcut creates the entry; it is not crc32(Exe + AppName)
+# (that is only what Steam computes for an entry read from shortcuts.vdf), so a dry run cannot
+# know it.  It shows this placeholder (the smallest id a shortcut can have) in its place.
+DRY_APPID=2147483648
 CEF="python3 $DEST/steam-cef.py"
 FIND_JS="(() => { for (const a of (appStore.allApps || [])) { if (a.display_name === '$NAME' && a.app_type === 1073741824) return a.appid; } return 0; })()"
 UPDATE_JS="(appid) => { SteamClient.Apps.SetShortcutExe(appid, '\"$DEST/azaharframe.sh\"'); SteamClient.Apps.SetShortcutStartDir(appid, '\"$DEST\"'); return 1; }"
-ADD_JS="(async () => { const id = await SteamClient.Apps.AddShortcut('$NAME', '\"$DEST/azaharframe.sh\"', '\"$DEST\"', ''); SteamClient.Apps.SetShortcutName(id, '$NAME'); return id; })()"
+# AddShortcut puts the quotes around the program and folder itself; SetShortcutExe and
+# SetShortcutStartDir store the text as given, so those two get them.
+ADD_JS="(async () => { const id = await SteamClient.Apps.AddShortcut('$NAME', '$DEST/azaharframe.sh', '$DEST', ''); SteamClient.Apps.SetShortcutName(id, '$NAME'); return id; })()"
 if [ -n "$SKIP_STEAM" ]; then
   STEAM_NOTE="AZAHARFRAME_SKIP_STEAM is set: Steam and SteamVR were left alone."
 elif [ -n "$DRY" ]; then
@@ -141,7 +144,7 @@ elif [ -n "$DRY" ]; then
   echo "[dry run] if '$NAME' exists it would be updated: $UPDATE_JS applied to its appid"
   echo "[dry run] otherwise it would be added: $ADD_JS"
   APPID=$DRY_APPID
-  echo "[dry run] the entry's appid would be $APPID (Steam computes it from the program path and the name)"
+  echo "[dry run] the entry's appid would be whatever Steam assigns when it adds the entry (shown below as the placeholder $APPID)"
 else
   EXISTING=$($CEF "$FIND_JS" 2> /dev/null || echo 0)
   if [ -n "$EXISTING" ] && [ "$EXISTING" != "0" ]; then

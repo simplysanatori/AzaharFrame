@@ -137,6 +137,12 @@ All controls: [docs/CONTROLS.md](docs/CONTROLS.md).
 
 <!-- VERIFY: the table in the headset. It matches src/frame_xr/input/MAPPING.md. -->
 
+### Playing in a window (Flat)
+
+I wanted to be able to play a 3DS game in a window as well, like any other flat game on the Frame, with other apps open beside it, instead of loading the app and having black all around me. So the same library entry starts in one of two modes: VR, as above, or Flat, which is Azahar's normal window on the headset's virtual screen. It starts in the mode you used last, and VR the first time. Switching between them while it runs is coming; <!-- VERIFY: the chord and how it is switched --> until then, see [docs/CONTROLS.md](docs/CONTROLS.md#playing-in-a-window-flat) to start in Flat.
+
+Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar is not forced to full screen, so it stays in its window. The Frame controllers come through Steam Input as a gamepad and are mapped by position, like the 3DS, in their own controls profile, **Flat Gamepad**, so your VR controls are left alone. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
+
 ## Settings
 
 Everything is in the Azahar window on the SteamVR dashboard, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar.
@@ -184,6 +190,7 @@ Keep other heavy work off the Frame while you play.
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
+| Mode it starts in (`vr` or `flat`) | `~/.local/share/AzaharFrame/mode` |
 
 How the port works: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
