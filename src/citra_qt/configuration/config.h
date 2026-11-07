@@ -136,6 +136,14 @@ private:
     template <typename Type, bool ranged>
     void WriteBasicSetting(const Settings::Setting<std::vector<Type>, ranged>& setting);
 
+    // AzaharFrame: the same, writing the given value instead of the setting's current one.
+    template <typename Type, bool ranged>
+    void WriteBasicSetting(const Settings::Setting<Type, ranged>& setting, const Type& value);
+
+    template <typename Type, bool ranged>
+    void WriteBasicSetting(const Settings::Setting<std::vector<Type>, ranged>& setting,
+                           const std::vector<Type>& value);
+
     ConfigType type;
     std::unique_ptr<QSettings> qt_config;
     std::string qt_config_loc;
