@@ -76,7 +76,7 @@ Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 | Left stick click | Hide or Show Other Screen |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 
-The **Controls** button above Azahar's window lists them all. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
+The **Controls** button above Azahar's window shows them all on a picture of the controllers. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Update
 
