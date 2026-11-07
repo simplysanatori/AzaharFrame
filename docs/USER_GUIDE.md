@@ -181,6 +181,8 @@ I wanted to play a 3DS game in a window as well, like any other flat game on the
 
 Both modes use the same data folder, so your games, saves, mods, textures and settings are the same. In Flat, Azahar stays in its window on SteamVR's big screen (the theater), and stays there when you close the dashboard. Switching back to VR takes a few seconds while the window goes back into the dashboard. The Frame controllers come through Steam Input as a gamepad and do the same as in VR, with your VR controls profile: a tap of **View** or **Menu** is Select or Start, and the holds and combos work. Holding **Menu** pauses or continues the game; an in-game menu that is open when you switch closes and the game goes on. The mouse is the touch screen. 3D follows Azahar's own 3D setting.
 
+In Flat the window is 16:9, so it fills the big screen. Games start in the **Large Screen** layout: one big screen and the other one small beside it. Tap the right stick click to swap the screens. Tap the left stick click to show only the main screen, and tap it again for both. Hold the right stick click for 1 second to go back to **Large Screen**. Flat keeps this layout to itself, so your layout settings stay as they are for VR. **View > Fullscreen** works in Flat only.
+
 ## Settings
 
 Everything is in the Azahar window, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar. Azahar for Frame starts with the **Dark** theme, which is easier on the eyes in the headset; **Emulation > Configure > General > UI > Theme** changes it.
@@ -200,7 +202,7 @@ Global settings, not per game:
 
 ### Window Scale
 
-Global, not per game: **100%**, **150%** (default) or **200%**. It makes Azahar's window look larger in the headset, so the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (about a quarter less at 150%), and the panel is wider: 30% at 150% and 50% at 200%. In VR the game list has no side-to-side scroll bar; long names are cut short. A window larger than Azahar's, such as the configuration window, makes the panel wider still, up to 50% and no taller than it is wide. The change shows as soon as you press **OK**. Flat mode always uses 100%; there, `QT_SCALE_FACTOR` in `session.env` enlarges the window.
+Global, not per game: **100%**, **150%** (default) or **200%**. It makes Azahar's window look larger in the headset, so the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (about a quarter less at 150%), and the panel is wider: 30% at 150% and 50% at 200%. In VR the game list has no side-to-side scroll bar; long names are cut short. A window larger than Azahar's, such as the configuration window, makes the panel wider still, up to 50% and no taller than it is wide. The change shows as soon as you press **OK**. Flat mode always uses 100%, in a 16:9 window; there, `QT_SCALE_FACTOR` in `session.env` enlarges the window.
 
 ### Background
 

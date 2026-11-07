@@ -311,6 +311,7 @@ private slots:
     void TriggerRotateScreens();
     void ShowFullscreen();
     void HideFullscreen();
+    bool WindowFullscreen() const; ///< AzaharFrame flat3: the game's window is Fullscreen
     void ToggleWindowMode();
     void OnCreateGraphicsSurfaceViewer();
     void OnRecordMovie();

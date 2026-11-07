@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include "common/frame_flat.h" // AzaharFrame
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "common/settings.h"
@@ -759,7 +760,7 @@ void RendererOpenGL::DrawScreens(const Layout::FramebufferLayout& layout, bool f
     }
 
     glUniform1i(uniform_layer, 0);
-    if (!Settings::values.swap_screen.GetValue()) {
+    if (!Settings::WindowSwapScreen()) { // AzaharFrame: flat's own in flat
         DrawTopScreen(layout, top_screen);
         glUniform1i(uniform_layer, 0);
         ApplySecondLayerOpacity(layout.bottom_opacity);

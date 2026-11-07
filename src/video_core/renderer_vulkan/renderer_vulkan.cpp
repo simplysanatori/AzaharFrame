@@ -5,6 +5,7 @@
 #include <cstdlib>     // AzaharFrame
 #include <string_view> // AzaharFrame
 #include "common/assert.h"
+#include "common/frame_flat.h" // AzaharFrame
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
 #include "common/microprofile.h"
@@ -1051,7 +1052,7 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
     // Apply the initial default opacity value; Needed to avoid flickering
     ApplySecondLayerOpacity(1.0f);
 
-    if (!Settings::values.swap_screen.GetValue()) {
+    if (!Settings::WindowSwapScreen()) { // AzaharFrame: flat's own in flat
         DrawTopScreen(layout, top_screen);
         draw_info.layer = 0;
         if (layout.bottom_opacity < 1) {

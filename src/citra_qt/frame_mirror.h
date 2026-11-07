@@ -14,7 +14,8 @@
 // Window Scale (Settings::values.vr_window_scale, 100 to 200 %) makes the window look larger on
 // the panel by showing less of it: the window gets 1/scale of the logical size and the panel
 // grows a little (kPanelGrowth); the image is rendered at more pixels per logical pixel, so
-// the text stays sharp. Flat mode keeps the 100 % size.
+// the text stays sharp. Flat mode keeps the 100 % height at 16:9, the shape of SteamVR's theater
+// screen (1252x704).
 // AZAHARFRAME_MIRROR_SIZE=WxH sets the window size at 100 % (logical pixels, default
 // 1056x704) and AZAHARFRAME_MIRROR_SCALE the image's pixels per window pixel (default: the
 // image is about 2900 to 3400 pixels wide; it stays at most 3400 pixels wide or high).
@@ -58,6 +59,9 @@ public:
     }
     /// VR (a session: capture as above) or flat (the window is on the screen itself: no capture).
     void SetVrShowing(bool showing);
+    /// The window back to the size for the mode, even when that size was asked for before (a
+    /// fullscreen window that went back to normal: its old geometry is not this mode's).
+    void RefitWindow();
     /// AzaharFrame vrqol: a button in the row at the top of the window that shows only while the
     /// in-game menu is open in VR (never on the desktop or in flat). New buttons go to the right
     /// of the ones before. `callback` runs on the GUI thread when the button is clicked (a
@@ -107,7 +111,9 @@ private:
     /// How much wider than its placed width the panel is: the growth for the Window Scale, and
     /// more for a dialog that does not fit the window, up to a limit.
     float PanelScale(const QSize& canvas) const;
-    /// Resizes the window to the size for the Window Scale (VR) or 100 % (flat).
+    /// The window's logical size in flat: 16:9 at the 100 % height.
+    QSize FlatWindowSize() const;
+    /// Resizes the window to the size for the Window Scale (VR) or FlatWindowSize (flat).
     void FitGameList();
     /// True when the size changed.
     bool ApplyWindowSize();

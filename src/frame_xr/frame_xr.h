@@ -143,6 +143,13 @@ void SetScreenPlacement(const ScreenPlacement& placement);
 
 // ---- Qt side -------------------------------------------------------------------
 
+/// AzaharFrame flat3: what a stick click asks of the window's screen layout in flat, in a game.
+enum class FlatScreens {
+    Swap,        ///< right stick click, tap: Swap Screens
+    ToggleOther, ///< left stick click, tap: Single Screen, or back to the layout before it
+    Reset,       ///< right stick click, held 1 s: flat's default layout (Large Screen, not swapped)
+};
+
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
@@ -164,6 +171,9 @@ struct FrontendHooks {
     /// AzaharFrame vrvis: the Stats button next to Azahar's window switched "Show Stats" (the Qt
     /// side sets Settings::values.vr_show_stats and saves the config).
     std::function<void(bool on)> show_stats_changed;
+    /// AzaharFrame flat3: a stick click in flat, in a game (the window's screen layout; the game
+    /// sees nothing of it). Queue to the GUI thread.
+    std::function<void(FlatScreens what)> flat_screens;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 

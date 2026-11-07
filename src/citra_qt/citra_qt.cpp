@@ -145,6 +145,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mode.h"
+#include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/presets.h" // AzaharFrame vrqol
@@ -217,6 +218,40 @@ std::function<void()> g_frame_xr_quick_load;
 std::function<void(bool on, const char* why)> g_frame_xr_fast_forward;
 bool g_frame_xr_fast_forward_on = false;
 QPointer<QPushButton> g_frame_xr_passthrough_button;
+// AzaharFrame flat3: a stick click in flat, in a game: the window's own screen layout
+// (Settings::frame_flat_layout). GUI thread.
+std::function<void(FrameXr::FlatScreens what)> g_frame_xr_flat_screens;
+// ShowFullscreen made the game's window Fullscreen and HideFullscreen did not undo it yet. Qt can
+// lose that state while the window manager keeps it (Fullscreen before the window was mapped).
+bool g_frame_fullscreen = false;
+// The layout a left stick click in flat goes back to from Single Screen.
+Settings::LayoutOption g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
+
+const char* FrameLayoutName(Settings::LayoutOption layout) {
+    switch (layout) {
+    case Settings::LayoutOption::Default:
+        return "Default";
+    case Settings::LayoutOption::SingleScreen:
+        return "Single Screen";
+    case Settings::LayoutOption::LargeScreen:
+        return "Large Screen";
+    case Settings::LayoutOption::HybridScreen:
+        return "Hybrid Screen";
+    case Settings::LayoutOption::SideScreen:
+        return "Side by Side";
+    case Settings::LayoutOption::SeparateWindows:
+        return "Separate Windows";
+    case Settings::LayoutOption::CustomLayout:
+        return "Custom Layout";
+    }
+    return "?";
+}
+
+void LogFlatLayout(const char* why) {
+    const auto& flat = Settings::frame_flat_layout;
+    LOG_INFO(Frontend, "xr: flat layout: {}{} ({})", FrameLayoutName(flat.layout),
+             flat.swap ? ", screens swapped" : "", why);
+}
 
 void FrameXrPushGameDirs() {
     std::vector<FrameXr::LibraryDir> dirs;
@@ -703,6 +738,9 @@ GMainWindow::GMainWindow(Core::System& system_)
         if (Settings::values.graphics_api.GetValue() != Settings::GraphicsAPI::Vulkan) {
             LOG_ERROR(Frontend, "xr: --vr needs the Vulkan renderer; running flat");
         } else if (FrameXr::Start(xr_options)) {
+            // AzaharFrame flat3: flat lays the window out its own way (Large Screen to start
+            // with); VR keeps the configured layout, which places the touch screen.
+            Settings::frame_flat_layout.active = !FrameXr::VrShowing();
             // A flat start from the launcher picked its SDL profile; with XR the controllers come
             // through frame_xr in VR and in flat, so the other profile, chosen by name, never
             // edited (a copy when there is none).
@@ -746,6 +784,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                     Settings::LayoutOption::SeparateWindows) {
                 Settings::values.layout_option.SetValue(Settings::LayoutOption::Default);
             }
+            SyncMenuUISettings(); // AzaharFrame flat3: and flat's own layout, when flat
             g_frame_xr_touch_sink = std::make_unique<FrameXrTouchSink>(*render_window);
             InputCommon::FrameXr::SetTouchSink(g_frame_xr_touch_sink.get());
             FrameXr::FrontendHooks hooks;
@@ -832,6 +871,16 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            hooks.flat_screens = [this](FrameXr::FlatScreens what) { // AzaharFrame flat3
+                QMetaObject::invokeMethod(
+                    this,
+                    [what] {
+                        if (g_frame_xr_flat_screens) {
+                            g_frame_xr_flat_screens(what);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             FrameXr::SetFrontendHooks(std::move(hooks));
             FrameXr::SetFlatInput(FrameMode::ReadGamepad);
             // Both bumpers + View + Menu, in VR or flat: the other mode, kept for the next start.
@@ -871,6 +920,37 @@ GMainWindow::GMainWindow(Core::System& system_)
                 FrameXr::SetFastForwardShown(on);
                 LOG_INFO(Frontend, "xr: fast forward {} ({})", on ? "on" : "off", why);
             };
+            // AzaharFrame flat3: the stick clicks in flat change the window's own layout the way
+            // Azahar's Swap Screens and Toggle Screen Layout hotkeys change the configured one.
+            g_frame_xr_flat_screens = [this](FrameXr::FlatScreens what) {
+                auto& flat = Settings::frame_flat_layout;
+                if (!flat.active || !emulation_running) {
+                    return;
+                }
+                switch (what) {
+                case FrameXr::FlatScreens::Swap:
+                    TriggerSwapScreens(); // OnSwapScreens, which swaps flat's screens in flat
+                    return;
+                case FrameXr::FlatScreens::ToggleOther:
+                    if (flat.layout == Settings::LayoutOption::SingleScreen) {
+                        flat.layout = g_frame_flat_before_single;
+                    } else {
+                        g_frame_flat_before_single = flat.layout;
+                        flat.layout = Settings::LayoutOption::SingleScreen;
+                    }
+                    LogFlatLayout("left stick click");
+                    break;
+                case FrameXr::FlatScreens::Reset:
+                    flat.layout = Settings::LayoutOption::LargeScreen;
+                    flat.swap = false;
+                    g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
+                    LogFlatLayout("right stick click held");
+                    break;
+                }
+                SyncMenuUISettings();
+                system.ApplySettings();
+                UpdateSecondaryWindowVisibility();
+            };
             g_frame_xr_mode_changed = [this](bool vr) {
                 LOG_INFO(Frontend, "xr: now {}", vr ? "in VR" : "flat");
                 if (g_frame_xr_fast_forward) {
@@ -887,15 +967,45 @@ GMainWindow::GMainWindow(Core::System& system_)
                     system.frame_limiter.AdvanceFrame();
                     LOG_INFO(Frontend, "xr: flat, paused: one frame for the window");
                 }
+                // AzaharFrame flat3: Fullscreen (a game started in flat) is for flat only. In VR
+                // the window is the in-game menu, with its menu bar, at the VR size.
+                const bool was_fullscreen =
+                    vr && emulation_running && (WindowFullscreen() || g_frame_fullscreen);
+                if (was_fullscreen) {
+                    HideFullscreen();
+                    LOG_INFO(Frontend, "xr: VR: the window leaves Fullscreen");
+                }
+                // Flat's own screen layout in flat, the configured one in VR.
+                Settings::frame_flat_layout.active = !vr;
+                SyncMenuUISettings();
+                if (emulation_running && system.IsPoweredOn()) {
+                    system.GPU().Renderer().UpdateCurrentFramebufferLayout();
+                }
+                if (!vr) {
+                    LogFlatLayout("flat");
+                }
                 if (g_frame_mirror) {
                     g_frame_mirror->SetVrShowing(vr);
                 }
                 if (vr) {
                     if (g_frame_mirror) {
+                        if (was_fullscreen) {
+                            // Its geometry from before Fullscreen is flat's: the VR size again,
+                            // now and once the window manager has answered.
+                            g_frame_mirror->RefitWindow();
+                            QTimer::singleShot(1000, this, [] {
+                                if (g_frame_mirror && FrameXr::VrShowing()) {
+                                    g_frame_mirror->RefitWindow();
+                                }
+                            });
+                        }
                         FrameMode::FadeWindow(this, true); // the panel is the window in VR
                     }
                 } else {
                     FrameMode::ReturnToFlat(this);
+                    if (emulation_running && ui->action_Fullscreen->isChecked()) {
+                        ShowFullscreen(); // as when a game starts in flat
+                    }
                 }
             };
             // AzaharFrame vrqol: Quick Save and Quick Load from the controllers or the in-game
@@ -3537,7 +3647,20 @@ void GMainWindow::ToggleSecondaryFullscreen() {
     }
 }
 
+bool GMainWindow::WindowFullscreen() const {
+    return ui->action_Single_Window_Mode->isChecked() ? isFullScreen()
+                                                      : render_window->isFullScreen();
+}
+
 void GMainWindow::ShowFullscreen() {
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame flat3: not in VR, where the window is the in-game menu (it needs its menu bar
+    // and the VR size). The setting stays; flat goes Fullscreen again.
+    if (FrameXr::VrShowing()) {
+        return;
+    }
+    g_frame_fullscreen = FrameXr::IsStarted();
+#endif
     if (ui->action_Single_Window_Mode->isChecked()) {
         UISettings::values.geometry = saveGeometry();
         ui->menubar->hide();
@@ -3556,6 +3679,25 @@ void GMainWindow::ShowFullscreen() {
 }
 
 void GMainWindow::HideFullscreen() {
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame flat3: only a window that is Fullscreen (VR never is): the geometry saved
+    // before Fullscreen would undo the VR size.
+    if (FrameXr::IsStarted()) {
+        if (!WindowFullscreen() && !g_frame_fullscreen) {
+            return;
+        }
+        if (!WindowFullscreen()) {
+            // Qt lost the state the window manager kept: Fullscreen again first, so that the
+            // window manager is told to leave it.
+            QWidget* const window = ui->action_Single_Window_Mode->isChecked()
+                                        ? static_cast<QWidget*>(this)
+                                        : render_window;
+            window->setWindowState(window->windowState() | Qt::WindowFullScreen);
+            LOG_INFO(Frontend, "xr: Fullscreen again first, to leave it");
+        }
+        g_frame_fullscreen = false;
+    }
+#endif
     if (ui->action_Single_Window_Mode->isChecked()) {
         statusBar()->setVisible(ui->action_Show_Status_Bar->isChecked());
         ui->menubar->show();
@@ -3635,6 +3777,23 @@ void GMainWindow::ChangeScreenLayout() {
         new_layout = Settings::LayoutOption::CustomLayout;
     }
 
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame flat3: in flat the menu sets flat's own layout; the configured one stays for
+    // VR. Separate Windows has no second window with XR: the layout stays.
+    auto& flat = Settings::frame_flat_layout;
+    if (flat.active) {
+        if (new_layout != Settings::LayoutOption::SeparateWindows) {
+            flat.layout = new_layout;
+            if (new_layout != Settings::LayoutOption::SingleScreen) {
+                g_frame_flat_before_single = new_layout;
+            }
+        }
+        LogFlatLayout("View menu");
+        SyncMenuUISettings();
+        system.ApplySettings();
+        return;
+    }
+#endif
     Settings::values.layout_option = new_layout;
     SyncMenuUISettings();
     system.ApplySettings();
@@ -3714,7 +3873,8 @@ void GMainWindow::AdjustSpeedLimit(bool increase) {
 
 void GMainWindow::ToggleScreenLayout() {
     const Settings::LayoutOption new_layout = []() {
-        const Settings::LayoutOption current_layout = Settings::values.layout_option.GetValue();
+        // AzaharFrame flat3: in flat, from flat's own layout.
+        const Settings::LayoutOption current_layout = Settings::WindowLayoutOption();
         std::vector<Settings::LayoutOption> layouts_to_cycle =
             Settings::values.layouts_to_cycle.GetValue();
         const auto current_pos =
@@ -3733,6 +3893,21 @@ void GMainWindow::ToggleScreenLayout() {
         }
     }();
 
+#ifdef ENABLE_FRAME_XR
+    auto& flat = Settings::frame_flat_layout; // AzaharFrame flat3: as ChangeScreenLayout
+    if (flat.active) {
+        if (new_layout != Settings::LayoutOption::SeparateWindows) {
+            flat.layout = new_layout;
+            if (new_layout != Settings::LayoutOption::SingleScreen) {
+                g_frame_flat_before_single = new_layout;
+            }
+        }
+        LogFlatLayout("Toggle Screen Layout");
+        SyncMenuUISettings();
+        system.ApplySettings();
+        return;
+    }
+#endif
     Settings::values.layout_option = new_layout;
     SyncMenuUISettings();
     system.ApplySettings();
@@ -3740,6 +3915,14 @@ void GMainWindow::ToggleScreenLayout() {
 }
 
 void GMainWindow::OnSwapScreens() {
+#ifdef ENABLE_FRAME_XR
+    if (Settings::frame_flat_layout.active) { // AzaharFrame flat3: flat's own, as above
+        Settings::frame_flat_layout.swap = ui->action_Screen_Layout_Swap_Screens->isChecked();
+        LogFlatLayout("Swap Screens");
+        system.ApplySettings();
+        return;
+    }
+#endif
     Settings::values.swap_screen = ui->action_Screen_Layout_Swap_Screens->isChecked();
     system.ApplySettings();
 }
@@ -5282,25 +5465,26 @@ void GMainWindow::UpdateUISettings() {
 }
 
 void GMainWindow::SyncMenuUISettings() {
-    ui->action_Screen_Layout_Default->setChecked(Settings::values.layout_option.GetValue() ==
+    // AzaharFrame flat3: the layout the window uses (flat's own in flat, common/frame_flat.h).
+    ui->action_Screen_Layout_Default->setChecked(Settings::WindowLayoutOption() ==
                                                  Settings::LayoutOption::Default);
-    ui->action_Screen_Layout_Single_Screen->setChecked(Settings::values.layout_option.GetValue() ==
+    ui->action_Screen_Layout_Single_Screen->setChecked(Settings::WindowLayoutOption() ==
                                                        Settings::LayoutOption::SingleScreen);
-    ui->action_Screen_Layout_Large_Screen->setChecked(Settings::values.layout_option.GetValue() ==
+    ui->action_Screen_Layout_Large_Screen->setChecked(Settings::WindowLayoutOption() ==
                                                       Settings::LayoutOption::LargeScreen);
-    ui->action_Screen_Layout_Hybrid_Screen->setChecked(Settings::values.layout_option.GetValue() ==
+    ui->action_Screen_Layout_Hybrid_Screen->setChecked(Settings::WindowLayoutOption() ==
                                                        Settings::LayoutOption::HybridScreen);
-    ui->action_Screen_Layout_Side_by_Side->setChecked(Settings::values.layout_option.GetValue() ==
+    ui->action_Screen_Layout_Side_by_Side->setChecked(Settings::WindowLayoutOption() ==
                                                       Settings::LayoutOption::SideScreen);
-    ui->action_Screen_Layout_Separate_Windows->setChecked(
-        Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows);
-    ui->action_Screen_Layout_Custom_Layout->setChecked(Settings::values.layout_option.GetValue() ==
+    ui->action_Screen_Layout_Separate_Windows->setChecked(Settings::WindowLayoutOption() ==
+                                                          Settings::LayoutOption::SeparateWindows);
+    ui->action_Screen_Layout_Custom_Layout->setChecked(Settings::WindowLayoutOption() ==
                                                        Settings::LayoutOption::CustomLayout);
-    ui->action_Screen_Layout_Swap_Screens->setChecked(Settings::values.swap_screen.GetValue());
+    ui->action_Screen_Layout_Swap_Screens->setChecked(Settings::WindowSwapScreen());
     ui->action_Screen_Layout_Upright_Screens->setChecked(
         Settings::values.upright_screen.GetValue());
 
-    ui->menu_Small_Screen_Position->setEnabled(Settings::values.layout_option.GetValue() ==
+    ui->menu_Small_Screen_Position->setEnabled(Settings::WindowLayoutOption() ==
                                                Settings::LayoutOption::LargeScreen);
 
     ui->action_Small_Screen_TopRight->setChecked(

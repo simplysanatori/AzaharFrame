@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <mutex>
+#include "common/frame_flat.h" // AzaharFrame: flat mode's own screen layout
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/3ds.h"
@@ -92,9 +93,9 @@ Settings::StereoRenderOption EmuWindow::get3DMode() const {
     Settings::StereoRenderOption render_3d_mode = Settings::values.render_3d.GetValue();
 #ifndef ANDROID
     // on desktop, if separate windows and this is the bottom screen, then no stereo
-    if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows &&
-        ((!is_secondary && Settings::values.swap_screen.GetValue()) ||
-         (is_secondary && !Settings::values.swap_screen.GetValue()))) {
+    if (Settings::WindowLayoutOption() == Settings::LayoutOption::SeparateWindows &&
+        ((!is_secondary && Settings::WindowSwapScreen()) ||
+         (is_secondary && !Settings::WindowSwapScreen()))) {
         render_3d_mode = Settings::StereoRenderOption::Off;
     }
 #else
@@ -211,11 +212,13 @@ void EmuWindow::TouchMoved(unsigned framebuffer_x, unsigned framebuffer_y) {
 
 void EmuWindow::UpdateCurrentFramebufferLayout(u32 width, u32 height, bool is_portrait_mode) {
     Layout::FramebufferLayout layout;
-    const Settings::LayoutOption layout_option = Settings::values.layout_option.GetValue();
+    // AzaharFrame: in flat, the window's own layout (common/frame_flat.h).
+    const Settings::LayoutOption layout_option = Settings::WindowLayoutOption();
+    const bool swap_screen = Settings::WindowSwapScreen();
     const Settings::StereoRenderOption stereo_option = get3DMode();
     bool render_full_stereo = (stereo_option == Settings::StereoRenderOption::SideBySideFull);
     bool is_bottom = is_secondary;
-    if (Settings::values.swap_screen.GetValue())
+    if (swap_screen)
         is_bottom = !is_bottom;
 
 #ifdef ANDROID
@@ -250,48 +253,40 @@ void EmuWindow::UpdateCurrentFramebufferLayout(u32 width, u32 height, bool is_po
     if (is_portrait_mode) {
         switch (portrait_layout_option) {
         case Settings::PortraitLayoutOption::PortraitTopFullWidth:
-            layout = Layout::PortraitTopFullFrameLayout(width, height,
-                                                        Settings::values.swap_screen.GetValue(),
+            layout = Layout::PortraitTopFullFrameLayout(width, height, swap_screen,
                                                         Settings::values.upright_screen.GetValue());
             break;
         case Settings::PortraitLayoutOption::PortraitCustomLayout:
-            layout = Layout::CustomFrameLayout(
-                width, height, Settings::values.swap_screen.GetValue(), is_portrait_mode);
+            layout = Layout::CustomFrameLayout(width, height, swap_screen, is_portrait_mode);
             break;
         case Settings::PortraitLayoutOption::PortraitOriginal:
-            layout = Layout::PortraitOriginalLayout(width, height,
-                                                    Settings::values.swap_screen.GetValue(),
+            layout = Layout::PortraitOriginalLayout(width, height, swap_screen,
                                                     Settings::values.upright_screen.GetValue());
             break;
         }
     } else {
         switch (layout_option) {
         case Settings::LayoutOption::CustomLayout:
-            layout = Layout::CustomFrameLayout(
-                width, height, Settings::values.swap_screen.GetValue(), is_portrait_mode);
+            layout = Layout::CustomFrameLayout(width, height, swap_screen, is_portrait_mode);
             break;
         case Settings::LayoutOption::SingleScreen:
-            layout =
-                Layout::SingleFrameLayout(width, height, Settings::values.swap_screen.GetValue(),
-                                          Settings::values.upright_screen.GetValue());
+            layout = Layout::SingleFrameLayout(width, height, swap_screen,
+                                               Settings::values.upright_screen.GetValue());
             break;
         case Settings::LayoutOption::LargeScreen:
-            layout =
-                Layout::LargeFrameLayout(width, height, Settings::values.swap_screen.GetValue(),
-                                         Settings::values.upright_screen.GetValue(),
-                                         Settings::values.large_screen_proportion.GetValue(),
-                                         Settings::values.small_screen_position.GetValue());
+            layout = Layout::LargeFrameLayout(width, height, swap_screen,
+                                              Settings::values.upright_screen.GetValue(),
+                                              Settings::values.large_screen_proportion.GetValue(),
+                                              Settings::values.small_screen_position.GetValue());
             break;
         case Settings::LayoutOption::HybridScreen:
-            layout =
-                Layout::HybridScreenLayout(width, height, Settings::values.swap_screen.GetValue(),
-                                           Settings::values.upright_screen.GetValue());
+            layout = Layout::HybridScreenLayout(width, height, swap_screen,
+                                                Settings::values.upright_screen.GetValue());
             break;
         case Settings::LayoutOption::SideScreen:
-            layout =
-                Layout::LargeFrameLayout(width, height, Settings::values.swap_screen.GetValue(),
-                                         Settings::values.upright_screen.GetValue(), 1.0f,
-                                         Settings::SmallScreenPosition::MiddleRight);
+            layout = Layout::LargeFrameLayout(width, height, swap_screen,
+                                              Settings::values.upright_screen.GetValue(), 1.0f,
+                                              Settings::SmallScreenPosition::MiddleRight);
             break;
 #ifndef ANDROID
         case Settings::LayoutOption::SeparateWindows:
@@ -301,9 +296,8 @@ void EmuWindow::UpdateCurrentFramebufferLayout(u32 width, u32 height, bool is_po
 #endif
         case Settings::LayoutOption::Default:
         default:
-            layout =
-                Layout::DefaultFrameLayout(width, height, Settings::values.swap_screen.GetValue(),
-                                           Settings::values.upright_screen.GetValue());
+            layout = Layout::DefaultFrameLayout(width, height, swap_screen,
+                                                Settings::values.upright_screen.GetValue());
             break;
         }
     }

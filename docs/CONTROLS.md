@@ -240,8 +240,10 @@ The differences:
 
 - There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
 - The triggers are always ZL and ZR, and the grips do nothing.
-- The stick clicks do nothing, because the window always shows both screens.
+- The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped.
 - Holding **Menu** for 1 second pauses or continues the game instead of opening the in-game menu. If the in-game menu is open when you switch to Flat, it closes and the game goes on.
+
+Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 
 Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Forward and the switch to VR work as in VR, and the game sees the same of their buttons as in VR (see [Buttons](#buttons)).
 

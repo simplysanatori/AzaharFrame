@@ -262,7 +262,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
     Input::PanelGeometry panels;
     panels.top.visible = false;
     panels.bottom.visible = false;
-    panels.bottom_toggle_enabled = false; // the window shows both screens
+    panels.bottom_toggle_enabled = false; // the stick clicks lay out the window instead
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
     LogFlatGameButtons(out.controls);
@@ -272,6 +272,22 @@ void VrUi::FlatFrame(int64_t now_ns) {
     }
     RequestQuick(cmd, "flat"); // AzaharFrame vrqol
     RequestFastForward(cmd, "flat");
+    // AzaharFrame flat3: the stick clicks change the window's screen layout, as they change the
+    // screens in VR (swap, hide the other one, reset).
+    const auto flat_screens = [this](bool fired, FlatScreens what, const char* name) {
+        if (!fired) {
+            return;
+        }
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.flat_screens) {
+            LOG_INFO(Frontend, "xr: flat: {}", name);
+            hooks.flat_screens(what);
+        }
+    };
+    flat_screens(cmd.swap_screens, FlatScreens::Swap, "right stick click: Swap Screens");
+    flat_screens(cmd.reset_panels, FlatScreens::Reset, "right stick click held: flat layout");
+    flat_screens(cmd.toggle_other_screen, FlatScreens::ToggleOther,
+                 "left stick click: Single Screen on / off");
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {

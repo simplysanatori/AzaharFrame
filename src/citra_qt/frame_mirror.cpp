@@ -283,11 +283,23 @@ qreal FrameMirror::Scale(const QSize& canvas, float panel_scale) const {
     return s;
 }
 
+QSize FrameMirror::FlatWindowSize() const {
+    // 16:9 like SteamVR's theater screen, so it shows no bars at its sides: the 100 % height,
+    // wider (1252x704 by default). An even width, as in WindowSizeFor.
+    const int height = window_size.height();
+    return QSize(2 * qRound(height * 16.0 / 9.0 / 2.0), height);
+}
+
+void FrameMirror::RefitWindow() {
+    requested_size = {};
+    ApplyWindowSize();
+}
+
 bool FrameMirror::ApplyWindowSize() {
     if (!main || main->isMaximized() || main->isFullScreen()) {
         return false;
     }
-    const QSize target = vr_showing ? WindowSizeFor(WindowScale()) : window_size;
+    const QSize target = vr_showing ? WindowSizeFor(WindowScale()) : FlatWindowSize();
     if (target == requested_size) {
         return false; // (the window may be larger than asked: its layout has a minimum)
     }
