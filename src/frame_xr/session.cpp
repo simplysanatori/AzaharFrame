@@ -31,6 +31,27 @@ const char* ScreenName(std::size_t i) {
     return names[i];
 }
 
+// AzaharFrame handoff: the renderer's handoff thread waits for an image of each screen ahead of
+// time, so a swapchain may hold an acquired or waited image when it is destroyed. It goes back
+// first (OpenXR runtimes may refuse to destroy a swapchain with acquired images). The caller
+// holds screens_mutex, so no xrEndFrame comes in between.
+void ReturnHeldImage(ScreenChain& chain, QueueLock& queue_lock) {
+    auto& xr = Xr();
+    if (chain.acquired && !chain.waited) {
+        XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+        wi.timeout = 100'000'000;
+        if (xr.xrWaitSwapchainImage(chain.handle, &wi) == XR_SUCCESS) {
+            chain.acquired = false;
+            chain.waited = true;
+        }
+    }
+    if (chain.waited) {
+        XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+        queue_lock.With([&] { return xr.xrReleaseSwapchainImage(chain.handle, &ri); });
+        chain.waited = false;
+    }
+}
+
 } // namespace
 
 Runtime::Runtime() {
@@ -250,6 +271,7 @@ void Runtime::DestroySession() {
         std::scoped_lock lock{screens_mutex};
         for (auto& chain : screens) {
             if (chain.handle && xr.xrDestroySwapchain) {
+                ReturnHeldImage(chain, queue_lock);
                 const XrResult r =
                     queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
                 if (XR_FAILED(r)) {
@@ -334,6 +356,7 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
     // Runtimes may use the app's queue here (layout transitions), so under the queue lock
     // (order: screens_mutex, then the queue lock, as in EndFrame).
     if (chain.handle) {
+        ReturnHeldImage(chain, queue_lock);
         queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
         chain = {};
     }

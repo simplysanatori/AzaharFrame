@@ -1068,6 +1068,23 @@ GMainWindow::GMainWindow(Core::System& system_)
                 });
             }
 
+            // Test driver: AZAHARFRAME_TEST_RESOLUTIONS="20:1,35:4" sets Internal Resolution
+            // (the setting's value) at those seconds after start, as the settings would.
+            for (const QString& step :
+                 qEnvironmentVariable("AZAHARFRAME_TEST_RESOLUTIONS").split(QLatin1Char(','),
+                                                                           Qt::SkipEmptyParts)) {
+                const auto parts = step.split(QLatin1Char(':'));
+                if (parts.size() != 2) {
+                    continue;
+                }
+                const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
+                const u32 factor = parts[1].toUInt();
+                QTimer::singleShot(ms, this, [ms, factor] {
+                    LOG_INFO(Frontend, "xr test: Internal Resolution {} at {} ms", factor, ms);
+                    Settings::values.resolution_factor.SetValue(factor);
+                });
+            }
+
             // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
             // each ROM in turn after the first, each for AZAHARFRAME_TEST_SECONDS (15).
             const QString boots = qEnvironmentVariable("AZAHARFRAME_TEST_BOOTS");
