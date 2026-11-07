@@ -18,13 +18,15 @@
 #   AZAHARFRAME_BUILD=DIR      the build to install from a checkout (default <repo>/build/bin/Release)
 #   AZAHARFRAME_SKIP_STEAM=1   leave Steam's library and SteamVR's settings alone
 #   AZAHARFRAME_DRY_RUN=1      the same as --dry-run
+#   AZAHARFRAME_CEF_PORT=N     Steam's debugging port (default 8080), for a stand-in Steam
+#   AZAHARFRAME_VRCMD=FILE     SteamVR's vrcmd (default /opt/steamvr/bin/linuxarm64/vrcmd), for a stand-in
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 DEST=${AZAHARFRAME_APP:-$HOME/Games/AzaharFrame/app}
 DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 SKIP_STEAM=${AZAHARFRAME_SKIP_STEAM:-}
 NAME="Azahar for Frame"
-VRCMD=/opt/steamvr/bin/linuxarm64/vrcmd
+VRCMD=${AZAHARFRAME_VRCMD:-/opt/steamvr/bin/linuxarm64/vrcmd}
 DRY=${AZAHARFRAME_DRY_RUN:-}
 case "$1" in -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;; esac
 if [ "$1" = --dry-run ]; then DRY=1; shift; fi

@@ -197,7 +197,7 @@ echo "XR_RUNTIME_JSON=${XR_RUNTIME_JSON:-default lookup}"
 # smoothing.  SteamAppId is set by Steam when launched from the library.
 HZ=${AZAHARFRAME_REFRESH_HZ:-120}
 case "$HZ" in 90 | 120) ;; *) HZ=120 ;; esac
-VRCMD=/opt/steamvr/bin/linuxarm64/vrcmd
+VRCMD=${AZAHARFRAME_VRCMD:-/opt/steamvr/bin/linuxarm64/vrcmd}
 if [ -n "$SteamAppId" ] && [ -x "$VRCMD" ]; then
   for kv in preferredRefreshRate=$HZ framesToThrottle=0 additionalFramesToPredict=0 motionSmoothingOverride=2; do
     "$VRCMD" --set-settings-int "steam.app.$SteamAppId.${kv%=*}" "${kv#*=}" > /dev/null 2>&1 || echo "could not set SteamVR's ${kv%=*}"

@@ -1,0 +1,5 @@
+# Known harmless hits for privacy-check.sh: a path regex, a TAB, and a regex for the text to ignore on lines of the files whose path matches.
+# (No personal data belongs in this file.)
+^src/tests/	[\w)\]]\.(?:3ds|cci|cia)\b
+^(docs/TECHNICAL_NOTES\.md|src/citra_qt/citra_qt\.cpp)$	a\.3ds\\?\|b\.cci
+^docs/PRIVACY_AUDIT\.md$	192\.168\.|/home/\w*|Wi-Fi name
