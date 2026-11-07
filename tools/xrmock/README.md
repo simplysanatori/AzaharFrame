@@ -49,6 +49,7 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_SWAY=0` | keep the head still |
 | `MOCK_XR_SKIP=1` | a frame begun late loses refreshes |
 | `MOCK_XR_EXTENSIONS=a,b` | replace the list of extensions offered |
+| `MOCK_XR_END_GPU=1` | `xrEndFrame` waits for the app's queue to go idle before it returns, as SteamVR's did on the Frame while a GPU-heavy game ran (13 to 23 ms calls). The app holds its queue lock around the call, so this also holds back the app's own submits and swapchain releases |
 | `MOCK_XR_BUSY_MS=<ms>` | at each release, wait for the app's queue to go idle; longer than this is an error ("released while GPU work could still be pending"). Off by default, because it stalls the app's queue and submits on it from the releasing thread |
 | `MOCK_XR_TRACE_POSE=1` | quad positions in the trace |
 | `MOCK_XR_INPUT_SCRIPT=<file>` | scripted input, below |

@@ -19,6 +19,7 @@ add_executable(tests
     ../frame_xr/vis/help_layout.cpp # AzaharFrame screenswap
     ../frame_xr/vis/model_file.cpp # AzaharFrame vrvis
     frame_xr/vis.cpp # AzaharFrame vrvis
+    frame_xr/xr_handoff.cpp # AzaharFrame handoff
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

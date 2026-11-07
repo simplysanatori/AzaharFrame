@@ -290,6 +290,10 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
         late[i] = take(stats.late[i]);
         unfinished[i] = take(stats.unfinished[i]);
     }
+    const uint32_t spill_shown = take(stats.spill_shown);
+    const uint32_t spill_replaced = take(stats.spill_replaced);
+    const uint32_t emu_waits = take(stats.emu_waits);
+    const double emu_wait_ms = take(stats.emu_wait_us_max) / 1000.0;
     const uint32_t skipped = take(stats.skipped_acquires);
     const uint32_t end_errors = take(stats.end_frame_errors);
     const uint32_t emu_frames = take(stats.emu_frames);
@@ -313,13 +317,15 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
                    : std::string{"emu frame -"};
     LOG_INFO(Frontend,
              "xr: {:.1f}s display {} frames, waitFrame period {:.2f} ms (max {:.2f}), releases "
-             "TL/TR/B {}/{}/{}, late {}/{}/{}, before GPU done {}/{}/{}, acquire timeouts {}, "
+             "TL/TR/B {}/{}/{}, late {}/{}/{} (copied in {}, replaced {}), emu waited on XR {} (max "
+             "{:.2f} ms), before GPU done {}/{}/{}, acquire timeouts {}, "
              "endFrame errors {}, state {}, screens {}, {}, window presents {}, XR queue lock wait "
              "max {:.2f} ms, emu submit max {:.2f} ms (lock wait {:.2f}), window present max "
              "{:.2f} ms, vkAllocateMemory max {:.1f} ms (largest {:.0f} MiB), slowest frame "
              "{:.1f} ms ({})",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
-             late[2], unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
+             late[2], spill_shown, spill_replaced, emu_waits, emu_wait_ms,
+             unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,

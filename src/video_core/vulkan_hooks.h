@@ -74,6 +74,7 @@ public:
     /// Acquires and waits for the next image of a screen. Returns the index, or -1
     /// (the image last released has not been, or the runtime timed out). Takes the
     /// queue lock itself: the caller must not hold the renderer's submit mutex.
+    /// Only the renderer's handoff thread calls it (and Release), never the emu thread.
     virtual int32_t Acquire(XrScreen screen) = 0;
 
     /// Releases the image last acquired, once the GPU finished writing it
@@ -90,7 +91,17 @@ public:
     virtual void SetScreensLive(bool live) = 0;
 
     /// Counts for the once-a-second log line.
+    /// A frame found the screen's swapchain image still in use (the GPU had not finished the
+    /// frame before) and was drawn into a spill slot instead of waiting.
     virtual void NoteLateRelease(XrScreen screen) = 0;
+    /// Once per emulated frame given to the XR output (emu thread): its period.
+    virtual void NoteEmuFrame() = 0;
+    /// A spilled frame was copied into the swapchains and released (handoff thread).
+    virtual void NoteSpillShown() = 0;
+    /// A spilled frame was dropped before it was shown (a newer one replaced it).
+    virtual void NoteSpillReplaced() = 0;
+    /// The emu thread waited `us` for the XR side (only when swapchains are made again).
+    virtual void NoteEmuWait(uint32_t us) = 0;
     /// The desktop window was drawn and presented, taking `cpu_us` on the emu thread.
     virtual void NoteWindowPresent(uint32_t cpu_us) = 0;
 };

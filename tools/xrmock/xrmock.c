@@ -25,6 +25,9 @@
 //   MOCK_XR_EXTENSIONS=a,b    replace the list of extensions offered
 //   MOCK_XR_SKIP=1            a frame begun late loses refreshes (the display
 //                             times jump), as on a headset
+//   MOCK_XR_END_GPU=1         xrEndFrame waits for the app's queue to go idle, as
+//                             SteamVR's did on the Frame with a GPU-heavy game
+//                             (13-23 ms xrEndFrame calls, under the app's queue lock)
 //   MOCK_XR_BUSY_MS=<ms>      a release that waits longer than this for the
 //                             app's queue to go idle is an error (off unless
 //                             set: it stalls the app's queue)
@@ -1359,6 +1362,10 @@ static XrResult XRAPI_CALL mBeginFrame(XrSession s, const XrFrameBeginInfo* bi) 
 static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     (void)s;
     char buf[2048] = "";
+    // Opt-in (MOCK_XR_END_GPU=1): the call lasts until the app's queue is idle.
+    static int endGpu = -1;
+    if (endGpu < 0) endGpu = getenv("MOCK_XR_END_GPU") && getenv("MOCK_XR_END_GPU")[0] == '1';
+    if (endGpu && gGfx && gGfx->release_wait_ms) gGfx->release_wait_ms();
     LOCK();
     if (!gBegun) {
         mock_error("endFrame without a beginFrame");

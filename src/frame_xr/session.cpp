@@ -338,8 +338,9 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
         chain = {};
     }
     XrSwapchainCreateInfo ci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+    // Transfer dst: a frame drawn while the images were in use is copied in (vk_xr_target.cpp).
     ci.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT |
-                    XR_SWAPCHAIN_USAGE_TRANSFER_SRC_BIT;
+                    XR_SWAPCHAIN_USAGE_TRANSFER_SRC_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
     ci.format = swapchain_format;
     ci.sampleCount = 1;
     ci.width = width;
@@ -380,24 +381,9 @@ uint32_t Runtime::SwapchainImages(VideoCore::XrScreen screen, VkImage* images, u
 
 int32_t Runtime::Acquire(VideoCore::XrScreen screen) {
     const auto i = static_cast<std::size_t>(screen);
-    // Only the renderer acquires, releases and recreates, from the emu thread and
-    // its release thread (which the renderer orders): no screens_mutex here.
+    // Only the renderer acquires and releases (its handoff thread) and recreates (the emu
+    // thread, with the handoff thread drained and paused): no screens_mutex here.
     ScreenChain& chain = screens[i];
-    if (screen == VideoCore::XrScreen::TopLeft) {
-        // Once per emulated frame: its period for the per-second summary.
-        const auto now = std::chrono::steady_clock::now();
-        const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now - last_emu_frame)
-                            .count();
-        if (last_emu_frame.time_since_epoch().count() != 0 && us > 0 && us < 1'000'000) {
-            stats.emu_frames++;
-            stats.emu_frame_us_sum += static_cast<uint64_t>(us);
-            uint32_t prev = stats.emu_frame_us_max.load();
-            while (static_cast<uint32_t>(us) > prev &&
-                   !stats.emu_frame_us_max.compare_exchange_weak(prev, static_cast<uint32_t>(us))) {
-            }
-        }
-        last_emu_frame = now;
-    }
     std::shared_lock chains_lock{chains_mutex}; // the swapchain stays until this returns
     if (!chain.handle || chain.waited || detaching) {
         return -1;
@@ -473,6 +459,37 @@ void Runtime::SetScreensLive(bool live) {
 
 void Runtime::NoteLateRelease(VideoCore::XrScreen screen) {
     stats.late[static_cast<std::size_t>(screen)]++;
+}
+
+void Runtime::NoteEmuFrame() {
+    // Once per emulated frame: its period for the per-second summary.
+    const auto now = std::chrono::steady_clock::now();
+    const auto us =
+        std::chrono::duration_cast<std::chrono::microseconds>(now - last_emu_frame).count();
+    if (last_emu_frame.time_since_epoch().count() != 0 && us > 0 && us < 1'000'000) {
+        stats.emu_frames++;
+        stats.emu_frame_us_sum += static_cast<uint64_t>(us);
+        uint32_t prev = stats.emu_frame_us_max.load();
+        while (static_cast<uint32_t>(us) > prev &&
+               !stats.emu_frame_us_max.compare_exchange_weak(prev, static_cast<uint32_t>(us))) {
+        }
+    }
+    last_emu_frame = now;
+}
+
+void Runtime::NoteSpillShown() {
+    stats.spill_shown++;
+}
+
+void Runtime::NoteSpillReplaced() {
+    stats.spill_replaced++;
+}
+
+void Runtime::NoteEmuWait(uint32_t us) {
+    stats.emu_waits++;
+    uint32_t prev = stats.emu_wait_us_max.load();
+    while (us > prev && !stats.emu_wait_us_max.compare_exchange_weak(prev, us)) {
+    }
 }
 
 } // namespace FrameXr
