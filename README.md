@@ -128,6 +128,7 @@ Custom textures are on from the first launch, and they load in the background wh
 | Left stick click | Home |
 | Right stick click | Reset the screen positions |
 | Both bumpers + **View** | Show or hide the bottom screen, in games that hide it |
+| Both bumpers + **View** + **Menu** | Switch between VR and Flat (Azahar's window on the Frame's screen) |
 
 On Azahar's window and in the in-game menu:
 

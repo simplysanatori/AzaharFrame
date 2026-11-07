@@ -22,6 +22,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left stick click | Home | |
 | Right stick click | Resets the screen positions | Nothing reaches the game. Ignored while the stick is pushed more than half way, so free camera cannot reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
+| Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
 
 The left Steam button belongs to SteamVR and is never bound.
 
@@ -64,6 +65,14 @@ When no game runs, Azahar's own window floats in front of you: the game list, th
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once; the VR settings apply the next time a game starts.
 
 To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Immersive mode shows the normal screens while the menu is open.
+
+## VR and Flat
+
+Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on the Frame's screen, as a normal app, and the game draws one eye only; back in VR the 3D comes back. The next start uses the mode you switched to last.
+
+The buttons mean the same in both modes. In Flat the controllers reach Azahar as Steam Input's gamepad, so there is no laser: the triggers are ZL and ZR, the mouse is the touch screen, and the Frame's pointer is the mouse for Azahar's menus. Holding **Menu** for 1 second pauses or continues the game, and holding **View** for 1.5 seconds stops it, as in VR.
+
+Hold both bumpers first. **View** with both bumpers waits a moment for **Menu** before it does anything else (the bottom screen, or Select). The game sees L and R until the switch, then nothing of the four until you let go.
 
 ## Hiding the bottom screen
 

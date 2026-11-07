@@ -519,6 +519,11 @@ TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[fr
     SECTION("View pressed with both bumpers held toggles once and never reaches the game") {
         frame.view = true;
         out = runner.Step(frame);
+        // It waits for Menu (the VR / flat chord) first.
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        runner.now += 150'000'000;
+        out = runner.Step(frame);
         REQUIRE(out.commands.toggle_bottom);
         REQUIRE_FALSE(out.controls.Get(Control::View));
         out = runner.Step(frame);
@@ -562,12 +567,110 @@ TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[fr
         REQUIRE_FALSE(out.commands.toggle_bottom);
         REQUIRE(out.controls.Get(Control::View));
     }
-    SECTION("without the toggle enabled the game sees L, R and Select") {
+    SECTION("a tap on View toggles once, when let go") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.view = false;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+    }
+    SECTION("without the toggle enabled the game sees L, R and Select, Select a little later") {
         runner.panels.bottom_toggle_enabled = false;
         frame.view = true;
         out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE(out.controls.Get(Control::BumperL));
+        runner.now += 150'000'000;
+        out = runner.Step(frame);
         REQUIRE_FALSE(out.commands.toggle_bottom);
         REQUIRE(out.controls.Get(Control::View));
+        REQUIRE(out.controls.Get(Control::BumperL));
+    }
+    SECTION("without the toggle enabled a quick tap still reaches the game as Select") {
+        runner.panels.bottom_toggle_enabled = false;
+        frame.view = true;
+        runner.Step(frame);
+        frame.view = false;
+        out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::View));
+        runner.now += 120'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+    }
+}
+
+TEST_CASE("FrameXr mapper: both bumpers, View and Menu switch between VR and flat", "[frame_xr]") {
+    Runner runner;
+    runner.panels.bottom_toggle_enabled = true;
+    InputFrame frame = IdleFrame();
+    frame.hand[0].bumper = true;
+    frame.hand[1].bumper = true;
+    runner.Step(frame);
+
+    const auto release_all = [&] {
+        InputFrame idle = IdleFrame();
+        MapperOutput last;
+        for (int i = 0; i < 12; ++i) { // over 100 ms: no Start or Select pulse may follow
+            last = runner.Step(idle);
+            REQUIRE_FALSE(last.controls.Get(Control::Menu));
+            REQUIRE_FALSE(last.controls.Get(Control::View));
+            REQUIRE_FALSE(last.commands.toggle_bottom);
+            REQUIRE_FALSE(last.commands.menu_toggle);
+        }
+    };
+
+    SECTION("Menu first, then View: switches once; the game sees neither, nor L and R after") {
+        frame.menu = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_vr);
+        frame.view = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_vr);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+        REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        for (int i = 0; i < 180; ++i) { // held on for 2 s: no menu, no stop, no second switch
+            out = runner.Step(frame);
+            REQUIRE_FALSE(out.commands.toggle_vr);
+            REQUIRE_FALSE(out.commands.menu_toggle);
+            REQUIRE_FALSE(out.commands.stop_game);
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+        }
+        release_all();
+    }
+    SECTION("View first, Menu within the wait: switches, no bottom toggle, no Select") {
+        frame.view = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_vr);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        frame.menu = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_vr);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        release_all();
+    }
+    SECTION("Menu after the wait is not the switch") {
+        frame.view = true;
+        runner.Step(frame);
+        runner.now += 150'000'000;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_bottom);
+        frame.menu = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_vr);
+    }
+    SECTION("the bumpers reach the game again once let go and pressed again") {
+        frame.menu = true;
+        frame.view = true;
+        REQUIRE(runner.Step(frame).commands.toggle_vr);
+        release_all();
+        InputFrame again = IdleFrame();
+        again.hand[0].bumper = true;
+        const MapperOutput out = runner.Step(again);
         REQUIRE(out.controls.Get(Control::BumperL));
     }
 }

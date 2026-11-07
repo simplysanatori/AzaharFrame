@@ -86,7 +86,28 @@ std::vector<uint8_t> MakeDot() {
 VrUi::VrUi() = default;
 VrUi::~VrUi() = default;
 
+void VrUi::Init() {
+    library = std::make_shared<picker::Library>(picker::ReadMetadataWithLoader,
+                                                picker::DefaultIconCacheDir());
+    picker = std::make_unique<picker::Picker>(library);
+    { // AzaharFrame: the "Azahar for Frame" lockup for the picker's header (text when missing).
+        std::vector<uint8_t> logo;
+        int logo_w = 0, logo_h = 0;
+        const std::string logo_path = picker::FindArtFile("logo.png");
+        if (!logo_path.empty() && picker::LoadPngFile(logo_path, logo, logo_w, logo_h)) {
+            picker->SetLogo(logo, logo_w, logo_h);
+        } else {
+            LOG_WARNING(Frontend, "xr: art/logo.png not found, the picker shows the name as text");
+        }
+    }
+}
+
 bool VrUi::Create(Runtime& rt) {
+    menu_shown = false;
+    picker_shown = false;
+    bridge_live = false;
+    chord_down = false;
+    SwallowHeld(); // the buttons of the chord that made this session are still held
     actions_ok = actions.Create(rt.instance, rt.HasExtension(Input::Actions::kFrameControllerExtension));
     if (actions_ok) {
         actions_ok = actions.Attach(rt.session);
@@ -109,27 +130,18 @@ bool VrUi::Create(Runtime& rt) {
         }
         uploader.Upload(dim_chain, dim.data());
     }
-
-    library = std::make_shared<picker::Library>(picker::ReadMetadataWithLoader,
-                                                picker::DefaultIconCacheDir());
-    picker = std::make_unique<picker::Picker>(library);
-    { // AzaharFrame: the "Azahar for Frame" lockup for the picker's header (text when missing).
-        std::vector<uint8_t> logo;
-        int logo_w = 0, logo_h = 0;
-        const std::string logo_path = picker::FindArtFile("logo.png");
-        if (!logo_path.empty() && picker::LoadPngFile(logo_path, logo, logo_w, logo_h)) {
-            picker->SetLogo(logo, logo_w, logo_h);
-        } else {
-            LOG_WARNING(Frontend, "xr: art/logo.png not found, the picker shows the name as text");
-        }
-    }
     return true;
 }
 
-void VrUi::Destroy() {
+void VrUi::DestroyXr() {
     if (bridge_live) {
         bridge.Release();
         bridge_live = false;
+    }
+    if (menu_shown) {
+        mirror.SetPlacement(home_place);
+        Immersive::SetMenuOpen(false);
+        menu_shown = false;
     }
     mirror.Destroy(uploader);
     uploader.DestroyChain(dim_chain);
@@ -137,8 +149,105 @@ void VrUi::Destroy() {
     uploader.DestroyChain(cursor_chain);
     uploader.Shutdown();
     actions.Destroy();
+    actions_ok = false;
+    picker_shown = false;
+    chord_down = false;
+    SwallowHeld(); // flat starts with the chord still held
+}
+
+void VrUi::Destroy() {
+    DestroyXr();
     picker.reset();
     library.reset();
+}
+
+void VrUi::SetFlatInput(FlatInputSource source) {
+    std::scoped_lock lock{flat_mutex};
+    flat_input = std::move(source);
+}
+
+void VrUi::NotifyVr(bool vr) {
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.vr_changed) {
+        hooks.vr_changed(vr);
+    }
+}
+
+void VrUi::SwallowHeld() {
+    swallow = {true, true, true, true, true, true, {true, true}, {true, true}, {true, true}};
+}
+
+bool VrUi::ModeChord(const Input::InputFrame& in) {
+    const bool all = in.hand[0].bumper && in.hand[1].bumper && in.view && in.menu;
+    const bool edge = all && !chord_down;
+    chord_down = all;
+    return edge;
+}
+
+void VrUi::RequestToggleVr(const char* where) {
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.toggle_vr) {
+        LOG_INFO(Frontend, "xr: both bumpers + View + Menu ({}): switching VR / flat", where);
+        hooks.toggle_vr();
+    }
+}
+
+void VrUi::FlatFrame(int64_t now_ns) {
+    Input::InputFrame in;
+    bool have = false;
+    {
+        std::scoped_lock lock{flat_mutex};
+        have = flat_input && flat_input(in);
+    }
+    in.time_ns = now_ns;
+    if (have != flat_had_input) {
+        flat_had_input = have;
+        LOG_INFO(Frontend, "xr: flat: {}", have ? "gamepad input" : "no gamepad");
+    }
+    if (!have || !game_running) {
+        if (bridge_live) {
+            bridge.Release();
+            bridge_live = false;
+        }
+        if (have && ModeChord(in)) {
+            RequestToggleVr("flat, no game");
+        }
+        if (!have) {
+            chord_down = false;
+        }
+        return;
+    }
+    for (auto& hand : in.hand) {
+        // Flat has no aim: a default ray and no screens to hit (below), so the triggers are
+        // ZL and ZR and the grips grab nothing. Active, or the mapper ignores the triggers.
+        hand.active = true;
+        hand.aim = {};
+    }
+    FilterAfterMenu(in);
+    Input::PanelGeometry panels;
+    panels.top.visible = false;
+    panels.bottom.visible = false;
+    panels.bottom_toggle_enabled = false; // the window shows both screens
+    const Input::MapperOutput& out = bridge.Process(in, panels);
+    bridge_live = true;
+    const auto& cmd = out.commands;
+    if (cmd.toggle_vr) {
+        RequestToggleVr("flat");
+    }
+    if (cmd.menu_toggle) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.toggle_menu) {
+            LOG_INFO(Frontend, "xr: flat: Menu held, pause / continue");
+            hooks.toggle_menu();
+        }
+    }
+    if (cmd.stop_game) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.stop_game) {
+            LOG_INFO(Frontend, "xr: flat: View held, stopping the game");
+            hooks.stop_game();
+        }
+    }
 }
 
 void VrUi::SetFrontendHooks(FrontendHooks new_hooks) {
@@ -225,7 +334,8 @@ void VrUi::LeaveMenu(const Input::InputFrame& in) {
                in.menu,
                in.view,
                {in.hand[0].trigger > 0.40f, in.hand[1].trigger > 0.40f},
-               {in.hand[0].grip > 0.40f, in.hand[1].grip > 0.40f}};
+               {in.hand[0].grip > 0.40f, in.hand[1].grip > 0.40f},
+               {in.hand[0].bumper, in.hand[1].bumper}};
     LOG_INFO(Frontend, "xr: in-game menu hidden");
 }
 
@@ -255,11 +365,15 @@ void VrUi::FilterAfterMenu(Input::InputFrame& in) {
         };
         axis(swallow.trigger[h], in.hand[h].trigger);
         axis(swallow.grip[h], in.hand[h].grip);
+        button(swallow.bumper[h], in.hand[h].bumper);
     }
 }
 
 void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,
                      bool have_input, std::vector<Quad>& layers) {
+    if (have_input && ModeChord(in)) {
+        RequestToggleVr("in-game menu");
+    }
     if (have_input) {
         if (menu_hold.Update(in.menu, info.display_time, kMenuHoldNs)) {
             std::scoped_lock lock{hooks_mutex};
@@ -359,6 +473,9 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             bridge.Release();
             bridge_live = false;
         }
+        if (have_input && ModeChord(in)) {
+            RequestToggleVr("home");
+        }
         if (mirror.Enabled()) {
             std::optional<XrPosef> cursor;
             mirror.Frame(rt.session, rt.swapchain_format, uploader, info, in, have_input, layers,
@@ -423,6 +540,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     } else if (cmd.stop_hold_progress <= 0.0f && stop_hold_logged && !cmd.stop_game) {
         stop_hold_logged = false;
         LOG_INFO(Frontend, "xr: View hold let go before the stop");
+    }
+    if (cmd.toggle_vr) {
+        RequestToggleVr("game");
     }
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};

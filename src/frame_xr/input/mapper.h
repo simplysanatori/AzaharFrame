@@ -41,6 +41,9 @@ struct MapperConfig {
     int64_t menu_hold_ns = 1'000'000'000;
     /// A shorter Menu press is Start, sent when Menu is let go and held for this long.
     int64_t start_pulse_ns = 100'000'000;
+    /// View pressed with both bumpers held waits this long for Menu (the VR / flat chord) before
+    /// it is the bottom screen toggle or Select.
+    int64_t chord_grace_ns = 150'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5).
     float depth_threshold = 0.5f;
     // A right stick click while the stick is pushed further than this is ignored (the stick
@@ -112,6 +115,9 @@ struct PanelCommands {
     bool menu_toggle = false;
     /// 0..1 while Menu is held; 0 otherwise.
     float menu_hold_progress = 0.0f;
+    /// Left Bumper + Right Bumper + View + Menu all down: switch between VR and flat. Fires once
+    /// per chord; the game sees no View or Menu of it, and L and R only until it fires.
+    bool toggle_vr = false;
 };
 
 struct MapperOutput {
@@ -177,6 +183,15 @@ private:
     // Bumper chord (bottom screen toggle). `swallow_view_` keeps that View press from the game.
     bool swallow_view_ = false;
     bool view_prev_ = false;
+    // View pressed with both bumpers down, held back from the game while it may still become
+    // the VR / flat chord (chord_grace_ns).
+    bool view_held_back_ = false;
+    int64_t view_held_back_since_ns_ = 0;
+    bool select_pulse_ = false; ///< a View tap shorter than the grace, sent late
+    int64_t select_pulse_until_ns_ = 0;
+    // After the VR / flat chord: each of these stays away from the game until let go.
+    bool swallow_menu_ = false;
+    std::array<bool, kNumHands> swallow_bumper_{};
 
     // Touch in progress
     bool touch_active_ = false;

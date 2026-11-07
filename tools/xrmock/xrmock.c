@@ -137,6 +137,10 @@ static XrQuaternionf qyawpitch(float yawDeg, float pitchDeg) {
 
 static int gSway = 1;
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
+// Sessions begun so far. A later session (an app that ended its session and made a new one)
+// keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
+// first xrBeginSession; the refresh count is resynced (gResync) at its first xrWaitFrame.
+static int gSessionsBegun = 0, gResync = 0;
 
 // The head: 1.6 m up, turning about the vertical axis.
 static XrPosef headAt(XrTime t) {
@@ -486,7 +490,19 @@ static XrResult XRAPI_CALL mDestroyHandle(uint64_t h) {
     (void)h;
     return XR_SUCCESS;
 }
-static XrResult XRAPI_CALL mDestroyActionSet(XrActionSet h) { return mDestroyHandle((uint64_t)(uintptr_t)h); }
+// The app has one action set: destroying it frees its action names and bindings, so a new
+// session can make, suggest and attach them again (as a runtime does).
+static XrResult XRAPI_CALL mDestroyActionSet(XrActionSet h) {
+    LOCK();
+    gActCount = 0;
+    gBindCount = 0;
+    memset(gProfileSuggested, 0, sizeof(gProfileSuggested));
+    gAttached = 0;
+    gProfile = -1;
+    trace("destroyActionSet");
+    UNLOCK();
+    return mDestroyHandle((uint64_t)(uintptr_t)h);
+}
 static XrResult XRAPI_CALL mDestroyAction(XrAction h) { return mDestroyHandle((uint64_t)(uintptr_t)h); }
 
 static XrResult XRAPI_CALL mStringToPath(XrInstance i, const char* s, XrPath* p) {
@@ -740,6 +756,8 @@ static XrResult XRAPI_CALL mCreateSession(XrInstance i, const XrSessionCreateInf
         mock_error("createSession: no graphics binding the mock knows");
         return XR_ERROR_GRAPHICS_DEVICE_INVALID;
     }
+    static int sessions = 0;
+    if (sessions++ > 0) trace("createSession again (%d)", sessions);
     *out = (XrSession)(uintptr_t)2;
     pushState(XR_SESSION_STATE_IDLE);
     pushState(XR_SESSION_STATE_READY);
@@ -1193,15 +1211,19 @@ static XrResult XRAPI_CALL mBeginSession(XrSession s, const XrSessionBeginInfo* 
     (void)s;
     (void)bi;
     LOCK();
-    gT0 = nowNs();
     secReset();
-    const char* secs = getenv("MOCK_XR_SECONDS");
-    double limit = secs ? atof(secs) : 20.0;  // 0: no limit
-    gEndAt = limit > 0 ? gT0 + (int64_t)(limit * 1e9) : 0;
+    if (gSessionsBegun++ == 0) {
+        gT0 = nowNs();
+        const char* secs = getenv("MOCK_XR_SECONDS");
+        double limit = secs ? atof(secs) : 20.0;  // 0: no limit
+        gEndAt = limit > 0 ? gT0 + (int64_t)(limit * 1e9) : 0;
+    } else {
+        gResync = 1;
+    }
     pushState(XR_SESSION_STATE_SYNCHRONIZED);
     pushState(XR_SESSION_STATE_VISIBLE);
     pushState(XR_SESSION_STATE_FOCUSED);
-    trace("beginSession");
+    trace("beginSession %d at %.2f s", gSessionsBegun, (double)(nowNs() - gT0) / 1e9);
     UNLOCK();
     return XR_SUCCESS;
 }
@@ -1278,7 +1300,8 @@ static XrResult XRAPI_CALL mWaitFrame(XrSession s, const XrFrameWaitInfo* wi, Xr
     static int skip = -1;
     if (skip < 0) skip = getenv("MOCK_XR_SKIP") != NULL;
     LOCK();
-    if (skip && gT0 && now > gT0 + (int64_t)gWaits * gPeriod + gPeriod / 2) {
+    if (gResync || (skip && gT0 && now > gT0 + (int64_t)gWaits * gPeriod + gPeriod / 2)) {
+        gResync = 0;
         gWaits = (int)((now - gT0) / gPeriod) + 1;
     }
     int64_t wake = gT0 + (int64_t)gWaits * gPeriod;

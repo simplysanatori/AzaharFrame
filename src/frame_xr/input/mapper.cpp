@@ -54,6 +54,10 @@ bool Mapper::Reset() {
     stick_click_r_prev_ = false;
     swallow_view_ = false;
     view_prev_ = false;
+    view_held_back_ = false;
+    select_pulse_ = false;
+    swallow_menu_ = false;
+    swallow_bumper_ = {};
     touch_active_ = false;
     drag_active_ = false;
     drag_panel_ = Panel::None;
@@ -99,8 +103,13 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.Set(Control::DpadDown, frame.dpad_down);
     controls.Set(Control::DpadLeft, frame.dpad_left);
     controls.Set(Control::DpadRight, frame.dpad_right);
-    controls.Set(Control::BumperL, frame.hand[0].bumper);
-    controls.Set(Control::BumperR, frame.hand[1].bumper);
+    for (int h = 0; h < kNumHands; ++h) {
+        if (!frame.hand[static_cast<std::size_t>(h)].bumper) {
+            swallow_bumper_[static_cast<std::size_t>(h)] = false;
+        }
+    }
+    controls.Set(Control::BumperL, frame.hand[0].bumper && !swallow_bumper_[0]);
+    controls.Set(Control::BumperR, frame.hand[1].bumper && !swallow_bumper_[1]);
     controls.Set(Control::StickClickL, frame.hand[0].stick_click);
     controls.Set(Control::StickClickR, frame.hand[1].stick_click);
 
@@ -118,18 +127,51 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.SetStick(AnalogControl::StickL, ApplyStickDeadzone(frame.hand[0].stick));
     controls.SetStick(AnalogControl::StickR, ApplyStickDeadzone(frame.hand[1].stick));
 
-    // ---- View: Select, or held to stop the game; with both bumpers, the bottom screen toggle ----
+    // ---- Both bumpers + View + Menu: VR <-> flat. Both bumpers + View: the bottom screen ----
+    // View pressed with both bumpers held waits up to chord_grace_ns for Menu (Menu already down
+    // counts too): with Menu it is the VR / flat switch, else the bottom screen toggle (games
+    // that hide it) or Select (a tap shorter than the wait is sent late, as a pulse).
+    const bool bumpers = frame.hand[0].bumper && frame.hand[1].bumper;
     const bool view_edge = frame.view && !view_prev_;
-    if (view_edge && panels.bottom_toggle_enabled && frame.hand[0].bumper &&
-        frame.hand[1].bumper) {
-        out.commands.toggle_bottom = true;
-        swallow_view_ = true;
+    if (!frame.menu) {
+        swallow_menu_ = false;
+    }
+    if (view_edge && bumpers) {
+        view_held_back_ = true;
+        view_held_back_since_ns_ = frame.time_ns;
+    }
+    if (view_held_back_) {
+        if (frame.menu && bumpers && frame.view && !swallow_menu_) {
+            out.commands.toggle_vr = true;
+            view_held_back_ = false;
+            swallow_view_ = true;
+            swallow_menu_ = true;
+            swallow_bumper_ = {true, true};
+            controls.Set(Control::BumperL, false); // set above, before the chord was known
+            controls.Set(Control::BumperR, false);
+            menu_down_ = false; // no Start when Menu is let go, no in-game menu hold
+            menu_fired_ = false;
+            start_pulse_ = false;
+        } else if (!frame.view || !bumpers ||
+                   frame.time_ns - view_held_back_since_ns_ >= config_.chord_grace_ns) {
+            view_held_back_ = false;
+            if (panels.bottom_toggle_enabled) {
+                out.commands.toggle_bottom = true;
+                swallow_view_ = frame.view;
+            } else if (!frame.view) {
+                select_pulse_ = true;
+                select_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
+            }
+        }
     }
     if (!frame.view) {
         swallow_view_ = false;
     }
     view_prev_ = frame.view;
-    const bool view = frame.view && !swallow_view_;
+    if (select_pulse_ && (frame.time_ns >= select_pulse_until_ns_ || frame.view)) {
+        select_pulse_ = false;
+    }
+    const bool view = frame.view && !swallow_view_ && !view_held_back_;
     if (view) {
         if (!view_down_) {
             view_down_ = true;
@@ -153,11 +195,11 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         stop_fired_ = false;
     }
     // Once the stop fired, the game no longer sees View (it would still be Select-down).
-    controls.Set(Control::View, view && !stop_fired_);
+    controls.Set(Control::View, (view && !stop_fired_) || select_pulse_);
 
     // ---- Menu: Start when tapped (sent as it is let go), held 1 s: the in-game menu ----
     // The game never sees a held Menu, so opening the menu sends no Start.
-    if (frame.menu) {
+    if (frame.menu && !swallow_menu_) {
         if (!menu_down_) {
             menu_down_ = true;
             menu_down_since_ns_ = frame.time_ns;

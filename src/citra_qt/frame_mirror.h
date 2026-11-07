@@ -49,6 +49,8 @@ public:
     bool MenuOpen() const {
         return menu_open;
     }
+    /// VR (a session: capture as above) or flat (the window is on the screen itself: no capture).
+    void SetVrShowing(bool showing);
     /// What B does in the in-game menu when no menu or dialog is open: close it.
     void SetCloseMenuHandler(std::function<void()> handler) {
         close_menu = std::move(handler);
@@ -79,12 +81,13 @@ private:
     QSize window_size{1056, 704}; // 3:2, the picker's shape
     qreal scale = 2.75;
     bool Capturing() const {
-        return !game_running || menu_open;
+        return vr_showing && (!game_running || menu_open);
     }
     void Shown();
 
     bool game_running = false;
     bool menu_open = false;
+    bool vr_showing = true;
     std::function<void()> close_menu;
     bool capturing = false;
     bool dirty = true;

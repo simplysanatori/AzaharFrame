@@ -38,10 +38,20 @@ public:
     VrUi();
     ~VrUi();
 
-    /// After the session exists: actions (suggest + attach), uploads, picker library.
+    /// Once, with the instance: the picker library (kept across sessions).
+    void Init();
+    /// After a session exists: actions (suggest + attach), uploads. Again for each session.
     bool Create(Runtime& runtime);
-    /// Before the session is destroyed.
+    /// Before the session is destroyed: what Create made.
+    void DestroyXr();
+    /// With the instance: everything.
     void Destroy();
+
+    /// XR thread, about 120 times a second while flat (no session): the gamepad from
+    /// SetFlatInput through the same mapper as in VR (no aim: no touch, no pointing).
+    void FlatFrame(int64_t now_ns);
+    /// XR thread: a session was made (true) or ended (false). Tells the Qt side.
+    void NotifyVr(bool vr);
 
     /// XR thread, once per frame after the views were located. Applies drags to the
     /// screen placement and appends the picker / pointer quads to `layers`.
@@ -55,6 +65,7 @@ public:
     void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
     void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
     void SetInGameMenu(bool open);
+    void SetFlatInput(FlatInputSource source);
 
 private:
     void GameFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
@@ -68,6 +79,12 @@ private:
     /// Buttons held as the in-game menu closed stay away from the game until let go.
     void FilterAfterMenu(Input::InputFrame& in);
     void ResetPlacement(Runtime& runtime);
+    /// Both bumpers + View + Menu outside a game (the mapper finds it in a game): once per chord.
+    bool ModeChord(const Input::InputFrame& in);
+    /// Asks the Qt side to switch between VR and flat (FrontendHooks::toggle_vr).
+    void RequestToggleVr(const char* where);
+    /// Everything held stays away from the game until let go (a new mode, the menu closed).
+    void SwallowHeld();
     void AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layers);
 
     Input::Actions actions;
@@ -100,7 +117,7 @@ private:
     Hold menu_hold;
     Hold view_hold;
     struct Swallow {
-        bool a, b, x, y, menu, view, trigger[2], grip[2];
+        bool a, b, x, y, menu, view, trigger[2], grip[2], bumper[2];
     };
     Swallow swallow{};
     XrPosef picker_pose{{0, 0, 0, 1}, {0, 0, -2}};
@@ -111,6 +128,11 @@ private:
     XrTime last_time = 0;
     uint64_t logged_generation = 0; // last library generation logged ("xr: picker: N games")
     bool stop_hold_logged = false;  // "xr: View hold started" logged for this press
+
+    bool chord_down = false; ///< ModeChord's edge
+    std::mutex flat_mutex;
+    FlatInputSource flat_input;
+    bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
 
     std::mutex hooks_mutex;
     FrontendHooks hooks;

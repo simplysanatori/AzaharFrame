@@ -53,8 +53,13 @@ class XrScreenSink {
 public:
     virtual ~XrScreenSink() = default;
 
-    /// True while the XR session runs and wants game images.
+    /// True while the XR session runs and wants game images. While true the desktop window is
+    /// not drawn (the headset shows the screens; see RendererVulkan::SwapBuffers).
     virtual bool IsActive() const = 0;
+
+    /// Changes each time the swapchains were destroyed (the session ended, VR to flat): the
+    /// renderer then drops the views and framebuffers it made of their images.
+    virtual uint64_t SwapchainGeneration() const = 0;
 
     /// The VkFormat of the swapchains (sRGB when the runtime offers it).
     virtual VkFormat SwapchainFormat() const = 0;
@@ -86,6 +91,8 @@ public:
 
     /// Counts for the once-a-second log line.
     virtual void NoteLateRelease(XrScreen screen) = 0;
+    /// The desktop window was drawn and presented, taking `cpu_us` on the emu thread.
+    virtual void NoteWindowPresent(uint32_t cpu_us) = 0;
 };
 
 namespace Detail {

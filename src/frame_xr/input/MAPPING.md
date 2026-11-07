@@ -78,11 +78,34 @@ the game until it is released, and does not start the stop-hold timer for it. Vi
 bumpers added later is plain Select. With the toggle disabled (every other game) the game sees L, R
 and Select as pressed.
 
+**VR / flat chord.** Left Bumper + Right Bumper + View + Menu, in any order once both bumpers are
+held, switches between VR and flat (`toggle_vr`, once per chord). So that it can share View with
+the bottom screen toggle, View pressed with both bumpers held is held back from the game for up to
+`chord_grace_ns` (150 ms): Menu down by then (or already down) makes it the switch; otherwise it
+becomes the bottom screen toggle (when enabled) or Select (late; a tap shorter than the wait is
+sent as a 100 ms pulse). Menu with both bumpers is never a problem: Start is only sent when Menu
+is let go. Once the switch fires, View, Menu and both bumpers stay away from the game until each
+is let go, and Menu neither sends Start nor opens the in-game menu. The game sees L and R from the
+bumper press to the switch (holding them back would delay every L and R). Outside a game (the home
+panel, the in-game menu, flat without a game) `VrUi::ModeChord` finds the four itself.
+
 ## Stopping the game
 
 Hold View for 1.5 s: the mapper reports `stop_game` once and a `stop_hold_progress` of 0..1 while
 holding (logged, no bar is drawn). The frame loop calls ShutdownGame and shows the home panel again.
 (CitraVR had an Exit button in its menu ribbon.)
+
+## Flat (no session)
+
+The VR / flat switch ends the session (`xrRequestExitSession`, then `xrDestroySession` at
+EXITING); the instance and the Vulkan device stay, so a new session later uses the same device.
+In flat the XR thread runs `VrUi::FlatFrame` about 120 times a second: citra_qt reads Steam Input's
+gamepad with SDL (`citra_qt/frame_mode.cpp`) into the same InputFrame and the same mapper, with
+both screens marked not visible (no touch, no grab; the triggers are ZL and ZR) and no bottom
+screen toggle. Menu held 1 s pauses or continues (Emulation > Pause), View held 1.5 s stops the
+game, the chord goes back to VR. Buttons held when the mode changes (the chord itself) stay away
+from the game until let go. The input profile is the Frame one in both modes; the launcher's
+"Flat Gamepad" profile (SDL) is only for a run without XR.
 
 ## The home panel (no game running)
 

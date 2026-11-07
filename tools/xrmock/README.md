@@ -34,6 +34,10 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
   `/interaction_profiles/valve/frame_controller` once it is suggested, an
   `InteractionProfileChanged` event follows `xrAttachSessionActionSets`, and
   `xrGetActionState*` answers for the bindings of that profile.
+- A session can end and a new one be made in the same run (an app that switches to a flat
+  window and back): `xrDestroyActionSet` frees the action names and bindings, and the times
+  of the input script, `MOCK_XR_DUMP_SHOWN` and `MOCK_XR_SECONDS` keep counting from the
+  first `xrBeginSession`.
 
 ## Environment
 

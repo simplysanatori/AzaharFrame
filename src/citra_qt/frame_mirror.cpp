@@ -135,6 +135,14 @@ void FrameMirror::SetMenuOpen(bool open) {
     Shown();
 }
 
+void FrameMirror::SetVrShowing(bool showing) {
+    if (vr_showing == showing) {
+        return;
+    }
+    vr_showing = showing;
+    Shown();
+}
+
 void FrameMirror::Shown() {
     if (!Capturing()) {
         capture_timer.stop();

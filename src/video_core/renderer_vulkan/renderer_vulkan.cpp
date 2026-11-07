@@ -2,6 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <cstdlib>     // AzaharFrame
+#include <string_view> // AzaharFrame
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
@@ -1163,9 +1165,47 @@ void RendererVulkan::SwapBuffers() {
     PrepareRendertarget();
     RenderScreenshot();
     isSecondaryWindow = false;
-    RenderToWindow(main_present_window, layout, false);
 #ifndef HAVE_LIBRETRO
-    RenderToXr(); // AzaharFrame: the three screens into the XR swapchains
+    // AzaharFrame: one output per mode. In VR the three screens go into the XR swapchains and
+    // the desktop window is not drawn: only a clear about once a second, a sign of life for the
+    // window system (AZAHARFRAME_XR_WINDOW_EVERY_FRAME=1: drawn every frame as before, to
+    // compare). In flat (no session) only the window, as upstream.
+    static const bool window_every_frame =
+        std::getenv("AZAHARFRAME_XR_WINDOW_EVERY_FRAME") != nullptr &&
+        std::string_view{std::getenv("AZAHARFRAME_XR_WINDOW_EVERY_FRAME")} == "1";
+    const auto window_timed = [&](const Layout::FramebufferLayout& window_layout) {
+        const auto start = std::chrono::steady_clock::now();
+        const bool was_rendered = screenRendered;
+        RenderToWindow(main_present_window, window_layout, false);
+        if (screenRendered && !was_rendered) {
+            if (auto* sink = VideoCore::GetXrScreenSink()) {
+                const auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - start);
+                sink->NoteWindowPresent(static_cast<u32>(us.count()));
+            }
+        }
+    };
+    if (XrShowsScreens()) {
+        RenderToXr(); // the three screens into the XR swapchains
+        const auto now = std::chrono::steady_clock::now();
+        if (window_every_frame) {
+            window_timed(layout);
+        } else if (now - xr_window_alive >= std::chrono::seconds(1)) {
+            xr_window_alive = now;
+            Layout::FramebufferLayout cleared = layout;
+            cleared.top_screen_enabled = false;
+            cleared.bottom_screen_enabled = false;
+            cleared.additional_screen_enabled = false;
+            window_timed(cleared);
+        }
+        // The XR path paces itself (LimitFramesAheadOfGpu, the release thread): no Finish below.
+        Core::PerfStats::game_frames_updated = false;
+        screenRendered = true;
+    } else {
+        window_timed(layout);
+    }
+#else
+    RenderToWindow(main_present_window, layout, false);
 #endif
 #ifndef ANDROID
     if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
@@ -1202,6 +1242,14 @@ void RendererVulkan::SwapBuffers() {
     rasterizer.TickFrame();
     EndFrame();
 }
+
+#ifndef HAVE_LIBRETRO
+bool RendererVulkan::XrShowsScreens() const {
+    // AzaharFrame: a session runs and the renderer is on its device.
+    const VideoCore::XrScreenSink* sink = VideoCore::GetXrScreenSink();
+    return sink && sink->IsActive() && UsesXrDevice(instance);
+}
+#endif
 
 void RendererVulkan::LimitFramesAheadOfGpu() {
     if (previous_frame_tick != 0) {
