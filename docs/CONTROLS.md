@@ -209,28 +209,7 @@ The buttons are the same as in the table above. Both bumpers and **View** bring 
 
 ## Settings
 
-The VR settings are in the **VR** group at the bottom of the **Graphics** tab, in **Emulation > Configure** for every game and in a game's **Properties** for that game. The settings marked global only are not in **Properties**.
-
-| Setting | Choices | Default | Where |
-|---|---|---|---|
-| **Hide Bottom Screen** | on or off | off | Global and per game. Read when the game starts |
-| **Face Buttons** | **By Position (Nintendo)**, **By Label (Xbox)** | By Position (Nintendo) | Global only. Takes effect at once |
-| **Background** | **Black**, **Passthrough** | Black | Global only. Passthrough shows the room, if SteamVR offers it |
-| **Window Scale** | **100%**, **150%**, **200%** | 150% | Global only. How large Azahar's window looks in VR. Flat is not affected |
-| **Motion Controls** | **Off**, **Right Controller**, **Left Controller** | Right Controller | Global only. From Off to a controller takes effect the next time VR starts; the other changes at once |
-| **Show Controllers** | on or off | on | Global only. Takes effect at once |
-| **Show Stats** | on or off | off | Global only. The **Stats** button switches it too |
-| **Screen Shape** | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | Global and per game. Takes effect at once |
-| **Immersive Mode** | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | Global and per game. Three games have a preset, see the user guide |
-| **Immersive Offset** | up to 10° left or right and 10° up or down, in 0.5° steps | None | Global only. Set with a grip and the D-pad in VR; **Reset** puts it back to the middle |
-| **Immersive Game FOV** | 30° to 110° | 60° | Global and per game. Takes effect at once |
-| **Wider View** | on or off | off | Global and per game. Full modes only. Read when the game starts |
-| **Squeeze Width** | **Off**, **10%**, **20%** | Off | Global and per game. Full modes only. Read when the game starts |
-| **Depth Factor Multiplier** | **1x**, **10x**, **100x** | 1x | Global and per game |
-| **View Matrix Register** | **Auto**, 0 to 92 | Auto | Global and per game. Full (6DoF): Other Games only |
-| **Eye Indicator Register** | empty for auto, or a register and index such as `87,2` | empty | Global and per game. Full (6DoF): Other Games only |
-
-What each one does is in the [user guide](USER_GUIDE.md#settings).
+The VR settings are in the **VR** group at the bottom of the **Graphics** tab. Every one is explained in [SETTINGS.md](SETTINGS.md).
 
 ## Motion controls
 

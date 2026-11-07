@@ -194,7 +194,7 @@ Everything is in the Azahar window, under **Emulation > Configure**. Resolution,
 
 The first time VR starts, the buttons and sticks of the current controls profile get the Frame layout (**Emulation > Configure > Controls**). After that your changes stay. In VR the Single Screen and Separate Windows layouts are changed to Default, and the 3D depth is set to 50 % if it is 0.
 
-The VR settings are in the **VR** group at the bottom of the **Graphics** tab. [CONTROLS.md](CONTROLS.md#settings) has a table of all of them with their defaults.
+The VR settings are in the **VR** group at the bottom of the **Graphics** tab. [SETTINGS.md](SETTINGS.md) explains each one, with its choices and default.
 
 ### Face Buttons and Motion Controls
 

@@ -24,7 +24,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
-| [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once <!-- VERIFY offset --> |
+| [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Wider View](#wider-view) | on or off | off | global and per game | when the game starts |
 | [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%** | Off | global and per game | when the game starts |
@@ -94,7 +94,7 @@ The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the r
 
 ## Immersive Offset
 
-Shifts the immersive screen a little left, right, up or down to fit your lenses. <!-- VERIFY offset --> Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press the D-pad. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
+Shifts the immersive screen a little left, right, up or down to fit your lenses. Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press the D-pad. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
 
 ## Immersive Game FOV
 
