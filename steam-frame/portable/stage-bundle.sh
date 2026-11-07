@@ -31,19 +31,20 @@ CONF
 
 # The plugins: platforms (xcb for the Xwayland session and Game Mode, wayland for the desktop, offscreen and
 # minimal for tests), their GL and shell integrations, image formats, icon engines, input contexts, themes
-# that need only D-Bus, network information, TLS, and the multimedia backend (cameras).
+# that need only D-Bus, network information and TLS.
 echo "== plugins"
 for d in platforms xcbglintegrations wayland-shell-integration wayland-graphics-integration-client \
          wayland-decoration-client tls imageformats iconengines platforminputcontexts platformthemes \
-         networkinformation multimedia; do
+         networkinformation; do
     [ -d "$QT/plugins/$d" ] && cp -a "$QT/plugins/$d" "$OUT/plugins/"
 done
 find "$OUT/plugins/platforms" -name '*.so' ! -name 'libqxcb.so' ! -name 'libqwayland*.so' \
     ! -name 'libqoffscreen.so' ! -name 'libqminimal.so' -delete
 # the GTK theme needs GTK, which SteamOS may not have; the KDE and others would need their own libraries
 find "$OUT/plugins/platformthemes" -name '*.so' ! -name 'libqxdgdesktopportal.so' -delete 2> /dev/null || true
-# the GStreamer backend needs GStreamer
-find "$OUT/plugins/multimedia" -name '*gstreamer*' -delete 2> /dev/null || true
+# No Qt Multimedia backend: Qt's FFmpeg backend needs FFmpeg 7's libraries and the GStreamer one needs GStreamer,
+# and both are what a SteamOS update moves (FFmpeg 8).  Azahar uses Multimedia only for the 3DS camera, which then
+# lists no cameras.
 for d in "$OUT"/plugins/*/; do echo "  ${d#"$OUT"/}: $(cd "$d" && ls | tr '\n' ' ')"; done
 
 echo "== libraries"

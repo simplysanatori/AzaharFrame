@@ -48,6 +48,7 @@ machine_busy() {
 }
 take_lock() {
   [ -n "${AZAHARFRAME_NO_LOCK:-}" ] && return 0
+  [ -n "$AF_HELD" ] && return 0
   if [ -f "$AF_STAMP" ]; then
     local since=$(( $(date +%s) - $(cat "$AF_STAMP") ))
     if [ "$since" -lt 600 ]; then
@@ -86,8 +87,12 @@ if ! "$ENGINE" image inspect "$IMAGE" > /dev/null 2>&1; then
   take_lock
   echo "$(date +%T) building the image $IMAGE (apt and Qt downloads)"
   nice -n 19 "$ENGINE" build -t "$IMAGE" -f "$HERE/portable/Containerfile" "$HERE/portable"
-  release_lock
 fi
+
+# The Qt in the image is the one that was checked in: its tree hash is pinned in portable/QT_TREE_SHA256.
+WANT=$(head -n 1 "$HERE/portable/QT_TREE_SHA256")
+HAVE=$("$ENGINE" run --rm "$IMAGE" cat /opt/qt-tree.sha256)
+[ "$WANT" = "$HAVE" ] || { echo "build-portable: the Qt in the image differs from the pinned one ($HAVE, expected $WANT)" >&2; exit 1; }
 
 # --- the source ----------------------------------------------------------------------------------
 EXT_ARGS=()
