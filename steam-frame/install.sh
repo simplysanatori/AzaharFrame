@@ -126,6 +126,23 @@ fi
 for f in convert-texture-pack.sh build-astcenc.sh; do
   if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
 done
+# The program's own Qt and libraries (a portable release): lib/, plugins/ and qt.conf beside the program.
+# They replace the old ones as a whole (an old library must not stay), and a program installed without them
+# (a local build) must not find the old qt.conf, which would send Qt to the plugins of another version.
+if [ "$(readlink -f "$SRC_DIR")" != "$(readlink -f "$DEST")" ]; then
+  if [ -d "$SRC_DIR/lib" ] && [ -f "$SRC_DIR/qt.conf" ]; then
+    for t in lib plugins; do
+      if [ -n "$DRY" ]; then
+        echo "[dry run] would copy $SRC_DIR/$t -> $DEST/$t"
+      else
+        rm -rf "$DEST/$t.new" && cp -a "$SRC_DIR/$t" "$DEST/$t.new" && rm -rf "$DEST/$t" && mv "$DEST/$t.new" "$DEST/$t"
+      fi
+    done
+    put "$SRC_DIR/qt.conf" "$DEST/qt.conf"
+  else
+    act rm -rf "$DEST/lib" "$DEST/plugins" "$DEST/qt.conf"
+  fi
+fi
 act chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh" "$DEST/dock-icon.py"
 DOCK_PY=$DEST/dock-icon.py
 [ -z "$DRY" ] || DOCK_PY=$SRC_DIR/dock-icon.py   # nothing is in $DEST in a dry run
@@ -142,7 +159,7 @@ else
   echo "note: SteamVR's Frame controller models are not here; the controllers are not drawn in VR"
 fi
 
-# The emulator is linked against the system's Qt 6 and SDL2.
+# A portable release carries its own Qt (lib/, found through the program's RUNPATH); a local build uses the system's Qt 6 and SDL2.
 MISSING=$(ldd "$DEST/azahar" 2> /dev/null | grep 'not found' || true)
 [ -z "$MISSING" ] || echo "warning: libraries the emulator needs are missing:
 $MISSING"

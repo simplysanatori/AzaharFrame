@@ -34,8 +34,13 @@ cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/
 chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh"
 echo "$VERSION" > "$STAGE/VERSION"
 FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art tools"
+# the program's own Qt and libraries (portable.sh; steam-frame/build-portable.sh)
+. "$HERE/portable.sh"
+portable_stage "$STAGE"
+FILES="$FILES $PORTABLE_FILES"
 
 NAME=azaharframe-$VERSION-linux-arm64.tar.gz
 tar --owner=0 --group=0 --numeric-owner -czf "$HERE/$NAME" -C "$STAGE" $FILES
+portable_verify "$HERE/$NAME"
 (cd "$HERE" && sha256sum "$NAME" | tee SHA256SUMS)
 echo "wrote $HERE/$NAME"
