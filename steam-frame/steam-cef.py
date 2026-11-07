@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Evaluate JavaScript in Steam's SharedJSContext over the CEF remote debugging port.
 Usage: steam-cef.py 'JS expression'   (awaits promises; prints JSON result)
-       steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)"""
+       steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)
+Steam's debugging port is 8080; AZAHARFRAME_CEF_PORT names another (for tests)."""
 import json, os, socket, struct, sys, base64, urllib.request
 
 def ws_connect(url):
@@ -58,7 +59,8 @@ def ws_recv(s):
         # ignore ping/pong/binary
 
 def evaluate(expr, title='SharedJSContext'):
-    pages = json.load(urllib.request.urlopen('http://127.0.0.1:8080/json', timeout=5))
+    port = os.environ.get('AZAHARFRAME_CEF_PORT') or '8080'   # Steam's debugging port; the variable is for tests
+    pages = json.load(urllib.request.urlopen('http://127.0.0.1:%s/json' % port, timeout=5))
     page = next(p for p in pages if p.get('title') == title)
     s = ws_connect(page['webSocketDebuggerUrl'])
     ws_send(s, json.dumps({'id': 1, 'method': 'Runtime.evaluate',

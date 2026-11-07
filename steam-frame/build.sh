@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds Azahar for Frame on the Steam Frame (Linux aarch64) and packages it for the Releases
-# page: steam-frame/release/azaharframe-<version>-linux-arm64.tar.gz and SHA256SUMS.
+# page (the tarball for Frametanium, the FrameDrop zip and json, SHA256SUMS) into
+# AZAHARFRAME_OUT (default ~/Games/AzaharFrame/release-out); see release/make-release.sh.
 #   steam-frame/build.sh [version]
 # Needs, from SteamOS's packages: clang or gcc, CMake 3.24 or newer, Ninja, Qt 6 and SDL2
 # development files, Python 3.  ccache is used when it is installed.
@@ -16,7 +17,7 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/.." && pwd)
-VERSION=${1:-1.0.0}
+VERSION=${1:-0.1.0}
 BLD=${AZAHARFRAME_BUILD_DIR:-$REPO/build}
 JOBS=${AZAHARFRAME_JOBS:-4}
 

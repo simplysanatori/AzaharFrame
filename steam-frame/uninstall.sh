@@ -3,7 +3,8 @@
 # (~/.local/share/AzaharFrame: your settings, saves, keys, shader caches and logs) stays
 # unless --purge.  Your game files are never touched, wherever they are.
 #   steam-frame/uninstall.sh [--purge]
-# Environment: AZAHARFRAME_APP, AZAHARFRAME_HOME and AZAHARFRAME_SKIP_STEAM as in install.sh.
+# Environment: AZAHARFRAME_APP, AZAHARFRAME_HOME, AZAHARFRAME_SKIP_STEAM, AZAHARFRAME_CEF_PORT and
+# AZAHARFRAME_VRCMD as in install.sh.
 # If Steam is not running the entry stays; run this again with Steam up, or remove it in Steam.
 # SteamVR's per-app settings for the entry are left alone.  The dock icon files go too:
 # ~/.local/share/applications/azaharframe.desktop, the azaharframe and azahar PNGs in
@@ -24,7 +25,7 @@ CEFPY=$HERE/steam-cef.py
 
 if [ -n "$AZAHARFRAME_SKIP_STEAM" ]; then
   echo "AZAHARFRAME_SKIP_STEAM set: Steam left alone"
-elif curl -s --max-time 3 127.0.0.1:8080/json > /dev/null; then
+elif curl -s --max-time 3 "127.0.0.1:${AZAHARFRAME_CEF_PORT:-8080}/json" > /dev/null; then
   CEF="python3 $CEFPY"
   ID=$($CEF "(() => { for (const a of (appStore.allApps || [])) { if (a.display_name === '$NAME' && a.app_type === 1073741824) return a.appid; } return 0; })()" 2> /dev/null || echo 0)
   if [ -n "$ID" ] && [ "$ID" != 0 ]; then
