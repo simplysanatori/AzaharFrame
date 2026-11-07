@@ -57,6 +57,13 @@ Azahar for Frame talks to SteamVR through OpenXR (https://www.khronos.org/openxr
   (`/opt/steamvr/bin/linuxarm64/libopenxr_loader.so`). It is not part of this
   repository or of the release.
 
+## The headset keyboard
+
+The keyboard in VR is the Compact keyboard of Moonlight XR (https://github.com/simplysanatori/moonlight-xr-steam-frame), by the same author, under the GNU General Public License, version 3: its layout, rules and look are ported to `src/frame_xr/keyboard/`.
+
+- Its labels are drawn with stb_truetype by Sean Barrett (https://github.com/nothings/stb), v1.26, vendored unchanged as `src/frame_xr/keyboard/stb_truetype.h`. MIT or public domain; the text is at the end of that file.
+- The font is Noto Sans Regular (SIL Open Font License 1.1), read from SteamOS's own `/usr/share/fonts/noto/`. It is not part of this repository or of the release.
+
 ## SDL
 
 SDL 2 (https://www.libsdl.org) reads game controllers and, in the Azahar
@@ -131,6 +138,7 @@ not part of the program.
 - Game data, game keys, firmware or BIOS dumps. Azahar for Frame contains none.
   Games, and the keys that decrypt some of them, come from your own 3DS.
 - Valve's SteamVR and OpenXR loader, which are on the Frame and are not copied.
+- The Noto Sans font of the headset keyboard, which is SteamOS's.
 
 3DS, Nintendo and their logos are trademarks of Nintendo. Azahar for Frame is an
 unofficial fan project, not affiliated with or endorsed by Nintendo, Valve, the

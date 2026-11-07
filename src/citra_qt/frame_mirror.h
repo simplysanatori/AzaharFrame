@@ -29,6 +29,7 @@
 #include <QTimer>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/keyboard/keyboard.h" // AzaharFrame keyboard
 
 class QWidget;
 struct FrameMirrorInbox;
@@ -109,4 +110,15 @@ private:
     Qt::MouseButtons buttons;
     QPointer<QWidget> grab; ///< the window a held button was pressed in
     QPointF last_global{-1.0, -1.0};
+
+    // AzaharFrame keyboard: the headset keyboard's keys typed into the focused widget, and the
+    // keyboard opened by a click into a text field and closed when no text field has the keys.
+    void StartKeyboard();
+    void TypeKey(const FrameXr::KeyboardEvent& e);
+    /// The window keys go to: the open popup, the modal dialog, the topmost dialog, the main one.
+    QWidget* KeyTarget() const;
+    /// `clicked`: a left click was just let go at last_global.
+    void CheckTextFocus(bool clicked);
+    QTimer focus_timer; ///< notices a text field losing the keys without a click
+    bool text_focus = false;
 };

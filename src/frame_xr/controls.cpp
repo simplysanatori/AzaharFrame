@@ -132,6 +132,7 @@ void VrUi::Destroy() {
         bridge_live = false;
     }
     mirror.Destroy(uploader);
+    keyboard.Destroy(uploader); // AzaharFrame keyboard
     uploader.DestroyChain(dim_chain);
     uploader.DestroyChain(picker_chain);
     uploader.DestroyChain(cursor_chain);
@@ -191,6 +192,7 @@ void VrUi::EnterMenu() {
     }
     home_place = mirror.GetPlacement();
     mirror.Hide();
+    keyboard.Hide(); // AzaharFrame keyboard
     // In front of the head (level), nearer than the game screens.
     const ViewPose view = LatestViewPose();
     const Input::Vec3f head = view.valid ? ToInput(view.head).position : Input::Vec3f{0, 0, 0};
@@ -215,6 +217,7 @@ void VrUi::EnterMenu() {
 
 void VrUi::LeaveMenu(const Input::InputFrame& in) {
     mirror.Hide();
+    keyboard.Hide(); // AzaharFrame keyboard
     mirror.SetPlacement(home_place);
     Immersive::SetMenuOpen(false);
     menu_shown = false;
@@ -285,10 +288,34 @@ void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         dim.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
         layers.push_back(dim);
     }
+    WindowFrame(rt, info, in, have_input, layers, 0.02f * mirror.Width() / 1.6f); // AzaharFrame keyboard
+}
+
+// AzaharFrame keyboard: the window and the headset keyboard under it. The keyboard takes its
+// input first and hides the hands it has from the window; its quads go over the window's, and
+// only once the window shows.
+void VrUi::WindowFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,
+                       bool have_input, std::vector<Quad>& layers, float dot_m) {
+    Input::InputFrame window_in = in;
+    std::vector<Quad> keyboard_layers;
+    std::optional<XrPosef> keyboard_cursor;
+    const float width = mirror.Width();
+    keyboard.Frame(rt.session, rt.swapchain_format, uploader, info, in, have_input,
+                   {mirror.Pose(), width, mirror.HeightFor(width)}, window_in, keyboard_layers,
+                   keyboard_cursor);
+    const std::size_t before = layers.size();
     std::optional<XrPosef> cursor;
-    mirror.Frame(rt.session, rt.swapchain_format, uploader, info, in, have_input, layers, cursor);
+    mirror.Frame(rt.session, rt.swapchain_format, uploader, info, window_in, have_input, layers,
+                 cursor);
+    if (layers.size() == before) {
+        return; // no window yet (no image), nor a keyboard
+    }
+    layers.insert(layers.end(), keyboard_layers.begin(), keyboard_layers.end());
     if (cursor) {
-        AddCursor(*cursor, 0.02f * mirror.Width() / 1.6f, layers);
+        AddCursor(*cursor, dot_m, layers);
+    }
+    if (keyboard_cursor) {
+        AddCursor(*keyboard_cursor, dot_m, layers);
     }
 }
 
@@ -351,6 +378,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             picker_shown = false;
         }
         mirror.Hide();
+        keyboard.Hide(); // AzaharFrame keyboard
         Input::InputFrame game_in = in;
         FilterAfterMenu(game_in);
         GameFrame(rt, info, game_in, have_input, layers);
@@ -360,12 +388,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             bridge_live = false;
         }
         if (mirror.Enabled()) {
-            std::optional<XrPosef> cursor;
-            mirror.Frame(rt.session, rt.swapchain_format, uploader, info, in, have_input, layers,
-                         cursor);
-            if (cursor) {
-                AddCursor(*cursor, 0.02f, layers);
-            }
+            WindowFrame(rt, info, in, have_input, layers, 0.02f); // AzaharFrame keyboard
         } else {
             PickerFrame(rt, info, in, have_input, layers);
         }

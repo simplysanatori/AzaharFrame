@@ -56,8 +56,24 @@ When no game runs, Azahar's own window floats in front of you: the game list, th
 | **B** | Back: closes a menu or a dialog |
 | Grip aimed at the window | Moves the window. It stays the same distance from you and turns to face you |
 | Either stick, up or down | Scrolls |
+| **Y** | Shows or hides the keyboard, see below |
 
-**X**, **Y** and the bumpers do nothing on the window. There is no typing in VR yet, so a text field needs a keyboard.
+**X** and the bumpers do nothing on the window.
+
+### The keyboard
+
+<!-- VERIFY: the keyboard rows in the headset, and the font (Noto Sans from SteamOS). -->
+
+The keyboard is the one from my Moonlight XR. It hangs under the window and types into the field that has the keys. Click a text field and it opens by itself; it closes again when the field loses the keys, unless you opened it with **Y**. It goes where the window goes, and never shows in a game, where **Y** is the 3DS's Y.
+
+| Control | What it does |
+|---|---|
+| Trigger on a key, or **A** | Presses the key. Either hand can type |
+| **?123**, **ABC** | Switch between the letters and the symbols |
+| **Fn** (on the symbols) | Esc, Tab, F1 to F12, Insert, Delete, Home, End, Page Up and Down, the arrows, Ctrl, Alt and Win |
+| Shift, Ctrl, Alt, Win | A tap holds it for the next key. Hold it for half a second to lock it (it turns blue), tap it again to let go. A locked Shift keeps the capitals |
+| Grip or trigger on the bar under it | Moves the keyboard. The stick of that hand pushes it away or pulls it nearer |
+| **Hide**, **Y**, or a trigger pulled at nothing | Hides it |
 
 ## The in-game menu
 

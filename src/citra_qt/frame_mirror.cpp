@@ -20,6 +20,12 @@
 #include <QTreeView>
 #include <QWidget>
 #include <QWindow>
+// AzaharFrame keyboard: the widgets that take typed text
+#include <QAbstractSpinBox>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <fmt/format.h>
 
 #include "citra_qt/frame_mirror.h"
@@ -112,6 +118,7 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
         }
     });
     LOG_INFO(Frontend, "xr: home panel: Azahar's window (AZAHARFRAME_VR_PICKER=1: the picker)");
+    StartKeyboard(); // AzaharFrame keyboard
     MarkDirty();
 }
 
@@ -121,6 +128,7 @@ FrameMirror::~FrameMirror() {
         inbox->owner = nullptr;
     }
     FrameXr::SetHomePanel({});
+    FrameXr::SetKeyboardHandler({}); // AzaharFrame keyboard
     qApp->removeEventFilter(this);
 }
 
@@ -490,6 +498,9 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         }
         qt_handleMouseEvent(win, local, global, buttons, button, QEvent::MouseButtonRelease,
                             Qt::NoModifier, Timestamp());
+        if (button == Qt::LeftButton) { // AzaharFrame keyboard: a click into a text field
+            QTimer::singleShot(0, this, [this] { CheckTextFocus(true); });
+        }
         break;
     case Type::Wheel:
         move();
@@ -580,4 +591,155 @@ void FrameMirror::LogLayout(const QRect& canvas) {
     for (const auto& l : lines) {
         LOG_INFO(Frontend, "{}", l);
     }
+}
+
+// ---- AzaharFrame keyboard: the headset keyboard (frame_xr/keyboard) ----------------------------
+
+namespace {
+
+// A widget that takes typed text: an editable line, spin box, combo box or text box.
+bool IsTextField(const QWidget* w) {
+    if (!w || !w->isVisible() || !w->isEnabled()) {
+        return false;
+    }
+    if (const auto* line = qobject_cast<const QLineEdit*>(w)) {
+        return !line->isReadOnly();
+    }
+    if (const auto* spin = qobject_cast<const QAbstractSpinBox*>(w)) {
+        return !spin->isReadOnly();
+    }
+    if (const auto* combo = qobject_cast<const QComboBox*>(w)) {
+        return combo->isEditable();
+    }
+    if (const auto* text = qobject_cast<const QTextEdit*>(w)) {
+        return !text->isReadOnly();
+    }
+    if (const auto* plain = qobject_cast<const QPlainTextEdit*>(w)) {
+        return !plain->isReadOnly();
+    }
+    return false;
+}
+
+int QtKey(const FrameXr::KeyboardEvent& e) {
+    using Key = FrameXr::KeyboardEvent::Key;
+    switch (e.key) {
+    case Key::Character: {
+        // Qt names a letter key by its capital; the rest of ASCII is its own key code.
+        const int c = static_cast<int>(e.character);
+        return c >= 'a' && c <= 'z' ? Qt::Key_A + (c - 'a') : c;
+    }
+    case Key::Backspace:
+        return Qt::Key_Backspace;
+    case Key::Tab:
+        return (e.modifiers & FrameXr::KeyboardEvent::kShift) ? Qt::Key_Backtab : Qt::Key_Tab;
+    case Key::Enter:
+        return Qt::Key_Return;
+    case Key::Escape:
+        return Qt::Key_Escape;
+    case Key::Insert:
+        return Qt::Key_Insert;
+    case Key::Delete:
+        return Qt::Key_Delete;
+    case Key::Home:
+        return Qt::Key_Home;
+    case Key::End:
+        return Qt::Key_End;
+    case Key::PageUp:
+        return Qt::Key_PageUp;
+    case Key::PageDown:
+        return Qt::Key_PageDown;
+    case Key::Left:
+        return Qt::Key_Left;
+    case Key::Up:
+        return Qt::Key_Up;
+    case Key::Right:
+        return Qt::Key_Right;
+    case Key::Down:
+        return Qt::Key_Down;
+    default:
+        break;
+    }
+    return Qt::Key_F1 + (static_cast<int>(e.key) - static_cast<int>(Key::F1));
+}
+
+Qt::KeyboardModifiers QtModifiers(uint8_t bits) {
+    Qt::KeyboardModifiers mods = Qt::NoModifier;
+    if (bits & FrameXr::KeyboardEvent::kShift) {
+        mods |= Qt::ShiftModifier;
+    }
+    if (bits & FrameXr::KeyboardEvent::kCtrl) {
+        mods |= Qt::ControlModifier;
+    }
+    if (bits & FrameXr::KeyboardEvent::kAlt) {
+        mods |= Qt::AltModifier;
+    }
+    if (bits & FrameXr::KeyboardEvent::kMeta) {
+        mods |= Qt::MetaModifier;
+    }
+    return mods;
+}
+
+} // namespace
+
+void FrameMirror::StartKeyboard() {
+    FrameXr::SetKeyboardHandler([inbox = inbox](const FrameXr::KeyboardEvent& e) {
+        std::scoped_lock lock{inbox->mutex};
+        if (FrameMirror* owner = inbox->owner) {
+            QMetaObject::invokeMethod(owner, [owner, e] { owner->TypeKey(e); }, Qt::QueuedConnection);
+        }
+    });
+    focus_timer.setInterval(250);
+    connect(&focus_timer, &QTimer::timeout, this, [this] { CheckTextFocus(false); });
+    focus_timer.start();
+}
+
+QWidget* FrameMirror::KeyTarget() const {
+    if (QWidget* popup = QApplication::activePopupWidget()) {
+        return popup;
+    }
+    if (QWidget* modal = QApplication::activeModalWidget()) {
+        return modal;
+    }
+    const auto stack = Stack();
+    for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
+        if (IsDialogLike(*it)) {
+            return *it;
+        }
+    }
+    return main;
+}
+
+void FrameMirror::TypeKey(const FrameXr::KeyboardEvent& e) {
+    if (!main || !Capturing()) {
+        return;
+    }
+    QWidget* target = KeyTarget();
+    QWindow* win = target ? target->windowHandle() : nullptr;
+    if (!win) {
+        return;
+    }
+    // A real key press and release, so the focused widget types, edits or runs its shortcut.
+    const int key = QtKey(e);
+    const Qt::KeyboardModifiers mods = QtModifiers(e.modifiers);
+    const QString text = QString::fromStdString(e.text);
+    qt_handleKeyEvent(win, QEvent::KeyPress, key, mods, text, false, 1);
+    qt_handleKeyEvent(win, QEvent::KeyRelease, key, mods, text, false, 1);
+    MarkDirty();
+    // Tab or Enter can move the keys to another widget, or close the dialog.
+    QTimer::singleShot(0, this, [this] { CheckTextFocus(false); });
+}
+
+void FrameMirror::CheckTextFocus(bool clicked) {
+    QWidget* target = Capturing() ? KeyTarget() : nullptr;
+    QWidget* focus = target ? target->focusWidget() : nullptr;
+    const bool text = IsTextField(focus);
+    if (text && clicked) {
+        // Only a click on the field itself: one elsewhere that leaves the keys in it does not.
+        if (focus->rect().contains(focus->mapFromGlobal(last_global.toPoint()))) {
+            FrameXr::OpenKeyboardForTextField();
+        }
+    } else if (!text && text_focus) {
+        FrameXr::TextFieldFocusLost();
+    }
+    text_focus = text;
 }

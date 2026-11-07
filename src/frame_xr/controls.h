@@ -21,6 +21,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
 
@@ -69,6 +70,9 @@ private:
     void FilterAfterMenu(Input::InputFrame& in);
     void ResetPlacement(Runtime& runtime);
     void AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layers);
+    // AzaharFrame keyboard: Azahar's window and the headset keyboard under it (frame_xr/keyboard).
+    void WindowFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
+                     bool have_input, std::vector<Quad>& layers, float dot_m);
 
     Input::Actions actions;
     Input::InputBridge bridge;
@@ -82,6 +86,7 @@ private:
     std::unique_ptr<frame_xr::picker::Picker> picker;
     bool picker_shown = false;
     MirrorPanel mirror; ///< the home panel when the Qt side set one, instead of the picker
+    KeyboardPanel keyboard; ///< AzaharFrame keyboard: shown only with the home panel (Y)
 
     // The in-game menu: the home panel over the paused game (Menu held 1 s).
     std::atomic<bool> menu_open{false}; ///< set by the Qt side once the game paused
