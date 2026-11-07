@@ -170,7 +170,7 @@ The bottom screen in focus is the one in the main place, big, and the top screen
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
-The **Controls** button above Azahar's window, on the home window and in the in-game menu, opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
+The **Controls** button above Azahar's window, on the home window and in the in-game menu, opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts, and each time the in-game menu opens (it closes with the menu), unless you closed it yourself. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
 
 All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.md).
 
@@ -205,7 +205,7 @@ In the **VR** group of the Graphics tab (global settings, not per game):
 
 ### Window Scale
 
-In the **VR** group of the Graphics tab (global, not per game): **Window Scale** is **100%**, **150%** or **200%** (default). It makes Azahar's window look larger in the headset, so that the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (at 200% about a third of the area of 100%, so the game list is shorter) and the panel is wider, 30% at 200%. Windows that are larger than Azahar's window, such as the configuration window, make the panel wider still (up to 50%, and no taller than it is wide), so they look larger than at 100%, but not twice as large. The change shows as soon as you press **OK**. Flat mode always uses 100%: the window is on the screen there, and `QT_SCALE_FACTOR` in `session.env` is how to enlarge it.
+In the **VR** group of the Graphics tab (global, not per game): **Window Scale** is **100%**, **150%** (default) or **200%**. It makes Azahar's window look larger in the headset, so that the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (at 150% about 40% of the area of 100% is left out, so the game list is shorter) and the panel is wider, 30% at 150% and 50% at 200%. The game list has no side-to-side scroll bar in VR: long names are cut short. Windows that are larger than Azahar's window, such as the configuration window, make the panel wider still (up to 50%, and no taller than it is wide), so they look larger than at 100%, but not twice as large. The change shows as soon as you press **OK**. Flat mode always uses 100%: the window is on the screen there, and `QT_SCALE_FACTOR` in `session.env` is how to enlarge it.
 
 <!-- VERIFY: Window Scale in the headset (size of the text, the panel's width) -->
 

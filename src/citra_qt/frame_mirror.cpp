@@ -11,6 +11,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QEvent>
+#include <QHeaderView>
 #include <QFont>
 #include <QImage>
 #include <QMainWindow>
@@ -62,12 +63,12 @@ constexpr int kMaxPixels = 3400;
 // Dialogs get a title strip drawn above them (the window manager's is not in the image).
 constexpr int kTitleHeight = 28;
 constexpr int kCaptureMs = 33; // at most 30 captures a second
-// Window Scale: the panel grows by this much of the scale's excess over 100 % (at 200 %: 30 %
-// wider), because the window would otherwise be too small to use; a dialog that does not fit
+// Window Scale: the panel grows by this much of the scale's excess over 100 % (at 150 %: 30 %
+// wider, at 200 %: 50 %), because the window would otherwise be too small to use; a dialog that does not fit
 // the window grows it further, up to kMaxPanelScale times the placed width and not taller
 // than kMaxPanelHeight times it. The image is about kBasePixels wide at 100 % (2.75 pixels per
 // pixel of the 1056 px window), more with the square root of the panel's growth.
-constexpr double kPanelGrowth = 0.3;
+constexpr double kPanelGrowth = 0.6;
 constexpr float kMaxPanelScale = 1.5f;
 constexpr float kMaxPanelHeight = 1.1f;
 constexpr double kBasePixels = 2904.0;
@@ -228,13 +229,19 @@ QRect FrameMirror::Canvas() const {
     return r;
 }
 
+// How much wider than its placed width the panel is for a Window Scale.
+static double Growth(qreal s) {
+    return std::min(1.0 + kPanelGrowth * (std::max(1.0, s) - 1.0),
+                    static_cast<double>(kMaxPanelScale));
+}
+
 qreal FrameMirror::WindowScale() const {
     return std::clamp(Settings::values.vr_window_scale.GetValue() / 100.0, 1.0, 2.0);
 }
 
 QSize FrameMirror::WindowSizeFor(qreal window_scale) const {
     const qreal s = std::max(1.0, window_scale);
-    const qreal growth = 1.0 + kPanelGrowth * (s - 1.0);
+    const qreal growth = Growth(s);
     // Even numbers, so that halves of the panel are whole pixels.
     const auto fit = [&](int v) { return static_cast<int>(2 * qRound(v * growth / s / 2.0)); };
     return QSize(fit(window_size.width()), fit(window_size.height())).expandedTo(kMinWindow);
@@ -243,7 +250,7 @@ QSize FrameMirror::WindowSizeFor(qreal window_scale) const {
 float FrameMirror::PanelScale(const QSize& canvas) const {
     const qreal s = WindowScale();
     const QSize win = main ? main->size() : WindowSizeFor(s);
-    const double growth = 1.0 + kPanelGrowth * (s - 1.0);
+    const double growth = Growth(s);
     // A dialog larger than the window (the canvas is then larger): the panel grows with it.
     const double extra = std::max({1.0, static_cast<double>(canvas.width()) / win.width(),
                                    static_cast<double>(canvas.height()) / win.height()});
@@ -288,6 +295,31 @@ bool FrameMirror::ApplyWindowSize() {
              target.width(), target.height(), vr_showing ? "VR" : "flat",
              qRound(WindowScale() * 100.0));
     return true;
+}
+
+// In VR the game list has no horizontal scroll bar: the Name column takes the width the other
+// columns leave and elides its text. Flat keeps Azahar's own behaviour.
+void FrameMirror::FitGameList() {
+    auto* tree = main ? main->findChild<QTreeView*>() : nullptr;
+    if (!tree || !tree->header()) {
+        return;
+    }
+    QHeaderView* header = tree->header();
+    if (!vr_showing) {
+        if (tree->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff) {
+            tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        }
+        return;
+    }
+    tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    const int avail = tree->viewport()->width();
+    if (avail <= 0 || header->count() < 2) {
+        return;
+    }
+    const int name = std::max(120, avail - (header->length() - header->sectionSize(0)));
+    if (name != header->sectionSize(0)) {
+        header->resizeSection(0, name);
+    }
 }
 
 std::vector<QWidget*> FrameMirror::Stack() const {
@@ -421,6 +453,7 @@ void FrameMirror::Capture() {
         MarkDirty(); // the layout settles first; the Resize event would do it too
         return;
     }
+    FitGameList();
     dirty = false;
     since_capture.restart();
     QElapsedTimer cost;

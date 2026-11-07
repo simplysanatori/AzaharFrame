@@ -38,7 +38,7 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - A **Controls** panel in VR lists what every control does in a game, on Azahar's window and in the in-game menu, named from your own controls profile. It opens the first time VR starts, and from the **Controls** button above Azahar's window after that.
 - The Frame controllers show in your hands, with the buttons and sticks moving, and a soft beam that fades when you put a controller down (**Show Controllers**, on by default). The models are made from SteamVR's own on your Frame.
 - A **Stats** panel under the top screen shows the frame rate, the emulation speed, the frame times, the headset's late frames, the CPU load and the GPU clock (**Show Stats**, or the **Stats** button).
-- A **Window Scale** setting (**VR** group, 100%, 150% or 200%, 200% by default) makes Azahar's window look larger in VR: text, buttons and list rows are easier to read and to hit with the beam. Flat mode stays at 100%.
+- A **Window Scale** setting (**VR** group, 100%, 150% or 200%, 150% by default) makes Azahar's window look larger in VR: text, buttons and list rows are easier to read and to hit with the beam. Flat mode stays at 100%.
 
 ### Immersive mode
 

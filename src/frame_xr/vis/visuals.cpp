@@ -202,6 +202,15 @@ struct Visuals::Impl {
 
     // The help panel and the buttons.
     bool help_open = false;
+    bool help_user_off = false; ///< the player closed it: the in-game menu does not open it
+    bool help_auto = false;     ///< the in-game menu opened it: it closes with the menu
+    Where prev_where = Where::Home;
+    /// A choice of the player's (Controls button, close button, request from the window).
+    void UserSetHelp(bool on) {
+        help_open = on;
+        help_user_off = !on;
+        help_auto = false;
+    }
     bool help_shown = false;  ///< last frame
     bool strip_shown = false; ///< last frame
     Posef help_pose{}, strip_pose{};
@@ -351,7 +360,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
                 hover = b;
                 if (edge) {
                     if (b == 0) {
-                        m.help_open = !m.help_open;
+                        m.UserSetHelp(!m.help_open);
                         LOG_INFO(Frontend, "xr: Controls button: help {}",
                                  m.help_open ? "shown" : "hidden");
                     } else {
@@ -364,7 +373,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
                     std::hypot(px - kCloseX, py - kCloseY) < kCloseR + 8.0f;
                 close_hot = close_hot || on_close;
                 if (edge && on_close) {
-                    m.help_open = false;
+                    m.UserSetHelp(false);
                     LOG_INFO(Frontend, "xr: controls help closed");
                 }
             }
@@ -418,8 +427,23 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
 
     // ---- Requests from other threads, the settings ----
     if (const int req = g_shared.help_request.exchange(-1); req >= 0) {
-        m.help_open = req == 2 ? !m.help_open : req == 1;
+        m.UserSetHelp(req == 2 ? !m.help_open : req == 1);
     }
+    // The in-game menu (a game runs) opens the help beside the window, unless the player closed
+    // it; it closes again with the menu, if the menu opened it.
+    if (where == Where::Menu && m.prev_where != Where::Menu && !m.help_open &&
+        !m.help_user_off) {
+        m.help_open = true;
+        m.help_auto = true;
+        LOG_INFO(Frontend, "xr: in-game menu: controls help shown");
+    } else if (where != Where::Menu && m.prev_where == Where::Menu) {
+        if (m.help_auto && m.help_open) {
+            m.help_open = false;
+            LOG_INFO(Frontend, "xr: in-game menu closed: controls help hidden");
+        }
+        m.help_auto = false;
+    }
+    m.prev_where = where;
     const bool stats_setting = Settings::values.vr_show_stats.GetValue();
     if (stats_setting != m.stats_setting_seen) {
         m.stats_setting_seen = stats_setting;

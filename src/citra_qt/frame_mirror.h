@@ -94,6 +94,7 @@ private:
     /// more for a dialog that does not fit the window, up to a limit.
     float PanelScale(const QSize& canvas) const;
     /// Resizes the window to the size for the Window Scale (VR) or 100 % (flat).
+    void FitGameList();
     /// True when the size changed.
     bool ApplyWindowSize();
     /// Visible top-level windows other than the main window, bottom to top.
