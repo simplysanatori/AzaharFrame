@@ -110,11 +110,15 @@ struct LoopPhases {
 struct Stats {
     std::atomic<uint32_t> display_frames{0};
     std::atomic<uint32_t> releases[kScreens]{};
-    std::atomic<uint32_t> late[kScreens]{};
+    std::atomic<uint32_t> late[kScreens]{}; ///< frames drawn aside (spilled), not waited for
+    std::atomic<uint32_t> spill_shown{0};    ///< spilled frames copied in and released
+    std::atomic<uint32_t> spill_replaced{0}; ///< spilled frames dropped for a newer one
+    std::atomic<uint32_t> emu_waits{0};      ///< the emu thread waited for the XR side
+    std::atomic<uint32_t> emu_wait_us_max{0};
     std::atomic<uint32_t> unfinished[kScreens]{};
     std::atomic<uint32_t> skipped_acquires{0};
     std::atomic<uint32_t> end_frame_errors{0};
-    // Emulated frames: time between the renderer's top-left acquires (emu thread).
+    // Emulated frames: time between the renderer's XR frames (emu thread).
     std::atomic<uint32_t> emu_frames{0};
     std::atomic<uint64_t> emu_frame_us_sum{0};
     std::atomic<uint32_t> emu_frame_us_max{0};
@@ -153,6 +157,10 @@ public:
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
     void NoteLateRelease(VideoCore::XrScreen screen) override;
+    void NoteEmuFrame() override;
+    void NoteSpillShown() override;
+    void NoteSpillReplaced() override;
+    void NoteEmuWait(uint32_t us) override;
     uint64_t SwapchainGeneration() const override;
     void NoteWindowPresent(uint32_t cpu_us) override;
 

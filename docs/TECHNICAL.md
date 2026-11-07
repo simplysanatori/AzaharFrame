@@ -28,18 +28,19 @@ The desktop window's swapchain uses Mailbox or Immediate presentation in VR (`vk
 
 The emulator's Vulkan renderer prepares three screens each frame: top left, top right and bottom. `vk_xr_target.*` owns three OpenXR swapchains for them, each the 3DS screen's size (400x240, 400x240, 320x240) times the internal resolution factor, at most 8x (SteamVR downsamples layers wider than 3458 px). `SwapBuffers` calls `RenderToXr()` (`renderer_vulkan_xr.cpp`) after the desktop window has been drawn:
 
-1. acquire and wait for an image of each swapchain;
+1. take the image of each swapchain that the handoff thread has already acquired and waited for;
 2. draw each screen full-rectangle into it, with the emulator's own screen draw (`DrawSingleScreen`);
 3. submit with the scheduler's tick;
-4. a release thread waits for that tick and only then calls `xrReleaseSwapchainImage`.
+4. the handoff thread waits for that tick, only then calls `xrReleaseSwapchainImage`, and waits for the next images.
 
-Images are released only after the GPU has finished them, so SteamVR never reads a half-drawn screen. The desktop window keeps rendering as before. The queue is shared through the scheduler's submit mutex, which the renderer lends to the XR thread for `xrBeginFrame` and `xrEndFrame` (`XrQueueRegistration`).
+Images are released only after the GPU has finished them, so SteamVR never reads a half-drawn screen. OpenXR allows one waited image per swapchain, so the next image can only be waited for once the GPU has finished the last frame. The emulation thread never waits for that: when a frame comes while the last one is still on the GPU (Super Mario 3D Land draws its 3D every other frame, about 15 ms of GPU work at 8x in a mock, longer next to SteamVR's compositor), it is drawn into one of two spill images per screen instead, and the handoff thread copies it into the swapchain images once they are free. A spilled frame not yet copied is replaced by the next one, so the newest frame is shown. The three screens of a frame always go the same way, so both eyes come from the same emulated frame. The rules are in `vk_xr_handoff.h` (unit-tested in `src/tests/frame_xr/xr_handoff.cpp`). The per-second `xr:` log line counts these frames as `late` (with `copied in` and `replaced`), and `emu waited on XR` counts the only wait left, when a swapchain is made again (a new resolution factor). The desktop window keeps rendering as before. The queue is shared through the scheduler's submit mutex, which the renderer lends to the XR thread for `xrBeginFrame` and `xrEndFrame` (`XrQueueRegistration`).
 
 The three screens are the 3DS's own images: the right eye is the 3DS's right image, whatever **Render 3D** is set to for the desktop window. Depth comes from the game and the 3D depth setting (default 50 %, CitraVR's `factor_3d` default; Azahar's own is 0).
 
 ## Threads
 
 - The emulation thread renders the 3DS at 60 frames a second.
+- The handoff thread (`XrRelease`, `vk_xr_target.cpp`) makes every swapchain call for the three screens: it acquires and waits for the next images, releases them once the GPU is done, and copies spilled frames in.
 - The `frame_xr` thread runs `xrWaitFrame`, `xrBeginFrame` and `xrEndFrame` at the display's rate and submits the quad layers with the last released images each time. It also syncs the controller actions, runs the frame callbacks (immersive mode) and draws Azahar's window panel (or the picker) and the pointer dot. It does no GPU work while a game runs; the dot is a small pre-rendered quad.
 - Tracking uses the LOCAL space; immersive mode also uses VIEW.
 - The display rate is not asked for in the code. `azaharframe.sh` sets SteamVR's per-app settings (120 Hz by default, no throttling, no motion smoothing) before every launch, and `install.sh` sets them for the library entry.

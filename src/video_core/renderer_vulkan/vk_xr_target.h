@@ -5,23 +5,27 @@
 // AzaharFrame: the renderer's side of the XR output (VideoCore::XrScreenSink).
 // RendererVulkan::RenderToXr (renderer_vulkan_xr.cpp) draws the three screens into
 // the XR swapchains after the window; this class owns what that needs on the
-// device (render pass, pipeline, framebuffers of the swapchain images) and the
-// release thread: an image is released to the runtime only once the GPU reached
-// the tick of the submission that drew it (SteamVR shows a released image at
-// once, finished or not).
+// device (render pass, pipeline, framebuffers of the swapchain images, two spill
+// slots per screen) and the handoff thread, which makes every swapchain call: it
+// waits for the next images ahead of time, releases an image only once the GPU
+// reached the tick of the submission that drew it (SteamVR shows a released image
+// at once, finished or not), and copies a spilled frame in. The emu thread never
+// waits for it (vk_xr_handoff.h).
 
 #pragma once
 
 #include <array>
 #include <condition_variable>
-#include <deque>
 #include <mutex>
 #include <vector>
 
 #include "common/common_types.h"
 #include "common/polyfill_thread.h"
 #include "video_core/renderer_vulkan/vk_common.h"
+#include "video_core/renderer_vulkan/vk_xr_handoff.h"
 #include "video_core/vulkan_hooks.h"
+
+VK_DEFINE_HANDLE(VmaAllocation)
 
 namespace Vulkan {
 
@@ -46,16 +50,18 @@ public:
     XrPresentTarget& operator=(const XrPresentTarget&) = delete;
 
     /// Makes sure each screen's swapchain has this size (recreated after the
-    /// release thread drained). False: no XR output this frame.
+    /// handoff thread drained: the one wait on it left, counted as "emu waited on XR").
+    /// False: no XR output this frame.
     bool Prepare(const std::array<vk::Extent2D, kScreens>& sizes);
 
-    /// Acquires the next image of a screen: waits for the release of the last one
-    /// first (a late release when it had to). Null: skip the screen this frame.
-    const Target* Acquire(VideoCore::XrScreen screen);
+    /// Where this frame's three screens are drawn: the swapchain images the handoff
+    /// thread waited for, or a spill slot while they are still in use. Never waits.
+    /// False: no XR output this frame (draw nothing, no EndFrame).
+    bool BeginFrame(std::array<Target, kScreens>& targets);
 
-    /// After Scheduler::Flush: the screens acquired since the last call are released
-    /// once the GPU reached `tick` (the tick of that submission).
-    void QueueRelease(u64 tick);
+    /// After Scheduler::Flush: the frame drawn since BeginFrame was submitted with
+    /// `tick` (the tick of that submission).
+    void EndFrame(u64 tick);
 
     vk::RenderPass RenderPass() const {
         return render_pass;
@@ -65,24 +71,35 @@ public:
     }
 
 private:
+    struct SpillSlot {
+        vk::Image image;
+        VmaAllocation allocation{};
+        vk::ImageView view;
+        vk::Framebuffer framebuffer;
+    };
     struct Screen {
         vk::Extent2D size{};
+        std::vector<vk::Image> images; ///< the swapchain's
         std::vector<vk::ImageView> views;
         std::vector<vk::Framebuffer> framebuffers;
-        Target current{};
-        bool acquired = false; ///< acquired this frame, release not queued yet
-        bool pending = false;  ///< release queued, not done yet
-    };
-    struct PendingRelease {
-        u64 tick;
-        std::array<bool, kScreens> screens;
+        std::array<SpillSlot, XrHandoff::kSlots> spill{};
+        bool spill_ok = false;
+        int32_t armed = -1; ///< the image index the handoff thread waited for, or -1
     };
 
     void CreateRenderPass();
     void CreatePipeline(vk::ShaderModule vertex_shader, vk::PipelineLayout pipeline_layout);
+    void CreateCopyObjects();
+    bool CreateSpill(Screen& screen);
+    void DestroySpill(Screen& screen);
     void DestroyTargets(Screen& screen);
-    void WaitIdle();
+    /// Emu thread: pauses the handoff thread and waits until nothing is in flight.
+    void Drain();
     void ReleaseThread(std::stop_token token);
+    void RunArm();
+    void RunReleaseDirect(u64 tick);
+    void RunCopySpill(std::size_t slot, u64 tick);
+    bool SpillReady() const;
 
     const Instance& instance;
     Scheduler& scheduler;
@@ -93,10 +110,15 @@ private:
     vk::ShaderModule fragment_shader;
     vk::Pipeline pipeline;
     std::array<Screen, kScreens> screens;
+    // The handoff thread's copy of a spilled frame into the swapchain images.
+    vk::CommandPool copy_pool;
+    vk::CommandBuffer copy_cmdbuf;
+    vk::Fence copy_fence;
 
-    std::mutex mutex;
+    std::mutex mutex; ///< guards `handoff` and each Screen::armed
     std::condition_variable_any cv;
-    std::deque<PendingRelease> queue;
+    XrHandoff handoff;
+    XrHandoff::Frame frame{}; ///< emu thread: the frame between BeginFrame and EndFrame
     bool skip_gpu_wait = false; ///< AZAHARFRAME_XR_NO_GPU_WAIT=1: negative test only
     std::jthread release_thread;
 };

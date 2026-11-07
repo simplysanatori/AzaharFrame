@@ -4,9 +4,10 @@
 
 // AzaharFrame: RendererVulkan::RenderToXr, called from SwapBuffers after the
 // window was drawn. Draws each of the three screens full size into its own XR
-// swapchain image (top-left eye, top-right eye, bottom), submits once, and hands
-// the images to the release thread (vk_xr_target.cpp), which releases them to
-// the runtime once the GPU is done.
+// swapchain image (top-left eye, top-right eye, bottom), or into spill slots while
+// those are still in use, submits once, and hands the frame to the handoff thread
+// (vk_xr_target.cpp, vk_xr_handoff.h), which releases the images to the runtime
+// once the GPU is done. Nothing here waits for the XR side.
 
 #include <algorithm>
 #include <utility>
@@ -83,15 +84,13 @@ bool RendererVulkan::RenderToXr() {
     }
     renderpass_cache.EndRendering();
 
-    bool any = false;
+    std::array<XrPresentTarget::Target, XrPresentTarget::kScreens> targets{};
+    if (!xr_target->BeginFrame(targets)) {
+        return false;
+    }
     for (u32 screen_id = 0; screen_id < XrPresentTarget::kScreens; screen_id++) {
-        const XrPresentTarget::Target* target =
-            xr_target->Acquire(static_cast<VideoCore::XrScreen>(screen_id));
-        if (!target) {
-            continue;
-        }
-        any = true;
-        scheduler.Record([target = *target, present_set, renderpass = xr_target->RenderPass(),
+        const XrPresentTarget::Target& target = targets[screen_id];
+        scheduler.Record([target, present_set, renderpass = xr_target->RenderPass(),
                           pipeline = xr_target->Pipeline(),
                           layout = *present_pipeline_layout](vk::CommandBuffer cmdbuf) {
             const vk::Viewport viewport = {
@@ -122,21 +121,18 @@ bool RendererVulkan::RenderToXr() {
             cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, present_set,
                                       {});
         });
-        draw_info.modelview = Orthographic(target->width, target->height);
+        draw_info.modelview = Orthographic(target.width, target.height);
         draw_info.layer = 0;
-        DrawSingleScreen(screen_id, 0.0f, 0.0f, static_cast<float>(target->width),
-                         static_cast<float>(target->height),
+        DrawSingleScreen(screen_id, 0.0f, 0.0f, static_cast<float>(target.width),
+                         static_cast<float>(target.height),
                          Layout::DisplayOrientation::Landscape);
         scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
-    }
-    if (!any) {
-        return false;
     }
     Common::DebugStall::Maybe(Common::DebugStall::Where::Acquire); // AzaharFrame: test only
     // The tick this submission signals (Scheduler::SubmitExecution).
     const u64 tick = scheduler.CurrentTick();
     scheduler.Flush();
-    xr_target->QueueRelease(tick);
+    xr_target->EndFrame(tick);
     return true;
 }
 

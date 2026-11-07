@@ -2,7 +2,10 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <limits>
 
 #include "common/assert.h"
 #include "common/debug_stall.h"
@@ -13,6 +16,8 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_xr_target.h"
+
+#include <vk_mem_alloc.h>
 
 namespace Vulkan {
 
@@ -80,20 +85,32 @@ XrPresentTarget::XrPresentTarget(const Instance& instance_, Scheduler& scheduler
     }
     CreateRenderPass();
     CreatePipeline(vertex_shader, pipeline_layout);
+    CreateCopyObjects();
     sink.SetScreensLive(true);
     release_thread = std::jthread([this](std::stop_token token) { ReleaseThread(token); });
     LOG_INFO(Render_Vulkan, "xr: present target ready ({})", vk::to_string(format));
 }
 
 XrPresentTarget::~XrPresentTarget() {
-    WaitIdle();
+    Drain();
     release_thread.request_stop();
     cv.notify_all();
     release_thread.join();
+    scheduler.Finish(); // the spill slots may still be drawn into
     sink.SetScreensLive(false);
+    // Images waited for ahead of time go back (not shown: the screens are off), so that the
+    // next game's target can wait for images of the same swapchains.
+    for (std::size_t i = 0; i < kScreens; i++) {
+        if (screens[i].armed >= 0) {
+            sink.Release(static_cast<VideoCore::XrScreen>(i), true);
+            screens[i].armed = -1;
+        }
+    }
     for (auto& screen : screens) {
         DestroyTargets(screen);
     }
+    device.destroyFence(copy_fence);
+    device.destroyCommandPool(copy_pool);
     device.destroyPipeline(pipeline);
     device.destroyShaderModule(fragment_shader);
     device.destroyRenderPass(render_pass);
@@ -262,6 +279,91 @@ void XrPresentTarget::CreatePipeline(vk::ShaderModule vertex_shader,
     pipeline = made;
 }
 
+void XrPresentTarget::CreateCopyObjects() {
+    copy_pool = device.createCommandPool({
+        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = instance.GetGraphicsQueueFamilyIndex(),
+    });
+    copy_cmdbuf = device
+                      .allocateCommandBuffers({
+                          .commandPool = copy_pool,
+                          .level = vk::CommandBufferLevel::ePrimary,
+                          .commandBufferCount = 1,
+                      })
+                      .front();
+    copy_fence = device.createFence({});
+}
+
+bool XrPresentTarget::CreateSpill(Screen& screen) {
+    for (SpillSlot& slot : screen.spill) {
+        const vk::ImageCreateInfo image_info = {
+            .imageType = vk::ImageType::e2D,
+            .format = format,
+            .extent = {screen.size.width, screen.size.height, 1},
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = vk::SampleCountFlagBits::e1,
+            .usage = vk::ImageUsageFlagBits::eColorAttachment |
+                     vk::ImageUsageFlagBits::eTransferSrc,
+        };
+        const VmaAllocationCreateInfo alloc_info = {
+            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        };
+        VkImage image{};
+        const VkImageCreateInfo unsafe_info = static_cast<VkImageCreateInfo>(image_info);
+        const VkResult result = vmaCreateImage(instance.GetAllocator(), &unsafe_info, &alloc_info,
+                                               &image, &slot.allocation, nullptr);
+        if (result != VK_SUCCESS) {
+            LOG_ERROR(Render_Vulkan, "xr: no spill image {}x{} ({}): a frame drawn while the "
+                                     "last one is in flight is dropped",
+                      screen.size.width, screen.size.height, static_cast<int>(result));
+            slot.allocation = {};
+            DestroySpill(screen);
+            return false;
+        }
+        slot.image = vk::Image{image};
+        slot.view = device.createImageView({
+            .image = slot.image,
+            .viewType = vk::ImageViewType::e2D,
+            .format = format,
+            .subresourceRange{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        });
+        slot.framebuffer = device.createFramebuffer({
+            .renderPass = render_pass,
+            .attachmentCount = 1,
+            .pAttachments = &slot.view,
+            .width = screen.size.width,
+            .height = screen.size.height,
+            .layers = 1,
+        });
+    }
+    return true;
+}
+
+void XrPresentTarget::DestroySpill(Screen& screen) {
+    for (SpillSlot& slot : screen.spill) {
+        if (slot.framebuffer) {
+            device.destroyFramebuffer(slot.framebuffer);
+        }
+        if (slot.view) {
+            device.destroyImageView(slot.view);
+        }
+        if (slot.image) {
+            vmaDestroyImage(instance.GetAllocator(), static_cast<VkImage>(slot.image),
+                            slot.allocation);
+        }
+        slot = {};
+    }
+    screen.spill_ok = false;
+}
+
 void XrPresentTarget::DestroyTargets(Screen& screen) {
     for (auto fb : screen.framebuffers) {
         device.destroyFramebuffer(fb);
@@ -269,17 +371,38 @@ void XrPresentTarget::DestroyTargets(Screen& screen) {
     for (auto view : screen.views) {
         device.destroyImageView(view);
     }
+    DestroySpill(screen);
     screen.framebuffers.clear();
     screen.views.clear();
+    screen.images.clear();
     screen.size = vk::Extent2D{};
 }
 
-void XrPresentTarget::WaitIdle() {
+bool XrPresentTarget::SpillReady() const {
+    return std::all_of(screens.begin(), screens.end(),
+                       [](const Screen& screen) { return screen.spill_ok; });
+}
+
+void XrPresentTarget::Drain() {
     std::unique_lock lock{mutex};
-    cv.wait(lock, [this] { return queue.empty(); });
+    handoff.SetPaused(true);
+    if (handoff.DropQueued()) {
+        sink.NoteSpillReplaced();
+    }
+    if (handoff.Idle()) {
+        return;
+    }
+    const auto start = std::chrono::steady_clock::now();
+    cv.notify_all();
+    cv.wait(lock, [this] { return handoff.Idle(); });
+    sink.NoteEmuWait(static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                          std::chrono::steady_clock::now() - start)
+                                          .count()));
 }
 
 bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
+    bool drained = false;
+    bool ok = true;
     for (std::size_t i = 0; i < kScreens; i++) {
         Screen& screen = screens[i];
         const vk::Extent2D size = sizes[i];
@@ -288,12 +411,21 @@ bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
         }
         // A new size (first frame, or the resolution factor changed): nothing of
         // this screen may be in flight while its swapchain is remade.
-        WaitIdle();
-        scheduler.Finish();
+        if (!drained) {
+            Drain();
+            scheduler.Finish();
+            drained = true;
+        }
         DestroyTargets(screen);
+        {
+            std::scoped_lock lock{mutex};
+            screen.armed = -1; // a waited image of the old swapchain goes with it
+            handoff.Unarm();
+        }
         const auto which = static_cast<VideoCore::XrScreen>(i);
         if (!sink.EnsureSwapchain(which, size.width, size.height)) {
-            return false;
+            ok = false;
+            break;
         }
         // As many images as the runtime made (an index past them would leave a waited
         // image that is never released).
@@ -323,92 +455,244 @@ bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
                 .height = size.height,
                 .layers = 1,
             };
+            screen.images.push_back(vk::Image{images[n]});
             screen.views.push_back(view);
             screen.framebuffers.push_back(device.createFramebuffer(fb_info));
         }
         screen.size = size;
+        screen.spill_ok = CreateSpill(screen);
+    }
+    if (drained) {
+        std::scoped_lock lock{mutex};
+        handoff.SetPaused(false);
+        cv.notify_all();
+    }
+    return ok;
+}
+
+bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets) {
+    sink.NoteEmuFrame();
+    {
+        std::scoped_lock lock{mutex};
+        frame = handoff.BeginFrame(SpillReady());
+        if (frame.path == XrHandoff::Path::Direct) {
+            for (std::size_t i = 0; i < kScreens; i++) {
+                const Screen& screen = screens[i];
+                targets[i] = Target{
+                    .framebuffer = screen.framebuffers[static_cast<std::size_t>(screen.armed)],
+                    .width = screen.size.width,
+                    .height = screen.size.height,
+                };
+            }
+        }
+        cv.notify_all(); // arm when the images are not armed yet
+    }
+    if (frame.path == XrHandoff::Path::None) {
+        return false;
+    }
+    if (frame.path == XrHandoff::Path::Spill) {
+        // The swapchain images are still in use (the GPU has not finished the frame
+        // before, or its copy is in flight): drawn aside, copied in by the handoff thread.
+        for (std::size_t i = 0; i < kScreens; i++) {
+            const Screen& screen = screens[i];
+            sink.NoteLateRelease(static_cast<VideoCore::XrScreen>(i));
+            targets[i] = Target{
+                .framebuffer = screen.spill[frame.slot].framebuffer,
+                .width = screen.size.width,
+                .height = screen.size.height,
+            };
+        }
+        if (frame.replaced) {
+            sink.NoteSpillReplaced();
+        }
     }
     return true;
 }
 
-const XrPresentTarget::Target* XrPresentTarget::Acquire(VideoCore::XrScreen which) {
-    Screen& screen = screens[static_cast<std::size_t>(which)];
-    {
-        std::unique_lock lock{mutex};
-        if (screen.pending) {
-            sink.NoteLateRelease(which);
-            cv.wait(lock, [&] { return !screen.pending; });
-        }
-    }
-    const int32_t index = sink.Acquire(which);
-    if (index < 0) {
-        return nullptr;
-    }
-    if (static_cast<std::size_t>(index) >= screen.framebuffers.size()) {
-        // Acquired and waited, so it must go back or the swapchain is stuck.
-        LOG_ERROR(Render_Vulkan, "xr: image index {} past the {} framebuffers", index,
-                  screen.framebuffers.size());
-        sink.Release(which, true);
-        return nullptr;
-    }
-    screen.acquired = true;
-    screen.current = Target{
-        .framebuffer = screen.framebuffers[index],
-        .width = screen.size.width,
-        .height = screen.size.height,
-    };
-    return &screen.current;
+void XrPresentTarget::EndFrame(u64 tick) {
+    std::scoped_lock lock{mutex};
+    handoff.EndFrame(frame, tick);
+    frame = {};
+    cv.notify_all();
 }
 
-void XrPresentTarget::QueueRelease(u64 tick) {
-    PendingRelease release{.tick = tick, .screens = {}};
-    bool any = false;
-    std::scoped_lock lock{mutex};
-    for (std::size_t i = 0; i < kScreens; i++) {
-        if (screens[i].acquired) {
-            screens[i].acquired = false;
-            screens[i].pending = true;
-            release.screens[i] = true;
-            any = true;
+void XrPresentTarget::RunArm() {
+    std::array<int32_t, kScreens> got{};
+    {
+        std::scoped_lock lock{mutex};
+        for (std::size_t i = 0; i < kScreens; i++) {
+            got[i] = screens[i].armed;
         }
     }
-    if (any) {
-        queue.push_back(release);
-        cv.notify_all();
+    for (std::size_t i = 0; i < kScreens; i++) {
+        if (got[i] >= 0) {
+            continue;
+        }
+        const auto which = static_cast<VideoCore::XrScreen>(i);
+        const int32_t index = sink.Acquire(which);
+        if (index >= 0 && static_cast<std::size_t>(index) >= screens[i].framebuffers.size()) {
+            // Acquired and waited, so it must go back or the swapchain is stuck.
+            LOG_ERROR(Render_Vulkan, "xr: image index {} past the {} framebuffers", index,
+                      screens[i].framebuffers.size());
+            sink.Release(which, true);
+            continue;
+        }
+        got[i] = index;
     }
+    std::scoped_lock lock{mutex};
+    bool all = true;
+    for (std::size_t i = 0; i < kScreens; i++) {
+        screens[i].armed = got[i];
+        all &= got[i] >= 0;
+    }
+    handoff.ArmDone(all);
+    cv.notify_all();
+}
+
+void XrPresentTarget::RunReleaseDirect(u64 tick) {
+    MasterSemaphore* master = scheduler.GetMasterSemaphore();
+    if (!skip_gpu_wait) {
+        master->Wait(tick);
+    }
+    const bool finished = master->IsFree(tick);
+    Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
+    for (std::size_t i = 0; i < kScreens; i++) {
+        sink.Release(static_cast<VideoCore::XrScreen>(i), finished);
+    }
+    std::scoped_lock lock{mutex};
+    for (Screen& screen : screens) {
+        screen.armed = -1;
+    }
+    handoff.ReleaseDone();
+    cv.notify_all();
+}
+
+void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
+    // The frame's draw into the slot was submitted before `tick` signals; the copy's own
+    // submission comes after, and the queue runs them in that order.
+    scheduler.GetMasterSemaphore()->Wait(tick);
+    copy_cmdbuf.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    constexpr vk::ImageSubresourceRange range = {
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+    std::array<vk::ImageMemoryBarrier, kScreens * 2> pre{};
+    std::array<vk::ImageMemoryBarrier, kScreens> post{};
+    for (std::size_t i = 0; i < kScreens; i++) {
+        const Screen& screen = screens[i];
+        const vk::Image dst = screen.images[static_cast<std::size_t>(screen.armed)];
+        pre[i * 2] = vk::ImageMemoryBarrier{
+            .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+            .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .newLayout = vk::ImageLayout::eTransferSrcOptimal,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = screen.spill[slot].image,
+            .subresourceRange = range,
+        };
+        // The runtime is done with a waited image; every pixel is written.
+        pre[i * 2 + 1] = vk::ImageMemoryBarrier{
+            .srcAccessMask = {},
+            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .oldLayout = vk::ImageLayout::eUndefined,
+            .newLayout = vk::ImageLayout::eTransferDstOptimal,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = dst,
+            .subresourceRange = range,
+        };
+        // Back in COLOR_ATTACHMENT_OPTIMAL for the runtime (XR_KHR_vulkan_enable2).
+        post[i] = vk::ImageMemoryBarrier{
+            .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .dstAccessMask = {},
+            .oldLayout = vk::ImageLayout::eTransferDstOptimal,
+            .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = dst,
+            .subresourceRange = range,
+        };
+    }
+    copy_cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                                    vk::PipelineStageFlagBits::eTopOfPipe,
+                                vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, pre);
+    for (std::size_t i = 0; i < kScreens; i++) {
+        const Screen& screen = screens[i];
+        const vk::ImageCopy region = {
+            .srcSubresource{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+            .srcOffset = {},
+            .dstSubresource{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+            .dstOffset = {},
+            .extent = {screen.size.width, screen.size.height, 1},
+        };
+        copy_cmdbuf.copyImage(screen.spill[slot].image, vk::ImageLayout::eTransferSrcOptimal,
+                              screen.images[static_cast<std::size_t>(screen.armed)],
+                              vk::ImageLayout::eTransferDstOptimal, region);
+    }
+    copy_cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, post);
+    copy_cmdbuf.end();
+    const vk::SubmitInfo submit = {
+        .commandBufferCount = 1,
+        .pCommandBuffers = &copy_cmdbuf,
+    };
+    bool finished = false;
+    try {
+        {
+            std::scoped_lock queue_lock{scheduler.submit_mutex};
+            instance.GetGraphicsQueue().submit(submit, copy_fence);
+        }
+        finished = device.waitForFences(copy_fence, true, std::numeric_limits<u64>::max()) ==
+                   vk::Result::eSuccess;
+        device.resetFences(copy_fence);
+    } catch (vk::DeviceLostError& err) {
+        UNREACHABLE_MSG("Device lost during the XR spill copy: {}", err.what());
+    }
+    copy_cmdbuf.reset();
+    Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
+    for (std::size_t i = 0; i < kScreens; i++) {
+        sink.Release(static_cast<VideoCore::XrScreen>(i), finished);
+    }
+    sink.NoteSpillShown();
+    std::scoped_lock lock{mutex};
+    for (Screen& screen : screens) {
+        screen.armed = -1;
+    }
+    handoff.CopyDone(slot);
+    cv.notify_all();
 }
 
 void XrPresentTarget::ReleaseThread(std::stop_token token) {
     Common::SetCurrentThreadName("XrRelease");
-    MasterSemaphore* master = scheduler.GetMasterSemaphore();
     while (true) {
-        PendingRelease release;
+        XrHandoff::Job job;
         {
             std::unique_lock lock{mutex};
-            Common::CondvarWait(cv, lock, token, [this] { return !queue.empty(); });
-            if (queue.empty()) {
-                return; // stop requested and drained
-            }
-            release = queue.front();
-        }
-        if (!skip_gpu_wait) {
-            master->Wait(release.tick);
-        }
-        const bool finished = master->IsFree(release.tick);
-        Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
-        for (std::size_t i = 0; i < kScreens; i++) {
-            if (release.screens[i]) {
-                sink.Release(static_cast<VideoCore::XrScreen>(i), finished);
+            Common::CondvarWait(cv, lock, token, [&] {
+                job = handoff.NextJob();
+                return job.kind != XrHandoff::JobKind::None;
+            });
+            if (job.kind == XrHandoff::JobKind::None) {
+                return; // stop requested (the destructor drained first)
             }
         }
-        std::scoped_lock lock{mutex};
-        queue.pop_front();
-        for (std::size_t i = 0; i < kScreens; i++) {
-            if (release.screens[i]) {
-                screens[i].pending = false;
-            }
+        switch (job.kind) {
+        case XrHandoff::JobKind::ReleaseDirect:
+            RunReleaseDirect(job.tick);
+            break;
+        case XrHandoff::JobKind::Arm:
+            RunArm();
+            break;
+        case XrHandoff::JobKind::CopySpill:
+            RunCopySpill(job.slot, job.tick);
+            break;
+        case XrHandoff::JobKind::None:
+            break;
         }
-        cv.notify_all();
     }
 }
 

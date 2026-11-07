@@ -11,7 +11,7 @@ New code, in files of its own:
 | `src/frame_xr/` | the OpenXR session, the frame loop, input (`input/`), the game picker (`picker/`, `ui/`), immersive mode, the controller models, beams, controls help and stats (`vis/`) |
 | `src/video_core/vulkan_hooks.h` | the instance and device hooks, and the screen sink |
 | `src/video_core/vr_immersive.h` | the head pose snapshot for immersive mode |
-| `src/video_core/renderer_vulkan/vk_xr_target.*` | the three OpenXR swapchains and the release thread |
+| `src/video_core/renderer_vulkan/vk_xr_target.*` | the three OpenXR swapchains, the spill images and the handoff thread (`vk_xr_handoff.h`: its rules) |
 | `src/video_core/renderer_vulkan/renderer_vulkan_xr.cpp` | `RenderToXr()` |
 | `src/input_common/frame_xr.*` | the Frame controller input engine |
 | `src/citra_qt/configuration/configure_frame_vr.*`, `src/citra_qt/frame_branding.h` | the **VR** group in the Graphics tab, the Azahar for Frame icon |
@@ -185,7 +185,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_MODEL_TEXTURE`, `AZAHARFRAME_MODEL_TRIANGLES` | `frame-controller-models.py` | the models' texture size (default 1024) and a triangle budget |
 | `AZAHARFRAME_XR_NO_GPU_WAIT=1` | `vk_xr_target.cpp` | releases images before the GPU is done. A negative test, never for playing |
 | `AZAHARFRAME_XR_WATCHDOG=1` | `frame_xr/watchdog.cpp` | logs a frame loop phase that lasts over 50 ms, with the kernel state, wait channel and system call of the frame loop's thread and of the emulator's busy threads. For finding display stalls |
-| `AZAHARFRAME_DEBUG_STALL=<where>:<ms>[:<s>]` | `common/debug_stall.h` | sleeps `ms` every `s` seconds (default 5) at `tick` (emu thread after a frame, no lock), `submit` (inside the queue lock), `acquire` (XR images acquired, release not queued) or `release` (the release thread). A test, never for playing |
+| `AZAHARFRAME_DEBUG_STALL=<where>:<ms>[:<s>]` | `common/debug_stall.h` | sleeps `ms` every `s` seconds (default 5) at `tick` (emu thread after a frame, no lock), `submit` (inside the queue lock), `acquire` (XR frame drawn, not yet handed off) or `release` (the handoff thread, before a release). A test, never for playing |
 | `AZAHARFRAME_VMA_BLOCK_MIB` | `vk_instance.cpp` | the size of VMA's memory blocks in MiB (default 32 on the XR device; `0`: VMA's own, 256), to compare |
 | `AZAHARFRAME_TEST_BOOTS`, `AZAHARFRAME_TEST_SECONDS` | `citra_qt.cpp` | boot the listed games (`a.3ds\|b.cci`) in turn, each for that many seconds. For the headless runs |
 
