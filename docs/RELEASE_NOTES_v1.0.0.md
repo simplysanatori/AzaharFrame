@@ -45,7 +45,7 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for 
 
 ## Install
 
-Download the tarball and run `steam-frame/install.sh` from the repository with it as the argument, or add `simplysanatori/AzaharFrame` in Frametanium. It installs the program and creates the Steam library entry, and keeps your settings, saves and keys on an update. The [README](https://github.com/simplysanatori/AzaharFrame/blob/steam-frame/README.md) has the steps, how to add your games and the controls.
+Download the tarball and run `steam-frame/install.sh` from the repository with it as the argument, or add `simplysanatori/AzaharFrame` in Frametanium. It installs the program and creates the Steam library entry, and keeps your settings, saves and keys on an update. The [README](https://github.com/simplysanatori/AzaharFrame/blob/steam-frame/README.md) has the steps and the main controls. The [user guide](https://github.com/simplysanatori/AzaharFrame/blob/steam-frame/docs/USER_GUIDE.md) has how to add your games and every control.
 
 ## Known
 

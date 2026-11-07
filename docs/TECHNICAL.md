@@ -1,6 +1,6 @@
 # How the port works
 
-Technical notes for people working on the port. For playing, see the [README](../README.md) and [CONTROLS.md](CONTROLS.md). The list of files changed in the emulator and how to merge new versions is in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md).
+Technical notes for people working on the port. For playing, see the [README](../README.md), the [user guide](USER_GUIDE.md) and [CONTROLS.md](CONTROLS.md). Build and installer detail is in [AGENTS.md](../AGENTS.md). The list of files changed in the emulator and how to merge new versions is in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md).
 
 ## What Azahar for Frame is
 

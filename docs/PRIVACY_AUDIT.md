@@ -40,14 +40,14 @@ Two files are what a user attaches to an issue: `~/.local/share/AzaharFrame/laun
 - `launch.log` holds the date, the Steam app ID of the library entry, the lines of `session.env`, the OpenXR runtime file, SteamVR settings that could not be set, and the exit status. No account name, no network address.
 - `azahar_log.txt` holds Azahar's usual start-up lines (version, processor name, system version, memory, graphics device and driver, every setting including audio and camera device names), the full path of each game it loads (these include the Linux user name, for example under `~/Documents`), the picker's launch line (`xr: picker launches <path>`), the OpenXR runtime and the headset's name, and the per-second performance line. A custom storage folder, if set, is logged as a path too. It holds no Steam or GitHub account, no network address and no serial number.
 
-The README tells users this in its "Reporting a problem" section and asks them to read the logs before sharing. There is no log-collection script in the repository.
+The README tells users this in its "Reporting a problem" section, and the user guide in full, and both ask them to read the logs before sharing. There is no log-collection script in the repository.
 
 ## Verification
 
 Run these from the repository root. Each must print `0`, except where it says to review. Upstream's vendored sources (`externals/`, `src/` outside `frame_xr`) hold version strings, example addresses and their authors' addresses, so most checks name the folders this fork owns.
 
 ```sh
-OWN="steam-frame docs README.md THIRD_PARTY_NOTICES.md src/frame_xr tools/xrmock tools/mockrun.sh src/tests/frame_xr"
+OWN="steam-frame docs README.md AGENTS.md THIRD_PARTY_NOTICES.md src/frame_xr tools/xrmock tools/mockrun.sh src/tests/frame_xr"
 
 # IPv4 addresses other than 127.0.0.1 and 0.0.0.0 in the files this fork owns
 git grep -IPn '(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])' -- $OWN ':!docs/PRIVACY_AUDIT.md' | grep -vE '127\.0\.0\.1|0\.0\.0\.0' | wc -l
