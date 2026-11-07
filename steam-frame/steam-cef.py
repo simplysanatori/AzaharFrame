@@ -2,10 +2,11 @@
 """Evaluate JavaScript in Steam's SharedJSContext over the CEF remote debugging port.
 Usage: steam-cef.py 'JS expression'   (awaits promises; prints JSON result)
        steam-cef.py --art APPID DIR [--dry-run]   (set a shortcut's library art and icon from DIR)
-       steam-cef.py --screen theater|dashboard APPID [SECONDS]   (where SteamVR shows the app's
-           flat window: theater = the big screen, dashboard = back inside the dashboard)
+       steam-cef.py --screen theater|dashboard APPID [SECONDS] [--after-vr]   (where SteamVR shows the
+           app's flat window: theater = the big screen, dashboard = back inside the dashboard; exit 0
+           moved, 1 nothing moved, 2 moved after VR but SteamVR does not show it)
 Steam's debugging port is 8080; AZAHARFRAME_CEF_PORT names another (for tests)."""
-import json, os, socket, struct, subprocess, sys, time, base64, urllib.request
+import json, os, re, socket, struct, subprocess, sys, time, base64, urllib.request
 
 def ws_connect(url):
     # ws://host:port/path
@@ -112,39 +113,95 @@ def vrcmd(*args):
     env.pop('LD_PRELOAD', None)  # Steam's overlay library, not for a SteamVR tool
     return subprocess.run([exe] + list(args), capture_output=True, text=True, timeout=10, env=env).stdout
 
-def overlay_exists(key):
-    """vrcmd --overlays lists one overlay per line as 'key' -- 'name', ..."""
-    return any(line.startswith("'%s' " % key) for line in vrcmd('--overlays').splitlines())
+def overlay_line(key):
+    """vrcmd --overlays lists one overlay per line: 'key' -- 'name', [size=WxH ]visible|not_visible TYPE flags=0x..."""
+    return next((l for l in vrcmd('--overlays').splitlines() if l.startswith("'%s' " % key)), None)
 
-def screen(where, appid, seconds=8.0):
+def overlay_state(line):
+    """(picture, in_dashboard, visible) of an --overlays line: a texture bigger than 0x0, the overlay flag
+    VisibleInDashboard (1 << 15), and shown now."""
+    if line is None:
+        return (False, False, False)
+    m = re.search(r' size=(\d+)x(\d+) ', line)
+    f = re.search(r' flags=0x([0-9a-fA-F]+)', line)
+    v = re.search(r' (visible|not_visible) VROverlayType', line)
+    return (bool(m and int(m.group(1)) > 0 and int(m.group(2)) > 0),
+            bool(f and int(f.group(1), 16) & 0x8000), bool(v and v.group(1) == 'visible'))
+
+def describe(line):
+    if line is None:
+        return 'missing'
+    picture, in_dashboard, visible = overlay_state(line)
+    return '%s, %s, %s' % ('picture' if picture else 'no picture',
+                           'in the dashboard' if in_dashboard else 'not in the dashboard',
+                           'visible' if visible else 'not visible')
+
+def showable(line):
+    """SteamVR's dashboard makes a frame for the game window only while its overlay has a picture and the
+    VisibleInDashboard flag (gamescope sets both once the window is drawn). Without that frame a dock request
+    for the key moves whichever frame is active instead (onVrCmdDockOverlayRequested falls back to the
+    active frame, often Steam's library), and ShowDashboard for it opens the library."""
+    picture, in_dashboard, _ = overlay_state(line)
+    return picture and in_dashboard
+
+def show_in_dashboard(key):
+    try:
+        evaluate("SteamClient.OpenVR.VROverlay.ShowDashboard('%s')" % key)
+        return True
+    except Exception as e:
+        print('ShowDashboard failed: %s' % e, file=sys.stderr)
+        return False
+
+def screen(where, appid, seconds=8.0, after_vr=False):
     """Moves the frame of the app's flat window (gamescope's overlay valve.steam.desktopgame.APPID) to
     the theater screen or back into the dashboard, through vrcmd --dock-overlay (SteamVR's dashboard,
     onVrCmdDockOverlayRequested), then hides the dashboard. The SteamVR dashboard docks a game window
     in the theater on its own only when the frame first comes alive and the app is not the scene app
     (dashboard.autoShowGameTheater, on by default); after an OpenXR session the frame already exists,
     so nothing moves it, and with that setting off a flat window only shows while the dashboard is open.
-    The dock is only asked for once the overlay exists: for an unknown key the dashboard docks
-    whichever frame is active instead."""
+    The theater move waits until the dashboard can show the window (showable). after_vr (--after-vr):
+    the dashboard is first opened on the window (SteamVR does not bring it back after a session), and
+    when the window is not shown once docked, it is opened and docked once more."""
     key = 'valve.steam.desktopgame.%d' % int(appid)
     deadline = time.monotonic() + seconds
-    while not overlay_exists(key):
-        if where != 'theater' or time.monotonic() >= deadline:
-            print('%s: no overlay %s, nothing moved' % (where, key))
+    line = overlay_line(key)
+    if where != 'theater':
+        if line is None:
+            print('dashboard: no overlay %s, nothing moved' % key)
+            return 1
+        vrcmd('--dock-overlay', 'dashboard', key)
+        vrcmd('--hidedashboard')
+        print('dashboard: docked %s, dashboard hidden' % key)
+        return 0
+    while not showable(line):
+        if time.monotonic() >= deadline:
+            print('theater: overlay %s %s, nothing moved' % (key, describe(line)))
             return 1
         time.sleep(0.25)
-    if where == 'theater':
-        time.sleep(0.75)  # the dashboard makes the window's frame a moment after the overlay
-        if not overlay_exists(key):
-            print('theater: overlay %s went away, nothing moved' % key)
-            return 1
-    vrcmd('--dock-overlay', where, key)
+        line = overlay_line(key)
+    time.sleep(0.75)  # the dashboard makes the window's frame a moment after the overlay can show
+    if after_vr:
+        show_in_dashboard(key)
+    vrcmd('--dock-overlay', 'theater', key)
     vrcmd('--hidedashboard')
-    print('%s: docked %s, dashboard hidden' % (where, key))
-    return 0
+    line = overlay_line(key)
+    if after_vr and not overlay_state(line)[2]:
+        # Not shown in the theater: open the dashboard on it again and dock it anew (a dock to the
+        # place it is already at is ignored, so through the dashboard).
+        print('theater: overlay %s %s after the move, once more' % (key, describe(line)), file=sys.stderr)
+        show_in_dashboard(key)
+        vrcmd('--dock-overlay', 'dashboard', key)
+        vrcmd('--dock-overlay', 'theater', key)
+        vrcmd('--hidedashboard')
+        line = overlay_line(key)
+    print('theater: docked %s, dashboard hidden (overlay %s)' % (key, describe(line)))
+    return 0 if line is None or overlay_state(line)[2] or not after_vr else 2
 
 if __name__ == '__main__':
-    if len(sys.argv) in (4, 5) and sys.argv[1] == '--screen' and sys.argv[2] in ('theater', 'dashboard'):
-        sys.exit(screen(sys.argv[2], sys.argv[3], float(sys.argv[4]) if len(sys.argv) == 5 else 8.0))
+    args = [a for a in sys.argv[1:] if a != '--after-vr']
+    if len(args) in (3, 4) and args[0] == '--screen' and args[1] in ('theater', 'dashboard'):
+        sys.exit(screen(args[1], args[2], float(args[3]) if len(args) == 4 else 8.0,
+                        after_vr='--after-vr' in sys.argv))
     elif len(sys.argv) in (4, 5) and sys.argv[1] == '--art':
         apply_art(sys.argv[2], sys.argv[3], dry_run=sys.argv[4:] == ['--dry-run'])   # steam-cef.py --art APPID DIR [--dry-run]
     else:

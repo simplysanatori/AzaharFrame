@@ -279,8 +279,10 @@ void AskSteamForFlatScreen(const QString& when) {
 // vrcmd call takes about 2 s). One at a time; a new request ends the one before.
 QPointer<QProcess> g_screen_helper;
 bool g_in_theater = false; ///< this run docked the window's frame in the theater
+int g_dock_request = 0;    ///< counts DockWindow calls: a retry only while no newer one came
 
 void StopScreenHelper() {
+    ++g_dock_request; // and a retry still waiting is not made
     if (g_screen_helper) {
         g_screen_helper->disconnect();
         g_screen_helper->kill();
@@ -289,8 +291,13 @@ void StopScreenHelper() {
     }
 }
 
-void DockWindow(bool theater, int wait_s, std::function<void()> then = {}) {
+// after_vr: steam-cef.py first opens the dashboard on the window once SteamVR can show it, and
+// docks it again when it does not show (--after-vr); with nothing moved (the window never became
+// showable) it is asked again twice, 2 s apart, while flat.
+void DockWindow(bool theater, int wait_s, std::function<void()> then = {}, bool after_vr = false,
+                int tries_left = 0) {
     StopScreenHelper();
+    const int request = ++g_dock_request;
     if (!CanAskSteam() || (theater && FlatScreenMode() != QStringLiteral("theater"))) {
         if (then) {
             then();
@@ -304,18 +311,32 @@ void DockWindow(bool theater, int wait_s, std::function<void()> then = {}) {
         // frame that is in the dashboard already back to it changes nothing.
         g_in_theater = true;
     }
-    g_screen_helper = RunCef(
-        {QStringLiteral("--screen"), where, SteamAppId(), QString::number(wait_s)},
-        [theater, then](int code, const QString& out) {
-            // 0: moved. 1: the window's overlay was not there, nothing moved.
-            if (code == 0 || code == 1) {
-                g_in_theater = theater && code == 0;
-            }
-            LOG_INFO(Frontend, "xr: window frame: {}", out.toStdString());
-            if (then) {
-                then();
-            }
-        });
+    QStringList args{QStringLiteral("--screen"), where, SteamAppId(), QString::number(wait_s)};
+    if (after_vr) {
+        args << QStringLiteral("--after-vr");
+    }
+    g_screen_helper = RunCef(args, [theater, then, wait_s, after_vr, tries_left,
+                                    request](int code, const QString& out) {
+        // 0: moved. 1: the window's overlay was not there or could not show, nothing moved.
+        // 2: moved after VR, but SteamVR does not show the window (the output says how it is).
+        if (code == 0 || code == 1 || code == 2) {
+            g_in_theater = theater && code != 1;
+        }
+        LOG_INFO(Frontend, "xr: window frame: {}{}", out.toStdString(),
+                 code == 2 ? " (exit 2: not shown)" : "");
+        if (code == 1 && theater && tries_left > 0) {
+            QTimer::singleShot(2000, qApp, [wait_s, then, after_vr, tries_left, request] {
+                if (request == g_dock_request) { // nothing else asked meanwhile (VR again, a stop)
+                    LOG_INFO(Frontend, "xr: the window's frame to the theater, again");
+                    DockWindow(true, wait_s, then, after_vr, tries_left - 1);
+                }
+            });
+            return;
+        }
+        if (then) {
+            then();
+        }
+    });
 }
 
 // Logs the window's states, and after VR waits for it to be exposed again.
@@ -463,10 +484,16 @@ void ReturnToFlat(QWidget* window) {
     if (WindowWatch* watch = WatchOf(window)) {
         watch->StartReturn();
     }
-    // SteamVR does not bring the window back by itself after a session: show it in the
-    // dashboard now, then move it to the theater so that it stays when the dashboard closes.
-    AskSteamForFlatScreen(QStringLiteral("after VR"));
-    DockWindow(true, 10);
+    // SteamVR does not bring the window back by itself after a session. In the theater (the
+    // default) steam-cef.py --after-vr shows it in the dashboard and moves its frame to the
+    // theater once SteamVR can show the window: asked any earlier, the dashboard opens Steam's
+    // library and the dock moves the library's frame (the theater stays empty). Kept in the
+    // dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.
+    if (FlatScreenMode() == QStringLiteral("theater")) {
+        DockWindow(true, 15, {}, true, 2);
+    } else {
+        AskSteamForFlatScreen(QStringLiteral("after VR"));
+    }
 }
 
 void StartFlat(QWidget* window) {

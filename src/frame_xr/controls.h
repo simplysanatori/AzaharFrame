@@ -58,6 +58,7 @@ public:
     /// XR thread, about 120 times a second while flat (no session): the gamepad from
     /// SetFlatInput through the same mapper as in VR (no aim: no touch, no pointing).
     void FlatFrame(int64_t now_ns);
+    void FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns); // AzaharFrame flat4
     /// XR thread: a session was made (true) or ended (false). Tells the Qt side.
     void NotifyVr(bool vr);
 
@@ -178,6 +179,8 @@ private:
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
+    bool flat_menu_shown = false; ///< AzaharFrame flat4: FlatFrame is in the Flat menu
+    bool flat_back_down = false;  ///< B's edge in the Flat menu
     /// Test driver: what the game was sent in flat (LogFlatGameButtons).
     void LogFlatGameButtons(const Input::ControlState& controls);
     std::array<bool, Input::kNumControls> flat_sent{};

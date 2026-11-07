@@ -106,6 +106,7 @@ void VrUi::Init() {
 
 bool VrUi::Create(Runtime& rt) {
     menu_shown = false;
+    flat_menu_shown = false; // AzaharFrame flat4: a Flat menu open before VR closes with it
     picker_shown = false;
     bridge_live = false;
     chord_down = false;
@@ -252,6 +253,25 @@ void VrUi::FlatFrame(int64_t now_ns) {
         }
         return;
     }
+    // AzaharFrame flat4: the Flat menu, Azahar's window over the paused game (Menu held 1 s).
+    if (menu_open) {
+        FlatMenuFrame(in, now_ns);
+        return;
+    }
+    if (flat_menu_shown) {
+        // Closed: what is still held stays away from the game until let go, as after VR's menu.
+        flat_menu_shown = false;
+        swallow = {in.a,
+                   in.b,
+                   in.x,
+                   in.y,
+                   in.menu,
+                   in.view,
+                   {in.hand[0].trigger > 0.40f, in.hand[1].trigger > 0.40f},
+                   {in.hand[0].grip > 0.40f, in.hand[1].grip > 0.40f},
+                   {in.hand[0].bumper, in.hand[1].bumper}};
+        LOG_INFO(Frontend, "xr: flat: Flat menu closed, the game gets the buttons again");
+    }
     for (auto& hand : in.hand) {
         // Flat has no aim: a default ray and no screens to hit (below), so the triggers are
         // ZL and ZR and the grips grab nothing. Active, or the mapper ignores the triggers.
@@ -291,7 +311,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {
-            LOG_INFO(Frontend, "xr: flat: Menu held, pause / continue");
+            LOG_INFO(Frontend, "xr: flat: Menu held, opening the Flat menu");
             hooks.toggle_menu();
         }
     }
@@ -300,6 +320,59 @@ void VrUi::FlatFrame(int64_t now_ns) {
         if (hooks.stop_game) {
             LOG_INFO(Frontend, "xr: flat: View held, stopping the game");
             hooks.stop_game();
+        }
+    }
+}
+
+// AzaharFrame flat4: the Flat menu. The game sees no button; Menu held 1 s again closes the menu
+// (and the game continues), B goes back (closes a menu or dialog that is open, else the Flat
+// menu), View held stops the game, the four-button chord switches to VR.
+void VrUi::FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns) {
+    if (!flat_menu_shown) {
+        flat_menu_shown = true;
+        if (bridge_live) {
+            bridge.Release(); // nothing stays held for the game while the menu shows
+            bridge_live = false;
+        }
+        menu_hold = {}; // Menu is still held from opening: a new hold closes the menu
+        view_hold = {};
+        flat_back_down = in.b; // a B held from before is no press
+        LOG_INFO(Frontend, "xr: flat: Flat menu shown, the game gets no buttons");
+    }
+    if (ModeChord(in)) {
+        RequestToggleVr("Flat menu");
+    }
+    const bool bumper = in.hand[0].bumper || in.hand[1].bumper;
+    if (in.menu && (bumper || in.view)) {
+        // A chord being formed (VR / flat): no close; a new Menu press starts a new hold.
+        menu_hold.armed = false;
+        menu_hold.down = false;
+    }
+    if (in.view && (bumper || in.menu)) {
+        view_hold.armed = false;
+        view_hold.down = false;
+    }
+    if (menu_hold.Update(in.menu, now_ns, kMenuHoldNs)) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.toggle_menu) {
+            LOG_INFO(Frontend, "xr: flat: Menu held, closing the Flat menu");
+            hooks.toggle_menu();
+        }
+    }
+    if (view_hold.Update(in.view, now_ns, kStopHoldNs)) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.stop_game) {
+            LOG_INFO(Frontend, "xr: flat: View held in the Flat menu, stopping the game");
+            hooks.stop_game();
+        }
+    }
+    const bool back = in.b && !flat_back_down;
+    flat_back_down = in.b;
+    if (back) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.menu_back) {
+            LOG_INFO(Frontend, "xr: flat: B in the Flat menu");
+            hooks.menu_back();
         }
     }
 }

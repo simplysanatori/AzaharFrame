@@ -178,7 +178,7 @@ That pull is neither ZR nor a touch until the trigger is let go, and View stays 
 (no Select, no stop hold) until it is let go. The Left Trigger with View is plain ZL. The Qt side
 keeps the state: Azahar's turbo speed (`SetTurboEnabled`) and the "Fast Forward" and
 "Normal Speed" toasts (`FrameXr::SetFastForwardShown`, rows of the toast atlas in `hud.cpp`, 2 s each), off again when the game
-stops, the in-game menu opens (flat: Menu held pauses) or the mode switches.
+stops, the in-game menu or the Flat menu opens or the mode switches.
 
 ## Stopping the game
 
@@ -193,8 +193,10 @@ EXITING); the instance and the Vulkan device stay, so a new session later uses t
 In flat the XR thread runs `VrUi::FlatFrame` about 120 times a second: citra_qt reads Steam Input's
 gamepad with SDL (`citra_qt/frame_mode.cpp`) into the same InputFrame and the same mapper, with
 both screens marked not visible (no touch, no grab; the triggers are ZL and ZR) and no bottom
-screen toggle. Menu held 1 s pauses or continues (Emulation > Pause), View held 1.5 s stops the
-game, the chord goes back to VR. Buttons held when the mode changes (the chord itself) stay away
+screen toggle. Menu held 1 s opens the Flat menu (`VrUi::FlatMenuFrame`: the game paused, the
+window out of Fullscreen with its menu bar; no mapper while it shows, Menu held again or B closes
+it, B with a Qt menu or dialog open sends it Escape), View held 1.5 s stops the game, the chord
+goes back to VR. Buttons held when the mode changes (the chord itself) stay away
 from the game until let go. The input profile is the Frame one in both modes; the launcher's
 "Flat Gamepad" profile (SDL) is only for a run without XR.
 

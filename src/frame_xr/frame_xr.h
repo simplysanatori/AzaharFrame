@@ -154,7 +154,12 @@ enum class FlatScreens {
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
     std::function<void()> stop_game;                          ///< View held 1.5 s
-    std::function<void()> toggle_menu; ///< Menu held 1 s in a game: open or close the in-game menu
+    /// Menu held 1 s in a game: open or close the in-game menu (VR) or the Flat menu (flat,
+    /// Azahar's window over the paused game).
+    std::function<void()> toggle_menu;
+    /// AzaharFrame flat4: B in the Flat menu: close the menu or dialog that is open, else the
+    /// Flat menu. Queue to the GUI thread.
+    std::function<void()> menu_back;
     /// Left Bumper + Right Bumper + View + Menu (VR or flat): switch modes (the Qt side calls
     /// SetVr, writes the mode file, fades the window).
     std::function<void()> toggle_vr;

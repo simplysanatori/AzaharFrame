@@ -62,6 +62,7 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - In Flat, Azahar's window sits on SteamVR's big screen, the theater. It stays there when you close the dashboard.
 - In Flat the controllers work as in VR, with the same holds and combos. A tap of View or Menu is still Select or Start.
 - In Flat the window is 16:9, so it fills the big screen with no bars at the sides.
+- In Flat, hold Menu for a second to open the Flat menu: the game pauses and the window leaves Fullscreen with its menu bar, so the pointer reaches Azahar's menus and settings. Hold Menu again, press B or select Emulation > Continue to go back.
 - In Flat the stick clicks change the window's layout. Tap the right one to swap the screens and the left one to show only one screen. Hold the right one to go back to Large Screen, one big screen and one small, which is where Flat starts. VR keeps your own layout.
 - The next start uses the mode you used last.
 

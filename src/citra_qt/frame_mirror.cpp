@@ -681,6 +681,12 @@ void FrameMirror::Drain() {
     }
 }
 
+void FrameMirror::Back() {
+    FrameXr::HomePanelEvent e;
+    e.type = FrameXr::HomePanelEvent::Type::Escape;
+    Deliver(e);
+}
+
 void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     using Type = FrameXr::HomePanelEvent::Type;
     if (!main) {
@@ -696,7 +702,8 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
             !QApplication::activeModalWidget()) {
             const auto stack = Stack();
             if (std::none_of(stack.begin(), stack.end(), [](QWidget* w) { return IsDialogLike(w); })) {
-                LOG_INFO(Frontend, "xr: home panel: B closes the in-game menu");
+                LOG_INFO(Frontend, "xr: {}: B closes it",
+                         vr_showing ? "in-game menu" : "Flat menu");
                 close_menu();
                 return;
             }

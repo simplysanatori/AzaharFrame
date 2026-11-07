@@ -73,6 +73,9 @@ public:
     void SetCloseMenuHandler(std::function<void()> handler) {
         close_menu = std::move(handler);
     }
+    /// AzaharFrame flat4: B in the Flat menu, as in VR's: Escape to the open menu or dialog, else
+    /// the close handler. GUI thread.
+    void Back();
 
 protected:
     bool eventFilter(QObject* object, QEvent* event) override;

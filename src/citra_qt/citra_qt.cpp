@@ -224,6 +224,8 @@ std::function<void(FrameXr::FlatScreens what)> g_frame_xr_flat_screens;
 // ShowFullscreen made the game's window Fullscreen and HideFullscreen did not undo it yet. Qt can
 // lose that state while the window manager keeps it (Fullscreen before the window was mapped).
 bool g_frame_fullscreen = false;
+// AzaharFrame flat4: the Flat menu left Fullscreen when it opened; it goes back when it closes.
+bool g_frame_flat_menu_fullscreen = false;
 // The layout a left stick click in flat goes back to from Single Screen.
 Settings::LayoutOption g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
 
@@ -800,13 +802,24 @@ GMainWindow::GMainWindow(Core::System& system_)
                 QMetaObject::invokeMethod(
                     this,
                     [this] {
-                        if (!FrameXr::VrShowing()) {
+                        if (g_frame_mirror && g_frame_xr_set_menu) {
+                            // VR: the in-game menu. Flat: the Flat menu (AzaharFrame flat4).
+                            g_frame_xr_set_menu(!g_frame_mirror->MenuOpen());
+                        } else if (!FrameXr::VrShowing()) {
                             if (g_frame_xr_fast_forward) {
                                 g_frame_xr_fast_forward(false, "paused");
                             }
-                            OnPauseContinueGame(); // flat: Menu held 1 s pauses or continues
-                        } else if (g_frame_mirror && g_frame_xr_set_menu) {
-                            g_frame_xr_set_menu(!g_frame_mirror->MenuOpen());
+                            OnPauseContinueGame(); // the picker has no window: pause or continue
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
+            hooks.menu_back = [this] { // AzaharFrame flat4: B in the Flat menu
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_mirror && g_frame_mirror->MenuOpen() && !FrameXr::VrShowing()) {
+                            g_frame_mirror->Back();
                         }
                     },
                     Qt::QueuedConnection);
@@ -956,16 +969,29 @@ GMainWindow::GMainWindow(Core::System& system_)
                 if (g_frame_xr_fast_forward) {
                     g_frame_xr_fast_forward(false, "the mode switched");
                 }
-                if (!vr && g_frame_mirror && g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
-                    // Flat has no in-game menu: leave it as every other way out of it does
-                    // (Menu held, B, Emulation > Continue), which continues the game. Kept
-                    // paused, the window would show VR's last clear, not the game.
+                // A switch leaves the in-game menu or the Flat menu as every other way out of it
+                // does (Menu held, B, Emulation > Continue), which continues the game. Kept
+                // paused, the other mode would show nothing new of the game (VR's last clear in
+                // the window; in VR no picture at all, the screens get none while paused).
+                // AzaharFrame flat4: before the layout and size changes below (the Flat menu may
+                // have left Fullscreen, and must not go back to it in VR).
+                bool paused_without_menu = false;
+                if (g_frame_mirror && g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+                    if (vr) {
+                        g_frame_flat_menu_fullscreen = false;
+                    }
                     g_frame_xr_set_menu(false);
-                } else if (!vr && emulation_running && system.frame_limiter.IsFrameAdvancing()) {
-                    // Paused in flat before VR: one frame, so the window shows the game again
-                    // (in VR it only got a clear once a second). It stays paused.
-                    system.frame_limiter.AdvanceFrame();
-                    LOG_INFO(Frontend, "xr: flat, paused: one frame for the window");
+                } else if (emulation_running && system.frame_limiter.IsFrameAdvancing()) {
+                    if (g_frame_mirror && g_frame_xr_set_menu) {
+                        // Paused with no menu open: it stays paused, and the menu of the new
+                        // mode opens below, so that something shows and Continue is at hand.
+                        paused_without_menu = true;
+                    } else if (!vr) {
+                        // The picker: one frame, so the window shows the game again (in VR it
+                        // only got a clear once a second). It stays paused.
+                        system.frame_limiter.AdvanceFrame();
+                        LOG_INFO(Frontend, "xr: flat, paused: one frame for the window");
+                    }
                 }
                 // AzaharFrame flat3: Fullscreen (a game started in flat) is for flat only. In VR
                 // the window is the in-game menu, with its menu bar, at the VR size.
@@ -1004,7 +1030,27 @@ GMainWindow::GMainWindow(Core::System& system_)
                 } else {
                     FrameMode::ReturnToFlat(this);
                     if (emulation_running && ui->action_Fullscreen->isChecked()) {
-                        ShowFullscreen(); // as when a game starts in flat
+                        if (paused_without_menu) {
+                            g_frame_flat_menu_fullscreen = true; // once the Flat menu closes
+                        } else {
+                            ShowFullscreen(); // as when a game starts in flat
+                        }
+                    }
+                }
+                if (paused_without_menu && g_frame_mirror && g_frame_xr_set_menu) {
+                    LOG_INFO(Frontend, "xr: {}, the game paused: its menu opens",
+                             vr ? "VR" : "flat");
+                    g_frame_xr_set_menu(true);
+                    if (vr) {
+                        // The screens get no picture while paused: one frame once the session
+                        // runs, so the game shows behind the menu.
+                        QTimer::singleShot(500, this, [this] {
+                            if (FrameXr::VrShowing() && emulation_running &&
+                                system.frame_limiter.IsFrameAdvancing()) {
+                                system.frame_limiter.AdvanceFrame();
+                                LOG_INFO(Frontend, "xr: VR, paused: one frame for the screens");
+                            }
+                        });
                     }
                 }
             };
@@ -1115,6 +1161,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                 }
                 // Menu held 1 s in a game: pause (Emulation > Pause) and show this window over
                 // the game; held again, B with nothing open, or Emulation > Continue: resume.
+                // AzaharFrame flat4: in flat the same is the Flat menu: the window leaves
+                // Fullscreen (its menu bar shows) at flat's 16:9 size, and goes back to Fullscreen
+                // when the menu closes.
                 g_frame_xr_set_menu = [this](bool open) {
                     if (!g_frame_mirror || g_frame_mirror->MenuOpen() == open) {
                         return;
@@ -1122,8 +1171,14 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (open && (!emulation_running || !emu_thread)) {
                         return;
                     }
+                    // Which one is open: the Flat menu (flat) or the in-game menu (VR).
+                    static bool flat = false;
+                    if (open) {
+                        flat = !FrameXr::VrShowing();
+                    }
                     if (open && g_frame_xr_fast_forward) {
-                        g_frame_xr_fast_forward(false, "the in-game menu opened");
+                        g_frame_xr_fast_forward(false, flat ? "the Flat menu opened"
+                                                            : "the in-game menu opened");
                     }
                     if (open && emu_thread->IsRunning() &&
                         !system.frame_limiter.IsFrameAdvancing()) {
@@ -1133,11 +1188,54 @@ GMainWindow::GMainWindow(Core::System& system_)
                         g_frame_xr_passthrough_button->setChecked(
                             Settings::values.vr_background.GetValue() == 1);
                     }
+                    if (open && flat) {
+                        g_frame_flat_menu_fullscreen |= WindowFullscreen() || g_frame_fullscreen;
+                        if (WindowFullscreen() || g_frame_fullscreen) {
+                            HideFullscreen();
+                        }
+                        // Flat's size again (the geometry from before Fullscreen may be another
+                        // mode's), now and once the window manager has answered.
+                        g_frame_mirror->RefitWindow();
+                        QTimer::singleShot(1000, this, [] {
+                            if (g_frame_mirror && g_frame_mirror->MenuOpen() &&
+                                !FrameXr::VrShowing()) {
+                                g_frame_mirror->RefitWindow();
+                            }
+                        });
+                        // One frame at the new size, so the window shows the paused game under
+                        // the menu bar and not the picture of the Fullscreen window stretched.
+                        QTimer::singleShot(300, this, [this] {
+                            if (g_frame_mirror && g_frame_mirror->MenuOpen() &&
+                                !FrameXr::VrShowing() && emulation_running &&
+                                system.frame_limiter.IsFrameAdvancing()) {
+                                system.frame_limiter.AdvanceFrame();
+                            }
+                        });
+                        activateWindow();
+                    }
                     g_frame_mirror->SetMenuOpen(open);
                     FrameXr::SetInGameMenu(open);
-                    LOG_INFO(Frontend, "xr: in-game menu {}", open ? "open, game paused" : "closed");
+                    if (flat) {
+                        LOG_INFO(Frontend, "xr: Flat menu {}",
+                                 open ? (g_frame_flat_menu_fullscreen
+                                             ? "open, game paused, the window left Fullscreen"
+                                             : "open, game paused")
+                                      : "closed");
+                    } else {
+                        LOG_INFO(Frontend, "xr: in-game menu {}",
+                                 open ? "open, game paused" : "closed");
+                    }
                     if (!open && emulation_running && system.frame_limiter.IsFrameAdvancing()) {
                         OnResumeGame(false);
+                    }
+                    if (!open) {
+                        const bool fullscreen_again = g_frame_flat_menu_fullscreen;
+                        g_frame_flat_menu_fullscreen = false;
+                        if (flat && fullscreen_again && emulation_running &&
+                            !FrameXr::VrShowing()) {
+                            ShowFullscreen();
+                            LOG_INFO(Frontend, "xr: Flat menu closed: Fullscreen again");
+                        }
                     }
                 };
                 g_frame_mirror->SetCloseMenuHandler([] {
@@ -2594,6 +2692,7 @@ void GMainWindow::ShutdownGame() {
         }
         FrameXr::SetInGameMenu(false);
         FrameXr::SetGameRunning(false);
+        g_frame_flat_menu_fullscreen = false; // AzaharFrame flat4
         FrameXrPushGameDirs();
     }
     if (g_frame_mirror) {

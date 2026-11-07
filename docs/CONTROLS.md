@@ -50,7 +50,7 @@ Hold **View**, then press the right bumper to Quick Save or the left bumper to Q
 
 ## Fast Forward
 
-Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat.
 
 - **View** has to go down first, with no bumper held. A bumper or **Menu** pressed while you pull cancels it. A second pull within a second does nothing.
 - The game sees neither Select nor ZR, and the stop timer starts over. Aimed at the bottom screen, that pull is not a touch either.
@@ -241,11 +241,19 @@ The differences:
 - There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
 - The triggers are always ZL and ZR, and the grips do nothing.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped.
-- Holding **Menu** for 1 second pauses or continues the game instead of opening the in-game menu. If the in-game menu is open when you switch to Flat, it closes and the game goes on.
+- Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 
 Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Forward and the switch to VR work as in VR, and the game sees the same of their buttons as in VR (see [Buttons](#buttons)).
+
+### The Flat menu
+
+Hold **Menu** for 1 second in a game in Flat. The game pauses and Azahar's window leaves Fullscreen, with its menu bar and status bar, so the pointer reaches **File**, **Emulation**, **View** and the rest, **Emulation > Configure Current Application...** included. The window stays on the big screen, 16:9.
+
+To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. The game sees none of these buttons while the menu is open. Holding **View** for 1.5 seconds stops the game.
+
+Switching between VR and Flat with the in-game menu or the Flat menu open closes it, and the game goes on.
 
 If VR cannot start at all (no SteamVR, or a renderer other than Vulkan), Azahar runs in its window with a plain controls profile of its own, **Flat Gamepad**, by position like the 3DS, without the holds and chords. The launcher adds it once, when it is missing.
 

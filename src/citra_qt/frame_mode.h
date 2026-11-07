@@ -18,10 +18,14 @@
 //   the session ends, and the dashboard only docks a window in the theater by itself when its
 //   frame first comes alive (dashboard.autoShowGameTheater; the frame stays alive across
 //   sessions). So after VR the window is shown in the dashboard (ShowDashboard through
-//   steam-cef.py) and its frame moved to the theater (steam-cef.py --screen theater, which runs
-//   vrcmd --dock-overlay), where it stays when the dashboard closes; a flat start does the
-//   latter too. Before VR again the frame goes back into the dashboard while the window is still
-//   opaque. AZAHARFRAME_FLAT_SCREEN=dashboard keeps it in the dashboard, =off asks Steam
+//   steam-cef.py) and its frame moved to the theater (steam-cef.py --screen theater --after-vr,
+//   which runs vrcmd --dock-overlay), where it stays when the dashboard closes; a flat start does
+//   the latter too. Both wait until the overlay has a picture and the VisibleInDashboard flag
+//   (vrcmd --overlays): before that the dashboard has no frame for the window, ShowDashboard
+//   opens Steam's library and a dock request moves the active frame (the library) instead. After
+//   VR the window is docked again when it does not show, and asked for again when it never
+//   became showable. Before VR again the frame goes back into the dashboard while the window is
+//   still opaque. AZAHARFRAME_FLAT_SCREEN=dashboard keeps it in the dashboard, =off asks Steam
 //   nothing. Every state change of the window is logged.
 
 #pragma once
