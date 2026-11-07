@@ -233,6 +233,17 @@ void FrameXrPushGameDirs() {
     FrameXr::SetLibraryDirs(dirs);
 }
 
+// AzaharFrame vrvis: the controls profile in use, for the controls help panel in VR.
+void FrameXrPushControls() {
+    if (!FrameXr::IsStarted()) {
+        return;
+    }
+    const auto& profile = Settings::values.current_input_profile;
+    FrameXr::SetControlBindings(
+        std::vector<std::string>(profile.buttons.begin(), profile.buttons.end()),
+        std::vector<std::string>(profile.analogs.begin(), profile.analogs.end()), profile.name);
+}
+
 Frontend::WindowSystemType FrameXrWindowSystemType() {
     const QString platform = QGuiApplication::platformName();
     if (platform == QStringLiteral("xcb")) {
@@ -793,6 +804,16 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            // AzaharFrame vrvis: the Stats button next to the window in VR.
+            hooks.show_stats_changed = [this](bool on) {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, on] {
+                        Settings::values.vr_show_stats.SetValue(on);
+                        config->Save();
+                    },
+                    Qt::QueuedConnection);
+            };
             FrameXr::SetFrontendHooks(std::move(hooks));
             FrameXr::SetFlatInput(FrameMode::ReadGamepad);
             // Both bumpers + View + Menu, in VR or flat: the other mode, kept for the next start.
@@ -956,6 +977,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                 }
             }
             FrameXrPushGameDirs();
+            FrameXrPushControls(); // AzaharFrame vrvis
 
             std::signal(SIGTERM, FrameXrOnSignal);
             std::signal(SIGINT, FrameXrOnSignal);
@@ -2238,6 +2260,7 @@ void GMainWindow::BootGame(const QString& filename) {
 #ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel (and the in-game menu)
     FrameXr::SetInGameMenu(false);
     FrameXr::SetGameRunning(true);
+    FrameXrPushControls(); // AzaharFrame vrvis
     if (g_frame_mirror) {
         g_frame_mirror->SetGameRunning(true);
     }
@@ -3694,6 +3717,9 @@ void GMainWindow::OnConfigure() {
         SyncMenuUISettings();
         game_list->RefreshGameDirectory();
         config->Save();
+#ifdef ENABLE_FRAME_XR
+        FrameXrPushControls(); // AzaharFrame vrvis
+#endif
         if (UISettings::values.hide_mouse && emulation_running) {
             setMouseTracking(true);
             mouse_hide_timer.start();
@@ -4358,6 +4384,17 @@ void GMainWindow::UpdateStatusBar() {
     }
 
     auto results = system.GetAndResetPerfStats();
+#ifdef ENABLE_FRAME_XR // AzaharFrame vrvis: the same numbers for the stats panel in VR
+    if (FrameXr::IsStarted()) {
+        FrameXr::EmuStats xr_stats;
+        xr_stats.game_fps = results.game_fps;
+        xr_stats.emulation_speed = results.emulation_speed;
+        xr_stats.frame_ms = results.time_vblank_interval * 1000.0;
+        xr_stats.frame_peak_ms = results.frametime_peak * 1000.0;
+        xr_stats.slow_frames = results.slow_frames;
+        FrameXr::SetEmuStats(xr_stats);
+    }
+#endif
 
     if (show_artic_label) {
         const bool do_mb = results.artic_transmitted >= (1000.0 * 1000.0);

@@ -6,7 +6,7 @@ This file holds the technical detail moved out of the README: how the port is bu
 
 | What | File |
 |---|---|
-| How the port works (one process, Vulkan device, screens into SteamVR, threads, controls, immersive mode, launcher) | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
+| How the port works (one process, Vulkan device, screens into SteamVR, threads, controls, controller models and VR panels, immersive mode, launcher) | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
 | Files changed upstream, merging new versions, building, packaging, installer, Frametanium, environment variables, mocks | [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md) |
 | Controller mapping, developer version | [src/frame_xr/input/MAPPING.md](src/frame_xr/input/MAPPING.md) |
 | Immersive mode, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
@@ -46,9 +46,13 @@ Frametanium: the release must carry `azaharframe-<version>-linux-arm64.tar.gz`. 
 
 - **View, then a bumper** is in the mapper (`src/frame_xr/input/mapper.{h,cpp}`): View pressed with no bumper down is held back `chord_grace_ns` (150 ms, a tap is sent late as a pulse); while it is down the Right Bumper edge sets `commands.quick_save`, the Left `quick_load` (one per press, `quick_cooldown_ns` 1 s), and bumper and View stay away from the game until let go (`swallow_bumper_`, `swallow_view_`, which also restarts the stop hold). `VrUi::RequestQuick` (`controls.cpp`, game and flat) calls `FrontendHooks::quick_save` / `quick_load`; citra_qt queues them to the GUI thread, where `g_frame_xr_quick_save` / `_load` (`citra_qt.cpp`) trigger Azahar's own `action_Quick_Save` / `action_Quick_Load`. Quick Save is confirmed when slot 0's file shows a new time; Quick Load says "No Quick Save" when `actions_load_state[0]` is disabled. The message is a toast (`FrameXr::ShowToast`) in VR with the menu closed, else the status bar. The first-time savestate warning is a dialog, so in VR the in-game menu is opened before it. Tests: `src/tests/frame_xr/input_mapper.cpp`.
 - **The row in the in-game menu** is a `QToolBar` that `FrameMirror` adds under the menu bar (`frame_mirror.cpp`), shown only while `vr_showing && game_running && menu_open`. `FrameMirror::AddVrMenuButton(label, callback)` adds a button to its right and returns it (the controls help and stats lane use it). `citra_qt.cpp` adds Quick Save, Quick Load and Passthrough.
-- **Background** (`Settings::values.vr_background`, global only, `[VR]` key `vr_background`: 0 Black, 1 Passthrough) is read every frame by `Hud` (`frame_xr/hud.{h,cpp}`). The runtime shows the room only when the frame ends with `XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND` and has a projection layer, so `Hud` adds a 16x16 transparent one first, in the same swapchain as the toasts (SteamVR allows 16 swapchains per session; this tree uses 11). `Runtime::alpha_blend_supported` comes from `xrEnumerateEnvironmentBlendModes` at start and is logged ("environment blend modes"). `tools/xrmock` offers alpha blending with `XRMOCK_ALPHA_BLEND=1`.
+- **Background** (`Settings::values.vr_background`, global only, `[VR]` key `vr_background`: 0 Black, 1 Passthrough) is read every frame by `Hud` (`frame_xr/hud.{h,cpp}`). The runtime shows the room only when the frame ends with `XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND` and has a projection layer, so `Hud` adds a 16x16 transparent one first, in the same swapchain as the toasts (SteamVR allows 16 swapchains per session; this tree uses 14 once the controller models show). `Runtime::alpha_blend_supported` comes from `xrEnumerateEnvironmentBlendModes` at start and is logged ("environment blend modes"). `tools/xrmock` offers alpha blending with `XRMOCK_ALPHA_BLEND=1`.
 - **Presets** (`frame_xr/presets.{h,cpp}`): title ids with an Immersive Mode and View Matrix Register, applied in `BootGame` after the per-game config loaded, only if `UsingGlobal()` and the global value is still the default.
 - Rendering notes (SPD13's SteamVR findings, checked against this tree): quad layers may be depth-sorted, so nothing may share a plane (the dim quad of the in-game menu is 2 cm behind the window); swapchains over 1000 px high may get Valve's foveation (the screens are 960 px at 4x and 1440 at 6x); the lower screen is not filtered down.
+
+## The VR panels and controller models
+
+`src/frame_xr/vis/` holds them; [docs/TECHNICAL.md](docs/TECHNICAL.md#controllers-beams-the-controls-help-and-the-stats) explains the design. Keep its rules: no CPU waits on the XR thread, the queue lock only around submits and swapchain calls, at most one image per swapchain in flight, and an image released only after its fence has signalled. The controller pass is the one exception to "no GPU work on the XR thread in a game". It adds three swapchains; SteamVR allows 16 per session, so share the atlas before adding a new one. The help text comes from `help_content.cpp` (unit-tested in `src/tests/frame_xr/vis.cpp`): a new control or chord goes there as well as in [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Environment variables and test settings
 
@@ -56,7 +60,7 @@ Settings for one launch go in `~/.local/share/AzaharFrame/session.env` (one `VAR
 
 ## Without a headset
 
-`tools/xrmock/` is a mock OpenXR runtime and `tools/mockrun.sh` runs the emulator against it, and `src/tests/frame_xr/` holds the unit tests. Features that depend on a real headset session (motion controls direction, the keyboard on Azahar's window, the VR and Flat switch, the texture pack optimizer) are built and mock-tested only. Their VERIFY notes are in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
+`tools/xrmock/` is a mock OpenXR runtime and `tools/mockrun.sh` runs the emulator against it, and `src/tests/frame_xr/` holds the unit tests. Features that depend on a real headset session (motion controls direction, the keyboard on Azahar's window, the VR and Flat switch, the texture pack optimizer, the controller models, beams, controls help and stats panel) are built and mock-tested only. The mock has no SteamVR render models: run `python3 -I steam-frame/tools/frame-controller-models.py DIR` on the Frame once and point `AZAHARFRAME_MODELS` at `DIR` to see the controllers in a mock. Their VERIFY notes are in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## How this was made
 

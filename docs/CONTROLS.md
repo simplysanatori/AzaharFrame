@@ -101,6 +101,20 @@ A row of buttons shows at the top of the window, under Azahar's menu bar, only w
 
 To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Immersive mode shows the normal screens while the menu is open.
 
+## The controls help, the controllers and the stats
+
+<!-- VERIFY: the help panel, the two buttons, the beams, the controller models and the stats panel in the headset. They are built and mock-tested only. -->
+
+Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar's window, on the home window and in the in-game menu. Point at one and pull the trigger or press **A**.
+
+**Controls** opens a panel to the left of the window that lists what every Frame control does: in a game, on Azahar's window and in the in-game menu, with the holds and the button chords. The names come from the controls profile you use, so a button you changed in **Emulation > Configure > Controls** shows its new job, and one you cleared shows **Nothing**. The face buttons follow the **Face Buttons** setting. The part that applies where you are is marked **Now**. The panel opens by itself the first time VR starts. Close it with the **X** in its corner or with the **Controls** button again.
+
+**Stats** shows a small panel under the top screen while a game runs: the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and its late frames, how busy the CPU is and the GPU's clock. In immersive mode it hangs low in front of you instead. The **Show Stats** setting is the same switch, and the button changes the setting.
+
+Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The laser is a soft beam from its tip. On Azahar's window and the panels it ends where it points, and pointing at nothing shows a short faint stub. In a game the beam shows only on the way to the dot over the bottom screen. A controller you have not moved or pressed for 4 seconds fades its beam and dot, and after 30 seconds the model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
+
+The models are made from the ones SteamVR has for the Frame. The installer makes them, and when they are missing the launcher makes them in the background on the next start, so the first start can be without them. Turn them off with **Show Controllers**.
+
 ## VR and Flat
 
 Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on the Frame's screen, as a normal app, and the game draws one eye only; back in VR the 3D comes back. The next start uses the mode you switched to last.
@@ -156,12 +170,14 @@ The buttons are the same as in the table above. Both bumpers and **View** bring 
 
 ## Settings
 
-Two settings of the **VR** group (**Emulation > Configure > Graphics**, global only, not per game) belong to the controllers.
+Four settings of the **VR** group (**Emulation > Configure > Graphics**, global only, not per game) belong to the controllers.
 
 | Setting | Choices | What it does |
 |---|---|---|
 | **Face Buttons** | **By Position (Nintendo)** (default), **By Label (Xbox)** | How the Frame's A, B, X and Y map to the 3DS. By Position matches the 3DS layout. Read every frame |
 | **Motion Controls** | **Off**, **Right Controller** (default), **Left Controller** | Uses a controller as the 3DS's gyroscope and accelerometer. Going from Off to a controller takes effect the next time VR starts. Switching between the controllers, or back to Off, takes effect at once |
+| **Show Controllers** | on (default) or off | Shows the Frame controllers in VR. They hide when you put them down. Takes effect at once |
+| **Show Stats** | off (default) or on | Shows the stats panel under the top screen while a game runs. The **Stats** button above Azahar's window switches it too |
 
 ## Motion controls
 

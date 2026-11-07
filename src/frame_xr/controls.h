@@ -24,6 +24,7 @@
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
+#include "frame_xr/vis/visuals.h" // AzaharFrame vrvis
 
 namespace frame_xr::picker {
 class Library;
@@ -57,6 +58,14 @@ public:
     /// XR thread, once per frame after the views were located. Applies drags to the
     /// screen placement and appends the picker / pointer quads to `layers`.
     void Frame(Runtime& runtime, const FrameInfo& info, std::vector<Quad>& layers);
+    /// AzaharFrame vrvis, app.cpp after Frame: the controller models' layer (or null) and the
+    /// beams and pointer dots that go over it.
+    const XrCompositionLayerBaseHeader* TopLayers(std::vector<Quad>& top, std::size_t used) const {
+        return visuals.TopLayers(top, used);
+    }
+    std::size_t MaxLayers() const {
+        return visuals.MaxLayers();
+    }
 
     // GUI thread.
     void SetFrontendHooks(FrontendHooks hooks);
@@ -106,6 +115,7 @@ private:
     bool picker_shown = false;
     MirrorPanel mirror; ///< the home panel when the Qt side set one, instead of the picker
     KeyboardPanel keyboard; ///< AzaharFrame keyboard: shown only with the home panel (Y)
+    Vis::Visuals visuals;   ///< AzaharFrame vrvis: help, stats, beams, controller models
 
     // The in-game menu: the home panel over the paused game (Menu held 1 s).
     std::atomic<bool> menu_open{false}; ///< set by the Qt side once the game paused

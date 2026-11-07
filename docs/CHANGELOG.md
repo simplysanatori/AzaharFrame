@@ -34,6 +34,9 @@ The first release of Azahar for Frame, Nintendo 3DS games in VR running natively
 - The face buttons go by position, as on the 3DS: the Frame's A (bottom) is the 3DS's B, B (right) is A, X (left) is Y and Y (top) is X. The **Face Buttons** setting (**VR** group) switches to by label.
 - Motion controls: the right controller (or the left, or none, in the **Motion Controls** setting) is the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS, such as the first-person items in Ocarina of Time 3D.
 - The layout is a controls profile in Azahar's controls window, with the Frame's controls named there, so you can change it.
+- A **Controls** panel in VR lists what every control does in a game, on Azahar's window and in the in-game menu, named from your own controls profile. It opens the first time VR starts, and from the **Controls** button above Azahar's window after that.
+- The Frame controllers show in your hands, with the buttons and sticks moving, and a soft beam that fades when you put a controller down (**Show Controllers**, on by default). The models are made from SteamVR's own on your Frame.
+- A **Stats** panel under the top screen shows the frame rate, the emulation speed, the frame times, the headset's late frames, the CPU load and the GPU clock (**Show Stats**, or the **Stats** button).
 
 ### Immersive mode
 

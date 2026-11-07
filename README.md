@@ -77,7 +77,7 @@ Games, keys for encrypted dumps and texture packs: [docs/USER_GUIDE.md](docs/USE
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | **Y** on Azahar's window | Open the keyboard |
 
-Every control and setting: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
+In VR, the **Controls** button above Azahar's window lists them all, with your own changes. Every control and setting: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Update
 

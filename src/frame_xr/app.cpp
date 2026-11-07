@@ -257,6 +257,7 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms)
     const uint64_t emu_sum_us = stats.emu_frame_us_sum.exchange(0);
     const uint32_t emu_max_us = take(stats.emu_frame_us_max);
     const uint32_t window_presents = take(stats.window_presents);
+    Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     stats.window_us_sum.exchange(0);
     take(stats.window_us_max);
     const std::string emu =
@@ -313,6 +314,7 @@ void Runtime::FrameLoop() {
     std::vector<XrCompositionLayerQuad> quad_layers;
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
+    std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
 
     while (true) {
         if (!PollEvents() || lost) {
@@ -451,6 +453,7 @@ void Runtime::FrameLoop() {
             place.top_size = NormalTopSize(); // AzaharFrame: "VR Screen Shape" of this game
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
+            Vis::NoteTopHeadLocked(shown.top_space == view_space); // AzaharFrame vrvis: stats
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye) {
                 const ScreenChain& chain = screens[static_cast<std::size_t>(s)];
@@ -500,7 +503,6 @@ void Runtime::FrameLoop() {
                 quad_layers.push_back(MakeQuad(local_space, toast));
             }
         }
-        layer_ptrs.clear();
         // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
         // projection layer when the frame is ended with the alpha blend mode.
         XrCompositionLayerProjection passthrough_layer{};
@@ -510,12 +512,39 @@ void Runtime::FrameLoop() {
             passthrough = hud.PassthroughLayer(LatestViewPose(), local_space, passthrough_layer,
                                                passthrough_views);
         }
+        // AzaharFrame vrvis: the controller models' projection layer over all that, and the
+        // beams and pointer dots over the models (frame_xr/vis/visuals.h).
+        const XrCompositionLayerBaseHeader* models_layer = nullptr;
+        const std::size_t models_at = quad_layers.size();
+        top_quads.clear();
+        if (fs.shouldRender && ui) {
+            models_layer = ui->TopLayers(top_quads, quad_layers.size() + (passthrough ? 1 : 0));
+            for (const Quad& q : top_quads) {
+                quad_layers.push_back(MakeQuad(local_space, q));
+            }
+        }
+        layer_ptrs.clear();
         if (passthrough) {
             layer_ptrs.push_back(
                 reinterpret_cast<const XrCompositionLayerBaseHeader*>(&passthrough_layer));
         }
-        for (const auto& l : quad_layers) {
-            layer_ptrs.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&l));
+        for (std::size_t i = 0; i < quad_layers.size(); i++) {
+            if (i == models_at && models_layer) {
+                layer_ptrs.push_back(models_layer);
+            }
+            layer_ptrs.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad_layers[i]));
+        }
+        if (models_layer && models_at == quad_layers.size()) {
+            layer_ptrs.push_back(models_layer);
+        }
+        if (ui && layer_ptrs.size() > ui->MaxLayers()) {
+            // Never more than the runtime takes: xrEndFrame would drop the whole frame.
+            static int said = 0;
+            if (said++ < 5) {
+                LOG_WARNING(Frontend, "xr: {} layers, the runtime takes {}: the last ones dropped",
+                            layer_ptrs.size(), ui->MaxLayers());
+            }
+            layer_ptrs.resize(ui->MaxLayers());
         }
         XrFrameEndInfo ei{XR_TYPE_FRAME_END_INFO};
         ei.displayTime = fs.predictedDisplayTime;

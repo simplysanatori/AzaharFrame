@@ -158,6 +158,9 @@ struct FrontendHooks {
     /// The XR thread made a session (true) or ended it (false), asked for or not (the runtime
     /// may end it, or a new one may fail): the mode now in effect.
     std::function<void(bool vr)> vr_changed;
+    /// AzaharFrame vrvis: the Stats button next to Azahar's window switched "Show Stats" (the Qt
+    /// side sets Settings::values.vr_show_stats and saves the config).
+    std::function<void(bool on)> show_stats_changed;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -209,6 +212,26 @@ void ShowToast(Toast kind);
 /// True when the runtime can show the room behind the screens (Settings "Background:
 /// Passthrough" then works): it offers XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND. False before Start.
 bool PassthroughSupported();
+
+// ---- AzaharFrame vrvis: controls help, stats, controller models (frame_xr/vis) ----------------
+
+/// The emulator's numbers for the stats panel, as Azahar's status bar shows them.
+struct EmuStats {
+    double game_fps = 0.0;        ///< "App: N FPS"
+    double emulation_speed = 0.0; ///< 1.0 = 100 %
+    double frame_ms = 0.0;        ///< "Frame: N ms"
+    double frame_peak_ms = 0.0;
+    uint32_t slow_frames = 0;
+};
+/// GUI thread, each time the status bar updates (about once a second in a game).
+void SetEmuStats(const EmuStats& stats);
+/// The controls profile in use (Settings::InputProfile buttons and analogs), for the controls
+/// help panel. GUI thread: when VR starts, after Configure, when a game boots.
+void SetControlBindings(const std::vector<std::string>& buttons,
+                        const std::vector<std::string>& analogs, const std::string& profile);
+/// Shows, hides or toggles the controls help next to Azahar's window. Any thread.
+void ShowControlsHelp(bool show);
+void ToggleControlsHelp();
 
 /// Handles for the other parts (XR_NULL_HANDLE before Start / before the first game).
 XrInstance Instance();

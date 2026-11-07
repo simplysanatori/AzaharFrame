@@ -64,6 +64,13 @@ The keyboard in VR is the Compact keyboard of Moonlight XR (https://github.com/s
 - Its labels are drawn with stb_truetype by Sean Barrett (https://github.com/nothings/stb), v1.26, vendored unchanged as `src/frame_xr/keyboard/stb_truetype.h`. MIT or public domain; the text is at the end of that file.
 - The font is Noto Sans Regular (SIL Open Font License 1.1), read from SteamOS's own `/usr/share/fonts/noto/`. It is not part of this repository or of the release.
 
+## Controller models, beams and panels in VR
+
+The controller models' converter (`steam-frame/tools/frame-controller-models.py`), their file format, posing and shaders (`src/frame_xr/vis/`), and the look of the pointer beam come from Moonlight XR Native, by the same author, under the GNU General Public License, version 3.
+
+- The models themselves are Valve's, from SteamVR's Steam Frame controller driver on your Frame (`/opt/steamvr/drivers/frame_controller/resources/rendermodels`). They are converted on your Frame at install time and are not part of this repository or of the release.
+- The controls help and stats panels use Noto Sans Regular and Bold (SIL Open Font License 1.1) from SteamOS's own `/usr/share/fonts/noto/`, with the stb_truetype above.
+
 ## SDL
 
 SDL 2 (https://www.libsdl.org) reads game controllers and, in the Azahar
@@ -152,7 +159,8 @@ repository or in the release:
 - Texture packs. The converter works on packs you already have; no pack, and
   nothing made from one, is part of this repository or the release.
 - Valve's SteamVR and OpenXR loader, which are on the Frame and are not copied.
-- The Noto Sans font of the headset keyboard, which is SteamOS's.
+- The Noto Sans font of the headset keyboard and the VR panels, which is SteamOS's.
+- The Steam Frame controller models, which are Valve's and are converted on your Frame.
 
 3DS, Nintendo and their logos are trademarks of Nintendo. Azahar for Frame is an
 unofficial fan project, not affiliated with or endorsed by Nintendo, Valve, the

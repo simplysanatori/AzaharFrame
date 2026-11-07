@@ -130,10 +130,12 @@ bool VrUi::Create(Runtime& rt) {
         }
         uploader.Upload(dim_chain, dim.data());
     }
+    visuals.Create(rt); // AzaharFrame vrvis
     return true;
 }
 
 void VrUi::DestroyXr() {
+    visuals.DestroyXr(); // AzaharFrame vrvis
     if (bridge_live) {
         bridge.Release();
         bridge_live = false;
@@ -266,6 +268,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
 }
 
 void VrUi::SetFrontendHooks(FrontendHooks new_hooks) {
+    visuals.SetStatsChanged(new_hooks.show_stats_changed); // AzaharFrame vrvis
     std::scoped_lock lock{hooks_mutex};
     hooks = std::move(new_hooks);
 }
@@ -505,8 +508,14 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     } else if (!want_menu && menu_shown) {
         LeaveMenu(in);
     }
+    // AzaharFrame vrvis: a hand on the help panel or the buttons is taken from the window.
+    const Vis::Where where =
+        menu_shown ? Vis::Where::Menu : game_running ? Vis::Where::Game : Vis::Where::Home;
+    Input::InputFrame window_in = in;
+    visuals.TakeInput(info, where, window_in, have_input);
+    const std::size_t layers_before = layers.size();
     if (menu_shown) {
-        MenuFrame(rt, info, in, have_input, layers);
+        MenuFrame(rt, info, window_in, have_input, layers);
     } else if (game_running) {
         if (picker_shown) {
             picker_shown = false;
@@ -525,11 +534,32 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             RequestToggleVr("home");
         }
         if (mirror.Enabled()) {
-            WindowFrame(rt, info, in, have_input, layers, 0.02f); // AzaharFrame keyboard
+            WindowFrame(rt, info, window_in, have_input, layers, 0.02f); // AzaharFrame keyboard
         } else {
-            PickerFrame(rt, info, in, have_input, layers);
+            PickerFrame(rt, info, window_in, have_input, layers);
         }
     }
+    // AzaharFrame vrvis: the help, the buttons and the stats; the beams, dots and models.
+    Vis::Window window;
+    if (where != Vis::Where::Game) {
+        if (mirror.Enabled()) {
+            const std::size_t dim = where == Vis::Where::Menu && dim_chain.has_image &&
+                                            info.should_render
+                                        ? 1
+                                        : 0;
+            window.shown = layers.size() > layers_before + dim;
+            window.pose = mirror.Pose();
+            window.width = mirror.Width();
+            window.height = mirror.HeightFor(window.width);
+        } else {
+            window.shown = picker_shown && picker_chain.has_image;
+            window.pose = picker_pose;
+            window.width = kPickerWidth;
+            window.height = kPickerHeight;
+        }
+    }
+    visuals.Frame(rt, info, where, window, in, have_input, layers, cursor_chain.handle,
+                  dim_chain.handle);
     last_time = info.display_time;
 }
 

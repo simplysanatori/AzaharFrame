@@ -167,6 +167,8 @@ On Azahar's window and in the in-game menu:
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
+The **Controls** button above Azahar's window, on the home window and in the in-game menu, opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
+
 All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.md).
 
 <!-- VERIFY: the table in the headset. It matches src/frame_xr/input/MAPPING.md. -->
@@ -206,6 +208,15 @@ In the **VR** group of the Graphics tab (global, not per game): **Background** i
 
 Hold **View** and press the right bumper to Quick Save, or the left bumper to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
 
+### Show Controllers and Show Stats
+
+Also in the **VR** group, global only:
+
+- **Show Controllers** (on by default) shows the Frame controllers in your hands, with the buttons and sticks moving. A controller you put down fades out after 30 seconds, and its beam after 4. The models are made from SteamVR's own when you install; if they are missing, the launcher makes them in the background and they show from the next start.
+- **Show Stats** (off by default) shows the frame rate, the emulation speed, the frame times, the CPU load and the GPU clock under the top screen while a game runs. The **Stats** button above Azahar's window switches it as well.
+
+<!-- VERIFY: the controller models, the beam fade and the stats panel in the headset -->
+
 ### Immersive mode
 
 Normally the top screen floats two metres away. In immersive mode the game draws a wider view, and in the Full modes its camera follows your head.
@@ -236,6 +247,7 @@ Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. I
 The 3DS runs at 60 frames a second, and every one is shown on each refresh of the headset.
 The first time a game draws a new effect, the emulator compiles its shaders and the picture can hitch. They are kept in `~/.local/share/AzaharFrame/user/shaders`, so it happens once.
 If a game drops frames, lower the internal resolution under **Emulation > Configure > Graphics**.
+**Show Stats** in the **VR** group, or the **Stats** button above Azahar's window, shows the game's frame rate and the headset's late frames while you play.
 Keep other heavy work off the Frame while you play.
 
 ## Files
@@ -252,6 +264,7 @@ Keep other heavy work off the Frame while you play.
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
 | Mode it starts in (`vr` or `flat`) | `~/.local/share/AzaharFrame/mode` |
 | Texture pack encoder (built on first use) | `~/.local/share/AzaharFrame/tools` |
+| Controller models for VR | `~/.local/share/AzaharFrame/user/frame-models` (log: `~/.local/share/AzaharFrame/frame-models.log`) |
 
 How the port works: [TECHNICAL.md](TECHNICAL.md).
 
@@ -264,6 +277,7 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **The Azahar window is too small on the dashboard.** Add `QT_SCALE_FACTOR=1.25` to `session.env`.
 - **An encrypted game does not start.** It needs `aes_keys.txt` in `user/sysdata/`.
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.
+- **No controllers in VR, only the beams.** The models are made from SteamVR's. Delete `user/frame-models` and start once more, then read `frame-models.log`.
 
 <!-- VERIFY: each entry -->
 

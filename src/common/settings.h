@@ -739,6 +739,10 @@ struct Values {
     // AzaharFrame: what is behind the screens in VR (global only): 0 = Black, 1 = Passthrough (the
     // room, when the runtime offers it). Read every frame (frame_xr/hud.h).
     SwitchableSetting<u32, true> vr_background{0, 0, 1, "vr_background"};
+    // AzaharFrame vrvis (global only): draw the Frame controllers in VR, and the stats panel under
+    // the top screen. Read every frame (frame_xr/vis/visuals.h).
+    SwitchableSetting<bool> vr_show_controllers{true, "vr_show_controllers"};
+    SwitchableSetting<bool> vr_show_stats{false, "vr_show_stats"};
 };
 
 extern Values values;
