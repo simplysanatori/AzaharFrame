@@ -166,6 +166,15 @@ fields; that race is gone.
 - **Bottom screen** in mode 1 shows below the wide screen's middle, at 0.7 times its distance, with
   the normal bottom screen's angular size (CitraVR moved it to 1 m below the top screen). It is
   nearer than the wide screen and submitted after it, so it is never drawn through it.
+- **Mode 3 patches only world cameras** (`video_core/vr_view_matrix.h`). CitraVR changed the
+  register (rotation, head position and the eye offset) in every draw. Draws that keep other data
+  there were corrupted: in Mario Kart 7 the register holds other numbers in many 2D and menu draws,
+  and the race start was washed out white. Now a draw is patched only when the register's 3x3 is
+  a rotation other than the identity (a 2D layout camera looks straight down -Z).
+  Mario Kart 7's menus remain odd in modes 2 and 3: each menu is a small 3D set built for the
+  3DS's fixed view, so when the camera turns with the head (or with the screen's pitch) its edges
+  show, and the white behind them slides into the picture. Nothing can fill that in; Off or Wide
+  is the clean choice for the menus.
 - The `vr_immersive_mode > 90` register search mode (thumbrest touch steps `uoffset`) is not
   carried over; `uoffset` is always -1.
 - The four `vr_*` settings are now `SwitchableSetting`s so they can be set per application in the

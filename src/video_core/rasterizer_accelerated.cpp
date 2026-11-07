@@ -9,6 +9,7 @@
 #include "core/memory.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/rasterizer_accelerated.h"
+#include "video_core/vr_view_matrix.h" // AzaharFrame
 
 #include <set>
 
@@ -559,6 +560,21 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                 }
 
                 viewMatrixIndex = vr_heuristic.view_matrixregister;
+            }
+        }
+
+        // AzaharFrame: in mode 3 only the draws that keep a camera in the register are patched
+        // (vr_view_matrix.h); the others keep other data there, which the patch corrupted.
+        if (viewMatrixIndex != -1 && vs_uniforms.f.size() > viewMatrixIndex + 3 &&
+            matrixMode == 3) {
+            float m[3][3];
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    m[i][j] = f[viewMatrixIndex + i][j];
+                }
+            }
+            if (!VideoCore::Immersive::LooksLikeWorldView(m)) {
+                return;
             }
         }
 

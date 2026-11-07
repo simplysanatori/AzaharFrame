@@ -230,7 +230,8 @@ Adjuster::Result Adjuster::Update(const Input::InputFrame& in, const Posef& head
             return r;
         }
         const Placement before = placement;
-        const float elevation = AimElevation(head, hand.aim, placement.distance);
+        // The sphere of the distance at the grab: changing the distance does not move the screen.
+        const float elevation = AimElevation(head, hand.aim, start_radius_);
         placement.pitch_deg = start_pitch_deg_ + (elevation - start_elevation_) / kDegToRad;
         const float dts = std::clamp(dt, 0.0f, 0.1f);
         if (std::abs(hand.stick.y) > kStickThreshold) {
@@ -256,7 +257,8 @@ Adjuster::Result Adjuster::Update(const Input::InputFrame& in, const Posef& head
         if (edge[h] && hand.active) {
             hand_ = h;
             start_pitch_deg_ = placement.pitch_deg;
-            start_elevation_ = AimElevation(head, hand.aim, placement.distance);
+            start_radius_ = placement.distance;
+            start_elevation_ = AimElevation(head, hand.aim, start_radius_);
             r.active = true;
             r.hand = h;
             return r;

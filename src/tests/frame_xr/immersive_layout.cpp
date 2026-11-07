@@ -7,6 +7,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/immersive_layout.h"
+#include "video_core/vr_view_matrix.h"
 
 // AzaharFrame: the immersive screen's placement (frame_xr/immersive_layout.h).
 using Catch::Approx;
@@ -333,6 +334,20 @@ TEST_CASE("FrameXr immersive: the grip gesture", "[frame_xr]") {
         adj.Update(Hands(1.0f, AimPitched(0), {0.4f, -0.4f}), head, 0.1f, true, p);
         REQUIRE(p == before);
     }
+    SECTION("changing the distance does not move it, with the hand below the eye") {
+        Adjuster a;
+        Placement q;
+        const Posef low{PitchRotation(Rad(-10)), Vec3f{0.25f, -0.4f, -0.35f}};
+        a.Update(Hands(1.0f, {Quatf{}, low.position}), head, 0.011f, true, q);
+        a.Update(Hands(1.0f, low), head, 0.011f, true, q);
+        const float pitch = q.pitch_deg;
+        REQUIRE(pitch < kDefaultPitchDeg); // the hand aimed lower: the screen went down
+        for (int i = 0; i < 10; i++) {
+            a.Update(Hands(1.0f, low, {0.0f, 1.0f}), head, 0.05f, true, q);
+        }
+        REQUIRE(q.distance > kDefaultDistance * 1.5f);
+        REQUIRE(q.pitch_deg == Approx(pitch).margin(1e-3));
+    }
     SECTION("limits") {
         for (int i = 0; i < 200; i++) {
             adj.Update(Hands(1.0f, AimPitched(-89), {-1.0f, -1.0f}), head, 0.1f, true, p);
@@ -409,4 +424,23 @@ TEST_CASE("FrameXr immersive: the per-game file", "[frame_xr]") {
         REQUIRE_FALSE(again.Get(0x0004000000033500ULL, false).has_value());
         REQUIRE(again.Get(0x0004000000033500ULL, true).has_value());
     }
+}
+
+TEST_CASE("FrameXr immersive: mode 3 patches only world cameras", "[frame_xr]") {
+    using VideoCore::Immersive::LooksLikeWorldView;
+    // A game camera (Mario Kart 7's, from a mock run).
+    const float camera[3][3] = {{0.89f, 0.0f, -0.45f}, {-0.30f, 0.75f, -0.60f}, {0.33f, 0.67f, 0.67f}};
+    REQUIRE(LooksLikeWorldView(camera));
+    const float race[3][3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 0.98f, -0.18f}, {0.0f, 0.18f, 0.98f}};
+    REQUIRE(LooksLikeWorldView(race));
+    // A 2D layout camera straight down -Z.
+    const float layout[3][3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    REQUIRE_FALSE(LooksLikeWorldView(layout));
+    // Other data in the register (a menu layer's).
+    const float junk[3][3] = {{0.19f, 0.93f, 0.97f}, {21.0f, 44.0f, -25.0f}, {0.19f, 0.84f, 0.97f}};
+    REQUIRE_FALSE(LooksLikeWorldView(junk));
+    const float scaled[3][3] = {{2.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}, {0.0f, 0.0f, 2.0f}};
+    REQUIRE_FALSE(LooksLikeWorldView(scaled));
+    const float skew[3][3] = {{1.0f, 0.0f, 0.0f}, {0.6f, 0.8f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    REQUIRE_FALSE(LooksLikeWorldView(skew));
 }
