@@ -25,7 +25,7 @@ New code, in files of its own:
 
 ## Upstream files changed
 
-The base is Azahar's `2127.0-alpha4` tag. Every change this fork made in a file that exists upstream is marked `AzaharFrame` on or next to the line (80 marks), so that a merge conflict is easy to resolve and the list below is easy to check:
+The base is Azahar's `2127.0-alpha4` tag. Every change this fork made in a file that exists upstream is marked `AzaharFrame` on or next to the line (the first command below lists them), so that a merge conflict is easy to resolve and the list below is easy to check:
 
 ```sh
 git grep -n "AzaharFrame" -- src CMakeLists.txt externals ':!src/frame_xr' ':!src/tests'
