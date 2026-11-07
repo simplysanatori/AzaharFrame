@@ -4,6 +4,7 @@
 
 #include "video_core/renderer_vulkan/vk_texture_runtime.h"
 
+#include <algorithm>
 #include <limits>
 #include <span>
 #include <string>
@@ -706,15 +707,17 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
 }
 
 void TextureRuntime::GenerateMipmaps(Surface& surface) {
+    // AzaharFrame: compressed custom textures carry their own mip chain (see UploadCustom)
     if (VideoCore::IsCustomFormatCompressed(surface.custom_format)) {
-        LOG_ERROR(Render_Vulkan, "Generating mipmaps for compressed formats unsupported!");
         return;
     }
 
     renderpass_cache.EndRendering();
 
     auto [width, height] = surface.RealExtent();
-    const u32 levels = surface.levels;
+    // AzaharFrame: a custom image can have fewer levels than the guest surface
+    const u32 image_levels = surface.handles[Type::Base].levels;
+    const u32 levels = image_levels ? std::min(surface.levels, image_levels) : surface.levels;
     for (u32 i = 1; i < levels; i++) {
         const Common::Rectangle<u32> src_rect{0, height, width, 0};
         width = width > 1 ? width >> 1 : 1;
@@ -832,19 +835,23 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
         flags |= vk::ImageCreateFlagBits::eCubeCompatible;
     }
 
+    // AzaharFrame: a stored mip chain shorter than the surface clamps the image, so the
+    // sampler never reaches a level nothing was written to
+    const u32 image_levels = mat->ImageLevels(levels);
+
     const std::string debug_name = DebugName(false, true);
-    handles[Type::Base].Create(mat->width, mat->height, levels, texture_type, format, traits.usage,
-                               flags, traits.aspect, false, debug_name);
+    handles[Type::Base].Create(mat->width, mat->height, image_levels, texture_type, format,
+                               traits.usage, flags, traits.aspect, false, debug_name);
     raw_images[num_images++] = handles[Type::Base].image;
 
     if (res_scale != 1) {
-        handles[Type::Scaled].Create(mat->width, mat->height, levels, texture_type,
+        handles[Type::Scaled].Create(mat->width, mat->height, image_levels, texture_type,
                                      vk::Format::eR8G8B8A8Unorm, traits.usage, flags, traits.aspect,
                                      false, debug_name);
         raw_images[num_images++] = handles[Type::Scaled].image;
     }
     if (has_normal) {
-        handles[Type::Custom].Create(mat->width, mat->height, levels, texture_type, format,
+        handles[Type::Custom].Create(mat->width, mat->height, image_levels, texture_type, format,
                                      traits.usage, flags, traits.aspect, false, debug_name);
         raw_images[num_images++] = handles[Type::Custom].image;
     }
@@ -954,13 +961,24 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
 }
 
 void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
-    const u32 width = material->width;
-    const u32 height = material->height;
-    const auto color = material->textures[0];
-    const Common::Rectangle rect{0U, height, width, 0U};
+    // AzaharFrame: the base material uploads every level of its stored mip chain the image
+    // has (one copy region each, one staging allocation). A material for a later level (a
+    // pack with one file per level) writes that level only, if the image has it.
+    const u32 image_levels = handles[Type::Base].levels;
+    if (level >= image_levels) {
+        return;
+    }
+    const u32 num_levels = level == 0 ? std::min(image_levels, material->levels) : 1;
+    const bool is_compressed = VideoCore::IsCustomFormatCompressed(material->format);
 
-    const auto upload = [&](Type type, VideoCore::CustomTexture* texture) {
-        const u32 custom_size = static_cast<u32>(texture->data.size());
+    const auto upload = [&](Type type, const VideoCore::CustomTexture* texture) {
+        if (texture->NumLevels() < num_levels) {
+            return;
+        }
+        std::size_t custom_size = 0;
+        for (u32 i = 0; i < num_levels; i++) {
+            custom_size += texture->LevelData(i).size();
+        }
         const RecordParams params = {
             .aspect = vk::ImageAspectFlagBits::eColor,
             .pipeline_flags = PipelineStageFlags(),
@@ -968,26 +986,38 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
             .src_image = Image(type),
         };
 
-        const auto [data, offset, invalidate] = runtime.upload_buffer.Map(custom_size, 0);
-        std::memcpy(data, texture->data.data(), custom_size);
-        runtime.upload_buffer.Commit(custom_size);
-
-        scheduler.Record([buffer = runtime.upload_buffer.Handle(), level, params, rect,
-                          offset = offset](vk::CommandBuffer cmdbuf) {
-            const vk::BufferImageCopy buffer_image_copy = {
-                .bufferOffset = offset,
+        // Buffer offsets of compressed copies must be a multiple of the block size (8 or 16
+        // bytes); every level size of these formats is too, so the levels pack back to back
+        const auto [data, offset, invalidate] =
+            runtime.upload_buffer.Map(static_cast<u32>(custom_size), is_compressed ? 16 : 4);
+        boost::container::static_vector<vk::BufferImageCopy, 16> copies;
+        std::size_t level_offset = 0;
+        for (u32 i = 0; i < num_levels && i < copies.capacity(); i++) {
+            const std::span<const u8> level_data = texture->LevelData(i);
+            std::memcpy(data + level_offset, level_data.data(), level_data.size());
+            // A per-level material is sized to its own level
+            const u32 level_width = std::max(material->width >> i, 1U);
+            const u32 level_height = std::max(material->height >> i, 1U);
+            copies.push_back(vk::BufferImageCopy{
+                .bufferOffset = offset + level_offset,
                 .bufferRowLength = 0,
-                .bufferImageHeight = rect.GetHeight(),
+                .bufferImageHeight = 0,
                 .imageSubresource{
                     .aspectMask = params.aspect,
-                    .mipLevel = level,
+                    .mipLevel = level + i,
                     .baseArrayLayer = 0,
                     .layerCount = 1,
                 },
-                .imageOffset = {static_cast<s32>(rect.left), static_cast<s32>(rect.bottom), 0},
-                .imageExtent = {rect.GetWidth(), rect.GetHeight(), 1},
-            };
+                .imageOffset = {0, 0, 0},
+                .imageExtent = {level_width, level_height, 1},
+            });
+            level_offset += level_data.size();
+        }
+        runtime.upload_buffer.Commit(static_cast<u32>(custom_size));
 
+        const u32 copied_levels = static_cast<u32>(copies.size());
+        scheduler.Record([buffer = runtime.upload_buffer.Handle(), level, copied_levels, params,
+                          copies](vk::CommandBuffer cmdbuf) {
             const vk::ImageMemoryBarrier read_barrier = {
                 .srcAccessMask = params.src_access,
                 .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
@@ -996,7 +1026,7 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .image = params.src_image,
-                .subresourceRange = MakeSubresourceRange(params.aspect, level),
+                .subresourceRange = MakeSubresourceRange(params.aspect, level, copied_levels),
             };
             const vk::ImageMemoryBarrier write_barrier = {
                 .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
@@ -1006,22 +1036,22 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .image = params.src_image,
-                .subresourceRange = MakeSubresourceRange(params.aspect, level),
+                .subresourceRange = MakeSubresourceRange(params.aspect, level, copied_levels),
             };
 
             cmdbuf.pipelineBarrier(params.pipeline_flags, vk::PipelineStageFlagBits::eTransfer,
                                    vk::DependencyFlagBits::eByRegion, {}, {}, read_barrier);
 
             cmdbuf.copyBufferToImage(buffer, params.src_image, vk::ImageLayout::eTransferDstOptimal,
-                                     buffer_image_copy);
+                                     static_cast<u32>(copies.size()), copies.data());
 
             cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, params.pipeline_flags,
                                    vk::DependencyFlagBits::eByRegion, {}, {}, write_barrier);
         });
     };
 
-    upload(Type::Base, color);
-    if (auto* texture = material->textures[u32(MapType::Normal)]) {
+    upload(Type::Base, material->textures[0]);
+    if (const auto* texture = material->textures[u32(MapType::Normal)]) {
         upload(Type::Custom, texture);
     }
 }

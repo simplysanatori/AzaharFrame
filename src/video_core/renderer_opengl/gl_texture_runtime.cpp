@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <algorithm>
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "video_core/custom_textures/material.h"
@@ -325,6 +326,10 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
 }
 
 void TextureRuntime::GenerateMipmaps(Surface& surface) {
+    // AzaharFrame: compressed custom textures carry their own mip chain (see UploadCustom)
+    if (VideoCore::IsCustomFormatCompressed(surface.custom_format)) {
+        return;
+    }
     const DebugScope scope(*this, Common::Vec4f{}, "TextureRuntime::GenerateMipmaps");
 
     OpenGLState state = OpenGLState::GetCurState();
@@ -377,15 +382,18 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
     custom_format = mat->format;
     material = mat;
 
-    textures[0] = MakeHandle(target, mat->width, mat->height, levels, tuple, DebugName(false));
+    // AzaharFrame: a stored mip chain shorter than the surface clamps the texture
+    const u32 image_levels = mat->ImageLevels(levels);
+    textures[0] =
+        MakeHandle(target, mat->width, mat->height, image_levels, tuple, DebugName(false));
     if (res_scale != 1) {
-        textures[1] = MakeHandle(target, mat->width, mat->height, levels, DEFAULT_TUPLE,
+        textures[1] = MakeHandle(target, mat->width, mat->height, image_levels, DEFAULT_TUPLE,
                                  DebugName(true, true));
     }
     const bool has_normal = mat->Map(MapType::Normal);
     if (has_normal) {
-        textures[2] =
-            MakeHandle(target, mat->width, mat->height, levels, tuple, DebugName(true, true));
+        textures[2] = MakeHandle(target, mat->width, mat->height, image_levels, tuple,
+                                 DebugName(true, true));
     }
 }
 
@@ -448,6 +456,10 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
 
 void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
     const DebugScope scope(*runtime, Common::Vec4f{}, "Surface::UploadCustom");
+    // AzaharFrame: a clamped texture has no such level
+    if (level >= material->ImageLevels(levels)) {
+        return;
+    }
 
     const u32 width = material->width;
     const u32 height = material->height;
@@ -457,15 +469,25 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
     glActiveTexture(TEMP_UNIT);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, width);
 
+    // AzaharFrame: the base material uploads every stored level the texture has
+    const u32 num_levels = level == 0 ? std::min(material->ImageLevels(levels), material->levels)
+                                      : 1;
     const auto upload = [&](u32 index, VideoCore::CustomTexture* texture) {
         glBindTexture(GL_TEXTURE_2D, Handle(index));
-        if (VideoCore::IsCustomFormatCompressed(custom_format)) {
-            const GLsizei image_size = static_cast<GLsizei>(texture->data.size());
-            glCompressedTexSubImage2D(GL_TEXTURE_2D, level, 0, 0, width, height, tuple.format,
-                                      image_size, texture->data.data());
-        } else {
-            glTexSubImage2D(GL_TEXTURE_2D, level, 0, 0, width, height, tuple.format, tuple.type,
-                            texture->data.data());
+        for (u32 i = 0; i < num_levels && i < texture->NumLevels(); i++) {
+            const std::span<const u8> level_data = texture->LevelData(i);
+            const GLsizei level_width = std::max(width >> i, 1U);
+            const GLsizei level_height = std::max(height >> i, 1U);
+            glPixelStorei(GL_UNPACK_ROW_LENGTH, level_width);
+            if (VideoCore::IsCustomFormatCompressed(custom_format)) {
+                glCompressedTexSubImage2D(GL_TEXTURE_2D, level + i, 0, 0, level_width,
+                                          level_height, tuple.format,
+                                          static_cast<GLsizei>(level_data.size()),
+                                          level_data.data());
+            } else {
+                glTexSubImage2D(GL_TEXTURE_2D, level + i, 0, 0, level_width, level_height,
+                                tuple.format, tuple.type, level_data.data());
+            }
         }
     };
 

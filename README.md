@@ -113,6 +113,26 @@ Custom textures and game mods go in the data folder, in a folder named for the g
 
 Custom textures are on from the first launch, and they load in the background while you play, so a new area can show the original textures for a moment. If you already have your own settings file, turn on **Emulation > Configure > Graphics > Advanced > Use custom textures** yourself.
 
+#### Optimize Texture Pack for Frame
+
+HD packs are PNG files, and the emulator decodes each one the first time the game uses it. A 4096×4096 texture takes over a second, which is why a new area shows the low-resolution textures first. So I added a converter: in the Azahar window, right-click the game and choose **Optimize Texture Pack for Frame...**. It writes a copy of the pack in ASTC, the compressed format the Frame's GPU reads as it is, with every mip level made in advance. Those files are read in a few milliseconds instead of being decoded, and they take a quarter of the GPU memory.
+
+- The original pack is not changed. The copy goes next to it (`<TitleID>-astc4x4`), and the game's folder in `load/textures/` becomes a link to the copy. **Use Original Texture Pack** in the same menu switches back. To remove the copy, delete its folder.
+- The first time, it builds its encoder (ARM's astcenc), which takes about two minutes and needs git, CMake and a C++ compiler.
+- **Stop** is safe. Choose the menu entry again and it carries on where it left off. It runs at the lowest priority, but it is still best not to run it while you play.
+- Ocarina of Time 3D with Henriko Magnifico's 4K pack: 2308 textures, 4.5 GB as PNG. As ASTC 4x4 it is about 6.0 GB, and about 2.7 GB with `--block 6x6`. Decoded, the PNGs would be 18 GB of memory; the emulator now keeps an ASTC texture in memory only until the GPU has it.
+
+From a terminal, with more options (`--block 6x6` for a pack half the size, `--quality thorough`, `--jobs`):
+
+```sh
+~/Games/AzaharFrame/app/tools/convert-texture-pack.sh --activate ~/.local/share/AzaharFrame/user/load/textures/<TitleID>
+~/Games/AzaharFrame/app/tools/convert-texture-pack.sh --restore ~/.local/share/AzaharFrame/user/load/textures/<TitleID>
+```
+
+<!-- VERIFY: conversion time for the OoT3D pack, and the sizes, once measured -->
+
+Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`, and their mip levels are used as stored.
+
 ## Controls
 
 | Steam Frame | 3DS |
@@ -184,6 +204,7 @@ Keep other heavy work off the Frame while you play.
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
+| Texture pack encoder (built on first use) | `~/.local/share/AzaharFrame/tools` |
 
 How the port works: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 

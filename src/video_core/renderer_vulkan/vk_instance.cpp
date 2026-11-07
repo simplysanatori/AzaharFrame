@@ -343,15 +343,30 @@ void Instance::CreateCustomFormatTable() {
         const vk::Format format = MakeCustomFormat(custom_format);
         const vk::FormatProperties format_properties = physical_device.getFormatProperties(format);
 
+        // AzaharFrame: a compressed family is only usable when its device feature was enabled
+        const bool is_astc = custom_format == VideoCore::CustomPixelFormat::ASTC4 ||
+                             custom_format == VideoCore::CustomPixelFormat::ASTC6 ||
+                             custom_format == VideoCore::CustomPixelFormat::ASTC8;
+        const bool feature_enabled =
+            is_astc ? features.textureCompressionASTC_LDR : features.textureCompressionBC;
+
         // Compressed formats don't support blit_dst in general so just check for transfer
         const vk::FormatFeatureFlags transfer_usage = vk::FormatFeatureFlagBits::eSampledImage;
         const bool supports_transfer =
+            feature_enabled &&
             (format_properties.optimalTilingFeatures & transfer_usage) == transfer_usage;
 
         vk::ImageUsageFlags best_usage{};
         if (supports_transfer) {
             best_usage |= vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
                           vk::ImageUsageFlagBits::eTransferSrc;
+        }
+
+        if (!supports_transfer) {
+            LOG_INFO(Render_Vulkan,
+                     "Custom texture format {} is not supported by this GPU; packs that use it "
+                     "keep the original textures",
+                     VideoCore::CustomPixelFormatAsString(custom_format));
         }
 
         const u32 index = static_cast<u32>(custom_format);
@@ -540,6 +555,9 @@ bool Instance::CreateDevice() {
                 .geometryShader = features.geometryShader,
                 .logicOp = features.logicOp,
                 .samplerAnisotropy = features.samplerAnisotropy,
+                // AzaharFrame: compressed custom textures (BC on desktop, ASTC on Adreno)
+                .textureCompressionASTC_LDR = features.textureCompressionASTC_LDR,
+                .textureCompressionBC = features.textureCompressionBC,
                 .fragmentStoresAndAtomics = features.fragmentStoresAndAtomics,
                 .shaderClipDistance = features.shaderClipDistance,
             },

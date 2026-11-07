@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
 #include <json.hpp>
 #include "common/file_util.h"
 #include "common/literals.h"
@@ -28,6 +29,10 @@ MICROPROFILE_DEFINE(CustomTexManager_TickFrame, "CustomTexManager", "TickFrame",
 constexpr std::size_t MAX_UPLOADS_PER_TICK = 8;
 
 using namespace Common::Literals;
+
+// AzaharFrame: a tick stops starting uploads past this many bytes (a 4096x4096 PNG is 64 MiB),
+// so a burst of large textures is spread over frames instead of stalling one
+constexpr u64 MAX_UPLOAD_BYTES_PER_TICK = 96_MiB;
 
 bool IsPow2(u32 value) {
     return value != 0 && (value & (value - 1)) == 0;
@@ -66,22 +71,56 @@ void CustomTexManager::TickFrame() {
         return;
     }
     std::size_t num_uploads = 0;
+    u64 upload_bytes = 0;
     for (auto it = async_uploads.begin(); it != async_uploads.end();) {
-        if (num_uploads >= MAX_UPLOADS_PER_TICK) {
+        if (num_uploads >= MAX_UPLOADS_PER_TICK || upload_bytes >= MAX_UPLOAD_BYTES_PER_TICK) {
             return;
         }
-        switch (it->material->state) {
+        Material* const material = it->material;
+        switch (material->state) {
         case DecodeState::Decoded:
+            if (!material->IsResident()) {
+                QueueDecode(material);
+                it++;
+                continue;
+            }
             it->func();
             num_uploads++;
-            [[fallthrough]];
+            upload_bytes += material->size;
+            it = async_uploads.erase(it);
+            ReleaseUploaded(material);
+            continue;
         case DecodeState::Failed:
             it = async_uploads.erase(it);
+            continue;
+        case DecodeState::None:
+            // AzaharFrame: released after an earlier upload; read it again
+            QueueDecode(material);
+            it++;
             continue;
         default:
             it++;
             break;
         }
+    }
+}
+
+void CustomTexManager::QueueDecode(Material* material) {
+    material->state = DecodeState::Pending;
+    workers->QueueWork([material, this] { material->LoadFromDisk(flip_png_files); });
+}
+
+void CustomTexManager::ReleaseUploaded(Material* material) {
+    // A DDS/KTX file is read back in milliseconds, so keeping every uploaded one in memory
+    // (up to the whole pack over a long session) buys little. PNGs keep their decoded copy
+    if (!async_custom_loading || !material->IsDecoded()) {
+        return;
+    }
+    const bool still_queued =
+        std::any_of(async_uploads.begin(), async_uploads.end(),
+                    [material](const AsyncUpload& upload) { return upload.material == material; });
+    if (!still_queued) {
+        material->Release();
     }
 }
 
@@ -116,6 +155,7 @@ void CustomTexManager::FindCustomTextures() {
                 material = std::make_unique<Material>();
             }
             material->hash = hash;
+            material->per_level_files = !skip_mipmap;
             material->AddMapTexture(texture);
         }
     }
@@ -133,10 +173,8 @@ bool CustomTexManager::ParseFilename(const FileUtil::FSTEntry& file, CustomTextu
     if (file_format == CustomFileFormat::None) {
         return false;
     }
-    if (file_format == CustomFileFormat::DDS && skip_mipmap) {
-        LOG_ERROR(Render, "Mipmap skip is incompatible with DDS textures, skipping!");
-        return false;
-    }
+    // AzaharFrame: DDS/KTX files bring their own mip chain (or clamp the image to the levels
+    // they have), so they work in packs that skip mipmaps too
     texture->file_format = file_format;
     parts.pop_back();
 
@@ -297,13 +335,17 @@ Material* CustomTexManager::GetMaterial(u64 data_hash) {
 }
 
 bool CustomTexManager::Decode(Material* material, std::function<bool()>&& upload) {
+    // AzaharFrame: a material whose files were released after an earlier upload reads them again
+    const bool released = material->IsDecoded() && !material->IsResident();
     if (!async_custom_loading) {
+        if (released) {
+            material->state = DecodeState::None;
+        }
         material->LoadFromDisk(flip_png_files);
         return upload();
     }
-    if (material->IsUnloaded()) {
-        material->state = DecodeState::Pending;
-        workers->QueueWork([material, this] { material->LoadFromDisk(flip_png_files); });
+    if (material->IsUnloaded() || released) {
+        QueueDecode(material);
     }
     async_uploads.push_back({
         .material = material,
