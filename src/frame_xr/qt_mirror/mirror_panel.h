@@ -57,10 +57,10 @@ public:
     struct Placement {
         XrPosef pose;
         XrPosef placed;
-        float width;
+        float width; ///< as placed (the image's panel_scale is on top of it)
     };
     Placement GetPlacement() const {
-        return {pose, placed_pose, width_m};
+        return {pose, placed_pose, base_width_m};
     }
     void SetPlacement(const Placement& p) {
         Place(p.placed, p.width);
@@ -82,7 +82,9 @@ private:
     OverlayChain chain;
     XrPosef pose{{0, 0, 0, 1}, {0, 0, -2}};
     XrPosef placed_pose{{0, 0, 0, 1}, {0, 0, -2}};
-    float width_m = 1.6f;
+    float width_m = 1.6f;      ///< as shown: base_width_m times panel_scale
+    float base_width_m = 1.6f; ///< as placed
+    float panel_scale = 1.0f;  ///< from the newest image (HomePanelImage::panel_scale)
     float height_m = 1.6f * 2.0f / 3.0f;
     float aspect = 2.0f / 3.0f; ///< height over width of the image
     bool shown = false;

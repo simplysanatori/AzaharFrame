@@ -185,6 +185,9 @@ struct HomePanelImage {
     uint32_t width = 0;
     uint32_t height = 0;
     std::vector<uint8_t> rgba;
+    /// How much wider the panel is than the width it was placed with (1 = as placed): a window
+    /// shown larger, or a dialog that does not fit it, gets a larger panel (>= 1).
+    float panel_scale = 1.0f;
 };
 
 /// What the controllers did on the home panel. u, v: 0..1 across the image (v down).

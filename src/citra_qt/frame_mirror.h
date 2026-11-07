@@ -11,9 +11,13 @@
 // clicks, context menus and dialogs behave as on the desktop.
 //
 // Set AZAHARFRAME_VR_PICKER=1 for the old VR game picker instead.
-// AZAHARFRAME_MIRROR_SIZE=WxH sets the window size (logical pixels, default
-// 1056x704) and AZAHARFRAME_MIRROR_SCALE the image's pixels per window pixel
-// (default 2.75; the image stays at most 3400 pixels wide or high).
+// Window Scale (Settings::values.vr_window_scale, 100 to 200 %) makes the window look larger on
+// the panel by showing less of it: the window gets 1/scale of the logical size and the panel
+// grows a little (kPanelGrowth); the image is rendered at more pixels per logical pixel, so
+// the text stays sharp. Flat mode keeps the 100 % size.
+// AZAHARFRAME_MIRROR_SIZE=WxH sets the window size at 100 % (logical pixels, default
+// 1056x704) and AZAHARFRAME_MIRROR_SCALE the image's pixels per window pixel (default: the
+// image is about 2900 to 3400 pixels wide; it stays at most 3400 pixels wide or high).
 
 #pragma once
 
@@ -81,15 +85,26 @@ private:
     QRect Canvas() const;
     /// Around the main window: top-level windows here belong on the panel.
     QRect Near() const;
-    qreal Scale(const QSize& canvas) const;
+    qreal Scale(const QSize& canvas, float panel_scale) const;
+    /// Window Scale as a factor (1 to 2), from the setting.
+    qreal WindowScale() const;
+    /// The window's logical size at a Window Scale (the panel's whole width at 100 %).
+    QSize WindowSizeFor(qreal window_scale) const;
+    /// How much wider than its placed width the panel is: the growth for the Window Scale, and
+    /// more for a dialog that does not fit the window, up to a limit.
+    float PanelScale(const QSize& canvas) const;
+    /// Resizes the window to the size for the Window Scale (VR) or 100 % (flat).
+    /// True when the size changed.
+    bool ApplyWindowSize();
     /// Visible top-level windows other than the main window, bottom to top.
     std::vector<QWidget*> Stack() const;
     QWidget* WindowAt(const QPoint& global) const;
     int Timestamp() const;
 
     QPointer<QWidget> main;
-    QSize window_size{1056, 704}; // 3:2, the picker's shape
-    qreal scale = 2.75;
+    QSize window_size{1056, 704}; // at 100 %; 3:2, the picker's shape
+    qreal scale = 0.0;            // pixels per window pixel; 0: from the panel's size
+    QSize requested_size;         ///< what ApplyWindowSize last asked the window for
     bool Capturing() const {
         return vr_showing && (!game_running || menu_open);
     }
@@ -105,6 +120,7 @@ private:
     bool capturing = false;
     bool dirty = true;
     bool logged = false;
+    QSize logged_size;
     bool log_layout = false;
     std::string last_layout;
     int captures = 0;

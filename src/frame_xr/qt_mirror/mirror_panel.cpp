@@ -110,7 +110,8 @@ void MirrorPanel::Hide() {
 
 void MirrorPanel::Place(const XrPosef& new_pose, float new_width) {
     pose = placed_pose = new_pose;
-    width_m = new_width;
+    base_width_m = new_width;
+    width_m = base_width_m * panel_scale;
     height_m = width_m * aspect;
     drag_hand = -1;
 }
@@ -148,6 +149,8 @@ void MirrorPanel::Frame(XrSession session, VkFormat format, OverlayUploader& upl
         if (chain.handle && uploader.Upload(chain, img->rgba.data())) {
             uploaded = img;
             aspect = static_cast<float>(img->height) / img->width;
+            panel_scale = std::clamp(img->panel_scale, 1.0f, 3.0f);
+            width_m = base_width_m * panel_scale;
             height_m = width_m * aspect;
         }
     }

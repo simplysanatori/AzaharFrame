@@ -37,6 +37,8 @@ private:
     QComboBox* face_combo;
     QWidget* background_row;
     QComboBox* background_combo;
+    QWidget* window_scale_row; ///< global only
+    QComboBox* window_scale_combo;
     QWidget* motion_row;
     QComboBox* motion_combo;
     QCheckBox* show_controllers_check; ///< AzaharFrame vrvis, global only

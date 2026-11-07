@@ -5,6 +5,7 @@
 // AzaharFrame: see frame_mirror.h.
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include <QAbstractButton>
@@ -34,6 +35,7 @@
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/uisettings.h"
 #include "common/logging/log.h"
+#include "common/settings.h"
 
 QT_BEGIN_NAMESPACE
 // QtGui's entry points for synthetic input (exported for QtTest, which declares them
@@ -60,6 +62,16 @@ constexpr int kMaxPixels = 3400;
 // Dialogs get a title strip drawn above them (the window manager's is not in the image).
 constexpr int kTitleHeight = 28;
 constexpr int kCaptureMs = 33; // at most 30 captures a second
+// Window Scale: the panel grows by this much of the scale's excess over 100 % (at 200 %: 30 %
+// wider), because the window would otherwise be too small to use; a dialog that does not fit
+// the window grows it further, up to kMaxPanelScale times the placed width and not taller
+// than kMaxPanelHeight times it. The image is about kBasePixels wide at 100 % (2.75 pixels per
+// pixel of the 1056 px window), more with the square root of the panel's growth.
+constexpr double kPanelGrowth = 0.3;
+constexpr float kMaxPanelScale = 1.5f;
+constexpr float kMaxPanelHeight = 1.1f;
+constexpr double kBasePixels = 2904.0;
+constexpr QSize kMinWindow{480, 320};
 
 bool IsDialogLike(const QWidget* w) {
     const Qt::WindowType type = w->windowType();
@@ -85,7 +97,7 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     }
     bool ok = false;
     const double env_scale = qEnvironmentVariable("AZAHARFRAME_MIRROR_SCALE").toDouble(&ok);
-    if (ok && env_scale >= 1.0 && env_scale <= 4.0) {
+    if (ok && env_scale >= 1.0 && env_scale <= 8.0) {
         scale = env_scale;
     }
     log_layout = qEnvironmentVariableIntValue("AZAHARFRAME_MIRROR_LOG_LAYOUT") != 0;
@@ -98,19 +110,7 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     refresh_timer.start();
 
     // The window gets the panel's size (also on the desktop), unless maximised.
-    // On its screen if it fits, so Qt does not move menus and dropdowns to stay on it.
-    if (!main->isMaximized() && !main->isFullScreen()) {
-        main->resize(window_size);
-        if (const QScreen* screen = main->screen()) {
-            const QRect avail = screen->availableGeometry();
-            QRect r = main->geometry();
-            if (r.width() <= avail.width() && r.height() <= avail.height() && !avail.contains(r)) {
-                r.moveLeft(std::clamp(r.left(), avail.left(), avail.right() + 1 - r.width()));
-                r.moveTop(std::clamp(r.top(), avail.top(), avail.bottom() + 1 - r.height()));
-                main->move(r.topLeft() + (main->pos() - main->geometry().topLeft()));
-            }
-        }
-    }
+    ApplyWindowSize();
     qApp->installEventFilter(this);
 
     // AzaharFrame vrqol: the in-game menu's button row, under the menu bar.
@@ -164,6 +164,7 @@ void FrameMirror::SetVrShowing(bool showing) {
         return;
     }
     vr_showing = showing;
+    ApplyWindowSize(); // the Window Scale in VR, 100 % in flat
     Shown();
 }
 
@@ -227,11 +228,66 @@ QRect FrameMirror::Canvas() const {
     return r;
 }
 
-qreal FrameMirror::Scale(const QSize& canvas) const {
-    qreal s = scale;
+qreal FrameMirror::WindowScale() const {
+    return std::clamp(Settings::values.vr_window_scale.GetValue() / 100.0, 1.0, 2.0);
+}
+
+QSize FrameMirror::WindowSizeFor(qreal window_scale) const {
+    const qreal s = std::max(1.0, window_scale);
+    const qreal growth = 1.0 + kPanelGrowth * (s - 1.0);
+    // Even numbers, so that halves of the panel are whole pixels.
+    const auto fit = [&](int v) { return static_cast<int>(2 * qRound(v * growth / s / 2.0)); };
+    return QSize(fit(window_size.width()), fit(window_size.height())).expandedTo(kMinWindow);
+}
+
+float FrameMirror::PanelScale(const QSize& canvas) const {
+    const qreal s = WindowScale();
+    const QSize win = main ? main->size() : WindowSizeFor(s);
+    const double growth = 1.0 + kPanelGrowth * (s - 1.0);
+    // A dialog larger than the window (the canvas is then larger): the panel grows with it.
+    const double extra = std::max({1.0, static_cast<double>(canvas.width()) / win.width(),
+                                   static_cast<double>(canvas.height()) / win.height()});
+    double scale = growth * extra;
+    scale = std::min<double>(scale, kMaxPanelScale);
+    // Not taller than kMaxPanelHeight times the placed width.
+    scale = std::min<double>(scale, static_cast<double>(kMaxPanelHeight) * canvas.width() /
+                                        std::max(1, canvas.height()));
+    return static_cast<float>(std::max(scale, 1.0));
+}
+
+qreal FrameMirror::Scale(const QSize& canvas, float panel_scale) const {
+    qreal s = scale > 0.0 ? scale
+                          : std::min<qreal>(kMaxPixels, kBasePixels * std::sqrt(panel_scale)) /
+                                std::max(1, canvas.width());
     s = std::min(s, static_cast<qreal>(kMaxPixels) / std::max(1, canvas.width()));
     s = std::min(s, static_cast<qreal>(kMaxPixels) / std::max(1, canvas.height()));
     return s;
+}
+
+bool FrameMirror::ApplyWindowSize() {
+    if (!main || main->isMaximized() || main->isFullScreen()) {
+        return false;
+    }
+    const QSize target = vr_showing ? WindowSizeFor(WindowScale()) : window_size;
+    if (target == requested_size) {
+        return false; // (the window may be larger than asked: its layout has a minimum)
+    }
+    requested_size = target;
+    main->resize(target);
+    // On its screen if it fits, so Qt does not move menus and dropdowns to stay on it.
+    if (const QScreen* screen = main->screen()) {
+        const QRect avail = screen->availableGeometry();
+        QRect r = main->geometry();
+        if (r.width() <= avail.width() && r.height() <= avail.height() && !avail.contains(r)) {
+            r.moveLeft(std::clamp(r.left(), avail.left(), avail.right() + 1 - r.width()));
+            r.moveTop(std::clamp(r.top(), avail.top(), avail.bottom() + 1 - r.height()));
+            main->move(r.topLeft() + (main->pos() - main->geometry().topLeft()));
+        }
+    }
+    LOG_INFO(Frontend, "xr: home panel: window {}x{} asked for ({}), Window Scale {} %",
+             target.width(), target.height(), vr_showing ? "VR" : "flat",
+             qRound(WindowScale() * 100.0));
+    return true;
 }
 
 std::vector<QWidget*> FrameMirror::Stack() const {
@@ -361,6 +417,10 @@ void FrameMirror::Capture() {
     if (!main || !Capturing() || capturing) {
         return;
     }
+    if (ApplyWindowSize()) {
+        MarkDirty(); // the layout settles first; the Resize event would do it too
+        return;
+    }
     dirty = false;
     since_capture.restart();
     QElapsedTimer cost;
@@ -373,7 +433,8 @@ void FrameMirror::Capture() {
     if (canvas.isEmpty()) {
         return;
     }
-    const qreal s = Scale(canvas.size());
+    const float panel_scale = PanelScale(canvas.size());
+    const qreal s = Scale(canvas.size(), panel_scale);
     const QSize px(qRound(canvas.width() * s), qRound(canvas.height() * s));
     QImage img(px, QImage::Format_ARGB32_Premultiplied);
     img.setDevicePixelRatio(s);
@@ -427,6 +488,7 @@ void FrameMirror::Capture() {
     const uchar* bits = rgba.constBits();
     if (last_image && last_image->width == static_cast<uint32_t>(px.width()) &&
         last_image->height == static_cast<uint32_t>(px.height()) &&
+        last_image->panel_scale == panel_scale &&
         std::memcmp(last_image->rgba.data(), bits, bytes) == 0) {
         account();
         return; // unchanged
@@ -435,14 +497,18 @@ void FrameMirror::Capture() {
     out->width = static_cast<uint32_t>(px.width());
     out->height = static_cast<uint32_t>(px.height());
     out->rgba.assign(bits, bits + bytes);
+    out->panel_scale = panel_scale;
     last_image = out;
     published++;
     FrameXr::SetHomePanelImage(std::move(out));
     account();
-    if (!logged) {
+    if (!logged || logged_size != canvas.size()) {
         logged = true;
-        LOG_INFO(Frontend, "xr: home panel: window {}x{} at {:.2f} pixels per pixel -> {}x{}",
-                 canvas.width(), canvas.height(), s, px.width(), px.height());
+        logged_size = canvas.size();
+        LOG_INFO(Frontend,
+                 "xr: home panel: window {}x{} at {:.2f} pixels per pixel -> {}x{}, panel {:.2f} "
+                 "times its width",
+                 canvas.width(), canvas.height(), s, px.width(), px.height(), panel_scale);
     }
 }
 
