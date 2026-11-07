@@ -80,6 +80,19 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {motion_combo});
     layout->addWidget(motion_row);
 
+    // AzaharFrame vrvis: global only (Settings::values.vr_show_controllers, vr_show_stats).
+    show_controllers_check = new QCheckBox(tr("Show Controllers"), this);
+    show_controllers_check->setObjectName(QStringLiteral("frame_vr_show_controllers_check"));
+    show_controllers_check->setToolTip(
+        tr("Shows the Steam Frame controllers in VR. They hide when you put them down."));
+    layout->addWidget(show_controllers_check);
+    show_stats_check = new QCheckBox(tr("Show Stats"), this);
+    show_stats_check->setObjectName(QStringLiteral("frame_vr_show_stats_check"));
+    show_stats_check->setToolTip(
+        tr("Shows FPS, speed and frame times under the top screen in VR. The Stats button above "
+           "this window switches it too."));
+    layout->addWidget(show_stats_check);
+
     // Values 0..2 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
@@ -157,6 +170,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
     // Face Buttons and Motion Controls are not per game.
     face_row->setVisible(Settings::IsConfiguringGlobal());
     motion_row->setVisible(Settings::IsConfiguringGlobal());
+    show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
+    show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
     if (Settings::IsConfiguringGlobal()) {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
@@ -213,6 +228,8 @@ void ConfigureFrameVr::SetConfiguration() {
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
+        show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
+        show_stats_check->setChecked(Settings::values.vr_show_stats.GetValue());
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
         return;
     }
@@ -241,6 +258,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
         Settings::values.vr_motion_controls.SetValue(
             static_cast<u32>(motion_combo->currentIndex()));
+        Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
+        Settings::values.vr_show_stats.SetValue(show_stats_check->isChecked());
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);

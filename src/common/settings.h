@@ -736,6 +736,10 @@ struct Values {
     // 0 = off, 1 = right controller, 2 = left controller. Read every frame
     // (frame_xr/input/motion.h).
     SwitchableSetting<u32, true> vr_motion_controls{1, 0, 2, "vr_motion_controls"};
+    // AzaharFrame vrvis (global only): draw the Frame controllers in VR, and the stats panel under
+    // the top screen. Read every frame (frame_xr/vis/visuals.h).
+    SwitchableSetting<bool> vr_show_controllers{true, "vr_show_controllers"};
+    SwitchableSetting<bool> vr_show_stats{false, "vr_show_stats"};
 };
 
 extern Values values;

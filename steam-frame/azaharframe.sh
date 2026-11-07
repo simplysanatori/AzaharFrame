@@ -210,6 +210,15 @@ MARK=$HOME/.cache/headset-in-use
 MADE_MARK=
 if [ ! -e "$MARK" ] && mkdir -p "$HOME/.cache" && : > "$MARK"; then MADE_MARK=1; fi
 
+# The Steam Frame controllers drawn in VR: made from SteamVR's own models once (install.sh does it
+# too), in the background so this start does not wait; the next start draws them.
+MODELS=$DATA/user/frame-models
+if [ ! -f "$MODELS/frame_controller_right.model" ] && [ -f "$HERE/tools/frame-controller-models.py" ] &&
+   [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
+  echo "controller models: making them in the background"
+  nice -n 19 python3 -I "$HERE/tools/frame-controller-models.py" "$MODELS" > "$DATA/frame-models.log" 2>&1 &
+fi
+
 ARGS=(--vr)
 [ "$MODE" = flat ] && ARGS=(--flat)
 # Not exec: the wrapper stays to remove the marker.  A signal for the wrapper

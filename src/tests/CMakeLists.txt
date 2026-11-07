@@ -8,6 +8,10 @@ add_executable(tests
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
     frame_xr/input_motion.cpp # AzaharFrame
+    ../frame_xr/vis/beam.cpp # AzaharFrame vrvis
+    ../frame_xr/vis/help_content.cpp # AzaharFrame vrvis
+    ../frame_xr/vis/model_file.cpp # AzaharFrame vrvis
+    frame_xr/vis.cpp # AzaharFrame vrvis
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

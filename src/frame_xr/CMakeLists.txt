@@ -44,6 +44,24 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     keyboard/layout.h
     keyboard/stb_truetype.cpp
     keyboard/stb_truetype.h
+    # AzaharFrame vrvis: controls help, stats, beams, controller models (vis; no Qt here).
+    vis/async_overlay.cpp
+    vis/async_overlay.h
+    vis/beam.cpp
+    vis/beam.h
+    vis/controller_models.cpp
+    vis/controller_models.h
+    vis/help_content.cpp
+    vis/help_content.h
+    vis/model_file.cpp
+    vis/model_file.h
+    vis/model_shaders.h
+    vis/panel_art.cpp
+    vis/panel_art.h
+    vis/panels.cpp
+    vis/panels.h
+    vis/visuals.cpp
+    vis/visuals.h
 )
 # stb_truetype is vendored unchanged (MIT or public domain): its warnings are not ours.
 set_source_files_properties(keyboard/stb_truetype.cpp PROPERTIES COMPILE_OPTIONS "-w")

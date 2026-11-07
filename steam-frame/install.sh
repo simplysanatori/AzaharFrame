@@ -117,7 +117,7 @@ else
 fi
 # The texture pack converter (Optimize Texture Pack for Frame in the game list menu).  Its
 # encoder is built on first use into $DATA/tools, which stays across updates.
-TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp"
+TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp frame-controller-models.py"
 TOOLS_SRC=$SRC_DIR/tools
 if [ "$(readlink -f "$TOOLS_SRC")" != "$(readlink -f "$DEST/tools")" ]; then
   act mkdir -p "$DEST/tools"
@@ -129,6 +129,18 @@ done
 act chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh" "$DEST/dock-icon.py"
 DOCK_PY=$DEST/dock-icon.py
 [ -z "$DRY" ] || DOCK_PY=$SRC_DIR/dock-icon.py   # nothing is in $DEST in a dry run
+
+# The Steam Frame controllers drawn in VR (Show Controllers): converted from SteamVR's own models on
+# this Frame (Valve's, so never shipped) into $DATA/user/frame-models.  Without SteamVR or GdkPixbuf
+# the beams still show; azaharframe.sh tries again in the background on a later start.
+MODELS=$DATA/user/frame-models
+if [ -f "$MODELS/frame_controller_left.model" ] && [ -f "$MODELS/frame_controller_right.model" ]; then
+  echo "controller models: already in $MODELS"
+elif [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
+  act python3 -I "$TOOLS_SRC/frame-controller-models.py" "$MODELS" || echo "warning: the controller models could not be made (the beams still show)"
+else
+  echo "note: SteamVR's Frame controller models are not here; the controllers are not drawn in VR"
+fi
 
 # The emulator is linked against the system's Qt 6 and SDL2.
 MISSING=$(ldd "$DEST/azahar" 2> /dev/null | grep 'not found' || true)
