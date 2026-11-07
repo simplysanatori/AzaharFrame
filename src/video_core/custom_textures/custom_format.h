@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <limits>
 #include <string_view>
 #include "common/common_types.h"
@@ -32,5 +33,9 @@ enum class CustomFileFormat : u32 {
 std::string_view CustomPixelFormatAsString(CustomPixelFormat format);
 
 bool IsCustomFormatCompressed(CustomPixelFormat format);
+
+/// AzaharFrame: bytes of one mip level of the given size, counted in whole blocks for the
+/// block-compressed formats (ASTC blocks are not always 4x4). 0 for an invalid format.
+std::size_t CustomFormatLevelSize(CustomPixelFormat format, u32 width, u32 height);
 
 } // namespace VideoCore

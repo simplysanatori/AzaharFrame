@@ -133,10 +133,24 @@ in the file named.
 The `dist/compatibility_list` submodule is Azahar's list of tested games and is
 not part of the program.
 
+## Texture pack encoder
+
+The texture pack converter in `steam-frame/tools/` (in the release, `tools/`) is a script and
+the source of a small encoder, `af-ktxenc.cpp`. Neither contains third-party code. On first
+use, `build-astcenc.sh` downloads and builds these on the Frame; they are not in this
+repository or in the release:
+
+| Library | Used for | Licence | Licence file |
+|---|---|---|---|
+| [astcenc](https://github.com/ARM-software/astc-encoder) 5.7.1, by Arm | ASTC compression | Apache-2.0 | `LICENSE.txt` in its source; the build copies it to `~/.local/share/AzaharFrame/tools/astcenc-LICENSE.txt` |
+| [stb_image](https://github.com/nothings/stb) 2.30, by Sean Barrett (the copy in astcenc's `Source/ThirdParty/`) | PNG decoding | public domain or MIT, at your choice | the end of `stb_image.h` |
+
 ## Not included
 
 - Game data, game keys, firmware or BIOS dumps. Azahar for Frame contains none.
   Games, and the keys that decrypt some of them, come from your own 3DS.
+- Texture packs. The converter works on packs you already have; no pack, and
+  nothing made from one, is part of this repository or the release.
 - Valve's SteamVR and OpenXR loader, which are on the Frame and are not copied.
 - The Noto Sans font of the headset keyboard, which is SteamOS's.
 

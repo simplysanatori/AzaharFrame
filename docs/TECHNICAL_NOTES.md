@@ -15,10 +15,12 @@ New code, in files of its own:
 | `src/video_core/renderer_vulkan/renderer_vulkan_xr.cpp` | `RenderToXr()` |
 | `src/input_common/frame_xr.*` | the Frame controller input engine |
 | `src/citra_qt/configuration/configure_frame_vr.*`, `src/citra_qt/frame_branding.h` | the **VR** group in the Graphics tab, the Azahar for Frame icon |
+| `src/citra_qt/frame_texture_pack.h` | **Optimize Texture Pack for Frame...** and **Use Original Texture Pack** in the game list menu |
 | `src/tests/frame_xr/` | unit tests for the input mapper, the screen geometry and the picker |
 | `third_party/openxr/` | the OpenXR headers the code is built against (Apache-2.0 OR MIT) |
 | `tools/xrmock/`, `tools/mockrun.sh` | a mock OpenXR runtime for running without a headset |
 | `steam-frame/` | installer, launcher, dock icon, build and release scripts, the library art |
+| `steam-frame/tools/` | the texture pack converter: `convert-texture-pack.sh` and `convert_texture_pack.py`, the encoder `af-ktxenc.cpp` and `build-astcenc.sh` |
 | `docs/` | these documents |
 
 ## Upstream files changed
@@ -46,7 +48,11 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `src/video_core/gpu.cpp` | applies the newest head pose after each frame |
 | `src/video_core/renderer_base.cpp` | two resolution steps more in immersive mode |
 | `src/video_core/rasterizer_accelerated.cpp` | uploads the PICA uniforms again when the head pose changes |
-| `src/video_core/renderer_vulkan/vk_platform.cpp`, `vk_instance.cpp` | the instance and device hooks; a device it did not create is not destroyed |
+| `src/video_core/renderer_vulkan/vk_platform.cpp`, `vk_instance.cpp` | the instance and device hooks; a device it did not create is not destroyed; `textureCompressionASTC_LDR` and `textureCompressionBC` enabled, and a compressed custom format counts as supported only with its feature |
+| `src/video_core/custom_textures/{material,custom_format,custom_tex_manager}.{h,cpp}` | DDS and KTX keep their whole mip chain; KTX/DDS data is dropped after upload and read again when needed; a byte limit for uploads in one frame; DDS allowed with `skip_mipmap`; a file that fails to load fails its material |
+| `src/video_core/rasterizer_cache/rasterizer_cache.h` | no generated mipmaps for a texture with a stored mip chain; a custom format the GPU cannot sample keeps the original texture |
+| `src/video_core/renderer_vulkan/vk_texture_runtime.cpp`, `src/video_core/renderer_opengl/gl_texture_runtime.cpp` | `UploadCustom` uploads every stored level; the image of a custom texture has no more levels than its file |
+| `src/citra_qt/game_list.cpp` | the texture pack entry in the game's menu |
 | `src/video_core/renderer_vulkan/vk_swapchain.cpp` | Mailbox or Immediate presentation of the desktop window in VR |
 | `src/video_core/renderer_vulkan/renderer_vulkan.{h,cpp}` | `RenderToXr()` from `SwapBuffers()`, the XR target, the queue lock, no second window in VR |
 | `src/video_core/shader/generator/shader_uniforms.h` | `vr_immersive_mode_factor` defaults to 1 (it was 0, which divides by zero outside CitraVR's Android app) |
@@ -113,6 +119,7 @@ The release tarball holds, at its top level and without a folder around them:
 | `steam-cef.py`, `dock-icon.py` | the Steam library entry and the SteamVR dock icon |
 | `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` | |
 | `art/` | the library art (`portrait`, `wide`, `hero`, `logo`) and the icon in four sizes; the program itself reads `logo.png` and `icon.png` |
+| `tools/` | the texture pack converter (see [Texture packs in ASTC](#texture-packs-in-astc)) |
 
 Files are packed by name, so settings, saves, keys, logs and game files cannot end up in it.
 
@@ -135,6 +142,28 @@ steam-frame/uninstall.sh --purge
 
 With `AZAHARFRAME_SKIP_STEAM=1` the dock icon steps are skipped too (installing needs the entry's appid). To try them alone, with `HOME` at a scratch folder and `AZAHARFRAME_VRSERVER_RUNNING=0`, run `dock-icon.py install DEST --appid N` and `dock-icon.py remove DEST`.
 
+## Texture packs in ASTC
+
+Azahar decodes a PNG texture on a worker thread when a surface first needs it: about 0.4 s for 2048×2048 and 1.6 s for 4096×4096 on the Frame, while the game shows the original. The decoded RGBA8 copy then stays in memory for the rest of the session, so a large pack cannot be preloaded either (the Ocarina of Time 3D 4K pack is 18 GB decoded). A KTX file in ASTC needs no decoding: reading it is the whole job.
+
+**Format.** ASTC 4x4 by default (8 bits a texel, a quarter of RGBA8), 6x6 or 8x6 as options; those three are the ASTC sizes Azahar maps (`ASTC4`, `ASTC6`, `ASTC8` = 8x6). KTX 1, because dds-ktx reads KTX 1 only. Adreno has ASTC LDR in hardware; Turnip reports `textureCompressionASTC_LDR`, which Azahar did not enable on the device, so I enable it (and `textureCompressionBC`) and count a compressed format as supported only when its feature is on and `vkGetPhysicalDeviceFormatProperties` gives it `SAMPLED_IMAGE`. Without it the format is logged once at start and those textures keep the original.
+
+**Colour.** Azahar uploads a custom PNG as `R8G8B8A8_UNORM`, the stored bytes with no sRGB decoding. The converter therefore encodes with the linear LDR profile and writes `GL_COMPRESSED_RGBA_ASTC_*_KHR`, which becomes `ASTC_*_UNORM_BLOCK`: the GPU returns the same values the PNG held. (An sRGB encode would come out darker; dds-ktx would not read the sRGB KTX format anyway.) Alpha is kept as stored.
+
+**Flip.** With `flip_png_files`, Azahar turns PNGs upside down after decoding, and only PNGs. The encoder flips the image before compressing, so the KTX shows the same way; `pack.json` is copied unchanged, since any PNG kept in the pack still needs the flag.
+
+**Mips.** For a pack with `skip_mipmap` Azahar generated the chain on the GPU with linear blits, which a compressed image cannot take. The encoder makes the whole chain down to 1×1 the same way (each level the average of the 2×2 texels above it, in the stored 8-bit values) and compresses every level. In the emulator, `LoadDDS` now finds every level of a DDS or KTX itself, because `ddsktx_get_sub` sizes compressed levels in 4x4 blocks, which is wrong for ASTC 6x6 and 8x6. `UploadCustom` copies all the levels the image has in one command, and mipmaps are never generated for a material with a stored chain. When a file has fewer levels than the guest surface, the custom image gets only as many levels as the file (`Material::ImageLevels`), so no level is left unwritten; a single-level DDS in a pack that has one file per level (no `skip_mipmap`) keeps the old behaviour. This does not depend on `skip_mipmap`, which also no longer rejects DDS files.
+
+**Memory.** After a KTX or DDS material is uploaded, and no other upload waits for it, its file data is freed and the material goes back to unloaded; the next surface that needs it reads the file again on a worker (a few milliseconds). A file mapped to more than one hash in `pack.json` is kept, as are PNGs. With **Preload custom textures** nothing is freed. A frame also stops starting uploads past 96 MiB, so a burst of large textures is spread over a few frames.
+
+**The converter.** `convert_texture_pack.py` (run by `convert-texture-pack.sh` with `python3 -I`, standard library only, at nice 19 and idle I/O priority) walks the pack, runs one `af-ktxenc` per PNG on all CPUs but one (largest first), links or copies every other file, and rewrites `.png` names in the `textures` map of `pack.json` to `.ktx`. A KTX is written as `.part` and renamed, and a PNG whose KTX is newer is skipped, so a stopped run carries on. A PNG the encoder cannot read is copied as it is. The new pack gets `.azaharframe-ktx.json` (format, quality, and the original's path relative to it); the emulator ignores it. `--activate` repoints `load/textures/<TitleID>` when it is a symlink (my own setup: `textures/<TitleID>` links to `textures-4k/<TitleID>`), or renames a real folder to `<TitleID>-original` and puts a symlink in its place; `--restore` reads the marker and undoes either.
+
+**The encoder.** `af-ktxenc.cpp` links ARM's astcenc library (pinned to 5.7.1, built with NEON by `build-astcenc.sh`) and decodes PNGs with the stb_image that astcenc ships, so it needs nothing that SteamOS lacks besides git, CMake and a compiler. One texture per process, single-threaded, at astcenc's `medium` effort by default. Python has no image library on SteamOS (no Pillow, ImageMagick or libvips), which is why the mip chain is made in C++.
+
+Numbers for the Ocarina of Time 3D 4K pack (2308 PNGs, 4.5 GB, 4.5 billion texels): about 6.0 GB as ASTC 4x4 with mips, 2.7 GB as 6x6, 2.0 GB as 8x6. A 4096×4096 texture is 22 MB as ASTC 4x4 with its chain, against 89 MB of GPU memory as RGBA8 with generated mips.
+
+<!-- VERIFY: conversion time on the Frame, measured on one 4096x4096 texture and on the whole pack -->
+
 ## Environment variables
 
 Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line) when you start from the Steam library, which passes none.
@@ -146,6 +175,8 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning (the FOV one overrides the Immersive Game FOV setting), see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
 | `AZAHARFRAME_ART` | picker, Qt icon | folder with `logo.png` and `icon.png` (default: `art/` next to the program) |
+| `AZAHARFRAME_TOOLS` | game list menu | folder with `convert-texture-pack.sh` (default: `tools/` next to the program) |
+| `AF_KTXENC` | `convert_texture_pack.py` | the encoder to use (default: `~/.local/share/AzaharFrame/tools/af-ktxenc`) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
 | `QT_SCALE_FACTOR` | Qt | scales the settings window |
 | `AZAHARFRAME_XR_NO_GPU_WAIT=1` | `vk_xr_target.cpp` | releases images before the GPU is done. A negative test, never for playing |

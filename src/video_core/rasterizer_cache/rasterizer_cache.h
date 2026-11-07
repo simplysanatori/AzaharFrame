@@ -1044,7 +1044,9 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
     // Filtered mipmaps often look really bad. We can achieve better quality by
     // generating them from the base level.
     Surface& surface = slot_surfaces[surface_id];
-    if (surface.res_scale != 1 && level != 0) {
+    // AzaharFrame: a custom texture with a stored mip chain keeps it
+    const bool has_stored_mips = surface.IsCustom() && surface.material->HasStoredMips();
+    if (surface.res_scale != 1 && level != 0 && !has_stored_mips) {
         runtime.GenerateMipmaps(surface);
     }
 }
@@ -1125,6 +1127,14 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
     if (level != 0 && custom_tex_manager.SkipMipmaps()) {
         return true;
     }
+    // AzaharFrame: a format this GPU cannot sample (logged once at start) keeps the guest
+    // texture. The format is known once the material was read, also after it was released
+    const bool format_known =
+        material->IsDecoded() ||
+        (material->IsUnloaded() && material->format != CustomPixelFormat::Invalid);
+    if (format_known && !runtime.SupportsCustomFormat(material->format)) {
+        return false;
+    }
 
     // Dump skips a surface that already has this flag, so set it before that upload
     surface.flags |= SurfaceFlagBits::Custom;
@@ -1134,7 +1144,8 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
 
     const auto upload = [this, level, surface_id, material, expected_surface, load_info,
                          hash]() -> bool {
-        if (!slot_surfaces.contains(surface_id)) {
+        // AzaharFrame: a file that failed to load leaves the guest texture
+        if (!material->IsDecoded() || !slot_surfaces.contains(surface_id)) {
             return false;
         }
 
@@ -1206,7 +1217,9 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
         // swap_and_insert can grow slot_surfaces, so the reference above may be dangling
         Surface& custom_surface = slot_surfaces[surface_id];
         custom_surface.UploadCustom(material, level);
-        if (custom_tex_manager.SkipMipmaps()) {
+        // AzaharFrame: DDS/KTX mip chains are uploaded as stored; compressed images cannot be
+        // blitted into, so they are never generated
+        if (custom_tex_manager.SkipMipmaps() && !material->HasStoredMips()) {
             runtime.GenerateMipmaps(custom_surface);
         }
         return true;

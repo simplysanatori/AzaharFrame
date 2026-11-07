@@ -25,7 +25,7 @@ namespace VideoCore {
 class SurfaceParams;
 
 struct AsyncUpload {
-    const Material* material;
+    Material* material;
     std::function<bool()> func;
 };
 
@@ -78,6 +78,12 @@ private:
 
     /// Creates the thread workers.
     void CreateWorkers();
+
+    /// AzaharFrame: reads the material on a worker thread
+    void QueueDecode(Material* material);
+
+    /// AzaharFrame: drops the CPU copy of an uploaded DDS/KTX material no queued upload needs
+    void ReleaseUploaded(Material* material);
 
 private:
     Core::System& system;

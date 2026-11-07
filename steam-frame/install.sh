@@ -115,6 +115,17 @@ else
   act mkdir -p "$DEST/art"
   for f in $ARTFILES; do if [ -f "$ART_SRC/$f" ]; then put "$ART_SRC/$f" "$DEST/art/$f"; else echo "warning: art/$f is missing"; fi; done
 fi
+# The texture pack converter (Optimize Texture Pack for Frame in the game list menu).  Its
+# encoder is built on first use into $DATA/tools, which stays across updates.
+TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp"
+TOOLS_SRC=$SRC_DIR/tools
+if [ "$(readlink -f "$TOOLS_SRC")" != "$(readlink -f "$DEST/tools")" ]; then
+  act mkdir -p "$DEST/tools"
+  for f in $TOOLFILES; do if [ -f "$TOOLS_SRC/$f" ]; then put "$TOOLS_SRC/$f" "$DEST/tools/$f"; fi; done
+fi
+for f in convert-texture-pack.sh build-astcenc.sh; do
+  if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
+done
 act chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh" "$DEST/dock-icon.py"
 DOCK_PY=$DEST/dock-icon.py
 [ -z "$DRY" ] || DOCK_PY=$SRC_DIR/dock-icon.py   # nothing is in $DEST in a dry run

@@ -29,6 +29,7 @@
 #include <fmt/format.h>
 #include "citra_qt/citra_qt.h"
 #include "citra_qt/compatibility_list.h"
+#include "citra_qt/frame_texture_pack.h" // AzaharFrame
 #include "citra_qt/game_list.h"
 #include "citra_qt/game_list_p.h"
 #include "citra_qt/game_list_worker.h"
@@ -752,6 +753,19 @@ void GameList::AddGamePopup(QMenu& context_menu, const QString& path, const QStr
     open_texture_load_location->setEnabled(is_application);
     open_mods_location->setEnabled(is_application);
     dump_romfs->setEnabled(is_application);
+
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame: convert the title's texture pack to ASTC, or go back to the original one
+    if (is_application && FrameTexturePack::HasPack(program_id)) {
+        auto* texture_pack = new QAction(FrameTexturePack::IsOptimized(program_id)
+                                             ? tr("Use Original Texture Pack")
+                                             : tr("Optimize Texture Pack for Frame..."),
+                                         &context_menu);
+        context_menu.insertAction(shader_menu->menuAction(), texture_pack);
+        connect(texture_pack, &QAction::triggered, this,
+                [this, program_id, name] { FrameTexturePack::Run(this, program_id, name); });
+    }
+#endif
 
 #ifdef ENABLE_OPENGL
     delete_opengl_disk_shader_cache->setEnabled(opengl_cache_exists);
