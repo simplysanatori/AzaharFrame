@@ -134,9 +134,13 @@ struct ScreenPlacement {
     XrExtent2Df top_size;
     XrPosef bottom_pose;
     XrExtent2Df bottom_size;
+    /// AzaharFrame vrsize: the top screen's size, times NormalTopSize (grip + stick sideways;
+    /// input/screen_rig.h). The bottom screen keeps its size and moves down with the top edge.
+    float top_scale = 1.0f;
 };
-/// The normal top screen's size in metres: 1 m high, as wide as "VR Screen Shape" says.
-XrExtent2Df NormalTopSize();
+/// The normal top screen's size in metres: 1 m high times `scale`, as wide as "VR Screen
+/// Shape" says.
+XrExtent2Df NormalTopSize(float scale = 1.0f);
 ScreenPlacement DefaultScreenPlacement();
 ScreenPlacement GetScreenPlacement();
 void SetScreenPlacement(const ScreenPlacement& placement);
@@ -171,6 +175,9 @@ struct FrontendHooks {
     /// AzaharFrame vrvis: the Stats button next to Azahar's window switched "Show Stats" (the Qt
     /// side sets Settings::values.vr_show_stats and saves the config).
     std::function<void(bool on)> show_stats_changed;
+    /// AzaharFrame vrsize: grip + D-pad changed the global Immersive Offset (the XR thread has
+    /// set Settings::values.vr_immersive_offset_x and _y): save the config. Any thread.
+    std::function<void()> immersive_offset_changed;
     /// AzaharFrame flat3: a stick click in flat, in a game (the window's screen layout; the game
     /// sees nothing of it). Queue to the GUI thread.
     std::function<void(FlatScreens what)> flat_screens;
@@ -234,6 +241,9 @@ enum class Toast {
     NormalSpeed = 4,
 };
 void ShowToast(Toast kind);
+/// AzaharFrame vrsize: a short message of any text (UTF-8, one line; a degree sign is drawn
+/// too) in the same place and for as long as a toast. Any thread.
+void ShowToastText(const std::string& text);
 /// Fast forward turned on or off: the "Fast Forward" or "Normal Speed" toast (VR only). Any thread.
 void SetFastForwardShown(bool on);
 

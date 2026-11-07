@@ -26,12 +26,10 @@ namespace picker = frame_xr::picker;
 // The picker panel: 1.6 m wide (1536 x 1024 texels), 2 m ahead at eye height.
 constexpr float kPickerWidth = 1.6f;
 constexpr float kPickerHeight = kPickerWidth * 1024.0f / 1536.0f;
-// The bottom screen relative to the top one (CitraVR GameSurfaceLayer.cpp:125-139):
-// 0.75 m lower, 0.5 m nearer, tilted 45 degrees back. It follows the top screen.
-constexpr Input::Vec3f kBottomOffset{0.0f, -0.75f, 0.5f};
-constexpr float kBottomPitch = -0.785398163f;
-// The top screen stays at least this far ahead (the bottom one is 0.5 m nearer).
-constexpr float kNearestTopZ = -1.0f;
+// The bottom screen follows the top one (input/screen_rig.h: at size 1, 0.75 m lower, 0.5 m
+// nearer, tilted 45 degrees back, as CitraVR). The top screen stays at least 1 m ahead.
+namespace Rig = Input::ScreenRig;
+constexpr float kNearestTopZ = Rig::kNearestTopZ;
 // The pointer dot texture.
 constexpr uint32_t kDotSize = 64;
 // The in-game menu: the panel this far ahead (nearer than the screens), as wide as the home
@@ -55,13 +53,8 @@ XrPosef ToXr(const Input::Posef& p) {
             {p.position.x, p.position.y, p.position.z}};
 }
 
-XrPosef BottomFromTop(const XrPosef& top) {
-    const Input::Posef t = ToInput(top);
-    const Input::Quatf pitch{std::sin(kBottomPitch / 2), 0.0f, 0.0f, std::cos(kBottomPitch / 2)};
-    Input::Posef b;
-    b.position = t.position + Input::Rotate(t.orientation, kBottomOffset);
-    b.orientation = Input::Normalized(Input::Multiply(t.orientation, pitch));
-    return ToXr(b);
+XrPosef BottomFromTop(const XrPosef& top, float scale) {
+    return ToXr(Rig::BottomFromTop(ToInput(top), scale));
 }
 
 // A white dot with a dark rim, premultiplied alpha, sRGB values.
@@ -660,6 +653,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             bridge.Release();
             bridge_live = false;
         }
+        nudger.Reset(); // AzaharFrame vrsize
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
@@ -683,6 +677,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // normal screens then.
     Input::InputFrame game_in = in;
     Immersive::OnGameInput(game_in); // immersive.cpp
+    // AzaharFrame vrsize: while a grip holds a screen the D-pad nudges it (the immersive screen:
+    // the global Immersive Offset; the normal pair: a step about the head) and never reaches
+    // the game. The normal pair's drag is the mapper's, as of the last frame.
+    const bool holding_immersive = Immersive::HoldingScreen();
+    const bool holding_normal = !holding_immersive && bridge.mapper().DragActive();
+    const Rig::DpadNudger::Steps nudge =
+        nudger.Filter(game_in, holding_immersive || holding_normal);
     const Input::MapperOutput& out = bridge.Process(game_in, panels);
     bridge_live = true;
 
@@ -719,7 +720,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         // Re-centre on the reset hold, never on a swap tap; with a grip on the immersive screen,
         // that screen's reset too.
         Immersive::OnResetPanels();
-    } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f) {
+    } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f ||
+               cmd.top_scale_stick != 0.0f) {
         Input::Posef top = ToInput(place.top_pose);
         if (cmd.top_drag_active) {
             Input::DragLimits limits;
@@ -738,9 +740,50 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (cmd.top_depth_delta_z != 0.0f) {
             top.position.z = Input::ApplyDepth(top.position.z, cmd.top_depth_delta_z, kNearestTopZ);
         }
+        // AzaharFrame vrsize: the stick sideways makes the pair bigger or smaller.
+        if (cmd.top_scale_stick != 0.0f) {
+            place.top_scale =
+                Rig::ScaleWithStick(place.top_scale, cmd.top_scale_stick, cmd.top_scale_dt, 0.0f);
+            place.top_size = NormalTopSize(place.top_scale);
+        }
         place.top_pose = ToXr(top);
-        place.bottom_pose = BottomFromTop(place.top_pose);
+        place.bottom_pose = BottomFromTop(place.top_pose, place.top_scale);
         SetScreenPlacement(place);
+    }
+    if (nudge.Any()) {
+        if (holding_immersive) {
+            if (Immersive::NudgeOffset(nudge.right, nudge.up)) { // shows its own toast
+                std::scoped_lock lock{hooks_mutex};
+                if (hooks.immersive_offset_changed) {
+                    hooks.immersive_offset_changed();
+                }
+            }
+        } else if (holding_normal && bridge.mapper().DragActive()) {
+            ScreenPlacement now = GetScreenPlacement();
+            if (const auto moved = Rig::NudgeTop(ToInput(now.top_pose), nudge.right, nudge.up)) {
+                now.top_pose = ToXr(*moved);
+                now.bottom_pose = BottomFromTop(now.top_pose, now.top_scale);
+                SetScreenPlacement(now);
+                bridge.mapper().ReanchorDrag(); // the hand carries on from the new place
+                ShowToastText(Rig::MovedToast(nudge.right, nudge.up));
+                LOG_INFO(Frontend, "xr: screens nudged {} {}: top at {:.2f}, {:.2f}, {:.2f}",
+                         nudge.right, nudge.up, moved->position.x, moved->position.y,
+                         moved->position.z);
+            }
+        }
+    }
+    // AzaharFrame vrsize: where a move of the normal screens ended.
+    if (cmd.top_drag_active != normal_dragging) {
+        normal_dragging = cmd.top_drag_active;
+        if (!normal_dragging) {
+            const ScreenPlacement now = GetScreenPlacement();
+            LOG_INFO(Frontend,
+                     "xr: screens moved: top at {:.2f}, {:.2f}, {:.2f}, size {:.2f} ({:.2f} x {:.2f} m, "
+                     "3D depth x{:.2f})",
+                     now.top_pose.position.x, now.top_pose.position.y, now.top_pose.position.z,
+                     now.top_scale, now.top_size.width, now.top_size.height,
+                     Rig::DepthScale(now.top_scale));
+        }
     }
     // From 20 % on, so a short View press (Select) logs nothing.
     if (cmd.stop_hold_progress > 0.2f && !stop_hold_logged) {

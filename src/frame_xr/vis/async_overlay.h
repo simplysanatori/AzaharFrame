@@ -51,6 +51,10 @@ public:
     bool HasImage() const {
         return has_image;
     }
+    /// Pixels queued or being copied: the image shown is not yet the newest Upload.
+    bool Busy() const {
+        return has_pending || in_flight;
+    }
     XrSwapchain Handle() const {
         return handle;
     }

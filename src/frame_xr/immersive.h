@@ -95,6 +95,12 @@ void SetBottomFocused(bool focused);
 /// calls ResetHeldScreen instead. XR thread.
 bool HoldingScreen();
 
+/// AzaharFrame vrsize: grip + D-pad. While a grip holds the immersive screen, turns it by that
+/// many kOffsetStepDeg steps of the global Immersive Offset (immersive_layout.h; all immersive
+/// modes, every game), writes Settings::values.vr_immersive_offset_x and _y and shows the
+/// toast. True when the offset changed (the caller has the config saved). XR thread.
+bool NudgeOffset(int right_steps, int up_steps);
+
 /// While a grip holds the immersive screen: it goes back to its default placement for this game
 /// (the saved one is forgotten). No re-centre. Does nothing otherwise. XR thread.
 void ResetHeldScreen();

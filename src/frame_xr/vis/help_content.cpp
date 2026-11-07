@@ -249,9 +249,10 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Right Stick Click", With("Swap Screens", ThreeDs(b, Control::StickClickR)));
     Row(g, "Hold Right Stick Click (1 s)", "Reset Screens");
     Row(g, "Grip on a Screen", With("Move Screens", Grips(b)));
-    Row(g, "Stick While Moving", "Nearer or Farther");
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
-    Row(g, "Sideways While Moving", "Immersive Screen Size");
+    Row(g, "Stick While Moving", "Nearer or Farther");
+    Row(g, "Sideways While Moving", "Screen Size");
+    Row(g, "D-Pad While Moving", "Nudge Screen"); // AzaharFrame vrsize
     Row(g, "Right Stick Click While Moving", "Reset Immersive Screen");
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
@@ -341,8 +342,8 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
            Line("Hold Click (1 s)", "Reset Screens")});
     Label(g, kBoth, {CtrlPart::Grip},
           {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("While Moving"),
-           Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Immersive Screen Size"),
-           Sub("Right Stick Click", "Reset Immersive Screen")});
+           Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Screen Size"),
+           Sub("D-Pad", "Nudge Screen"), Sub("Right Stick Click", "Reset Immersive Screen")});
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
     DiagramPage& w = d.pages[static_cast<std::size_t>(DiagramPageId::Window)];

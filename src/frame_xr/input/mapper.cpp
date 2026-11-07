@@ -75,6 +75,7 @@ bool Mapper::Reset() {
     swallow_bumper_ = {};
     touch_active_ = false;
     drag_active_ = false;
+    drag_reanchor_ = false;
     drag_panel_ = Panel::None;
     have_last_time_ = false;
     return was_touching;
@@ -465,6 +466,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         if (state.dragging && (!state.grip_down || !input.active)) {
             state.dragging = false;
             drag_active_ = false;
+            drag_reanchor_ = false;
             drag_panel_ = Panel::None;
         }
         if (state.grip_down && !state.dragging && !drag_active_ && input.active &&
@@ -484,6 +486,11 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         if (state.dragging) {
             const PanelQuad& grabbed = drag_panel_ == Panel::Top ? panels.top : panels.bottom;
             const QuadHit hit = IntersectQuad(ray, grabbed);
+            if (hit.on_plane && drag_reanchor_) {
+                // AzaharFrame vrsize: nudged under the hand; carry on from where they are now.
+                drag_reanchor_ = false;
+                drag_grab_offset_ = hit.point_world - grabbed.pose.position;
+            }
             if (hit.on_plane) {
                 const Vec3f wanted = hit.point_world - drag_grab_offset_;
                 if (drag_panel_ == Panel::Top) {
@@ -504,6 +511,11 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             if (std::abs(stick_y) > config_.depth_threshold) {
                 out.commands.top_depth_delta_z = -stick_y * config_.depth_speed_mps * dt;
             }
+            // AzaharFrame vrsize: sideways, bigger or smaller.
+            if (std::abs(input.stick.x) > config_.depth_threshold) {
+                out.commands.top_scale_stick = input.stick.x;
+                out.commands.top_scale_dt = dt;
+            }
         }
     }
 
@@ -511,7 +523,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         out.commands.top_drag_active = true;
         out.commands.top_drag_target = drag_last_target_;
         if (config_.horizontal_lock) {
-            out.commands.top_drag_target.x = 0.0f;
+            // AzaharFrame vrsize: where it is sideways (0 unless the D-pad nudged it).
+            out.commands.top_drag_target.x = panels.top.pose.position.x;
         }
     }
 

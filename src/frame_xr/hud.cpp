@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <string>
 
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -19,7 +20,10 @@ namespace {
 constexpr uint32_t kToastWidth = 512;
 constexpr uint32_t kToastHeight = 96;
 constexpr int kToastKinds = 5;
-constexpr int kAtlasRows = kToastKinds;
+// AzaharFrame vrsize: two rows for ShowToastText, used in turn (the one on view stays as it is
+// while the other is copied).
+constexpr int kTextRows = 2;
+constexpr int kAtlasRows = kToastKinds + kTextRows;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
@@ -45,44 +49,73 @@ const char* ToastText(int kind) {
     return "";
 }
 
+// One toast row: the rounded box and the text centred in it. The font has no degree sign, so a
+// "°" in the text is drawn as a small ring.
+void DrawRow(frame_xr::ui::Canvas& canvas, int row, const std::string& text) {
+    namespace ui = frame_xr::ui;
+    const int top_px = row * static_cast<int>(kToastHeight);
+    std::fill(canvas.px.begin() + top_px * canvas.w,
+              canvas.px.begin() + (top_px + static_cast<int>(kToastHeight)) * canvas.w, 0u);
+    const float top = static_cast<float>(top_px);
+    canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 36,
+                     ui::rgb(28, 28, 34, 0.92f));
+    const ui::Color white = ui::rgb(240, 240, 245);
+    const float baseline = top + 62;
+    const std::size_t deg = text.find("\xC2\xB0");
+    if (deg == std::string::npos) {
+        canvas.Text(kToastWidth / 2.0f, baseline, ui::kFontLarge, text.c_str(), white, 1);
+        return;
+    }
+    const std::string before = text.substr(0, deg);
+    const std::string after = text.substr(deg + 2);
+    constexpr float kRingR = 5.5f, kRingWidth = 15.0f;
+    const float w_before = ui::TextWidth(ui::kFontLarge, before.c_str());
+    const float w_after = ui::TextWidth(ui::kFontLarge, after.c_str());
+    float x = kToastWidth / 2.0f - (w_before + kRingWidth + w_after) / 2.0f;
+    canvas.Text(x, baseline, ui::kFontLarge, before.c_str(), white);
+    x += w_before;
+    const float cx = x + kRingWidth / 2.0f, cy = baseline - 24.0f;
+    canvas.StrokeRoundRect(cx - kRingR, cy - kRingR, cx + kRingR, cy + kRingR, kRingR, 3.0f, white);
+    canvas.Text(x + kRingWidth, baseline, ui::kFontLarge, after.c_str(), white);
+}
+
 } // namespace
 
 void Hud::Create(Runtime& rt) {
-    uploader.Init(rt.vulkan->Device(), rt.vulkan->PhysicalDevice(), rt.vulkan->QueueFamily(),
-                  rt.queue_lock);
     logged_unsupported = false;
     shown_kind = -1;
     toast_kind = -1;
+    text_row_waiting = -1;
+    {
+        std::scoped_lock lock{text_mutex};
+        text_requested = false;
+    }
 
-    if (uploader.CreateChain(rt.session, rt.swapchain_format, kToastWidth, kAtlasHeight,
-                             toast_chain)) {
+    if (toast_chain.Create(rt.session, rt.vulkan->Device(), rt.vulkan->PhysicalDevice(),
+                           rt.vulkan->QueueFamily(), rt.queue_lock, rt.swapchain_format,
+                           kToastWidth, kAtlasHeight)) {
         frame_xr::ui::InitFonts();
-        frame_xr::ui::Canvas canvas;
-        canvas.Init(kToastWidth, kAtlasHeight); // all transparent black, then the toasts
-        canvas.Clear(frame_xr::ui::rgb(0, 0, 0, 0.0f));
-        for (int kind = 0; kind < kAtlasRows; ++kind) {
-            const float top = static_cast<float>(kind * kToastHeight);
-            canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 36,
-                             frame_xr::ui::rgb(28, 28, 34, 0.92f));
-            canvas.Text(kToastWidth / 2.0f, top + 62, frame_xr::ui::kFontLarge, ToastText(kind),
-                        frame_xr::ui::rgb(240, 240, 245), 1);
+        atlas.Init(kToastWidth, kAtlasHeight); // all transparent black, then the toasts
+        atlas.Clear(frame_xr::ui::rgb(0, 0, 0, 0.0f));
+        for (int kind = 0; kind < kToastKinds; ++kind) {
+            DrawRow(atlas, kind, ToastText(kind));
         }
-        uploader.Upload(toast_chain, reinterpret_cast<const uint8_t*>(canvas.px.data()));
+        toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
+        toast_chain.Poll(); // starts the copy; released on a later frame
     }
 }
 
 void Hud::Destroy() {
-    uploader.DestroyChain(toast_chain);
-    toast_chain = {};
-    uploader.Shutdown();
+    toast_chain.Destroy();
     shown_kind = -1;
+    text_row_waiting = -1;
 }
 
 bool Hud::PassthroughActive(const Runtime& rt) {
     if (Settings::values.vr_background.GetValue() != 1) {
         return false;
     }
-    if (!rt.alpha_blend_supported || !toast_chain.has_image) {
+    if (!rt.alpha_blend_supported || !toast_chain.HasImage()) {
         if (!logged_unsupported) {
             logged_unsupported = true;
             LOG_WARNING(Frontend,
@@ -104,7 +137,7 @@ bool Hud::PassthroughLayer(const ViewPose& pose, XrSpace space,
         views[eye] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
         views[eye].pose = pose.eye[eye];
         views[eye].fov = pose.fov[eye];
-        views[eye].subImage.swapchain = toast_chain.handle;
+        views[eye].subImage.swapchain = toast_chain.Handle();
         views[eye].subImage.imageRect = {{0, static_cast<int32_t>(kAtlasHeight - kPassthroughSize)},
                                          {static_cast<int32_t>(kPassthroughSize),
                                           static_cast<int32_t>(kPassthroughSize)}};
@@ -122,8 +155,15 @@ void Hud::ShowToast(Toast kind) {
     toast_kind = static_cast<int>(kind);
 }
 
+void Hud::ShowToastText(const std::string& text) {
+    std::scoped_lock lock{text_mutex};
+    text_request = text;
+    text_requested = true;
+}
+
 bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
-    if (!toast_chain.has_image) {
+    toast_chain.Poll();
+    if (!toast_chain.HasImage()) {
         toast_kind = -1;
         return false;
     }
@@ -146,6 +186,38 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
         shown_pose = ahead();
         shown_kind = requested;
         shown_since = time;
+        text_row_waiting = -1;
+    }
+    // AzaharFrame vrsize: a text toast goes into the text row not on view; it shows once copied.
+    {
+        std::string text;
+        bool has_text = false;
+        {
+            std::scoped_lock lock{text_mutex};
+            if (text_requested) {
+                text = std::move(text_request);
+                text_requested = false;
+                has_text = true;
+            }
+        }
+        if (has_text && head.valid) {
+            const int row = text_row_waiting >= 0      ? text_row_waiting
+                            : shown_kind == kToastKinds ? kToastKinds + 1
+                                                        : kToastKinds;
+            DrawRow(atlas, row, text);
+            toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
+            text_row_waiting = row;
+        }
+    }
+    if (text_row_waiting >= 0 && !toast_chain.Busy()) {
+        // Nudged again while the last one shows: it stays where it is, with the new text.
+        const bool showing_text = shown_kind >= kToastKinds && time - shown_since <= kToastNs;
+        if (!showing_text) {
+            shown_pose = ahead();
+        }
+        shown_kind = text_row_waiting;
+        shown_since = time;
+        text_row_waiting = -1;
     }
     if (shown_kind >= 0 && time - shown_since > kToastNs) {
         shown_kind = -1;
@@ -154,7 +226,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
     if (row < 0) {
         return false;
     }
-    quad.swapchain = toast_chain.handle;
+    quad.swapchain = toast_chain.Handle();
     quad.image_rect = {{0, static_cast<int32_t>(row * static_cast<int>(kToastHeight))},
                        {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
     quad.pose = shown_pose;

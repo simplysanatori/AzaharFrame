@@ -23,7 +23,8 @@ Compared with CitraVR on the Quest, played on the Frame through Lepton:
 - It uses the Steam Frame controllers, with the real D-pad where CitraVR needed a trick.
 - Azahar's own window is in VR, with the game list, menus and settings, and the beam is the mouse.
 - Holding **Menu** pauses the game and opens that window over it.
-- The immersive screen can be moved and resized, and each game keeps its place.
+- The immersive screen can be moved and resized, and each game keeps its place. A grip and the D-pad shift it to fit your lenses.
+- The normal screens can be made big enough to fill the view.
 - The same app also plays in a flat window.
 
 Compared with Azahar on a PC:
@@ -145,7 +146,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
-| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther |
+| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). The D-pad nudges them a little |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens |
@@ -154,7 +155,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | Hold **View**, then the right bumper | Quick Save. The left bumper instead: Quick Load |
 | Hold **View**, then the right trigger | Fast Forward on or off |
-| Grip, in immersive mode | Move the immersive screen. The stick of that hand: farther or nearer, bigger or smaller |
+| Grip, in immersive mode | Move the immersive screen. The stick of that hand: farther or nearer, bigger or smaller. The D-pad shifts it to fit your lenses |
 
 On Azahar's window and in the in-game menu:
 
@@ -166,6 +167,8 @@ On Azahar's window and in the in-game menu:
 | Grip | Move the window |
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
+
+The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press the D-pad: each press moves the screens half a degree around you, and **Moved Right** (or Left, Up, Down) shows for 2 seconds. While you hold the screens the D-pad does not reach the game.
 
 With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 
@@ -235,7 +238,11 @@ Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Supe
 
 **Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. A change shows at once. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
-The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Click the right stick while you hold the screen to put it back. A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
+The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Click the right stick while you hold the screen to put it back.
+
+If your eyes see one side of the immersive screen but not the other, keep a grip squeezed and press the D-pad. Each press shifts the screen half a degree left, right, up or down, and **Offset Right 1.5°** (for example) shows for 2 seconds. This offset is for your lenses, so it is the same in every game and every immersive mode, and putting a game's screen back does not change it. The world stays where it is; only the screen moves. **Immersive Offset** in the **VR** group shows it, and **Reset** there puts it back to the middle.
+
+A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 Two more settings in the same group, per game, for the Full modes. Both are read when the game starts:
 
@@ -291,6 +298,7 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.
 - **No controllers in VR, only the beams.** The models are made from SteamVR's. Delete `user/frame-models` and start once more, then read `frame-models.log`.
 - **The immersive screen is in an odd place.** Squeeze a grip and click the right stick to put it back.
+- **One edge of the immersive screen is cut off by the lenses.** Squeeze a grip and press the D-pad away from that edge until it shows: right when the left edge is cut off.
 
 ## Reporting a problem
 
