@@ -11,7 +11,6 @@ Until now I played 3DS games in VR on the Frame with CitraVR's Android APK, thro
 - It does far less work for each frame. In Ocarina of Time 3D at 120 Hz with a 4K texture pack, SteamVR re-projects far fewer frames, and each frame costs much less CPU and GPU time.
 - Less work for the chip means better battery life.
 - Texture packs load as ASTC with no stutter. CitraVR loads PNGs and stalls while it decodes them.
-- Super Mario 3D Land and Mario Kart 7 run smoother under heavy load.
 
 ### The emulator on the Frame
 
