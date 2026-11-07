@@ -262,8 +262,14 @@ static XrResult XRAPI_CALL mEnumBlend(XrInstance i, XrSystemId s, XrViewConfigur
     (void)i;
     (void)s;
     (void)t;
-    *count = 1;
-    if (cap && m) m[0] = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    // XRMOCK_ALPHA_BLEND=1 also offers alpha blending, as SteamVR on the Frame is said to.
+    const char* alpha = getenv("XRMOCK_ALPHA_BLEND");
+    const int with_alpha = alpha && alpha[0] == '1';
+    *count = with_alpha ? 2 : 1;
+    if (cap && m) {
+        m[0] = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+        if (with_alpha && cap > 1) m[1] = XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
+    }
     return XR_SUCCESS;
 }
 

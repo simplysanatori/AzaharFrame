@@ -147,6 +147,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_mode.h"
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "input_common/frame_xr.h"
 
 namespace {
@@ -206,6 +207,11 @@ std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
 QPointer<FrameMirror> g_frame_mirror;
 // Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
 std::function<void(bool open)> g_frame_xr_set_menu;
+// Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
+// buttons, and View + a bumper); GUI thread. Set in GMainWindow::InitializeHotkeys-time code below.
+std::function<void()> g_frame_xr_quick_save;
+std::function<void()> g_frame_xr_quick_load;
+QPointer<QPushButton> g_frame_xr_passthrough_button;
 
 void FrameXrPushGameDirs() {
     std::vector<FrameXr::LibraryDir> dirs;
@@ -757,6 +763,26 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            hooks.quick_save = [this] { // AzaharFrame vrqol: View, then the Right Bumper
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_xr_quick_save) {
+                            g_frame_xr_quick_save();
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
+            hooks.quick_load = [this] { // AzaharFrame vrqol: View, then the Left Bumper
+                QMetaObject::invokeMethod(
+                    this,
+                    [] {
+                        if (g_frame_xr_quick_load) {
+                            g_frame_xr_quick_load();
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             hooks.vr_changed = [this](bool vr) {
                 QMetaObject::invokeMethod(
                     this,
@@ -796,8 +822,104 @@ GMainWindow::GMainWindow(Core::System& system_)
                     FrameMode::ReturnToFlat(this);
                 }
             };
+            // AzaharFrame vrqol: Quick Save and Quick Load from the controllers or the in-game
+            // menu. The Emulation menu's own actions do the work; this adds the confirmation: a
+            // toast in the headset, else (flat, or the in-game menu is open and shows the status
+            // bar) a status bar message.
+            const auto notify = [this](FrameXr::Toast kind, const QString& text) {
+                if (FrameXr::VrShowing() && !(g_frame_mirror && g_frame_mirror->MenuOpen())) {
+                    FrameXr::ShowToast(kind);
+                } else {
+                    statusBar()->showMessage(text, 3000);
+                }
+            };
+            g_frame_xr_quick_save = [this, notify] {
+                static QElapsedTimer last;
+                if (!emulation_running || !system.IsPoweredOn() ||
+                    (last.isValid() && last.elapsed() < 700)) {
+                    return;
+                }
+                last.start();
+                UpdateSaveStates();
+                const auto started = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+                ui->action_Quick_Save->trigger();
+                // Confirm once the file is there (the emulation thread saves at its next frame).
+                auto* timer = new QTimer(this);
+                timer->setInterval(150);
+                int tries = 0;
+                connect(timer, &QTimer::timeout, this, [this, timer, notify, started, tries]() mutable {
+                    u64 title_id{};
+                    bool done = false;
+                    if (system.GetAppLoader().ReadProgramId(title_id) ==
+                        Loader::ResultStatus::Success) {
+                        for (const auto& state :
+                             Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
+                            done |= state.slot == 0 && state.time + 1 >= started;
+                        }
+                    }
+                    if (done) {
+                        notify(FrameXr::Toast::QuickSaved, tr("Quick Saved"));
+                    }
+                    if (done || ++tries >= 40) { // a failed save shows Azahar's own error
+                        timer->deleteLater();
+                    }
+                });
+                timer->start();
+            };
+            g_frame_xr_quick_load = [this, notify] {
+                static QElapsedTimer last;
+                if (!emulation_running || !system.IsPoweredOn() ||
+                    (last.isValid() && last.elapsed() < 700)) {
+                    return;
+                }
+                last.start();
+                UpdateSaveStates();
+                if (!actions_load_state[0]->isEnabled()) {
+                    notify(FrameXr::Toast::NoQuickSave, tr("No Quick Save"));
+                    return;
+                }
+                // The first-time savestate warning is a dialog: open the in-game menu so that
+                // it can be seen and answered in the headset.
+                if (UISettings::values.save_state_warning && FrameXr::VrShowing() &&
+                    g_frame_mirror && !g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+                    g_frame_xr_set_menu(true);
+                }
+                ui->action_Quick_Load->trigger();
+                notify(FrameXr::Toast::QuickLoaded, tr("Quick Loaded"));
+            };
+
             if (FrameMirror::Wanted()) {
                 g_frame_mirror = new FrameMirror(this);
+                // The row of buttons at the top of the in-game menu (VR only, see FrameMirror).
+                g_frame_mirror->AddVrMenuButton(tr("Quick Save"), [] {
+                    if (g_frame_xr_quick_save) {
+                        g_frame_xr_quick_save();
+                    }
+                });
+                g_frame_mirror->AddVrMenuButton(tr("Quick Load"), [] {
+                    if (g_frame_xr_quick_load) {
+                        g_frame_xr_quick_load();
+                    }
+                });
+                g_frame_xr_passthrough_button = g_frame_mirror->AddVrMenuButton(
+                    tr("Passthrough"), [this] {
+                        if (!g_frame_xr_passthrough_button) {
+                            return;
+                        }
+                        Settings::values.vr_background.SetValue(
+                            g_frame_xr_passthrough_button->isChecked() ? 1 : 0);
+                        config->Save();
+                    });
+                if (g_frame_xr_passthrough_button) {
+                    g_frame_xr_passthrough_button->setCheckable(true);
+                    g_frame_xr_passthrough_button->setChecked(
+                        Settings::values.vr_background.GetValue() == 1);
+                    if (!FrameXr::PassthroughSupported()) {
+                        g_frame_xr_passthrough_button->setEnabled(false);
+                        g_frame_xr_passthrough_button->setToolTip(
+                            tr("SteamVR does not offer passthrough to apps."));
+                    }
+                }
                 // Menu held 1 s in a game: pause (Emulation > Pause) and show this window over
                 // the game; held again, B with nothing open, or Emulation > Continue: resume.
                 g_frame_xr_set_menu = [this](bool open) {
@@ -810,6 +932,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (open && emu_thread->IsRunning() &&
                         !system.frame_limiter.IsFrameAdvancing()) {
                         OnPauseGame();
+                    }
+                    if (open && g_frame_xr_passthrough_button) { // the Settings dialog may have changed it
+                        g_frame_xr_passthrough_button->setChecked(
+                            Settings::values.vr_background.GetValue() == 1);
                     }
                     g_frame_mirror->SetMenuOpen(open);
                     FrameXr::SetInGameMenu(open);
@@ -1978,6 +2104,27 @@ void GMainWindow::BootGame(const QString& filename) {
             title_id == 0 ? name : fmt::format("{:016X}", title_id);
         LOG_INFO(Frontend, "Loading per application config file for title {}", config_file_name);
         QtConfig per_game_config(config_file_name, QtConfig::ConfigType::PerGameConfig);
+#ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
+        if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
+            auto& mode = Settings::values.vr_immersive_mode;
+            auto& offset = Settings::values.vr_si_mode_register_offset;
+            // Only where this game's config has no value of its own and the global one is still
+            // the default (Off, Auto); a value the player set, even Off, is left alone.
+            if (mode.UsingGlobal() && mode.GetValue() == 0) {
+                mode.SetGlobal(false);
+                mode.SetValue(preset->mode);
+                LOG_INFO(Frontend, "xr: {}: Immersive Mode preset {}", preset->name,
+                         preset->mode);
+            }
+            if (mode.GetValue() == preset->mode && offset.UsingGlobal() &&
+                offset.GetValue() == -1) {
+                offset.SetGlobal(false);
+                offset.SetValue(preset->register_offset);
+                LOG_INFO(Frontend, "xr: {}: View Matrix Register preset {}", preset->name,
+                         preset->register_offset);
+            }
+        }
+#endif
     }
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).

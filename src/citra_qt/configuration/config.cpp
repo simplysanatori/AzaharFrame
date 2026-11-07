@@ -516,6 +516,7 @@ void QtConfig::ReadVrValues() {
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
         ReadGlobalSetting(Settings::values.vr_motion_controls);
+        ReadGlobalSetting(Settings::values.vr_background);
     }
 
     qt_config->endGroup();
@@ -1140,6 +1141,7 @@ void QtConfig::SaveVrValues() {
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);
         WriteGlobalSetting(Settings::values.vr_motion_controls);
+        WriteGlobalSetting(Settings::values.vr_background);
     }
 
     qt_config->endGroup();

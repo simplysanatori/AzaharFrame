@@ -164,12 +164,25 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         REQUIRE(out.controls.Get(Control::A));
         REQUIRE_FALSE(out.controls.Get(Control::B));
     }
-    SECTION("View is View while tapped") {
+    SECTION("View is Select once it has been held 150 ms (a bumper may still follow)") {
         InputFrame frame = IdleFrame();
         frame.view = true;
-        const MapperOutput out = runner.Step(frame);
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        runner.now += 150'000'000;
+        out = runner.Step(frame);
         REQUIRE(out.controls.Get(Control::View));
         REQUIRE_FALSE(out.commands.stop_game);
+    }
+    SECTION("a quick tap on View is Select for 100 ms, sent when it is let go") {
+        InputFrame frame = IdleFrame();
+        frame.view = true;
+        runner.Step(frame);
+        frame.view = false;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::View));
+        runner.now += 120'000'000;
+        REQUIRE_FALSE(runner.Step(frame).controls.Get(Control::View));
     }
     SECTION("a short Menu press is Menu (Start) when let go, for 100 ms") {
         InputFrame frame = IdleFrame();
@@ -604,8 +617,12 @@ TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[fr
         view_first.hand[0].bumper = true;
         view_first.hand[1].bumper = true;
         out = other.Step(view_first);
+        // Both at once is no quick action: View goes on as Select, the bumpers as L and R.
         REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.quick_load);
         REQUIRE(out.controls.Get(Control::View));
+        REQUIRE(out.controls.Get(Control::BumperL));
     }
     SECTION("a tap on View toggles once, when let go") {
         frame.view = true;
@@ -721,6 +738,9 @@ TEST_CASE("FrameXr mapper: View held stops the game", "[frame_xr]") {
     frame.view = true;
 
     MapperOutput out = runner.Step(frame);
+    REQUIRE_FALSE(out.controls.Get(Control::View)); // held back while a bumper may follow
+    runner.now += 150'000'000;
+    out = runner.Step(frame);
     REQUIRE(out.controls.Get(Control::View));
     REQUIRE(out.commands.stop_hold_progress == Approx(0.0f).margin(0.01));
 
@@ -744,9 +764,161 @@ TEST_CASE("FrameXr mapper: View held stops the game", "[frame_xr]") {
     runner.Step(frame);
     frame.view = true;
     out = runner.Step(frame);
+    REQUIRE_FALSE(out.controls.Get(Control::View));
+    runner.now += 150'000'000;
+    out = runner.Step(frame);
     REQUIRE(out.controls.Get(Control::View));
     runner.now += 1'600'000'000;
     REQUIRE(runner.Step(frame).commands.stop_game);
+}
+
+TEST_CASE("FrameXr mapper: View, then a bumper, is Quick Save or Quick Load", "[frame_xr]") {
+    Runner runner;
+    runner.panels.bottom_toggle_enabled = true;
+    InputFrame frame = IdleFrame();
+    const auto idle_steps = [&](int n) {
+        InputFrame idle = IdleFrame();
+        for (int i = 0; i < n; ++i) {
+            const MapperOutput out = runner.Step(idle);
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+            REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+            REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        }
+    };
+
+    SECTION("the Right Bumper after View is Quick Save, once, and the game sees nothing") {
+        frame.view = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        frame.hand[1].bumper = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.quick_load);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        for (int i = 0; i < 40; ++i) { // held on: no second action, no Select, no bumper
+            out = runner.Step(frame);
+            REQUIRE_FALSE(out.commands.quick_save);
+            REQUIRE_FALSE(out.controls.Get(Control::View));
+            REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        }
+        frame.hand[1].bumper = false;
+        frame.view = false;
+        runner.Step(frame);
+        idle_steps(12); // no Select pulse follows
+    }
+    SECTION("the Left Bumper after View is Quick Load") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[0].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.quick_load);
+        REQUIRE_FALSE(out.commands.quick_save);
+        REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+    }
+    SECTION("it works after the wait too, and cancels the stop hold") {
+        frame.view = true;
+        runner.Step(frame);
+        runner.now += 1'000'000'000;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::View)); // Select was already on
+        runner.now += 600'000'000;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.stop_hold_progress > 0.0f);
+        frame.hand[0].bumper = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.quick_load);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE(out.commands.stop_hold_progress == Approx(0.0f));
+        runner.now += 2'000'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.stop_game);
+    }
+    SECTION("the other bumper while the first is held is not the bottom screen chord") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[0].bumper = true;
+        REQUIRE(runner.Step(frame).commands.quick_load);
+        runner.now += 1'200'000'000; // past the debounce
+        frame.hand[1].bumper = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.commands.toggle_vr);
+        REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+        REQUIRE_FALSE(out.controls.Get(Control::BumperR));
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+        runner.now += 200'000'000;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+        REQUIRE_FALSE(out.controls.Get(Control::View));
+    }
+    SECTION("Quick Load is debounced") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[0].bumper = true;
+        REQUIRE(runner.Step(frame).commands.quick_load);
+        frame.hand[0].bumper = false; // a bounce
+        runner.Step(frame);
+        frame.hand[0].bumper = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.quick_load);
+        REQUIRE_FALSE(out.controls.Get(Control::BumperL)); // still swallowed
+        frame.hand[0].bumper = false;
+        runner.Step(frame);
+        runner.now += 1'000'000'000;
+        frame.hand[0].bumper = true;
+        REQUIRE(runner.Step(frame).commands.quick_load);
+    }
+    SECTION("a bumper held first is not the combo") {
+        frame.hand[0].bumper = true;
+        runner.Step(frame);
+        frame.hand[1].bumper = true;
+        runner.Step(frame);
+        frame.view = true;
+        runner.Step(frame);
+        runner.now += 150'000'000;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.toggle_bottom); // the bottom screen chord, as before
+        REQUIRE_FALSE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.quick_load);
+    }
+    SECTION("one bumper held, then View, then the other bumper is not the combo") {
+        frame.hand[0].bumper = true;
+        runner.Step(frame);
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[1].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.quick_load);
+    }
+    SECTION("a bumper without View is just L or R") {
+        frame.hand[1].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::BumperR));
+        REQUIRE_FALSE(out.commands.quick_save);
+    }
+    SECTION("View then both bumpers at once is neither") {
+        frame.view = true;
+        runner.Step(frame);
+        frame.hand[0].bumper = true;
+        frame.hand[1].bumper = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.quick_save);
+        REQUIRE_FALSE(out.commands.quick_load);
+        REQUIRE_FALSE(out.commands.toggle_bottom);
+    }
+    SECTION("a View hold alone still stops the game") {
+        frame.view = true;
+        runner.Step(frame);
+        runner.now += 200'000'000;
+        runner.Step(frame);
+        runner.now += 1'600'000'000;
+        REQUIRE(runner.Step(frame).commands.stop_game);
+    }
 }
 
 TEST_CASE("FrameXr mapper: right stick click resets the screens once", "[frame_xr]") {

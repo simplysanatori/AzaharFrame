@@ -23,6 +23,8 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Right stick click | Resets the screen positions | Nothing reaches the game. Ignored while the stick is pushed more than half way, so free camera cannot reset by accident |
 | Left bumper + right bumper + **View** | Shows or hides the bottom screen | Only in games that hide it, see below. The game does not see that press |
 | Left bumper + right bumper + **View** + **Menu** | Switches between VR and Flat | See below. The game sees no Select or Start |
+| **View**, then the right bumper | Quick Save | Hold **View** first, then press the bumper. The game sees none of the three. See Quick Save and Quick Load |
+| **View**, then the left bumper | Quick Load | The same |
 
 The left Steam button belongs to SteamVR and is never bound.
 
@@ -33,6 +35,19 @@ Grips press at 60 % and let go at 40 %, triggers press at 55 % and let go at 40 
 While you hold **View**, the game sees Select held. When the 1.5 seconds are up the game sees it released and stops.
 
 A tap of **Menu** reaches the game as Start when you let go.
+
+Because **View** also starts Quick Save and Quick Load, the game sees it a moment late: Select starts 0.15 seconds after you press **View** (a quick tap is Select for 0.1 seconds, sent when you let go). Holding it for 1.5 seconds still stops the game, counted from when Select starts.
+
+## Quick Save and Quick Load
+
+Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It is the same Quick Save slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded" (or "No Quick Save" when there is nothing to load). The game sees neither bumper nor Select, and the stop timer starts over.
+
+- **View** has to go down first, with no bumper already held. Bumpers first, then **View**, is still the bottom screen button.
+- Pressing the other bumper while the first is held does the other action, and never the bottom screen button.
+- A second press within a second does nothing, so a bounce cannot load twice.
+- It works in a game in VR and in Flat. In the in-game menu the same two actions are buttons in the row at the top, see below.
+
+<!-- VERIFY: the combo and the message in the headset -->
 
 ## Pointing
 
@@ -81,6 +96,8 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 ## The in-game menu
 
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once; the VR settings apply the next time a game starts.
+
+A row of buttons shows at the top of the window, under Azahar's menu bar, only while the in-game menu is open in VR: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar at the bottom. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it (see Settings in the user guide).
 
 To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Immersive mode shows the normal screens while the menu is open.
 

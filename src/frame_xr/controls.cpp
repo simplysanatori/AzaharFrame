@@ -193,6 +193,19 @@ void VrUi::RequestToggleVr(const char* where) {
     }
 }
 
+void VrUi::RequestQuick(const Input::PanelCommands& cmd, const char* where) {
+    if (!cmd.quick_save && !cmd.quick_load) {
+        return;
+    }
+    std::scoped_lock lock{hooks_mutex};
+    auto& hook = cmd.quick_save ? hooks.quick_save : hooks.quick_load;
+    if (hook) {
+        LOG_INFO(Frontend, "xr: {}: View, then {} Bumper: Quick {}", where,
+                 cmd.quick_save ? "Right" : "Left", cmd.quick_save ? "Save" : "Load");
+        hook();
+    }
+}
+
 void VrUi::FlatFrame(int64_t now_ns) {
     Input::InputFrame in;
     bool have = false;
@@ -235,6 +248,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
     if (cmd.toggle_vr) {
         RequestToggleVr("flat");
     }
+    RequestQuick(cmd, "flat"); // AzaharFrame vrqol
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {
@@ -398,6 +412,12 @@ void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         dim.swapchain = dim_chain.handle;
         dim.image_rect = {{0, 0}, {static_cast<int32_t>(kDimSize), static_cast<int32_t>(kDimSize)}};
         dim.pose = mirror.Pose();
+        // AzaharFrame vrqol: 2 cm behind the window. SteamVR depth-sorts quad layers (Frame
+        // port notes), and a dim quad in the window's own plane would fight it.
+        const Input::Vec3f behind = Input::Rotate(ToInput(dim.pose).orientation, {0, 0, -0.02f});
+        dim.pose.position.x += behind.x;
+        dim.pose.position.y += behind.y;
+        dim.pose.position.z += behind.z;
         dim.size = {mirror.Width() * 6.0f, mirror.Width() * 5.0f};
         dim.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
         layers.push_back(dim);
@@ -567,6 +587,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     if (cmd.toggle_vr) {
         RequestToggleVr("game");
     }
+    RequestQuick(cmd, "game"); // AzaharFrame vrqol
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {

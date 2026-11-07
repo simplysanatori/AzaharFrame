@@ -35,6 +35,8 @@ private:
     /// Global settings only (hidden in a game's properties).
     QWidget* face_row;
     QComboBox* face_combo;
+    QWidget* background_row;
+    QComboBox* background_combo;
     QWidget* motion_row;
     QComboBox* motion_combo;
     QWidget* shape_row;

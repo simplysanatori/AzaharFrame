@@ -56,6 +56,10 @@ bool Mapper::Reset() {
     view_prev_ = false;
     view_held_back_ = false;
     select_pulse_ = false;
+    quick_armed_ = false;
+    view_quick_wait_ = false;
+    bumper_prev_ = {};
+    quick_done_ = false;
     swallow_menu_ = false;
     swallow_bumper_ = {};
     touch_active_ = false;
@@ -117,6 +121,46 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             swallow_bumper_[static_cast<std::size_t>(h)] = false;
         }
     }
+
+    // ---- Quick Save / Quick Load: View first (no bumper down), then one bumper ----
+    // The Left Bumper loads, the Right Bumper saves. Neither bumper, nor View, reaches the game.
+    {
+        const bool view_pressed_now = frame.view && !view_prev_;
+        const bool any_bumper = frame.hand[0].bumper || frame.hand[1].bumper;
+        if (!frame.view) {
+            if (view_quick_wait_) { // a tap, no bumper came: Select, a little late
+                select_pulse_ = true;
+                select_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
+            }
+            quick_armed_ = false;
+            view_quick_wait_ = false;
+        } else if (view_pressed_now && !any_bumper) {
+            quick_armed_ = true;
+            view_quick_wait_ = true;
+            view_quick_since_ns_ = frame.time_ns;
+        }
+        const bool edge_l = frame.hand[0].bumper && !bumper_prev_[0];
+        const bool edge_r = frame.hand[1].bumper && !bumper_prev_[1];
+        if (quick_armed_ && (edge_l || edge_r)) {
+            if (edge_l && edge_r) {
+                quick_armed_ = false; // both at once: not this gesture
+                view_quick_wait_ = false;
+            } else {
+                const bool cooled = !quick_done_ ||
+                                    frame.time_ns - quick_last_ns_ >= config_.quick_cooldown_ns;
+                if (cooled) {
+                    (edge_l ? out.commands.quick_load : out.commands.quick_save) = true;
+                    quick_done_ = true;
+                    quick_last_ns_ = frame.time_ns;
+                }
+                swallow_bumper_[edge_l ? 0 : 1] = true; // until let go
+                swallow_view_ = true;                    // until let go: no Select, no stop hold
+                view_quick_wait_ = false;
+                select_pulse_ = false;
+            }
+        }
+        bumper_prev_ = {frame.hand[0].bumper, frame.hand[1].bumper};
+    }
     controls.Set(Control::BumperL, frame.hand[0].bumper && !swallow_bumper_[0]);
     controls.Set(Control::BumperR, frame.hand[1].bumper && !swallow_bumper_[1]);
     controls.Set(Control::StickClickL, frame.hand[0].stick_click);
@@ -176,11 +220,17 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     if (!frame.view) {
         swallow_view_ = false;
     }
+    if (view_quick_wait_) {
+        // View pressed with no bumper down: held back while a bumper may still follow.
+        if (frame.time_ns - view_quick_since_ns_ >= config_.chord_grace_ns) {
+            view_quick_wait_ = false; // a plain View hold: Select from here on
+        }
+    }
     view_prev_ = frame.view;
     if (select_pulse_ && (frame.time_ns >= select_pulse_until_ns_ || frame.view)) {
         select_pulse_ = false;
     }
-    const bool view = frame.view && !swallow_view_ && !view_held_back_;
+    const bool view = frame.view && !swallow_view_ && !view_held_back_ && !view_quick_wait_;
     if (view) {
         if (!view_down_) {
             view_down_ = true;

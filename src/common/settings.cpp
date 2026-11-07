@@ -279,6 +279,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_game_fov.SetGlobal(true);
     values.vr_face_buttons.SetGlobal(true); // AzaharFrame
     values.vr_motion_controls.SetGlobal(true); // AzaharFrame
+    values.vr_background.SetGlobal(true);      // AzaharFrame
 }
 
 /// Gets the graphics API that should be used; not necessarily one set in settings

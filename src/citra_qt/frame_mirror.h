@@ -31,6 +31,8 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/keyboard/keyboard.h" // AzaharFrame keyboard
 
+class QPushButton;
+class QToolBar;
 class QWidget;
 struct FrameMirrorInbox;
 
@@ -52,6 +54,13 @@ public:
     }
     /// VR (a session: capture as above) or flat (the window is on the screen itself: no capture).
     void SetVrShowing(bool showing);
+    /// AzaharFrame vrqol: a button in the row at the top of the window that shows only while the
+    /// in-game menu is open in VR (never on the desktop or in flat). New buttons go to the right
+    /// of the ones before. `callback` runs on the GUI thread when the button is clicked (a
+    /// checkable button is already toggled). Null when the window has no room for the row. The
+    /// stock buttons (Quick Save, Quick Load, Passthrough) are added by citra_qt.cpp; the controls
+    /// help and the stats panel add theirs here.
+    QPushButton* AddVrMenuButton(const QString& label, std::function<void()> callback);
     /// What B does in the in-game menu when no menu or dialog is open: close it.
     void SetCloseMenuHandler(std::function<void()> handler) {
         close_menu = std::move(handler);
@@ -85,6 +94,9 @@ private:
         return vr_showing && (!game_running || menu_open);
     }
     void Shown();
+
+    void UpdateVrBar();
+    QPointer<QToolBar> vr_bar; ///< AzaharFrame vrqol: hidden unless the in-game menu shows in VR
 
     bool game_running = false;
     bool menu_open = false;

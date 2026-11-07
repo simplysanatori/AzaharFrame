@@ -3,6 +3,8 @@ add_executable(tests
     frame_xr/input_geometry.cpp # AzaharFrame
     frame_xr/input_mapper.cpp # AzaharFrame
     frame_xr/keyboard_layout.cpp # AzaharFrame
+    frame_xr/presets.cpp # AzaharFrame vrqol
+    ../frame_xr/presets.cpp # AzaharFrame vrqol
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame
     ../frame_xr/keyboard/layout.cpp # AzaharFrame

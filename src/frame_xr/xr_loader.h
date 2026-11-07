@@ -35,6 +35,7 @@ namespace FrameXr {
     X(xrLocateSpace)                                                                               \
     X(xrLocateViews)                                                                               \
     X(xrEnumerateViewConfigurationViews)                                                           \
+    X(xrEnumerateEnvironmentBlendModes)                                                            \
     X(xrEnumerateSwapchainFormats)                                                                 \
     X(xrCreateSwapchain)                                                                           \
     X(xrDestroySwapchain)                                                                          \

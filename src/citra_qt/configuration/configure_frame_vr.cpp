@@ -67,6 +67,17 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {face_combo});
     layout->addWidget(face_row);
 
+    // Global only. Values 0..1 are Settings::values.vr_background (frame_xr/hud.h).
+    background_combo = new QComboBox(this);
+    background_combo->addItem(tr("Black"));
+    background_combo->addItem(tr("Passthrough"));
+    background_row = MakeRow(
+        this, QStringLiteral("frame_vr_background_row"), tr("Background"),
+        tr("What shows behind the screens. Passthrough shows the room, if SteamVR offers it. "
+           "The in-game menu has a button for it too."),
+        {background_combo});
+    layout->addWidget(background_row);
+
     // Global only. Values 0..2 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
     motion_combo = new QComboBox(this);
     motion_combo->addItem(tr("Off"));
@@ -157,6 +168,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     // Face Buttons and Motion Controls are not per game.
     face_row->setVisible(Settings::IsConfiguringGlobal());
     motion_row->setVisible(Settings::IsConfiguringGlobal());
+    background_row->setVisible(Settings::IsConfiguringGlobal());
     if (Settings::IsConfiguringGlobal()) {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
@@ -213,6 +225,8 @@ void ConfigureFrameVr::SetConfiguration() {
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
+        background_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_background.GetValue()));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue()));
         return;
     }
@@ -241,6 +255,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
         Settings::values.vr_motion_controls.SetValue(
             static_cast<u32>(motion_combo->currentIndex()));
+        Settings::values.vr_background.SetValue(
+            static_cast<u32>(background_combo->currentIndex()));
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
