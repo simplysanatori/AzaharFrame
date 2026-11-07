@@ -1,6 +1,7 @@
 #!/bin/bash
 # Steam shortcut target for Azahar for Frame.  Runs the emulator in VR (azahar --vr) or flat
-# (azahar, its normal window on the headset's virtual screen).
+# (azahar --flat: its normal window on the headset's virtual screen, with OpenXR ready but no
+# session, so the VR/flat chord can switch to VR without a restart).
 #
 # The data folder is ~/.local/share/AzaharFrame (AZAHARFRAME_HOME).  The emulator
 # starts inside it, and because it holds a folder called user/, the emulator
@@ -15,7 +16,7 @@
 #
 # Test settings for one launch from the Steam library, which passes no
 # environment of its own: VAR=value lines in session.env in the data folder.
-#   AZAHARFRAME_FLAT=1       start without --vr (the desktop window only); 0 forces VR
+#   AZAHARFRAME_FLAT=1       start with --flat (the desktop window only); 0 forces VR
 #   AZAHARFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
 #   QT_SCALE_FACTOR=1.25    scale Azahar's window, if it is too small
 #   AZAHARFRAME_VR_PICKER=1  the old VR game picker instead of Azahar's window in VR
@@ -210,7 +211,7 @@ MADE_MARK=
 if [ ! -e "$MARK" ] && mkdir -p "$HOME/.cache" && : > "$MARK"; then MADE_MARK=1; fi
 
 ARGS=(--vr)
-[ "$MODE" = flat ] && ARGS=()
+[ "$MODE" = flat ] && ARGS=(--flat)
 # Not exec: the wrapper stays to remove the marker.  A signal for the wrapper
 # (Steam stopping the app) goes on to the emulator.
 "$HERE/azahar" "${ARGS[@]}" "${FWD[@]}" &
