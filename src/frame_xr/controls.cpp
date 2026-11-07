@@ -435,6 +435,11 @@ void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         RequestToggleVr("in-game menu");
     }
     if (have_input) {
+        if (in.menu && (in.hand[0].bumper || in.hand[1].bumper || in.view)) {
+            // A chord being formed (VR / flat): no close; a new Menu press starts a new hold.
+            menu_hold.armed = false;
+            menu_hold.down = false;
+        }
         if (menu_hold.Update(in.menu, info.display_time, kMenuHoldNs)) {
             std::scoped_lock lock{hooks_mutex};
             if (hooks.toggle_menu) {

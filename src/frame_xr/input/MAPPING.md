@@ -149,7 +149,9 @@ becomes the bottom screen toggle (when enabled) or Select (late; a tap shorter t
 sent as a 100 ms pulse). Menu with both bumpers is never a problem: Start is only sent when Menu
 is let go. Once the switch fires, View, Menu and both bumpers stay away from the game until each
 is let go, and Menu neither sends Start nor opens the in-game menu. The game sees L and R from the
-bumper press to the switch (holding them back would delay every L and R). Outside a game (the home
+bumper press to the switch (holding them back would delay every L and R). The four going down in
+any other order (View first, say) also switch, on the frame the last one goes down, unless that
+View press already toggled the bottom screen. Outside a game (the home
 panel, the in-game menu, flat without a game) `VrUi::ModeChord` finds the four itself.
 
 After any switch, `VrUi` arms `ChordLatch` (`chord_latch.h`) in `RequestToggleVr` and again when
@@ -159,8 +161,19 @@ new mode. Waiting for the release alone was not enough: in flat, SDL opens Steam
 anew after the session ends, its first read is all up, and the still-held chord then came in as a
 fresh press and switched back to VR 0.3 s later.
 
+**Quick Save, Quick Load.** View pressed first (no bumper down), then one bumper: `quick_save`
+(right) or `quick_load` (left) when that bumper is let go with View still held (or both let go in
+the same frame), at most once a second. The other bumper or Menu going down while the bumper is
+held cancels it (a chord being formed), and so does letting go of View first. The bumper and View
+stay away from the game until let go either way.
+
+**Menu hold.** A bumper or View going down while Menu is held cancels the hold: no in-game menu,
+and no Start when Menu is let go (`menu_cancelled_`). In the in-game menu, the hold that closes it
+is cancelled the same way (`VrUi::MenuFrame`).
+
 **Fast forward.** View pressed first (with no bumper down, as for Quick Save), then the Right
-Trigger: `toggle_fast_forward`, once per pull and at most once a second (`quick_cooldown_ns`).
+Trigger: `toggle_fast_forward` when the trigger is let go with View still held, once per pull and
+at most once a second (`quick_cooldown_ns`). A bumper or Menu going down meanwhile cancels it.
 That pull is neither ZR nor a touch until the trigger is let go, and View stays away from the game
 (no Select, no stop hold) until it is let go. The Left Trigger with View is plain ZL. The Qt side
 keeps the state: Azahar's turbo speed (`SetTurboEnabled`) and the "Fast Forward" and

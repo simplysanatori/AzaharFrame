@@ -61,6 +61,13 @@ bool Mapper::Reset() {
     view_quick_wait_ = false;
     bumper_prev_ = {};
     quick_done_ = false;
+    quick_pending_ = -1;
+    quick_cancelled_ = false;
+    ff_pending_ = false;
+    ff_cancelled_ = false;
+    menu_cancelled_ = false;
+    chord_all_prev_ = false;
+    view_used_bottom_ = false;
     ff_trigger_prev_ = false;
     ff_done_ = false;
     swallow_trigger_r_ = false;
@@ -126,8 +133,15 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         }
     }
 
-    // ---- Quick Save / Quick Load: View first (no bumper down), then one bumper ----
-    // The Left Bumper loads, the Right Bumper saves. Neither bumper, nor View, reaches the game.
+    // ---- Quick Save / Quick Load: View first (no bumper down), then one bumper, let go ----
+    // The Left Bumper loads, the Right Bumper saves, when that bumper is let go with View still
+    // held. The other bumper or Menu going down meanwhile cancels it: that is a chord being
+    // formed (VR / flat, bottom screen). Neither the bumper nor View reaches the game.
+    const bool partner_menu = frame.menu;
+    // A chord partner of Menu (a bumper or View) going down this frame: cancels a Menu hold.
+    const bool partner_edge = (frame.hand[0].bumper && !bumper_prev_[0]) ||
+                              (frame.hand[1].bumper && !bumper_prev_[1]) ||
+                              (frame.view && !view_prev_);
     {
         const bool view_pressed_now = frame.view && !view_prev_;
         const bool any_bumper = frame.hand[0].bumper || frame.hand[1].bumper;
@@ -145,28 +159,43 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         }
         const bool edge_l = frame.hand[0].bumper && !bumper_prev_[0];
         const bool edge_r = frame.hand[1].bumper && !bumper_prev_[1];
-        if (quick_armed_ && (edge_l || edge_r)) {
+        if (quick_armed_ && quick_pending_ < 0 && (edge_l || edge_r)) {
             if (edge_l && edge_r) {
                 quick_armed_ = false; // both at once: not this gesture
                 view_quick_wait_ = false;
             } else {
-                const bool cooled = !quick_done_ ||
-                                    frame.time_ns - quick_last_ns_ >= config_.quick_cooldown_ns;
-                if (cooled) {
-                    (edge_l ? out.commands.quick_load : out.commands.quick_save) = true;
+                quick_pending_ = edge_l ? 0 : 1;
+                quick_cancelled_ = partner_menu;
+                swallow_bumper_[static_cast<std::size_t>(quick_pending_)] = true; // until let go
+                swallow_view_ = true; // until let go: no Select, no stop hold
+                view_quick_wait_ = false;
+                select_pulse_ = false;
+            }
+        }
+        if (quick_pending_ >= 0) {
+            const auto i = static_cast<std::size_t>(quick_pending_);
+            const bool held = frame.hand[i].bumper;
+            if (frame.hand[1 - i].bumper || partner_menu || (!frame.view && held)) {
+                quick_cancelled_ = true;
+            }
+            if (!held) {
+                // Let go with View still held, or both let go in the same frame.
+                const bool view_ok = frame.view || view_prev_;
+                const bool cooled =
+                    !quick_done_ || frame.time_ns - quick_last_ns_ >= config_.quick_cooldown_ns;
+                if (!quick_cancelled_ && view_ok && cooled) {
+                    (i == 0 ? out.commands.quick_load : out.commands.quick_save) = true;
                     quick_done_ = true;
                     quick_last_ns_ = frame.time_ns;
                 }
-                swallow_bumper_[edge_l ? 0 : 1] = true; // until let go
-                swallow_view_ = true;                    // until let go: no Select, no stop hold
-                view_quick_wait_ = false;
-                select_pulse_ = false;
+                quick_pending_ = -1;
+                quick_cancelled_ = false;
             }
         }
         bumper_prev_ = {frame.hand[0].bumper, frame.hand[1].bumper};
     }
 
-    // ---- Fast forward: View first (as for Quick Save), then the Right Trigger: on / off ----
+    // ---- Fast forward: View first (as for Quick Save), then the Right Trigger, let go ----
     {
         const HandInput& right = frame.hand[1];
         const bool down = Hysteresis(ff_trigger_prev_, right.trigger, config_.trigger_press,
@@ -178,16 +207,30 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         }
         // A pull that is already a touch or ZR (trigger before View) is not this gesture.
         if (quick_armed_ && edge && hands_[1].gesture == Gesture::None) {
-            const bool cooled = !ff_done_ || frame.time_ns - ff_last_ns_ >= config_.quick_cooldown_ns;
-            if (cooled) {
-                out.commands.toggle_fast_forward = true;
-                ff_done_ = true;
-                ff_last_ns_ = frame.time_ns;
-            }
+            ff_pending_ = true;
+            ff_cancelled_ = partner_menu;
             swallow_trigger_r_ = true; // until let go: no ZR, no touch
             swallow_view_ = true;      // until let go: no Select, no stop hold
             view_quick_wait_ = false;
             select_pulse_ = false;
+        }
+        if (ff_pending_) {
+            if (frame.hand[0].bumper || frame.hand[1].bumper || partner_menu ||
+                (!frame.view && down)) {
+                ff_cancelled_ = true;
+            }
+            if (!down) {
+                const bool view_ok = frame.view || view_prev_;
+                const bool cooled =
+                    !ff_done_ || frame.time_ns - ff_last_ns_ >= config_.quick_cooldown_ns;
+                if (!ff_cancelled_ && view_ok && cooled) {
+                    out.commands.toggle_fast_forward = true;
+                    ff_done_ = true;
+                    ff_last_ns_ = frame.time_ns;
+                }
+                ff_pending_ = false;
+                ff_cancelled_ = false;
+            }
         }
     }
     controls.Set(Control::BumperL, frame.hand[0].bumper && !swallow_bumper_[0]);
@@ -221,7 +264,12 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         view_held_back_ = true;
         view_held_back_since_ns_ = frame.time_ns;
     }
-    if (view_held_back_) {
+    // All four down, in any order: the switch too (View first, then the bumpers and Menu), unless
+    // this View press already toggled the bottom screen.
+    const bool chord_all = bumpers && frame.view && frame.menu;
+    const bool chord_edge = chord_all && !chord_all_prev_ && !view_used_bottom_;
+    chord_all_prev_ = chord_all;
+    if (view_held_back_ || (chord_edge && !swallow_menu_)) {
         if (frame.menu && bumpers && frame.view && !swallow_menu_) {
             out.commands.toggle_vr = true;
             view_held_back_ = false;
@@ -233,12 +281,15 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             menu_down_ = false; // no Start when Menu is let go, no in-game menu hold
             menu_fired_ = false;
             start_pulse_ = false;
+            quick_pending_ = -1; // nor a Quick Save, Quick Load or fast forward on the way
+            ff_pending_ = false;
         } else if (!frame.view || !bumpers ||
                    frame.time_ns - view_held_back_since_ns_ >= config_.chord_grace_ns) {
             view_held_back_ = false;
             if (panels.bottom_toggle_enabled) {
                 out.commands.toggle_bottom = true;
                 swallow_view_ = frame.view;
+                view_used_bottom_ = frame.view;
             } else if (!frame.view) {
                 select_pulse_ = true;
                 select_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
@@ -247,6 +298,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     }
     if (!frame.view) {
         swallow_view_ = false;
+        view_used_bottom_ = false;
     }
     if (view_quick_wait_) {
         // View pressed with no bumper down: held back while a bumper may still follow.
@@ -291,9 +343,12 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             menu_down_ = true;
             menu_down_since_ns_ = frame.time_ns;
             menu_fired_ = false;
+            menu_cancelled_ = false;
+        } else if (!menu_fired_ && partner_edge) {
+            menu_cancelled_ = true; // a chord being formed: no in-game menu, no Start
         }
         const int64_t held = frame.time_ns - menu_down_since_ns_;
-        if (!menu_fired_) {
+        if (!menu_fired_ && !menu_cancelled_) {
             out.commands.menu_hold_progress =
                 config_.menu_hold_ns > 0
                     ? Clamp01(static_cast<float>(held) / static_cast<float>(config_.menu_hold_ns))
@@ -306,11 +361,12 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         }
     } else if (menu_down_) {
         menu_down_ = false;
-        if (!menu_fired_) {
+        if (!menu_fired_ && !menu_cancelled_) {
             start_pulse_ = true;
             start_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
         }
         menu_fired_ = false;
+        menu_cancelled_ = false;
     }
     if (start_pulse_ && (frame.time_ns >= start_pulse_until_ns_ || frame.menu)) {
         start_pulse_ = false;

@@ -15,7 +15,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this |
-| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold |
+| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold. A bumper or **View** pressed during the hold cancels it |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
 | Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
 | Left stick click, held | Nothing | There is no Home button in VR |
@@ -23,9 +23,9 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Right stick click, held for 1 second | Reset Screens | Nothing reaches the game |
 | Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below. The game does not see that press |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | The game sees no Select or Start |
-| Hold **View**, then the right bumper | Quick Save | The game sees none of the three |
+| Hold **View**, then the right bumper | Quick Save | When you let go of the bumper. The game sees none of the three |
 | Hold **View**, then the left bumper | Quick Load | The same |
-| Hold **View**, then the right trigger | Fast Forward on or off | The game sees neither Select nor ZR |
+| Hold **View**, then the right trigger | Fast Forward on or off | When you let go of the trigger. The game sees neither Select nor ZR |
 
 The left Steam button belongs to SteamVR and is never bound.
 
@@ -41,18 +41,18 @@ A stick click acts when you let go, so a hold never also taps. The right one res
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
+Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It happens when you let go of the bumper, with **View** still held. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
 
 - **View** has to go down first, with no bumper held. Bumpers first, then **View**, is the bottom screen button.
-- Pressing the other bumper while the first is held does the other action.
+- Pressing the other bumper or **Menu** while the bumper is held cancels it, so forming the VR / Flat switch never saves or loads. So does letting go of **View** first.
 - A second press within a second does nothing, so a bounce cannot load twice.
 - It works in a game in VR and in Flat. The in-game menu has **Quick Save** and **Quick Load** buttons too, see below.
 
 ## Fast Forward
 
-Hold **View**, then pull the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu opens and when you switch between VR and Flat.
 
-- **View** has to go down first, with no bumper held. A second pull within a second does nothing.
+- **View** has to go down first, with no bumper held. A bumper or **Menu** pressed while you pull cancels it. A second pull within a second does nothing.
 - The game sees neither Select nor ZR, and the stop timer starts over. Aimed at the bottom screen, that pull is not a touch either.
 - The left trigger with **View** held stays ZL.
 - It works in a game in VR and in Flat. In Flat there is no message; the speed in the status bar shows it.

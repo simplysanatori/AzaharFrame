@@ -229,12 +229,27 @@ private:
     std::array<bool, kNumHands> bumper_prev_{};
     bool quick_done_ = false; ///< an action fired at least once; quick_last_ns_ is valid
     int64_t quick_last_ns_ = 0;
+    // The bumper of a Quick Save / Load that acts when it is let go (View still held): -1 none.
+    // Cancelled when the other bumper or Menu goes down meanwhile (a chord being formed) or View
+    // is let go first.
+    int quick_pending_ = -1;
+    bool quick_cancelled_ = false;
     // Fast forward: View first (quick_armed_), then the Right Trigger. Its own edge state and
     // cooldown; the pull stays away from the game (ZR, touch) until the trigger is let go.
     bool ff_trigger_prev_ = false;
     bool ff_done_ = false;
     int64_t ff_last_ns_ = 0;
     bool swallow_trigger_r_ = false;
+    // The pull acts when the trigger is let go (View still held); cancelled as Quick Save is.
+    bool ff_pending_ = false;
+    bool ff_cancelled_ = false;
+    // Menu held: cancelled when a chord partner (a bumper, View) goes down during the hold; then
+    // neither the in-game menu nor Start.
+    bool menu_cancelled_ = false;
+    // All four chord buttons down last frame (the VR / flat chord fires on the edge, any order),
+    // and this View press already toggled the bottom screen (then Menu is not the chord).
+    bool chord_all_prev_ = false;
+    bool view_used_bottom_ = false;
     // After the VR / flat chord: each of these stays away from the game until let go.
     bool swallow_menu_ = false;
     std::array<bool, kNumHands> swallow_bumper_{};
