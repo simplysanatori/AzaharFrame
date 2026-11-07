@@ -201,10 +201,11 @@ void QtConfig::ReadGlobalSetting(Settings::SwitchableSetting<Type, ranged>& sett
 }
 
 // Explicit std::string definition: Qt can't implicitly convert a std::string to a QVariant
+// AzaharFrame: the WriteBasicSetting overloads take the value to write (see WriteGlobalSetting).
 template <>
-void QtConfig::WriteBasicSetting(const Settings::Setting<std::string>& setting) {
+void QtConfig::WriteBasicSetting(const Settings::Setting<std::string>& setting,
+                                 const std::string& value) {
     const QString name = QString::fromStdString(setting.GetLabel());
-    const std::string& value = setting.GetValue();
     if (global)
         qt_config->setValue(name + QStringLiteral("/default"), value == setting.GetDefault());
     qt_config->setValue(name, QString::fromStdString(value));
@@ -212,8 +213,13 @@ void QtConfig::WriteBasicSetting(const Settings::Setting<std::string>& setting) 
 
 template <typename Type, bool ranged>
 void QtConfig::WriteBasicSetting(const Settings::Setting<std::vector<Type>, ranged>& setting) {
+    WriteBasicSetting(setting, setting.GetValue());
+}
+
+template <typename Type, bool ranged>
+void QtConfig::WriteBasicSetting(const Settings::Setting<std::vector<Type>, ranged>& setting,
+                                 const std::vector<Type>& value) {
     const QString name = QString::fromStdString(setting.GetLabel());
-    const std::vector<Type>& value = setting.GetValue();
 
     if (global)
         qt_config->setValue(name + QStringLiteral("/default"), value == setting.GetDefault());
@@ -248,8 +254,13 @@ using config_promoted_t = std::conditional_t<
 
 template <typename Type, bool ranged>
 void QtConfig::WriteBasicSetting(const Settings::Setting<Type, ranged>& setting) {
+    WriteBasicSetting(setting, setting.GetValue());
+}
+
+template <typename Type, bool ranged>
+void QtConfig::WriteBasicSetting(const Settings::Setting<Type, ranged>& setting,
+                                 const Type& value) {
     const QString name = QString::fromStdString(setting.GetLabel());
-    const Type value = setting.GetValue();
     if (global)
         qt_config->setValue(name + QStringLiteral("/default"), value == setting.GetDefault());
     if constexpr (std::is_enum_v<Type>) {
@@ -268,7 +279,12 @@ void QtConfig::WriteGlobalSetting(const Settings::SwitchableSetting<Type, ranged
         qt_config->setValue(name + QStringLiteral("/use_global"), setting.UsingGlobal());
     }
     if (global || !setting.UsingGlobal()) {
-        WriteBasicSetting(setting);
+        // AzaharFrame: the global file gets the global value, never the custom one a running
+        // application (or the per-application config just loaded in BootGame) has switched in;
+        // GetValue() alone returned the custom value whenever use_global was false, so a global
+        // Save() while a game was active copied its per-application overrides into
+        // qt-config.ini. The per-application file gets the custom value (global is false there).
+        WriteBasicSetting(setting, setting.GetValue(global));
     }
 }
 
@@ -496,8 +512,11 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_hide_bottom_screen);
     ReadGlobalSetting(Settings::values.vr_top_aspect);
     ReadGlobalSetting(Settings::values.vr_immersive_game_fov);
-    ReadGlobalSetting(Settings::values.vr_face_buttons); // AzaharFrame
-    ReadGlobalSetting(Settings::values.vr_motion_controls); // AzaharFrame
+    // AzaharFrame: global only, so a per-application file never carries or overrides them.
+    if (global) {
+        ReadGlobalSetting(Settings::values.vr_face_buttons);
+        ReadGlobalSetting(Settings::values.vr_motion_controls);
+    }
 
     qt_config->endGroup();
 }
@@ -1117,8 +1136,11 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
     WriteGlobalSetting(Settings::values.vr_top_aspect);
     WriteGlobalSetting(Settings::values.vr_immersive_game_fov);
-    WriteGlobalSetting(Settings::values.vr_face_buttons); // AzaharFrame
-    WriteGlobalSetting(Settings::values.vr_motion_controls); // AzaharFrame
+    // AzaharFrame: global only (see ReadVrValues).
+    if (global) {
+        WriteGlobalSetting(Settings::values.vr_face_buttons);
+        WriteGlobalSetting(Settings::values.vr_motion_controls);
+    }
 
     qt_config->endGroup();
 }

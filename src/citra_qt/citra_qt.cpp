@@ -2217,6 +2217,11 @@ void GMainWindow::ShutdownGame() {
     // When closing the game, destroy the GLWindow to clear the context after the game is closed
     render_window->ReleaseRenderTarget();
     secondary_window->ReleaseRenderTarget();
+
+    // AzaharFrame: drop the per-application overrides here too, not only in OnStopGame, so the
+    // VR picker, the global settings window and the final config->Save() in closeEvent never see
+    // them (the VR and window-close paths call ShutdownGame() directly).
+    Settings::RestoreGlobalState(false);
 }
 
 #ifdef ENABLE_DEVELOPER_OPTIONS
