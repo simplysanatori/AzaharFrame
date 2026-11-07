@@ -1,5 +1,6 @@
 #!/bin/bash
-# Steam shortcut target for Azahar for Frame.  Runs the emulator in VR (azahar --vr).
+# Steam shortcut target for Azahar for Frame.  Runs the emulator in VR (azahar --vr) or flat
+# (azahar, its normal window on the headset's virtual screen).
 #
 # The data folder is ~/.local/share/AzaharFrame (AZAHARFRAME_HOME).  The emulator
 # starts inside it, and because it holds a folder called user/, the emulator
@@ -7,9 +8,14 @@
 # instead of in ~/.local/share/azahar-emu.  This wrapper's own output goes to
 # launch.log there; the emulator's log is user/log/azahar_log.txt.
 #
+# Which mode it starts in: the one used last, kept in the file "mode" in the data folder
+# (the single word vr or flat; VR when there is none).  The emulator writes that file when
+# the mode is switched while it runs.  To override it for one launch (testing), none of
+# which touches the file:  azaharframe.sh --flat | --vr,  or AZAHARFRAME_FLAT=1 | 0.
+#
 # Test settings for one launch from the Steam library, which passes no
 # environment of its own: VAR=value lines in session.env in the data folder.
-#   AZAHARFRAME_FLAT=1       start without --vr (the desktop window only)
+#   AZAHARFRAME_FLAT=1       start without --vr (the desktop window only); 0 forces VR
 #   AZAHARFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
 #   QT_SCALE_FACTOR=1.25    scale Azahar's window, if it is too small
 #   AZAHARFRAME_VR_PICKER=1  the old VR game picker instead of Azahar's window in VR
@@ -41,6 +47,135 @@ if [ -f "$DATA/session.env" ]; then
   echo "session.env:"; cat "$DATA/session.env"
   set -a; . "$DATA/session.env"; set +a
 fi
+
+# The mode: --flat / --vr on the command line, else AZAHARFRAME_FLAT (1 or 0, from the
+# environment or session.env), else the one used last ($DATA/mode), else VR.
+MODE=
+FWD=()
+for a in "$@"; do
+  case "$a" in
+    --flat) MODE=flat ;;
+    --vr) MODE=vr ;;
+    *) FWD+=("$a") ;;
+  esac
+done
+if [ -z "$MODE" ]; then
+  case "$AZAHARFRAME_FLAT" in
+    1) MODE=flat ;;
+    0) MODE=vr ;;
+    *) MODE=$(head -c 16 "$DATA/mode" 2> /dev/null | tr -d '[:space:]')
+       case "$MODE" in flat | vr) ;; *) MODE=vr ;; esac ;;
+  esac
+fi
+echo "mode: $MODE"
+export AZAHARFRAME_MODE=$MODE
+
+# Input in each mode.  VR uses the Frame controllers through the headset's own bindings;
+# flat gets them from Steam Input as a gamepad (SDL).  The two live in separate input
+# profiles of the emulator's config: "Default" for VR and "Flat Gamepad" for flat.  The
+# Flat Gamepad profile is added once, and only when it is missing, so nothing you changed
+# is overwritten.  It maps the gamepad by position, like the 3DS (the bottom face button
+# is B, the right one A, the left one Y, the top one X), and then this picks the profile
+# that goes with the mode.  A profile is never edited, only chosen.
+python3 -I - "$CONF" "$MODE" << 'PY' || echo "could not prepare the input profile (see above)"
+import os, sys
+
+conf, mode = sys.argv[1], sys.argv[2]
+NAME = "Flat Gamepad"
+if not os.path.isfile(conf):
+    sys.exit(0)
+lines = open(conf, encoding="utf-8").read().split("\n")
+
+# Locate [Controls].
+start = next((i for i, l in enumerate(lines) if l.strip() == "[Controls]"), None)
+if start is None:
+    if lines and lines[-1] == "":
+        lines.pop()
+    lines += ["", "[Controls]", ""]
+    start = len(lines) - 2
+end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+
+def get(key):
+    for l in lines[start + 1:end]:
+        if l.startswith(key + "="):
+            return l[len(key) + 1:]
+    return None
+
+def put(key, value):
+    global end
+    for i in range(start + 1, end):
+        if lines[i].startswith(key + "="):
+            lines[i] = key + "=" + value
+            return
+    lines.insert(end, key + "=" + value)
+    end += 1
+
+size = int(get("profiles\\size") or 0)
+if size == 0:  # the emulator makes its Default profile on first read; make it explicit
+    put("profiles\\1\\name", "Default")
+    put("profiles\\1\\name\\default", "false")
+    size = 1
+names = [(get("profiles\\%d\\name" % n) or "Default").strip('"') for n in range(1, size + 1)]
+
+if NAME not in names:
+    n = size + 1
+    pre = "profiles\\%d\\" % n
+    def sdl(**kw):
+        kw.update(api="controller", engine="sdl", maptype="all")
+        return '"' + ",".join("%s:%s" % (k, kw[k]) for k in sorted(kw)) + '"'
+    # SDL game controller buttons: A 0, B 1, X 2, Y 3, Back 4, Start 6, left stick 7,
+    # left/right shoulder 9/10, d-pad up/down/left/right 11..14; axes: left stick 0/1,
+    # right stick 2/3, left/right trigger 4/5.
+    def btn(index, name):
+        return sdl(button=index, name=name)
+    def trig(axis, name):
+        return sdl(axis=axis, name=name, direction="+", threshold="0.500000")
+    def stick(x, y, nx, ny):
+        return sdl(axis_x=x, axis_y=y, name_x=nx, name_y=ny)
+    binds = {
+        "button_a": btn(1, "B"), "button_b": btn(0, "A"),
+        "button_x": btn(3, "Y"), "button_y": btn(2, "X"),
+        "button_up": btn(11, "D-Pad Up"), "button_down": btn(12, "D-Pad Down"),
+        "button_left": btn(13, "D-Pad Left"), "button_right": btn(14, "D-Pad Right"),
+        "button_l": btn(9, "LB"), "button_r": btn(10, "RB"),
+        "button_zl": trig(4, "Left Trigger"), "button_zr": trig(5, "Right Trigger"),
+        "button_start": btn(6, "Start"), "button_select": btn(4, "Back/Select"),
+        "button_home": btn(7, "LS Click"),
+        "circle_pad": stick(0, 1, "Left Stick X", "Left Stick Y"),
+        "c_stick": stick(2, 3, "Right Stick X", "Right Stick Y"),
+    }
+    put(pre + "name", NAME)
+    put(pre + "name\\default", "false")
+    put(pre + "input_maptype", "0")  # all controllers
+    put(pre + "input_maptype\\default", "false")
+    for k, v in binds.items():
+        put(pre + k, v)
+        put(pre + k + "\\default", "false")
+    size = n
+    names.append(NAME)
+    put("profiles\\size", str(size))
+    print("added the input profile '%s'" % NAME)
+
+flat_at = names.index(NAME)          # 0-based, as in the "profile" key
+want = flat_at if mode == "flat" else next((i for i, nm in enumerate(names) if nm != NAME), 0)
+try:
+    cur = int(get("profile") or 0)
+except ValueError:
+    cur = 0
+if get("profile\\default") == "true":
+    cur = 0
+if cur != want:
+    put("profile", str(want))
+    put("profile\\default", "false")
+    print("input profile: %s" % names[want])
+new = "\n".join(lines)
+if not new.endswith("\n"):
+    new += "\n"
+if new != open(conf, encoding="utf-8").read():
+    tmp = conf + ".new"
+    open(tmp, "w", encoding="utf-8").write(new)
+    os.replace(tmp, conf)
+PY
 
 # Steam injects Mesa overrides meant for games; they break native apps.
 unset MESA_GL_VERSION_OVERRIDE MESA_GLSL_VERSION_OVERRIDE
@@ -75,10 +210,10 @@ MADE_MARK=
 if [ ! -e "$MARK" ] && mkdir -p "$HOME/.cache" && : > "$MARK"; then MADE_MARK=1; fi
 
 ARGS=(--vr)
-[ "$AZAHARFRAME_FLAT" = 1 ] && ARGS=()
+[ "$MODE" = flat ] && ARGS=()
 # Not exec: the wrapper stays to remove the marker.  A signal for the wrapper
 # (Steam stopping the app) goes on to the emulator.
-"$HERE/azahar" "${ARGS[@]}" "$@" &
+"$HERE/azahar" "${ARGS[@]}" "${FWD[@]}" &
 PID=$!
 trap 'kill -TERM "$PID" 2> /dev/null' TERM INT HUP
 rc=0

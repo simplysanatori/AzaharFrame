@@ -141,7 +141,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 
 | Variable | Read by | What |
 |---|---|---|
-| `AZAHARFRAME_FLAT=1` | `azaharframe.sh` | start without `--vr`: the desktop window only |
+| `AZAHARFRAME_FLAT=1` or `0` | `azaharframe.sh` | start without `--vr` (the desktop window only), or force VR, for one launch; otherwise the mode comes from the file `mode` in the data folder (`vr` or `flat`, VR when it is missing), and `--flat` / `--vr` on the command line beat both |
 | `AZAHARFRAME_REFRESH_HZ` | `azaharframe.sh` | 90 or 120 (default 120), set in SteamVR for the entry |
 | `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning (the FOV one overrides the Immersive Game FOV setting), see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
