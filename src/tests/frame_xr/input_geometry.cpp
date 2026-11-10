@@ -156,3 +156,45 @@ TEST_CASE("FrameXr geometry: dragging a panel", "[frame_xr]") {
         REQUIRE(ApplyDepth(-2.0f, -0.5f, -1.5f) == Approx(-2.5f));
     }
 }
+
+// AzaharFrame curve: a curved screen is hit on its arc (geometry.h, screen_rig.h).
+TEST_CASE("FrameXr geometry: curved screens", "[frame_xr]") {
+    PanelQuad quad = TopQuad(); // 1.6 x 0.96 m, 2 m ahead
+    const float r = 1.6f / (60.0f * 3.14159265f / 180.0f); // 60 degrees across
+    quad.curve_radius = r;
+    SECTION("straight ahead: the middle, at the flat screen's distance") {
+        const QuadHit hit = IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, -1}}, quad);
+        REQUIRE(hit.in_bounds);
+        REQUIRE(hit.u == Approx(0.5f));
+        REQUIRE(hit.v == Approx(0.5f));
+        REQUIRE(hit.t == Approx(2.0f));
+    }
+    SECTION("u runs along the arc: the edge is 30 degrees round the axis") {
+        // A point 27 degrees about the axis (at z = -2 + r), 9/10 of the way to the right edge.
+        const float a = 30.0f * 3.14159265f / 180.0f;
+        const Vec3f target{r * std::sin(a * 0.9f), 0.2f, -2.0f + r - r * std::cos(a * 0.9f)};
+        const QuadHit hit = IntersectQuad(Ray{Vec3f{0, 0, 0}, Normalized(target)}, quad);
+        REQUIRE(hit.in_bounds);
+        REQUIRE(hit.u == Approx(0.5f + 0.9f * 0.5f).margin(1e-3f));
+        REQUIRE(hit.v == Approx(0.5f - 0.2f / 0.96f).margin(1e-3f));
+        REQUIRE(hit.point_world.x == Approx(target.x).margin(1e-3f));
+        REQUIRE(hit.point_world.z == Approx(target.z).margin(1e-3f));
+    }
+    SECTION("a hand outside the cylinder still hits the arc from the inside") {
+        PanelQuad tight = quad;
+        tight.curve_radius = 0.6f; // the axis 1.4 m ahead, the origin 1.4 m from it
+        const QuadHit hit = IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, -1}}, tight);
+        REQUIRE(hit.on_plane);
+        REQUIRE(hit.t == Approx(2.0f));
+        REQUIRE(hit.u == Approx(0.5f));
+    }
+    SECTION("past the edge it is still a hit, out of bounds, so a drag carries on") {
+        const QuadHit hit = IntersectQuad(Ray{Vec3f{0, 0, 0}, Normalized(Vec3f{3.0f, 0, -1.0f})}, quad);
+        REQUIRE(hit.on_plane);
+        REQUIRE_FALSE(hit.in_bounds);
+        REQUIRE(hit.u > 1.0f);
+    }
+    SECTION("from behind or pointing away is no hit") {
+        REQUIRE_FALSE(IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, 1}}, quad).on_plane);
+    }
+}

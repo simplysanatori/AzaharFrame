@@ -154,7 +154,7 @@ only resets the rest pose, so it keeps the offset. Mode 1 turns its wide screen 
 screen under it) about the rest pose by the same angles. It is global, not per game: it is about
 the player's eyes. Putting a game's screen back (right stick click while holding) keeps it;
 **Immersive Offset** in the VR settings shows it and resets it. The XR thread writes the setting
-and asks the Qt side to save the config (`FrontendHooks::immersive_offset_changed`, saved half a
+and asks the Qt side to save the config (`FrontendHooks::vr_setting_changed`, saved half a
 second after the last press); it is read every frame and logged as `xr: immersive offset`.
 
 Mode 1 is fixed in the room, so its pitch and distance are a plain move (the size scales with the
@@ -198,10 +198,12 @@ fields; that race is gone.
 
 ## Differences from CitraVR
 
-- **No cylinder.** SteamVR has no `XR_KHR_composition_layer_cylinder`, so the top screen is a
-  flat quad. Modes 2/3: a head-locked quad in VIEW space instead of CitraVR's 0.5 m cylinder
-  re-posed from the head pose each frame. Mode 1: a flat quad fixed in the room instead of the
-  wrap-around cylinder (a flat quad cannot wrap around you).
+- **No cylinder in immersive mode.** The immersive screen is a flat quad (earlier builds found no
+  `XR_KHR_composition_layer_cylinder` in SteamVR; it is there, and the normal screens use it for
+  **Screen Curve**, see `input/screen_rig.h`). Modes 2/3: a head-locked quad in VIEW space instead
+  of CitraVR's 0.5 m cylinder re-posed from the head pose each frame. Mode 1: a flat quad fixed in
+  the room instead of the wrap-around cylinder. The immersive placement and its world-stays-put
+  maths are made for a flat picture; Screen Curve leaves the immersive screen flat.
 - **Size of the head-locked screen.** CitraVR's mode 2 is a cylinder 0.5 m around the head, 55 x
   1.4 = 77 degrees across and about 44 degrees high (the 5:3 shape), centred at eye level
   (`GameSurfaceLayer.cpp`). That is smaller than the game's 1.4x view (107 x 78 degrees for a camera

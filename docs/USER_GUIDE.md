@@ -146,7 +146,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
-| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). The D-pad nudges them a little |
+| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens |
@@ -168,7 +168,7 @@ On Azahar's window and in the in-game menu:
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
 
-The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press the D-pad: each press moves the screens half a degree around you, and **Moved Right** (or Left, Up, Down) shows for 2 seconds. While you hold the screens the D-pad does not reach the game.
+The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the screens more or less curved (Off, Gentle, Medium, Strong, Max), and **Screen Curve: Medium** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game.
 
 With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 

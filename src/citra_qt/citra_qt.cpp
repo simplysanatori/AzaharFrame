@@ -884,9 +884,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
-            // AzaharFrame vrsize: grip + D-pad set the Immersive Offset; saved once the presses
-            // stop for half a second.
-            hooks.immersive_offset_changed = [this] {
+            // AzaharFrame vrsize: grip + D-pad set the Immersive Offset or the Screen Curve;
+            // saved once the presses stop for half a second.
+            hooks.vr_setting_changed = [this] {
                 QMetaObject::invokeMethod(
                     this,
                     [this] {

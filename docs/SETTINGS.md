@@ -22,6 +22,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller** | Right Controller | global | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
+| [Screen Curve](#screen-curve) | **Off**, **Gentle**, **Medium**, **Strong**, **Max** | Off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -68,6 +69,10 @@ Shows the Frame controllers in your hands, with their buttons and sticks moving.
 ## Show Stats
 
 Shows a small panel under the top screen while a game runs: the game's frame rate, the emulation speed, the frame times, the headset's frame rate, the CPU load and the GPU clock. The **Stats** button above Azahar's window is the same switch.
+
+## Screen Curve
+
+Bends the two screens toward you, like a curved monitor. The picture keeps its size and shape. Gentle, Medium, Strong and Max wrap the top screen's width round 15°, 30°, 45° and 60°; Strong to Max wraps a screen at its start place evenly around you. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
 
 ## Screen Shape
 

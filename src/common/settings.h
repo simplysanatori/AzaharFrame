@@ -760,6 +760,11 @@ struct Values {
     // VR sets it; read every frame (frame_xr/immersive_layout.h).
     SwitchableSetting<float, true> vr_immersive_offset_x{0.f, -10.f, 10.f, "vr_immersive_offset_x"};
     SwitchableSetting<float, true> vr_immersive_offset_y{0.f, -10.f, 10.f, "vr_immersive_offset_y"};
+    // AzaharFrame curve (global only): the normal (not immersive) screens bent into cylinder
+    // layers, as the angle in degrees the main screen's width spans (0 = flat quads). The steps
+    // are 15, 30, 45 and 60; grip + D-pad up or down in VR changes it. Read every frame
+    // (frame_xr/input/screen_rig.h).
+    SwitchableSetting<u32, true> vr_screen_curve{0, 0, 180, "vr_screen_curve"};
 };
 
 extern Values values;

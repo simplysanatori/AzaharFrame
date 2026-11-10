@@ -127,6 +127,36 @@ QuadHit IntersectQuad(const Ray& ray, const PanelQuad& quad) {
     const Vec3f o = Transform(quad_from_world, ray.origin);
     const Vec3f d = Rotate(quad_from_world.orientation, ray.direction);
     constexpr float kEpsilon = 1e-6f;
+    if (quad.curve_radius > 0.0f) {
+        // AzaharFrame curve: the axis is the line x = 0, z = R. Relative to it, the ray is
+        // o' + t d; the cylinder is x^2 + z^2 = R^2, the screen its part with z < 0.
+        const float r = quad.curve_radius;
+        const float ox = o.x;
+        const float oz = o.z - r;
+        const float a = d.x * d.x + d.z * d.z;
+        const float b = 2.0f * (ox * d.x + oz * d.z);
+        const float c = ox * ox + oz * oz - r * r;
+        const float disc = b * b - 4.0f * a * c;
+        if (a > kEpsilon && disc >= 0.0f) {
+            const float root = std::sqrt(disc);
+            for (const float t : {(-b - root) / (2.0f * a), (-b + root) / (2.0f * a)}) {
+                const float px = ox + d.x * t;
+                const float pz = oz + d.z * t;
+                // In front of the axis, reached from the inside (the side the picture faces).
+                if (t < 0.0f || pz >= 0.0f || px * d.x + pz * d.z <= 0.0f) {
+                    continue;
+                }
+                const float arc = r * std::atan2(px, -pz);
+                hit.on_plane = true;
+                hit.t = t;
+                hit.point_world = ray.origin + ray.direction * t;
+                hit.u = arc / quad.width_m + 0.5f;
+                hit.v = 0.5f - (o.y + d.y * t) / quad.height_m;
+                hit.in_bounds = hit.u >= 0.0f && hit.u < 1.0f && hit.v >= 0.0f && hit.v < 1.0f;
+                return hit;
+            }
+        }
+    }
     // Must start in front of the quad and travel toward it.
     if (o.z < 0.0f || d.z > -kEpsilon) {
         return hit;

@@ -85,6 +85,40 @@ XrCompositionLayerQuad MakeQuad(XrSpace space, const Quad& q) {
     return layer;
 }
 
+// AzaharFrame curve: a game screen may be a cylinder layer; the rest are quads. Both start with
+// the base header, so the list of layers points into this.
+union ScreenOrQuadLayer {
+    XrCompositionLayerQuad quad;
+    XrCompositionLayerCylinderKHR cylinder;
+    ScreenOrQuadLayer(const XrCompositionLayerQuad& q) : quad(q) {}
+    ScreenOrQuadLayer(const XrCompositionLayerCylinderKHR& c) : cylinder(c) {}
+    const XrCompositionLayerBaseHeader* Header() const {
+        return reinterpret_cast<const XrCompositionLayerBaseHeader*>(this);
+    }
+};
+
+/// The quad `q` bent as a section of a cylinder of `radius` (input/screen_rig.h CylinderFor).
+XrCompositionLayerCylinderKHR MakeCylinder(XrSpace space, const Quad& q, float radius) {
+    const Input::ScreenRig::Cylinder c = Input::ScreenRig::CylinderFor(
+        {{q.pose.orientation.x, q.pose.orientation.y, q.pose.orientation.z, q.pose.orientation.w},
+         {q.pose.position.x, q.pose.position.y, q.pose.position.z}},
+        q.size.width, q.size.height, radius);
+    XrCompositionLayerCylinderKHR layer{XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR};
+    layer.layerFlags = q.flags;
+    layer.space = space;
+    layer.eyeVisibility = q.eye;
+    layer.subImage.swapchain = q.swapchain;
+    layer.subImage.imageRect = q.image_rect;
+    layer.subImage.imageArrayIndex = 0;
+    layer.pose = {{c.pose.orientation.x, c.pose.orientation.y, c.pose.orientation.z,
+                   c.pose.orientation.w},
+                  {c.pose.position.x, c.pose.position.y, c.pose.position.z}};
+    layer.radius = c.radius;
+    layer.centralAngle = c.central_angle;
+    layer.aspectRatio = c.aspect_ratio;
+    return layer;
+}
+
 } // namespace
 
 Runtime* GetRuntime() {
@@ -390,7 +424,7 @@ void Runtime::FrameLoop() {
     bool exit_requested = false;
     auto exit_deadline = Clock::time_point::max();
     double flat_seconds = 0.0;
-    std::vector<XrCompositionLayerQuad> quad_layers;
+    std::vector<ScreenOrQuadLayer> quad_layers; // AzaharFrame curve: the screens may be cylinders
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
@@ -557,7 +591,7 @@ void Runtime::FrameLoop() {
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
             Vis::NoteTopHeadLocked(shown.top_space == view_space); // AzaharFrame vrvis: stats
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
-                                        XrExtent2Df size, XrEyeVisibility eye) {
+                                        XrExtent2Df size, XrEyeVisibility eye, float curve) {
                 const ScreenChain& chain = screens[static_cast<std::size_t>(s)];
                 if (!chain.handle || !chain.has_image) {
                     return;
@@ -570,7 +604,11 @@ void Runtime::FrameLoop() {
                 q.pose = pose;
                 q.size = size;
                 q.eye = eye;
-                quad_layers.push_back(MakeQuad(space, q));
+                if (curve > 0.0f) {
+                    quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
+                } else {
+                    quad_layers.push_back(MakeQuad(space, q));
+                }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
@@ -586,29 +624,30 @@ void Runtime::FrameLoop() {
             if (draw.swapped) {
                 // The bottom screen in the main slot, the top one in the nearer secondary slot.
                 add_screen(VideoCore::XrScreen::Bottom, local_space, draw.bottom_pose,
-                           draw.bottom_size, XR_EYE_VISIBILITY_BOTH);
+                           draw.bottom_size, XR_EYE_VISIBILITY_BOTH, draw.bottom_curve);
                 if (draw.top_visible) {
                     add_screen(VideoCore::XrScreen::TopLeft, local_space, draw.top_pose,
-                               draw.top_size, XR_EYE_VISIBILITY_LEFT);
+                               draw.top_size, XR_EYE_VISIBILITY_LEFT, draw.top_curve);
                     add_screen(VideoCore::XrScreen::TopRight, local_space, draw.top_pose,
-                               draw.top_size, XR_EYE_VISIBILITY_RIGHT);
+                               draw.top_size, XR_EYE_VISIBILITY_RIGHT, draw.top_curve);
                 }
             } else {
                 // Each eye sees its own top image on the same quad.
                 const auto add_bottom = [&] {
                     if (shown.show_bottom && draw.bottom_visible) {
                         add_screen(VideoCore::XrScreen::Bottom, local_space, shown.bottom_pose,
-                                   shown.bottom_size, XR_EYE_VISIBILITY_BOTH);
+                                   shown.bottom_size, XR_EYE_VISIBILITY_BOTH, draw.bottom_curve);
                     }
                 };
                 if (shown.bottom_first) {
                     add_bottom();
                 }
                 if (shown.show_top) {
+                    // AzaharFrame curve: draw.top_curve is 0 for the immersive screen.
                     add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
-                               shown.top_size, XR_EYE_VISIBILITY_LEFT);
+                               shown.top_size, XR_EYE_VISIBILITY_LEFT, draw.top_curve);
                     add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
-                               shown.top_size, XR_EYE_VISIBILITY_RIGHT);
+                               shown.top_size, XR_EYE_VISIBILITY_RIGHT, draw.top_curve);
                 }
                 if (!shown.bottom_first) {
                     add_bottom();
@@ -667,7 +706,7 @@ void Runtime::FrameLoop() {
             if (i == models_at && models_layer) {
                 layer_ptrs.push_back(models_layer);
             }
-            layer_ptrs.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad_layers[i]));
+            layer_ptrs.push_back(quad_layers[i].Header());
         }
         if (models_layer && models_at == quad_layers.size()) {
             layer_ptrs.push_back(models_layer);
