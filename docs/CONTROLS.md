@@ -18,7 +18,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
 | Left stick click, tap | Hide or Show Other Screen | See Swapping the screens |
-| Left stick click, held | Nothing | There is no Home button in VR |
+| Left stick click, held for 1 second | Screen Layout | See Screen layouts |
 | Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back |
 | Right stick click, held for 1 second | Reset Screens and View | |
 | Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below |
@@ -64,7 +64,7 @@ The bottom screen follows the top one, tilted back, just under its bottom edge. 
 
 ## Swapping the screens
 
-The screens have two places. The main one is where the top screen starts. The second one is below it, where the bottom screen starts, tilted back and smaller. The screen in the main place is the one in focus. Every game starts with the top screen in focus.
+The screens have two places. The main one is where the top screen starts. The second one is smaller: below it, tilted back, or to its right with **Side by Side** (see Screen layouts). The screen in the main place is the one in focus. Every game starts with the top screen in focus.
 
 | Control | What it does |
 |---|---|
@@ -78,6 +78,19 @@ The screens have two places. The main one is where the top screen starts. The se
 - In games with **Hide Bottom Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
 - In every other game the left stick click hides and shows the bottom screen, and both bumpers + **View** is L, R and Select for the game.
 - Immersive mode pauses while the bottom screen is in focus, and picks up again when you swap back.
+
+## Screen layouts
+
+Hold the left stick click for 1 second to change the layout. The stick clicks work in every layout.
+
+| Control | VR | Flat |
+|---|---|---|
+| Left stick click, held for 1 second | **Stacked** or **Side by Side** | **Large Screen**, **Side by Side**, **Default**, and round again |
+| Right stick click, tap | Swap Screens | Swap Screens |
+| Left stick click, tap | Hide or Show Other Screen | **Single Screen** on or off |
+| Right stick click, held for 1 second | Reset Screens and View, in the same layout | **Large Screen**, not swapped |
+
+In VR, **Stacked** puts the smaller screen below the main one, tilted back. **Side by Side** puts it to the right of the main one, at the same distance and height, facing you. Only the main screen curves. A label shows the new layout, and it is kept. **Screen Layout** in the in-game menu's Position tab is the same setting. In Flat, the layout's name shows over the game for a moment.
 
 ## Azahar's window
 
@@ -113,7 +126,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with five tabs down its left side:
 
 - **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
-- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
+- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window.
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
@@ -225,7 +238,7 @@ The differences:
 
 - There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
 - The triggers are always ZL and ZR, and the grips do nothing.
-- The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped.
+- The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
 - Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
