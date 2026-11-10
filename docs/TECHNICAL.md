@@ -49,7 +49,7 @@ The screens are quad layers, or cylinder layers (`XR_KHR_composition_layer_cylin
 
 ## Screen Curve
 
-**Screen Curve** (`vr_screen_curve`, global: Off, or Gentle, Medium, Strong and Max = 15, 30, 45 and 60 degrees) bends the screen in the main slot about a vertical axis so its sides come towards you; the screen in the second slot stays a flat quad. The math is in `frame_xr/input/screen_rig.h` (unit-tested in `src/tests/frame_xr/screen_rig.cpp`):
+**Screen Curve** (`vr_screen_curve`, global: Off, or Subtle, Gentle, Medium, Strong, Heavy and Max = 15, 30, 45, 60, 75 and 90 degrees) bends the screen in the main slot about a vertical axis so its sides come towards you; the screen in the second slot stays a flat quad. The math is in `frame_xr/input/screen_rig.h` (unit-tested in `src/tests/frame_xr/screen_rig.cpp`):
 
 - The setting is the angle the main screen's width spans. Its radius is width / angle, the cylinder layer's `centralAngle` is that angle and its `aspectRatio` is the flat screen's width over height, so the arc is as long as the quad was wide and as high: the picture keeps its size and shape, and each eye's image (the 3DS's left and right) goes on its own layer at the same pose, as with the quads.
 - A cylinder layer's middle is `radius` along its pose's -Z. The pose is the screen's own moved `radius` towards you along the screen's normal (`CylinderFor`), so the stored placement, the grip move, the size and the D-pad nudge are unchanged: they all work on the flat placement, and the curve is applied only when the layers and the pointer targets are made.

@@ -47,11 +47,11 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 }
 
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
-// 60 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
+// 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
 int CurveIndex(u32 deg) {
-    static constexpr int kSteps[] = {0, 15, 30, 45, 60};
+    static constexpr int kSteps[] = {0, 15, 30, 45, 60, 75, 90};
     int best = deg == 0 ? 0 : 1;
-    for (int i = 1; i < 5; i++) {
+    for (int i = 1; i < 7; i++) {
         if (std::abs(kSteps[i] - static_cast<int>(deg)) <
             std::abs(kSteps[best] - static_cast<int>(deg))) {
             best = i;
@@ -141,10 +141,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     // nearest one.
     curve_combo = new QComboBox(this);
     curve_combo->addItem(tr("Off"), 0);
-    curve_combo->addItem(tr("Gentle"), 15);
-    curve_combo->addItem(tr("Medium"), 30);
-    curve_combo->addItem(tr("Strong"), 45);
-    curve_combo->addItem(tr("Max"), 60);
+    curve_combo->addItem(tr("Subtle"), 15);
+    curve_combo->addItem(tr("Gentle"), 30);
+    curve_combo->addItem(tr("Medium"), 45);
+    curve_combo->addItem(tr("Strong"), 60);
+    curve_combo->addItem(tr("Heavy"), 75);
+    curve_combo->addItem(tr("Max"), 90);
     curve_row = MakeRow(this, QStringLiteral("frame_vr_curve_row"), tr("Screen Curve"),
                         tr("Not in immersive mode. In VR: grip a screen, D-pad up or down."),
                         {curve_combo});

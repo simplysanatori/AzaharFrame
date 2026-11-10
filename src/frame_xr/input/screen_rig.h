@@ -107,8 +107,8 @@ const char* MovedToast(int right_steps, int up_steps);
 // the grip move, the size and the nudge all stay as they are for the flat screen.
 
 /// The steps of grip + D-pad up and down and of the settings, in degrees (0 = flat): Off,
-/// Gentle, Medium, Strong, Max (CurveName).
-inline constexpr std::array<uint32_t, 5> kCurveStepsDeg{0, 15, 30, 45, 60};
+/// Subtle, Gentle, Medium, Strong, Heavy, Max (CurveName).
+inline constexpr std::array<uint32_t, 7> kCurveStepsDeg{0, 15, 30, 45, 60, 75, 90};
 /// Never bent further than this (a value typed into the config).
 inline constexpr uint32_t kMaxCurveDeg = 180;
 

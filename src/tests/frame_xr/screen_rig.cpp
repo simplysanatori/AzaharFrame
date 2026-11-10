@@ -201,8 +201,10 @@ TEST_CASE("FrameXr screen rig: grip + D-pad", "[frame_xr]") {
 TEST_CASE("FrameXr screen rig: the curve steps", "[frame_xr]") {
     REQUIRE(StepCurve(0, 1) == 15);
     REQUIRE(StepCurve(15, 1) == 30);
-    REQUIRE(StepCurve(45, 1) == 60);
-    REQUIRE(StepCurve(60, 1) == 60); // the strongest step stays
+    REQUIRE(StepCurve(60, 1) == 75);
+    REQUIRE(StepCurve(75, 1) == 90);
+    REQUIRE(StepCurve(90, 1) == 90); // the strongest step stays
+    REQUIRE(StepCurve(90, -1) == 75);
     REQUIRE(StepCurve(60, -1) == 45);
     REQUIRE(StepCurve(15, -1) == 0);
     REQUIRE(StepCurve(0, -1) == 0);
@@ -210,7 +212,7 @@ TEST_CASE("FrameXr screen rig: the curve steps", "[frame_xr]") {
     // A value typed into the config between two steps goes to the next one that way.
     REQUIRE(StepCurve(40, 1) == 45);
     REQUIRE(StepCurve(40, -1) == 30);
-    REQUIRE(StepCurve(500, -1) == 60);
+    REQUIRE(StepCurve(500, -1) == 90);
     // Up all the way and down all the way pass every step once.
     uint32_t deg = 0;
     int ups = 0;
@@ -219,13 +221,16 @@ TEST_CASE("FrameXr screen rig: the curve steps", "[frame_xr]") {
         ups++;
     }
     REQUIRE(ups == static_cast<int>(kCurveStepsDeg.size()) - 1);
+    REQUIRE(kCurveStepsDeg.size() == 7);
     REQUIRE(CurveToast(0) == "Screen Curve: Off");
-    REQUIRE(CurveToast(15) == "Screen Curve: Gentle");
-    REQUIRE(CurveToast(30) == "Screen Curve: Medium");
-    REQUIRE(CurveToast(45) == "Screen Curve: Strong");
-    REQUIRE(CurveToast(60) == "Screen Curve: Max");
-    REQUIRE(std::string(CurveName(5)) == "Gentle"); // a typed value near Off is still curved
-    REQUIRE(std::string(CurveName(40)) == "Strong");
+    REQUIRE(CurveToast(15) == "Screen Curve: Subtle");
+    REQUIRE(CurveToast(30) == "Screen Curve: Gentle");
+    REQUIRE(CurveToast(45) == "Screen Curve: Medium");
+    REQUIRE(CurveToast(60) == "Screen Curve: Strong"); // a saved 60 from 1.0.0 was Max
+    REQUIRE(CurveToast(75) == "Screen Curve: Heavy");
+    REQUIRE(CurveToast(90) == "Screen Curve: Max");
+    REQUIRE(std::string(CurveName(5)) == "Subtle"); // a typed value near Off is still curved
+    REQUIRE(std::string(CurveName(40)) == "Medium");
 }
 
 TEST_CASE("FrameXr screen rig: a curved screen keeps its size and shape", "[frame_xr]") {
@@ -233,7 +238,7 @@ TEST_CASE("FrameXr screen rig: a curved screen keeps its size and shape", "[fram
     const float height = 1.0f;
     REQUIRE(CurveRadius(width, 0) == 0.0f);
     REQUIRE(CurveRadius(0.0f, 30) == 0.0f);
-    for (const uint32_t deg : {15u, 30u, 45u, 60u}) {
+    for (const uint32_t deg : {15u, 30u, 45u, 60u, 75u, 90u}) {
         const float r = CurveRadius(width, deg);
         const Cylinder c = CylinderFor(Ahead(2.0f), width, height, r);
         // The arc is as long as the flat screen was wide, at the angle of the step.
@@ -261,7 +266,7 @@ TEST_CASE("FrameXr screen rig: only the main slot's screen bends", "[frame_xr]")
     const Posef top = Ahead(2.0f);
     const Posef bottom = BottomFromTop(top, 1.0f);
     const float bottom_w = 0.75f;
-    for (const uint32_t deg : {15u, 45u, 60u}) {
+    for (const uint32_t deg : {15u, 45u, 60u, 90u}) {
         // The top screen in the main slot bends, the bottom one in the second slot stays flat.
         PanelQuad main{top, kAspect3ds, 1.0f, true};
         PanelQuad second{bottom, bottom_w, 0.5625f, true};

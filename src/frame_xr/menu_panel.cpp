@@ -39,7 +39,7 @@ constexpr float kPress = 0.55f, kLetGo = 0.40f; ///< trigger hysteresis
 constexpr float kTooltipRest = 0.6f;            ///< seconds (owner option A)
 constexpr float kStickOn = 0.6f;
 constexpr float kStickFirstRepeat = 0.4f, kStickRepeat = 0.2f;
-constexpr std::array<uint32_t, 5> kCurveSteps{0, 15, 30, 45, 60};
+constexpr std::array<uint32_t, 7> kCurveSteps{0, 15, 30, 45, 60, 75, 90};
 constexpr std::array<uint32_t, 3> kScaleSteps{100, 150, 200};
 
 Input::Posef ToInput(const XrPosef& p) {
@@ -500,6 +500,7 @@ void MenuPanel::Click(Target t, Host& host) {
         SetSetting(t.id, 0, host);
         break;
     case Id::ScreenShape:
+    case Id::ScreenCurve:
     case Id::ImmersiveMode:
         view.open_menu = t.id; // a menu button: its menu
         break;
@@ -509,7 +510,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::Scope:
         scope = t.index;
         break;
-    case Id::ScreenCurve:
     case Id::ScreenLayout:
     case Id::Background:
     case Id::FaceButtons:

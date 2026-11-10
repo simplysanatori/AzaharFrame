@@ -124,7 +124,8 @@ uint32_t StepCurve(uint32_t deg, int dir) {
 }
 
 const char* CurveName(uint32_t deg) {
-    static constexpr const char* kNames[] = {"Off", "Gentle", "Medium", "Strong", "Max"};
+    static constexpr const char* kNames[] = {"Off",    "Subtle", "Gentle", "Medium",
+                                           "Strong", "Heavy",  "Max"};
     static_assert(std::size(kNames) == kCurveStepsDeg.size());
     std::size_t best = 0;
     for (std::size_t i = 1; i < kCurveStepsDeg.size(); i++) {

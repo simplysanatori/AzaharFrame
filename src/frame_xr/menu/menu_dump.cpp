@@ -38,7 +38,7 @@ Menu::MenuModel SampleModel() {
     m.game_title = "The Legend of Zelda: Ocarina of Time 3D";
     m.hide_bottom_screen = false;
     m.screen_shape = 0;
-    m.screen_curve = 1;
+    m.screen_curve = 4; // Strong
     m.immersive_offset = "Right 1.5°, Up 0.5°";
     m.immersive_offset_set = true;
     m.show_stats = true;
@@ -202,8 +202,13 @@ int main(int argc, char** argv) {
 
     v = {};
     v.tab = Tab::Position;
-    v.hover = {Id::ScreenCurve, 2};
+    v.hover = {Id::ScreenCurve, kLabelIndex};
     ok &= shot("2-position", m, v);
+
+    v.hover = {Id::ScreenCurve, 5};
+    v.open_menu = Id::ScreenCurve;
+    ok &= shot("2c-position-curve-menu", m, v);
+    v.open_menu = Id::None;
 
     v.hover = {Id::ScreenShape, 3};
     v.open_menu = Id::ScreenShape;

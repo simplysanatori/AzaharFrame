@@ -198,3 +198,23 @@ TEST_CASE("FrameXr geometry: curved screens", "[frame_xr]") {
         REQUIRE_FALSE(IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, 1}}, quad).on_plane);
     }
 }
+
+// Screen Curve Max: 90 degrees across, the edge 45 degrees round the axis.
+TEST_CASE("FrameXr geometry: a screen curved 90 degrees", "[frame_xr]") {
+    PanelQuad quad = TopQuad();
+    const float r = 1.6f / (90.0f * 3.14159265f / 180.0f);
+    quad.curve_radius = r;
+    const float a = 45.0f * 3.14159265f / 180.0f;
+    const auto hit_at = [&](float frac) {
+        const Vec3f target{r * std::sin(a * frac), 0.1f, -2.0f + r - r * std::cos(a * frac)};
+        return IntersectQuad(Ray{Vec3f{0, 0, 0}, Normalized(target)}, quad);
+    };
+    REQUIRE(IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, -1}}, quad).t == Approx(2.0f));
+    for (const float frac : {-0.95f, -0.5f, 0.5f, 0.95f}) {
+        const QuadHit hit = hit_at(frac);
+        REQUIRE(hit.in_bounds);
+        REQUIRE(hit.u == Approx(0.5f + frac * 0.5f).margin(1e-3f));
+    }
+    REQUIRE_FALSE(hit_at(1.1f).in_bounds);
+    REQUIRE(hit_at(1.1f).on_plane);
+}

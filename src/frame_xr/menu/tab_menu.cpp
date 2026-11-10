@@ -81,7 +81,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         rows.push_back(row(Id::HideBottomScreen, RowKind::Switch, 0, m.hide_bottom_screen));
         rows.push_back(row(Id::ScreenLayout, RowKind::Segmented, m.screen_layout));
         rows.push_back(row(Id::ScreenShape, RowKind::MenuButton, m.screen_shape));
-        rows.push_back(row(Id::ScreenCurve, RowKind::Segmented, m.screen_curve));
+        rows.push_back(row(Id::ScreenCurve, RowKind::MenuButton, m.screen_curve));
         Row offset = row(Id::ImmersiveOffset, RowKind::Offset);
         offset.value = m.immersive_offset;
         offset.on = m.immersive_offset_set;
@@ -120,7 +120,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kShape{"3DS (5:3)",       "Widescreen (16:9)",
                                                  "Ultrawide (21:9)", "Standard (4:3)",
                                                  "3:2",             "16:10"};
-    static const std::vector<std::string> kCurve{"Off", "Gentle", "Medium", "Strong", "Max"};
+    static const std::vector<std::string> kCurve{"Off", "Subtle", "Gentle", "Medium",
+                                                "Strong", "Heavy", "Max"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
