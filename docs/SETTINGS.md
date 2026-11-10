@@ -72,7 +72,7 @@ Shows a small panel under the top screen while a game runs: the game's frame rat
 
 ## Screen Curve
 
-Bends the two screens toward you, like a curved monitor. The picture keeps its size and shape. Gentle, Medium, Strong and Max wrap the top screen's width round 15°, 30°, 45° and 60°; Strong to Max wraps a screen at its start place evenly around you. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
+Bends the two screens toward you, like a curved monitor. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
 
 ## Screen Shape
 
@@ -99,7 +99,7 @@ The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the r
 
 ## Immersive Offset
 
-Shifts the immersive screen a little left, right, up or down to fit your lenses. Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press D-pad left or right. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
+Shifts the immersive screen a little left or right to fit your lenses. Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press D-pad left or right. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
 
 ## Immersive Game FOV
 

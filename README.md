@@ -11,7 +11,6 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
 ## Features
 
 - Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
-- Flat or curved screens
 - Immersive modes, with a screen you move and resize per game
 - Steam Frame controls, with Quick Save, Quick Load and Fast Forward
 - Azahar's own window and settings in VR
