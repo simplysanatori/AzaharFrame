@@ -36,7 +36,7 @@ else echo "$CL is empty (git submodule update --init, or mount a checkout that h
 mkdir -p "$SRC/$CL"
 rsync -a --delete --exclude=.git "$from" "$SRC/$CL/"
 # the version text: no .git here, so the build reads these two files.  A release names its version
-# (AZAHARFRAME_VERSION, e.g. 1.0.0), so that "azahar -v" prints "Azahar for Frame 1.0.0"; otherwise the tag
+# (AZAHARFRAME_VERSION, e.g. 1.1.0), so that "azahar -v" prints "Azahar for Frame 1.1.0"; otherwise the tag
 # or short hash git describe gave.
 echo "${GIT_COMMIT:-unknown}" > "$SRC/GIT-COMMIT"
 echo "${AZAHARFRAME_VERSION:-${GIT_TAG:-unknown}}" > "$SRC/GIT-TAG"

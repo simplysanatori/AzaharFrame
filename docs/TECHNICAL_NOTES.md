@@ -97,7 +97,7 @@ After either merge, rebuild with `steam-frame/build.sh`, run a game, and check t
 All on the Frame, with the tools SteamOS has: a C++ compiler (clang or gcc), CMake 3.24 or newer, Ninja, Qt 6 and SDL2 development files, Python 3, and SteamVR installed for running it.
 
 ```sh
-steam-frame/build.sh 1.0.0      # configures build/, builds, packages steam-frame/release/azaharframe-1.0.0-linux-arm64.tar.gz and SHA256SUMS
+steam-frame/build.sh 1.1.0      # configures build/, builds, packages steam-frame/release/azaharframe-1.1.0-linux-arm64.tar.gz and SHA256SUMS
 steam-frame/install.sh          # installs that tarball and adds the Steam entry
 ```
 
@@ -105,7 +105,7 @@ The build uses Ninja, Release, `ENABLE_FFMPEG=OFF`, `USE_AUDIOTRACK=OFF`, Vulkan
 
 `ENABLE_FRAME_XR` needs no flag: `CMakeLists.txt` turns it on for Linux aarch64 (with Vulkan and Qt on), and `src/frame_xr/CMakeLists.txt` takes the OpenXR headers from `third_party/openxr/include` in the tree.
 
-That build links the Qt 6 and SDL2 SteamOS has. The release is the portable build, `steam-frame/build-portable.sh 1.0.0`, which carries its own Qt and builds SDL2 in; see [AGENTS.md](../AGENTS.md#portable-build).
+That build links the Qt 6 and SDL2 SteamOS has. The release is the portable build, `steam-frame/build-portable.sh 1.1.0`, which carries its own Qt and builds SDL2 in; see [AGENTS.md](../AGENTS.md#portable-build).
 
 `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build without building or touching Steam. Tarballs and `SHA256SUMS` in `steam-frame/release/` are ignored by git.
 

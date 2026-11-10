@@ -1,33 +1,43 @@
 # Changelog
 
-## 1.1.0 (unreleased)
+## 1.1.0 (November 2026)
+
+A new in-game menu, curved screens, a side-by-side layout and live controls for immersive mode.
 
 ### The in-game menu
 
-- The in-game menu is new: a panel with five tabs (Main, Position, Stats, Controls and Settings), laid out like CitraVR's menu and drawn in Material 3. Everything is one beam and one trigger pull away: Quick Save, Quick Load, ten save state slots with their times, Screenshot, Restart, Switch to Flat and Close Game, the screen position and curve, the stats of the last second before the pause, the controller drawings, and the VR settings, for every game or just this one.
-- Rest the beam on a setting to see what it does. A greyed-out setting tells you why.
-- **Azahar's Window** on the Main tab shows Azahar's own window over the game as before, for everything else. **B** goes back to the menu.
+- Holding **Menu** opens a new menu with five tabs: Main, Position, Stats, Controls and Settings. It follows CitraVR's layout, in the style of Android XR.
+- **Main**: Continue, Quick Save, Quick Load, Save State and Load State (10 slots, with the time each was saved), Screenshot, Restart, Switch to Flat and Close Game.
+- **Position**: Reset Position, Swap Screens, Hide Bottom Screen, Screen Shape, Screen Layout, Screen Curve and Immersive Offset.
+- **Stats**: the frame rates and frame times from just before the pause.
+- **Controls**: the controller diagram, in game and for Azahar's window.
+- **Settings**: the VR settings, for every game or just this one. Rest the beam on a setting to see what it does.
+- **Azahar's Window** shows Azahar's own window over the game, for everything else. **B** goes back to the menu.
 
 ### The screens
 
-- **Screen Curve**: the main screen can now bend toward you like a curved monitor, Off, Gentle, Medium, Strong or Max. The picture keeps its size and shape, the 3D still works, and touch lands where the beam points. Only the main screen curves; the smaller one below stays flat. Immersive mode stays flat.
-- While you hold the screens with a grip, D-pad up or down changes the curve, and a label shows the new value. It is kept for every game.
-- D-pad left or right still nudges the screens around you. To move them up or down, move the hand that holds them.
-- **Screen Layout**: the smaller screen can now sit to the right of the main one, **Side by Side**, at the same distance and facing you, instead of **Stacked** below it. Hold the left stick click for 1 second to switch. It is also in the in-game menu's Position tab.
-- In Flat, the same hold goes through **Large Screen**, **Side by Side** and **Default**, and so does a grip held with D-pad right or left (left goes back). The layout's name shows over the game.
+- **Screen Curve**: the main screen can bend toward you like a curved monitor: Off, Subtle, Gentle, Medium, Strong, Heavy or Max. The smaller screen stays flat, and touch still lands where the beam points.
+- Hold the screens with a grip and press D-pad up or down to change the curve. D-pad left or right still nudges them. To move them up or down, move your hand.
+- **Screen Layout**: **Side by Side** puts the smaller screen to the right of the main one, facing you. **Stacked** keeps it below. Hold the left stick click for 1 second to switch.
+- In Flat, the same hold cycles **Large Screen**, **Side by Side** and **Default**. So does a grip held with D-pad left or right.
 
 ### Immersive mode
 
-- **Wider View** now has steps, Off and 1.1x to 1.4x, per game. Hold the immersive screen with a grip and press D-pad up or down to change it while you play: the screen grows with the view, so the picture keeps its scale. Games that had it on start at the step closest to what they showed before.
-- D-pad left or right still shifts the immersive screen for your lenses. To raise or lower it, move the hand that holds it.
-- **Squeeze Width** is now **Narrow Screen**, with a 30% step for HUDs that sit far out at the sides.
+- **Wider View** now has steps per game: Off, 1.1x, 1.2x, 1.3x and 1.4x. It shows more of the game around the edges.
+- Hold the immersive screen with a grip and press D-pad up or down to change it as you play. The screen grows with the view, so the picture keeps its scale.
+- D-pad left or right still shifts the screen for your lenses. To raise or lower it, move your hand.
+- **Squeeze Width** is now **Narrow Screen**, with a new 30% step.
 
 ### Controls
 
-- Holding the right stick click for 1 second is now the one reset: it puts the screens back, and in immersive mode the immersive screen too and re-centres the view, whether you hold a screen or not. A tap while holding the immersive screen no longer resets it.
-- Quick Load now needs the left bumper held for half a second with **View**, so a brush of the bumper never loads.
-- **Stopping...** shows half way through the **View** hold, so you can let go in time.
-- Taking hold of the screens shows a small hint with what the D-pad and the stick do.
+- Holding the right stick click for 1 second is the one reset. It puts the screens back and, in immersive mode, re-centres the view.
+- Quick Load needs the left bumper held for half a second, so a brush of the bumper never loads.
+- "Stopping..." shows partway through the **View** hold, so you can let go if you pressed it by mistake.
+- Grabbing the screens shows a short hint of what the D-pad and stick do.
+
+### Fixed
+
+- In Flat, dialogs such as Configure opened squeezed, with OK and Cancel off the bottom of the screen. They now fill the big screen and scroll.
 
 ## 1.0.0 (November 2026)
 
