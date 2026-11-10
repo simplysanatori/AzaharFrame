@@ -38,8 +38,14 @@ std::vector<std::string> WrapText(int font, const std::string& s, float width, i
 struct Canvas {
     int w = 0, h = 0;
     std::vector<uint32_t> px;
+    /// AzaharFrame tabmenu: drawing outside [clip_x0, clip_x1) x [clip_y0, clip_y1) is dropped
+    /// (a scrolled list). By default (and after Init) it is the whole canvas.
+    int clip_x0 = 0, clip_y0 = 0, clip_x1 = 1 << 30, clip_y1 = 1 << 30;
 
     void Init(int width, int height);
+    /// The clip rectangle (pixels, rounded outwards), cut to the canvas.
+    void SetClip(float x0, float y0, float x1, float y1);
+    void ResetClip();
     void Clear(const Color& c);
     void Blend(int x, int y, const Color& c, float coverage);
     void FillRect(float x0, float y0, float x1, float y1, const Color& c);
@@ -48,6 +54,18 @@ struct Canvas {
     void StrokeRoundRect(float x0, float y0, float x1, float y1, float radius, float thickness,
                          const Color& c);
     void Circle(float cx, float cy, float r, const Color& c);
+    /// AzaharFrame tabmenu: a rounded rectangle with its own radius at each corner (top left,
+    /// top right, bottom right, bottom left), for the ends of a segmented button.
+    void RoundRectCorners(float x0, float y0, float x1, float y1, float r_tl, float r_tr,
+                          float r_br, float r_bl, const Color& c);
+    /// The same as an outline, `thickness` wide, centred on the edge.
+    void StrokeRoundRectCorners(float x0, float y0, float x1, float y1, float r_tl, float r_tr,
+                                float r_br, float r_bl, float thickness, const Color& c);
+    /// A line `width` wide with round ends.
+    void Line(float x0, float y0, float x1, float y1, float width, const Color& c);
+    /// AzaharFrame tabmenu: `c` through an 8-bit coverage mask (a glyph), its top left at x, y.
+    void BlendMask(int x, int y, const uint8_t* coverage, int mw, int mh, int stride,
+                   const Color& c);
     /// Draws straight (non-premultiplied) RGBA8 pixels `src` (sw x sh, rows top down)
     /// scaled into the destination rectangle, bilinear when `smooth`, else nearest.
     /// `radius` rounds the destination corners; `alpha` multiplies the image alpha.

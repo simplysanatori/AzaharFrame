@@ -56,8 +56,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     keyboard/keyboard_panel.h
     keyboard/layout.cpp
     keyboard/layout.h
-    keyboard/stb_truetype.cpp
-    keyboard/stb_truetype.h
+    keyboard/stb_truetype.h # its implementation is built into frame_xr_ui (AzaharFrame tabmenu)
     # AzaharFrame vrvis: controls help, stats, beams, controller models (vis; no Qt here).
     vis/async_overlay.cpp
     vis/async_overlay.h
@@ -78,11 +77,13 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/panel_art.h
     vis/panels.cpp
     vis/panels.h
+    vis/menu_diagram.cpp # AzaharFrame tabmenu
+    vis/menu_diagram.h # AzaharFrame tabmenu
     vis/visuals.cpp
     vis/visuals.h
 )
-# stb_truetype is vendored unchanged (MIT or public domain): its warnings are not ours.
-set_source_files_properties(keyboard/stb_truetype.cpp PROPERTIES COMPILE_OPTIONS "-w")
+# AzaharFrame tabmenu: the in-game menu (Material 3 on the UI canvas).
+add_subdirectory(menu)
 
 create_target_directory_groups(frame_xr)
 
@@ -103,3 +104,18 @@ endif()
 target_include_directories(frame_xr PUBLIC ${PROJECT_SOURCE_DIR}/third_party/openxr/include)
 target_link_libraries(frame_xr PUBLIC citra_common citra_core video_core input_common vulkan-headers vma)
 target_link_libraries(frame_xr PRIVATE frame_xr_picker ${CMAKE_DL_LIBS} Threads::Threads)
+target_link_libraries(frame_xr PUBLIC frame_xr_menu) # AzaharFrame tabmenu
+
+# AzaharFrame tabmenu: renders the menu's tabs to PNG files without a headset. Built only when
+# asked for (ninja frame_xr_menu_dump), never part of a release.
+# The diagram's sources are compiled in (as the unit tests do), so it needs no core libraries.
+add_executable(frame_xr_menu_dump EXCLUDE_FROM_ALL
+    menu/menu_dump.cpp
+    vis/controller_diagram.cpp
+    vis/help_content.cpp
+    vis/help_layout.cpp
+    vis/menu_diagram.cpp
+    vis/model_file.cpp
+)
+target_include_directories(frame_xr_menu_dump PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(frame_xr_menu_dump PRIVATE frame_xr_menu lodepng citra_common)

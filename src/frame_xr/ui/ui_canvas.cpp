@@ -83,6 +83,22 @@ float RoundRectDist(float x, float y, float cx, float cy, float hx, float hy, fl
     return std::sqrt(ox * ox + oy * oy) + std::fmin(std::fmax(qx, qy), 0.0f) - radius;
 }
 
+// The same with a radius per corner: the quadrant's own (tl, tr, br, bl).
+float RoundRectDist4(float x, float y, float cx, float cy, float hx, float hy, const float r[4]) {
+    const float radius = x < cx ? (y < cy ? r[0] : r[3]) : (y < cy ? r[1] : r[2]);
+    return RoundRectDist(x, y, cx, cy, hx, hy, radius);
+}
+
+// Distance to the segment (x0, y0)-(x1, y1).
+float SegmentDist(float x, float y, float x0, float y0, float x1, float y1) {
+    const float dx = x1 - x0, dy = y1 - y0;
+    const float len2 = dx * dx + dy * dy;
+    float t = len2 > 0.0f ? ((x - x0) * dx + (y - y0) * dy) / len2 : 0.0f;
+    t = std::clamp(t, 0.0f, 1.0f);
+    const float ex = x - (x0 + t * dx), ey = y - (y0 + t * dy);
+    return std::sqrt(ex * ex + ey * ey);
+}
+
 } // namespace
 
 void InitFonts() {
@@ -201,6 +217,21 @@ void Canvas::Init(int width, int height) {
     w = width;
     h = height;
     px.assign(static_cast<size_t>(w) * h, 0);
+    ResetClip();
+}
+
+void Canvas::SetClip(float x0, float y0, float x1, float y1) {
+    clip_x0 = std::clamp(static_cast<int>(std::floor(x0)), 0, w);
+    clip_y0 = std::clamp(static_cast<int>(std::floor(y0)), 0, h);
+    clip_x1 = std::clamp(static_cast<int>(std::ceil(x1)), clip_x0, w);
+    clip_y1 = std::clamp(static_cast<int>(std::ceil(y1)), clip_y0, h);
+}
+
+void Canvas::ResetClip() {
+    clip_x0 = 0;
+    clip_y0 = 0;
+    clip_x1 = w;
+    clip_y1 = h;
 }
 
 void Canvas::Clear(const Color& c) {
@@ -214,7 +245,7 @@ void Canvas::Clear(const Color& c) {
 
 void Canvas::Blend(int x, int y, const Color& c, float coverage) {
     const float a = c.a * coverage;
-    if (a <= 0.0f)
+    if (a <= 0.0f || x < clip_x0 || x >= clip_x1 || y < clip_y0 || y >= clip_y1)
         return;
     uint32_t& d = px[static_cast<size_t>(y) * w + x];
     const float k = 1.0f - a;
@@ -265,6 +296,53 @@ void Canvas::Circle(float cx, float cy, float r, const Color& c) {
         *this, cx - r, cy - r, cx + r, cy + r,
         [=](float x, float y) { return std::sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) - r; },
         [&](int x, int y, float cov) { Blend(x, y, c, cov); });
+}
+
+void Canvas::RoundRectCorners(float x0, float y0, float x1, float y1, float r_tl, float r_tr,
+                              float r_br, float r_bl, const Color& c) {
+    const float cx = (x0 + x1) * 0.5f, cy = (y0 + y1) * 0.5f;
+    const float hx = (x1 - x0) * 0.5f, hy = (y1 - y0) * 0.5f;
+    const float r[4] = {r_tl, r_tr, r_br, r_bl};
+    Fill(
+        *this, x0, y0, x1, y1,
+        [=](float x, float y) { return RoundRectDist4(x, y, cx, cy, hx, hy, r); },
+        [&](int x, int y, float cov) { Blend(x, y, c, cov); });
+}
+
+void Canvas::StrokeRoundRectCorners(float x0, float y0, float x1, float y1, float r_tl,
+                                    float r_tr, float r_br, float r_bl, float thickness,
+                                    const Color& c) {
+    const float cx = (x0 + x1) * 0.5f, cy = (y0 + y1) * 0.5f;
+    const float hx = (x1 - x0) * 0.5f, hy = (y1 - y0) * 0.5f;
+    const float r[4] = {r_tl, r_tr, r_br, r_bl};
+    const float half = thickness * 0.5f;
+    Fill(
+        *this, x0 - half, y0 - half, x1 + half, y1 + half,
+        [=](float x, float y) { return std::fabs(RoundRectDist4(x, y, cx, cy, hx, hy, r)) - half; },
+        [&](int x, int y, float cov) { Blend(x, y, c, cov); });
+}
+
+void Canvas::Line(float x0, float y0, float x1, float y1, float width, const Color& c) {
+    const float half = width * 0.5f;
+    Fill(
+        *this, std::fmin(x0, x1) - half, std::fmin(y0, y1) - half, std::fmax(x0, x1) + half,
+        std::fmax(y0, y1) + half,
+        [=](float x, float y) { return SegmentDist(x, y, x0, y0, x1, y1) - half; },
+        [&](int x, int y, float cov) { Blend(x, y, c, cov); });
+}
+
+void Canvas::BlendMask(int x, int y, const uint8_t* coverage, int mw, int mh, int stride,
+                       const Color& c) {
+    const int gx0 = std::max({x, clip_x0, 0}), gx1 = std::min({x + mw, clip_x1, w});
+    const int gy0 = std::max({y, clip_y0, 0}), gy1 = std::min({y + mh, clip_y1, h});
+    for (int yy = gy0; yy < gy1; yy++) {
+        const uint8_t* row = coverage + static_cast<size_t>(yy - y) * stride;
+        for (int xx = gx0; xx < gx1; xx++) {
+            if (const uint8_t v = row[xx - x]) {
+                Blend(xx, yy, c, v / 255.0f);
+            }
+        }
+    }
 }
 
 void Canvas::BlitRGBA(const uint8_t* src, int sw, int sh, float x0, float y0, float x1, float y1,

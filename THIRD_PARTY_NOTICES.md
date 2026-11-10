@@ -67,6 +67,14 @@ The keyboard in VR is the Compact keyboard of Moonlight XR (https://github.com/s
 - Its labels are drawn with stb_truetype by Sean Barrett (https://github.com/nothings/stb), v1.26, vendored unchanged as `src/frame_xr/keyboard/stb_truetype.h`. MIT or public domain; the text is at the end of that file.
 - The font is Noto Sans Regular (SIL Open Font License 1.1), read from SteamOS's own `/usr/share/fonts/noto/`. It is not part of this repository or of the release.
 
+## The in-game menu
+
+The in-game menu (`src/frame_xr/menu/`) follows the structure of CitraVR's VR menu (above) and Google's Material 3 design guidelines. Two font families are embedded in `src/frame_xr/menu/md3_fonts.h`, modified only by `steam-frame/dev/make-md3-fonts.py`: cut to static instances (fixed weight and other axes) and subset to the characters and icons the menu uses.
+
+- **Google Sans Flex**, Copyright 2015 The Google Sans Flex Authors (https://github.com/googlefonts/googlesans-flex), under the SIL Open Font License 1.1, which names no Reserved Font Name: [src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt](src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt). "Google Sans Flex" is a trademark of Google LLC; its use here implies no endorsement.
+- **Material Symbols Rounded**, Copyright Google LLC (https://github.com/google/material-design-icons), under the Apache License, Version 2.0: [src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt](src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt).
+- Its text and icons are drawn with the stb_truetype above.
+
 ## Controller models, beams and panels in VR
 
 The controller models' converter (`steam-frame/tools/frame-controller-models.py`), their file format, posing and shaders (`src/frame_xr/vis/`), and the look of the pointer beam come from Moonlight XR Native, by the same author, under the GNU General Public License, version 3.
