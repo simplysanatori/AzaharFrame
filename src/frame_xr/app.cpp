@@ -676,6 +676,11 @@ void Runtime::FrameLoop() {
             if (hud.ToastQuad(LatestViewPose(), fs.predictedDisplayTime, toast)) {
                 quad_layers.push_back(MakeQuad(local_space, toast));
             }
+            // AzaharFrame controls: the grip hint chip under the held screen.
+            Quad hint;
+            if (hud.HintQuad(fs.predictedDisplayTime, hint)) {
+                quad_layers.push_back(MakeQuad(local_space, hint));
+            }
         }
         // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
         // projection layer when the frame is ended with the alpha blend mode.
@@ -919,6 +924,18 @@ void ShowToast(Toast kind) {
 void ShowToastText(const std::string& text) {
     if (auto* rt = GetRuntime()) {
         rt->hud.ShowToastText(text);
+    }
+}
+
+void HideToastText(const std::string& text) {
+    if (auto* rt = GetRuntime()) {
+        rt->hud.HideToastText(text);
+    }
+}
+
+void ShowHint(const std::string& text, const XrPosef& pose, float width_m) {
+    if (auto* rt = GetRuntime()) {
+        rt->hud.ShowHint(text, pose, width_m);
     }
 }
 

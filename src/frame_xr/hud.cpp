@@ -23,7 +23,10 @@ constexpr int kToastKinds = 5;
 // AzaharFrame vrsize: two rows for ShowToastText, used in turn (the one on view stays as it is
 // while the other is copied).
 constexpr int kTextRows = 2;
-constexpr int kAtlasRows = kToastKinds + kTextRows;
+// AzaharFrame controls: one more row for the grip hint chip (ShowHint), two small lines.
+constexpr int kHintRow = kToastKinds + kTextRows;
+constexpr int kAtlasRows = kToastKinds + kTextRows + 1;
+constexpr XrTime kHintNs = 3'000'000'000;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
@@ -77,6 +80,83 @@ void DrawRow(frame_xr::ui::Canvas& canvas, int row, const std::string& text) {
     const float cx = x + kRingWidth / 2.0f, cy = baseline - 24.0f;
     canvas.StrokeRoundRect(cx - kRingR, cy - kRingR, cx + kRingR, cy + kRingR, kRingR, 3.0f, white);
     canvas.Text(x + kRingWidth, baseline, ui::kFontLarge, after.c_str(), white);
+}
+
+// AzaharFrame controls: a line of the hint chip in the small font, centred at `y` (baseline).
+// "↕" and "↔" (UTF-8) are drawn as small double arrows, which the font does not have.
+void DrawHintLine(frame_xr::ui::Canvas& canvas, float baseline, const std::string& text,
+                  const frame_xr::ui::Color& color) {
+    namespace ui = frame_xr::ui;
+    constexpr float kArrowWidth = 26.0f;
+    struct Piece {
+        std::string text;
+        int arrow = 0; ///< 0 text, 1 up-down, 2 left-right
+    };
+    std::vector<Piece> pieces;
+    std::string run;
+    for (std::size_t i = 0; i < text.size();) {
+        if (text.compare(i, 3, "\xE2\x86\x95") == 0 || text.compare(i, 3, "\xE2\x86\x94") == 0) {
+            if (!run.empty()) {
+                pieces.push_back({run, 0});
+                run.clear();
+            }
+            pieces.push_back({"", text[i + 2] == '\x95' ? 1 : 2});
+            i += 3;
+        } else {
+            run += text[i++];
+        }
+    }
+    if (!run.empty()) {
+        pieces.push_back({run, 0});
+    }
+    float width = 0.0f;
+    for (const Piece& p : pieces) {
+        width += p.arrow ? kArrowWidth : ui::TextWidth(ui::kFontSmall, p.text.c_str());
+    }
+    float x = kToastWidth / 2.0f - width / 2.0f;
+    for (const Piece& p : pieces) {
+        if (!p.arrow) {
+            canvas.Text(x, baseline, ui::kFontSmall, p.text.c_str(), color);
+            x += ui::TextWidth(ui::kFontSmall, p.text.c_str());
+            continue;
+        }
+        // A stem and a head at each end, from rectangles (2 px steps).
+        const float cx = x + kArrowWidth / 2.0f, cy = baseline - 10.0f;
+        constexpr float kHalf = 10.0f, kStem = 1.5f, kHead = 6.0f;
+        if (p.arrow == 1) {
+            canvas.FillRect(cx - kStem, cy - kHalf, cx + kStem, cy + kHalf, color);
+            for (float k = 0; k < kHead; k += 2.0f) {
+                canvas.FillRect(cx - k - 1, cy - kHalf + k, cx + k + 1, cy - kHalf + k + 2, color);
+                canvas.FillRect(cx - k - 1, cy + kHalf - k - 2, cx + k + 1, cy + kHalf - k, color);
+            }
+        } else {
+            canvas.FillRect(cx - kHalf, cy - kStem, cx + kHalf, cy + kStem, color);
+            for (float k = 0; k < kHead; k += 2.0f) {
+                canvas.FillRect(cx - kHalf + k, cy - k - 1, cx - kHalf + k + 2, cy + k + 1, color);
+                canvas.FillRect(cx + kHalf - k - 2, cy - k - 1, cx + kHalf - k, cy + k + 1, color);
+            }
+        }
+        x += kArrowWidth;
+    }
+}
+
+// The hint chip: up to two lines ('\n'), small, in a box like the toasts.
+void DrawHintRow(frame_xr::ui::Canvas& canvas, const std::string& text) {
+    namespace ui = frame_xr::ui;
+    const int top_px = kHintRow * static_cast<int>(kToastHeight);
+    std::fill(canvas.px.begin() + top_px * canvas.w,
+              canvas.px.begin() + (top_px + static_cast<int>(kToastHeight)) * canvas.w, 0u);
+    const float top = static_cast<float>(top_px);
+    canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 30,
+                     ui::rgb(28, 28, 34, 0.88f));
+    const ui::Color white = ui::rgb(240, 240, 245);
+    const std::size_t nl = text.find('\n');
+    if (nl == std::string::npos) {
+        DrawHintLine(canvas, top + 58, text, white);
+    } else {
+        DrawHintLine(canvas, top + 40, text.substr(0, nl), white);
+        DrawHintLine(canvas, top + 78, text.substr(nl + 1), white);
+    }
 }
 
 } // namespace
@@ -161,6 +241,58 @@ void Hud::ShowToastText(const std::string& text) {
     text_requested = true;
 }
 
+void Hud::HideToastText(const std::string& text) {
+    std::scoped_lock lock{text_mutex};
+    if (text_requested && text_request == text) {
+        text_requested = false; // not shown yet: never
+    }
+    hide_request = text;
+    hide_requested = true;
+}
+
+void Hud::ShowHint(const std::string& text, const XrPosef& pose, float width_m) {
+    std::scoped_lock lock{text_mutex};
+    hint_request = text;
+    hint_request_pose = pose;
+    hint_request_width = width_m;
+    hint_requested = true;
+}
+
+bool Hud::HintQuad(XrTime time, Quad& quad) {
+    if (!toast_chain.HasImage()) {
+        return false;
+    }
+    {
+        std::scoped_lock lock{text_mutex};
+        if (hint_requested) {
+            hint_requested = false;
+            DrawHintRow(atlas, hint_request);
+            toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
+            hint_waiting = true;
+            hint_pose = hint_request_pose;
+            hint_width = hint_request_width;
+            hint_shown = false;
+        }
+    }
+    if (hint_waiting && !toast_chain.Busy()) {
+        hint_waiting = false;
+        hint_shown = true;
+        hint_since = time;
+    }
+    if (!hint_shown || time - hint_since > kHintNs) {
+        hint_shown = false;
+        return false;
+    }
+    quad.swapchain = toast_chain.Handle();
+    quad.image_rect = {{0, static_cast<int32_t>(kHintRow * static_cast<int>(kToastHeight))},
+                       {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
+    quad.pose = hint_pose;
+    quad.size = {hint_width, hint_width * kToastHeight / kToastWidth};
+    quad.eye = XR_EYE_VISIBILITY_BOTH;
+    quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    return true;
+}
+
 bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
     toast_chain.Poll();
     if (!toast_chain.HasImage()) {
@@ -194,6 +326,16 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
         bool has_text = false;
         {
             std::scoped_lock lock{text_mutex};
+            // AzaharFrame controls: a text toast taken back (HideToastText), if it is the one.
+            if (hide_requested) {
+                hide_requested = false;
+                if (shown_kind >= kToastKinds && shown_text == hide_request) {
+                    shown_kind = -1;
+                }
+                if (text_row_waiting >= 0 && waiting_text == hide_request) {
+                    text_row_waiting = -1;
+                }
+            }
             if (text_requested) {
                 text = std::move(text_request);
                 text_requested = false;
@@ -207,6 +349,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
             DrawRow(atlas, row, text);
             toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
             text_row_waiting = row;
+            waiting_text = text;
         }
     }
     if (text_row_waiting >= 0 && !toast_chain.Busy()) {
@@ -217,6 +360,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
         }
         shown_kind = text_row_waiting;
         shown_since = time;
+        shown_text = waiting_text;
         text_row_waiting = -1;
     }
     if (shown_kind >= 0 && time - shown_since > kToastNs) {

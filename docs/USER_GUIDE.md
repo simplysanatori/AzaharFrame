@@ -148,12 +148,12 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
 | Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
-| **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
-| Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens |
+| **View** (left controller) | Select. Hold for 1.5 seconds to stop the game; **Stopping...** shows half way |
+| Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens and View |
 | Left stick click | Hide or Show Other Screen. A hold does nothing |
 | Both bumpers, then **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
-| Hold **View**, then the right bumper | Quick Save. The left bumper instead: Quick Load |
+| Hold **View**, then the right bumper | Quick Save. Hold the left bumper for half a second instead: Quick Load |
 | Hold **View**, then the right trigger | Fast Forward on or off |
 | Grip, in immersive mode | Move the immersive screen. The stick of that hand: farther or nearer, bigger or smaller. The D-pad shifts it to fit your lenses |
 
@@ -168,7 +168,7 @@ On Azahar's window and in the in-game menu:
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
 
-The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the screens more or less curved (Off, Gentle, Medium, Strong, Max), and **Screen Curve: Medium** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game.
+The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the screens more or less curved (Off, Gentle, Medium, Strong, Max), and **Screen Curve: Medium** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game. A small hint under the screens lists these when you take hold.
 
 With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 
@@ -213,7 +213,7 @@ Global, not per game: **Black** (default) or **Passthrough**. Passthrough shows 
 
 ### Quick Save and Quick Load
 
-Hold **View** and press the right bumper to Quick Save, or the left bumper to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
+Hold **View** and press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
 
 ### Fast Forward
 
@@ -238,13 +238,13 @@ Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Supe
 
 **Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. A change shows at once. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
-The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Click the right stick while you hold the screen to put it back.
+The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Hold the right stick click for 1 second to put it back; that also re-centres the view.
 
 If your eyes see one side of the immersive screen but not the other, keep a grip squeezed and press D-pad left or right. Each press shifts the screen half a degree, and **Offset Right 1.5°** (for example) shows for 2 seconds. This offset is for your lenses, so it is the same in every game and every immersive mode, and putting a game's screen back does not change it. The world stays where it is; only the screen moves. **Immersive Offset** in the **VR** group shows it, and **Reset** there puts it back to the middle.
 
 A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
-Two more settings in the same group, per game, for the Full modes. Both are read when the game starts:
+Two more settings in the same group, per game, for the Full modes. **Wider View** changes at once; **Narrow Screen** is read when the game starts:
 
 - **Wider View** (**Off**, **1.1x** to **1.4x**): shows more of the game around the edges. Some games leave them empty; Super Mario 3D Land does. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Wider View: 1.2x** (for example) shows. It is kept for the game.
 - **Narrow Screen** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.

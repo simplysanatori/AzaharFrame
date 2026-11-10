@@ -11,51 +11,35 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Right bumper | R | |
 | Left trigger | ZL | Aimed at the bottom screen it is a touch instead |
 | Right trigger | ZR | The same |
-| Left and right grip | Move the screens | Nothing reaches the game. See Pointing |
+| Left and right grip | Move the screens | See Pointing |
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead |
-| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold. A bumper or **View** pressed during the hold cancels it |
-| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
-| Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
+| **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu |
+| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
+| Left stick click, tap | Hide or Show Other Screen | See Swapping the screens |
 | Left stick click, held | Nothing | There is no Home button in VR |
-| Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back. Nothing reaches the game |
-| Right stick click, held for 1 second | Reset Screens | Nothing reaches the game |
-| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below. The game does not see that press |
-| Both bumpers + **View** + **Menu** | Switch between VR and Flat | The game sees no Select or Start |
-| Hold **View**, then the right bumper | Quick Save | When you let go of the bumper. The game sees none of the three |
-| Hold **View**, then the left bumper | Quick Load | The same |
-| Hold **View**, then the right trigger | Fast Forward on or off | When you let go of the trigger. The game sees neither Select nor ZR |
+| Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back |
+| Right stick click, held for 1 second | Reset Screens and View | |
+| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below |
+| Both bumpers + **View** + **Menu** | Switch between VR and Flat | |
+| Hold **View**, then the right bumper | Quick Save | When you let go of the bumper |
+| Hold **View**, then hold the left bumper for half a second | Quick Load | |
+| Hold **View**, then the right trigger | Fast Forward on or off | When you let go of the trigger |
 
-The left Steam button belongs to SteamVR and is never bound.
+Shortcuts never reach the game. The left Steam button belongs to SteamVR and is never bound.
 
 The Frame's buttons are labelled like an Xbox controller, and the 3DS's are not: its A is on the right, B at the bottom, X at the top and Y on the left. So by default each button does what the 3DS button in the same place does. If you would rather have A as A, set **Face Buttons** to **By Label (Xbox)**, see Settings.
 
-Grips press at 60 % and let go at 40 %. Triggers press at 55 % and let go at 40 %. Both sticks have a 12 % dead zone.
-
-A tap of **Menu** reaches the game as Start when you let go.
-
-A stick click acts when you let go, so a hold never also taps. The right one resets after a full second. A stick click is ignored while that stick is pushed more than half way, so the free camera cannot swap or reset by accident.
-
-**View** also starts Quick Save, Quick Load and Fast Forward, so the game sees it a moment late. Select starts 0.15 seconds after you press **View**. A quick tap is a 0.1 second Select, sent when you let go. Holding **View** for 1.5 seconds stops the game, counted from when Select starts. While you hold it the game sees Select held, and it sees Select let go when the game stops.
+A tap of **Menu** is Start and a tap of **View** is Select, sent when you let go. A stick click pushed more than half way is ignored, so the free camera cannot swap or reset by accident. The exact timings are in [TECHNICAL.md](TECHNICAL.md#controls).
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It happens when you let go of the bumper, with **View** still held. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
-
-- **View** has to go down first, with no bumper held. Bumpers first, then **View**, is the bottom screen button.
-- Pressing the other bumper or **Menu** while the bumper is held cancels it, so forming the VR / Flat switch never saves or loads. So does letting go of **View** first.
-- A second press within a second does nothing, so a bounce cannot load twice.
-- It works in a game in VR and in Flat. The in-game menu has **Quick Save** and **Quick Load** buttons too, see below.
+Hold **View**, then press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The half second is there so a brush of the bumper never throws away your progress. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window, and the in-game menu has both buttons too. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. Press **View** first: bumpers first, then **View**, is the bottom screen button. It works in VR and in Flat.
 
 ## Fast Forward
 
-Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you for 2 seconds. Do the same again to turn it off, and "Normal Speed" shows for 2 seconds. It also goes off when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat.
-
-- **View** has to go down first, with no bumper held. A bumper or **Menu** pressed while you pull cancels it. A second pull within a second does nothing.
-- The game sees neither Select nor ZR, and the stop timer starts over. Aimed at the bottom screen, that pull is not a touch either.
-- The left trigger with **View** held stays ZL.
-- It works in a game in VR and in Flat. In Flat there is no message; the speed in the status bar shows it.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you, and doing it again shows "Normal Speed". It also goes off when the game stops, when a menu opens and when you switch between VR and Flat. In Flat the speed in the status bar shows it.
 
 ## Pointing
 
@@ -66,17 +50,17 @@ Each controller has a beam. The hand that pulled its trigger last owns the dot, 
 | Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: nearer and farther (up, down), bigger and smaller (right, left) |
 | Top screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 
-The trigger is a touch only when the beam is on the bottom screen as you pull it. Anywhere else it is ZL or ZR, for as long as you hold it. A second trigger pulled on the bottom screen while it is already touched does nothing. A grip grabs the screen under the beam when you squeeze it. A grip squeezed with the beam on neither screen does nothing.
+The trigger is a touch only when the beam is on the bottom screen as you pull it; anywhere else it is ZL or ZR for as long as you hold it. A grip grabs the screen under the beam.
 
-The top screen starts 2 m ahead at eye height, 1 m tall. It goes no nearer than 1 m and no further than 10 m. It can be made up to 3 times bigger, which fills the whole view from where it starts, and down to half size. Making it bigger is the way to fill the view: the screens never come nearer than 1 m and 0.5 m. A screen bigger than its start size gets that much less 3D depth (a third at 3 times), so the two eyes' pictures of the distant scenery stay as far apart as at the start size and still fuse. Moving the screens with the hand never moves them sideways.
+The top screen starts 2 m ahead at eye height. It can be made up to 3 times bigger, which fills the whole view, and down to half size. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes.
 
 While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per press around you. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left) for 2 seconds. Use it when a big screen's edge is just out of view. To move them up or down, move the hand that holds them.
 
 D-pad up or down, while a grip holds the screens, makes them more or less curved, one step per press: Off, Gentle, Medium, Strong and Max. A label shows the new value, for example **Screen Curve: Medium**, and it is kept for every game. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
 
-The D-pad does not reach the game while you hold the screens, nor a direction you pressed then until you let go of it.
+When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. The D-pad does not reach the game while you hold the screens.
 
-The bottom screen follows the top one, 0.5 m nearer and tilted back 45 degrees, just under the top screen's bottom edge (0.75 m below its middle at the start size). It keeps its own size when the top screen grows, and moves down with that edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
+The bottom screen follows the top one, tilted back, just under its bottom edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
 
 ## Swapping the screens
 
@@ -86,7 +70,7 @@ The screens have two places. The main one is where the top screen starts. The se
 |---|---|
 | Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the top screen's height, and the top screen goes to the second place. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
-| Right stick click, held for 1 second | Resets the screen positions. The focus and what is hidden stay as they are |
+| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus.
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
@@ -126,7 +110,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Hide Bottom Screen**, **Wider View** and **Narrow Screen** apply the next time the game starts.
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Wider View** applies at once; **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts.
 
 A row of buttons shows under Azahar's menu bar while the in-game menu is open: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it.
 
@@ -136,7 +120,7 @@ To go back to the game, hold **Menu** for 1 second again, press **B** with no me
 
 Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar's window, on the home window and in the in-game menu. Point at one and pull the trigger or press **A**.
 
-**Controls** opens a panel to the left of the window. It shows drawings of the two Frame controllers, from the top and from the front, with a line from each button, stick, bumper, trigger and grip to what it does. Two tabs pick the page: **In Game** and **Azahar's Window** (which also has the in-game menu). The holds and the chords sit under the button they start from, for example **Hold View +** under View. The page that applies where you are opens first. The drawings are made from the controller models on your Frame; if they are missing, the panel shows the same controls as a list. The names come from your controls profile: a button you changed in **Emulation > Configure > Controls** shows its new job, and one you cleared shows **Nothing**. The face buttons follow the **Face Buttons** setting. In the list, the part that applies where you are is marked. The panel opens by itself the first time VR starts, and when the in-game menu opens, and closes with the menu. Once you close it with the **X** in its corner or the **Controls** button, the in-game menu leaves it closed until you open it again.
+**Controls** opens a panel beside the window with drawings of the two Frame controllers and a line from each button to what it does, in a game and on Azahar's window, following your controls profile and **Face Buttons**. It opens by itself the first time VR starts and with the in-game menu, until you close it with its **X** or the **Controls** button.
 
 **Stats** shows a small panel under the top screen while a game runs. It shows the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and late frames, the CPU load and the GPU clock. In immersive mode it hangs low in front of you. The **Show Stats** setting is the same switch.
 
@@ -148,7 +132,7 @@ The models are made from SteamVR's own Frame models when you install. If they ar
 
 Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on SteamVR's big screen (the theater), as a normal app, and stays there when you close the dashboard. Back in VR the 3D comes back; the window first goes back into the dashboard, which takes a few seconds. The next start uses the mode you switched to last.
 
-Hold both bumpers first. **View** with both bumpers held waits a moment for **Menu** before it is the bottom screen button or Select. The game sees L and R until the switch, then nothing of the four until you let go. After a switch the chord does nothing until you let go of all four buttons, and at least one second has passed, so one press switches once.
+Hold both bumpers first, then press **View** and **Menu**.
 
 ## Hiding the bottom screen
 
@@ -156,7 +140,7 @@ Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Sc
 
 | Control | What it does |
 |---|---|
-| Both bumpers, then **View** | Shows or hides the bottom screen. The game sees none of the three |
+| Both bumpers, then **View** | Shows or hides the bottom screen |
 | Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
 | Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look. SteamVR's recenter (hold the Steam button) does the same |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
@@ -172,8 +156,9 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Wider View, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Wider View: 1.2x**. Kept for this game |
-| Right stick click, tap, while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one |
-| Right stick click, held for 1 second, while holding the screen | Also re-centres the view and resets the normal screens |
+| Right stick click, held for 1 second | Puts the screen back where it starts, re-centres the view and resets the normal screens, held or not. A tap does nothing while you hold the screen |
+
+Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 
 The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
@@ -237,13 +222,13 @@ The differences:
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 
-Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Forward and the switch to VR work as in VR, and the game sees the same of their buttons as in VR (see [Buttons](#buttons)).
+Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Forward and the switch to VR work as in VR.
 
 ### The Flat menu
 
 Hold **Menu** for 1 second in a game in Flat. The game pauses and Azahar's window leaves Fullscreen, with its menu bar and status bar, so the pointer reaches **File**, **Emulation**, **View** and the rest, **Emulation > Configure Current Application...** included. The window stays on the big screen, 16:9.
 
-To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. The game sees none of these buttons while the menu is open. Holding **View** for 1.5 seconds stops the game.
+To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. Holding **View** for 1.5 seconds stops the game.
 
 Switching between VR and Flat with the in-game menu or the Flat menu open closes it, and the game goes on.
 

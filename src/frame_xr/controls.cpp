@@ -39,6 +39,13 @@ constexpr float kMenuDistance = 1.2f;
 constexpr float kMenuNearest = 0.6f;
 constexpr float kMenuWidthPerMetre = 0.8f;
 constexpr uint32_t kDimSize = 8;
+// AzaharFrame controls: the View hold's label, and the grip hint chip (shown once per grab, not
+// again within kHintQuietNs; "↕" and "↔" are drawn as arrows by the HUD).
+constexpr const char* kStoppingText = "Stopping...";
+constexpr const char* kHintNormal = "D-Pad \xE2\x86\x95 Curve   \xE2\x86\x94 Nudge\nStick: Size, Distance";
+constexpr const char* kHintImmersive =
+    "D-Pad \xE2\x86\x95 Wider View   \xE2\x86\x94 Offset\nStick: Size, Distance";
+constexpr int64_t kHintQuietNs = 10'000'000'000;
 constexpr uint8_t kDimAlpha = 150;
 constexpr XrTime kMenuHoldNs = 1'000'000'000;
 constexpr XrTime kStopHoldNs = 1'500'000'000;
@@ -627,6 +634,38 @@ uint32_t VrUi::CurveFor(const Immersive::ScreenLayers& shown) const {
     return std::min(Settings::values.vr_screen_curve.GetValue(), Rig::kMaxCurveDeg);
 }
 
+void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped) {
+    const ViewPose view = LatestViewPose();
+    if (!view.valid) {
+        return;
+    }
+    const Input::Vec3f head = ToInput(view.head).position;
+    Input::Vec3f at;
+    if (immersive) {
+        // Head-locked or wide, the immersive screen fills the middle of the view: the chip goes
+        // low in front of you, under where the toasts show.
+        Input::Vec3f forward = Input::Rotate(ToInput(view.head).orientation, {0, 0, -1});
+        forward.y = 0.0f;
+        forward =
+            Input::Length(forward) > 1e-3f ? Input::Normalized(forward) : Input::Vec3f{0, 0, -1};
+        at = head + forward * 0.9f + Input::Vec3f{0.0f, -0.45f, 0.0f};
+    } else {
+        // Under the lower of the two screens as drawn (the one in the secondary slot, unless it
+        // is hidden), a little below its bottom edge.
+        const Input::PanelQuad& low = swapped ? quads.top : quads.bottom;
+        const Input::PanelQuad& high = swapped ? quads.bottom : quads.top;
+        const Input::PanelQuad& under = low.visible ? low : high;
+        at = under.pose.position +
+             Input::Rotate(under.pose.orientation, {0.0f, -under.height_m * 0.5f - 0.05f, 0.0f});
+    }
+    const float distance = std::max(Input::Length(at - head), 0.3f);
+    // Below the screen and a little nearer, so it never hides inside a curved one.
+    at = at + Input::Normalized(head - at) * std::min(0.1f, distance * 0.1f);
+    const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
+    ShowHint(immersive ? kHintImmersive : kHintNormal, ToXr(pose), 0.32f * distance);
+    LOG_INFO(Frontend, "xr: grip hint shown ({})", immersive ? "immersive" : "screens");
+}
+
 void VrUi::StepScreenCurve(int dir) {
     if (!cylinder_ok) {
         ShowToastText("Screen Curve: Not Available");
@@ -770,6 +809,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             bridge_live = false;
         }
         nudger.Reset(); // AzaharFrame vrsize
+        was_holding = false;
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
@@ -806,6 +846,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool holding_normal = !holding_immersive && bridge.mapper().DragActive();
     const Rig::DpadNudger::Steps nudge =
         nudger.Filter(game_in, holding_immersive || holding_normal);
+    // AzaharFrame controls: a grab starts: the hint chip, unless one showed in the last 10 s.
+    if ((holding_immersive || holding_normal) && !was_holding &&
+        (last_hint_ns == 0 || in.time_ns - last_hint_ns >= kHintQuietNs)) {
+        last_hint_ns = in.time_ns;
+        ShowGripHint(holding_immersive, quads, screen_view.bottom_focus());
+    }
+    was_holding = holding_immersive || holding_normal;
     const Input::MapperOutput& out = bridge.Process(game_in, panels);
     bridge_live = true;
 
@@ -815,11 +862,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (cmd.toggle_bottom) {
             effect = screen_view.ToggleBottom(managed); // Left Bumper + Right Bumper + View
         } else if (Immersive::HoldingScreen()) {
-            // A grip holds the immersive screen: a right stick click tap puts it back where it
-            // starts (immersive2); no swap or hide meanwhile (a swap would cancel the move).
-            if (cmd.swap_screens) {
-                Immersive::ResetHeldScreen();
-            }
+            // A grip holds the immersive screen: no swap or hide meanwhile (a swap would cancel
+            // the move). The reset is the 1 s hold, as everywhere (AzaharFrame controls).
         } else if (cmd.swap_screens) {
             effect = screen_view.Swap(managed); // right stick click, tap
             LOG_INFO(Frontend, "xr: {} screen in focus",
@@ -839,8 +883,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     }
     if (cmd.reset_panels) {
         ResetPlacement(rt);
-        // Re-centre on the reset hold, never on a swap tap; with a grip on the immersive screen,
-        // that screen's reset too.
+        // AzaharFrame controls: one rule, the 1 s hold resets the screens and re-centres, in every
+        // mode (the immersive screen too, held or not); a tap never does.
         Immersive::OnResetPanels();
     } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f ||
                cmd.top_scale_stick != 0.0f) {
@@ -931,6 +975,15 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         stop_hold_logged = false;
         LOG_INFO(Frontend, "xr: View hold let go before the stop");
     }
+    // AzaharFrame controls: "Stopping..." from half the hold (0.75 s of 1.5 s), taken back if
+    // View is let go first.
+    if (cmd.stop_hold_progress >= 0.5f && !stopping_shown) {
+        stopping_shown = true;
+        ShowToastText(kStoppingText);
+    } else if (cmd.stop_hold_progress <= 0.0f && stopping_shown && !cmd.stop_game) {
+        stopping_shown = false;
+        HideToastText(kStoppingText);
+    }
     if (cmd.toggle_vr) {
         RequestToggleVr("game");
     }
@@ -945,6 +998,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     }
     if (cmd.stop_game) {
         stop_hold_logged = false;
+        stopping_shown = false;
         std::scoped_lock lock{hooks_mutex};
         if (hooks.stop_game) {
             LOG_INFO(Frontend, "xr: View held, stopping the game");

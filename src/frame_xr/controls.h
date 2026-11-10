@@ -121,6 +121,9 @@ private:
     void ResetPlacement(Runtime& runtime);
     /// AzaharFrame curve: grip + D-pad up (+1) or down (-1) on the normal screens.
     void StepScreenCurve(int dir);
+    /// AzaharFrame controls: the hint chip under the held screens (or low in front of you for
+    /// the immersive screen).
+    void ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped);
     /// Both bumpers + View + Menu outside a game (the mapper finds it in a game): once per chord.
     bool ModeChord(const Input::InputFrame& in);
     /// Asks the Qt side to switch between VR and flat (FrontendHooks::toggle_vr).
@@ -185,6 +188,9 @@ private:
     XrTime last_time = 0;
     uint64_t logged_generation = 0; // last library generation logged ("xr: picker: N games")
     bool stop_hold_logged = false;  // "xr: View hold started" logged for this press
+    bool stopping_shown = false;    ///< AzaharFrame controls: "Stopping..." shown for this hold
+    bool was_holding = false;       ///< a grip held a screen last game frame (the hint chip)
+    int64_t last_hint_ns = 0;       ///< when the hint chip last showed
 
     bool chord_down = false; ///< ModeChord's edge
     /// After a VR / flat switch the chord's buttons stay away from everything until all four

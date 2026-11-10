@@ -913,17 +913,29 @@ TEST_CASE("FrameXr mapper: View, then a bumper, is Quick Save or Quick Load", "[
         frame.hand[1].bumper = false;
         REQUIRE_FALSE(runner.Step(frame).commands.quick_save);
     }
-    SECTION("the Left Bumper after View is Quick Load") {
+    SECTION("the Left Bumper held 0.5 s after View is Quick Load; a short press is nothing") {
         frame.view = true;
         runner.Step(frame);
         frame.hand[0].bumper = true;
         REQUIRE_FALSE(runner.Step(frame).controls.Get(Control::BumperL));
-        frame.hand[0].bumper = false;
-        const MapperOutput out = runner.Step(frame);
-        REQUIRE(out.commands.quick_load);
+        frame.hand[0].bumper = false; // let go at once: no load
+        MapperOutput out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.quick_load);
+        REQUIRE_FALSE(out.controls.Get(Control::BumperL));
+        frame.hand[0].bumper = true;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.commands.quick_load);
+        runner.now += 400'000'000;
+        REQUIRE_FALSE(runner.Step(frame).commands.quick_load); // not yet
+        runner.now += 100'000'000;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.quick_load); // as 0.5 s is reached, still held
         REQUIRE_FALSE(out.commands.quick_save);
         REQUIRE_FALSE(out.controls.Get(Control::BumperL));
         REQUIRE_FALSE(out.controls.Get(Control::View));
+        REQUIRE_FALSE(runner.Step(frame).commands.quick_load); // once per press
+        frame.hand[0].bumper = false;
+        REQUIRE_FALSE(runner.Step(frame).commands.quick_load);
     }
     SECTION("it works after the wait too, and cancels the stop hold") {
         frame.view = true;
@@ -938,9 +950,11 @@ TEST_CASE("FrameXr mapper: View, then a bumper, is Quick Save or Quick Load", "[
         out = runner.Step(frame);
         REQUIRE_FALSE(out.controls.Get(Control::View));
         REQUIRE(out.commands.stop_hold_progress == Approx(0.0f));
-        frame.hand[0].bumper = false;
+        runner.now += 500'000'000;
         out = runner.Step(frame);
         REQUIRE(out.commands.quick_load);
+        frame.hand[0].bumper = false;
+        runner.Step(frame);
         runner.now += 2'000'000'000;
         out = runner.Step(frame);
         REQUIRE_FALSE(out.commands.stop_game);
@@ -974,18 +988,22 @@ TEST_CASE("FrameXr mapper: View, then a bumper, is Quick Save or Quick Load", "[
         runner.Step(frame);
         frame.hand[0].bumper = true;
         runner.Step(frame);
-        frame.hand[0].bumper = false;
+        runner.now += 500'000'000;
         REQUIRE(runner.Step(frame).commands.quick_load);
-        frame.hand[0].bumper = true; // a bounce
+        frame.hand[0].bumper = false;
+        runner.Step(frame);
+        frame.hand[0].bumper = true; // pressed and held again at once
         MapperOutput out = runner.Step(frame);
         REQUIRE_FALSE(out.controls.Get(Control::BumperL)); // swallowed again
-        frame.hand[0].bumper = false;
+        runner.now += 600'000'000;
         out = runner.Step(frame);
-        REQUIRE_FALSE(out.commands.quick_load);
+        REQUIRE_FALSE(out.commands.quick_load); // held long enough, but within the cooldown
+        frame.hand[0].bumper = false;
+        runner.Step(frame);
         runner.now += 1'000'000'000;
         frame.hand[0].bumper = true;
         runner.Step(frame);
-        frame.hand[0].bumper = false;
+        runner.now += 500'000'000;
         REQUIRE(runner.Step(frame).commands.quick_load);
     }
     SECTION("a bumper held first is not the combo") {
