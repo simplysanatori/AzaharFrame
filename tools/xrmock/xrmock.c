@@ -169,6 +169,7 @@ static const char* pathStr(XrPath p) {
 static char gExtNames[64][XR_MAX_EXTENSION_NAME_SIZE];
 static int gExtCount = 0;
 static int gFrameControllerExt = 0;  // XR_VALVE_frame_controller_interaction enabled
+static int gCylinderExt = 0;        // XR_KHR_composition_layer_cylinder enabled
 
 static XrResult XRAPI_CALL mEnumExt(const char* layer, uint32_t cap, uint32_t* count, XrExtensionProperties* props) {
     (void)layer;
@@ -195,6 +196,7 @@ static XrResult XRAPI_CALL mCreateInstance(const XrInstanceCreateInfo* ci, XrIns
             res = XR_ERROR_EXTENSION_NOT_PRESENT;
         }
         if (!strcmp(name, "XR_VALVE_frame_controller_interaction")) gFrameControllerExt = 1;
+        if (!strcmp(name, "XR_KHR_composition_layer_cylinder")) gCylinderExt = 1;
         if (strlen(line) + strlen(name) + 2 < sizeof(line)) {
             strcat(line, " ");
             strcat(line, name);
@@ -967,7 +969,7 @@ static XrResult XRAPI_CALL mEnumSwapImages(XrSwapchain sc, uint32_t cap, uint32_
 
 static struct {
     int waits, begins, ends;
-    int layersMin, layersMax, quads, projs;
+    int layersMin, layersMax, quads, projs, cyls;
     int rel[MAXSC];
     int busy;
 } gSec;
@@ -987,8 +989,8 @@ static void secEmit(void) {
         snprintf(t, sizeof(t), " sc%d=%d", i, gSec.rel[i]);
         if (strlen(rel) + strlen(t) < sizeof(rel)) strcat(rel, t);
     }
-    trace("summary t=%ds waits=%d begins=%d ends=%d layers=%d..%d quads=%d proj=%d releases:%s busy=%d errors=%d", gSecIdx, gSec.waits, gSec.begins,
-          gSec.ends, gSec.ends ? gSec.layersMin : 0, gSec.layersMax, gSec.quads, gSec.projs, rel, gSec.busy, gErrors);
+    trace("summary t=%ds waits=%d begins=%d ends=%d layers=%d..%d quads=%d proj=%d cyl=%d releases:%s busy=%d errors=%d", gSecIdx, gSec.waits,
+          gSec.begins, gSec.ends, gSec.ends ? gSec.layersMin : 0, gSec.layersMax, gSec.quads, gSec.projs, gSec.cyls, rel, gSec.busy, gErrors);
     secReset();
 }
 
@@ -1373,7 +1375,7 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
         return XR_ERROR_CALL_ORDER_INVALID;
     }
     gBegun = 0;
-    int quads = 0, projs = 0;
+    int quads = 0, projs = 0, cyls = 0;
     int shown[32];
     int nshown = 0;
     XrResult res = XR_SUCCESS;
@@ -1436,6 +1438,51 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
                 strcat(buf, t);
             }
             strcat(buf, "]");
+        } else if (l->type == XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR) {
+            // XR_KHR_composition_layer_cylinder: the same checks as a quad, and its shape logged.
+            const XrCompositionLayerCylinderKHR* c = (const XrCompositionLayerCylinderKHR*)l;
+            cyls++;
+            if (!gCylinderExt) mock_error("endFrame cylinder layer %u without XR_KHR_composition_layer_cylinder", i);
+            Chain* ch = chainOf(c->subImage.swapchain);
+            Space* sp = spaceOf(c->space);
+            if (!ch || !sp) {
+                mock_error("endFrame cylinder layer %u with an unknown swapchain or space", i);
+                res = XR_ERROR_LAYER_INVALID;
+                continue;
+            }
+            if (nshown < 32) {
+                int id = chainId(c->subImage.swapchain), dup = 0;
+                for (int k = 0; k < nshown; k++) dup |= shown[k] == id;
+                if (!dup) shown[nshown++] = id;
+            }
+            if (ch->releases == 0) {
+                mock_error("endFrame cylinder layer %u submits sc%d, which has no image released", i, chainId(c->subImage.swapchain));
+                res = XR_ERROR_LAYER_INVALID;
+            }
+            const XrRect2Di* r = &c->subImage.imageRect;
+            if (r->offset.x < 0 || r->offset.y < 0 || r->offset.x + r->extent.width > ch->w || r->offset.y + r->extent.height > ch->h) {
+                mock_error("endFrame cylinder layer %u: image rect outside sc%d", i, chainId(c->subImage.swapchain));
+                res = XR_ERROR_VALIDATION_FAILURE;
+            }
+            if (!(c->radius >= 0.0f) || !(c->centralAngle > 0.0f) || !(c->centralAngle < 6.2831853f) || !(c->aspectRatio > 0.0f)) {
+                mock_error("endFrame cylinder layer %u: radius %.3f, central angle %.3f, aspect %.3f out of range", i, c->radius, c->centralAngle,
+                           c->aspectRatio);
+                res = XR_ERROR_VALIDATION_FAILURE;
+            }
+            // The arc's width and height in metres, as a quad's size.
+            const float w = c->radius * c->centralAngle, h = c->aspectRatio > 0.0f ? w / c->aspectRatio : 0.0f;
+            snprintf(t, sizeof(t), " cyl[sc%d:%dx%d eye=%d sp=%s r=%.2f angle=%.1f aspect=%.3f arc=%.2fx%.2f", chainId(c->subImage.swapchain),
+                     r->extent.width, r->extent.height, (int)c->eyeVisibility, kSpaceNames[sp->kind], c->radius, c->centralAngle * 57.2957795f,
+                     c->aspectRatio, w, h);
+            strcat(buf, t);
+            static int poseTraceC = -1;
+            if (poseTraceC < 0) poseTraceC = getenv("MOCK_XR_TRACE_POSE") != NULL;
+            if (poseTraceC) {
+                snprintf(t, sizeof(t), " pos=%.2f,%.2f,%.2f q=%.2f,%.2f,%.2f,%.2f", c->pose.position.x, c->pose.position.y, c->pose.position.z,
+                         c->pose.orientation.x, c->pose.orientation.y, c->pose.orientation.z, c->pose.orientation.w);
+                strcat(buf, t);
+            }
+            strcat(buf, "]");
         } else {
             snprintf(t, sizeof(t), " layer%d", (int)l->type);
             strcat(buf, t);
@@ -1446,6 +1493,7 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     gSec.ends++;
     gSec.quads += quads;
     gSec.projs += projs;
+    gSec.cyls += cyls;
     if ((int)ei->layerCount < gSec.layersMin) gSec.layersMin = (int)ei->layerCount;
     if ((int)ei->layerCount > gSec.layersMax) gSec.layersMax = (int)ei->layerCount;
     trace("endFrame layers=%u%s", ei->layerCount, buf);
@@ -1623,7 +1671,8 @@ static void init(void) {
         free(copy);
     } else {
         const char* exts[] = {"XR_KHR_vulkan_enable2", "XR_FB_display_refresh_rate", "XR_EXT_performance_settings",
-                              "XR_VALVE_frame_controller_interaction", "XR_KHR_composition_layer_depth", "XR_EXT_eye_gaze_interaction"};
+                              "XR_VALVE_frame_controller_interaction", "XR_KHR_composition_layer_depth", "XR_EXT_eye_gaze_interaction",
+                              "XR_KHR_composition_layer_cylinder"};
         for (unsigned i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) strcpy(gExtNames[gExtCount++], exts[i]);
         if (getenv("MOCK_XR_SPACEWARP")) strcpy(gExtNames[gExtCount++], "XR_FB_space_warp");
     }

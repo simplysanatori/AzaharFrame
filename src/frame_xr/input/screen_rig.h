@@ -7,6 +7,8 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/input/types.h"
 
@@ -67,6 +69,54 @@ std::optional<Posef> NudgeTop(const Posef& top, int right_steps, int up_steps);
 /// "Moved Right", "Moved Left", "Moved Up", "Moved Down".
 const char* MovedToast(int right_steps, int up_steps);
 
+// ---- AzaharFrame curve: Screen Curve ------------------------------------------------------
+//
+// The normal screens can be cylinder layers (XR_KHR_composition_layer_cylinder) instead of
+// quads, bent about a vertical axis (their own +Y) so the sides come towards you. The setting
+// (Settings::values.vr_screen_curve, global) is the angle the main screen's width spans: its
+// radius is width / angle, so the arc is as long as the flat screen was wide and the picture
+// keeps its shape and size. Both screens bend about axes through one point: the main screen's
+// centre of curvature, `radius` in front of it (at the step where the radius equals the
+// distance, that point is you). The screen in the other slot is tilted, so it cannot share the
+// main one's axis; its own axis passes through the same point and its radius follows from that
+// (SecondaryCurveRadius). A cylinder layer's middle is at its pose's -Z, `radius` away: the pose
+// is the screen's own, moved `radius` towards the viewer (CylinderFor), so the screen's place,
+// the grip move, the size and the nudge all stay as they are for the flat screen.
+
+/// The steps of grip + D-pad up and down and of the settings, in degrees (0 = flat): Off,
+/// Gentle, Medium, Strong, Max (CurveName).
+inline constexpr std::array<uint32_t, 5> kCurveStepsDeg{0, 15, 30, 45, 60};
+/// Never bent further than this (a value typed into the config, or the second screen).
+inline constexpr uint32_t kMaxCurveDeg = 180;
+
+/// The next step up (dir > 0) or down (dir < 0) from `deg`; a value between two steps goes to
+/// the next one that way. At the ends it stays.
+uint32_t StepCurve(uint32_t deg, int dir);
+/// "Off", "Gentle", "Medium", "Strong", "Max" for the steps; a value between steps (typed into
+/// the config) has the name of the nearest one.
+const char* CurveName(uint32_t deg);
+/// "Screen Curve: Medium".
+std::string CurveToast(uint32_t deg);
+/// The radius that bends a screen `width` wide by `deg` degrees (arc length = width); 0 = flat.
+float CurveRadius(float width, uint32_t deg);
+/// The radius of the screen in the other slot, whose axis passes through the main screen's
+/// centre of curvature (`main_radius` in front of `main`). Bent no further than kMaxCurveDeg
+/// across `secondary_width`; the main radius when the point is behind it.
+float SecondaryCurveRadius(const Posef& main, float main_radius, const Posef& secondary,
+                           float secondary_width);
+/// Sets curve_radius of both quads for `deg` (0 leaves both flat). `main` is the screen in the
+/// main slot, whatever its visibility: the shared point comes from its place.
+void ApplyCurve(PanelQuad& main, PanelQuad& secondary, uint32_t deg);
+
+/// What a cylinder layer needs to show a screen of this size bent with this radius.
+struct Cylinder {
+    Posef pose;
+    float radius = 0.0f;
+    float central_angle = 0.0f; ///< radians: width / radius
+    float aspect_ratio = 1.0f;  ///< width / height of the arc, as the flat screen
+};
+Cylinder CylinderFor(const Posef& screen, float width, float height, float radius);
+
 /// The D-pad while a grip holds a screen (the normal pair or the immersive screen). While
 /// `holding`, the D-pad never reaches the game; a direction pressed then stays away from it until
 /// it is let go, even after the grip. A press is one step, and held it repeats.
@@ -78,6 +128,8 @@ public:
     struct Steps {
         int right = 0;
         int up = 0;
+        /// AzaharFrame curve: the new presses of up (+1) and down (-1) only, without repeats.
+        int up_presses = 0;
         bool Any() const {
             return right != 0 || up != 0;
         }

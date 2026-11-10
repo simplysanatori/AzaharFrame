@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 (unreleased)
+
+### The screens
+
+- **Screen Curve**: the screens can now bend toward you like a curved monitor, Off, Gentle, Medium, Strong or Max. The picture keeps its size and shape, the 3D still works, and touch lands where the beam points. Both screens curve around the same point, so they read as one surface. Immersive mode stays flat.
+- While you hold the screens with a grip, D-pad up or down changes the curve, and a label shows the new value. It is kept for every game.
+- D-pad left or right still nudges the screens around you. To move them up or down, move the hand that holds them.
+
+### Immersive mode
+
+- **Squeeze Width** has a 30% step, for HUDs that sit far out at the sides.
+
 ## 1.0.0 (November 2026)
 
 The first release of Azahar for Frame: Nintendo 3DS games in VR, running natively on the Valve Steam Frame. It is the Azahar emulator with the VR modes of amwatson's CitraVR.

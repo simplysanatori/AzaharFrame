@@ -146,7 +146,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
-| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). The D-pad nudges them a little |
+| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens |
@@ -168,7 +168,7 @@ On Azahar's window and in the in-game menu:
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
 
-The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press the D-pad: each press moves the screens half a degree around you, and **Moved Right** (or Left, Up, Down) shows for 2 seconds. While you hold the screens the D-pad does not reach the game.
+The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the screens more or less curved (Off, Gentle, Medium, Strong, Max), and **Screen Curve: Medium** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game.
 
 With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 
@@ -247,7 +247,7 @@ A tap of the right stick click swaps to the bottom screen, which pauses immersiv
 Two more settings in the same group, per game, for the Full modes. Both are read when the game starts:
 
 - **Wider View** (off by default): a bigger screen also shows more of the game around its own picture, up to CitraVR's 1.4 times, instead of only enlarging it. Most games stop drawing their scenery just past their own view, so the edges can show black boxes or missing scenery. Super Mario 3D Land does.
-- **Squeeze Width** (**Off**, **10%**, **20%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
+- **Squeeze Width** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
 
 The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, 1x by default), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 

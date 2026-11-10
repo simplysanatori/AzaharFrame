@@ -146,10 +146,10 @@ RELTOTAL=$(awk '/ total sc[0-9]+ /{for(i=1;i<=NF;i++) if($i ~ /^releases=/){spli
     grep -m 10 ' ERROR ' "$T" 2>/dev/null | sed 's/^/  /'
     grep -m 5 ' WARN ' "$T" 2>/dev/null | sed 's/^/  /'
     echo "per-second averages (the first and last second left out when there are more than 3):"
-    awk '/ summary t=/{n++; for(i=1;i<=NF;i++){split($i,a,"="); if(a[1]=="waits")w[n]=a[2]; if(a[1]=="ends")e[n]=a[2]; if(a[1]=="quads")q[n]=a[2]; if($i ~ /^sc[0-9]+=/) r[n","a[1]]=a[2]; if($i ~ /^sc[0-9]+=/) names[a[1]]=1}}
+    awk '/ summary t=/{n++; for(i=1;i<=NF;i++){split($i,a,"="); if(a[1]=="waits")w[n]=a[2]; if(a[1]=="ends")e[n]=a[2]; if(a[1]=="quads")q[n]=a[2]; if(a[1]=="cyl")cy[n]=a[2]; if($i ~ /^sc[0-9]+=/) r[n","a[1]]=a[2]; if($i ~ /^sc[0-9]+=/) names[a[1]]=1}}
          END{lo=1; hi=n; if(n>3){lo=2; hi=n-1} c=hi-lo+1; if(c<1){print "  (no full second recorded)"; exit}
-             for(k=lo;k<=hi;k++){sw+=w[k]; se+=e[k]; sq+=q[k]; for(m in names) sr[m]+=r[k","m]}
-             printf "  waitFrame %.1f/s, endFrame %.1f/s, quad layers per endFrame %.2f\n", sw/c, se/c, se? sq/se : 0;
+             for(k=lo;k<=hi;k++){sw+=w[k]; se+=e[k]; sq+=q[k]; scy+=cy[k]; for(m in names) sr[m]+=r[k","m]}
+             printf "  waitFrame %.1f/s, endFrame %.1f/s, quad layers per endFrame %.2f, cylinder layers %.2f\n", sw/c, se/c, se? sq/se : 0, se? scy/se : 0;
              for(m in names) printf "  releases %s %.1f/s\n", m, sr[m]/c}' "$T" 2>/dev/null
     grep ' total ' "$T" 2>/dev/null | sed 's/^f[0-9]* /  /'
     grep -h '^xrmock:' "$OUT/emulator.log" 2>/dev/null | sed 's/^/  /'

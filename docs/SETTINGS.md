@@ -22,12 +22,13 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller** | Right Controller | global | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
+| [Screen Curve](#screen-curve) | **Off**, **Gentle**, **Medium**, **Strong**, **Max** | Off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Wider View](#wider-view) | on or off | off | global and per game | when the game starts |
-| [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%** | Off | global and per game | when the game starts |
+| [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -69,6 +70,10 @@ Shows the Frame controllers in your hands, with their buttons and sticks moving.
 
 Shows a small panel under the top screen while a game runs: the game's frame rate, the emulation speed, the frame times, the headset's frame rate, the CPU load and the GPU clock. The **Stats** button above Azahar's window is the same switch.
 
+## Screen Curve
+
+Bends the two screens toward you, like a curved monitor. The picture keeps its size and shape. Gentle, Medium, Strong and Max wrap the top screen's width round 15°, 30°, 45° and 60°; Strong to Max wraps a screen at its start place evenly around you. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
+
 ## Screen Shape
 
 The shape of the top screen in VR, and of the screen in immersive mode. The screen keeps its height and its width follows the shape. The bottom screen stays as it is.
@@ -108,7 +113,7 @@ Some games stop drawing their scenery just past their own view, so the edges sho
 
 ## Squeeze Width
 
-Full modes only. Makes the immersive screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Use **10%** or **20%** when the HUD sits too far out to read.
+Full modes only. Makes the immersive screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Use **10%**, **20%** or **30%** when the HUD sits too far out to read.
 
 ## Depth Factor Multiplier
 

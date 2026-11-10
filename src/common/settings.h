@@ -732,10 +732,10 @@ struct Values {
     // view (periphery factor 1.0 to 1.4) instead of only enlarging its picture. Off by default:
     // past its own view a game's culling and scenery run out. Read when a game starts.
     SwitchableSetting<bool> vr_immersive_wider_view{false, "vr_immersive_wider_view"};
-    // AzaharFrame: Full (6DoF) only. Squeeze Width: 0 = off, 1 = 10 %, 2 = 20 % narrower
+    // AzaharFrame: Full (6DoF) only. Squeeze Width: 0 = off, 1 = 10 %, 2 = 20 %, 3 = 30 % narrower
     // immersive screen at the same height, so the HUD at the sides moves in
     // (frame_xr/immersive_layout.h). Read when a game starts.
-    SwitchableSetting<u32, true> vr_immersive_squeeze{0, 0, 2, "vr_immersive_squeeze"};
+    SwitchableSetting<u32, true> vr_immersive_squeeze{0, 0, 3, "vr_immersive_squeeze"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).
@@ -760,6 +760,11 @@ struct Values {
     // VR sets it; read every frame (frame_xr/immersive_layout.h).
     SwitchableSetting<float, true> vr_immersive_offset_x{0.f, -10.f, 10.f, "vr_immersive_offset_x"};
     SwitchableSetting<float, true> vr_immersive_offset_y{0.f, -10.f, 10.f, "vr_immersive_offset_y"};
+    // AzaharFrame curve (global only): the normal (not immersive) screens bent into cylinder
+    // layers, as the angle in degrees the main screen's width spans (0 = flat quads). The steps
+    // are 15, 30, 45 and 60; grip + D-pad up or down in VR changes it. Read every frame
+    // (frame_xr/input/screen_rig.h).
+    SwitchableSetting<u32, true> vr_screen_curve{0, 0, 180, "vr_screen_curve"};
 };
 
 extern Values values;

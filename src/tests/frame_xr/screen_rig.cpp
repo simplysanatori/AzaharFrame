@@ -195,3 +195,113 @@ TEST_CASE("FrameXr screen rig: grip + D-pad", "[frame_xr]") {
         REQUIRE_FALSE(in.dpad_down);
     }
 }
+
+// AzaharFrame curve: Screen Curve (frame_xr/input/screen_rig.h).
+TEST_CASE("FrameXr screen rig: the curve steps", "[frame_xr]") {
+    REQUIRE(StepCurve(0, 1) == 15);
+    REQUIRE(StepCurve(15, 1) == 30);
+    REQUIRE(StepCurve(45, 1) == 60);
+    REQUIRE(StepCurve(60, 1) == 60); // the strongest step stays
+    REQUIRE(StepCurve(60, -1) == 45);
+    REQUIRE(StepCurve(15, -1) == 0);
+    REQUIRE(StepCurve(0, -1) == 0);
+    REQUIRE(StepCurve(30, 0) == 30);
+    // A value typed into the config between two steps goes to the next one that way.
+    REQUIRE(StepCurve(40, 1) == 45);
+    REQUIRE(StepCurve(40, -1) == 30);
+    REQUIRE(StepCurve(500, -1) == 60);
+    // Up all the way and down all the way pass every step once.
+    uint32_t deg = 0;
+    int ups = 0;
+    while (StepCurve(deg, 1) != deg) {
+        deg = StepCurve(deg, 1);
+        ups++;
+    }
+    REQUIRE(ups == static_cast<int>(kCurveStepsDeg.size()) - 1);
+    REQUIRE(CurveToast(0) == "Screen Curve: Off");
+    REQUIRE(CurveToast(15) == "Screen Curve: Gentle");
+    REQUIRE(CurveToast(30) == "Screen Curve: Medium");
+    REQUIRE(CurveToast(45) == "Screen Curve: Strong");
+    REQUIRE(CurveToast(60) == "Screen Curve: Max");
+    REQUIRE(std::string(CurveName(5)) == "Gentle"); // a typed value near Off is still curved
+    REQUIRE(std::string(CurveName(40)) == "Strong");
+}
+
+TEST_CASE("FrameXr screen rig: a curved screen keeps its size and shape", "[frame_xr]") {
+    const float width = 1.0f * kAspect3ds; // the top screen at size 1
+    const float height = 1.0f;
+    REQUIRE(CurveRadius(width, 0) == 0.0f);
+    REQUIRE(CurveRadius(0.0f, 30) == 0.0f);
+    for (const uint32_t deg : {15u, 30u, 45u, 60u}) {
+        const float r = CurveRadius(width, deg);
+        const Cylinder c = CylinderFor(Ahead(2.0f), width, height, r);
+        // The arc is as long as the flat screen was wide, at the angle of the step.
+        REQUIRE(c.central_angle == Approx(deg * kDeg));
+        REQUIRE(c.radius * c.central_angle == Approx(width));
+        // The cylinder layer's height (radius x angle / aspect) is the flat screen's.
+        REQUIRE(c.radius * c.central_angle / c.aspect_ratio == Approx(height));
+        // The middle of the arc stays where the flat screen's middle was: the pose is `radius`
+        // nearer the viewer, and the arc's middle is at the pose's -Z.
+        const Vec3f middle = c.pose.position + Rotate(c.pose.orientation, Vec3f{0, 0, -c.radius});
+        REQUIRE(middle.z == Approx(-2.0f));
+        REQUIRE(middle.x == Approx(0.0f).margin(1e-5f));
+    }
+    // At the step whose radius is the distance, the centre is the viewer: 1.667 m / 2 m = 47.7
+    // degrees, between the 45 and 60 degree steps.
+    const float r45 = CurveRadius(width, 45);
+    const float r60 = CurveRadius(width, 60);
+    REQUIRE(r45 > 2.0f);
+    REQUIRE(r60 < 2.0f);
+    // A wider (bigger or wider-shaped) screen at the same step has a bigger radius.
+    REQUIRE(CurveRadius(2.0f * width, 30) == Approx(2.0f * CurveRadius(width, 30)));
+}
+
+TEST_CASE("FrameXr screen rig: both screens bend about the same point", "[frame_xr]") {
+    const float scale = 1.0f;
+    const Posef top = Ahead(2.0f);
+    const Posef bottom = BottomFromTop(top, scale);
+    const float bottom_w = 0.75f;
+    for (const uint32_t deg : {15u, 45u, 60u}) {
+        PanelQuad main{top, kAspect3ds, 1.0f, true};
+        PanelQuad second{bottom, bottom_w, 0.5625f, true};
+        ApplyCurve(main, second, deg);
+        REQUIRE(main.curve_radius == Approx(CurveRadius(kAspect3ds, deg)));
+        REQUIRE(second.curve_radius > 0.0f);
+        // The bottom screen's axis (through its cylinder pose, along its +Y) passes through the
+        // top screen's centre of curvature.
+        const Vec3f centre = CylinderFor(top, kAspect3ds, 1.0f, main.curve_radius).pose.position;
+        const Cylinder b = CylinderFor(bottom, bottom_w, 0.5625f, second.curve_radius);
+        const Vec3f axis = Rotate(b.pose.orientation, Vec3f{0, 1, 0});
+        const Vec3f to = centre - b.pose.position;
+        const Vec3f off_axis = to - axis * Dot(to, axis);
+        REQUIRE(Length(off_axis) == Approx(0.0f).margin(1e-4f));
+    }
+    // Nothing bends at 0.
+    PanelQuad main{top, kAspect3ds, 1.0f, true};
+    PanelQuad second{bottom, bottom_w, 0.5625f, true};
+    ApplyCurve(main, second, 0);
+    REQUIRE(main.curve_radius == 0.0f);
+    REQUIRE(second.curve_radius == 0.0f);
+    // A secondary screen whose shared point would be behind it takes the main radius.
+    REQUIRE(SecondaryCurveRadius(top, 1.0f, Ahead(-1.0f), 0.5f) == Approx(1.0f));
+}
+
+TEST_CASE("FrameXr screen rig: D-pad up and down presses for the curve", "[frame_xr]") {
+    DpadNudger nudger;
+    InputFrame in;
+    const auto frame = [&](int64_t ms, bool up, bool down) {
+        in = {};
+        in.time_ns = ms * 1'000'000;
+        in.dpad_up = up;
+        in.dpad_down = down;
+        return nudger.Filter(in, true);
+    };
+    REQUIRE(frame(0, true, false).up_presses == 1);
+    // Held, it repeats as a nudge but is one press only.
+    REQUIRE(frame(400, true, false).up == 1);
+    REQUIRE(frame(400, true, false).up_presses == 0);
+    REQUIRE(frame(500, true, false).up_presses == 0);
+    frame(600, false, false);
+    REQUIRE(frame(700, false, true).up_presses == -1);
+    REQUIRE_FALSE(in.dpad_down);
+}

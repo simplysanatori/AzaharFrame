@@ -88,8 +88,14 @@ public:
         XrExtent2Df top_size{};
         XrPosef bottom_pose{{0, 0, 0, 1}, {0, 0, 0}};
         XrExtent2Df bottom_size{};
+        /// AzaharFrame curve: above 0, the screen is a cylinder layer of this radius (screen_rig.h).
+        float top_curve = 0.0f;
+        float bottom_curve = 0.0f;
     };
     ScreenDraw ScreenDrawFor(const Immersive::ScreenLayers& shown) const;
+    /// AzaharFrame curve: the Screen Curve (degrees) for the screens as `shown`: 0 unless they
+    /// are the normal screens (not the immersive ones) and the runtime takes cylinder layers.
+    uint32_t CurveFor(const Immersive::ScreenLayers& shown) const;
 
     // GUI thread.
     void SetFrontendHooks(FrontendHooks hooks);
@@ -113,6 +119,8 @@ private:
     /// Buttons held as the in-game menu closed stay away from the game until let go.
     void FilterAfterMenu(Input::InputFrame& in);
     void ResetPlacement(Runtime& runtime);
+    /// AzaharFrame curve: grip + D-pad up (+1) or down (-1) on the normal screens.
+    void StepScreenCurve(int dir);
     /// Both bumpers + View + Menu outside a game (the mapper finds it in a game): once per chord.
     bool ModeChord(const Input::InputFrame& in);
     /// Asks the Qt side to switch between VR and flat (FrontendHooks::toggle_vr).
@@ -133,6 +141,8 @@ private:
     Input::ScreenView screen_view; ///< AzaharFrame screenswap: focus and hiding, XR thread only
     /// AzaharFrame vrsize: grip + D-pad turns the held screen a step (XR thread only).
     Input::ScreenRig::DpadNudger nudger;
+    /// AzaharFrame curve: the runtime takes cylinder layers (XR_KHR_composition_layer_cylinder).
+    bool cylinder_ok = false;
     bool normal_dragging = false; ///< a grip held the normal screens last frame (for the log)
     bool actions_ok = false;
     bool bridge_live = false;

@@ -14,7 +14,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left and right grip | Move the screens | Nothing reaches the game. See Pointing |
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
-| Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen instead |
+| Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead |
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold. A bumper or **View** pressed during the hold cancels it |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
 | Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
@@ -70,7 +70,11 @@ The trigger is a touch only when the beam is on the bottom screen as you pull it
 
 The top screen starts 2 m ahead at eye height, 1 m tall. It goes no nearer than 1 m and no further than 10 m. It can be made up to 3 times bigger, which fills the whole view from where it starts, and down to half size. Making it bigger is the way to fill the view: the screens never come nearer than 1 m and 0.5 m. A screen bigger than its start size gets that much less 3D depth (a third at 3 times), so the two eyes' pictures of the distant scenery stay as far apart as at the start size and still fuse. Moving the screens with the hand never moves them sideways.
 
-While a grip holds the screens, the D-pad nudges them 0.5 degrees per press around you, left, right, up or down. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left, Up, Down) for 2 seconds. Use it when a big screen's edge is just out of view. The D-pad does not reach the game while you hold the screens, nor a direction you pressed then until you let go of it.
+While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per press around you. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left) for 2 seconds. Use it when a big screen's edge is just out of view. To move them up or down, move the hand that holds them.
+
+D-pad up or down, while a grip holds the screens, makes them more or less curved, one step per press: Off, Gentle, Medium, Strong and Max. A label shows the new value, for example **Screen Curve: Medium**, and it is kept for every game. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
+
+The D-pad does not reach the game while you hold the screens, nor a direction you pressed then until you let go of it.
 
 The bottom screen follows the top one, 0.5 m nearer and tilted back 45 degrees, just under the top screen's bottom edge (0.75 m below its middle at the start size). It keeps its own size when the top screen grows, and moves down with that edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
 

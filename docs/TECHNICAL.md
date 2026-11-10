@@ -45,7 +45,17 @@ The three screens are the 3DS's own images: the right eye is the 3DS's right ima
 - Tracking uses the LOCAL space; immersive mode also uses VIEW.
 - The display rate is not asked for in the code. `azaharframe.sh` sets SteamVR's per-app settings (120 Hz by default, no throttling, no motion smoothing) before every launch, and `install.sh` sets them for the library entry.
 
-SteamVR on the Frame has no cylinder layer, only quads and projection layers. The screens are quad layers. Passthrough is the alpha-blended environment mode, used for **Background: Passthrough** when the runtime offers it (`hud.cpp`).
+The screens are quad layers, or cylinder layers (`XR_KHR_composition_layer_cylinder`, which SteamVR offers) when **Screen Curve** is on: see below. The immersive screen is always a quad. Passthrough is the alpha-blended environment mode, used for **Background: Passthrough** when the runtime offers it (`hud.cpp`).
+
+## Screen Curve
+
+**Screen Curve** (`vr_screen_curve`, global: Off, or Gentle, Medium, Strong and Max = 15, 30, 45 and 60 degrees) bends the normal screens about a vertical axis so their sides come towards you. The math is in `frame_xr/input/screen_rig.h` (unit-tested in `src/tests/frame_xr/screen_rig.cpp`):
+
+- The setting is the angle the main screen's width spans. Its radius is width / angle, the cylinder layer's `centralAngle` is that angle and its `aspectRatio` is the flat screen's width over height, so the arc is as long as the quad was wide and as high: the picture keeps its size and shape, and each eye's image (the 3DS's left and right) goes on its own layer at the same pose, as with the quads.
+- A cylinder layer's middle is `radius` along its pose's -Z. The pose is the screen's own moved `radius` towards you along the screen's normal (`CylinderFor`), so the stored placement, the grip move, the size and the D-pad nudge are unchanged: they all work on the flat placement, and the curve is applied only when the layers and the pointer targets are made.
+- Both screens bend about axes through one point, the main screen's centre of curvature (at the step whose radius equals the distance, that point is you). The bottom screen is tilted back 45 degrees, so it cannot share the top one's vertical axis; its own (tilted) axis passes through the same point, which sets its radius (`SecondaryCurveRadius`). With the screens swapped, the main slot's screen sets the point.
+- The beam hits the screens as drawn: `IntersectQuad` intersects the cylinder (from the inside, the half in front of the axis) and measures `u` along the arc, so touches land where the beam is. Off the arc it answers as before, so a drag or a touch carries on past the edge.
+- Grip + D-pad up or down steps it while a grip holds the normal screens (`DpadNudger` reports the new presses apart from the repeats), shows **Screen Curve: Medium** as a toast and saves the config like the Immersive Offset. Without the extension it stays flat, and the press shows **Screen Curve: Not Available**.
 
 ## The game picker
 

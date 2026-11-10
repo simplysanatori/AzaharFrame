@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/screen_rig.h"
@@ -76,6 +77,83 @@ const char* MovedToast(int right_steps, int up_steps) {
     return up_steps > 0 ? "Moved Up" : "Moved Down";
 }
 
+uint32_t StepCurve(uint32_t deg, int dir) {
+    deg = std::min(deg, kMaxCurveDeg);
+    if (dir > 0) {
+        for (const uint32_t step : kCurveStepsDeg) {
+            if (step > deg) {
+                return step;
+            }
+        }
+    } else if (dir < 0) {
+        for (auto it = kCurveStepsDeg.rbegin(); it != kCurveStepsDeg.rend(); ++it) {
+            if (*it < deg) {
+                return *it;
+            }
+        }
+    }
+    return deg;
+}
+
+const char* CurveName(uint32_t deg) {
+    static constexpr const char* kNames[] = {"Off", "Gentle", "Medium", "Strong", "Max"};
+    static_assert(std::size(kNames) == kCurveStepsDeg.size());
+    std::size_t best = 0;
+    for (std::size_t i = 1; i < kCurveStepsDeg.size(); i++) {
+        const auto off = [deg](uint32_t step) { return deg > step ? deg - step : step - deg; };
+        if (off(kCurveStepsDeg[i]) < off(kCurveStepsDeg[best])) {
+            best = i;
+        }
+    }
+    return deg == 0 ? kNames[0] : kNames[std::max<std::size_t>(best, 1)];
+}
+
+std::string CurveToast(uint32_t deg) {
+    return std::string("Screen Curve: ") + CurveName(deg);
+}
+
+float CurveRadius(float width, uint32_t deg) {
+    deg = std::min(deg, kMaxCurveDeg);
+    if (deg == 0 || !(width > 0.0f)) {
+        return 0.0f;
+    }
+    return width / (static_cast<float>(deg) * kDegToRad);
+}
+
+float SecondaryCurveRadius(const Posef& main, float main_radius, const Posef& secondary,
+                           float secondary_width) {
+    if (!(main_radius > 0.0f)) {
+        return 0.0f;
+    }
+    const Vec3f centre = main.position + Rotate(main.orientation, Vec3f{0.0f, 0.0f, main_radius});
+    const Vec3f normal = Rotate(secondary.orientation, Vec3f{0.0f, 0.0f, 1.0f});
+    // The secondary axis is the line through its pose + normal * r along its own +Y: the
+    // distance along the normal to the plane through the centre that holds that axis.
+    const float r = Dot(centre - secondary.position, normal);
+    if (!(r > 0.0f)) {
+        return main_radius;
+    }
+    const float tightest = CurveRadius(secondary_width, kMaxCurveDeg);
+    return std::max(r, tightest);
+}
+
+void ApplyCurve(PanelQuad& main, PanelQuad& secondary, uint32_t deg) {
+    main.curve_radius = CurveRadius(main.width_m, deg);
+    secondary.curve_radius =
+        SecondaryCurveRadius(main.pose, main.curve_radius, secondary.pose, secondary.width_m);
+}
+
+Cylinder CylinderFor(const Posef& screen, float width, float height, float radius) {
+    Cylinder c;
+    c.radius = radius;
+    c.pose.orientation = screen.orientation;
+    c.pose.position =
+        screen.position + Rotate(screen.orientation, Vec3f{0.0f, 0.0f, radius});
+    c.central_angle = radius > 0.0f ? width / radius : 0.0f;
+    c.aspect_ratio = height > 0.0f ? width / height : 1.0f;
+    return c;
+}
+
 DpadNudger::Steps DpadNudger::Filter(InputFrame& in, bool holding) {
     bool* const pressed[4] = {&in.dpad_right, &in.dpad_left, &in.dpad_up, &in.dpad_down};
     static constexpr int kRight[4] = {1, -1, 0, 0};
@@ -103,6 +181,9 @@ DpadNudger::Steps DpadNudger::Filter(InputFrame& in, bool holding) {
             if (step) {
                 steps.right += kRight[i];
                 steps.up += kUp[i];
+            }
+            if (edge) {
+                steps.up_presses += kUp[i];
             }
         } else {
             d.next_ns = 0; // a held direction repeats again only after a new press while holding

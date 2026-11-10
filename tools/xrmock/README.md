@@ -22,8 +22,10 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 - `XR_KHR_vulkan_enable2` (instance and device made through the mock with the
   app's loader; Vulkan 1.0 to 1.2 as SteamVR), `XR_VALVE_frame_controller_interaction`,
   `XR_FB_display_refresh_rate`, `XR_EXT_performance_settings`,
-  `XR_EXT_eye_gaze_interaction`, `XR_KHR_composition_layer_depth`; core quad
-  and projection layers. There is no cylinder layer and no passthrough, as on the Frame.
+  `XR_EXT_eye_gaze_interaction`, `XR_KHR_composition_layer_depth`,
+  `XR_KHR_composition_layer_cylinder` (as SteamVR); core quad and projection layers, and
+  cylinder layers, which are checked as quads and logged with their radius, central angle
+  and aspect. There is no passthrough, as on the Frame.
 - Swapchains of 3 images (`R8G8B8A8_SRGB` and the other formats SteamVR offers),
   handed out in `COLOR_ATTACHMENT_OPTIMAL`. A swapchain with mip levels, array
   layers or samples is an error.
@@ -61,11 +63,12 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 
 Each line starts with the frame number (`f<n>`, counted at `xrWaitFrame`):
 `createSwapchain`, `acquire`, `release`, `waitFrame`, `beginFrame`,
-`endFrame layers=N quad[sc0:400x240 at 0,0 eye=1 sp=local size=1.60x0.96]`,
+`endFrame layers=N quad[sc0:400x240 at 0,0 eye=1 sp=local size=1.60x0.96]` (a cylinder:
+`cyl[sc0:400x240 eye=1 sp=local r=3.18 angle=30.0 aspect=1.667 arc=1.67x1.00]`),
 `suggestBindings`, `attachActionSets`, `input` (script events applied),
 `haptic`, `dump`. Once a second:
 
-    f240 summary t=2s waits=120 begins=120 ends=120 layers=3..3 quads=360 proj=0 releases: sc0=60 sc1=60 sc2=60 busy=0 errors=0
+    f240 summary t=2s waits=120 begins=120 ends=120 layers=3..3 quads=360 proj=0 cyl=0 releases: sc0=60 sc1=60 sc2=60 busy=0 errors=0
 
 and at the end `total sc<n> ... releases=` and `total waits= ends= errors=`.
 

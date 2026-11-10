@@ -48,6 +48,10 @@ struct PanelQuad {
     float height_m = 0.0f;
     /// Not visible quads are never hit.
     bool visible = false;
+    /// AzaharFrame curve: above 0, the rectangle is bent about the vertical line (its +Y) this
+    /// far in front of it (+Z), as a cylinder layer: its middle stays at the pose, its width is
+    /// the arc's length, and the sides come towards the viewer (screen_rig.h).
+    float curve_radius = 0.0f;
 };
 
 struct QuadHit {
@@ -65,7 +69,9 @@ struct QuadHit {
 };
 
 /// Intersects the ray with the quad plane. A ray from behind the quad, parallel to it, or
-/// pointing away is not a hit (on_plane false).
+/// pointing away is not a hit (on_plane false). A curved quad (curve_radius) is hit on the half
+/// of its cylinder in front of the axis, from the inside, with u along the arc; a ray that
+/// misses that half gets the flat plane's answer, so a drag or a touch carries on off the edge.
 QuadHit IntersectQuad(const Ray& ray, const PanelQuad& quad);
 
 /// Pixel position in a screen of the given size for a hit. clamp keeps the result on the screen.

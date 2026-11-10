@@ -36,7 +36,8 @@ struct StartOptions {
     Frontend::WindowSystemType window_type{};
     /// Instance extensions enabled when the runtime offers them (other parts add theirs).
     std::vector<std::string> optional_extensions{"XR_FB_display_refresh_rate",
-                                                 "XR_VALVE_frame_controller_interaction"};
+                                                 "XR_VALVE_frame_controller_interaction",
+                                                 "XR_KHR_composition_layer_cylinder"};
     /// True: VR at once (the session too). False: flat first (no session until SetVr(true)).
     bool vr = true;
 };
@@ -180,9 +181,10 @@ struct FrontendHooks {
     /// AzaharFrame vrvis: the Stats button next to Azahar's window switched "Show Stats" (the Qt
     /// side sets Settings::values.vr_show_stats and saves the config).
     std::function<void(bool on)> show_stats_changed;
-    /// AzaharFrame vrsize: grip + D-pad changed the global Immersive Offset (the XR thread has
-    /// set Settings::values.vr_immersive_offset_x and _y): save the config. Any thread.
-    std::function<void()> immersive_offset_changed;
+    /// AzaharFrame vrsize: grip + D-pad changed a global VR setting (the XR thread has set
+    /// Settings::values.vr_immersive_offset_x and _y, or vr_screen_curve): save the config.
+    /// Any thread.
+    std::function<void()> vr_setting_changed;
     /// AzaharFrame flat3: a stick click in flat, in a game (the window's screen layout; the game
     /// sees nothing of it). Queue to the GUI thread.
     std::function<void(FlatScreens what)> flat_screens;

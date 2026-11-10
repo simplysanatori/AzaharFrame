@@ -8,6 +8,7 @@
 #include <cstdlib>
 
 #include "common/logging/log.h"
+#include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h"
 #include "frame_xr/input/geometry.h"
@@ -106,6 +107,7 @@ bool VrUi::Create(Runtime& rt) {
     SwallowHeld(); // the buttons of the chord that made this session are still held
     mode_latch.Arm();
     actions_ok = actions.Create(rt.instance, rt.HasExtension(Input::Actions::kFrameControllerExtension));
+    cylinder_ok = rt.HasExtension(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME); // AzaharFrame curve
     if (actions_ok) {
         actions_ok = actions.Attach(rt.session);
     }
@@ -618,6 +620,40 @@ void VrUi::AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layer
     layers.push_back(q);
 }
 
+uint32_t VrUi::CurveFor(const Immersive::ScreenLayers& shown) const {
+    if (!cylinder_ok || !shown.top_pointable) {
+        return 0; // the runtime has no cylinder, or the immersive screen is on view
+    }
+    return std::min(Settings::values.vr_screen_curve.GetValue(), Rig::kMaxCurveDeg);
+}
+
+void VrUi::StepScreenCurve(int dir) {
+    if (!cylinder_ok) {
+        ShowToastText("Screen Curve: Not Available");
+        LOG_INFO(Frontend, "xr: screen curve: the runtime has no cylinder layers");
+        return;
+    }
+    const uint32_t before = Settings::values.vr_screen_curve.GetValue();
+    const uint32_t after = Rig::StepCurve(before, dir);
+    ShowToastText(Rig::CurveToast(after)); // also at the ends, so the press shows
+    if (after == before) {
+        return;
+    }
+    Settings::values.vr_screen_curve.SetValue(after);
+    bridge.mapper().ReanchorDrag(); // the surface under the hand moved
+    const ScreenPlacement now = GetScreenPlacement();
+    Input::PanelQuad top{ToInput(now.top_pose), now.top_size.width, now.top_size.height, true};
+    Input::PanelQuad bottom{ToInput(now.bottom_pose), now.bottom_size.width,
+                            now.bottom_size.height, true};
+    Rig::ApplyCurve(top, bottom, after);
+    LOG_INFO(Frontend, "xr: screen curve {} degrees (top radius {:.2f} m, bottom {:.2f} m)", after,
+             top.curve_radius, bottom.curve_radius);
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.vr_setting_changed) {
+        hooks.vr_setting_changed();
+    }
+}
+
 VrUi::ScreenDraw VrUi::ScreenDrawFor(const Immersive::ScreenLayers& shown) const {
     // The slots as immersive.cpp draws them (only their visibility matters when not swapped;
     // swapped, immersive is paused and both are in the LOCAL space).
@@ -625,8 +661,13 @@ VrUi::ScreenDraw VrUi::ScreenDrawFor(const Immersive::ScreenLayers& shown) const
                                      shown.top_size.height, shown.show_top};
     const Input::PanelQuad secondary_slot{ToInput(shown.bottom_pose), shown.bottom_size.width,
                                           shown.bottom_size.height, shown.show_bottom};
-    const Input::ScreenQuads quads =
+    Input::ScreenQuads quads =
         screen_view.Layout(main_slot, secondary_slot, Immersive::CanToggleBottom());
+    if (screen_view.bottom_focus()) { // AzaharFrame curve
+        Rig::ApplyCurve(quads.bottom, quads.top, CurveFor(shown));
+    } else {
+        Rig::ApplyCurve(quads.top, quads.bottom, CurveFor(shown));
+    }
     ScreenDraw draw;
     draw.swapped = screen_view.bottom_focus();
     draw.top_visible = quads.top.visible;
@@ -635,6 +676,8 @@ VrUi::ScreenDraw VrUi::ScreenDrawFor(const Immersive::ScreenLayers& shown) const
     draw.top_size = {quads.top.width_m, quads.top.height_m};
     draw.bottom_pose = ToXr(quads.bottom.pose);
     draw.bottom_size = {quads.bottom.width_m, quads.bottom.height_m};
+    draw.top_curve = quads.top.curve_radius;
+    draw.bottom_curve = quads.bottom.curve_radius;
     return draw;
 }
 
@@ -740,7 +783,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                                      shown.top_size.height, shown.show_top && shown.top_pointable};
     const Input::PanelQuad secondary_slot{ToInput(shown.bottom_pose), shown.bottom_size.width,
                                           shown.bottom_size.height, shown.show_bottom};
-    const Input::ScreenQuads quads = screen_view.Layout(main_slot, secondary_slot, managed);
+    Input::ScreenQuads quads = screen_view.Layout(main_slot, secondary_slot, managed);
+    // AzaharFrame curve: the pointer, the touch and the drag hit the screens as they are drawn.
+    if (screen_view.bottom_focus()) {
+        Rig::ApplyCurve(quads.bottom, quads.top, CurveFor(shown));
+    } else {
+        Rig::ApplyCurve(quads.top, quads.bottom, CurveFor(shown));
+    }
     Input::PanelGeometry panels;
     panels.top = quads.top;
     panels.bottom = quads.bottom;
@@ -827,21 +876,28 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (holding_immersive) {
             if (Immersive::NudgeOffset(nudge.right, nudge.up)) { // shows its own toast
                 std::scoped_lock lock{hooks_mutex};
-                if (hooks.immersive_offset_changed) {
-                    hooks.immersive_offset_changed();
+                if (hooks.vr_setting_changed) {
+                    hooks.vr_setting_changed();
                 }
             }
         } else if (holding_normal && bridge.mapper().DragActive()) {
+            // Left and right turn the pair about you; up and down step the Screen Curve
+            // (AzaharFrame curve; the hand moves the pair up and down).
             ScreenPlacement now = GetScreenPlacement();
-            if (const auto moved = Rig::NudgeTop(ToInput(now.top_pose), nudge.right, nudge.up)) {
+            const auto moved = nudge.right != 0
+                                   ? Rig::NudgeTop(ToInput(now.top_pose), nudge.right, 0)
+                                   : std::nullopt;
+            if (moved) {
                 now.top_pose = ToXr(*moved);
                 now.bottom_pose = BottomFromTop(now.top_pose, now.top_scale);
                 SetScreenPlacement(now);
                 bridge.mapper().ReanchorDrag(); // the hand carries on from the new place
-                ShowToastText(Rig::MovedToast(nudge.right, nudge.up));
-                LOG_INFO(Frontend, "xr: screens nudged {} {}: top at {:.2f}, {:.2f}, {:.2f}",
-                         nudge.right, nudge.up, moved->position.x, moved->position.y,
-                         moved->position.z);
+                ShowToastText(Rig::MovedToast(nudge.right, 0));
+                LOG_INFO(Frontend, "xr: screens nudged {}: top at {:.2f}, {:.2f}, {:.2f}",
+                         nudge.right, moved->position.x, moved->position.y, moved->position.z);
+            }
+            if (nudge.up_presses != 0) {
+                StepScreenCurve(nudge.up_presses > 0 ? 1 : -1);
             }
         }
     }

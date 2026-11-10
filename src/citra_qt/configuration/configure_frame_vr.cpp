@@ -46,6 +46,20 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
     return combo;
 }
 
+// AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
+// 60 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
+int CurveIndex(u32 deg) {
+    static constexpr int kSteps[] = {0, 15, 30, 45, 60};
+    int best = deg == 0 ? 0 : 1;
+    for (int i = 1; i < 5; i++) {
+        if (std::abs(kSteps[i] - static_cast<int>(deg)) <
+            std::abs(kSteps[best] - static_cast<int>(deg))) {
+            best = i;
+        }
+    }
+    return best;
+}
+
 } // namespace
 
 ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
@@ -122,6 +136,20 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "this window switches it too."));
     layout->addWidget(show_stats_check);
 
+    // AzaharFrame curve: global only. The items are the steps of Settings::values.vr_screen_curve
+    // (frame_xr/input/screen_rig.h kCurveStepsDeg); another value in the file shows as the
+    // nearest one.
+    curve_combo = new QComboBox(this);
+    curve_combo->addItem(tr("Off"), 0);
+    curve_combo->addItem(tr("Gentle"), 15);
+    curve_combo->addItem(tr("Medium"), 30);
+    curve_combo->addItem(tr("Strong"), 45);
+    curve_combo->addItem(tr("Max"), 60);
+    curve_row = MakeRow(this, QStringLiteral("frame_vr_curve_row"), tr("Screen Curve"),
+                        tr("Not in immersive mode. In VR: grip a screen, D-pad up or down."),
+                        {curve_combo});
+    layout->addWidget(curve_row);
+
     // Values 0..5 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
@@ -184,11 +212,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "starts."));
     layout->addWidget(wider_view_check);
 
-    // Values 0..2 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
+    // Values 0..3 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
     squeeze_combo = new QComboBox(this);
     squeeze_combo->addItem(tr("Off"));
     squeeze_combo->addItem(QStringLiteral("10%"));
     squeeze_combo->addItem(QStringLiteral("20%"));
+    squeeze_combo->addItem(QStringLiteral("30%"));
     squeeze_row = MakeRow(
         this, QStringLiteral("frame_vr_squeeze_row"), tr("Squeeze Width"),
         tr("Full (6DoF) only. Makes the screen narrower so the HUD at the sides moves into "
@@ -239,6 +268,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     motion_row->setVisible(Settings::IsConfiguringGlobal());
     window_scale_row->setVisible(Settings::IsConfiguringGlobal());
     background_row->setVisible(Settings::IsConfiguringGlobal());
+    curve_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame curve
     offset_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrsize
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
@@ -328,6 +358,7 @@ void ConfigureFrameVr::SetConfiguration() {
         window_scale_combo->setCurrentIndex(std::clamp(
             (static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 100 + 25) / 50, 0, 2));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue(true)));
+        curve_combo->setCurrentIndex(CurveIndex(Settings::values.vr_screen_curve.GetValue()));
         offset_reset_pending = false;
         ShowOffset(Settings::values.vr_immersive_offset_x.GetValue(),
                    Settings::values.vr_immersive_offset_y.GetValue());
@@ -385,6 +416,11 @@ void ConfigureFrameVr::ApplyConfiguration() {
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
         Settings::values.vr_show_stats.SetValue(show_stats_check->isChecked());
+        // AzaharFrame curve: kept as it is while the item shown is still its nearest one.
+        if (CurveIndex(Settings::values.vr_screen_curve.GetValue()) != curve_combo->currentIndex()) {
+            Settings::values.vr_screen_curve.SetValue(
+                static_cast<u32>(curve_combo->currentData().toInt()));
+        }
         // Kept as it is when the item shown is still the nearest one (a value typed into the file).
         const int percent = window_scale_combo->currentData().toInt();
         if (std::clamp((static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 75) / 50,
