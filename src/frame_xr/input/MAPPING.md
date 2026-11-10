@@ -26,7 +26,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | Menu | Start | A tap: Start, sent as Menu is let go (for 100 ms). Held 1 s: the in-game menu, see below; the game never sees that hold. |
 | View | Select | Hold 1.5 s instead stops the game, see below. |
 | Left stick click, tap | (none) | Hides or shows the screen that is not in focus (`toggle_other_screen`, on release). |
-| Left stick click, held 1 s | (none) | Does nothing, and the release hides nothing. Azahar has no HOME Menu without system files, so there is no Home binding. |
+| Left stick click, held 1 s | (none) | `cycle_layout`: the next Screen Layout (VR: Stacked or Side by Side; Flat: Large Screen, Side by Side, Default). The release hides nothing. Azahar has no HOME Menu without system files, so there is no Home binding. |
 | Right stick click, tap | (none) | Swaps the screens (`swap_screens`, on release). |
 | Right stick click, held 1 s | (none) | Resets the screen positions (`reset_panels`, once per hold). |
 

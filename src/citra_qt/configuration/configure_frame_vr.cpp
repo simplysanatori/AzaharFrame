@@ -150,6 +150,17 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                         {curve_combo});
     layout->addWidget(curve_row);
 
+    // AzaharFrame layout: global only.
+    screen_layout_combo = new QComboBox(this);
+    screen_layout_combo->addItem(tr("Stacked"), 0);
+    screen_layout_combo->addItem(tr("Side by Side"), 1);
+    screen_layout_row =
+        MakeRow(this, QStringLiteral("frame_vr_screen_layout_row"), tr("Screen Layout"),
+                tr("Where the smaller screen sits: below the main one, or to its right. In VR: "
+                   "hold the left stick click."),
+                {screen_layout_combo});
+    layout->addWidget(screen_layout_row);
+
     // Values 0..5 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
@@ -271,6 +282,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     window_scale_row->setVisible(Settings::IsConfiguringGlobal());
     background_row->setVisible(Settings::IsConfiguringGlobal());
     curve_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame curve
+    screen_layout_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame layout
     offset_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrsize
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
@@ -363,6 +375,8 @@ void ConfigureFrameVr::SetConfiguration() {
             (static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 100 + 25) / 50, 0, 2));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue(true)));
         curve_combo->setCurrentIndex(CurveIndex(Settings::values.vr_screen_curve.GetValue()));
+        screen_layout_combo->setCurrentIndex(
+            std::min<int>(static_cast<int>(Settings::values.vr_screen_layout.GetValue()), 1));
         offset_reset_pending = false;
         ShowOffset(Settings::values.vr_immersive_offset_x.GetValue(),
                    Settings::values.vr_immersive_offset_y.GetValue());
@@ -429,6 +443,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_screen_curve.SetValue(
                 static_cast<u32>(curve_combo->currentData().toInt()));
         }
+        Settings::values.vr_screen_layout.SetValue(
+            static_cast<u32>(screen_layout_combo->currentIndex())); // AzaharFrame layout
         // Kept as it is when the item shown is still the nearest one (a value typed into the file).
         const int percent = window_scale_combo->currentData().toInt();
         if (std::clamp((static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 75) / 50,

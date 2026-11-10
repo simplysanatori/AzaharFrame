@@ -712,11 +712,17 @@ void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool sw
             Input::Length(forward) > 1e-3f ? Input::Normalized(forward) : Input::Vec3f{0, 0, -1};
         at = head + forward * 0.9f + Input::Vec3f{0.0f, -0.45f, 0.0f};
     } else {
-        // Under the lower of the two screens as drawn (the one in the secondary slot, unless it
-        // is hidden), a little below its bottom edge.
-        const Input::PanelQuad& low = swapped ? quads.top : quads.bottom;
-        const Input::PanelQuad& high = swapped ? quads.bottom : quads.top;
-        const Input::PanelQuad& under = low.visible ? low : high;
+        // Under the screen whose bottom edge is lower (Stacked: the one in the second slot; Side
+        // by Side: the main one), a little below that edge. A hidden one does not count.
+        const auto bottom_edge = [](const Input::PanelQuad& q) {
+            return q.pose.position.y -
+                   std::abs(Input::Rotate(q.pose.orientation, {0.0f, q.height_m * 0.5f, 0.0f}).y);
+        };
+        const Input::PanelQuad& in_main = swapped ? quads.bottom : quads.top;
+        const Input::PanelQuad& second = swapped ? quads.top : quads.bottom;
+        const bool use_second =
+            second.visible && (!in_main.visible || bottom_edge(second) < bottom_edge(in_main));
+        const Input::PanelQuad& under = use_second ? second : in_main;
         at = under.pose.position +
              Input::Rotate(under.pose.orientation, {0.0f, -under.height_m * 0.5f - 0.05f, 0.0f});
     }
@@ -726,6 +732,18 @@ void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool sw
     const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
     ShowHint(immersive ? kHintImmersive : kHintNormal, ToXr(pose), 0.32f * distance);
     LOG_INFO(Frontend, "xr: grip hint shown ({})", immersive ? "immersive" : "screens");
+}
+
+void VrUi::CycleScreenLayout() {
+    const uint32_t after = Rig::NextLayout(Settings::values.vr_screen_layout.GetValue());
+    Settings::values.vr_screen_layout.SetValue(after);
+    bridge.mapper().ReanchorDrag(); // the second screen moved under a hand that holds it
+    ShowToastText(Rig::LayoutToast(after));
+    LOG_INFO(Frontend, "xr: screen layout {}", Rig::LayoutName(after));
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.vr_setting_changed) {
+        hooks.vr_setting_changed();
+    }
 }
 
 void VrUi::StepScreenCurve(int dir) {
@@ -941,6 +959,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             Immersive::ToggleBottom();
         }
         Immersive::SetBottomFocused(screen_view.bottom_focus());
+    }
+    if (cmd.cycle_layout) {
+        CycleScreenLayout(); // AzaharFrame layout: left stick click held 1 s
     }
     if (cmd.reset_panels) {
         ResetPlacement(rt);

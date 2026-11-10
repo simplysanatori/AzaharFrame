@@ -46,6 +46,34 @@ Posef BottomFromTop(const Posef& top, float scale) {
     return b;
 }
 
+const char* LayoutName(uint32_t layout) {
+    return layout == kLayoutSideBySide ? "Side by Side" : "Stacked";
+}
+
+std::string LayoutToast(uint32_t layout) {
+    return std::string("Screen Layout: ") + LayoutName(layout);
+}
+
+uint32_t NextLayout(uint32_t layout) {
+    return layout == kLayoutSideBySide ? kLayoutStacked : kLayoutSideBySide;
+}
+
+Posef SecondFromMain(const Posef& main, float scale, float main_width, float second_width,
+                     uint32_t layout) {
+    if (layout != kLayoutSideBySide) {
+        return BottomFromTop(main, scale);
+    }
+    const float horizontal = std::max(std::hypot(main.position.x, main.position.z), 0.1f);
+    // The arc between the two middles, on the circle at the main screen's horizontal distance.
+    const float angle = (main_width * 0.5f + kSideGap + second_width * 0.5f) / horizontal;
+    // Turned to the right about +Y: a negative angle (right-handed, Y up, -Z ahead).
+    const Quatf turn{0.0f, std::sin(-angle / 2), 0.0f, std::cos(-angle / 2)};
+    Posef s;
+    s.position = Rotate(turn, main.position);
+    s.orientation = Normalized(Multiply(turn, main.orientation));
+    return s;
+}
+
 std::optional<Posef> NudgeTop(const Posef& top, int right_steps, int up_steps) {
     const Vec3f p = top.position;
     const float r = Length(p);

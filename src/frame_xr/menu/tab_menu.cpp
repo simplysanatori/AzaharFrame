@@ -79,6 +79,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
     std::vector<Row> rows;
     if (tab == Tab::Position) {
         rows.push_back(row(Id::HideBottomScreen, RowKind::Switch, 0, m.hide_bottom_screen));
+        rows.push_back(row(Id::ScreenLayout, RowKind::Segmented, m.screen_layout));
         rows.push_back(row(Id::ScreenShape, RowKind::MenuButton, m.screen_shape));
         rows.push_back(row(Id::ScreenCurve, RowKind::Segmented, m.screen_curve));
         Row offset = row(Id::ImmersiveOffset, RowKind::Offset);
@@ -120,6 +121,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
                                                  "Ultrawide (21:9)", "Standard (4:3)",
                                                  "3:2",             "16:10"};
     static const std::vector<std::string> kCurve{"Off", "Gentle", "Medium", "Strong", "Max"};
+    static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
@@ -137,6 +139,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kShape;
     case Id::ScreenCurve:
         return kCurve;
+    case Id::ScreenLayout:
+        return kLayout;
     case Id::ControlsPage:
         return kPage;
     case Id::Scope:
@@ -194,6 +198,8 @@ std::string LabelFor(Id id) {
         return "Screen Shape";
     case Id::ScreenCurve:
         return "Screen Curve";
+    case Id::ScreenLayout:
+        return "Screen Layout";
     case Id::ImmersiveOffset:
         return "Immersive Offset";
     case Id::ImmersiveOffsetReset:
@@ -234,7 +240,9 @@ std::string ExplainFor(Id id) {
     case Id::ScreenShape:
         return "The top screen's shape, for games or mods that change it.";
     case Id::ScreenCurve:
-        return "Bends the screens so their sides come toward you.";
+        return "Bends the main screen so its sides come toward you.";
+    case Id::ScreenLayout:
+        return "The smaller screen below the main one, or to its right.";
     case Id::ImmersiveOffset:
         return "Moves the immersive screen to fit your lenses, in every game.";
     case Id::ShowStats:

@@ -152,15 +152,31 @@ ScreenPlacement DefaultScreenPlacement() {
     return p;
 }
 
+namespace {
+// AzaharFrame layout: the second slot always follows the main one by the Screen Layout setting,
+// so a switch, a grip move, a nudge, a size change and the reset all keep the layout.
+ScreenPlacement WithSecondSlot(ScreenPlacement place) {
+    const XrPosef& t = place.top_pose;
+    const Input::Posef top{{t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w},
+                           {t.position.x, t.position.y, t.position.z}};
+    const Input::Posef b = Input::ScreenRig::SecondFromMain(
+        top, place.top_scale, place.top_size.width, place.bottom_size.width,
+        Settings::values.vr_screen_layout.GetValue());
+    place.bottom_pose = {{b.orientation.x, b.orientation.y, b.orientation.z, b.orientation.w},
+                         {b.position.x, b.position.y, b.position.z}};
+    return place;
+}
+} // namespace
+
 ScreenPlacement GetScreenPlacement() {
     if (auto* rt = GetRuntime()) {
         std::scoped_lock lock{rt->placement_mutex};
         ScreenPlacement place = rt->placement;
         // The shape is per game; the stored size may be stale.
         place.top_size = NormalTopSize(place.top_scale);
-        return place;
+        return WithSecondSlot(place);
     }
-    return DefaultScreenPlacement();
+    return WithSecondSlot(DefaultScreenPlacement());
 }
 
 void SetScreenPlacement(const ScreenPlacement& placement) {

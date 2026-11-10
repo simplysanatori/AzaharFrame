@@ -771,6 +771,10 @@ struct Values {
     // are 15, 30, 45 and 60; grip + D-pad up or down in VR changes it. Read every frame
     // (frame_xr/input/screen_rig.h).
     SwitchableSetting<u32, true> vr_screen_curve{0, 0, 180, "vr_screen_curve"};
+    // AzaharFrame layout: where the second (smaller) screen sits in VR, global: 0 Stacked (below
+    // the main one, tilted back), 1 Side by Side (to its right, facing you). Left stick click held
+    // 1 s switches it. Read every frame (frame_xr/input/screen_rig.h SecondFromMain).
+    SwitchableSetting<u32, true> vr_screen_layout{0, 0, 1, "vr_screen_layout"};
 };
 
 extern Values values;

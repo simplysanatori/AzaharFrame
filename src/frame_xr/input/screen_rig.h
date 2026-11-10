@@ -61,6 +61,31 @@ float DepthScale(float scale);
 Vec3f BottomOffset(float scale);
 Posef BottomFromTop(const Posef& top, float scale);
 
+// ---- AzaharFrame layout: Screen Layout --------------------------------------------------------
+//
+// Where the second slot goes for the main one (Settings::values.vr_screen_layout, global):
+// Stacked is BottomFromTop; Side by Side is the main slot turned about the viewer (the LOCAL
+// origin's vertical axis) far enough that the second screen sits kSideGap to the right of it,
+// at the same distance and height (vertically centred on the main screen), facing you as the
+// main one does, not tilted back. The widths are the unswapped ones (the top screen in the main
+// slot); swapped, the bottom screen in the main slot is narrower, so the gap only grows.
+
+inline constexpr uint32_t kLayoutStacked = 0;
+inline constexpr uint32_t kLayoutSideBySide = 1;
+/// The gap between the main screen's right edge and the second screen's left edge, in metres.
+inline constexpr float kSideGap = 0.1f;
+
+/// "Stacked", "Side by Side".
+const char* LayoutName(uint32_t layout);
+/// "Screen Layout: Side by Side".
+std::string LayoutToast(uint32_t layout);
+/// The other layout (two of them: the cycle is a switch).
+uint32_t NextLayout(uint32_t layout);
+/// The second slot's pose for the main slot's pose, scale and width and the second screen's
+/// width.
+Posef SecondFromMain(const Posef& main, float scale, float main_width, float second_width,
+                     uint32_t layout);
+
 /// The top screen turned about the viewer (the LOCAL origin) by `right_steps` and `up_steps`
 /// presses: its distance does not change and it faces the viewer. Nothing (no move) when that
 /// would take it past kMaxNudgeAngleDeg or nearer than kNearestTopZ.

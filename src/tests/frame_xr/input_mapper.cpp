@@ -1061,7 +1061,7 @@ constexpr int64_t kHold = 1'000'000'000; // MapperConfig::stick_click_hold_ns
 
 /// Presses and holds one stick's click for `ns`, one frame at a time; collects what fired.
 struct ClickRun {
-    int taps_swap = 0, taps_hide = 0, resets = 0, game_frames = 0;
+    int taps_swap = 0, taps_hide = 0, resets = 0, cycles = 0, game_frames = 0;
     bool game_saw_left = false, game_saw_right = false;
 };
 
@@ -1072,6 +1072,7 @@ void Hold(Runner& runner, InputFrame& frame, int hand, int64_t ns, ClickRun& run
         run.taps_swap += out.commands.swap_screens;
         run.taps_hide += out.commands.toggle_other_screen;
         run.resets += out.commands.reset_panels;
+        run.cycles += out.commands.cycle_layout;
         run.game_saw_left |= out.controls.Get(Control::StickClickL);
     }
 }
@@ -1082,6 +1083,7 @@ void Release(Runner& runner, InputFrame& frame, int hand, ClickRun& run) {
     run.taps_swap += out.commands.swap_screens;
     run.taps_hide += out.commands.toggle_other_screen;
     run.resets += out.commands.reset_panels;
+    run.cycles += out.commands.cycle_layout;
 }
 
 } // namespace
@@ -1149,7 +1151,7 @@ TEST_CASE("FrameXr mapper: right stick click, tap swaps the screens, hold resets
     }
 }
 
-TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold does nothing",
+TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold cycles the layout",
           "[frame_xr]") {
     Runner runner;
     InputFrame frame = IdleFrame();
@@ -1164,9 +1166,13 @@ TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold do
         REQUIRE(run.taps_swap == 0);
         REQUIRE(run.resets == 0);
     }
-    SECTION("a hold does nothing, and the release hides nothing") {
+    SECTION("a hold of 1 s cycles the layout once, and the release hides nothing") {
+        Hold(runner, frame, 0, kHold - 2 * kFrameNs, run);
+        REQUIRE(run.cycles == 0);
         Hold(runner, frame, 0, 3 * kHold, run);
+        REQUIRE(run.cycles == 1); // once per hold
         Release(runner, frame, 0, run);
+        REQUIRE(run.cycles == 1);
         REQUIRE(run.taps_hide == 0);
         REQUIRE(run.taps_swap == 0);
         REQUIRE(run.resets == 0);
@@ -1183,6 +1189,7 @@ TEST_CASE("FrameXr mapper: left stick click, tap hides the other screen, hold do
         Hold(runner, frame, 0, 2 * kHold, run);
         Release(runner, frame, 0, run);
         REQUIRE(run.taps_hide == 0);
+        REQUIRE(run.cycles == 0);
     }
     SECTION("both sticks at once are independent") {
         frame.hand[0].stick_click = true;

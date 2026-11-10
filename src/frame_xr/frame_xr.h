@@ -174,6 +174,7 @@ enum class MenuSetting {
     HideBottomScreen,
     ScreenShape,
     ScreenCurve, ///< `value`: degrees (0, 15, 30, 45, 60)
+    ScreenLayout, ///< AzaharFrame layout: `value` 0 Stacked, 1 Side by Side
     ImmersiveOffsetReset,
     ShowStats,
     Background,

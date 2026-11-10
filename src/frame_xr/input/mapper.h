@@ -129,6 +129,10 @@ struct PanelCommands {
     bool swap_screens = false;
     /// Left stick click, tap: hide or show the screen that is not in focus.
     bool toggle_other_screen = false;
+    /// AzaharFrame layout: the next screen layout (VR: Stacked or Side by Side; Flat: Large
+    /// Screen, Side by Side, Default). Bound in one place, Mapper::Process (left stick click
+    /// held 1 s, provisionally). Fires once per hold.
+    bool cycle_layout = false;
     /// Left Bumper + Right Bumper held and View pressed while `bottom_toggle_enabled`: show or
     /// hide the bottom screen. Fires once per press.
     bool toggle_bottom = false;
@@ -228,7 +232,7 @@ private:
     bool start_pulse_ = false;
     int64_t start_pulse_until_ns_ = 0;
 
-    // Stick clicks: tap or hold (click_gesture.h). Left held 1 s does nothing.
+    // Stick clicks: tap or hold (click_gesture.h). Left held 1 s: cycle_layout.
     ClickGesture click_l_;
     ClickGesture click_r_;
 

@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <catch2/catch_approx.hpp>
@@ -315,4 +316,40 @@ TEST_CASE("FrameXr screen rig: D-pad up and down presses for the curve", "[frame
     frame(600, false, false);
     REQUIRE(frame(700, false, true).up_presses == -1);
     REQUIRE_FALSE(in.dpad_down);
+}
+
+// AzaharFrame layout: where the second slot goes.
+TEST_CASE("FrameXr screen rig: Stacked and Side by Side", "[frame_xr]") {
+    const Posef top = Ahead(2.0f);
+    const float main_w = kAspect3ds, second_w = 0.75f;
+    // Stacked is the bottom screen under the top one, as before.
+    const Posef stacked = SecondFromMain(top, 1.0f, main_w, second_w, kLayoutStacked);
+    const Posef below = BottomFromTop(top, 1.0f);
+    REQUIRE(Length(stacked.position - below.position) == Approx(0.0f).margin(1e-6f));
+    // Side by Side: to the right, same distance and height, facing you, not tilted back.
+    for (const Posef& main : {top, NudgeTop(top, -20, 6).value()}) {
+        const Posef s = SecondFromMain(main, 1.0f, main_w, second_w, kLayoutSideBySide);
+        REQUIRE(Length(s.position) == Approx(Length(main.position)));
+        REQUIRE(s.position.y == Approx(main.position.y).margin(1e-5f));
+        // Its normal points at the viewer as the main one's does.
+        const Vec3f n = Rotate(s.orientation, Vec3f{0, 0, 1});
+        const Vec3f to_viewer = Normalized(Vec3f{0, 0, 0} - s.position);
+        const Vec3f n_main = Rotate(main.orientation, Vec3f{0, 0, 1});
+        const Vec3f to_viewer_main = Normalized(Vec3f{0, 0, 0} - main.position);
+        REQUIRE(Dot(n, to_viewer) == Approx(Dot(n_main, to_viewer_main)).margin(1e-4f));
+        // To the right of the main one, in its own frame, with the gap between the edges.
+        const Vec3f right = Rotate(main.orientation, Vec3f{1, 0, 0});
+        REQUIRE(Dot(s.position - main.position, right) > 0.0f);
+        const float horizontal = std::hypot(main.position.x, main.position.z);
+        const float arc = std::acos(std::clamp(
+                              Dot(Normalized(Vec3f{main.position.x, 0, main.position.z}),
+                                  Normalized(Vec3f{s.position.x, 0, s.position.z})),
+                              -1.0f, 1.0f)) *
+                          horizontal;
+        REQUIRE(arc == Approx(main_w / 2 + kSideGap + second_w / 2).margin(1e-3f));
+    }
+    REQUIRE(NextLayout(kLayoutStacked) == kLayoutSideBySide);
+    REQUIRE(NextLayout(kLayoutSideBySide) == kLayoutStacked);
+    REQUIRE(LayoutToast(kLayoutSideBySide) == "Screen Layout: Side by Side");
+    REQUIRE(std::string(LayoutName(kLayoutStacked)) == "Stacked");
 }

@@ -44,6 +44,8 @@ private:
     QComboBox* window_scale_combo;
     QWidget* curve_row; ///< AzaharFrame curve, global only
     QComboBox* curve_combo;
+    QWidget* screen_layout_row; ///< AzaharFrame layout, global only
+    QComboBox* screen_layout_combo;
     QWidget* motion_row;
     QComboBox* motion_combo;
     QCheckBox* show_controllers_check; ///< AzaharFrame vrvis, global only

@@ -126,6 +126,8 @@ private:
     void ResetPlacement(Runtime& runtime);
     /// AzaharFrame curve: grip + D-pad up (+1) or down (-1) on the normal screens.
     void StepScreenCurve(int dir);
+    /// AzaharFrame layout: the next Screen Layout (left stick click held 1 s), with its toast.
+    void CycleScreenLayout();
     /// AzaharFrame controls: the hint chip under the held screens (or low in front of you for
     /// the immersive screen).
     void ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped);

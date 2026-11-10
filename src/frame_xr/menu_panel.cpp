@@ -268,6 +268,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
     m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
+    m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     const float ox = v.vr_immersive_offset_x.GetValue(), oy = v.vr_immersive_offset_y.GetValue();
     m.immersive_offset = OffsetText(ox, oy);
     m.immersive_offset_set = std::fabs(ox) >= 0.05f || std::fabs(oy) >= 0.05f;
@@ -334,6 +335,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = static_cast<int>(kCurveSteps[std::min<std::size_t>(u, kCurveSteps.size() - 1)]);
         Apply(v.vr_screen_curve, static_cast<u32>(r.value), false);
         r.setting = MenuSetting::ScreenCurve;
+        break;
+    case Id::ScreenLayout: // AzaharFrame layout, global
+        Apply(v.vr_screen_layout, std::min<u32>(u, 1), false);
+        r.setting = MenuSetting::ScreenLayout;
         break;
     case Id::ImmersiveOffsetReset:
         Apply(v.vr_immersive_offset_x, 0.0f, false);
@@ -505,6 +510,7 @@ void MenuPanel::Click(Target t, Host& host) {
         scope = t.index;
         break;
     case Id::ScreenCurve:
+    case Id::ScreenLayout:
     case Id::Background:
     case Id::FaceButtons:
     case Id::MotionControls:

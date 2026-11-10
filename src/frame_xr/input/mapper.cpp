@@ -392,8 +392,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
 
     // ---- Stick clicks: a tap acts when it is let go, a hold of 1 s acts once ----
     // Right: tap swaps the screens, hold resets them. Left: tap hides or shows the other screen,
-    // hold does nothing (the game never sees the click). A click that starts while its stick is
-    // pushed over is ignored, so the free camera cannot trigger it.
+    // hold cycles the screen layout (the game never sees the click). A click that starts while its
+    // stick is pushed over is ignored, so the free camera cannot trigger it.
     {
         const auto deflection = [](Vec2f stick) {
             return std::sqrt(stick.x * stick.x + stick.y * stick.y);
@@ -407,6 +407,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         out.commands.toggle_other_screen = left == ClickGesture::Result::Tap;
         out.commands.swap_screens = right == ClickGesture::Result::Tap;
         out.commands.reset_panels = right == ClickGesture::Result::Hold;
+        // AzaharFrame layout: the one binding of the layout cycle (VR and Flat).
+        out.commands.cycle_layout = left == ClickGesture::Result::Hold;
     }
 
     // ---- Triggers: ZL/ZR, or touch when the bottom screen is the nearest thing under the ray ----

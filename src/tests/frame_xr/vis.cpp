@@ -49,7 +49,7 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Menu") == "3DS Start");
         REQUIRE(ActionFor(page.game, "View") == "3DS Select");
         REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Other Screen");
-        REQUIRE(ActionFor(page.game, "Hold Left Stick Click (1 s)") == "(missing)");
+        REQUIRE(ActionFor(page.game, "Hold Left Stick Click (1 s)") == "Screen Layout");
         REQUIRE(ActionFor(page.game, "Right Stick Click") == "Swap Screens");
         REQUIRE(ActionFor(page.game, "Hold Right Stick Click (1 s)") == "Reset Screens and View");
         REQUIRE(ActionFor(page.game, "Hold View + Left Bumper (0.5 s)") == "Quick Load");

@@ -52,6 +52,7 @@ enum class Id : int {
     ResetPosition,
     SwapScreens,
     HideBottomScreen,
+    ScreenLayout, ///< AzaharFrame layout
     ScreenShape,
     ScreenCurve,
     ImmersiveOffset,
@@ -111,6 +112,7 @@ struct MenuModel {
     // Position
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect
+    int screen_layout = 0; ///< 0 Stacked, 1 Side by Side (AzaharFrame layout)
     int screen_curve = 0;  ///< index of Off, Gentle, Medium, Strong, Max
     std::string immersive_offset = "None";
     bool immersive_offset_set = false;

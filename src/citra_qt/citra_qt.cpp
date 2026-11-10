@@ -3931,6 +3931,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ScreenCurve:
         set(v.vr_screen_curve, u);
         break;
+    case S::ScreenLayout: // AzaharFrame layout
+        set(v.vr_screen_layout, u);
+        break;
     case S::ImmersiveOffsetReset:
         set(v.vr_immersive_offset_x, 0.0f);
         set(v.vr_immersive_offset_y, 0.0f);
