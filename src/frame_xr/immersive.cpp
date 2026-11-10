@@ -227,7 +227,7 @@ struct State {
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), every frame
     u32 shape = 0;             ///< "Screen Shape" (per game), every frame (g_top_aspect)
     bool shape_logged = false; ///< both logged for this game
-    L::Options options; ///< "Wider View" (every frame) and "Squeeze Width" (at start), per game
+    L::Options options; ///< "Wider View" (every frame) and "Narrow Screen" (at start), per game
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     bool screens_were_live = false;
     bool recentre = false;

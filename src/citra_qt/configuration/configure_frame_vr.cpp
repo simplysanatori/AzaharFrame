@@ -222,9 +222,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     squeeze_combo->addItem(QStringLiteral("20%"));
     squeeze_combo->addItem(QStringLiteral("30%"));
     squeeze_row = MakeRow(
-        this, QStringLiteral("frame_vr_squeeze_row"), tr("Squeeze Width"),
-        tr("Full (6DoF) only. Makes the screen narrower so the HUD at the sides moves into "
-           "view. The game looks slightly thinner. Takes effect when the game starts."),
+        this, QStringLiteral("frame_vr_squeeze_row"), tr("Narrow Screen"),
+        tr("Narrows the screen so the side HUD moves into view."),
         {squeeze_combo});
     layout->addWidget(squeeze_row);
 

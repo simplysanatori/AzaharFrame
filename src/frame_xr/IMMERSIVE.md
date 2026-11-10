@@ -130,7 +130,7 @@ Two per-game settings change this (**VR** group, logged as
   The old switch (`vr_immersive_wider_view`) is converted when a config is read: on becomes the
   level nearest to what it gave at the saved size (0.78 x size, 1.4x when no size is saved), off
   becomes Off. No preset turns it on; Super Mario 3D Land shows black boxes with it.
-- **Squeeze Width** (`vr_immersive_squeeze`: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
+- **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
   and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
   and the yaw gets its own gain, `gain_x = gain / (1 - squeeze)`, so the middle stays locked both
   ways. The HUD at the sides moves in (from 37 to 34, 31 or 28 degrees by default) without changing the

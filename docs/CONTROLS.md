@@ -126,7 +126,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Hide Bottom Screen**, **Wider View** and **Squeeze Width** apply the next time the game starts.
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Hide Bottom Screen**, **Wider View** and **Narrow Screen** apply the next time the game starts.
 
 A row of buttons shows under Azahar's menu bar while the in-game menu is open: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it.
 

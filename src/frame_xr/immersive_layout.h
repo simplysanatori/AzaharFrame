@@ -24,7 +24,7 @@
 //     1.4x, whatever the size. A step on the D-pad also scales the size by the same ratio
 //     (SizeForWider), so the picture keeps its scale and gain and only shows more or less around
 //     it; at the size limit the factor still changes (and the gain with it).
-//   - Squeeze Width (per game, off by default): the quad is narrower than the game's picture
+//   - Narrow Screen (per game, off by default): the quad is narrower than the game's picture
 //     by 10, 20 or 30 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
 //     the HUD at the sides moves in while the middle stays locked. The world looks that much
 //     thinner.
@@ -70,7 +70,7 @@ inline constexpr float kComfortHalfWidthDeg = 37.0f;
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
 inline constexpr float kMinGain = 0.4f;
 inline constexpr float kMaxGain = 2.0f;
-/// Squeeze Width (vr_immersive_squeeze 0 to 3): the screen this much narrower than the picture.
+/// Narrow Screen (vr_immersive_squeeze 0 to 3): the screen this much narrower than the picture.
 /// At 30 % the yaw gain (gain / 0.7) reaches kMaxGain from a pitch gain of 1.4 up; past that the
 /// world drifts a little sideways with the head.
 inline constexpr float kSqueezeSteps[] = {0.0f, 0.10f, 0.20f, 0.30f};
@@ -146,7 +146,7 @@ struct Options {
     float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.3)
 };
 
-/// Squeeze Width's setting (0, 1, 2) as a fraction; other values are 0.
+/// Narrow Screen's setting (0 to 3) as a fraction; other values are 0.
 float SqueezeFor(uint32_t setting);
 
 /// Modes 2 and 3, solved for one frame.

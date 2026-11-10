@@ -28,7 +28,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | Off | global and per game | at once |
-| [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
+| [Narrow Screen](#narrow-screen) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -109,9 +109,9 @@ The game camera's vertical field of view, in degrees. Change it only if a mod ch
 
 Shows more of the game around the edges. Some games leave them empty. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it.
 
-## Squeeze Width
+## Narrow Screen
 
-Full modes only. Makes the immersive screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Use **10%**, **20%** or **30%** when the HUD sits too far out to read.
+Narrows the screen so the side HUD moves into view. Full modes only. The game looks that much thinner.
 
 ## Depth Factor Multiplier
 
