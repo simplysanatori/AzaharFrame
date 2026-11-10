@@ -266,8 +266,6 @@ std::string ExplainFor(Id id) {
 
 std::string ExplainLock(Lock lock) {
     switch (lock) {
-    case Lock::GlobalOnly:
-        return "The same in every game: choose Global to change it.";
     case Lock::GameValue:
         return "This game has its own value: choose Per-Game to change it.";
     case Lock::FullOnly:

@@ -298,12 +298,8 @@ void MenuPanel::BuildModel(const Host& host) {
             lock(id, Lock::GameValue);
         }
     }
-    if (scope == 1) {
-        for (Id id : {Id::ScreenCurve, Id::ImmersiveOffset, Id::ShowStats, Id::Background,
-                      Id::FaceButtons, Id::MotionControls, Id::ShowControllers, Id::WindowScale}) {
-            lock(id, Lock::GlobalOnly);
-        }
-    }
+    // Settings that are the same in every game stay usable in Per-Game and change the global
+    // value (SetSetting); only the per-game ones follow the choice.
     if (!host.curve_ok) {
         lock(Id::ScreenCurve, Lock::Unavailable);
     }

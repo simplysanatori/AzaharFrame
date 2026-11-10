@@ -92,7 +92,6 @@ struct Target {
 /// Why an item cannot change now (its tooltip says so).
 enum class Lock : uint8_t {
     None,
-    GlobalOnly,  ///< the same in every game, while Per-Game is chosen
     GameValue,   ///< the game has its own value, while Global is chosen
     FullOnly,    ///< only in the Full immersive modes (TabMenu finds these itself)
     Unavailable, ///< the runtime does not offer it

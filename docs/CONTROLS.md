@@ -116,7 +116,7 @@ Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the 
 - **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window.
-- **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
+- **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
 
 Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts; the rest apply at once.
 

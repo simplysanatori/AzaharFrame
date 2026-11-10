@@ -201,17 +201,13 @@ int main(int argc, char** argv) {
     v.hover = {Id::NarrowScreen, kLabelIndex};
     v.tooltip = Id::NarrowScreen;
     ok &= shot("5c-settings-tooltip-option", m, v);
-    MenuModel pg = m;
-    pg.scope = 1;
-    for (Id id : {Id::Background, Id::FaceButtons, Id::MotionControls, Id::ShowControllers,
-                  Id::WindowScale}) {
-        pg.locked[static_cast<std::size_t>(id)] = Lock::GlobalOnly;
-    }
+    MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
+    gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
     v = {};
     v.tab = Tab::Settings;
-    v.hover = {Id::FaceButtons, kLabelIndex};
-    v.tooltip = Id::FaceButtons;
-    ok &= shot("5e-settings-per-game-locked", pg, v);
+    v.hover = {Id::ImmersiveMode, kLabelIndex};
+    v.tooltip = Id::ImmersiveMode;
+    ok &= shot("5e-settings-game-value-locked", gv, v);
     MenuModel off = m;
     off.immersive_mode = 0;
     v = {};

@@ -154,12 +154,13 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
 
     // A locked Background: no segments.
     m = Sample();
-    m.locked[static_cast<std::size_t>(Id::Background)] = Lock::GlobalOnly;
+    m.locked[static_cast<std::size_t>(Id::Background)] = Lock::Unavailable;
     d.Draw(m, v);
     for (const auto& h : d.menu.Hits()) {
         CHECK(!(h.t.id == Id::Background && h.t.index >= 0));
     }
-    CHECK(!ExplainLock(Lock::GlobalOnly).empty());
+    CHECK(!ExplainLock(Lock::GameValue).empty());
+    CHECK(!ExplainLock(Lock::Unavailable).empty());
 }
 
 TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]") {
