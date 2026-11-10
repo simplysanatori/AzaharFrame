@@ -185,7 +185,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     offset_row = MakeRow(
         this, QStringLiteral("frame_vr_offset_row"), tr("Immersive Offset"),
         tr("Moves the immersive screen a little to fit your lenses, in every game. In VR, hold "
-           "the immersive screen with a grip and press the D-pad."),
+           "the immersive screen with a grip and press D-pad left or right."),
         {offset_label, offset_reset});
     layout->addWidget(offset_row);
     connect(offset_reset, &QPushButton::clicked, this, [this] {
@@ -203,14 +203,17 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                       {fov_scope, fov_spin});
     layout->addWidget(fov_row);
 
-    // Settings::values.vr_immersive_wider_view (frame_xr/immersive_layout.h).
-    wider_view_check = new QCheckBox(tr("Wider View"), this);
-    wider_view_check->setObjectName(QStringLiteral("frame_vr_wider_view_check"));
-    wider_view_check->setToolTip(
-        tr("Full (6DoF) only. Making the screen bigger also shows more around the game's view. "
-           "Some games show black or missing scenery at the edges. Takes effect when the game "
-           "starts."));
-    layout->addWidget(wider_view_check);
+    // AzaharFrame widerview: values 0..4 are Settings::values.vr_immersive_wider_view_level
+    // (frame_xr/immersive_layout.h).
+    wider_combo = new QComboBox(this);
+    wider_combo->addItem(tr("Off"));
+    for (const char* step : {"1.1x", "1.2x", "1.3x", "1.4x"}) {
+        wider_combo->addItem(QString::fromLatin1(step));
+    }
+    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr("Wider View"),
+                        tr("Shows more of the game around the edges. Some games leave them empty."),
+                        {wider_combo});
+    layout->addWidget(wider_row);
 
     // Values 0..3 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
     squeeze_combo = new QComboBox(this);
@@ -219,9 +222,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     squeeze_combo->addItem(QStringLiteral("20%"));
     squeeze_combo->addItem(QStringLiteral("30%"));
     squeeze_row = MakeRow(
-        this, QStringLiteral("frame_vr_squeeze_row"), tr("Squeeze Width"),
-        tr("Full (6DoF) only. Makes the screen narrower so the HUD at the sides moves into "
-           "view. The game looks slightly thinner. Takes effect when the game starts."),
+        this, QStringLiteral("frame_vr_squeeze_row"), tr("Narrow Screen"),
+        tr("Narrows the screen so the side HUD moves into view."),
         {squeeze_combo});
     layout->addWidget(squeeze_row);
 
@@ -287,7 +289,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
         lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
         lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
-        lock(wider_view_check, Settings::values.vr_immersive_wider_view.UsingGlobal());
+        lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
         lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
         lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
         lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
@@ -300,8 +302,9 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
     ConfigurationShared::SetColoredComboBox(
         shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
-    ConfigurationShared::SetColoredTristate(
-        wider_view_check, Settings::values.vr_immersive_wider_view, wider_view_state);
+    ConfigurationShared::SetColoredComboBox(
+        wider_combo, wider_row,
+        static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         squeeze_combo, squeeze_row,
         static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
@@ -339,7 +342,6 @@ void ConfigureFrameVr::SetConfiguration() {
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
-    wider_view_check->setChecked(Settings::values.vr_immersive_wider_view.GetValue(global));
     eye_edit->setText(QString::fromStdString(eye.GetValue(global)));
 
     if (global) {
@@ -347,6 +349,8 @@ void ConfigureFrameVr::SetConfiguration() {
             static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
         squeeze_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        wider_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
@@ -368,6 +372,10 @@ void ConfigureFrameVr::SetConfiguration() {
     ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
     ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(squeeze_combo, &Settings::values.vr_immersive_squeeze);
+    ConfigurationShared::SetPerGameSetting(wider_combo,
+                                           &Settings::values.vr_immersive_wider_view_level);
+    ConfigurationShared::SetHighlight(
+        wider_row, !Settings::values.vr_immersive_wider_view_level.UsingGlobal());
     ConfigurationShared::SetHighlight(squeeze_row,
                                       !Settings::values.vr_immersive_squeeze.UsingGlobal());
     fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
@@ -433,8 +441,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view,
-                                             wider_view_check, wider_view_state);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
+                                             wider_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_squeeze,
                                              squeeze_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);

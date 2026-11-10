@@ -240,14 +240,14 @@ Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Supe
 
 The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Click the right stick while you hold the screen to put it back.
 
-If your eyes see one side of the immersive screen but not the other, keep a grip squeezed and press the D-pad. Each press shifts the screen half a degree left, right, up or down, and **Offset Right 1.5°** (for example) shows for 2 seconds. This offset is for your lenses, so it is the same in every game and every immersive mode, and putting a game's screen back does not change it. The world stays where it is; only the screen moves. **Immersive Offset** in the **VR** group shows it, and **Reset** there puts it back to the middle.
+If your eyes see one side of the immersive screen but not the other, keep a grip squeezed and press D-pad left or right. Each press shifts the screen half a degree, and **Offset Right 1.5°** (for example) shows for 2 seconds. This offset is for your lenses, so it is the same in every game and every immersive mode, and putting a game's screen back does not change it. The world stays where it is; only the screen moves. **Immersive Offset** in the **VR** group shows it, and **Reset** there puts it back to the middle.
 
 A tap of the right stick click swaps to the bottom screen, which pauses immersive mode until you tap again. [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) has the details and the tuning variables.
 
 Two more settings in the same group, per game, for the Full modes. Both are read when the game starts:
 
-- **Wider View** (off by default): a bigger screen also shows more of the game around its own picture, up to CitraVR's 1.4 times, instead of only enlarging it. Most games stop drawing their scenery just past their own view, so the edges can show black boxes or missing scenery. Super Mario 3D Land does.
-- **Squeeze Width** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
+- **Wider View** (**Off**, **1.1x** to **1.4x**): shows more of the game around the edges. Some games leave them empty; Super Mario 3D Land does. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Wider View: 1.2x** (for example) shows. It is kept for the game.
+- **Narrow Screen** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
 
 The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, 1x by default), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 

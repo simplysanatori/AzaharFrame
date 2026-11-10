@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <cmath>
 #include <string>
 #include <catch2/catch_approx.hpp>
@@ -210,22 +211,43 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
         REQUIRE(SolveHeadLocked(small, 60.0f, kAspect3ds, roomy).gain < kMaxGain);
         REQUIRE(kMaxSize >= 2.0f);
     }
-    SECTION("Wider View: the factor grows with the size, up to 1.4, before any gain below 1") {
+    SECTION("Wider View: the factor is the level; a step scales the size, so the gain stays") {
+        const HeadLocked off = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, roomy);
+        REQUIRE(off.factor == Approx(kFactorMin));
         Options wider;
-        wider.wider_view = true;
-        const float t40 = std::tan(Rad(20));
-        const HeadLocked d = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, roomy, 0.0f, wider);
-        REQUIRE(d.factor > kFactorMin);
-        REQUIRE(d.factor < kFactorMax);
-        REQUIRE(d.gain == Approx(1.0f));
+        wider.wider = WiderFactor(2);
+        REQUIRE(wider.wider == Approx(1.2f));
+        // At the same size the game draws 1.2x wider into the same screen: the gain grows.
+        const HeadLocked same = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, roomy, 0.0f, wider);
+        REQUIRE(same.factor == Approx(1.2f));
+        REQUIRE(same.gain == Approx(off.gain * 1.2f));
+        // The D-pad step also scales the size: the picture keeps its scale, only more shows.
         Placement p;
-        p.size = 2.0f;
-        const HeadLocked s = SolveHeadLocked(p, 40.0f, kAspect3ds, roomy, 0.0f, wider);
-        REQUIRE(s.factor == Approx(kFactorMax));
-        REQUIRE(s.gain < 1.0f);
-        REQUIRE(s.tan_half_y * s.gain == Approx(kFactorMax * t40));
-        // Off: the same sizes keep the game's own frame.
-        REQUIRE(SolveHeadLocked(p, 40.0f, kAspect3ds, roomy).factor == Approx(kFactorMin));
+        p.size = SizeForWider(1.0f, WiderFactor(0), WiderFactor(2));
+        REQUIRE(p.size == Approx(1.2f));
+        const HeadLocked stepped = SolveHeadLocked(p, 40.0f, kAspect3ds, roomy, 0.0f, wider);
+        REQUIRE(stepped.gain == Approx(off.gain));
+        REQUIRE(stepped.tan_half_y == Approx(off.tan_half_y * 1.2f));
+        // Back down to Off: the old size again.
+        REQUIRE(SizeForWider(p.size, WiderFactor(2), WiderFactor(0)) == Approx(1.0f));
+        // At the size limit the factor still changes.
+        REQUIRE(SizeForWider(2.4f, WiderFactor(0), WiderFactor(4)) == Approx(kMaxSize));
+        // Any level past the last is the last; the factor stays within CitraVR's 1.4.
+        REQUIRE(WiderFactor(9) == Approx(kFactorMax));
+        Options too_wide;
+        too_wide.wider = 3.0f;
+        REQUIRE(SolveHeadLocked(p, 40.0f, kAspect3ds, roomy, 0.0f, too_wide).factor ==
+                Approx(kFactorMax));
+    }
+    SECTION("Wider View: the toast and the old switch") {
+        REQUIRE(WiderToast(0) == "Wider View: Off");
+        REQUIRE(WiderToast(2) == "Wider View: 1.2x");
+        REQUIRE(WiderToast(4) == "Wider View: 1.4x");
+        // The old switch let the factor follow the size (about 0.78 x size): the nearest level.
+        REQUIRE(LevelForOldWiderView(std::nullopt) == kMaxWiderLevel);
+        REQUIRE(LevelForOldWiderView(1.0f) == 0u);
+        REQUIRE(LevelForOldWiderView(1.5f) == 2u);
+        REQUIRE(LevelForOldWiderView(2.5f) == kMaxWiderLevel);
     }
     SECTION("distance keeps the angle") {
         Placement near_p, far_p;
@@ -577,7 +599,7 @@ TEST_CASE("FrameXr immersive: files of earlier builds", "[frame_xr]") {
         frame.down = Rad(-59.6f);
         frame.up = Rad(49.5f);
         Placement now = old;
-        now.size = SizeFromOldDefault(old.size, old, 60.0f, kAspect3ds, frame, 0.0f, false);
+        now.size = SizeFromOldDefault(old.size, old, 60.0f, kAspect3ds, frame, 0.0f);
         REQUIRE(now.size > 1.5f); // the default is smaller now
         // The old screen: the whole view at most 1.4x the game's angle, times the old size.
         const float pitch = ViewMiddlePitch(frame) + Rad(old.pitch_deg);

@@ -732,6 +732,12 @@ struct Values {
     // view (periphery factor 1.0 to 1.4) instead of only enlarging its picture. Off by default:
     // past its own view a game's culling and scenery run out. Read when a game starts.
     SwitchableSetting<bool> vr_immersive_wider_view{false, "vr_immersive_wider_view"};
+    // AzaharFrame widerview: what replaces that switch: the periphery factor of the Full modes,
+    // 0 = Off (1.0x), 1 to 4 = 1.1x to 1.4x (frame_xr/immersive_layout.h). A config that has only
+    // the old switch is converted when read (QtConfig::ReadVrValues). Grip + D-pad up or down on
+    // the immersive screen sets it for the game on view. Read every frame.
+    SwitchableSetting<u32, true> vr_immersive_wider_view_level{0, 0, 4,
+                                                               "vr_immersive_wider_view_level"};
     // AzaharFrame: Full (6DoF) only. Squeeze Width: 0 = off, 1 = 10 %, 2 = 20 %, 3 = 30 % narrower
     // immersive screen at the same height, so the HUD at the sides moves in
     // (frame_xr/immersive_layout.h). Read when a game starts.

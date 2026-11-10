@@ -10,7 +10,9 @@
 
 ### Immersive mode
 
-- **Squeeze Width** has a 30% step, for HUDs that sit far out at the sides.
+- **Wider View** now has steps, Off and 1.1x to 1.4x, per game. Hold the immersive screen with a grip and press D-pad up or down to change it while you play: the screen grows with the view, so the picture keeps its scale. Games that had it on start at the step closest to what they showed before.
+- D-pad left or right still shifts the immersive screen for your lenses. To raise or lower it, move the hand that holds it.
+- **Squeeze Width** is now **Narrow Screen**, with a 30% step for HUDs that sit far out at the sides.
 
 ## 1.0.0 (November 2026)
 

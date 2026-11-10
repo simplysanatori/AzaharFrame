@@ -15,7 +15,7 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | --- | --- | --- | --- |
 | 0 | Off | normal | the normal screens |
 | 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.75 m ahead, fixed in the room, 1.88 x 1.13 m for the 3DS screen shape. Its middle third (the game's own frame) has the angular size of the normal top screen |
-| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.0x to 1.4x wider with Wider View, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 0.75 m ahead, both eyes on one quad, fitted into the view |
+| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.1x to 1.4x wider with Wider View, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 0.75 m ahead, both eyes on one quad, fitted into the view |
 | 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye, fitted into the view. The game is shown a 3D depth of about 0: the two eyes come from your head |
 
 The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
@@ -35,7 +35,7 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Left Stick Click, tap | Shows or hides the bottom screen, the same switch as the chord (screen focus, [docs/CONTROLS.md](../../docs/CONTROLS.md#swapping-the-screens)). |
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. A Right Stick Click tap meanwhile puts the screen back to its default placement (the saved one is forgotten) instead of swapping, and a Left Stick Click tap does nothing (`Immersive::HoldingScreen`, `ResetHeldScreen`). |
-| D-Pad, while a grip holds the screen | Nudges the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s), right / left / up / down, and shows "Offset Right 1.5°" (etc.) as a toast for 2 s. The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
+| D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Wider View for this game (Full modes), "Wider View: 1.2x". The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
 | Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). SteamVR's own re-centre does the same. With a grip holding the immersive screen, it also goes back to its default placement. |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
@@ -118,16 +118,19 @@ already fits); a 60 degree 5:3 game gets a 74 x 49 degree screen and gain 1.28. 
 bigger, up to 2.5 times (about 125 degrees across). The line `xr: immersive mode N on` logs the
 factor, the screen's angles, its pitch, both gains and the size.
 
-Two per-game settings change this (**VR** group, read when a game starts, logged as
-`xr: immersive: Wider View ..., Squeeze Width ...`):
+Two per-game settings change this (**VR** group, logged as
+`xr: immersive: Wider View ..., Narrow Screen ...`):
 
-- **Wider View** (`vr_immersive_wider_view`, off): the periphery factor (`gl_Position.xy /= factor`)
-  follows the size between 1.0 and CitraVR's 1.4 first, so the game's view widens with the quad
-  (gain 1, more of the edges shows); past 1.4 the gain takes over. The default may then be up to
-  1.4 times the game's angle. This was the only behaviour of earlier builds. The Mario Kart 7
-  preset turns it on (no gaps in a headset test at 1.4); Super Mario 3D Land shows black boxes
-  with it.
-- **Squeeze Width** (`vr_immersive_squeeze`: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
+- **Wider View** (`vr_immersive_wider_view_level`, per game: Off, 1.1x to 1.4x; read every
+  frame): the periphery factor (`gl_Position.xy /= factor`) is the level, whatever the size, and
+  the gain is `factor x game angle / screen angle`. Grip + D-pad up or down on the immersive
+  screen steps it and scales the size by the same ratio (`SizeForWider`), so the picture keeps its
+  scale and gain and only more or less shows around it; at the 2.5 size limit the factor still
+  changes, and the gain with it. A level set in Properties keeps the size, so the gain changes.
+  The old switch (`vr_immersive_wider_view`) is converted when a config is read: on becomes the
+  level nearest to what it gave at the saved size (0.78 x size, 1.4x when no size is saved), off
+  becomes Off. No preset turns it on; Super Mario 3D Land shows black boxes with it.
+- **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
   and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
   and the yaw gets its own gain, `gain_x = gain / (1 - squeeze)`, so the middle stays locked both
   ways. The HUD at the sides moves in (from 37 to 34, 31 or 28 degrees by default) without changing the

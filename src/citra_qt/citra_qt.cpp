@@ -211,6 +211,9 @@ std::function<void(bool open)> g_frame_xr_set_menu;
 // Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
 // buttons, and View + a bumper); GUI thread. Set in GMainWindow::InitializeHotkeys-time code below.
 std::function<void()> g_frame_xr_quick_save;
+// AzaharFrame widerview: the per-application config of the game on view (BootGame), which
+// FrontendHooks::game_setting_changed saves.
+std::string g_frame_game_config_name;
 std::function<void()> g_frame_xr_quick_load;
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
 // "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
@@ -898,6 +901,39 @@ GMainWindow::GMainWindow(Core::System& system_)
                         QTimer::singleShot(500, this, [this] {
                             queued = false;
                             config->Save();
+                        });
+                    },
+                    Qt::QueuedConnection);
+            };
+            // AzaharFrame widerview: grip + D-pad set a per-game VR setting of the game on view
+            // (the XR thread has set it): write that game's own config, half a second after the
+            // last press. Constructing the config reads its file into the settings, so the
+            // value is kept across that.
+            hooks.game_setting_changed = [this] {
+                QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        static bool queued = false;
+                        if (queued) {
+                            return;
+                        }
+                        queued = true;
+                        QTimer::singleShot(500, this, [this] {
+                            queued = false;
+                            // Stopped meanwhile: the settings are the global ones again.
+                            if (!emulation_running || g_frame_game_config_name.empty()) {
+                                return;
+                            }
+                            auto& level = Settings::values.vr_immersive_wider_view_level;
+                            const bool custom = !level.UsingGlobal();
+                            const u32 value = level.GetValue();
+                            QtConfig game_config(g_frame_game_config_name,
+                                                 QtConfig::ConfigType::PerGameConfig);
+                            level.SetGlobal(!custom);
+                            if (custom) {
+                                level.SetValue(value);
+                            }
+                            game_config.Save();
                         });
                     },
                     Qt::QueuedConnection);
@@ -2454,6 +2490,9 @@ void GMainWindow::BootGame(const QString& filename) {
             title_id == 0 ? name : fmt::format("{:016X}", title_id);
         LOG_INFO(Frontend, "Loading per application config file for title {}", config_file_name);
         QtConfig per_game_config(config_file_name, QtConfig::ConfigType::PerGameConfig);
+#ifdef ENABLE_FRAME_XR
+        g_frame_game_config_name = config_file_name; // AzaharFrame widerview
+#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
             auto& mode = Settings::values.vr_immersive_mode;
@@ -2473,11 +2512,11 @@ void GMainWindow::BootGame(const QString& filename) {
                 LOG_INFO(Frontend, "xr: {}: View Matrix Register preset {}", preset->name,
                          preset->register_offset);
             }
-            auto& wider = Settings::values.vr_immersive_wider_view;
+            auto& wider = Settings::values.vr_immersive_wider_view_level; // AzaharFrame widerview
             if (preset->wider_view && mode.GetValue() == preset->mode && wider.UsingGlobal() &&
-                !wider.GetValue()) {
+                wider.GetValue() == 0) {
                 wider.SetGlobal(false);
-                wider.SetValue(true);
+                wider.SetValue(4);
                 LOG_INFO(Frontend, "xr: {}: Wider View preset", preset->name);
             }
         }

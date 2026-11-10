@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include "frame_xr/frame_xr.h"
 
 namespace FrameXr::Input {
@@ -100,6 +102,17 @@ bool HoldingScreen();
 /// modes, every game), writes Settings::values.vr_immersive_offset_x and _y and shows the
 /// toast. True when the offset changed (the caller has the config saved). XR thread.
 bool NudgeOffset(int right_steps, int up_steps);
+
+/// AzaharFrame widerview: grip + D-pad up (+1) or down (-1) while a grip holds the immersive
+/// screen (Full modes): one Wider View step (Settings::values.vr_immersive_wider_view_level, set
+/// for this game), the screen's size scaled with the factor (Layout::SizeForWider), and the
+/// toast. Changed: the caller has the game's config saved. XR thread.
+enum class WiderStep { None, Changed };
+WiderStep StepWiderView(int dir);
+
+/// AzaharFrame widerview: the saved head-locked size of a game (immersive-placement.txt), for
+/// converting the old Wider View switch (QtConfig). Nothing when none is saved. Any thread.
+std::optional<float> SavedHeadSize(uint64_t title_id);
 
 /// While a grip holds the immersive screen: it goes back to its default placement for this game
 /// (the saved one is forgotten). No re-centre. Does nothing otherwise. XR thread.
