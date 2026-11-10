@@ -23,6 +23,7 @@ add_executable(tests
     ../frame_xr/vis/model_file.cpp # AzaharFrame vrvis
     frame_xr/vis.cpp # AzaharFrame vrvis
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
+    frame_xr/flat_fit.cpp # AzaharFrame flatdialog
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

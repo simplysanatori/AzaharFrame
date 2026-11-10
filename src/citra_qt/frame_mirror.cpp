@@ -33,6 +33,7 @@
 #include <QTextEdit>
 #include <fmt/format.h>
 
+#include "citra_qt/frame_flat_dialog.h" // AzaharFrame flatdialog
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/uisettings.h"
 #include "common/logging/log.h"
@@ -488,6 +489,22 @@ void FrameMirror::ReleaseOffscreen() {
 bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
     if (vr_showing && FilterVr(object, event)) {
         return true;
+    }
+    // AzaharFrame flatdialog: in Flat a window Azahar opens becomes the theater screen's picture
+    // (gamescope shows the newest window): sized 16:9 inside the main window's size before it
+    // maps, and again once its own showEvent has run (frame_flat_dialog.h).
+    if (event->type() == QEvent::Show && !vr_showing) {
+        if (auto* w = qobject_cast<QWidget*>(object);
+            w && w != main && w->isWindow() && IsDialogLike(w) && !w->inherits("GRenderWindow") &&
+            !w->testAttribute(Qt::WA_DontShowOnScreen)) {
+            FrameFlatDialog::Fit(w, main, true);
+            QPointer<QWidget> window{w};
+            QTimer::singleShot(0, this, [this, window] {
+                if (window && window->isVisible() && !vr_showing) {
+                    FrameFlatDialog::Fit(window, main, false);
+                }
+            });
+        }
     }
     // AzaharFrame tabmenu: a dialog over the paused game (a warning, an error, a file dialog) is
     // seen in Azahar's window, so the in-game menu shows the window.

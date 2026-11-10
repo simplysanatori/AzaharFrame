@@ -13,6 +13,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     hud.h # AzaharFrame vrqol
     presets.cpp # AzaharFrame vrqol
     presets.h # AzaharFrame vrqol
+    flat_fit.h # AzaharFrame flatdialog
     overlays.cpp
     session.cpp
     session.h

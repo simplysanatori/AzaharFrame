@@ -308,6 +308,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_link_libraries(citra_qt PRIVATE frame_xr)
     # The Qt window mirrored as the VR home panel.
     target_sources(citra_qt PRIVATE frame_mirror.cpp frame_mirror.h)
+    # AzaharFrame flatdialog: dialogs in Flat sized for the theater screen.
+    target_sources(citra_qt PRIVATE frame_flat_dialog.cpp frame_flat_dialog.h)
     # VR and flat in one run: the gamepad for flat, the mode file, the window in Game Mode.
     target_sources(citra_qt PRIVATE frame_mode.cpp frame_mode.h)
 endif()
