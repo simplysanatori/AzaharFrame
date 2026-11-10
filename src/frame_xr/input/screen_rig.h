@@ -107,7 +107,7 @@ const char* MovedToast(int right_steps, int up_steps);
 // the grip move, the size and the nudge all stay as they are for the flat screen.
 
 /// The steps of grip + D-pad up and down and of the settings, in degrees (0 = flat): Off,
-/// Subtle, Gentle, Medium, Strong, Heavy, Max (CurveName).
+/// 15, 30, 45, 60, 75, 90 (CurveName).
 inline constexpr std::array<uint32_t, 7> kCurveStepsDeg{0, 15, 30, 45, 60, 75, 90};
 /// Never bent further than this (a value typed into the config).
 inline constexpr uint32_t kMaxCurveDeg = 180;
@@ -115,10 +115,10 @@ inline constexpr uint32_t kMaxCurveDeg = 180;
 /// The next step up (dir > 0) or down (dir < 0) from `deg`; a value between two steps goes to
 /// the next one that way. At the ends it stays.
 uint32_t StepCurve(uint32_t deg, int dir);
-/// "Off", "Gentle", "Medium", "Strong", "Max" for the steps; a value between steps (typed into
-/// the config) has the name of the nearest one.
+/// "Off", "15°" and so on up to "90°" for the steps; a value between steps (typed into
+/// the config) has the label of the nearest one.
 const char* CurveName(uint32_t deg);
-/// "Screen Curve: Medium".
+/// "Screen Curve: 45°".
 std::string CurveToast(uint32_t deg);
 /// The radius that bends a screen `width` wide by `deg` degrees (arc length = width); 0 = flat.
 float CurveRadius(float width, uint32_t deg);

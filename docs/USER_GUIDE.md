@@ -146,7 +146,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
 | Trigger aimed at the bottom screen | Touch. Hold and move to drag |
-| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them (**Screen Curve**: Off, Subtle, Gentle, Medium, Strong, Heavy, Max) |
+| Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them (**Screen Curve**: Off, then 15° to 90° in 15° steps) |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game; **Stopping...** shows half way |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens and View |

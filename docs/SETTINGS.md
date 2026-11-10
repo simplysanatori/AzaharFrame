@@ -23,7 +23,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
-| [Screen Curve](#screen-curve) | **Off**, **Subtle**, **Gentle**, **Medium**, **Strong**, **Heavy**, **Max** | Off | global | at once |
+| [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -77,7 +77,7 @@ Where the smaller screen sits in VR. **Stacked**: below the main one, tilted bac
 
 ## Screen Curve
 
-Bends the main screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The smaller screen below stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept. The steps are **Off**, **Subtle**, **Gentle**, **Medium**, **Strong**, **Heavy** and **Max**, from flat to the screen bent 90 degrees across. In the menu's **Position** tab, pick it from the list.
+Bends the main screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The smaller screen below stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: 45°**, and it is kept. The steps are **Off** (flat) and 15° to 90° in 15° steps: the angle the screen's width spans. In the menu's **Position** tab, pick it from the list.
 
 ## Screen Shape
 

@@ -14,7 +14,7 @@ A new in-game menu, curved screens, a side-by-side layout and live controls for 
 
 ### The screens
 
-- **Screen Curve**: the main screen can bend toward you like a curved monitor: Off, Subtle, Gentle, Medium, Strong, Heavy or Max. The smaller screen stays flat, and touch still lands where the beam points.
+- **Screen Curve**: the main screen can bend toward you like a curved monitor, from Off to 90° in 15° steps. The smaller screen stays flat, and touch still lands where the beam points.
 - Hold the screens with a grip and press D-pad up or down to change the curve. D-pad left or right still nudges them. To move them up or down, move your hand.
 - **Screen Layout**: **Side by Side** puts the smaller screen to the right of the main one, facing you. **Stacked** keeps it below. Hold the left stick click for 1 second to switch.
 - In Flat, the same hold cycles **Large Screen**, **Side by Side** and **Default**. So does a grip held with D-pad left or right.
@@ -30,7 +30,6 @@ A new in-game menu, curved screens, a side-by-side layout and live controls for 
 
 - Holding the right stick click for 1 second is the one reset. It puts the screens back and, in immersive mode, re-centres the view.
 - Quick Load needs the left bumper held for half a second, so a brush of the bumper never loads.
-- "Stopping..." shows partway through the **View** hold, so you can let go if you pressed it by mistake.
 - Grabbing the screens shows a short hint of what the D-pad and stick do.
 
 ### Fixed

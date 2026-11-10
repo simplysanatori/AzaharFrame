@@ -223,14 +223,14 @@ TEST_CASE("FrameXr screen rig: the curve steps", "[frame_xr]") {
     REQUIRE(ups == static_cast<int>(kCurveStepsDeg.size()) - 1);
     REQUIRE(kCurveStepsDeg.size() == 7);
     REQUIRE(CurveToast(0) == "Screen Curve: Off");
-    REQUIRE(CurveToast(15) == "Screen Curve: Subtle");
-    REQUIRE(CurveToast(30) == "Screen Curve: Gentle");
-    REQUIRE(CurveToast(45) == "Screen Curve: Medium");
-    REQUIRE(CurveToast(60) == "Screen Curve: Strong"); // a saved 60 from 1.0.0 was Max
-    REQUIRE(CurveToast(75) == "Screen Curve: Heavy");
-    REQUIRE(CurveToast(90) == "Screen Curve: Max");
-    REQUIRE(std::string(CurveName(5)) == "Subtle"); // a typed value near Off is still curved
-    REQUIRE(std::string(CurveName(40)) == "Medium");
+    REQUIRE(CurveToast(15) == "Screen Curve: 15°");
+    REQUIRE(CurveToast(30) == "Screen Curve: 30°");
+    REQUIRE(CurveToast(45) == "Screen Curve: 45°");
+    REQUIRE(CurveToast(60) == "Screen Curve: 60°"); 
+    REQUIRE(CurveToast(75) == "Screen Curve: 75°");
+    REQUIRE(CurveToast(90) == "Screen Curve: 90°");
+    REQUIRE(std::string(CurveName(5)) == "15°"); // a typed value near Off is still curved
+    REQUIRE(std::string(CurveName(40)) == "45°");
 }
 
 TEST_CASE("FrameXr screen rig: a curved screen keeps its size and shape", "[frame_xr]") {

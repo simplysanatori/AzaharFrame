@@ -120,8 +120,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kShape{"3DS (5:3)",       "Widescreen (16:9)",
                                                  "Ultrawide (21:9)", "Standard (4:3)",
                                                  "3:2",             "16:10"};
-    static const std::vector<std::string> kCurve{"Off", "Subtle", "Gentle", "Medium",
-                                                "Strong", "Heavy", "Max"};
+    static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
+                                                "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
