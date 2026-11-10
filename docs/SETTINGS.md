@@ -27,7 +27,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
-| [Wider View](#wider-view) | on or off | off | global and per game | when the game starts |
+| [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | Off | global and per game | at once |
 | [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
@@ -99,7 +99,7 @@ The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the r
 
 ## Immersive Offset
 
-Shifts the immersive screen a little left, right, up or down to fit your lenses. Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press the D-pad. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
+Shifts the immersive screen a little left, right, up or down to fit your lenses. Use it if you can see one side of the screen but not the other. It is the same in every game and every immersive mode. In VR, hold the immersive screen with a grip and press D-pad left or right. Each press moves it half a degree. **Reset** in this group puts it back in the middle.
 
 ## Immersive Game FOV
 
@@ -107,9 +107,7 @@ The game camera's vertical field of view, in degrees. Change it only if a mod ch
 
 ## Wider View
 
-Full modes only. When you make the immersive screen bigger, it also shows more of the game around its own picture, up to 1.4 times, as in CitraVR. With it off, a bigger screen only enlarges the picture.
-
-Some games stop drawing their scenery just past their own view, so the edges show black or missing scenery. Super Mario 3D Land does. Turn it on per game, for games that look right with it.
+Shows more of the game around the edges. Some games leave them empty. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it.
 
 ## Squeeze Width
 

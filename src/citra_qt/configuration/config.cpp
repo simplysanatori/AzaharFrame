@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <optional>
 #include <QKeySequence>
 #include <QSettings>
 #include <QVariant>
@@ -16,6 +18,10 @@
 #include "input_common/main.h"
 #include "input_common/udp/client.h"
 #include "network/network.h"
+#ifdef ENABLE_FRAME_XR
+#include "frame_xr/immersive.h"         // AzaharFrame widerview: SavedHeadSize
+#include "frame_xr/immersive_layout.h" // LevelForOldWiderView
+#endif
 
 QtConfig::QtConfig(const std::string& config_name, ConfigType config_type) : type{config_type} {
     global = config_type == ConfigType::GlobalConfig;
@@ -513,6 +519,40 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_top_aspect);
     ReadGlobalSetting(Settings::values.vr_immersive_game_fov);
     ReadGlobalSetting(Settings::values.vr_immersive_wider_view);
+    ReadGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
+    {
+        // A config from before the levels has only the old switch. On let the factor follow the
+        // size, so a game's level comes from its saved size; the global one is 1.4x.
+        auto& old_switch = Settings::values.vr_immersive_wider_view;
+        auto& level = Settings::values.vr_immersive_wider_view_level;
+        const QString key = QString::fromStdString(level.GetLabel());
+        if (!qt_config->contains(key) && !qt_config->contains(key + QStringLiteral("/use_global"))) {
+            if (global) {
+                level.SetValue(old_switch.GetValue(true) ? 4 : 0);
+            } else if (!old_switch.UsingGlobal()) {
+                u32 converted = 0;
+                if (old_switch.GetValue()) {
+                    std::optional<float> size;
+#ifdef ENABLE_FRAME_XR
+                    // The per-application file is named after the title id.
+                    const std::string name{FileUtil::GetFilename(qt_config_loc)};
+                    if (name.size() == 20 && name.ends_with(".ini")) {
+                        char* end = nullptr;
+                        const u64 title_id = std::strtoull(name.c_str(), &end, 16);
+                        if (end == name.c_str() + 16) {
+                            size = FrameXr::Immersive::SavedHeadSize(title_id);
+                        }
+                    }
+                    converted = FrameXr::Immersive::Layout::LevelForOldWiderView(size);
+#else
+                    converted = 4;
+#endif
+                }
+                level.SetGlobal(false);
+                level.SetValue(converted);
+            }
+        }
+    }
     ReadGlobalSetting(Settings::values.vr_immersive_squeeze);
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
@@ -1156,7 +1196,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
     WriteGlobalSetting(Settings::values.vr_top_aspect);
     WriteGlobalSetting(Settings::values.vr_immersive_game_fov);
-    WriteGlobalSetting(Settings::values.vr_immersive_wider_view);
+    WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze);
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {

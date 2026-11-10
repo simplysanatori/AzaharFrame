@@ -185,6 +185,10 @@ struct FrontendHooks {
     /// Settings::values.vr_immersive_offset_x and _y, or vr_screen_curve): save the config.
     /// Any thread.
     std::function<void()> vr_setting_changed;
+    /// AzaharFrame widerview: grip + D-pad changed a per-game setting of the game on view (the XR
+    /// thread has set Settings::values.vr_immersive_wider_view_level for it): save that game's
+    /// own config. Any thread.
+    std::function<void()> game_setting_changed;
     /// AzaharFrame flat3: a stick click in flat, in a game (the window's screen layout; the game
     /// sees nothing of it). Queue to the GUI thread.
     std::function<void(FlatScreens what)> flat_screens;

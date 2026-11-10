@@ -125,16 +125,45 @@ float PlacementPitch(const Placement& p, const ViewFov& view) {
 } // namespace
 
 float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const ViewFov& view,
-                      float eye_shift, bool wider_view) {
+                      float eye_shift) {
     // The whole quad inside the view, and its middle row (where the log measures its width)
     // no wider than +-kComfortHalfWidthDeg. A lower screen's bottom corners reach a little
     // farther out, its top ones a little less.
     const float fit =
         std::min(FitTanHalfY(view, aspect, pitch_rad, kFitMarginDeg * kDegToRad, eye_shift),
                  std::tan(kComfortHalfWidthDeg * kDegToRad) / aspect);
-    // Never larger than the game's own angle (CitraVR's 1.4 with Wider View): no magnifying
-    // gain by default, even when the view has room for more.
-    return std::min(fit, (wider_view ? kFactorMax : kFactorMin) * GameTan(game_fov_y_deg));
+    // Never larger than the game's own angle: no magnifying gain by default, even when the view
+    // has room for more. Wider View then grows the screen with the factor (SizeForWider).
+    return std::min(fit, GameTan(game_fov_y_deg));
+}
+
+float WiderFactor(uint32_t level) {
+    return kFactorMin + 0.1f * static_cast<float>(std::min(level, kMaxWiderLevel));
+}
+
+std::string WiderToast(uint32_t level) {
+    level = std::min(level, kMaxWiderLevel);
+    if (level == 0) {
+        return "Wider View: Off";
+    }
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "Wider View: %.1fx", WiderFactor(level));
+    return buf;
+}
+
+float SizeForWider(float size, float from, float to) {
+    if (!(from > 0.0f) || !(to > 0.0f) || !std::isfinite(size)) {
+        return std::clamp(std::isfinite(size) ? size : 1.0f, kMinSize, kMaxSize);
+    }
+    return std::clamp(size * to / from, kMinSize, kMaxSize);
+}
+
+uint32_t LevelForOldWiderView(std::optional<float> size) {
+    if (!size || !std::isfinite(*size)) {
+        return kMaxWiderLevel;
+    }
+    const float factor = std::clamp(0.78f * *size, kFactorMin, kFactorMax);
+    return static_cast<uint32_t>(std::lround((factor - kFactorMin) / 0.1f));
 }
 
 LensOffset ClampedOffset(LensOffset o) {
@@ -180,11 +209,12 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     const float t = GameTan(game_fov_y_deg);
     // The height comes from the picture's own shape; the squeeze only narrows it.
     const float wanted =
-        DefaultTanHalfY(game_fov_y_deg, aspect, s.pitch_rad, view, eye_shift, options.wider_view) *
-        p.size;
-    // Without Wider View the game always draws its own frame: a bigger screen magnifies it
-    // (gain below 1) and never shows past it, where its culling and scenery run out.
-    s.factor = options.wider_view ? std::clamp(wanted / t, kFactorMin, kFactorMax) : kFactorMin;
+        DefaultTanHalfY(game_fov_y_deg, aspect, s.pitch_rad, view, eye_shift) * p.size;
+    // The game draws its own frame times the Wider View factor, whatever the size: a bigger
+    // screen magnifies it (gain below 1) and never shows past it, where a game's culling and
+    // scenery run out. A Wider View step scales the size with the factor (SizeForWider).
+    s.factor = std::isfinite(options.wider) ? std::clamp(options.wider, kFactorMin, kFactorMax)
+                                            : kFactorMin;
     // The game's half height (tan) at that factor over the screen's: 1 = the same angle. The
     // screen keeps its size when the gain hits a limit (the world then drifts a little).
     s.tan_half_y = wanted;
@@ -198,14 +228,14 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
 }
 
 float SizeFromOldDefault(float old_size, const Placement& placement, float game_fov_y_deg,
-                         float aspect, const ViewFov& view, float eye_shift, bool wider_view) {
+                         float aspect, const ViewFov& view, float eye_shift) {
     const Placement p = Clamped(placement);
     const float pitch = PlacementPitch(p, view);
     // Earlier builds: the whole view both eyes see, at most 1.4 times the game's angle.
     const float old_default =
         std::min(FitTanHalfY(view, aspect, pitch, kFitMarginDeg * kDegToRad, eye_shift),
                  kFactorMax * GameTan(game_fov_y_deg));
-    const float now = DefaultTanHalfY(game_fov_y_deg, aspect, pitch, view, eye_shift, wider_view);
+    const float now = DefaultTanHalfY(game_fov_y_deg, aspect, pitch, view, eye_shift);
     const float size = std::isfinite(old_size) ? old_size : 1.0f;
     return std::clamp(size * old_default / now, kMinSize, kMaxSize);
 }

@@ -253,7 +253,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Stick While Moving", "Nearer or Farther");
     Row(g, "Sideways While Moving", "Screen Size");
     Row(g, "D-Pad Left or Right While Moving", "Nudge Screen"); // AzaharFrame vrsize
-    Row(g, "D-Pad Up or Down While Moving", "Screen Curve (Immersive: Nudge)"); // curve
+    Row(g, "D-Pad Up or Down While Moving", "Screen Curve (Immersive: Wider View)"); // curve
     Row(g, "Right Stick Click While Moving", "Reset Immersive Screen");
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");

@@ -874,10 +874,19 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     }
     if (nudge.Any()) {
         if (holding_immersive) {
-            if (Immersive::NudgeOffset(nudge.right, nudge.up)) { // shows its own toast
+            // Left and right: the lens offset; up and down: Wider View (AzaharFrame widerview;
+            // the vertical offset stays in the settings). Both show their own toast.
+            if (nudge.right != 0 && Immersive::NudgeOffset(nudge.right, 0)) {
                 std::scoped_lock lock{hooks_mutex};
                 if (hooks.vr_setting_changed) {
                     hooks.vr_setting_changed();
+                }
+            }
+            if (nudge.up_presses != 0 &&
+                Immersive::StepWiderView(nudge.up_presses) == Immersive::WiderStep::Changed) {
+                std::scoped_lock lock{hooks_mutex};
+                if (hooks.game_setting_changed) {
+                    hooks.game_setting_changed();
                 }
             }
         } else if (holding_normal && bridge.mapper().DragActive()) {

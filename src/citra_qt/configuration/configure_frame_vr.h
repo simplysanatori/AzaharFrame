@@ -59,8 +59,8 @@ private:
     QWidget* fov_row;
     QComboBox* fov_scope; ///< per application only: global / this application
     QSpinBox* fov_spin;
-    QCheckBox* wider_view_check;
-    ConfigurationShared::CheckState wider_view_state = ConfigurationShared::CheckState::Global;
+    QWidget* wider_row; ///< AzaharFrame widerview: Off, 1.1x to 1.4x
+    QComboBox* wider_combo;
     QWidget* squeeze_row;
     QComboBox* squeeze_combo;
     QWidget* depth_row;

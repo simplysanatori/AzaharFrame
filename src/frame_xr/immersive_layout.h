@@ -19,9 +19,11 @@
 //     turn turns the game camera `gain` times as far, and the edges of the planar picture move a
 //     little against the head. The game's own view never widens with the size: past its edges
 //     its culling and scenery run out (black boxes in Super Mario 3D Land).
-//   - Wider View (per game, off by default): as in earlier builds, the game's periphery factor
-//     (CitraVR's 1.4, `gl_Position.xy /= factor`) then goes between 1.0 and 1.4 with the size,
-//     so the quad and the game's view grow together (gain 1 in that range).
+//   - Wider View (per game, Off by default; AzaharFrame widerview): the game's periphery factor
+//     (CitraVR's 1.4 at most, `gl_Position.xy /= factor`) is the level the player chose, 1.0x to
+//     1.4x, whatever the size. A step on the D-pad also scales the size by the same ratio
+//     (SizeForWider), so the picture keeps its scale and gain and only shows more or less around
+//     it; at the size limit the factor still changes (and the gain with it).
 //   - Squeeze Width (per game, off by default): the quad is narrower than the game's picture
 //     by 10, 20 or 30 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
 //     the HUD at the sides moves in while the middle stays locked. The world looks that much
@@ -140,7 +142,7 @@ Placement Clamped(Placement p);
 
 /// The per-game options of the head-locked screen.
 struct Options {
-    bool wider_view = false; ///< the periphery factor grows with the size (1.0 to 1.4)
+    float wider = kFactorMin; ///< Wider View: the periphery factor (kFactorMin to kFactorMax)
     float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.3)
 };
 
@@ -180,9 +182,23 @@ float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float marg
 
 /// The default screen's tan(half height) (size 1): the quad's width (at its middle row) inside
 /// +-kComfortHalfWidthDeg, the quad inside `view` minus kFitMarginDeg, no larger than the game's
-/// own angle (times 1.4 with Wider View). `aspect` is the picture's (unsqueezed).
+/// own angle. `aspect` is the picture's (unsqueezed).
 float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const ViewFov& view,
-                      float eye_shift, bool wider_view);
+                      float eye_shift);
+
+// ---- Wider View (AzaharFrame widerview) ----
+/// Settings::values.vr_immersive_wider_view_level: 0 = Off (1.0x), 1 to 4 = 1.1x to 1.4x.
+inline constexpr uint32_t kMaxWiderLevel = 4;
+/// The periphery factor of a level (others are clamped).
+float WiderFactor(uint32_t level);
+/// "Wider View: Off", "Wider View: 1.2x".
+std::string WiderToast(uint32_t level);
+/// The size that keeps the picture's scale (and the gain) when the factor goes from `from` to
+/// `to`: the screen grows with the view the game draws. Clamped to the size limits.
+float SizeForWider(float size, float from, float to);
+/// The level for a game that had the old Wider View switch on, which let the factor follow the
+/// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.
+uint32_t LevelForOldWiderView(std::optional<float> size);
 
 /// `aspect` is the game picture's width over its height (the Screen Shape).
 /// `offset` turns the solved screen (yaw_rad, and pitch_rad on top of the placement's pitch);
@@ -198,7 +214,7 @@ Input::Quatf QuadRotation(const HeadLocked& solved);
 /// relative to the old default, which filled the whole view both eyes see (at most 1.4 times
 /// the game's angle). The size that keeps that screen's angle now.
 float SizeFromOldDefault(float old_size, const Placement& placement, float game_fov_y_deg,
-                         float aspect, const ViewFov& view, float eye_shift, bool wider_view);
+                         float aspect, const ViewFov& view, float eye_shift);
 
 /// A rotation about +X by `pitch` (positive = up).
 Input::Quatf PitchRotation(float pitch_rad);

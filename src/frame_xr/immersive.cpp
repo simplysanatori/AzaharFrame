@@ -227,7 +227,8 @@ struct State {
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), every frame
     u32 shape = 0;             ///< "Screen Shape" (per game), every frame (g_top_aspect)
     bool shape_logged = false; ///< both logged for this game
-    L::Options options; ///< "Wider View" and "Squeeze Width" (per game), read at start
+    L::Options options; ///< "Wider View" (every frame) and "Squeeze Width" (at start), per game
+    u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     bool screens_were_live = false;
     bool recentre = false;
     bool have_ref = false;
@@ -323,10 +324,12 @@ void OnFrame(const FrameInfo& info) {
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;
-        g.options.wider_view = Settings::values.vr_immersive_wider_view.GetValue();
+        g.wider_level = std::min(Settings::values.vr_immersive_wider_view_level.GetValue(),
+                                 L::kMaxWiderLevel);
+        g.options.wider = L::WiderFactor(g.wider_level);
         g.options.squeeze = L::SqueezeFor(Settings::values.vr_immersive_squeeze.GetValue());
-        LOG_INFO(Frontend, "xr: immersive: Wider View {}, Squeeze Width {:.0f}%",
-                 g.options.wider_view ? "on" : "off", g.options.squeeze * 100.0f);
+        LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x, Narrow Screen {:.0f}%",
+                 g.options.wider, g.options.squeeze * 100.0f);
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
@@ -353,6 +356,16 @@ void OnFrame(const FrameInfo& info) {
                      offset.right_deg, offset.up_deg, g.offset_logged ? " (changed)" : "");
             g.offset = offset;
             g.offset_logged = true;
+        }
+    }
+    if (info.screens_live) {
+        // AzaharFrame widerview: every frame too (Properties, or the D-pad in StepWiderView).
+        const u32 wider = std::min(Settings::values.vr_immersive_wider_view_level.GetValue(),
+                                   L::kMaxWiderLevel);
+        if (wider != g.wider_level) {
+            g.wider_level = wider;
+            g.options.wider = L::WiderFactor(wider);
+            LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x (changed)", g.options.wider);
         }
     }
     if (info.screens_live) {
@@ -411,7 +424,7 @@ void OnFrame(const FrameInfo& info) {
             g.head_old_size = false;
             g.head_place.size =
                 L::SizeFromOldDefault(g.head_place.size, g.head_place, g.game_fov_y_deg,
-                                      TopAspect(), g.view_fov, eye_shift, g.options.wider_view);
+                                      TopAspect(), g.view_fov, eye_shift);
             LogPlacement("converted from an earlier build", g.head_place, false);
             if (g.title_id) {
                 g.store.Set(g.title_id, false, g.head_place);
@@ -620,6 +633,57 @@ bool NudgeOffset(int right_steps, int up_steps) {
     LOG_INFO(Frontend, "xr: immersive offset nudged to {:.1f} degrees right, {:.1f} up",
              after.right_deg, after.up_deg);
     return true;
+}
+
+WiderStep StepWiderView(int dir) {
+    if (!g.adjuster.Active() || !g.engaged || dir == 0) {
+        return WiderStep::None;
+    }
+    if (!IsViewMode(g.mode)) {
+        ShowToastText("Wider View: Full Modes Only");
+        return WiderStep::None;
+    }
+    const u32 before = g.wider_level;
+    const u32 after = static_cast<u32>(
+        std::clamp(static_cast<int>(before) + (dir > 0 ? 1 : -1), 0,
+                   static_cast<int>(L::kMaxWiderLevel)));
+    ShowToastText(L::WiderToast(after)); // also at the ends, so the press shows
+    if (after == before) {
+        return WiderStep::None;
+    }
+    // The screen grows or shrinks with the view the game draws: the picture keeps its scale.
+    const float from = L::WiderFactor(before);
+    const float to = L::WiderFactor(after);
+    g.head_place.size = L::SizeForWider(g.head_place.size, from, to);
+    g.head_old_size = false;
+    g.wider_level = after;
+    g.options.wider = to;
+    auto& level = Settings::values.vr_immersive_wider_view_level;
+    if (level.UsingGlobal()) {
+        level.SetGlobal(false); // per game, as in the game's Properties
+    }
+    level.SetValue(after);
+    if (g.title_id) {
+        g.store.Set(g.title_id, false, g.head_place);
+        SaveStore();
+    }
+    LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x by the D-pad, size {:.2f}", to,
+             g.head_place.size);
+    return WiderStep::Changed;
+}
+
+std::optional<float> SavedHeadSize(uint64_t title_id) {
+    L::Store store;
+    std::string text;
+    if (title_id == 0 || FileUtil::ReadFileToString(true, PlacementPath(), text) == 0) {
+        return std::nullopt;
+    }
+    store.Parse(text);
+    const auto p = store.Get(title_id, false);
+    if (!p || store.OldSize(title_id)) {
+        return std::nullopt; // an earlier build's size is not comparable
+    }
+    return p->size;
 }
 
 void OnResetPanels() {
