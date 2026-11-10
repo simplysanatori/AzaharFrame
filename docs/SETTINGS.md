@@ -28,7 +28,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Wider View](#wider-view) | on or off | off | global and per game | when the game starts |
-| [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%** | Off | global and per game | when the game starts |
+| [Squeeze Width](#squeeze-width) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -113,7 +113,7 @@ Some games stop drawing their scenery just past their own view, so the edges sho
 
 ## Squeeze Width
 
-Full modes only. Makes the immersive screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Use **10%** or **20%** when the HUD sits too far out to read.
+Full modes only. Makes the immersive screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Use **10%**, **20%** or **30%** when the HUD sits too far out to read.
 
 ## Depth Factor Multiplier
 

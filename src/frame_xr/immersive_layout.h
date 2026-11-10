@@ -23,7 +23,7 @@
 //     (CitraVR's 1.4, `gl_Position.xy /= factor`) then goes between 1.0 and 1.4 with the size,
 //     so the quad and the game's view grow together (gain 1 in that range).
 //   - Squeeze Width (per game, off by default): the quad is narrower than the game's picture
-//     by 10 or 20 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
+//     by 10, 20 or 30 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
 //     the HUD at the sides moves in while the middle stays locked. The world looks that much
 //     thinner.
 //
@@ -68,8 +68,10 @@ inline constexpr float kComfortHalfWidthDeg = 37.0f;
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
 inline constexpr float kMinGain = 0.4f;
 inline constexpr float kMaxGain = 2.0f;
-/// Squeeze Width (vr_immersive_squeeze 0, 1, 2): the screen this much narrower than the picture.
-inline constexpr float kSqueezeSteps[] = {0.0f, 0.10f, 0.20f};
+/// Squeeze Width (vr_immersive_squeeze 0 to 3): the screen this much narrower than the picture.
+/// At 30 % the yaw gain (gain / 0.7) reaches kMaxGain from a pitch gain of 1.4 up; past that the
+/// world drifts a little sideways with the head.
+inline constexpr float kSqueezeSteps[] = {0.0f, 0.10f, 0.20f, 0.30f};
 /// Kept clear inside the view on every side when fitting, degrees.
 inline constexpr float kFitMarginDeg = 2.5f;
 /// The view assumed before the runtime reports one, half angles in degrees.
@@ -139,7 +141,7 @@ Placement Clamped(Placement p);
 /// The per-game options of the head-locked screen.
 struct Options {
     bool wider_view = false; ///< the periphery factor grows with the size (1.0 to 1.4)
-    float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.2)
+    float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.3)
 };
 
 /// Squeeze Width's setting (0, 1, 2) as a fraction; other values are 0.

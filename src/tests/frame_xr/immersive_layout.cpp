@@ -252,6 +252,7 @@ TEST_CASE("FrameXr immersive: Squeeze Width", "[frame_xr]") {
     REQUIRE(SqueezeFor(0) == 0.0f);
     REQUIRE(SqueezeFor(1) == Approx(0.1f));
     REQUIRE(SqueezeFor(2) == Approx(0.2f));
+    REQUIRE(SqueezeFor(3) == Approx(0.3f));
     REQUIRE(SqueezeFor(7) == 0.0f);
     const HeadLocked plain = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, roomy);
     Options o;
@@ -268,6 +269,27 @@ TEST_CASE("FrameXr immersive: Squeeze Width", "[frame_xr]") {
     REQUIRE(s.factor * t * kAspect3ds / (s.tan_half_y * s.aspect) == Approx(s.gain_x));
     REQUIRE(s.factor * t / s.tan_half_y == Approx(s.gain));
     REQUIRE(plain.gain_x == Approx(plain.gain));
+}
+
+TEST_CASE("FrameXr immersive: Squeeze Width 30%", "[frame_xr]") {
+    // The Frame's default for a 60 degree game (gain about 1.3): the yaw gain stays under the
+    // limit, so the middle stays locked both ways.
+    Options o;
+    o.squeeze = SqueezeFor(3);
+    const HeadLocked plain = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(50));
+    const HeadLocked s = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, Symmetric(50), 0.0f, o);
+    REQUIRE(s.gain == Approx(plain.gain));
+    REQUIRE(s.width() == Approx(plain.width() * 0.7f));
+    REQUIRE(s.gain < 1.4f);
+    REQUIRE(s.gain_x == Approx(s.gain / 0.7f));
+    REQUIRE(s.gain_x < kMaxGain);
+    // A smaller screen (bigger gain): the yaw gain stops at the limit, never past it.
+    Placement small;
+    small.size = 0.6f;
+    const HeadLocked t = SolveHeadLocked(small, 60.0f, kAspect3ds, Symmetric(50), 0.0f, o);
+    REQUIRE(t.gain > 1.4f);
+    REQUIRE(t.gain_x == Approx(kMaxGain));
+    REQUIRE(std::isfinite(t.tan_half_y));
 }
 
 TEST_CASE("FrameXr immersive: the rotation gain", "[frame_xr]") {

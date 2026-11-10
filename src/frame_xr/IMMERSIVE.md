@@ -127,15 +127,17 @@ Two per-game settings change this (**VR** group, read when a game starts, logged
   1.4 times the game's angle. This was the only behaviour of earlier builds. The Mario Kart 7
   preset turns it on (no gaps in a headset test at 1.4); Super Mario 3D Land shows black boxes
   with it.
-- **Squeeze Width** (`vr_immersive_squeeze`: 0 off, 1 = 10 %, 2 = 20 %): the quad keeps its height
+- **Squeeze Width** (`vr_immersive_squeeze`: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
   and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
   and the yaw gets its own gain, `gain_x = gain / (1 - squeeze)`, so the middle stays locked both
-  ways. The HUD at the sides moves in (from 37 to 34 or 31 degrees by default) without changing the
-  vertical size. The cost: the world looks 10 or 20 % thinner, a left-right turn turns the game
+  ways. The HUD at the sides moves in (from 37 to 34, 31 or 28 degrees by default) without changing the
+  vertical size. The cost: the world looks 10, 20 or 30 % thinner, a left-right turn turns the game
   camera more than an up-down turn (a diagonal turn is a little off), the stereo depth in mode 3 is
   that much flatter, a head roll cannot be matched exactly in a squeezed picture (kept 1:1), and the
-  edges move a little more against the head (the formula above with `gain_x`). It costs nothing to
-  draw.
+  edges move a little more against the head (the formula above with `gain_x`). `gain_x` is
+  clamped to `kMaxGain` (2.0) like the gain: at 30 % that limit is reached from a pitch gain of
+  1.4 (the Frame's default for a 60 degree game is about 1.3), and past it a left-right turn
+  drifts the world a little. It costs nothing to draw.
 
 Saved sizes are relative to that default. The file's `view` lines are written by this build; `head`
 lines come from earlier builds, whose default filled the whole view both eyes see: once the view is

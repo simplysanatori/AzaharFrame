@@ -247,7 +247,7 @@ A tap of the right stick click swaps to the bottom screen, which pauses immersiv
 Two more settings in the same group, per game, for the Full modes. Both are read when the game starts:
 
 - **Wider View** (off by default): a bigger screen also shows more of the game around its own picture, up to CitraVR's 1.4 times, instead of only enlarging it. Most games stop drawing their scenery just past their own view, so the edges can show black boxes or missing scenery. Super Mario 3D Land does.
-- **Squeeze Width** (**Off**, **10%**, **20%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
+- **Squeeze Width** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
 
 The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, 1x by default), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 

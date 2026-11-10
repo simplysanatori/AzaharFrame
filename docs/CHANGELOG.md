@@ -8,6 +8,10 @@
 - While you hold the screens with a grip, D-pad up or down changes the curve, and a label shows the new value. It is kept for every game.
 - D-pad left or right still nudges the screens around you. To move them up or down, move the hand that holds them.
 
+### Immersive mode
+
+- **Squeeze Width** has a 30% step, for HUDs that sit far out at the sides.
+
 ## 1.0.0 (November 2026)
 
 The first release of Azahar for Frame: Nintendo 3DS games in VR, running natively on the Valve Steam Frame. It is the Azahar emulator with the VR modes of amwatson's CitraVR.

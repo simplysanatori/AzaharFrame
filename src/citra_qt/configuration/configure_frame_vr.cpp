@@ -212,11 +212,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
            "starts."));
     layout->addWidget(wider_view_check);
 
-    // Values 0..2 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
+    // Values 0..3 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
     squeeze_combo = new QComboBox(this);
     squeeze_combo->addItem(tr("Off"));
     squeeze_combo->addItem(QStringLiteral("10%"));
     squeeze_combo->addItem(QStringLiteral("20%"));
+    squeeze_combo->addItem(QStringLiteral("30%"));
     squeeze_row = MakeRow(
         this, QStringLiteral("frame_vr_squeeze_row"), tr("Squeeze Width"),
         tr("Full (6DoF) only. Makes the screen narrower so the HUD at the sides moves into "
