@@ -128,6 +128,14 @@ fi
 for f in convert-texture-pack.sh build-astcenc.sh; do
   if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
 done
+# The licences of the in-game menu's font and icons (THIRD_PARTY_NOTICES.md).
+LICENSEFILES="GoogleSansFlex-OFL.txt MaterialSymbols-LICENSE.txt"
+LICENSES_SRC=$SRC_DIR/licenses
+[ -d "$LICENSES_SRC" ] || LICENSES_SRC=$HERE/../src/frame_xr/menu/licenses
+if [ "$(readlink -f "$LICENSES_SRC")" != "$(readlink -f "$DEST/licenses")" ]; then
+  act mkdir -p "$DEST/licenses"
+  for f in $LICENSEFILES; do if [ -f "$LICENSES_SRC/$f" ]; then put "$LICENSES_SRC/$f" "$DEST/licenses/$f"; fi; done
+fi
 # The program's own Qt and libraries (a portable release): lib/, plugins/ and qt.conf beside the program.
 # They replace the old ones as a whole (an old library must not stay), and a program installed without them
 # (a local build) must not find the old qt.conf, which would send Qt to the plugins of another version.

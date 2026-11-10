@@ -26,6 +26,7 @@
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
+#include "frame_xr/menu_panel.h"            // AzaharFrame tabmenu
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
 #include "frame_xr/vis/visuals.h" // AzaharFrame vrvis
@@ -105,6 +106,10 @@ public:
     void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
     void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
     void SetInGameMenu(bool open);
+    // AzaharFrame tabmenu: any thread.
+    void SetInGameMenuWindow(bool window);
+    void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
+                           bool per_game);
     void SetFlatInput(FlatInputSource source);
 
 private:
@@ -162,6 +167,12 @@ private:
 
     // The in-game menu: the home panel over the paused game (Menu held 1 s).
     std::atomic<bool> menu_open{false}; ///< set by the Qt side once the game paused
+    /// AzaharFrame tabmenu: the menu (false) or Azahar's window (true) shows; the Qt side's.
+    std::atomic<bool> menu_window{false};
+    MenuPanel tab_menu;
+    /// The tab menu's work: VrUi's part of it (the screens) and the Qt side's (MenuFrame).
+    void TabMenuFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
+                      bool have_input, std::vector<Quad>& layers);
     bool menu_shown = false;
     MirrorPanel::Placement home_place{};
     OverlayChain dim_chain; ///< a dark see-through quad between the game screens and the panel

@@ -56,9 +56,10 @@ Menu::MenuModel SampleModel() {
     m.show_controllers = true;
     m.window_scale = 1;
     m.immersive_mode = 2;
-    m.wider_view = 1.2f;
+    m.wider_view = 2;
     m.game_fov = 60;
-    m.squeeze_width = 0;
+    m.narrow_screen = 0;
+    m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
     m.depth_factor = 0;
     return m;
 }
@@ -164,6 +165,9 @@ int main(int argc, char** argv) {
     v.tab = Tab::Main;
     v.hover = {Id::QuickSave};
     ok &= shot("1-main", m, v);
+    v.page = Page::LoadSlots;
+    v.hover = {Id::Slot, 2};
+    ok &= shot("1b-main-load-slots", m, v);
 
     v = {};
     v.tab = Tab::Position;
@@ -194,9 +198,20 @@ int main(int argc, char** argv) {
     v.hover = {Id::GameFov};
     v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
     ok &= shot("5b-settings-end", m, v);
-    v.hover = {Id::SqueezeWidth, -1};
-    v.tooltip = Id::SqueezeWidth;
+    v.hover = {Id::NarrowScreen, kLabelIndex};
+    v.tooltip = Id::NarrowScreen;
     ok &= shot("5c-settings-tooltip-option", m, v);
+    MenuModel pg = m;
+    pg.scope = 1;
+    for (Id id : {Id::Background, Id::FaceButtons, Id::MotionControls, Id::ShowControllers,
+                  Id::WindowScale}) {
+        pg.locked[static_cast<std::size_t>(id)] = Lock::GlobalOnly;
+    }
+    v = {};
+    v.tab = Tab::Settings;
+    v.hover = {Id::FaceButtons, kLabelIndex};
+    v.tooltip = Id::FaceButtons;
+    ok &= shot("5e-settings-per-game-locked", pg, v);
     MenuModel off = m;
     off.immersive_mode = 0;
     v = {};

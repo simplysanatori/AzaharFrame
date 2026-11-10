@@ -25,6 +25,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
@@ -49,6 +51,11 @@ void NoteXrSecond(const XrSecond& second);
 void NoteTopHeadLocked(bool head_locked);
 
 enum class Where { Home, Menu, Game };
+
+/// AzaharFrame tabmenu: the controls profile in use (SetControlBindings), for the in-game menu's
+/// Controls tab. Any thread.
+struct HelpBindings;
+HelpBindings CurrentHelpBindings();
 
 /// Azahar's window (or the picker) as shown this frame.
 struct Window {
@@ -85,6 +92,9 @@ public:
     const XrCompositionLayerBaseHeader* TopLayers(std::vector<Quad>& top, std::size_t used) const;
     /// The runtime's limit of layers a frame (XrSystemGraphicsProperties::maxLayerCount).
     std::size_t MaxLayers() const;
+    /// AzaharFrame tabmenu: the stats as the stats panel would show them now (the in-game menu's
+    /// Stats tab, as it opens: the last second the game ran). XR thread.
+    std::vector<std::pair<std::string, std::string>> MenuStats();
 
 private:
     struct Impl;

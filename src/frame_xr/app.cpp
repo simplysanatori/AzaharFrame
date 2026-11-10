@@ -986,6 +986,19 @@ void SetInGameMenu(bool open) {
     }
 }
 
+void SetInGameMenuWindow(bool window) { // AzaharFrame tabmenu
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetInGameMenuWindow(window);
+    }
+}
+
+void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
+                       bool per_game) {
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetInGameMenuInfo(title, slots, per_game);
+    }
+}
+
 XrInstance Instance() {
     return g_runtime ? g_runtime->instance : XR_NULL_HANDLE;
 }

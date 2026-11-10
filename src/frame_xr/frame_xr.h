@@ -155,6 +155,45 @@ enum class FlatScreens {
     Reset,       ///< right stick click, held 1 s: flat's default layout (Large Screen, not swapped)
 };
 
+/// AzaharFrame tabmenu: what the in-game menu asks of the Qt side (FrontendHooks::menu_request).
+enum class MenuCommand {
+    Continue,     ///< close the menu, the game continues
+    QuickSave,    ///< close the menu, then Quick Save
+    QuickLoad,    ///< close the menu, then Quick Load
+    SaveSlot,     ///< `value`: slot 1 to 10
+    LoadSlot,     ///< `value`: slot 1 to 10
+    Screenshot,   ///< close the menu, then Tools > Capture Screenshot
+    Restart,      ///< Emulation > Restart
+    CloseGame,    ///< stop the game (as View held)
+    SwitchToFlat, ///< as the four-button chord
+    ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
+    MoreSettings, ///< the same, with Emulation > Configure... open
+    SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
+};
+enum class MenuSetting {
+    HideBottomScreen,
+    ScreenShape,
+    ScreenCurve, ///< `value`: degrees (0, 15, 30, 45, 60)
+    ImmersiveOffsetReset,
+    ShowStats,
+    Background,
+    FaceButtons,
+    MotionControls,
+    ShowControllers,
+    WindowScale, ///< `value`: percent
+    ImmersiveMode,
+    WiderView,
+    GameFov, ///< `value`: degrees
+    NarrowScreen,
+    DepthFactor,
+};
+struct MenuRequest {
+    MenuCommand command = MenuCommand::Continue;
+    MenuSetting setting = MenuSetting::HideBottomScreen;
+    int value = 0;
+    bool per_game = false;
+};
+
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
@@ -192,6 +231,9 @@ struct FrontendHooks {
     /// AzaharFrame flat3: a stick click in flat, in a game (the window's screen layout; the game
     /// sees nothing of it). Queue to the GUI thread.
     std::function<void(FlatScreens what)> flat_screens;
+    /// AzaharFrame tabmenu: a button or setting of the in-game menu (menu_panel.h). Queue to the
+    /// GUI thread.
+    std::function<void(const MenuRequest& request)> menu_request;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -242,6 +284,19 @@ void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
 /// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
 /// the controllers drive the panel and not the game. GUI thread, after the game paused.
 void SetInGameMenu(bool open);
+/// AzaharFrame tabmenu: while the in-game menu is open, show Azahar's window (true; the Qt side
+/// captures it as the home panel, for "Azahar's Window", "More Settings" and any dialog) or the
+/// menu (false). GUI thread.
+void SetInGameMenuWindow(bool window);
+/// AzaharFrame tabmenu: the in-game menu's game title, the game's save state slots (0 is the
+/// quick save, 1 to 10 the others; slots not listed are empty) and whether it can have settings of
+/// its own (it has a title id). GUI thread, as the menu opens.
+struct MenuSaveSlot {
+    int slot = 0;
+    std::string time;
+};
+void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
+                       bool per_game);
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

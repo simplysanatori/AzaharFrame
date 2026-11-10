@@ -50,7 +50,7 @@ Pick **By Label** if you'd rather follow the letters than the layout.
 
 What shows behind the screens. **Passthrough** shows your room through the headset's cameras, when SteamVR offers it to apps. If it doesn't, the background stays black.
 
-The in-game menu has a **Passthrough** button for the same switch, and your choice is kept.
+The in-game menu has the same choice on its **Settings** tab, and your choice is kept.
 
 ## Window Scale
 

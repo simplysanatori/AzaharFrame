@@ -137,11 +137,13 @@ bool VrUi::Create(Runtime& rt) {
         uploader.Upload(dim_chain, dim.data());
     }
     visuals.Create(rt); // AzaharFrame vrvis
+    tab_menu.Create(rt); // AzaharFrame tabmenu
     return true;
 }
 
 void VrUi::DestroyXr() {
     visuals.DestroyXr(); // AzaharFrame vrvis
+    tab_menu.DestroyXr(); // AzaharFrame tabmenu
     if (bridge_live) {
         bridge.Release();
         bridge_live = false;
@@ -418,7 +420,19 @@ void VrUi::SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
 }
 
 void VrUi::SetInGameMenu(bool open) {
+    if (!open) {
+        menu_window = false; // the next one opens on the menu
+    }
     menu_open = open;
+}
+
+void VrUi::SetInGameMenuWindow(bool window) {
+    menu_window = window;
+}
+
+void VrUi::SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
+                             bool per_game) {
+    tab_menu.SetInfo(title, slots, per_game);
 }
 
 bool VrUi::Hold::Update(bool pressed, XrTime now, XrTime need) {
@@ -465,6 +479,7 @@ void VrUi::EnterMenu() {
     const Input::Vec3f at = head + forward * d;
     const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
     mirror.Place(ToXr(pose), kMenuWidthPerMetre * d);
+    tab_menu.Open(ToXr(pose), kMenuWidthPerMetre * d, visuals.MenuStats()); // AzaharFrame tabmenu
     menu_hold = {}; // Menu is still held from opening: a new hold closes the menu
     view_hold = {};
     Immersive::SetMenuOpen(true);
@@ -473,6 +488,7 @@ void VrUi::EnterMenu() {
 }
 
 void VrUi::LeaveMenu(const Input::InputFrame& in) {
+    tab_menu.Close(); // AzaharFrame tabmenu
     mirror.Hide();
     keyboard.Hide(); // AzaharFrame keyboard
     mirror.SetPlacement(home_place);
@@ -546,22 +562,68 @@ void VrUi::MenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             }
         }
     }
+    const bool window = menu_window; // AzaharFrame tabmenu: Azahar's window, else the menu
     if (info.should_render && dim_chain.has_image) {
         Quad dim;
         dim.swapchain = dim_chain.handle;
         dim.image_rect = {{0, 0}, {static_cast<int32_t>(kDimSize), static_cast<int32_t>(kDimSize)}};
-        dim.pose = mirror.Pose();
+        dim.pose = window ? mirror.Pose() : tab_menu.Pose();
         // AzaharFrame vrqol: 2 cm behind the window. SteamVR depth-sorts quad layers (Frame
         // port notes), and a dim quad in the window's own plane would fight it.
         const Input::Vec3f behind = Input::Rotate(ToInput(dim.pose).orientation, {0, 0, -0.02f});
         dim.pose.position.x += behind.x;
         dim.pose.position.y += behind.y;
         dim.pose.position.z += behind.z;
-        dim.size = {mirror.Width() * 6.0f, mirror.Width() * 5.0f};
+        const float w = window ? mirror.Width() : tab_menu.Width();
+        dim.size = {w * 6.0f, w * 5.0f};
         dim.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
         layers.push_back(dim);
     }
-    WindowFrame(rt, info, in, have_input, layers, 0.02f * mirror.Width() / 1.6f); // AzaharFrame keyboard
+    if (window) {
+        tab_menu.Close();
+        WindowFrame(rt, info, in, have_input, layers, 0.02f * mirror.Width() / 1.6f); // AzaharFrame keyboard
+    } else {
+        mirror.Hide();
+        keyboard.Hide();
+        TabMenuFrame(rt, info, in, have_input, layers);
+    }
+}
+
+// AzaharFrame tabmenu: the menu panel; the screens' part of its buttons is done here.
+void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,
+                        bool have_input, std::vector<Quad>& layers) {
+    MenuPanel::Host host;
+    host.curve_ok = cylinder_ok;
+    host.passthrough_ok = PassthroughSupported();
+    host.request = [this](const MenuRequest& r) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.menu_request) {
+            hooks.menu_request(r);
+        }
+    };
+    host.reset_position = [this, &rt] {
+        ResetPlacement(rt);
+        Immersive::OnResetPanels();
+        ShowToastText("Position Reset");
+    };
+    host.swap_screens = [this] {
+        const bool managed = Immersive::CanToggleBottom();
+        const Input::ScreenView::Effect effect = screen_view.Swap(managed);
+        if (effect.toggle_immersive_bottom) {
+            Immersive::ToggleBottom();
+        }
+        Immersive::SetBottomFocused(screen_view.bottom_focus());
+        LOG_INFO(Frontend, "xr: in-game menu: {} screen in focus",
+                 screen_view.bottom_focus() ? "bottom" : "top");
+    };
+    if (!tab_menu.IsOpen()) {
+        tab_menu.Resume(); // back from Azahar's window
+    }
+    std::optional<XrPosef> cursor;
+    tab_menu.Frame(info, in, have_input, host, layers, cursor);
+    if (cursor) {
+        AddCursor(*cursor, 0.02f * tab_menu.Width() / 1.6f, layers);
+    }
 }
 
 // AzaharFrame keyboard: the window and the headset keyboard under it. The keyboard takes its
@@ -780,7 +842,9 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     // AzaharFrame vrvis: the help, the buttons and the stats; the beams, dots and models.
     Vis::Window window;
     if (where != Vis::Where::Game) {
-        if (mirror.Enabled()) {
+        if (where == Vis::Where::Menu && !menu_window) {
+            window.shown = false; // AzaharFrame tabmenu: the menu, no help or buttons beside it
+        } else if (mirror.Enabled()) {
             const std::size_t dim = where == Vis::Where::Menu && dim_chain.has_image &&
                                             info.should_render
                                         ? 1

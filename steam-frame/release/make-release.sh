@@ -28,7 +28,7 @@ OUT=$(readlink -m "$OUT")
 case "$OUT/" in "$REPO"/*) echo "the output folder $OUT is inside the repository; name one outside it" >&2; exit 1 ;; esac
 mkdir -p "$OUT"
 [ -x "$BUILD/azahar" ] || { echo "no azahar program in $BUILD (run steam-frame/build.sh first)" >&2; exit 1; }
-for f in "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$SF/dock-icon.py" "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/framedrop-run.sh" "$SF/release/make-framedrop-zip.py" "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md"; do
+for f in "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$SF/dock-icon.py" "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/framedrop-run.sh" "$SF/release/make-framedrop-zip.py" "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt"; do
   [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
 done
 
@@ -44,13 +44,16 @@ if HOMES=$(strings -a "$STAGE/azahar" | grep -F '/home/' | sort -u | head -n 5) 
 fi
 cp "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/dock-icon.py" "$STAGE/"
 cp "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$STAGE/"
+# the in-game menu's font (OFL) and icons (Apache 2.0), embedded in the program
+mkdir -p "$STAGE/licenses"
+cp "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt" "$STAGE/licenses/"
 mkdir -p "$STAGE/art"
 cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$STAGE/art/"
 mkdir -p "$STAGE/tools"
 cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$STAGE/tools/"
 chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh"
 echo "$VERSION" > "$STAGE/VERSION"
-FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art tools"
+FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md licenses art tools"
 # the program's own Qt and libraries (portable.sh; steam-frame/build-portable.sh)
 . "$HERE/portable.sh"
 portable_stage "$STAGE"

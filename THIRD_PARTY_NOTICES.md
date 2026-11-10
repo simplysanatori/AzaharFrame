@@ -71,8 +71,8 @@ The keyboard in VR is the Compact keyboard of Moonlight XR (https://github.com/s
 
 The in-game menu (`src/frame_xr/menu/`) follows the structure of CitraVR's VR menu (above) and Google's Material 3 design guidelines. Two font families are embedded in `src/frame_xr/menu/md3_fonts.h`, modified only by `steam-frame/dev/make-md3-fonts.py`: cut to static instances (fixed weight and other axes) and subset to the characters and icons the menu uses.
 
-- **Google Sans Flex**, Copyright 2015 The Google Sans Flex Authors (https://github.com/googlefonts/googlesans-flex), under the SIL Open Font License 1.1, which names no Reserved Font Name: [src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt](src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt). "Google Sans Flex" is a trademark of Google LLC; its use here implies no endorsement.
-- **Material Symbols Rounded**, Copyright Google LLC (https://github.com/google/material-design-icons), under the Apache License, Version 2.0: [src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt](src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt).
+- **Google Sans Flex**, Copyright 2015 The Google Sans Flex Authors (https://github.com/googlefonts/googlesans-flex), under the SIL Open Font License 1.1, which names no Reserved Font Name: [src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt](src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt) (in a release: licenses/GoogleSansFlex-OFL.txt). "Google Sans Flex" is a trademark of Google LLC; its use here implies no endorsement.
+- **Material Symbols Rounded**, Copyright Google LLC (https://github.com/google/material-design-icons), under the Apache License, Version 2.0: [src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt](src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt) (in a release: licenses/MaterialSymbols-LICENSE.txt).
 - Its text and icons are drawn with the stb_truetype above.
 
 ## Controller models, beams and panels in VR

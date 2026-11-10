@@ -2,6 +2,12 @@
 
 ## 1.1.0 (unreleased)
 
+### The in-game menu
+
+- The in-game menu is new: a panel with five tabs (Main, Position, Stats, Controls and Settings), laid out like CitraVR's menu and drawn in Material 3. Everything is one beam and one trigger pull away: Quick Save, Quick Load, ten save state slots with their times, Screenshot, Restart, Switch to Flat and Close Game, the screen position and curve, the stats of the last second before the pause, the controller drawings, and the VR settings, for every game or just this one.
+- Rest the beam on a setting to see what it does. A greyed-out setting tells you why.
+- **Azahar's Window** on the Main tab shows Azahar's own window over the game as before, for everything else. **B** goes back to the menu.
+
 ### The screens
 
 - **Screen Curve**: the screens can now bend toward you like a curved monitor, Off, Gentle, Medium, Strong or Max. The picture keeps its size and shape, the 3D still works, and touch lands where the beam points. Both screens curve around the same point, so they read as one surface. Immersive mode stays flat.

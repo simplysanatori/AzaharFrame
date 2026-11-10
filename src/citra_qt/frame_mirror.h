@@ -57,6 +57,13 @@ public:
     bool MenuOpen() const {
         return menu_open;
     }
+    /// AzaharFrame tabmenu: in VR the in-game menu is the tab menu (frame_xr/menu_panel.h) unless
+    /// this window is asked for (Azahar's Window, More Settings) or a dialog opens over the game;
+    /// B with nothing open goes back to the tab menu. Each menu opens on the tab menu.
+    void SetMenuWindow(bool window);
+    bool MenuWindow() const {
+        return menu_window;
+    }
     /// VR (a session: capture as above) or flat (the window is on the screen itself: no capture).
     void SetVrShowing(bool showing);
     /// The window back to the size for the mode, even when that size was asked for before (a
@@ -130,7 +137,7 @@ private:
     qreal scale = 0.0;            // pixels per window pixel; 0: from the panel's size
     QSize requested_size;         ///< what ApplyWindowSize last asked the window for
     bool Capturing() const {
-        return vr_showing && (!game_running || menu_open);
+        return vr_showing && (!game_running || (menu_open && menu_window));
     }
     void Shown();
 
@@ -139,6 +146,7 @@ private:
 
     bool game_running = false;
     bool menu_open = false;
+    bool menu_window = false; ///< AzaharFrame tabmenu: the in-game menu shows this window
     bool vr_showing = true;
     std::function<void()> close_menu;
     bool capturing = false;

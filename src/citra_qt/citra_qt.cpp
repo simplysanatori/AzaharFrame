@@ -215,12 +215,30 @@ std::function<void()> g_frame_xr_quick_save;
 // FrontendHooks::game_setting_changed saves.
 std::string g_frame_game_config_name;
 std::function<void()> g_frame_xr_quick_load;
+// AzaharFrame tabmenu: the in-game menu's requests (FrontendHooks::menu_request). GUI thread.
+std::function<void(const FrameXr::MenuRequest&)> g_frame_xr_menu_request;
+
+// AzaharFrame tabmenu: a per-game VR setting as it is in memory (constructing the game's
+// QtConfig to save it reads its file back into the settings; this puts the value back).
+template <typename T, bool R>
+struct FrameKeepSetting {
+    explicit FrameKeepSetting(Settings::SwitchableSetting<T, R>& s)
+        : setting{s}, global{s.UsingGlobal()}, value{s.GetValue()} {}
+    void Restore() {
+        setting.SetGlobal(global);
+        if (!global) {
+            setting.SetValue(value);
+        }
+    }
+    Settings::SwitchableSetting<T, R>& setting;
+    bool global;
+    T value;
+};
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
 // "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
 // mode switches. GUI thread.
 std::function<void(bool on, const char* why)> g_frame_xr_fast_forward;
 bool g_frame_xr_fast_forward_on = false;
-QPointer<QPushButton> g_frame_xr_passthrough_button;
 // AzaharFrame flat3: a stick click in flat, in a game: the window's own screen layout
 // (Settings::frame_flat_layout). GUI thread.
 std::function<void(FrameXr::FlatScreens what)> g_frame_xr_flat_screens;
@@ -837,6 +855,16 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            hooks.menu_request = [this](const FrameXr::MenuRequest& r) { // AzaharFrame tabmenu
+                QMetaObject::invokeMethod(
+                    this,
+                    [r] {
+                        if (g_frame_xr_menu_request) {
+                            g_frame_xr_menu_request(r);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            };
             hooks.quick_save = [this] { // AzaharFrame vrqol: View, then the Right Bumper
                 QMetaObject::invokeMethod(
                     this,
@@ -1183,36 +1211,6 @@ GMainWindow::GMainWindow(Core::System& system_)
 
             if (FrameMirror::Wanted()) {
                 g_frame_mirror = new FrameMirror(this);
-                // The row of buttons at the top of the in-game menu (VR only, see FrameMirror).
-                g_frame_mirror->AddVrMenuButton(tr("Quick Save"), [] {
-                    if (g_frame_xr_quick_save) {
-                        g_frame_xr_quick_save();
-                    }
-                });
-                g_frame_mirror->AddVrMenuButton(tr("Quick Load"), [] {
-                    if (g_frame_xr_quick_load) {
-                        g_frame_xr_quick_load();
-                    }
-                });
-                g_frame_xr_passthrough_button = g_frame_mirror->AddVrMenuButton(
-                    tr("Passthrough"), [this] {
-                        if (!g_frame_xr_passthrough_button) {
-                            return;
-                        }
-                        Settings::values.vr_background.SetValue(
-                            g_frame_xr_passthrough_button->isChecked() ? 1 : 0);
-                        config->Save();
-                    });
-                if (g_frame_xr_passthrough_button) {
-                    g_frame_xr_passthrough_button->setCheckable(true);
-                    g_frame_xr_passthrough_button->setChecked(
-                        Settings::values.vr_background.GetValue() == 1);
-                    if (!FrameXr::PassthroughSupported()) {
-                        g_frame_xr_passthrough_button->setEnabled(false);
-                        g_frame_xr_passthrough_button->setToolTip(
-                            tr("SteamVR does not offer passthrough to apps."));
-                    }
-                }
                 // Menu held 1 s in a game: pause (Emulation > Pause) and show this window over
                 // the game; held again, B with nothing open, or Emulation > Continue: resume.
                 // AzaharFrame flat4: in flat the same is the Flat menu: the window leaves
@@ -1238,9 +1236,24 @@ GMainWindow::GMainWindow(Core::System& system_)
                         !system.frame_limiter.IsFrameAdvancing()) {
                         OnPauseGame();
                     }
-                    if (open && g_frame_xr_passthrough_button) { // the Settings dialog may have changed it
-                        g_frame_xr_passthrough_button->setChecked(
-                            Settings::values.vr_background.GetValue() == 1);
+                    if (open && !flat) { // AzaharFrame tabmenu: the title and save slots
+                        std::vector<FrameXr::MenuSaveSlot> menu_slots; // "slots" is Qt's
+                        u64 title_id{};
+                        const bool have_id = system.GetAppLoader().ReadProgramId(title_id) ==
+                                             Loader::ResultStatus::Success;
+                        if (have_id) {
+                            for (const auto& state :
+                                 Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
+                                menu_slots.push_back(
+                                    {static_cast<int>(state.slot),
+                                     QDateTime::fromSecsSinceEpoch(static_cast<qint64>(state.time))
+                                         .toString(QStringLiteral("yyyy-MM-dd hh:mm"))
+                                         .toStdString()});
+                            }
+                        }
+                        FrameXr::SetInGameMenuInfo(game_title.toStdString(), menu_slots,
+                                                   have_id && title_id != 0 &&
+                                                       !g_frame_game_config_name.empty());
                     }
                     if (open && flat) {
                         g_frame_flat_menu_fullscreen |= WindowFullscreen() || g_frame_fullscreen;
@@ -1297,6 +1310,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                         g_frame_xr_set_menu(false);
                     }
                 });
+                g_frame_xr_menu_request = [this](const FrameXr::MenuRequest& r) {
+                    FrameMenuRequest(r);
+                };
                 if (FrameXr::VrShowing()) {
                     FrameMode::FadeWindow(this, true);
                 } else {
@@ -3807,6 +3823,181 @@ bool GMainWindow::WindowFullscreen() const {
     return ui->action_Single_Window_Mode->isChecked() ? isFullScreen()
                                                       : render_window->isFullScreen();
 }
+
+#ifdef ENABLE_FRAME_XR
+// AzaharFrame tabmenu: what the in-game menu's buttons and settings do. The XR thread has set a
+// setting already (the menu shows it at once); here it is set again and saved.
+void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
+    using C = FrameXr::MenuCommand;
+    using S = FrameXr::MenuSetting;
+    if (!emulation_running || !g_frame_mirror || !g_frame_mirror->MenuOpen()) {
+        return;
+    }
+    const auto close_menu = [] {
+        if (g_frame_xr_set_menu) {
+            g_frame_xr_set_menu(false);
+        }
+    };
+    switch (r.command) {
+    case C::Continue:
+        close_menu();
+        return;
+    case C::QuickSave:
+        close_menu();
+        if (g_frame_xr_quick_save) {
+            g_frame_xr_quick_save();
+        }
+        return;
+    case C::QuickLoad:
+        close_menu();
+        if (g_frame_xr_quick_load) {
+            g_frame_xr_quick_load();
+        }
+        return;
+    case C::SaveSlot:
+    case C::LoadSlot: {
+        if (r.value < 1 || r.value >= static_cast<int>(Core::SaveStateSlotCount)) {
+            return;
+        }
+        UpdateSaveStates();
+        const bool save = r.command == C::SaveSlot;
+        QAction* action = (save ? actions_save_state : actions_load_state)[r.value];
+        if (!action->isEnabled()) {
+            return;
+        }
+        LOG_INFO(Frontend, "xr: in-game menu: {} slot {}", save ? "save to" : "load from",
+                 r.value);
+        if (!save && UISettings::values.save_state_warning) {
+            action->trigger(); // its warning shows in Azahar's window, over the paused game
+            close_menu();
+        } else {
+            close_menu(); // saved or loaded at the emulation thread's next frame
+            action->trigger();
+        }
+        return;
+    }
+    case C::Screenshot:
+        close_menu(); // the next frame of the game, not of the paused one
+        OnCaptureScreenshot();
+        return;
+    case C::Restart:
+        close_menu();
+        OnRestartGame();
+        return;
+    case C::CloseGame:
+        LOG_INFO(Frontend, "xr: in-game menu: Close Game");
+        ShutdownGame();
+        return;
+    case C::SwitchToFlat:
+        if (g_frame_xr_switch) {
+            g_frame_xr_switch(false);
+        }
+        return;
+    case C::ShowWindow:
+        g_frame_mirror->SetMenuWindow(true);
+        return;
+    case C::MoreSettings:
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [this] {
+            if (emulation_running && g_frame_mirror && g_frame_mirror->MenuOpen()) {
+                OnConfigure();
+            }
+        });
+        return;
+    case C::SetSetting:
+        break;
+    }
+
+    // ---- A setting ----
+    auto& v = Settings::values;
+    bool per_game_setting = false;
+    const auto set = [&r, &per_game_setting](auto& setting, auto value) {
+        if (r.per_game) {
+            setting.SetGlobal(false);
+            per_game_setting = true;
+        } else if (!setting.UsingGlobal()) {
+            return; // the game has its own value (the menu does not offer this)
+        }
+        setting.SetValue(value);
+    };
+    const u32 u = static_cast<u32>(std::max(r.value, 0));
+    switch (r.setting) {
+    case S::HideBottomScreen:
+        set(v.vr_hide_bottom_screen, r.value != 0);
+        break;
+    case S::ScreenShape:
+        set(v.vr_top_aspect, u);
+        break;
+    case S::ScreenCurve:
+        set(v.vr_screen_curve, u);
+        break;
+    case S::ImmersiveOffsetReset:
+        set(v.vr_immersive_offset_x, 0.0f);
+        set(v.vr_immersive_offset_y, 0.0f);
+        break;
+    case S::ShowStats:
+        set(v.vr_show_stats, r.value != 0);
+        break;
+    case S::Background:
+        set(v.vr_background, u);
+        break;
+    case S::FaceButtons:
+        set(v.vr_face_buttons, u);
+        break;
+    case S::MotionControls:
+        set(v.vr_motion_controls, u);
+        break;
+    case S::ShowControllers:
+        set(v.vr_show_controllers, r.value != 0);
+        break;
+    case S::WindowScale:
+        set(v.vr_window_scale, u);
+        g_frame_mirror->RefitWindow();
+        break;
+    case S::ImmersiveMode:
+        set(v.vr_immersive_mode, u);
+        break;
+    case S::WiderView:
+        set(v.vr_immersive_wider_view_level, u);
+        break;
+    case S::GameFov:
+        set(v.vr_immersive_game_fov, static_cast<s32>(r.value));
+        break;
+    case S::NarrowScreen:
+        set(v.vr_immersive_squeeze, u);
+        break;
+    case S::DepthFactor:
+        set(v.vr_immersive_positional_game_scaler, u);
+        break;
+    }
+    if (!per_game_setting) {
+        config->Save(); // the global file gets the global values only (WriteGlobalSetting)
+        return;
+    }
+    if (g_frame_game_config_name.empty()) {
+        return;
+    }
+    // The game's own file: reading it (QtConfig's constructor) puts its saved values back into
+    // the settings, so the VR ones are kept across that.
+    FrameKeepSetting keep_mode{v.vr_immersive_mode};
+    FrameKeepSetting keep_scaler{v.vr_immersive_positional_game_scaler};
+    FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
+    FrameKeepSetting keep_shape{v.vr_top_aspect};
+    FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
+    FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
+    FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
+    QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
+    keep_mode.Restore();
+    keep_scaler.Restore();
+    keep_hide.Restore();
+    keep_shape.Restore();
+    keep_fov.Restore();
+    keep_wider.Restore();
+    keep_squeeze.Restore();
+    game_config.Save();
+    LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
+}
+#endif
 
 void GMainWindow::ShowFullscreen() {
 #ifdef ENABLE_FRAME_XR

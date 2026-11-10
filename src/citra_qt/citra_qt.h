@@ -28,6 +28,10 @@
 #include "core/savestate.h"
 #include "video_core/rasterizer_interface.h"
 
+namespace FrameXr {
+struct MenuRequest; // AzaharFrame tabmenu
+}
+
 // Needs to be included at the end due to https://bugreports.qt.io/browse/QTBUG-73263
 #include <filesystem>
 
@@ -312,6 +316,8 @@ private slots:
     void ShowFullscreen();
     void HideFullscreen();
     bool WindowFullscreen() const; ///< AzaharFrame flat3: the game's window is Fullscreen
+    /// AzaharFrame tabmenu: a button or setting of the in-game menu in VR (frame_xr/menu_panel.h).
+    void FrameMenuRequest(const FrameXr::MenuRequest& r);
     void ToggleWindowMode();
     void OnCreateGraphicsSurfaceViewer();
     void OnRecordMovie();

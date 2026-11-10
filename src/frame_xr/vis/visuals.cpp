@@ -500,14 +500,9 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     if (const int req = g_shared.help_request.exchange(-1); req >= 0) {
         m.UserSetHelp(req == 2 ? !m.help_open : req == 1);
     }
-    // The in-game menu (a game runs) opens the help beside the window, unless the player closed
-    // it; it closes again with the menu, if the menu opened it.
-    if (where == Where::Menu && m.prev_where != Where::Menu && !m.help_open &&
-        !m.help_user_off) {
-        m.help_open = true;
-        m.help_auto = true;
-        LOG_INFO(Frontend, "xr: in-game menu: controls help shown");
-    } else if (where != Where::Menu && m.prev_where == Where::Menu) {
+    // AzaharFrame tabmenu: the in-game menu has its own Controls tab, so it no longer opens the
+    // help beside the window; help it opened before still closes with it.
+    if (where != Where::Menu && m.prev_where == Where::Menu) {
         if (m.help_auto && m.help_open) {
             m.help_open = false;
             LOG_INFO(Frontend, "xr: in-game menu closed: controls help hidden");
@@ -795,6 +790,19 @@ std::size_t Visuals::MaxLayers() const {
 // ---- frame_xr.h ---------------------------------------------------------------------------------
 
 namespace FrameXr {
+
+std::vector<std::pair<std::string, std::string>> Vis::Visuals::MenuStats() {
+    std::vector<std::pair<std::string, std::string>> out;
+    for (const StatsRow& r : impl->StatsRows()) {
+        out.emplace_back(r.label, r.value);
+    }
+    return out;
+}
+
+Vis::HelpBindings Vis::CurrentHelpBindings() {
+    std::scoped_lock lock{Vis::g_shared.mutex};
+    return Vis::g_shared.bindings;
+}
 
 void SetEmuStats(const EmuStats& stats) {
     std::scoped_lock lock{Vis::g_shared.mutex};

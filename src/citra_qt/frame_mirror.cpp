@@ -160,6 +160,17 @@ void FrameMirror::SetGameRunning(bool running) {
 
 void FrameMirror::SetMenuOpen(bool open) {
     menu_open = open;
+    menu_window = false; // AzaharFrame tabmenu: VR's in-game menu opens on the tab menu
+    Shown();
+}
+
+void FrameMirror::SetMenuWindow(bool window) {
+    if (menu_window == window) {
+        return;
+    }
+    menu_window = window;
+    FrameXr::SetInGameMenuWindow(window);
+    LOG_INFO(Frontend, "xr: in-game menu: {}", window ? "Azahar's window" : "the tab menu");
     Shown();
 }
 
@@ -199,7 +210,8 @@ QPushButton* FrameMirror::AddVrMenuButton(const QString& label, std::function<vo
 
 void FrameMirror::UpdateVrBar() {
     if (vr_bar) {
-        vr_bar->setVisible(vr_showing && game_running && menu_open);
+        // AzaharFrame tabmenu: the tab menu has the stock buttons; the row shows only with others.
+        vr_bar->setVisible(vr_showing && game_running && menu_open && !vr_bar->actions().isEmpty());
     }
 }
 
@@ -477,6 +489,16 @@ bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
     if (vr_showing && FilterVr(object, event)) {
         return true;
     }
+    // AzaharFrame tabmenu: a dialog over the paused game (a warning, an error, a file dialog) is
+    // seen in Azahar's window, so the in-game menu shows the window.
+    if (event->type() == QEvent::Show && vr_showing && game_running && menu_open && !menu_window) {
+        if (auto* w = qobject_cast<QWidget*>(object);
+            w && w != main && w->isWindow() && IsDialogLike(w) && !w->inherits("GRenderWindow")) {
+            LOG_INFO(Frontend, "xr: in-game menu: {} opened, showing Azahar's window",
+                     w->metaObject()->className());
+            SetMenuWindow(true);
+        }
+    }
     if (!Capturing() || capturing) {
         return false;
     }
@@ -702,6 +724,12 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
             !QApplication::activeModalWidget()) {
             const auto stack = Stack();
             if (std::none_of(stack.begin(), stack.end(), [](QWidget* w) { return IsDialogLike(w); })) {
+                if (vr_showing && menu_window) {
+                    // AzaharFrame tabmenu: from Azahar's window back to the tab menu.
+                    LOG_INFO(Frontend, "xr: in-game menu: B goes back to the tab menu");
+                    SetMenuWindow(false);
+                    return;
+                }
                 LOG_INFO(Frontend, "xr: {}: B closes it",
                          vr_showing ? "in-game menu" : "Flat menu");
                 close_menu();

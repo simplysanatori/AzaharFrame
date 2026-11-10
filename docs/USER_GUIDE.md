@@ -174,7 +174,7 @@ With the bottom screen in focus, it is in the main place, big, and the top scree
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
-The **Controls** button above Azahar's window, on the home window and in the in-game menu, opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts, and each time the in-game menu opens (it closes with the menu), unless you closed it yourself. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
+The **Controls** button above Azahar's window opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. In a game, the in-game menu's **Controls** tab shows the same. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
 
 All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.md).
 
@@ -209,7 +209,7 @@ Global, not per game: **100%**, **150%** (default) or **200%**. It makes Azahar'
 
 ### Background
 
-Global, not per game: **Black** (default) or **Passthrough**. Passthrough shows the room behind the screens, through the headset's cameras, when SteamVR offers it to apps. The in-game menu has a **Passthrough** button for it too, and the choice is kept. When SteamVR does not offer it, the button is greyed out and the background stays black.
+Global, not per game: **Black** (default) or **Passthrough**. Passthrough shows the room behind the screens, through the headset's cameras, when SteamVR offers it to apps. The in-game menu's **Settings** tab has it too, and the choice is kept. When SteamVR does not offer it, the choice is greyed out and the background stays black.
 
 ### Quick Save and Quick Load
 

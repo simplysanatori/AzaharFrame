@@ -110,17 +110,25 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and Azahar's window shows in front of them, with the same controls as above. **Emulation > Configure...**, the game's **Properties** and the **Emulation** menu all work here. Settings such as the resolution apply at once, and so do **Screen Shape** and **Immersive Game FOV**. **Wider View** applies at once; **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts.
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with five tabs down its left side:
 
-A row of buttons shows under Azahar's menu bar while the in-game menu is open: **Quick Save**, **Quick Load** and **Passthrough**. **Quick Save** and **Quick Load** do what the Emulation menu's items do, and say so in the status bar. **Passthrough** shows the room behind the screens instead of black, and stays as you leave it.
+- **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
+- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
+- **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
+- **Controls**: the drawings of both controllers, in a game and on Azahar's window.
+- **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
 
-To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. Holding **View** for 1.5 seconds stops the game. The Full immersive modes show the normal screens while the menu is open.
+Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts; the rest apply at once.
+
+**Azahar's Window** shows the window itself, with the same controls as above, for everything else: the game's **Properties**, the **Emulation** menu and any dialog, which also brings the window up by itself. Press **B** with nothing open there to go back to the menu.
+
+To go back to the game, select **Continue**, press **B**, or hold **Menu** for 1 second again. Holding **View** for 1.5 seconds stops the game. The Full immersive modes show the normal screens while the menu is open.
 
 ## The controls help, the controllers and the stats
 
-Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar's window, on the home window and in the in-game menu. Point at one and pull the trigger or press **A**.
+Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar's window, on the home window and when the in-game menu shows Azahar's window. Point at one and pull the trigger or press **A**.
 
-**Controls** opens a panel beside the window with drawings of the two Frame controllers and a line from each button to what it does, in a game and on Azahar's window, following your controls profile and **Face Buttons**. It opens by itself the first time VR starts and with the in-game menu, until you close it with its **X** or the **Controls** button.
+**Controls** opens a panel beside the window with drawings of the two Frame controllers and a line from each button to what it does, in a game and on Azahar's window, following your controls profile and **Face Buttons**. It opens by itself the first time VR starts, until you close it with its **X** or the **Controls** button. The in-game menu has the same drawings on its **Controls** tab.
 
 **Stats** shows a small panel under the top screen while a game runs. It shows the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and late frames, the CPU load and the GPU clock. In immersive mode it hangs low in front of you. The **Show Stats** setting is the same switch.
 

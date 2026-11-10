@@ -58,6 +58,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     keyboard/layout.h
     keyboard/stb_truetype.h # its implementation is built into frame_xr_ui (AzaharFrame tabmenu)
     # AzaharFrame vrvis: controls help, stats, beams, controller models (vis; no Qt here).
+    menu_panel.cpp # AzaharFrame tabmenu
+    menu_panel.h
     vis/async_overlay.cpp
     vis/async_overlay.h
     vis/beam.cpp
