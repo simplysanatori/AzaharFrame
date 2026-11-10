@@ -742,13 +742,10 @@ void VrUi::StepScreenCurve(int dir) {
     }
     Settings::values.vr_screen_curve.SetValue(after);
     bridge.mapper().ReanchorDrag(); // the surface under the hand moved
+    // Only the screen in the main slot bends; the second one stays flat.
     const ScreenPlacement now = GetScreenPlacement();
-    Input::PanelQuad top{ToInput(now.top_pose), now.top_size.width, now.top_size.height, true};
-    Input::PanelQuad bottom{ToInput(now.bottom_pose), now.bottom_size.width,
-                            now.bottom_size.height, true};
-    Rig::ApplyCurve(top, bottom, after);
-    LOG_INFO(Frontend, "xr: screen curve {} degrees (top radius {:.2f} m, bottom {:.2f} m)", after,
-             top.curve_radius, bottom.curve_radius);
+    LOG_INFO(Frontend, "xr: screen curve {} degrees (main slot radius {:.2f} m at the top size)",
+             after, Rig::CurveRadius(now.top_size.width, after));
     std::scoped_lock lock{hooks_mutex};
     if (hooks.vr_setting_changed) {
         hooks.vr_setting_changed();

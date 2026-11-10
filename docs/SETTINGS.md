@@ -72,7 +72,7 @@ Shows a small panel under the top screen while a game runs: the game's frame rat
 
 ## Screen Curve
 
-Bends the two screens toward you, like a curved monitor. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
+Bends the main screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The smaller screen below stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: Medium**, and it is kept.
 
 ## Screen Shape
 

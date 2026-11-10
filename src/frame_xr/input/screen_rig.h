@@ -75,18 +75,16 @@ const char* MovedToast(int right_steps, int up_steps);
 // quads, bent about a vertical axis (their own +Y) so the sides come towards you. The setting
 // (Settings::values.vr_screen_curve, global) is the angle the main screen's width spans: its
 // radius is width / angle, so the arc is as long as the flat screen was wide and the picture
-// keeps its shape and size. Both screens bend about axes through one point: the main screen's
-// centre of curvature, `radius` in front of it (at the step where the radius equals the
-// distance, that point is you). The screen in the other slot is tilted, so it cannot share the
-// main one's axis; its own axis passes through the same point and its radius follows from that
-// (SecondaryCurveRadius). A cylinder layer's middle is at its pose's -Z, `radius` away: the pose
+// keeps its shape and size. Only the screen in the main slot bends (the top screen, or the bottom
+// one when swapped); the smaller one in the second slot always stays flat. At the step where
+// the radius equals the distance, the centre of curvature is you. A cylinder layer's middle is at its pose's -Z, `radius` away: the pose
 // is the screen's own, moved `radius` towards the viewer (CylinderFor), so the screen's place,
 // the grip move, the size and the nudge all stay as they are for the flat screen.
 
 /// The steps of grip + D-pad up and down and of the settings, in degrees (0 = flat): Off,
 /// Gentle, Medium, Strong, Max (CurveName).
 inline constexpr std::array<uint32_t, 5> kCurveStepsDeg{0, 15, 30, 45, 60};
-/// Never bent further than this (a value typed into the config, or the second screen).
+/// Never bent further than this (a value typed into the config).
 inline constexpr uint32_t kMaxCurveDeg = 180;
 
 /// The next step up (dir > 0) or down (dir < 0) from `deg`; a value between two steps goes to
@@ -99,13 +97,8 @@ const char* CurveName(uint32_t deg);
 std::string CurveToast(uint32_t deg);
 /// The radius that bends a screen `width` wide by `deg` degrees (arc length = width); 0 = flat.
 float CurveRadius(float width, uint32_t deg);
-/// The radius of the screen in the other slot, whose axis passes through the main screen's
-/// centre of curvature (`main_radius` in front of `main`). Bent no further than kMaxCurveDeg
-/// across `secondary_width`; the main radius when the point is behind it.
-float SecondaryCurveRadius(const Posef& main, float main_radius, const Posef& secondary,
-                           float secondary_width);
-/// Sets curve_radius of both quads for `deg` (0 leaves both flat). `main` is the screen in the
-/// main slot, whatever its visibility: the shared point comes from its place.
+/// Sets curve_radius for `deg`: the screen in the main slot bends (0 leaves it flat), the one in
+/// the second slot is always flat.
 void ApplyCurve(PanelQuad& main, PanelQuad& secondary, uint32_t deg);
 
 /// What a cylinder layer needs to show a screen of this size bent with this radius.

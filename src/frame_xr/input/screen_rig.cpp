@@ -120,27 +120,9 @@ float CurveRadius(float width, uint32_t deg) {
     return width / (static_cast<float>(deg) * kDegToRad);
 }
 
-float SecondaryCurveRadius(const Posef& main, float main_radius, const Posef& secondary,
-                           float secondary_width) {
-    if (!(main_radius > 0.0f)) {
-        return 0.0f;
-    }
-    const Vec3f centre = main.position + Rotate(main.orientation, Vec3f{0.0f, 0.0f, main_radius});
-    const Vec3f normal = Rotate(secondary.orientation, Vec3f{0.0f, 0.0f, 1.0f});
-    // The secondary axis is the line through its pose + normal * r along its own +Y: the
-    // distance along the normal to the plane through the centre that holds that axis.
-    const float r = Dot(centre - secondary.position, normal);
-    if (!(r > 0.0f)) {
-        return main_radius;
-    }
-    const float tightest = CurveRadius(secondary_width, kMaxCurveDeg);
-    return std::max(r, tightest);
-}
-
 void ApplyCurve(PanelQuad& main, PanelQuad& secondary, uint32_t deg) {
     main.curve_radius = CurveRadius(main.width_m, deg);
-    secondary.curve_radius =
-        SecondaryCurveRadius(main.pose, main.curve_radius, secondary.pose, secondary.width_m);
+    secondary.curve_radius = 0.0f; // the second slot's screen is always a flat quad
 }
 
 Cylinder CylinderFor(const Posef& screen, float width, float height, float radius) {

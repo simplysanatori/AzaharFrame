@@ -256,25 +256,38 @@ TEST_CASE("FrameXr screen rig: a curved screen keeps its size and shape", "[fram
     REQUIRE(CurveRadius(2.0f * width, 30) == Approx(2.0f * CurveRadius(width, 30)));
 }
 
-TEST_CASE("FrameXr screen rig: both screens bend about the same point", "[frame_xr]") {
-    const float scale = 1.0f;
+TEST_CASE("FrameXr screen rig: only the main slot's screen bends", "[frame_xr]") {
     const Posef top = Ahead(2.0f);
-    const Posef bottom = BottomFromTop(top, scale);
+    const Posef bottom = BottomFromTop(top, 1.0f);
     const float bottom_w = 0.75f;
     for (const uint32_t deg : {15u, 45u, 60u}) {
+        // The top screen in the main slot bends, the bottom one in the second slot stays flat.
         PanelQuad main{top, kAspect3ds, 1.0f, true};
         PanelQuad second{bottom, bottom_w, 0.5625f, true};
+        second.curve_radius = 1.0f; // whatever it was before
         ApplyCurve(main, second, deg);
         REQUIRE(main.curve_radius == Approx(CurveRadius(kAspect3ds, deg)));
-        REQUIRE(second.curve_radius > 0.0f);
-        // The bottom screen's axis (through its cylinder pose, along its +Y) passes through the
-        // top screen's centre of curvature.
-        const Vec3f centre = CylinderFor(top, kAspect3ds, 1.0f, main.curve_radius).pose.position;
-        const Cylinder b = CylinderFor(bottom, bottom_w, 0.5625f, second.curve_radius);
-        const Vec3f axis = Rotate(b.pose.orientation, Vec3f{0, 1, 0});
-        const Vec3f to = centre - b.pose.position;
-        const Vec3f off_axis = to - axis * Dot(to, axis);
-        REQUIRE(Length(off_axis) == Approx(0.0f).margin(1e-4f));
+        REQUIRE(second.curve_radius == 0.0f);
+        // The beam hits the curved main screen on its arc and the flat second one on its plane:
+        // at the middles both are where the flat screens were, and off the middle of the second
+        // screen the hit is the flat one.
+        const QuadHit mid = IntersectQuad(Ray{Vec3f{0, 0, 0}, Vec3f{0, 0, -1}}, main);
+        REQUIRE(mid.in_bounds);
+        REQUIRE(mid.t == Approx(2.0f));
+        REQUIRE(mid.u == Approx(0.5f));
+        const Vec3f off = bottom.position + Rotate(bottom.orientation, Vec3f{0.3f, 0.0f, 0.0f});
+        const QuadHit low = IntersectQuad(Ray{Vec3f{0, 0, 0}, Normalized(off)}, second);
+        REQUIRE(low.in_bounds);
+        REQUIRE(low.u == Approx(0.5f + 0.3f / bottom_w).margin(1e-4f));
+        REQUIRE(low.v == Approx(0.5f).margin(1e-4f));
+        REQUIRE(low.t == Approx(Length(off)).margin(1e-4f));
+        // Swapped: the bottom screen in the main slot bends by its own width, the top one stays
+        // flat.
+        PanelQuad swapped_main{top, bottom_w, 0.5625f, true};
+        PanelQuad swapped_second{bottom, kAspect3ds, 1.0f, true};
+        ApplyCurve(swapped_main, swapped_second, deg);
+        REQUIRE(swapped_main.curve_radius == Approx(CurveRadius(bottom_w, deg)));
+        REQUIRE(swapped_second.curve_radius == 0.0f);
     }
     // Nothing bends at 0.
     PanelQuad main{top, kAspect3ds, 1.0f, true};
@@ -282,8 +295,6 @@ TEST_CASE("FrameXr screen rig: both screens bend about the same point", "[frame_
     ApplyCurve(main, second, 0);
     REQUIRE(main.curve_radius == 0.0f);
     REQUIRE(second.curve_radius == 0.0f);
-    // A secondary screen whose shared point would be behind it takes the main radius.
-    REQUIRE(SecondaryCurveRadius(top, 1.0f, Ahead(-1.0f), 0.5f) == Approx(1.0f));
 }
 
 TEST_CASE("FrameXr screen rig: D-pad up and down presses for the curve", "[frame_xr]") {

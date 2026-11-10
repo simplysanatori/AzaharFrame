@@ -56,7 +56,7 @@ The top screen starts 2 m ahead at eye height. It can be made up to 3 times bigg
 
 While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per press around you. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left) for 2 seconds. Use it when a big screen's edge is just out of view. To move them up or down, move the hand that holds them.
 
-D-pad up or down, while a grip holds the screens, makes them more or less curved, one step per press: Off, Gentle, Medium, Strong and Max. A label shows the new value, for example **Screen Curve: Medium**, and it is kept for every game. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
+D-pad up or down, while a grip holds the screens, makes the main (larger) screen more or less curved, one step per press: Off, Gentle, Medium, Strong and Max. A label shows the new value, for example **Screen Curve: Medium**, and it is kept for every game. The smaller screen below stays flat. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
 
 When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. The D-pad does not reach the game while you hold the screens.
 
