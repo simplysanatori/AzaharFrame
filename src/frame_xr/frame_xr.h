@@ -153,6 +153,7 @@ enum class FlatScreens {
     Swap,        ///< right stick click, tap: Swap Screens
     ToggleOther, ///< left stick click, tap: Single Screen, or back to the layout before it
     Reset,       ///< right stick click, held 1 s: flat's default layout (Large Screen, not swapped)
+    CycleLayout, ///< AzaharFrame layout: Large Screen, Side by Side, Default, and round again
 };
 
 /// AzaharFrame tabmenu: what the in-game menu asks of the Qt side (FrontendHooks::menu_request).

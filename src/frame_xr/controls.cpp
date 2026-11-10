@@ -312,6 +312,8 @@ void VrUi::FlatFrame(int64_t now_ns) {
     flat_screens(cmd.reset_panels, FlatScreens::Reset, "right stick click held: flat layout");
     flat_screens(cmd.toggle_other_screen, FlatScreens::ToggleOther,
                  "left stick click: Single Screen on / off");
+    flat_screens(cmd.cycle_layout, FlatScreens::CycleLayout,
+                 "left stick click held: next layout"); // AzaharFrame layout
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {

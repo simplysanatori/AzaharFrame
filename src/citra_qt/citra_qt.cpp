@@ -3,6 +3,7 @@
 // Refer to the LICENSE.txt file included.
 
 #include <algorithm> // AzaharFrame
+#include <array>     // AzaharFrame layout
 #include <chrono>    // AzaharFrame
 #include <clocale>
 #include <format>
@@ -15,6 +16,8 @@
 #include <QFutureWatcher>
 #include <QIcon>
 #include <QLabel>
+#include <QPointer>
+#include <QTimer>
 #include <QMessageBox>
 #include <QPalette>
 #include <QSysInfo>
@@ -274,6 +277,48 @@ void LogFlatLayout(const char* why) {
     const auto& flat = Settings::frame_flat_layout;
     LOG_INFO(Frontend, "xr: flat layout: {}{} ({})", FrameLayoutName(flat.layout),
              flat.swap ? ", screens swapped" : "", why);
+}
+
+// AzaharFrame layout: the Flat layouts the left stick click held cycles through, in order.
+constexpr std::array<Settings::LayoutOption, 3> kFrameFlatCycle{
+    Settings::LayoutOption::LargeScreen, Settings::LayoutOption::SideScreen,
+    Settings::LayoutOption::Default};
+
+Settings::LayoutOption NextFlatLayout(Settings::LayoutOption layout) {
+    for (std::size_t i = 0; i < kFrameFlatCycle.size(); i++) {
+        if (kFrameFlatCycle[i] == layout) {
+            return kFrameFlatCycle[(i + 1) % kFrameFlatCycle.size()];
+        }
+    }
+    return kFrameFlatCycle[0]; // another layout (from the View menu): back to the start
+}
+
+// AzaharFrame layout: a short label over the game in Flat, where there is no VR toast. A native
+// child of the render window, so it stacks over the Vulkan surface (itself a native window).
+void ShowFlatLabel(QWidget* over, const QString& text) {
+    static QPointer<QLabel> label;
+    static QPointer<QTimer> timer;
+    if (!over) {
+        return;
+    }
+    if (!label || label->parentWidget() != over) {
+        delete label;
+        label = new QLabel(over);
+        label->setAttribute(Qt::WA_NativeWindow);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
+        label->setStyleSheet(QStringLiteral(
+            "QLabel { background-color: #202124; color: #e8eaed; padding: 10px 20px; "
+            "border-radius: 0px; font-size: 22px; }"));
+        timer = new QTimer(label);
+        timer->setSingleShot(true);
+        QObject::connect(timer, &QTimer::timeout, label, &QLabel::hide);
+    }
+    label->setText(text);
+    label->adjustSize();
+    label->move((over->width() - label->width()) / 2, over->height() / 12);
+    label->show();
+    label->raise();
+    timer->start(1500);
 }
 
 void FrameXrPushGameDirs() {
@@ -1040,7 +1085,20 @@ GMainWindow::GMainWindow(Core::System& system_)
                     flat.swap = false;
                     g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
                     LogFlatLayout("right stick click held");
+                    ShowFlatLabel(render_window, tr("Large Screen"));
                     break;
+                case FrameXr::FlatScreens::CycleLayout: {
+                    // AzaharFrame layout: from Single Screen, the next after the one it hides.
+                    const Settings::LayoutOption from =
+                        flat.layout == Settings::LayoutOption::SingleScreen
+                            ? g_frame_flat_before_single
+                            : flat.layout;
+                    flat.layout = NextFlatLayout(from);
+                    g_frame_flat_before_single = flat.layout;
+                    LogFlatLayout("left stick click held");
+                    ShowFlatLabel(render_window, tr(FrameLayoutName(flat.layout)));
+                    break;
+                }
                 }
                 SyncMenuUISettings();
                 system.ApplySettings();
