@@ -63,7 +63,7 @@ Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 
 ## Controls
 
-![The Controls panel in VR, showing what each Frame button does in a game](docs/images/controls.png)
+![What each Frame button does in a game](docs/images/controls.png)
 
 | Steam Frame | What it does |
 |---|---|

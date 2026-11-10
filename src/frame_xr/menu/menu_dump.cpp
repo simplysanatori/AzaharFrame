@@ -10,6 +10,7 @@
 // DIR holds frame_controller_left.model and frame_controller_right.model (the files the
 // installer makes, in the user folder's frame-models/); without them the Controls tab is empty.
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -20,6 +21,7 @@
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/help_content.h"
+#include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/menu_diagram.h"
 #include "frame_xr/vis/model_file.h"
 
@@ -64,15 +66,21 @@ Menu::MenuModel SampleModel() {
     return m;
 }
 
-bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv) {
+bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
+              bool keep_alpha = false) {
     // The canvas is premultiplied, R in the low byte: over the opaque backdrop it is plain RGB.
     std::vector<unsigned char> rgba(static_cast<std::size_t>(cv.w) * cv.h * 4);
     for (std::size_t i = 0; i < cv.px.size(); i++) {
         const uint32_t p = cv.px[i];
-        rgba[i * 4 + 0] = static_cast<unsigned char>(p & 255);
-        rgba[i * 4 + 1] = static_cast<unsigned char>((p >> 8) & 255);
-        rgba[i * 4 + 2] = static_cast<unsigned char>((p >> 16) & 255);
-        rgba[i * 4 + 3] = 255;
+        const uint32_t a = keep_alpha ? (p >> 24) : 255u;
+        // Un-premultiply when the alpha is kept (rounded corners).
+        const auto un = [&](uint32_t c) {
+            return static_cast<unsigned char>(keep_alpha && a ? std::min(255u, (c * 255u + a / 2) / a) : c);
+        };
+        rgba[i * 4 + 0] = un(p & 255);
+        rgba[i * 4 + 1] = un((p >> 8) & 255);
+        rgba[i * 4 + 2] = un((p >> 16) & 255);
+        rgba[i * 4 + 3] = static_cast<unsigned char>(a);
     }
     const unsigned err = lodepng::encode(path, rgba, static_cast<unsigned>(cv.w),
                                          static_cast<unsigned>(cv.h));
@@ -88,18 +96,26 @@ bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: %s OUT_DIR [--models DIR] [--px-per-dp N]\n", argv[0]);
+        std::fprintf(stderr, "usage: %s OUT_DIR [--models DIR] [--px-per-dp N] [--diagram-only]\n", argv[0]);
         return 2;
     }
     const std::string out = argv[1];
     std::string models;
     float px_per_dp = 2.5f;
-    for (int i = 2; i + 1 < argc; i += 2) {
+    bool diagram_only = false;
+    for (int i = 2; i < argc; i++) {
         const std::string a = argv[i];
-        if (a == "--models") {
+        if (a == "--diagram-only") {
+            diagram_only = true;
+        } else if (i + 1 >= argc) {
+            break;
+        } else if (a == "--models") {
             models = argv[i + 1];
         } else if (a == "--px-per-dp") {
             px_per_dp = static_cast<float>(std::atof(argv[i + 1]));
+        }
+        if (a == "--models" || a == "--px-per-dp") {
+            i++;
         }
     }
 
@@ -123,6 +139,21 @@ int main(int argc, char** argv) {
     menu.SetDiagram([&](Kit& k, const Rect& area, int page) {
         Vis::DrawMenuDiagram(k, area, diagram, static_cast<Vis::DiagramPageId>(page), art);
     });
+
+    if (diagram_only) {
+        // Just the In Game diagram on the menu's pane colour, for the README picture.
+        constexpr float kPadDp = 12.0f;
+        const float dw = 496.0f + kPadDp * 2.0f;
+        const float dh = 496.0f * (Vis::kDiagramBottom - Vis::kDiagramTop) / Vis::kDiagramPanelW +
+                         kPadDp * 2.0f;
+        frame_xr::ui::Canvas cv;
+        cv.Init(static_cast<int>(dw * px_per_dp + 0.5f), static_cast<int>(dh * px_per_dp + 0.5f));
+        kit.Begin(cv);
+        kit.Fill({0, 0, dw, dh}, 24.0f, Tok::kSurface);
+        Vis::DrawMenuDiagram(kit, {kPadDp, kPadDp, dw - kPadDp, dh - kPadDp}, diagram,
+                             Vis::DiagramPageId::Game, art);
+        return WritePng(out + "/controls.png", cv, true) ? 0 : 1;
+    }
 
     const int w = static_cast<int>((kPanelW + kMargin * 2.0f) * px_per_dp + 0.5f);
     const int h = static_cast<int>((kPanelH + kMargin * 2.0f) * px_per_dp + 0.5f);
