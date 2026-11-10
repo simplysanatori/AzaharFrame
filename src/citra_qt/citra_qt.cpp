@@ -1091,10 +1091,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                 case FrameXr::FlatScreens::CycleLayout:
                 case FrameXr::FlatScreens::PreviousLayout: {
                     // AzaharFrame layout: from Single Screen, the next after the one it hides.
+                    const Settings::LayoutOption now = flat.layout;
                     const Settings::LayoutOption from =
-                        flat.layout == Settings::LayoutOption::SingleScreen
-                            ? g_frame_flat_before_single
-                            : flat.layout;
+                        now == Settings::LayoutOption::SingleScreen ? g_frame_flat_before_single
+                                                                    : now;
                     flat.layout =
                         NextFlatLayout(from, what == FrameXr::FlatScreens::PreviousLayout);
                     g_frame_flat_before_single = flat.layout;
