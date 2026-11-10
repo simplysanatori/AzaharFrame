@@ -17,7 +17,7 @@ trigger, grip, bumper. Left controller: D-pad, View, stick, trigger, grip, bumpe
 | A (bottom), B (right), X (left), Y (top) | B, A, Y, X | By position, as on the 3DS (A right, B bottom, X top, Y left). The setting `vr_face_buttons` ("Face Buttons", `MapperConfig::face_buttons_by_position`) 1 gives by label: A, B, X, Y. See below. |
 | Left bumper | L | |
 | Right bumper | R | |
-| Left grip, right grip (squeeze) | (none) | Grab a screen, see below. Pressed above 0.60, released below 0.40. |
+| Left grip, right grip (squeeze) | (none) | Grab a screen, see below. Pressed above 0.60, released below 0.40. In Flat (`grip_dpad_cycles_layout`) a grip held + D-pad right or left is `cycle_layout` +1 or -1, and the D-pad stays away from the game until let go. |
 | Left trigger | ZL | Always, except on the visible bottom screen (touch), see below. Pressed above 0.55, released below 0.40. |
 | Right trigger | ZR | Same. |
 | Left stick | Circle Pad | Radial deadzone 0.12, rest rescaled. |

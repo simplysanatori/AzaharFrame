@@ -150,7 +150,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game; **Stopping...** shows half way |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens and View |
-| Left stick click | Hide or Show Other Screen. Hold for 1 second: the next screen layout (**Stacked** or **Side by Side**; in Flat **Large Screen**, **Side by Side**, **Default**) |
+| Left stick click | Hide or Show Other Screen. Hold for 1 second: the next screen layout (**Stacked** or **Side by Side**; in Flat **Large Screen**, **Side by Side**, **Default**, also a grip + D-pad right or left) |
 | Both bumpers, then **View** | Show or hide the bottom screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | Hold **View**, then the right bumper | Quick Save. Hold the left bumper for half a second instead: Quick Load |

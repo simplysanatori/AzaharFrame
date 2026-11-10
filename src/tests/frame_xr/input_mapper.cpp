@@ -1662,3 +1662,52 @@ TEST_CASE("FrameXr mapper: a chord being formed is no Quick Save and no in-game 
         REQUIRE_FALSE(out.commands.quick_load);
     }
 }
+
+// AzaharFrame layout: in Flat a grip held + D-pad left or right is the layout cycle.
+TEST_CASE("FrameXr mapper: Flat, grip + D-pad left or right cycles the layout", "[frame_xr]") {
+    Runner runner;
+    runner.panels.top.visible = false;
+    runner.panels.bottom.visible = false;
+    runner.panels.grip_dpad_cycles_layout = true;
+    InputFrame frame = IdleFrame();
+
+    SECTION("without a grip the D-pad is the game's") {
+        frame.dpad_right = true;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.cycle_layout == 0);
+        REQUIRE(out.controls.Get(Control::DpadRight));
+    }
+    SECTION("right is next, left is previous, once per press, and the game sees neither") {
+        frame.hand[0].grip = 1.0f;
+        runner.Step(frame);
+        frame.dpad_right = true;
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.cycle_layout == 1);
+        REQUIRE_FALSE(out.controls.Get(Control::DpadRight));
+        out = runner.Step(frame); // still held: once
+        REQUIRE(out.commands.cycle_layout == 0);
+        frame.dpad_right = false;
+        runner.Step(frame);
+        frame.dpad_left = true;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.cycle_layout == -1);
+        REQUIRE_FALSE(out.controls.Get(Control::DpadLeft));
+        // The grip let go first: the direction stays away from the game until it is let go.
+        frame.hand[0].grip = 0.0f;
+        out = runner.Step(frame);
+        REQUIRE_FALSE(out.controls.Get(Control::DpadLeft));
+        frame.dpad_left = false;
+        runner.Step(frame);
+        frame.dpad_left = true;
+        out = runner.Step(frame);
+        REQUIRE(out.controls.Get(Control::DpadLeft));
+        REQUIRE(out.commands.cycle_layout == 0);
+    }
+    SECTION("in VR (the flag off) a grip + D-pad is not the cycle") {
+        runner.panels.grip_dpad_cycles_layout = false;
+        frame.hand[1].grip = 1.0f;
+        runner.Step(frame);
+        frame.dpad_right = true;
+        REQUIRE(runner.Step(frame).commands.cycle_layout == 0);
+    }
+}

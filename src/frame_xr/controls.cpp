@@ -287,6 +287,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
     panels.top.visible = false;
     panels.bottom.visible = false;
     panels.bottom_toggle_enabled = false; // the stick clicks lay out the window instead
+    panels.grip_dpad_cycles_layout = true; // AzaharFrame layout: grip + D-pad left or right
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
     LogFlatGameButtons(out.controls);
@@ -312,8 +313,9 @@ void VrUi::FlatFrame(int64_t now_ns) {
     flat_screens(cmd.reset_panels, FlatScreens::Reset, "right stick click held: flat layout");
     flat_screens(cmd.toggle_other_screen, FlatScreens::ToggleOther,
                  "left stick click: Single Screen on / off");
-    flat_screens(cmd.cycle_layout, FlatScreens::CycleLayout,
-                 "left stick click held: next layout"); // AzaharFrame layout
+    // AzaharFrame layout: left stick click held, or a grip + D-pad right (next) or left.
+    flat_screens(cmd.cycle_layout > 0, FlatScreens::CycleLayout, "next layout");
+    flat_screens(cmd.cycle_layout < 0, FlatScreens::PreviousLayout, "previous layout");
     if (cmd.menu_toggle) {
         std::scoped_lock lock{hooks_mutex};
         if (hooks.toggle_menu) {

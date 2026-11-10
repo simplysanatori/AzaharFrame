@@ -284,10 +284,11 @@ constexpr std::array<Settings::LayoutOption, 3> kFrameFlatCycle{
     Settings::LayoutOption::LargeScreen, Settings::LayoutOption::SideScreen,
     Settings::LayoutOption::Default};
 
-Settings::LayoutOption NextFlatLayout(Settings::LayoutOption layout) {
-    for (std::size_t i = 0; i < kFrameFlatCycle.size(); i++) {
+Settings::LayoutOption NextFlatLayout(Settings::LayoutOption layout, bool back) {
+    const std::size_t n = kFrameFlatCycle.size();
+    for (std::size_t i = 0; i < n; i++) {
         if (kFrameFlatCycle[i] == layout) {
-            return kFrameFlatCycle[(i + 1) % kFrameFlatCycle.size()];
+            return kFrameFlatCycle[(i + (back ? n - 1 : 1)) % n];
         }
     }
     return kFrameFlatCycle[0]; // another layout (from the View menu): back to the start
@@ -1087,15 +1088,18 @@ GMainWindow::GMainWindow(Core::System& system_)
                     LogFlatLayout("right stick click held");
                     ShowFlatLabel(render_window, tr("Large Screen"));
                     break;
-                case FrameXr::FlatScreens::CycleLayout: {
+                case FrameXr::FlatScreens::CycleLayout:
+                case FrameXr::FlatScreens::PreviousLayout: {
                     // AzaharFrame layout: from Single Screen, the next after the one it hides.
                     const Settings::LayoutOption from =
                         flat.layout == Settings::LayoutOption::SingleScreen
                             ? g_frame_flat_before_single
                             : flat.layout;
-                    flat.layout = NextFlatLayout(from);
+                    flat.layout =
+                        NextFlatLayout(from, what == FrameXr::FlatScreens::PreviousLayout);
                     g_frame_flat_before_single = flat.layout;
-                    LogFlatLayout("left stick click held");
+                    LogFlatLayout(what == FrameXr::FlatScreens::PreviousLayout ? "previous layout"
+                                                                                : "next layout");
                     ShowFlatLabel(render_window, tr(FrameLayoutName(flat.layout)));
                     break;
                 }

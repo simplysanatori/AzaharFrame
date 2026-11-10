@@ -46,6 +46,8 @@ bool Mapper::Reset() {
     const bool was_touching = touch_active_;
     hands_ = {};
     grip_was_down_ = {};
+    dpad_held_back_ = {};
+    dpad_left_was_ = dpad_right_was_ = false;
     view_down_ = false;
     stop_fired_ = false;
     menu_down_ = false;
@@ -264,6 +266,29 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     controls.Set(Control::GripL, hands_[0].grip_down);
     controls.Set(Control::GripR, hands_[1].grip_down);
 
+    // ---- AzaharFrame layout: Flat, a grip held + D-pad left or right: the layout cycle ----
+    if (panels.grip_dpad_cycles_layout) {
+        const bool grip = hands_[0].grip_down || hands_[1].grip_down;
+        const std::array<bool, 4> dpad{frame.dpad_up, frame.dpad_down, frame.dpad_left,
+                                       frame.dpad_right};
+        for (std::size_t i = 0; i < dpad.size(); i++) {
+            dpad_held_back_[i] = dpad[i] && (dpad_held_back_[i] || grip);
+        }
+        if (grip && frame.dpad_right && !dpad_right_was_) {
+            out.commands.cycle_layout = 1;
+        } else if (grip && frame.dpad_left && !dpad_left_was_) {
+            out.commands.cycle_layout = -1;
+        }
+        controls.Set(Control::DpadUp, frame.dpad_up && !dpad_held_back_[0]);
+        controls.Set(Control::DpadDown, frame.dpad_down && !dpad_held_back_[1]);
+        controls.Set(Control::DpadLeft, frame.dpad_left && !dpad_held_back_[2]);
+        controls.Set(Control::DpadRight, frame.dpad_right && !dpad_held_back_[3]);
+    } else {
+        dpad_held_back_ = {};
+    }
+    dpad_left_was_ = frame.dpad_left;
+    dpad_right_was_ = frame.dpad_right;
+
     // ---- Sticks ----
     controls.SetStick(AnalogControl::StickL, ApplyStickDeadzone(frame.hand[0].stick));
     controls.SetStick(AnalogControl::StickR, ApplyStickDeadzone(frame.hand[1].stick));
@@ -408,7 +433,9 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         out.commands.swap_screens = right == ClickGesture::Result::Tap;
         out.commands.reset_panels = right == ClickGesture::Result::Hold;
         // AzaharFrame layout: the one binding of the layout cycle (VR and Flat).
-        out.commands.cycle_layout = left == ClickGesture::Result::Hold;
+        if (left == ClickGesture::Result::Hold) {
+            out.commands.cycle_layout = 1;
+        }
     }
 
     // ---- Triggers: ZL/ZR, or touch when the bottom screen is the nearest thing under the ray ----

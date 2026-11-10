@@ -26,6 +26,10 @@ struct PanelGeometry {
     /// `toggle_bottom` and keeps that View press from reaching the game. Off: the chord is
     /// nothing special and the game sees L, R and Select as pressed.
     bool bottom_toggle_enabled = false;
+    /// AzaharFrame layout: Flat (no screens to grab): a grip held + D-pad left or right is
+    /// `cycle_layout` (-1, +1), and the D-pad pressed while a grip is held stays away from the
+    /// game until it is let go.
+    bool grip_dpad_cycles_layout = false;
 };
 
 struct MapperConfig {
@@ -129,10 +133,11 @@ struct PanelCommands {
     bool swap_screens = false;
     /// Left stick click, tap: hide or show the screen that is not in focus.
     bool toggle_other_screen = false;
-    /// AzaharFrame layout: the next screen layout (VR: Stacked or Side by Side; Flat: Large
-    /// Screen, Side by Side, Default). Bound in one place, Mapper::Process (left stick click
-    /// held 1 s, provisionally). Fires once per hold.
-    bool cycle_layout = false;
+    /// AzaharFrame layout: the next (+1) or previous (-1) screen layout (VR: Stacked or Side by
+    /// Side; Flat: Large Screen, Side by Side, Default). Bound in one place, Mapper::Process:
+    /// left stick click held 1 s (+1, VR and Flat), and in Flat a grip held + D-pad right (+1)
+    /// or left (-1). Once per hold or press; 0 otherwise.
+    int cycle_layout = 0;
     /// Left Bumper + Right Bumper held and View pressed while `bottom_toggle_enabled`: show or
     /// hide the bottom screen. Fires once per press.
     bool toggle_bottom = false;
@@ -219,6 +224,10 @@ private:
     MapperConfig config_;
     std::array<HandState, kNumHands> hands_{};
     std::array<bool, kNumHands> grip_was_down_{};
+    /// AzaharFrame layout (Flat): D-pad directions pressed while a grip was held, kept from the
+    /// game until let go (up, down, left, right); and last frame's left and right.
+    std::array<bool, 4> dpad_held_back_{};
+    bool dpad_left_was_ = false, dpad_right_was_ = false;
     Hand preferred_hand_ = Hand::Right;
 
     // View hold (stop game)

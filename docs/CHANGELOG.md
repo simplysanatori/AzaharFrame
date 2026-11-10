@@ -14,7 +14,7 @@
 - While you hold the screens with a grip, D-pad up or down changes the curve, and a label shows the new value. It is kept for every game.
 - D-pad left or right still nudges the screens around you. To move them up or down, move the hand that holds them.
 - **Screen Layout**: the smaller screen can now sit to the right of the main one, **Side by Side**, at the same distance and facing you, instead of **Stacked** below it. Hold the left stick click for 1 second to switch. It is also in the in-game menu's Position tab.
-- In Flat, the same hold goes through **Large Screen**, **Side by Side** and **Default**, and the layout's name shows over the game.
+- In Flat, the same hold goes through **Large Screen**, **Side by Side** and **Default**, and so does a grip held with D-pad right or left (left goes back). The layout's name shows over the game.
 
 ### Immersive mode
 

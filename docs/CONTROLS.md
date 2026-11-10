@@ -81,11 +81,12 @@ The screens have two places. The main one is where the top screen starts. The se
 
 ## Screen layouts
 
-Hold the left stick click for 1 second to change the layout. The stick clicks work in every layout.
+Hold the left stick click for 1 second to change the layout. In Flat, a grip held with D-pad right or left also goes to the next or the previous layout. The stick clicks work in every layout.
 
 | Control | VR | Flat |
 |---|---|---|
 | Left stick click, held for 1 second | **Stacked** or **Side by Side** | **Large Screen**, **Side by Side**, **Default**, and round again |
+| Grip + D-pad right or left | Nudge the screens | Next or previous layout |
 | Right stick click, tap | Swap Screens | Swap Screens |
 | Left stick click, tap | Hide or Show Other Screen | **Single Screen** on or off |
 | Right stick click, held for 1 second | Reset Screens and View, in the same layout | **Large Screen**, not swapped |
@@ -237,7 +238,7 @@ In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Az
 The differences:
 
 - There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
-- The triggers are always ZL and ZR, and the grips do nothing.
+- The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
 - Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
 
