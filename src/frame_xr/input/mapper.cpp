@@ -63,6 +63,7 @@ bool Mapper::Reset() {
     quick_done_ = false;
     quick_pending_ = -1;
     quick_cancelled_ = false;
+    quick_load_fired_ = false;
     ff_pending_ = false;
     ff_cancelled_ = false;
     menu_cancelled_ = false;
@@ -167,6 +168,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             } else {
                 quick_pending_ = edge_l ? 0 : 1;
                 quick_cancelled_ = partner_menu;
+                quick_pending_since_ns_ = frame.time_ns;
+                quick_load_fired_ = false;
                 swallow_bumper_[static_cast<std::size_t>(quick_pending_)] = true; // until let go
                 swallow_view_ = true; // until let go: no Select, no stop hold
                 view_quick_wait_ = false;
@@ -179,18 +182,31 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             if (frame.hand[1 - i].bumper || partner_menu || (!frame.view && held)) {
                 quick_cancelled_ = true;
             }
-            if (!held) {
-                // Let go with View still held, or both let go in the same frame.
-                const bool view_ok = frame.view || view_prev_;
-                const bool cooled =
-                    !quick_done_ || frame.time_ns - quick_last_ns_ >= config_.quick_cooldown_ns;
-                if (!quick_cancelled_ && view_ok && cooled) {
-                    (i == 0 ? out.commands.quick_load : out.commands.quick_save) = true;
+            const bool cooled =
+                !quick_done_ || frame.time_ns - quick_last_ns_ >= config_.quick_cooldown_ns;
+            if (i == 0) {
+                // AzaharFrame controls: Quick Load when the Left Bumper has been held long
+                // enough with View, so a brush of the bumper never loads.
+                if (held && !quick_load_fired_ && !quick_cancelled_ && frame.view && cooled &&
+                    frame.time_ns - quick_pending_since_ns_ >= config_.quick_load_hold_ns) {
+                    out.commands.quick_load = true;
+                    quick_load_fired_ = true;
                     quick_done_ = true;
                     quick_last_ns_ = frame.time_ns;
                 }
+            } else if (!held) {
+                // Quick Save: let go with View still held, or both let go in the same frame.
+                const bool view_ok = frame.view || view_prev_;
+                if (!quick_cancelled_ && view_ok && cooled) {
+                    out.commands.quick_save = true;
+                    quick_done_ = true;
+                    quick_last_ns_ = frame.time_ns;
+                }
+            }
+            if (!held) {
                 quick_pending_ = -1;
                 quick_cancelled_ = false;
+                quick_load_fired_ = false;
             }
         }
         bumper_prev_ = {frame.hand[0].bumper, frame.hand[1].bumper};

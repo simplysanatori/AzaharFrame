@@ -255,6 +255,11 @@ void ShowToast(Toast kind);
 /// AzaharFrame vrsize: a short message of any text (UTF-8, one line; a degree sign is drawn
 /// too) in the same place and for as long as a toast. Any thread.
 void ShowToastText(const std::string& text);
+/// AzaharFrame controls: takes a text toast back before its time if it is `text` (any thread).
+void HideToastText(const std::string& text);
+/// AzaharFrame controls: the grip hint chip (two short lines, '\n'; "↕" and "↔" are drawn as
+/// arrows) at `pose` in LOCAL space, `width_m` wide, for three seconds (any thread; VR only).
+void ShowHint(const std::string& text, const XrPosef& pose, float width_m);
 /// Fast forward turned on or off: the "Fast Forward" or "Normal Speed" toast (VR only). Any thread.
 void SetFastForwardShown(bool on);
 

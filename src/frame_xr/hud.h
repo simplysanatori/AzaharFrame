@@ -50,8 +50,16 @@ public:
     void ShowToast(Toast kind);
     /// Any thread. One line of UTF-8; "°" is drawn as a small ring (the font has none).
     void ShowToastText(const std::string& text);
+    /// Any thread. AzaharFrame controls: takes a text toast back before its time, if `text` is
+    /// the one showing or waiting ("Stopping..." when the View hold is let go).
+    void HideToastText(const std::string& text);
+    /// Any thread. AzaharFrame controls: the grip hint chip, up to two lines ('\n'; "↕" and "↔"
+    /// are drawn as arrows), at `pose` (LOCAL space), `width_m` wide, for three seconds.
+    void ShowHint(const std::string& text, const XrPosef& pose, float width_m);
     /// XR thread, each frame: the toast quad while one shows. `time` is the display time.
     bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad);
+    /// XR thread, each frame after ToastQuad: the hint chip while it shows.
+    bool HintQuad(XrTime time, Quad& quad);
 
 private:
     /// The toasts and the passthrough layer's transparent square.
@@ -68,6 +76,20 @@ private:
     std::string text_request; ///< ShowToastText not yet taken (text_requested)
     bool text_requested = false;
     int text_row_waiting = -1; ///< a text row uploaded, shown once the copy is done
+    std::string waiting_text;  ///< its text
+    std::string shown_text;    ///< the text row's text on view
+    std::string hide_request;  ///< HideToastText not yet taken
+    bool hide_requested = false;
+    // The hint chip (ShowHint): requested under text_mutex, then on the XR thread.
+    std::string hint_request;
+    XrPosef hint_request_pose{{0, 0, 0, 1}, {0, 0, 0}};
+    float hint_request_width = 0.4f;
+    bool hint_requested = false;
+    bool hint_waiting = false; ///< uploaded, shown once the copy is done
+    bool hint_shown = false;
+    XrTime hint_since = 0;
+    XrPosef hint_pose{{0, 0, 0, 1}, {0, 0, 0}};
+    float hint_width = 0.4f;
 };
 
 } // namespace FrameXr

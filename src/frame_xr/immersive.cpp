@@ -281,6 +281,14 @@ L::Placement DefaultPlacement() {
     return p;
 }
 
+// AzaharFrame widerview: the head-locked default grows with Wider View, so the picture has the
+// scale (and the gain) it has with Wider View off; only more shows around it.
+L::Placement DefaultHeadPlacement() {
+    L::Placement p = DefaultPlacement();
+    p.size = L::SizeForWider(p.size, L::kFactorMin, g.options.wider);
+    return p;
+}
+
 void LoadStore() {
     if (g.store_loaded) {
         return;
@@ -335,7 +343,7 @@ void OnFrame(const FrameInfo& info) {
         LoadStore();
         const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
         const auto wide = g.title_id ? g.store.Get(g.title_id, true) : std::nullopt;
-        g.head_place = head.value_or(DefaultPlacement());
+        g.head_place = head.value_or(DefaultHeadPlacement());
         g.head_old_size = head && g.store.OldSize(g.title_id);
         g.wide_place = wide.value_or(DefaultPlacement());
         if (mode != 0) {
@@ -687,18 +695,16 @@ std::optional<float> SavedHeadSize(uint64_t title_id) {
 }
 
 void OnResetPanels() {
+    // AzaharFrame controls: one reset rule. The view is re-centred and the immersive screen of
+    // this mode goes back to its default placement, held by a grip or not.
     g.recentre = true;
-    ResetHeldScreen();
-}
-
-void ResetHeldScreen() {
-    if (!g.adjuster.Active() || g.mode == 0 || !g.live) {
+    if (g.mode == 0 || !g.live) {
         return;
     }
     g.adjuster.Cancel();
     const bool wide = !IsViewMode(g.mode);
     L::Placement& p = wide ? g.wide_place : g.head_place;
-    p = DefaultPlacement();
+    p = wide ? DefaultPlacement() : DefaultHeadPlacement();
     if (!wide) {
         g.head_old_size = false;
     }

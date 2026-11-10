@@ -16,15 +16,15 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Right stick | C-Stick | |
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead |
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu. The game does not see that hold. A bumper or **View** pressed during the hold cancels it |
-| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window |
+| **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
 | Left stick click, tap | Hide or Show Other Screen | Nothing reaches the game. See Swapping the screens |
 | Left stick click, held | Nothing | There is no Home button in VR |
 | Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back. Nothing reaches the game |
-| Right stick click, held for 1 second | Reset Screens | Nothing reaches the game |
+| Right stick click, held for 1 second | Reset Screens and View | Nothing reaches the game |
 | Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below. The game does not see that press |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | The game sees no Select or Start |
 | Hold **View**, then the right bumper | Quick Save | When you let go of the bumper. The game sees none of the three |
-| Hold **View**, then the left bumper | Quick Load | The same |
+| Hold **View**, then hold the left bumper for half a second | Quick Load | While the bumper is still held. The game sees none of the three |
 | Hold **View**, then the right trigger | Fast Forward on or off | When you let go of the trigger. The game sees neither Select nor ZR |
 
 The left Steam button belongs to SteamVR and is never bound.
@@ -41,7 +41,7 @@ A stick click acts when you let go, so a hold never also taps. The right one res
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save or the left bumper to Quick Load. It happens when you let go of the bumper, with **View** still held. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
+Hold **View**, then press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. Quick Save happens when you let go of the bumper, with **View** still held. Quick Load needs the half second so a brush of the bumper never throws away your progress. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. The game sees neither bumper nor Select, and the stop timer starts over.
 
 - **View** has to go down first, with no bumper held. Bumpers first, then **View**, is the bottom screen button.
 - Pressing the other bumper or **Menu** while the bumper is held cancels it, so forming the VR / Flat switch never saves or loads. So does letting go of **View** first.
@@ -74,6 +74,8 @@ While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per 
 
 D-pad up or down, while a grip holds the screens, makes them more or less curved, one step per press: Off, Gentle, Medium, Strong and Max. A label shows the new value, for example **Screen Curve: Medium**, and it is kept for every game. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
 
+When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. It shows for 3 seconds, and not again within 10 seconds.
+
 The D-pad does not reach the game while you hold the screens, nor a direction you pressed then until you let go of it.
 
 The bottom screen follows the top one, 0.5 m nearer and tilted back 45 degrees, just under the top screen's bottom edge (0.75 m below its middle at the start size). It keeps its own size when the top screen grows, and moves down with that edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
@@ -86,7 +88,7 @@ The screens have two places. The main one is where the top screen starts. The se
 |---|---|
 | Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the top screen's height, and the top screen goes to the second place. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
-| Right stick click, held for 1 second | Resets the screen positions. The focus and what is hidden stay as they are |
+| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus.
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
@@ -172,8 +174,9 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Wider View, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Wider View: 1.2x**. Kept for this game |
-| Right stick click, tap, while holding the screen | Puts the screen back where it starts. It does not swap the screens while you hold one, and the left stick click does not hide one |
-| Right stick click, held for 1 second, while holding the screen | Also re-centres the view and resets the normal screens |
+| Right stick click, held for 1 second | Puts the screen back where it starts, re-centres the view and resets the normal screens, held or not. A tap does nothing while you hold the screen |
+
+Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 
 The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 

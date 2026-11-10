@@ -51,8 +51,8 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Other Screen");
         REQUIRE(ActionFor(page.game, "Hold Left Stick Click (1 s)") == "(missing)");
         REQUIRE(ActionFor(page.game, "Right Stick Click") == "Swap Screens");
-        REQUIRE(ActionFor(page.game, "Hold Right Stick Click (1 s)") == "Reset Screens");
-        REQUIRE(ActionFor(page.game, "Hold View + Left Bumper") == "Quick Load");
+        REQUIRE(ActionFor(page.game, "Hold Right Stick Click (1 s)") == "Reset Screens and View");
+        REQUIRE(ActionFor(page.game, "Hold View + Left Bumper (0.5 s)") == "Quick Load");
         REQUIRE(ActionFor(page.game, "Hold View + Right Bumper") == "Quick Save");
         REQUIRE(ActionFor(page.game, "Hold View + Right Trigger") == "Fast Forward On / Off");
         REQUIRE(ActionFor(page.window, "Both Bumpers + View + Menu") == "Switch VR / Flat");
@@ -74,7 +74,8 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Bumper") == "Nothing");
         REQUIRE(ActionFor(page.game, "Grip on a Screen") == "3DS L, Move Screens");
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
-        REQUIRE(ActionFor(page.game, "Right Stick Click While Moving") == "Reset Immersive Screen");
+        REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") ==
+                "Screen Curve or Wider View");
         REQUIRE(ActionFor(page.game, "D-Pad Up") == "Nothing");
         REQUIRE(ActionFor(page.game, "D-Pad Down") == "3DS D-Pad Down");
         REQUIRE(page.footer.find("Profile: Mine") != std::string::npos);
@@ -372,7 +373,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Click") == "Hide or Show Other Screen");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Right Stick") == "C-Stick");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Click") == "Swap Screens");
-        REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Reset Screens");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Reset Screens and View");
         REQUIRE(DiagramAction(g, 0, CtrlPart::Bumper, "Left Bumper") == "3DS L");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "Right Trigger") == "3DS ZR");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "") == "Touch on Bottom Screen");
@@ -384,7 +385,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         const DiagramLabel* view = FindDiagramLabel(g, 0, CtrlPart::View);
         REQUIRE(LineFor(view, "Hold View +"));
         REQUIRE(LineFor(view, "Hold View +")->heading);
-        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Left Bumper") == "Quick Load");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Hold Left Bumper (0.5 s)") == "Quick Load");
         REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Right Bumper") == "Quick Save");
         REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Right Trigger") == "Fast Forward On / Off");
         REQUIRE(LineFor(view, "Both Bumpers +"));
@@ -395,7 +396,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         // One label for both grips.
         REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Grip) == FindDiagramLabel(g, 1, CtrlPart::Grip));
         REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") == "Move Screens");
-        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Right Stick Click") == "Reset Immersive Screen");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") == "Curve or Wider View");
         // The window's page.
         const DiagramPage& w = d.pages[1];
         REQUIRE(DiagramAction(w, 1, CtrlPart::A, "A") == "Click");

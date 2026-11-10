@@ -247,17 +247,16 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
     Row(g, "Left Stick Click", "Hide or Show Other Screen");
     Row(g, "Right Stick Click", With("Swap Screens", ThreeDs(b, Control::StickClickR)));
-    Row(g, "Hold Right Stick Click (1 s)", "Reset Screens");
+    Row(g, "Hold Right Stick Click (1 s)", "Reset Screens and View");
     Row(g, "Grip on a Screen", With("Move Screens", Grips(b)));
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
-    Row(g, "Stick While Moving", "Nearer or Farther");
-    Row(g, "Sideways While Moving", "Screen Size");
-    Row(g, "D-Pad Left or Right While Moving", "Nudge Screen"); // AzaharFrame vrsize
-    Row(g, "D-Pad Up or Down While Moving", "Screen Curve (Immersive: Wider View)"); // curve
-    Row(g, "Right Stick Click While Moving", "Reset Immersive Screen");
+    Row(g, "Hold Grip + Stick Up or Down", "Nearer or Farther");
+    Row(g, "Hold Grip + Stick Sideways", "Screen Size");
+    Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
+    Row(g, "Hold Grip + D-Pad Up or Down", "Screen Curve or Wider View"); // curve
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
-    Row(g, "Hold View + Left Bumper", "Quick Load");
+    Row(g, "Hold View + Left Bumper (0.5 s)", "Quick Load");
     Row(g, "Hold View + Right Bumper", "Quick Save");
     Row(g, "Hold View + Right Trigger", "Fast Forward On / Off");
     Row(g, "Both Bumpers + View", "Show or Hide Bottom Screen");
@@ -320,7 +319,7 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
     }
     Label(g, kLeft, {CtrlPart::View},
           {Title("View", OrNothing(ThreeDs(b, Control::View))), Line("Hold (1.5 s)", "Stop Game"),
-           SubHeading("Hold View +"), Sub("Left Bumper", "Quick Load"),
+           SubHeading("Hold View +"), Sub("Hold Left Bumper (0.5 s)", "Quick Load"),
            Sub("Right Bumper", "Quick Save"), Sub("Right Trigger", "Fast Forward On / Off"),
            SubHeading("Both Bumpers +"), Sub("View", "Show or Hide Bottom Screen"),
            Sub("View + Menu", "Switch VR / Flat")});
@@ -340,12 +339,12 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
     Label(g, kRight, {CtrlPart::Stick},
           {Title("Right Stick", OrNothing(StickTo(b, AnalogControl::StickR))),
            Line("Click", With("Swap Screens", ThreeDs(b, Control::StickClickR))),
-           Line("Hold Click (1 s)", "Reset Screens")});
+           Line("Hold Click (1 s)", "Reset Screens and View")});
     Label(g, kBoth, {CtrlPart::Grip},
-          {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("While Moving"),
+          {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("Hold Grip +"),
            Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Screen Size"),
-           Sub("D-Pad", "Nudge or Curve"), // AzaharFrame curve: sideways, up or down
-           Sub("Right Stick Click", "Reset Immersive Screen")});
+           Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
+           Sub("D-Pad Up or Down", "Curve or Wider View")}); // AzaharFrame curve
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
     DiagramPage& w = d.pages[static_cast<std::size_t>(DiagramPageId::Window)];

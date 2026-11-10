@@ -14,6 +14,13 @@
 - D-pad left or right still shifts the immersive screen for your lenses. To raise or lower it, move the hand that holds it.
 - **Squeeze Width** is now **Narrow Screen**, with a 30% step for HUDs that sit far out at the sides.
 
+### Controls
+
+- Holding the right stick click for 1 second is now the one reset: it puts the screens back, and in immersive mode the immersive screen too and re-centres the view, whether you hold a screen or not. A tap while holding the immersive screen no longer resets it.
+- Quick Load now needs the left bumper held for half a second with **View**, so a brush of the bumper never loads.
+- **Stopping...** shows half way through the **View** hold, so you can let go in time.
+- Taking hold of the screens shows a small hint with what the D-pad and the stick do.
+
 ## 1.0.0 (November 2026)
 
 The first release of Azahar for Frame: Nintendo 3DS games in VR, running natively on the Valve Steam Frame. It is the Azahar emulator with the VR modes of amwatson's CitraVR.

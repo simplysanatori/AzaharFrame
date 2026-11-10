@@ -93,8 +93,7 @@ void ToggleBottom();
 void SetBottomFocused(bool focused);
 
 /// A grip holds the immersive screen now (OnGameInput). The stick click taps do not swap or
-/// hide the screens then (a swap would cancel the move half way); a right stick click tap
-/// calls ResetHeldScreen instead. XR thread.
+/// hide the screens then (a swap would cancel the move half way). XR thread.
 bool HoldingScreen();
 
 /// AzaharFrame vrsize: grip + D-pad. While a grip holds the immersive screen, turns it by that
@@ -114,13 +113,9 @@ WiderStep StepWiderView(int dir);
 /// converting the old Wider View switch (QtConfig). Nothing when none is saved. Any thread.
 std::optional<float> SavedHeadSize(uint64_t title_id);
 
-/// While a grip holds the immersive screen: it goes back to its default placement for this game
-/// (the saved one is forgotten). No re-centre. Does nothing otherwise. XR thread.
-void ResetHeldScreen();
-
-/// Right Stick Click held for 1 second (reset_panels): re-centres the view on the head; while a grip holds the
-/// immersive screen, the screen also goes back to its default placement for this game (the
-/// saved one is forgotten). XR thread.
+/// Right Stick Click held for 1 second (reset_panels), in every mode: re-centres the view on the
+/// head, and in immersive mode the immersive screen goes back to its default placement for this
+/// game (the saved one is forgotten), held by a grip or not. XR thread.
 void OnResetPanels();
 
 } // namespace FrameXr::Immersive

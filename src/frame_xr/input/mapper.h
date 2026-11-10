@@ -47,6 +47,9 @@ struct MapperConfig {
     int64_t chord_grace_ns = 150'000'000;
     /// After a Quick Save or Quick Load, the next one waits this long (a bumper that bounces).
     int64_t quick_cooldown_ns = 1'000'000'000;
+    /// AzaharFrame controls: Quick Load fires once the Left Bumper has been held this long (with
+    /// View); let go sooner and nothing loads. Quick Save stays a press.
+    int64_t quick_load_hold_ns = 500'000'000;
     /// While dragging the top screen, stick Y beyond this moves it nearer or further (CitraVR 0.5),
     /// and stick X beyond it makes the screens bigger or smaller (AzaharFrame vrsize).
     float depth_threshold = 0.5f;
@@ -144,7 +147,8 @@ struct PanelCommands {
     /// state slot of the Quick Save menu item). Fires once per bumper press; the game sees none
     /// of the three buttons. View pressed first is held back for chord_grace_ns, as the chord's.
     bool quick_save = false;
-    /// The same with the Left Bumper: Quick Load.
+    /// The same with the Left Bumper held for quick_load_hold_ns: Quick Load (as it is reached,
+    /// not when the bumper is let go).
     bool quick_load = false;
     /// View pressed first (no bumper down yet), then the Right Trigger: fast forward on or off.
     /// Fires once per trigger pull, at most once per quick_cooldown_ns; the game sees neither
@@ -250,6 +254,8 @@ private:
     // is let go first.
     int quick_pending_ = -1;
     bool quick_cancelled_ = false;
+    int64_t quick_pending_since_ns_ = 0; ///< AzaharFrame controls: the bumper's press (Quick Load)
+    bool quick_load_fired_ = false;       ///< Quick Load fired for this press
     // Fast forward: View first (quick_armed_), then the Right Trigger. Its own edge state and
     // cooldown; the pull stays away from the game (ZR, touch) until the trigger is let go.
     bool ff_trigger_prev_ = false;
