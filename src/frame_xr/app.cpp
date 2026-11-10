@@ -603,6 +603,7 @@ void Runtime::FrameLoop() {
                 place = placement;
             }
             place.top_size = NormalTopSize(place.top_scale); // AzaharFrame: "VR Screen Shape"
+            place = WithSecondSlot(place); // AzaharFrame layout: as GetScreenPlacement
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
             Vis::NoteTopHeadLocked(shown.top_space == view_space); // AzaharFrame vrvis: stats
