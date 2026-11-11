@@ -11,8 +11,10 @@
 #include <fstream>
 
 #include <fmt/format.h>
+#include "common/param_package.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
@@ -81,6 +83,41 @@ std::string OffsetText(float x, float y) {
     part(x, "Right", "Left");
     part(y, "Up", "Down");
     return s.empty() ? std::string{"None"} : s;
+}
+
+// AzaharFrame remap: the controls profile's 3DS buttons as a table (the Frame control driving
+// each), and back. Only buttons bound to the frame_xr engine are in the table; the others are left
+// as they are.
+Menu::RemapTable TableOf(const std::array<std::string, Menu::kRemapButtons>& buttons) {
+    Menu::RemapTable t;
+    t.fill(-1);
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        const Common::ParamPackage p(buttons[i]);
+        if (p.Get("engine", "") == "frame_xr" && p.Has("button")) {
+            t[i] = static_cast<int8_t>(p.Get("button", -1));
+        }
+    }
+    return t;
+}
+
+void ApplyTable(std::array<std::string, Menu::kRemapButtons>& buttons, const Menu::RemapTable& now,
+                const Menu::RemapTable& before) {
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        if (now[i] == before[i]) {
+            continue;
+        }
+        if (now[i] < 0) {
+            buttons[i].clear();
+            continue;
+        }
+        Common::ParamPackage p(buttons[i]);
+        if (p.Get("engine", "") != "frame_xr") {
+            p = Common::ParamPackage{};
+            p.Set("engine", "frame_xr");
+        }
+        p.Set("button", static_cast<int>(now[i]));
+        buttons[i] = p.Serialize();
+    }
 }
 
 /// The release's VERSION file beside the program, or "" for a build from source.
@@ -239,10 +276,88 @@ void MenuPanel::Resume() {
     LOG_INFO(Frontend, "xr: in-game menu: the tab menu shows");
 }
 
+void MenuPanel::BeginEdit() {
+    const Vis::HelpBindings given = Vis::CurrentHelpBindings();
+    const Vis::HelpBindings b = given.valid ? given : Vis::DefaultHelpBindings();
+    for (std::size_t i = 0; i < edit_buttons.size(); i++) {
+        edit_buttons[i] = b.buttons[i];
+    }
+    edit_table = TableOf(edit_buttons);
+    std::array<std::string, Menu::kRemapButtons> defaults;
+    const Vis::HelpBindings d = Vis::DefaultHelpBindings();
+    for (std::size_t i = 0; i < defaults.size(); i++) {
+        defaults[i] = d.buttons[i];
+    }
+    remap.Begin(edit_table, TableOf(defaults));
+    edit_prev = {};
+    edit_b_prev = true;
+    LOG_INFO(Frontend, "xr: in-game menu: Edit Controls");
+}
+
+// A change of the table is written to the controls profile at once (the Qt side keeps it in the
+// profile and the config), and the diagram shows it in the next frame.
+void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
+    using Event = Menu::Remap::Event;
+    if (e != Event::Moved && e != Event::Swapped && e != Event::Reset) {
+        return;
+    }
+    ApplyTable(edit_buttons, remap.Table(), edit_table);
+    edit_table = remap.Table();
+    const Vis::HelpBindings given = Vis::CurrentHelpBindings();
+    const Vis::HelpBindings b = given.valid ? given : Vis::DefaultHelpBindings();
+    SetControlBindings(std::vector<std::string>(edit_buttons.begin(), edit_buttons.end()),
+                       std::vector<std::string>(b.analogs.begin(), b.analogs.end()), b.profile_name);
+    MenuRequest r;
+    r.command = MenuCommand::SetButtons;
+    r.buttons.assign(edit_buttons.begin(), edit_buttons.end());
+    if (host.request) {
+        host.request(r);
+    }
+    LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: {}",
+             e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved");
+}
+
+// A Frame button pressed while a chip listens (the XR thread's raw input): B cancels, the others
+// move the chip's 3DS buttons to it. Presses are edges; the game is paused, so it sees none.
+void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt, Host& host) {
+    using Input::Control;
+    const bool pos = model.face_buttons == 0;
+    const std::array<bool, 11> now = {
+        have_input && in.a,
+        have_input && in.x,
+        have_input && in.y,
+        have_input && in.menu,
+        have_input && in.view,
+        have_input && in.dpad_up,
+        have_input && in.dpad_down,
+        have_input && in.dpad_left,
+        have_input && in.dpad_right,
+        have_input && in.hand[0].bumper,
+        have_input && in.hand[1].bumper,
+    };
+    // By position the Frame's A drives the pad's B (mapper.cpp), and so on.
+    const std::array<Control, 11> as = {
+        pos ? Control::B : Control::A, pos ? Control::Y : Control::X, pos ? Control::X : Control::Y,
+        Control::Menu,     Control::View,   Control::DpadUp,  Control::DpadDown,
+        Control::DpadLeft, Control::DpadRight, Control::BumperL, Control::BumperR};
+    if (remap.Listening() >= 0) {
+        for (std::size_t i = 0; i < now.size(); i++) {
+            if (now[i] && !edit_prev[i]) {
+                EditChanged(remap.Press(static_cast<int>(as[i])), host);
+                break;
+            }
+        }
+        EditChanged(remap.Tick(dt), host);
+    }
+    edit_prev = now;
+}
+
 void MenuPanel::Close() {
     if (!open) {
         return;
     }
+    remap.Done();
+    view.remap = remap.View();
     open = false;
     view.open_menu = view.dragging = Id::None;
     press_hand = -1;
@@ -457,6 +572,7 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     switch (t.id) {
     case Id::TabButton:
+        remap.Done(); // AzaharFrame remap
         view.tab = static_cast<Menu::Tab>(t.index);
         view.page = Menu::Page::Tabs;
         break;
@@ -504,8 +620,20 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::Cheats: // AzaharFrame menu
         ask(MenuCommand::Cheats);
         break;
-    case Id::EditControls: // AzaharFrame menu: the remap lane's
-        ask(MenuCommand::EditControls);
+    case Id::EditControls: // AzaharFrame remap
+        BeginEdit();
+        break;
+    case Id::RemapChip:
+        remap.Choose(t.index);
+        break;
+    case Id::RemapCancel:
+        remap.Cancel();
+        break;
+    case Id::RemapReset:
+        EditChanged(remap.Reset(), host);
+        break;
+    case Id::RemapDone:
+        remap.Done();
         break;
     case Id::ResetPosition:
         if (host.reset_position) {
@@ -610,11 +738,16 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     }
     // A (right controller) clicks too, for the hand that points.
     const bool a = have_input && in.a;
-    const bool a_edge = a && !a_down;
+    const bool listening = remap.Listening() >= 0; // AzaharFrame remap: A is then a button to map
+    const bool a_edge = a && !a_down && !listening;
     a_down = a;
     const bool b = have_input && in.b;
     const bool b_edge = b && !b_down;
     b_down = b;
+
+    if (remap.Editing()) {
+        EditInput(in, have_input, dt, host); // AzaharFrame remap
+    }
 
     // ---- Press, drag, release ----
     if (press_hand < 0 && p >= 0 && (edge[p] || a_edge) && hover.id != Id::None) {
@@ -654,7 +787,12 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     view.hover = hover;
 
     // ---- B: back ----
-    if (b_edge) {
+    if (b_edge && remap.Editing()) {
+        // AzaharFrame remap: B stops listening, then leaves Edit Controls
+        if (remap.Cancel() == Menu::Remap::Event::None) {
+            remap.Done();
+        }
+    } else if (b_edge) {
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
         } else if (view.page != Menu::Page::Tabs) {
@@ -716,6 +854,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         view.tooltip = Id::None;
     }
 
+    view.remap = remap.View();
+
     // ---- A redraw when anything changed; the newest drawing to the swapchain ----
     if (chain.Valid() && (!posted_any || !(model == posted_model) || !(view == posted_view) ||
                           (view.tab == Menu::Tab::Controls && shared->art_ready.exchange(false)))) {
@@ -759,8 +899,12 @@ void MenuPanel::Worker() {
     bool face_drawn = true;
     Vis::HelpDiagram diagram;
     bool have_diagram = false;
-    menu.SetDiagram([&](Menu::Kit& k, const Menu::Rect& area, int page) {
-        if (have_diagram) {
+    Vis::DiagramPage edit_page;
+    menu.SetDiagram([&](Menu::Kit& k, const Menu::Rect& area, int page, const Menu::DiagramEdit& edit,
+                        std::vector<Menu::DiagramChipHit>& chips) {
+        if (edit.on) {
+            Vis::DrawMenuEditDiagram(k, area, edit_page, art, edit, chips);
+        } else if (have_diagram) {
             Vis::DrawMenuDiagram(k, area, diagram, static_cast<Vis::DiagramPageId>(page), art);
         }
     });
@@ -793,6 +937,7 @@ void MenuPanel::Worker() {
                 bindings_drawn = bindings;
                 face_drawn = face;
                 have_diagram = true;
+                edit_page = Vis::BuildEditPage(bindings, face); // AzaharFrame remap
             }
         }
         const auto t0 = std::chrono::steady_clock::now();

@@ -64,6 +64,14 @@ constexpr float kDiagramLabelLine = 27.0f;
 constexpr float kDiagramSubIndent = 18.0f;
 constexpr float kDiagramHeadingGap = 5.0f;
 
+// AzaharFrame remap: Edit Controls draws a label's lines as chips (M3 chips with a glyph for the
+// 3DS button): a taller line, text one size up, room for the glyph.
+constexpr float kChipLine = 48.0f;      ///< a chip line's pitch (the chip is 42 tall)
+constexpr float kChipHeight = 42.0f;
+constexpr float kChipText = 23.0f;
+constexpr float kChipPad = 14.0f;       ///< either side of the text
+constexpr float kChipGlyphSlot = 74.0f; ///< glyph, gaps and the padding at the right
+
 float DiagramTopX(int hand);
 float DiagramFrontX(int hand);
 /// The front drawing's top: just over the top one, `height` pixels tall.
@@ -93,6 +101,9 @@ struct DiagramPlaced {
     float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f;
     std::vector<DiagramLeader> leaders; ///< one, or one a hand (the grips)
 };
+
+/// The pitch of one label line (a chip line is taller).
+float DiagramLinePitch(const DiagramLine& line);
 
 /// The width of one label line.
 float DiagramLineWidth(const DiagramLine& line, const TextMeasure& measure);

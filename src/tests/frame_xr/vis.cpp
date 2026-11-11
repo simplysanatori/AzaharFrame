@@ -677,3 +677,69 @@ TEST_CASE("FrameXr vis: the wrist stats face the eyes only when turned to them",
     REQUIRE(WristShown(37.0f, true));
     REQUIRE_FALSE(WristShown(41.0f, true));
 }
+
+// AzaharFrame remap: Edit Controls draws the labels as chips.
+TEST_CASE("FrameXr vis: Edit Controls has a chip per control and disabled chips for gestures",
+          "[frame_xr]") {
+    const DiagramPage page = BuildEditPage(DefaultHelpBindings(), true);
+    const auto lines_of = [&page] {
+        std::vector<const DiagramLine*> out;
+        for (const DiagramLabel& l : page.labels) {
+            for (const DiagramLine& line : l.lines) {
+                out.push_back(&line);
+            }
+        }
+        return out;
+    }();
+    int editable = 0;
+    for (const DiagramLine* l : lines_of) {
+        REQUIRE(l->chip);
+        editable += l->control >= 0 ? 1 : 0;
+        if (l->control < 0) {
+            REQUIRE(l->glyph == -1); // a gesture has no 3DS button
+        }
+    }
+    REQUIRE(editable == 14); // A B X Y, the D-pad, both bumpers and triggers, Menu, View
+    SECTION("each chip shows the 3DS button of its control, by position") {
+        // The Frame's A is the pad's B by position: the chip's control is B, and its 3DS button B.
+        const DiagramLabel* faces = FindDiagramLabel(page, 1, CtrlPart::A);
+        REQUIRE(faces != nullptr);
+        REQUIRE(faces->lines[0].key == "A");
+        REQUIRE(faces->lines[0].control == static_cast<int>(Input::Control::B));
+        REQUIRE(faces->lines[0].glyph == Settings::NativeButton::B);
+        REQUIRE(faces->lines[0].action == "B");
+        const DiagramLabel* bumper = FindDiagramLabel(page, 0, CtrlPart::Bumper);
+        REQUIRE(bumper->lines[0].glyph == Settings::NativeButton::L);
+    }
+    SECTION("a control with nothing on it says so and has no glyph") {
+        HelpBindings b = DefaultHelpBindings();
+        b.buttons[Settings::NativeButton::ZL] = "";
+        const DiagramPage p = BuildEditPage(b, true);
+        const DiagramLine& trigger = FindDiagramLabel(p, 0, CtrlPart::Trigger)->lines[0];
+        REQUIRE(trigger.action == "Nothing");
+        REQUIRE(trigger.glyph == -1);
+        REQUIRE(trigger.control == static_cast<int>(Input::Control::TriggerL));
+    }
+    SECTION("the labels fit, with their lines clear") {
+        const TextMeasure measure = [](float size, bool bold, const std::string& text) {
+            return static_cast<float>(text.size()) * size * (bold ? 0.51f : 0.48f);
+        };
+        const DiagramAnchors an = FrameAnchors();
+        const auto placed = LayoutHelpDiagram(page, an, measure);
+        REQUIRE(placed.size() == page.labels.size());
+        for (std::size_t i = 0; i < placed.size(); i++) {
+            const DiagramPlaced& p = placed[i];
+            INFO(p.label->lines.front().key);
+            REQUIRE(p.x0 >= 30.0f);
+            REQUIRE(p.x1 <= kDiagramPanelW - 30.0f);
+            REQUIRE(p.y0 >= kDiagramTop - 0.01f);
+            REQUIRE(p.y1 <= kDiagramBottom + 0.01f);
+            for (std::size_t j = 0; j < placed.size(); j++) {
+                if (i != j) {
+                    const DiagramPlaced& q = placed[j];
+                    REQUIRE((p.x1 <= q.x0 || q.x1 <= p.x0 || p.y1 <= q.y0 || q.y1 <= p.y0));
+                }
+            }
+        }
+    }
+}

@@ -69,7 +69,15 @@ float DiagramFrontY(int height) {
     return std::max(kDiagramTop, kDiagramTopY - 6.0f - static_cast<float>(height));
 }
 
+float DiagramLinePitch(const DiagramLine& l) {
+    return l.chip ? kChipLine : kDiagramLabelLine; // AzaharFrame remap
+}
+
 float DiagramLineWidth(const DiagramLine& l, const TextMeasure& measure) {
+    if (l.chip) { // AzaharFrame remap: a chip's text, its glyph (or a gap) and its padding
+        const std::string text = l.action.empty() ? l.key : l.key + ": " + l.action;
+        return measure(kChipText, true, text) + (l.control >= 0 ? kChipGlyphSlot : kChipPad * 2.0f);
+    }
     const float indent = l.sub ? kDiagramSubIndent : 0.0f;
     if (l.heading) {
         return indent + measure(kDiagramLabelSize, true, l.key);
@@ -85,6 +93,11 @@ constexpr float kColumnGap = 18.0f; ///< between a column and the drawings
 constexpr float kEdge = 36.0f;      ///< the nearest a label comes to the panel's side
 constexpr float kBlockGap = 16.0f;
 constexpr float kAttachGap = 10.0f; ///< between a leader's end and its label
+
+// Half the first line's pitch: the middle of the first line.
+float FirstHalf(const DiagramLabel& l) {
+    return (l.lines.empty() ? kDiagramLabelLine : DiagramLinePitch(l.lines[0])) * 0.5f;
+}
 
 struct Block {
     DiagramPlaced placed;
@@ -116,12 +129,13 @@ void Stack(std::vector<Block>& col) {
     float next = kDiagramTop;
     for (Block& b : col) {
         const float h = b.placed.y1 - b.placed.y0;
-        b.placed.y0 = std::max(next, b.want_y - kDiagramLabelLine * 0.5f);
+        b.placed.y0 = std::max(next, b.want_y - FirstHalf(*b.placed.label));
         b.placed.y1 = b.placed.y0 + h;
         next = b.placed.y1 + kBlockGap;
     }
     if (!col.empty()) {
-        const float pushed = col.back().placed.y0 - (col.back().want_y - kDiagramLabelLine * 0.5f);
+        const float pushed =
+            col.back().placed.y0 - (col.back().want_y - FirstHalf(*col.back().placed.label));
         const float up = std::min(pushed, col.front().placed.y0 - kDiagramTop);
         for (Block& b : col) {
             b.placed.y0 -= std::max(0.0f, up);
@@ -180,7 +194,7 @@ float Ring(const DiagramAnchors& an, int hand, const std::vector<CtrlPart>& part
 // Where a leader from `p` meets the label: its side facing p, by the first line, or its top or
 // bottom edge when p is above or below it.
 DiagramPoint Attach(const DiagramPlaced& b, const DiagramPoint& p) {
-    const float first = b.y0 + kDiagramLabelLine * 0.5f;
+    const float first = b.y0 + FirstHalf(*b.label);
     if (p.x < b.x0 - kAttachGap) {
         return {b.x0 - kAttachGap, first};
     }
@@ -206,7 +220,7 @@ std::vector<DiagramPlaced> LayoutHelpDiagram(const DiagramPage& page, const Diag
         float width = 0.0f, height = 0.0f;
         for (std::size_t i = 0; i < label.lines.size(); i++) {
             width = std::max(width, DiagramLineWidth(label.lines[i], measure));
-            height += kDiagramLabelLine + (label.lines[i].heading && i > 0 ? kDiagramHeadingGap : 0.0f);
+            height += DiagramLinePitch(label.lines[i]) + (label.lines[i].heading && i > 0 ? kDiagramHeadingGap : 0.0f);
         }
         Block b;
         b.placed.label = &label;

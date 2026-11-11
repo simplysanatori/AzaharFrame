@@ -13,6 +13,7 @@
 #include <array>
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/model_file.h"
@@ -31,5 +32,12 @@ MenuDiagramArt MakeMenuDiagramArt(const ModelFile& left, const ModelFile& right,
 /// Draws `page` of `diagram` into `area` (dp).
 void DrawMenuDiagram(Menu::Kit& kit, const Menu::Rect& area, const HelpDiagram& diagram,
                      DiagramPageId page, const MenuDiagramArt& art);
+
+/// AzaharFrame remap: the same drawing with the labels of `page` (BuildEditPage) as chips, each
+/// with the glyph of the 3DS button on it. A chip with a control is a target (added to `chips`);
+/// `edit` says which one listens and which the beam is on.
+void DrawMenuEditDiagram(Menu::Kit& kit, const Menu::Rect& area, const DiagramPage& page,
+                         const MenuDiagramArt& art, const Menu::DiagramEdit& edit,
+                         std::vector<Menu::DiagramChipHit>& chips);
 
 } // namespace FrameXr::Vis

@@ -3980,8 +3980,19 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
-    case C::EditControls: // AzaharFrame menu: the remap lane's
+    case C::EditControls: // AzaharFrame remap: the menu does it all
         return;
+    case C::SetButtons: { // AzaharFrame remap: Edit Controls changed the profile's 3DS buttons
+        auto& profile = Settings::values.current_input_profile;
+        for (std::size_t i = 0; i < profile.buttons.size() && i < r.buttons.size(); i++) {
+            profile.buttons[i] = r.buttons[i];
+        }
+        Settings::SaveProfile(Settings::values.current_input_profile_index);
+        system.ApplySettings(); // the game's input devices read the profile again
+        config->Save();
+        FrameXrPushControls();
+        return;
+    }
     case C::SetSetting:
         break;
     }

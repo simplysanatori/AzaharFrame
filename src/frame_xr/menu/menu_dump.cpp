@@ -18,6 +18,7 @@
 
 #include <lodepng.h>
 
+#include "frame_xr/input/controls.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/help_content.h"
@@ -51,6 +52,7 @@ Menu::MenuModel SampleModel() {
     m.stats_system = {{"CPU", "38%"}, {"GPU Clock", "587 MHz"}};
     m.version = "1.1.0";
     m.controls_page = 0;
+    m.move_screens = 1;
     m.scope = 0;
     m.background = 0;
     m.face_buttons = 0;
@@ -136,8 +138,14 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "models: %s\n", why.c_str());
         }
     }
-    menu.SetDiagram([&](Kit& k, const Rect& area, int page) {
-        Vis::DrawMenuDiagram(k, area, diagram, static_cast<Vis::DiagramPageId>(page), art);
+    Vis::DiagramPage edit_page = Vis::BuildEditPage(Vis::DefaultHelpBindings(), true); // AzaharFrame remap
+    menu.SetDiagram([&](Kit& k, const Rect& area, int page, const DiagramEdit& edit,
+                        std::vector<DiagramChipHit>& chips) {
+        if (edit.on) {
+            Vis::DrawMenuEditDiagram(k, area, edit_page, art, edit, chips);
+        } else {
+            Vis::DrawMenuDiagram(k, area, diagram, static_cast<Vis::DiagramPageId>(page), art);
+        }
     });
 
     if (diagram_only) {
@@ -226,6 +234,26 @@ int main(int argc, char** argv) {
     mw.controls_page = 1;
     v.hover = {};
     ok &= shot("4b-controls-window", mw, v);
+
+    // AzaharFrame remap: Edit Controls, idle, listening, and after a swap.
+    v = {};
+    v.tab = Tab::Controls;
+    v.remap.editing = true;
+    v.hover = {Id::RemapChip, static_cast<int>(Input::Control::BumperR)};
+    ok &= shot("4c-controls-edit-idle", m, v);
+    v.remap.listening = static_cast<int>(Input::Control::X);
+    v.hover = {Id::RemapCancel};
+    ok &= shot("4d-controls-edit-listening", m, v);
+    {
+        // The Frame's Y (3DS X by position) and the right bumper (R) swapped.
+        Vis::HelpBindings swapped = Vis::DefaultHelpBindings();
+        swapped.buttons[Settings::NativeButton::X] = "engine:frame_xr,button:13";
+        swapped.buttons[Settings::NativeButton::R] = "engine:frame_xr,button:2";
+        edit_page = Vis::BuildEditPage(swapped, true);
+        v.remap.listening = -1;
+        v.hover = {};
+        ok &= shot("4e-controls-edit-swapped", m, v);
+    }
 
     v = {};
     v.tab = Tab::Settings;

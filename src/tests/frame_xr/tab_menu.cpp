@@ -237,7 +237,7 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     d.Draw(m, v);
     CHECK(has(Id::MoveScreens, 0));
     CHECK(has(Id::MoveScreens, 2));
-    CHECK(OptionsFor(Id::MoveScreens) == std::vector<std::string>{"Off", "Other", "Both"});
+    CHECK(OptionsFor(Id::MoveScreens) == std::vector<std::string>{"Off", "Secondary", "Both"});
     v.tab = Tab::Controls;
     d.Draw(m, v);
     CHECK(has(Id::TouchpadTouch, 0));

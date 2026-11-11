@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/remap.h"
 
 namespace FrameXr::Menu {
 
@@ -66,6 +67,10 @@ enum class Id : int {
     ControlsPage,
     TouchpadTouch, ///< AzaharFrame menu
     EditControls,  ///< AzaharFrame menu
+    RemapChip,     ///< AzaharFrame remap, index: the Input::Control of a chip
+    RemapCancel,   ///< AzaharFrame remap: stop listening
+    RemapReset,    ///< AzaharFrame remap: Reset to Default
+    RemapDone,     ///< AzaharFrame remap: Done
     // Settings
     Scope,
     Background,
@@ -162,6 +167,7 @@ struct MenuView {
     Id tooltip = Id::None;    ///< the one-line explanation of a row
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
+    RemapView remap; ///< AzaharFrame remap: Edit Controls
     bool operator==(const MenuView&) const = default;
 };
 
@@ -200,10 +206,26 @@ struct MenuLayout {
     float SliderAt(Id id, float x) const;
 };
 
+/// AzaharFrame remap: how the diagram is drawn in Edit Controls (labels as chips), and the
+/// chips it drew, for hit testing.
+struct DiagramEdit {
+    bool on = false;
+    int listening = -1; ///< the chip that waits for a button (an Input::Control)
+    int hover = -1;
+    int pressed = -1;
+};
+struct DiagramChipHit {
+    Rect r;
+    int control = -1;
+};
+
 class TabMenu {
 public:
-    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab.
-    using DiagramDraw = std::function<void(Kit& kit, const Rect& area, int page)>;
+    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab; in Edit
+    /// Controls (`edit.on`) its labels are chips, whose rectangles it adds to `chips`.
+    using DiagramDraw = std::function<void(Kit& kit, const Rect& area, int page,
+                                           const DiagramEdit& edit,
+                                           std::vector<DiagramChipHit>& chips)>;
 
     void SetDiagram(DiagramDraw draw) {
         diagram = std::move(draw);
@@ -232,6 +254,7 @@ private:
     void DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    void DrawEditControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);

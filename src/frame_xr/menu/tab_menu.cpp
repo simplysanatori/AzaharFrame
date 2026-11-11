@@ -228,6 +228,12 @@ std::string LabelFor(Id id) {
         return "Touchpad Touch";
     case Id::EditControls:
         return "Edit Controls";
+    case Id::RemapCancel:
+        return "Cancel";
+    case Id::RemapReset:
+        return "Reset to Default";
+    case Id::RemapDone:
+        return "Done";
     case Id::ImmersiveOffset:
         return "Immersive Offset";
     case Id::ImmersiveOffsetReset:
@@ -577,8 +583,55 @@ void TabMenu::DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, 
     }
 }
 
+// AzaharFrame remap: Edit Controls. A bar (the title, or the prompt and Cancel while a chip
+// listens; Reset to Default and Done) over the diagram, whose labels are chips.
+void TabMenu::DrawEditControls(Kit& kit, const MenuModel&, const MenuView& view, const Rect& pane) {
+    const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
+    const float bar_h = kControlH;
+    const Rect done{c.x1 - 124.0f, c.y0, c.x1, c.y0 + bar_h};
+    const Rect reset{done.x0 - 12.0f - 208.0f, c.y0, done.x0 - 12.0f, c.y0 + bar_h};
+    kit.Button(done, ButtonStyle::Filled, Sym::kCheck, LabelFor(Id::RemapDone),
+               StateOf(view, {Id::RemapDone}));
+    AddHit(done, {Id::RemapDone}, pane);
+    kit.Button(reset, ButtonStyle::Tonal, Sym::kRestartAlt, LabelFor(Id::RemapReset),
+               StateOf(view, {Id::RemapReset}));
+    AddHit(reset, {Id::RemapReset}, pane);
+    if (view.remap.listening >= 0) {
+        // The prompt chip (not a target), and Cancel.
+        const std::string prompt = "Press a Button\xE2\x80\xA6";
+        const float pw = kit.TextWidth(Type::Label, prompt) + 40.0f;
+        const Rect chip{c.x0, c.y0 + (bar_h - 40.0f) * 0.5f, c.x0 + pw, c.y0 + (bar_h + 40.0f) * 0.5f};
+        kit.Fill(chip, 20.0f, Tok::kPrimaryContainer);
+        kit.TextMid(chip.Cx(), chip.Cy(), Type::Label, Tok::kOnPrimaryContainer, prompt, 1);
+        const Rect cancel{chip.x1 + 8.0f, c.y0, chip.x1 + 8.0f + 120.0f, c.y0 + bar_h};
+        kit.Button(cancel, ButtonStyle::Text, 0, LabelFor(Id::RemapCancel),
+                   StateOf(view, {Id::RemapCancel}));
+        AddHit(cancel, {Id::RemapCancel}, pane);
+    } else {
+        kit.TextMid(c.x0 + 4.0f, c.y0 + bar_h * 0.5f, Type::Title, Tok::kOnSurface,
+                    LabelFor(Id::EditControls));
+    }
+    const Rect area{pane.x0 + 8.0f, c.y0 + bar_h + 6.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+    if (diagram) {
+        DiagramEdit edit;
+        edit.on = true;
+        edit.listening = view.remap.listening;
+        edit.hover = view.hover.id == Id::RemapChip ? view.hover.index : -1;
+        edit.pressed = view.pressed.id == Id::RemapChip ? view.pressed.index : -1;
+        std::vector<DiagramChipHit> chips;
+        diagram(kit, area, 0, edit, chips);
+        for (const DiagramChipHit& h : chips) {
+            AddHit(h.r, {Id::RemapChip, h.control}, pane);
+        }
+    }
+}
+
 void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& view,
                            const Rect& pane) {
+    if (view.remap.editing) {
+        DrawEditControls(kit, model, view, pane);
+        return;
+    }
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     const auto& pages = OptionsFor(Id::ControlsPage);
     const float w = kit.SegmentedWidth(pages);
@@ -621,7 +674,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     const Rect area{pane.x0 + 8.0f, tp_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
-        diagram(kit, area, model.controls_page);
+        std::vector<DiagramChipHit> none;
+        diagram(kit, area, model.controls_page, DiagramEdit{}, none);
     }
 }
 

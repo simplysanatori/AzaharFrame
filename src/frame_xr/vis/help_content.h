@@ -64,6 +64,10 @@ struct DiagramLine {
     bool title = false;   ///< the control's own line (bold)
     bool heading = false; ///< the head of a sub-list ("Hold View +"): `key` only
     bool sub = false;     ///< in a sub-list (indented)
+    // AzaharFrame remap: Edit Controls draws the line as a chip.
+    bool chip = false;
+    int control = -1; ///< Input::Control the chip remaps, or -1 (a disabled chip)
+    int glyph = -1;   ///< Settings::NativeButton whose glyph shows, or -1
 };
 
 /// A label, and the parts of one controller its leader line points at (the middle of them).
@@ -87,6 +91,10 @@ struct HelpDiagram {
 };
 
 HelpDiagram BuildHelpDiagram(const HelpBindings& bindings, const HelpContext& context);
+
+/// AzaharFrame remap: the In Game page of Edit Controls: every control a chip, the 3DS buttons
+/// that can move (control >= 0) and the gestures, which are disabled.
+DiagramPage BuildEditPage(const HelpBindings& bindings, bool face_by_position);
 
 /// The page for where the player is: In Game while a game runs, else Azahar's Window.
 DiagramPageId HelpDiagramPageFor(const HelpContext& context);

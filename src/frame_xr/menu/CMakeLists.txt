@@ -9,6 +9,8 @@ add_library(frame_xr_menu STATIC
     md3.cpp
     md3.h
     md3_fonts.h
+    remap.cpp
+    remap.h
     tab_menu.cpp
     tab_menu.h
 )
