@@ -341,8 +341,11 @@ void ConfigureCheats::OnDownloadSharkive() {
                     }
                     const auto parsed = Cheats::Sharkive::Parse(result.body);
                     auto added = Cheats::Sharkive::NewEntries(parsed, names);
+                    const bool by_revision = installed.revision.has_value();
                     const int other =
-                        Cheats::Sharkive::MarkOtherVersions(added, installed.version);
+                        by_revision
+                            ? Cheats::Sharkive::MarkOtherRevisions(added, *installed.revision)
+                            : Cheats::Sharkive::MarkOtherVersions(added, installed.version);
                     if (parsed.empty()) {
                         status = tr("No cheats for this game");
                         break;
@@ -363,7 +366,9 @@ void ConfigureCheats::OnDownloadSharkive() {
                              : added.size() == 1 ? tr("1 cheat added")
                                                  : tr("%1 cheats added").arg(added.size());
                     if (other > 0) {
-                        status += tr(", %1 for another version").arg(other);
+                        status += (by_revision ? tr(", %1 for another revision")
+                                               : tr(", %1 for another version"))
+                                      .arg(other);
                         if (installed.source == Cheats::Sharkive::VersionSource::UpdateTmd && installed.version) {
                             status += tr(" (update %1 installed)")
                                           .arg(QString::fromStdString(

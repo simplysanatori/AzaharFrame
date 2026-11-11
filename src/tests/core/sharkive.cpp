@@ -102,22 +102,48 @@ TEST_CASE("Sharkive: title version and matching", "[sharkive]") {
 TEST_CASE("Sharkive: installed version order", "[sharkive]") {
     const auto none = SelectInstalledVersion(std::nullopt, std::nullopt, std::nullopt);
     REQUIRE_FALSE(none.version.has_value());
+    REQUIRE_FALSE(none.revision.has_value());
     REQUIRE(none.source == VersionSource::Unknown);
 
-    // update > base > NCCH
-    auto r = SelectInstalledVersion(0x0410, 0x0400, 0x0420);
+    // update > base > ROM
+    auto r = SelectInstalledVersion(0x0410, 0x0400, 0x0002);
     REQUIRE(r.version == Version{1, 1});
     REQUIRE(r.source == VersionSource::UpdateTmd);
-    r = SelectInstalledVersion(std::nullopt, 0x0400, 0x0420);
+    REQUIRE_FALSE(r.revision.has_value());
+    r = SelectInstalledVersion(std::nullopt, 0x0400, 0x0002);
     REQUIRE(r.version == Version{1, 0});
     REQUIRE(r.source == VersionSource::BaseTmd);
-    r = SelectInstalledVersion(std::nullopt, std::nullopt, 0x0420);
-    REQUIRE(r.version == Version{1, 2});
-    REQUIRE(r.source == VersionSource::Ncch);
     // an update of 0.0 still wins over the ROM
-    r = SelectInstalledVersion(0, std::nullopt, 0x0420);
+    r = SelectInstalledVersion(0, std::nullopt, 0x0002);
     REQUIRE(r.source == VersionSource::UpdateTmd);
-    // a plain revision number is not a version
-    REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 1).source == VersionSource::Unknown);
-    REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 0).source == VersionSource::Unknown);
+
+    // cartridge: remaster / 2 is the revision, no version
+    r = SelectInstalledVersion(std::nullopt, std::nullopt, 0x0002);
+    REQUIRE(r.source == VersionSource::Ncch);
+    REQUIRE(r.revision == 1);
+    REQUIRE_FALSE(r.version.has_value());
+    r = SelectInstalledVersion(std::nullopt, std::nullopt, 0);
+    REQUIRE(r.source == VersionSource::Ncch);
+    REQUIRE(r.revision == 0);
+    // odd: not understood
+    REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 3).source == VersionSource::Unknown);
+}
+
+TEST_CASE("Sharkive: revision tags and marking", "[sharkive]") {
+    REQUIRE(TagRevision("All Karts, Rev1 Game v1.1") == 1);
+    REQUIRE(TagRevision("Full Course Laps - USA Rev0 v1.1") == 0);
+    REQUIRE(TagRevision("Coin Modifier Rev 0 V 1.1 USA") == 0);
+    REQUIRE(TagRevision("Disable Star music - rev0") == 0);
+    REQUIRE(TagRevision("Unlock rev02") == 2);
+    REQUIRE(TagRevision("Coins", "for rev1") == 1);
+    REQUIRE_FALSE(TagRevision("All Karts, Game v1.0").has_value());
+    REQUIRE_FALSE(TagRevision("Reverse Course").has_value());
+    REQUIRE_FALSE(TagRevision("Prevent Death 2").has_value());
+
+    auto entries = Parse("[A Rev0 v1.1]\n00000000 00000001\n\n[B Rev1]\n00000000 00000002\n\n"
+                         "[C Game v1.0]\n00000000 00000003\n");
+    REQUIRE(MarkOtherRevisions(entries, 1) == 1);
+    REQUIRE(entries[0].comments == "Sharkive: for Rev0, this cartridge is Rev1\n");
+    REQUIRE(entries[1].comments.empty());
+    REQUIRE(entries[2].comments.empty()); // version-only tags stay unflagged
 }

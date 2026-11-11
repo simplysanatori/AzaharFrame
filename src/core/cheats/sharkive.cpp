@@ -100,13 +100,13 @@ std::string ToString(const Version& v) {
 InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::optional<u16> base_tmd,
                                         std::optional<u16> ncch_remaster) {
     if (update_tmd) {
-        return {FromTitleVersion(*update_tmd), VersionSource::UpdateTmd};
+        return {FromTitleVersion(*update_tmd), std::nullopt, VersionSource::UpdateTmd};
     }
     if (base_tmd) {
-        return {FromTitleVersion(*base_tmd), VersionSource::BaseTmd};
+        return {FromTitleVersion(*base_tmd), std::nullopt, VersionSource::BaseTmd};
     }
-    if (ncch_remaster && *ncch_remaster >= 0x0400) {
-        return {FromTitleVersion(*ncch_remaster), VersionSource::Ncch};
+    if (ncch_remaster && *ncch_remaster % 2 == 0) {
+        return {std::nullopt, static_cast<int>(*ncch_remaster / 2), VersionSource::Ncch};
     }
     return {};
 }
@@ -176,6 +176,53 @@ std::optional<Version> TagIn(std::string_view s) {
 }
 
 } // namespace
+
+namespace {
+std::optional<int> RevisionIn(std::string_view s) {
+    std::string lower(s);
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    for (std::size_t i = 0; i + 3 < lower.size(); ++i) {
+        if (lower.compare(i, 3, "rev") != 0 || (i > 0 && IsWordChar(lower[i - 1]))) {
+            continue;
+        }
+        std::size_t j = i + 3;
+        while (j < lower.size() && lower[j] == ' ') {
+            ++j;
+        }
+        int n = 0, digits = 0;
+        while (j < lower.size() && IsDigit(lower[j]) && digits < 3) {
+            n = n * 10 + (lower[j] - '0');
+            ++j, ++digits;
+        }
+        if (digits > 0 && digits <= 2 && (j >= lower.size() || !IsWordChar(lower[j]))) {
+            return n;
+        }
+    }
+    return std::nullopt;
+}
+} // namespace
+
+std::optional<int> TagRevision(std::string_view name, std::string_view comments) {
+    if (auto r = RevisionIn(name)) {
+        return r;
+    }
+    return RevisionIn(comments);
+}
+
+int MarkOtherRevisions(std::vector<Entry>& entries, int installed_revision) {
+    int count = 0;
+    for (auto& entry : entries) {
+        const auto tag = TagRevision(entry.name, entry.comments);
+        if (!tag || *tag == installed_revision) {
+            continue;
+        }
+        entry.comments +=
+            fmt::format("Sharkive: for Rev{}, this cartridge is Rev{}\n", *tag, installed_revision);
+        ++count;
+    }
+    return count;
+}
 
 std::optional<Version> TagVersion(std::string_view name, std::string_view comments) {
     if (auto v = TagIn(name)) {

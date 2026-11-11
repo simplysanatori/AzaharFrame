@@ -35,16 +35,27 @@ Version FromTitleVersion(u16 title_version);
 enum class VersionSource { Unknown, UpdateTmd, BaseTmd, Ncch };
 
 struct InstalledVersion {
-    std::optional<Version> version;
+    std::optional<Version> version;  // from a TMD
+    std::optional<int> revision;     // from the ROM: the cartridge revision (Rev0, Rev1)
     VersionSource source = VersionSource::Unknown;
 };
 
 /// Which version the game runs at, first that exists: the installed update title's TMD, the
-/// installed base title's TMD, the running ROM's own NCCH (ExHeader remaster version), else unknown.
-/// All three are TMD-style u16 versions. A remaster version below 0x0400 is a plain cartridge
-/// revision number (Rev0, Rev1), not a version 1.x or later, so it is not used.
+/// installed base title's TMD (both TMD-style u16 versions, giving `version`), the running ROM's
+/// ExHeader remaster version (giving `revision`), else unknown.
+/// A cartridge dump has no TMD, and its remaster field is a revision counter, not a version:
+/// the dumps checked read 0x0000 for Rev 0 and 0x0002 for Mario Kart 7 Rev 1, so the revision is
+/// remaster / 2 (an odd value is not understood: unknown). One cartridge (Super Mario 3D Land
+/// Rev 1) reads 0x0000, so the mapping is only as good as the Sharkive tags that use it.
 InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::optional<u16> base_tmd,
                                         std::optional<u16> ncch_remaster);
+
+/// The cartridge revision a cheat names ("Rev1", "rev 1", "Rev02"), nullopt without one.
+std::optional<int> TagRevision(std::string_view name, std::string_view comments = {});
+
+/// Appends "Sharkive: for Rev0, this cartridge is Rev1" to the notes of each entry tagged with
+/// another revision. Entries with no Rev tag are left alone. Returns how many differ.
+int MarkOtherRevisions(std::vector<Entry>& entries, int installed_revision);
 
 /// The game version a cheat names in its name or notes: "v1.1", "V 1.1", "Game v1.1", "Rev0 v1.1";
 /// a bare "1.1" counts only when the text also says "only". "v1" (the cheat's own version), "Rev0"
