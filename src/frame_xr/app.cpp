@@ -161,7 +161,7 @@ XrExtent2Df NormalBottomSize(float scale) {
 namespace {
 // AzaharFrame layout: the second slot always follows the main one by the Screen Layout setting,
 // so a switch, a grip move, a nudge, a size change and the reset all keep the layout.
-// AzaharFrame move: unless it has a pose of its own (Detach Screens Other or Both, after a grab).
+// AzaharFrame move: unless it has a pose of its own (Detach Screens Secondary or Both, after a grab).
 ScreenPlacement WithSecondSlot(ScreenPlacement place) {
     const uint32_t detach =
         Input::ScreenRig::ClampDetach(Settings::values.vr_move_screens.GetValue());

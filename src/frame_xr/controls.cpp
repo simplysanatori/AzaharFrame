@@ -1262,7 +1262,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         } else if (holding_normal && bridge.mapper().DragActive()) {
             // Left and right turn the pair about you; up and down step the Screen Curve
             // (AzaharFrame curve; the hand moves the pair up and down).
-            // AzaharFrame move: detached (Other), only the main slot moves this way.
+            // AzaharFrame move: detached (Secondary), only the main slot moves this way.
             ScreenPlacement now = GetScreenPlacement();
             const auto moved = nudge.right != 0
                                    ? Rig::NudgeTop(ToInput(now.top_pose), nudge.right, 0)

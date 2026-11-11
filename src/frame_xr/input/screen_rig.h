@@ -140,7 +140,7 @@ Cylinder CylinderFor(const Posef& screen, float width, float height, float radiu
 //
 // Settings::values.vr_move_screens (global, read every frame): 0 Off, the second slot follows the
 // main one (SecondFromMain) and a grip on either moves both, the main slot turned and tilted
-// about you as above; 1 Other, the main slot as in Off and the second slot free; 2 Both, both
+// about you as above; 1 Secondary, the main slot as in Off and the second slot free; 2 Both, both
 // slots free. A free slot is moved as the stats panel In Front is (vis/stats_place.h): a grip
 // carries it round you on the sphere it is on (FreeGrab), it faces you, and that hand's stick
 // sets its distance (FreeDistance) and size; the D-pad left and right turn it about you
@@ -161,9 +161,9 @@ inline constexpr float kFreeMaxPitchDeg = 75.0f;
 
 /// 0, 1 or 2 (a larger value typed into the config is Both).
 uint32_t ClampDetach(uint32_t mode);
-/// "Off", "Other", "Both".
+/// "Off", "Secondary", "Both".
 const char* DetachName(uint32_t mode);
-/// "Detach Screens: Other".
+/// "Detach Screens: Secondary".
 std::string DetachToast(uint32_t mode);
 /// A grip moves this slot freely in `mode` (else as the pair, Off).
 bool SlotFree(uint32_t mode, bool main_slot);
@@ -180,7 +180,7 @@ struct Slots {
 
 /// The second slot follows the main one again, at 1.0x.
 void Relink(Slots& s);
-/// A grab starts in `mode`: in Other and Both the second slot stops following the main one and
+/// A grab starts in `mode`: in Secondary and Both the second slot stops following the main one and
 /// keeps `linked_second`, where it is drawn now. Nothing in Off or when it already is free.
 /// True when it changed.
 bool Detach(Slots& s, uint32_t mode, const Posef& linked_second);

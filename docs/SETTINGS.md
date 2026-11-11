@@ -24,7 +24,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
-| [Detach Screens](#detach-screens) | **Off**, **Other**, **Both** | Off | global | at once |
+| [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
@@ -83,15 +83,15 @@ Where the stats show. The in-game menu has the same choice on its **Stats** tab,
 
 ## Screen Layout
 
-Where the smaller screen sits in VR. **Stacked**: below the main one, tilted back. **Side by Side**: to its right, at the same distance and height, facing you. In VR, hold the left stick click for 1 second to switch. Flat has its own layouts, see [CONTROLS.md](CONTROLS.md#screen-layouts).
+Where the Secondary Screen sits in VR. **Stacked**: below the Primary Screen, tilted back. **Side by Side**: to its right, at the same distance and height, facing you. In VR, hold the left stick click for 1 second to switch. Flat has its own layouts, see [CONTROLS.md](CONTROLS.md#screen-layouts).
 
 ## Detach Screens
 
-Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the smaller one follows the main one. **Other**: the main screen moves as with **Off**, and the other screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. The other screen is the one in the second place, so after a swap it is the top screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the other screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
+Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the Secondary Screen follows the Primary Screen. **Secondary**: the Primary Screen moves as with **Off**, and the Secondary Screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. After a swap the Secondary Screen is the top screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the Secondary Screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
 
 ## Screen Curve
 
-Bends the main screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The smaller screen below stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: 45°**, and it is kept. The steps are **Off** (flat) and 15° to 90° in 15° steps: the angle the screen's width spans. In the menu's **Position** tab, pick it from the list.
+Bends the Primary Screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The Secondary Screen stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: 45°**, and it is kept. The steps are **Off** (flat) and 15° to 90° in 15° steps: the angle the screen's width spans. In the menu's **Position** tab, pick it from the list.
 
 ## Screen Shape
 

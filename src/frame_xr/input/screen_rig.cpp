@@ -228,7 +228,7 @@ uint32_t ClampDetach(uint32_t mode) {
 const char* DetachName(uint32_t mode) {
     switch (ClampDetach(mode)) {
     case kDetachOther:
-        return "Other";
+        return "Secondary";
     case kDetachBoth:
         return "Both";
     default:

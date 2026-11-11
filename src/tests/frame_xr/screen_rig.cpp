@@ -377,9 +377,9 @@ float FacingDot(const Posef& p, const Vec3f& eye) {
 
 TEST_CASE("FrameXr screen rig: Detach Screens modes", "[frame_xr]") {
     REQUIRE(std::string(DetachName(kDetachOff)) == "Off");
-    REQUIRE(std::string(DetachName(kDetachOther)) == "Other");
+    REQUIRE(std::string(DetachName(kDetachOther)) == "Secondary");
     REQUIRE(std::string(DetachName(kDetachBoth)) == "Both");
-    REQUIRE(DetachToast(kDetachOther) == "Detach Screens: Other");
+    REQUIRE(DetachToast(kDetachOther) == "Detach Screens: Secondary");
     REQUIRE(ClampDetach(7) == kDetachBoth);
     // Off: neither slot is free; Other: the second one; Both: both.
     REQUIRE_FALSE(SlotFree(kDetachOff, true));
