@@ -2,7 +2,11 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <memory>
+#include <thread>
 #include <QCheckBox>
+#include <QApplication>
+#include <QPointer>
 #include <QMessageBox>
 #include <QTableWidgetItem>
 #include <QtGlobal>
@@ -10,6 +14,8 @@
 #include "core/cheats/cheat_base.h"
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
+#include "core/cheats/sharkive.h" // AzaharFrame cheats
+#include "sharkive_client.h"   // AzaharFrame cheats
 #include "ui_configure_cheats.h"
 
 ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_id_, QWidget* parent)
@@ -35,6 +41,10 @@ ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_i
     connect(ui->buttonSave, &QPushButton::clicked, this,
             [this] { SaveCheat(ui->tableCheats->currentRow()); });
     connect(ui->buttonDelete, &QPushButton::clicked, this, &ConfigureCheats::OnDeleteCheat);
+    // AzaharFrame cheats: the only outbound connection, made when this button is clicked
+    connect(ui->buttonDownloadSharkive, &QPushButton::clicked, this,
+            &ConfigureCheats::OnDownloadSharkive);
+    ui->buttonDownloadSharkive->setEnabled(title_id != 0);
 
     cheat_engine.LoadCheatFile(title_id);
     LoadCheats();
@@ -243,4 +253,74 @@ void ConfigureCheats::OnAddCheat() {
     newly_created = true;
     last_row = row;
     last_col = 1;
+}
+
+// AzaharFrame cheats: one HTTPS request to raw.githubusercontent.com, made on a worker thread; the
+// result is merged on the GUI thread. Cheats already in the file (same name) are left alone, new
+// ones arrive disabled.
+void ConfigureCheats::OnDownloadSharkive() {
+    if (downloading) {
+        return;
+    }
+    if (edited && !CheckSaveCheat()) {
+        return;
+    }
+    downloading = true;
+    ui->buttonDownloadSharkive->setEnabled(false);
+    ui->labelSharkiveStatus->setText(tr("Downloading..."));
+
+    QPointer<ConfigureCheats> self(this);
+    const u64 id = title_id;
+    std::thread([self, id] {
+        SharkiveClient::Result result = SharkiveClient::Fetch(id);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, result = std::move(result)] {
+                if (!self) {
+                    return;
+                }
+                self->downloading = false;
+                self->ui->buttonDownloadSharkive->setEnabled(true);
+                QString status;
+                switch (result.status) {
+                case SharkiveClient::Status::NotFound:
+                    status = tr("No cheats for this game");
+                    break;
+                case SharkiveClient::Status::Error:
+                    status = tr("Download failed: %1").arg(QString::fromStdString(result.error));
+                    break;
+                case SharkiveClient::Status::Ok: {
+                    std::vector<std::string> names;
+                    for (const auto& cheat : self->cheat_engine.GetCheats()) {
+                        names.push_back(cheat->GetName());
+                    }
+                    const auto parsed = Cheats::Sharkive::Parse(result.body);
+                    const auto added = Cheats::Sharkive::NewEntries(parsed, names);
+                    if (parsed.empty()) {
+                        status = tr("No cheats for this game");
+                        break;
+                    }
+                    for (const auto& entry : added) {
+                        auto cheat = std::make_shared<Cheats::GatewayCheat>(
+                            entry.name, entry.code, entry.comments);
+                        cheat->SetEnabled(false);
+                        self->cheat_engine.AddCheat(std::move(cheat));
+                    }
+                    if (!added.empty()) {
+                        self->cheat_engine.SaveCheatFile(self->title_id);
+                        const int row = self->ui->tableCheats->currentRow();
+                        self->LoadCheats();
+                        self->ui->tableCheats->setCurrentCell(row, 1);
+                    }
+                    status = added.empty() ? tr("No new cheats")
+                                           : added.size() == 1
+                                                 ? tr("1 cheat added")
+                                                 : tr("%1 cheats added").arg(added.size());
+                    break;
+                }
+                }
+                self->ui->labelSharkiveStatus->setText(status);
+            },
+            Qt::QueuedConnection);
+    }).detach();
 }

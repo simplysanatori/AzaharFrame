@@ -33,6 +33,10 @@ Run on 2026-11-06 over the tracked tree of the release branch and the whole hist
 
 Note on the history: `steam-frame` is pushed to the private repository up to `004790172`, which includes `e0d831665`, the commit that added the ROM file name to `IMMERSIVE.md` (the name of a retail game's standard dump, with no path or product code). The repository is not public. Before it is made public, rewrite the history of this fork's own commits (24 of them, and nothing of Azahar's or CitraVR's) to drop that name and to reword the nine messages above, and push the rewritten branch; a rewrite limited to commits not reachable from the Azahar tag and CitraVR's master leaves upstream's commit ids alone.
 
+## The one outbound connection
+
+The emulator makes no network connection of its own (web service, telemetry, update check and Discord are all compiled out). The exception is the "Download from Sharkive" button in the Cheats window: only when it is clicked, the program makes one HTTPS request, `GET https://raw.githubusercontent.com/FlagBrew/Sharkive/master/3ds/<title id>.txt`, to `raw.githubusercontent.com`. The request carries the open game's 16-digit title ID in the path and the usual HTTP headers (host, `User-Agent: cpp-httplib/<version>`), no account, no cookie and no other identifier; GitHub sees the player's IP address as for any download. The certificate is checked against the system's store (`/etc/ssl/certs/ca-certificates.crt` and the usual alternatives); with none, the download fails and nothing is sent. Redirects are not followed. Nothing is stored except the cheats merged into `cheats/<title id>.txt`, which arrive disabled. The release check: `strings` on the program shows only that host (`git grep -n raw.githubusercontent.com src` must find `src/citra_qt/configuration/sharkive_client.cpp` and `src/core/cheats/sharkive.*` only).
+
 ## What the emulator writes to logs
 
 Two files are what a user attaches to an issue: `~/.local/share/AzaharFrame/launch.log` and `~/.local/share/AzaharFrame/user/log/azahar_log.txt`.

@@ -96,6 +96,8 @@ add_library(citra_qt STATIC EXCLUDE_FROM_ALL
     configuration/configure_cheats.cpp
     configuration/configure_cheats.h
     configuration/configure_cheats.ui
+    configuration/sharkive_client.cpp # AzaharFrame cheats
+    configuration/sharkive_client.h # AzaharFrame cheats
     debugger/console.h
     debugger/console.cpp
     debugger/graphics/graphics.cpp
@@ -226,6 +228,9 @@ file(GLOB COMPAT_LIST
      ${PROJECT_BINARY_DIR}/dist/compatibility_list/compatibility_list.json)
 file(GLOB_RECURSE ICONS ${PROJECT_SOURCE_DIR}/dist/icons/*)
 file(GLOB_RECURSE THEMES ${PROJECT_SOURCE_DIR}/dist/qt_themes/*)
+
+# AzaharFrame cheats: the Sharkive download uses the bundled httplib with the bundled LibreSSL, static
+target_link_libraries(citra_qt PRIVATE httplib)
 
 if (ENABLE_QT_UPDATE_CHECKER)
     target_link_libraries(citra_qt PRIVATE httplib json-headers)

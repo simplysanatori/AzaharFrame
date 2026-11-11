@@ -57,6 +57,7 @@ private slots:
     void OnTextEdited();
     void OnDeleteCheat();
     void OnAddCheat();
+    void OnDownloadSharkive();
 
 private:
     std::unique_ptr<Ui::ConfigureCheats> ui;
@@ -65,4 +66,5 @@ private:
     bool edited = false, newly_created = false;
     int last_row = -1, last_col = -1;
     u64 title_id;
+    bool downloading = false; // AzaharFrame cheats
 };

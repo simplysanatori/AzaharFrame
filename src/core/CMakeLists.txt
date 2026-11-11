@@ -34,6 +34,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     cheats/cheats.h
     cheats/gateway_cheat.cpp
     cheats/gateway_cheat.h
+    cheats/sharkive.cpp # AzaharFrame cheats
+    cheats/sharkive.h # AzaharFrame cheats
     core.cpp
     core.h
     core_timing.cpp

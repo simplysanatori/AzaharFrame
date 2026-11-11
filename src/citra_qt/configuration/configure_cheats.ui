@@ -39,6 +39,30 @@
       </spacer>
      </item>
      <item>
+      <widget class="QLabel" name="labelSharkiveStatus">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="labelSharkiveSource">
+       <property name="text">
+        <string>Source: &lt;a href="https://github.com/FlagBrew/Sharkive"&gt;Sharkive&lt;/a&gt;</string>
+       </property>
+       <property name="openExternalLinks">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonDownloadSharkive">
+       <property name="text">
+        <string>Download from Sharkive</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="buttonAddCheat">
        <property name="text">
         <string>Add Cheat</string>
