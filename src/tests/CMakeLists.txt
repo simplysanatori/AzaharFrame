@@ -31,6 +31,8 @@ add_executable(tests
     common/param_package.cpp
     common/slot_vector.cpp
     core/core_timing.cpp
+    core/sharkive.cpp # AzaharFrame cheats
+    core/cheats_online.cpp # AzaharFrame cheats
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

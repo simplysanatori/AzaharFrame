@@ -48,6 +48,7 @@ ConfigurePerGame::ConfigurePerGame(QWidget* parent, u64 title_id_, const QString
     system_tab = std::make_unique<ConfigureSystem>(system, this);
     debug_tab = std::make_unique<ConfigureDebug>(is_powered_on, this);
     cheat_tab = std::make_unique<ConfigureCheats>(system.CheatEngine(), title_id, this);
+    cheat_tab->SetGamePath(filename); // AzaharFrame cheats
 
     ui->setupUi(this);
 
