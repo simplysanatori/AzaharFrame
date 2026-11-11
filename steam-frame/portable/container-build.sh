@@ -26,7 +26,9 @@ for d in /src-ro/externals/*/; do
     elif [ -d "/ext-ro/externals/$n" ] && [ -n "$(ls -A "/ext-ro/externals/$n")" ]; then from="/ext-ro/externals/$n/"
     else echo "externals/$n is empty (git submodule update --init, or mount a checkout that has it at /ext-ro)"; exit 1; fi
     mkdir -p "$SRC/externals/$n"
-    rsync -a --delete "$from" "$SRC/externals/$n/"
+    # no .git: a submodule's .git file points into the checkout's .git, which is not copied (openal-soft
+    # would then need .git/modules/openal-soft/index and stop the build)
+    rsync -a --delete --delete-excluded --exclude=.git "$from" "$SRC/externals/$n/"
 done
 # dist/compatibility_list is a submodule as well (the game list the Qt window shows; the build embeds its json)
 CL=dist/compatibility_list
