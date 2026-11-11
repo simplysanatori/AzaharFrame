@@ -1333,6 +1333,14 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             hooks.stop_game();
         }
     }
+    // AzaharFrame touchpad: the dot of the touchpad or the mouse on the bottom screen.
+    if (const Input::TouchpadCursor& pad_dot = bridge.touchpad_cursor(); pad_dot.visible) {
+        const Input::DotPose dot = Input::DotOnQuad(panels.bottom, pad_dot.u, pad_dot.v, eye);
+        const XrPosef pose{{dot.orientation.x, dot.orientation.y, dot.orientation.z,
+                            dot.orientation.w},
+                           {dot.position.x, dot.position.y, dot.position.z}};
+        AddCursor(pose, dot.size_m, layers);
+    }
     if (out.cursor.visible) {
         const XrPosef pose{{out.cursor.orientation.x, out.cursor.orientation.y,
                             out.cursor.orientation.z, out.cursor.orientation.w},

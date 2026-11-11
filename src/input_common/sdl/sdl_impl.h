@@ -46,6 +46,8 @@ public:
 
     void GetSystemBatteryState(float& percentage, bool& charging) override;
 
+    bool GetTouchpad(TouchpadSample& sample) override; // AzaharFrame touchpad
+
     /// Used by the Pollers during config
     std::atomic<bool> polling = false;
     Common::SPSCQueue<SDL_Event> event_queue;

@@ -53,6 +53,18 @@ struct BatteryState {
 
 BatteryState GetSystemBatteryState();
 
+/// AzaharFrame touchpad: the touchpad of the first connected controller that has one (the right
+/// pad when it has two, as the Steam Controller's). x and y are 0..1 from the top left.
+struct TouchpadSample {
+    bool present = false;
+    bool contact = false;
+    bool click = false;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+/// Safe from any thread. False (and `sample` untouched) without SDL or a controller touchpad.
+bool GetSDLTouchpad(TouchpadSample& sample);
+
 namespace Polling {
 
 enum class DeviceType { Button, Analog, Touchpad };

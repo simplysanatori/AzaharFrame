@@ -1256,6 +1256,33 @@ SDLState::Pollers SDLState::GetPollers(InputCommon::Polling::DeviceType type) {
     return pollers;
 }
 
+// AzaharFrame touchpad: the first controller with a touchpad; with two (Steam Controller: left,
+// right) the last one, the right pad. Needs SDL 2.0.14 for the touchpad calls.
+bool SDLState::GetTouchpad(TouchpadSample& sample) {
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+    std::lock_guard lock{joystick_map_mutex};
+    for (const auto& joystick : *joystick_vector) {
+        SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
+        if (!controller) {
+            continue;
+        }
+        const int pads = SDL_GameControllerGetNumTouchpads(controller);
+        if (pads <= 0) {
+            continue;
+        }
+        const int pad = pads >= 2 ? 1 : 0;
+        const auto [x, y, down] = joystick->GetTouch(pad);
+        sample.present = true;
+        sample.contact = down != 0.0f;
+        sample.click = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_TOUCHPAD) != 0;
+        sample.x = x;
+        sample.y = y;
+        return true;
+    }
+#endif
+    return false;
+}
+
 void SDLState::GetSystemBatteryState(float& percentage, bool& charging) {
     int battery_percent;
     const SDL_PowerState power_state = SDL_GetPowerInfo(nullptr, &battery_percent);
