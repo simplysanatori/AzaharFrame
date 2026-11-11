@@ -179,6 +179,8 @@ enum class MenuCommand {
     SwitchToFlat, ///< as the four-button chord
     ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
     MoreSettings, ///< the same, with Emulation > Configure... open
+    Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
+    EditControls, ///< AzaharFrame menu: the controls remap (the remap lane's)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
 };
 enum class MenuSetting {
@@ -200,6 +202,8 @@ enum class MenuSetting {
     NarrowScreen,
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
+    MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Other, 2 Both (Detach Screens)
+    TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

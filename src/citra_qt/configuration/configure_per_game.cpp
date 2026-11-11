@@ -83,6 +83,10 @@ ConfigurePerGame::ConfigurePerGame(QWidget* parent, u64 title_id_, const QString
 
 ConfigurePerGame::~ConfigurePerGame() = default;
 
+void ConfigurePerGame::ShowCheatsTab() {
+    ui->tabWidget->setCurrentWidget(cheat_tab.get());
+}
+
 void ConfigurePerGame::ResetDefaults() {
     const auto config_file_name = title_id == 0 ? filename : fmt::format("{:016X}", title_id);
     QMessageBox::StandardButton answer = QMessageBox::question(

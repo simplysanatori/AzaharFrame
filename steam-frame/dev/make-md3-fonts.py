@@ -27,7 +27,7 @@ ICONS = [
     "play_arrow", "save", "history", "save_as", "folder_open", "photo_camera", "restart_alt",
     "close", "open_in_new", "swap_vert", "recenter", "check", "arrow_drop_down",
     "chevron_right", "info", "arrow_back", "visibility", "visibility_off", "add", "remove",
-    "fit_screen", "aspect_ratio", "view_in_ar", "speed", "tune", "tv",
+    "fit_screen", "aspect_ratio", "view_in_ar", "speed", "tune", "tv", "code", "edit",
 ]
 
 # Text: printable ASCII and the few other characters the labels and values use.
