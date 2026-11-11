@@ -5,6 +5,8 @@
 - The game list works with the controller, in VR and in Flat. The D-pad or the left stick moves through the games, and **A** pressed twice quickly starts the one you're on. In VR the right stick still scrolls.
 - I made double clicks with the beam reliable. Pulling the trigger moves the beam a little, so its point now holds still for a moment after a click, and a second click near the first lands on the same spot.
 - **3D Depth** is on the in-game menu's **Settings** tab, as a slider from 0% to 100%, for every game or just this one. It changes the 3D at once.
+- I moved the stats in front of you. They stay where they appear and never end up behind a screen. Squeeze a grip on them to move them; the stick sets their distance and size.
+- A new **Stats Position** setting can put the stats on your left wrist instead. They show when you turn your wrist toward your face.
 
 ## 1.1.0 (November 2026)
 

@@ -49,6 +49,7 @@ Each controller has a beam. The hand that pulled its trigger last owns the dot, 
 |---|---|---|---|
 | Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: nearer and farther (up, down), bigger and smaller (right, left) |
 | Top screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
+| Stats panel (In Front) | ZL or ZR, nothing behind it is touched | Move the stats. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 
 The trigger is a touch only when the beam is on the bottom screen as you pull it; anywhere else it is ZL or ZR for as long as you hold it. A grip grabs the screen under the beam.
 
@@ -146,7 +147,10 @@ Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar
 
 **Controls** opens a panel beside the window with drawings of the two Frame controllers and a line from each button to what it does, in a game and on Azahar's window, following your controls profile and **Face Buttons**. It opens by itself the first time VR starts, until you close it with its **X** or the **Controls** button. The in-game menu has the same drawings on its **Controls** tab.
 
-**Stats** shows a small panel under the top screen while a game runs. It shows the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and late frames, the CPU load and the GPU clock. In immersive mode it hangs low in front of you. The **Show Stats** setting is the same switch.
+**Stats** shows a small panel while a game runs. It shows the game's frame rate, the emulation speed, the frame time and its peak, the slow frames, the headset's frame rate and late frames, the CPU load and the GPU clock. The **Show Stats** setting is the same switch. Where it shows is **Stats Position** (see [SETTINGS.md](SETTINGS.md#stats-position)):
+
+- **In Front**: it appears about 1 m ahead of you, a little below eye level, and stays put, in every mode. Point at it and squeeze a grip to move it; while you hold it, the stick of that hand moves it nearer or farther (up or down) and makes it bigger or smaller (sideways). Nothing you do with it reaches the game or the screens behind it. Turning it off and on, or holding the right stick click for 1 second, brings it back in front of you.
+- **On Wrist**: it rides on the left controller like a watch and shows when you turn your wrist toward your face.
 
 Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The beam is soft and comes from its tip. On Azahar's window and the panels it ends where it points; pointing at nothing shows a short, faint stub. In a game the beam shows only on the way to the dot over the bottom screen. A controller you leave still for 4 seconds fades its beam and dot, and after 30 seconds its model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
 

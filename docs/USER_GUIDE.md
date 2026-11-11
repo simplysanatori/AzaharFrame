@@ -174,7 +174,7 @@ With the bottom screen in focus, it is in the main place, big, and the top scree
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
-The **Controls** button above Azahar's window opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. In a game, the in-game menu's **Controls** tab shows the same. The **Stats** button next to it shows the frame rate and the frame times under the top screen while a game runs.
+The **Controls** button above Azahar's window opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. In a game, the in-game menu's **Controls** tab shows the same. The **Stats** button next to it shows the frame rate and the frame times while a game runs, in front of you or on your left wrist (**Stats Position**).
 
 All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.md).
 
@@ -224,7 +224,7 @@ Hold **View** and pull the right trigger to run the game at Azahar's turbo speed
 Global only:
 
 - **Show Controllers** (on by default) shows the Frame controllers in your hands, with the buttons and sticks moving. A controller you put down fades out after 30 seconds, and its beam after 4. The models are made from SteamVR's own when you install. If they are missing, the launcher makes them in the background and they show from the next start.
-- **Show Stats** (off by default) shows the frame rate, the emulation speed, the frame times, the CPU load and the GPU clock under the top screen while a game runs. The **Stats** button above Azahar's window switches it as well.
+- **Show Stats** (off by default) shows the frame rate, the emulation speed, the frame times, the CPU load and the GPU clock while a game runs. **Stats Position** puts them in front of you (grab them with a grip to move them) or on your left wrist. The **Stats** button above Azahar's window switches it as well.
 
 ### Immersive mode
 

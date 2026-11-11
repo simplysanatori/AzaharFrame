@@ -22,6 +22,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller** | Right Controller | global | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
+| [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
@@ -70,7 +71,14 @@ Shows the Frame controllers in your hands, with their buttons and sticks moving.
 
 ## Show Stats
 
-Shows a small panel under the top screen while a game runs: the game's frame rate, the emulation speed, the frame times, the headset's frame rate, the CPU load and the GPU clock. The **Stats** button above Azahar's window is the same switch.
+Shows a small panel while a game runs: the game's frame rate, the emulation speed, the frame times, the headset's frame rate, the CPU load and the GPU clock. The **Stats** button above Azahar's window is the same switch.
+
+## Stats Position
+
+Where the stats show. The in-game menu has the same choice on its **Stats** tab, under **Show Stats**.
+
+- **In Front**: the panel appears about 1 m ahead of where you look, a little below eye level, and stays there. It is never placed behind a screen: if a screen is nearer, it goes just in front of it. Grab it with a grip to move it; while you hold it, that hand's stick moves it nearer or farther (up or down) and makes it bigger or smaller (sideways). Turning the stats off and on, a new game or a re-centre puts it in front of you again. It hides while the in-game menu is open.
+- **On Wrist**: the panel sits on the left controller like a watch. It shows only when you turn your wrist toward your face, and hides when the left controller loses tracking.
 
 ## Screen Layout
 
