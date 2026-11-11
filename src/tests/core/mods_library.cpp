@@ -10,6 +10,7 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <cstdlib>
 #include <map>
 #include <catch2/catch_test_macros.hpp>
 #include "core/mods/library.h"
@@ -321,6 +322,92 @@ TEST_CASE("Mods: zip extraction", "[mods]") {
     }
 }
 
+TEST_CASE("Mods: 7z through bsdtar", "[mods]") {
+    SECTION("a missing tool is a clear error") {
+        const auto r = ExtractWithBsdtar("7z\xBC\xAF\x27\x1C-not-real", ArchiveKind::SevenZip, 1 << 20, 10,
+                                         "/nonexistent/bsdtar");
+        REQUIRE(r.files.empty());
+        REQUIRE(r.error == "7z needs bsdtar, which wasn't found");
+    }
+    if (FindBsdtar().empty()) {
+        SKIP("bsdtar is not installed");
+    }
+    const std::string dir = TempDir("sevenz");
+    const auto make = [&](const std::string& cmd) {
+        return std::system(("cd '" + dir + "' && " + cmd + " >/dev/null 2>&1").c_str()) == 0;
+    };
+    SECTION("a 7z and a tar.gz unpack to the right paths, then the layout mapping applies") {
+        fs::create_directories(dir + "src/v100/citra");
+        fs::create_directories(dir + "src/docs");
+        std::ofstream(dir + "src/v100/citra/code.bps", std::ios::binary) << "BPS1 patch";
+        std::ofstream(dir + "src/v100/citra/exheader.bin", std::ios::binary) << "exh";
+        std::ofstream(dir + "src/docs/readme.txt") << "x";
+        REQUIRE(make("bsdtar -cf x.7z --format 7zip -C src ."));
+        const std::string bytes = Read(dir + "x.7z");
+        REQUIRE(DetectArchive(bytes) == ArchiveKind::SevenZip);
+        auto r = ExtractArchive(bytes, ArchiveKind::SevenZip);
+        INFO(r.error);
+        REQUIRE(r.error.empty());
+        std::vector<std::string> paths;
+        for (const auto& f : r.files) {
+            paths.push_back(f.path);
+        }
+        std::sort(paths.begin(), paths.end());
+        REQUIRE(paths == V{"docs/readme.txt", "v100/citra/code.bps", "v100/citra/exheader.bin"});
+        const auto mapped = MapArchive(r.files, {{"v100/citra/code.bps", "code.bps"}, {"v100/citra/exheader.bin", "exheader.bin"}}, kTid);
+        V out;
+        for (const auto& f : mapped.files) {
+            out.push_back(f.path);
+        }
+        std::sort(out.begin(), out.end());
+        REQUIRE(out == V{"code.bps", "exheader.bin"});
+        // no temporary folder is left behind
+        for (const auto& e : fs::directory_iterator(fs::temp_directory_path())) {
+            REQUIRE(e.path().filename().string().rfind("azahar-mod-", 0) != 0);
+        }
+    }
+    SECTION("zip-slip and absolute paths are refused before anything is written") {
+        std::ofstream(dir + "a") << "evil";
+        REQUIRE(make("bsdtar -cf slip.7z --format 7zip -s '|^a|../evil|' a"));
+        const auto r = ExtractWithBsdtar(Read(dir + "slip.7z"), ArchiveKind::SevenZip);
+        REQUIRE(r.files.empty());
+        REQUIRE(r.error == "The archive holds an unsafe file path");
+        REQUIRE_FALSE(fs::exists(fs::temp_directory_path() / "evil"));
+        REQUIRE(make("bsdtar -cP -f abs.tar --format ustar " + dir + "a"));
+        const auto r2 = ExtractWithBsdtar(Read(dir + "abs.tar"), ArchiveKind::Unknown);
+        REQUIRE(r2.files.empty());
+        REQUIRE(r2.error == "The archive holds an unsafe file path");
+    }
+    SECTION("links are refused") {
+        REQUIRE(make("ln -s /etc/passwd link && bsdtar -cf l.tar --format ustar link"));
+        const auto r = ExtractWithBsdtar(Read(dir + "l.tar"), ArchiveKind::Unknown);
+        REQUIRE(r.files.empty());
+        REQUIRE(r.error == "The archive holds links or special files");
+    }
+    SECTION("the size cap and garbage") {
+        std::ofstream(dir + "big") << std::string(5000, 'z');
+        REQUIRE(make("bsdtar -cf big.7z --format 7zip big"));
+        REQUIRE(ExtractWithBsdtar(Read(dir + "big.7z"), ArchiveKind::SevenZip, 1000).error == "The archive is too large");
+        const auto g = ExtractWithBsdtar("7z\xBC\xAF\x27\x1C garbage garbage garbage", ArchiveKind::SevenZip);
+        REQUIRE(g.files.empty());
+        REQUIRE_FALSE(g.error.empty());
+    }
+    SECTION("a 7z release installs through the library") {
+        fs::create_directories(dir + "s/v100/citra");
+        std::ofstream(dir + "s/v100/citra/code.bps", std::ios::binary) << "BPS1 patch";
+        std::ofstream(dir + "s/v100/citra/exheader.bin", std::ios::binary) << "exh";
+        REQUIRE(make("bsdtar -cf r.7z --format 7zip -C s ."));
+        FakeNet net;
+        net.Ok("https://api.github.com/repos/c/seven/releases/tags/v1", ReleaseJson("v1", "seven_1.7z", "https://github.com/c/seven/d/seven_1.7z"));
+        net.Ok("https://github.com/c/seven/d/seven_1.7z", Read(dir + "r.7z"));
+        auto library = MakeLibrary(dir + "lib/", net);
+        const auto out = library.Install(kTid, "seven");
+        INFO(out.error);
+        REQUIRE(out.result == InstallResult::Ok);
+        REQUIRE(Tree(dir + "lib/mods/" + kTidText + "/") == V{"code.bps"});
+    }
+}
+
 TEST_CASE("Mods: catalog parsing", "[mods]") {
     SECTION("the compiled-in catalog") {
         std::vector<std::string> warnings;
@@ -341,7 +428,7 @@ TEST_CASE("Mods: catalog parsing", "[mods]") {
         REQUIRE(oot->source.repo == "OTPR26/OOT3DHud");
         const auto* mm = c->Find("mm3d-project-restoration-v100");
         REQUIRE(mm != nullptr);
-        REQUIRE_FALSE(mm->Installable()); // a 7z asset
+        REQUIRE(mm->Installable() == !FindBsdtar().empty()); // a 7z asset: needs the system's bsdtar
         REQUIRE(nb->Installable());
         REQUIRE(oot->Installable());
     }
@@ -707,15 +794,19 @@ TEST_CASE("Mods: install, manifest, conflicts, replace, remove", "[mods]") {
     }
     SECTION("7z, wrong title, unknown id") {
         const auto out = library.Install(kTid, "seven");
-        REQUIRE(out.result == InstallResult::NotAvailable);
-        REQUIRE(net.log.empty());
+        if (FindBsdtar().empty()) { // no tool: refused before any request
+            REQUIRE(out.result == InstallResult::NotAvailable);
+            REQUIRE(net.log.empty());
+        } else { // the tool is there: it tries, and the fake network has nothing
+            REQUIRE(out.result == InstallResult::Error);
+        }
         REQUIRE(library.Install(0x0004000000111111ULL, "reframed").result == InstallResult::NotAvailable);
         REQUIRE(library.Install(kTid, "nope").result == InstallResult::NotAvailable);
         // an asset that turns out to be 7z, or a damaged zip
         net.Ok("https://release-assets.githubusercontent.com/abc/Reframed.zip?sig=1", std::string("7z\xBC\xAF\x27\x1C\0\x04", 8));
         auto o = library.Install(kTid, "reframed");
         REQUIRE(o.result == InstallResult::Error);
-        REQUIRE(o.error.find("7z") != std::string::npos);
+        REQUIRE((o.error == "The archive is damaged or not readable" || o.error == "7z needs bsdtar, which wasn't found"));
         net.Ok("https://release-assets.githubusercontent.com/abc/Reframed.zip?sig=1", MakeZip({{"a", "b"}}, true));
         REQUIRE(library.Install(kTid, "reframed").result == InstallResult::Error);
         // an archive with nothing that fits
@@ -804,5 +895,26 @@ TEST_CASE("Mods: real install of Ocarina ReFramed", "[.network]") {
     }
     REQUIRE(Read(mods + "code.ips").substr(0, 5) == "PATCH");
     REQUIRE(library.Remove(kTid, "ocarina-reframed-single-screen").ok);
+    REQUIRE(Tree(dir).empty());
+}
+
+// Project Restoration is a 7z (needs the system's bsdtar): v1.5.9 for the USA Majora's Mask 3D.
+TEST_CASE("Mods: real install of Project Restoration", "[.network]") {
+    REQUIRE_FALSE(FindBsdtar().empty());
+    const std::string dir = TempDir("real_pr");
+    Library library(dir);
+    constexpr u64 tid = 0x0004000000125500ULL;
+    const std::string mods = dir + "mods/0004000000125500/";
+    const auto available = library.ListAvailable(tid);
+    const auto it = std::find_if(available.begin(), available.end(),
+                                 [](const auto& a) { return a.id == "mm3d-project-restoration-v100"; });
+    REQUIRE(it != available.end());
+    REQUIRE(it->installable);
+    const auto out = library.Install(tid, "mm3d-project-restoration-v100");
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    REQUIRE(Tree(mods) == V{"code.bps", "exheader.bin"});
+    REQUIRE(Read(mods + "code.bps").substr(0, 4) == "BPS1");
+    REQUIRE(library.Remove(tid, "mm3d-project-restoration-v100").ok);
     REQUIRE(Tree(dir).empty());
 }

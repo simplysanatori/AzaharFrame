@@ -97,7 +97,7 @@ struct AvailableMod {
     std::string homepage;
     std::string notes;
     bool verified = false;
-    bool installable = true; // false: the download is a kind of archive not supported yet
+    bool installable = true; // false: a 7z or rar download and no bsdtar
     bool active = false;     // installed and in the mods folder
     bool in_library = false; // downloaded, not active
 };

@@ -81,7 +81,7 @@ struct CatalogEntry {
     std::string notes;
 
     bool ServesTitle(u64 title_id) const;
-    /// False for a source this program cannot unpack yet (a .7z or .rar asset).
+    /// False for a .7z or .rar asset when the system has no bsdtar.
     bool Installable() const;
 };
 

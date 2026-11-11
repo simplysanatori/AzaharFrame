@@ -532,26 +532,18 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
             return false;
         }
         SetState(State::Phase::Extracting, entry.id, fmt::format("Unpacking {}", entry.name));
-        switch (DetectArchive(reply.body)) {
-        case ArchiveKind::Zip: {
-            auto result = ExtractZip(reply.body);
-            if (!result.error.empty()) {
-                error = result.error;
-                return false;
-            }
-            files = std::move(result.files);
-            return true;
-        }
-        case ArchiveKind::SevenZip:
-            error = "7z archives are not supported yet";
-            return false;
-        case ArchiveKind::Rar:
-            error = "rar archives are not supported yet";
-            return false;
-        case ArchiveKind::Unknown:
+        const ArchiveKind kind = DetectArchive(reply.body);
+        if (kind == ArchiveKind::Unknown) {
             files.push_back({asset_name, std::move(reply.body)}); // a single file asset
             return true;
         }
+        auto result = ExtractArchive(reply.body, kind);
+        if (!result.error.empty()) {
+            error = result.error;
+            return false;
+        }
+        files = std::move(result.files);
+        return true;
         return false;
     }
 
@@ -829,7 +821,7 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         entry = *found;
     }
     if (!entry.Installable()) {
-        return {InstallResult::NotAvailable, "This mod is a 7z archive, which is not supported yet"};
+        return {InstallResult::NotAvailable, "This mod needs bsdtar (for 7z and rar), which wasn't found"};
     }
     {
         std::lock_guard sl{state_mutex_};

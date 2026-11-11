@@ -189,7 +189,7 @@ bool CatalogEntry::Installable() const {
     const auto ends = [&](std::string_view suffix) {
         return p.size() >= suffix.size() && p.compare(p.size() - suffix.size(), suffix.size(), suffix) == 0;
     };
-    return !(ends(".7z") || ends(".rar"));
+    return !(ends(".7z") || ends(".rar")) || !FindBsdtar().empty(); // those need the system's bsdtar
 }
 
 const CatalogEntry* Catalog::Find(std::string_view id) const {

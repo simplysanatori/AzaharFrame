@@ -131,7 +131,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "MM3D 1.0, or 1.1 with the update. The Korean release is not supported. The patch is a 7z archive."
+      "notes": "MM3D 1.0, or 1.1 with the update. The Korean release is not supported."
     },
     {
       "id": "mm3d-project-restoration-v110",
@@ -164,7 +164,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "MM3D 1.1 game card (1.1 preinstalled). The Korean release is not supported. The patch is a 7z archive."
+      "notes": "MM3D 1.1 game card (1.1 preinstalled). The Korean release is not supported."
     },
     {
       "id": "mm3d-project-restoration-v101",
@@ -197,7 +197,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Only if the first one does not work. The Korean release is not supported. The patch is a 7z archive."
+      "notes": "Only if the first one does not work. The Korean release is not supported."
     }
   ]
 }

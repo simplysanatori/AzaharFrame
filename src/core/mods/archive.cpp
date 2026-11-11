@@ -2,9 +2,27 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
 #include <array>
+#include <cerrno>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <mutex>
+#include <sstream>
 #include <utility>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <spawn.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+extern char** environ;
+#endif
 #include "core/mods/archive.h"
 
 namespace Mods {
@@ -444,6 +462,307 @@ ExtractResult ExtractZip(std::string_view zip, std::size_t max_total) {
         result.files.push_back(std::move(file));
     }
     return result;
+}
+
+namespace {
+
+namespace fs = std::filesystem;
+
+const char* KindName(ArchiveKind kind) {
+    switch (kind) {
+    case ArchiveKind::SevenZip:
+        return "7z";
+    case ArchiveKind::Rar:
+        return "rar";
+    case ArchiveKind::Zip:
+        return "zip";
+    default:
+        return "This archive";
+    }
+}
+
+#ifndef _WIN32
+struct RunResult {
+    bool started = false;
+    bool timed_out = false;
+    bool too_much_output = false;
+    int status = -1; // exit code
+    std::string output; // stdout and stderr
+};
+
+// No shell: posix_spawn with a fixed argv. The environment is ours minus everything that steers the
+// dynamic loader, so bsdtar resolves libarchive and friends from the system, never from the app
+// folder's lib/ (the launcher already unsets LD_LIBRARY_PATH; this covers other callers).
+RunResult Run(const std::string& tool, const std::vector<std::string>& args, int timeout_seconds,
+              std::size_t max_output) {
+    RunResult r;
+    int fds[2];
+    if (pipe2(fds, O_CLOEXEC) != 0) {
+        return r;
+    }
+    std::vector<std::string> env_store;
+    for (char** e = environ; e != nullptr && *e != nullptr; ++e) {
+        if (std::strncmp(*e, "LD_", 3) != 0) {
+            env_store.emplace_back(*e);
+        }
+    }
+    std::vector<char*> envp;
+    for (auto& s : env_store) {
+        envp.push_back(s.data());
+    }
+    envp.push_back(nullptr);
+    std::vector<std::string> argv_store{tool};
+    argv_store.insert(argv_store.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (auto& s : argv_store) {
+        argv.push_back(s.data());
+    }
+    argv.push_back(nullptr);
+
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
+    posix_spawn_file_actions_adddup2(&fa, fds[1], 2);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    pid_t pid = 0;
+    const int rc = posix_spawn(&pid, tool.c_str(), &fa, nullptr, argv.data(), envp.data());
+    posix_spawn_file_actions_destroy(&fa);
+    close(fds[1]);
+    if (rc != 0) {
+        close(fds[0]);
+        return r;
+    }
+    r.started = true;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
+    bool killed = false;
+    for (;;) {
+        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              deadline - std::chrono::steady_clock::now()).count();
+        if (left <= 0) {
+            r.timed_out = true;
+            kill(pid, SIGKILL);
+            killed = true;
+            break;
+        }
+        pollfd p{fds[0], POLLIN, 0};
+        const int pr = poll(&p, 1, static_cast<int>(std::min<long long>(left, 1000)));
+        if (pr < 0 && errno != EINTR) {
+            break;
+        }
+        if (pr > 0) {
+            char buf[4096];
+            const ssize_t n = read(fds[0], buf, sizeof(buf));
+            if (n <= 0) {
+                break; // end of output
+            }
+            if (r.output.size() + static_cast<std::size_t>(n) > max_output) {
+                r.too_much_output = true;
+                kill(pid, SIGKILL);
+                killed = true;
+                break;
+            }
+            r.output.append(buf, static_cast<std::size_t>(n));
+        }
+    }
+    close(fds[0]);
+    int st = 0;
+    waitpid(pid, &st, 0);
+    if (!killed && WIFEXITED(st)) {
+        r.status = WEXITSTATUS(st);
+    }
+    return r;
+}
+#endif
+
+struct TempDir {
+    std::string path;
+    ~TempDir() {
+        if (!path.empty()) {
+            std::error_code ec;
+            fs::remove_all(path, ec);
+        }
+    }
+};
+
+} // namespace
+
+std::string FindBsdtar() {
+    static std::once_flag once;
+    static std::string found;
+    std::call_once(once, [] {
+#ifndef _WIN32
+        std::vector<std::string> dirs{"/usr/bin", "/bin", "/usr/local/bin"};
+        if (const char* path = std::getenv("PATH")) {
+            std::string p(path);
+            std::size_t start = 0;
+            while (start <= p.size()) {
+                const auto colon = p.find(':', start);
+                const std::string d = p.substr(start, colon == std::string::npos ? colon : colon - start);
+                if (!d.empty() && d.front() == '/') {
+                    dirs.push_back(d);
+                }
+                if (colon == std::string::npos) {
+                    break;
+                }
+                start = colon + 1;
+            }
+        }
+        for (const auto& d : dirs) {
+            const std::string candidate = d + "/bsdtar";
+            if (access(candidate.c_str(), X_OK) == 0 && fs::is_regular_file(candidate)) {
+                found = candidate;
+                return;
+            }
+        }
+#endif
+    });
+    return found;
+}
+
+ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::size_t max_total,
+                                int timeout_seconds, const std::string& tool_override) {
+    ExtractResult result;
+    const auto fail = [&](std::string message) {
+        result.files.clear();
+        result.error = std::move(message);
+        return result;
+    };
+#ifdef _WIN32
+    (void)bytes, (void)max_total, (void)timeout_seconds, (void)tool_override;
+    return fail(std::string(KindName(kind)) + " archives are not supported here");
+#else
+    const std::string tool = tool_override.empty() ? FindBsdtar() : tool_override;
+    if (tool.empty() || access(tool.c_str(), X_OK) != 0) {
+        return fail(std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
+    }
+    std::string templ = (fs::temp_directory_path() / "azahar-mod-XXXXXX").string();
+    if (mkdtemp(templ.data()) == nullptr) {
+        return fail("Cannot make a temporary folder");
+    }
+    TempDir temp{templ};
+    const std::string archive = temp.path + "/archive.bin";
+    const std::string out_dir = temp.path + "/out";
+    {
+        std::ofstream f(archive, std::ios::binary);
+        f.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        if (!f) {
+            return fail("Cannot write the temporary file");
+        }
+    }
+    std::error_code ec;
+    fs::create_directory(out_dir, ec);
+
+    // 1. Names (one per line) and the long listing (type, size), checked before anything is written.
+    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 16u * 1024 * 1024);
+    if (!names.started) {
+        return fail(std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
+    }
+    if (names.timed_out) {
+        return fail("Unpacking took too long");
+    }
+    if (names.too_much_output) {
+        return fail("The archive holds too many files");
+    }
+    if (names.status != 0) {
+        return fail("The archive is damaged or not readable");
+    }
+    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 32u * 1024 * 1024);
+    if (verbose.status != 0 || verbose.timed_out || verbose.too_much_output) {
+        return fail("The archive is damaged or not readable");
+    }
+    std::istringstream ns(names.output);
+    std::string line;
+    std::size_t count = 0;
+    while (std::getline(ns, line)) {
+        if (line.empty()) {
+            continue;
+        }
+        ++count;
+        const auto safe = SafeRelativePath(line);
+        if (!safe || (safe->empty() && line != "./")) {
+            return fail("The archive holds an unsafe file path");
+        }
+    }
+    std::istringstream vs(verbose.output);
+    std::size_t listed_total = 0;
+    while (std::getline(vs, line)) {
+        if (line.empty()) {
+            continue;
+        }
+        if (line[0] != '-' && line[0] != 'd') { // links, devices, fifos
+            return fail("The archive holds links or special files");
+        }
+        // mode links owner group size ...
+        std::istringstream ls(line);
+        std::string mode, links, owner, group, size;
+        ls >> mode >> links >> owner >> group >> size;
+        if (!size.empty() && std::all_of(size.begin(), size.end(), [](char ch) { return ch >= '0' && ch <= '9'; }) &&
+            size.size() < 16) {
+            listed_total += static_cast<std::size_t>(std::stoull(size));
+            if (listed_total > max_total) {
+                return fail("The archive is too large");
+            }
+        }
+    }
+    if (count == 0) {
+        return fail("The archive is empty");
+    }
+
+    // 2. Extract with no owner or mode from the archive.
+    const auto ex = Run(tool, {"-xf", archive, "-C", out_dir, "--no-same-owner", "--no-same-permissions"},
+                        timeout_seconds, 1024 * 1024);
+    if (ex.timed_out) {
+        return fail("Unpacking took too long");
+    }
+    if (ex.status != 0) {
+        return fail("The archive could not be unpacked");
+    }
+
+    // 3. Read back; the extracted tree is checked again (symlinks, escapes, sizes).
+    std::size_t total = 0;
+    const fs::path root = fs::weakly_canonical(out_dir, ec);
+    for (fs::recursive_directory_iterator it(out_dir, fs::directory_options::none, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        const auto st = it->symlink_status(ec);
+        if (ec) {
+            break;
+        }
+        if (fs::is_symlink(st) || (!fs::is_directory(st) && !fs::is_regular_file(st))) {
+            return fail("The archive holds links or special files");
+        }
+        if (fs::is_directory(st)) {
+            continue;
+        }
+        const std::string rel = it->path().lexically_relative(root).generic_string();
+        const auto safe = SafeRelativePath(rel);
+        if (!safe || safe->empty() || safe->rfind("../", 0) == 0) {
+            return fail("The archive holds an unsafe file path");
+        }
+        const auto size = fs::file_size(it->path(), ec);
+        total += size;
+        if (ec || total > max_total) {
+            return fail("The archive is too large");
+        }
+        std::ifstream f(it->path(), std::ios::binary);
+        ArchiveFile file{*safe, {}};
+        file.data.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+        if (file.data.size() != size) {
+            return fail("The archive could not be unpacked");
+        }
+        result.files.push_back(std::move(file));
+    }
+    if (ec) {
+        return fail("The archive could not be unpacked");
+    }
+    return result;
+#endif
+}
+
+ExtractResult ExtractArchive(std::string_view bytes, ArchiveKind kind) {
+    if (kind == ArchiveKind::Zip) {
+        return ExtractZip(bytes);
+    }
+    return ExtractWithBsdtar(bytes, kind);
 }
 
 } // namespace Mods

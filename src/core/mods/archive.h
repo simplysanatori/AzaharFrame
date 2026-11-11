@@ -3,7 +3,9 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 // AzaharFrame moddata: zip extraction with no library (stored and deflate entries, CRC checked).
-// No Qt. Not supported, and reported as such: zip64, encryption, other methods, 7z, rar.
+// 7z, rar and any other format libarchive reads go through the system's bsdtar (a pacman
+// dependency, so on every SteamOS), run with a fixed argv, no shell, a time and size cap.
+// No Qt. Not supported, and reported as such: zip64, encryption, other zip methods.
 
 #pragma once
 
@@ -35,6 +37,21 @@ std::optional<std::string> Inflate(std::string_view in, std::size_t max_size);
 
 /// Extracts every file (directories are skipped). `max_total` caps the sum of the file sizes.
 ExtractResult ExtractZip(std::string_view zip, std::size_t max_total = 256u * 1024 * 1024);
+
+/// Path of the system's bsdtar ("" when there is none). Looked up in the usual system folders and
+/// PATH; the result is cached.
+std::string FindBsdtar();
+
+/// For a non-zip archive: lists it (`bsdtar -tf`, `-tvf`), refuses unsafe paths, links, special files
+/// and a total over `max_total`, extracts to a private temporary folder with the system's library
+/// path (never the app bundle's), reads the files back and removes the folder. Error text names the
+/// missing tool ("7z needs bsdtar, which wasn't found").
+ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind,
+                                std::size_t max_total = 256u * 1024 * 1024, int timeout_seconds = 120,
+                                const std::string& tool_override = {});
+
+/// Zip by the built-in reader, everything else by bsdtar. `kind` from DetectArchive.
+ExtractResult ExtractArchive(std::string_view bytes, ArchiveKind kind);
 
 /// `path` cleaned for use as a relative path ('\\' to '/', "./" dropped); nullopt when it is absolute
 /// or has a ".." part or a drive colon.
