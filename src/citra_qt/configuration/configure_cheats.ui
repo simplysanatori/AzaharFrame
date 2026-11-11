@@ -39,13 +39,6 @@
       </spacer>
      </item>
      <item>
-      <widget class="QLabel" name="labelSharkiveStatus">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item>
       <widget class="QLabel" name="labelSharkiveSource">
        <property name="text">
         <string>Source: &lt;a href="https://github.com/FlagBrew/Sharkive"&gt;Sharkive&lt;/a&gt;</string>
@@ -208,17 +201,23 @@
    <item>
     <layout class="QHBoxLayout">
      <item>
-      <spacer>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
+      <widget class="QLabel" name="labelSharkiveStatus">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred"/>
        </property>
-       <property name="sizeHint" stdset="0">
+       <property name="minimumSize">
         <size>
          <width>0</width>
-         <height>0</height>
+         <height>34</height>
         </size>
        </property>
-      </spacer>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>

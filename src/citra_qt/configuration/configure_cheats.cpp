@@ -48,6 +48,9 @@ ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_i
     connect(ui->buttonDownloadSharkive, &QPushButton::clicked, this,
             &ConfigureCheats::OnDownloadSharkive);
     ui->buttonDownloadSharkive->setEnabled(title_id != 0);
+    // easier to hit with the VR beam
+    ui->buttonDownloadSharkive->setMinimumHeight(32);
+    ui->buttonAddCheat->setMinimumHeight(32);
 
     cheat_engine.LoadCheatFile(title_id);
     LoadCheats();
@@ -315,7 +318,7 @@ void ConfigureCheats::OnDownloadSharkive() {
         SharkiveClient::Result result = SharkiveClient::Fetch(id);
         QMetaObject::invokeMethod(
             qApp,
-            [self, result = std::move(result)] {
+            [self, installed, result = std::move(result)] {
                 if (!self) {
                     return;
                 }
