@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 
@@ -69,6 +70,15 @@ bool Runtime::HasExtension(const char* name) const {
 }
 
 bool Runtime::CreateInstance(const StartOptions& options) {
+    // AzaharFrame fdm: Valve's FDM injection layer (an implicit OpenXR layer) registers every
+    // swapchain over about 1000 px high and gives the app's own Vulkan render passes of the same
+    // height a gaze-based fragment density map: at 6x our screens' swapchains and Azahar's own
+    // render targets are both 1440 high. Main (citra_qt.cpp) and azaharframe.sh turn it off with
+    // the variable its manifest reads; AZAHARFRAME_FDM=1 leaves it on.
+    const char* fdm_off = std::getenv("DISABLE_VULKAN_FDM_INJECTION_LAYER");
+    LOG_INFO(Frontend, "xr: Valve's FDM injection layer: {}",
+             fdm_off && *fdm_off ? "disabled (DISABLE_VULKAN_FDM_INJECTION_LAYER)"
+                                 : "left on (AZAHARFRAME_FDM=1)");
     if (!LoadLoader()) {
         return false;
     }

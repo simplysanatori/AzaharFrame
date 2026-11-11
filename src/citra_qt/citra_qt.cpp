@@ -6,6 +6,8 @@
 #include <array>     // AzaharFrame layout
 #include <chrono>    // AzaharFrame
 #include <clocale>
+#include <cstdlib> // AzaharFrame fdm
+#include <cstring> // AzaharFrame fdm
 #include <format>
 #include <iostream>
 #include <memory>
@@ -6052,6 +6054,15 @@ void GMainWindow::SetCustomWindowsScrollbar() {
 #endif
 
 int LaunchQtFrontend(int argc, char* argv[]) {
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame fdm: Valve's FDM injection layer off before anything loads Vulkan or OpenXR
+    // (frame_xr/session.cpp says why and logs it); AZAHARFRAME_FDM=1 leaves it on.
+    if (const char* fdm = std::getenv("AZAHARFRAME_FDM"); fdm && std::strcmp(fdm, "1") == 0) {
+        unsetenv("DISABLE_VULKAN_FDM_INJECTION_LAYER");
+    } else if (!std::getenv("DISABLE_VULKAN_FDM_INJECTION_LAYER")) {
+        setenv("DISABLE_VULKAN_FDM_INJECTION_LAYER", "1", 1);
+    }
+#endif
 #ifdef __APPLE__
     // Ensure that the linker doesn't optimize qt_swizzle.mm out of existence.
     QtSwizzle::Dummy();

@@ -187,6 +187,13 @@ if new != open(conf, encoding="utf-8").read():
     os.replace(tmp, conf)
 PY
 
+# Valve's FDM injection layer foveates the app's own Vulkan render passes as high as a swapchain
+# over about 1000 px (at 6x both are 1440): off, unless AZAHARFRAME_FDM=1 (session.env).
+if [ "${AZAHARFRAME_FDM:-}" = 1 ]; then
+  unset DISABLE_VULKAN_FDM_INJECTION_LAYER
+else
+  export DISABLE_VULKAN_FDM_INJECTION_LAYER=1
+fi
 # Steam injects Mesa overrides meant for games; they break native apps.
 unset MESA_GL_VERSION_OVERRIDE MESA_GLSL_VERSION_OVERRIDE
 # Steam points LD_LIBRARY_PATH at its own runtime; the emulator wants the system's libraries.
