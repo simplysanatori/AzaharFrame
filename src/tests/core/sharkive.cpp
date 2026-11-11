@@ -98,3 +98,26 @@ TEST_CASE("Sharkive: title version and matching", "[sharkive]") {
     REQUIRE(entries[2].comments.empty());
     REQUIRE(MarkOtherVersions(entries, std::nullopt) == 0);
 }
+
+TEST_CASE("Sharkive: installed version order", "[sharkive]") {
+    const auto none = SelectInstalledVersion(std::nullopt, std::nullopt, std::nullopt);
+    REQUIRE_FALSE(none.version.has_value());
+    REQUIRE(none.source == VersionSource::Unknown);
+
+    // update > base > NCCH
+    auto r = SelectInstalledVersion(0x0410, 0x0400, 0x0420);
+    REQUIRE(r.version == Version{1, 1});
+    REQUIRE(r.source == VersionSource::UpdateTmd);
+    r = SelectInstalledVersion(std::nullopt, 0x0400, 0x0420);
+    REQUIRE(r.version == Version{1, 0});
+    REQUIRE(r.source == VersionSource::BaseTmd);
+    r = SelectInstalledVersion(std::nullopt, std::nullopt, 0x0420);
+    REQUIRE(r.version == Version{1, 2});
+    REQUIRE(r.source == VersionSource::Ncch);
+    // an update of 0.0 still wins over the ROM
+    r = SelectInstalledVersion(0, std::nullopt, 0x0420);
+    REQUIRE(r.source == VersionSource::UpdateTmd);
+    // a plain revision number is not a version
+    REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 1).source == VersionSource::Unknown);
+    REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 0).source == VersionSource::Unknown);
+}

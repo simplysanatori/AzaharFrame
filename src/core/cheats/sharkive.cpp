@@ -97,6 +97,20 @@ std::string ToString(const Version& v) {
     return fmt::format("v{}.{}", v.major, v.minor);
 }
 
+InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::optional<u16> base_tmd,
+                                        std::optional<u16> ncch_remaster) {
+    if (update_tmd) {
+        return {FromTitleVersion(*update_tmd), VersionSource::UpdateTmd};
+    }
+    if (base_tmd) {
+        return {FromTitleVersion(*base_tmd), VersionSource::BaseTmd};
+    }
+    if (ncch_remaster && *ncch_remaster >= 0x0400) {
+        return {FromTitleVersion(*ncch_remaster), VersionSource::Ncch};
+    }
+    return {};
+}
+
 namespace {
 
 bool IsWordChar(char c) {

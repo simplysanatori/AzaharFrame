@@ -32,6 +32,20 @@ struct Version {
 /// "v1.1" from a TMD version (u16): major = bits 10-15, minor = bits 4-9.
 Version FromTitleVersion(u16 title_version);
 
+enum class VersionSource { Unknown, UpdateTmd, BaseTmd, Ncch };
+
+struct InstalledVersion {
+    std::optional<Version> version;
+    VersionSource source = VersionSource::Unknown;
+};
+
+/// Which version the game runs at, first that exists: the installed update title's TMD, the
+/// installed base title's TMD, the running ROM's own NCCH (ExHeader remaster version), else unknown.
+/// All three are TMD-style u16 versions. A remaster version below 0x0400 is a plain cartridge
+/// revision number (Rev0, Rev1), not a version 1.x or later, so it is not used.
+InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::optional<u16> base_tmd,
+                                        std::optional<u16> ncch_remaster);
+
 /// The game version a cheat names in its name or notes: "v1.1", "V 1.1", "Game v1.1", "Rev0 v1.1";
 /// a bare "1.1" counts only when the text also says "only". "v1" (the cheat's own version), "Rev0"
 /// (the cartridge revision) and numbers such as 9.999 are not versions. No tag gives nullopt.

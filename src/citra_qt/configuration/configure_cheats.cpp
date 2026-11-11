@@ -16,6 +16,7 @@
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
 #include "core/cheats/sharkive.h" // AzaharFrame cheats
+#include "core/file_sys/ncch_container.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
 #include "sharkive_client.h"   // AzaharFrame cheats
@@ -263,36 +264,33 @@ void ConfigureCheats::OnAddCheat() {
 
 namespace {
 
-struct InstalledVersion {
-    std::optional<Cheats::Sharkive::Version> effective; // what the cheats must match
-    bool has_update = false;
-};
-
-// AzaharFrame cheats: the version the game runs at, from the TMDs the AM service keeps: the update
-// title (0004000E) when one is installed, else the installed base title. A cartridge or a 3DS file
-// with no update has no TMD: unknown, so no cheat is marked.
-InstalledVersion QueryInstalledVersion(u64 title_id) {
-    InstalledVersion out;
-    const u64 low = title_id & 0xFFFFFFFFULL;
-    const u64 update_id = (0x0004000EULL << 32) | low;
-    const u64 base_id = (0x00040000ULL << 32) | low;
+// AzaharFrame cheats: the version the game runs at: the update title's TMD (0004000E), else the
+// installed base title's TMD, else the running ROM's own NCCH (a cartridge dump has no TMD), else
+// unknown (nothing is marked). The order is Cheats::Sharkive::SelectInstalledVersion.
+Cheats::Sharkive::InstalledVersion QueryInstalledVersion(u64 title_id,
+                                                         const std::string& game_path) {
     using Service::FS::MediaType;
-    for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
-        const auto tmd = Service::AM::GetTitleMetadata(media, update_id);
-        if (tmd.LoadResult() == Loader::ResultStatus::Success) {
-            out.has_update = true;
-            out.effective = Cheats::Sharkive::FromTitleVersion(tmd.GetTitleVersion());
-            return out;
+    const u64 low = title_id & 0xFFFFFFFFULL;
+    const auto tmd_version = [](u64 tid) -> std::optional<u16> {
+        for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
+            const auto tmd = Service::AM::GetTitleMetadata(media, tid);
+            if (tmd.LoadResult() == Loader::ResultStatus::Success) {
+                return tmd.GetTitleVersion();
+            }
+        }
+        return std::nullopt;
+    };
+    const auto update = tmd_version((0x0004000EULL << 32) | low);
+    const auto base = tmd_version((0x00040000ULL << 32) | low);
+    std::optional<u16> remaster;
+    if (!update && !base && !game_path.empty()) {
+        FileSys::NCCHContainer ncch(game_path);
+        if (ncch.Load() == Loader::ResultStatus::Success) {
+            const auto& r = ncch.exheader_header.codeset_info.flags.remaster_version;
+            remaster = static_cast<u16>(r[0] | (r[1] << 8));
         }
     }
-    for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
-        const auto tmd = Service::AM::GetTitleMetadata(media, base_id);
-        if (tmd.LoadResult() == Loader::ResultStatus::Success) {
-            out.effective = Cheats::Sharkive::FromTitleVersion(tmd.GetTitleVersion());
-            return out;
-        }
-    }
-    return out;
+    return Cheats::Sharkive::SelectInstalledVersion(update, base, remaster);
 }
 
 } // namespace
@@ -300,6 +298,10 @@ InstalledVersion QueryInstalledVersion(u64 title_id) {
 // AzaharFrame cheats: one HTTPS request to raw.githubusercontent.com, made on a worker thread; the
 // result is merged on the GUI thread. Cheats already in the file (same name) are left alone, new
 // ones arrive disabled.
+void ConfigureCheats::SetGamePath(std::string path) {
+    game_path = std::move(path);
+}
+
 void ConfigureCheats::OnDownloadSharkive() {
     if (downloading) {
         return;
@@ -313,7 +315,7 @@ void ConfigureCheats::OnDownloadSharkive() {
 
     QPointer<ConfigureCheats> self(this);
     const u64 id = title_id;
-    const InstalledVersion installed = QueryInstalledVersion(id);
+    const auto installed = QueryInstalledVersion(id, game_path);
     std::thread([self, id, installed] {
         SharkiveClient::Result result = SharkiveClient::Fetch(id);
         QMetaObject::invokeMethod(
@@ -340,7 +342,7 @@ void ConfigureCheats::OnDownloadSharkive() {
                     const auto parsed = Cheats::Sharkive::Parse(result.body);
                     auto added = Cheats::Sharkive::NewEntries(parsed, names);
                     const int other =
-                        Cheats::Sharkive::MarkOtherVersions(added, installed.effective);
+                        Cheats::Sharkive::MarkOtherVersions(added, installed.version);
                     if (parsed.empty()) {
                         status = tr("No cheats for this game");
                         break;
@@ -362,10 +364,10 @@ void ConfigureCheats::OnDownloadSharkive() {
                                                  : tr("%1 cheats added").arg(added.size());
                     if (other > 0) {
                         status += tr(", %1 for another version").arg(other);
-                        if (installed.has_update && installed.effective) {
+                        if (installed.source == Cheats::Sharkive::VersionSource::UpdateTmd && installed.version) {
                             status += tr(" (update %1 installed)")
                                           .arg(QString::fromStdString(
-                                              Cheats::Sharkive::ToString(*installed.effective)));
+                                              Cheats::Sharkive::ToString(*installed.version)));
                         }
                     }
                     break;
