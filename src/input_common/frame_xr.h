@@ -94,6 +94,19 @@ void SendTouchPressed(float x, float y);
 void SendTouchMoved(float x, float y);
 void SendTouchReleased();
 
+/// AzaharFrame touchpad: the real mouse over the render window (invisible in VR), written by the
+/// Qt thread, read by the XR thread. x and y are 0..1 over the window. Never fed by the mirror
+/// panel's synthesised mouse (the menu), only by the mouse events the window itself gets.
+struct MouseState {
+    bool inside = false;
+    bool down = false;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+void SetMouseState(const MouseState& state);
+void ClearMouseState();
+MouseState GetMouseState();
+
 /// The default VR profile: CitraVR's mapping with the Frame's D-pad (see MAPPING.md). The XR core
 /// applies it when VR starts so the Qt Controls dialog edits a profile that already works.
 struct DefaultProfile {

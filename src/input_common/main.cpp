@@ -264,6 +264,14 @@ BatteryState GetSystemBatteryState() {
 #endif
 }
 
+bool GetSDLTouchpad(TouchpadSample& sample) { // AzaharFrame touchpad
+#ifdef HAVE_SDL2
+    return sdl && sdl->GetTouchpad(sample);
+#else
+    return false;
+#endif
+}
+
 namespace Polling {
 
 std::vector<std::unique_ptr<DevicePoller>> GetPollers(DeviceType type) {
