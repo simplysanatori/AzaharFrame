@@ -3982,6 +3982,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     case C::EditControls: // AzaharFrame menu: the remap lane's
         return;
+    case C::ToggleCheat: // AzaharFrame cheatstab: stubs until the cheats data lane is merged
+    case C::DownloadCheats:
+    case C::InstallFix:
+    case C::RemoveFix:
+        LOG_INFO(Frontend, "xr: in-game menu: cheats command {} ({}) not wired yet",
+                 static_cast<int>(r.command), r.value);
+        return;
     case C::SetSetting:
         break;
     }

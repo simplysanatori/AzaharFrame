@@ -84,7 +84,7 @@ TEST_CASE("Tab menu: labels and options are not cut", "[frame_xr][tabmenu]") {
     // The Main tab's tiles: three to a row in the pane.
     const float tile_w = (kPanelW - 104.0f - 12.0f - 48.0f - 24.0f) / 3.0f;
     for (Id id : {Id::QuickSave, Id::QuickLoad, Id::Screenshot, Id::SaveState, Id::LoadState,
-                  Id::Restart, Id::Cheats, Id::AzaharWindow, Id::SwitchToFlat,
+                  Id::Restart, Id::AzaharWindow, Id::SwitchToFlat,
                   Id::CloseGame}) {
         const std::string label = LabelFor(id);
         REQUIRE(!label.empty());
@@ -244,8 +244,85 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     CHECK(has(Id::TouchpadTouch, 2));
     CHECK(has(Id::EditControls, -1));
     CHECK(OptionsFor(Id::TouchpadTouch) == std::vector<std::string>{"Off", "Touch", "Click"});
-    v.tab = Tab::Main;
+}
+
+// AzaharFrame cheatstab: the Cheats tab.
+namespace {
+CheatsModel SampleCheats() {
+    CheatsModel c;
+    c.fix = FixState::NotInstalled;
+    c.cheats = {{"No Bloom (USA)", CheatSource::Developer, true, ""},
+                {"Infinite HP", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
+                {"Max Money", CheatSource::User, false, ""}};
+    for (int i = 0; i < 12; i++) {
+        c.cheats.push_back({"Sharkive " + std::to_string(i), CheatSource::Sharkive, false, ""});
+    }
+    c.download = DownloadState::Done;
+    c.status = "15 cheats added, 1 for another version";
+    return c;
+}
+} // namespace
+
+TEST_CASE("Tab menu: the Cheats tab", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    const auto has = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return true;
+            }
+        }
+        return false;
+    };
+    MenuView v;
+    // The Main tab is 1.1.1's again: no Cheats tile; the rail has Cheats before Settings.
     d.Draw(m, v);
-    CHECK(has(Id::Cheats, -1));
-    CHECK(LabelFor(Id::Cheats) == "Cheats");
+    CHECK(has(Id::TabButton, static_cast<int>(Tab::Cheats)));
+    CHECK(static_cast<int>(Tab::Cheats) == static_cast<int>(Tab::Controls) + 1);
+    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Cheats) + 1);
+
+    // Empty: Download in the middle, Azahar's Window at the top.
+    v.tab = Tab::Cheats;
+    d.Draw(m, v);
+    CHECK(has(Id::DownloadCheats, -1));
+    CHECK(has(Id::CheatsWindow, -1));
+    CHECK(!has(Id::Cheat, 0));
+    // Downloading with nothing yet: no Download.
+    m.cheats.download = DownloadState::Downloading;
+    d.Draw(m, v);
+    CHECK(!has(Id::DownloadCheats, -1));
+
+    // A list: every row and the fix, targets at least 48 dp, the list scrolls to its end.
+    m.cheats = SampleCheats();
+    d.Draw(m, v);
+    CHECK(has(Id::DownloadCheats, -1));
+    CHECK(has(Id::CheatFix, -1));
+    CHECK(has(Id::Cheat, 0));
+    REQUIRE(d.menu.MaxScroll() > 0.0f);
+    v.scroll[static_cast<int>(Tab::Cheats)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(has(Id::Cheat, static_cast<int>(m.cheats.cheats.size()) - 1)); // the user's, last
+    for (float scroll : {0.0f, 10000.0f}) {
+        v.scroll[static_cast<int>(Tab::Cheats)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.index == kLabelIndex || h.r.y1 >= kListBottom - 0.01f ||
+                (h.t.id == Id::Cheat && h.r.H() < 56.0f)) {
+                continue; // cut by the list's edges
+            }
+            INFO("id " << static_cast<int>(h.t.id) << " index " << h.t.index);
+            CHECK(h.r.W() >= 48.0f);
+            CHECK(h.r.H() >= 48.0f);
+        }
+    }
+    // Another code.ips in the mods folder: the fix cannot be installed.
+    m.cheats.fix = FixState::OtherPatch;
+    v.scroll = {};
+    d.Draw(m, v);
+    CHECK(!has(Id::CheatFix, -1));
+    CHECK(has(Id::CheatFix, kLabelIndex));
+
+    CHECK(VersionChip("for v1.0, this game is v1.1") == "v1.0");
+    CHECK(VersionChip("for Rev0, this cartridge is Rev1") == "Rev0");
+    CHECK(VersionChip("") == "");
 }

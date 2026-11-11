@@ -446,11 +446,11 @@ void MenuPanel::Click(Target t, Host& host) {
     if (t.index == Menu::kLabelIndex || t.index == Menu::kMenuAreaIndex) {
         return;
     }
-    static constexpr std::array<const char*, 5> kTabNames{"Main", "Position", "Stats",
-                                                          "Controls", "Settings"};
+    static constexpr std::array<const char*, 6> kTabNames{"Main",   "Position", "Stats",
+                                                          "Controls", "Cheats", "Settings"};
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
-                 kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 4))]);
+                 kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 5))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -501,8 +501,24 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoreSettings:
         ask(MenuCommand::MoreSettings);
         break;
-    case Id::Cheats: // AzaharFrame menu
+    // AzaharFrame cheatstab: the Cheats tab (stubs until the cheats data lane is merged)
+    case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
+        break;
+    case Id::DownloadCheats:
+        ask(MenuCommand::DownloadCheats);
+        break;
+    case Id::Cheat:
+        if (t.index >= 0) {
+            ask(MenuCommand::ToggleCheat, t.index);
+        }
+        break;
+    case Id::CheatFix:
+        if (model.cheats.fix == Menu::FixState::NotInstalled) {
+            ask(MenuCommand::InstallFix);
+        } else if (model.cheats.fix == Menu::FixState::Installed) {
+            ask(MenuCommand::RemoveFix);
+        }
         break;
     case Id::EditControls: // AzaharFrame menu: the remap lane's
         ask(MenuCommand::EditControls);

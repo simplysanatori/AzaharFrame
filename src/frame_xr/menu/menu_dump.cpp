@@ -66,6 +66,19 @@ Menu::MenuModel SampleModel() {
     return m;
 }
 
+// AzaharFrame cheatstab: the Cheats tab's sample list (Stella Glow, USA).
+CheatsModel SampleCheats() {
+    CheatsModel c;
+    c.fix = FixState::NotInstalled;
+    c.cheats = {{"No Bloom (USA)", CheatSource::Developer, true, ""},
+                {"Infinite HP in Battle", CheatSource::Sharkive, true, ""},
+                {"Max EXP After Battle", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
+                {"Max Money", CheatSource::User, false, ""}};
+    c.download = DownloadState::Done;
+    c.status = "4 cheats added, 1 for another version";
+    return c;
+}
+
 bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
               bool keep_alpha = false) {
     // The canvas is premultiplied, R in the low byte: over the opaque backdrop it is plain RGB.
@@ -252,5 +265,51 @@ int main(int argc, char** argv) {
     v.open_menu = Id::ImmersiveMode;
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
+
+    // AzaharFrame cheatstab: the Cheats tab, both badges and each state.
+    MenuModel cm = m;
+    cm.cheats = SampleCheats();
+    v = {};
+    v.tab = Tab::Cheats;
+    v.hover = {Id::Cheat, 1};
+    ok &= shot("cheats-A", cm, v);
+    cm.cheats.badge = CheatBadge::Verified;
+    cm.cheats.fix = FixState::Installed;
+    v.hover = {Id::CheatFix, 0};
+    ok &= shot("cheats-B", cm, v);
+    v.hover = {};
+    MenuModel dl = cm; // downloading again over a list
+    dl.cheats.download = DownloadState::Downloading;
+    dl.cheats.progress = 40;
+    dl.cheats.status.clear();
+    ok &= shot("cheats-downloading-list", dl, v);
+    MenuModel fl = cm; // a failed download over a list
+    fl.cheats.download = DownloadState::Failed;
+    fl.cheats.status = "Download Failed: No Internet Connection";
+    ok &= shot("cheats-error-list", fl, v);
+    MenuModel long_list = m; // a long list, scrolled
+    long_list.cheats = SampleCheats();
+    for (const char* n : {"Infinite Movement", "One Hit Kill", "All Items x99", "Max Song Gauge",
+                          "Unlock All Songs", "Max Affinity With Everyone",
+                          "Walk Through Walls (Press L+R to Toggle, Hold to Keep It On)"}) {
+        long_list.cheats.cheats.push_back({n, CheatSource::Sharkive, false, ""});
+    }
+    v.scroll[static_cast<int>(Tab::Cheats)] = 200.0f;
+    ok &= shot("cheats-scrolled", long_list, v);
+    v = {};
+    v.tab = Tab::Cheats;
+    MenuModel em = m;
+    v.hover = {Id::DownloadCheats};
+    ok &= shot("cheats-empty", em, v);
+    v.hover = {};
+    em.cheats.download = DownloadState::Downloading;
+    em.cheats.progress = 40;
+    ok &= shot("cheats-downloading", em, v);
+    em.cheats.download = DownloadState::Failed;
+    em.cheats.status = "No Internet Connection";
+    ok &= shot("cheats-error", em, v);
+    v = {};
+    v.tab = Tab::Main;
+    ok &= shot("main", m, v);
     return ok ? 0 : 1;
 }

@@ -171,8 +171,15 @@ enum class MenuCommand {
     ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
     MoreSettings, ///< the same, with Emulation > Configure... open
     Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
+                  ///< (the Cheats tab's Azahar's Window)
     EditControls, ///< AzaharFrame menu: the controls remap (the remap lane's)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
+    // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
+    ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
+    DownloadCheats, ///< the developer's and Sharkive's cheats for the game
+    InstallFix,     ///< the developer's game fix into the game's mods folder (then the toast
+                    ///< "Restart the Game to Apply")
+    RemoveFix,      ///< and out of it
 };
 enum class MenuSetting {
     HideBottomScreen,
