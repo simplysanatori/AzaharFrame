@@ -779,6 +779,15 @@ struct Values {
     // the main one, tilted back), 1 Side by Side (to its right, facing you). Left stick click held
     // 1 s switches it. Read every frame (frame_xr/input/screen_rig.h SecondFromMain).
     SwitchableSetting<u32, true> vr_screen_layout{0, 0, 1, "vr_screen_layout"};
+    // AzaharFrame menu: Move Screens, global: 0 Together (both screens move as one), 1 Separately
+    // (each screen moves on its own; normal VR screens only).
+    SwitchableSetting<u32, true> vr_move_screens{0, 0, 1, "vr_move_screens"};
+    // AzaharFrame menu: Touchpad Touch, global: 0 Off, 1 Touch, 2 Click. The controller touchpad
+    // maps onto the bottom screen.
+    SwitchableSetting<u32, true> vr_touchpad_touch{0, 0, 2, "vr_touchpad_touch"};
+    // AzaharFrame menu: experimental real second window for the bottom screen. Config file only,
+    // no menu row.
+    SwitchableSetting<bool> vr_bottom_screen_window{false, "vr_bottom_screen_window"};
 };
 
 extern Values values;
