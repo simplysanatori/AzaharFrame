@@ -328,7 +328,8 @@ void OnFrame(const FrameInfo& info) {
         g.adjuster.Cancel();
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
-        g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
+        g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue() ||
+                        Settings::values.vr_bottom_screen_window.GetValue(); // AzaharFrame window
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;
