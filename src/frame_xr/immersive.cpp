@@ -757,4 +757,8 @@ void SetGameTitleId(uint64_t title_id) {
     Immersive::g_title_id = title_id;
 }
 
+uint64_t GameTitleId() { // AzaharFrame move: the normal screens' per-game placement
+    return Immersive::g_title_id.load();
+}
+
 } // namespace FrameXr

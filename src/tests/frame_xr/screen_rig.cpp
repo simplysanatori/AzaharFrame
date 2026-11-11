@@ -358,3 +358,223 @@ TEST_CASE("FrameXr screen rig: Stacked and Side by Side", "[frame_xr]") {
     REQUIRE(LayoutToast(kLayoutSideBySide) == "Screen Layout: Side by Side");
     REQUIRE(std::string(LayoutName(kLayoutStacked)) == "Stacked");
 }
+
+// ---- AzaharFrame move: Detach Screens -----------------------------------------------------------
+
+namespace {
+
+// The beam from `from` towards `at`.
+Ray RayTo(const Vec3f& from, const Vec3f& at) {
+    return {from, Normalized(at - from)};
+}
+
+// The screen's front (+Z) points at the eye.
+float FacingDot(const Posef& p, const Vec3f& eye) {
+    return Dot(Rotate(p.orientation, Vec3f{0, 0, 1}), Normalized(eye - p.position));
+}
+
+} // namespace
+
+TEST_CASE("FrameXr screen rig: Detach Screens modes", "[frame_xr]") {
+    REQUIRE(std::string(DetachName(kDetachOff)) == "Off");
+    REQUIRE(std::string(DetachName(kDetachOther)) == "Other");
+    REQUIRE(std::string(DetachName(kDetachBoth)) == "Both");
+    REQUIRE(DetachToast(kDetachOther) == "Detach Screens: Other");
+    REQUIRE(ClampDetach(7) == kDetachBoth);
+    // Off: neither slot is free; Other: the second one; Both: both.
+    REQUIRE_FALSE(SlotFree(kDetachOff, true));
+    REQUIRE_FALSE(SlotFree(kDetachOff, false));
+    REQUIRE_FALSE(SlotFree(kDetachOther, true));
+    REQUIRE(SlotFree(kDetachOther, false));
+    REQUIRE(SlotFree(kDetachBoth, true));
+    REQUIRE(SlotFree(kDetachBoth, false));
+}
+
+TEST_CASE("FrameXr screen rig: detach, relink and reset of the slots", "[frame_xr]") {
+    const Slots reset;
+    REQUIRE(reset.main.position.z == Approx(-2.0f));
+    REQUIRE(reset.main_scale == 1.0f);
+    REQUIRE_FALSE(reset.second_free);
+    REQUIRE(reset.second_scale == 1.0f);
+
+    const Posef linked = BottomFromTop(reset.main, 1.0f);
+    SECTION("a grab in Off leaves the second slot linked") {
+        Slots s;
+        REQUIRE_FALSE(Detach(s, kDetachOff, linked));
+        REQUIRE_FALSE(s.second_free);
+    }
+    SECTION("a grab in Other or Both keeps the second slot where it is drawn, at 1.0x") {
+        for (const uint32_t mode : {kDetachOther, kDetachBoth}) {
+            Slots s;
+            REQUIRE(Detach(s, mode, linked));
+            REQUIRE(s.second_free);
+            REQUIRE(Length(s.second.position - linked.position) == Approx(0.0f).margin(1e-6f));
+            REQUIRE(s.second_scale == 1.0f);
+            // Once free it is not moved again by the next grab.
+            s.second.position.x = 0.7f;
+            REQUIRE_FALSE(Detach(s, mode, linked));
+            REQUIRE(s.second.position.x == Approx(0.7f));
+        }
+    }
+    SECTION("Relink puts the second slot back on the main one at 1.0x, the main slot stays") {
+        Slots s;
+        s.main.position = {0.3f, 0.2f, -2.5f};
+        s.main_scale = 1.8f;
+        Detach(s, kDetachOther, linked);
+        s.second_scale = 2.4f;
+        Relink(s);
+        REQUIRE_FALSE(s.second_free);
+        REQUIRE(s.second_scale == 1.0f);
+        REQUIRE(s.main.position.x == Approx(0.3f));
+        REQUIRE(s.main_scale == Approx(1.8f));
+    }
+    SECTION("going to Off links the second slot again; Other and Both keep it") {
+        Slots s;
+        Detach(s, kDetachBoth, {Quatf{}, Vec3f{1.0f, -0.5f, -1.0f}});
+        s.second_scale = 2.0f;
+        REQUIRE(ForMode(s, kDetachOther).second_free);
+        REQUIRE(ForMode(s, kDetachBoth).second_scale == Approx(2.0f));
+        const Slots off = ForMode(s, kDetachOff);
+        REQUIRE_FALSE(off.second_free);
+        REQUIRE(off.second_scale == 1.0f);
+    }
+    SECTION("leaving Both, a main slot the Off grip cannot move goes back in front") {
+        Slots s;
+        s.main = FreePose({0, 0, 0}, {1.0f, 0.0f, 0.0f}, 1.5f); // moved to your right
+        s.main_scale = 2.0f;
+        REQUIRE(ForMode(s, kDetachBoth).main.position.x == Approx(1.5f));
+        const Slots other = ForMode(s, kDetachOther);
+        REQUIRE(other.main.position.z == Approx(-2.0f));
+        REQUIRE(other.main.position.x == Approx(0.0f));
+        REQUIRE(other.main_scale == Approx(2.0f)); // its size stays
+        // One that is still ahead stays where it is.
+        s.main = NudgeTop(Ahead(2.0f), 10, 0).value();
+        REQUIRE(ForMode(s, kDetachOff).main.position.x == Approx(s.main.position.x));
+    }
+    SECTION("scales out of range are clamped") {
+        Slots s;
+        s.main_scale = 9.0f;
+        s.second_scale = 0.1f;
+        s.second_free = true;
+        const Slots c = ForMode(s, kDetachBoth);
+        REQUIRE(c.main_scale == Approx(kMaxScale));
+        REQUIRE(c.second_scale == Approx(kMinScale));
+    }
+}
+
+TEST_CASE("FrameXr screen rig: a free slot follows the beam round you, facing you", "[frame_xr]") {
+    const Vec3f eye{0.0f, 1.6f, 0.0f};
+    const Vec3f hand{0.2f, 1.2f, -0.3f};
+    const Posef slot = FreePose(eye, {0.0f, -0.3f, -1.0f}, 1.5f);
+    REQUIRE(Length(slot.position - eye) == Approx(1.5f));
+    REQUIRE(FacingDot(slot, eye) == Approx(1.0f).margin(1e-4f));
+
+    FreeGrab grab;
+    // Grabbed off its middle: the slot does not jump.
+    const Ray at_grab = RayTo(hand, slot.position + Vec3f{0.2f, 0.1f, 0.0f});
+    grab.Begin(eye, slot, at_grab);
+    const Posef same = FreePose(eye, grab.Direction(eye, at_grab, 1.5f), 1.5f);
+    REQUIRE(Length(same.position - slot.position) == Approx(0.0f).margin(1e-3f));
+
+    // The beam swings far to the left and behind: the slot goes there, still facing you.
+    const Ray left = RayTo(hand, eye + Vec3f{-3.0f, 0.0f, 1.0f});
+    const Posef moved = FreePose(eye, grab.Direction(eye, left, 1.5f), 1.5f);
+    REQUIRE(moved.position.x < -1.0f);
+    REQUIRE(Length(moved.position - eye) == Approx(1.5f));
+    REQUIRE(FacingDot(moved, eye) == Approx(1.0f).margin(1e-4f));
+
+    // Straight up is kept short of the pole.
+    const Ray up = RayTo(hand, eye + Vec3f{0.0f, 10.0f, -0.01f});
+    const Vec3f dir = grab.Direction(eye, up, 1.5f);
+    REQUIRE(std::asin(dir.y) / kDeg <= Approx(kFreeMaxPitchDeg + 0.01f));
+}
+
+TEST_CASE("FrameXr screen rig: a free slot's distance and nudge", "[frame_xr]") {
+    // Stick up (negative delta z) takes it further; kept within the limits.
+    REQUIRE(FreeDistance(1.5f, -0.1f) == Approx(1.6f));
+    REQUIRE(FreeDistance(1.5f, 0.1f) == Approx(1.4f));
+    REQUIRE(FreeDistance(0.55f, 0.5f) == Approx(kFreeMinDistance));
+    REQUIRE(FreeDistance(9.9f, -1.0f) == Approx(kFreeMaxDistance));
+    REQUIRE(FreeDistance(NAN, 0.0f) == Approx(kFreeMinDistance));
+
+    const Vec3f eye{0.1f, 1.5f, 0.2f};
+    const Posef slot = FreePose(eye, {0.0f, -0.5f, -1.0f}, 1.2f);
+    const Posef right = NudgeFree(slot, eye, 2);
+    REQUIRE(Length(right.position - eye) == Approx(1.2f));
+    REQUIRE(right.position.y == Approx(slot.position.y));
+    REQUIRE(right.position.x > slot.position.x);
+    REQUIRE(FacingDot(right, eye) == Approx(1.0f).margin(1e-4f));
+    const float turned = std::acos(std::clamp(
+        Dot(Normalized(Vec3f{right.position.x - eye.x, 0, right.position.z - eye.z}),
+            Normalized(Vec3f{slot.position.x - eye.x, 0, slot.position.z - eye.z})),
+        -1.0f, 1.0f));
+    REQUIRE(turned / kDeg == Approx(2 * kNudgeStepDeg).margin(1e-2f));
+    const Posef back = NudgeFree(right, eye, -2);
+    REQUIRE(Length(back.position - slot.position) == Approx(0.0f).margin(1e-4f));
+}
+
+TEST_CASE("FrameXr screen rig: the per-game screen placement file", "[frame_xr]") {
+    Slots s;
+    s.main = NudgeTop(Ahead(2.5f), 6, 0).value();
+    s.main_scale = 1.5f;
+    PlacementFile file;
+    file.Set(0x0004000000030800ull, s); // linked: no second line
+    Slots d = s;
+    d.second_free = true;
+    d.second = FreePose({0, 0, 0}, {0.5f, -0.6f, -1.0f}, 0.9f);
+    d.second_scale = 2.25f;
+    file.Set(0x00040000001B4F00ull, d);
+    const std::string text = file.Format();
+    REQUIRE(text.find("0004000000030800 main") != std::string::npos);
+    REQUIRE(text.find("0004000000030800 second") == std::string::npos);
+    REQUIRE(text.find("00040000001b4f00 second") != std::string::npos);
+
+    PlacementFile read;
+    read.Parse(text);
+    REQUIRE(read.Size() == 2);
+    const auto a = read.Get(0x0004000000030800ull);
+    REQUIRE(a);
+    REQUIRE_FALSE(a->second_free);
+    REQUIRE(a->main_scale == Approx(1.5f));
+    REQUIRE(Length(a->main.position - s.main.position) == Approx(0.0f).margin(2e-3f));
+    REQUIRE(std::abs(Dot(Rotate(a->main.orientation, Vec3f{0, 0, 1}),
+                         Rotate(s.main.orientation, Vec3f{0, 0, 1}))) == Approx(1.0f).margin(1e-3f));
+    const auto b = read.Get(0x00040000001B4F00ull);
+    REQUIRE(b);
+    REQUIRE(b->second_free);
+    REQUIRE(b->second_scale == Approx(2.25f));
+    REQUIRE(Length(b->second.position - d.second.position) == Approx(0.0f).margin(2e-3f));
+
+    SECTION("a game with no entry has none; an erased one neither") {
+        REQUIRE_FALSE(read.Get(0x0004000000099999ull));
+        read.Erase(0x0004000000030800ull);
+        REQUIRE_FALSE(read.Get(0x0004000000030800ull));
+        REQUIRE(read.Size() == 1);
+    }
+    SECTION("broken lines are kept out, a second slot alone is no entry") {
+        PlacementFile f;
+        f.Parse("# comment\n"
+                "0004000000030800 main 0 0 -2 0 0 0 1 1 # trailing comment\n"
+                "000400000003080 main 0 0 -2 0 0 0 1 1\n"        // 15 digits
+                "000400000003080G main 0 0 -2 0 0 0 1 1\n"       // not hex
+                "0004000000040000 middle 0 0 -2 0 0 0 1 1\n"     // unknown kind
+                "0004000000050000 main 0 0 -2 0 0 0 1\n"         // too few numbers
+                "0004000000060000 main 0 0 -2 0 0 0 0 1\n"       // no rotation
+                "0004000000070000 main 0 0 -90 0 0 0 1 1\n"      // far away
+                "0004000000080000 main 0 0 -2 0 0 0 1 nan\n"     // not a number
+                "0004000000090000 second 0 0 -2 0 0 0 1 1\n"     // no main line
+                "00040000000A0000 main 0 0 -2 0 0 0 2 7\n");     // unnormalised, too big
+        REQUIRE(f.Get(0x0004000000030800ull));
+        for (const uint64_t id : {0x0004000000040000ull, 0x0004000000050000ull,
+                                  0x0004000000060000ull, 0x0004000000070000ull,
+                                  0x0004000000080000ull, 0x0004000000090000ull}) {
+            REQUIRE_FALSE(f.Get(id));
+        }
+        const auto big = f.Get(0x00040000000A0000ull);
+        REQUIRE(big);
+        REQUIRE(big->main.orientation.w == Approx(1.0f));
+        REQUIRE(big->main_scale == Approx(kMaxScale));
+        // The lone second line is dropped when saving.
+        REQUIRE(f.Format().find("0004000000090000") == std::string::npos);
+    }
+}

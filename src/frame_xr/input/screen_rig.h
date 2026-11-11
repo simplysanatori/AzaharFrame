@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include "frame_xr/input/geometry.h"
@@ -134,6 +135,110 @@ struct Cylinder {
     float aspect_ratio = 1.0f;  ///< width / height of the arc, as the flat screen
 };
 Cylinder CylinderFor(const Posef& screen, float width, float height, float radius);
+
+// ---- AzaharFrame move: Detach Screens ---------------------------------------------------------
+//
+// Settings::values.vr_move_screens (global, read every frame): 0 Off, the second slot follows the
+// main one (SecondFromMain) and a grip on either moves both, the main slot turned and tilted
+// about you as above; 1 Other, the main slot as in Off and the second slot free; 2 Both, both
+// slots free. A free slot is moved as the stats panel In Front is (vis/stats_place.h): a grip
+// carries it round you on the sphere it is on (FreeGrab), it faces you, and that hand's stick
+// sets its distance (FreeDistance) and size; the D-pad left and right turn it about you
+// (NudgeFree). Each slot has its own scale (the second one too, kMinScale to kMaxScale, times its
+// normal size). The slots are slots: swapped, the second slot holds the top screen.
+//
+// The second slot keeps a pose of its own (Slots::second_free) from the first grab in a detached
+// mode (Detach) until it is linked again (Relink): by the reset, by Off, by a new Screen Layout.
+
+inline constexpr uint32_t kDetachOff = 0;
+inline constexpr uint32_t kDetachOther = 1;
+inline constexpr uint32_t kDetachBoth = 2;
+/// A free slot is kept this far from the eyes (metres).
+inline constexpr float kFreeMinDistance = 0.5f;
+inline constexpr float kFreeMaxDistance = 10.0f;
+/// A free slot's middle goes no further up or down than this, seen from the eyes (degrees).
+inline constexpr float kFreeMaxPitchDeg = 75.0f;
+
+/// 0, 1 or 2 (a larger value typed into the config is Both).
+uint32_t ClampDetach(uint32_t mode);
+/// "Off", "Other", "Both".
+const char* DetachName(uint32_t mode);
+/// "Detach Screens: Other".
+std::string DetachToast(uint32_t mode);
+/// A grip moves this slot freely in `mode` (else as the pair, Off).
+bool SlotFree(uint32_t mode, bool main_slot);
+
+/// The placement of the two slots, without sizes in metres (app.cpp ScreenPlacement holds them).
+struct Slots {
+    Posef main{Quatf{}, Vec3f{0.0f, 0.0f, -2.0f}};
+    float main_scale = 1.0f;
+    /// The second slot has a pose of its own (else it follows the main one by the layout).
+    bool second_free = false;
+    Posef second{};
+    float second_scale = 1.0f;
+};
+
+/// The second slot follows the main one again, at 1.0x.
+void Relink(Slots& s);
+/// A grab starts in `mode`: in Other and Both the second slot stops following the main one and
+/// keeps `linked_second`, where it is drawn now. Nothing in Off or when it already is free.
+/// True when it changed.
+bool Detach(Slots& s, uint32_t mode, const Posef& linked_second);
+/// The slots as they may be in `mode`: in Off the second one follows the main one; outside Both
+/// a main slot that the Off grip cannot move (nearer than kNearestTopZ ahead: moved round you in
+/// Both) goes back to its default place, at its own scale. Scales clamped.
+Slots ForMode(Slots s, uint32_t mode);
+
+/// A grip holding a free slot: it keeps its distance from the eyes and the angle between the
+/// beam's point and its middle as seen from them (as Vis::StatsGrab).
+class FreeGrab {
+public:
+    /// The grip closed (or the slot moved under the hand) with the beam `ray`.
+    void Begin(const Vec3f& eye, const Posef& slot, const Ray& ray);
+    /// Each frame while held: the direction its middle goes in for this beam at `distance`.
+    Vec3f Direction(const Vec3f& eye, const Ray& ray, float distance) const;
+
+private:
+    float yaw_offset_ = 0.0f, pitch_offset_ = 0.0f;
+};
+/// The pose `distance` along `dir` from `eye`, facing the eye.
+Posef FreePose(const Vec3f& eye, const Vec3f& dir, float distance);
+/// The distance after this frame's stick (`delta_z` as PanelCommands::top_depth_delta_z:
+/// negative = further away), kept in [kFreeMinDistance, kFreeMaxDistance].
+float FreeDistance(float distance, float delta_z);
+/// A free slot turned about the vertical through the eyes by `right_steps` presses of
+/// kNudgeStepDeg, facing the eyes.
+Posef NudgeFree(const Posef& slot, const Vec3f& eye, int right_steps);
+
+// ---- AzaharFrame move: the per-game file (screen-placement.txt in the user directory) ---------
+//
+// Lines "<title id, 16 hex digits> main|second <x> <y> <z> <qx> <qy> <qz> <qw> <scale>" (LOCAL
+// space, metres); '#' starts a comment. "main" is the main slot, "second" the second slot when it
+// has a pose of its own. A game with no "main" line starts at the defaults. Broken lines are kept
+// out (and dropped when saving).
+class PlacementFile {
+public:
+    void Parse(const std::string& text);
+    std::string Format() const;
+    std::optional<Slots> Get(uint64_t title_id) const;
+    /// The second slot is written only when it is free.
+    void Set(uint64_t title_id, const Slots& slots);
+    void Erase(uint64_t title_id);
+    std::size_t Size() const {
+        return entries_.size();
+    }
+
+private:
+    struct Slot {
+        Posef pose;
+        float scale = 1.0f;
+    };
+    struct Entry {
+        std::optional<Slot> main;
+        std::optional<Slot> second;
+    };
+    std::map<uint64_t, Entry> entries_;
+};
 
 /// The D-pad while a grip holds a screen (the normal pair or the immersive screen). While
 /// `holding`, the D-pad never reaches the game; a direction pressed then stays away from it until

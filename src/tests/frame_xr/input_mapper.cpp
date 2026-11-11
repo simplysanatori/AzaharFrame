@@ -428,6 +428,19 @@ TEST_CASE("FrameXr mapper: a grip drags the screen under the ray", "[frame_xr]")
         REQUIRE(out.commands.top_drag_target.x == Approx(0.3f));
         REQUIRE(out.commands.top_drag_target.y == Approx(0.4f).margin(1e-3));
     }
+    SECTION("the drag reports its screen and hand (AzaharFrame move)") {
+        MapperOutput out = runner.Step(frame);
+        REQUIRE(out.commands.drag_panel == Panel::Top);
+        REQUIRE(out.commands.drag_hand == 1);
+        REQUIRE(runner.mapper.DragPanel() == Panel::Top);
+        out = runner.Step(frame);
+        REQUIRE(out.commands.drag_panel == Panel::Top);
+        frame.hand[1].grip = 0.0f;
+        out = runner.Step(frame);
+        REQUIRE(out.commands.drag_panel == Panel::None);
+        REQUIRE(out.commands.drag_hand == -1);
+        REQUIRE(runner.mapper.DragPanel() == Panel::None);
+    }
     SECTION("after ReanchorDrag the drag carries on from where the screens are now") {
         // AzaharFrame vrsize: the D-pad moved them under the hand.
         runner.Step(frame);

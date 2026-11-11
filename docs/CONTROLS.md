@@ -61,7 +61,24 @@ D-pad up or down, while a grip holds the screens, makes the main (larger) screen
 
 When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. The D-pad does not reach the game while you hold the screens.
 
-The bottom screen follows the top one, tilted back, just under its bottom edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
+The bottom screen follows the top one, tilted back, just under its bottom edge. Each game keeps the screens where you leave them. Hold the right stick click for 1 second to put both back. To move them apart, see Detaching the screens.
+
+## Detaching the screens
+
+**Detach Screens** in the in-game menu's **Position** tab lets the screens move apart. It is kept for every game.
+
+| Choice | Main screen | Other screen |
+|---|---|---|
+| **Off** | A grip on either screen moves both | Follows the main screen |
+| **Other** | Moves as with **Off** | Moves on its own |
+| **Both** | Moves on its own | Moves on its own |
+
+- A screen that moves on its own goes wherever you carry it with the grip, all around you, and turns to face you, like the stats panel. While you hold it, the stick of that hand moves it nearer or farther and makes it bigger or smaller (half to 3 times its size), and D-pad left or right nudges it around you.
+- The other screen is the one in the second place, so after a swap it is the top screen.
+- D-pad up or down changes the Screen Curve only while you hold the main screen. The hint shows under the screen you hold.
+- Touch works on the bottom screen wherever you put it.
+- Hold the right stick click for 1 second to put both back together in front of you, at their normal size. **Detach Screens** stays as it is. **Off**, or a new Screen Layout, puts the other screen back in its place next to the main one.
+- Each game keeps its own screen positions. Immersive mode is not affected.
 
 ## Swapping the screens
 
@@ -73,7 +90,7 @@ The screens have two places. The main one is where the top screen starts. The se
 | Left stick click, tap | Hides or shows the screen that is not in focus |
 | Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
 
-- A grip moves both places together, in either focus.
+- A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
 - The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the main one.
 - In games with **Hide Bottom Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
@@ -130,7 +147,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with five tabs down its left side:
 
 - **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
-- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
+- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window.
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.

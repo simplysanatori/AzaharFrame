@@ -128,6 +128,15 @@ game.
   hand carries on from there. `input/screen_rig.h`.
 - Horizontal lock is on by default as in CitraVR: dragging never moves the screens sideways (the
   target keeps the top screen's x: 0 unless the D-pad moved it). `MapperConfig::horizontal_lock`.
+- AzaharFrame move, **Detach Screens** (`vr_move_screens`, read every frame by `controls.cpp`):
+  the mapper reports the held screen as drawn and the hand (`drag_panel`, `drag_hand`), and
+  `ScreenView::InMainSlot` gives the slot. Off: as above. Other: the main slot as above, the
+  second slot free. Both: both free. A free slot is moved by `ScreenRig::FreeGrab` (as the stats
+  panel: round the eyes on its sphere, facing them, the stick sets its distance 0.5 to 10 m and its
+  own scale 0.5 to 3), D-pad left and right turn it about the eyes (`NudgeFree`), up and down are
+  the Screen Curve only while the main slot is held. The first grab in Other or Both detaches the
+  second slot where it is drawn (`ScreenRig::Detach`); the reset, Off and a new Screen Layout
+  link it again. Placement per game: `screen-placement.txt` (`ScreenRig::PlacementFile`).
 - The top screen goes no nearer than 1 m (`ScreenRig::kNearestTopZ`) and no further than 10 m.
   The bottom screen follows it, 0.5 m nearer, tilted back 45 degrees, 0.25 m under the top
   screen's bottom edge (0.75 m below its middle at size 1). It keeps its own size.

@@ -141,21 +141,36 @@ ScreenPlacement DefaultScreenPlacement() {
     // As CitraVR (GameSurfaceLayer.cpp): 240 px of the native screen per metre,
     // the top screen 2 m ahead at eye height; the bottom one 0.75 m lower, 0.5 m
     // nearer, 0.75^2 the scale, tilted 45 degrees back.
-    constexpr float kDensity = 240.0f;
-    constexpr float kBottomScale = 0.75f * 0.75f;
     constexpr float kPitch = -0.785398163f; // -45 degrees about +X
     ScreenPlacement p{};
     p.top_pose = {{0, 0, 0, 1}, {0.0f, 0.0f, -2.0f}};
     p.top_size = NormalTopSize(); // AzaharFrame: 400 / 240 m for the 3DS shape, wider otherwise
     p.bottom_pose = {{std::sin(kPitch / 2), 0, 0, std::cos(kPitch / 2)}, {0.0f, -0.75f, -1.5f}};
-    p.bottom_size = {320.0f / kDensity * kBottomScale, 240.0f / kDensity * kBottomScale};
+    p.bottom_size = NormalBottomSize();
     return p;
+}
+
+XrExtent2Df NormalBottomSize(float scale) {
+    // CitraVR: 240 px per metre, 0.75^2 the scale. AzaharFrame move: times the second slot's
+    // own scale (Detach Screens).
+    constexpr float kDensity = 240.0f;
+    const float s = 0.75f * 0.75f * Input::ScreenRig::ClampScale(scale);
+    return {320.0f / kDensity * s, 240.0f / kDensity * s};
 }
 
 namespace {
 // AzaharFrame layout: the second slot always follows the main one by the Screen Layout setting,
 // so a switch, a grip move, a nudge, a size change and the reset all keep the layout.
+// AzaharFrame move: unless it has a pose of its own (Detach Screens Other or Both, after a grab).
 ScreenPlacement WithSecondSlot(ScreenPlacement place) {
+    const uint32_t detach =
+        Input::ScreenRig::ClampDetach(Settings::values.vr_move_screens.GetValue());
+    if (place.second_free && detach != Input::ScreenRig::kDetachOff) {
+        place.bottom_pose = place.second_pose;
+        place.bottom_size = NormalBottomSize(place.second_scale);
+        return place;
+    }
+    place.bottom_size = NormalBottomSize();
     const XrPosef& t = place.top_pose;
     const Input::Posef top{{t.orientation.x, t.orientation.y, t.orientation.z, t.orientation.w},
                            {t.position.x, t.position.y, t.position.z}};
@@ -632,10 +647,12 @@ void Runtime::FrameLoop() {
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
             // AzaharFrame vrsize: a normal top screen bigger than its normal size gets that much
             // less 3D depth (common/frame_vr_depth.h); the immersive and the swapped one do not.
+            // AzaharFrame move: swapped, the top screen is in the second slot at its own scale.
             Settings::frame_vr_depth_scale =
-                shown.top_pointable && !draw.swapped
-                    ? Input::ScreenRig::DepthScale(place.top_scale)
-                    : 1.0f;
+                !shown.top_pointable ? 1.0f
+                : draw.swapped
+                    ? Input::ScreenRig::DepthScale(place.second_free ? place.second_scale : 1.0f)
+                    : Input::ScreenRig::DepthScale(place.top_scale);
             // Quad layers are drawn in the order they are submitted, with no depth test: the
             // farther screen goes first, so the nearer one is never drawn through.
             if (draw.swapped) {

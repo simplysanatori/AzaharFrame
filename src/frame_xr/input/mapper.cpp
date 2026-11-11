@@ -556,6 +556,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
                         panels.top.pose.position.z + wanted.z - panels.bottom.pose.position.z};
                 }
             }
+            out.commands.drag_hand = h; // AzaharFrame move
             // The dragging hand's stick is the depth control and does not move the game.
             controls.SetStick(hand == Hand::Left ? AnalogControl::StickL : AnalogControl::StickR,
                               {});
@@ -574,6 +575,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     if (drag_active_) {
         out.commands.top_drag_active = true;
         out.commands.top_drag_target = drag_last_target_;
+        out.commands.drag_panel = drag_panel_; // AzaharFrame move
         if (config_.horizontal_lock) {
             // AzaharFrame vrsize: where it is sideways (0 unless the D-pad nudged it).
             out.commands.top_drag_target.x = panels.top.pose.position.x;
