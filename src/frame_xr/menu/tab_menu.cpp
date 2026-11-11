@@ -83,6 +83,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
     if (tab == Tab::Position) {
         rows.push_back(row(Id::HideBottomScreen, RowKind::Switch, 0, m.hide_bottom_screen));
         rows.push_back(row(Id::ScreenLayout, RowKind::Segmented, m.screen_layout));
+        rows.push_back(row(Id::MoveScreens, RowKind::Segmented, m.move_screens)); // AzaharFrame menu
         rows.push_back(row(Id::ScreenShape, RowKind::MenuButton, m.screen_shape));
         rows.push_back(row(Id::ScreenCurve, RowKind::MenuButton, m.screen_curve));
         Row offset = row(Id::ImmersiveOffset, RowKind::Offset);
@@ -132,6 +133,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
+    static const std::vector<std::string> kMove{"Off", "Other", "Both"}; // provisional labels, with LabelFor
+    static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
@@ -152,6 +155,10 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kCurve;
     case Id::ScreenLayout:
         return kLayout;
+    case Id::MoveScreens:
+        return kMove;
+    case Id::TouchpadTouch:
+        return kTouchpad;
     case Id::StatsPosition:
         return kStatsAt;
     case Id::ControlsPage:
@@ -195,6 +202,8 @@ std::string LabelFor(Id id) {
         return "Screenshot";
     case Id::Restart:
         return "Restart";
+    case Id::Cheats:
+        return "Cheats";
     case Id::AzaharWindow:
         return "Azahar's Window";
     case Id::SwitchToFlat:
@@ -213,6 +222,12 @@ std::string LabelFor(Id id) {
         return "Screen Curve";
     case Id::ScreenLayout:
         return "Screen Layout";
+    case Id::MoveScreens:
+        return "Detach Screens"; // provisional
+    case Id::TouchpadTouch:
+        return "Touchpad Touch";
+    case Id::EditControls:
+        return "Edit Controls";
     case Id::ImmersiveOffset:
         return "Immersive Offset";
     case Id::ImmersiveOffsetReset:
@@ -419,12 +434,13 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
         char32_t icon;
         ButtonStyle style;
     };
-    const std::array<TileDef, 9> tiles{{
+    const std::array<TileDef, 10> tiles{{
         {Id::QuickSave, Sym::kSave, ButtonStyle::Tonal},
         {Id::QuickLoad, Sym::kHistory, ButtonStyle::Tonal},
         {Id::Screenshot, Sym::kPhotoCamera, ButtonStyle::Tonal},
         {Id::SaveState, Sym::kSaveAs, ButtonStyle::Tonal},
         {Id::LoadState, Sym::kFolderOpen, ButtonStyle::Tonal},
+        {Id::Cheats, Sym::kTune, ButtonStyle::Tonal}, // AzaharFrame menu
         {Id::Restart, Sym::kRestartAlt, ButtonStyle::Tonal},
         {Id::AzaharWindow, Sym::kOpenInNew, ButtonStyle::Tonal},
         {Id::SwitchToFlat, Sym::kTv, ButtonStyle::Tonal},
@@ -432,11 +448,13 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
     }};
     const float gap = 12.0f;
     const float tw = (c.W() - gap * 2.0f) / 3.0f;
-    const float th = (c.y1 - y - gap * 2.0f) / 3.0f;
+    // Four rows: three rows of three tiles, then Close Game across the width.
+    const float th = (c.y1 - y - gap * 3.0f) / 4.0f;
     for (std::size_t i = 0; i < tiles.size(); i++) {
-        const float x = c.x0 + static_cast<float>(i % 3) * (tw + gap);
+        const bool wide = i == tiles.size() - 1;
+        const float x = wide ? c.x0 : c.x0 + static_cast<float>(i % 3) * (tw + gap);
         const float ty = y + static_cast<float>(i / 3) * (th + gap);
-        const Rect r{x, ty, x + tw, ty + th};
+        const Rect r{x, ty, wide ? c.x1 : x + tw, ty + th};
         const bool enabled = tiles[i].id != Id::QuickLoad || model.quick_load_available;
         kit.Tile(r, tiles[i].style, tiles[i].icon, LabelFor(tiles[i].id),
                  StateOf(view, {tiles[i].id}, enabled));
@@ -564,7 +582,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     const auto& pages = OptionsFor(Id::ControlsPage);
     const float w = kit.SegmentedWidth(pages);
-    const Rect seg{c.Cx() - w * 0.5f, c.y0, c.Cx() + w * 0.5f, c.y0 + kControlH};
+    // AzaharFrame menu: the pages on the left, Edit Controls on the right.
+    const Rect seg{c.x0, c.y0, c.x0 + w, c.y0 + kControlH};
     const int hover = view.hover.id == Id::ControlsPage ? view.hover.index : -1;
     const int pressed = view.pressed.id == Id::ControlsPage ? view.pressed.index : -1;
     kit.Segmented(seg, pages, model.controls_page, hover, pressed);
@@ -573,7 +592,34 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit({pe[static_cast<std::size_t>(i)], seg.y0, pe[static_cast<std::size_t>(i + 1)], seg.y1},
                {Id::ControlsPage, i}, pane);
     }
-    const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+    const Rect edit{c.x1 - 200.0f, seg.y0, c.x1, seg.y1};
+    kit.Button(edit, ButtonStyle::Tonal, Sym::kTune, LabelFor(Id::EditControls),
+               StateOf(view, {Id::EditControls}));
+    AddHit(edit, {Id::EditControls}, pane);
+    // Touchpad Touch: a label and its three choices.
+    const Rect tp_row{c.x0 - 12.0f, seg.y1 + 8.0f, c.x1 + 12.0f, seg.y1 + 8.0f + kControlH + 8.0f};
+    const Lock tp_lock = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)];
+    const bool tp_enabled = tp_lock == Lock::None;
+    AddHit(tp_row, {Id::TouchpadTouch, kLabelIndex}, pane);
+    anchors.push_back({Id::TouchpadTouch, c.x0, tp_row.y0 + 6.0f, tp_lock});
+    kit.TextMid(c.x0, tp_row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(Id::TouchpadTouch), 0,
+                tp_enabled ? 1.0f : kDisabledContent);
+    {
+        const auto& opts = OptionsFor(Id::TouchpadTouch);
+        const float tw = kit.SegmentedWidth(opts, c.W() * 0.6f);
+        const Rect ts{c.x1 - tw, tp_row.Cy() - kControlH * 0.5f, c.x1, tp_row.Cy() + kControlH * 0.5f};
+        const int th = view.hover.id == Id::TouchpadTouch ? view.hover.index : -1;
+        const int tpr = view.pressed.id == Id::TouchpadTouch ? view.pressed.index : -1;
+        kit.Segmented(ts, opts, model.touchpad_touch, th, tpr, !tp_enabled);
+        if (tp_enabled) {
+            const auto e = kit.SegmentEdges(ts, opts);
+            for (int i = 0; i < static_cast<int>(opts.size()); i++) {
+                AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
+                       {Id::TouchpadTouch, i}, pane);
+            }
+        }
+    }
+    const Rect area{pane.x0 + 8.0f, tp_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }

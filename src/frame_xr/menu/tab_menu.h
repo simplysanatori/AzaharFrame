@@ -43,6 +43,7 @@ enum class Id : int {
     LoadState,
     Screenshot,
     Restart,
+    Cheats, ///< AzaharFrame menu
     AzaharWindow,
     SwitchToFlat,
     CloseGame,
@@ -53,6 +54,7 @@ enum class Id : int {
     SwapScreens,
     HideBottomScreen,
     ScreenLayout, ///< AzaharFrame layout
+    MoveScreens,  ///< AzaharFrame menu
     ScreenShape,
     ScreenCurve,
     ImmersiveOffset,
@@ -62,6 +64,8 @@ enum class Id : int {
     StatsPosition, ///< AzaharFrame statspos
     // Controls
     ControlsPage,
+    TouchpadTouch, ///< AzaharFrame menu
+    EditControls,  ///< AzaharFrame menu
     // Settings
     Scope,
     Background,
@@ -115,6 +119,7 @@ struct MenuModel {
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect
     int screen_layout = 0; ///< 0 Stacked, 1 Side by Side (AzaharFrame layout)
+    int move_screens = 0;  ///< 0 Together, 1 Separately (AzaharFrame menu)
     int screen_curve = 0;  ///< index of Off, 15, 30, 45, 60, 75, 90 degrees
     std::string immersive_offset = "None";
     bool immersive_offset_set = false;
@@ -125,6 +130,7 @@ struct MenuModel {
     std::string version;
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
+    int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game
     int background = 0;

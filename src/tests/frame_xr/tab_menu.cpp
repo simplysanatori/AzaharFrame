@@ -6,6 +6,7 @@
 // for a beam, labels that fit, hit testing.
 
 #include <string>
+#include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
@@ -83,7 +84,8 @@ TEST_CASE("Tab menu: labels and options are not cut", "[frame_xr][tabmenu]") {
     // The Main tab's tiles: three to a row in the pane.
     const float tile_w = (kPanelW - 104.0f - 12.0f - 48.0f - 24.0f) / 3.0f;
     for (Id id : {Id::QuickSave, Id::QuickLoad, Id::Screenshot, Id::SaveState, Id::LoadState,
-                  Id::Restart, Id::AzaharWindow, Id::SwitchToFlat, Id::CloseGame}) {
+                  Id::Restart, Id::Cheats, Id::AzaharWindow, Id::SwitchToFlat,
+                  Id::CloseGame}) {
         const std::string label = LabelFor(id);
         REQUIRE(!label.empty());
         CHECK(kit.Fit(Type::Label, label, tile_w - 16.0f) == label);
@@ -216,4 +218,34 @@ TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[fra
         }
     }
     CHECK(found);
+}
+
+// AzaharFrame menu: Move Screens, Touchpad Touch, Edit Controls and Cheats are on the menu.
+TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    const auto has = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return true;
+            }
+        }
+        return false;
+    };
+    MenuView v;
+    v.tab = Tab::Position;
+    d.Draw(m, v);
+    CHECK(has(Id::MoveScreens, 0));
+    CHECK(has(Id::MoveScreens, 2));
+    CHECK(OptionsFor(Id::MoveScreens) == std::vector<std::string>{"Off", "Other", "Both"});
+    v.tab = Tab::Controls;
+    d.Draw(m, v);
+    CHECK(has(Id::TouchpadTouch, 0));
+    CHECK(has(Id::TouchpadTouch, 2));
+    CHECK(has(Id::EditControls, -1));
+    CHECK(OptionsFor(Id::TouchpadTouch) == std::vector<std::string>{"Off", "Touch", "Click"});
+    v.tab = Tab::Main;
+    d.Draw(m, v);
+    CHECK(has(Id::Cheats, -1));
+    CHECK(LabelFor(Id::Cheats) == "Cheats");
 }
