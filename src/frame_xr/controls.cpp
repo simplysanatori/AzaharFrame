@@ -255,8 +255,26 @@ void VrUi::FlatFrame(int64_t now_ns) {
         if (!have) {
             chord_down = false;
         }
+        // AzaharFrame gamelist: the game list with the D-pad, the left stick and A's double tap,
+        // as on VR's window (there is no beam: one A does nothing here).
+        if (have && !game_running) {
+            const Input::ListNav::Result list =
+                flat_list_nav.Update(mirror.Enabled() && mirror.ListNavEnabled(), in.dpad_up,
+                                     in.dpad_down, in.hand[0].stick.y, in.a, now_ns);
+            if (list.step != 0) {
+                HomePanelEvent e{HomePanelEvent::Type::ListStep};
+                e.step = list.step;
+                mirror.Send(e);
+            }
+            if (list.activate) {
+                mirror.Send({HomePanelEvent::Type::ListStart});
+            }
+        } else {
+            flat_list_nav.Reset();
+        }
         return;
     }
+    flat_list_nav.Reset(); // AzaharFrame gamelist: a game runs; buttons held now are no press
     // AzaharFrame flat4: the Flat menu, Azahar's window over the paused game (Menu held 1 s).
     if (menu_open) {
         FlatMenuFrame(in, now_ns);

@@ -269,13 +269,16 @@ struct HomePanelImage {
 
 /// What the controllers did on the home panel. u, v: 0..1 across the image (v down).
 struct HomePanelEvent {
-    enum class Type : u8 { Move, Leave, Press, Release, Wheel, Escape };
+    /// AzaharFrame gamelist: ListStep moves the game list's highlight `step` games (-1 up, +1
+    /// down), ListStart starts the highlighted game (input/list_nav.h).
+    enum class Type : u8 { Move, Leave, Press, Release, Wheel, Escape, ListStep, ListStart };
     enum class Button : u8 { Left, Right };
     Type type = Type::Move;
     Button button = Button::Left;
     float u = 0.0f;
     float v = 0.0f;
     float wheel = 0.0f; ///< Wheel: notches, positive scrolls up
+    int step = 0;       ///< ListStep
 };
 
 /// Non-empty: the home panel replaces the picker while no game runs, and `on_event`
@@ -284,6 +287,10 @@ struct HomePanelEvent {
 void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
 /// The home panel's newest image (any thread). Shown from the next frame on.
 void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
+/// AzaharFrame gamelist: whether the controllers drive the game list now (input/list_nav.h,
+/// ListNavAllowed), in VR and in Flat: the left stick moves the highlight instead of scrolling,
+/// and the D-pad and A's double tap work. Any thread; GUI thread when the window changes.
+void SetHomePanelListNav(bool enabled);
 /// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
 /// the controllers drive the panel and not the game. GUI thread, after the game paused.
 void SetInGameMenu(bool open);

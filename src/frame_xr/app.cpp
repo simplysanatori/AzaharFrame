@@ -997,6 +997,12 @@ void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image) {
     }
 }
 
+void SetHomePanelListNav(bool enabled) { // AzaharFrame gamelist
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetHomePanelListNav(enabled);
+    }
+}
+
 void SetInGameMenu(bool open) {
     if (auto* rt = GetRuntime(); rt && rt->ui) {
         rt->ui->SetInGameMenu(open);

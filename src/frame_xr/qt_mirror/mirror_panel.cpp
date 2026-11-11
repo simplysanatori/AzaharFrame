@@ -20,7 +20,9 @@ namespace {
 //   Right Stick Click held kRecentreNs   the panel back where it was placed (in front)
 //   B                                    back (Escape: closes a menu or a dialog)
 //   Grip on the panel                    move the panel
-//   Stick Y (either stick)               scroll
+//   Stick Y (either stick)               scroll; in the game list only the right stick
+//   D-pad or left stick, up and down     the game list's highlight (AzaharFrame gamelist)
+//   A twice quickly                      starts the highlighted game (one A is the click)
 //   Y                                    the headset keyboard (frame_xr/keyboard)
 //   X, the bumpers                       nothing
 bool LeftButton(const Input::InputFrame& in) {
@@ -38,10 +40,15 @@ constexpr XrTime kRecentreNs = 1'000'000'000;
 // A stick click while the stick is pushed over further than this is ignored (as in a game).
 constexpr float kClickMaxDeflection = 0.5f;
 
-// A press keeps its point while the ray stays within this many metres of it on the panel
-// (1.2 cm, about 8 window pixels on the home panel), and a second press within
-// kDoubleClickNs of the release lands on the same point: double clicks work.
+// A press keeps its point for kPressHoldNs whatever the ray does (pulling a trigger jerks it),
+// then while the ray stays within kSlop metres of it on the panel (1.2 cm, about 8 window
+// pixels on the home panel): past that a held button drags. After the release, a second press
+// within kDoubleClickNs and kDoubleClickSlop of the panel's width (2.5 %: 4 cm, about 26 window
+// pixels on the 1.6 m home panel) lands on the same point, so Qt sees a double click: its own
+// double-click distance (5 pixels, from the platform theme) is never crossed.
 constexpr float kSlop = 0.012f;
+constexpr XrTime kPressHoldNs = 150'000'000;      // AzaharFrame gamelist
+constexpr float kDoubleClickSlop = 0.025f;        // AzaharFrame gamelist: of the panel's width
 constexpr XrTime kDoubleClickNs = 450'000'000;
 // Stick Y scrolls: nothing below kWheelDead, up to kWheelRate notches a second at full tilt.
 constexpr float kWheelDead = 0.2f;
@@ -106,6 +113,7 @@ void MirrorPanel::Hide() {
     drag_hand = -1;
     wheel_acc = 0.0f;
     last_time = 0;
+    list_nav.Reset(); // AzaharFrame gamelist
 }
 
 void MirrorPanel::Place(const XrPosef& new_pose, float new_width) {
@@ -260,7 +268,11 @@ void MirrorPanel::Pointer(const FrameInfo& info, const Input::InputFrame& in) {
         }
         if (sticky) {
             const float dist = std::hypot((u - sticky_u) * width_m, (v - sticky_v) * height_m);
-            if (dist < kSlop && (held || now < sticky_until)) {
+            // AzaharFrame gamelist: held, the first kPressHoldNs keep the point whatever the
+            // ray does; let go, the second click's wider kDoubleClickSlop applies.
+            const bool hold = held && now < press_hold_until;
+            const float slop = held ? kSlop : kDoubleClickSlop * width_m;
+            if (hold || (dist < slop && (held || now < sticky_until))) {
                 u = sticky_u;
                 v = sticky_v;
             } else {
@@ -300,8 +312,25 @@ void MirrorPanel::Pointer(const FrameInfo& info, const Input::InputFrame& in) {
     }
     if (on_panel && left_press && !left_down) {
         keep_point();
+        press_hold_until = now + kPressHoldNs;
         Send({Type::Press, Button::Left, u, v});
         left_down = true;
+    }
+
+    // AzaharFrame gamelist: the game list (only while the Qt side allows it, ListNavAllowed):
+    // the D-pad or the left stick move the highlight, A twice quickly starts the game. The A
+    // presses above are still clicks; with the beam on a game they are Qt's double click too,
+    // and the Qt side then skips this start (frame_mirror.cpp).
+    const bool nav = list_nav_enabled.load(std::memory_order_relaxed);
+    const Input::ListNav::Result list =
+        list_nav.Update(nav, in.dpad_up, in.dpad_down, in.hand[0].stick.y, a, now);
+    if (list.step != 0) {
+        HomePanelEvent e{Type::ListStep};
+        e.step = list.step;
+        Send(e);
+    }
+    if (list.activate) {
+        Send({Type::ListStart});
     }
 
     // Right Stick Click: a short click is a right click (sent when let go), held: the panel back.
@@ -334,8 +363,9 @@ void MirrorPanel::Pointer(const FrameInfo& info, const Input::InputFrame& in) {
     }
     prev_b = b;
 
-    // Stick Y (whichever stick is pushed further): the wheel, while on the panel.
-    float y = in.hand[0].stick.y;
+    // Stick Y (whichever stick is pushed further): the wheel, while on the panel. AzaharFrame
+    // gamelist: the left stick moves the game list's highlight instead while it is allowed.
+    float y = nav ? 0.0f : in.hand[0].stick.y;
     if (std::abs(in.hand[1].stick.y) > std::abs(y)) {
         y = in.hand[1].stick.y;
     }

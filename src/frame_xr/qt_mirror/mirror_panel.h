@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -23,6 +24,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/list_nav.h" // AzaharFrame gamelist
 #include "frame_xr/overlays.h"
 
 namespace FrameXr {
@@ -33,6 +35,16 @@ public:
     void SetHandler(std::function<void(const HomePanelEvent&)> handler);
     void SetImage(std::shared_ptr<const HomePanelImage> image);
     bool Enabled() const;
+    /// AzaharFrame gamelist: the game list takes the D-pad, the left stick and A's double tap
+    /// (FrameXr::SetHomePanelListNav). Any thread.
+    void SetListNav(bool enabled) {
+        list_nav_enabled.store(enabled, std::memory_order_relaxed);
+    }
+    bool ListNavEnabled() const {
+        return list_nav_enabled.load(std::memory_order_relaxed);
+    }
+    /// Sends an event to the Qt side (any thread; Flat sends the game list's steps this way).
+    void Send(const HomePanelEvent& e);
 
     /// XR thread, while no game runs: uploads a new image, handles the controllers,
     /// appends the panel quad; `cursor` gets the pointer dot's pose when the ray is on it.
@@ -70,7 +82,6 @@ public:
     void Destroy(OverlayUploader& uploader);
 
 private:
-    void Send(const HomePanelEvent& e);
     void Pointer(const FrameInfo& info, const Input::InputFrame& in);
 
     mutable std::mutex mutex;
@@ -97,12 +108,17 @@ private:
     XrTime stick_click_since = 0;
     bool pointer_in = false; // sent Move without a Leave
     float last_u = -1.0f, last_v = -1.0f;
-    // Click stickiness: a press, and a second press soon after it, keep their point
-    // while the ray shakes less than kSlop, so clicks do not turn into drags and
-    // double clicks are recognised.
+    // Click stickiness: a press keeps its point for kPressHoldNs whatever the ray does, then
+    // while the ray stays within kSlop (a drag starts past it); after the release a second
+    // press within kDoubleClickNs and kDoubleClickSlop lands on the same point, so double
+    // clicks are recognised although a trigger pull jerks the ray.
     bool sticky = false;
     float sticky_u = 0.0f, sticky_v = 0.0f;
     XrTime sticky_until = 0;
+    XrTime press_hold_until = 0; ///< AzaharFrame gamelist
+    // AzaharFrame gamelist: the game list with the D-pad, the left stick and A's double tap.
+    std::atomic<bool> list_nav_enabled{false};
+    Input::ListNav list_nav;
     float wheel_acc = 0.0f;
     XrTime last_time = 0;
     // Panel drag with a grip.

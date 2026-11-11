@@ -34,10 +34,12 @@
 #include <QTimer>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/input/list_nav.h"   // AzaharFrame gamelist
 #include "frame_xr/keyboard/keyboard.h" // AzaharFrame keyboard
 
 class QPushButton;
 class QToolBar;
+class QTreeView;
 class QWidget;
 struct FrameMirrorInbox;
 
@@ -173,6 +175,23 @@ private:
     Qt::MouseButtons buttons;
     QPointer<QWidget> grab; ///< the window a held button was pressed in
     QPointF last_global{-1.0, -1.0};
+
+    // AzaharFrame gamelist: the game list with the controller (frame_xr/input/list_nav.h). The
+    // rule is checked every kListNavMs and sent to frame_xr, which sends ListStep and ListStart
+    // only while it holds; ListInput checks it again and turns them into Up, Down and Return
+    // for the list.
+    QTreeView* GameListTree() const;
+    FrameXr::Input::ListNavState ListState() const;
+    void UpdateListNav();
+    void ListInput(const FrameXr::HomePanelEvent& e);
+    /// In VR, Qt's start-drag distance grows to kDragFraction of the window's width, so a
+    /// shaking beam does not start a drag; back to Qt's own value in flat.
+    void ApplyDragDistance();
+    QTimer list_nav_timer;
+    bool list_nav_sent = false;
+    bool list_nav_logged = false;
+    QElapsedTimer list_game_chosen; ///< the game list last started a game (GameChosen)
+    int qt_drag_distance = -1;       ///< Qt's own start-drag distance
 
     // AzaharFrame keyboard: the headset keyboard's keys typed into the focused widget, and the
     // keyboard opened by a click into a text field and closed when no text field has the keys.

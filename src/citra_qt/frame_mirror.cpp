@@ -14,6 +14,7 @@
 #include <QHeaderView>
 #include <QFont>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -21,6 +22,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QStringList>
+#include <QStyleHints>
 #include <QToolBar>
 #include <QTreeView>
 #include <QWidget>
@@ -35,6 +37,7 @@
 
 #include "citra_qt/frame_flat_dialog.h" // AzaharFrame flatdialog
 #include "citra_qt/frame_mirror.h"
+#include "citra_qt/game_list.h" // AzaharFrame gamelist
 #include "citra_qt/uisettings.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -74,6 +77,10 @@ constexpr float kMaxPanelScale = 1.5f;
 constexpr float kMaxPanelHeight = 1.1f;
 constexpr double kBasePixels = 2904.0;
 constexpr QSize kMinWindow{480, 320};
+// AzaharFrame gamelist: how often the game list's rule is checked (ListNavAllowed), and the
+// start-drag distance in VR as a share of the window's width (26 pixels at 1056).
+constexpr int kListNavMs = 100;
+constexpr double kDragFraction = 0.025;
 
 bool IsDialogLike(const QWidget* w) {
     const Qt::WindowType type = w->windowType();
@@ -140,6 +147,17 @@ FrameMirror::FrameMirror(QWidget* main_window) : QObject(main_window), main(main
     });
     LOG_INFO(Frontend, "xr: home panel: Azahar's window (AZAHARFRAME_VR_PICKER=1: the picker)");
     StartKeyboard(); // AzaharFrame keyboard
+    // AzaharFrame gamelist
+    qt_drag_distance = QGuiApplication::styleHints()->startDragDistance();
+    ApplyDragDistance();
+    list_nav_timer.setInterval(kListNavMs);
+    connect(&list_nav_timer, &QTimer::timeout, this, [this] { UpdateListNav(); });
+    list_nav_timer.start();
+    // A game chosen in the list (a double click with the beam, which A's double tap may also
+    // be): A's double tap that comes right after it does not start the game again.
+    if (auto* list = main->findChild<GameList*>()) {
+        connect(list, &GameList::GameChosen, this, [this] { list_game_chosen.start(); });
+    }
     MarkDirty();
 }
 
@@ -148,6 +166,7 @@ FrameMirror::~FrameMirror() {
         std::scoped_lock lock{inbox->mutex};
         inbox->owner = nullptr;
     }
+    FrameXr::SetHomePanelListNav(false); // AzaharFrame gamelist
     FrameXr::SetHomePanel({});
     FrameXr::SetKeyboardHandler({}); // AzaharFrame keyboard
     qApp->removeEventFilter(this);
@@ -157,6 +176,7 @@ void FrameMirror::SetGameRunning(bool running) {
     game_running = running;
     menu_open = false;
     Shown();
+    UpdateListNav(); // AzaharFrame gamelist: at once, not on the next tick
 }
 
 void FrameMirror::SetMenuOpen(bool open) {
@@ -190,6 +210,7 @@ void FrameMirror::SetVrShowing(bool showing) {
         ReleaseOffscreen();
     }
     ApplyWindowSize(); // the Window Scale in VR, 100 % in flat
+    ApplyDragDistance(); // AzaharFrame gamelist
     Shown();
 }
 
@@ -735,6 +756,10 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         // TODO(AzaharFrame): Qt has no public way to send a leave; the last hover stays.
         return;
     }
+    if (e.type == Type::ListStep || e.type == Type::ListStart) {
+        ListInput(e); // AzaharFrame gamelist
+        return;
+    }
     if (e.type == Type::Escape) {
         // In the in-game menu, B with no menu or dialog open closes it (and resumes the game).
         if (menu_open && close_menu && !QApplication::activePopupWidget() &&
@@ -840,6 +865,117 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     // cost a capture.
     if (e.type != Type::Move) {
         MarkDirty();
+    }
+}
+
+// AzaharFrame gamelist ---------------------------------------------------------------------
+
+QTreeView* FrameMirror::GameListTree() const {
+    if (!main) {
+        return nullptr;
+    }
+    auto* list = main->findChild<GameList*>();
+    return list ? list->findChild<QTreeView*>() : nullptr;
+}
+
+FrameXr::Input::ListNavState FrameMirror::ListState() const {
+    FrameXr::Input::ListNavState s;
+    s.game_running = game_running;
+    s.vr_showing = vr_showing;
+    const QTreeView* tree = GameListTree();
+    s.list_visible = tree && tree->isVisible();
+    s.popup_open = QApplication::activePopupWidget() != nullptr;
+    s.dialog_open = QApplication::activeModalWidget() != nullptr;
+    for (const QWidget* w : QApplication::topLevelWidgets()) {
+        if (w != main && w->isVisible() && IsDialogLike(w) && !w->inherits("GRenderWindow")) {
+            s.dialog_open = true;
+        }
+    }
+    const QWidget* active = QApplication::activeWindow();
+    s.main_active = main && active == main;
+    s.none_active = active == nullptr;
+    return s;
+}
+
+void FrameMirror::UpdateListNav() {
+    const FrameXr::Input::ListNavState s = ListState();
+    const bool allowed = FrameXr::Input::ListNavAllowed(s);
+    if (allowed != list_nav_sent || !list_nav_logged) {
+        list_nav_sent = allowed;
+        list_nav_logged = true;
+        FrameXr::SetHomePanelListNav(allowed);
+        LOG_INFO(Frontend,
+                 "xr: game list: controller {} (game {}, list {}, popup {}, dialog {}, active "
+                 "{}, {})",
+                 allowed ? "on" : "off", s.game_running, s.list_visible, s.popup_open,
+                 s.dialog_open, s.main_active ? "main" : s.none_active ? "none" : "other",
+                 s.vr_showing ? "VR" : "flat");
+    }
+}
+
+void FrameMirror::ListInput(const FrameXr::HomePanelEvent& e) {
+    const bool start = e.type == FrameXr::HomePanelEvent::Type::ListStart;
+    QTreeView* tree = GameListTree();
+    if (!tree || !FrameXr::Input::ListNavAllowed(ListState())) {
+        LOG_INFO(Frontend, "xr: game list: {} ignored, the list does not take it now",
+                 start ? "double tap of A" : "step");
+        UpdateListNav();
+        return;
+    }
+    if (start && list_game_chosen.isValid() && list_game_chosen.elapsed() < 1000) {
+        LOG_INFO(Frontend, "xr: game list: double tap of A was the beam's double click on a game");
+        return;
+    }
+    if (!tree->hasFocus()) {
+        tree->setFocus(Qt::OtherFocusReason);
+    }
+    if (!tree->currentIndex().isValid()) {
+        // Nothing highlighted yet: the first game (as GameListTreeView::focusInEvent does, which
+        // only runs once the window is active).
+        const QAbstractItemModel* model = tree->model();
+        for (int i = 0; model && i < model->rowCount(); i++) {
+            const QModelIndex folder = model->index(i, 0);
+            if (model->rowCount(folder) > 0) {
+                const QModelIndex first = model->index(0, 0, folder);
+                tree->setCurrentIndex(first);
+                tree->scrollTo(first);
+                break;
+            }
+        }
+        LOG_INFO(Frontend, "xr: game list: highlight on \"{}\"",
+                 tree->currentIndex().data().toString().simplified().toStdString());
+        MarkDirty();
+        return;
+    }
+    const int key = start ? Qt::Key_Return : e.step < 0 ? Qt::Key_Up : Qt::Key_Down;
+    const QString text = start ? QStringLiteral("\r") : QString();
+    const QString before = tree->currentIndex().data().toString().simplified();
+    for (int i = 0; i < (start ? 1 : std::max(1, std::abs(e.step))); i++) {
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
+        QCoreApplication::sendEvent(tree, &press);
+        QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
+        QCoreApplication::sendEvent(tree, &release);
+    }
+    if (start) {
+        LOG_INFO(Frontend, "xr: game list: double tap of A starts \"{}\"", before.toStdString());
+    } else {
+        LOG_INFO(Frontend, "xr: game list: {} to \"{}\"", e.step < 0 ? "up" : "down",
+                 tree->currentIndex().data().toString().simplified().toStdString());
+    }
+    MarkDirty();
+}
+
+void FrameMirror::ApplyDragDistance() {
+    if (qt_drag_distance < 0) {
+        return;
+    }
+    int distance = qt_drag_distance;
+    if (vr_showing && main) {
+        distance = std::max(distance, static_cast<int>(std::lround(main->width() * kDragFraction)));
+    }
+    if (QGuiApplication::styleHints()->startDragDistance() != distance) {
+        QGuiApplication::styleHints()->setStartDragDistance(distance);
+        LOG_INFO(Frontend, "xr: start-drag distance {} pixels", distance);
     }
 }
 

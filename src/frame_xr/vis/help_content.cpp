@@ -266,11 +266,13 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     auto& w = page.window;
     Heading(w, "Azahar's Window", !ctx.game_running || ctx.in_menu);
     Row(w, "Trigger or A", "Click");
+    Row(w, "D-Pad or Left Stick Up / Down", "Choose Game"); // AzaharFrame gamelist
+    Row(w, "A Twice", "Start Game");
     Row(w, "Right Stick Click", "Right Click");
     Row(w, "Hold Right Stick Click (1 s)", "Bring Window Back");
     Row(w, "B", "Back");
     Row(w, "Grip", "Move Window");
-    Row(w, "Stick Up or Down", "Scroll");
+    Row(w, "Right Stick Up or Down", "Scroll");
     Row(w, "Y", "Keyboard");
     Heading(w, "In-Game Menu", ctx.in_menu);
     Row(w, "Hold Menu (1 s)", "Back to Game");
@@ -355,9 +357,12 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
     Label(w, kLeft, {CtrlPart::View},
           {SubHeading("In-Game Menu"), Sub("Hold View (1.5 s)", "Stop Game"),
            SubHeading("Both Bumpers +"), Sub("View + Menu", "Switch VR / Flat")});
-    Label(w, kLeft, {CtrlPart::Stick}, {Title("Left Stick", "Scroll")});
+    // AzaharFrame gamelist: the game list (the left stick scrolls in dialogs and menus).
+    Label(w, kLeft, {CtrlPart::Stick}, {Title("Left Stick", "Choose Game")});
+    Label(w, kLeft, {CtrlPart::Dpad}, {Title("D-Pad Up or Down", "Choose Game")});
     Label(w, kRight, {CtrlPart::A, CtrlPart::B, CtrlPart::X, CtrlPart::Y},
-          {Title("A", "Click"), Title("B", "Back"), Title("Y", "Keyboard")});
+          {Title("A", "Click"), Line("Twice", "Start Game"), Title("B", "Back"),
+           Title("Y", "Keyboard")});
     Label(w, kRight, {CtrlPart::Trigger}, {Title("Right Trigger", "Click")});
     Label(w, kRight, {CtrlPart::Menu},
           {SubHeading("In-Game Menu"), Sub("Hold Menu (1 s)", "Back to Game"),

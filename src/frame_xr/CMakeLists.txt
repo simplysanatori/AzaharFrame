@@ -36,6 +36,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/input_bridge.cpp
     input/input_bridge.h
     input/input_frame.h
+    input/list_nav.h
     input/chord_latch.h
     input/mapper.cpp
     input/mapper.h

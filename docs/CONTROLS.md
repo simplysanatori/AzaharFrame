@@ -95,19 +95,21 @@ In VR, **Stacked** puts the smaller screen below the main one, tilted back. **Si
 
 ## Azahar's window
 
-When no game runs, Azahar's own window floats in front of you: the game list, the menus and every dialog. The beam is the mouse. Double-click a game to start it, and use **Emulation > Configure...** for the settings. When a game stops, the window comes back.
+When no game runs, Azahar's own window floats in front of you: the game list, the menus and every dialog. The beam is the mouse. Double-click a game to start it, or choose it with the D-pad and press **A** twice. Use **Emulation > Configure...** for the settings. When a game stops, the window comes back.
 
 | Control | What it does |
 |---|---|
 | Trigger or **A** | Left click. Hold it to drag |
+| D-pad or left stick, up or down | Moves to the previous or next game in the list. Hold to keep going |
+| **A** twice quickly | Starts the game you moved to |
 | Right stick click | Right click, for example on a game for **Properties** |
 | Right stick click, held for 1 second | Brings the window back in front of you |
 | **B** | Back: closes a menu or a dialog |
 | Grip aimed at the window | Moves the window. It keeps its distance from you and turns to face you |
-| Either stick, up or down | Scrolls |
+| Right stick, up or down | Scrolls. With a menu or dialog open, the left stick scrolls too |
 | **Y** | Shows or hides the keyboard, see below |
 
-**X** and the bumpers do nothing on the window.
+**X** and the bumpers do nothing on the window. The D-pad, the left stick and **A** twice only move in the game list while no menu or dialog is open.
 
 ### The keyboard
 
@@ -238,6 +240,7 @@ In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Az
 The differences:
 
 - There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
+- Before a game starts, the D-pad or the left stick moves through the game list, and **A** twice quickly starts the game, as in VR.
 - The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
 - Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.

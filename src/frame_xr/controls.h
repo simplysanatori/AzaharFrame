@@ -105,6 +105,9 @@ public:
     // Any thread: the mirrored Qt window replaces the picker (frame_xr/qt_mirror).
     void SetHomePanel(std::function<void(const HomePanelEvent&)> on_event);
     void SetHomePanelImage(std::shared_ptr<const HomePanelImage> image);
+    void SetHomePanelListNav(bool enabled) { // AzaharFrame gamelist
+        mirror.SetListNav(enabled);
+    }
     void SetInGameMenu(bool open);
     // AzaharFrame tabmenu: any thread.
     void SetInGameMenuWindow(bool window);
@@ -214,6 +217,7 @@ private:
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
     bool flat_menu_shown = false; ///< AzaharFrame flat4: FlatFrame is in the Flat menu
     bool flat_back_down = false;  ///< B's edge in the Flat menu
+    Input::ListNav flat_list_nav; ///< AzaharFrame gamelist: the game list in Flat
     /// Test driver: what the game was sent in flat (LogFlatGameButtons).
     void LogFlatGameButtons(const Input::ControlState& controls);
     std::array<bool, Input::kNumControls> flat_sent{};

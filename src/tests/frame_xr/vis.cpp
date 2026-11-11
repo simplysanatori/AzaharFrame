@@ -406,7 +406,9 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(w, 1, CtrlPart::Menu, "Hold Menu (1 s)") == "Back to Game");
         REQUIRE(DiagramAction(w, 0, CtrlPart::View, "View + Menu") == "Switch VR / Flat");
         REQUIRE(DiagramAction(w, 0, CtrlPart::Grip, "Grip") == "Move Window");
-        REQUIRE(FindDiagramLabel(w, 0, CtrlPart::Dpad) == nullptr);
+        // AzaharFrame gamelist
+        REQUIRE(DiagramAction(w, 0, CtrlPart::Dpad, "D-Pad Up or Down") == "Choose Game");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::A, "Twice") == "Start Game");
     }
     SECTION("by label, and the window's page with no game") {
         ctx.face_by_position = false;
