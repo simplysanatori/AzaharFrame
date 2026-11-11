@@ -16,11 +16,13 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     last_ = mapper_.Update(frame, panels);
     InputCommon::FrameXr::GetPad().SetControls(last_.controls);
     {
-        // 0 = off, 1 = right controller, 2 = left controller
+        // 0 = off, 1 = right controller, 2 = left controller, 3 = headset
         const u32 choice = Settings::values.vr_motion_controls.GetValue();
         const Hand hand = choice == 2 ? Hand::Left : Hand::Right;
-        const MotionSample motion = motion_.Update(
-            frame.hand[static_cast<std::size_t>(HandIndex(hand))], frame.time_ns, choice != 0);
+        const HandInput source = choice == 3
+                                     ? HeadAsMotionSource(frame)
+                                     : frame.hand[static_cast<std::size_t>(HandIndex(hand))];
+        const MotionSample motion = motion_.Update(source, frame.time_ns, choice != 0);
         InputCommon::FrameXr::GetMotion().Set(
             Common::Vec3f{motion.accel.x, motion.accel.y, motion.accel.z},
             Common::Vec3f{motion.gyro.x, motion.gyro.y, motion.gyro.z});

@@ -110,16 +110,18 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {window_scale_combo});
     layout->addWidget(window_scale_row);
 
-    // Global only. Values 0..2 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
+    // Global only. Values 0..3 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
     motion_combo = new QComboBox(this);
     motion_combo->addItem(tr("Off"));
     motion_combo->addItem(tr("Right Controller"));
     motion_combo->addItem(tr("Left Controller"));
+    motion_combo->addItem(tr("Headset"));
     motion_row = MakeRow(
         this, QStringLiteral("frame_vr_motion_row"), tr("Motion Controls"),
-        tr("Uses a controller as the 3DS's gyroscope and accelerometer, for games that aim by "
-           "moving the 3DS. Hold it like a 3DS, with its beam pointing into the screen. Going "
-           "from Off to a controller takes effect the next time VR starts."),
+        tr("Uses a controller or your head as the 3DS's gyroscope and accelerometer, for games "
+           "that aim by moving the 3DS. Hold a controller like a 3DS, with its beam pointing "
+           "into the screen, or turn and tilt your head. Going from Off to another choice takes "
+           "effect the next time VR starts."),
         {motion_combo});
     layout->addWidget(motion_row);
 

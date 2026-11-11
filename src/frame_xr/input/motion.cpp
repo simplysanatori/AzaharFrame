@@ -38,6 +38,13 @@ Vec3f AccelFromOrientation(const Quatf& orientation) {
     return ControllerToThreeDs(down_in_controller);
 }
 
+HandInput HeadAsMotionSource(const InputFrame& frame) {
+    HandInput head;
+    head.active = frame.head_active;
+    head.aim = frame.head;
+    return head;
+}
+
 MotionSample MotionTracker::Update(const HandInput& hand, int64_t time_ns, bool enabled) {
     if (!enabled || !hand.active) {
         have_last_ = false;

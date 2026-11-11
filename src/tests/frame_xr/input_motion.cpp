@@ -184,3 +184,36 @@ TEST_CASE("FrameXr motion: tracker", "[frame_xr]") {
         REQUIRE(Length(s.gyro) == 0.0f);
     }
 }
+
+TEST_CASE("FrameXr motion: the headset as the motion source", "[frame_xr]") {
+    InputFrame frame;
+    frame.head_active = true;
+
+    SECTION("looking straight ahead, level, is a 3DS held upright in front of you") {
+        const MotionSample s = MotionTracker{}.Update(HeadAsMotionSource(frame), 0, true);
+        REQUIRE(s.accel.x == Approx(0.0f).margin(1e-5f));
+        REQUIRE(s.accel.y == Approx(0.0f).margin(1e-5f));
+        REQUIRE(s.accel.z == Approx(-1.0f));
+    }
+    SECTION("the head pose gives the same numbers as a controller with that aim pose") {
+        frame.head.orientation = AxisAngle({1, 0, 0}, -90.0f); // looking straight down
+        const MotionSample s = MotionTracker{}.Update(HeadAsMotionSource(frame), 0, true);
+        REQUIRE(s.accel.y == Approx(-1.0f)); // a 3DS lying flat
+        REQUIRE(s.accel.z == Approx(0.0f).margin(1e-5f));
+    }
+    SECTION("turning the head left reads as the 3DS turning about its vertical axis") {
+        MotionTracker tracker;
+        frame.head.orientation = Quatf{};
+        tracker.Update(HeadAsMotionSource(frame), 0, true);
+        frame.head.orientation = AxisAngle({0, 1, 0}, 1.0f); // 1 degree per frame at 90 Hz
+        const MotionSample s = tracker.Update(HeadAsMotionSource(frame), kStepNs, true);
+        REQUIRE(s.gyro.z == Approx(90.0f).epsilon(0.01));
+    }
+    SECTION("a head that is not located reads as the rest state") {
+        frame.head_active = false;
+        frame.head.orientation = AxisAngle({0, 1, 0}, 30.0f);
+        const MotionSample s = MotionTracker{}.Update(HeadAsMotionSource(frame), 0, true);
+        REQUIRE(s.accel.y == Approx(-1.0f));
+        REQUIRE(Length(s.gyro) == 0.0f);
+    }
+}

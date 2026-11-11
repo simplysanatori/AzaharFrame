@@ -19,7 +19,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Face Buttons](#face-buttons) | **By Position (Nintendo)**, **By Label (Xbox)** | By Position (Nintendo) | global | at once |
 | [Background](#background) | **Black**, **Passthrough** | Black | global | at once |
 | [Window Scale](#window-scale) | **100%**, **150%**, **200%** | 150% | global | when you press **OK** |
-| [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller** | Right Controller | global | at once, or next VR start from Off |
+| [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller**, **Headset** | Right Controller | global | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
@@ -61,9 +61,9 @@ How large Azahar's window looks in VR. Larger makes the text, buttons and list r
 
 ## Motion Controls
 
-Makes one controller the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS. The slingshot, bow and hookshot in Ocarina of Time 3D are examples. Hold the controller like a 3DS, with its beam pointing into the screen.
+Makes one controller, or your head, the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS. The slingshot, bow and hookshot in Ocarina of Time 3D are examples. Hold the controller like a 3DS, with its beam pointing into the screen. With **Headset**, turn and tilt your head instead; looking straight ahead is the 3DS held upright in front of you, and both controllers keep pointing normally.
 
-The same controller still points at the screens. If that gets in the way, choose the hand you don't point with. **Off** leaves the 3DS lying flat and still. Going from **Off** to a controller takes effect the next time VR starts.
+The same controller still points at the screens. If that gets in the way, choose the hand you don't point with. **Off** leaves the 3DS lying flat and still. Going from **Off** to another choice takes effect the next time VR starts.
 
 ## Show Controllers
 

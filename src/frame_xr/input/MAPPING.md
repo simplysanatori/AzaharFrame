@@ -64,7 +64,7 @@ A = select, B = previous page) are not game input and do not swap.
 
 ## Motion (gyroscope and accelerometer)
 
-`motion.h`. The controller chosen by `vr_motion_controls` (0 off, 1 right, 2 left; default right)
+`motion.h`. The controller chosen by `vr_motion_controls` (0 off, 1 right, 2 left, 3 headset; default right; the headset uses the located view-space head pose, `InputFrame::head`, through `HeadAsMotionSource`)
 drives the 3DS's sensors through the `frame_xr` motion device (`engine:frame_xr`, shared state in
 `input_common/frame_xr.h`), written once per display frame by the `InputBridge` and read by the HID
 service. VR start-up replaces the profile's default motion device (`motion_emu`, the mouse) with

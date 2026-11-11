@@ -749,7 +749,7 @@ struct Values {
     // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer (global only):
     // 0 = off, 1 = right controller, 2 = left controller. Read every frame
     // (frame_xr/input/motion.h).
-    SwitchableSetting<u32, true> vr_motion_controls{1, 0, 2, "vr_motion_controls"};
+    SwitchableSetting<u32, true> vr_motion_controls{1, 0, 3, "vr_motion_controls"};
     // AzaharFrame: what is behind the screens in VR (global only): 0 = Black, 1 = Passthrough (the
     // room, when the runtime offers it). Read every frame (frame_xr/hud.h).
     SwitchableSetting<u32, true> vr_background{0, 0, 1, "vr_background"};

@@ -286,7 +286,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.scope = scope;
     m.background = static_cast<int>(std::min<u32>(v.vr_background.GetValue(), 1));
     m.face_buttons = static_cast<int>(std::min<u32>(v.vr_face_buttons.GetValue(), 1));
-    m.motion_controls = static_cast<int>(std::min<u32>(v.vr_motion_controls.GetValue(), 2));
+    m.motion_controls = static_cast<int>(std::min<u32>(v.vr_motion_controls.GetValue(), 3));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     m.depth_3d = static_cast<int>(std::min<u32>(v.factor_3d.GetValue(), 100)); // depth3d

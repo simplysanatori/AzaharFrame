@@ -306,6 +306,11 @@ void VrUi::FlatFrame(int64_t now_ns) {
     panels.bottom.visible = false;
     panels.bottom_toggle_enabled = false; // the stick clicks lay out the window instead
     panels.grip_dpad_cycles_layout = true; // AzaharFrame layout: grip + D-pad left or right
+    {
+        const ViewPose view = LatestViewPose(); // the head drives Motion Controls: Headset
+        in.head_active = view.valid;
+        in.head = ToInput(view.head);
+    }
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
     LogFlatGameButtons(out.controls);
@@ -969,6 +974,11 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         ShowGripHint(holding_immersive, quads, screen_view.bottom_focus());
     }
     was_holding = holding_immersive || holding_normal;
+    {
+        const ViewPose view = LatestViewPose(); // the head drives Motion Controls: Headset
+        game_in.head_active = view.valid;
+        game_in.head = ToInput(view.head);
+    }
     const Input::MapperOutput& out = bridge.Process(game_in, panels);
     bridge_live = true;
 

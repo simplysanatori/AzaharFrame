@@ -32,6 +32,10 @@ struct InputFrame {
     /// Predicted display time in nanoseconds (XrTime). Only differences are used.
     int64_t time_ns = 0;
     std::array<HandInput, kNumHands> hand;
+    /// The head (view space) pose in the base (LOCAL) space, when it is located this frame. Only
+    /// the Headset choice of Motion Controls reads it.
+    bool head_active = false;
+    Posef head;
     bool a = false;
     bool b = false;
     bool x = false;

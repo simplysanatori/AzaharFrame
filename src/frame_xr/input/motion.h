@@ -9,7 +9,7 @@
 #include "frame_xr/input/types.h"
 
 // AzaharFrame
-// A Steam Frame controller as the 3DS's gyroscope and accelerometer. Pure math (no OpenXR, Qt or
+// A Steam Frame controller (or the headset) as the 3DS's gyroscope and accelerometer. Pure math (no OpenXR, Qt or
 // emulator calls), so it is unit tested. The numbers go to the "frame_xr" motion device
 // (input_common/frame_xr.h), which the HID service reads.
 //
@@ -48,6 +48,12 @@ Vec3f GyroFromOrientations(const Quatf& from, const Quatf& to, float dt_s);
 /// Gravity (world -Y, the base space is gravity aligned) in the 3DS axes for a controller with
 /// this orientation, in g. Unit length.
 Vec3f AccelFromOrientation(const Quatf& orientation);
+
+/// The head as a motion source: the head pose (view space: -Z forward, +Y up, the same axes as a
+/// controller's aim pose) as a HandInput, so the controller math applies unchanged. Looking
+/// straight ahead, level, is a 3DS held upright in front of you. Not active when the head is not
+/// located.
+HandInput HeadAsMotionSource(const InputFrame& frame);
 
 struct MotionConfig {
     /// Rates below this magnitude read as zero (hand tremor and pose noise).

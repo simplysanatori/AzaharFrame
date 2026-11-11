@@ -137,7 +137,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
-    static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller"};
+    static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
     static const std::vector<std::string> kScale{"100%", "150%", "200%"};
     static const std::vector<std::string> kMode{"Off", "Wide (3DoF)",
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
@@ -271,7 +271,7 @@ std::string ExplainFor(Id id) {
     case Id::FaceButtons:
         return "How A, B, X and Y map to the 3DS.";
     case Id::MotionControls:
-        return "The controller that acts as the 3DS gyroscope.";
+        return "The controller or headset that acts as the 3DS gyroscope.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::WindowScale:
