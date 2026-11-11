@@ -1,13 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 (November 2026)
 
-- **Motion Controls** can now use the headset: turn and tilt your head to aim.
-- The game list works with the controller, in VR and in Flat. The D-pad or the left stick moves through the games, and **A** pressed twice quickly starts the one you're on. In VR the right stick still scrolls.
-- I made double clicks with the beam reliable. Pulling the trigger moves the beam a little, so its point now holds still for a moment after a click, and a second click near the first lands on the same spot.
-- **3D Depth** is on the in-game menu's **Settings** tab, as a slider from 0% to 100%, for every game or just this one. It changes the 3D at once.
-- I moved the stats in front of you. They stay where they appear and never end up behind a screen. Squeeze a grip on them to move them; the stick sets their distance and size.
-- A new **Stats Position** setting can put the stats on your left wrist instead. They show when you turn your wrist toward your face.
+Sharper screens at high resolution, the game list on the controller, 3D depth per game, better stats placement and head motion controls.
+
+- At 5x resolution and above, the screens are sharp edge to edge. Valve's foveation layer lowered the detail away from where you looked; Azahar for Frame now turns it off.
+- The game list works with the controller, in VR and in Flat. The D-pad or the left stick moves through the games, and **A** pressed twice quickly starts the one you're on.
+- Double clicks with the beam are reliable.
+- **3D Depth** is on the in-game menu's **Settings** tab, from 0% to 100%, for every game or just this one. It changes the 3D at once.
+- The stats appear in front of you and stay there, never behind a screen. Grip them to move them; the stick sets their distance and size.
+- **Stats Position** can put the stats on your left wrist instead. Turn your wrist toward your face to see them.
+- **Motion Controls** can use the headset: turn and tilt your head to aim.
 
 ## 1.1.0 (November 2026)
 

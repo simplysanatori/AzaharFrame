@@ -11,7 +11,7 @@
 # (this is how Frametanium runs it).  Files are packed by name, so settings, saves, keys,
 # logs and game files cannot end up in it.  The zip is the same files plus run.sh (framedrop-run.sh).
 #   steam-frame/release/make-release.sh [version [build-dir [out-dir]]]
-# The version defaults to 1.1.0.  The build directory defaults to <repo>/build/bin/Release
+# The version defaults to 1.1.1.  The build directory defaults to <repo>/build/bin/Release
 # (AZAHARFRAME_BUILD names it as well).  The output folder defaults to ~/Games/AzaharFrame/release-out
 # (AZAHARFRAME_OUT names it as well) and must not be inside the repository.
 # It refuses to package a program that has a home folder path ("/home/...") inside it: such a build names
@@ -21,7 +21,7 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 SF=$(cd "$HERE/.." && pwd)
 REPO=$(cd "$SF/.." && pwd)
-VERSION=${1:-1.1.0}
+VERSION=${1:-1.1.1}
 BUILD=${2:-${AZAHARFRAME_BUILD:-$REPO/build/bin/Release}}
 OUT=${3:-${AZAHARFRAME_OUT:-$HOME/Games/AzaharFrame/release-out}}
 OUT=$(readlink -m "$OUT")

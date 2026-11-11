@@ -17,7 +17,7 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/.." && pwd)
-VERSION=${1:-1.1.0}
+VERSION=${1:-1.1.1}
 BLD=${AZAHARFRAME_BUILD_DIR:-$REPO/build}
 JOBS=${AZAHARFRAME_JOBS:-4}
 
@@ -41,7 +41,7 @@ if [ -z "$AZAHARFRAME_NO_BUILD" ]; then
     LAUNCHER=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
   fi
 
-  # "azahar -v" prints the release's version ("Azahar for Frame 1.1.0"), not the commit: GIT_TAG is what
+  # "azahar -v" prints the release's version ("Azahar for Frame 1.1.1"), not the commit: GIT_TAG is what
   # CMakeModules/GenerateBuildInfo.cmake takes the version from.
   # The binary names its sources relative to the checkout, not with this machine's paths.
   PREFIX_MAP="-ffile-prefix-map=$REPO/= -ffile-prefix-map=$BLD/=build/"

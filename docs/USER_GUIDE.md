@@ -4,7 +4,7 @@ The short version is in the [README](../README.md). This guide has the rest: ins
 
 ## Status and known issues
 
-Version 1.1.0. The changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Version 1.1.1. The changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 Known issues:
 
@@ -44,7 +44,7 @@ Compared with Azahar on a PC:
 
 ### Install
 
-The README has the steps. In short: get the repository, download `azaharframe-1.1.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases), and run `steam-frame/install.sh` with the tarball. To check the download against `SHA256SUMS` first:
+The README has the steps. In short: get the repository, download `azaharframe-1.1.1-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases), and run `steam-frame/install.sh` with the tarball. To check the download against `SHA256SUMS` first:
 
 ```sh
 (cd ~/Downloads && sha256sum -c --ignore-missing SHA256SUMS)
@@ -55,7 +55,7 @@ The installer adds the library entry with its artwork and icon, gives SteamVR's 
 Other installers:
 
 - [Frametanium](https://github.com/Cogential/frametanium): add `simplysanatori/AzaharFrame`. It downloads the tarball and runs the same `install.sh`, so the library entry is the same one.
-- [FrameDrop](https://framedropvr.com): [Install with FrameDrop](https://framedropvr.com/install?manifest=https%3A%2F%2Fgithub.com%2Fsimplysanatori%2FAzaharFrame%2Freleases%2Flatest%2Fdownload%2Fazaharframe.framedrop.json). It installs `azaharframe-1.1.0-framedrop-linux-arm64.zip` and adds its own library entry. The first start runs the installer without adding a second entry, and so does the first start after an update. Its log is `~/.local/state/framedrop-azaharframe/install.log`.
+- [FrameDrop](https://framedropvr.com): [Install with FrameDrop](https://framedropvr.com/install?manifest=https%3A%2F%2Fgithub.com%2Fsimplysanatori%2FAzaharFrame%2Freleases%2Flatest%2Fdownload%2Fazaharframe.framedrop.json). It installs `azaharframe-1.1.1-framedrop-linux-arm64.zip` and adds its own library entry. The first start runs the installer without adding a second entry, and so does the first start after an update. Its log is `~/.local/state/framedrop-azaharframe/install.log`.
 
 ### Update
 
@@ -78,11 +78,11 @@ steam-frame/uninstall.sh
 On the Frame, with a C++ compiler, CMake 3.24 or newer, Ninja, the Qt 6 and SDL2 development files and Python 3:
 
 ```sh
-steam-frame/build.sh 1.1.0
+steam-frame/build.sh 1.1.1
 steam-frame/install.sh
 ```
 
-The first build takes about an hour and loads every core. It waits while the headset is in use. `build.sh` packs `steam-frame/release/azaharframe-1.1.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. That build links the Qt and SDL2 SteamOS has, so a SteamOS update can break it. The release is made with `steam-frame/build-portable.sh`, which carries its own. The options are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md#building) and [AGENTS.md](../AGENTS.md).
+The first build takes about an hour and loads every core. It waits while the headset is in use. `build.sh` packs `steam-frame/release/azaharframe-1.1.1-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. That build links the Qt and SDL2 SteamOS has, so a SteamOS update can break it. The release is made with `steam-frame/build-portable.sh`, which carries its own. The options are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md#building) and [AGENTS.md](../AGENTS.md).
 
 ## First run
 

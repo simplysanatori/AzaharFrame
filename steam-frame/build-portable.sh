@@ -23,7 +23,7 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/.." && pwd)
-VERSION=${1:-1.1.0}
+VERSION=${1:-1.1.1}
 ENGINE=${CONTAINER_ENGINE:-podman}
 CACHE=${AZAHARFRAME_PORTABLE_CACHE:-$HOME/.cache/azaharframe/portable}
 JOBS=${AZAHARFRAME_JOBS:-4}

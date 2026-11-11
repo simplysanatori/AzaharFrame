@@ -13,6 +13,8 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
 - Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
 - Immersive modes, with a screen you move and resize per game
 - An in-game menu: save states, screen position and VR settings
+- Pick and start games with the controller
+- Stats in front of you or on your wrist
 - **Screen Curve**: bend the main screen like a curved monitor
 - **Side by Side** and stacked screen layouts, in VR and Flat
 - Steam Frame controls, with Quick Save, Quick Load and Fast Forward
@@ -42,10 +44,10 @@ The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothi
    cd AzaharFrame
    ```
 
-2. Download `azaharframe-1.1.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
+2. Download `azaharframe-1.1.1-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
 
    ```sh
-   steam-frame/install.sh ~/Downloads/azaharframe-1.1.0-linux-arm64.tar.gz
+   steam-frame/install.sh ~/Downloads/azaharframe-1.1.1-linux-arm64.tar.gz
    ```
 
 3. Launch **Azahar for Frame** from your Steam library.
