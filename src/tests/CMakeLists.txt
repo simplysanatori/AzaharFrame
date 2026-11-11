@@ -33,6 +33,7 @@ add_executable(tests
     core/core_timing.cpp
     core/sharkive.cpp # AzaharFrame cheats
     core/cheats_online.cpp # AzaharFrame cheats
+    core/mods_library.cpp # AzaharFrame moddata
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

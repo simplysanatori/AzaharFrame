@@ -38,6 +38,13 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     cheats/online.h # AzaharFrame cheats
     cheats/sharkive.cpp # AzaharFrame cheats
     cheats/sharkive.h # AzaharFrame cheats
+    mods/archive.cpp # AzaharFrame moddata
+    mods/archive.h # AzaharFrame moddata
+    mods/catalog.cpp # AzaharFrame moddata
+    mods/catalog.h # AzaharFrame moddata
+    mods/catalog_default.cpp # AzaharFrame moddata
+    mods/library.cpp # AzaharFrame moddata
+    mods/library.h # AzaharFrame moddata
     core.cpp
     core.h
     core_timing.cpp
