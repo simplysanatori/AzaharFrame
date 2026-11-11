@@ -135,6 +135,8 @@ WARNS=$(grep -c ' WARN ' "$T" 2>/dev/null); WARNS=${WARNS:-0}
 VUID=$(cat "$OUT"/emulator.log "$OUT"/app_*.txt 2>/dev/null | grep -c 'VUID-'); VUID=${VUID:-0}
 NSEC=$(grep -c ' summary t=' "$T" 2>/dev/null); NSEC=${NSEC:-0}
 RELTOTAL=$(awk '/ total sc[0-9]+ /{for(i=1;i<=NF;i++) if($i ~ /^releases=/){split($i,a,"="); n+=a[2]}} END{print n+0}' "$T" 2>/dev/null)
+# AzaharFrame integ: a timeout-killed run has no " total sc" line; fall back to the per-second summaries
+[ "$RELTOTAL" -gt 0 ] || RELTOTAL=$(awk '/ summary t=/{for(i=1;i<=NF;i++) if($i ~ /^sc[0-9]+=[0-9]+$/){split($i,a,"="); n+=a[2]}} END{print n+0}' "$T" 2>/dev/null)
 {
     echo "mockrun $(date -d "@$START" '+%Y-%m-%d %H:%M:%S'), ${SECS}s requested, $((END - START))s elapsed"
     echo "command: ${CMD[*]}"
