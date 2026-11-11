@@ -3,6 +3,7 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <memory>
+#include <optional>
 #include <thread>
 #include <QCheckBox>
 #include <QApplication>
@@ -15,6 +16,8 @@
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
 #include "core/cheats/sharkive.h" // AzaharFrame cheats
+#include "core/hle/service/am/am.h"
+#include "core/hle/service/fs/archive.h"
 #include "sharkive_client.h"   // AzaharFrame cheats
 #include "ui_configure_cheats.h"
 
@@ -255,6 +258,42 @@ void ConfigureCheats::OnAddCheat() {
     last_col = 1;
 }
 
+namespace {
+
+struct InstalledVersion {
+    std::optional<Cheats::Sharkive::Version> effective; // what the cheats must match
+    bool has_update = false;
+};
+
+// AzaharFrame cheats: the version the game runs at, from the TMDs the AM service keeps: the update
+// title (0004000E) when one is installed, else the installed base title. A cartridge or a 3DS file
+// with no update has no TMD: unknown, so no cheat is marked.
+InstalledVersion QueryInstalledVersion(u64 title_id) {
+    InstalledVersion out;
+    const u64 low = title_id & 0xFFFFFFFFULL;
+    const u64 update_id = (0x0004000EULL << 32) | low;
+    const u64 base_id = (0x00040000ULL << 32) | low;
+    using Service::FS::MediaType;
+    for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
+        const auto tmd = Service::AM::GetTitleMetadata(media, update_id);
+        if (tmd.LoadResult() == Loader::ResultStatus::Success) {
+            out.has_update = true;
+            out.effective = Cheats::Sharkive::FromTitleVersion(tmd.GetTitleVersion());
+            return out;
+        }
+    }
+    for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
+        const auto tmd = Service::AM::GetTitleMetadata(media, base_id);
+        if (tmd.LoadResult() == Loader::ResultStatus::Success) {
+            out.effective = Cheats::Sharkive::FromTitleVersion(tmd.GetTitleVersion());
+            return out;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
 // AzaharFrame cheats: one HTTPS request to raw.githubusercontent.com, made on a worker thread; the
 // result is merged on the GUI thread. Cheats already in the file (same name) are left alone, new
 // ones arrive disabled.
@@ -271,7 +310,8 @@ void ConfigureCheats::OnDownloadSharkive() {
 
     QPointer<ConfigureCheats> self(this);
     const u64 id = title_id;
-    std::thread([self, id] {
+    const InstalledVersion installed = QueryInstalledVersion(id);
+    std::thread([self, id, installed] {
         SharkiveClient::Result result = SharkiveClient::Fetch(id);
         QMetaObject::invokeMethod(
             qApp,
@@ -295,7 +335,9 @@ void ConfigureCheats::OnDownloadSharkive() {
                         names.push_back(cheat->GetName());
                     }
                     const auto parsed = Cheats::Sharkive::Parse(result.body);
-                    const auto added = Cheats::Sharkive::NewEntries(parsed, names);
+                    auto added = Cheats::Sharkive::NewEntries(parsed, names);
+                    const int other =
+                        Cheats::Sharkive::MarkOtherVersions(added, installed.effective);
                     if (parsed.empty()) {
                         status = tr("No cheats for this game");
                         break;
@@ -313,9 +355,16 @@ void ConfigureCheats::OnDownloadSharkive() {
                         self->ui->tableCheats->setCurrentCell(row, 1);
                     }
                     status = added.empty() ? tr("No new cheats")
-                                           : added.size() == 1
-                                                 ? tr("1 cheat added")
+                             : added.size() == 1 ? tr("1 cheat added")
                                                  : tr("%1 cheats added").arg(added.size());
+                    if (other > 0) {
+                        status += tr(", %1 for another version").arg(other);
+                        if (installed.has_update && installed.effective) {
+                            status += tr(" (update %1 installed)")
+                                          .arg(QString::fromStdString(
+                                              Cheats::Sharkive::ToString(*installed.effective)));
+                        }
+                    }
                     break;
                 }
                 }

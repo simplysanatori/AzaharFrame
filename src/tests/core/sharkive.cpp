@@ -58,3 +58,43 @@ TEST_CASE("Sharkive: merge keeps what the user has", "[sharkive]") {
     REQUIRE(NewEntries(downloaded, {"A", "B", "C"}).empty());
     REQUIRE(NewEntries(downloaded, {}).size() == 3);
 }
+
+TEST_CASE("Sharkive: version tags", "[sharkive]") {
+    using V = Version;
+    REQUIRE(TagVersion("All Karts, Game v1.0") == V{1, 0});
+    REQUIRE(TagVersion("All Gliders, Rev2 Game v1.1") == V{1, 1});
+    REQUIRE(TagVersion("Full Course Laps - USA Rev0 v1.1") == V{1, 1});
+    REQUIRE(TagVersion("Coin Modifier Rev 0 V 1.1 USA") == V{1, 1});
+    REQUIRE(TagVersion("Max/Inf HP v1.5") == V{1, 5});
+    REQUIRE(TagVersion("Wins and Losses Modifier rev0 1.1 ONLY") == V{1, 1});
+    REQUIRE(TagVersion("Coins", "Works on (v2.0)") == V{2, 0});
+    // not versions
+    REQUIRE_FALSE(TagVersion("Refill HP v1").has_value());
+    REQUIRE_FALSE(TagVersion("Trick Anywhere - Rev0").has_value());
+    REQUIRE_FALSE(TagVersion("Money 9.999").has_value());
+    REQUIRE_FALSE(TagVersion("Money 999.999 only").has_value());
+    REQUIRE_FALSE(TagVersion("Invincible").has_value());
+    REQUIRE_FALSE(TagVersion("Move speed (Press L)").has_value());
+    REQUIRE_FALSE(TagVersion("Rev1 Value 1.1").has_value());
+}
+
+TEST_CASE("Sharkive: title version and matching", "[sharkive]") {
+    REQUIRE(FromTitleVersion(0x0410) == Version{1, 1});
+    REQUIRE(FromTitleVersion(0x0400) == Version{1, 0});
+    REQUIRE(FromTitleVersion(0x0850) == Version{2, 5});
+    REQUIRE(ToString(Version{1, 1}) == "v1.1");
+
+    const std::optional<Version> v10 = Version{1, 0}, v11 = Version{1, 1};
+    REQUIRE(VersionMatches(std::nullopt, v10));
+    REQUIRE(VersionMatches(v10, v10));
+    REQUIRE_FALSE(VersionMatches(v11, v10));
+    REQUIRE(VersionMatches(v11, std::nullopt));
+
+    auto entries = Parse("[A Game v1.0]\n00000000 00000001\n\n[B Game v1.1]\n00000000 00000002\n\n"
+                         "[C]\n00000000 00000003\n");
+    REQUIRE(MarkOtherVersions(entries, v11) == 1);
+    REQUIRE(entries[0].comments == "Sharkive: for v1.0, installed v1.1\n");
+    REQUIRE(entries[1].comments.empty());
+    REQUIRE(entries[2].comments.empty());
+    REQUIRE(MarkOtherVersions(entries, std::nullopt) == 0);
+}

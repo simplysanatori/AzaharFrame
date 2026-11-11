@@ -89,6 +89,105 @@ std::vector<Entry> Parse(std::string_view text) {
     return result;
 }
 
+Version FromTitleVersion(u16 v) {
+    return Version{v >> 10, (v >> 4) & 0x3F};
+}
+
+std::string ToString(const Version& v) {
+    return fmt::format("v{}.{}", v.major, v.minor);
+}
+
+namespace {
+
+bool IsWordChar(char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) != 0;
+}
+
+bool IsDigit(char c) {
+    return std::isdigit(static_cast<unsigned char>(c)) != 0;
+}
+
+// Reads "d{1,2}.d{1,2}" at s[i]; not followed by another digit or '.'+digit.
+std::optional<Version> ReadMajorMinor(std::string_view s, std::size_t i) {
+    std::size_t j = i;
+    int major = 0, minor = 0, n = 0;
+    while (j < s.size() && IsDigit(s[j]) && n < 3) {
+        major = major * 10 + (s[j] - '0');
+        ++j, ++n;
+    }
+    if (n == 0 || n > 2 || j >= s.size() || s[j] != '.') {
+        return std::nullopt;
+    }
+    ++j;
+    n = 0;
+    while (j < s.size() && IsDigit(s[j]) && n < 3) {
+        minor = minor * 10 + (s[j] - '0');
+        ++j, ++n;
+    }
+    if (n == 0 || n > 2 || (j < s.size() && (IsDigit(s[j]) || IsWordChar(s[j])))) {
+        return std::nullopt;
+    }
+    if (j + 1 < s.size() && s[j] == '.' && IsDigit(s[j + 1])) {
+        return std::nullopt;
+    }
+    return Version{major, minor};
+}
+
+std::optional<Version> TagIn(std::string_view s) {
+    std::string lower(s);
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    for (std::size_t i = 0; i < lower.size(); ++i) {
+        if (lower[i] != 'v' || (i > 0 && IsWordChar(lower[i - 1]))) {
+            continue;
+        }
+        std::size_t j = i + 1;
+        while (j < lower.size() && lower[j] == ' ') {
+            ++j;
+        }
+        if (auto v = ReadMajorMinor(lower, j)) {
+            return v;
+        }
+    }
+    if (lower.find("only") != std::string::npos) {
+        for (std::size_t i = 0; i < lower.size(); ++i) {
+            if (IsDigit(lower[i]) && (i == 0 || (!IsWordChar(lower[i - 1]) && lower[i - 1] != '.'))) {
+                if (auto v = ReadMajorMinor(lower, i)) {
+                    return v;
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+std::optional<Version> TagVersion(std::string_view name, std::string_view comments) {
+    if (auto v = TagIn(name)) {
+        return v;
+    }
+    return TagIn(comments);
+}
+
+bool VersionMatches(const std::optional<Version>& tag, const std::optional<Version>& installed) {
+    return !tag || !installed || *tag == *installed;
+}
+
+int MarkOtherVersions(std::vector<Entry>& entries, const std::optional<Version>& installed) {
+    int count = 0;
+    for (auto& entry : entries) {
+        const auto tag = TagVersion(entry.name, entry.comments);
+        if (VersionMatches(tag, installed)) {
+            continue;
+        }
+        entry.comments += fmt::format("Sharkive: for {}, installed {}\n", ToString(*tag),
+                                      ToString(*installed));
+        ++count;
+    }
+    return count;
+}
+
 std::vector<Entry> NewEntries(const std::vector<Entry>& downloaded,
                               const std::vector<std::string>& existing_names) {
     std::set<std::string> have;
