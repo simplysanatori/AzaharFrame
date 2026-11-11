@@ -9,6 +9,7 @@
 #include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "frame_xr/input/controls.h"
 #include "frame_xr/vis/beam.h"
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
