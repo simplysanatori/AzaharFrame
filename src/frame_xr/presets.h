@@ -21,6 +21,10 @@ struct ImmersivePreset {
     int32_t register_offset;
     /// Settings::values.vr_immersive_wider_view: the game's scenery holds up past its own view.
     bool wider_view = false;
+    /// AzaharFrame depth: Settings::values.vr_immersive_positional_game_scaler (0 = 1x, 1 = 10x,
+    /// 2 = 100x). In mode 3 it sets the eye distance and the head movement in the game's units
+    /// (CitraVR: 10^value x 3D Depth / 10 x 6.5 cm), so it is the game's world scale.
+    int32_t depth_multiplier = 0;
 };
 
 /// The preset for the game with this title id (any region), or null.

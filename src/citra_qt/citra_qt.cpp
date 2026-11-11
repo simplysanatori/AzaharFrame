@@ -2602,6 +2602,15 @@ void GMainWindow::BootGame(const QString& filename) {
                 wider.SetValue(4);
                 LOG_INFO(Frontend, "xr: {}: Wider View preset", preset->name);
             }
+            // AzaharFrame depth: the game's world scale (the eye distance in mode 3).
+            auto& depth = Settings::values.vr_immersive_positional_game_scaler;
+            if (preset->depth_multiplier != 0 && mode.GetValue() == preset->mode &&
+                depth.UsingGlobal() && depth.GetValue() == 0) {
+                depth.SetGlobal(false);
+                depth.SetValue(static_cast<u32>(preset->depth_multiplier));
+                LOG_INFO(Frontend, "xr: {}: Depth Factor Multiplier preset {}", preset->name,
+                         preset->depth_multiplier);
+            }
         }
 #endif
     }

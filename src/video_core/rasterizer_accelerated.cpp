@@ -12,6 +12,8 @@
 #include "video_core/vr_view_matrix.h" // AzaharFrame
 
 #include <set>
+#include <fmt/format.h>
+#include "common/logging/log.h" // AzaharFrame depth
 
 namespace VideoCore {
 
@@ -369,7 +371,10 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
          * still possible to supply your own values using the config options, but the default now should be using this
          * "auto-detect" routine.
          */
-        if (viewMatrixIndex == -1 && mode >= 3)
+        // AzaharFrame depth: a known register no longer skips the eye indicator search.
+        const VideoCore::Immersive::RegisterSearch search =
+            VideoCore::Immersive::RegisterSearchFor(viewMatrixIndex, !findLeftRightEyeIndicator);
+        if (search.Any() && mode >= 3)
         {
             struct regscore
             {
@@ -414,7 +419,7 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                         /*
                          * This block does the scoring for the possible view matrix register
                          */
-                        if (r <= 91)
+                        if (search.view_matrix && r <= 91) // AzaharFrame depth
                         {
                             //Check that all the values are between -1 and 1
                             //don't include values that might be positional and values in the final 4x4 row
@@ -478,7 +483,11 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                          *   * It only has a small amount of variance in its values (rounded to 5dp)
                          *   * Frequently selected registers get a small bonus, as they then become more likely to be the correct ones
                          */
-                        for (int i = 0; i <= 3; ++i)
+                        // AzaharFrame depth: never inside a known view matrix (the patch
+                        // below would not use it there).
+                        const bool in_view = !search.view_matrix && r >= viewMatrixIndex &&
+                                             r <= viewMatrixIndex + 3;
+                        for (int i = 0; i <= 3 && search.eye_indicator && !in_view; ++i)
                         {
                             float value = fabsf(f[r][i]);
 
@@ -559,7 +568,19 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                     }
                 }
 
-                viewMatrixIndex = vr_heuristic.view_matrixregister;
+                if (search.view_matrix) { // AzaharFrame depth: else the known one stays
+                    viewMatrixIndex = vr_heuristic.view_matrixregister;
+                }
+                if (counter == stop) { // AzaharFrame depth
+                    LOG_INFO(Render, "immersive mode 3: view matrix register {} ({}), eye "
+                                     "indicator {} ({})",
+                             viewMatrixIndex, search.view_matrix ? "found" : "set",
+                             search.eye_indicator
+                                 ? fmt::format("{},{}", vr_heuristic.eye_indicator_register,
+                                               vr_heuristic.eye_indicator_reg_index)
+                                 : Settings::values.vr_immersive_eye_indicator.GetValue(),
+                             search.eye_indicator ? "found" : "set");
+                }
             }
         }
 

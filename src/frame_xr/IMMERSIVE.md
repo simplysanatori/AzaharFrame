@@ -20,7 +20,8 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 
 The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
 Multiplier: 0 = 1x, 1 = 10x, 2 = 100x; how far the camera moves with your head, times the 3D
-slider / 10), `vr_si_mode_register_offset` (View Matrix Register, -1 = Auto, mode 3 only),
+slider / 10, and in mode 3 how far apart the two eyes are in the game's units: the game's world
+scale), `vr_si_mode_register_offset` (View Matrix Register, -1 = Auto, mode 3 only),
 `vr_immersive_eye_indicator` (Eye Indicator Register, e.g. `87,2`, empty = Auto, mode 3 only).
 
 While the setting is not 0, the internal resolution is two steps higher (CitraVR
@@ -234,6 +235,15 @@ fields; that race is gone.
   3DS's fixed view, so when the camera turns with the head (or with the screen's pitch) its edges
   show, and the white behind them slides into the picture. Nothing can fill that in; Off or Wide
   is the clean choice for the menus.
+- **Mode 3 eye indicator with a known register.** CitraVR searched for the view matrix register
+  and the eye indicator together, so a register from a preset or the setting skipped both, and
+  both eyes drew the same picture (the game itself sees a 3D slider of 0.01). Here a known
+  register only ends the register search; the eye indicator is still searched for, outside that
+  register's matrix, unless **Eye Indicator Register** is set. The log names both once the search
+  ends (`immersive mode 3: view matrix register 90 (set), eye indicator 87,2 (found)` in Super
+  Mario 3D Land). Its preset also sets the Depth Factor Multiplier to 100x: at 1x its eyes were
+  0.65 units apart in a world seen from about 1500 units, a third of a 3DS pixel of difference;
+  at 100x it is about the 3DS's own 3D at full depth (mock runs of the title scene).
 - The `vr_immersive_mode > 90` register search mode (thumbrest touch steps `uoffset`) is not
   carried over; `uoffset` is always -1.
 - The four `vr_*` settings are now `SwitchableSetting`s so they can be set per application in the
