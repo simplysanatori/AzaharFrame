@@ -118,6 +118,7 @@ bool PerGameSetting(Id id) {
     case Id::GameFov:
     case Id::NarrowScreen:
     case Id::DepthFactor:
+    case Id::Depth3d: // AzaharFrame depth3d
         return true;
     default:
         return false;
@@ -141,6 +142,8 @@ bool UsesGlobal(Id id) {
         return v.vr_immersive_squeeze.UsingGlobal();
     case Id::DepthFactor:
         return v.vr_immersive_positional_game_scaler.UsingGlobal();
+    case Id::Depth3d:
+        return v.factor_3d.UsingGlobal();
     default:
         return true;
     }
@@ -285,6 +288,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.motion_controls = static_cast<int>(std::min<u32>(v.vr_motion_controls.GetValue(), 2));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
+    m.depth_3d = static_cast<int>(std::min<u32>(v.factor_3d.GetValue(), 100)); // depth3d
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
@@ -390,6 +394,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::DepthFactor:
         Apply(v.vr_immersive_positional_game_scaler, u, per_game);
         r.setting = MenuSetting::DepthFactor;
+        break;
+    case Id::Depth3d: // AzaharFrame depth3d: the HID's 3D slider reads it on every pad update
+        Apply(v.factor_3d, std::min<u32>(u, 100), per_game);
+        r.setting = MenuSetting::Depth3d;
         break;
     default:
         return;

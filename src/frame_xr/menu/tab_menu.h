@@ -68,6 +68,7 @@ enum class Id : int {
     MotionControls,
     ShowControllers,
     WindowScale,
+    Depth3d, ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
     ImmersiveMode,
     WiderView,
     GameFov,
@@ -129,6 +130,7 @@ struct MenuModel {
     int motion_controls = 1;
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
+    int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees

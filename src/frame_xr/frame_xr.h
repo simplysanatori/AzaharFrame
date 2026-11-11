@@ -189,6 +189,7 @@ enum class MenuSetting {
     GameFov, ///< `value`: degrees
     NarrowScreen,
     DepthFactor,
+    Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

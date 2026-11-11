@@ -2606,7 +2606,9 @@ void GMainWindow::BootGame(const QString& filename) {
 #endif
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).
-    if (FrameXr::IsStarted() && Settings::values.factor_3d.GetValue() == 0) {
+    // AzaharFrame depth3d: a game's own 3D Depth (the in-game menu, Per-Game) is kept, 0 too.
+    if (FrameXr::IsStarted() && Settings::values.factor_3d.UsingGlobal() &&
+        Settings::values.factor_3d.GetValue() == 0) {
         LOG_INFO(Frontend, "xr: 3D slider was 0, set to 50 for VR");
         Settings::values.factor_3d.SetValue(50);
     }
@@ -4034,6 +4036,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::DepthFactor:
         set(v.vr_immersive_positional_game_scaler, u);
         break;
+    case S::Depth3d: // AzaharFrame depth3d
+        set(v.factor_3d, std::min<u32>(u, 100));
+        break;
     }
     if (!per_game_setting) {
         config->Save(); // the global file gets the global values only (WriteGlobalSetting)
@@ -4051,6 +4056,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
+    FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4059,6 +4065,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_fov.Restore();
     keep_wider.Restore();
     keep_squeeze.Restore();
+    keep_depth.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }

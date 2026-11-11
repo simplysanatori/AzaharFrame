@@ -143,6 +143,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     // The Wider View row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
+    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f; // AzaharFrame depth3d: lower down now
     m.immersive_mode = 0;
     d.Draw(m, v);
     bool label = false;
@@ -154,6 +155,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
 
     // A locked Background: no segments.
     m = Sample();
+    v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
     m.locked[static_cast<std::size_t>(Id::Background)] = Lock::Unavailable;
     d.Draw(m, v);
     for (const auto& h : d.menu.Hits()) {
@@ -170,12 +172,48 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
     v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
     d.Draw(Sample(), v);
     const MenuLayout& layout = d.menu.Layout();
-    REQUIRE(layout.sliders.size() == 1);
-    const auto& s = layout.sliders[0];
+    const MenuLayout::SliderTrack* fov = nullptr;
+    for (const auto& track : layout.sliders) {
+        if (track.id == Id::GameFov) {
+            fov = &track;
+        }
+    }
+    REQUIRE(fov != nullptr);
+    const auto& s = *fov;
     CHECK(layout.SliderAt(Id::GameFov, s.x0 - 50.0f) == 0.0f);
     CHECK(layout.SliderAt(Id::GameFov, s.x1 + 50.0f) == 1.0f);
     const float mid = layout.SliderAt(Id::GameFov, (s.x0 + s.x1) * 0.5f);
     CHECK(mid > 0.45f);
     CHECK(mid < 0.55f);
     CHECK(layout.SliderAt(Id::WiderView, s.x0) < 0.0f);
+}
+
+// AzaharFrame depth3d
+TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[frame_xr][tabmenu]") {
+    CHECK(LabelFor(Id::Depth3d) == "3D Depth");
+    CHECK(ExplainFor(Id::Depth3d) == "How deep the 3D looks in this game.");
+    const SliderRange r = SliderFor(Id::Depth3d);
+    CHECK(r.min == 0.0f);
+    CHECK(r.max == 100.0f);
+    CHECK(r.step == 5.0f);
+
+    Drawn d;
+    MenuView v;
+    v.tab = Tab::Settings;
+    MenuModel m = Sample();
+    m.depth_3d = 50;
+    bool found = false;
+    for (float scroll = 0.0f; scroll <= 2000.0f && !found; scroll += kRowH) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& track : d.menu.Layout().sliders) {
+            if (track.id == Id::Depth3d) {
+                found = true;
+                const float mid = d.menu.Layout().SliderAt(Id::Depth3d, (track.x0 + track.x1) * 0.5f);
+                CHECK(mid > 0.45f);
+                CHECK(mid < 0.55f);
+            }
+        }
+    }
+    CHECK(found);
 }

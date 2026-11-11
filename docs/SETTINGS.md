@@ -24,6 +24,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
+| [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -89,6 +90,12 @@ The shape of the top screen in VR, and of the screen in immersive mode. The scre
 
 Match the shape the game or mod draws, or the picture stretches. A change shows at once, also from the in-game menu, so you can match a mod's setting while you play.
 
+## 3D Depth
+
+How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
+
+A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the 3D comes from your own eyes, so the setting does not change the 3D there. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
+
 ## Immersive Mode
 
 Puts you inside the game instead of in front of a floating screen.
@@ -134,6 +141,6 @@ Full modes only. How far the game camera moves when you move your head, together
 
 - Azahar for Frame starts with the **Dark** theme. **Emulation > Configure > General > UI > Theme** changes it.
 - The first time VR starts, the current controls profile gets the Frame layout. After that your changes stay. See [CONTROLS.md](CONTROLS.md#changing-the-layout).
-- In VR, the Single Screen and Separate Windows layouts change to Default, and a 3D depth of 0 becomes 50%.
+- In VR, the Single Screen and Separate Windows layouts change to Default, and a global 3D depth of 0 becomes 50%. A game's own 3D Depth stays as you set it, 0% too.
 - Fast Forward runs at **Turbo Speed Limit** in **Emulation > Configure > General**.
 - Flat mode has its own screen layout, **Large Screen** at first, in a 16:9 window. See [CONTROLS.md](CONTROLS.md#playing-in-a-window-flat).

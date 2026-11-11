@@ -65,6 +65,9 @@ std::string SliderText(Id id, float value) {
     if (id == Id::GameFov) {
         return Format("%.0f\u00b0", value);
     }
+    if (id == Id::Depth3d) {
+        return Format("%.0f%%", value);
+    }
     return Format("%.0f", value);
 }
 
@@ -99,6 +102,12 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
         rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
         rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
+        // AzaharFrame depth3d
+        Row depth = row(Id::Depth3d, RowKind::Slider);
+        const SliderRange dr = SliderFor(Id::Depth3d);
+        depth.t = (static_cast<float>(m.depth_3d) - dr.min) / (dr.max - dr.min);
+        depth.value = SliderText(Id::Depth3d, static_cast<float>(m.depth_3d));
+        rows.push_back(depth);
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
         rows.push_back(full(row(Id::WiderView, RowKind::Segmented, m.wider_view)));
         Row fov = full(row(Id::GameFov, RowKind::Slider));
@@ -217,6 +226,8 @@ std::string LabelFor(Id id) {
         return "Show Controllers";
     case Id::WindowScale:
         return "Window Scale";
+    case Id::Depth3d:
+        return "3D Depth";
     case Id::ImmersiveMode:
         return "Immersive Mode";
     case Id::WiderView:
@@ -258,6 +269,8 @@ std::string ExplainFor(Id id) {
         return "Shows the controllers in VR.";
     case Id::WindowScale:
         return "Makes text and buttons in Azahar's window bigger.";
+    case Id::Depth3d:
+        return "How deep the 3D looks in this game.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
@@ -289,6 +302,9 @@ std::string ExplainLock(Lock lock) {
 SliderRange SliderFor(Id id) {
     if (id == Id::GameFov) {
         return {30.0f, 110.0f, 1.0f};
+    }
+    if (id == Id::Depth3d) {
+        return {0.0f, 100.0f, 5.0f};
     }
     return {};
 }
