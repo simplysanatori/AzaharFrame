@@ -272,6 +272,8 @@ void MenuPanel::BuildModel(const Host& host) {
     m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
+    m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
+    m.touchpad_touch = static_cast<int>(std::min<u32>(v.vr_touchpad_touch.GetValue(), 2));
     const float ox = v.vr_immersive_offset_x.GetValue(), oy = v.vr_immersive_offset_y.GetValue();
     m.immersive_offset = OffsetText(ox, oy);
     m.immersive_offset_set = std::fabs(ox) >= 0.05f || std::fabs(oy) >= 0.05f;
@@ -344,6 +346,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ScreenLayout: // AzaharFrame layout, global
         Apply(v.vr_screen_layout, std::min<u32>(u, 1), false);
         r.setting = MenuSetting::ScreenLayout;
+        break;
+    case Id::MoveScreens: // AzaharFrame menu, global
+        Apply(v.vr_move_screens, std::min<u32>(u, 2), false);
+        r.setting = MenuSetting::MoveScreens;
+        ShowToastText(Menu::LabelFor(id) + ": " + Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
+        break;
+    case Id::TouchpadTouch: // AzaharFrame menu, global
+        Apply(v.vr_touchpad_touch, std::min<u32>(u, 2), false);
+        r.setting = MenuSetting::TouchpadTouch;
         break;
     case Id::ImmersiveOffsetReset:
         Apply(v.vr_immersive_offset_x, 0.0f, false);
@@ -490,6 +501,12 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoreSettings:
         ask(MenuCommand::MoreSettings);
         break;
+    case Id::Cheats: // AzaharFrame menu
+        ask(MenuCommand::Cheats);
+        break;
+    case Id::EditControls: // AzaharFrame menu: the remap lane's
+        ask(MenuCommand::EditControls);
+        break;
     case Id::ResetPosition:
         if (host.reset_position) {
             host.reset_position();
@@ -524,6 +541,8 @@ void MenuPanel::Click(Target t, Host& host) {
         scope = t.index;
         break;
     case Id::ScreenLayout:
+    case Id::MoveScreens:
+    case Id::TouchpadTouch:
     case Id::StatsPosition:
     case Id::Background:
     case Id::FaceButtons:

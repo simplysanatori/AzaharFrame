@@ -290,6 +290,9 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_offset_y.SetGlobal(true); // AzaharFrame vrsize
     values.vr_screen_curve.SetGlobal(true);       // AzaharFrame curve
     values.vr_screen_layout.SetGlobal(true);      // AzaharFrame layout
+    values.vr_move_screens.SetGlobal(true);       // AzaharFrame menu
+    values.vr_touchpad_touch.SetGlobal(true);     // AzaharFrame menu
+    values.vr_bottom_screen_window.SetGlobal(true); // AzaharFrame menu
 }
 
 /// Gets the graphics API that should be used; not necessarily one set in settings

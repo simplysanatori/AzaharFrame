@@ -367,7 +367,8 @@ private:
     void InstallCIA(QStringList filepaths);
     void HideMouseCursor();
     void ShowMouseCursor();
-    void OpenPerGameConfiguration(u64 title_id, const QString& file_name);
+    void OpenPerGameConfiguration(u64 title_id, const QString& file_name,
+                                  bool show_cheats = false);
     void UpdateVolumeUI();
     void UpdateAPIIndicator(bool update = false);
     void UpdateStatusButtons();
