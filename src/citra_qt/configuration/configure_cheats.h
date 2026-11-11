@@ -60,7 +60,7 @@ private slots:
     void OnTextEdited();
     void OnDeleteCheat();
     void OnAddCheat();
-    void OnDownloadSharkive();
+    void OnDownloadCheats();
 
 private:
     std::unique_ptr<Ui::ConfigureCheats> ui;

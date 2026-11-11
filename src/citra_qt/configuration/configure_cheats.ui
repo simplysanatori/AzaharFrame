@@ -39,9 +39,9 @@
       </spacer>
      </item>
      <item>
-      <widget class="QLabel" name="labelSharkiveSource">
+      <widget class="QLabel" name="labelDownloadSources">
        <property name="text">
-        <string>Source: &lt;a href="https://github.com/FlagBrew/Sharkive"&gt;Sharkive&lt;/a&gt;</string>
+        <string>Sources: &lt;a href="https://github.com/simplysanatori/3ds-game-fixes"&gt;Developer&lt;/a&gt;, &lt;a href="https://github.com/FlagBrew/Sharkive"&gt;Sharkive&lt;/a&gt;</string>
        </property>
        <property name="openExternalLinks">
         <bool>true</bool>
@@ -49,9 +49,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="buttonDownloadSharkive">
+      <widget class="QPushButton" name="buttonDownloadCheats">
        <property name="text">
-        <string>Download from Sharkive</string>
+        <string>Download Cheats</string>
        </property>
       </widget>
      </item>
@@ -201,7 +201,7 @@
    <item>
     <layout class="QHBoxLayout">
      <item>
-      <widget class="QLabel" name="labelSharkiveStatus">
+      <widget class="QLabel" name="labelDownloadStatus">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred"/>
        </property>

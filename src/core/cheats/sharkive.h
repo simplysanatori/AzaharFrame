@@ -53,7 +53,7 @@ InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::opti
 /// The cartridge revision a cheat names ("Rev1", "rev 1", "Rev02"), nullopt without one.
 std::optional<int> TagRevision(std::string_view name, std::string_view comments = {});
 
-/// Appends "Sharkive: for Rev0, this cartridge is Rev1" to the notes of each entry tagged with
+/// Appends "Version note: for Rev0, this cartridge is Rev1" to the notes of each entry tagged with
 /// another revision. Entries with no Rev tag are left alone. Returns how many differ.
 int MarkOtherRevisions(std::vector<Entry>& entries, int installed_revision);
 
@@ -66,7 +66,7 @@ std::optional<Version> TagVersion(std::string_view name, std::string_view commen
 /// too (nothing to compare against).
 bool VersionMatches(const std::optional<Version>& tag, const std::optional<Version>& installed);
 
-/// Appends "Sharkive: for v1.1, installed v1.0" to the notes of each entry whose tag differs from
+/// Appends "Version note: for v1.1, installed v1.0" to the notes of each entry whose tag differs from
 /// `installed`. Returns how many entries differ.
 int MarkOtherVersions(std::vector<Entry>& entries, const std::optional<Version>& installed);
 

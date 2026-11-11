@@ -218,7 +218,7 @@ int MarkOtherRevisions(std::vector<Entry>& entries, int installed_revision) {
             continue;
         }
         entry.comments +=
-            fmt::format("Sharkive: for Rev{}, this cartridge is Rev{}\n", *tag, installed_revision);
+            fmt::format("Version note: for Rev{}, this cartridge is Rev{}\n", *tag, installed_revision);
         ++count;
     }
     return count;
@@ -242,7 +242,7 @@ int MarkOtherVersions(std::vector<Entry>& entries, const std::optional<Version>&
         if (VersionMatches(tag, installed)) {
             continue;
         }
-        entry.comments += fmt::format("Sharkive: for {}, installed {}\n", ToString(*tag),
+        entry.comments += fmt::format("Version note: for {}, installed {}\n", ToString(*tag),
                                       ToString(*installed));
         ++count;
     }

@@ -15,11 +15,7 @@
 #include "core/cheats/cheat_base.h"
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
-#include "core/cheats/sharkive.h" // AzaharFrame cheats
-#include "core/file_sys/ncch_container.h"
-#include "core/hle/service/am/am.h"
-#include "core/hle/service/fs/archive.h"
-#include "sharkive_client.h"   // AzaharFrame cheats
+#include "core/cheats/online.h" // AzaharFrame cheats
 #include "ui_configure_cheats.h"
 
 ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_id_, QWidget* parent)
@@ -45,12 +41,12 @@ ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_i
     connect(ui->buttonSave, &QPushButton::clicked, this,
             [this] { SaveCheat(ui->tableCheats->currentRow()); });
     connect(ui->buttonDelete, &QPushButton::clicked, this, &ConfigureCheats::OnDeleteCheat);
-    // AzaharFrame cheats: the only outbound connection, made when this button is clicked
-    connect(ui->buttonDownloadSharkive, &QPushButton::clicked, this,
-            &ConfigureCheats::OnDownloadSharkive);
-    ui->buttonDownloadSharkive->setEnabled(title_id != 0);
+    // AzaharFrame cheats: the only outbound connections, made when this button is clicked
+    connect(ui->buttonDownloadCheats, &QPushButton::clicked, this,
+            &ConfigureCheats::OnDownloadCheats);
+    ui->buttonDownloadCheats->setEnabled(title_id != 0);
     // easier to hit with the VR beam
-    ui->buttonDownloadSharkive->setMinimumHeight(32);
+    ui->buttonDownloadCheats->setMinimumHeight(32);
     ui->buttonAddCheat->setMinimumHeight(32);
 
     cheat_engine.LoadCheatFile(title_id);
@@ -262,47 +258,14 @@ void ConfigureCheats::OnAddCheat() {
     last_col = 1;
 }
 
-namespace {
-
-// AzaharFrame cheats: the version the game runs at: the update title's TMD (0004000E), else the
-// installed base title's TMD, else the running ROM's own NCCH (a cartridge dump has no TMD), else
-// unknown (nothing is marked). The order is Cheats::Sharkive::SelectInstalledVersion.
-Cheats::Sharkive::InstalledVersion QueryInstalledVersion(u64 title_id,
-                                                         const std::string& game_path) {
-    using Service::FS::MediaType;
-    const u64 low = title_id & 0xFFFFFFFFULL;
-    const auto tmd_version = [](u64 tid) -> std::optional<u16> {
-        for (const MediaType media : {MediaType::SDMC, MediaType::NAND}) {
-            const auto tmd = Service::AM::GetTitleMetadata(media, tid);
-            if (tmd.LoadResult() == Loader::ResultStatus::Success) {
-                return tmd.GetTitleVersion();
-            }
-        }
-        return std::nullopt;
-    };
-    const auto update = tmd_version((0x0004000EULL << 32) | low);
-    const auto base = tmd_version((0x00040000ULL << 32) | low);
-    std::optional<u16> remaster;
-    if (!update && !base && !game_path.empty()) {
-        FileSys::NCCHContainer ncch(game_path);
-        if (ncch.Load() == Loader::ResultStatus::Success) {
-            const auto& r = ncch.exheader_header.codeset_info.flags.remaster_version;
-            remaster = static_cast<u16>(r[0] | (r[1] << 8));
-        }
-    }
-    return Cheats::Sharkive::SelectInstalledVersion(update, base, remaster);
-}
-
-} // namespace
-
-// AzaharFrame cheats: one HTTPS request to raw.githubusercontent.com, made on a worker thread; the
-// result is merged on the GUI thread. Cheats already in the file (same name) are left alone, new
-// ones arrive disabled.
+// AzaharFrame cheats: one Download fetches the Developer and the Sharkive cheats (core/cheats/online.h)
+// on a worker thread; the result is shown on the GUI thread. Cheats already in the file (same name)
+// are left alone, new ones arrive disabled.
 void ConfigureCheats::SetGamePath(std::string path) {
     game_path = std::move(path);
 }
 
-void ConfigureCheats::OnDownloadSharkive() {
+void ConfigureCheats::OnDownloadCheats() {
     if (downloading) {
         return;
     }
@@ -310,75 +273,30 @@ void ConfigureCheats::OnDownloadSharkive() {
         return;
     }
     downloading = true;
-    ui->buttonDownloadSharkive->setEnabled(false);
-    ui->labelSharkiveStatus->setText(tr("Downloading..."));
+    ui->buttonDownloadCheats->setEnabled(false);
+    ui->labelDownloadStatus->setText(tr("Downloading..."));
 
     QPointer<ConfigureCheats> self(this);
+    Cheats::CheatEngine* engine = &cheat_engine;
     const u64 id = title_id;
-    const auto installed = QueryInstalledVersion(id, game_path);
-    std::thread([self, id, installed] {
-        SharkiveClient::Result result = SharkiveClient::Fetch(id);
+    const std::string path = game_path;
+    std::thread([self, engine, id, path] {
+        const auto result = Cheats::Online::DownloadCheats(*engine, id, path);
         QMetaObject::invokeMethod(
             qApp,
-            [self, installed, result = std::move(result)] {
+            [self, result] {
                 if (!self) {
                     return;
                 }
                 self->downloading = false;
-                self->ui->buttonDownloadSharkive->setEnabled(true);
-                QString status;
-                switch (result.status) {
-                case SharkiveClient::Status::NotFound:
-                    status = tr("No cheats for this game");
-                    break;
-                case SharkiveClient::Status::Error:
-                    status = tr("Download failed: %1").arg(QString::fromStdString(result.error));
-                    break;
-                case SharkiveClient::Status::Ok: {
-                    std::vector<std::string> names;
-                    for (const auto& cheat : self->cheat_engine.GetCheats()) {
-                        names.push_back(cheat->GetName());
-                    }
-                    const auto parsed = Cheats::Sharkive::Parse(result.body);
-                    auto added = Cheats::Sharkive::NewEntries(parsed, names);
-                    const bool by_revision = installed.revision.has_value();
-                    const int other =
-                        by_revision
-                            ? Cheats::Sharkive::MarkOtherRevisions(added, *installed.revision)
-                            : Cheats::Sharkive::MarkOtherVersions(added, installed.version);
-                    if (parsed.empty()) {
-                        status = tr("No cheats for this game");
-                        break;
-                    }
-                    for (const auto& entry : added) {
-                        auto cheat = std::make_shared<Cheats::GatewayCheat>(
-                            entry.name, entry.code, entry.comments);
-                        cheat->SetEnabled(false);
-                        self->cheat_engine.AddCheat(std::move(cheat));
-                    }
-                    if (!added.empty()) {
-                        self->cheat_engine.SaveCheatFile(self->title_id);
-                        const int row = self->ui->tableCheats->currentRow();
-                        self->LoadCheats();
-                        self->ui->tableCheats->setCurrentCell(row, 1);
-                    }
-                    status = added.empty() ? tr("No new cheats")
-                             : added.size() == 1 ? tr("1 cheat added")
-                                                 : tr("%1 cheats added").arg(added.size());
-                    if (other > 0) {
-                        status += (by_revision ? tr(", %1 for another revision")
-                                               : tr(", %1 for another version"))
-                                      .arg(other);
-                        if (installed.source == Cheats::Sharkive::VersionSource::UpdateTmd && installed.version) {
-                            status += tr(" (update %1 installed)")
-                                          .arg(QString::fromStdString(
-                                              Cheats::Sharkive::ToString(*installed.version)));
-                        }
-                    }
-                    break;
+                self->ui->buttonDownloadCheats->setEnabled(true);
+                if (result.developer_added + result.sharkive_added > 0) {
+                    const int row = self->ui->tableCheats->currentRow();
+                    self->LoadCheats();
+                    self->ui->tableCheats->setCurrentCell(row, 1);
                 }
-                }
-                self->ui->labelSharkiveStatus->setText(status);
+                self->ui->labelDownloadStatus->setText(
+                    QString::fromStdString(Cheats::Online::StatusText(result)));
             },
             Qt::QueuedConnection);
     }).detach();

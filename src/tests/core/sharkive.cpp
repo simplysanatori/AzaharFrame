@@ -93,7 +93,7 @@ TEST_CASE("Sharkive: title version and matching", "[sharkive]") {
     auto entries = Parse("[A Game v1.0]\n00000000 00000001\n\n[B Game v1.1]\n00000000 00000002\n\n"
                          "[C]\n00000000 00000003\n");
     REQUIRE(MarkOtherVersions(entries, v11) == 1);
-    REQUIRE(entries[0].comments == "Sharkive: for v1.0, installed v1.1\n");
+    REQUIRE(entries[0].comments == "Version note: for v1.0, installed v1.1\n");
     REQUIRE(entries[1].comments.empty());
     REQUIRE(entries[2].comments.empty());
     REQUIRE(MarkOtherVersions(entries, std::nullopt) == 0);
@@ -146,7 +146,7 @@ TEST_CASE("Sharkive: revision tags and marking", "[sharkive]") {
     auto entries = Parse("[A Rev0 v1.1]\n00000000 00000001\n\n[B Rev1]\n00000000 00000002\n\n"
                          "[C Game v1.0]\n00000000 00000003\n");
     REQUIRE(MarkOtherRevisions(entries, 1) == 1);
-    REQUIRE(entries[0].comments == "Sharkive: for Rev0, this cartridge is Rev1\n");
+    REQUIRE(entries[0].comments == "Version note: for Rev0, this cartridge is Rev1\n");
     REQUIRE(entries[1].comments.empty());
     REQUIRE(entries[2].comments.empty()); // version-only tags stay unflagged
 }

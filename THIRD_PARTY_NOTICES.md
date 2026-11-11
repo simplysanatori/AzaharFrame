@@ -26,13 +26,17 @@ notice "Copyright Citra Emulator Project / Azahar Emulator Project, licensed
 under GPLv3 or any later version". The GPLv2 text is kept in the repository
 in [misc/licenses/gplv2.txt](misc/licenses/gplv2.txt).
 
+## 3ds-game-fixes
+
+The Cheats window's "Download Cheats" button (and the Cheats tab of the VR menu) first fetches the Developer cheats and code patches for a game from https://github.com/simplysanatori/3ds-game-fixes, the maintainer's own repository, released under the MIT licence (its LICENSE file). Nothing from it is shipped: the files for the open game are downloaded only when the button is clicked or a fix is installed.
+
 ## Sharkive
 
-The Cheats window's "Download from Sharkive" button fetches a game's cheat codes from Sharkive (https://github.com/FlagBrew/Sharkive) by FlagBrew, released under the GNU General Public License, version 3. The codes themselves are kept by JourneyOver, the maintainer of the 3DS set, and Sharkive's contributors. Nothing from Sharkive is shipped: the file for the open game is downloaded only when the button is clicked, and merged into the player's own cheat file.
+The same button then fetches a game's cheat codes from Sharkive (https://github.com/FlagBrew/Sharkive) by FlagBrew, released under the GNU General Public License, version 3. The codes themselves are kept by JourneyOver, the maintainer of the 3DS set, and Sharkive's contributors. Nothing from Sharkive is shipped: the file for the open game is downloaded only when the button is clicked, and merged into the player's own cheat file.
 
 ## LibreSSL
 
-The Download from Sharkive button talks HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
+The Download Cheats button talks HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
 
 ## Artwork
 
