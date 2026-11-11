@@ -119,7 +119,7 @@ struct MenuModel {
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect
     int screen_layout = 0; ///< 0 Stacked, 1 Side by Side (AzaharFrame layout)
-    int move_screens = 0;  ///< 0 Together, 1 Separately (AzaharFrame menu)
+    int move_screens = 0;  ///< 0 Off, 1 Secondary, 2 Both (AzaharFrame menu)
     int screen_curve = 0;  ///< index of Off, 15, 30, 45, 60, 75, 90 degrees
     std::string immersive_offset = "None";
     bool immersive_offset_set = false;

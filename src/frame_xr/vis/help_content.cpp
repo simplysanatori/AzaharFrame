@@ -245,7 +245,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Menu", OrNothing(ThreeDs(b, Control::Menu)));
     Row(g, "View", OrNothing(ThreeDs(b, Control::View)));
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
-    Row(g, "Left Stick Click", "Hide or Show Other Screen");
+    Row(g, "Left Stick Click", "Hide or Show Secondary Screen");
     Row(g, "Hold Left Stick Click (1 s)", "Screen Layout"); // AzaharFrame layout
     Row(g, "Right Stick Click", With("Swap Screens", ThreeDs(b, Control::StickClickR)));
     Row(g, "Hold Right Stick Click (1 s)", "Reset Screens and View");
@@ -329,7 +329,7 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
     Label(g, kLeft, {CtrlPart::Stick},
           {Title("Left Stick", OrNothing(StickTo(b, AnalogControl::StickL))),
-           Line("Click", "Hide or Show Other Screen"),
+           Line("Click", "Hide or Show Secondary Screen"),
            Line("Hold Click (1 s)", "Screen Layout")}); // AzaharFrame layout
     std::vector<DiagramLine> faces;
     for (const Face& f : Faces(pos)) {

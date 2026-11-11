@@ -133,7 +133,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
-    static const std::vector<std::string> kMove{"Off", "Other", "Both"}; // provisional labels, with LabelFor
+    static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -223,7 +223,7 @@ std::string LabelFor(Id id) {
     case Id::ScreenLayout:
         return "Screen Layout";
     case Id::MoveScreens:
-        return "Detach Screens"; // provisional
+        return "Detach Screens";
     case Id::TouchpadTouch:
         return "Touchpad Touch";
     case Id::EditControls:
@@ -272,9 +272,9 @@ std::string ExplainFor(Id id) {
     case Id::ScreenShape:
         return "The top screen's shape, for games or mods that change it.";
     case Id::ScreenCurve:
-        return "Bends the main screen so its sides come toward you.";
+        return "Bends the Primary Screen so its sides come toward you.";
     case Id::ScreenLayout:
-        return "The smaller screen below the main one, or to its right.";
+        return "The Secondary Screen below the Primary Screen, or to its right.";
     case Id::ImmersiveOffset:
         return "Moves the immersive screen to fit your lenses, in every game.";
     case Id::ShowStats:
