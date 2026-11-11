@@ -146,6 +146,7 @@ public:
 
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
+    void leaveEvent(QEvent* event) override; // AzaharFrame touchpad
     void mouseReleaseEvent(QMouseEvent* event) override;
 
     bool event(QEvent* event) override;
@@ -184,6 +185,7 @@ signals:
     void MouseActivity();
 
 private:
+    bool FeedVrMouse(const QMouseEvent* event, bool leaving); // AzaharFrame touchpad
     void TouchBeginEvent(const QTouchEvent* event);
     void TouchUpdateEvent(const QTouchEvent* event);
     void TouchEndEvent();

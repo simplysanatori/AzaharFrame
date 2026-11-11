@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "common/file_util.h" // AzaharFrame move
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
@@ -43,6 +44,7 @@ constexpr uint32_t kDimSize = 8;
 // again within kHintQuietNs; "↕" and "↔" are drawn as arrows by the HUD).
 constexpr const char* kStoppingText = "Stopping...";
 constexpr const char* kHintNormal = "D-Pad \xE2\x86\x95 Curve   \xE2\x86\x94 Nudge\nStick: Size, Distance";
+constexpr const char* kHintSecond = "D-Pad \xE2\x86\x94 Nudge\nStick: Size, Distance"; // AzaharFrame move
 constexpr const char* kHintImmersive =
     "D-Pad \xE2\x86\x95 Wider View   \xE2\x86\x94 Offset\nStick: Size, Distance";
 constexpr int64_t kHintQuietNs = 10'000'000'000;
@@ -63,6 +65,42 @@ XrPosef ToXr(const Input::Posef& p) {
 
 XrPosef BottomFromTop(const XrPosef& top, float scale) {
     return ToXr(Rig::BottomFromTop(ToInput(top), scale));
+}
+
+// AzaharFrame move: Detach Screens. The placement's slots (input/screen_rig.h Slots), and the
+// per-game file in the user directory.
+constexpr const char* kScreenPlacementFile = "screen-placement.txt";
+
+Rig::Slots SlotsOf(const ScreenPlacement& p) {
+    Rig::Slots s;
+    s.main = ToInput(p.top_pose);
+    s.main_scale = p.top_scale;
+    s.second_free = p.second_free;
+    s.second = ToInput(p.second_pose);
+    s.second_scale = p.second_scale;
+    return s;
+}
+
+void PutSlots(ScreenPlacement& p, const Rig::Slots& s) {
+    p.top_pose = ToXr(s.main);
+    p.top_scale = s.main_scale;
+    p.top_size = NormalTopSize(s.main_scale);
+    p.second_free = s.second_free;
+    p.second_pose = ToXr(s.second);
+    p.second_scale = s.second_scale;
+}
+
+uint32_t DetachMode() {
+    return Rig::ClampDetach(Settings::values.vr_move_screens.GetValue());
+}
+
+void LogSlots(const char* what, const Rig::Slots& s) {
+    LOG_INFO(Frontend, "xr: screens {}: main at {:.2f}, {:.2f}, {:.2f} size {:.2f}; second {}", what,
+             s.main.position.x, s.main.position.y, s.main.position.z, s.main_scale,
+             s.second_free ? fmt::format("at {:.2f}, {:.2f}, {:.2f} size {:.2f}",
+                                         s.second.position.x, s.second.position.y,
+                                         s.second.position.z, s.second_scale)
+                           : std::string("linked"));
 }
 
 // A white dot with a dark rim, premultiplied alpha, sRGB values.
@@ -695,8 +733,96 @@ void VrUi::SetLibraryDirs(const std::vector<LibraryDir>& dirs) {
 }
 
 void VrUi::ResetPlacement(Runtime& rt) {
+    // AzaharFrame move: both slots linked at 1.0x, Detach Screens as it is; forgotten for this game.
     SetScreenPlacement(DefaultScreenPlacement());
+    free_rebase = true;
+    ErasePlacement();
     static_cast<void>(rt);
+}
+
+void VrUi::WatchPlacement(bool screens_live) {
+    if (!screens_live) {
+        placement_live = false; // the next game loads its own
+        return;
+    }
+    const uint32_t detach = DetachMode();
+    const uint32_t layout = Settings::values.vr_screen_layout.GetValue();
+    ScreenPlacement place = GetScreenPlacement();
+    if (!placement_live) {
+        placement_live = true;
+        placement_title = GameTitleId();
+        seen_detach = detach;
+        seen_layout = layout;
+        free_held = false;
+        if (placement_title == 0) {
+            PutSlots(place, Rig::ForMode(SlotsOf(place), detach)); // no title id: nothing saved
+            SetScreenPlacement(place);
+            return;
+        }
+        if (!placement_file_read) {
+            placement_file_read = true;
+            std::string text;
+            const std::string path =
+                FileUtil::GetUserPath(FileUtil::UserPath::UserDir) + kScreenPlacementFile;
+            if (FileUtil::ReadFileToString(true, path, text) > 0) {
+                placement_file.Parse(text);
+            }
+        }
+        const auto saved = placement_file.Get(placement_title);
+        const Rig::Slots slots = Rig::ForMode(saved.value_or(Rig::Slots{}), detach);
+        PutSlots(place, slots);
+        SetScreenPlacement(place);
+        LogSlots(saved ? "saved for this game" : "at the defaults (none saved for this game)",
+                 slots);
+        return;
+    }
+    if (detach == seen_detach && layout == seen_layout) {
+        return;
+    }
+    Rig::Slots slots = SlotsOf(place);
+    if (detach != seen_detach) {
+        LOG_INFO(Frontend, "xr: {}", Rig::DetachToast(detach));
+        slots = Rig::ForMode(slots, detach); // Off: the second slot back to its linked place
+        free_held = false;
+    }
+    if (layout != seen_layout) {
+        Rig::Relink(slots); // a new Screen Layout re-places the second slot
+    }
+    seen_detach = detach;
+    seen_layout = layout;
+    PutSlots(place, slots);
+    SetScreenPlacement(place);
+    bridge.mapper().ReanchorDrag();
+    SavePlacement("Detach Screens or Screen Layout changed");
+}
+
+void VrUi::SavePlacement(const char* why) {
+    if (placement_title == 0 || !placement_live) {
+        return;
+    }
+    const Rig::Slots slots = SlotsOf(GetScreenPlacement());
+    placement_file.Set(placement_title, slots);
+    WritePlacementFile();
+    LogSlots(why, slots);
+}
+
+void VrUi::ErasePlacement() {
+    if (placement_title == 0 || !placement_live || !placement_file.Get(placement_title)) {
+        return;
+    }
+    placement_file.Erase(placement_title);
+    WritePlacementFile();
+}
+
+void VrUi::WritePlacementFile() {
+    const std::string path =
+        FileUtil::GetUserPath(FileUtil::UserPath::UserDir) + kScreenPlacementFile;
+    const std::string tmp = path + ".new";
+    const std::string text = placement_file.Format();
+    if (FileUtil::WriteStringToFile(true, tmp, text) != text.size() ||
+        !FileUtil::Rename(tmp, path)) {
+        LOG_WARNING(Frontend, "xr: could not save the screen placement");
+    }
 }
 
 void VrUi::AddCursor(const XrPosef& pose, float size_m, std::vector<Quad>& layers) {
@@ -724,7 +850,8 @@ uint32_t VrUi::CurveFor(const Immersive::ScreenLayers& shown) const {
     return std::min(Settings::values.vr_screen_curve.GetValue(), Rig::kMaxCurveDeg);
 }
 
-void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped) {
+void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped,
+                        const Input::PanelQuad* held, bool curve) {
     const ViewPose view = LatestViewPose();
     if (!view.valid) {
         return;
@@ -750,7 +877,8 @@ void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool sw
         const Input::PanelQuad& second = swapped ? quads.top : quads.bottom;
         const bool use_second =
             second.visible && (!in_main.visible || bottom_edge(second) < bottom_edge(in_main));
-        const Input::PanelQuad& under = use_second ? second : in_main;
+        // AzaharFrame move: Detach Screens: under the screen that is held.
+        const Input::PanelQuad& under = held ? *held : use_second ? second : in_main;
         at = under.pose.position +
              Input::Rotate(under.pose.orientation, {0.0f, -under.height_m * 0.5f - 0.05f, 0.0f});
     }
@@ -758,7 +886,8 @@ void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool sw
     // Below the screen and a little nearer, so it never hides inside a curved one.
     at = at + Input::Normalized(head - at) * std::min(0.1f, distance * 0.1f);
     const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
-    ShowHint(immersive ? kHintImmersive : kHintNormal, ToXr(pose), 0.32f * distance);
+    ShowHint(immersive ? kHintImmersive : curve ? kHintNormal : kHintSecond, ToXr(pose),
+             0.32f * distance);
     LOG_INFO(Frontend, "xr: grip hint shown ({})", immersive ? "immersive" : "screens");
 }
 
@@ -832,6 +961,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         screen_view.Reset();
         Immersive::SetBottomFocused(false);
     }
+    WatchPlacement(info.screens_live); // AzaharFrame move
     const bool focused = info.state == XR_SESSION_STATE_FOCUSED;
     Input::InputFrame in;
     in.time_ns = info.display_time;
@@ -967,11 +1097,20 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool holding_normal = !holding_immersive && bridge.mapper().DragActive();
     const Rig::DpadNudger::Steps nudge =
         nudger.Filter(game_in, holding_immersive || holding_normal);
+    // AzaharFrame move: Detach Screens: a grip moves the slot under it (main or second).
+    const uint32_t detach = DetachMode();
     // AzaharFrame controls: a grab starts: the hint chip, unless one showed in the last 10 s.
     if ((holding_immersive || holding_normal) && !was_holding &&
         (last_hint_ns == 0 || in.time_ns - last_hint_ns >= kHintQuietNs)) {
         last_hint_ns = in.time_ns;
-        ShowGripHint(holding_immersive, quads, screen_view.bottom_focus());
+        const Input::Panel held = bridge.mapper().DragPanel();
+        if (holding_normal && detach != Rig::kDetachOff && held != Input::Panel::None) {
+            const bool main = screen_view.InMainSlot(held == Input::Panel::Top);
+            ShowGripHint(false, quads, screen_view.bottom_focus(),
+                         held == Input::Panel::Top ? &quads.top : &quads.bottom, main);
+        } else {
+            ShowGripHint(holding_immersive, quads, screen_view.bottom_focus());
+        }
     }
     was_holding = holding_immersive || holding_normal;
     {
@@ -1010,12 +1149,54 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     if (cmd.cycle_layout) {
         CycleScreenLayout(); // AzaharFrame layout: left stick click held 1 s
     }
+    // AzaharFrame move: the slot the grip holds this frame, and whether it moves freely.
+    const bool drag_main = cmd.drag_panel != Input::Panel::None &&
+                           screen_view.InMainSlot(cmd.drag_panel == Input::Panel::Top);
+    const bool drag_free = cmd.top_drag_active && Rig::SlotFree(detach, drag_main);
+    if (!cmd.top_drag_active) {
+        free_held = false;
+    }
+    if (cmd.top_drag_active && detach != Rig::kDetachOff && !place.second_free) {
+        // Detached: from the first grab the second slot stays where it is drawn now and no
+        // longer follows the main one.
+        Rig::Slots slots = SlotsOf(place);
+        if (Rig::Detach(slots, detach, ToInput(place.bottom_pose))) {
+            PutSlots(place, slots);
+            SetScreenPlacement(place);
+            place = GetScreenPlacement();
+        }
+    }
+    const ViewPose head_view = LatestViewPose();
+    const Input::Vec3f eye = head_view.valid ? ToInput(head_view.head).position : Input::Vec3f{};
     if (cmd.reset_panels) {
         ResetPlacement(rt);
         // AzaharFrame controls: one rule, the 1 s hold resets the screens and re-centres, in every
         // mode (the immersive screen too, held or not); a tap never does.
         Immersive::OnResetPanels();
         Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
+    } else if (drag_free && cmd.drag_hand >= 0) {
+        // AzaharFrame move: a free slot, as the stats panel In Front: round you with the beam,
+        // facing you; the stick sets its distance and size.
+        const Input::Ray ray =
+            Input::RayFromPose(game_in.hand[static_cast<std::size_t>(cmd.drag_hand)].aim);
+        XrPosef& pose_xr = drag_main ? place.top_pose : place.second_pose;
+        float& scale = drag_main ? place.top_scale : place.second_scale;
+        Input::Posef pose = ToInput(pose_xr);
+        if (!free_held || free_held_main != drag_main || free_rebase) {
+            free_grab.Begin(eye, pose, ray);
+            free_distance = Rig::FreeDistance(Input::Length(pose.position - eye), 0.0f);
+            free_held = true;
+            free_held_main = drag_main;
+            free_rebase = false;
+        }
+        free_distance = Rig::FreeDistance(free_distance, cmd.top_depth_delta_z);
+        pose = Rig::FreePose(eye, free_grab.Direction(eye, ray, free_distance), free_distance);
+        pose_xr = ToXr(pose);
+        if (cmd.top_scale_stick != 0.0f) {
+            scale = Rig::ScaleWithStick(scale, cmd.top_scale_stick, cmd.top_scale_dt, 0.0f);
+        }
+        place.top_size = NormalTopSize(place.top_scale);
+        SetScreenPlacement(place);
     } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f ||
                cmd.top_scale_stick != 0.0f) {
         Input::Posef top = ToInput(place.top_pose);
@@ -1063,9 +1244,25 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                     hooks.game_setting_changed();
                 }
             }
+        } else if (holding_normal && bridge.mapper().DragActive() && drag_free) {
+            // AzaharFrame move: a free slot turns about you; up and down are the Screen Curve
+            // only while the main slot is held.
+            if (nudge.right != 0) {
+                ScreenPlacement now = GetScreenPlacement();
+                XrPosef& pose_xr = drag_main ? now.top_pose : now.second_pose;
+                pose_xr = ToXr(Rig::NudgeFree(ToInput(pose_xr), eye, nudge.right));
+                SetScreenPlacement(now);
+                free_rebase = true; // the hand carries on from the new place
+                bridge.mapper().ReanchorDrag();
+                ShowToastText(Rig::MovedToast(nudge.right, 0));
+            }
+            if (nudge.up_presses != 0 && drag_main) {
+                StepScreenCurve(nudge.up_presses > 0 ? 1 : -1);
+            }
         } else if (holding_normal && bridge.mapper().DragActive()) {
             // Left and right turn the pair about you; up and down step the Screen Curve
             // (AzaharFrame curve; the hand moves the pair up and down).
+            // AzaharFrame move: detached (Secondary), only the main slot moves this way.
             ScreenPlacement now = GetScreenPlacement();
             const auto moved = nudge.right != 0
                                    ? Rig::NudgeTop(ToInput(now.top_pose), nudge.right, 0)
@@ -1079,7 +1276,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 LOG_INFO(Frontend, "xr: screens nudged {}: top at {:.2f}, {:.2f}, {:.2f}",
                          nudge.right, moved->position.x, moved->position.y, moved->position.z);
             }
-            if (nudge.up_presses != 0) {
+            if (nudge.up_presses != 0 && (detach == Rig::kDetachOff || drag_main)) {
                 StepScreenCurve(nudge.up_presses > 0 ? 1 : -1);
             }
         }
@@ -1095,6 +1292,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                      now.top_pose.position.x, now.top_pose.position.y, now.top_pose.position.z,
                      now.top_scale, now.top_size.width, now.top_size.height,
                      Rig::DepthScale(now.top_scale));
+            SavePlacement("moved"); // AzaharFrame move: per game
         }
     }
     // From 20 % on, so a short View press (Select) logs nothing.
@@ -1134,6 +1332,14 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             LOG_INFO(Frontend, "xr: View held, stopping the game");
             hooks.stop_game();
         }
+    }
+    // AzaharFrame touchpad: the dot of the touchpad or the mouse on the bottom screen.
+    if (const Input::TouchpadCursor& pad_dot = bridge.touchpad_cursor(); pad_dot.visible) {
+        const Input::DotPose dot = Input::DotOnQuad(panels.bottom, pad_dot.u, pad_dot.v, eye);
+        const XrPosef pose{{dot.orientation.x, dot.orientation.y, dot.orientation.z,
+                            dot.orientation.w},
+                           {dot.position.x, dot.position.y, dot.position.z}};
+        AddCursor(pose, dot.size_m, layers);
     }
     if (out.cursor.visible) {
         const XrPosef pose{{out.cursor.orientation.x, out.cursor.orientation.y,

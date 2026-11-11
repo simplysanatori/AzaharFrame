@@ -53,6 +53,12 @@ public:
         return bottom_focus_ || (managed ? immersive_bottom_shown_ : !bottom_hidden_);
     }
 
+    /// AzaharFrame move: the screen drawn as the top one (true) or the bottom one is in the main
+    /// slot (Detach Screens moves one slot).
+    bool InMainSlot(bool top_screen) const {
+        return top_screen != bottom_focus_;
+    }
+
     /// Right stick click, tap.
     Effect Swap(bool managed);
     /// Left stick click, tap: hides or shows the screen that is not in focus.

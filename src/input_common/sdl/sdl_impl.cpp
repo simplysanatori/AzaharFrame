@@ -99,6 +99,24 @@ namespace InputCommon {
 
 namespace SDL {
 
+// Helper class that enforces a proper lock order with SDL internal joystick lock.
+class JoystickMapLock {
+public:
+    explicit JoystickMapLock(std::mutex& mutex_) : mutex{mutex_} {
+        SDL_LockJoysticks();
+        mutex.lock();
+    }
+    ~JoystickMapLock() {
+        mutex.unlock();
+        SDL_UnlockJoysticks();
+    }
+    JoystickMapLock(const JoystickMapLock&) = delete;
+    JoystickMapLock& operator=(const JoystickMapLock&) = delete;
+
+private:
+    std::mutex& mutex;
+};
+
 static std::string GetGUID(SDL_Joystick* joystick) {
     SDL_JoystickGUID guid = SDL_JoystickGetGUID(joystick);
     char guid_str[33];
@@ -238,7 +256,7 @@ struct SDLJoystickDeleter {
  */
 std::shared_ptr<std::vector<std::shared_ptr<SDLJoystick>>> SDLState::GetJoysticksByGUID(
     const std::string& guid) {
-    std::lock_guard lock{joystick_map_mutex};
+    JoystickMapLock lock{joystick_map_mutex};
     if (guid.empty() || guid == "0") {
         return joystick_vector;
     } else {
@@ -260,7 +278,7 @@ std::shared_ptr<std::vector<std::shared_ptr<SDLJoystick>>> SDLState::GetJoystick
  */
 std::shared_ptr<SDLJoystick> SDLState::GetSDLJoystickBySDLID(SDL_JoystickID sdl_id) {
     // rewriting this method, the old version was more fragile
-    std::lock_guard lock{joystick_map_mutex};
+    JoystickMapLock lock{joystick_map_mutex};
 
     for (auto& [guid, joystick_list] : joystick_map) {
         for (auto& joystick : *joystick_list) {
@@ -365,7 +383,7 @@ void SDLState::InitJoystick(int joystick_index) {
     }
     const std::string guid = GetGUID(sdl_joystick);
 
-    std::lock_guard lock{joystick_map_mutex};
+    JoystickMapLock lock{joystick_map_mutex};
     if (joystick_map.find(guid) == joystick_map.end()) {
         auto joystick = std::make_shared<SDLJoystick>(guid, 0, sdl_joystick, sdl_gamecontroller);
         auto vec = std::make_shared<std::vector<std::shared_ptr<SDLJoystick>>>();
@@ -450,7 +468,7 @@ void SDLState::HandleGameControllerEvent(const SDL_Event& event) {
 }
 
 void SDLState::CloseJoysticks() {
-    std::lock_guard lock{joystick_map_mutex};
+    JoystickMapLock lock{joystick_map_mutex};
     joystick_map.clear();
     joystick_vector->clear();
 }
@@ -1236,6 +1254,33 @@ SDLState::Pollers SDLState::GetPollers(InputCommon::Polling::DeviceType type) {
     }
 
     return pollers;
+}
+
+// AzaharFrame touchpad: the first controller with a touchpad; with two (Steam Controller: left,
+// right) the last one, the right pad. Needs SDL 2.0.14 for the touchpad calls.
+bool SDLState::GetTouchpad(TouchpadSample& sample) {
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+    std::lock_guard lock{joystick_map_mutex};
+    for (const auto& joystick : *joystick_vector) {
+        SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
+        if (!controller) {
+            continue;
+        }
+        const int pads = SDL_GameControllerGetNumTouchpads(controller);
+        if (pads <= 0) {
+            continue;
+        }
+        const int pad = pads >= 2 ? 1 : 0;
+        const auto [x, y, down] = joystick->GetTouch(pad);
+        sample.present = true;
+        sample.contact = down != 0.0f;
+        sample.click = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_TOUCHPAD) != 0;
+        sample.x = x;
+        sample.y = y;
+        return true;
+    }
+#endif
+    return false;
 }
 
 void SDLState::GetSystemBatteryState(float& percentage, bool& charging) {

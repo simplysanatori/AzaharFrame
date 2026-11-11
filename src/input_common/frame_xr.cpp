@@ -158,6 +158,8 @@ private:
 };
 
 std::mutex sink_mutex;
+std::mutex mouse_mutex; // AzaharFrame touchpad
+MouseState mouse_state;
 TouchSink* touch_sink = nullptr;
 
 } // namespace
@@ -261,6 +263,21 @@ void SendTouchReleased() {
     if (touch_sink) {
         touch_sink->TouchReleased();
     }
+}
+
+void SetMouseState(const MouseState& state) {
+    std::lock_guard lock{mouse_mutex};
+    mouse_state = state;
+}
+
+void ClearMouseState() {
+    std::lock_guard lock{mouse_mutex};
+    mouse_state = {};
+}
+
+MouseState GetMouseState() {
+    std::lock_guard lock{mouse_mutex};
+    return mouse_state;
 }
 
 DefaultProfile GetDefaultProfile() {

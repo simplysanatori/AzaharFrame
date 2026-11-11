@@ -39,6 +39,23 @@
       </spacer>
      </item>
      <item>
+      <widget class="QLabel" name="labelDownloadSources">
+       <property name="text">
+        <string>Sources: &lt;a href="https://github.com/simplysanatori/3ds-game-fixes"&gt;Developer&lt;/a&gt;, &lt;a href="https://github.com/FlagBrew/Sharkive"&gt;Sharkive&lt;/a&gt;</string>
+       </property>
+       <property name="openExternalLinks">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonDownloadCheats">
+       <property name="text">
+        <string>Download Cheats</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="buttonAddCheat">
        <property name="text">
         <string>Add Cheat</string>
@@ -184,17 +201,23 @@
    <item>
     <layout class="QHBoxLayout">
      <item>
-      <spacer>
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
+      <widget class="QLabel" name="labelDownloadStatus">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred"/>
        </property>
-       <property name="sizeHint" stdset="0">
+       <property name="minimumSize">
         <size>
          <width>0</width>
-         <height>0</height>
+         <height>34</height>
         </size>
        </property>
-      </spacer>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>

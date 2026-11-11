@@ -234,7 +234,7 @@ Normally the top screen floats two metres away. In immersive mode the game draws
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
 - **Full (6DoF): Other Games:** the same, for other games; it finds the camera while you play.
 
-Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Super Mario 3D Land and Asphalt 3D. They start in **Full (6DoF): Other Games**, with **View Matrix Register** 90 for the first two and 8 for Asphalt 3D. That applies only when the game's own properties have no **Immersive Mode** or register of their own, and the global one is still **Off** or **Auto**. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
+Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Super Mario 3D Land and Asphalt 3D. They start in **Full (6DoF): Other Games**, with **View Matrix Register** 90 for the first two and 8 for Asphalt 3D. Super Mario 3D Land also starts with **Depth Factor Multiplier** 100x; at 1x its 3D cannot be seen in immersive mode. That applies only when the game's own properties have no **Immersive Mode**, register or multiplier of their own, and the global one is still **Off** or **Auto**. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
 
 **Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. A change shows at once. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
@@ -249,7 +249,7 @@ Two more settings in the same group, per game, for the Full modes. **Wider View*
 - **Wider View** (**Off**, **1.1x** to **1.4x**): shows more of the game around the edges. Some games leave them empty; Super Mario 3D Land does. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Wider View: 1.2x** (for example) shows. It is kept for the game.
 - **Narrow Screen** (**Off**, **10%**, **20%**, **30%**): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place.
 
-The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, 1x by default), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
+The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, and how far apart your eyes are in the game, 1x by default; raise it when the 3D is too weak, then use **3D Depth**), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 
 ### Hide Bottom Screen
 

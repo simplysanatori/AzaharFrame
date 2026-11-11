@@ -128,6 +128,15 @@ game.
   hand carries on from there. `input/screen_rig.h`.
 - Horizontal lock is on by default as in CitraVR: dragging never moves the screens sideways (the
   target keeps the top screen's x: 0 unless the D-pad moved it). `MapperConfig::horizontal_lock`.
+- AzaharFrame move, **Detach Screens** (`vr_move_screens`, read every frame by `controls.cpp`):
+  the mapper reports the held screen as drawn and the hand (`drag_panel`, `drag_hand`), and
+  `ScreenView::InMainSlot` gives the slot. Off: as above. Secondary: the main slot as above, the
+  second slot free. Both: both free. A free slot is moved by `ScreenRig::FreeGrab` (as the stats
+  panel: round the eyes on its sphere, facing them, the stick sets its distance 0.5 to 10 m and its
+  own scale 0.5 to 3), D-pad left and right turn it about the eyes (`NudgeFree`), up and down are
+  the Screen Curve only while the main slot is held. The first grab in Secondary or Both detaches the
+  second slot where it is drawn (`ScreenRig::Detach`); the reset, Off and a new Screen Layout
+  link it again. Placement per game: `screen-placement.txt` (`ScreenRig::PlacementFile`).
 - The top screen goes no nearer than 1 m (`ScreenRig::kNearestTopZ`) and no further than 10 m.
   The bottom screen follows it, 0.5 m nearer, tilted back 45 degrees, 0.25 m under the top
   screen's bottom edge (0.75 m below its middle at size 1). It keeps its own size.
@@ -328,3 +337,7 @@ The Controls dialog shows these as "Frame A", "Frame Left Grip", "Frame Menu", a
 "press a button" capture works for the Frame controls (pollers). Unused engine inputs: grips
 (`button:8`, `button:9`, the screen grab also fires) and right stick click (`button:17`, the reset
 gesture also fires).
+
+## Touchpad Touch (AzaharFrame touchpad)
+
+Settings tab Touchpad Touch: Off, Touch or Click. A gamepad touchpad (the first controller that has one, the right pad when it has two) maps absolutely onto the bottom screen, with a dot where the touch is. Touch: finger contact touches. Click: the pad click touches and contact only moves the dot. The mouse over the render window (a touchpad that Steam Input maps to the mouse) maps the same way over the window, and its left button touches in both modes; its dot fades 2 s after the pointer rests. The beam, the pad and the mouse share one touch: the last to touch wins, the owner's release ends it, and a source that stayed down must let go before it touches again. A hidden bottom screen has no pad or mouse touch. Logic: `touchpad_touch.*`; feeds: `InputCommon::GetSDLTouchpad` and `FrameXr::GetMouseState`.

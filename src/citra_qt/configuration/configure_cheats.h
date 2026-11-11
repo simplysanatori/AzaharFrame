@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <span>
+#include <string>
 #include <QWidget>
 #include "common/common_types.h"
 
@@ -30,6 +31,8 @@ public:
                              QWidget* parent = nullptr);
     ~ConfigureCheats();
     bool ApplyConfiguration();
+    /// AzaharFrame cheats: the game file, for its NCCH version when no TMD is installed.
+    void SetGamePath(std::string path);
 
 private:
     /**
@@ -57,6 +60,7 @@ private slots:
     void OnTextEdited();
     void OnDeleteCheat();
     void OnAddCheat();
+    void OnDownloadCheats();
 
 private:
     std::unique_ptr<Ui::ConfigureCheats> ui;
@@ -65,4 +69,6 @@ private:
     bool edited = false, newly_created = false;
     int last_row = -1, last_col = -1;
     u64 title_id;
+    std::string game_path;
+    bool downloading = false; // AzaharFrame cheats
 };

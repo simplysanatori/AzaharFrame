@@ -1,0 +1,204 @@
+// Copyright 2026 AzaharFrame contributors
+// Licensed under GPLv3 or any later version
+// Refer to the license.txt file included.
+
+#include <algorithm>
+#include <cmath>
+#include "frame_xr/input/touchpad_touch.h"
+
+// AzaharFrame touchpad
+namespace FrameXr::Input {
+
+namespace {
+
+float Clamp01(float v) {
+    return std::clamp(v, 0.0f, 1.0f);
+}
+
+// Stay inside the last pixel: 320.0 itself is off the screen.
+float ToPx(float unit, float size) {
+    return std::clamp(unit * size, 0.0f, std::nextafter(size, 0.0f));
+}
+
+} // namespace
+
+void TouchpadTouch::Emit(TouchpadResult& out, TouchEventType type, float px, float py) {
+    if (out.event_count < static_cast<int>(out.events.size())) {
+        out.events[static_cast<std::size_t>(out.event_count++)] = {type, px, py};
+    }
+}
+
+void TouchpadTouch::Take(TouchpadResult& out, TouchSource who, float px, float py) {
+    // The last source to become active wins; a touch in progress just moves to its point.
+    Emit(out, touching_ ? TouchEventType::Moved : TouchEventType::Pressed, px, py);
+    touching_ = true;
+    owner_ = who;
+    sent_px_ = px;
+    sent_py_ = py;
+}
+
+void TouchpadTouch::Drop(TouchpadResult& out, TouchSource who) {
+    if (owner_ == who && touching_) {
+        Emit(out, TouchEventType::Released, 0.0f, 0.0f);
+        touching_ = false;
+    }
+    if (owner_ == who) {
+        owner_ = TouchSource::None;
+    }
+}
+
+void TouchpadTouch::Follow(TouchpadResult& out, TouchSource who, float px, float py) {
+    if (owner_ != who) {
+        return;
+    }
+    if (std::abs(px - sent_px_) >= kMoveEpsilonPx || std::abs(py - sent_py_) >= kMoveEpsilonPx) {
+        Emit(out, TouchEventType::Moved, px, py);
+        sent_px_ = px;
+        sent_py_ = py;
+    }
+}
+
+// True when the source engages with an edge it may use: a source that was down at the start
+// waits for a release first.
+bool TouchpadTouch::Engage(Source& s, bool engaged) {
+    if (!engaged) {
+        s.stale = false;
+    }
+    const bool edge = engaged && !s.engaged_prev && !s.stale;
+    s.engaged_prev = engaged;
+    return edge;
+}
+
+TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
+    TouchpadResult out;
+
+    // The beam, in order, as the mapper made them.
+    for (int i = 0; i < frame.beam_count; ++i) {
+        const TouchEvent& e = frame.beam[i];
+        switch (e.type) {
+        case TouchEventType::Pressed:
+            Take(out, TouchSource::Beam, e.x, e.y);
+            break;
+        case TouchEventType::Moved:
+            if (owner_ == TouchSource::Beam) {
+                Emit(out, TouchEventType::Moved, e.x, e.y);
+                sent_px_ = e.x;
+                sent_py_ = e.y;
+            }
+            break;
+        case TouchEventType::Released:
+            Drop(out, TouchSource::Beam);
+            break;
+        }
+    }
+
+    const bool on = frame.mode != TouchpadMode::Off && frame.bottom_visible;
+
+    // The pad. Touch: finger contact is the touch. Click: the click is, contact only aims.
+    {
+        const PadSample& pad = frame.pad;
+        const bool has_point = pad.present && (pad.contact || pad.click);
+        const bool engaged =
+            on && pad.present &&
+            (frame.mode == TouchpadMode::Touch ? pad.contact : pad.click && has_point);
+        if (has_point) {
+            pad_.px = ToPx(Clamp01(pad.x), kBottomScreenWidthPx);
+            pad_.py = ToPx(Clamp01(pad.y), kBottomScreenHeightPx);
+        }
+        if (Engage(pad_, engaged)) {
+            Take(out, TouchSource::Pad, pad_.px, pad_.py);
+        } else if (engaged) {
+            Follow(out, TouchSource::Pad, pad_.px, pad_.py);
+        }
+        if (!engaged) {
+            Drop(out, TouchSource::Pad);
+        }
+    }
+
+    // The mouse: the left button touches in both modes (a hover is not a contact).
+    bool mouse_hover = false;
+    {
+        const MouseSample& m = frame.mouse;
+        const bool inside = on && m.inside;
+        const bool engaged = inside && m.down;
+        if (m.inside) {
+            mouse_.px = ToPx(Clamp01(m.x), kBottomScreenWidthPx);
+            mouse_.py = ToPx(Clamp01(m.y), kBottomScreenHeightPx);
+            if (!mouse_seen_) {
+                // First seen (the game just started, or the menu closed): not a move.
+                mouse_move_ns_ = frame.time_ns - kMouseIdleNs;
+            } else if (m.x != mouse_last_x_ || m.y != mouse_last_y_) {
+                mouse_move_ns_ = frame.time_ns;
+            }
+            mouse_last_x_ = m.x;
+            mouse_last_y_ = m.y;
+            mouse_seen_ = true;
+        }
+        mouse_hover = inside && frame.time_ns - mouse_move_ns_ < kMouseIdleNs;
+        if (Engage(mouse_, engaged)) {
+            Take(out, TouchSource::Mouse, mouse_.px, mouse_.py);
+        } else if (engaged) {
+            Follow(out, TouchSource::Mouse, mouse_.px, mouse_.py);
+        }
+        if (!engaged) {
+            Drop(out, TouchSource::Mouse);
+        }
+    }
+
+    // The dot: where the touch is, or where it would be (pad contact in Click mode, the pointer).
+    TouchpadCursor& c = out.cursor;
+    if (on && owner_ != TouchSource::Beam) {
+        const bool pad_hover = frame.pad.present && (frame.pad.contact || frame.pad.click);
+        TouchSource src = TouchSource::None;
+        if (owner_ == TouchSource::Pad || owner_ == TouchSource::Mouse) {
+            src = owner_;
+        } else if (pad_hover) {
+            src = TouchSource::Pad;
+        } else if (mouse_hover) {
+            src = TouchSource::Mouse;
+        }
+        if (src != TouchSource::None) {
+            const Source& s = src == TouchSource::Pad ? pad_ : mouse_;
+            c.visible = true;
+            c.source = src;
+            c.px = s.px;
+            c.py = s.py;
+            c.u = s.px / kBottomScreenWidthPx;
+            c.v = s.py / kBottomScreenHeightPx;
+            c.pressed = owner_ == src;
+        }
+    }
+    return out;
+}
+
+bool TouchpadTouch::Reset() {
+    const bool was = touching_;
+    owner_ = TouchSource::None;
+    touching_ = false;
+    pad_ = Source{};
+    mouse_ = Source{};
+    mouse_seen_ = false;
+    return was;
+}
+
+DotPose DotOnQuad(const PanelQuad& quad, float u, float v, const Vec3f& eye) {
+    DotPose dot;
+    float lx = (u - 0.5f) * quad.width_m;
+    float lz = 0.0f;
+    Quatf turn;
+    if (quad.curve_radius > 0.0f) {
+        // The quad bent about the line x = 0, z = R (geometry.cpp, IntersectQuad).
+        const float r = quad.curve_radius;
+        const float angle = lx / r;
+        lx = r * std::sin(angle);
+        lz = r * (1.0f - std::cos(angle));
+        turn = {0.0f, std::sin(-angle * 0.5f), 0.0f, std::cos(-angle * 0.5f)};
+    }
+    const Vec3f local{lx, (0.5f - v) * quad.height_m, lz};
+    dot.position = Transform(quad.pose, local);
+    dot.orientation = Normalized(Multiply(quad.pose.orientation, turn));
+    dot.size_m = 0.01f + 0.003f * Length(dot.position - eye);
+    return dot;
+}
+
+} // namespace FrameXr::Input

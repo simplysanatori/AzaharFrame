@@ -227,3 +227,13 @@ TEST_CASE("FrameXr screen view: a drag moves the main slot whichever screen was 
         REQUIRE(still.z == Approx(kMain.pose.position.z));
     }
 }
+
+TEST_CASE("FrameXr screen view: which screen is in the main slot (AzaharFrame move)",
+          "[frame_xr]") {
+    ScreenView view;
+    REQUIRE(view.InMainSlot(true));
+    REQUIRE_FALSE(view.InMainSlot(false));
+    view.Swap(false);
+    REQUIRE_FALSE(view.InMainSlot(true));
+    REQUIRE(view.InMainSlot(false));
+}

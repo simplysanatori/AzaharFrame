@@ -19,7 +19,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
 | Left stick click, tap | Hide or Show Other Screen | See Swapping the screens |
 | Left stick click, held for 1 second | Screen Layout | See Screen layouts |
-| Right stick click, tap | Swap Screens | The other screen becomes the main one. Tap again to swap back |
+| Right stick click, tap | Swap Screens | The Secondary Screen becomes the Primary Screen. Tap again to swap back |
 | Right stick click, held for 1 second | Reset Screens and View | |
 | Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | |
@@ -57,25 +57,42 @@ The top screen starts 2 m ahead at eye height. It can be made up to 3 times bigg
 
 While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per press around you. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left) for 2 seconds. Use it when a big screen's edge is just out of view. To move them up or down, move the hand that holds them.
 
-D-pad up or down, while a grip holds the screens, makes the main (larger) screen more or less curved, one step per press: Off, 15°, 30°, 45°, 60°, 75° and 90°. A label shows the new value, for example **Screen Curve: 45°**, and it is kept for every game. The smaller screen below stays flat. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
+D-pad up or down, while a grip holds the screens, makes the Primary Screen more or less curved, one step per press: Off, 15°, 30°, 45°, 60°, 75° and 90°. A label shows the new value, for example **Screen Curve: 45°**, and it is kept for every game. The Secondary Screen stays flat. It is the **Screen Curve** setting ([SETTINGS.md](SETTINGS.md#screen-curve)).
 
 When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. The D-pad does not reach the game while you hold the screens.
 
-The bottom screen follows the top one, tilted back, just under its bottom edge. The screens stay where you leave them. Hold the right stick click for 1 second to put both back.
+The bottom screen follows the top one, tilted back, just under its bottom edge. Each game keeps the screens where you leave them. Hold the right stick click for 1 second to put both back. To move them apart, see Detaching the screens.
+
+## Detaching the screens
+
+**Detach Screens** in the in-game menu's **Position** tab lets the screens move apart. It is kept for every game.
+
+| Choice | Primary Screen | Secondary Screen |
+|---|---|---|
+| **Off** | A grip on either screen moves both | Follows the Primary Screen |
+| **Secondary** | Moves as with **Off** | Moves on its own |
+| **Both** | Moves on its own | Moves on its own |
+
+- A screen that moves on its own goes wherever you carry it with the grip, all around you, and turns to face you, like the stats panel. While you hold it, the stick of that hand moves it nearer or farther and makes it bigger or smaller (half to 3 times its size), and D-pad left or right nudges it around you.
+- After a swap the Secondary Screen is the top screen.
+- D-pad up or down changes the Screen Curve only while you hold the Primary Screen. The hint shows under the screen you hold.
+- Touch works on the bottom screen wherever you put it.
+- Hold the right stick click for 1 second to put both back together in front of you, at their normal size. **Detach Screens** stays as it is. **Off**, or a new Screen Layout, puts the Secondary Screen back in its place next to the Primary Screen.
+- Each game keeps its own screen positions. Immersive mode is not affected.
 
 ## Swapping the screens
 
-The screens have two places. The main one is where the top screen starts. The second one is smaller: below it, tilted back, or to its right with **Side by Side** (see Screen layouts). The screen in the main place is the one in focus. Every game starts with the top screen in focus.
+The screens have two places. The Primary Screen is where the top screen starts. The Secondary Screen is smaller: below it, tilted back, or to its right with **Side by Side** (see Screen layouts). The screen in the Primary Screen's place is the one in focus. Every game starts with the top screen in focus.
 
 | Control | What it does |
 |---|---|
-| Right stick click, tap | The other screen becomes the main one. The bottom screen takes the main place at the top screen's height, and the top screen goes to the second place. Tap again to swap back |
+| Right stick click, tap | The bottom screen becomes the Primary Screen, at the top screen's height, and the top screen becomes the Secondary Screen. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
 | Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
 
-- A grip moves both places together, in either focus.
+- A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
-- The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the main one.
+- The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the Primary Screen.
 - In games with **Hide Bottom Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
 - In every other game the left stick click hides and shows the bottom screen, and both bumpers + **View** is L, R and Select for the game.
 - Immersive mode pauses while the bottom screen is in focus, and picks up again when you swap back.
@@ -92,7 +109,7 @@ Hold the left stick click for 1 second to change the layout. In Flat, a grip hel
 | Left stick click, tap | Hide or Show Other Screen | **Single Screen** on or off |
 | Right stick click, held for 1 second | Reset Screens and View, in the same layout | **Large Screen**, not swapped |
 
-In VR, **Stacked** puts the smaller screen below the main one, tilted back. **Side by Side** puts it to the right of the main one, at the same distance and height, facing you. Only the main screen curves. A label shows the new layout, and it is kept. **Screen Layout** in the in-game menu's Position tab is the same setting. In Flat, the layout's name shows over the game for a moment.
+In VR, **Stacked** puts the Secondary Screen below the Primary Screen, tilted back. **Side by Side** puts it to the right of the Primary Screen, at the same distance and height, facing you. Only the Primary Screen curves. A label shows the new layout, and it is kept. **Screen Layout** in the in-game menu's Position tab is the same setting. In Flat, the layout's name shows over the game for a moment.
 
 ## Azahar's window
 
@@ -130,7 +147,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with five tabs down its left side:
 
 - **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
-- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
+- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window.
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.

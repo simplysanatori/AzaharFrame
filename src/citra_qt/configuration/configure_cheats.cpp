@@ -2,7 +2,12 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <memory>
+#include <optional>
+#include <thread>
 #include <QCheckBox>
+#include <QApplication>
+#include <QPointer>
 #include <QMessageBox>
 #include <QTableWidgetItem>
 #include <QtGlobal>
@@ -10,6 +15,7 @@
 #include "core/cheats/cheat_base.h"
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
+#include "core/cheats/online.h" // AzaharFrame cheats
 #include "ui_configure_cheats.h"
 
 ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_id_, QWidget* parent)
@@ -35,6 +41,13 @@ ConfigureCheats::ConfigureCheats(Cheats::CheatEngine& cheat_engine_, u64 title_i
     connect(ui->buttonSave, &QPushButton::clicked, this,
             [this] { SaveCheat(ui->tableCheats->currentRow()); });
     connect(ui->buttonDelete, &QPushButton::clicked, this, &ConfigureCheats::OnDeleteCheat);
+    // AzaharFrame cheats: the only outbound connections, made when this button is clicked
+    connect(ui->buttonDownloadCheats, &QPushButton::clicked, this,
+            &ConfigureCheats::OnDownloadCheats);
+    ui->buttonDownloadCheats->setEnabled(title_id != 0);
+    // easier to hit with the VR beam
+    ui->buttonDownloadCheats->setMinimumHeight(32);
+    ui->buttonAddCheat->setMinimumHeight(32);
 
     cheat_engine.LoadCheatFile(title_id);
     LoadCheats();
@@ -243,4 +256,48 @@ void ConfigureCheats::OnAddCheat() {
     newly_created = true;
     last_row = row;
     last_col = 1;
+}
+
+// AzaharFrame cheats: one Download fetches the Developer and the Sharkive cheats (core/cheats/online.h)
+// on a worker thread; the result is shown on the GUI thread. Cheats already in the file (same name)
+// are left alone, new ones arrive disabled.
+void ConfigureCheats::SetGamePath(std::string path) {
+    game_path = std::move(path);
+}
+
+void ConfigureCheats::OnDownloadCheats() {
+    if (downloading) {
+        return;
+    }
+    if (edited && !CheckSaveCheat()) {
+        return;
+    }
+    downloading = true;
+    ui->buttonDownloadCheats->setEnabled(false);
+    ui->labelDownloadStatus->setText(tr("Downloading..."));
+
+    QPointer<ConfigureCheats> self(this);
+    Cheats::CheatEngine* engine = &cheat_engine;
+    const u64 id = title_id;
+    const std::string path = game_path;
+    std::thread([self, engine, id, path] {
+        const auto result = Cheats::Online::DownloadCheats(*engine, id, path);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, result] {
+                if (!self) {
+                    return;
+                }
+                self->downloading = false;
+                self->ui->buttonDownloadCheats->setEnabled(true);
+                if (result.developer_added + result.sharkive_added > 0) {
+                    const int row = self->ui->tableCheats->currentRow();
+                    self->LoadCheats();
+                    self->ui->tableCheats->setCurrentCell(row, 1);
+                }
+                self->ui->labelDownloadStatus->setText(
+                    QString::fromStdString(Cheats::Online::StatusText(result)));
+            },
+            Qt::QueuedConnection);
+    }).detach();
 }

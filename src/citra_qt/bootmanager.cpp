@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 #include <QApplication>
@@ -23,6 +24,8 @@
 #include "core/frontend/framebuffer_layout.h"
 #include "core/loader/loader.h"
 #include "core/perf_stats.h"
+#include "frame_xr/frame_xr.h" // AzaharFrame touchpad
+#include "input_common/frame_xr.h" // AzaharFrame touchpad
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
@@ -583,9 +586,38 @@ void GRenderWindow::keyReleaseEvent(QKeyEvent* event) {
     InputCommon::GetKeyboard()->ReleaseKey(event->key());
 }
 
+// AzaharFrame touchpad: in VR with Touchpad Touch on, the pointer over this (invisible) window is
+// the touchpad as a mouse (Steam Input): it goes to the XR side as a position over the window and
+// the left button, to touch the bottom screen there, and not as a touch in the window's layout.
+bool GRenderWindow::FeedVrMouse(const QMouseEvent* event, bool leaving) {
+    if (Settings::values.vr_touchpad_touch.GetValue() == 0 || !FrameXr::VrShowing()) {
+        InputCommon::FrameXr::ClearMouseState();
+        return false;
+    }
+    const QSizeF size = this->size();
+    InputCommon::FrameXr::MouseState state;
+    if (!leaving && event && size.width() > 0.0 && size.height() > 0.0) {
+        const QPointF pos = event->position();
+        state.inside = true;
+        state.down = event->buttons().testFlag(Qt::LeftButton);
+        state.x = static_cast<float>(std::clamp(pos.x() / size.width(), 0.0, 1.0));
+        state.y = static_cast<float>(std::clamp(pos.y() / size.height(), 0.0, 1.0));
+    }
+    InputCommon::FrameXr::SetMouseState(state);
+    return true;
+}
+
+void GRenderWindow::leaveEvent(QEvent* event) {
+    QWidget::leaveEvent(event);
+    FeedVrMouse(nullptr, true);
+}
+
 void GRenderWindow::mousePressEvent(QMouseEvent* event) {
     if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchBeginEvent
+    }
+    if (FeedVrMouse(event, false)) {
+        return;
     }
 
     auto pos = event->pos();
@@ -602,6 +634,9 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
     if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchUpdateEvent
     }
+    if (FeedVrMouse(event, false)) {
+        return;
+    }
 
     auto pos = event->pos();
     const auto [x, y] = ScaleTouch(pos);
@@ -613,6 +648,9 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
 void GRenderWindow::mouseReleaseEvent(QMouseEvent* event) {
     if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchEndEvent
+    }
+    if (FeedVrMouse(event, false)) {
+        return;
     }
 
     if (event->button() == Qt::LeftButton)

@@ -32,6 +32,11 @@ public:
     virtual Pollers GetPollers(Polling::DeviceType type) = 0;
 
     virtual void GetSystemBatteryState(float& percentage, bool& charging) = 0;
+
+    /// AzaharFrame touchpad: see InputCommon::GetSDLTouchpad.
+    virtual bool GetTouchpad(TouchpadSample& sample) {
+        return false;
+    }
 };
 
 class NullState : public State {

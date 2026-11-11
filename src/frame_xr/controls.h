@@ -133,7 +133,17 @@ private:
     void CycleScreenLayout();
     /// AzaharFrame controls: the hint chip under the held screens (or low in front of you for
     /// the immersive screen).
-    void ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped);
+    /// AzaharFrame move: with `held`, under that screen (Detach Screens), and without the curve
+    /// unless `curve`.
+    void ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool swapped,
+                      const Input::PanelQuad* held = nullptr, bool curve = true);
+    /// AzaharFrame move: once a frame. The per-game placement at a game's start, and the changes
+    /// of Detach Screens (Off links the second slot again) and of Screen Layout (re-places it).
+    void WatchPlacement(bool screens_live);
+    /// AzaharFrame move: this game's placement into screen-placement.txt (or out of it).
+    void SavePlacement(const char* why);
+    void ErasePlacement();
+    void WritePlacementFile();
     /// Both bumpers + View + Menu outside a game (the mapper finds it in a game): once per chord.
     bool ModeChord(const Input::InputFrame& in);
     /// Asks the Qt side to switch between VR and flat (FrontendHooks::toggle_vr).
@@ -157,6 +167,18 @@ private:
     /// AzaharFrame curve: the runtime takes cylinder layers (XR_KHR_composition_layer_cylinder).
     bool cylinder_ok = false;
     bool normal_dragging = false; ///< a grip held the normal screens last frame (for the log)
+    // AzaharFrame move: Detach Screens (input/screen_rig.h), XR thread only.
+    Input::ScreenRig::FreeGrab free_grab;
+    bool free_held = false;      ///< a grip moves a free slot
+    bool free_held_main = false; ///< ... the main one
+    bool free_rebase = false;    ///< the slot moved under the hand: take the grab again
+    float free_distance = 0.0f;  ///< its distance from the eyes
+    bool placement_live = false; ///< this game's placement was loaded (WatchPlacement)
+    uint64_t placement_title = 0;
+    uint32_t seen_detach = 0;
+    uint32_t seen_layout = 0;
+    Input::ScreenRig::PlacementFile placement_file;
+    bool placement_file_read = false;
     bool actions_ok = false;
     bool bridge_live = false;
 

@@ -25,11 +25,15 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
         REQUIRE_FALSE(preset->wider_view); // Super Mario 3D Land shows black boxes with it
+        REQUIRE(preset->depth_multiplier == 2); // AzaharFrame depth: 100x, or no visible 3D
     }
     const auto* asphalt = FindImmersivePreset(0x0004000000034C00ull);
     REQUIRE(asphalt != nullptr);
     REQUIRE(asphalt->mode == 3);
     REQUIRE(asphalt->register_offset == 8);
+    // AzaharFrame depth: unmeasured games keep 1x.
+    REQUIRE(asphalt->depth_multiplier == 0);
+    REQUIRE(FindImmersivePreset(0x0004000000030800ull)->depth_multiplier == 0);
 }
 
 TEST_CASE("FrameXr presets: other games have none, ids are unique", "[frame_xr]") {
