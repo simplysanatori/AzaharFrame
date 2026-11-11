@@ -38,6 +38,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     cheats/online.h # AzaharFrame cheats
     cheats/sharkive.cpp # AzaharFrame cheats
     cheats/sharkive.h # AzaharFrame cheats
+    custom_tex/packs.cpp # AzaharFrame texdata
+    custom_tex/packs.h # AzaharFrame texdata
     core.cpp
     core.h
     core_timing.cpp
