@@ -440,7 +440,7 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
         {Id::Screenshot, Sym::kPhotoCamera, ButtonStyle::Tonal},
         {Id::SaveState, Sym::kSaveAs, ButtonStyle::Tonal},
         {Id::LoadState, Sym::kFolderOpen, ButtonStyle::Tonal},
-        {Id::Cheats, Sym::kTune, ButtonStyle::Tonal}, // AzaharFrame menu
+        {Id::Cheats, Sym::kCode, ButtonStyle::Tonal}, // AzaharFrame menu
         {Id::Restart, Sym::kRestartAlt, ButtonStyle::Tonal},
         {Id::AzaharWindow, Sym::kOpenInNew, ButtonStyle::Tonal},
         {Id::SwitchToFlat, Sym::kTv, ButtonStyle::Tonal},
@@ -593,7 +593,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
                {Id::ControlsPage, i}, pane);
     }
     const Rect edit{c.x1 - 200.0f, seg.y0, c.x1, seg.y1};
-    kit.Button(edit, ButtonStyle::Tonal, Sym::kTune, LabelFor(Id::EditControls),
+    kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
     AddHit(edit, {Id::EditControls}, pane);
     // Touchpad Touch: a label and its three choices.
