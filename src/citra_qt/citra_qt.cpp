@@ -3970,6 +3970,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
+    case C::Cheats: // AzaharFrame menu: Emulation > Configure Current Game..., Cheats tab
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [this] {
+            if (emulation_running && g_frame_mirror && g_frame_mirror->MenuOpen()) {
+                u64 title_id{};
+                system.GetAppLoader().ReadProgramId(title_id);
+                OpenPerGameConfiguration(title_id, game_path, true);
+            }
+        });
+        return;
+    case C::EditControls: // AzaharFrame menu: the remap lane's
+        return;
     case C::SetSetting:
         break;
     }
@@ -4043,6 +4055,12 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::Depth3d: // AzaharFrame depth3d
         set(v.factor_3d, std::min<u32>(u, 100));
+        break;
+    case S::MoveScreens: // AzaharFrame menu
+        set(v.vr_move_screens, std::min<u32>(u, 2));
+        break;
+    case S::TouchpadTouch: // AzaharFrame menu
+        set(v.vr_touchpad_touch, std::min<u32>(u, 2));
         break;
     }
     if (!per_game_setting) {
@@ -5786,9 +5804,13 @@ void GMainWindow::OnConfigurePerGame() {
     OpenPerGameConfiguration(title_id, game_path);
 }
 
-void GMainWindow::OpenPerGameConfiguration(u64 title_id, const QString& file_name) {
+void GMainWindow::OpenPerGameConfiguration(u64 title_id, const QString& file_name,
+                                           bool show_cheats) {
     Settings::SetConfiguringGlobal(false);
     ConfigurePerGame dialog(this, title_id, file_name, gl_renderer, physical_devices, system);
+    if (show_cheats) {
+        dialog.ShowCheatsTab(); // AzaharFrame menu
+    }
     const auto result = dialog.exec();
 
     if (result != QDialog::Accepted) {

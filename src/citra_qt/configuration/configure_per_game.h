@@ -49,6 +49,9 @@ public:
     /// Save all button configurations to settings file
     void ApplyConfiguration();
 
+    /// AzaharFrame menu: opens on the Cheats tab.
+    void ShowCheatsTab();
+
     /// Reset the settings for this game
     void ResetDefaults();
 
