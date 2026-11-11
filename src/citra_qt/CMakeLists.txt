@@ -312,6 +312,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_flat_dialog.cpp frame_flat_dialog.h)
     # VR and flat in one run: the gamepad for flat, the mode file, the window in Game Mode.
     target_sources(citra_qt PRIVATE frame_mode.cpp frame_mode.h)
+    # AzaharFrame window: the bottom screen in its own desktop window during VR.
+    target_sources(citra_qt PRIVATE frame_bottom_window.cpp frame_bottom_window.h)
 endif()
 target_link_libraries(citra_qt PUBLIC Boost::boost Qt6::Widgets)
 target_link_libraries(citra_qt PRIVATE nihstro-headers Qt6::Multimedia Qt6::Concurrent)

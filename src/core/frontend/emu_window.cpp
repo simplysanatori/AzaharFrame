@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <mutex>
+#include "common/frame_bottom_window.h" // AzaharFrame window
 #include "common/frame_flat.h" // AzaharFrame: flat mode's own screen layout
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -92,6 +93,10 @@ EmuWindow::~EmuWindow() = default;
 Settings::StereoRenderOption EmuWindow::get3DMode() const {
     Settings::StereoRenderOption render_3d_mode = Settings::values.render_3d.GetValue();
 #ifndef ANDROID
+    // AzaharFrame window: the bottom screen's own window in VR is never stereo.
+    if (is_secondary && Settings::frame_vr_bottom_window) {
+        return Settings::StereoRenderOption::Off;
+    }
     // on desktop, if separate windows and this is the bottom screen, then no stereo
     if (Settings::WindowLayoutOption() == Settings::LayoutOption::SeparateWindows &&
         ((!is_secondary && Settings::WindowSwapScreen()) ||
@@ -233,6 +238,21 @@ void EmuWindow::UpdateCurrentFramebufferLayout(u32 width, u32 height, bool is_po
                  layout.top_screen.GetWidth(), layout.top_screen.GetHeight(),
                  layout.bottom_screen.left, layout.bottom_screen.top,
                  layout.bottom_screen.GetWidth(), layout.bottom_screen.GetHeight());
+        NotifyFramebufferLayoutChanged(layout);
+        return;
+    }
+#endif
+
+#ifndef ANDROID
+    // AzaharFrame window: in VR the second window holds the bottom screen alone, whatever the
+    // layout (the main window keeps the configured one, which places the VR touch).
+    if (is_secondary && Settings::frame_vr_bottom_window) {
+        constexpr u32 min_w = Core::kScreenBottomWidth;
+        constexpr u32 min_h = Core::kScreenBottomHeight;
+        UpdateMinimumWindowSize({min_w, min_h});
+        layout = Layout::SingleFrameLayout(std::max(width, min_w), std::max(height, min_h), true,
+                                           Settings::values.upright_screen.GetValue());
+        layout.render_3d_mode = Settings::StereoRenderOption::Off;
         NotifyFramebufferLayoutChanged(layout);
         return;
     }

@@ -46,6 +46,10 @@ public:
     /// Returns the last used render frame.
     Frame* GetRenderFrame();
 
+    /// AzaharFrame window: a frame is free and its last present finished, so GetRenderFrame
+    /// returns at once.
+    bool HasFreeFrame();
+
     /// Recreates the render frame to match provided parameters.
     void RecreateFrame(Frame* frame, u32 width, u32 height);
 
