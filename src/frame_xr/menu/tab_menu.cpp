@@ -583,35 +583,26 @@ void TabMenu::DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, 
     }
 }
 
-// AzaharFrame remap: Edit Controls. A bar (the title, or the prompt and Cancel while a chip
-// listens; Reset to Default and Done) over the diagram, whose labels are chips.
+// AzaharFrame remap: Edit Controls. The title with Reset to Default (a text button: the less used
+// action) and Done (filled) at its right, over the diagram, whose labels are chips. While a chip
+// listens, a Material snackbar in the slot under the diagram: "Press a Button…" and Cancel.
 void TabMenu::DrawEditControls(Kit& kit, const MenuModel&, const MenuView& view, const Rect& pane) {
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     const float bar_h = kControlH;
-    const Rect done{c.x1 - 124.0f, c.y0, c.x1, c.y0 + bar_h};
-    const Rect reset{done.x0 - 12.0f - 208.0f, c.y0, done.x0 - 12.0f, c.y0 + bar_h};
+    // Material button padding: 16 dp before an icon, 24 after the label (a text button: 12, 16).
+    const float done_w = 16.0f + 20.0f + 8.0f + kit.TextWidth(Type::Label, LabelFor(Id::RemapDone)) + 24.0f;
+    const float reset_w =
+        12.0f + 20.0f + 8.0f + kit.TextWidth(Type::Label, LabelFor(Id::RemapReset)) + 16.0f;
+    const Rect done{c.x1 - done_w, c.y0, c.x1, c.y0 + bar_h};
+    const Rect reset{done.x0 - 8.0f - reset_w, c.y0, done.x0 - 8.0f, c.y0 + bar_h};
     kit.Button(done, ButtonStyle::Filled, Sym::kCheck, LabelFor(Id::RemapDone),
                StateOf(view, {Id::RemapDone}));
     AddHit(done, {Id::RemapDone}, pane);
-    kit.Button(reset, ButtonStyle::Tonal, Sym::kRestartAlt, LabelFor(Id::RemapReset),
+    kit.Button(reset, ButtonStyle::Text, Sym::kRestartAlt, LabelFor(Id::RemapReset),
                StateOf(view, {Id::RemapReset}));
     AddHit(reset, {Id::RemapReset}, pane);
-    if (view.remap.listening >= 0) {
-        // The prompt chip (not a target), and Cancel.
-        const std::string prompt = "Press a Button\xE2\x80\xA6";
-        const float pw = kit.TextWidth(Type::Label, prompt) + 40.0f;
-        const Rect chip{c.x0, c.y0 + (bar_h - 40.0f) * 0.5f, c.x0 + pw, c.y0 + (bar_h + 40.0f) * 0.5f};
-        kit.Fill(chip, 20.0f, Tok::kPrimaryContainer);
-        kit.TextMid(chip.Cx(), chip.Cy(), Type::Label, Tok::kOnPrimaryContainer, prompt, 1);
-        const Rect cancel{chip.x1 + 8.0f, c.y0, chip.x1 + 8.0f + 120.0f, c.y0 + bar_h};
-        kit.Button(cancel, ButtonStyle::Text, 0, LabelFor(Id::RemapCancel),
-                   StateOf(view, {Id::RemapCancel}));
-        AddHit(cancel, {Id::RemapCancel}, pane);
-    } else {
-        kit.TextMid(c.x0 + 4.0f, c.y0 + bar_h * 0.5f, Type::Title, Tok::kOnSurface,
-                    LabelFor(Id::EditControls));
-    }
-    const Rect area{pane.x0 + 8.0f, c.y0 + bar_h + 6.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+    kit.TextMid(c.x0, c.y0 + bar_h * 0.5f, Type::Title, Tok::kOnSurface, LabelFor(Id::EditControls));
+    const Rect area{pane.x0 + 8.0f, c.y0 + bar_h + 8.0f, pane.x1 - 8.0f, c.y1};
     if (diagram) {
         DiagramEdit edit;
         edit.on = true;
@@ -623,6 +614,24 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel&, const MenuView& view,
         for (const DiagramChipHit& h : chips) {
             AddHit(h.r, {Id::RemapChip, h.control}, pane);
         }
+    }
+    if (view.remap.listening >= 0) {
+        // Material snackbar: inverse surface, 4 dp corners, the message, the action in inverse
+        // primary (a text button) at its end.
+        const std::string prompt = "Press a Button\xE2\x80\xA6";
+        const std::string& action = LabelFor(Id::RemapCancel);
+        const float text = 16.0f;
+        const float tw = kit.TextWidthSized(text, false, prompt);
+        const float aw = kit.TextWidth(Type::Label, action) + 24.0f;
+        const float w = std::max(344.0f, 16.0f + tw + 24.0f + aw + 8.0f);
+        const Rect bar{c.Cx() - w * 0.5f, area.y1 - kEditNoteH, c.Cx() + w * 0.5f, area.y1};
+        kit.Fill(bar, 4.0f, Tok::kInverseSurface);
+        kit.TextSized(bar.x0 + 16.0f, bar.Cy() + kit.CapHeightSized(text, false) * 0.5f, text, false,
+                      Tok::kInverseOnSurface, prompt);
+        const Rect cancel{bar.x1 - 8.0f - aw, bar.y0 + 4.0f, bar.x1 - 8.0f, bar.y1 - 4.0f};
+        kit.StateLayer(cancel, cancel.H() * 0.5f, Tok::kInversePrimary, StateOf(view, {Id::RemapCancel}));
+        kit.TextMid(cancel.Cx(), cancel.Cy(), Type::Label, Tok::kInversePrimary, action, 1);
+        AddHit({cancel.x0, bar.y0, cancel.x1, bar.y1}, {Id::RemapCancel}, pane);
     }
 }
 

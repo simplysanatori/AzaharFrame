@@ -8,6 +8,7 @@
 #include <cmath>
 #include <string>
 
+#include "frame_xr/menu/md3_fonts.h"
 #include "frame_xr/vis/help_layout.h"
 
 namespace FrameXr::Vis {
@@ -103,21 +104,9 @@ struct Placed {
     }
 };
 
-// Draws the controller pictures and places the labels of `page` (as DrawMenuDiagram did).
-Placed PlaceDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
-                    const MenuDiagramArt& art) {
-    Placed out;
+// Where each part shows (help panel pixels), as HelpArtAnchors.
+DiagramAnchors ArtAnchors(const MenuDiagramArt& art) {
     const float k = art.k;
-    // Help panel pixels (x 0..kDiagramPanelW, y kDiagramTop..kDiagramBottom) into the area.
-    const float span_h = kDiagramBottom - kDiagramTop;
-    const float sc = std::min(area.W() / kDiagramPanelW, area.H() / span_h);
-    out.sc = sc;
-    out.ox = area.Cx() - kDiagramPanelW * sc * 0.5f;
-    out.oy = area.Cy() - span_h * sc * 0.5f - kDiagramTop * sc;
-    const auto X = [&](float x) { return out.X(x); };
-    const auto Y = [&](float y) { return out.Y(y); };
-
-    // Where each part shows (help panel pixels), as HelpArtAnchors.
     DiagramAnchors an;
     for (int h = 0; h < 2; h++) {
         for (std::size_t p = 0; p < kCtrlParts; p++) {
@@ -133,6 +122,13 @@ Placed PlaceDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
             an.bounds[h][p] = {b[0] / k + ix, b[1] / k + iy, b[2] / k + ix, b[3] / k + iy};
         }
     }
+    return an;
+}
+
+// The drawings, help panel pixels mapped by X and Y.
+template <typename FX, typename FY>
+void DrawArt(Menu::Kit& kit, const MenuDiagramArt& art, const FX& X, const FY& Y) {
+    const float k = art.k;
     for (int h = 0; h < 2; h++) {
         const DiagramImage& t = art.top[h];
         const float tx = DiagramTopX(h), ty = kDiagramTopY;
@@ -144,6 +140,23 @@ Placed PlaceDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
         kit.Image(f.rgba.data(), f.width, f.height,
                   {X(fx), Y(fy), X(fx + f.width / k), Y(fy + f.height / k)});
     }
+}
+
+// Draws the controller pictures and places the labels of `page` (as DrawMenuDiagram did).
+Placed PlaceDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
+                    const MenuDiagramArt& art) {
+    Placed out;
+    // Help panel pixels (x 0..kDiagramPanelW, y kDiagramTop..kDiagramBottom) into the area.
+    const float span_h = kDiagramBottom - kDiagramTop;
+    const float sc = std::min(area.W() / kDiagramPanelW, area.H() / span_h);
+    out.sc = sc;
+    out.ox = area.Cx() - kDiagramPanelW * sc * 0.5f;
+    out.oy = area.Cy() - span_h * sc * 0.5f - kDiagramTop * sc;
+    const auto X = [&](float x) { return out.X(x); };
+    const auto Y = [&](float y) { return out.Y(y); };
+
+    const DiagramAnchors an = ArtAnchors(art);
+    DrawArt(kit, art, X, Y);
     // Label text in help panel pixels for the layout; drawn at sc dp a pixel.
     const auto measure = [&](float size, bool bold, const std::string& text) {
         return kit.TextWidthSized(size * sc, bold, text) / sc;
@@ -277,67 +290,87 @@ void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, Dia
     }
 }
 
-// AzaharFrame remap: Edit Controls. An M3 assist chip per line: container, the glyph of the 3DS
-// button (or a ring when the control has none), "Control: 3DS Button". The chip that listens is
-// filled; a disabled chip (a gesture) is dimmed and no target.
+// AzaharFrame remap: Edit Controls (LayoutEditDiagram). A Material 3 input chip per control: an
+// 8 dp corner, the outline, the 3DS button's glyph in the leading slot, "Control: 3DS Button".
+// The chip that listens is in the primary container with a primary outline. The page's note
+// (what cannot move) under the drawing, unless a chip listens (the snackbar is there then).
 void DrawMenuEditDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
                          const MenuDiagramArt& art, const Menu::DiagramEdit& edit,
                          std::vector<Menu::DiagramChipHit>& chips) {
     if (art.top[0].width == 0) {
         return;
     }
-    const Placed pl = PlaceDiagram(kit, area, page, art);
-    DrawLeaders(kit, pl);
-    const float sc = pl.sc;
-    for (const DiagramPlaced& p : pl.labels) {
-        float y = p.y0;
-        for (const DiagramLine& l : p.label->lines) {
-            const Rect r{pl.X(p.x0), pl.Y(y + (kChipLine - kChipHeight) * 0.5f),
-                         pl.X(p.x1), pl.Y(y + (kChipLine + kChipHeight) * 0.5f)};
-            y += kChipLine;
-            const bool enabled = l.control >= 0;
-            const bool listening = enabled && edit.listening == l.control;
-            const bool hover = enabled && edit.hover == l.control;
-            const bool pressed = enabled && edit.pressed == l.control;
-            const float op = enabled ? 1.0f : Menu::kDisabledContent;
-            const float rad = r.H() * 0.28f;
-            uint32_t fg = Tok::kOnSurface, glyph_bg = Tok::kSecondaryContainer;
-            if (listening) {
-                kit.Fill(r, rad, Tok::kPrimaryContainer);
-                kit.Stroke(r, rad, 2.0f, Tok::kPrimary);
-                fg = Tok::kOnPrimaryContainer;
-                glyph_bg = Tok::kPrimary;
-            } else {
-                kit.Fill(r, rad, enabled ? Tok::kSurfaceContainerHigh : Tok::kSurface, enabled ? 1.0f : 0.5f);
-                kit.Stroke(r, rad, 1.2f, enabled ? Tok::kOutline : Tok::kOutlineVariant, enabled ? 1.0f : 0.6f);
-                kit.StateLayer(r, rad, Tok::kOnSurface,
-                               pressed ? Menu::State::Pressed : hover ? Menu::State::Hover : Menu::State::Rest);
-            }
-            const float pad = kChipPad * sc;
-            float x = r.x0 + pad;
-            if (enabled) {
-                const float g = r.H() * 0.8f;
-                const Rect gb{x - pad * 0.15f, r.Cy() - g * 0.5f, x - pad * 0.15f + g, r.Cy() + g * 0.5f};
-                if (l.glyph >= 0) {
-                    DrawGlyph(kit, gb, l.glyph, listening ? Tok::kOnPrimary : Tok::kPrimary, glyph_bg, 1.0f);
-                } else {
-                    kit.Stroke({gb.Cx() - g * 0.4f, gb.Cy() - g * 0.4f, gb.Cx() + g * 0.4f, gb.Cy() + g * 0.4f},
-                               g * 0.4f, 1.3f, Tok::kOutline);
-                }
-                x = gb.x1 + pad * 0.6f;
-            }
-            const float size = kChipText * sc;
-            const float base = r.Cy() + kit.CapHeightSized(size, true) * 0.5f;
-            if (!l.action.empty()) {
-                x += kit.TextSized(x, base, size, true, Tok::kOnSurfaceVariant, l.key + ": ", 0, op);
-                kit.TextSized(x, base, size, true, fg, l.action, 0, op);
-            } else {
-                kit.TextSized(x, base, size, true, fg, l.key, 0, op);
-            }
-            if (enabled) {
-                chips.push_back({r, l.control});
-            }
+    const float k = art.k;
+    float art_y0 = kDiagramTopY;
+    for (int h = 0; h < 2; h++) {
+        art_y0 = std::min(art_y0, DiagramFrontY(static_cast<int>(std::lround(art.front[h].height / k))));
+    }
+    const float art_y1 = kDiagramTopY + static_cast<float>(art.top[0].height) / k;
+    const Rect body{area.x0, area.y0, area.x1, area.y1 - Menu::kEditNoteH};
+    const auto measure = [&kit](float size, bool bold, const std::string& text) {
+        return kit.TextWidthSized(size, bold, text);
+    };
+    const EditLayout lay = LayoutEditDiagram(page, ArtAnchors(art), art_y0, art_y1,
+                                             {body.x0, body.y0, body.x1, body.y1}, measure);
+    DrawArt(kit, art, [&](float x) { return lay.ox + x * lay.sc; },
+            [&](float y) { return lay.oy + y * lay.sc; });
+    for (const EditLeader& l : lay.leaders) {
+        for (const auto& seg : l.lines) {
+            kit.Line(seg[0].x, seg[0].y, seg[1].x, seg[1].y, 1.5f, Tok::kOutline);
         }
+        if (l.ring > 0.0f) {
+            kit.Stroke({l.dot.x - l.ring, l.dot.y - l.ring, l.dot.x + l.ring, l.dot.y + l.ring}, l.ring,
+                       1.5f, Tok::kPrimary);
+        } else {
+            kit.Dot(l.dot.x, l.dot.y, 3.5f, Tok::kPrimary);
+        }
+    }
+    for (const EditChip& c : lay.chips) {
+        const DiagramLine& l = *c.line;
+        const Rect r{c.r.x0, c.r.y0, c.r.x1, c.r.y1};
+        const bool listening = edit.listening == l.control;
+        const bool hover = edit.hover == l.control;
+        const bool pressed = edit.pressed == l.control;
+        uint32_t key_ink = Tok::kOnSurfaceVariant, ink = Tok::kOnSurface;
+        uint32_t glyph_fg = Tok::kPrimary, glyph_bg = Tok::kSecondaryContainer;
+        kit.Fill(r, kEditChipRadius, Tok::kSurface);
+        if (listening) {
+            kit.Fill(r, kEditChipRadius, Tok::kPrimaryContainer);
+            kit.Stroke(r, kEditChipRadius, 2.0f, Tok::kPrimary);
+            key_ink = ink = Tok::kOnPrimaryContainer;
+            glyph_fg = Tok::kOnPrimary;
+            glyph_bg = Tok::kPrimary;
+        } else {
+            kit.Stroke(r, kEditChipRadius, 1.0f, Tok::kOutline);
+        }
+        kit.StateLayer(r, kEditChipRadius, listening ? Tok::kOnPrimaryContainer : Tok::kOnSurfaceVariant,
+                       pressed ? Menu::State::Pressed : hover ? Menu::State::Hover : Menu::State::Rest);
+        const Rect gb{r.x0 + kEditChipPadL, r.Cy() - kEditGlyph * 0.5f, r.x0 + kEditChipPadL + kEditGlyph,
+                      r.Cy() + kEditGlyph * 0.5f};
+        if (l.glyph >= 0) {
+            DrawGlyph(kit, gb, l.glyph, glyph_fg, glyph_bg, 1.0f);
+        } else {
+            kit.Stroke({gb.x0 + 2.0f, gb.y0 + 2.0f, gb.x1 - 2.0f, gb.y1 - 2.0f}, kEditGlyph * 0.5f - 2.0f,
+                       1.5f, listening ? Tok::kOnPrimaryContainer : Tok::kOutline);
+        }
+        const float base = r.Cy() + kit.CapHeightSized(kEditChipText, true) * 0.5f;
+        float x = gb.x1 + kEditChipGap;
+        x += kit.TextSized(x, base, kEditChipText, true, key_ink, l.key + ": ");
+        kit.TextSized(x, base, kEditChipText, true, ink, l.action);
+        // The target: the chip and half the gap over and under it (48 dp, Material's minimum).
+        chips.push_back({{r.x0, r.y0 - kEditChipGap * 0.5f, r.x1, r.y1 + kEditChipGap * 0.5f}, l.control});
+    }
+    if (edit.listening < 0 && !page.note.empty()) {
+        // Supporting text: the info icon and the note, centred in the slot.
+        constexpr float kNoteText = 14.0f, kNoteIcon = 18.0f, kNoteGap = 8.0f;
+        const float tw = kit.TextWidthSized(kNoteText, false, page.note);
+        const float total = kNoteIcon + kNoteGap + tw;
+        const float cy = area.y1 - Menu::kEditNoteH * 0.5f;
+        float x = (area.x0 + area.x1) * 0.5f - total * 0.5f;
+        kit.Icon(x + kNoteIcon * 0.5f, cy, kNoteIcon, Menu::Icon::kInfo, false, Tok::kOnSurfaceVariant);
+        x += kNoteIcon + kNoteGap;
+        kit.TextSized(x, cy + kit.CapHeightSized(kNoteText, false) * 0.5f, kNoteText, false,
+                      Tok::kOnSurfaceVariant, page.note);
     }
 }
 

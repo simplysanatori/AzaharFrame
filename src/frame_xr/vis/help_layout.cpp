@@ -69,15 +69,7 @@ float DiagramFrontY(int height) {
     return std::max(kDiagramTop, kDiagramTopY - 6.0f - static_cast<float>(height));
 }
 
-float DiagramLinePitch(const DiagramLine& l) {
-    return l.chip ? kChipLine : kDiagramLabelLine; // AzaharFrame remap
-}
-
 float DiagramLineWidth(const DiagramLine& l, const TextMeasure& measure) {
-    if (l.chip) { // AzaharFrame remap: a chip's text, its glyph (or a gap) and its padding
-        const std::string text = l.action.empty() ? l.key : l.key + ": " + l.action;
-        return measure(kChipText, true, text) + (l.control >= 0 ? kChipGlyphSlot : kChipPad * 2.0f);
-    }
     const float indent = l.sub ? kDiagramSubIndent : 0.0f;
     if (l.heading) {
         return indent + measure(kDiagramLabelSize, true, l.key);
@@ -93,11 +85,6 @@ constexpr float kColumnGap = 18.0f; ///< between a column and the drawings
 constexpr float kEdge = 36.0f;      ///< the nearest a label comes to the panel's side
 constexpr float kBlockGap = 16.0f;
 constexpr float kAttachGap = 10.0f; ///< between a leader's end and its label
-
-// Half the first line's pitch: the middle of the first line.
-float FirstHalf(const DiagramLabel& l) {
-    return (l.lines.empty() ? kDiagramLabelLine : DiagramLinePitch(l.lines[0])) * 0.5f;
-}
 
 struct Block {
     DiagramPlaced placed;
@@ -129,13 +116,12 @@ void Stack(std::vector<Block>& col) {
     float next = kDiagramTop;
     for (Block& b : col) {
         const float h = b.placed.y1 - b.placed.y0;
-        b.placed.y0 = std::max(next, b.want_y - FirstHalf(*b.placed.label));
+        b.placed.y0 = std::max(next, b.want_y - kDiagramLabelLine * 0.5f);
         b.placed.y1 = b.placed.y0 + h;
         next = b.placed.y1 + kBlockGap;
     }
     if (!col.empty()) {
-        const float pushed =
-            col.back().placed.y0 - (col.back().want_y - FirstHalf(*col.back().placed.label));
+        const float pushed = col.back().placed.y0 - (col.back().want_y - kDiagramLabelLine * 0.5f);
         const float up = std::min(pushed, col.front().placed.y0 - kDiagramTop);
         for (Block& b : col) {
             b.placed.y0 -= std::max(0.0f, up);
@@ -194,7 +180,7 @@ float Ring(const DiagramAnchors& an, int hand, const std::vector<CtrlPart>& part
 // Where a leader from `p` meets the label: its side facing p, by the first line, or its top or
 // bottom edge when p is above or below it.
 DiagramPoint Attach(const DiagramPlaced& b, const DiagramPoint& p) {
-    const float first = b.y0 + FirstHalf(*b.label);
+    const float first = b.y0 + kDiagramLabelLine * 0.5f;
     if (p.x < b.x0 - kAttachGap) {
         return {b.x0 - kAttachGap, first};
     }
@@ -220,7 +206,7 @@ std::vector<DiagramPlaced> LayoutHelpDiagram(const DiagramPage& page, const Diag
         float width = 0.0f, height = 0.0f;
         for (std::size_t i = 0; i < label.lines.size(); i++) {
             width = std::max(width, DiagramLineWidth(label.lines[i], measure));
-            height += DiagramLinePitch(label.lines[i]) + (label.lines[i].heading && i > 0 ? kDiagramHeadingGap : 0.0f);
+            height += kDiagramLabelLine + (label.lines[i].heading && i > 0 ? kDiagramHeadingGap : 0.0f);
         }
         Block b;
         b.placed.label = &label;
@@ -321,4 +307,142 @@ std::vector<DiagramPlaced> LayoutHelpDiagram(const DiagramPage& page, const Diag
     return out;
 }
 
+// ---- AzaharFrame remap: Edit Controls' layout ------------------------------------------------
+
+float EditChipWidth(const DiagramLine& l, const TextMeasure& measure) {
+    return kEditChipPadL + kEditGlyph + kEditChipGap +
+           measure(kEditChipText, true, l.key + ": " + l.action) + kEditChipPadR;
+}
+
+namespace {
+
+struct EditGroup {
+    const DiagramLabel* label = nullptr;
+    int hand = 0;
+    DiagramPoint at;       ///< what it points at (help panel pixels)
+    float want = 0.0f;     ///< where it wants its middle (dp)
+    float top = 0.0f;      ///< where it goes (dp)
+    float height = 0.0f;
+};
+
+float GroupHeight(const DiagramLabel& l) {
+    const float n = static_cast<float>(l.lines.size());
+    return n * kEditChipH + (n - 1.0f) * kEditChipGap;
+}
+
+// One column, top to bottom in the order the groups want: each as near its want as the ones
+// above allow; then up, by half of what the last was pushed (as far as the room over the first
+// allows), and up again to end over the bottom.
+void StackEdit(std::vector<EditGroup>& col, float y0, float y1) {
+    std::stable_sort(col.begin(), col.end(),
+                     [](const EditGroup& p, const EditGroup& q) { return p.want < q.want; });
+    float next = y0;
+    for (EditGroup& g : col) {
+        g.top = std::max(next, g.want - g.height * 0.5f);
+        next = g.top + g.height + kEditGroupGap;
+    }
+    if (col.empty()) {
+        return;
+    }
+    const float pushed = col.back().top - (col.back().want - col.back().height * 0.5f);
+    const float over = col.back().top + col.back().height - y1;
+    const float up = std::min(col.front().top - y0, std::max(pushed * 0.5f, over));
+    for (EditGroup& g : col) {
+        g.top -= std::max(0.0f, up);
+    }
+}
+
+} // namespace
+
+EditLayout LayoutEditDiagram(const DiagramPage& page, const DiagramAnchors& an, float art_y0,
+                             float art_y1, const EditBox& area, const TextMeasure& measure) {
+    EditLayout out;
+    std::vector<EditGroup> cols[2];
+    float widest = 0.0f;
+    for (const DiagramLabel& label : page.labels) {
+        const int hand = label.hand == 1 ? 1 : 0;
+        const auto centre = label.parts.empty() ? std::nullopt : Centre(an, hand, label.parts);
+        if (label.lines.empty() || !centre) {
+            continue;
+        }
+        for (const DiagramLine& l : label.lines) {
+            widest = std::max(widest, EditChipWidth(l, measure));
+        }
+        EditGroup g;
+        g.label = &label;
+        g.hand = hand;
+        g.at = *centre;
+        g.height = GroupHeight(label);
+        cols[hand].push_back(g);
+    }
+
+    // The drawings: centred, as large as the columns (both as wide as the widest chip) and the
+    // height allow.
+    const float art_x0 = DiagramTopX(0), art_x1 = DiagramTopX(1) + kDiagramTopW;
+    const float room_w = area.x1 - area.x0 - 2.0f * (widest + kEditLeaderMin);
+    const float sc = std::max(0.1f, std::min({kEditMaxScale, room_w / (art_x1 - art_x0),
+                                              (area.y1 - area.y0) / (art_y1 - art_y0)}));
+    out.sc = sc;
+    out.ox = (area.x0 + area.x1) * 0.5f - (art_x0 + art_x1) * 0.5f * sc;
+    out.oy = (area.y0 + area.y1) * 0.5f - (art_y0 + art_y1) * 0.5f * sc;
+    const auto P = [&out](const DiagramPoint& p) {
+        return DiagramPoint{out.ox + p.x * out.sc, out.oy + p.y * out.sc};
+    };
+    // The columns' inner edges: kEditLeaderMin from the drawings.
+    const float inner[2] = {out.ox + art_x0 * sc - kEditLeaderMin,
+                            out.ox + art_x1 * sc + kEditLeaderMin};
+
+    for (int h = 0; h < 2; h++) {
+        for (EditGroup& g : cols[h]) {
+            g.want = P(g.at).y;
+        }
+        StackEdit(cols[h], area.y0, area.y1);
+        for (const EditGroup& g : cols[h]) {
+            // The chips of a group as wide as its widest, so it reads as one set.
+            float w = 0.0f;
+            for (const DiagramLine& l : g.label->lines) {
+                w = std::max(w, EditChipWidth(l, measure));
+            }
+            float y = g.top;
+            for (const DiagramLine& l : g.label->lines) {
+                EditChip c;
+                c.r = h == 0 ? EditBox{inner[0] - w, y, inner[0], y + kEditChipH}
+                             : EditBox{inner[1], y, inner[1] + w, y + kEditChipH};
+                c.line = &l;
+                out.chips.push_back(c);
+                y += kEditChipH + kEditChipGap;
+            }
+            // The leader: from the chip's side, or from a bracket by a group's chips.
+            EditLeader leader;
+            const float side = h == 0 ? -1.0f : 1.0f; // towards the column
+            const float first = g.top + kEditChipH * 0.5f;
+            const float last = g.top + g.height - kEditChipH * 0.5f;
+            DiagramPoint start{inner[h], first};
+            if (g.label->lines.size() > 1) {
+                const float bx = inner[h] - side * kEditBracket;
+                for (float cy = first; cy <= last + 0.5f; cy += kEditChipH + kEditChipGap) {
+                    leader.lines.push_back({DiagramPoint{inner[h] - side * 4.0f, cy}, DiagramPoint{bx, cy}});
+                }
+                leader.lines.push_back({DiagramPoint{bx, first}, DiagramPoint{bx, last}});
+                start = {bx, (first + last) * 0.5f};
+            } else {
+                start.x -= side * 4.0f;
+            }
+            const DiagramPoint dot = P(g.at);
+            leader.dot = dot;
+            leader.ring = Ring(an, h, g.label->parts, g.at) * sc;
+            DiagramPoint end = dot;
+            if (leader.ring > 0.0f) {
+                const float dx = start.x - dot.x, dy = start.y - dot.y;
+                const float len = std::max(1.0f, std::hypot(dx, dy));
+                end = {dot.x + dx / len * leader.ring, dot.y + dy / len * leader.ring};
+            }
+            leader.lines.push_back({start, end});
+            out.leaders.push_back(std::move(leader));
+        }
+    }
+    return out;
+}
+
 } // namespace FrameXr::Vis
+

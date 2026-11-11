@@ -47,6 +47,7 @@ constexpr uint32_t kOutline = 0x8D9199;
 constexpr uint32_t kOutlineVariant = 0x42474E;
 constexpr uint32_t kInverseSurface = 0xE1E2E8;
 constexpr uint32_t kInverseOnSurface = 0x2E3135;
+constexpr uint32_t kInversePrimary = 0x35618E; ///< AzaharFrame remap: snackbar actions (primary tone 40)
 constexpr uint32_t kError = 0xFFB4AB;
 constexpr uint32_t kErrorContainer = 0x93000A;
 constexpr uint32_t kOnErrorContainer = 0xFFDAD6;

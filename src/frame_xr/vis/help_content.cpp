@@ -374,15 +374,40 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
     return d;
 }
 
-// AzaharFrame remap: Edit Controls. Every control is a chip; the 3DS buttons on it show as text and
-// a glyph (the first one). The ones that are gestures are disabled chips.
+// AzaharFrame remap: Edit Controls. Every 3DS button a Frame control can take is a chip,
+// "Frame control: 3DS button" with the glyph of the (first) 3DS button on it. What cannot move
+// (the sticks, the grips, the holds and chords) is the page's note.
 DiagramPage BuildEditPage(const HelpBindings& given, bool by_position) {
     const HelpBindings b = given.valid ? given : DefaultHelpBindings();
     DiagramPage page;
     page.name = "Edit Controls";
+    page.note = "Not Editable: Sticks, Stick Clicks, Grips, Holds and Chords";
     const auto chip = [&](std::string key, Control control) {
         const std::vector<int> bound = BoundTo(b, control);
-        std::string action = Names(bound);
+        std::string action;
+        for (const int button : bound) {
+            if (!action.empty()) {
+                action += " + ";
+            }
+            // The 3DS D-pad by its direction ("D-Pad Up: Up"); the glyph shows the cross.
+            switch (button) {
+            case NB::Up:
+                action += "Up";
+                break;
+            case NB::Down:
+                action += "Down";
+                break;
+            case NB::Left:
+                action += "Left";
+                break;
+            case NB::Right:
+                action += "Right";
+                break;
+            default:
+                action += ButtonName(button);
+                break;
+            }
+        }
         if (action.empty()) {
             action = "Nothing";
         }
@@ -390,36 +415,22 @@ DiagramPage BuildEditPage(const HelpBindings& given, bool by_position) {
         l.chip = true;
         l.control = static_cast<int>(control);
         l.glyph = bound.empty() ? -1 : bound.front();
-        if (l.key == l.action) {
-            l.action.clear(); // "D-Pad Up", not "D-Pad Up: D-Pad Up"
-        }
-        return l;
-    };
-    const auto locked = [](std::string key, std::string action = {}) {
-        DiagramLine l{std::move(key), std::move(action), true, false, false};
-        l.chip = true;
         return l;
     };
     Label(page, kLeft, {CtrlPart::Bumper}, {chip("Left Bumper", Control::BumperL)});
     Label(page, kLeft, {CtrlPart::Trigger}, {chip("Left Trigger", Control::TriggerL)});
+    Label(page, kLeft, {CtrlPart::View}, {chip("View", Control::View)});
     Label(page, kLeft, {CtrlPart::Dpad},
           {chip("D-Pad Up", Control::DpadUp), chip("D-Pad Down", Control::DpadDown),
            chip("D-Pad Left", Control::DpadLeft), chip("D-Pad Right", Control::DpadRight)});
-    Label(page, kLeft, {CtrlPart::View},
-          {chip("View", Control::View), locked("View Holds and Chords")});
-    Label(page, kLeft, {CtrlPart::Stick},
-          {locked("Left Stick", OrNothing(StickTo(b, AnalogControl::StickL))), locked("Left Stick Click")});
+    Label(page, kRight, {CtrlPart::Bumper}, {chip("Right Bumper", Control::BumperR)});
+    Label(page, kRight, {CtrlPart::Trigger}, {chip("Right Trigger", Control::TriggerR)});
+    Label(page, kRight, {CtrlPart::Menu}, {chip("Menu", Control::Menu)});
     std::vector<DiagramLine> faces;
     for (const Face& f : Faces(by_position)) {
         faces.push_back(chip(f.frame, f.pad));
     }
     Label(page, kRight, {CtrlPart::A, CtrlPart::B, CtrlPart::X, CtrlPart::Y}, std::move(faces));
-    Label(page, kRight, {CtrlPart::Bumper}, {chip("Right Bumper", Control::BumperR)});
-    Label(page, kRight, {CtrlPart::Trigger}, {chip("Right Trigger", Control::TriggerR)});
-    Label(page, kRight, {CtrlPart::Menu}, {chip("Menu", Control::Menu), locked("Menu Hold")});
-    Label(page, kRight, {CtrlPart::Stick},
-          {locked("Right Stick", OrNothing(StickTo(b, AnalogControl::StickR))), locked("Right Stick Click")});
-    Label(page, kBoth, {CtrlPart::Grip}, {locked("Grips", "Move Screens")});
     return page;
 }
 

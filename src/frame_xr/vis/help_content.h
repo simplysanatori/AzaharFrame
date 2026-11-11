@@ -66,7 +66,7 @@ struct DiagramLine {
     bool sub = false;     ///< in a sub-list (indented)
     // AzaharFrame remap: Edit Controls draws the line as a chip.
     bool chip = false;
-    int control = -1; ///< Input::Control the chip remaps, or -1 (a disabled chip)
+    int control = -1; ///< Input::Control the chip remaps
     int glyph = -1;   ///< Settings::NativeButton whose glyph shows, or -1
 };
 
@@ -82,6 +82,7 @@ enum class DiagramPageId : int { Game, Window, Count };
 struct DiagramPage {
     std::string name;
     std::vector<DiagramLabel> labels;
+    std::string note; ///< AzaharFrame remap: a line under the drawing (Edit Controls)
 };
 
 struct HelpDiagram {
@@ -92,8 +93,8 @@ struct HelpDiagram {
 
 HelpDiagram BuildHelpDiagram(const HelpBindings& bindings, const HelpContext& context);
 
-/// AzaharFrame remap: the In Game page of Edit Controls: every control a chip, the 3DS buttons
-/// that can move (control >= 0) and the gestures, which are disabled.
+/// AzaharFrame remap: the page of Edit Controls: a chip for each control whose 3DS buttons can
+/// move, and a note of what cannot.
 DiagramPage BuildEditPage(const HelpBindings& bindings, bool face_by_position);
 
 /// The page for where the player is: In Game while a game runs, else Azahar's Window.

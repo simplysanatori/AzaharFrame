@@ -218,6 +218,8 @@ struct DiagramChipHit {
     Rect r;
     int control = -1;
 };
+/// The slot under Edit Controls' diagram: the page's note, or the snackbar while a chip listens.
+constexpr float kEditNoteH = 48.0f;
 
 class TabMenu {
 public:
