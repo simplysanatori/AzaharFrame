@@ -44,9 +44,9 @@ struct InstalledVersion {
 /// installed base title's TMD (both TMD-style u16 versions, giving `version`), the running ROM's
 /// ExHeader remaster version (giving `revision`), else unknown.
 /// A cartridge dump has no TMD, and its remaster field is a revision counter, not a version:
-/// the dumps checked read 0x0000 for Rev 0 and 0x0002 for Mario Kart 7 Rev 1, so the revision is
-/// remaster / 2 (an odd value is not understood: unknown). One cartridge (Super Mario 3D Land
-/// Rev 1) reads 0x0000, so the mapping is only as good as the Sharkive tags that use it.
+/// Mario Kart 7 Rev 1 reads 0x0002, so the revision is remaster / 2. Zero is ambiguous (Rev 0
+/// carts read 0x0000, and so does Super Mario 3D Land Rev 1), so 0 is unknown, and so is an odd
+/// value. Only a non-zero even value gives a revision.
 InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::optional<u16> base_tmd,
                                         std::optional<u16> ncch_remaster);
 

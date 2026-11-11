@@ -105,7 +105,7 @@ InstalledVersion SelectInstalledVersion(std::optional<u16> update_tmd, std::opti
     if (base_tmd) {
         return {FromTitleVersion(*base_tmd), std::nullopt, VersionSource::BaseTmd};
     }
-    if (ncch_remaster && *ncch_remaster % 2 == 0) {
+    if (ncch_remaster && *ncch_remaster != 0 && *ncch_remaster % 2 == 0) {
         return {std::nullopt, static_cast<int>(*ncch_remaster / 2), VersionSource::Ncch};
     }
     return {};

@@ -122,9 +122,12 @@ TEST_CASE("Sharkive: installed version order", "[sharkive]") {
     REQUIRE(r.source == VersionSource::Ncch);
     REQUIRE(r.revision == 1);
     REQUIRE_FALSE(r.version.has_value());
+    r = SelectInstalledVersion(std::nullopt, std::nullopt, 4);
+    REQUIRE(r.revision == 2);
+    // zero is ambiguous: unknown
     r = SelectInstalledVersion(std::nullopt, std::nullopt, 0);
-    REQUIRE(r.source == VersionSource::Ncch);
-    REQUIRE(r.revision == 0);
+    REQUIRE(r.source == VersionSource::Unknown);
+    REQUIRE_FALSE(r.revision.has_value());
     // odd: not understood
     REQUIRE(SelectInstalledVersion(std::nullopt, std::nullopt, 3).source == VersionSource::Unknown);
 }
