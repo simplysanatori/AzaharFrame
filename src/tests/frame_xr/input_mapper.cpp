@@ -601,6 +601,45 @@ TEST_CASE("FrameXr mapper: a hidden bottom screen is neither touched nor grabbed
     }
 }
 
+// AzaharFrame statspos
+TEST_CASE("FrameXr mapper: the stats panel in front of a screen stops the beam", "[frame_xr]") {
+    Runner runner;
+    // The stats, 1 m ahead of the bottom screen's middle, in the right hand's line of sight.
+    const Vec3f stats_at{0.1f, -0.6f, -0.9f};
+    runner.panels.occluder.pose = Posef{Quatf{}, stats_at};
+    runner.panels.occluder.width_m = 0.3f;
+    runner.panels.occluder.height_m = 0.19f;
+    runner.panels.occluder.visible = true;
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, stats_at);
+    // The ray through the stats goes on to the bottom screen.
+    REQUIRE(IntersectQuad(RayFromPose(frame.hand[1].aim), runner.panels.bottom).in_bounds);
+
+    SECTION("the trigger is ZR, not a touch, and no cursor shows") {
+        frame.hand[1].trigger = 1.0f;
+        const MapperOutput out = runner.Step(frame);
+        REQUIRE(out.touch_event_count == 0);
+        REQUIRE(out.controls.Get(Control::TriggerR));
+        REQUIRE_FALSE(out.cursor.visible);
+    }
+    SECTION("the grip grabs no screen") {
+        runner.Step(frame);
+        frame.hand[1].grip = 1.0f;
+        REQUIRE_FALSE(runner.Step(frame).commands.top_drag_active);
+    }
+    SECTION("hidden, it stops nothing") {
+        runner.panels.occluder.visible = false;
+        frame.hand[1].trigger = 1.0f;
+        REQUIRE(CountTouch(runner.Step(frame), TouchEventType::Pressed) == 1);
+    }
+    SECTION("behind the screen, the screen wins") {
+        runner.panels.occluder.pose.position = Vec3f{0.0f, -0.8f, -1.8f};
+        Point(frame, Hand::Right, kOnBottomCentre);
+        frame.hand[1].trigger = 1.0f;
+        REQUIRE(CountTouch(runner.Step(frame), TouchEventType::Pressed) == 1);
+    }
+}
+
 TEST_CASE("FrameXr mapper: both bumpers and View toggle the bottom screen", "[frame_xr]") {
     Runner runner;
     runner.panels.bottom_toggle_enabled = true;

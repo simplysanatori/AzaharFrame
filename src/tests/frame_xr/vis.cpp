@@ -14,6 +14,7 @@
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/stats_place.h"
 
 // AzaharFrame vrvis
 using Catch::Approx;
@@ -544,4 +545,135 @@ TEST_CASE("FrameXr vis: controller drawings", "[frame_xr]") {
     REQUIRE(cut.height == 160);
     REQUIRE(cut.anchor[static_cast<std::size_t>(CtrlPart::Trigger)]);
     REQUIRE(cut.anchor[static_cast<std::size_t>(CtrlPart::Trigger)]->y == Approx(t->y - 20.0f));
+}
+
+// ---- AzaharFrame statspos -----------------------------------------------------------------------
+
+namespace {
+
+Input::PanelQuad ScreenAt(float z, float w, float h, float y = 0.0f) {
+    return {Input::Posef{{}, {0.0f, y, z}}, w, h, true};
+}
+
+} // namespace
+
+TEST_CASE("FrameXr vis: the stats in front never go behind a screen", "[frame_xr]") {
+    const Input::Vec3f eye{0.0f, 1.6f, 0.0f};
+    const Input::Vec3f ahead{0.0f, 0.0f, -1.0f};
+    const float w = kStatsFrontWidth, h = kStatsFrontWidth * 320.0f / 512.0f;
+    SECTION("nothing near: 1 m") {
+        REQUIRE(StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h, {}) ==
+                Approx(kStatsFrontDistance));
+        // A screen 2 m away is farther than the stats: no change.
+        REQUIRE(StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h,
+                                   {ScreenAt(-2.0f, 1.6f, 1.0f, 1.6f)}) ==
+                Approx(kStatsFrontDistance));
+    }
+    SECTION("a screen nearer than 1 m: just in front of it") {
+        const float d = StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h,
+                                           {ScreenAt(-0.8f, 1.6f, 1.0f, 1.6f)});
+        REQUIRE(d == Approx(0.8f - kStatsScreenGap).margin(1e-4));
+    }
+    SECTION("the nearest of two, a hidden one does not count") {
+        Input::PanelQuad hidden = ScreenAt(-0.5f, 1.6f, 1.0f, 1.6f);
+        hidden.visible = false;
+        const float d = StatsClearDistance(
+            eye, ahead, kStatsFrontDistance, w, h,
+            {ScreenAt(-0.9f, 1.6f, 1.0f, 1.6f), ScreenAt(-0.7f, 1.0f, 1.0f, 1.6f), hidden});
+        REQUIRE(d == Approx(0.7f - kStatsScreenGap).margin(1e-4));
+    }
+    SECTION("a screen only under an edge of the panel counts") {
+        // Its left edge 1 cm right of the panel's middle: rays through the right side hit it.
+        Input::PanelQuad side = ScreenAt(-0.8f, 1.0f, 1.0f, 1.6f);
+        side.pose.position.x = 0.51f;
+        REQUIRE(StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h, {side}) <
+                kStatsFrontDistance);
+        side.pose.position.x = 0.8f; // well clear of it
+        REQUIRE(StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h, {side}) ==
+                Approx(kStatsFrontDistance));
+    }
+    SECTION("never nearer than 0.4 m, never farther than 3 m") {
+        REQUIRE(StatsClearDistance(eye, ahead, kStatsFrontDistance, w, h,
+                                   {ScreenAt(-0.3f, 1.6f, 1.0f, 1.6f)}) ==
+                Approx(kStatsMinDistance));
+        REQUIRE(StatsClearDistance(eye, ahead, 5.0f, w, h, {}) == Approx(kStatsMaxDistance));
+    }
+}
+
+TEST_CASE("FrameXr vis: the stats are placed ahead and a little below, facing you",
+          "[frame_xr]") {
+    Input::Posef head{{}, {0.0f, 1.6f, 0.0f}};
+    SECTION("looking ahead") {
+        const Input::Vec3f dir = StatsFrontDirection(head);
+        REQUIRE(YawOf(dir) == Approx(0.0f).margin(1e-5));
+        REQUIRE(PitchOf(dir) * 180.0f / 3.14159265f == Approx(-kStatsFrontBelowDeg).margin(1e-3));
+        const Input::Posef p = StatsPoseAt(head.position, dir, 1.0f);
+        REQUIRE(p.position.z == Approx(-std::cos(kStatsFrontBelowDeg * 3.14159265f / 180.0f)));
+        // Facing the eyes about the vertical only: its front is +Z, level.
+        const Input::Vec3f front = Input::Rotate(p.orientation, {0, 0, 1});
+        REQUIRE(front.z == Approx(1.0f).margin(1e-5));
+        REQUIRE(front.y == Approx(0.0f).margin(1e-5));
+    }
+    SECTION("turned 90 degrees to the left and looking down a lot") {
+        const float a = 3.14159265f * 0.25f; // half of 90 degrees
+        head.orientation = {0.0f, std::sin(a), 0.0f, std::cos(a)};
+        const float down = -60.0f * 3.14159265f / 180.0f;
+        head.orientation = Input::Multiply(head.orientation,
+                                           {std::sin(down * 0.5f), 0.0f, 0.0f, std::cos(down * 0.5f)});
+        const Input::Vec3f dir = StatsFrontDirection(head);
+        REQUIRE(dir.x < -0.5f); // to the left
+        REQUIRE(PitchOf(dir) * 180.0f / 3.14159265f ==
+                Approx(-kStatsFrontMaxPitchDeg - kStatsFrontBelowDeg).margin(1e-2));
+        const Input::Posef p = StatsPoseAt(head.position, dir, 1.0f);
+        const Input::Vec3f front = Input::Rotate(p.orientation, {0, 0, 1});
+        REQUIRE(front.x == Approx(1.0f).margin(1e-4)); // back toward the head
+    }
+}
+
+TEST_CASE("FrameXr vis: a grip moves the stats round you at their distance", "[frame_xr]") {
+    const Input::Vec3f eye{0.0f, 1.6f, 0.0f};
+    const Input::Posef panel = StatsPoseAt(eye, {0.0f, 0.0f, -1.0f}, 1.0f);
+    StatsGrab grab;
+    // The beam from a hand below the eyes onto the panel's right part (on the sphere round the
+    // eyes it is on).
+    const Input::Vec3f hand{0.2f, 1.2f, -0.2f};
+    const Input::Vec3f hit{0.0995037f, 1.6f, -0.9950372f};
+    grab.Begin(eye, panel, hit);
+    const Input::Ray still{hand, Input::Normalized(hit - hand)};
+    SECTION("held still, it stays") {
+        const Input::Vec3f d = grab.Direction(eye, still, 1.0f);
+        REQUIRE(d.x == Approx(0.0f).margin(1e-3));
+        REQUIRE(d.y == Approx(0.0f).margin(1e-3));
+    }
+    SECTION("the beam to the left moves it left, at the same distance") {
+        const Input::Vec3f left_hit{-0.4f, 1.6f, -0.9165f};
+        const Input::Ray ray{hand, Input::Normalized(left_hit - hand)};
+        const Input::Vec3f d = grab.Direction(eye, ray, 1.0f);
+        REQUIRE(d.x < -0.3f);
+        REQUIRE(Input::Length(d) == Approx(1.0f));
+    }
+}
+
+TEST_CASE("FrameXr vis: the wrist stats face the eyes only when turned to them", "[frame_xr]") {
+    const Input::Posef local = WristLocalPose();
+    // Past the handle's end, inward of it (the aim space: +Z back, +Y up, +X the inner side).
+    REQUIRE(local.position.z > 0.117f);
+    REQUIRE(local.position.x > 0.015f);
+    const Input::Vec3f front = Input::Rotate(local.orientation, {0, 0, 1});
+    REQUIRE(front.x > 0.95f); // facing inward, a little up
+    REQUIRE(front.y > 0.0f);
+    const Input::Vec3f along = Input::Rotate(local.orientation, {1, 0, 0});
+    REQUIRE(along.z < -0.7f); // the text reads toward the hand
+    // Held to play (pointing ahead, 0.4 m under the eyes, 0.25 m left), it faces away.
+    const Input::Posef play{{}, {-0.25f, -0.4f, -0.35f}};
+    REQUIRE_FALSE(WristShown(WristFacingDeg(WristStatsPose(play), {0, 0, 0}), false));
+    // A panel and an eye straight in front of it, then off to the side.
+    const Input::Posef p{{}, {0.0f, 1.2f, -0.4f}};
+    REQUIRE(WristFacingDeg(p, {0.0f, 1.2f, 0.0f}) == Approx(0.0f).margin(1e-3));
+    REQUIRE(WristFacingDeg(p, {0.4f, 1.2f, -0.4f + 0.4f}) == Approx(45.0f).margin(1e-2));
+    // Shown under 35 degrees, kept until past 40.
+    REQUIRE(WristShown(34.0f, false));
+    REQUIRE_FALSE(WristShown(37.0f, false));
+    REQUIRE(WristShown(37.0f, true));
+    REQUIRE_FALSE(WristShown(41.0f, true));
 }

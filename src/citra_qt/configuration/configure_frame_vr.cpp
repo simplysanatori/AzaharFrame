@@ -132,9 +132,19 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     show_stats_check = new QCheckBox(tr("Show Stats"), this);
     show_stats_check->setObjectName(QStringLiteral("frame_vr_show_stats_check"));
     show_stats_check->setToolTip(
-        tr("Shows FPS, speed and frame times under the top screen in VR. The Stats button above "
-           "this window switches it too."));
+        tr("Shows FPS, speed and frame times in VR. The Stats button above this window "
+           "switches it too."));
     layout->addWidget(show_stats_check);
+    // AzaharFrame statspos: global only. Values 0..1 are Settings::values.vr_stats_position
+    // (frame_xr/vis/stats_place.h).
+    stats_position_combo = new QComboBox(this);
+    stats_position_combo->addItem(tr("In Front"));
+    stats_position_combo->addItem(tr("On Wrist"));
+    stats_position_row = MakeRow(this, QStringLiteral("frame_vr_stats_position_row"),
+                                 tr("Stats Position"),
+                                 tr("Where the stats show: in front of you, or on your left wrist."),
+                                 {stats_position_combo});
+    layout->addWidget(stats_position_row);
 
     // AzaharFrame curve: global only. The items are the steps of Settings::values.vr_screen_curve
     // (frame_xr/input/screen_rig.h kCurveStepsDeg); another value in the file shows as the
@@ -288,6 +298,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     offset_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrsize
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
+    stats_position_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame statspos
     if (Settings::IsConfiguringGlobal()) {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
@@ -373,6 +384,8 @@ void ConfigureFrameVr::SetConfiguration() {
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
         show_stats_check->setChecked(Settings::values.vr_show_stats.GetValue());
+        stats_position_combo->setCurrentIndex(
+            static_cast<int>(Settings::values.vr_stats_position.GetValue())); // statspos
         window_scale_combo->setCurrentIndex(std::clamp(
             (static_cast<int>(Settings::values.vr_window_scale.GetValue()) - 100 + 25) / 50, 0, 2));
         depth_combo->setCurrentIndex(static_cast<int>(depth.GetValue(true)));
@@ -440,6 +453,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
         Settings::values.vr_show_stats.SetValue(show_stats_check->isChecked());
+        Settings::values.vr_stats_position.SetValue(
+            static_cast<u32>(stats_position_combo->currentIndex())); // AzaharFrame statspos
         // AzaharFrame curve: kept as it is while the item shown is still its nearest one.
         if (CurveIndex(Settings::values.vr_screen_curve.GetValue()) != curve_combo->currentIndex()) {
             Settings::values.vr_screen_curve.SetValue(

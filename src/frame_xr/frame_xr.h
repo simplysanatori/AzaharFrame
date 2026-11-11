@@ -179,6 +179,7 @@ enum class MenuSetting {
     ScreenLayout, ///< AzaharFrame layout: `value` 0 Stacked, 1 Side by Side
     ImmersiveOffsetReset,
     ShowStats,
+    StatsPosition, ///< AzaharFrame statspos: `value` 0 In Front, 1 On Wrist
     Background,
     FaceButtons,
     MotionControls,

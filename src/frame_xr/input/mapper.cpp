@@ -31,6 +31,13 @@ PanelHit NearestInBounds(const Ray& ray, const PanelGeometry& panels) {
     if (bottom.in_bounds && (best.panel == Panel::None || bottom.t < best.hit.t)) {
         best = {Panel::Bottom, bottom};
     }
+    // AzaharFrame statspos: the stats panel in front of the screen wins.
+    if (best.panel != Panel::None && panels.occluder.visible) {
+        const QuadHit o = IntersectQuad(ray, panels.occluder);
+        if (o.in_bounds && o.t < best.hit.t) {
+            return {};
+        }
+    }
     return best;
 }
 

@@ -30,6 +30,10 @@ struct PanelGeometry {
     /// `cycle_layout` (-1, +1), and the D-pad pressed while a grip is held stays away from the
     /// game until it is let go.
     bool grip_dpad_cycles_layout = false;
+    /// AzaharFrame statspos: a panel in front of the screens that the beam stops at (the stats
+    /// panel, In Front): a ray that meets it before a screen hits no screen (no touch, no grab,
+    /// no cursor; a trigger there is ZL/ZR, as over nothing). Not visible: none.
+    PanelQuad occluder;
 };
 
 struct MapperConfig {

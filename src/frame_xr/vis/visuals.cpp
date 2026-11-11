@@ -23,6 +23,7 @@
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/panels.h"
+#include "frame_xr/vis/stats_place.h"
 #include "frame_xr/vis/visuals.h"
 #include "frame_xr/xr_loader.h"
 
@@ -44,7 +45,7 @@ struct Shared {
     HelpBindings bindings;
     uint64_t bindings_seq = 0;
     std::atomic<int> help_request{-1}; ///< -1 none, 0 hide, 1 show, 2 toggle
-    std::atomic<bool> head_locked{false};
+    std::atomic<bool> stats_recentre{false}; ///< AzaharFrame statspos (RecentreStats)
 };
 Shared g_shared;
 
@@ -57,12 +58,12 @@ constexpr float kHelpGap = 0.04f; ///< window widths
 // The buttons: 0.3 window widths wide, over the window's top left corner.
 constexpr float kStripWidth = 0.3f;
 constexpr float kStripGap = 0.012f;
-// The stats: 0.42 top screen heights wide, under its bottom left corner; head-locked in the
-// immersive Full modes, low on the left.
-constexpr float kStatsTopWidth = 0.42f;
-constexpr float kStatsGap = 0.03f;
-constexpr Vec3f kStatsHeadOffset{-0.17f, -0.14f, -0.6f};
-constexpr float kStatsHeadWidth = 0.16f;
+// The stats: where they go is in stats_place.h (AzaharFrame statspos). The wrist panel fades
+// in kStatsLevels steps of alpha, each a copy of the art.
+constexpr float kStatsAspect = static_cast<float>(kStatsHeight) / static_cast<float>(kStatsWidth);
+constexpr int kStatsLevels = 8;
+// The grip on the stats, as the mapper's.
+constexpr float kGripPress = 0.60f, kGripLetGo = 0.40f;
 // Beams.
 constexpr float kBeamWidth = 0.008f;
 constexpr float kStubLength = 0.35f;
@@ -190,8 +191,8 @@ void NoteXrSecond(const XrSecond& second) {
     g_shared.xr_seq++;
 }
 
-void NoteTopHeadLocked(bool head_locked) {
-    g_shared.head_locked = head_locked;
+void RecentreStats() {
+    g_shared.stats_recentre = true;
 }
 
 struct Visuals::Impl {
@@ -259,6 +260,40 @@ struct Visuals::Impl {
     bool stats_on = false;
     bool stats_setting_seen = false;
     uint64_t stats_xr_seq = 0;
+    // AzaharFrame statspos: the art drawn (0 In Front, 1 On Wrist, -1 none) and whether the
+    // swapchain has it yet; the image queued and the one shown, as (art, alpha level).
+    int stats_art_mode = -1;
+    bool stats_art_dirty = false;
+    struct StatsImage {
+        int mode = -1;
+        int level = 0;
+    };
+    StatsImage stats_queued{}, stats_shown{};
+    std::vector<uint8_t> stats_faded;
+    uint32_t stats_position_seen = 0;
+    // In Front: placed when it next shows (pending), then where it stays.
+    bool front_pending = true;
+    bool front_shown = false; ///< submitted last frame (the beam stops at it)
+    Posef front_pose{};
+    float front_wanted = kStatsFrontDistance; ///< the distance asked for (the stick)
+    float front_scale = 1.0f;
+    int grab_hand = -1;
+    StatsGrab grab;
+    int64_t grab_last_ns = 0;
+    std::array<bool, 2> stats_grip_down{};
+    std::vector<Input::PanelQuad> obstacles; ///< the screens and panels, last frame
+    // On Wrist.
+    bool wrist_facing = false;
+    float wrist_fade = 0.0f;
+    int64_t wrist_last_ns = 0;
+    int wrist_logs = 0;
+    float FrontWidth() const {
+        return kStatsFrontWidth * front_scale;
+    }
+    Input::PanelQuad FrontQuad() const {
+        return {front_pose, FrontWidth(), FrontWidth() * kStatsAspect, front_shown};
+    }
+    void EndGrab(const char* why);
     CpuSampler cpu;
     std::mutex hook_mutex;
     std::function<void(bool)> stats_changed;
@@ -348,6 +383,16 @@ void Visuals::Create(Runtime& rt) {
     m.stats_xr_seq = 0;
     m.stats_setting_seen = Settings::values.vr_show_stats.GetValue();
     m.stats_on = m.stats_setting_seen;
+    // AzaharFrame statspos: each VR start places the stats in front of you again.
+    m.stats_art_mode = -1;
+    m.stats_queued = m.stats_shown = {};
+    m.front_pending = true;
+    m.front_shown = false;
+    m.grab_hand = -1;
+    m.stats_grip_down = {};
+    m.wrist_facing = false;
+    m.wrist_fade = 0.0f;
+    m.stats_position_seen = std::min<uint32_t>(Settings::values.vr_stats_position.GetValue(), 1);
     m.LoadSeen();
     XrSystemProperties sys{XR_TYPE_SYSTEM_PROPERTIES};
     if (XR_SUCCEEDED(Xr().xrGetSystemProperties(rt.instance, rt.system, &sys)) &&
@@ -367,9 +412,24 @@ void Visuals::DestroyXr() {
     m.top_beams.clear();
     m.top_dots.clear();
     m.help_shown = m.strip_shown = false;
+    m.front_shown = false;
+    m.grab_hand = -1;
     m.ours = {};
     m.trigger_down = {};
     m.rt = nullptr;
+}
+
+void Visuals::Impl::EndGrab(const char* why) {
+    if (grab_hand < 0) {
+        return;
+    }
+    grab_hand = -1;
+    LOG_INFO(Frontend, "xr: stats moved ({}): at {:.2f}, {:.2f}, {:.2f}, {:.2f} m wide", why,
+             front_pose.position.x, front_pose.position.y, front_pose.position.z, FrontWidth());
+}
+
+Input::PanelQuad Visuals::StatsOccluder() const {
+    return impl->FrontQuad();
 }
 
 void Visuals::Impl::ToggleStats() {
@@ -385,6 +445,59 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
                         bool have_input) {
     Impl& m = *impl;
     static_cast<void>(info);
+    // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
+    // grip and stick then move them and reach neither the screens nor the game.
+    const ViewPose view = LatestViewPose();
+    const Vec3f eye = ToInput(view.head).position;
+    for (int h = 0; h < Input::kNumHands; h++) {
+        auto& hand = in.hand[static_cast<std::size_t>(h)];
+        const bool grip = hand.grip > (m.stats_grip_down[h] ? kGripLetGo : kGripPress);
+        const bool grip_edge = grip && !m.stats_grip_down[h];
+        m.stats_grip_down[h] = grip;
+        const Input::Ray ray = Input::RayFromPose(hand.aim);
+        if (m.grab_hand == h) {
+            if (!grip || !have_input || !hand.active || !m.front_shown || !view.valid) {
+                m.EndGrab(grip ? "lost" : "let go");
+                continue;
+            }
+            const float dt = std::clamp(static_cast<float>(in.time_ns - m.grab_last_ns) * 1e-9f,
+                                        0.0f, 0.1f);
+            m.grab_last_ns = in.time_ns;
+            bool pushed = false;
+            if (std::abs(hand.stick.y) > kStatsStickThreshold) {
+                m.front_wanted = std::clamp(m.front_wanted + hand.stick.y * kStatsDepthSpeed * dt,
+                                            kStatsMinDistance, kStatsMaxDistance);
+                pushed = true;
+            }
+            if (std::abs(hand.stick.x) > kStatsStickThreshold) {
+                m.front_scale = std::clamp(m.front_scale * std::exp(hand.stick.x * kStatsScaleRate * dt),
+                                           kStatsMinScale, kStatsMaxScale);
+            }
+            const float now = Input::Length(m.front_pose.position - eye);
+            const Vec3f dir = m.grab.Direction(eye, ray, now);
+            const float w = m.FrontWidth();
+            const float d = StatsClearDistance(eye, dir, m.front_wanted, w, w * kStatsAspect,
+                                               m.obstacles);
+            if (pushed && d < m.front_wanted) {
+                m.front_wanted = d; // not pushed on through a screen
+            }
+            m.front_pose = StatsPoseAt(eye, dir, d);
+            hand.grip = 0.0f;
+            hand.stick = {};
+        } else if (m.grab_hand < 0 && grip_edge && have_input && hand.active && m.front_shown &&
+                   view.valid) {
+            const auto hit = Input::IntersectQuad(ray, m.FrontQuad());
+            if (hit.in_bounds) {
+                m.grab_hand = h;
+                m.grab_last_ns = in.time_ns;
+                m.grab.Begin(eye, m.front_pose, hit.point_world);
+                m.front_wanted = Input::Length(m.front_pose.position - eye);
+                LOG_INFO(Frontend, "xr: stats held ({} hand)", h == 0 ? "left" : "right");
+                hand.grip = 0.0f;
+                hand.stick = {};
+            }
+        }
+    }
     int hover = -1;
     int tab_hot = -1;
     bool close_hot = false;
@@ -487,8 +600,8 @@ std::vector<StatsRow> Visuals::Impl::StatsRows() {
 }
 
 void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Window& window,
-                    const Input::InputFrame& in, bool have_input, std::vector<Quad>& layers,
-                    XrSwapchain dot, XrSwapchain dim) {
+                    const std::vector<Input::PanelQuad>& screens, const Input::InputFrame& in,
+                    bool have_input, std::vector<Quad>& layers, XrSwapchain dot, XrSwapchain dim) {
     Impl& m = *impl;
     m.top_beams.clear();
     m.top_dots.clear();
@@ -623,45 +736,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
         m.atlas_dirty = false;
     }
 
-    // ---- Stats, under the top screen, while a game runs ----
-    if (m.stats_on && where != Where::Home && info.screens_live && m.stats_chain.Valid()) {
-        uint64_t seq;
-        {
-            std::scoped_lock lock{g_shared.mutex};
-            seq = g_shared.xr_seq;
-        }
-        if (seq != m.stats_xr_seq) {
-            m.stats_xr_seq = seq;
-            DrawStats(m.stats_art, m.StatsRows());
-            m.stats_chain.Upload(m.stats_art.Pixels()); // never waits (async_overlay.h)
-        }
-        if (m.stats_chain.HasImage() && info.should_render) {
-            Posef pose;
-            float w;
-            if (g_shared.head_locked) {
-                const ViewPose v = LatestViewPose();
-                const Posef head = ToInput(v.head);
-                w = kStatsHeadWidth;
-                pose = Compose(head, {{0, 0, 0, 1}, kStatsHeadOffset});
-            } else {
-                const ScreenPlacement place = GetScreenPlacement();
-                const float tw = place.top_size.width, th = place.top_size.height;
-                w = kStatsTopWidth * th;
-                const float h = w * kStatsHeight / kStatsWidth;
-                pose = Compose(ToInput(place.top_pose),
-                               {{0, 0, 0, 1}, {-tw * 0.5f + w * 0.5f, -th * 0.5f - kStatsGap - h * 0.5f, 0}});
-            }
-            Quad q;
-            q.swapchain = m.stats_chain.Handle();
-            q.image_rect = {{0, 0}, {kStatsWidth, kStatsHeight}};
-            q.pose = ToXr(pose);
-            q.size = {w, w * kStatsHeight / kStatsWidth};
-            q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
-            layers.push_back(q);
-        }
-    }
-
-    // ---- Each controller: activity, beam, dot, model ----
+    // ---- Each controller's activity (the beams, the models and the wrist stats) ----
     const ViewPose view = LatestViewPose();
     const Posef head = ToInput(view.head);
     std::array<std::optional<Vec3f>, 2> beam_end{};
@@ -672,6 +747,128 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
         tracked.active = have_input && hand.active;
         m.activity[h].Update(info.display_time, tracked, have_input && HandUsed(in, h));
     }
+
+    // ---- Stats (AzaharFrame statspos: In Front or On Wrist, stats_place.h), while a game runs --
+    const uint32_t position = std::min<uint32_t>(Settings::values.vr_stats_position.GetValue(), 1);
+    if (position != m.stats_position_seen) {
+        m.stats_position_seen = position;
+        m.front_pending = true; // back to In Front: in front of you again
+        m.EndGrab("Stats Position changed");
+        LOG_INFO(Frontend, "xr: Stats Position: {}", position == 0 ? "In Front" : "On Wrist");
+    }
+    if (g_shared.stats_recentre.exchange(false)) {
+        m.front_pending = true;
+        m.EndGrab("re-centred");
+    }
+    if (!m.stats_on || where == Where::Home) {
+        m.front_pending = true; // off, or no game: placed again when they next show
+    }
+    // What the stats may not go behind: the screens and the panels drawn so far.
+    m.obstacles = screens;
+    for (const Quad& q : layers) {
+        if (q.swapchain != dot && q.swapchain != dim && q.swapchain != m.stats_chain.Handle()) {
+            m.obstacles.push_back({ToInput(q.pose), q.size.width, q.size.height, true});
+        }
+    }
+    const bool stats_live = m.stats_on && where != Where::Home && info.screens_live &&
+                            m.stats_chain.Valid() && view.valid;
+    // In Front: in a game only (the in-game menu has a Stats tab and would be covered).
+    const bool front = stats_live && position == 0 && where == Where::Game;
+    if (front && m.front_pending) {
+        const Vec3f dir = StatsFrontDirection(head);
+        m.front_scale = 1.0f;
+        m.front_wanted = StatsClearDistance(head.position, dir, kStatsFrontDistance,
+                                            kStatsFrontWidth, kStatsFrontWidth * kStatsAspect,
+                                            m.obstacles);
+        m.front_pose = StatsPoseAt(head.position, dir, m.front_wanted);
+        m.front_pending = false;
+        LOG_INFO(Frontend, "xr: stats placed in front: {:.2f} m from you, at {:.2f}, {:.2f}, {:.2f}",
+                 m.front_wanted, m.front_pose.position.x, m.front_pose.position.y,
+                 m.front_pose.position.z);
+    }
+    // On Wrist: on the left controller while it is tracked, faded in while it faces your eyes.
+    const bool wrist_tracked = stats_live && position == 1 && have_input && m.activity[0].Tracked();
+    Posef wrist_pose{};
+    {
+        const float dt = m.wrist_last_ns != 0
+                             ? std::clamp(static_cast<float>(info.display_time - m.wrist_last_ns) *
+                                              1e-9f,
+                                          0.0f, 0.1f)
+                             : 0.0f;
+        m.wrist_last_ns = info.display_time;
+        bool facing = false;
+        if (wrist_tracked) {
+            wrist_pose = WristStatsPose(m.activity[0].Pose());
+            facing = WristShown(WristFacingDeg(wrist_pose, head.position), m.wrist_facing);
+        }
+        if (facing != m.wrist_facing && m.wrist_logs < 40) {
+            m.wrist_logs++;
+            LOG_INFO(Frontend, "xr: wrist stats {}", facing ? "turned to you" : "turned away");
+        }
+        m.wrist_facing = facing;
+        m.wrist_fade = wrist_tracked
+                           ? std::clamp(m.wrist_fade + (facing ? dt : -dt) / kWristFadeSeconds,
+                                        0.0f, 1.0f)
+                           : 0.0f; // lost or hidden: gone at once
+    }
+    const int mode = front ? 0 : wrist_tracked ? 1 : -1;
+    if (mode != 0) {
+        m.EndGrab("hidden");
+    }
+    if (!m.stats_chain.Busy()) {
+        m.stats_shown = m.stats_queued;
+    }
+    m.front_shown = false;
+    if (mode >= 0) {
+        uint64_t seq;
+        {
+            std::scoped_lock lock{g_shared.mutex};
+            seq = g_shared.xr_seq;
+        }
+        if (seq != m.stats_xr_seq || mode != m.stats_art_mode) {
+            m.stats_xr_seq = seq;
+            m.stats_art_mode = mode;
+            const auto rows = m.StatsRows();
+            if (mode == 0) {
+                DrawStats(m.stats_art, rows);
+            } else {
+                DrawStatsWrist(m.stats_art, rows);
+            }
+            m.stats_art_dirty = true;
+        }
+        const int level = mode == 0 ? kStatsLevels
+                                    : static_cast<int>(std::lround(m.wrist_fade * kStatsLevels));
+        const bool changed = m.stats_queued.mode != mode || m.stats_queued.level != level;
+        // Nothing new to show while it stays hidden: the art waits for the next fade in.
+        if ((m.stats_art_dirty || changed) && !(level == 0 && m.stats_queued.level == 0)) {
+            const uint8_t* px = m.stats_art.Pixels();
+            if (level < kStatsLevels) {
+                const std::size_t n = static_cast<std::size_t>(kStatsWidth) * kStatsHeight * 4;
+                m.stats_faded.resize(n);
+                const uint32_t k = static_cast<uint32_t>(level * 256 / kStatsLevels);
+                for (std::size_t i = 0; i < n; i++) {
+                    m.stats_faded[i] = static_cast<uint8_t>((px[i] * k) >> 8); // premultiplied
+                }
+                px = m.stats_faded.data();
+            }
+            m.stats_chain.Upload(px); // never waits (async_overlay.h)
+            m.stats_queued = {mode, level};
+            m.stats_art_dirty = false;
+        }
+        if (m.stats_chain.HasImage() && info.should_render && m.stats_shown.mode == mode &&
+            m.stats_shown.level > 0) {
+            const float w = mode == 0 ? m.FrontWidth() : kWristWidth;
+            Quad q;
+            q.swapchain = m.stats_chain.Handle();
+            q.image_rect = {{0, 0}, {kStatsWidth, kStatsHeight}};
+            q.pose = ToXr(mode == 0 ? m.front_pose : wrist_pose);
+            q.size = {w, w * kStatsAspect};
+            q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+            layers.push_back(q); // after the screens and the menu: drawn over them
+            m.front_shown = mode == 0;
+        }
+    }
+
     // Where each ray ends: a pointer dot on it, else (by the window) the nearest panel it hits.
     std::vector<Quad> dots;
     std::vector<Quad> kept;
@@ -697,6 +894,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
                 best = t;
                 beam_end[h] = p;
                 dot_hand[d] = h;
+            }
+        }
+        // AzaharFrame statspos: the stats in front (also in a game: what a grip there holds).
+        if (m.front_shown) {
+            const auto hit = Input::IntersectQuad(ray, m.FrontQuad());
+            if ((hit.in_bounds || (m.grab_hand == h && hit.on_plane)) && hit.t < best) {
+                best = hit.t;
+                beam_end[h] = hit.point_world;
             }
         }
         if (where != Where::Game) {

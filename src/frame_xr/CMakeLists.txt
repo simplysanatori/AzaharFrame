@@ -81,6 +81,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/panel_art.h
     vis/panels.cpp
     vis/panels.h
+    vis/stats_place.cpp # AzaharFrame statspos
+    vis/stats_place.h
     vis/menu_diagram.cpp # AzaharFrame tabmenu
     vis/menu_diagram.h # AzaharFrame tabmenu
     vis/visuals.cpp

@@ -753,10 +753,14 @@ struct Values {
     // AzaharFrame: what is behind the screens in VR (global only): 0 = Black, 1 = Passthrough (the
     // room, when the runtime offers it). Read every frame (frame_xr/hud.h).
     SwitchableSetting<u32, true> vr_background{0, 0, 1, "vr_background"};
-    // AzaharFrame vrvis (global only): draw the Frame controllers in VR, and the stats panel under
-    // the top screen. Read every frame (frame_xr/vis/visuals.h).
+    // AzaharFrame vrvis (global only): draw the Frame controllers in VR, and the stats panel. Read
+    // every frame (frame_xr/vis/visuals.h).
     SwitchableSetting<bool> vr_show_controllers{true, "vr_show_controllers"};
     SwitchableSetting<bool> vr_show_stats{false, "vr_show_stats"};
+    // AzaharFrame statspos (global only): where the stats panel shows: 0 = In Front (placed ahead
+    // of you, then fixed in the room; a grip moves it), 1 = On Wrist (the left controller). Read
+    // every frame (frame_xr/vis/stats_place.h).
+    SwitchableSetting<u32, true> vr_stats_position{0, 0, 1, "vr_stats_position"};
     // AzaharFrame (global only): how large Azahar's window looks on the VR panel, in percent
     // (100, 150 or 200 in the settings; any value in between works). Read by the home panel
     // (citra_qt/frame_mirror.cpp); flat mode ignores it.

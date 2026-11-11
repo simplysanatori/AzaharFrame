@@ -285,6 +285,7 @@ bool Runtime::PollEvents() {
             if (e.referenceSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL) {
                 LOG_INFO(Frontend, "xr: SteamVR recentred, re-centring the immersive view");
                 Immersive::OnResetPanels();
+                Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
             }
             break;
         }
@@ -606,7 +607,6 @@ void Runtime::FrameLoop() {
             place = WithSecondSlot(place); // AzaharFrame layout: as GetScreenPlacement
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
-            Vis::NoteTopHeadLocked(shown.top_space == view_space); // AzaharFrame vrvis: stats
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
                 const ScreenChain& chain = screens[static_cast<std::size_t>(s)];

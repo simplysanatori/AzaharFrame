@@ -59,6 +59,7 @@ enum class Id : int {
     ImmersiveOffsetReset,
     // Stats
     ShowStats,
+    StatsPosition, ///< AzaharFrame statspos
     // Controls
     ControlsPage,
     // Settings
@@ -119,6 +120,7 @@ struct MenuModel {
     bool immersive_offset_set = false;
     // Stats
     bool show_stats = false;
+    int stats_position = 0; ///< 0 In Front, 1 On Wrist (AzaharFrame statspos)
     std::vector<std::pair<std::string, std::string>> stats_game, stats_vr, stats_system;
     std::string version;
     // Controls

@@ -132,6 +132,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
+    static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
@@ -151,6 +152,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kCurve;
     case Id::ScreenLayout:
         return kLayout;
+    case Id::StatsPosition:
+        return kStatsAt;
     case Id::ControlsPage:
         return kPage;
     case Id::Scope:
@@ -216,6 +219,8 @@ std::string LabelFor(Id id) {
         return "Reset";
     case Id::ShowStats:
         return "Show Stats";
+    case Id::StatsPosition:
+        return "Stats Position";
     case Id::Background:
         return "Background";
     case Id::FaceButtons:
@@ -258,7 +263,9 @@ std::string ExplainFor(Id id) {
     case Id::ImmersiveOffset:
         return "Moves the immersive screen to fit your lenses, in every game.";
     case Id::ShowStats:
-        return "Shows the stats under the top screen while you play.";
+        return "Shows the stats while you play.";
+    case Id::StatsPosition:
+        return "Where the stats show: in front of you, or on your left wrist.";
     case Id::Background:
         return "What shows behind the screens.";
     case Id::FaceButtons:
@@ -494,7 +501,32 @@ void TabMenu::DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, 
     kit.Switch({c.x0, row.y0, c.x1, row.y1}, model.show_stats, st);
     AddHit(row, {Id::ShowStats, enabled ? -1 : kLabelIndex}, pane);
     anchors.push_back({Id::ShowStats, c.x0, row.y0 + 6.0f, lock});
-    kit.Line(c.x0, row.y1 + 8.0f, c.x1, row.y1 + 8.0f, 1.0f, Tok::kOutlineVariant);
+    // AzaharFrame statspos: Stats Position under it, a label and its two choices.
+    const Rect at_row{row.x0, row.y1, row.x1, row.y1 + kRowH - 8.0f};
+    {
+        const Lock at_lock = model.locked[static_cast<std::size_t>(Id::StatsPosition)];
+        const bool at_enabled = at_lock == Lock::None;
+        AddHit(at_row, {Id::StatsPosition, kLabelIndex}, pane);
+        anchors.push_back({Id::StatsPosition, c.x0, at_row.y0 + 6.0f, at_lock});
+        kit.TextMid(c.x0, at_row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(Id::StatsPosition), 0,
+                    at_enabled ? 1.0f : kDisabledContent);
+        const auto& opts = OptionsFor(Id::StatsPosition);
+        const float w = kit.SegmentedWidth(opts, c.W() * 0.6f);
+        const Rect seg{c.x1 - w, at_row.Cy() - kControlH * 0.5f, c.x1,
+                       at_row.Cy() + kControlH * 0.5f};
+        const int hover = view.hover.id == Id::StatsPosition ? view.hover.index : -1;
+        const int pressed = view.pressed.id == Id::StatsPosition ? view.pressed.index : -1;
+        kit.Segmented(seg, opts, model.stats_position, hover, pressed, !at_enabled);
+        if (at_enabled) {
+            const auto e = kit.SegmentEdges(seg, opts);
+            for (int i = 0; i < static_cast<int>(opts.size()); i++) {
+                AddHit({e[static_cast<std::size_t>(i)], seg.y0, e[static_cast<std::size_t>(i + 1)],
+                        seg.y1},
+                       {Id::StatsPosition, i}, pane);
+            }
+        }
+    }
+    kit.Line(c.x0, at_row.y1 + 8.0f, c.x1, at_row.y1 + 8.0f, 1.0f, Tok::kOutlineVariant);
 
     const float col_gap = 40.0f;
     const float cw = (c.W() - col_gap) * 0.5f;
@@ -513,7 +545,7 @@ void TabMenu::DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, 
         }
         y += 12.0f;
     };
-    float yl = row.y1 + 24.0f, yr = yl;
+    float yl = at_row.y1 + 24.0f, yr = yl;
     if (model.stats_game.empty() && model.stats_vr.empty()) {
         kit.TextMid(c.x0, yl + 16.0f, Type::Body, Tok::kOnSurfaceVariant, "No Stats Yet");
     }

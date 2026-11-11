@@ -80,5 +80,8 @@ struct StatsRow {
     std::string value;
 };
 void DrawStats(PanelArt& art, const std::vector<StatsRow>& rows);
+/// AzaharFrame statspos: the same rows for the wrist (a panel a third the size): a 3 x 3 grid of
+/// tiles, each a large value over its small label, so it reads at arm's length.
+void DrawStatsWrist(PanelArt& art, const std::vector<StatsRow>& rows);
 
 } // namespace FrameXr::Vis

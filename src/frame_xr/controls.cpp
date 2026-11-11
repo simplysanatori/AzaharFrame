@@ -626,6 +626,7 @@ void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFr
     host.reset_position = [this, &rt] {
         ResetPlacement(rt);
         Immersive::OnResetPanels();
+        Vis::RecentreStats(); // AzaharFrame statspos
         ShowToastText("Position Reset");
     };
     host.swap_screens = [this] {
@@ -851,6 +852,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     Input::InputFrame window_in = in;
     visuals.TakeInput(info, where, window_in, have_input);
     const std::size_t layers_before = layers.size();
+    stats_screens.clear(); // AzaharFrame statspos: GameFrame fills it
     if (menu_shown) {
         MenuFrame(rt, info, window_in, have_input, layers);
     } else if (game_running) {
@@ -859,7 +861,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         }
         mirror.Hide();
         keyboard.Hide(); // AzaharFrame keyboard
-        Input::InputFrame game_in = in;
+        Input::InputFrame game_in = window_in; // AzaharFrame statspos: without a stats grab
         FilterAfterMenu(game_in);
         GameFrame(rt, info, game_in, have_input, layers);
     } else {
@@ -897,8 +899,8 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             window.height = kPickerHeight;
         }
     }
-    visuals.Frame(rt, info, where, window, in, have_input, layers, cursor_chain.handle,
-                  dim_chain.handle);
+    visuals.Frame(rt, info, where, window, stats_screens, in, have_input, layers,
+                  cursor_chain.handle, dim_chain.handle);
     last_time = info.display_time;
 }
 
@@ -935,6 +937,19 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     panels.top = quads.top;
     panels.bottom = quads.bottom;
     panels.bottom_toggle_enabled = managed;
+    // AzaharFrame statspos: the beam stops at the stats in front of the screens; the stats are
+    // never placed behind the screens as drawn, the immersive one too.
+    panels.occluder = visuals.StatsOccluder();
+    stats_screens = {quads.top, quads.bottom};
+    if (shown.show_top && !shown.top_pointable) {
+        Input::Posef top = ToInput(shown.top_pose[0]);
+        if (shown.top_space == info.view_space) {
+            const Input::Posef head = ToInput(LatestViewPose().head);
+            top = {Input::Normalized(Input::Multiply(head.orientation, top.orientation)),
+                   Input::Transform(head, top.position)};
+        }
+        stats_screens.push_back({top, shown.top_size.width, shown.top_size.height, true});
+    }
     // While the immersive screen is on view the grips move it, not the mapper. The bottom
     // screen in focus pauses immersive mode (SetBottomFocused below), so the grips move the
     // normal screens then.
@@ -990,6 +1005,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         // AzaharFrame controls: one rule, the 1 s hold resets the screens and re-centres, in every
         // mode (the immersive screen too, held or not); a tap never does.
         Immersive::OnResetPanels();
+        Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
     } else if (cmd.top_drag_active || cmd.top_depth_delta_z != 0.0f ||
                cmd.top_scale_stick != 0.0f) {
         Input::Posef top = ToInput(place.top_pose);

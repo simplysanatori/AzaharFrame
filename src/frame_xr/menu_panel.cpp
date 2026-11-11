@@ -276,6 +276,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.immersive_offset = OffsetText(ox, oy);
     m.immersive_offset_set = std::fabs(ox) >= 0.05f || std::fabs(oy) >= 0.05f;
     m.show_stats = v.vr_show_stats.GetValue();
+    m.stats_position = static_cast<int>(std::min<u32>(v.vr_stats_position.GetValue(), 1));
     // The rows of the stats panel: the game's five, the VR app's two, the system's.
     for (std::size_t i = 0; i < stats.size(); i++) {
         (i < 5 ? m.stats_game : i < 7 ? m.stats_vr : m.stats_system).push_back(stats[i]);
@@ -352,6 +353,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ShowStats:
         Apply(v.vr_show_stats, value != 0, false);
         r.setting = MenuSetting::ShowStats;
+        break;
+    case Id::StatsPosition: // AzaharFrame statspos, global
+        Apply(v.vr_stats_position, std::min<u32>(u, 1), false);
+        r.setting = MenuSetting::StatsPosition;
         break;
     case Id::Background:
         Apply(v.vr_background, u, false);
@@ -519,6 +524,7 @@ void MenuPanel::Click(Target t, Host& host) {
         scope = t.index;
         break;
     case Id::ScreenLayout:
+    case Id::StatsPosition:
     case Id::Background:
     case Id::FaceButtons:
     case Id::MotionControls:

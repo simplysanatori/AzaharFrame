@@ -144,6 +144,38 @@ void DrawStats(PanelArt& a, const std::vector<StatsRow>& rows) {
     }
 }
 
+void DrawStatsWrist(PanelArt& a, const std::vector<StatsRow>& rows) {
+    a.Clear(0);
+    const float w = static_cast<float>(a.Width()), h = static_cast<float>(a.Height());
+    a.FillRRect(2, 2, w - 2, h - 2, 28.0f, Ink::kSheet);
+    constexpr int kCols = 3, kRows = 3;
+    constexpr float kPad = 14.0f, kValue = 38.0f, kLabel = 19.0f;
+    const float cw = (w - kPad * 2.0f) / kCols, rh = (h - kPad * 2.0f) / kRows;
+    for (std::size_t i = 0; i < rows.size() && i < kCols * kRows; i++) {
+        const float x0 = kPad + cw * static_cast<float>(i % kCols);
+        const float y0 = kPad + rh * static_cast<float>(i / kCols);
+        const float cx = x0 + cw * 0.5f, room = cw - 12.0f;
+        // A value too wide for its tile is drawn smaller, never cut.
+        float vs = kValue;
+        while (vs > 22.0f && a.TextWidth(vs, true, rows[i].value) > room) {
+            vs -= 1.0f;
+        }
+        float ls = kLabel;
+        while (ls > 13.0f && a.TextWidth(ls, false, rows[i].label) > room) {
+            ls -= 1.0f;
+        }
+        a.Text(cx, y0 + rh * 0.52f, vs, true, Ink::kText, rows[i].value, 1);
+        a.Text(cx, y0 + rh * 0.52f + ls + 8.0f, ls, false, Ink::kDim,
+               a.Fit(ls, false, rows[i].label, room), 1);
+        if (i % kCols != 0) {
+            a.Line(x0, y0 + 14.0f, x0, y0 + rh - 14.0f, 1.0f, Ink::kRule);
+        }
+        if (i >= kCols) {
+            a.Line(x0 + 14.0f, y0, x0 + cw - 14.0f, y0, 1.0f, Ink::kRule);
+        }
+    }
+}
+
 // ---- The diagram (AzaharFrame ctrldiag) ---------------------------------------------------------
 
 static_assert(kHelpRect.w == static_cast<int>(kDiagramPanelW) &&

@@ -21,6 +21,7 @@ add_executable(tests
     ../frame_xr/vis/help_content.cpp # AzaharFrame vrvis
     ../frame_xr/vis/help_layout.cpp # AzaharFrame screenswap
     ../frame_xr/vis/model_file.cpp # AzaharFrame vrvis
+    ../frame_xr/vis/stats_place.cpp # AzaharFrame statspos
     frame_xr/vis.cpp # AzaharFrame vrvis
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
     frame_xr/flat_fit.cpp # AzaharFrame flatdialog

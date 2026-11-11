@@ -169,6 +169,8 @@ private:
     MirrorPanel mirror; ///< the home panel when the Qt side set one, instead of the picker
     KeyboardPanel keyboard; ///< AzaharFrame keyboard: shown only with the home panel (Y)
     Vis::Visuals visuals;   ///< AzaharFrame vrvis: help, stats, beams, controller models
+    /// AzaharFrame statspos: the screens as drawn this frame (GameFrame), for the stats.
+    std::vector<Input::PanelQuad> stats_screens;
 
     // The in-game menu: the home panel over the paused game (Menu held 1 s).
     std::atomic<bool> menu_open{false}; ///< set by the Qt side once the game paused

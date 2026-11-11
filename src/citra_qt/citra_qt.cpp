@@ -4007,6 +4007,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ShowStats:
         set(v.vr_show_stats, r.value != 0);
         break;
+    case S::StatsPosition: // AzaharFrame statspos
+        set(v.vr_stats_position, u);
+        break;
     case S::Background:
         set(v.vr_background, u);
         break;
