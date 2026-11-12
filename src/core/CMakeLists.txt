@@ -70,6 +70,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     homebrew/net.h # AzaharFrame emerald
     homebrew/packages.cpp # AzaharFrame emerald
     homebrew/packages.h # AzaharFrame emerald
+    homebrew/update_check.cpp # AzaharFrame ui3
+    homebrew/update_check.h # AzaharFrame ui3
     core.cpp
     core.h
     core_timing.cpp

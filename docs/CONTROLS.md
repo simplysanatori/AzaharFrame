@@ -151,7 +151,7 @@ Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the 
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls** and **Touchpad Touch** (see Editing the controls).
 - **Mods**: **Cheats**, **Mods** and **Textures** for the running game (see Cheats, mods and textures).
-- **Homebrew**: Pokémon Emerald 3DS. **Install** asks for your Pokémon Emerald ROM in Azahar's window and builds the game from it. Once it is installed, **Play** starts it, and **Update** shows when a newer release is out (**Reinstall** otherwise). The progress shows on the row.
+- **Homebrew**: Pokémon Emerald 3DS. **Install** asks for your Pokémon Emerald ROM in Azahar's window and builds the game from it. Once it is installed, **Play** starts it, and **Update** shows when a newer release is out. Otherwise **Check for Updates** asks GitHub at once, and **Reinstall** builds the game again. The progress shows on the row.
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
 
 Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.

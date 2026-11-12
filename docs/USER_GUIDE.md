@@ -143,7 +143,7 @@ Downloaded packs go to `load/texture-packs/<TitleID>/`, and `load/textures/<Titl
 
 #### The Homebrew tab
 
-The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built from a game you own. For now that is [Pokémon Emerald 3DS](https://github.com/ZallaxDev/emerald-3ds). **Install** continues in Azahar's window: it asks for your Pokémon Emerald ROM, the language and the game folder, then downloads the release and builds the game, with the progress on the row. Once it is installed, **Play** starts it. Once a day, when the game list loads, Azahar for Frame asks GitHub for the latest release; **Update** then shows next to **Play**, and **Reinstall** shows when you already have the latest. Azahar's own **Homebrew** menu has the same entries.
+The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built from a game you own. For now that is [Pokémon Emerald 3DS](https://github.com/ZallaxDev/emerald-3ds). **Install** continues in Azahar's window: it asks for your Pokémon Emerald ROM, the language and the game folder, then downloads the release and builds the game, with the progress on the row. Once it is installed, **Play** starts it. Once a day, when the game list loads, Azahar for Frame asks GitHub for the latest release; **Update** then shows next to **Play**. When you already have the latest, **Check for Updates** asks again at once, and the row shows the installed version and when it was checked. **Reinstall** builds the game again from the kept ROM, if something went wrong. Azahar's own **Homebrew** menu has the same entries, with **Check for Updates** at its end.
 
 #### Optimize Texture Pack for Frame
 

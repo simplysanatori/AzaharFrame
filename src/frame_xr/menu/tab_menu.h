@@ -156,6 +156,7 @@ enum class Id : int {
     PartUp,      ///< index: mods.textures.parts.rows
     PartDown,    ///< index: mods.textures.parts.rows
     HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index: homebrew.items
+    HomebrewCheck,     ///< AzaharFrame ui3: Check for Updates; index: homebrew.items
     // AzaharFrame ui3: Optimize for Frame on a pack's page (mods_segments.h PackOptimize)
     OptimizePack,  ///< Optimize for Frame (the estimate, then the dialog)
     OptimizeStop,  ///< Stop while it converts

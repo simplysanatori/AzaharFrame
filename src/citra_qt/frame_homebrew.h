@@ -16,6 +16,7 @@
 #include <QObject>
 #include <QString>
 #include "core/homebrew/packages.h"
+#include "core/homebrew/update_check.h" // AzaharFrame ui3
 
 class QAction;
 class QMenu;
@@ -37,6 +38,11 @@ public:
         QString status;      ///< while busy: what it does; else the last error ("" none)
         QString game_path;   ///< what Play starts
         QString detail;      ///< installed: what was chosen ("Português (Brasil)"), or ""
+        // AzaharFrame ui3: Check for Updates
+        bool checking = false; ///< a check asks GitHub
+        QString version;       ///< installed: the release ("v0.5.0")
+        QString latest;        ///< with `update`: the newer release
+        s64 checked = 0;       ///< unix seconds of the last check that answered (0 none)
     };
 
     HomebrewPackager(const Homebrew::PackageInfo& info, QObject* parent)
@@ -51,6 +57,10 @@ public:
     virtual void Update(QWidget* parent) = 0;
     /// The once-a-day check for a newer release (only when installed).
     virtual void CheckForUpdate() = 0;
+    /// AzaharFrame ui3: Check for Updates: asks GitHub now, past the once-a-day check (at most once
+    /// in Homebrew::kManualCheckGap; a press sooner gets the last result), then `done(result)` on
+    /// the GUI thread. Nothing when not installed or busy.
+    virtual void CheckNow(std::function<void(Homebrew::CheckResult)> done) = 0;
     /// Settings this package's game needs, applied as it boots (`path`: the booted file). True when
     /// the file is this package's.
     virtual bool ApplyBootSettings(const QString& path) = 0;
@@ -79,6 +89,9 @@ public:
     void CheckForUpdates();
     /// The Homebrew segment's Install and Update (the window shows already) and Play's file.
     void Run(const QString& package, bool update);
+    /// AzaharFrame ui3: Check for Updates for one package ("" every installed one): the result as a
+    /// VR toast (`vr`), else in a message box over the window.
+    void CheckNow(const QString& package, bool vr);
     QString GamePath(const QString& package) const;
 
     /// BootGame: the booted file's package's settings (per run; RestoreGlobalState undoes them).
@@ -93,4 +106,5 @@ private:
     QMenu* menu;
     std::vector<HomebrewPackager*> packagers;
     std::vector<QAction*> actions;
+    QAction* check_action = nullptr; ///< AzaharFrame ui3: Check for Updates
 };

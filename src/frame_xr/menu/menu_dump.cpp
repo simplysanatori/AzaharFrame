@@ -345,15 +345,9 @@ int main(int argc, char** argv) {
 
     // AzaharFrame mouse + menuux: toasts as hud.cpp draws them (a box sized by toast_fit.h, the
     // text centred; one line in the large font, else two in the small one), one row each.
-    {
+    // AzaharFrame ui3: a list of toasts to one file (the Homebrew results have their own)
+    const auto toast_shot = [&out](const std::string& file, const std::vector<std::string>& toasts) {
         namespace ui = frame_xr::ui;
-        ui::InitFonts();
-        const std::vector<std::string> toasts{
-            Input::kReticleHint, Input::kMouseHint,
-            "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
-            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
-            "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
-            "C-Stick & Gyro Downloaded. Restart to Enable."}; // AzaharFrame ui3: five seconds
         ui::Canvas cv;
         cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
         cv.Clear(Rgb(kBackdrop));
@@ -385,7 +379,21 @@ int main(int argc, char** argv) {
             std::printf("toast %zu: %d px%s: %s\n", i, box.box_px, box.two_lines ? ", two lines" : "",
                         t.c_str());
         }
-        ok &= WritePng(out + "/toasts.png", cv);
+        return WritePng(out + "/" + file, cv);
+    };
+    {
+        frame_xr::ui::InitFonts();
+        ok &= toast_shot("toasts.png",
+                         {Input::kReticleHint, Input::kMouseHint,
+                          "Async Shader Compilation: From the Next Start",
+                          "Hide Bottom Screen: From the Next Start",
+                          "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
+                          "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
+                          "C-Stick & Gyro Downloaded. Restart to Enable."}); // AzaharFrame ui3: five seconds
+        // AzaharFrame ui3: Check for Updates' results (five seconds)
+        ok &= toast_shot("homebrew-no-updates-toast.png", {"No Updates Available"});
+        ok &= toast_shot("homebrew-update-available-toast.png", {"Update Available"});
+        ok &= toast_shot("homebrew-check-failed-toast.png", {"Couldn't Check for Updates"});
     }
     MenuView v;
     v.tab = Tab::Main;
@@ -822,12 +830,29 @@ int main(int argc, char** argv) {
             hb.homebrew.items[0] = it;
             hb.homebrew.items[0].installed = true;
             hb.homebrew.items[0].author = "ZallaxDev \u00b7 English";
-            hv.hover = {Id::HomebrewPlay, 0};
+            hb.homebrew.items[0].version = "v0.5.0";
+            hv.hover = {Id::HomebrewCheck, 0};
             ok &= shot("homebrew-installed", hb, hv);
+            hb.homebrew.items[0].checking = true; // AzaharFrame ui3: Check for Updates' states
+            hb.homebrew.spin = 7;
+            hv.hover = {};
+            ok &= shot("homebrew-checking", hb, hv);
+            hb.homebrew.items[0].checking = false;
+            hb.homebrew.items[0].checked = "Checked Just Now";
+            ok &= shot("homebrew-no-updates", hb, hv);
+            hv.hover = {Id::HomebrewReinstall, 0};
+            ok &= shot("homebrew-reinstall", hb, hv);
+            hv.hover = {};
+            hb.homebrew.items[0].checked = "Checked 2 Hours Ago"; // failed: the row as it was
+            ok &= shot("homebrew-check-failed", hb, hv);
+            hb.homebrew.items[0].checked = "Checked Just Now";
             hb.homebrew.items[0].update = true;
+            hb.homebrew.items[0].latest = "v0.6.0";
             hv.hover = {Id::HomebrewUpdate, 0};
             ok &= shot("homebrew-update", hb, hv);
             hb.homebrew.items[0].update = false;
+            hb.homebrew.items[0].latest.clear();
+            hb.homebrew.items[0].checked.clear();
             hb.homebrew.items[0].status = "Could not connect";
             hv.hover = {};
             ok &= shot("homebrew-error", hb, hv);

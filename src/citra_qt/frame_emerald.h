@@ -27,6 +27,7 @@ public:
     void Install(QWidget* parent) override;
     void Update(QWidget* parent) override;
     void CheckForUpdate() override;
+    void CheckNow(std::function<void(Homebrew::CheckResult)> done) override; // AzaharFrame ui3
     bool ApplyBootSettings(const QString& path) override;
 
     /// The one place the ROM file is picked (to be swapped for the shared picker later).
@@ -71,4 +72,11 @@ private:
     QString status;
     bool checking = false;
     bool automatic = false;
+    // AzaharFrame ui3: the presses of Check for Updates waiting for the check that runs, and the
+    // last one's request and result (at most one request in Homebrew::kManualCheckGap)
+    std::vector<std::function<void(Homebrew::CheckResult)>> waiting;
+    Homebrew::ManualCheck manual;
+    /// Asks GitHub for the latest release (off the GUI thread); the answer is kept and `waiting`
+    /// get the result.
+    void Fetch();
 };

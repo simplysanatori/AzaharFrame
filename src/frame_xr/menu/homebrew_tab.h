@@ -31,6 +31,11 @@ struct HomebrewItem {
     bool busy = false;   ///< installing or updating
     int progress = -1;   ///< 0 to 1000 while busy, -1 when unknown
     std::string status;  ///< while busy ("Downloading"), or the last error
+    // AzaharFrame ui3: Check for Updates
+    bool checking = false; ///< a check asks GitHub: the button's ring
+    std::string version;   ///< the installed release ("v0.5.0"), "" unknown
+    std::string latest;    ///< with `update`: the newer release ("v0.6.0")
+    std::string checked;   ///< "Checked Just Now" (Homebrew::CheckedText), "" never
     bool operator==(const HomebrewItem&) const = default;
 };
 
@@ -41,10 +46,15 @@ struct HomebrewTabModel {
 };
 
 /// AzaharFrame ui3: a row's buttons, right to left (none while busy): Install; or Play, then
-/// Update when a newer release was seen, else Reinstall.
+/// Update when a newer release was seen, else Check for Updates and the quieter Reinstall (a text
+/// button: a repair, not the main path).
 std::vector<Id> HomebrewButtons(const HomebrewItem& item);
-/// AzaharFrame ui3: the row's second line: the author ("ZallaxDev · English"), the phase with its
-/// percentage while busy ("Downloading 42%"), or the last error.
+/// AzaharFrame ui3: the row's second line: the author, the installed release and, after a check,
+/// the newer release or when it was checked ("ZallaxDev · English · v0.5.0 · Checked Just Now",
+/// "ZallaxDev · English · v0.5.0 · v0.6.0 Available"); the phase with its percentage while busy
+/// ("Downloading 42%"), or the last error.
 std::string HomebrewLine(const HomebrewItem& item);
+/// AzaharFrame ui3: the Check for Updates button's label: "Checking" while it asks.
+std::string HomebrewCheckLabel(const HomebrewItem& item);
 
 } // namespace FrameXr::Menu

@@ -681,7 +681,7 @@ void MenuPanel::BuildModel(const Host& host) {
     if (view.tab == Menu::Tab::Homebrew && // AzaharFrame ui3: its own tab
         // AzaharFrame emerald: the progress ring turns
         std::any_of(m.homebrew.items.begin(), m.homebrew.items.end(),
-                    [](const Menu::HomebrewItem& i) { return i.busy && i.progress < 0; })) {
+                    [](const Menu::HomebrewItem& i) { return (i.busy && i.progress < 0) || i.checking; })) {
         m.homebrew.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                std::chrono::steady_clock::now().time_since_epoch())
                                                .count() /
@@ -1199,10 +1199,12 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::HomebrewReinstall: // AzaharFrame ui3: Install again (Run without an update)
     case Id::HomebrewUpdate:
     case Id::HomebrewPlay:
+    case Id::HomebrewCheck: // AzaharFrame ui3
         if (t.index >= 0 && t.index < static_cast<int>(model.homebrew.items.size())) {
             const MenuCommand c = t.id == Id::HomebrewInstall || t.id == Id::HomebrewReinstall
                                       ? MenuCommand::HomebrewInstall
                                   : t.id == Id::HomebrewUpdate ? MenuCommand::HomebrewUpdate
+                                  : t.id == Id::HomebrewCheck  ? MenuCommand::HomebrewCheck
                                                                : MenuCommand::HomebrewPlay;
             ask_text(c, model.homebrew.items[static_cast<std::size_t>(t.index)].id);
         }

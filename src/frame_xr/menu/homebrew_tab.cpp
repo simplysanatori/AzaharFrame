@@ -9,8 +9,8 @@
 //   ZallaxDev
 //   Pokémon Emerald 3DS                       [Update]  [> Play]            a newer release seen
 //   ZallaxDev · English
-//   Pokémon Emerald 3DS                    [Reinstall]  [> Play]            the latest installed
-//   ZallaxDev · English
+//   Pokémon Emerald 3DS     Reinstall  [Check for Updates]  [> Play]       the latest installed
+//   ZallaxDev · English · v0.5.0 · Checked Just Now                          (ui3)
 //   Pokémon Emerald 3DS                                    (o)              installing
 //   Downloading 42%
 
@@ -54,9 +54,10 @@ void Arc(Kit& kit, float cx, float cy, float r, float a0, float a1, float width,
     }
 }
 
-/// Material 3 circular progress, 32 dp: `frac` of the ring, or turning with `spin` when < 0.
-void Ring(Kit& kit, float cx, float cy, float frac, int spin) {
-    constexpr float stroke = 4.0f, r = 16.0f - stroke * 0.5f;
+/// Material 3 circular progress, `size` dp (32; 20 inside a button): `frac` of the ring, or
+/// turning with `spin` when < 0.
+void Ring(Kit& kit, float cx, float cy, float frac, int spin, float size = 32.0f) {
+    const float stroke = size >= 32.0f ? 4.0f : 3.0f, r = size * 0.5f - stroke * 0.5f;
     const float gap = (stroke + 4.0f) / r;
     float start = 0.0f, len;
     if (frac < 0.0f) {
@@ -80,15 +81,36 @@ std::vector<Id> HomebrewButtons(const HomebrewItem& item) {
     if (!item.installed) {
         return {Id::HomebrewInstall};
     }
-    return {Id::HomebrewPlay, item.update ? Id::HomebrewUpdate : Id::HomebrewReinstall};
+    if (item.update) {
+        return {Id::HomebrewPlay, Id::HomebrewUpdate};
+    }
+    return {Id::HomebrewPlay, Id::HomebrewCheck, Id::HomebrewReinstall};
 }
 
 std::string HomebrewLine(const HomebrewItem& item) {
-    std::string line = item.status.empty() ? item.author : item.status;
-    if (item.busy && item.progress >= 0) {
-        line += " " + std::to_string(std::clamp(item.progress, 0, 1000) / 10) + "%";
+    if (!item.status.empty()) {
+        std::string line = item.status;
+        if (item.busy && item.progress >= 0) {
+            line += " " + std::to_string(std::clamp(item.progress, 0, 1000) / 10) + "%";
+        }
+        return line;
+    }
+    std::string line = item.author;
+    const auto add = [&line](const std::string& part) {
+        if (!part.empty()) {
+            line += (line.empty() ? "" : " \u00b7 ") + part;
+        }
+    };
+    if (item.installed) {
+        add(item.version);
+        add(item.update ? (item.latest.empty() ? std::string{} : item.latest + " Available")
+                        : item.checked);
     }
     return line;
+}
+
+std::string HomebrewCheckLabel(const HomebrewItem& item) {
+    return item.checking ? "Checking" : LabelFor(Id::HomebrewCheck);
 }
 
 void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
@@ -123,10 +145,31 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
         float right = c.x1;
         const auto button = [&](Id id, ButtonStyle style, char32_t icon) {
             const std::string label = LabelFor(id);
-            const float w = ButtonWidth(kit, label, icon != 0);
+            // AzaharFrame ui3: a text button's container is drawn 12 dp out, as M3's
+            const float w = ButtonWidth(kit, label, icon != 0) - (style == ButtonStyle::Text ? 24.0f : 0.0f);
             const Rect b{right - w, cy - kButtonH * 0.5f, right, cy + kButtonH * 0.5f};
             kit.Button(b, style, icon, label, StateOf(view, {id, idx}));
             AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id, idx}, area);
+            right = b.x0 - kGap;
+        };
+        // AzaharFrame ui3: Check for Updates; while it asks, "Checking" with a small ring in the
+        // icon's place, not pressable
+        const auto check = [&] {
+            const std::string label = HomebrewCheckLabel(it);
+            // as wide either way, so Reinstall does not move while it checks
+            const float w = std::max(ButtonWidth(kit, LabelFor(Id::HomebrewCheck), false),
+                                     ButtonWidth(kit, label, true));
+            const Rect b{right - w, cy - kButtonH * 0.5f, right, cy + kButtonH * 0.5f};
+            if (it.checking) {
+                kit.Button(b, ButtonStyle::Tonal, 0, "", State::Disabled);
+                const float lw = kit.TextWidth(Type::Label, label);
+                const float x0 = b.Cx() - (20.0f + 8.0f + lw) * 0.5f;
+                Ring(kit, x0 + 10.0f, cy, -1.0f, m.spin, 20.0f);
+                kit.TextMid(x0 + 28.0f, cy, Type::Label, Tok::kOnSurface, label, 0);
+            } else {
+                kit.Button(b, ButtonStyle::Tonal, 0, label, StateOf(view, {Id::HomebrewCheck, idx}));
+                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::HomebrewCheck, idx}, area);
+            }
             right = b.x0 - kGap;
         };
         if (it.busy) {
@@ -141,7 +184,13 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
             case Id::HomebrewPlay:
                 button(id, ButtonStyle::Filled, Sym::kPlayArrow);
                 break;
-            default: // Update, Reinstall (AzaharFrame ui3)
+            case Id::HomebrewCheck: // AzaharFrame ui3
+                check();
+                break;
+            case Id::HomebrewReinstall: // AzaharFrame ui3: quieter, a repair
+                button(id, ButtonStyle::Text, 0);
+                break;
+            default: // Update
                 button(id, ButtonStyle::Tonal, 0);
                 break;
             }

@@ -4418,6 +4418,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
+    case C::HomebrewCheck: // AzaharFrame ui3: Check for Updates; the result as a toast
+        QTimer::singleShot(0, this, [r] {
+            if (g_frame_homebrew) {
+                g_frame_homebrew->CheckNow(QString::fromStdString(r.text), true);
+            }
+        });
+        return;
     case C::HomebrewPlay: {
         const QString path = g_frame_homebrew
                                  ? g_frame_homebrew->GamePath(QString::fromStdString(r.text))

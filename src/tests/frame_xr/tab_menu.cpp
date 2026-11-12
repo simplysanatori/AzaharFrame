@@ -1489,25 +1489,44 @@ TEST_CASE("Tab menu: the Homebrew tab", "[frame_xr][tabmenu]") {
         }
     }
 
-    // Installed and current (AzaharFrame ui3): Play and Reinstall; with a newer release: Play and
-    // Update.
+    // Installed and current (AzaharFrame ui3): Play, Check for Updates and the quieter Reinstall;
+    // with a newer release: Play and Update.
     m.homebrew.items[0].installed = true;
     m.homebrew.items[0].author = "ZallaxDev \u00b7 English";
+    m.homebrew.items[0].version = "v0.5.0";
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
+    CHECK(has(Id::HomebrewCheck, 0));
     CHECK(has(Id::HomebrewReinstall, 0));
     CHECK(!has(Id::HomebrewInstall, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
     CHECK(HomebrewButtons(m.homebrew.items[0]) ==
-          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewReinstall});
-    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev \u00b7 English");
+          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewCheck, Id::HomebrewReinstall});
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev \u00b7 English \u00b7 v0.5.0");
+    CHECK(HomebrewCheckLabel(m.homebrew.items[0]) == "Check for Updates");
+    // Checking: "Checking" with its ring, not pressable; Reinstall stays.
+    m.homebrew.items[0].checking = true;
+    d.Draw(m, v);
+    CHECK(!has(Id::HomebrewCheck, 0));
+    CHECK(has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewCheckLabel(m.homebrew.items[0]) == "Checking");
+    // No newer release: when it was checked.
+    m.homebrew.items[0].checking = false;
+    m.homebrew.items[0].checked = "Checked Just Now";
+    CHECK(HomebrewLine(m.homebrew.items[0]) ==
+          "ZallaxDev \u00b7 English \u00b7 v0.5.0 \u00b7 Checked Just Now");
+    // A newer release: Update, and the new version on the row.
     m.homebrew.items[0].update = true;
+    m.homebrew.items[0].latest = "v0.6.0";
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
     CHECK(has(Id::HomebrewUpdate, 0));
+    CHECK(!has(Id::HomebrewCheck, 0));
     CHECK(!has(Id::HomebrewReinstall, 0));
     CHECK(HomebrewButtons(m.homebrew.items[0]) ==
           std::vector<Id>{Id::HomebrewPlay, Id::HomebrewUpdate});
+    CHECK(HomebrewLine(m.homebrew.items[0]) ==
+          "ZallaxDev \u00b7 English \u00b7 v0.5.0 \u00b7 v0.6.0 Available");
 
     // Busy: no buttons until it ends.
     m.homebrew.items[0].busy = true;
@@ -1527,6 +1546,7 @@ TEST_CASE("Tab menu: the Homebrew tab", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::HomebrewInstall) == "Install");
     CHECK(LabelFor(Id::HomebrewUpdate) == "Update");
     CHECK(LabelFor(Id::HomebrewReinstall) == "Reinstall");
+    CHECK(LabelFor(Id::HomebrewCheck) == "Check for Updates");
     CHECK(LabelFor(Id::HomebrewPlay) == "Play");
 }
 
