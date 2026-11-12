@@ -1152,7 +1152,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.1",
-        "tip": "For game update 1.1."
+        "tip": "For game update 1.1.",
+        "code_crc32": [
+          "23cc4afb"
+        ]
       },
       "install": {
         "rules": [
@@ -1284,7 +1287,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.0",
-        "tip": "For game version 1.0."
+        "tip": "For the game without its update (version 1.0).",
+        "code_crc32": [
+          "40d93b41"
+        ]
       },
       "install": {
         "rules": [
@@ -1317,7 +1323,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.1",
-        "tip": "For game version 1.1."
+        "tip": "For the game with its 1.1 update.",
+        "code_crc32": [
+          "23cc4afb"
+        ]
       },
       "install": {
         "rules": [
@@ -1506,7 +1515,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.1",
-        "tip": "For game update 1.1."
+        "tip": "For game update 1.1.",
+        "code_crc32": [
+          "23cc4afb"
+        ]
       },
       "install": {
         "rules": [
@@ -1539,7 +1551,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.1",
-        "tip": "For game update 1.1."
+        "tip": "For game update 1.1.",
+        "code_crc32": [
+          "23cc4afb"
+        ]
       },
       "install": {
         "rules": [
