@@ -140,11 +140,17 @@ float TextWidth(int font, const char* s) {
 }
 
 std::vector<std::string> WrapText(int font, const std::string& s, float width, int max_lines) {
+    return WrapText([font](const std::string& t) { return TextWidth(font, t.c_str()); }, s, width,
+                    max_lines);
+}
+
+std::vector<std::string> WrapText(const std::function<float(const std::string&)>& width_of,
+                                  const std::string& s, float width, int max_lines) {
     std::vector<std::string> lines;
     if (s.empty() || max_lines <= 0) {
         return lines;
     }
-    const auto fits = [&](const std::string& t) { return TextWidth(font, t.c_str()) <= width; };
+    const auto fits = [&](const std::string& t) { return width_of(t) <= width; };
 
     // Shortens `t` until `t + "..."` fits.
     const auto ellipsize = [&](std::string t) {

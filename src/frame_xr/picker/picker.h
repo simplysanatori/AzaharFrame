@@ -15,6 +15,7 @@
 
 #include "frame_xr/picker/library.h"
 #include "frame_xr/ui/ui_canvas.h"
+#include "frame_xr/ui/ui_ttf.h"
 
 namespace frame_xr::picker {
 
@@ -179,6 +180,12 @@ private:
     LogoImage logo_large;  // above the message of the empty screens
 
     ui::Canvas canvas;
+    // AzaharFrame emerald: the in-game menu's Google Sans Flex (Medium), so game titles with
+    // accents ("Pokémon") draw; the canvas's built-in font is ASCII only.
+    ui::TtfFont font;
+    void Text(float x, float baseline, bool large, const std::string& s, const ui::Color& c,
+              int align = 0);
+    float TextWidth(bool large, const std::string& s) const;
 };
 
 } // namespace frame_xr::picker
