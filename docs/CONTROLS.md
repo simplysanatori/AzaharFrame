@@ -258,6 +258,8 @@ Hold both bumpers first, then press **View** and **Menu**.
 
 In Flat there are two more ways back to VR: the **VR** button in the status bar of Azahar's window, next to the renderer and volume buttons, and, with no game running, holding **Menu** for 1 second.
 
+In VR, Azahar's window has a **Flat** button in the same place, and the in-game menu has **Switch to Flat**.
+
 ## Hiding the bottom screen
 
 Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.

@@ -229,6 +229,7 @@ private:
     Input::BottomScreenReticle reticle; ///< AzaharFrame mouse: Bottom Screen Reticle
     void SaveVrSettingSoon();           ///< AzaharFrame mouse
     int reticle_hand_logged = -2;
+    int reticle_hand_shown = -1; ///< AzaharFrame polish: ReticleDrivingHand, last frame
     OverlayChain ring_chain;
     bool mouse_mark_valid = false;
     XrPosef mouse_mark{};

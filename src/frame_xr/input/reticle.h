@@ -83,6 +83,14 @@ ReticleAim ReticleAimOf(const HandInput& hand);
 ReticleAim ReticleHeadAim(bool head_active, const Quatf& head, const HandInput& left,
                           const HandInput& right);
 
+/// AzaharFrame polish: the controller (HandIndex) that drives the reticle this frame, or -1.
+/// Only while it aims the bottom screen in a game: `game_frame` is a game's frame (a game
+/// running with its screens live, no in-game menu, no keyboard, the controllers read) and the
+/// chosen controller is tracked. Then it draws no beam and points at nothing. Anywhere else (the
+/// in-game menu, Azahar's window with or without a game, the keyboard) it is a normal pointer
+/// with its beam and its clicks, and Off and Headset take no controller.
+int ReticleDrivingHand(ReticleHand source, bool game_frame, const InputFrame& in);
+
 /// The point (0..1 from the top left) for an aim `yaw_deg` and `pitch_deg` from the reference
 /// (left and up positive), clamped to the screen.
 Vec2f ReticlePoint(float yaw_deg, float pitch_deg, float half_width_deg);
