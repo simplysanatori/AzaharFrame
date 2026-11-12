@@ -4,7 +4,7 @@ The short version is in the [README](../README.md). This guide has the rest: ins
 
 ## Status and known issues
 
-Version 1.1.1. The changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Version 1.2.0. The changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 Known issues:
 
@@ -26,6 +26,9 @@ Compared with CitraVR on the Quest, played on the Frame through Lepton:
 - The immersive screen can be moved and resized, and each game keeps its place. A grip and the D-pad shift it to fit your lenses.
 - The normal screens can be made big enough to fill the view.
 - The same app also plays in a flat window.
+- Cheats, mods and texture packs download from the in-game menu's **Mods** tab.
+- Gamepads and a mouse play alongside the Frame controllers, and **Edit Controls** changes the buttons of any of them.
+- When a game asks for text, a keyboard opens in the headset.
 
 Compared with Azahar on a PC:
 
@@ -44,7 +47,7 @@ Compared with Azahar on a PC:
 
 ### Install
 
-The README has the steps. In short: get the repository, download `azaharframe-1.1.1-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases), and run `steam-frame/install.sh` with the tarball. To check the download against `SHA256SUMS` first:
+The README has the steps. In short: get the repository, download `azaharframe-1.2.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases), and run `steam-frame/install.sh` with the tarball. To check the download against `SHA256SUMS` first:
 
 ```sh
 (cd ~/Downloads && sha256sum -c --ignore-missing SHA256SUMS)
@@ -55,7 +58,7 @@ The installer adds the library entry with its artwork and icon, gives SteamVR's 
 Other installers:
 
 - [Frametanium](https://github.com/Cogential/frametanium): add `simplysanatori/AzaharFrame`. It downloads the tarball and runs the same `install.sh`, so the library entry is the same one.
-- [FrameDrop](https://framedropvr.com): [Install with FrameDrop](https://framedropvr.com/install?manifest=https%3A%2F%2Fgithub.com%2Fsimplysanatori%2FAzaharFrame%2Freleases%2Flatest%2Fdownload%2Fazaharframe.framedrop.json). It installs `azaharframe-1.1.1-framedrop-linux-arm64.zip` and adds its own library entry. The first start runs the installer without adding a second entry, and so does the first start after an update. Its log is `~/.local/state/framedrop-azaharframe/install.log`.
+- [FrameDrop](https://framedropvr.com): [Install with FrameDrop](https://framedropvr.com/install?manifest=https%3A%2F%2Fgithub.com%2Fsimplysanatori%2FAzaharFrame%2Freleases%2Flatest%2Fdownload%2Fazaharframe.framedrop.json). It installs `azaharframe-1.2.0-framedrop-linux-arm64.zip` and adds its own library entry. The first start runs the installer without adding a second entry, and so does the first start after an update. Its log is `~/.local/state/framedrop-azaharframe/install.log`.
 
 ### Update
 
@@ -78,11 +81,11 @@ steam-frame/uninstall.sh
 On the Frame, with a C++ compiler, CMake 3.24 or newer, Ninja, the Qt 6 and SDL2 development files and Python 3:
 
 ```sh
-steam-frame/build.sh 1.1.1
+steam-frame/build.sh 1.2.0
 steam-frame/install.sh
 ```
 
-The first build takes about an hour and loads every core. It waits while the headset is in use. `build.sh` packs `steam-frame/release/azaharframe-1.1.1-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. That build links the Qt and SDL2 SteamOS has, so a SteamOS update can break it. The release is made with `steam-frame/build-portable.sh`, which carries its own. The options are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md#building) and [AGENTS.md](../AGENTS.md).
+The first build takes about an hour and loads every core. It waits while the headset is in use. `build.sh` packs `steam-frame/release/azaharframe-1.2.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. That build links the Qt and SDL2 SteamOS has, so a SteamOS update can break it. The release is made with `steam-frame/build-portable.sh`, which carries its own. The options are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md#building) and [AGENTS.md](../AGENTS.md).
 
 ## First run
 
@@ -107,6 +110,35 @@ Custom textures and game mods go in the data folder, in a folder named for the g
 - `~/.local/share/AzaharFrame/user/load/mods/<TitleID>/` for mods (a `romfs/` folder, `exheader.bin` or `code.ips`).
 
 Custom textures are on from the first launch, and they load in the background while you play. If you already have your own settings file, turn on **Emulation > Configure > Graphics > Advanced > Use custom textures** yourself.
+
+#### The Mods tab
+
+The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, **Mods** and **Textures** at its top switch between three lists for the running game. Nothing is downloaded until you press a download or install button. My own cheats and fixes carry a verified badge after their name.
+
+**Cheats**
+
+- **Download** fetches the game's cheats from [Sharkive](https://github.com/FlagBrew/Sharkive) and from my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) repository, and adds the new ones to the list. A line under the buttons says how many were added.
+- The switch on each row turns a cheat on or off. It works at once and is kept.
+- A cheat made for another version of the game shows that version in a red chip, for example **v1.0**. It may not work with yours.
+- **Azahar's Window** opens Azahar's own **Cheats** window, where you add, edit and delete your own cheats. Its **Download Cheats** button fetches the same cheats.
+
+**Mods**
+
+- The list shows what is installed for the game. Mods installed from here have a switch and **Remove**. Files you put in the mods folder yourself have **Remove** only, which asks first.
+- **Install Mods** lists the mods known for the game, with their author, and installs one with **Install**. The files come straight from the author's GitHub repository; nothing is re-hosted. The list holds my own fixes and community mods such as Ocarina ReFramed and Project Restoration.
+- When two mods change the same files, installing the second asks before it replaces the first, or tells you which one to remove first.
+- **Created by** and the author's name open the author's page in Steam's browser, after **Open GitHub?**.
+
+**Textures**
+
+- **Custom Textures** turns texture packs on or off.
+- Pick one of the game's packs, or **Off**. Each row names the author, the version, the format and the size.
+- **Download Packs** lists packs for the game and downloads one with **Download**, from GitHub or Google Drive, with the free space checked first. They include Henriko Magnifico's 4K and 1080p packs for Ocarina of Time 3D, Majora's Mask 3D, Super Mario 3D Land and A Link Between Worlds. **Cancel** stops a download. **Delete** removes a downloaded pack.
+- **Preload** loads the whole pack when the game starts, instead of while you play.
+
+A change to mods or textures shows **Restart the Game to Apply**. **Restart** restarts the game.
+
+Downloaded packs go to `load/texture-packs/<TitleID>/`, and `load/textures/<TitleID>` points at the one you picked. Installed mods are kept in `load/mod-library/<TitleID>/` and copied into `load/mods/<TitleID>/`.
 
 #### Optimize Texture Pack for Frame
 
@@ -167,15 +199,38 @@ On Azahar's window and in the in-game menu:
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
 
-The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the main screen more or less curved (Off, Gentle, Medium, Strong, Max), and **Screen Curve: Medium** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game. A small hint under the screens lists these when you take hold.
+The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the main screen more or less curved (Off, then 15° to 90° in 15° steps), and **Screen Curve: 45°** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game. A small hint under the screens lists these when you take hold.
 
 With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
+
+**Detach Screens**, on the in-game menu's **Position** tab, lets the screens move apart: **Off**, **Secondary** (the smaller screen moves on its own) or **Both** (each screen does). Grip a detached screen to take it anywhere around you; the stick of that hand sets its distance and size. Each game keeps its screen places. Details: [CONTROLS.md](CONTROLS.md#detaching-the-screens).
 
 The right controller is also the 3DS's motion sensor, for games that aim by moving the 3DS. Hold it like a 3DS with the beam pointing into the screen.
 
 The **Controls** button above Azahar's window opens a panel with all of this, named after your own controls profile. It opens by itself the first time VR starts. In a game, the in-game menu's **Controls** tab shows the same. The **Stats** button next to it shows the frame rate and the frame times while a game runs, in front of you or on your left wrist (**Stats Position**).
 
 All controls, with the keyboard and the pointing rules: [CONTROLS.md](CONTROLS.md).
+
+### Edit Controls, gamepads and a mouse
+
+A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it in SteamOS as usual. A mouse works too.
+
+**Edit Controls**, on the in-game menu's **Controls** tab, shows a New 3DS XL with a chip on each button and stick. The chip says what drives that button on the device you picked at the bottom: **Frame Controllers**, each connected gamepad by name, and **Mouse**. Select a chip and press the button you want for it. A button that already had a job swaps with it. For the Circle Pad or the C-Stick, push the stick up, then right. **Cancel** stops listening, **Reset to Default** puts the device's layout back and **Done** goes back to the Controls tab. Each kind of gamepad keeps its own layout, in `user/controller-mappings.txt`. The Frame controllers' layout is your controls profile, as in **Emulation > Configure > Controls**.
+
+**Touchpad Touch**, on the **Controls** tab, makes a gamepad's touchpad the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touch**: touching the pad touches the screen. **Click**: pressing the pad touches it, and your finger only moves the dot. It is **Off** by default. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
+
+The mouse has two modes, in **Mouse Mode** on its Edit Controls page. Hold the left and right buttons together for 3 seconds to switch; **Mouse: Pointer** or **Mouse: Bottom Screen** shows.
+
+- **Bottom Screen**: the mouse moves a cursor on the bottom screen, and the left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and starts again from the middle, for games that turn the camera with the touch screen. A touchpad has the same choice.
+- **Pointer**: the mouse moves a pointer around you, like the beam, for the menu, Azahar's window and the screens. It is adapted from [Frametop](https://github.com/Frametop/frametop)'s pointer.
+
+By default the right button is A, the back and forward buttons are L and R, and the middle button opens the in-game menu. Edit Controls changes them.
+
+### The game keyboard and the Mii Selector
+
+When a game asks for text, such as a name, a keyboard opens in front of you over the paused game. It keeps the game's rules (length, allowed characters) and its own buttons. Point and pull the trigger (or press **A**) to type; **B** is Backspace. A keyboard connected to the Frame types into it too. Immersive mode steps aside while it is open.
+
+When a game asks you to choose a Mii, the Mii it suggests is chosen and its name shows. In Flat both are Azahar's own dialogs.
 
 ### Playing in a window (Flat)
 
@@ -235,7 +290,7 @@ Normally the top screen floats two metres away. In immersive mode the game draws
 
 Six games start with a setup already. Mario Kart 7, Super Mario 3D Land and Kid Icarus: Uprising start in **Full (6DoF): Other Games** with **View Matrix Register** 90, **Eye Indicator Register** `87,2` and their camera's angle; Super Mario 3D Land with **Depth Factor Multiplier** 100x, the other two with 10x. Ocarina of Time 3D and Majora's Mask 3D start in **Full (6DoF): Ocarina of Time, Majora's Mask** with 10x. Asphalt 3D starts in **Full (6DoF): Other Games** with register 8, from CitraVR's notes. That applies only when the game's own properties have no value of their own for each setting, and the global one is still the default. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
 
-In the Full modes the immersive screen takes the game camera's angle and shape from the game itself while it runs, so the world stays still when you turn your head, also with widescreen mods. **Immersive Game FOV** (60 degrees by default) is only used until then, or in a game where it is not found. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
+With **Match Game Camera** on (the default), the immersive screen in the Full modes takes the game camera's angle and shape from the game itself while it runs, so the world stays still when you turn your head, also through cutscenes, zooms and widescreen mods. **Immersive Game FOV** (60 degrees by default) is only used until then, in a game where it is not found, or with **Match Game Camera** off. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
 The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Hold the right stick click for 1 second to put it back; that also re-centres the view.
 
@@ -276,6 +331,10 @@ Keep other heavy work off the Frame while you play.
 | Icon cache of the old VR picker (`AZAHARFRAME_VR_PICKER=1`) | `~/.cache/azaharframe/icons` |
 | Settings, saves, keys, shader caches | `~/.local/share/AzaharFrame/user` |
 | Immersive screen places, per game | `~/.local/share/AzaharFrame/user/immersive-placement.txt` |
+| Screen places, per game | `~/.local/share/AzaharFrame/user/screen-placement.txt` |
+| Gamepad and mouse layouts | `~/.local/share/AzaharFrame/user/controller-mappings.txt` |
+| Cheats, per game | `~/.local/share/AzaharFrame/user/cheats/<TitleID>.txt` |
+| Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
@@ -297,6 +356,8 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.
 - **No controllers in VR, only the beams.** The models are made from SteamVR's. Delete `user/frame-models` and start once more, then read `frame-models.log`.
 - **The immersive screen is in an odd place.** Squeeze a grip and click the right stick to put it back.
+- **A gamepad's touchpad does nothing.** Turn on **Touchpad Touch** and turn Steam Input off for that controller.
+- **A downloaded mod or texture pack does not show.** Restart the game.
 - **One edge of the immersive screen is cut off by the lenses.** Squeeze a grip and press the D-pad away from that edge until it shows: right when the left edge is cut off.
 
 ## Reporting a problem
@@ -308,6 +369,7 @@ If the same thing happens in Azahar on a PC, report it to [Azahar](https://githu
 ## Support upstream
 
 Support upstream first: star [CitraVR](https://github.com/amwatson/CitraVR) and [Azahar](https://github.com/azahar-emu/azahar). Azahar for Frame's changes are not offered to them.
+This is my personal, unofficial fork; the Azahar team and the CitraVR author did not make or endorse it. If you're one of Azahar's maintainers and want the repo renamed or changed, open an issue or a pull request. I'll happily do it.
 If you find a bug that also happens in Azahar on a PC, report it to [Azahar](https://github.com/azahar-emu/azahar/issues).
 
 ## Credits and notices
@@ -316,6 +378,9 @@ If you find a bug that also happens in Azahar on a PC, report it to [Azahar](htt
 - [Azahar](https://github.com/azahar-emu/azahar) and [Citra](https://github.com/citra-emu/citra): the emulator
 - The Azahar logo is by angyartanddraw and PabloMK7 (CC BY 4.0). The artwork backgrounds are SteamGridDB uploads by GarfieldGaming0624
 - [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder, built on first use
+- [Frametop](https://github.com/Frametop/frametop) by DeeJanuz (MIT): the 3D mouse pointer is adapted from its pointer helper
+- [Sharkive](https://github.com/FlagBrew/Sharkive) by FlagBrew (GPL-3.0), with the 3DS codes kept by JourneyOver and its contributors, and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) (MIT): the cheats
+- Mods and texture packs come from their authors' own pages, under their own licences: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name
 - Valve: SteamVR and the Frame
 
 Full list: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Artwork sources: [steam-frame/art/CREDITS.md](../steam-frame/art/CREDITS.md). CitraVR's README: [README.upstream.md](../README.upstream.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Nintendo 3DS is a trademark of Nintendo.

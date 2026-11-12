@@ -12,7 +12,7 @@ This file holds the technical detail moved out of the README: how the port is bu
 | Immersive mode, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
 | What the logs hold, release checks | [docs/PRIVACY_AUDIT.md](docs/PRIVACY_AUDIT.md) |
 | Player documentation | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), [docs/CONTROLS.md](docs/CONTROLS.md) |
-| Changes | [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/RELEASE_NOTES_v1.1.1.md](docs/RELEASE_NOTES_v1.1.1.md), [v1.1.0](docs/RELEASE_NOTES_v1.1.0.md), [v1.0.0](docs/RELEASE_NOTES_v1.0.0.md) |
+| Changes | [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md), [v1.1.1](docs/RELEASE_NOTES_v1.1.1.md), [v1.1.0](docs/RELEASE_NOTES_v1.1.0.md), [v1.0.0](docs/RELEASE_NOTES_v1.0.0.md) |
 | Third-party licences and art sources | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [steam-frame/art/CREDITS.md](steam-frame/art/CREDITS.md) |
 
 [README.upstream.md](README.upstream.md) is CitraVR's README, kept as it was when this fork was made. Do not edit it.
@@ -26,11 +26,11 @@ The branch is `steam-frame`. A directory named `steam-frame/` also exists, so pu
 On the Frame, with a C++ compiler (clang or gcc), CMake 3.24 or newer, Ninja, the Qt 6 and SDL2 development files and Python 3:
 
 ```sh
-steam-frame/build.sh 1.1.1
+steam-frame/build.sh 1.2.0
 steam-frame/install.sh
 ```
 
-The first build takes about an hour and loads every core. It waits while the headset is in use (`~/.cache/headset-in-use`, or a game running under Steam) and runs at the lowest priority. `build.sh` packs `steam-frame/release/azaharframe-1.1.1-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. The options (`AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD`, `CF_EXTRA_CMAKE_FLAGS`) are in `steam-frame/build.sh` and [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#building).
+The first build takes about an hour and loads every core. It waits while the headset is in use (`~/.cache/headset-in-use`, or a game running under Steam) and runs at the lowest priority. `build.sh` packs `steam-frame/release/azaharframe-1.2.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. The options (`AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD`, `CF_EXTRA_CMAKE_FLAGS`) are in `steam-frame/build.sh` and [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#building).
 
 `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build. The tarball holds the stripped emulator, the launcher, `install.sh`, `uninstall.sh`, the Steam and dock helpers, the art, the texture pack converter, the controller model converter, `framedrop-run.sh` and `make-framedrop-zip.py`, plus `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`, and in a portable build `lib/`, `plugins/` and `qt.conf`. It does not ship the README, so the README's links do not need shipping.
 
@@ -49,7 +49,7 @@ The release is made with `steam-frame/build-portable.sh <version>` (below), so i
 A SteamOS update can change or drop what a program built on the Frame links to (Qt 6.8 to 6.10, SDL2 to sdl2-compat, ICU, FFmpeg 8, a glibc bump). The release therefore carries its own Qt and is built to run on the oldest glibc any SteamOS has had. The same approach as Moonlight XR for Frame.
 
 ```sh
-steam-frame/build-portable.sh 1.1.1      # container build, bundle, tarball, check
+steam-frame/build-portable.sh 1.2.0      # container build, bundle, tarball, check
 steam-frame/tools/check-bundle.sh DIR    # check any unpacked release
 ```
 
