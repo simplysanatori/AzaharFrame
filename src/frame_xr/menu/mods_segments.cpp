@@ -1084,6 +1084,11 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = d.mod;
         confirm = "Remove";
         break;
+    case ModsDialogKind::Notice: // AzaharFrame savestate
+        headline = d.mod;
+        body = d.other;
+        confirm = d.confirm;
+        break;
     case ModsDialogKind::None:
         break;
     }
@@ -1138,6 +1143,11 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     };
     if (d.kind == ModsDialogKind::Blocked) {
         action(Id::DialogCancel, "OK");
+    } else if (d.kind == ModsDialogKind::Notice) { // AzaharFrame savestate
+        action(Id::DialogConfirm, d.confirm);
+        if (!d.cancel.empty()) {
+            action(Id::DialogCancel, d.cancel);
+        }
     } else {
         action(Id::DialogConfirm, confirm);
         action(Id::DialogCancel, "Cancel");

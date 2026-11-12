@@ -146,7 +146,7 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with seven tabs down its left side:
 
-- **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
+- **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved; a state from another version shows **From** and its version, dimmed, and asks before it loads), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
 - **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
 - **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls** and **Touchpad Touch** (see Editing the controls).

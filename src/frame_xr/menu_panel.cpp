@@ -306,6 +306,21 @@ void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
     g_mods.zip = zip;
 }
 
+Menu::ModsDialog g_notice; // AzaharFrame savestate, under g_mods_mutex
+
+void SetInGameMenuNotice(const std::string& title, const std::string& body,
+                         const std::string& confirm, const std::string& cancel) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_notice = {};
+    if (!title.empty()) {
+        g_notice.kind = Menu::ModsDialogKind::Notice;
+        g_notice.mod = title;
+        g_notice.other = body;
+        g_notice.confirm = confirm;
+        g_notice.cancel = cancel;
+    }
+}
+
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew) { // AzaharFrame emerald
     std::scoped_lock lock{g_mods_mutex};
     g_homebrew = homebrew;
@@ -666,7 +681,7 @@ void MenuPanel::BuildModel(const Host& host) {
             if (s.slot == 0) {
                 m.quick_load_available = true;
             } else {
-                m.slots.push_back({s.slot, s.time});
+                m.slots.push_back({s.slot, s.time, s.other});
             }
         }
     }
@@ -677,6 +692,7 @@ void MenuPanel::BuildModel(const Host& host) {
         std::scoped_lock lock{g_mods_mutex};
         m.mods = g_mods;
         m.homebrew = g_homebrew; // AzaharFrame emerald
+        m.notice = g_notice;     // AzaharFrame savestate
     }
     if (view.tab == Menu::Tab::Homebrew && // AzaharFrame ui3: its own tab
         // AzaharFrame emerald: the progress ring turns
@@ -1434,6 +1450,10 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     case Id::DialogConfirm:
     case Id::DialogCancel: {
+        if (model.notice.kind != Menu::ModsDialogKind::None) { // AzaharFrame savestate: drawn on top
+            ask(MenuCommand::NoticeAnswer, t.id == Id::DialogConfirm ? 1 : 0);
+            break;
+        }
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
             break;

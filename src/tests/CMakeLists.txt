@@ -69,6 +69,7 @@ add_executable(tests
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/homebrew_update_check.cpp # AzaharFrame ui3
+    core/savestate_frame.cpp # AzaharFrame savestate
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

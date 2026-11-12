@@ -2110,3 +2110,69 @@ TEST_CASE("Tab menu: Optimize for Frame", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::OptimizeNudge, -1));
 }
+
+// AzaharFrame savestate: a state from another build is dimmed with "From 1.1.1" in place of its
+// date, still tappable; the About and mismatch notices lie over everything, and only their
+// buttons are hit.
+TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr][tabmenu]") {
+    Audit a;
+    MenuModel m = Sample();
+    m.slots = {{1, "From 1.1.1", true}, {3, "2026-11-09 19:02"}};
+    MenuView v;
+    v.page = Page::LoadSlots;
+    a.Draw(m, v);
+    a.Check("load slots, one from 1.1.1");
+    CHECK(a.Drew("From 1.1.1"));
+    CHECK(a.Drew("2026-11-09 19:02"));
+    const auto centre = [&](Id id, int index = -1) -> Target {
+        for (const auto& h : a.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return a.menu.HitTest(h.r.Cx(), h.r.Cy());
+            }
+        }
+        return {};
+    };
+    CHECK(centre(Id::Slot, 1) == Target{Id::Slot, 1});
+
+    // Saved over: a plain slot again (the list comes from the files each time)
+    m.slots = {{1, "2026-11-12 10:15"}, {3, "2026-11-09 19:02"}};
+    a.Draw(m, v);
+    CHECK(!a.Drew("From 1.1.1"));
+    CHECK(a.Drew("2026-11-12 10:15"));
+
+    m.notice.kind = ModsDialogKind::Notice;
+    m.notice.mod = "This Save State Is From an Older Version";
+    m.notice.other = "It was made with Azahar for Frame 1.1.1. It may not load, and it could "
+                     "corrupt this game's progress. Save states are NOT a replacement for saving "
+                     "in the game.";
+    m.notice.confirm = "Load Anyway";
+    m.notice.cancel = "Cancel";
+    // (the rows under the scrim are not checked against the dialog's lines)
+    for (const Page page : {Page::LoadSlots, Page::Tabs}) {
+        v.page = page;
+        a.Draw(m, v);
+        std::string all; // the headline wraps
+        for (const auto& t : a.texts) {
+            all += t.text + " ";
+        }
+        CHECK(all.find("This Save State Is From an Older Version") != std::string::npos);
+        CHECK(all.find("Save states are NOT a replacement for saving in the game.") !=
+              std::string::npos);
+        CHECK(a.Drew("Load Anyway"));
+        CHECK(a.Drew("Cancel"));
+        CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
+        CHECK(centre(Id::DialogCancel) == Target{Id::DialogCancel});
+        CHECK(centre(Id::Slot, 3) != Target{Id::Slot, 3});
+        CHECK(centre(Id::Continue) != Target{Id::Continue});
+    }
+
+    // About Save States: one button
+    m.notice.mod = "About Save States";
+    m.notice.other = "Save states are NOT a replacement for saving in the game.";
+    m.notice.confirm = "Got It";
+    m.notice.cancel.clear();
+    a.Draw(m, v);
+    CHECK(a.Drew("Got It"));
+    CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
+    CHECK(centre(Id::DialogCancel) == Target{});
+}

@@ -525,6 +525,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     perf_stats.cpp
     perf_stats.h
     precompiled_headers.h
+    save_backup.cpp # AzaharFrame savestate
+    save_backup.h # AzaharFrame savestate
     savestate.cpp
     savestate.h
     system_titles.cpp

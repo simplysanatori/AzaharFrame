@@ -104,12 +104,14 @@ enum class ModsDialogKind : uint8_t {
     Optimize,    ///< AzaharFrame ui3: "Optimize Texture Pack?", kOptimizeBody, the rows Textures
                  ///< (`mod`, "2,308") and Size (`other`, "About 4.7 GB"): Cancel, Optimize
     RemoveOriginal, ///< AzaharFrame ui3: kRemoveOriginalTitle, `mod` = RemoveOriginalBody: Cancel, Remove
+    Notice, ///< AzaharFrame savestate: `mod` the title, `other` the body, `confirm` (and `cancel`)
 };
 
 struct ModsDialog {
     ModsDialogKind kind = ModsDialogKind::None;
     std::string mod;   ///< the mod being installed or removed
     std::string other; ///< the mod it replaces
+    std::string confirm, cancel; ///< AzaharFrame savestate: Notice's buttons (cancel "" none)
     bool operator==(const ModsDialog&) const = default;
 };
 

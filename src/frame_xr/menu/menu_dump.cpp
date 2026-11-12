@@ -414,6 +414,49 @@ int main(int argc, char** argv) {
     v.page = Page::LoadSlots;
     v.hover = {Id::Slot, 2};
     ok &= shot("1b-main-load-slots", m, v);
+    { // AzaharFrame savestate: slots from another build, the mismatch and About notices
+        MenuModel sm = m;
+        sm.slots = {{1, "From 1.1.1", true}, {2, "2026-11-09 19:02"}, {5, "From Another Version", true}};
+        MenuView sv;
+        sv.page = Page::LoadSlots;
+        sv.hover = {Id::Slot, 1};
+        ok &= shot("1c-load-slots-other-build", sm, sv);
+        sv.hover = {};
+        sm.notice.kind = ModsDialogKind::Notice;
+        sm.notice.mod = "This Save State Is From an Older Version";
+        sm.notice.other = "It was made with Azahar for Frame 1.1.1. It may not load, and it could "
+                          "corrupt this game's progress. Save states are NOT a replacement for "
+                          "saving in the game.";
+        sm.notice.confirm = "Load Anyway";
+        sm.notice.cancel = "Cancel";
+        ok &= shot("1d-load-anyway-dialog", sm, sv);
+        sm.notice.mod = "This Save State Is From Another Version";
+        sm.notice.other = "It was made with another version of Azahar. It may not load, and it "
+                          "could corrupt this game's progress. Save states are NOT a replacement "
+                          "for saving in the game.";
+        ok &= shot("1e-load-anyway-dialog-other", sm, sv);
+        sm.notice.mod = "About Save States";
+        sm.notice.other = "Save states are NOT a replacement for saving in the game. They only load "
+                          "in the version of Azahar for Frame that made them, so after an update "
+                          "older ones may not load. Save in the game before you update.";
+        sm.notice.confirm = "Got It";
+        sm.notice.cancel.clear();
+        sv.page = Page::SaveSlots;
+        ok &= shot("1f-about-save-states", sm, sv);
+        sm.notice.mod = "Restore Save Data?";
+        sm.notice.other = "A save state from another version was loaded last time, and the game "
+                          "didn't close normally. You can put back this game's save data from "
+                          "before that load.";
+        sm.notice.confirm = "Restore Save Data";
+        sm.notice.cancel = "Keep Current";
+        sv.page = Page::Tabs;
+        ok &= shot("1g-restore-save-data", sm, sv);
+        sm.notice.mod = "This Save State Couldn't Be Loaded";
+        sm.notice.other = "The game had to stop. Its save data wasn't changed.";
+        sm.notice.confirm = "OK";
+        sm.notice.cancel.clear();
+        ok &= shot("1h-save-state-not-loaded", sm, sv);
+    }
 
     v = {};
     v.tab = Tab::Position;

@@ -192,6 +192,7 @@ enum class Lock : uint8_t {
 struct SaveSlot {
     int slot = 0;
     std::string time; ///< "" = empty
+    bool other = false; ///< AzaharFrame savestate: from another build ("From 1.1.1"): dimmed
     bool operator==(const SaveSlot&) const = default;
 };
 
@@ -200,6 +201,7 @@ struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
     std::vector<SaveSlot> slots; ///< slots 1 to 10
+    ModsDialog notice; ///< AzaharFrame savestate: a dialog over the whole menu (ModsDialogKind::Notice)
     // Position
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect

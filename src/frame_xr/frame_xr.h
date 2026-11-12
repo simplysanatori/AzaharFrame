@@ -232,6 +232,7 @@ enum class MenuCommand {
     OptimizeStop,    ///< stops the conversion (carried on by the next Optimize)
     UseOriginalPack, ///< the PNG pack again, from the next start
     RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes it
+    NoticeAnswer, ///< AzaharFrame savestate: SetInGameMenuNotice's dialog: `value` 1 its confirm, 0 cancel
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -396,7 +397,13 @@ void SetInGameMenuWindow(bool window);
 struct MenuSaveSlot {
     int slot = 0;
     std::string time;
+    bool other = false; ///< AzaharFrame savestate: from another build: `time` is "From 1.1.1"
 };
+/// AzaharFrame savestate: a dialog over the in-game menu ("About Save States", "This Save State Is
+/// From an Older Version"), answered with MenuCommand::NoticeAnswer; `title` "" takes it away;
+/// `cancel` "" is a dialog of one button. Any thread.
+void SetInGameMenuNotice(const std::string& title, const std::string& body,
+                         const std::string& confirm, const std::string& cancel);
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
 /// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,

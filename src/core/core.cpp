@@ -153,7 +153,8 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     }
     case Signal::Shutdown:
         return ResultStatus::ShutdownRequested;
-    case Signal::Load: {
+    case Signal::Load:
+    case Signal::LoadAnyway: { // AzaharFrame savestate
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
@@ -169,10 +170,14 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             status_details = "Failed to load savestate";
             return ResultStatus::ErrorSavestate;
         }
-        if (info.status == Core::SaveStateInfo::ValidationStatus::BuildMismatch) {
-            status_details = info.build_name;
+        // AzaharFrame savestate: any other build (its revision is what LoadState checks), named by
+        // the version that made it ("" not one of ours), unless Load Anyway
+        if (info.status != Core::SaveStateInfo::ValidationStatus::OK &&
+            signal != Signal::LoadAnyway) {
+            status_details = FrameVersionOf(info.build_name, info.build_version);
             return ResultStatus::ErrorSavestateBuildMismatch;
         }
+        save_state_allow_mismatch = signal == Signal::LoadAnyway;
         save_state_slot = param;
         save_state_request_time = std::chrono::steady_clock::now();
         save_state_request_status = SaveStateStatus::LOADING;
@@ -197,10 +202,24 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         !kernel->AreAsyncOperationsPending()) {
         const u32 slot = save_state_slot;
         save_state_request_status = SaveStateStatus::NONE;
-        LOG_INFO(Core, "Begin load of slot {}", slot);
+        const bool anyway = std::exchange(save_state_allow_mismatch, false);
+        LOG_INFO(Core, "Begin load of slot {}{}", slot, anyway ? " (from another build)" : "");
+        if (anyway) { // AzaharFrame savestate: the moment before, in a file of its own
+            try {
+                System::SaveState(kBeforeLoadAnywaySlot);
+            } catch (const std::exception& e) {
+                LOG_ERROR(Core, "Error saving the moment before: {}", e.what());
+                status_details = kSaveStateNotLoaded;
+                return ResultStatus::ErrorSavestate;
+            }
+        }
         try {
-            System::LoadState(slot);
+            System::LoadState(slot, anyway);
             LOG_INFO(Core, "Load completed");
+        } catch (const SaveStateHalfLoaded& e) { // AzaharFrame savestate: the game must stop
+            LOG_ERROR(Core, "Error loading: the system may be half-restored");
+            status_details = e.what();
+            return ResultStatus::ErrorSavestateHalfLoaded;
         } catch (const std::exception& e) {
             LOG_ERROR(Core, "Error loading: {}", e.what());
             status_details = e.what();

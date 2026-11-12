@@ -49,6 +49,12 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
+### Save states
+
+- Save states from another version show which version made them, and ask before they load. **Load Anyway** backs up the game's save data first, and offers to restore it if the game then closes unexpectedly.
+- A save state that can't be read stops the game cleanly instead of crashing it.
+- **About Save States** explains once that save states are NOT a replacement for saving in the game.
+
 ### Bug fixes
 
 - From Azahar: a freeze when a controller connects or disconnects, and signature checks for encrypted content.

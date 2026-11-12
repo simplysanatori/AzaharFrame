@@ -274,6 +274,12 @@ Global, not per game: **Black** (default) or **Passthrough**. Passthrough shows 
 
 Hold **View** and press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
 
+### Save states
+
+Save states are NOT a replacement for saving in the game. A state only loads in the version of Azahar for Frame that made it, so save in the game before you update. The first time you save or load a state, **About Save States** says so once.
+
+A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data is copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
+
 ### Fast Forward
 
 Hold **View** and pull the right trigger to run the game at Azahar's turbo speed. Do it again to go back. "Fast Forward" shows in front of you for 2 seconds; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
@@ -339,6 +345,8 @@ Keep other heavy work off the Frame while you play.
 | Screen places, per game | `~/.local/share/AzaharFrame/user/screen-placement.txt` |
 | Gamepad and mouse layouts | `~/.local/share/AzaharFrame/user/controller-mappings.txt` |
 | Cheats, per game | `~/.local/share/AzaharFrame/user/cheats/<TitleID>.txt` |
+| Save states, and the moment before a Load Anyway (`<TitleID>.99.cst`) | `~/.local/share/AzaharFrame/user/states` |
+| Save data copies made by Load Anyway, per game (last 3) | `~/.local/share/AzaharFrame/user/save-backups/<TitleID>` |
 | Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |

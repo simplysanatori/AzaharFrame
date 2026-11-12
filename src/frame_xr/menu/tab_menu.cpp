@@ -569,6 +569,10 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
         DrawRows(kit, model, view, pane);
         break;
     }
+    if (model.notice.kind != ModsDialogKind::None) { // AzaharFrame savestate: over everything
+        DrawModsDialog(kit, model.notice, view);
+        return;
+    }
     DrawTooltip(kit, view, pane);
 }
 
@@ -656,9 +660,11 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
     for (int i = 0; i < kSlots; i++) {
         const int slot = i + 1;
         std::string time;
+        bool other = false; // AzaharFrame savestate: from another build: dimmed, still tappable
         for (const SaveSlot& s : model.slots) {
             if (s.slot == slot) {
                 time = s.time;
+                other = s.other;
             }
         }
         const bool empty = time.empty();
@@ -668,7 +674,9 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
         const Rect r{x, y, x + cw, y + rh};
         const Target t{Id::Slot, slot};
         const State st = StateOf(view, t, enabled);
-        const float op = enabled ? 1.0f : kDisabledContent;
+        // AzaharFrame savestate: another build's state is dimmed less than an empty slot: it
+        // still loads (after Load Anyway's question)
+        const float op = !enabled ? kDisabledContent : other ? 0.62f : 1.0f;
         kit.Fill(r, 16.0f, Tok::kSurfaceContainerHigh, enabled ? 1.0f : 0.5f);
         kit.StateLayer(r, 16.0f, Tok::kOnSurface, st);
         kit.TextMid(r.x0 + 20.0f, r.Cy(), Type::Label, Tok::kOnSurface,

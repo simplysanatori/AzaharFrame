@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <set>
 #include <vector>
@@ -230,6 +231,21 @@ private:
     void UpdateRecentFiles();
 
     void UpdateSaveStates();
+
+    // AzaharFrame savestate (citra_qt.cpp): "About Save States" once, the Load Anyway question
+    // for a state from another build, its backup of the save data, and Restore Save Data.
+    bool FrameSaveStateAsk(bool save, u32 slot);
+    void FrameDoSave(u32 slot);
+    void FrameDoLoad(u32 slot);
+    void FrameAskLoadAnyway(u32 slot, const std::string& version);
+    void FrameLoadAnyway(u32 slot);
+    void FrameAsk(const QString& title, const QString& body, const QString& confirm,
+                  const QString& cancel, std::function<void(bool)> answer);
+    void FrameNoticeAnswer(bool yes);
+    void FrameSaveStateHalfLoaded();
+    void FrameOfferSaveRescue(u64 title_id);
+    void FrameRefreshSlotsAfterSave(u32 slot);
+    void FramePushMenuInfo();
 
     /**
      * If the emulation is running,
@@ -477,6 +493,14 @@ private:
     u64 oldest_slot_time;
     u32 newest_slot;
     u64 newest_slot_time;
+
+    // AzaharFrame savestate
+    std::function<void(bool)> frame_notice_answer; ///< the in-game menu's notice, unanswered
+    bool frame_notice_opened_menu = false;         ///< the notice opened the menu (Cancel closes it)
+    std::string frame_rescue_root;  ///< Load Anyway armed Restore Save Data in this session
+    bool frame_rescue_keep = false; ///< an error since: the marker stays for the next start
+    bool frame_load_anyway_pending = false; ///< a Load Anyway in flight (its error is ours)
+    u32 frame_last_load_slot = 0;
 
     // Secondary window actions
     QAction* action_secondary_fullscreen;
