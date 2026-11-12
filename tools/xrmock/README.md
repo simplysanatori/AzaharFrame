@@ -39,13 +39,16 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 - A session can end and a new one be made in the same run (an app that switches to a flat
   window and back): `xrDestroyActionSet` frees the action names and bindings, and the times
   of the input script, `MOCK_XR_DUMP_SHOWN` and `MOCK_XR_SECONDS` keep counting from the
-  first `xrBeginSession`.
+  first `xrBeginSession`.  So can the instance (an app that makes a new one for each session): the graphics requirements
+  must be asked for again on each, and the trace says `createInstance again` and
+  `destroyInstance`.
 
 ## Environment
 
 | Variable | Meaning |
 | --- | --- |
 | `MOCK_XR_TRACE=<file>` | the trace |
+| `MOCK_XR_FOCUS_ONCE=1` | as SteamVR: only the first session of an instance gets controller input (SteamVR captures the scene focus once per instance); a later session's actions are all inactive and its first `xrSyncActions` is an ERROR |
 | `MOCK_XR_SECONDS=<s>` | the session stops after this long (default 20, 0 never) |
 | `MOCK_XR_HZ=<hz>` | display refresh |
 | `MOCK_XR_SWAY=0` | keep the head still |

@@ -144,6 +144,10 @@ static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
 // keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
 // first xrBeginSession; the refresh count is resynced (gResync) at its first xrWaitFrame.
 static int gSessionsBegun = 0, gResync = 0;
+// AzaharFrame flat2: instances and the sessions made on the current one. MOCK_XR_FOCUS_ONCE=1
+// acts as SteamVR does: only the first session of an instance captures the scene focus, so a later
+// one gets no controller input (every action inactive) and an ERROR says so.
+static int gInstances = 0, gSessionsOnInstance = 0, gFocusOnce = 0, gNoFocus = 0, gNoFocusSaid = 0;
 
 // The head: 1.6 m up, turning about the vertical axis.
 static XrPosef headAt(XrTime t) {
@@ -204,11 +208,16 @@ static XrResult XRAPI_CALL mCreateInstance(const XrInstanceCreateInfo* ci, XrIns
     }
     trace("createInstance extensions:%s", line);
     if (res != XR_SUCCESS) return res;
+    gInstances++;
+    gSessionsOnInstance = 0;
+    mock_vk_instance_made();
+    if (gInstances > 1) trace("createInstance again (%d)", gInstances);
     *out = (XrInstance)(uintptr_t)1;
     return XR_SUCCESS;
 }
 static XrResult XRAPI_CALL mDestroyInstance(XrInstance i) {
     (void)i;
+    trace("destroyInstance");
     return XR_SUCCESS;
 }
 static XrResult XRAPI_CALL mResultToString(XrInstance i, XrResult r, char buf[XR_MAX_RESULT_STRING_SIZE]) {
@@ -619,6 +628,16 @@ static XrResult XRAPI_CALL mSync(XrSession s, const XrActionsSyncInfo* a) {
         UNLOCK();
         return XR_ERROR_ACTIONSET_NOT_ATTACHED;
     }
+    if (gNoFocus) {
+        // As SteamVR with a second session on one instance: synced, but nothing is active.
+        gSynced = 0;
+        if (!gNoFocusSaid) {
+            gNoFocusSaid = 1;
+            mock_error("syncActions: session %d of one instance has no input focus: SteamVR gives the controllers only to an instance's first session (MOCK_XR_FOCUS_ONCE)", gSessionsOnInstance);
+        }
+        UNLOCK();
+        return XR_SUCCESS;
+    }
     gSynced = 1;
     applyScript();
     UNLOCK();
@@ -769,6 +788,10 @@ static XrResult XRAPI_CALL mCreateSession(XrInstance i, const XrSessionCreateInf
     }
     static int sessions = 0;
     if (sessions++ > 0) trace("createSession again (%d)", sessions);
+    gSessionsOnInstance++;
+    gNoFocus = gFocusOnce && gSessionsOnInstance > 1;
+    gNoFocusSaid = 0;
+    if (gSessionsOnInstance > 1) trace("createSession: session %d of this instance%s", gSessionsOnInstance, gNoFocus ? ": no input focus (MOCK_XR_FOCUS_ONCE)" : "");
     *out = (XrSession)(uintptr_t)2;
     pushState(XR_SESSION_STATE_IDLE);
     pushState(XR_SESSION_STATE_READY);
@@ -1661,6 +1684,7 @@ static void init(void) {
         }
         free(copy);
     }
+    gFocusOnce = getenv("MOCK_XR_FOCUS_ONCE") && getenv("MOCK_XR_FOCUS_ONCE")[0] == '1';
     const char* script = getenv("MOCK_XR_INPUT_SCRIPT");
     if (script) loadScript(script);
     secReset();

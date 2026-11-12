@@ -41,6 +41,9 @@ typedef struct MockGfx {
 
 extern const MockGfx kMockGfxVk;
 
+// AzaharFrame flat2: a new instance; the graphics requirements must be asked for again.
+void mock_vk_instance_made(void);
+
 // A violation found by a graphics table: an ERROR line in the trace, counted
 // in the summary.
 void mock_error(const char* fmt, ...) __attribute__((format(printf, 1, 2)));

@@ -26,7 +26,9 @@ static VkDevice gDevice;
 static VkQueue gQueue;
 static uint32_t gQueueFamily;
 static PFN_vkGetDeviceProcAddr gGdpa;
-static int gReqCalled;  // xrGetVulkanGraphicsRequirements2KHR was called
+static int gReqCalled;  // xrGetVulkanGraphicsRequirements2KHR was called (on this instance)
+
+void mock_vk_instance_made(void) { gReqCalled = 0; }  // AzaharFrame flat2
 
 #define DEV(name) ((PFN_##name)gGdpa(gDevice, #name))
 #define INST(name) ((PFN_##name)gGipa(gInstance, #name))
