@@ -5,7 +5,7 @@
 // AzaharFrame texui: the Qt side of the in-game menu's Mods and Textures segments. It reads the
 // running game's mods (core/mods/library.h) and texture packs (core/custom_tex/packs.h) into the
 // segments' models (frame_xr/menu/mods_segments.h), publishes them to the menu
-// (FrameXr::SetInGameMenuMods, SetInGameMenuTextures), and does what the segments ask. Disk and
+// (FrameXr::SetInGameMenuModsList, SetInGameMenuTextures), and does what the segments ask. Disk and
 // network work runs on threads of its own; this object lives on the GUI thread.
 //
 // Nothing is replaced without a question: an install that conflicts with a mod asks "Replaces

@@ -316,6 +316,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_mods.cpp frame_mods.h)
     # AzaharFrame window: the bottom screen in its own desktop window during VR.
     target_sources(citra_qt PRIVATE frame_bottom_window.cpp frame_bottom_window.h)
+    # AzaharFrame cheatstab: the in-game menu's Cheats tab, the Qt side.
+    target_sources(citra_qt PRIVATE frame_cheats.cpp frame_cheats.h)
 endif()
 target_link_libraries(citra_qt PUBLIC Boost::boost Qt6::Widgets)
 target_link_libraries(citra_qt PRIVATE nihstro-headers Qt6::Multimedia Qt6::Concurrent)

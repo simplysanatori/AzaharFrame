@@ -148,6 +148,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
 #include "citra_qt/frame_branding.h"
+#include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h" // AzaharFrame texui
 #include "citra_qt/frame_bottom_window.h" // AzaharFrame window
@@ -218,6 +219,8 @@ QPointer<FrameMirror> g_frame_mirror;
 // menu; the games started so far (a restart clears its snackbar).
 QPointer<FrameMods> g_frame_mods;
 int g_frame_runs = 0;
+// AzaharFrame cheatstab: the in-game menu's Cheats segment (frame_cheats.cpp), made with the menu.
+QPointer<FrameCheats> g_frame_cheats;
 // Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
 std::function<void(bool open)> g_frame_xr_set_menu;
 // Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
@@ -1330,6 +1333,12 @@ GMainWindow::GMainWindow(Core::System& system_)
                             g_frame_mods = new FrameMods(this);
                         }
                         g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
+                        if (!g_frame_cheats) { // AzaharFrame cheatstab
+                            g_frame_cheats = new FrameCheats(
+                                system,
+                                [] { return g_frame_mirror && g_frame_mirror->MenuOpen(); }, this);
+                        }
+                        g_frame_cheats->Open(have_id ? title_id : 0, this->game_path.toStdString());
                     }
                     if (open && flat) {
                         g_frame_flat_menu_fullscreen |= WindowFullscreen() || g_frame_fullscreen;
@@ -4009,12 +4018,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     case C::EditControls: // AzaharFrame menu: the remap lane's
         return;
-    case C::ToggleCheat: // AzaharFrame cheatstab: stubs until the cheats data lane is merged
+    case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
-    case C::InstallFix:
-    case C::RemoveFix:
-        LOG_INFO(Frontend, "xr: in-game menu: cheats command {} ({}) not wired yet",
-                 static_cast<int>(r.command), r.value);
+        if (g_frame_cheats) {
+            g_frame_cheats->Command(r);
+        }
         return;
     case C::SelectTexturePack: // AzaharFrame texui: the Mods tab (frame_mods.cpp)
     case C::LoadModCatalog:

@@ -36,7 +36,7 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
     {"Position", Sym::kOpenWith},
     {"Stats", Sym::kMonitoring},
     {"Controls", Sym::kStadiaController},
-    {"Cheats", Sym::kCode}, // AzaharFrame cheatstab
+    {"Mods", Sym::kExtension}, // AzaharFrame cheatstab
     {"Settings", Sym::kSettings},
 }};
 
@@ -138,6 +138,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
+    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
@@ -164,6 +165,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kStatsAt;
     case Id::ControlsPage:
         return kPage;
+    case Id::ModsSegment:
+        return kModsSegments;
     case Id::Scope:
         return kScope;
     case Id::Background:
@@ -408,16 +411,8 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
     case Tab::Controls:
         DrawControls(kit, model, view, pane);
         break;
-    case Tab::Cheats: // AzaharFrame cheatstab
-        // AzaharFrame texui: the Mods and Textures segments under where the cheatstab lane's
-        // segmented button goes, until its Mods tab shell is merged.
-        if (view.mods_segment == ModsSegment::Mods) {
-            DrawModsList(kit, model, view, {pane.x0, pane.y0 + 84.0f, pane.x1, pane.y1});
-        } else if (view.mods_segment == ModsSegment::Textures) {
-            DrawTextures(kit, model, view, {pane.x0, pane.y0 + 84.0f, pane.x1, pane.y1});
-        } else {
-            DrawCheats(kit, model, view, pane);
-        }
+    case Tab::Mods: // AzaharFrame cheatstab
+        DrawMods(kit, model, view, pane);
         break;
     default:
         DrawRows(kit, model, view, pane);

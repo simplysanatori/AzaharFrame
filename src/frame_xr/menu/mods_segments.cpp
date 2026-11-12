@@ -72,6 +72,7 @@ struct ListScroll {
     float content_h = 0.0f;
     float max_scroll = 0.0f;
     float scroll = 0.0f;
+    float step = kRow1; ///< the top item's height: the stick's step (MenuLayout::scroll_step)
 };
 
 ListScroll Scroll(const std::vector<float>& heights, float list_h, float want) {
@@ -91,9 +92,10 @@ ListScroll Scroll(const std::vector<float>& heights, float list_h, float want) {
         }
     }
     const float w = std::clamp(want, 0.0f, s.max_scroll);
-    for (const float t : s.tops) {
-        if (t <= w + 0.01f) {
-            s.scroll = t;
+    for (std::size_t i = 0; i < s.tops.size(); i++) {
+        if (s.tops[i] <= w + 0.01f) {
+            s.scroll = s.tops[i];
+            s.step = heights[i];
         }
     }
     return s;
@@ -294,6 +296,7 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     const Rect panel{0.0f, 0.0f, kPanelW, kPanelH};
     kit.Fill(panel, kPanelRadius, 0x000000, 0.32f);
     AddHit(panel, {Id::None, kMenuAreaIndex}, panel);
+    layout.max_scroll = 0.0f; // the list under it stays put
     std::string headline, body, confirm;
     switch (d.kind) {
     case ModsDialogKind::Replace:
@@ -385,6 +388,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             std::vector<float> heights(m.available.size(), kRow2);
             const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
             layout.max_scroll = s.max_scroll;
+            layout.scroll_step = s.step;
             kit.Clip(list);
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
@@ -471,6 +475,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
+    layout.scroll_step = s.step;
     const std::string remove = LabelFor(Id::ModRemove);
     const float remove_w = ButtonWidth(kit, remove, false, 12.0f);
     kit.Clip(list);
@@ -557,6 +562,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
+    layout.scroll_step = s.step;
     const bool on = m.custom_textures;
     kit.Clip(list);
     for (std::size_t n = 0; n < items.size(); n++) {

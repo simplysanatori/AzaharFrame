@@ -186,9 +186,6 @@ enum class MenuCommand {
     // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
     ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
     DownloadCheats, ///< the developer's and Sharkive's cheats for the game
-    InstallFix,     ///< the developer's game fix into the game's mods folder (then the toast
-                    ///< "Restart the Game to Apply")
-    RemoveFix,      ///< and out of it
     // AzaharFrame texui: the Mods tab's Mods and Textures segments (citra_qt/frame_mods.cpp;
     // core/mods/library.h and core/custom_tex/packs.h do the work). The snackbar's Restart is
     // Restart; Custom Textures and Preload are settings.
@@ -343,14 +340,15 @@ struct MenuSaveSlot {
 };
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
-/// AzaharFrame texui: the Mods tab's Mods and Textures segments' values
-/// (frame_xr/menu/mods_segments.h), from the Qt side (citra_qt/frame_mods.cpp) whenever they
-/// change. Any thread.
+/// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,
+/// mods_segments.h), from the Qt side whenever they change. Any thread.
 namespace Menu {
+struct CheatsModel;
 struct ModsListModel;
 struct TexturesModel;
 } // namespace Menu
-void SetInGameMenuMods(const Menu::ModsListModel& mods);
+void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
+void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).

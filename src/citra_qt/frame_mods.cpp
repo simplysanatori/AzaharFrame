@@ -385,7 +385,7 @@ void FrameMods::Remove(const std::string& id) {
 }
 
 void FrameMods::PublishMods() {
-    FrameXr::SetInGameMenuMods(mods);
+    FrameXr::SetInGameMenuModsList(mods);
 }
 
 // ---- Textures ----

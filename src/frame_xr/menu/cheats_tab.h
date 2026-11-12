@@ -2,14 +2,35 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame cheatstab: what the in-game menu's Cheats tab shows (the values; TabMenu::DrawCheats
-// in cheats_tab.cpp draws them). Three sections: the developer's own cheats and game fix
-// (github.com/simplysanatori/3ds-game-fixes, made for Azahar for Frame, with a badge), Sharkive's
-// and the player's own. A cheat's switch applies at once; the fix (code.ips) is copied to the
-// game's mods folder and needs a restart of the game.
+// AzaharFrame cheatstab: the in-game menu's Mods tab (rail: Main, Position, Stats, Controls, Mods,
+// Settings). A Material 3 segmented button at the top (Cheats | Mods | Textures), the chosen
+// segment under it. The tab shell is mods_tab.cpp; this file is the Cheats segment's values.
 //
-// The fields mirror core/cheats/online.h (Cheats::Online::CheatInfo, FixState, DownloadResult),
-// which the host converts from; nothing here depends on core.
+// Hooks for the Mods and Textures segments (one per segment, the same shape as the Cheats one):
+//
+//   draw      TabMenu::DrawCheats / DrawModsList / DrawTextures (Kit&, const MenuModel&,
+//             const MenuView&, const Rect& area): `area` is the pane's width under the segmented
+//             button (pad it yourself, 24 dp as the other tabs). Set layout.max_scroll when the
+//             segment scrolls and read the scroll from view.scroll[Tab::Mods] (shared by the
+//             three, set to 0 on a segment change; the beam drags it and the stick steps it).
+//             Cheats: cheats_tab.cpp. Mods, Textures: mods_segments.cpp (placeholders).
+//   model     MenuModel::mods (ModsTabModel, mods_tab.h): .cheats (CheatsModel, below),
+//             .mods (ModsListModel), .textures (TexturesModel) (mods_segments.h).
+//   from Qt   FrameXr::SetInGameMenuCheats / SetInGameMenuModsList / SetInGameMenuTextures
+//             (frame_xr.h; any thread). The menu copies the last values into its model each frame.
+//   ids       Menu::Id after Id::Cheat (tab_menu.h), clicked in MenuPanel::Click (menu_panel.cpp).
+//   commands  FrameXr::MenuCommand (frame_xr.h), handled in GMainWindow::FrameMenuRequest
+//             (citra_qt.cpp). Cheats: ToggleCheat (`value` = index), DownloadCheats, Cheats
+//             (Azahar's window), handled by FrameCheats (citra_qt/frame_cheats.cpp).
+//
+// The Cheats segment: one flat list of the game's cheats in file order, no subheaders. The
+// developer's own (github.com/simplysanatori/3ds-game-fixes) have Material's verified badge after
+// the name; Sharkive's and the player's have no marker. A cheat made for another version has an
+// outlined chip in the error colour ("v1.0"). Each row's switch applies at once. Patches are not
+// here (the Mods segment).
+//
+// The fields mirror core/cheats/online.h (CheatInfo, DownloadResult), which the Qt side converts
+// from; nothing here depends on core.
 
 #pragma once
 
@@ -33,30 +54,23 @@ struct CheatItem {
     bool operator==(const CheatItem&) const = default;
 };
 
-/// As Cheats::Online::FixState, with None when the title has no fix (FixAvailable false).
-enum class FixState : uint8_t { None, NotInstalled, Installed, OtherPatch };
-
 enum class DownloadState : uint8_t { Idle, Downloading, Done, Failed };
 
-/// The developer's badge (owner to pick one; the other goes).
-enum class CheatBadge : uint8_t {
-    Star,     ///< A: a filled star before the name, "Made for Azahar for Frame"
-    Verified, ///< B: Material's verified badge after the name, "Azahar for Frame"
-};
-
 struct CheatsModel {
-    std::vector<CheatItem> cheats; ///< file order (ListCheats); drawn grouped by source
-    FixState fix = FixState::None; ///< the developer's game fix, first in its section
+    std::vector<CheatItem> cheats; ///< file order (ListCheats), drawn in that order
     DownloadState download = DownloadState::Idle;
-    int progress = 0; ///< 0 to 100 while Downloading
-    /// After a download: StatusText ("12 cheats added, 3 for another version", or why it
-    /// failed); shown in the error colour when `download` is Failed.
+    int spin = 0; ///< the progress indicators' animation step while Downloading (15 a second)
+    /// After a download: StatusText ("12 cheats added, 3 for another version"). When `download`
+    /// is Failed, only why ("No Internet Connection"): shown under "Download Failed".
     std::string status;
-    CheatBadge badge = CheatBadge::Star;
     bool operator==(const CheatsModel&) const = default;
 };
 
 /// The chip's text from a version note: "for v1.0, this game is v1.1" gives "v1.0".
 std::string VersionChip(const std::string& version_note);
+
+/// The reason alone from a failed download's text: "Download failed: No Internet Connection"
+/// gives "No Internet Connection" (the title already says the download failed).
+std::string FailureReason(const std::string& error);
 
 } // namespace FrameXr::Menu

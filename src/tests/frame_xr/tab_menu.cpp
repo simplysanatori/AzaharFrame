@@ -246,11 +246,10 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     CHECK(OptionsFor(Id::TouchpadTouch) == std::vector<std::string>{"Off", "Touch", "Click"});
 }
 
-// AzaharFrame cheatstab: the Cheats tab.
+// AzaharFrame cheatstab: the Mods tab and its Cheats segment.
 namespace {
 CheatsModel SampleCheats() {
     CheatsModel c;
-    c.fix = FixState::NotInstalled;
     c.cheats = {{"No Bloom (USA)", CheatSource::Developer, true, ""},
                 {"Infinite HP", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
                 {"Max Money", CheatSource::User, false, ""}};
@@ -263,7 +262,7 @@ CheatsModel SampleCheats() {
 }
 } // namespace
 
-TEST_CASE("Tab menu: the Cheats tab", "[frame_xr][tabmenu]") {
+TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
     const auto has = [&d](Id id, int index) {
@@ -275,39 +274,70 @@ TEST_CASE("Tab menu: the Cheats tab", "[frame_xr][tabmenu]") {
         return false;
     };
     MenuView v;
-    // The Main tab is 1.1.1's again: no Cheats tile; the rail has Cheats before Settings.
+    // The rail: Main, Position, Stats, Controls, Mods, Settings.
     d.Draw(m, v);
-    CHECK(has(Id::TabButton, static_cast<int>(Tab::Cheats)));
-    CHECK(static_cast<int>(Tab::Cheats) == static_cast<int>(Tab::Controls) + 1);
-    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Cheats) + 1);
+    CHECK(has(Id::TabButton, static_cast<int>(Tab::Mods)));
+    CHECK(static_cast<int>(Tab::Mods) == static_cast<int>(Tab::Controls) + 1);
+    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Mods) + 1);
 
-    // Empty: Download in the middle, Azahar's Window at the top.
-    v.tab = Tab::Cheats;
+    // The segmented button on every segment; Cheats first.
+    v.tab = Tab::Mods;
+    CHECK(OptionsFor(Id::ModsSegment) == std::vector<std::string>{"Cheats", "Mods", "Textures"});
+    for (const ModsSegment s : {ModsSegment::Cheats, ModsSegment::Mods, ModsSegment::Textures}) {
+        v.mods_segment = s;
+        d.Draw(m, v);
+        CHECK(has(Id::ModsSegment, 0));
+        CHECK(has(Id::ModsSegment, 2));
+        CHECK(has(Id::CheatsWindow, -1) == (s == ModsSegment::Cheats));
+    }
+    v.mods_segment = ModsSegment::Cheats;
+
+    // Empty: Download in the middle, Azahar's Window at the top, nothing scrolls.
     d.Draw(m, v);
     CHECK(has(Id::DownloadCheats, -1));
     CHECK(has(Id::CheatsWindow, -1));
     CHECK(!has(Id::Cheat, 0));
-    // Downloading with nothing yet: no Download.
-    m.cheats.download = DownloadState::Downloading;
+    CHECK(d.menu.MaxScroll() == 0.0f);
+    // Downloading with nothing yet: no Download. Failed: Try Again (the same target).
+    m.mods.cheats.download = DownloadState::Downloading;
     d.Draw(m, v);
     CHECK(!has(Id::DownloadCheats, -1));
-
-    // A list: every row and the fix, targets at least 48 dp, the list scrolls to its end.
-    m.cheats = SampleCheats();
+    m.mods.cheats.download = DownloadState::Failed;
+    m.mods.cheats.status = "No reply";
     d.Draw(m, v);
     CHECK(has(Id::DownloadCheats, -1));
-    CHECK(has(Id::CheatFix, -1));
-    CHECK(has(Id::Cheat, 0));
-    REQUIRE(d.menu.MaxScroll() > 0.0f);
-    v.scroll[static_cast<int>(Tab::Cheats)] = 10000.0f;
+
+    // A list: one row per cheat in file order (no subheaders, no patch row), targets at least
+    // 48 dp, the list scrolls to its end.
+    m.mods.cheats = SampleCheats();
     d.Draw(m, v);
-    CHECK(has(Id::Cheat, static_cast<int>(m.cheats.cheats.size()) - 1)); // the user's, last
+    CHECK(has(Id::DownloadCheats, -1));
+    CHECK(has(Id::Cheat, 0));
+    CHECK(has(Id::Cheat, 1));
+    CHECK(has(Id::Cheat, 2));
+    REQUIRE(d.menu.MaxScroll() > 0.0f);
+    {
+        // Rows follow each other with nothing between them.
+        float y0 = -1.0f, y1 = -1.0f;
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == Id::Cheat && h.t.index == 0) {
+                y0 = h.r.y0;
+            } else if (h.t.id == Id::Cheat && h.t.index == 1) {
+                y1 = h.r.y0;
+            }
+        }
+        CHECK(y1 - y0 == 48.0f);
+    }
+    v.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(has(Id::Cheat, static_cast<int>(m.mods.cheats.cheats.size()) - 1));
+    CHECK(!has(Id::Cheat, 0));
     for (float scroll : {0.0f, 10000.0f}) {
-        v.scroll[static_cast<int>(Tab::Cheats)] = scroll;
+        v.scroll[static_cast<int>(Tab::Mods)] = scroll;
         d.Draw(m, v);
         for (const auto& h : d.menu.Hits()) {
             if (h.t.index == kLabelIndex || h.r.y1 >= kListBottom - 0.01f ||
-                (h.t.id == Id::Cheat && h.r.H() < 56.0f)) {
+                (h.t.id == Id::Cheat && h.r.H() < 48.0f)) {
                 continue; // cut by the list's edges
             }
             INFO("id " << static_cast<int>(h.t.id) << " index " << h.t.index);
@@ -315,22 +345,25 @@ TEST_CASE("Tab menu: the Cheats tab", "[frame_xr][tabmenu]") {
             CHECK(h.r.H() >= 48.0f);
         }
     }
-    // Another code.ips in the mods folder: the fix cannot be installed.
-    m.cheats.fix = FixState::OtherPatch;
+    // While a download runs over a list, Download waits.
     v.scroll = {};
+    m.mods.cheats.download = DownloadState::Downloading;
     d.Draw(m, v);
-    CHECK(!has(Id::CheatFix, -1));
-    CHECK(has(Id::CheatFix, kLabelIndex));
+    CHECK(!has(Id::DownloadCheats, -1));
+    CHECK(has(Id::Cheat, 0));
 
     CHECK(VersionChip("for v1.0, this game is v1.1") == "v1.0");
     CHECK(VersionChip("for Rev0, this cartridge is Rev1") == "Rev0");
     CHECK(VersionChip("") == "");
+    CHECK(FailureReason("Download failed: No reply") == "No reply");
+    CHECK(FailureReason("Download failed: server returned 500") == "Server returned 500");
+    CHECK(FailureReason("No Internet Connection") == "No Internet Connection");
 }
 
 // AzaharFrame texui: the Mods tab's Mods and Textures segments (mods_segments.h).
 namespace {
 
-constexpr Tab kModsTab = Tab::Cheats; // the cheatstab lane's Mods tab
+constexpr Tab kModsTab = Tab::Mods;
 
 bool HasHit(const Drawn& d, Id id, int index) {
     for (const auto& h : d.menu.Hits()) {
