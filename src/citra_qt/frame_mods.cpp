@@ -10,6 +10,7 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <chrono> // AzaharFrame stall
 #include <thread>
 #include <utility>
 
@@ -236,6 +237,14 @@ void FrameMods::Open(u64 title_id_, int run_) {
 void FrameMods::Command(const FrameXr::MenuRequest& r) {
     using C = FrameXr::MenuCommand;
     if (title_id == 0) {
+        // AzaharFrame stall: a game with no title id (homebrew) has no catalog mods; Install Mods
+        // says so at once (it waited for an answer that never came, its ring standing still).
+        if (r.command == C::LoadModCatalog && mods.catalog != Menu::CatalogState::Ready) {
+            LOG_INFO(Frontend, "xr: mods: Install Mods: no title id, no catalog mods");
+            mods.available.clear();
+            mods.catalog = Menu::CatalogState::Ready;
+            PublishMods();
+        }
         return;
     }
     switch (r.command) {
@@ -243,6 +252,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         SelectPack(r.text);
         return;
     case C::LoadModCatalog:
+        LOG_INFO(Frontend, "xr: mods: Install Mods opened ({:016X}, list {})", title_id,
+                 mods.catalog == Menu::CatalogState::Ready ? "shown" : "being made");
         if (mods.catalog == Menu::CatalogState::Idle) {
             mods.catalog = Menu::CatalogState::Loading;
             PublishMods();
@@ -477,64 +488,99 @@ void FrameMods::RefreshLoaded() {
 }
 
 void FrameMods::RefreshAvailable() {
+    // AzaharFrame stall: the list at once from the catalog in hand (the compiled-in copy, or the
+    // one fetched earlier this run), filtered to this game; then, once per game a run, the
+    // catalog's latest copy and the sources' dates in the background, and the list again. A
+    // download or install never holds it back (each job is a thread of its own).
+    ListAvailable(false);
+    if (mods_network_title != title_id && !mods_network_running) {
+        ListAvailable(true);
+    }
+}
+
+void FrameMods::ListAvailable(bool network) {
     const u64 tid = title_id;
     // AzaharFrame modcat: the game's code CRC32, read here on the GUI thread (once per game), marks
     // the mods made for this build
     const Mods::Compat::Game game = GameInfo(); // AzaharFrame compat: with the CRC
+    if (network) {
+        mods_network_running = true;
+        mods_network_title = tid;
+    }
     OffThread(
         this,
-        [tid, game] {
+        [tid, game, network] {
+            using Clock = std::chrono::steady_clock;
+            const auto t0 = Clock::now();
             Mods::Library& lib = Mods::Default();
-            lib.RefreshCatalogOnce(); // one request a run; the built-in catalog without it
-            lib.RefreshDates(tid);    // AzaharFrame modcat: the sources' own dates, once a run
-            return lib.ListAvailable(tid, game.code_crc, &game);
+            bool changed = false;
+            if (network) {
+                changed |= lib.RefreshCatalogOnce(); // one request a run
+                // AzaharFrame modcat: the sources' own dates, once a run; no new request after 8 s
+                changed |= lib.RefreshDates(tid, Clock::now() + std::chrono::seconds(8)) > 0;
+            }
+            auto list = lib.ListAvailable(tid, game.code_crc, &game);
+            const auto ms =
+                std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t0).count();
+            LOG_INFO(Frontend, "xr: mods: {} catalog mods for {:016X} in {} ms ({})", list.size(),
+                     tid, ms,
+                     !network ? "the catalog in hand"
+                              : changed ? "after the requests" : "the requests changed nothing");
+            return std::make_pair(network && !changed, std::move(list));
         },
-        [this, tid](const std::vector<Mods::AvailableMod>& list) {
-            if (tid != title_id) {
-                return;
+        [this, tid, network](const std::pair<bool, std::vector<Mods::AvailableMod>>& r) {
+            if (network) {
+                mods_network_running = false;
             }
-            mods.available.clear();
-            mod_sizes.clear();
-            const Mods::Catalog catalog = Mods::Default().GetCatalog();
-            for (const Mods::AvailableMod& a : list) {
-                mod_sizes[a.id] = a.active || a.in_library ? 0 : a.size; // AzaharFrame catalog3
-                Menu::ModOffer o;
-                o.id = a.id;
-                o.name = a.name;
-                o.author = a.author;
-                o.url = RepoUrl(catalog, a.id);
-                o.updated = CustomTex::Download::UpdatedText(a.updated); // AzaharFrame modcat
-                o.notes = a.notes; // AzaharFrame modcat2
-                o.version = a.chip;
-                o.version_tip = a.chip_tip;
-                o.version_match = a.matches_game;
-                o.verified = a.verified;
-                o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
-                o.unscanned = a.unscanned;
-                if (!a.compat.Fits()) { // AzaharFrame compat
-                    o.mismatch = true;
-                    o.region_chip = a.compat.RegionChip();
-                    o.mismatch_reason = a.compat.Reason();
-                    o.mismatch_body = a.compat.Body("mod");
-                }
-                if (a.id == installing) {
-                    o.state = Menu::OfferState::Installing;
-                    o.note = PhaseText(Mods::Default().GetState().phase);
-                } else if (a.active) {
-                    o.state = Menu::OfferState::Installed;
-                } else if (!a.installable) {
-                    o.state = Menu::OfferState::Unavailable;
-                    o.note = "Unsupported Archive";
-                } else if (a.id == failed) {
-                    o.note = failed_reason.empty() ? std::string("Install Failed")
-                                                   : "Install Failed: " + failed_reason; // AzaharFrame modfix
-                    o.error = true;
-                }
-                mods.available.push_back(std::move(o));
+            if (tid != title_id || r.first) {
+                return; // another game now, or the same list
             }
-            mods.catalog = Menu::CatalogState::Ready;
-            PublishMods();
+            SetAvailable(r.second);
         });
+}
+
+void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
+    mods.available.clear();
+    mod_sizes.clear();
+    const Mods::Catalog catalog = Mods::Default().GetCatalog();
+    for (const Mods::AvailableMod& a : list) {
+        mod_sizes[a.id] = a.active || a.in_library ? 0 : a.size; // AzaharFrame catalog3
+        Menu::ModOffer o;
+        o.id = a.id;
+        o.name = a.name;
+        o.author = a.author;
+        o.url = RepoUrl(catalog, a.id);
+        o.updated = CustomTex::Download::UpdatedText(a.updated); // AzaharFrame modcat
+        o.notes = a.notes; // AzaharFrame modcat2
+        o.version = a.chip;
+        o.version_tip = a.chip_tip;
+        o.version_match = a.matches_game;
+        o.verified = a.verified;
+        o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
+        o.unscanned = a.unscanned;
+        if (!a.compat.Fits()) { // AzaharFrame compat
+            o.mismatch = true;
+            o.region_chip = a.compat.RegionChip();
+            o.mismatch_reason = a.compat.Reason();
+            o.mismatch_body = a.compat.Body("mod");
+        }
+        if (a.id == installing) {
+            o.state = Menu::OfferState::Installing;
+            o.note = PhaseText(Mods::Default().GetState().phase);
+        } else if (a.active) {
+            o.state = Menu::OfferState::Installed;
+        } else if (!a.installable) {
+            o.state = Menu::OfferState::Unavailable;
+            o.note = "Unsupported Archive";
+        } else if (a.id == failed) {
+            o.note = failed_reason.empty() ? std::string("Install Failed")
+                                           : "Install Failed: " + failed_reason; // AzaharFrame modfix
+            o.error = true;
+        }
+        mods.available.push_back(std::move(o));
+    }
+    mods.catalog = Menu::CatalogState::Ready;
+    PublishMods();
 }
 
 Menu::ModOffer* FrameMods::Offer(const std::string& id) {

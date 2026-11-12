@@ -844,7 +844,11 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame texui: the two switches straight from the settings (the rest is the Qt side's)
     m.mods.textures.custom_textures = v.custom_textures.GetValue();
     m.mods.textures.preload = v.preload_textures.GetValue();
-    bool spinning = m.mods.mods.catalog == Menu::CatalogState::Loading;
+    // AzaharFrame stall: also while Install Mods waits for its first answer (the catalog still
+    // Idle): the ring turns from the start, and never stands still.
+    bool spinning = m.mods.mods.catalog == Menu::CatalogState::Loading ||
+                    (m.mods.mods.catalog != Menu::CatalogState::Ready &&
+                     view.mods_page == Menu::ModsPage::Install);
     for (const auto& o : m.mods.mods.available) {
         spinning |= o.state == Menu::OfferState::Installing;
     }

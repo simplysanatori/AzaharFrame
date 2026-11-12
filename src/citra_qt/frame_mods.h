@@ -41,6 +41,9 @@
 #include "core/mods/compat.h" // AzaharFrame compat
 #include "frame_xr/menu/mods_segments.h"
 
+namespace Mods {
+struct AvailableMod; // AzaharFrame stall
+}
 namespace Mods::Zip {
 struct Job;
 }
@@ -102,6 +105,10 @@ private:
     void AllowAnyway(const std::string& id, int value); // AzaharFrame compat
     void RefreshLoaded();
     void RefreshAvailable();
+    /// AzaharFrame stall: Install Mods' list from the catalog in hand (no request); with
+    /// `network`, the catalog's latest copy and the sources' dates first.
+    void ListAvailable(bool network);
+    void SetAvailable(const std::vector<Mods::AvailableMod>& list);
     void RefreshPacks();
     void ComputeSizes();
     void Install(const std::string& id, bool replace, bool confirmed = false);
@@ -144,6 +151,8 @@ private:
     Pending pack_pending;               ///< what the Textures dialog's Download / Delete does
     std::shared_ptr<CustomTex::Download::Downloader> downloader; ///< one for the session
     bool catalog_fetched = false;       ///< the texture catalog's one request a run
+    u64 mods_network_title = ~0ULL;     ///< AzaharFrame stall: the title the mod list's requests ran for
+    bool mods_network_running = false;  ///< AzaharFrame stall: they run now
     std::set<std::string> downloaded;   ///< folder names Download Packs installed (for Delete)
     std::map<std::string, u64> offer_sizes; ///< the offers' sizes in bytes (0 unknown)
     std::string pack_failed, pack_error; ///< the pack whose last download failed, and why
