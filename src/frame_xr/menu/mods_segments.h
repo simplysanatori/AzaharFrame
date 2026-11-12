@@ -331,8 +331,15 @@ std::string TurnedOffText(const std::vector<std::string>& names);
 /// AzaharFrame compat: lifetime downloads, roughly: "Under 100 Downloads", "100+ Downloads",
 /// "1K+ Downloads", "5K+ Downloads", "10K+ Downloads", "50K+ Downloads".
 std::string DownloadsText(uint64_t count);
-/// "• a • b" of the parts that are not empty ("" when none is).
-std::string BulletLine(const std::vector<std::string>& parts);
+/// AzaharFrame ui3: how many of a byline's parts ("Created by <author> · a · b · c") stay on its
+/// first line, from the widths: `lead_w` "Created by <author>" (0: no author), `part_w` each
+/// part's, `sep_w` " · "'s. All fit: part_w.size(). The rest go on to the second line whole, so
+/// it breaks at a " · " only; the author always stays on the first, and with no author the first
+/// part does (cut to fit).
+std::size_t BylineSplit(float lead_w, const std::vector<float>& part_w, float sep_w, float width);
+/// The byline as text, "\n" where it goes on to the second line after `first` parts (tests).
+std::string BylineText(const std::string& author, const std::vector<std::string>& parts,
+                       std::size_t first);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);
@@ -353,12 +360,13 @@ std::string CountWithCommas(uint64_t n);
 /// AzaharFrame ui3: a mod's version as its rows show it: "v172", "v1.5.9", "Beta 2"; a bare number
 /// gets the "v" ("172" -> "v172"); "" stays "".
 std::string ModVersionText(const std::string& version);
-/// AzaharFrame ui3: what follows "Created by <author> · " on an Install Mods row (the version), "".
-std::string OfferByline(const ModOffer& offer);
-/// AzaharFrame ui3: the parts of an Install Mods row's last line (BulletLine): its note (the phase,
-/// a failure) when it has one, else Matches Your Game, "10K+ Downloads", "Updated Oct 2026" ("" the
-/// ones not known).
-std::vector<std::string> OfferBullets(const ModOffer& offer);
+/// AzaharFrame ui3: what follows "Created by <author>" on an Install Mods row: the version, then its
+/// note (the phase, a failure; index 1) when it has one, else Matches Your Game, "10K+ Downloads",
+/// "Updated Oct 2026" ("" the ones not known).
+std::vector<std::string> OfferParts(const ModOffer& offer);
+/// A Download Packs row's: the note while it downloads or when it failed, else "10K+ Downloads",
+/// "Updated Oct 2026".
+std::vector<std::string> PackOfferParts(const PackOffer& offer);
 
 /// "2.1 GB", "640 MB", "12 KB": a size the way Android's file manager shows it (1000s).
 std::string SizeText(uint64_t bytes);

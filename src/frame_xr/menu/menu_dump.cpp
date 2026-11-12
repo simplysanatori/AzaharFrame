@@ -705,6 +705,22 @@ int main(int argc, char** argv) {
             MenuView kv = v;
             kv.hover = {Id::ModInstall, 0};
             ok &= shot("mods-install-kiu", mk, kv);
+            // AzaharFrame ui3: a GameBanana row with all four parts and a long author name: the
+            // byline goes on to a second line at a " · "
+            MenuModel ml = mk;
+            ModOffer lg;
+            lg.id = "kiu-long";
+            lg.name = "Restored Japanese Voices";
+            lg.author = "The Kid Icarus Uprising Restoration Collective";
+            lg.url = "https://gamebanana.com/members/1";
+            lg.mod_version = "v2.4.1";
+            lg.version = "v3.2.0";
+            lg.version_match = true;
+            lg.downloads = "10K+ Downloads";
+            lg.updated = "Updated Sep 2026";
+            ml.mods.mods.available.insert(ml.mods.mods.available.begin(), lg);
+            kv.hover = {Id::ModLink, 0};
+            ok &= shot("mods-install-long", ml, kv);
         }
         v.hover = {Id::InstallFromZip, 1}; // AzaharFrame zipinstall
         ok &= shot("zip-mods-button", mi, v);

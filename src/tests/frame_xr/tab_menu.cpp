@@ -6,6 +6,7 @@
 // for a beam, labels that fit, hit testing.
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
@@ -883,22 +884,33 @@ TEST_CASE("Mods segments: a catalog row's version and date", "[frame_xr][tabmenu
     kiu.author = "Darkshade";
     kiu.mod_version = "v172";
     kiu.updated = "Updated Oct 2026";
-    CHECK(OfferByline(kiu) == "v172");
-    CHECK(BulletLine(OfferBullets(kiu)) == "\u2022 Updated Oct 2026");
-    // With the rest known, the date stays last.
+    const auto all = [](const std::vector<std::string>& parts) {
+        return BylineText("Darkshade", parts, parts.size());
+    };
+    CHECK(all(OfferParts(kiu)) == "Created by Darkshade · v172 · Updated Oct 2026");
+    // With the rest known: the version, then the downloads, the date last.
     kiu.downloads = "1K+ Downloads";
     kiu.version_match = true;
-    CHECK(BulletLine(OfferBullets(kiu)) ==
-          "\u2022 Matches Your Game \u2022 1K+ Downloads \u2022 Updated Oct 2026");
-    // Installing or failed: the note alone; the version stays by the author.
+    CHECK(all(OfferParts(kiu)) ==
+          "Created by Darkshade · v172 · Matches Your Game · 1K+ Downloads · Updated Oct 2026");
+    // Installing or failed: the version and the note.
     kiu.note = "Downloading 42%";
-    CHECK(BulletLine(OfferBullets(kiu)) == "\u2022 Downloading 42%");
-    CHECK(OfferByline(kiu) == "v172");
-    // Nothing known: no version, no line.
+    CHECK(all(OfferParts(kiu)) == "Created by Darkshade · v172 · Downloading 42%");
+    CHECK(OfferParts(kiu)[1] == "Downloading 42%"); // the part drawn in red when it failed
+    kiu.note.clear();
+    // Nothing known: the author alone.
     ModOffer bare;
     bare.author = "Someone";
-    CHECK(OfferByline(bare).empty());
-    CHECK(BulletLine(OfferBullets(bare)).empty());
+    CHECK(BylineText("Someone", OfferParts(bare), 4) == "Created by Someone");
+    // A pack: the downloads and the date; the phase while it downloads.
+    PackOffer pack;
+    pack.downloads = "10K+ Downloads";
+    pack.updated = "Updated Mar 2026";
+    CHECK(BylineText("Henriko Magnifico", PackOfferParts(pack), 2) ==
+          "Created by Henriko Magnifico · 10K+ Downloads · Updated Mar 2026");
+    pack.state = PackOfferState::Downloading;
+    pack.note = "Unpacking";
+    CHECK(PackOfferParts(pack) == std::vector<std::string>{"Unpacking"});
 
     // The row draws in the Install Mods list with its link and button, the version beside the
     // author (the hit target stays the author's name alone).
@@ -1573,10 +1585,77 @@ TEST_CASE("Compat: download buckets and the bullet line", "[frame_xr][tabmenu][c
     CHECK(DownloadsText(49999) == "10K+ Downloads");
     CHECK(DownloadsText(50000) == "50K+ Downloads");
     CHECK(DownloadsText(5000000) == "50K+ Downloads");
-    CHECK(BulletLine({"10K+ Downloads", "Updated Mar 2026"}) ==
-          "• 10K+ Downloads • Updated Mar 2026");
-    CHECK(BulletLine({"", "Updated Mar 2026"}) == "• Updated Mar 2026"); // unknown parts go
-    CHECK(BulletLine({"", ""}).empty());
+}
+
+// AzaharFrame ui3: a byline on one line, going on to a second only when it runs out of width, and
+// then at a " · " (never inside a part), the author kept on the first.
+TEST_CASE("Mods segments: where a byline wraps", "[frame_xr][tabmenu]") {
+    // "Created by Darkshade" 150 wide, " · " 12, the parts 40, 90, 120.
+    const std::vector<float> parts{40.0f, 90.0f, 120.0f};
+    const float all = 150.0f + 12.0f * 3 + 40.0f + 90.0f + 120.0f; // 436
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 1000.0f) == 3); // short: one line
+    CHECK(BylineSplit(150.0f, parts, 12.0f, all) == 3);     // exactly fits
+    CHECK(BylineSplit(150.0f, parts, 12.0f, all - 1.0f) == 2); // the last part goes down whole
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 310.0f) == 2); // 150 + 12 + 40 + 12 + 90 = 304
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 250.0f) == 1);
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 160.0f) == 0); // the author alone, the rest below
+    CHECK(BylineSplit(150.0f, {}, 12.0f, 100.0f) == 0);
+    // No author: the first part stays on the first line even when cut.
+    CHECK(BylineSplit(0.0f, parts, 12.0f, 30.0f) == 1);
+    CHECK(BylineSplit(0.0f, parts, 12.0f, 1000.0f) == 3);
+    // The text it makes: the break at a separator, the author on the first line.
+    const std::vector<std::string> p{"v172", "10K+ Downloads", "Updated Oct 2026"};
+    CHECK(BylineText("Darkshade", p, 3) ==
+          "Created by Darkshade · v172 · 10K+ Downloads · Updated Oct 2026");
+    CHECK(BylineText("Darkshade", p, 2) ==
+          "Created by Darkshade · v172 · 10K+ Downloads\nUpdated Oct 2026");
+    CHECK(BylineText("Darkshade", p, 0) ==
+          "Created by Darkshade\nv172 · 10K+ Downloads · Updated Oct 2026");
+    CHECK(BylineText("Darkshade", {"", "v172", ""}, 1) == "Created by Darkshade · v172");
+
+    // Drawn: a short row is the one-line height, a long one (a long author and all four parts in
+    // a narrow column) wraps and is taller; the link stays the author's name on the first line.
+    Drawn d;
+    MenuModel m = Sample();
+    m.mods.mods.catalog = CatalogState::Ready;
+    ModOffer s1;
+    s1.id = "short";
+    s1.name = "Short";
+    s1.author = "Darkshade";
+    s1.url = "https://gamebanana.com/members/1";
+    s1.mod_version = "v172";
+    ModOffer s2 = s1;
+    s2.id = "long";
+    s2.name = "Long";
+    s2.author = "The Very Long Author Name of a GameBanana Member";
+    s2.version_match = true;
+    s2.downloads = "10K+ Downloads";
+    s2.updated = "Updated Oct 2026";
+    s2.version = "v1.0 USA";
+    s2.mismatch = true;
+    s2.region_chip = "EUR";
+    m.mods.mods.available = {s1, s2};
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    d.Draw(m, v);
+    Rect r0{}, r1{}, l1{};
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::ModNote && h.t.index == 0) {
+            r0 = h.r;
+        }
+        if (h.t.id == Id::ModNote && h.t.index == 1) {
+            r1 = h.r;
+        }
+        if (h.t.id == Id::ModLink && h.t.index == 1) {
+            l1 = h.r;
+        }
+    }
+    CHECK(std::abs(r0.H() - 80.0f) < 0.01f);
+    CHECK(std::abs(r1.H() - 96.0f) < 0.01f);
+    REQUIRE(l1.W() > 0.0f);
+    CHECK(std::abs(l1.Cy() - (r1.y0 + 50.0f)) < 0.01f); // the link on the first byline line
 }
 
 TEST_CASE("Compat: the cheat's This May Not Work body", "[frame_xr][tabmenu][compat]") {

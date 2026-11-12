@@ -134,7 +134,7 @@ Menu::ModRow ToRow(const Mods::ModInfo& info, const Mods::Catalog& catalog) {
     if (info.managed) {
         r.author = info.author;
         r.url = RepoUrl(catalog, info.id, info.source);
-        r.detail = info.version;
+        r.detail = Menu::ModVersionText(info.version); // AzaharFrame ui3: "v1.5.9"
     } else if (info.files.size() > 1) {
         r.detail = fmt::format("{} Files", info.files.size()); // your own: what is there
     }

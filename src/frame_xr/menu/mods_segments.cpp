@@ -52,11 +52,14 @@ constexpr float kRow2 = 64.0f;    ///< a row with a supporting line
 /// A mod's row with "Created by <author>": its name in the top 32 dp, the link's 48 dp target
 /// in the lower 48, so pointing at the name never opens the link.
 constexpr float kRowLink = 80.0f;
-/// AzaharFrame compat: a catalog row (Install Mods, Download Packs): the name, "Created by
-/// <author>" (its link's 48 dp target round that line) and the bulleted line ("• 10K+ Downloads
-/// • Updated Mar 2026"), at these centres from the row's top.
+/// AzaharFrame compat: a catalog row (Install Mods, Download Packs): the name and "Created by
+/// <author> · v172 · 10K+ Downloads · Updated Mar 2026" (its link's 48 dp target round that
+/// line). AzaharFrame ui3: one line when it fits (kRowCatalog1, the name and that line at
+/// kCatalog1NameY and kCatalog1ByY), else it goes on at kCatalogWrapY (kRowCatalog).
 constexpr float kRowCatalog = 96.0f;
-constexpr float kCatalogNameY = 22.0f, kCatalogByY = 50.0f, kCatalogBulletsY = 76.0f;
+constexpr float kCatalogNameY = 22.0f, kCatalogByY = 50.0f, kCatalogWrapY = 76.0f;
+constexpr float kRowCatalog1 = 80.0f;
+constexpr float kCatalog1NameY = 26.0f, kCatalog1ByY = 54.0f;
 constexpr float kLinkNameDy = -5.0f;  ///< the name 16 dp over the middle (RowText puts it 11 up)
 constexpr float kLinkLineDy = 3.0f;   ///< "Created by" 16 dp under the middle (CreatedBy: 13 down)
 constexpr float kDividerH = 17.0f; ///< a 1 dp divider and 8 dp each side
@@ -233,6 +236,95 @@ Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& auth
     return r;
 }
 
+/// AzaharFrame ui3: a byline, "Created by <author> · a · b · c", measured: the author cut to the
+/// width and how many parts (the ones not empty) stay on the first line (BylineSplit).
+struct BylineFit {
+    bool created_by = true;
+    std::string author;          ///< cut to fit ("" none)
+    std::vector<std::string> parts;
+    std::vector<std::size_t> index; ///< each part's index in the parts given (the error one)
+    std::size_t first = 0;       ///< parts on the first line
+    bool Wraps() const {
+        return first < parts.size();
+    }
+};
+
+BylineFit FitByline(const Kit& kit, float width, const std::string& author, bool created_by,
+                    const std::vector<std::string>& parts) {
+    BylineFit f;
+    f.created_by = created_by;
+    float lead_w = 0.0f;
+    if (!author.empty()) {
+        const float cb = created_by ? kit.TextWidthSized(kSmall, false, "Created by ") : 0.0f;
+        f.author = kit.Fit(Type::Tooltip, author, std::max(24.0f, width - cb));
+        lead_w = cb + kit.TextWidthSized(kSmall, false, f.author);
+    }
+    std::vector<float> widths;
+    for (std::size_t i = 0; i < parts.size(); i++) {
+        if (!parts[i].empty()) {
+            f.parts.push_back(parts[i]);
+            f.index.push_back(i);
+            widths.push_back(kit.TextWidthSized(kSmall, false, parts[i]));
+        }
+    }
+    f.first = BylineSplit(lead_w, widths, kit.TextWidthSized(kSmall, false, " \u00b7 "), width);
+    return f;
+}
+
+/// Draws a BylineFit: the first line centred on `y1`, the rest (if any) on `y2`, the author a link
+/// (the primary colour, underlined while the beam is on it) and the part given as `error_part`
+/// in the error colour. Returns the link's rectangle (empty when there is no link).
+Rect DrawByline(Kit& kit, float x, float right, float y1, float y2, const BylineFit& f, bool link,
+                State link_state, std::size_t error_part, float op) {
+    const float cap = kit.CapHeightSized(kSmall, false) * 0.5f;
+    float base = y1 + cap;
+    float at = x;
+    Rect r{};
+    if (!f.author.empty()) {
+        if (f.created_by) {
+            at += kit.TextSized(at, base, kSmall, false, Tok::kOnSurfaceVariant, "Created by ", 0, op);
+        }
+        const float w = kit.TextSized(at, base, kSmall, false,
+                                      link ? Tok::kPrimary : Tok::kOnSurfaceVariant, f.author, 0, op);
+        if (link) {
+            if (link_state == State::Hover || link_state == State::Pressed) {
+                kit.Fill({at, base + 2.0f, at + w, base + 3.0f}, 0.0f, Tok::kPrimary, op);
+            }
+            r = {at, base - 14.0f, at + w, base + 4.0f};
+        }
+        at += w;
+    }
+    for (std::size_t i = 0; i < f.parts.size(); i++) {
+        if (i == f.first) { // the second line
+            base = y2 + cap;
+            at = x;
+        }
+        const std::string text = (at > x ? " \u00b7 " : "") + f.parts[i];
+        if (right - at < 24.0f) {
+            continue; // no room left on this line
+        }
+        at += kit.TextSized(at, base, kSmall, false,
+                            f.index[i] == error_part ? Tok::kError : Tok::kOnSurfaceVariant,
+                            kit.Fit(Type::Tooltip, text, right - at), 0, op);
+    }
+    return r;
+}
+
+/// AzaharFrame ui3: a catalog row's height: one byline line or two.
+float CatalogRowH(const Kit& kit, float width, const std::string& author,
+                  const std::vector<std::string>& parts) {
+    return FitByline(kit, width, author, true, parts).Wraps() ? kRowCatalog : kRowCatalog1;
+}
+
+/// AzaharFrame ui3: the width of the "Not for Your Version" and region chips (CompatChips).
+float CompatChipsWidth(const Kit& kit, const std::string& region) {
+    float w = kit.TextWidth(Type::Label, kNotForYourVersion) + 24.0f;
+    if (!region.empty()) {
+        w += kit.TextWidth(Type::Label, region) + 24.0f + 8.0f;
+    }
+    return w;
+}
+
 /// AzaharFrame modcat2: where a row's notes tooltip goes. AzaharFrame compat: wholly above the row
 /// (under it when there is no room above in the list), never over its own band, and no wider
 /// than the names' column (`name_x1`: where the leftmost chip or button of the rows shown
@@ -320,29 +412,24 @@ Rect LinkTarget(const Rect& link, const Rect& row) {
     return {link.x0 - pad, row.y1 - 48.0f, link.x1 + pad, row.y1};
 }
 
-/// AzaharFrame compat: a catalog row's three lines; returns the link's 48 dp target (empty: no
-/// link). `bullets` are the bulleted line's parts ("" ones left out); `error` draws it in the
-/// error colour (a failure).
+/// AzaharFrame compat: a catalog row's name and byline; returns the link's 48 dp target (empty: no
+/// link). AzaharFrame ui3: "Created by <author> · a · b" on one line, going on to a second only
+/// when it runs out of width (at a " · ", the author kept on the first); `parts` "" ones left
+/// out, the one at `error_part` in the error colour (a failure; npos none).
 Rect CatalogRowText(Kit& kit, float x, float right, const Rect& row, const std::string& name,
                     bool verified, const std::string& author, bool link, State link_state,
-                    const std::vector<std::string>& bullets, bool error,
-                    const std::string& byline = {}) { // AzaharFrame ui3: after the author
-    RowText(kit, x, right, row.y0 + kCatalogNameY, name, verified, "", false, 1.0f);
+                    const std::vector<std::string>& parts, std::size_t error_part) {
+    const BylineFit f = FitByline(kit, right - x, author, true, parts);
+    const bool wraps = f.Wraps();
+    const float name_y = row.y0 + (wraps ? kCatalogNameY : kCatalog1NameY);
+    const float by_y = row.y0 + (wraps ? kCatalogByY : kCatalog1ByY);
+    RowText(kit, x, right, name_y, name, verified, "", false, 1.0f);
+    const Rect l = DrawByline(kit, x, right, by_y, row.y0 + kCatalogWrapY, f, link, link_state,
+                              error_part, 1.0f);
     Rect target{};
-    if (!author.empty()) {
-        // CreatedBy draws 13 dp under its `cy` (the old second line's place)
-        const Rect l = CreatedBy(kit, x, right, row.y0 + kCatalogByY - 13.0f, author, link,
-                                 link_state, byline, false, 1.0f, true);
-        if (link && l.W() > 0.0f) {
-            const float pad = std::max(8.0f, (48.0f - l.W()) * 0.5f);
-            target = {l.x0 - pad, row.y0 + kCatalogByY - 24.0f, l.x1 + pad, row.y0 + kCatalogByY + 24.0f};
-        }
-    }
-    const std::string line = BulletLine(bullets);
-    if (!line.empty()) {
-        const float base = row.y0 + kCatalogBulletsY + kit.CapHeightSized(kSmall, false) * 0.5f;
-        kit.TextSized(x, base, kSmall, false, error ? Tok::kError : Tok::kOnSurfaceVariant,
-                      kit.Fit(Type::Tooltip, line, right - x));
+    if (link && l.W() > 0.0f) {
+        const float pad = std::max(8.0f, (48.0f - l.W()) * 0.5f);
+        target = {l.x0 - pad, by_y - 24.0f, l.x1 + pad, by_y + 24.0f};
     }
     return target;
 }
@@ -571,14 +658,21 @@ std::string DownloadsText(uint64_t count) {
     return "50K+ Downloads";
 }
 
-std::string BulletLine(const std::vector<std::string>& parts) {
-    std::string out;
-    for (const std::string& p : parts) {
-        if (!p.empty()) {
-            out += (out.empty() ? "\u2022 " : " \u2022 ") + p;
+std::size_t BylineSplit(float lead_w, const std::vector<float>& part_w, float sep_w, float width) {
+    float at = lead_w;
+    std::size_t n = 0;
+    for (const float w : part_w) {
+        const float add = (at > 0.0f ? sep_w : 0.0f) + w;
+        if (at + add > width) {
+            if (lead_w <= 0.0f && n == 0) {
+                n = 1; // nothing before it: the first part stays, cut to fit
+            }
+            break;
         }
+        at += add;
+        n++;
     }
-    return out;
+    return n;
 }
 
 std::string CountWithCommas(uint64_t n) { // AzaharFrame ui3
@@ -643,16 +737,92 @@ std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
     return version;
 }
 
-std::string OfferByline(const ModOffer& offer) {
-    return ModVersionText(offer.mod_version);
+std::vector<std::string> OfferParts(const ModOffer& offer) {
+    if (!offer.note.empty()) {
+        return {ModVersionText(offer.mod_version), offer.note};
+    }
+    return {ModVersionText(offer.mod_version), offer.version_match ? "Matches Your Game" : "",
+            offer.downloads, offer.updated};
 }
 
-std::vector<std::string> OfferBullets(const ModOffer& offer) {
-    if (!offer.note.empty()) {
+std::vector<std::string> PackOfferParts(const PackOffer& offer) {
+    if (offer.state == PackOfferState::Failed || offer.state == PackOfferState::Downloading) {
         return {offer.note};
     }
-    return {offer.version_match ? "Matches Your Game" : "", offer.downloads, offer.updated};
+    return {offer.downloads, offer.updated};
 }
+
+std::string BylineText(const std::string& author, const std::vector<std::string>& parts,
+                       std::size_t first) {
+    std::vector<std::string> one, two;
+    for (const std::string& p : parts) {
+        if (!p.empty()) {
+            (one.size() < first ? one : two).push_back(p);
+        }
+    }
+    std::string line = author.empty() ? JoinDetail(one) : JoinDetail({"Created by " + author, JoinDetail(one)});
+    if (!two.empty()) {
+        line += "\n" + JoinDetail(two);
+    }
+    return line;
+}
+
+namespace { // AzaharFrame ui3: the text's right edge of a catalog row (as drawn below)
+
+float OfferTextRight(const Kit& kit, const ModOffer& o, float x1) {
+    float right = x1;
+    switch (o.state) {
+    case OfferState::Install:
+    case OfferState::Unavailable:
+        right = x1 - ButtonWidth(kit, LabelFor(Id::ModInstall), false, 24.0f);
+        break;
+    case OfferState::Installing:
+        right = x1 - ButtonWidth(kit, LabelFor(Id::ModCancel), false, 12.0f) - 32.0f;
+        break;
+    case OfferState::Installed:
+        right = x1 - ButtonWidth(kit, "Installed", true, 12.0f) + 24.0f;
+        break;
+    }
+    float name_right = right - kNameGap;
+    if (!o.version.empty()) {
+        name_right = right - 16.0f - (kit.TextWidth(Type::Label, o.version) + 24.0f) - kNameGap;
+    }
+    if (o.mismatch) {
+        const float start = name_right + kNameGap - (o.version.empty() ? 16.0f : 8.0f);
+        name_right = start - CompatChipsWidth(kit, o.region_chip) - kNameGap;
+    }
+    return name_right;
+}
+
+float PackTextRight(const Kit& kit, const PackOffer& o, float x1) {
+    float right = x1;
+    switch (o.state) {
+    case PackOfferState::Download:
+    case PackOfferState::Failed:
+        right = x1 - ButtonWidth(kit,
+                                 o.state == PackOfferState::Failed ? std::string("Try Again")
+                                                                   : LabelFor(Id::PackDownload),
+                                 false, 24.0f);
+        break;
+    case PackOfferState::Downloading: {
+        float x = x1 - ButtonWidth(kit, LabelFor(Id::PackCancel), false, 12.0f) - 4.0f;
+        if (o.percent >= 0) {
+            x -= kit.TextWidth(Type::Label, "100%") + 12.0f;
+        }
+        right = x - 24.0f;
+        break;
+    }
+    case PackOfferState::Installed:
+        right = x1 - ButtonWidth(kit, "Installed", true, 12.0f) + 24.0f;
+        break;
+    }
+    if (o.mismatch) {
+        return right - 16.0f - CompatChipsWidth(kit, o.region_chip) - kNameGap;
+    }
+    return right - kNameGap;
+}
+
+} // namespace
 
 std::string JoinDetail(const std::vector<std::string>& parts) {
     std::string out;
@@ -986,7 +1156,12 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kExtension, false, 0,
                        "No Mods for This Game", "");
         } else {
-            std::vector<float> heights(m.available.size(), kRowCatalog);
+            // AzaharFrame ui3: a row is taller only when its byline goes on to a second line
+            std::vector<float> heights;
+            for (const ModOffer& o : m.available) {
+                heights.push_back(CatalogRowH(kit, OfferTextRight(kit, o, c.x1) - c.x0, o.author,
+                                              OfferParts(o)));
+            }
             const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
             layout.max_scroll = s.max_scroll;
             layout.scroll_step = s.step;
@@ -1005,12 +1180,13 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             NoteTip compat_tip;
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
-                if (y + kRowCatalog <= list.y0 || y + kRowCatalog > list.y1 + 0.01f) {
+                const float rh = heights[i];
+                if (y + rh <= list.y0 || y + rh > list.y1 + 0.01f) {
                     continue; // whole rows only
                 }
                 const ModOffer& o = m.available[i];
                 const int idx = static_cast<int>(i);
-                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowCatalog};
+                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + rh};
                 const float cy = row.Cy();
                 AddHit(row, {Id::ModInstall, kLabelIndex}, list);
                 float right = c.x1;
@@ -1094,19 +1270,18 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     name_right = x0 - kNameGap;
                 }
                 names_right = std::min(names_right, name_right);
-                AddHit({row.x0, y, name_right, y + kRowCatalog}, {Id::ModNote, idx}, list);
+                AddHit({row.x0, y, name_right, y + rh}, {Id::ModNote, idx}, list);
                 if (view.tooltip == Id::ModNote && view.tooltip_index == idx) {
                     tip_row = &o;
                     tip_rect = row;
                 }
-                // AzaharFrame compat: "Created by <author>" (any https page; AzaharFrame ui3: then
-                // " · v172"), then "• Matches Your Game • 10K+ Downloads • Updated Sep 2026" (the
-                // phase or the failure while it installs or when it failed): OfferBullets
+                // AzaharFrame compat: "Created by <author>" (any https page), AzaharFrame ui3: then
+                // " · v172 · Matches Your Game · 10K+ Downloads · Updated Sep 2026" (the phase or the
+                // failure while it installs or when it failed): OfferParts
                 const bool link = !LinkText(o.url).empty();
                 const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.verified, o.author,
-                                              link, StateOf(view, {Id::ModLink, idx}),
-                                              OfferBullets(o), !o.note.empty() && o.error,
-                                              OfferByline(o));
+                                              link, StateOf(view, {Id::ModLink, idx}), OfferParts(o),
+                                              !o.note.empty() && o.error ? 1 : std::string::npos);
                 if (l.W() > 0.0f) {
                     AddHit(l, {Id::ModLink, idx}, list);
                 }
@@ -1160,15 +1335,22 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     const float top = c.y0 + kBarH + 8.0f;
     const Rect list{area.x0, top, area.x1, bottom};
+    const std::string remove = LabelFor(Id::ModRemove);
+    const float remove_w = ButtonWidth(kit, remove, false, 12.0f);
+    // AzaharFrame ui3: the text's right edge, left of Remove (as below); a row whose byline goes on
+    // to a second line is a catalog row's height
+    const float loaded_right = c.x1 - kSwitchW - kTrailGap + 12.0f - remove_w + 12.0f - kNameGap;
     std::vector<float> heights;
     for (const ModRow& r : m.loaded) {
-        heights.push_back(!r.author.empty() ? kRowLink : r.detail.empty() ? kRow1 : kRow2);
+        heights.push_back(!r.author.empty()
+                              ? (FitByline(kit, loaded_right - c.x0, r.author, true, {r.detail}).Wraps()
+                                     ? kRowCatalog
+                                     : kRowLink)
+                              : r.detail.empty() ? kRow1 : kRow2);
     }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
-    const std::string remove = LabelFor(Id::ModRemove);
-    const float remove_w = ButtonWidth(kit, remove, false, 12.0f);
     kit.Clip(list);
     for (std::size_t i = 0; i < m.loaded.size(); i++) {
         const float ih = heights[i];
@@ -1202,12 +1384,23 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         if (r.author.empty()) {
             RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
         } else {
-            RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
             const bool link = !LinkText(r.url).empty(); // AzaharFrame modcat: GameBanana pages too
-            const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, r.author, link,
-                                     StateOf(view, {Id::ModLink, idx}, enabled), r.detail, false, op);
+            // AzaharFrame ui3: "Created by <author> · v1.5.9", going on to a second line when it
+            // runs out of width (as the catalog rows)
+            const BylineFit f = FitByline(kit, text_right - c.x0, r.author, true, {r.detail});
+            const bool wraps = f.Wraps();
+            const float by_y = wraps ? row.y0 + kCatalogByY : cy + kLinkLineDy + 13.0f;
+            if (wraps) {
+                RowText(kit, c.x0, text_right, row.y0 + kCatalogNameY, r.name, r.verified, "", false, op);
+            } else {
+                RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
+            }
+            const Rect l = DrawByline(kit, c.x0, text_right, by_y, row.y0 + kCatalogWrapY, f, link,
+                                      StateOf(view, {Id::ModLink, idx}, enabled), std::string::npos, op);
             if (link && enabled && l.W() > 0.0f) {
-                AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
+                const float pad = std::max(8.0f, (48.0f - l.W()) * 0.5f);
+                AddHit(wraps ? Rect{l.x0 - pad, by_y - 24.0f, l.x1 + pad, by_y + 24.0f} : LinkTarget(l, row),
+                       {Id::ModLink, idx}, list);
             }
         }
     }
@@ -1397,7 +1590,11 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
                    "No Packs for This Game", "");
         return;
     }
-    std::vector<float> heights(m.downloads.size(), kRowCatalog);
+    std::vector<float> heights; // AzaharFrame ui3: as Install Mods
+    for (const PackOffer& o : m.downloads) {
+        heights.push_back(CatalogRowH(kit, PackTextRight(kit, o, c.x1) - c.x0, o.author,
+                                      PackOfferParts(o)));
+    }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
@@ -1409,12 +1606,13 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     NoteTip compat_tip;
     for (std::size_t i = 0; i < m.downloads.size(); i++) {
         const float y = top + s.tops[i] - s.scroll;
-        if (y + kRowCatalog <= list.y0 || y + kRowCatalog > list.y1 + 0.01f) {
+        const float rh = heights[i];
+        if (y + rh <= list.y0 || y + rh > list.y1 + 0.01f) {
             continue; // whole rows only
         }
         const PackOffer& o = m.downloads[i];
         const int idx = static_cast<int>(i);
-        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowCatalog};
+        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + rh};
         const float cy = row.Cy();
         AddHit(row, {Id::PackDownload, kLabelIndex}, list);
         float right = c.x1;
@@ -1479,20 +1677,18 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         names_right = std::min(names_right, text_right);
         // AzaharFrame zipinstall: the verified badge; "<author> · Updated Sep 2026" (the phase
         // while it downloads, the error when it failed)
-        AddHit({row.x0, y, text_right, y + kRowCatalog}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
+        AddHit({row.x0, y, text_right, y + rh}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
         if (view.tooltip == Id::PackNote && view.tooltip_index == idx) {
             tip_row = &o;
             tip_rect = row;
         }
-        // AzaharFrame compat: "Created by <author>", then "• 10K+ Downloads • Updated Sep 2026"
-        // (the phase while it downloads, the error when it failed)
+        // AzaharFrame compat: "Created by <author>", AzaharFrame ui3: then " · 10K+ Downloads ·
+        // Updated Sep 2026" (the phase while it downloads, the error when it failed)
         const bool failed = o.state == PackOfferState::Failed;
-        const bool busy = o.state == PackOfferState::Downloading;
-        const std::vector<std::string> bullets = failed || busy ? std::vector<std::string>{o.note}
-                                                                : std::vector<std::string>{o.downloads, o.updated};
         const bool link = !LinkText(o.url).empty();
         const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, o.verified, o.author, link,
-                                      StateOf(view, {Id::PackLink, idx}), bullets, failed);
+                                      StateOf(view, {Id::PackLink, idx}), PackOfferParts(o),
+                                      failed ? 0 : std::string::npos);
         if (l.W() > 0.0f) {
             AddHit(l, {Id::PackLink, idx}, list);
         }
