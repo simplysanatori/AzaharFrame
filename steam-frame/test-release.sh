@@ -1,7 +1,8 @@
 #!/bin/bash
 # Checks a release the way Frametanium and FrameDrop use it, in a scratch home folder: a stand-in for Steam's
 # debugging port (test/mock-steam-cef.py), a stand-in vrcmd, no real Steam library, SteamVR or data folder touched.
-# It never starts the emulator.
+# It never starts the emulator.  It also checks that the prebuilt texture encoder (tools/af-ktxenc) and its licence
+# are in the archive, that the installer puts them in place, and that the converter finds the encoder.
 #   steam-frame/test-release.sh ARCHIVE.tar.gz   test an archive made by release/make-release.sh; the FrameDrop zip,
 #                                                its json and SHA256SUMS are read from beside it when they are there
 #   steam-frame/test-release.sh --dummy          first package a dummy program (a copy of a system program, named azahar)
@@ -27,6 +28,8 @@ jq() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eva
 if [ "$1" = --dummy ]; then
     mkdir -p "$T/build" "$T/out"
     cp "$(type -P true || echo /bin/true)" "$T/build/azahar"
+    cp "$(type -P true || echo /bin/true)" "$T/build/af-ktxenc"   # stand-in for the prebuilt encoder
+    echo "Apache License (dummy)" > "$T/build/astcenc-LICENSE.txt"
     bash "$HERE/release/make-release.sh" 0.0.0-test "$T/build" "$T/out" > "$T/make.log" 2>&1 || { cat "$T/make.log"; echo "FAIL make-release.sh"; exit 1; }
     ARCHIVE=$T/out/azaharframe-0.0.0-test-linux-arm64.tar.gz
 else
@@ -97,6 +100,14 @@ for p in "$U"/tools/*; do
     check "installed $f" test -f "$APP/$f"
     if [ -x "$p" ]; then check "  and it is executable" test -x "$APP/$f"; fi
 done
+# AzaharFrame harden: the prebuilt texture encoder is in the release and gets installed (a stock Frame has no compiler)
+check "release: tools/af-ktxenc is shipped and executable" test -f "$U/tools/af-ktxenc" -a -x "$U/tools/af-ktxenc"
+check "release: astcenc licence is shipped" test -s "$U/licenses/astcenc-LICENSE.txt"
+check "release: tools/af-ktxenc is an ELF file" test "$(head -c 4 "$U/tools/af-ktxenc" 2> /dev/null | tail -c 3)" = ELF
+check "installed tools/af-ktxenc, executable" test -f "$APP/tools/af-ktxenc" -a -x "$APP/tools/af-ktxenc"
+check "installed licenses/astcenc-LICENSE.txt" test -s "$APP/licenses/astcenc-LICENSE.txt"
+check "installed encoder is the release's" cmp -s "$U/tools/af-ktxenc" "$APP/tools/af-ktxenc"
+check "converter finds the bundled encoder (--check)" env -u AF_KTXENC "$APP/tools/convert-texture-pack.sh" --check
 check "installed programs are executable" test -x "$APP/azahar" -a -x "$APP/azaharframe.sh" -a -x "$APP/uninstall.sh"
 check "installed VERSION matches" test "$(head -n 1 "$APP/VERSION")" = "$VER"
 check "data folder made" test -d "$DATA/user"

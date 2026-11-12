@@ -51,6 +51,19 @@ mkdir -p "$STAGE/art"
 cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$STAGE/art/"
 mkdir -p "$STAGE/tools"
 cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$STAGE/tools/"
+# AzaharFrame harden: the prebuilt texture pack encoder (steam-frame/portable/container-build.sh builds it beside
+# the program, with astcenc's licence), or AZAHARFRAME_KTXENC=FILE.  The headset has no compiler to build one.
+KTXENC=${AZAHARFRAME_KTXENC:-$BUILD/af-ktxenc}
+if [ -x "$KTXENC" ]; then
+  cp "$KTXENC" "$STAGE/tools/af-ktxenc"; chmod +x "$STAGE/tools/af-ktxenc"
+  ASTCLIC=${AZAHARFRAME_KTXENC_LICENSE:-$(dirname "$KTXENC")/astcenc-LICENSE.txt}
+  [ -f "$ASTCLIC" ] || { echo "make-release: $KTXENC has no astcenc-LICENSE.txt beside it" >&2; exit 1; }
+  mkdir -p "$STAGE/licenses"; cp "$ASTCLIC" "$STAGE/licenses/astcenc-LICENSE.txt"
+elif [ "${AZAHARFRAME_REQUIRE_PORTABLE:-0}" = 1 ]; then
+  echo "make-release: no prebuilt texture encoder ($KTXENC): run steam-frame/build-portable.sh" >&2; exit 1
+else
+  echo "make-release: WARNING: no af-ktxenc in $BUILD: Optimize Texture Pack will build it on the headset" >&2
+fi
 "$SF/tools/fetch-7zip.sh" "$STAGE/tools" "$STAGE/licenses" # 7zz: the fallback extractor (pinned, sha256 checked)
 chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh" "$STAGE/tools/emerald3ds-build.py"
 echo "$VERSION" > "$STAGE/VERSION"

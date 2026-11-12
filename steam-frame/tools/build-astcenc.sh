@@ -3,6 +3,8 @@
 # with NEON, and af-ktxenc.cpp (next to this script) linked against it.  Under a minute on
 # the Frame, at the lowest priority.  Needs git, cmake and a C++ compiler (g++ or clang++).
 #   build-astcenc.sh [--force]        (AZAHARFRAME_JOBS=N limits the compile jobs)
+# AF_KTXENC_LDFLAGS adds linker flags (the portable build links libstdc++ and libgcc statically);
+# AF_KTXENC_OUT_DIR puts the result and astcenc-LICENSE.txt in a folder of its own (the release build).
 # Result: $AZAHARFRAME_HOME/tools/af-ktxenc (default ~/.local/share/AzaharFrame/tools).
 # The astcenc checkout and build stay in $AZAHARFRAME_HOME/tools/src for a rebuild; delete
 # that folder to free the space (about 40 MB).
@@ -11,8 +13,9 @@ ASTCENC_TAG=5.7.1
 HERE=$(cd "$(dirname "$0")" && pwd)
 DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 TOOLS=$DATA/tools
+OUTDIR=${AF_KTXENC_OUT_DIR:-$TOOLS}
 SRC=$TOOLS/src/astc-encoder-$ASTCENC_TAG
-OUT=$TOOLS/af-ktxenc
+OUT=$OUTDIR/af-ktxenc
 FORCE=
 case "${1:-}" in --force) FORCE=1 ;; "") ;; *) echo "usage: $0 [--force]" >&2; exit 2 ;; esac
 
@@ -32,7 +35,7 @@ JOBS=${AZAHARFRAME_JOBS:-$(nproc 2> /dev/null || echo 4)}
 NICE="nice -n 19"
 command -v ionice > /dev/null && NICE="$NICE ionice -c 3"
 
-mkdir -p "$TOOLS/src"
+mkdir -p "$TOOLS/src" "$OUTDIR"
 if [ ! -f "$SRC/Source/astcenc.h" ]; then
   echo "fetching astcenc $ASTCENC_TAG"
   rm -rf "$SRC.tmp"
@@ -52,7 +55,7 @@ LIB=$(find "$SRC/build" -name "libastcenc-$ISA-static.a" | head -n 1)
 [ -n "$LIB" ] || { echo "libastcenc-$ISA-static.a was not built; see $SRC/build.log" >&2; exit 1; }
 
 echo "building af-ktxenc"
-$NICE "$CXX" -std=c++17 -O2 -I "$SRC/Source" "$HERE/af-ktxenc.cpp" "$LIB" -lpthread -o "$OUT.new"
+$NICE "$CXX" -std=c++17 -O2 -I "$SRC/Source" "$HERE/af-ktxenc.cpp" "$LIB" -lpthread ${AF_KTXENC_LDFLAGS:-} -o "$OUT.new"
 mv "$OUT.new" "$OUT"
-cp "$SRC/LICENSE.txt" "$TOOLS/astcenc-LICENSE.txt"
+cp "$SRC/LICENSE.txt" "$OUTDIR/astcenc-LICENSE.txt"
 echo "built $OUT (astcenc $ASTCENC_TAG)"

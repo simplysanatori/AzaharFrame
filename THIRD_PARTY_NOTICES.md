@@ -220,13 +220,15 @@ not part of the program.
 ## Texture pack encoder
 
 The texture pack converter in `steam-frame/tools/` (in the release, `tools/`) is a script and
-the source of a small encoder, `af-ktxenc.cpp`. Neither contains third-party code. On first
-use, `build-astcenc.sh` downloads and builds these on the Frame; they are not in this
-repository or in the release:
+the source of a small encoder, `af-ktxenc.cpp`. Neither contains third-party code. The release
+ships the built encoder, `tools/af-ktxenc` (linked with the two libraries below; libstdc++ and
+libgcc statically), so the headset needs no compiler, and installs astcenc's licence as
+`licenses/astcenc-LICENSE.txt`. The libraries' source is not in this repository: if a release
+has no encoder, `build-astcenc.sh` downloads and builds them on the Frame instead:
 
 | Library | Used for | Licence | Licence file |
 |---|---|---|---|
-| [astcenc](https://github.com/ARM-software/astc-encoder) 5.7.1, by Arm | ASTC compression | Apache-2.0 | `LICENSE.txt` in its source; the build copies it to `~/.local/share/AzaharFrame/tools/astcenc-LICENSE.txt` |
+| [astcenc](https://github.com/ARM-software/astc-encoder) 5.7.1, by Arm | ASTC compression | Apache-2.0 | `LICENSE.txt` in its source; the release carries it as `licenses/astcenc-LICENSE.txt`, and an on-device build copies it to `~/.local/share/AzaharFrame/tools/astcenc-LICENSE.txt` |
 | [stb_image](https://github.com/nothings/stb) 2.30, by Sean Barrett (the copy in astcenc's `Source/ThirdParty/`) | PNG decoding | public domain or MIT, at your choice | the end of `stb_image.h` |
 
 ## Not included
