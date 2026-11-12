@@ -22,6 +22,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
+#include "frame_xr/per_game.h" // AzaharFrame useglobal
 #include "frame_xr/session.h"
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux: Edit Controls' click
 #include "frame_xr/vis/controller_models.h"
@@ -208,66 +209,45 @@ void Apply(Settings::SwitchableSetting<T, R>& s, T value, bool per_game) {
     s.SetValue(value);
 }
 
-/// Per-game settings (Azahar's Properties have them too): locked in Global while the game has
-/// its own value.
-bool PerGameSetting(Id id) {
-    switch (id) {
-    case Id::HideBottomScreen:
-    case Id::ScreenShape:
-    case Id::ImmersiveMode:
-    case Id::WiderView:
-    case Id::GameFov:
-    case Id::MatchCamera: // AzaharFrame depth
-    case Id::NarrowScreen:
-    case Id::DepthFactor:
-    case Id::Depth3d: // AzaharFrame depth3d
-    case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
-    case Id::TextureFilter:
-    case Id::AsyncShaders:
-    case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
-    case Id::AutosaveEvery:
-    case Id::AutosaveKeep:
-        return true;
-    default:
-        return false;
-    }
-}
+// AzaharFrame useglobal: the per-game rows (Menu::PerGameSetting) and their values against the
+// settings (per_game.h).
+using Menu::PerGameSetting;
+using PerGame::UsesGlobal;
 
-bool UsesGlobal(Id id) {
-    auto& v = Settings::values;
+/// AzaharFrame useglobal: the Qt side's name for a per-game row's setting.
+MenuSetting SettingOf(Id id) {
     switch (id) {
     case Id::HideBottomScreen:
-        return v.vr_hide_bottom_screen.UsingGlobal();
+        return MenuSetting::HideBottomScreen;
     case Id::ScreenShape:
-        return v.vr_top_aspect.UsingGlobal();
+        return MenuSetting::ScreenShape;
     case Id::ImmersiveMode:
-        return v.vr_immersive_mode.UsingGlobal();
+        return MenuSetting::ImmersiveMode;
     case Id::WiderView:
-        return v.vr_immersive_wider_view_level.UsingGlobal();
+        return MenuSetting::WiderView;
     case Id::GameFov:
-        return v.vr_immersive_game_fov.UsingGlobal();
+        return MenuSetting::GameFov;
     case Id::MatchCamera:
-        return v.vr_immersive_match_camera.UsingGlobal();
+        return MenuSetting::MatchCamera;
     case Id::NarrowScreen:
-        return v.vr_immersive_squeeze.UsingGlobal();
+        return MenuSetting::NarrowScreen;
     case Id::DepthFactor:
-        return v.vr_immersive_positional_game_scaler.UsingGlobal();
+        return MenuSetting::DepthFactor;
     case Id::Depth3d:
-        return v.factor_3d.UsingGlobal();
-    case Id::InternalResolution: // AzaharFrame menuux
-        return v.resolution_factor.UsingGlobal();
+        return MenuSetting::Depth3d;
+    case Id::InternalResolution:
+        return MenuSetting::InternalResolution;
     case Id::TextureFilter:
-        return v.texture_filter.UsingGlobal();
+        return MenuSetting::TextureFilter;
     case Id::AsyncShaders:
-        return v.async_shader_compilation.UsingGlobal();
-    case Id::Autosave: // AzaharFrame autosave
-        return v.autosave_enabled.UsingGlobal();
+        return MenuSetting::AsyncShaders;
+    case Id::Autosave:
+        return MenuSetting::Autosave;
     case Id::AutosaveEvery:
-        return v.autosave_every.UsingGlobal();
+        return MenuSetting::AutosaveEvery;
     case Id::AutosaveKeep:
-        return v.autosave_keep.UsingGlobal();
-    default:
-        return true;
+    default: // UseGlobal checks PerGameSetting first
+        return MenuSetting::AutosaveKeep;
     }
 }
 
@@ -944,6 +924,7 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     m.autosave_keep = static_cast<int>(std::clamp<u32>(v.autosave_keep.GetValue(), 1, 10));
 
+    PerGame::FillGameValues(m); // AzaharFrame useglobal: the "This Game" chips
     const auto lock = [&m](Id id, Lock l) { m.locked[static_cast<std::size_t>(id)] = l; };
     for (int i = 0; i < Menu::kIdCount; i++) {
         const Id id = static_cast<Id>(i);
@@ -1157,6 +1138,35 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     }
 }
 
+// AzaharFrame useglobal: "Use Global Value": the game follows the global value again, at once;
+// the Qt side takes the key out of the game's file.
+void MenuPanel::UseGlobal(Id id, Host& host) {
+    if (!PerGameSetting(id)) {
+        return;
+    }
+    const auto& v = Settings::values;
+    const bool hide = v.vr_hide_bottom_screen.GetValue();
+    const bool async = v.async_shader_compilation.GetValue();
+    if (!PerGame::UseGlobalValue(id)) {
+        return;
+    }
+    if (id == Id::InternalResolution) {
+        DynamicResolution::Reset(); // from the global value, no step off
+    } else if (id == Id::HideBottomScreen && hide != v.vr_hide_bottom_screen.GetValue()) {
+        ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
+    } else if (id == Id::AsyncShaders && async != v.async_shader_compilation.GetValue()) {
+        ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
+    }
+    LOG_INFO(Frontend, "xr: in-game menu: {}: Use Global Value", Menu::LabelFor(id));
+    MenuRequest r;
+    r.command = MenuCommand::UseGlobalValue;
+    r.setting = SettingOf(id);
+    r.per_game = true;
+    if (host.request) {
+        host.request(r);
+    }
+}
+
 void MenuPanel::Click(Target t, Host& host) {
     const auto ask = [&host](MenuCommand c, int value = 0) {
         MenuRequest r;
@@ -1180,7 +1190,12 @@ void MenuPanel::Click(Target t, Host& host) {
         const Id menu = view.open_menu;
         view.open_menu = Id::None;
         if (t.id == menu && t.index >= 0) {
-            if (menu == Id::Scope) { // AzaharFrame autosave: the scope's menu button
+            if (menu == Id::Scope && t.index == Menu::kScopeUseGlobalAll) {
+                // AzaharFrame useglobal: every row of the section the game has its own value for
+                for (const Id id : Menu::GameValueRows(model, view.section)) {
+                    UseGlobal(id, host);
+                }
+            } else if (menu == Id::Scope) { // AzaharFrame autosave: the scope's menu button
                 scope = std::clamp(t.index, 0, 1);
                 LOG_INFO(Frontend, "xr: in-game menu: Settings: {}", scope ? "Per-Game" : "Global");
             } else if (menu == Id::AutosaveCard) { // AzaharFrame autosave: the card's list
@@ -1247,6 +1262,11 @@ void MenuPanel::Click(Target t, Host& host) {
             view.page = Menu::Page::Tabs;
         } else if (model.autosaves.size() > 1) {
             view.open_menu = Id::AutosaveCard;
+        }
+        break;
+    case Id::UseGlobal: // AzaharFrame useglobal: a row's "This Game" chip
+        if (t.index > 0 && t.index < Menu::kIdCount) {
+            UseGlobal(static_cast<Id>(t.index), host);
         }
         break;
     case Id::AutosaveSettings: // "Autosave: Off": the Saves rows
@@ -1930,7 +1950,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     const Id rest = hover.id;
     const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote ||
                          rest == Id::ModCompat || rest == Id::PackCompat || // AzaharFrame compat
-                         rest == Id::PartUp || rest == Id::PartDown;        // AzaharFrame texparts
+                         rest == Id::PartUp || rest == Id::PartDown ||      // AzaharFrame texparts
+                         rest == Id::UseGlobal; // AzaharFrame useglobal: which row's chip
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
@@ -1958,7 +1979,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                              : !packs[static_cast<std::size_t>(rest_idx)].mismatch_reason.empty());
         } else if (rest == Id::ModCompat) { // AzaharFrame compat
             row_text = at_offer(rest_idx) && !at_offer(rest_idx)->mismatch_reason.empty();
-        } else if (rest == Id::PartUp || rest == Id::PartDown) { // AzaharFrame texparts
+        } else if (rest == Id::PartUp || rest == Id::PartDown || // AzaharFrame texparts
+                   rest == Id::UseGlobal) { // AzaharFrame useglobal: "Use Global Value"
             // Move Up, Move Down
             row_text = true;
         }

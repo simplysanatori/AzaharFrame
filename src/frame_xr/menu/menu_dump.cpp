@@ -29,6 +29,7 @@
 #include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/md3_fonts.h" // AzaharFrame useglobal: the option B mock's icon
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/menu/texparts_dump.h" // AzaharFrame texparts
 #include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
@@ -247,6 +248,7 @@ int main(int argc, char** argv) {
     bool diagram_only = false;
     std::string texparts; // AzaharFrame texparts
     std::string autosave_thumbs; // AzaharFrame autosave: real top screens for the card
+    std::string only; // AzaharFrame useglobal: --only PREFIX: only the shots named so
     for (int i = 2; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--diagram-only") {
@@ -261,9 +263,11 @@ int main(int argc, char** argv) {
             texparts = argv[i + 1];
         } else if (a == "--autosave-thumbs") {
             autosave_thumbs = argv[i + 1];
+        } else if (a == "--only") {
+            only = argv[i + 1];
         }
         if (a == "--models" || a == "--px-per-dp" || a == "--texparts" ||
-            a == "--autosave-thumbs") {
+            a == "--autosave-thumbs" || a == "--only") {
             i++;
         }
     }
@@ -307,7 +311,11 @@ int main(int argc, char** argv) {
     const int w = static_cast<int>((kPanelW + kMargin * 2.0f) * px_per_dp + 0.5f);
     const int h = static_cast<int>((kPanelH + kMargin * 2.0f) * px_per_dp + 0.5f);
     const auto shot = [&](const std::string& name, const MenuModel& m, MenuView v,
-                          const MouseOverlay& mouse = {}) {
+                          const MouseOverlay& mouse = {},
+                          const std::function<void(Kit&)>& over = {}) {
+        if (!only.empty() && name.rfind(only, 0) != 0) {
+            return true; // AzaharFrame useglobal: --only
+        }
         frame_xr::ui::Canvas cv;
         cv.Init(w, h);
         cv.Clear(Rgb(kBackdrop));
@@ -321,6 +329,9 @@ int main(int argc, char** argv) {
             v.scroll[static_cast<int>(v.tab)] = menu.MaxScroll();
             panel.Init(panel.w, panel.h);
             menu.Draw(kit, m, v);
+        }
+        if (over) {
+            over(kit); // AzaharFrame useglobal: a mock drawn over the menu (another design)
         }
         const int ox = static_cast<int>(kMargin * px_per_dp + 0.5f);
         for (int y = 0; y < panel.h; y++) {
@@ -774,6 +785,99 @@ int main(int argc, char** argv) {
     v.hover = {Id::DynamicResolution, kLabelIndex};
     v.tooltip = Id::DynamicResolution;
     ok &= shot("5h-settings-dynamic-at-1x", rm, v);
+    // AzaharFrame useglobal: the "This Game" chip on rows the game has its own value for
+    // (Per-Game), its tooltip, Use Global Values for All in the scope's menu; option B (the chip
+    // opens a one-item menu) drawn over the real menu for comparison.
+    {
+        const auto own = [](MenuModel mm, std::initializer_list<Id> ids) {
+            for (Id id : ids) {
+                mm.game_value[static_cast<std::size_t>(id)] = true;
+            }
+            return mm;
+        };
+        MenuModel ug = pg;
+        ug.internal_resolution = 3;
+        ug.depth_3d = 80;
+        ug.async_shaders = true;
+        v = settings(SettingsSection::Graphics);
+        ok &= shot("ug0-graphics-before", ug, v);
+        const MenuModel ugr =
+            own(ug, {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders});
+        ok &= shot("ug1-graphics-this-game", ugr, v);
+        v.hover = {Id::UseGlobal, static_cast<int>(Id::InternalResolution)};
+        v.tooltip = Id::UseGlobal;
+        v.tooltip_index = static_cast<int>(Id::InternalResolution);
+        ok &= shot("ug1a-graphics-chip-tooltip", ugr, v);
+        {
+            // After the click: Internal Resolution follows the global value (2x) again
+            MenuModel after = own(ug, {Id::Depth3d, Id::AsyncShaders});
+            after.internal_resolution = 2;
+            v.tooltip = Id::None;
+            v.tooltip_index = -1;
+            ok &= shot("ug1b-graphics-after-use-global", after, v);
+        }
+        v = settings(SettingsSection::Graphics);
+        v.open_menu = Id::Scope;
+        v.hover = {Id::Scope, kScopeUseGlobalAll};
+        ok &= shot("ug2-scope-menu-use-global-all", ugr, v);
+        MenuModel ugi = pg;
+        ugi.game_fov = 85;
+        ugi.wider_view = 3;
+        ugi.match_camera = false;
+        v = settings(SettingsSection::Immersive);
+        ok &= shot("ug3-immersive-this-game",
+                   own(ugi, {Id::WiderView, Id::GameFov, Id::MatchCamera}), v);
+        MenuModel ugs = pg;
+        ugs.autosave_keep = 8;
+        v = settings(SettingsSection::General);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ok &= shot("ug4-general-saves-this-game", own(ugs, {Id::Autosave, Id::AutosaveKeep}), v);
+        {
+            MenuModel gl = own(ug, {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders});
+            gl.scope = 0; // Global: the rows locked, the way back is the scope's menu
+            for (Id id : {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders}) {
+                gl.locked[static_cast<std::size_t>(id)] = Lock::GameValue;
+            }
+            v = settings(SettingsSection::Graphics);
+            v.open_menu = Id::Scope;
+            v.hover = {Id::Scope, kScopeUseGlobalAll};
+            ok &= shot("ug5-global-scope-menu", gl, v);
+        }
+        {
+            MenuModel pos = own(pg, {Id::HideBottomScreen, Id::ScreenShape});
+            pos.screen_shape = 1;
+            v = {};
+            v.tab = Tab::Position;
+            ok &= shot("ug6-position-this-game", pos, v);
+        }
+        // Option B: "This Game ▾" opens a menu with Use Global Value (not built; mock)
+        v = settings(SettingsSection::Graphics);
+        {
+            frame_xr::ui::Canvas scratch; // where the chip is
+            scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
+                         static_cast<int>(kPanelH * px_per_dp + 0.5f));
+            kit.Begin(scratch);
+            menu.Draw(kit, ugr, v);
+        }
+        Rect chip{};
+        for (const auto& h : menu.Hits()) {
+            if (h.t.id == Id::UseGlobal && h.t.index == static_cast<int>(Id::InternalResolution)) {
+                chip = {h.r.x0 + 4.0f, h.r.Cy() - 16.0f, h.r.x1 - 4.0f, h.r.Cy() + 16.0f};
+            }
+        }
+        ok &= shot("ug9-option-b-chip-menu", ugr, v, {}, [chip](Kit& k) {
+            k.Fill({chip.x1 - 30.0f, chip.y0 + 2.0f, chip.x1 - 2.0f, chip.y1 - 2.0f}, 6.0f,
+                   Tok::kSurface);
+            k.StateLayer(chip, 8.0f, Tok::kOnSurfaceVariant, State::Pressed);
+            k.Icon(chip.x1 - 17.0f, chip.Cy(), 20.0f, FrameXr::Menu::Icon::kArrowDropDown, false,
+                   Tok::kOnSurfaceVariant);
+            const float w = k.TextWidth(Type::Label, "Use Global Value") + 72.0f;
+            const Rect box = k.Menu({chip.x0, chip.y1 + 4.0f, chip.x0 + w, chip.y1 + 4.0f + 64.0f},
+                                    {"Use Global Value"}, -1, 0);
+            (void)box;
+        });
+    }
+
     MenuModel om = m;
     om.immersive_offset = "Right 3.5°, Down 2.5°";
     om.immersive_offset_set = true;

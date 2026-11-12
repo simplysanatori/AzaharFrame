@@ -251,6 +251,8 @@ Everything is in the Azahar window, under **Emulation > Configure**. Resolution,
 
 **Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row is greyed out in **Configure** and shows the value for all games.
 
+In the in-game menu's **Settings** tab, a row this game has its own value for shows **This Game** while **Per-Game** is chosen. Select **This Game** to use the global value again: the game's own value is removed, so later changes in **Global** apply to it. **Use Global Values for All**, in the menu button at the end of the section row, does this for every row of the section.
+
 The first time VR starts, the buttons and sticks of the current controls profile get the Frame layout (**Emulation > Configure > Controls**). After that your changes stay. In VR the Single Screen and Separate Windows layouts are changed to Default, and the 3D depth is set to 50 % if it is 0.
 
 The VR settings are in the **VR** group at the bottom of the **Graphics** tab. [SETTINGS.md](SETTINGS.md) explains each one, with its choices and default.

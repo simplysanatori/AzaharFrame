@@ -187,6 +187,7 @@ enum class MenuCommand {
     EditControls, ///< AzaharFrame menu: Edit Controls started (nothing for the Qt side to do)
     SetButtons,   ///< AzaharFrame remap: `buttons` are the controls profile's 3DS buttons (18)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
+    UseGlobalValue, ///< AzaharFrame useglobal: the running game's own `setting` goes (its file too)
     // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
     ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
     DownloadCheats, ///< the developer's and Sharkive's cheats for the game

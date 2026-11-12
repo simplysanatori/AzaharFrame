@@ -1830,7 +1830,8 @@ GMainWindow::GMainWindow(Core::System& system_)
             // (Emulation > Autosave), every:N / keep:N (the same way), menu / close (the in-game
             // menu), load:N (Autosave N, newest 1), undo (Undo Load), slot:N (Save State N),
             // stop / quit (Emulation > Stop, the window closed), vr:<autosave|every|keep>:
-            // <value>:<game|global> (the in-game menu's Settings rows, in that scope).
+            // <value>:<game|global> (the in-game menu's Settings rows, in that scope; useglobal:
+            // the row's Use Global Value, the value ignored).
             for (const QString& step : qEnvironmentVariable("AZAHARFRAME_TEST_AUTOSAVE")
                                            .split(QLatin1Char(','), Qt::SkipEmptyParts)) {
                 const auto parts = step.split(QLatin1Char(':'));
@@ -1905,6 +1906,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                                         : FrameXr::MenuSetting::AutosaveKeep;
                         r.value = parts[3].toInt();
                         r.per_game = parts[4] == QStringLiteral("game");
+                        if (parts[4] == QStringLiteral("useglobal")) { // AzaharFrame useglobal
+                            r.command = FrameXr::MenuCommand::UseGlobalValue;
+                        }
                         FrameMenuRequest(r);
                         if (!was_open) {
                             g_frame_xr_set_menu(false);
@@ -4781,6 +4785,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     }
     case C::SetSetting:
+    case C::UseGlobalValue: // AzaharFrame useglobal
         break;
     default:
         return; // AzaharFrame ui2: only SetSetting goes on to the settings
@@ -4789,7 +4794,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     // ---- A setting ----
     auto& v = Settings::values;
     bool per_game_setting = false;
-    const auto set = [&r, &per_game_setting](auto& setting, auto value) {
+    // AzaharFrame useglobal: Use Global Value: the game's own value goes (the menu did it in the
+    // settings already); its file is saved below, where WriteGlobalSetting takes the key out.
+    const bool use_global = r.command == C::UseGlobalValue;
+    const auto set = [&r, &per_game_setting, use_global](auto& setting, auto value) {
+        if (use_global) {
+            setting.SetGlobal(true);
+            per_game_setting = true;
+            return;
+        }
         if (r.per_game) {
             setting.SetGlobal(false);
             per_game_setting = true;

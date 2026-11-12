@@ -61,6 +61,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Settings in sections
 
 - The VR menu's **Settings** tab has three sections: **General**, **Graphics** and **Immersive**. **Global** or **Per-Game** is a menu button at the end of the section row, and the menu opens on **Per-Game** while a game runs.
+- Rows with this game's own value show **This Game**. I made selecting it go back to the global value, like **Use global configuration** in Azahar's Properties, and added **Use Global Values for All** to the **Global** / **Per-Game** menu for a whole section.
 
 ### Save states
 

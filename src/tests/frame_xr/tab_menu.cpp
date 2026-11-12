@@ -2393,3 +2393,192 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
     a.Check("Load State, Autosave: Off");
     CHECK(a.Drew("Autosave: Off"));
 }
+
+// AzaharFrame useglobal: a per-game row the game has its own value for shows the "This Game"
+// chip in Per-Game, whose click is Use Global Value; the scope's menu offers it for the section.
+namespace {
+std::vector<MenuView> PerGameViews() {
+    std::vector<MenuView> views;
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
+        for (float scroll : {0.0f, 10000.0f}) {
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = static_cast<SettingsSection>(sec);
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            views.push_back(v);
+        }
+    }
+    MenuView position;
+    position.tab = Tab::Position;
+    views.push_back(position);
+    return views;
+}
+
+MenuModel AllOwn(MenuModel m) {
+    for (int i = 0; i < kIdCount; i++) {
+        m.game_value[static_cast<std::size_t>(i)] = PerGameSetting(static_cast<Id>(i));
+    }
+    return m;
+}
+} // namespace
+
+TEST_CASE("Tab menu: Use Global Value chips only on rows with the game's own value",
+          "[frame_xr][tabmenu][useglobal]") {
+    CHECK(LabelFor(Id::UseGlobal) == "This Game");
+    CHECK(ExplainFor(Id::UseGlobal) == "Use Global Value");
+    // Global-only rows are never per game
+    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::MotionControls,
+                  Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution}) {
+        CHECK(!PerGameSetting(id));
+    }
+    for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
+                  Id::ImmersiveMode, Id::WiderView, Id::GameFov, Id::MatchCamera,
+                  Id::NarrowScreen, Id::DepthFactor, Id::Autosave, Id::AutosaveEvery,
+                  Id::AutosaveKeep}) {
+        CHECK(PerGameSetting(id));
+    }
+    Drawn d;
+    MenuModel m = Sample();
+    m.scope = 1;
+    m.autosave = true;
+    const auto chips = [&d] {
+        std::vector<int> rows;
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == Id::UseGlobal) {
+                rows.push_back(h.t.index);
+            }
+        }
+        return rows;
+    };
+    // None while every row follows the global value
+    for (const MenuView& v : PerGameViews()) {
+        d.Draw(m, v);
+        CHECK(chips().empty());
+    }
+    // Only the rows with a value of their own; one chip each
+    MenuModel own = m;
+    own.game_value[static_cast<std::size_t>(Id::InternalResolution)] = true; // a menu button
+    own.game_value[static_cast<std::size_t>(Id::Depth3d)] = true;            // a slider
+    own.game_value[static_cast<std::size_t>(Id::AsyncShaders)] = true;       // a switch
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics;
+    d.Draw(own, v);
+    std::vector<int> rows = chips();
+    std::sort(rows.begin(), rows.end());
+    CHECK(rows == std::vector<int>{static_cast<int>(Id::Depth3d),
+                                   static_cast<int>(Id::InternalResolution),
+                                   static_cast<int>(Id::AsyncShaders)});
+    // The chip wins over its row (a switch row is a target as a whole)
+    const MenuLayout::Hit* chip = FindHit(d, Id::UseGlobal, static_cast<int>(Id::AsyncShaders));
+    REQUIRE(chip != nullptr);
+    CHECK(d.menu.HitTest(chip->r.Cx(), chip->r.Cy()) ==
+          Target{Id::UseGlobal, static_cast<int>(Id::AsyncShaders)});
+    // A global-only row never gets one, even if the model said so
+    own.game_value[static_cast<std::size_t>(Id::DynamicResolution)] = true;
+    d.Draw(own, v);
+    CHECK(!HasHit(d, Id::UseGlobal, static_cast<int>(Id::DynamicResolution)));
+    // Not in Global: there the row is locked with its tooltip instead
+    own.scope = 0;
+    d.Draw(own, v);
+    CHECK(chips().empty());
+    // A greyed row (Full only, Autosave off) still clears
+    MenuModel grey = m;
+    grey.immersive_mode = 0;
+    grey.game_value[static_cast<std::size_t>(Id::WiderView)] = true;
+    v.section = SettingsSection::Immersive;
+    d.Draw(grey, v);
+    CHECK(HasHit(d, Id::UseGlobal, static_cast<int>(Id::WiderView)));
+    CHECK(!HasHit(d, Id::WiderView, 1));
+}
+
+TEST_CASE("Tab menu: the chip's room is kept, so no control moves when it shows",
+          "[frame_xr][tabmenu][useglobal]") {
+    Drawn plain, chip;
+    MenuModel m = Sample();
+    m.scope = 1;
+    m.autosave = true;
+    const MenuModel own = AllOwn(m);
+    for (const MenuView& v : PerGameViews()) {
+        plain.Draw(m, v);
+        chip.Draw(own, v);
+        INFO("tab " << static_cast<int>(v.tab) << " section " << static_cast<int>(v.section));
+        // Every control target of the plain drawing is in the same place with the chips
+        for (const auto& h : plain.menu.Hits()) {
+            if (h.t.index == kLabelIndex) {
+                continue;
+            }
+            const MenuLayout::Hit* same = FindHit(chip, h.t.id, h.t.index);
+            REQUIRE(same != nullptr);
+            CHECK(std::fabs(same->r.x0 - h.r.x0) < 0.01f);
+            CHECK(std::fabs(same->r.x1 - h.r.x1) < 0.01f);
+        }
+        // A chip covers no control but its own row's label
+        for (const auto& c : chip.menu.Hits()) {
+            if (c.t.id != Id::UseGlobal) {
+                continue;
+            }
+            if (c.r.y1 < kListBottom - 0.01f) { // else cut by the list's edge
+                CHECK(c.r.W() >= 48.0f);
+                CHECK(c.r.H() >= 48.0f - 0.01f);
+            }
+            for (const auto& h : chip.menu.Hits()) {
+                if (h.t.id == Id::UseGlobal || h.t.index == kLabelIndex ||
+                    h.t.id == Id::None || h.t.index == kMenuAreaIndex) {
+                    continue;
+                }
+                const bool switch_row = h.t.index == -1 && static_cast<int>(h.t.id) == c.t.index;
+                if (switch_row) {
+                    continue; // a switch row is a target as a whole; the chip is hit first
+                }
+                const bool apart = c.r.x1 <= h.r.x0 || h.r.x1 <= c.r.x0 || c.r.y1 <= h.r.y0 ||
+                                   h.r.y1 <= c.r.y0;
+                INFO("chip " << c.t.index << " over id " << static_cast<int>(h.t.id) << " index "
+                             << h.t.index);
+                CHECK(apart);
+            }
+        }
+    }
+    // No line of text runs into another with every chip shown
+    Audit a;
+    for (const MenuView& v : PerGameViews()) {
+        a.Draw(own, v);
+        a.Check("chips");
+    }
+}
+
+TEST_CASE("Tab menu: Use Global Values for All in the scope's menu",
+          "[frame_xr][tabmenu][useglobal]") {
+    Drawn d;
+    MenuModel m = Sample();
+    m.scope = 1;
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics;
+    v.open_menu = Id::Scope;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::Scope, kScopeUseGlobalAll)); // nothing to clear
+    CHECK(GameValueRows(m, SettingsSection::Graphics).empty());
+    m.game_value[static_cast<std::size_t>(Id::TextureFilter)] = true;
+    m.game_value[static_cast<std::size_t>(Id::Depth3d)] = true;
+    m.game_value[static_cast<std::size_t>(Id::GameFov)] = true; // another section's
+    CHECK(GameValueRows(m, SettingsSection::Graphics) ==
+          std::vector<Id>{Id::Depth3d, Id::TextureFilter});
+    CHECK(GameValueRows(m, SettingsSection::Immersive) == std::vector<Id>{Id::GameFov});
+    CHECK(GameValueRows(m, SettingsSection::General).empty());
+    d.Draw(m, v);
+    const MenuLayout::Hit* all = FindHit(d, Id::Scope, kScopeUseGlobalAll);
+    REQUIRE(all != nullptr);
+    CHECK(d.menu.HitTest(all->r.Cx(), all->r.Cy()) == Target{Id::Scope, kScopeUseGlobalAll});
+    CheckTargets(d);
+    Audit a;
+    a.Draw(m, v);
+    CHECK(a.Drew("Use Global Values for All"));
+    // In Global too (the rows are locked there; this is the way back for all of them)
+    m.scope = 0;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::Scope, kScopeUseGlobalAll));
+    // The Saves rows on General
+    m.game_value[static_cast<std::size_t>(Id::AutosaveKeep)] = true;
+    CHECK(GameValueRows(m, SettingsSection::General) == std::vector<Id>{Id::AutosaveKeep});
+}

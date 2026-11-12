@@ -18,6 +18,7 @@
 #include "input_common/main.h"
 #include "input_common/udp/client.h"
 #include "network/network.h"
+#include "citra_qt/configuration/frame_per_game_ini.h" // AzaharFrame useglobal
 #ifdef ENABLE_FRAME_XR
 #include "frame_xr/immersive.h"         // AzaharFrame widerview: SavedHeadSize
 #include "frame_xr/immersive_layout.h" // LevelForOldWiderView
@@ -283,8 +284,14 @@ void QtConfig::WriteBasicSetting(const Settings::Setting<Type, ranged>& setting,
 template <typename Type, bool ranged>
 void QtConfig::WriteGlobalSetting(const Settings::SwitchableSetting<Type, ranged>& setting) {
     const QString name = QString::fromStdString(setting.GetLabel());
+    if (!global && setting.UsingGlobal()) {
+        // AzaharFrame useglobal: the game follows the global value: its old value goes too
+        // (Properties' "Use global configuration" and the VR menu's Use Global Value).
+        FrameConfig::WriteUsesGlobal(*qt_config, name);
+        return;
+    }
     if (!global) {
-        qt_config->setValue(name + QStringLiteral("/use_global"), setting.UsingGlobal());
+        qt_config->setValue(name + QStringLiteral("/use_global"), false);
     }
     if (global || !setting.UsingGlobal()) {
         // AzaharFrame: the global file gets the global value, never the custom one a running

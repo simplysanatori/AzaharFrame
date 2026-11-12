@@ -360,7 +360,9 @@ endif()
 # platform (tests/frame_xr/offscreen_modal.cpp).
 if (ENABLE_FRAME_XR AND ENABLE_TESTS AND NOT WIN32)
     add_executable(frame_qt_tests ../tests/frame_xr/offscreen_modal.cpp frame_offscreen.cpp
-                                  frame_offscreen.h)
+                                  frame_offscreen.h
+                                  ../tests/frame_xr/per_game_ini.cpp # AzaharFrame useglobal
+                                  configuration/frame_per_game_ini.h)
     target_link_libraries(frame_qt_tests PRIVATE citra_common catch2 Qt6::Widgets)
     if (TARGET Qt6::GuiPrivate)
         target_link_libraries(frame_qt_tests PRIVATE Qt6::GuiPrivate)
