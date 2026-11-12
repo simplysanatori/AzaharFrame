@@ -66,6 +66,65 @@ Menu::MenuModel SampleModel() {
     return m;
 }
 
+// AzaharFrame cheatstab: the Cheats segment's sample list (Stella Glow, USA), file order.
+CheatsModel SampleCheats() {
+    CheatsModel c;
+    c.cheats = {
+        {"No Bloom (USA)", CheatSource::Developer, true, ""},
+        {"Infinite HP in Battle", CheatSource::Sharkive, true, ""},
+        {"Max EXP After Battle", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
+        {"Max Money", CheatSource::Sharkive, false, ""},
+        {"All Items x99", CheatSource::Sharkive, false, ""},
+        {"Unlock All Songs", CheatSource::Sharkive, false, ""},
+        {"Max Affinity With Everyone", CheatSource::Sharkive, false, ""},
+        {"Walk Through Walls (Press L+R to Toggle, Hold to Keep It On)", CheatSource::Sharkive,
+         false, ""},
+        {"My Speed Hack", CheatSource::User, false, ""}};
+    c.download = DownloadState::Done;
+    c.status = "8 cheats added, 1 for another version";
+    return c;
+}
+
+// AzaharFrame texui: the Mods tab's Mods and Textures segments, with the real catalog's and the
+// owner's packs' names. Stella Glow (USA) with the developer's No Bloom loaded.
+ModsListModel SampleModsStellaGlow() {
+    ModsListModel mm;
+    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", "https://github.com/simplysanatori/3ds-game-fixes", "", true, true, true}};
+    return mm;
+}
+
+// Ocarina of Time 3D: the catalog's two Ocarina ReFramed builds.
+ModsListModel SampleModsOot3d() {
+    ModsListModel mm;
+    mm.catalog = CatalogState::Ready;
+    mm.available = {
+        {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
+         false, OfferState::Install, "", false},
+        {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
+         false, OfferState::Install, "", false}};
+    return mm;
+}
+
+TexturesModel SampleTextures() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.preload = false;
+    t.packs = {{"oot3d-1080p", "1080p", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 640 MB", false},
+               {"oot3d-4k", "4K", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 2.1 GB", true},
+               {"oot3d-4k-png", "4K (PNG)", "PNG \u00b7 5.8 GB", false}};
+    return t;
+}
+
+// Download Packs for Pokemon X: the catalog's pack for it, 1.8 GB (so it asks first).
+TexturesModel SamplePokemonDownloads() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.downloads = {{"pokemon-xy-hd", "Pokemon X and Y HD", "Ullr8, Gray-Rice",
+                    "https://github.com/Gray-Rice/PokeTex-3DS", "1.8 GB", PackOfferState::Download,
+                    -1, ""}};
+    return t;
+}
+
 bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
               bool keep_alpha = false) {
     // The canvas is premultiplied, R in the low byte: over the opaque backdrop it is plain RGB.
@@ -252,5 +311,170 @@ int main(int argc, char** argv) {
     v.open_menu = Id::ImmersiveMode;
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
+
+    // AzaharFrame cheatstab: the Mods tab's Cheats segment and each state.
+    MenuModel cm = m;
+    cm.mods.cheats = SampleCheats();
+    v = {};
+    v.tab = Tab::Mods;
+    v.hover = {Id::Cheat, 2};
+    ok &= shot("cheats", cm, v);
+    v.hover = {};
+    MenuModel dl = cm; // downloading again over a list
+    dl.mods.cheats.download = DownloadState::Downloading;
+    dl.mods.cheats.spin = 10;
+    dl.mods.cheats.status.clear();
+    ok &= shot("cheats-downloading-list", dl, v);
+    MenuModel fl = cm; // a failed download over a list
+    fl.mods.cheats.download = DownloadState::Failed;
+    fl.mods.cheats.status = "Could not establish connection";
+    ok &= shot("cheats-error-list", fl, v);
+    v.scroll[static_cast<int>(Tab::Mods)] = -1.0f; // the end of the list
+    ok &= shot("cheats-scrolled", cm, v);
+    v = {};
+    v.tab = Tab::Mods;
+    MenuModel em = m;
+    v.hover = {Id::DownloadCheats};
+    ok &= shot("cheats-empty", em, v);
+    v.hover = {};
+    em.mods.cheats.download = DownloadState::Downloading;
+    em.mods.cheats.spin = 10;
+    ok &= shot("cheats-downloading", em, v);
+    em.mods.cheats.download = DownloadState::Failed;
+    em.mods.cheats.status = "Download failed: Could not establish connection";
+    ok &= shot("cheats-error", em, v);
+    em.mods.cheats.download = DownloadState::Done;
+    em.mods.cheats.status = "No cheats for this game";
+    ok &= shot("cheats-none-found", em, v);
+    // AzaharFrame texui: the Mods and Textures segments.
+    const Tab mods_tab = Tab::Mods;
+    {
+        MenuModel mm = m;
+        mm.game_title = "Stella Glow";
+        mm.mods.mods = SampleModsStellaGlow();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        ok &= shot("mods", mm, v);
+        MenuModel me = m;
+        v.hover = {Id::InstallMods};
+        ok &= shot("mods-empty", me, v);
+        MenuModel mi = m;
+        mi.mods.mods = SampleModsOot3d();
+        v.mods_page = ModsPage::Install;
+        v.hover = {Id::ModInstall, 0};
+        ok &= shot("mods-install", mi, v);
+        MenuModel mp = mi; // downloading the first, the second waits
+        mp.mods.mods.busy = true;
+        mp.mods.mods.available[0].state = OfferState::Installing;
+        mp.mods.mods.available[0].note = "Downloading";
+        mp.mods.mods.spin = 9;
+        v.hover = {};
+        ok &= shot("mods-installing", mp, v);
+        MenuModel mc = mi; // Dual Screen in, Single Screen asked for
+        mc.mods.mods.available[1].state = OfferState::Installed;
+        mc.mods.mods.dialog = {ModsDialogKind::Replace, "Ocarina ReFramed (Single Screen)",
+                               "Ocarina ReFramed (Dual Screen)"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("mods-conflict", mc, v);
+        v.hover = {Id::ModLink, 0}; // the author's link, underlined under the beam
+        ok &= shot("mods-link", mi, v);
+        v.open_link = "https://github.com/OTPR26/OOT3DHud";
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("mods-open-github", mi, v);
+        v.open_link.clear();
+        MenuModel ml = m; // loaded, waiting for a restart
+        ml.mods.mods.loaded = {
+            {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)",
+             "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, true},
+            {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)",
+             "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, false},
+            {"unmanaged:romfs", "romfs", "", "", "214 Files", false, false, true}};
+        ml.mods.mods.needs_restart = true;
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        v.hover = {Id::ModRemove, 2};
+        ok &= shot("mods-restart", ml, v);
+
+        MenuModel tm = m;
+        tm.mods.textures = SampleTextures();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::TexturePack, 1};
+        ok &= shot("textures", tm, v);
+        MenuModel tr = tm;
+        for (auto& p : tr.mods.textures.packs) {
+            p.active = p.id == "oot3d-1080p";
+        }
+        tr.mods.textures.needs_restart = true;
+        v.hover = {Id::RestartGame};
+        ok &= shot("textures-restart", tr, v);
+        v.hover = {};
+        v.scroll[static_cast<int>(mods_tab)] = -1.0f;
+        ok &= shot("textures-restart-end", tr, v);
+        MenuModel te = m;
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        ok &= shot("textures-empty", te, v);
+        MenuModel to = tm;
+        to.mods.textures.custom_textures = false;
+        v.hover = {Id::CustomTextures};
+        ok &= shot("textures-off", to, v);
+
+        // Download Packs
+        MenuModel dm = m;
+        dm.game_title = "Pokemon X";
+        dm.mods.textures = SamplePokemonDownloads();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::DownloadPacks};
+        ok &= shot("textures-empty-download", dm, v);
+        v.textures_page = TexturesPage::Download;
+        v.hover = {Id::PackDownload, 0};
+        ok &= shot("download-list", dm, v);
+        MenuModel db = dm;
+        db.mods.textures.dialog = {ModsDialogKind::BigDownload, "Pokemon X and Y HD", "1.8 GB"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("download-confirm", db, v);
+        MenuModel dd = dm;
+        dd.mods.textures.downloading = true;
+        dd.mods.textures.downloads[0].state = PackOfferState::Downloading;
+        dd.mods.textures.downloads[0].percent = 42;
+        dd.mods.textures.downloads[0].note = "Downloading";
+        v.hover = {Id::PackCancel, 0};
+        ok &= shot("downloading", dd, v);
+        MenuModel df = dm;
+        df.mods.textures.downloads[0].state = PackOfferState::Failed;
+        df.mods.textures.downloads[0].note = "Not enough free space: 4.6 GB needed, 1.1 GB free";
+        v.hover = {Id::PackDownload, 0};
+        ok &= shot("failed", df, v);
+        v.open_link = "https://github.com/Gray-Rice/PokeTex-3DS";
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("download-open-link", dm, v);
+        v.open_link.clear();
+        MenuModel di = dm;
+        di.mods.textures.downloads[0].state = PackOfferState::Installed;
+        v.hover = {};
+        ok &= shot("download-installed", di, v);
+        MenuModel dp = di; // the downloaded pack in the list, with Delete
+        dp.mods.textures.packs = {{"/load/texture-packs/0004000000055D00/PokeTex-3DS",
+                                   "Pokemon X and Y HD", "Ullr8, Gray-Rice · PNG · 1.8 GB",
+                                   false, true}};
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::PackDelete, 0};
+        ok &= shot("textures-downloaded", dp, v);
+        dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("textures-delete", dp, v);
+    }
+    v = {};
+    v.tab = Tab::Main;
+    ok &= shot("main", m, v);
     return ok ? 0 : 1;
 }

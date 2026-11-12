@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame tabmenu: the in-game menu as one panel in the structure of CitraVR's VR menu (a
-// column of tabs on the left: Main, Position, Stats, Controls, Settings), drawn in Material 3
+// column of tabs on the left: Main, Position, Stats, Controls, Mods, Settings), drawn in Material 3
 // (md3.h). This file is the menu's content, layout, drawing and hit testing; it knows nothing of
 // OpenXR, Qt or the settings. The host fills a MenuModel with the current values, keeps a
 // MenuView (the tab, what the beam points at, scrolling, an open menu), draws with Draw and maps
@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "frame_xr/menu/mods_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
 
 namespace FrameXr::Menu {
@@ -29,7 +30,7 @@ constexpr float kPanelH = 560.0f;
 constexpr float kPanelRadius = 32.0f;
 constexpr float kRowH = 72.0f; ///< a settings row; the lists scroll in steps of one
 
-enum class Tab : int { Main, Position, Stats, Controls, Settings, Count };
+enum class Tab : int { Main, Position, Stats, Controls, Mods, Settings, Count }; // AzaharFrame cheatstab: Mods
 
 /// Everything on the menu a beam can point at.
 enum class Id : int {
@@ -43,7 +44,6 @@ enum class Id : int {
     LoadState,
     Screenshot,
     Restart,
-    Cheats, ///< AzaharFrame menu
     AzaharWindow,
     SwitchToFlat,
     CloseGame,
@@ -80,6 +80,30 @@ enum class Id : int {
     NarrowScreen,
     DepthFactor,
     MoreSettings,
+    // Mods (AzaharFrame cheatstab): mods_tab.h
+    ModsSegment,    ///< index: ModsSegment
+    DownloadCheats, ///< the Cheats segment's
+    CheatsWindow,   ///< Azahar's cheat editor
+    Cheat,          ///< index: MenuModel::mods.cheats.cheats (Cheats::Online::SetCheatEnabled's)
+    // The Mods tab's Mods and Textures segments (AzaharFrame texui): mods_segments.h
+    InstallMods,    ///< opens Install Mods
+    ModsBack,       ///< Install Mods' back button
+    Mod,            ///< index: mods.mods.loaded (the row: a managed mod on or off)
+    ModRemove,      ///< index: mods.mods.loaded
+    ModInstall,     ///< index: mods.mods.available
+    DialogConfirm,  ///< the dialog's Replace / Remove
+    DialogCancel,   ///< and its Cancel / OK
+    CustomTextures,
+    TexturePack,    ///< index: 0 Off, i + 1 mods.textures.packs[i]
+    TexturePreload,
+    RestartGame,    ///< the snackbar's Restart
+    ModLink,        ///< "Created by <author>": index into the page's list (loaded or available)
+    DownloadPacks,  ///< the Textures segment: opens Download Packs
+    TexturesBack,   ///< Download Packs' back button
+    PackDownload,   ///< index: mods.textures.downloads (Download / Try Again)
+    PackCancel,     ///< index: mods.textures.downloads
+    PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
+    PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -144,6 +168,7 @@ struct MenuModel {
     int game_fov = 60;   ///< 30 to 110 degrees
     int narrow_screen = 0;
     int depth_factor = 0;
+    ModsTabModel mods; ///< AzaharFrame cheatstab: the Mods tab's segments
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
     bool operator==(const MenuModel&) const = default;
@@ -162,6 +187,10 @@ struct MenuView {
     Id tooltip = Id::None;    ///< the one-line explanation of a row
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
+    ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab
+    ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
+    TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
+    std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
     bool operator==(const MenuView&) const = default;
 };
 
@@ -193,6 +222,9 @@ struct MenuLayout {
     std::vector<Hit> hits;
     std::vector<SliderTrack> sliders;
     float max_scroll = 0.0f; ///< how far the current tab can scroll (dp)
+    /// AzaharFrame cheatstab: one row of the scrolling list (dp): a stick step, and where a beam
+    /// drag settles. A multiple of it is max_scroll.
+    float scroll_step = kRowH;
 
     /// What is at (x, y) dp.
     Target HitTest(float x, float y) const;
@@ -233,6 +265,19 @@ private:
     void DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    /// AzaharFrame cheatstab: the Mods tab (mods_tab.cpp) and its segments, each drawn in `area`
+    /// (the pane's width, under the segmented button): cheats_tab.cpp, mods_segments.cpp.
+    void DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    void DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    void DrawModsList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    void DrawTextures(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    /// The snackbar "Restart the Game to Apply" at the bottom of `area`; returns where a list
+    /// over it must end.
+    float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area);
+    void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
+    /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
+    void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
+                           const Rect& area, float bottom);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;

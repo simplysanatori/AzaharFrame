@@ -111,6 +111,8 @@ private:
     bool a_down = false, b_down = false;
     int active_hand = 1;
     int press_hand = -1; ///< the hand that holds a press (-1: none)
+    float drag_y0 = 0.0f, drag_scroll0 = 0.0f; ///< AzaharFrame cheatstab: a press's start
+    bool beam_drag = false;                    ///< the press scrolls the list
     float stick_hold = 0.0f;  ///< seconds a stick has been held up or down
     float stick_repeat = 0.0f;
     int stick_dir = 0;

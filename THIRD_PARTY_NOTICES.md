@@ -30,6 +30,10 @@ in [misc/licenses/gplv2.txt](misc/licenses/gplv2.txt).
 
 The Cheats window's "Download Cheats" button (and the Cheats tab of the VR menu) first fetches the Developer cheats and code patches for a game from https://github.com/simplysanatori/3ds-game-fixes, the maintainer's own repository, released under the MIT licence (its LICENSE file). Nothing from it is shipped: the files for the open game are downloaded only when the button is clicked or a fix is installed.
 
+## Mods from their authors' repositories
+
+The Mods tab of the VR menu installs mods for a game from a list (catalog/mods.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player installs a mod, its files are downloaded from the mod author's own GitHub repository (a release asset or repository files) and placed in the player's load folder. The mods stay under their authors' licences, which the list shows (the maintainer's own fixes: MIT; Ocarina ReFramed by OTPR26, https://github.com/OTPR26/OOT3DHud: GPL-3.0-or-later for its source, with its HUD art and game data outside that grant; Project Restoration by leoetlino, https://github.com/leoetlino/project-restoration: GPL-2.0). The zip reader (`src/core/mods/archive.cpp`) is written for this program: its inflate follows the algorithm of Mark Adler's "puff" (zlib licence), which needs no zlib code or library.
+
 ## Sharkive
 
 The same button then fetches a game's cheat codes from Sharkive (https://github.com/FlagBrew/Sharkive) by FlagBrew, released under the GNU General Public License, version 3. The codes themselves are kept by JourneyOver, the maintainer of the 3DS set, and Sharkive's contributors. Nothing from Sharkive is shipped: the file for the open game is downloaded only when the button is clicked, and merged into the player's own cheat file.

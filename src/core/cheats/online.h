@@ -89,6 +89,16 @@ using HttpGet = std::function<HttpResult(const std::string& host, const std::str
 /// HTTPS GET with certificate checks against the system's store (static LibreSSL, httplib).
 HttpResult HttpsGet(const std::string& host, const std::string& path);
 
+struct RawReply {
+    int status = 0;       // 0: no reply
+    std::string body;     // capped at max_body
+    std::string location; // Location header of a redirect
+    std::string error;    // set when status is 0, the body was too large or the status is not 2xx/3xx/404
+};
+
+/// One HTTPS GET with no redirect followed (the caller checks where it leads). For the mod library.
+RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size_t max_body);
+
 struct DownloadResult {
     int developer_added = 0;
     int sharkive_added = 0;
@@ -154,12 +164,16 @@ struct FixOutcome {
 std::string ModsDir(u64 title_id);
 
 FixState GetFixState(u64 title_id);
-/// True when the last DownloadCheats or InstallFix saw a code.ips for the title (this run).
+/// True when the last DownloadCheats or InstallFix saw a code.ips for the title (this run), or the mod
+/// catalog has the maintainer's fix for it.
 bool FixAvailable(u64 title_id);
-/// Downloads the title's code.ips and copies it to <mods>/code.ips. Another, different code.ips (or
-/// exefs/code.ips) there gives Conflict and nothing is written. Takes effect on the next game start.
+/// Installs the maintainer's fix for the title through the mod library (core/mods/library.h): the
+/// catalog entry with verified=true, downloaded, kept in <LoadDir>/mod-library and copied to
+/// <mods>/code.ips. Another code patch there gives Conflict and nothing is written. Takes effect on
+/// the next game start. (InstallFixWith / InstallFixTo below are the older direct path, for tests.)
 FixOutcome InstallFix(u64 title_id);
-/// Removes the code.ips InstallFix wrote. A code.ips that is not ours is never touched (Conflict).
+/// Removes the fix InstallFix (or an earlier version's InstallFix) wrote. A code.ips that is not ours
+/// is never touched (Conflict).
 FixOutcome RemoveFix(u64 title_id);
 
 /// The file side of the above, on a folder of your choosing (tests).

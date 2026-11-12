@@ -18,6 +18,7 @@
 #include "core/file_sys/ncch_container.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
+#include "core/mods/library.h"
 
 namespace Cheats::Online {
 
@@ -234,6 +235,62 @@ HttpResult HttpsGet(const std::string& host, const std::string& path) {
     return out;
 }
 
+RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size_t max_body) {
+    RawReply out;
+    const char* ca = CaBundle();
+    if (ca == nullptr) {
+        out.error = "No certificate store found";
+        return out;
+    }
+    try {
+        httplib::Client client(host);
+        client.set_connection_timeout(10);
+        client.set_read_timeout(60);
+        client.set_write_timeout(15);
+        client.set_follow_location(false);
+        client.set_ca_cert_path(ca);
+        client.enable_server_certificate_verification(true);
+        httplib::Headers headers;
+        if (host == kApiHost) {
+            headers.emplace("Accept", "application/vnd.github+json");
+        }
+        bool too_large = false;
+        std::string body;
+        const auto res = client.Get(
+            path, headers, [](const httplib::Response&) { return true; },
+            [&](const char* data, std::size_t len) {
+                if (body.size() + len > max_body) {
+                    too_large = true;
+                    return false;
+                }
+                body.append(data, len);
+                return true;
+            });
+        if (too_large) {
+            out.error = "Download too large";
+            return out;
+        }
+        if (!res) {
+            out.error = httplib::to_string(res.error());
+            LOG_WARNING(Frontend, "Mods: GET {}{} failed: {}", host, path, out.error);
+            return out;
+        }
+        out.status = res->status;
+        if ((res->status == 403 || res->status == 429) && host == kApiHost) {
+            out.error = "GitHub rate limit reached, try again later";
+        } else if (res->status >= 300 && res->status < 400) {
+            out.location = res->get_header_value("Location");
+        } else if (res->status != 200 && res->status != 404) {
+            out.error = "Server returned " + std::to_string(res->status);
+        } else {
+            out.body = std::move(body);
+        }
+    } catch (const std::exception& e) {
+        out.error = e.what();
+    }
+    return out;
+}
+
 std::string StatusText(const DownloadResult& r) {
     if (!r.error.empty()) {
         return fmt::format("Download failed: {}", r.error);
@@ -410,14 +467,35 @@ FixState GetFixStateIn(const std::string& dir) {
     return FixState::NotInstalled;
 }
 
+// The maintainer's fix of the catalog for the title (the verified entry), nullptr when there is none.
+static const Mods::CatalogEntry* OwnerFix(const Mods::Catalog& catalog, u64 title_id) {
+    for (const auto& e : catalog.mods) {
+        if (e.verified && e.ServesTitle(title_id)) {
+            return &e;
+        }
+    }
+    return nullptr;
+}
+
 FixState GetFixState(u64 title_id) {
-    return GetFixStateIn(ModsDir(title_id));
+    for (const auto& m : Mods::Default().ListLoaded(title_id)) {
+        if (m.verified && m.state == Mods::ModState::Active) {
+            return FixState::Installed;
+        }
+    }
+    return GetFixStateIn(ModsDir(title_id)) == FixState::NotInstalled ? FixState::NotInstalled
+                                                                      : FixState::OtherPatch;
 }
 
 bool FixAvailable(u64 title_id) {
-    std::lock_guard lock{fix_mutex};
-    const auto it = fix_available.find(title_id);
-    return it != fix_available.end() && it->second;
+    {
+        std::lock_guard lock{fix_mutex};
+        const auto it = fix_available.find(title_id);
+        if (it != fix_available.end() && it->second) {
+            return true;
+        }
+    }
+    return OwnerFix(Mods::Default().GetCatalog(), title_id) != nullptr;
 }
 
 FixOutcome InstallFixTo(const std::string& dir, std::string_view ips) {
@@ -496,11 +574,39 @@ FixOutcome InstallFixWith(const HttpGet& get, u64 title_id, const std::string& d
 }
 
 FixOutcome InstallFix(u64 title_id) {
-    return InstallFixWith(HttpsGet, title_id, ModsDir(title_id));
+    auto& library = Mods::Default();
+    library.RefreshCatalogOnce();
+    const auto* fix = OwnerFix(library.GetCatalog(), title_id);
+    if (fix == nullptr) {
+        return {FixResult::NotAvailable, "No fix for this game"};
+    }
+    SetFixAvailable(title_id, true);
+    const auto outcome = library.Install(title_id, fix->id, false);
+    switch (outcome.result) {
+    case Mods::InstallResult::Ok:
+        return {FixResult::Ok, {}};
+    case Mods::InstallResult::AlreadyInstalled:
+        return {FixResult::AlreadyInstalled, {}};
+    case Mods::InstallResult::Conflict:
+        return {FixResult::Conflict, outcome.conflict_unmanaged
+                                         ? "The Game has its own code patch"
+                                         : "Another Mod is using the code patch"};
+    case Mods::InstallResult::NotAvailable:
+        return {FixResult::NotAvailable, outcome.error};
+    default:
+        return {FixResult::Error, outcome.error};
+    }
 }
 
 FixOutcome RemoveFix(u64 title_id) {
-    return RemoveFixFrom(ModsDir(title_id));
+    auto& library = Mods::Default();
+    for (const auto& m : library.ListLoaded(title_id)) {
+        if (m.verified && m.managed) {
+            const auto r = library.Remove(title_id, m.id);
+            return r.ok ? FixOutcome{FixResult::Ok, {}} : FixOutcome{FixResult::Error, r.error};
+        }
+    }
+    return RemoveFixFrom(ModsDir(title_id)); // NotAvailable, or Conflict for a code.ips that is not ours
 }
 
 } // namespace Cheats::Online

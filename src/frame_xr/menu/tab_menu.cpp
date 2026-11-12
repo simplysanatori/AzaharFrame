@@ -36,6 +36,7 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
     {"Position", Sym::kOpenWith},
     {"Stats", Sym::kMonitoring},
     {"Controls", Sym::kStadiaController},
+    {"Mods", Sym::kExtension}, // AzaharFrame cheatstab
     {"Settings", Sym::kSettings},
 }};
 
@@ -137,6 +138,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
+    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
@@ -163,6 +165,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kStatsAt;
     case Id::ControlsPage:
         return kPage;
+    case Id::ModsSegment:
+        return kModsSegments;
     case Id::Scope:
         return kScope;
     case Id::Background:
@@ -202,8 +206,6 @@ std::string LabelFor(Id id) {
         return "Screenshot";
     case Id::Restart:
         return "Restart";
-    case Id::Cheats:
-        return "Cheats";
     case Id::AzaharWindow:
         return "Azahar's Window";
     case Id::SwitchToFlat:
@@ -260,6 +262,30 @@ std::string LabelFor(Id id) {
         return "Depth Factor Multiplier";
     case Id::MoreSettings:
         return "More Settings";
+    case Id::DownloadCheats: // AzaharFrame cheatstab
+        return "Download";
+    case Id::CheatsWindow:
+        return "Azahar's Window";
+    case Id::InstallMods: // AzaharFrame texui
+        return "Install Mods";
+    case Id::ModRemove:
+        return "Remove";
+    case Id::ModInstall:
+        return "Install";
+    case Id::CustomTextures:
+        return "Custom Textures";
+    case Id::TexturePreload:
+        return "Preload";
+    case Id::RestartGame:
+        return "Restart";
+    case Id::DownloadPacks:
+        return "Download Packs";
+    case Id::PackDownload:
+        return "Download";
+    case Id::PackCancel:
+        return "Cancel";
+    case Id::PackDelete:
+        return "Delete";
     default:
         return {};
     }
@@ -393,6 +419,9 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
     case Tab::Controls:
         DrawControls(kit, model, view, pane);
         break;
+    case Tab::Mods: // AzaharFrame cheatstab
+        DrawMods(kit, model, view, pane);
+        break;
     default:
         DrawRows(kit, model, view, pane);
         break;
@@ -434,13 +463,12 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
         char32_t icon;
         ButtonStyle style;
     };
-    const std::array<TileDef, 10> tiles{{
+    const std::array<TileDef, 9> tiles{{
         {Id::QuickSave, Sym::kSave, ButtonStyle::Tonal},
         {Id::QuickLoad, Sym::kHistory, ButtonStyle::Tonal},
         {Id::Screenshot, Sym::kPhotoCamera, ButtonStyle::Tonal},
         {Id::SaveState, Sym::kSaveAs, ButtonStyle::Tonal},
         {Id::LoadState, Sym::kFolderOpen, ButtonStyle::Tonal},
-        {Id::Cheats, Sym::kCode, ButtonStyle::Tonal}, // AzaharFrame menu
         {Id::Restart, Sym::kRestartAlt, ButtonStyle::Tonal},
         {Id::AzaharWindow, Sym::kOpenInNew, ButtonStyle::Tonal},
         {Id::SwitchToFlat, Sym::kTv, ButtonStyle::Tonal},
@@ -448,13 +476,11 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
     }};
     const float gap = 12.0f;
     const float tw = (c.W() - gap * 2.0f) / 3.0f;
-    // Four rows: three rows of three tiles, then Close Game across the width.
-    const float th = (c.y1 - y - gap * 3.0f) / 4.0f;
+    const float th = (c.y1 - y - gap * 2.0f) / 3.0f;
     for (std::size_t i = 0; i < tiles.size(); i++) {
-        const bool wide = i == tiles.size() - 1;
-        const float x = wide ? c.x0 : c.x0 + static_cast<float>(i % 3) * (tw + gap);
+        const float x = c.x0 + static_cast<float>(i % 3) * (tw + gap);
         const float ty = y + static_cast<float>(i / 3) * (th + gap);
-        const Rect r{x, ty, wide ? c.x1 : x + tw, ty + th};
+        const Rect r{x, ty, x + tw, ty + th};
         const bool enabled = tiles[i].id != Id::QuickLoad || model.quick_load_available;
         kit.Tile(r, tiles[i].style, tiles[i].icon, LabelFor(tiles[i].id),
                  StateOf(view, {tiles[i].id}, enabled));

@@ -180,8 +180,27 @@ enum class MenuCommand {
     ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
     MoreSettings, ///< the same, with Emulation > Configure... open
     Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
+                  ///< (the Cheats tab's Azahar's Window)
     EditControls, ///< AzaharFrame menu: the controls remap (the remap lane's)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
+    // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
+    ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
+    DownloadCheats, ///< the developer's and Sharkive's cheats for the game
+    // AzaharFrame texui: the Mods tab's Mods and Textures segments (citra_qt/frame_mods.cpp;
+    // core/mods/library.h and core/custom_tex/packs.h do the work). The snackbar's Restart is
+    // Restart; Custom Textures and Preload are settings.
+    SelectTexturePack, ///< `text`: the pack's id, "" for Off
+    LoadModCatalog,    ///< Install Mods opened: the catalog (once a run), the title's mods
+    InstallMod,        ///< `text`: the mod's id (a conflict asks first)
+    SetModActive,      ///< `text`: a managed mod's id, `value` 1 into the mods folder, 0 out
+    RemoveMod,         ///< `text`: the mod's id (your own files ask first)
+    ModsDialog,        ///< the dialog's answer: `value` 1 Replace / Remove, 0 Cancel / OK
+    OpenUrl,           ///< `text`: an author's page the Qt side listed, in Steam's browser
+    LoadPackDownloads, ///< Download Packs opened: the packs for the title
+    DownloadPack,      ///< `text`: the catalog pack's id (a large one asks first)
+    CancelPackDownload,
+    DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
+    TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -204,12 +223,15 @@ enum class MenuSetting {
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Other, 2 Both (Detach Screens)
     TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
+    CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
+    PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;
     MenuSetting setting = MenuSetting::HideBottomScreen;
     int value = 0;
     bool per_game = false;
+    std::string text; ///< AzaharFrame texui: a pack's or a mod's id
 };
 
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
@@ -324,6 +346,16 @@ struct MenuSaveSlot {
 };
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
+/// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,
+/// mods_segments.h), from the Qt side whenever they change. Any thread.
+namespace Menu {
+struct CheatsModel;
+struct ModsListModel;
+struct TexturesModel;
+} // namespace Menu
+void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
+void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
+void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

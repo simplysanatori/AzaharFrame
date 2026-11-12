@@ -9,6 +9,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 
 #include <fmt/format.h>
 #include "common/logging/log.h"
@@ -149,7 +150,27 @@ bool UsesGlobal(Id id) {
     }
 }
 
+// AzaharFrame cheatstab: the Mods tab's values from the Qt side (SetInGameMenuCheats and so on).
+std::mutex g_mods_mutex;
+Menu::ModsTabModel g_mods;
+constexpr float kDragSlop = 12.0f; ///< dp the beam moves before a press scrolls the list
+
 } // namespace
+
+void SetInGameMenuCheats(const Menu::CheatsModel& cheats) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.cheats = cheats;
+}
+
+void SetInGameMenuModsList(const Menu::ModsListModel& mods) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.mods = mods;
+}
+
+void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.textures = textures;
+}
 
 struct MenuPanel::Shared {
     std::mutex mutex;
@@ -268,6 +289,19 @@ void MenuPanel::BuildModel(const Host& host) {
     if (!per_game_ok) {
         scope = 0;
     }
+    { // AzaharFrame cheatstab
+        std::scoped_lock lock{g_mods_mutex};
+        m.mods = g_mods;
+    }
+    if (m.mods.cheats.download == Menu::DownloadState::Downloading && view.tab == Menu::Tab::Mods &&
+        view.mods_segment == Menu::ModsSegment::Cheats) {
+        // The progress indicators turn, 15 steps a second (a redraw each step) while they show.
+        m.mods.cheats.spin =
+            static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now().time_since_epoch())
+                                 .count() /
+                             66);
+    }
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
     m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
@@ -292,6 +326,29 @@ void MenuPanel::BuildModel(const Host& host) {
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     m.depth_3d = static_cast<int>(std::min<u32>(v.factor_3d.GetValue(), 100)); // depth3d
+    // AzaharFrame texui: the two switches straight from the settings (the rest is the Qt side's)
+    m.mods.textures.custom_textures = v.custom_textures.GetValue();
+    m.mods.textures.preload = v.preload_textures.GetValue();
+    bool spinning = m.mods.mods.catalog == Menu::CatalogState::Loading;
+    for (const auto& o : m.mods.mods.available) {
+        spinning |= o.state == Menu::OfferState::Installing;
+    }
+    if (spinning && view.tab == Menu::Tab::Mods && view.mods_segment == Menu::ModsSegment::Mods) {
+        // The progress rings turn, 15 steps a second (a redraw each step) while they show.
+        m.mods.mods.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                std::chrono::steady_clock::now().time_since_epoch())
+                                                .count() /
+                                            66);
+    }
+    if (m.mods.textures.downloading && view.tab == Menu::Tab::Mods &&
+        view.mods_segment == Menu::ModsSegment::Textures &&
+        view.textures_page == Menu::TexturesPage::Download) {
+        m.mods.textures.spin = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count() /
+            66);
+    }
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
@@ -355,6 +412,16 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::TouchpadTouch: // AzaharFrame menu, global
         Apply(v.vr_touchpad_touch, std::min<u32>(u, 2), false);
         r.setting = MenuSetting::TouchpadTouch;
+        break;
+    case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
+        r.per_game = !v.custom_textures.UsingGlobal();
+        Apply(v.custom_textures, value != 0, r.per_game);
+        r.setting = MenuSetting::CustomTextures;
+        break;
+    case Id::TexturePreload:
+        r.per_game = !v.preload_textures.UsingGlobal();
+        Apply(v.preload_textures, value != 0, r.per_game);
+        r.setting = MenuSetting::PreloadTextures;
         break;
     case Id::ImmersiveOffsetReset:
         Apply(v.vr_immersive_offset_x, 0.0f, false);
@@ -434,6 +501,15 @@ void MenuPanel::Click(Target t, Host& host) {
             host.request(r);
         }
     };
+    const auto ask_text = [&host](MenuCommand c, const std::string& text, int value = 0) {
+        MenuRequest r; // AzaharFrame texui: a pack's or a mod's id
+        r.command = c;
+        r.value = value;
+        r.text = text;
+        if (host.request) {
+            host.request(r);
+        }
+    };
     // A click anywhere but on the open menu's items closes it (and does nothing else).
     if (view.open_menu != Id::None) {
         const Id menu = view.open_menu;
@@ -446,11 +522,15 @@ void MenuPanel::Click(Target t, Host& host) {
     if (t.index == Menu::kLabelIndex || t.index == Menu::kMenuAreaIndex) {
         return;
     }
-    static constexpr std::array<const char*, 5> kTabNames{"Main", "Position", "Stats",
-                                                          "Controls", "Settings"};
+    static constexpr std::array<const char*, 6> kTabNames{"Main",     "Position", "Stats",
+                                                          "Controls", "Mods",     "Settings"};
+    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
-                 kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 4))]);
+                 kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 5))]);
+    } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
+        LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -501,9 +581,131 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoreSettings:
         ask(MenuCommand::MoreSettings);
         break;
-    case Id::Cheats: // AzaharFrame menu
+    // AzaharFrame cheatstab: the Mods tab and its Cheats segment
+    case Id::ModsSegment:
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
+            static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
+            view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
+            view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
+        }
+        break;
+    case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
         break;
+    case Id::DownloadCheats:
+        ask(MenuCommand::DownloadCheats);
+        break;
+    case Id::Cheat:
+        if (t.index >= 0) {
+            ask(MenuCommand::ToggleCheat, t.index);
+        }
+        break;
+    // AzaharFrame texui: the Mods tab's Mods and Textures segments (citra_qt/frame_mods.cpp)
+    case Id::CustomTextures:
+        SetSetting(t.id, model.mods.textures.custom_textures ? 0 : 1, host);
+        break;
+    case Id::TexturePreload:
+        SetSetting(t.id, model.mods.textures.preload ? 0 : 1, host);
+        break;
+    case Id::TexturePack:
+        if (t.index >= 0 && t.index <= static_cast<int>(model.mods.textures.packs.size())) {
+            ask_text(MenuCommand::SelectTexturePack,
+                     t.index > 0 ? model.mods.textures.packs[static_cast<std::size_t>(t.index - 1)].id
+                                 : std::string{});
+        }
+        break;
+    case Id::PackDelete: // "Delete <name>?" first (the Qt side asks)
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.packs.size())) {
+            ask_text(MenuCommand::DeletePack,
+                     model.mods.textures.packs[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::DownloadPacks:
+        view.textures_page = Menu::TexturesPage::Download;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::LoadPackDownloads);
+        break;
+    case Id::TexturesBack:
+        view.textures_page = Menu::TexturesPage::Packs;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    case Id::PackDownload:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
+            ask_text(MenuCommand::DownloadPack,
+                     model.mods.textures.downloads[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::PackCancel:
+        ask(MenuCommand::CancelPackDownload);
+        break;
+    case Id::PackLink: // "Open <host>?" first
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
+            const std::string& url =
+                model.mods.textures.downloads[static_cast<std::size_t>(t.index)].url;
+            if (!Menu::LinkText(url).empty()) {
+                view.open_link = url;
+            }
+        }
+        break;
+    case Id::RestartGame:
+        ask(MenuCommand::Restart);
+        break;
+    case Id::InstallMods:
+        view.mods_page = Menu::ModsPage::Install;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::LoadModCatalog);
+        break;
+    case Id::ModsBack:
+        view.mods_page = Menu::ModsPage::Loaded;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    case Id::Mod:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.mods.loaded.size())) {
+            const auto& row = model.mods.mods.loaded[static_cast<std::size_t>(t.index)];
+            ask_text(MenuCommand::SetModActive, row.id, row.active ? 0 : 1);
+        }
+        break;
+    case Id::ModRemove:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.mods.loaded.size())) {
+            ask_text(MenuCommand::RemoveMod,
+                     model.mods.mods.loaded[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::ModInstall:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.mods.available.size())) {
+            ask_text(MenuCommand::InstallMod,
+                     model.mods.mods.available[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::ModLink: { // "Open GitHub?" first
+        const auto& mm = model.mods.mods;
+        const bool install = view.mods_page == Menu::ModsPage::Install;
+        const std::size_t n = install ? mm.available.size() : mm.loaded.size();
+        if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
+            const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
+                                             : mm.loaded[static_cast<std::size_t>(t.index)].url;
+            if (!Menu::GithubLinkText(url).empty()) {
+                view.open_link = url;
+            }
+        }
+        break;
+    }
+    case Id::DialogConfirm:
+    case Id::DialogCancel: {
+        // The segment's own dialog (the Qt side's), else the link's (the view's).
+        const bool textures = view.mods_segment == Menu::ModsSegment::Textures;
+        const auto& dialog = textures ? model.mods.textures.dialog : model.mods.mods.dialog;
+        const bool yes = t.id == Id::DialogConfirm;
+        if (dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
+            const std::string url = std::exchange(view.open_link, {});
+            if (yes) {
+                ask_text(MenuCommand::OpenUrl, url);
+            }
+        } else {
+            ask(textures ? MenuCommand::TexturesDialog : MenuCommand::ModsDialog, yes ? 1 : 0);
+        }
+        break;
+    }
     case Id::EditControls: // AzaharFrame menu: the remap lane's
         ask(MenuCommand::EditControls);
         break;
@@ -620,6 +822,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     if (press_hand < 0 && p >= 0 && (edge[p] || a_edge) && hover.id != Id::None) {
         press_hand = p;
         view.pressed = hover;
+        drag_y0 = y; // AzaharFrame cheatstab: a press that moves scrolls the list
+        drag_scroll0 = view.scroll[static_cast<std::size_t>(view.tab)];
+        beam_drag = false;
         if (Menu::SliderFor(hover.id).max > 1.0f && hover.index != Menu::kLabelIndex &&
             view.open_menu == Id::None) {
             view.dragging = hover.id;
@@ -631,10 +836,23 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             if (t >= 0.0f) {
                 view.drag_t = t;
             }
+        } else if (view.open_menu == Id::None && layout.max_scroll > 0.0f && p == press_hand &&
+                   hit[p].on_plane && (beam_drag || std::fabs(y - drag_y0) > kDragSlop)) {
+            // AzaharFrame cheatstab: dragged, the list follows the beam and nothing is clicked.
+            beam_drag = true;
+            view.pressed = {};
+            view.scroll[static_cast<std::size_t>(view.tab)] =
+                std::clamp(drag_scroll0 - (y - drag_y0), 0.0f, layout.max_scroll);
         }
         const bool let_go = !trigger_down[press_hand] && !a_down; // both let go
         if (let_go) {
-            if (view.dragging != Id::None) {
+            if (beam_drag) {
+                // Settles on a whole row, as the stick scrolls.
+                beam_drag = false;
+                float& s = view.scroll[static_cast<std::size_t>(view.tab)];
+                const float step = std::max(1.0f, layout.scroll_step);
+                s = std::clamp(std::round(s / step) * step, 0.0f, layout.max_scroll);
+            } else if (view.dragging != Id::None) {
                 const Menu::SliderRange r = Menu::SliderFor(view.dragging);
                 const float value =
                     r.min + std::round(view.drag_t * (r.max - r.min) / r.step) * r.step;
@@ -655,8 +873,25 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
 
     // ---- B: back ----
     if (b_edge) {
+        // AzaharFrame texui: the Mods segment's dialog (Cancel), then Install Mods (back).
+        // The Textures segment's the same way: its dialog, then Download Packs.
+        const bool mods_shown = view.tab == Menu::Tab::Mods &&
+                                view.mods_segment == Menu::ModsSegment::Mods;
+        const bool textures_shown = view.tab == Menu::Tab::Mods &&
+                                    view.mods_segment == Menu::ModsSegment::Textures;
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
+        } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
+                                  !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
+        } else if (textures_shown &&
+                   (model.mods.textures.dialog.kind != Menu::ModsDialogKind::None ||
+                    !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
+        } else if (mods_shown && view.mods_page == Menu::ModsPage::Install) {
+            Click({Id::ModsBack}, host);
+        } else if (textures_shown && view.textures_page == Menu::TexturesPage::Download) {
+            Click({Id::TexturesBack}, host);
         } else if (view.page != Menu::Page::Tabs) {
             view.page = Menu::Page::Tabs;
         } else {
@@ -682,14 +917,16 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         if (dir != 0) {
             stick_repeat = kStickFirstRepeat;
             float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + Menu::kRowH * static_cast<float>(dir), 0.0f, layout.max_scroll);
+            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
+                           layout.max_scroll);
         }
     } else if (dir != 0) {
         stick_hold += dt;
         if (stick_hold >= stick_repeat) {
             stick_repeat += kStickRepeat;
             float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + Menu::kRowH * static_cast<float>(dir), 0.0f, layout.max_scroll);
+            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
+                           layout.max_scroll);
         }
     }
     {
