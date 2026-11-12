@@ -119,6 +119,25 @@ TEST_CASE("texdl: the compiled-in catalog parses cleanly", "[texdl]") {
     CHECK(xy->size == 1834769856ULL);
 }
 
+// AzaharFrame modcat2: the GameBanana source (the newest clean file of a mod).
+TEST_CASE("texdl: the gamebanana source parses, and bad ones are dropped", "[texdl]") {
+    std::vector<std::string> warnings;
+    const auto cat = ParseCatalog(R"({"schema":1,"packs":[
+      {"id":"gb-ok","name":"A","title_ids":["0004000000033500"],"source":{"type":"gamebanana","mod":701929,"file_pattern":"oot3d_*.zip"}},
+      {"id":"gb-default","name":"B","title_ids":["0004000000033500"],"source":{"type":"gamebanana","mod":5}},
+      {"id":"gb-nomod","name":"C","title_ids":["0004000000033500"],"source":{"type":"gamebanana"}},
+      {"id":"gb-text","name":"D","title_ids":["0004000000033500"],"source":{"type":"gamebanana","mod":"5"}},
+      {"id":"gb-slash","name":"E","title_ids":["0004000000033500"],"source":{"type":"gamebanana","mod":5,"file_pattern":"a/b"}}
+    ]})", nullptr, &warnings);
+    REQUIRE(cat);
+    REQUIRE(cat->packs.size() == 2);
+    CHECK(warnings.size() == 3);
+    CHECK(cat->packs[0].source.type == Source::Type::Gamebanana);
+    CHECK(cat->packs[0].source.gb_mod == 701929);
+    CHECK(cat->packs[0].source.file_pattern == "oot3d_*.zip");
+    CHECK(cat->packs[1].source.file_pattern == "*.zip");
+}
+
 TEST_CASE("texdl: catalog entries that break the rules are dropped", "[texdl]") {
     const char* json = R"({"schema":1,"packs":[
       {"id":"ok-drive","name":"A","title_ids":["0004000000033500"],"source":{"type":"gdrive","file_id":"1GxvnzsPQznZ_v_6s-YMgETyLe5rN2Fak"}},
@@ -434,6 +453,33 @@ TEST_CASE("texdl: installing a 7z through bsdtar", "[texdl]") {
 // Real downloads (hidden: run with "[.network]"). The GitHub one goes through the API, a redirect to
 // GitHub's asset host, streaming, the checksum and the 7z unpack; the Drive one only fetches a small
 // range of a public file to check the address and the answer.
+// AzaharFrame modcat2: a small GameBanana pack end to end (Non-Intrusive Bottom Screen HUD).
+TEST_CASE("texdl: real download of a GameBanana pack", "[.network]") {
+    Temp t;
+    const auto cat = DefaultCatalog();
+    const Entry* e = cat.Find("mm3d-non-intrusive-bottom-screen-hud");
+    REQUIRE(e != nullptr);
+    Catalog one;
+    one.packs.push_back(*e);
+    Downloader dl(t.load(), one);
+    REQUIRE(dl.Start(e->id, e->title_ids[0]));
+    for (int i = 0; i < 2400 && dl.GetState().Busy(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    const auto st = dl.GetState();
+    INFO(st.error);
+    REQUIRE(st.phase == State::Phase::Done);
+    REQUIRE(st.installed.size() == 1);
+    const fs::path pack = fs::path(t.load()) / "texture-packs" / Mods::TitleIdText(e->title_ids[0]) / st.installed[0];
+    CHECK(fs::exists(pack));
+    std::size_t files = 0;
+    for (const auto& f : fs::recursive_directory_iterator(pack)) {
+        files += f.is_regular_file() ? 1 : 0;
+    }
+    CHECK(files > 1);
+    WARN("installed " << st.installed[0] << ", " << files << " files");
+}
+
 TEST_CASE("texdl: real download of a small GitHub pack", "[.network]") {
     Temp t;
     const auto cat = DefaultCatalog();

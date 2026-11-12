@@ -54,7 +54,7 @@
 namespace CustomTex::Download {
 
 struct Source {
-    enum class Type { GithubRelease, Https, Gdrive, GdriveFolder };
+    enum class Type { GithubRelease, Https, Gdrive, GdriveFolder, Gamebanana };
     Type type = Type::GithubRelease;
     std::string repo;          // "owner/name"
     std::string tag = "latest";
@@ -62,7 +62,9 @@ struct Source {
     std::string url;           // Https
     std::string file_id;       // Gdrive
     std::string folder_id;     // GdriveFolder: a public folder, listed without an API key
-    std::string file_pattern;  // GdriveFolder: file name to pick ('*' = any text), searched in subfolders too
+    u64 gb_mod = 0;            // Gamebanana (AzaharFrame modcat2): gamebanana.com/mods/<id>; its newest
+                               // clean file matching file_pattern, found through the public API
+    std::string file_pattern;  // GdriveFolder, Gamebanana: file name to pick ('*' = any text), searched in subfolders too
     std::vector<std::string> hosts; // extra exact hosts (bare names) the download may be redirected to
 };
 

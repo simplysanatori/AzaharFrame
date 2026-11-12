@@ -326,6 +326,53 @@ TEST_CASE("Mods: zip extraction", "[mods]") {
     }
 }
 
+// AzaharFrame modcat2: names with non-ASCII characters (the SSE Controller UI packs have U+2044 in
+// folder names) unpack whatever the process's locale is.
+TEST_CASE("Mods: non-ASCII archive names unpack under any locale", "[mods]") {
+    if (FindBsdtar().empty()) {
+        SKIP("bsdtar is not installed");
+    }
+    const std::string dir = TempDir("unicode");
+    const std::string name = "Xbox 1\xE2\x81\x84" "2 UI"; // U+2044 FRACTION SLASH
+    fs::create_directories(dir + "src/" + name);
+    std::ofstream(dir + "src/" + name + "/a.png", std::ios::binary) << "png";
+    std::ofstream(dir + "src/plain.txt") << "t";
+    const auto make = [&](const char* format, const char* file) {
+        return std::system(("cd '" + dir + "' && LC_ALL=C.UTF-8 bsdtar --format " + format + " -cf " + file +
+                            " -C src . >/dev/null 2>&1").c_str()) == 0;
+    };
+    REQUIRE(make("zip", "u.zip"));
+    REQUIRE(make("7zip", "u.7z"));
+    const char* old_all = std::getenv("LC_ALL");
+    const std::string saved = old_all ? old_all : "";
+    for (const char* locale : {"C", "POSIX", "C.UTF-8"}) {
+        setenv("LC_ALL", locale, 1);
+        INFO("locale " << locale);
+        for (const auto& [file, kind] : {std::pair<const char*, ArchiveKind>{"u.zip", ArchiveKind::Zip},
+                                         {"u.7z", ArchiveKind::SevenZip}}) {
+            INFO(file);
+            const std::string out = dir + "out-" + locale + "-" + file;
+            const auto error = ExtractFileToDir(dir + file, kind, out, 1 << 20, 60);
+            REQUIRE(error.empty());
+            REQUIRE(Tree(out) == V{name + "/a.png", "plain.txt"});
+            REQUIRE(Read(out + "/" + name + "/a.png") == "png");
+            const auto r = ExtractWithBsdtar(Read(dir + file), kind);
+            REQUIRE(r.error.empty());
+            std::vector<std::string> paths;
+            for (const auto& f : r.files) {
+                paths.push_back(f.path);
+            }
+            std::sort(paths.begin(), paths.end());
+            REQUIRE(paths == V{name + "/a.png", "plain.txt"});
+        }
+    }
+    if (old_all) {
+        setenv("LC_ALL", saved.c_str(), 1);
+    } else {
+        unsetenv("LC_ALL");
+    }
+}
+
 TEST_CASE("Mods: 7z through bsdtar", "[mods]") {
     SECTION("a missing tool is a clear error") {
         const auto r = ExtractWithBsdtar("7z\xBC\xAF\x27\x1C-not-real", ArchiveKind::SevenZip, 1 << 20, 10,
@@ -943,6 +990,45 @@ TEST_CASE("Mods: real install of Single Screen Experience", "[.network]") {
     REQUIRE(Tree(dir + "mods/").empty());
 }
 
+// AzaharFrame modcat2: new catalog entries through the real code: GameBanana's API and hosts, the
+// archive (a zip; the 7z with UTF-16 names of Unofficial Gay Fates) and the layout rules (Awakening
+// EU: m/E to m/U). Hidden: "[.network]". Prints each tree.
+TEST_CASE("Mods: real install of new GameBanana entries", "[.network]") {
+    const auto catalog = DefaultCatalog();
+    for (const char* id : {"dq8-guest-party-name-fix", "awakening-unofficial-gay-awakening-eu",
+                           "fates-unofficial-gay-fates"}) {
+        INFO(id);
+        const auto* e = catalog.Find(id);
+        REQUIRE(e != nullptr);
+        if (!e->Installable()) {
+            WARN(id << ": needs bsdtar");
+            continue;
+        }
+        const u64 tid = e->title_ids[0];
+        const std::string dir = TempDir("real_new");
+        fs::remove_all(dir);
+        Library library(dir);
+        const auto out = library.Install(tid, id);
+        INFO(out.error);
+        REQUIRE(out.result == InstallResult::Ok);
+        const std::string mods = dir + "mods/" + TitleIdText(tid) + "/";
+        const auto tree = Tree(mods);
+        REQUIRE_FALSE(tree.empty());
+        for (const auto& f : tree) {
+            REQUIRE(IsModPath(f));
+            CAPTURE(f);
+            REQUIRE(f.find('\xEF') == std::string::npos); // no mangled names
+        }
+        std::string listing;
+        for (const auto& f : tree) {
+            listing += f + "\n";
+        }
+        WARN(id << " (" << TitleIdText(tid) << "):\n" << listing);
+        REQUIRE(library.Remove(tid, id).ok);
+        REQUIRE(Tree(dir + "mods/").empty());
+    }
+}
+
 // Project Restoration is a 7z (needs the system's bsdtar): v1.5.9 for the USA Majora's Mask 3D.
 TEST_CASE("Mods: real install of Project Restoration", "[.network]") {
     REQUIRE_FALSE(FindBsdtar().empty());
@@ -1124,7 +1210,16 @@ TEST_CASE("Mods: Project Restoration builds are chips, the one for the game come
     FakeNet net;
     Library library(TempDir("chips"), c, net.Get());
     // all three stay listed, in the catalog's order without a game code
-    auto list = library.ListAvailable(tid);
+    const auto only_pr = [&](std::vector<AvailableMod> all) {
+        std::vector<AvailableMod> out;
+        for (auto& a : all) {
+            if (a.name == "Project Restoration") {
+                out.push_back(std::move(a));
+            }
+        }
+        return out;
+    };
+    auto list = only_pr(library.ListAvailable(tid));
     REQUIRE(list.size() == 3);
     REQUIRE(list[0].id == "mm3d-project-restoration-v100");
     REQUIRE(list[1].id == "mm3d-project-restoration-v110");
@@ -1140,15 +1235,15 @@ TEST_CASE("Mods: Project Restoration builds are chips, the one for the game come
         REQUIRE(a.name == "Project Restoration");
     }
     // the build whose patch was made for the game's code: marked, first; the others stay
-    list = library.ListAvailable(tid, 0xffdf1ee8);
+    list = only_pr(library.ListAvailable(tid, 0xffdf1ee8));
     REQUIRE(list.size() == 3);
     REQUIRE(list[0].id == "mm3d-project-restoration-v110");
     REQUIRE(list[0].matches_game);
     REQUIRE_FALSE(list[1].matches_game);
     REQUIRE_FALSE(list[2].matches_game);
-    REQUIRE(library.ListAvailable(tid, 0xc75021d9)[0].id == "mm3d-project-restoration-v100");
-    REQUIRE(library.ListAvailable(tid, 0xe972fd45)[0].id == "mm3d-project-restoration-v101");
-    list = library.ListAvailable(tid, 0x12345678); // a game none was made for: nothing marked
+    REQUIRE(only_pr(library.ListAvailable(tid, 0xc75021d9))[0].id == "mm3d-project-restoration-v100");
+    REQUIRE(only_pr(library.ListAvailable(tid, 0xe972fd45))[0].id == "mm3d-project-restoration-v101");
+    list = only_pr(library.ListAvailable(tid, 0x12345678)); // a game none was made for: nothing marked
     REQUIRE(list.size() == 3);
     REQUIRE_FALSE(list[0].matches_game);
     // the CRC32 helper is the BPS one
@@ -1227,8 +1322,9 @@ TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
         release_requests += r.find("OTPR26/OOT3DHud/releases/latest") != std::string::npos;
     }
     REQUIRE(release_requests == 1);
+    const auto requests = net.log.size();
     library.RefreshDates(kTid); // once a run
-    REQUIRE(net.log.size() == 2);
+    REQUIRE(net.log.size() == requests);
     // a failed lookup falls back to the catalog's date, else nothing
     FakeNet dead;
     const auto cat = ParseCatalog(R"({"mods":[
