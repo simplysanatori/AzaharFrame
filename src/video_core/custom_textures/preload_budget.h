@@ -370,4 +370,23 @@ inline ConfirmText MakeConfirmText(const Summary& s) {
 constexpr const char* kTooLargeToast = "Texture Pack Too Large to Preload";
 constexpr const char* kStoppedToast = "Preload Stopped: Low Memory";
 
+/// The message the start after an out-of-memory kill shows once (VR and Flat). `limit_mib`: the
+/// limit the launcher had set (its out-of-memory file), 0 when unknown.
+struct OutOfMemoryText {
+    std::string title;
+    std::string body;
+};
+inline OutOfMemoryText MakeOutOfMemoryText(std::uint64_t limit_mib) {
+    OutOfMemoryText t;
+    t.title = "Azahar Ran Out of Memory";
+    const std::string used =
+        limit_mib ? "the " + GbText(static_cast<std::int64_t>(limit_mib * kMiB)) + " it may use"
+                  : "the memory it may use";
+    t.body = "Last time, Azahar needed more than " + used +
+             ", so it was closed before your Frame could freeze. A large texture pack is the "
+             "usual cause, more so with Preload Textures on. Turn Preload Textures off, or use "
+             "Optimize for Frame on the pack.";
+    return t;
+}
+
 } // namespace VideoCore::PreloadBudget

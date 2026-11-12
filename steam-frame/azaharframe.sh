@@ -263,22 +263,33 @@ ARGS=(--vr)
 # AzaharFrame memguard: the emulator runs in a user systemd scope with a memory limit, so one
 # that runs away (a texture pack far too large) is killed by the kernel instead of pushing the
 # whole headset into swap until it freezes and reboots (seen twice, no OOM kill: the Frame's
-# memory is shared with SteamVR, passthrough and the GPU). MemoryMax is
-# AZAHARFRAME_MEMORY_MAX_PCT % of RAM (default 65, 30 to 90), MemoryHigh (reclaim and slow down
-# first) 5 points under it, and at most AZAHARFRAME_MEMORY_SWAP_MB of swap (default 1024).
+# memory is shared with SteamVR, passthrough and the GPU). MemoryMax is the smaller of
+# AZAHARFRAME_MEMORY_MAX_PCT % of RAM (default 65, 30 to 90) and what is free now (MemAvailable)
+# less AZAHARFRAME_MEMORY_RESERVE_MB for SteamVR and the compositor (default 2048), but never
+# under AZAHARFRAME_MEMORY_FLOOR_MB (default 4096: a game with its GPU memory takes about 2.2 GB
+# here, and a save state about 0.9 GB more while it is written).
+# MemoryHigh (reclaim and slow down first) is 1/12 under it, and at most
+# AZAHARFRAME_MEMORY_SWAP_MB of swap (default 1024). GPU memory counts too: msm's buffers are
+# shmem, charged to the scope (its memory.stat shmem matches drm-total-memory in fdinfo).
 # systemd-run --scope executes the emulator itself: the same process, environment, folder and
 # parent (Steam's reaper tracks it as before), only its cgroup changes. When systemd-run is
 # missing or the user manager says no, the emulator runs as before. AZAHARFRAME_MEMORY_SCOPE=0:
-# no scope. The emulator reads the limit for its texture preload (preload_budget.h).
+# no scope; AZAHARFRAME_MEMORY_MAX_MB: this limit instead (no floor). The emulator reads the
+# limit for its texture preload (preload_budget.h). When the kernel kills the emulator for
+# memory, the scope's result says oom-kill; the file out-of-memory then tells the next start to
+# say so (frame_mode.cpp). Tests: AZAHARFRAME_MEMINFO reads another meminfo file.
 SCOPE=()
 SYSTEMD_RUN=${AZAHARFRAME_SYSTEMD_RUN:-systemd-run}
-MEM_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2> /dev/null)
-PCT=${AZAHARFRAME_MEMORY_MAX_PCT:-65}
-case "$PCT" in '' | *[!0-9]*) PCT=65 ;; esac
+MEMINFO=${AZAHARFRAME_MEMINFO:-/proc/meminfo}
+MEM_KB=$(awk '/^MemTotal:/ {print $2}' "$MEMINFO" 2> /dev/null)
+AVAIL_KB=$(awk '/^MemAvailable:/ {print $2}' "$MEMINFO" 2> /dev/null)
+num() { case "$1" in '' | *[!0-9]*) echo "$2" ;; *) echo "$1" ;; esac; }
+PCT=$(num "$AZAHARFRAME_MEMORY_MAX_PCT" 65)
 [ "$PCT" -lt 30 ] && PCT=30
 [ "$PCT" -gt 90 ] && PCT=90
-SWAP_MB=${AZAHARFRAME_MEMORY_SWAP_MB:-1024}
-case "$SWAP_MB" in '' | *[!0-9]*) SWAP_MB=1024 ;; esac
+RESERVE_MB=$(num "$AZAHARFRAME_MEMORY_RESERVE_MB" 2048)
+FLOOR_MB=$(num "$AZAHARFRAME_MEMORY_FLOOR_MB" 4096)
+SWAP_MB=$(num "$AZAHARFRAME_MEMORY_SWAP_MB" 1024)
 if [ "${AZAHARFRAME_MEMORY_SCOPE:-1}" = 0 ]; then
   echo "memory: no scope (AZAHARFRAME_MEMORY_SCOPE=0), no memory limit"
 elif ! command -v "$SYSTEMD_RUN" > /dev/null 2>&1; then
@@ -287,14 +298,32 @@ elif [ -z "$MEM_KB" ]; then
   echo "memory: no MemTotal in /proc/meminfo, running without a memory limit"
 else
   MAX_MB=$((MEM_KB * PCT / 100 / 1024))
-  HIGH_MB=$((MEM_KB * (PCT - 5) / 100 / 1024))
+  WHY="${PCT} % of $((MEM_KB / 1024)) MiB"
+  if [ -n "$AVAIL_KB" ]; then
+    FREE_MB=$((AVAIL_KB / 1024 - RESERVE_MB))
+    if [ "$FREE_MB" -lt "$MAX_MB" ]; then
+      MAX_MB=$FREE_MB
+      WHY="$((AVAIL_KB / 1024)) MiB free less $RESERVE_MB MiB for SteamVR"
+    fi
+  fi
+  if [ -n "$(num "$AZAHARFRAME_MEMORY_MAX_MB" "")" ]; then
+    MAX_MB=$AZAHARFRAME_MEMORY_MAX_MB
+    WHY="AZAHARFRAME_MEMORY_MAX_MB"
+  elif [ "$MAX_MB" -lt "$FLOOR_MB" ]; then
+    MAX_MB=$FLOOR_MB
+    WHY="the floor; only $((${AVAIL_KB:-0} / 1024)) MiB free, memory is tight"
+  fi
+  HIGH_MB=$((MAX_MB - MAX_MB / 12))
   UNIT=azaharframe-$$
   # A trial scope first: systemd-run's own failure and the emulator's exit status look alike.
   if PROBE=$("$SYSTEMD_RUN" --user --scope --quiet --collect -p MemoryMax=256M true 2>&1); then
-    SCOPE=("$SYSTEMD_RUN" --user --scope --quiet --collect --unit="$UNIT"
+    # Not --collect: a scope the kernel killed for memory stays (failed) until its result is
+    # read below. Ones a wrapper never got to read (it was killed too) are cleared here.
+    systemctl --user reset-failed 'azaharframe-*.scope' > /dev/null 2>&1
+    SCOPE=("$SYSTEMD_RUN" --user --scope --quiet --unit="$UNIT"
            --description="Azahar for Frame" -p MemoryHigh="${HIGH_MB}M" -p MemoryMax="${MAX_MB}M"
            -p MemorySwapMax="${SWAP_MB}M" --)
-    echo "memory: scope $UNIT.scope, MemoryMax ${MAX_MB} MiB (${PCT} % of $((MEM_KB / 1024)) MiB), MemoryHigh ${HIGH_MB} MiB, swap ${SWAP_MB} MiB"
+    echo "memory: scope $UNIT.scope, MemoryMax ${MAX_MB} MiB ($WHY), MemoryHigh ${HIGH_MB} MiB, swap ${SWAP_MB} MiB"
   else
     echo "memory: systemd-run --user failed ($(echo "$PROBE" | head -n 1)), running without a memory limit"
   fi
@@ -313,8 +342,16 @@ done
 trap - TERM INT HUP
 [ -n "$MADE_MARK" ] && rm -f "$MARK"
 echo "exit status $rc"
-# AzaharFrame memguard: 137 is SIGKILL, from the memory limit (or Steam's Stop after its timeout)
-if [ "$rc" = 137 ] && [ ${#SCOPE[@]} -gt 0 ]; then
-  echo "the emulator was killed: if the log stops mid-game it ran into its memory limit (${MAX_MB} MiB); see the journal for 'oom-kill'"
+# AzaharFrame memguard: why the scope ended. oom-kill: the emulator ran into its memory limit;
+# the next start says so once (out-of-memory holds the limit, in MiB).
+if [ ${#SCOPE[@]} -gt 0 ]; then
+  RESULT=$(systemctl --user show -p Result --value "$UNIT.scope" 2> /dev/null)
+  systemctl --user reset-failed "$UNIT.scope" > /dev/null 2>&1
+  if [ "$RESULT" = oom-kill ]; then
+    echo "the emulator ran out of memory: killed at its limit of ${MAX_MB} MiB; the next start says so"
+    echo "$MAX_MB" > "$DATA/out-of-memory"
+  elif [ "$rc" = 137 ]; then
+    echo "the emulator was killed (SIGKILL, scope result ${RESULT:-unknown})"
+  fi
 fi
 exit $rc

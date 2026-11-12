@@ -430,6 +430,25 @@ void MarkFlatRunning(bool flat) { // AzaharFrame flat
     }
 }
 
+unsigned TakeOutOfMemory() { // AzaharFrame memguard
+    const QString home = LauncherDataDir();
+    if (home.isEmpty()) {
+        return 0;
+    }
+    QFile file(home + QStringLiteral("/out-of-memory"));
+    if (!file.exists()) {
+        return 0;
+    }
+    unsigned limit = 0;
+    if (file.open(QIODevice::ReadOnly)) {
+        limit = file.read(32).trimmed().toUInt();
+        file.close();
+    }
+    file.remove();
+    LOG_WARNING(Frontend, "xr: the last run was killed at its memory limit ({} MiB)", limit);
+    return limit ? limit : 1;
+}
+
 void WriteModeFile(bool vr) {
     const QString home = LauncherDataDir();
     if (home.isEmpty()) {

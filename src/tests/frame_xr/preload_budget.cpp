@@ -255,3 +255,13 @@ TEST_CASE("Preload budget: the question's text", "[frame_xr]") {
     REQUIRE(std::string(kTooLargeToast) == "Texture Pack Too Large to Preload");
     REQUIRE(std::string(kStoppedToast) == "Preload Stopped: Low Memory");
 }
+
+TEST_CASE("Preload budget: the out-of-memory message", "[frame_xr]") {
+    const OutOfMemoryText t = MakeOutOfMemoryText(5622);
+    REQUIRE(t.title == "Azahar Ran Out of Memory");
+    REQUIRE(t.body.find("more than the 5.5 GB it may use,") != std::string::npos);
+    REQUIRE(t.body.find("Preload Textures") != std::string::npos);
+    REQUIRE(t.body.find("Optimize for Frame") != std::string::npos);
+    const OutOfMemoryText unknown = MakeOutOfMemoryText(0);
+    REQUIRE(unknown.body.find("more than the memory it may use,") != std::string::npos);
+}

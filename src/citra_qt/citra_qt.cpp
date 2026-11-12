@@ -1622,6 +1622,19 @@ GMainWindow::GMainWindow(Core::System& system_)
             UpdateFrameVrButton(); // AzaharFrame flat
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
+            // AzaharFrame memguard: the last run was killed at its memory limit; say so once
+            if (const unsigned limit = FrameMode::TakeOutOfMemory()) {
+                QTimer::singleShot(1500, this, [this, limit] {
+                    const auto text =
+                        VideoCore::PreloadBudget::MakeOutOfMemoryText(limit > 1 ? limit : 0);
+                    auto* box =
+                        new QMessageBox(QMessageBox::Warning, QString::fromStdString(text.title),
+                                        QString::fromStdString(text.body), QMessageBox::Ok, this);
+                    box->setAttribute(Qt::WA_DeleteOnClose);
+                    box->open();
+                    LOG_INFO(Frontend, "xr: {} shown", text.title);
+                });
+            }
 
             std::signal(SIGTERM, FrameXrOnSignal);
             std::signal(SIGINT, FrameXrOnSignal);
@@ -1739,6 +1752,41 @@ GMainWindow::GMainWindow(Core::System& system_)
                     LOG_INFO(Frontend, "xr test: Screen Shape {} at {} ms", shape, ms);
                     Settings::values.vr_top_aspect.SetValue(shape);
                 });
+            }
+
+            // Test driver (AzaharFrame memguard): AZAHARFRAME_TEST_STATES="12:save0,16:load0,..."
+            // saves (saveN) or loads (loadN) state slot N (0: the quick save) that many seconds
+            // after start, and logs the custom texture uploads so far (they go on after a load
+            // when the replacements come back).
+            for (const QString& step : qEnvironmentVariable("AZAHARFRAME_TEST_STATES")
+                                           .split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                const auto parts = step.split(QLatin1Char(':'));
+                if (parts.size() != 2) {
+                    continue;
+                }
+                const QString what = parts[1].trimmed();
+                const bool save = what.startsWith(QStringLiteral("save"));
+                const u32 slot = what.mid(4).toUInt();
+                if ((!save && !what.startsWith(QStringLiteral("load"))) ||
+                    slot >= Core::SaveStateSlotCount) {
+                    continue;
+                }
+                auto uploads = [] {
+                    return Common::StallTelemetry::Get().custom_upload_count.load(
+                        std::memory_order_relaxed);
+                };
+                QTimer::singleShot(
+                    static_cast<int>(parts[0].toDouble() * 1000.0), this,
+                    [this, save, slot, what, uploads] {
+                        LOG_INFO(Frontend, "xr test: state {} ({} custom uploads)",
+                                 what.toStdString(), uploads());
+                        UpdateSaveStates();
+                        (save ? actions_save_state : actions_load_state)[slot]->trigger();
+                        QTimer::singleShot(3000, this, [what, uploads] {
+                            LOG_INFO(Frontend, "xr test: state {} +3 s ({} custom uploads)",
+                                     what.toStdString(), uploads());
+                        });
+                    });
             }
 
             // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
