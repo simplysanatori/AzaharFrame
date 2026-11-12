@@ -206,6 +206,40 @@ SettingsSection SectionOf(Id id) {
     }
 }
 
+bool PerGameSetting(Id id) {
+    switch (id) {
+    case Id::HideBottomScreen:
+    case Id::ScreenShape:
+    case Id::ImmersiveMode:
+    case Id::WiderView:
+    case Id::GameFov:
+    case Id::MatchCamera: // AzaharFrame depth
+    case Id::NarrowScreen:
+    case Id::DepthFactor:
+    case Id::Depth3d: // AzaharFrame depth3d
+    case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
+    case Id::TextureFilter:
+    case Id::AsyncShaders:
+    case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
+    case Id::AutosaveEvery:
+    case Id::AutosaveKeep:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// AzaharFrame useglobal
+std::vector<Id> GameValueRows(const MenuModel& model, SettingsSection section) {
+    std::vector<Id> ids;
+    for (const Row& r : RowsFor(Tab::Settings, model, section)) {
+        if (PerGameSetting(r.id) && model.game_value[static_cast<std::size_t>(r.id)]) {
+            ids.push_back(r.id);
+        }
+    }
+    return ids;
+}
+
 const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kNone;
     static const std::vector<std::string> kShape{"3DS (5:3)",       "Widescreen (16:9)",
@@ -408,6 +442,8 @@ std::string LabelFor(Id id) {
         return "Report a Problem";
     case Id::AboutApp:
         return "About Azahar for Frame";
+    case Id::UseGlobal: // AzaharFrame useglobal: the chip
+        return "This Game";
     case Id::Autosave:
     case Id::AutosaveCard:
         return "Autosave";
@@ -491,6 +527,8 @@ std::string LabelFor(Id id) {
 
 std::string ExplainFor(Id id) {
     switch (id) {
+    case Id::UseGlobal: // AzaharFrame useglobal: the chip's action
+        return "Use Global Value";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -1486,6 +1524,27 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     }
 }
 
+// AzaharFrame useglobal: a per-game row's "This Game" chip (Material's input chip: outlined, the
+// label and a trailing close icon), after the row's label while the game has its own value.
+// Clicking it is "Use Global Value" (its tooltip). In Per-Game every per-game row keeps its room
+// whether the chip shows or not, so a control never moves when a change makes the game's value.
+namespace {
+constexpr float kGameChipH = 32.0f;
+constexpr float kGameChipPadL = 12.0f, kGameChipIcon = 18.0f, kGameChipPadR = 8.0f;
+constexpr float kGameChipGap = 12.0f; ///< from the label
+
+float GameChipWidth(const Kit& kit) {
+    return kGameChipPadL + kit.TextWidth(Type::Label, LabelFor(Id::UseGlobal)) + 8.0f +
+           kGameChipIcon + kGameChipPadR;
+}
+
+/// The room a row's label takes, with the chip's when the row can have one now.
+float LabelRoom(const Kit& kit, const MenuModel& model, Id id) {
+    const float w = kit.TextWidth(Type::Body, LabelFor(id));
+    return model.scope == 1 && PerGameSetting(id) ? w + kGameChipGap + GameChipWidth(kit) : w;
+}
+} // namespace
+
 void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane) {
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     float top = c.y0;
@@ -1546,7 +1605,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     for (const Row& r : rows) {
         if (r.kind == RowKind::Slider || r.kind == RowKind::MenuButton ||
             r.kind == RowKind::Offset) {
-            label_w = std::max(label_w, kit.TextWidth(Type::Body, LabelFor(r.id)));
+            label_w = std::max(label_w, LabelRoom(kit, model, r.id)); // AzaharFrame useglobal
         }
     }
     const float control_x0 = c.x0 + label_w + kLabelGap;
@@ -1589,7 +1648,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             y += kRowH;
             continue;
         }
-        const float own_x0 = c.x0 + kit.TextWidth(Type::Body, LabelFor(r.id)) + kLabelGap;
+        const float own_x0 = c.x0 + LabelRoom(kit, model, r.id) + kLabelGap; // useglobal
         const bool row_hit = r.kind == RowKind::Switch || r.kind == RowKind::Link;
         if (row.y1 > list.y0 && row.y0 < list.y1) {
             anchors.push_back({r.id, c.x0, std::max(row.y0, list.y0) + 6.0f, r.lock});
@@ -1699,6 +1758,26 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         case RowKind::Header:
             break;
         }
+        if (model.scope == 1 && PerGameSetting(r.id) &&
+            model.game_value[static_cast<std::size_t>(r.id)]) {
+            // AzaharFrame useglobal: the chip, usable on a greyed row too (Full Only, Autosave
+            // off): the game's value goes either way. Its hit after the row's, so it wins.
+            const float x0 = c.x0 + kit.TextWidth(Type::Body, LabelFor(r.id)) + kGameChipGap;
+            const Rect chip{x0, cy - kGameChipH * 0.5f, x0 + GameChipWidth(kit),
+                            cy + kGameChipH * 0.5f};
+            const Target t{Id::UseGlobal, static_cast<int>(r.id)};
+            kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
+            kit.StateLayer(chip, 8.0f, Tok::kOnSurfaceVariant, StateOf(view, t));
+            kit.TextMid(chip.x0 + kGameChipPadL, cy, Type::Label, Tok::kOnSurfaceVariant,
+                        LabelFor(Id::UseGlobal));
+            kit.Icon(chip.x1 - kGameChipPadR - kGameChipIcon * 0.5f, cy, kGameChipIcon,
+                     Sym::kClose, false, Tok::kOnSurfaceVariant);
+            AddHit({chip.x0 - 4.0f, cy - 24.0f, chip.x1 + 4.0f, cy + 24.0f}, t, list);
+            if (row.y1 > list.y0 && row.y0 < list.y1) {
+                anchors.push_back({Id::UseGlobal, chip.x0, std::max(row.y0, list.y0) + 6.0f,
+                                   Lock::None, t.index, chip.Cx()});
+            }
+        }
         y += kRowH;
     }
     kit.ClearClip();
@@ -1712,7 +1791,14 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     }
     // An open menu goes over everything, its items before the rest in hit testing.
     if (view.open_menu != Id::None && open_anchor.W() > 0.0f) {
-        const auto& opts = OptionsFor(view.open_menu);
+        std::vector<std::string> opts = OptionsFor(view.open_menu);
+        const bool clear_all = // AzaharFrame useglobal: the scope's menu, after a divider
+            view.open_menu == Id::Scope && !GameValueRows(model, view.section).empty();
+        if (clear_all) {
+            opts.push_back("Use Global Values for All");
+            open_anchor.x0 = std::min(open_anchor.x0,
+                                      open_anchor.x1 - kit.TextWidth(Type::Label, opts.back()) - 72.0f);
+        }
         const float item = Kit::MenuItemHeight();
         const float h = item * static_cast<float>(opts.size()) + 16.0f;
         float y0 = open_anchor.y1 + 4.0f;
@@ -1722,6 +1808,10 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         const int hover = view.hover.id == view.open_menu ? view.hover.index : -1;
         const Rect box = kit.Menu({open_anchor.x0, y0, open_anchor.x1, y0 + h}, opts, open_selected,
                                   hover);
+        if (clear_all) {
+            const float dy = box.y0 + 8.0f + item * static_cast<float>(kScopeUseGlobalAll);
+            kit.Line(box.x0 + 12.0f, dy, box.x1 - 12.0f, dy, 1.0f, Tok::kOutlineVariant);
+        }
         const Rect everything{0, 0, kPanelW, kPanelH};
         AddHit(box, {Id::None, kMenuAreaIndex}, everything); // the menu's own area eats clicks
         for (int i = 0; i < static_cast<int>(opts.size()); i++) {
@@ -1738,7 +1828,7 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
         return;
     }
     for (const Anchor& a : anchors) {
-        if (a.id != view.tooltip) {
+        if (a.id != view.tooltip || (a.index >= 0 && a.index != view.tooltip_index)) {
             continue;
         }
         const std::string text = a.lock != Lock::None ? ExplainLock(a.lock) : ExplainFor(a.id);
@@ -1746,7 +1836,7 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
             return;
         }
         const float half = kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
-        const float lx = a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
+        const float lx = a.cx >= 0.0f ? a.cx : a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
         const float cx = std::clamp(lx, pane.x0 + half + 4.0f, pane.x1 - half - 4.0f);
         // Above the row; under it when the row is the first one shown.
         const bool above = a.y - 40.0f > pane.y0;

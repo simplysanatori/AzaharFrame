@@ -86,6 +86,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     # AzaharFrame vrvis: controls help, stats, beams, controller models (vis; no Qt here).
     menu_panel.cpp # AzaharFrame tabmenu
     menu_panel.h
+    per_game.cpp # AzaharFrame useglobal
+    per_game.h
     vis/async_overlay.cpp
     vis/async_overlay.h
     vis/autosave_label.cpp # AzaharFrame autosave

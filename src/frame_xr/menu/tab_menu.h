@@ -92,6 +92,9 @@ enum class Id : int {
     // Settings
     Scope, ///< AzaharFrame autosave: the "Global" / "Per-Game" menu button (index: a menu item)
     SettingsSection, ///< AzaharFrame autosave: General, Graphics, Immersive (index)
+    /// AzaharFrame useglobal: a per-game row's "This Game" chip, in Per-Game while the game has
+    /// its own value (index: the row's Id): back to the global value.
+    UseGlobal,
     SavesHeader,   ///< AzaharFrame autosave: the "Saves" subheader (no action)
     Autosave,      ///< AzaharFrame autosave: autosave_enabled, per game
     AutosaveEvery, ///< a slider of kAutosaveEvery's stops (index 0 to 4), per game
@@ -285,6 +288,9 @@ struct MenuModel {
     HomebrewTabModel homebrew; ///< AzaharFrame emerald
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
+    /// AzaharFrame useglobal: per-game rows the running game has its own value for (the
+    /// "This Game" chip in Per-Game).
+    std::array<bool, kIdCount> game_value{};
     bool operator==(const MenuModel&) const = default;
 };
 
@@ -304,6 +310,14 @@ constexpr int OpeningScope(bool per_game_ok) {
 }
 /// The section a Settings row is in (General for the rest).
 SettingsSection SectionOf(Id id);
+/// Per-game settings (Azahar's Properties have them too): a change in Per-Game is the game's own
+/// value; in Global they are locked while the game has one.
+bool PerGameSetting(Id id);
+/// AzaharFrame useglobal: the rows of a Settings section the game has its own value for, in the
+/// section's order (what "Use Global Values for All" clears).
+std::vector<Id> GameValueRows(const MenuModel& model, SettingsSection section);
+/// AzaharFrame useglobal: the scope menu's third item, there while GameValueRows has any.
+constexpr int kScopeUseGlobalAll = 2;
 
 /// What the menu looks like now (the host's, changed by the beam and the sticks).
 struct MenuView {
@@ -472,6 +486,8 @@ private:
         Id id;
         float x, y;
         Lock lock;
+        int index = -1;   ///< AzaharFrame useglobal: UseGlobal's row
+        float cx = -1.0f; ///< the tooltip's centre when not over the label
     };
     std::vector<Anchor> anchors;
 };

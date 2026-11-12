@@ -105,6 +105,8 @@ private:
     void BuildModel(const Host& host);
     void Click(Menu::Target t, Host& host);
     void SetSetting(Menu::Id id, int value, Host& host);
+    /// AzaharFrame useglobal: the row's setting follows the global value again (its chip).
+    void UseGlobal(Menu::Id id, Host& host);
     void Worker();
     void BeginEdit();
     void EditChanged(Menu::Remap::Event e, Host& host);

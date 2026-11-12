@@ -76,6 +76,8 @@ add_executable(tests
     core/savestate_frame.cpp # AzaharFrame savestate
     core/autosave_frame.cpp # AzaharFrame autosave
     frame_xr/autosave_label.cpp # AzaharFrame autosave
+    frame_xr/use_global.cpp # AzaharFrame useglobal
+    ../frame_xr/per_game.cpp # AzaharFrame useglobal
     ../frame_xr/vis/autosave_label.cpp # AzaharFrame autosave
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
