@@ -264,7 +264,10 @@ std::vector<Id> GameValueRows(const MenuModel& model, Tab tab, SettingsSection s
 }
 
 std::string GameValueCount(std::size_t n) {
-    return std::to_string(n) + (n == 1 ? " Per-Game Value" : " Per-Game Values");
+    if (n == 0) {
+        return "No Per-Game Values Set";
+    }
+    return std::to_string(n) + (n == 1 ? " Per-Game Value Set" : " Per-Game Values Set");
 }
 
 const std::vector<std::string>& OptionsFor(Id id) {
@@ -1496,7 +1499,6 @@ constexpr float kScopeMoreW = 32.0f;    ///< the ⋮ button
 constexpr float kScopeGapMore = 2.0f;   ///< between the toggle and ⋮
 constexpr float kScopeGapX = 6.0f;      ///< between the tab's own controls and the toggle
 constexpr float kScopeRowsGap = 16.0f;  ///< under the toggle's line, before the rows
-constexpr float kScopeCountCy = 11.0f;  ///< the count line's middle, under the toggle
 
 /// The room a row's label takes.
 float LabelRoom(const Kit& kit, const MenuModel& model, Id id) {
@@ -1668,13 +1670,13 @@ float TabMenu::DrawScope(Kit& kit, const MenuModel& model, const MenuView& view,
                            per_game_ok ? Lock::NoGameValues : Lock::NoGame, -1, more.Cx()});
     }
     scope_more_ = more;
-    // The count line, in Per-Game only and only when there is something to count; it opens
-    // the ⋮ menu too.
-    if (per_game_ok && model.scope == 1 && !rows.empty() && view.open_menu != Id::ScopeMore) {
-        const std::string text = GameValueCount(rows.size());
-        const float cy = seg.y1 + kScopeCountCy;
-        const float tw = kit.TextMid(c.x1, cy, Type::Tooltip, Tok::kOnSurfaceVariant, text, 2);
-        AddHit({c.x1 - tw - 8.0f, cy - 9.0f, c.x1 + 4.0f, cy + 9.0f}, more_t, pane);
+    // Pointing at Per-Game while it is picked: how many values on the tab are this game's own,
+    // in a tooltip under the toggle (owner, round 24: no line of its own; not over the section
+    // buttons beside it).
+    if (per_game_ok && model.scope == 1) {
+        const auto e = kit.SegmentEdges(seg, opts);
+        anchors.push_back({Id::Scope, e[1], seg.y1, Lock::None, 1, (e[1] + e[2]) * 0.5f,
+                           GameValueCount(rows.size()), true});
     }
     return seg.x0;
 }
@@ -1934,13 +1936,19 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
         if (a.id != view.tooltip || (a.index >= 0 && a.index != view.tooltip_index)) {
             continue;
         }
-        const std::string text = a.lock != Lock::None ? ExplainLock(a.lock) : ExplainFor(a.id);
+        const std::string text = !a.text.empty()       ? a.text
+                                 : a.lock != Lock::None ? ExplainLock(a.lock)
+                                                        : ExplainFor(a.id);
         if (text.empty()) {
             return;
         }
         const float half = kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
         const float lx = a.cx >= 0.0f ? a.cx : a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
         const float cx = std::clamp(lx, pane.x0 + half + 4.0f, pane.x1 - half - 4.0f);
+        if (a.below) { // AzaharFrame reticle: under the scope toggle
+            kit.Tooltip(cx, a.y, text, false);
+            return;
+        }
         // Above the row; under it when the row is the first one shown.
         const bool above = a.y - 40.0f > pane.y0;
         kit.Tooltip(cx, above ? a.y : a.y + kRowH - 16.0f, text, above);

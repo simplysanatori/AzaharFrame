@@ -92,10 +92,10 @@ enum class Id : int {
     ReticleSpeed,        ///< AzaharFrame reticle: a slider, 5 to 40 (tenths of 1x)
     // Settings
     /// AzaharFrame reticle: the scope toggle on the Settings, Controls and Position tabs, index:
-    /// 0 Global, 1 Per-Game (DrawScope).
+    /// 0 Global, 1 Per-Game (DrawScope); pointing at Per-Game while picked shows the count.
     Scope,
-    /// AzaharFrame reticle: the scope's ⋮ menu button and the count line under the toggle (no
-    /// index); its menu's item 0 is Use Global Values for All.
+    /// AzaharFrame reticle: the scope's ⋮ menu button (no index); its menu's item 0 is Use
+    /// Global Values for All.
     ScopeMore,
     SettingsSection, ///< AzaharFrame autosave: General, Graphics, Immersive (index)
     /// AzaharFrame useglobal: Use Global Value for one row (index: the row's Id). AzaharFrame
@@ -307,7 +307,7 @@ struct MenuModel {
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
     /// AzaharFrame useglobal: per-game rows the running game has its own value for (the scope
-    /// control's count line and Use Global Values for All; AzaharFrame reticle).
+    /// control's Per-Game count and Use Global Values for All; AzaharFrame reticle).
     std::array<bool, kIdCount> game_value{};
     bool operator==(const MenuModel&) const = default;
 };
@@ -342,10 +342,10 @@ constexpr bool TabHasScope(Tab tab) {
 /// while the reticle is on, but are counted and cleared all the same).
 const std::vector<Id>& ControlsScopeRows();
 /// The per-game rows of a tab (the Settings tab: of `section`) the running game has its own
-/// value for, in order: what the count line counts and Use Global Values for All clears.
+/// value for, in order: what the Per-Game tooltip counts and Use Global Values for All clears.
 std::vector<Id> GameValueRows(const MenuModel& model, Tab tab,
                               SettingsSection section = SettingsSection::General);
-/// The count line: "1 Per-Game Value", "3 Per-Game Values".
+/// The Per-Game tooltip: "No Per-Game Values Set", "1 Per-Game Value Set", "3 Per-Game Values Set".
 std::string GameValueCount(std::size_t n);
 
 /// What the menu looks like now (the host's, changed by the beam and the sticks).
@@ -523,6 +523,8 @@ private:
         Lock lock;
         int index = -1;   ///< AzaharFrame useglobal: UseGlobal's row
         float cx = -1.0f; ///< the tooltip's centre when not over the label
+        std::string text; ///< AzaharFrame reticle: the tooltip's own text (else the row's)
+        bool below = false; ///< AzaharFrame reticle: under `y` (the scope toggle's bottom)
     };
     std::vector<Anchor> anchors;
 };

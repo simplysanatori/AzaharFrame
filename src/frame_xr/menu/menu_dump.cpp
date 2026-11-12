@@ -856,7 +856,7 @@ int main(int argc, char** argv) {
     v.hover = {Id::DynamicResolution, kLabelIndex};
     v.tooltip = Id::DynamicResolution;
     ok &= shot("5h-settings-dynamic-at-1x", rm, v);
-    // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, the count line) on the
+    // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the
     // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.
     {
         const auto own = [](MenuModel mm, std::initializer_list<Id> ids, int scope) {
@@ -877,6 +877,13 @@ int main(int argc, char** argv) {
         v = settings(SettingsSection::Graphics);
         ok &= shot("sc0-settings-graphics-per-game-none", own(ug, {}, 1), v);
         ok &= shot("sc1-settings-graphics-per-game", own(ug, gfx, 1), v);
+        // Pointing at Per-Game: the count, under the toggle (none, and three)
+        v.hover = {Id::Scope, 1};
+        v.tooltip = Id::Scope;
+        v.tooltip_index = 1;
+        ok &= shot("sc0a-settings-per-game-tooltip-none", own(ug, {}, 1), v);
+        ok &= shot("sc1a-settings-per-game-tooltip", own(ug, gfx, 1), v);
+        v = settings(SettingsSection::Graphics);
         ok &= shot("sc2-settings-graphics-global", own(ug, gfx, 0), v);
         v.hover = {Id::Depth3d, kLabelIndex};
         v.tooltip = Id::Depth3d;
@@ -905,6 +912,13 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = Tab::Position;
         ok &= shot("sc6-position-per-game", own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 1), v);
+        v.hover = {Id::Scope, 1};
+        v.tooltip = Id::Scope;
+        v.tooltip_index = 1;
+        ok &= shot("sc6a-position-per-game-tooltip",
+                   own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 1), v);
+        v = {};
+        v.tab = Tab::Position;
         ok &= shot("sc7-position-global", own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 0), v);
         v.open_menu = Id::ScopeMore;
         v.hover = {Id::ScopeMore, 0};
@@ -919,6 +933,12 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = Tab::Controls;
         ok &= shot("sc9-controls-per-game", own(ctl, cids, 1), v);
+        v.hover = {Id::Scope, 1};
+        v.tooltip = Id::Scope;
+        v.tooltip_index = 1;
+        ok &= shot("sc9a-controls-per-game-tooltip", own(ctl, cids, 1), v);
+        v = {};
+        v.tab = Tab::Controls;
         ok &= shot("sc10-controls-global", own(ctl, cids, 0), v);
         v.hover = {Id::BottomScreenReticle, kLabelIndex};
         v.tooltip = Id::BottomScreenReticle;

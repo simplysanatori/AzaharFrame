@@ -1280,14 +1280,18 @@ TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][t
         a.Check("Settings, the scope's menu");
         v.open_menu = Id::None;
     }
-    // AzaharFrame reticle: the count line on every tab with the scope control
+    // AzaharFrame reticle: Per-Game's count tooltip on every tab with the scope control
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
         MenuView sv;
         sv.tab = t;
+        sv.hover = {Id::Scope, 1};
+        sv.tooltip = Id::Scope;
+        sv.tooltip_index = 1;
         MenuModel own = AllOwn(per_game);
+        own.scope = 1;
         own.bottom_screen_reticle = 3;
         a.Draw(own, sv);
-        a.Check("the scope control's count line");
+        a.Check("the scope control's Per-Game tooltip");
     }
     // The Touchpad row's longer line.
     per_game.touchpad_touch = 1;
@@ -2485,7 +2489,7 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
 
 // AzaharFrame reticle: the scope control replaced the per-row "This Game" chips (owner's design,
 // round 24): Global | Per-Game at the top right of Settings, Controls and Position, ⋮ with Use
-// Global Values for All, and a count line in Per-Game.
+// Global Values for All, and Per-Game's count in a tooltip.
 TEST_CASE("Tab menu: the scope control is the same on Settings, Controls and Position",
           "[frame_xr][tabmenu][scope]") {
     CHECK(TabHasScope(Tab::Settings));
@@ -2580,10 +2584,11 @@ TEST_CASE("Tab menu: no per-row chips any more", "[frame_xr][tabmenu][scope]") {
     }
 }
 
-TEST_CASE("Tab menu: the count line and Use Global Values for All, per tab",
+TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
           "[frame_xr][tabmenu][scope]") {
-    CHECK(GameValueCount(1) == "1 Per-Game Value");
-    CHECK(GameValueCount(2) == "2 Per-Game Values");
+    CHECK(GameValueCount(0) == "No Per-Game Values Set");
+    CHECK(GameValueCount(1) == "1 Per-Game Value Set");
+    CHECK(GameValueCount(2) == "2 Per-Game Values Set");
     // Global-only rows are never per game
     for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::MotionControls,
                   Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution,
@@ -2630,33 +2635,43 @@ TEST_CASE("Tab menu: the count line and Use Global Values for All, per tab",
         SettingsSection section;
         const char* count;
     };
-    for (const Case& c : {Case{Tab::Settings, SettingsSection::Graphics, "2 Per-Game Values"},
-                          Case{Tab::Settings, SettingsSection::General, "1 Per-Game Value"},
-                          Case{Tab::Position, SettingsSection::General, "1 Per-Game Value"},
-                          Case{Tab::Controls, SettingsSection::General, "2 Per-Game Values"}}) {
+    for (const Case& c : {Case{Tab::Settings, SettingsSection::Graphics, "2 Per-Game Values Set"},
+                          Case{Tab::Settings, SettingsSection::General, "1 Per-Game Value Set"},
+                          Case{Tab::Position, SettingsSection::General, "1 Per-Game Value Set"},
+                          Case{Tab::Controls, SettingsSection::General, "2 Per-Game Values Set"}}) {
         INFO("tab " << static_cast<int>(c.tab) << " " << c.count);
         MenuView v;
         v.tab = c.tab;
         v.section = c.section;
-        // Per-Game: the count line, which opens the ⋮ menu as ⋮ does
+        // Per-Game: no line of its own; ⋮ is the one way to the menu
         m.scope = 1;
         Audit a;
         a.Draw(m, v);
-        CHECK(a.Drew(c.count));
+        CHECK(!a.Drew(c.count));
         d.Draw(m, v);
         int more_hits = 0;
         for (const auto& h : d.menu.Hits()) {
             more_hits += h.t == Target{Id::ScopeMore} ? 1 : 0;
         }
-        CHECK(more_hits == 2); // ⋮ and the count line
-        // Global: no count line; ⋮ still clears (the locked rows' way back)
+        CHECK(more_hits == 1); // ⋮ only
+        // Pointing at Per-Game while it is picked: the count, under the toggle
+        const MenuLayout::Hit* pg = FindHit(d, Id::Scope, 1);
+        REQUIRE(pg != nullptr);
+        MenuView tv = v;
+        tv.hover = {Id::Scope, 1};
+        tv.tooltip = Id::Scope;
+        tv.tooltip_index = 1;
+        Audit t;
+        t.Draw(m, tv);
+        CHECK(t.Drew(c.count));
+        // Global: none on Per-Game, ⋮ still clears (the locked rows' way back)
         m.scope = 0;
         Audit g;
-        g.Draw(m, v);
+        g.Draw(m, tv);
         CHECK(!g.Drew(c.count));
         d.Draw(m, v);
         CHECK(HasHit(d, Id::ScopeMore, -1));
-        // The ⋮ menu: one item over the rest
+        // The ⋮ menu: one item over the rest, and no tooltip under it
         v.open_menu = Id::ScopeMore;
         m.scope = 1;
         d.Draw(m, v);
@@ -2666,7 +2681,28 @@ TEST_CASE("Tab menu: the count line and Use Global Values for All, per tab",
         Audit om;
         om.Draw(m, v);
         CHECK(om.Drew("Use Global Values for All"));
-        CHECK(!om.Drew(c.count)); // under the menu
+        m.scope = 1;
+    }
+    // Nothing set for this game: the tooltip says so, ⋮ greyed
+    MenuModel none = Sample();
+    none.scope = 1;
+    for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+        MenuView v;
+        v.tab = t;
+        v.hover = {Id::Scope, 1};
+        v.tooltip = Id::Scope;
+        v.tooltip_index = 1;
+        Audit a;
+        a.Draw(none, v);
+        CHECK(a.Drew("No Per-Game Values Set"));
+        d.Draw(none, v);
+        CHECK(!HasHit(d, Id::ScopeMore, -1));
+        // pointing at Global shows nothing
+        v.hover = {Id::Scope, 0};
+        v.tooltip_index = 0;
+        Audit g;
+        g.Draw(none, v);
+        CHECK(!g.Drew("No Per-Game Values Set"));
     }
 }
 

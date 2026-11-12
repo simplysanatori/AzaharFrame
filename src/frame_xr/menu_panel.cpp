@@ -1757,7 +1757,7 @@ void MenuPanel::Click(Target t, Host& host) {
             LOG_INFO(Frontend, "xr: in-game menu: scope: {}", scope ? "Per-Game" : "Global");
         }
         break;
-    case Id::ScopeMore: // AzaharFrame reticle: ⋮ (or the count line): Use Global Values for All
+    case Id::ScopeMore: // AzaharFrame reticle: ⋮: Use Global Values for All
         view.open_menu = Id::ScopeMore;
         break;
     case Id::SettingsSection: // AzaharFrame autosave: kept for the rest of the run
@@ -1992,7 +1992,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote ||
                          rest == Id::ModCompat || rest == Id::PackCompat || // AzaharFrame compat
                          rest == Id::PartUp || rest == Id::PartDown ||      // AzaharFrame texparts
-                         rest == Id::UseGlobal; // AzaharFrame useglobal: which row's chip
+                         rest == Id::UseGlobal || // AzaharFrame useglobal: which row's chip
+                         rest == Id::Scope;       // AzaharFrame reticle: Per-Game's count
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
@@ -2024,6 +2025,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                    rest == Id::UseGlobal) { // AzaharFrame useglobal: "Use Global Value"
             // Move Up, Move Down
             row_text = true;
+        } else if (rest == Id::Scope) { // AzaharFrame reticle: Per-Game, while picked
+            row_text = rest_idx == 1 && model.scope == 1 &&
+                       model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
         }
         const bool has_text =
             row_text || (!indexed && !Menu::ExplainFor(rest).empty()) ||
