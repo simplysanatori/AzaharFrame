@@ -790,9 +790,6 @@ struct Values {
     // AzaharFrame menu: Touchpad Touch, global: 0 Off, 1 Touch, 2 Click. The controller touchpad
     // maps onto the bottom screen.
     SwitchableSetting<u32, true> vr_touchpad_touch{0, 0, 2, "vr_touchpad_touch"};
-    // AzaharFrame menu: experimental real second window for the bottom screen. Config file only,
-    // no menu row.
-    SwitchableSetting<bool> vr_bottom_screen_window{false, "vr_bottom_screen_window"};
 };
 
 extern Values values;
