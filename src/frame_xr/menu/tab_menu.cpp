@@ -432,8 +432,6 @@ std::string ExplainLock(Lock lock) {
         return "Not available on this headset.";
     case Lock::AtLowest: // AzaharFrame menuux
         return "Internal Resolution is already 1x, the lowest.";
-    case Lock::NotForGame: // AzaharFrame immersive
-        return "Not available for this game.";
     default:
         return {};
     }

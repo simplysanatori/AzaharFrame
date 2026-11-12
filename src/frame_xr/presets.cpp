@@ -69,6 +69,14 @@ constexpr ImmersivePreset kMajorasMask3D{.name = "Majora's Mask 3D",
                                          .game_fov = 55,
                                          .match_camera = 0};
 constexpr ImmersivePreset kAsphalt3D{.name = "Asphalt 3D", .mode = 3, .register_offset = 8};
+// Kid Icarus: Uprising aims with a reticle the game draws on the screen (2D) and shoots along
+// its own camera; in the Full modes the world is drawn from a camera turned with the head, which
+// the game does not know about, so its shots fly off where the unturned camera looked while the
+// reticle stays on the screen: they come apart whenever the head turns. Wide (mode 1) keeps
+// them together but adds little. So it starts in the normal view (mode 0: Immersive Mode stays
+// Off); the player can still turn it on from the VR menu or its properties.
+constexpr ImmersivePreset kKidIcarusUprising{
+    .name = "Kid Icarus: Uprising", .mode = 0, .register_offset = -1};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super
 // Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D are not confirmed.
@@ -98,37 +106,14 @@ constexpr ImmersivePresetTitle kTitles[] = {
     {0x00040000000D6E00, &kMajorasMask3D},
     // Asphalt 3D
     {0x0004000000034C00, &kAsphalt3D},
-};
-
-// AzaharFrame immersive: Kid Icarus: Uprising has no immersive mode. It aims with a reticle the
-// game draws on the screen (2D) and shoots along its own camera; in the Full modes the world is
-// drawn from a camera turned with the head, which the game does not know about, so its shots
-// and their effects fly off where the unturned camera looked while the reticle stays on the
-// screen: they come apart whenever the head turns. Nothing in the drawing can join them again
-// (the reticle cannot be told from the rest of the HUD). Wide (mode 1) keeps them together but
-// adds little to this game; it plays in the normal view. Japan (compatibility list), the USA
-// (the owner's copy) and Europe (030300, not in the compatibility list).
-constexpr uint64_t kNotOffered[] = {
-    0x0004000000030100, // Kid Icarus: Uprising, JPN
-    0x0004000000030200, // USA
-    0x0004000000030300, // EUR
+    // Kid Icarus: Uprising: Japan (compatibility list), the USA (the owner's copy) and Europe
+    // (not in the compatibility list)
+    {0x0004000000030100, &kKidIcarusUprising},
+    {0x0004000000030200, &kKidIcarusUprising},
+    {0x0004000000030300, &kKidIcarusUprising},
 };
 
 } // namespace
-
-bool ImmersiveOffered(uint64_t title_id) {
-    for (const uint64_t id : kNotOffered) {
-        if (id == title_id) {
-            return false;
-        }
-    }
-    return true;
-}
-
-const uint64_t* ImmersiveNotOfferedTitles(std::size_t& count) {
-    count = std::size(kNotOffered);
-    return kNotOffered;
-}
 
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id) {
     for (const auto& entry : kTitles) {

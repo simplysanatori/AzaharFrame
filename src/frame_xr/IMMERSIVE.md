@@ -407,12 +407,12 @@ In immersive mode the measured camera sizes the screen, so the mod's shape needs
 The FOV setting is only used until the first measurement; leave the mod's own FOV at its default
 or the measurement follows it anyway.
 
-### Kid Icarus: Uprising: no immersive mode
+### Kid Icarus: Uprising: starts in the normal view
 
-AzaharFrame immersive: Kid Icarus: Uprising (every region, `ImmersiveOffered` in
-`frame_xr/presets.h`) always runs in the normal view. Its Immersive Mode is set to Off when it
-starts (logged as `xr: immersive mode is not offered for this game: Off`), the VR menu shows the
-setting as not available for this game, and its Properties disable it. The cause, from the
+AzaharFrame immersive: Kid Icarus: Uprising (every region, a mode 0 preset in
+`frame_xr/presets.cpp`) starts in the normal view: its preset keeps Immersive Mode Off and sets
+nothing, so the player can still turn it on from the VR menu or its Properties, and
+a global value the player chose wins as for any preset. Nothing is locked. The cause, from the
 owner's headset test (shots and their effects came apart from the reticle): the game aims with a
 reticle it draws on the screen in 2D and shoots along its own camera. In the Full modes the world
 is drawn from a camera turned with the head, which the game does not know about, so the shots fly
@@ -420,7 +420,7 @@ off where the unturned camera looked while the reticle stays on the screen; and 
 has no stereo depth (the game is shown a 3D slider of about 0) while the shots do. Nothing in the
 drawing can join them again: the reticle cannot be told from the rest of the HUD. It is not Match
 Game Camera (it measures perspective draws only, the HUD's projection is orthographic) and not
-the eye offset (both eyes' world draws get it). Its preset is gone.
+the eye offset (both eyes' world draws get it).
 
 ## Tuning without a rebuild
 

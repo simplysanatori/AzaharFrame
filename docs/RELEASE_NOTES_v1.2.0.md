@@ -44,7 +44,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
 - Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
-- Kid Icarus: Uprising always plays in the normal view: its aiming does not work with a head-turned camera.
+- Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
 ### Bug fixes

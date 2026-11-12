@@ -13,12 +13,6 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #endif
 
-void ConfigureGraphics::SetImmersiveOffered(bool offered) { // AzaharFrame immersive
-    if (frame_vr) {
-        frame_vr->SetImmersiveOffered(offered);
-    }
-}
-
 ConfigureGraphics::ConfigureGraphics(QString gl_renderer, std::span<const QString> physical_devices,
                                      bool is_powered_on, QWidget* parent)
     : QWidget(parent), ui(std::make_unique<Ui::ConfigureGraphics>()) {

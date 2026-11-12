@@ -2732,21 +2732,15 @@ void GMainWindow::BootGame(const QString& filename) {
         g_frame_game_config_name = config_file_name; // AzaharFrame widerview
         g_frame_runs++;                              // AzaharFrame texui
 #endif
-#ifdef ENABLE_FRAME_XR // AzaharFrame immersive: a game without immersive mode runs normally
-        if (!FrameXr::ImmersiveOffered(title_id) &&
-            Settings::values.vr_immersive_mode.GetValue() != 0) {
-            Settings::values.vr_immersive_mode.SetGlobal(false);
-            Settings::values.vr_immersive_mode.SetValue(0);
-            LOG_INFO(Frontend, "xr: immersive mode is not offered for this game: Off");
-        }
-#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
             auto& mode = Settings::values.vr_immersive_mode;
             auto& offset = Settings::values.vr_si_mode_register_offset;
             // Only where this game's config has no value of its own and the global one is still
-            // the default (Off, Auto); a value the player set, even Off, is left alone.
-            if (mode.UsingGlobal() && mode.GetValue() == 0) {
+            // the default (Off, Auto); a value the player set, even Off, is left alone. A mode 0
+            // preset (Kid Icarus: Uprising) keeps the default: the game starts in the normal
+            // view, and nothing is set, so the player can still turn Immersive Mode on.
+            if (preset->mode != 0 && mode.UsingGlobal() && mode.GetValue() == 0) {
                 mode.SetGlobal(false);
                 mode.SetValue(preset->mode);
                 LOG_INFO(Frontend, "xr: {}: Immersive Mode preset {}", preset->name,
