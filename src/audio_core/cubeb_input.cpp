@@ -3,24 +3,24 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <cstring>
+#include <span>
 #include <utility>
 #include <vector>
 #include <cubeb/cubeb.h>
 #include "audio_core/cubeb_input.h"
 #include "audio_core/input.h"
+#include "audio_core/mic_sample_buffer.h"
 #include "audio_core/sink.h"
 #include "common/logging/log.h"
-#include "common/threadsafe_queue.h"
 
 namespace AudioCore {
-
-using SampleQueue = Common::SPSCQueue<Samples>;
 
 struct CubebInput::Impl {
     cubeb* ctx = nullptr;
     cubeb_stream* stream = nullptr;
 
-    SampleQueue sample_queue{};
+    // AzaharFrame fixes11: bounded (about 1 s), drops the oldest; was an unbounded linked queue
+    MicSampleBuffer sample_queue{};
     u8 sample_size_in_bytes = 0;
 
     static long DataCallback(cubeb_stream* stream, void* user_data, const void* input_buffer,
@@ -50,6 +50,9 @@ void CubebInput::StartSampling(const InputParameters& params) {
 
     parameters = params;
     impl->sample_size_in_bytes = params.sample_size / 8;
+    impl->sample_queue.Clear();
+    impl->sample_queue.SetCapacity(static_cast<std::size_t>(params.sample_rate) *
+                                   impl->sample_size_in_bytes); // 1 s
 
     auto init_result = cubeb_init(&impl->ctx, "Azahar Input", nullptr);
     if (init_result != CUBEB_OK) {
@@ -140,12 +143,7 @@ Samples CubebInput::Read() {
         return {};
     }
 
-    Samples samples{};
-    Samples queue;
-    while (impl->sample_queue.Pop(queue)) {
-        samples.insert(samples.end(), queue.begin(), queue.end());
-    }
-    return samples;
+    return impl->sample_queue.Take();
 }
 
 long CubebInput::Impl::DataCallback(cubeb_stream* stream, void* user_data, const void* input_buffer,
@@ -173,7 +171,7 @@ long CubebInput::Impl::DataCallback(cubeb_stream* stream, void* user_data, const
         const u8* data = reinterpret_cast<const u8*>(input_buffer);
         samples.insert(samples.begin(), data, data + num_frames * impl->sample_size_in_bytes);
     }
-    impl->sample_queue.Push(samples);
+    impl->sample_queue.Push(std::span<const u8>(samples));
 
     // returning less than num_frames here signals cubeb to stop sampling
     return num_frames;

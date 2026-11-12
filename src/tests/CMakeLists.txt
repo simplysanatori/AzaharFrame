@@ -83,6 +83,7 @@ add_executable(tests
     audio_core/lle/lle.cpp
     audio_core/audio_fixures.h
     audio_core/decoder_tests.cpp
+    audio_core/mic_queue_tests.cpp # AzaharFrame fixes11
     video_core/pica_types.cpp
     video_core/shader.cpp
     audio_core/merryhime_3ds_audio/merry_audio/merry_audio.cpp

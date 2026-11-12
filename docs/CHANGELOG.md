@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 (November 2026)
+## 1.2.0 (November 2026)
 
 A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, and a keyboard in the headset.
 
@@ -57,6 +57,9 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Bug fixes
 
+- Fixed a crash when loading a save state after the game had been paused with the microphone in use.
+- Fixed the microphone filling memory while a game was paused: it now keeps about one second of audio.
+- Fixed an install from a build folder reporting the old version.
 - From Azahar: a freeze when a controller connects or disconnects, and signature checks for encrypted content.
 
 ## 1.1.1 (November 2026)

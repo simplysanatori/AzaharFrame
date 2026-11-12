@@ -12,7 +12,7 @@ This file holds the technical detail moved out of the README: how the port is bu
 | Immersive mode, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
 | What the logs hold, release checks | [docs/PRIVACY_AUDIT.md](docs/PRIVACY_AUDIT.md) |
 | Player documentation | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), [docs/CONTROLS.md](docs/CONTROLS.md) |
-| Changes | [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/RELEASE_NOTES_v2.0.0.md](docs/RELEASE_NOTES_v2.0.0.md), [v1.1.1](docs/RELEASE_NOTES_v1.1.1.md), [v1.1.0](docs/RELEASE_NOTES_v1.1.0.md), [v1.0.0](docs/RELEASE_NOTES_v1.0.0.md) |
+| Changes | [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md), [v1.1.1](docs/RELEASE_NOTES_v1.1.1.md), [v1.1.0](docs/RELEASE_NOTES_v1.1.0.md), [v1.0.0](docs/RELEASE_NOTES_v1.0.0.md) |
 | Third-party licences and art sources | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [steam-frame/art/CREDITS.md](steam-frame/art/CREDITS.md) |
 
 [README.upstream.md](README.upstream.md) is CitraVR's README, kept as it was when this fork was made. Do not edit it.
@@ -26,11 +26,11 @@ The branch is `steam-frame`. A directory named `steam-frame/` also exists, so pu
 On the Frame, with a C++ compiler (clang or gcc), CMake 3.24 or newer, Ninja, the Qt 6 and SDL2 development files and Python 3:
 
 ```sh
-steam-frame/build.sh 2.0.0
+steam-frame/build.sh 1.2.0
 steam-frame/install.sh
 ```
 
-The first build takes about an hour and loads every core. It waits while the headset is in use (`~/.cache/headset-in-use`, or a game running under Steam) and runs at the lowest priority. `build.sh` packs `steam-frame/release/azaharframe-2.0.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. The options (`AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD`, `CF_EXTRA_CMAKE_FLAGS`) are in `steam-frame/build.sh` and [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#building).
+The first build takes about an hour and loads every core. It waits while the headset is in use (`~/.cache/headset-in-use`, or a game running under Steam) and runs at the lowest priority. `build.sh` packs `steam-frame/release/azaharframe-1.2.0-linux-arm64.tar.gz` and `SHA256SUMS`, and `install.sh` installs that tarball. The options (`AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD`, `CF_EXTRA_CMAKE_FLAGS`) are in `steam-frame/build.sh` and [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md#building).
 
 `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build. The tarball holds the stripped emulator, the launcher, `install.sh`, `uninstall.sh`, the Steam and dock helpers, the art, the texture pack converter, the controller model converter, `framedrop-run.sh` and `make-framedrop-zip.py`, plus `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`, and in a portable build `lib/`, `plugins/` and `qt.conf`. It does not ship the README, so the README's links do not need shipping.
 
@@ -49,7 +49,7 @@ The release is made with `steam-frame/build-portable.sh <version>` (below), so i
 A SteamOS update can change or drop what a program built on the Frame links to (Qt 6.8 to 6.10, SDL2 to sdl2-compat, ICU, FFmpeg 8, a glibc bump). The release therefore carries its own Qt and is built to run on the oldest glibc any SteamOS has had. The same approach as Moonlight XR for Frame.
 
 ```sh
-steam-frame/build-portable.sh 2.0.0      # container build, bundle, tarball, check
+steam-frame/build-portable.sh 1.2.0      # container build, bundle, tarball, check
 steam-frame/tools/check-bundle.sh DIR    # check any unpacked release
 ```
 
@@ -97,7 +97,7 @@ FrameDrop: `run.sh` at the top of the zip installs with `AZAHARFRAME_SKIP_STEAM=
 - Per game (`Options`): **Wider View** (`vr_immersive_wider_view_level`, Off or 1.1x to 1.4x) is the periphery factor whatever the size, and its D-pad step scales the size with it (no preset turns it on; the old `vr_immersive_wider_view` switch is converted when read); **Narrow Screen** (`vr_immersive_squeeze`, 10, 20 or 30 %) narrows the quad at the same height and raises the yaw gain to gain / (1 - squeeze).
 - The default fills the view both ways (`DefaultCover`): `kFillMarginDeg` past the corners of what either eye sees (`ViewFov::outer_*`, from the runtime's per-eye FOV), at least +-`kMinFillHalfHeightDeg` high, centred on the view's middle, magnified (gain under 1) down to a gain of 0.4; a preset's `screen_size` scales it (Mario Kart 7). The screen takes the view's shape and the game draws further up and down to match (`factor_y`, clip x in the shader; full-screen 2D vertices are not divided, see IMMERSIVE.md). The right-stick hold keeps the immersive placement unless a grip holds the screen; Reset Position puts it back. The tunables are the `k*` constants at the top of `immersive_layout.h`.
 - The measured camera goes through `CameraFilter`: the screen is sized and shaped with the settled camera (a new angle after 2 s, a new shape only at the same angle), the gain follows the live angle (`Options::live_fov_y_deg`), so a zoom never resizes or reshapes the screen.
-- The file's `screen` lines are sizes against that default; `view` (2.0.0 test builds) and `head` (1.0, 1.1) lines keep their pitch and distance and get the default size, then are saved as `screen`.
+- The file's `screen` lines are sizes against that default; `view` (1.2.0 test builds) and `head` (1.0, 1.1) lines keep their pitch and distance and get the default size, then are saved as `screen`.
 - SteamVR's recenter (`Immersive::OnRecentred`) only re-centres; the right stick hold and Reset Position also put the screen back (`OnResetPanels`). The rest pose waits for a head pose located at or after the event's `changeTime`.
 - The head pose reaches the rasterizer once per game frame (`FrameLatch` in `video_core/vr_immersive.h`: at the top screen's swap, or after 4 VBlanks without one), so both eyes of a 30 fps game share one pose. Mode 2 patches only draws with a perspective projection in registers 0 to 3 (`HasPerspectiveProjection`).
 - Kid Icarus: Uprising has no immersive mode (`ImmersiveOffered` in `presets.h`): Off at boot, the VR menu row locked (`Lock::NotForGame`), its Properties row disabled.

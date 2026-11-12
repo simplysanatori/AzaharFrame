@@ -177,7 +177,7 @@ struct Options {
 };
 
 /// AzaharFrame immersive2: Narrow Screen's or Narrow Height's setting in percent (0 to 30, on the
-/// 5 % grid). 1, 2 and 3 are the steps of builds before 2.0.0 (10, 20, 30 %), never written now.
+/// 5 % grid). 1, 2 and 3 are the steps of builds before 1.2.0 (10, 20, 30 %), never written now.
 uint32_t NarrowPercent(uint32_t setting);
 /// The setting as a fraction (NarrowPercent / 100).
 float SqueezeFor(uint32_t setting);
@@ -442,7 +442,7 @@ float AimElevation(const Input::Posef& head, const Input::Posef& aim, float radi
 /// Lines "<title id, 16 hex digits> <kind> <pitch degrees> <distance m> <size>"; '#' starts a
 /// comment. Kinds: "world" (modes 2 and 3; AzaharFrame immersive2: sizes against the true-scale
 /// default), "wide" (mode 1), and "screen", "view" and "head" (modes 2 and 3, saved by earlier
-/// builds: their sizes are relative to other defaults (the view-filling one of the 2.0.0 test
+/// builds: their sizes are relative to other defaults (the view-filling one of the 1.2.0 test
 /// builds, smaller ones before), so OldSize() and the game's default size is used; the pitch and
 /// distance are kept). Unknown or broken lines are kept out (and dropped when saving).
 class Store {

@@ -971,7 +971,7 @@ MenuModel Longest() {
                     {"Internal Resolution", "8x"}, {"Shaders Compiled", "1234"}};
     m.stats_vr = {{"Display FPS", "120"}, {"Late Frames", "30"}};
     m.stats_system = {{"Battery", "100%"}, {"Temperature", "45°C"}};
-    m.version = "2.0.0";
+    m.version = "1.2.0";
     m.immersive_mode = 2; // the longest option
     m.screen_shape = 1;
     m.motion_controls = 1;
