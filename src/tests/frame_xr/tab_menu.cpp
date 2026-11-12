@@ -282,7 +282,8 @@ TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
 
     // The segmented button on every segment; Cheats first.
     v.tab = Tab::Mods;
-    CHECK(OptionsFor(Id::ModsSegment) == std::vector<std::string>{"Cheats", "Mods", "Textures"});
+    CHECK(OptionsFor(Id::ModsSegment) ==
+          std::vector<std::string>{"Cheats", "Mods", "Textures", "Homebrew"}); // emerald
     for (const ModsSegment s : {ModsSegment::Cheats, ModsSegment::Mods, ModsSegment::Textures}) {
         v.mods_segment = s;
         d.Draw(m, v);
@@ -721,4 +722,58 @@ TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(SizeText(640'000'000) == "640 MB");
     CHECK(SizeText(2'100'000'000) == "2.1 GB");
     CHECK(SizeText(12'345) == "12 KB");
+}
+
+// AzaharFrame emerald: the Mods tab's Homebrew segment.
+TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Homebrew;
+    const auto has = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                CHECK(h.r.H() >= 47.9f);
+                return true;
+            }
+        }
+        return false;
+    };
+    HomebrewItem item;
+    item.id = "emerald3ds";
+    item.title = "Pokémon Emerald 3DS";
+    item.author = "ZallaxDev";
+
+    // Not installed: Install only.
+    m.homebrew.items = {item};
+    d.Draw(m, v);
+    CHECK(has(Id::ModsSegment, 3));
+    CHECK(has(Id::HomebrewInstall, 0));
+    CHECK(!has(Id::HomebrewPlay, 0));
+    CHECK(!has(Id::HomebrewUpdate, 0));
+
+    // Installed and current: Play; with a newer release: Play and Update.
+    m.homebrew.items[0].installed = true;
+    d.Draw(m, v);
+    CHECK(has(Id::HomebrewPlay, 0));
+    CHECK(!has(Id::HomebrewInstall, 0));
+    CHECK(!has(Id::HomebrewUpdate, 0));
+    m.homebrew.items[0].update = true;
+    d.Draw(m, v);
+    CHECK(has(Id::HomebrewPlay, 0));
+    CHECK(has(Id::HomebrewUpdate, 0));
+
+    // Busy: no buttons until it ends.
+    m.homebrew.items[0].busy = true;
+    m.homebrew.items[0].progress = 420;
+    m.homebrew.items[0].status = "Downloading";
+    d.Draw(m, v);
+    CHECK(!has(Id::HomebrewPlay, 0));
+    CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(d.menu.MaxScroll() == 0.0f);
+
+    CHECK(LabelFor(Id::HomebrewInstall) == "Install");
+    CHECK(LabelFor(Id::HomebrewUpdate) == "Update");
+    CHECK(LabelFor(Id::HomebrewPlay) == "Play");
 }

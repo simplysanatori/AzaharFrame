@@ -253,6 +253,7 @@ bool UsesGlobal(Id id) {
 // AzaharFrame cheatstab: the Mods tab's values from the Qt side (SetInGameMenuCheats and so on).
 std::mutex g_mods_mutex;
 Menu::ModsTabModel g_mods;
+Menu::HomebrewTabModel g_homebrew; // AzaharFrame emerald, under g_mods_mutex
 constexpr float kDragSlop = 12.0f; ///< dp the beam moves before a press scrolls the list
 
 } // namespace
@@ -270,6 +271,11 @@ void SetInGameMenuModsList(const Menu::ModsListModel& mods) {
 void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
     std::scoped_lock lock{g_mods_mutex};
     g_mods.textures = textures;
+}
+
+void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew) { // AzaharFrame emerald
+    std::scoped_lock lock{g_mods_mutex};
+    g_homebrew = homebrew;
 }
 
 struct MenuPanel::Shared {
@@ -622,6 +628,16 @@ void MenuPanel::BuildModel(const Host& host) {
     { // AzaharFrame cheatstab
         std::scoped_lock lock{g_mods_mutex};
         m.mods = g_mods;
+        m.homebrew = g_homebrew; // AzaharFrame emerald
+    }
+    if (view.tab == Menu::Tab::Mods && view.mods_segment == Menu::ModsSegment::Homebrew &&
+        // AzaharFrame emerald: the progress ring turns
+        std::any_of(m.homebrew.items.begin(), m.homebrew.items.end(),
+                    [](const Menu::HomebrewItem& i) { return i.busy && i.progress < 0; })) {
+        m.homebrew.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                               std::chrono::steady_clock::now().time_since_epoch())
+                                               .count() /
+                                           66);
     }
     if (m.mods.cheats.download == Menu::DownloadState::Downloading && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Cheats) {
@@ -951,13 +967,15 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     static constexpr std::array<const char*, 6> kTabNames{"Main",     "Position", "Stats",
                                                           "Controls", "Mods",     "Settings"};
-    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
+    static constexpr std::array<const char*, 4> kSegmentNames{"Cheats", "Mods", "Textures",
+                                                              "Homebrew"}; // emerald
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
-                 kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 5))]);
+                 kTabNames[static_cast<std::size_t>(
+                     std::clamp(t.index, 0, static_cast<int>(kTabNames.size()) - 1))]);
     } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
         LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
-                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 3))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -1011,7 +1029,7 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Homebrew) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1019,6 +1037,16 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
+        break;
+    case Id::HomebrewInstall: // AzaharFrame emerald: the Homebrew segment (citra_qt/frame_homebrew.cpp)
+    case Id::HomebrewUpdate:
+    case Id::HomebrewPlay:
+        if (t.index >= 0 && t.index < static_cast<int>(model.homebrew.items.size())) {
+            const MenuCommand c = t.id == Id::HomebrewInstall  ? MenuCommand::HomebrewInstall
+                                  : t.id == Id::HomebrewUpdate ? MenuCommand::HomebrewUpdate
+                                                               : MenuCommand::HomebrewPlay;
+            ask_text(c, model.homebrew.items[static_cast<std::size_t>(t.index)].id);
+        }
         break;
     case Id::DownloadCheats:
         ask(MenuCommand::DownloadCheats);

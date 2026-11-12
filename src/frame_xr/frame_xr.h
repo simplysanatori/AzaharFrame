@@ -202,6 +202,10 @@ enum class MenuCommand {
     CancelPackDownload,
     DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
     TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
+    // AzaharFrame emerald: the Mods tab's Homebrew segment (citra_qt/frame_homebrew.cpp), `text`: the package's id
+    HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
+    HomebrewUpdate,  ///< the same for an update
+    HomebrewPlay,    ///< close the menu and start the installed package
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -356,10 +360,13 @@ namespace Menu {
 struct CheatsModel;
 struct ModsListModel;
 struct TexturesModel;
+struct HomebrewTabModel; // AzaharFrame emerald
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
+/// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
+void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "frame_xr/menu/edit_devices.h"
+#include "frame_xr/menu/homebrew_tab.h" // AzaharFrame emerald
 #include "frame_xr/menu/mods_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/remap.h"
@@ -116,6 +117,10 @@ enum class Id : int {
     PackCancel,     ///< index: mods.textures.downloads
     PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
     PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
+    // The Mods tab's Homebrew segment (AzaharFrame emerald): homebrew_tab.h, index: homebrew.items
+    HomebrewInstall,
+    HomebrewUpdate,
+    HomebrewPlay,
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -183,6 +188,7 @@ struct MenuModel {
     int narrow_screen = 0;
     int depth_factor = 0;
     ModsTabModel mods; ///< AzaharFrame cheatstab: the Mods tab's segments
+    HomebrewTabModel homebrew; ///< AzaharFrame emerald
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
     bool operator==(const MenuModel&) const = default;
@@ -295,6 +301,8 @@ private:
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);
+    void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
+                      const Rect& area); ///< AzaharFrame emerald: homebrew_tab.cpp
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;

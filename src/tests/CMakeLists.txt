@@ -46,6 +46,7 @@ add_executable(tests
     core/mods_library.cpp # AzaharFrame moddata
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
+    core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

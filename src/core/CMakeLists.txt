@@ -50,6 +50,12 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/download.cpp # AzaharFrame texdl
     custom_tex/download.h # AzaharFrame texdl
     custom_tex/download_default.cpp # AzaharFrame texdl
+    homebrew/emerald3ds.cpp # AzaharFrame emerald
+    homebrew/emerald3ds.h # AzaharFrame emerald
+    homebrew/net.cpp # AzaharFrame emerald
+    homebrew/net.h # AzaharFrame emerald
+    homebrew/packages.cpp # AzaharFrame emerald
+    homebrew/packages.h # AzaharFrame emerald
     core.cpp
     core.h
     core_timing.cpp
