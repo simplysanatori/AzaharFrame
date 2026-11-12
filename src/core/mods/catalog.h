@@ -34,6 +34,11 @@
 //   GameBanana mod; its newest clean file matching the pattern is found through GameBanana's public
 //   API at install time (nothing re-hosted, nothing pinned to one file id).
 //
+//   {"type": "mega", "link": "https://mega.nz/file/<handle>#<key>", "file_pattern": "*.zip"}
+//   AzaharFrame mega: a public MEGA link (a folder link picks the file matching file_pattern). The
+//   link's key is part of the link, which the author published. A zip is read in place, only the
+//   entries the install rules keep are downloaded.
+//
 // Optional entry fields (AzaharFrame modcat):
 //   "author_url": "https://gamebanana.com/members/1544353"   what the author's name opens
 //   "updated": "2026-11-12"                                   shown until the source's own date is known
@@ -65,11 +70,12 @@
 namespace Mods {
 
 struct Source {
-    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath, Gamebanana };
+    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath, Gamebanana, Mega };
     Type type = Type::OwnerRepoPath;
     std::string repo;          // "owner/name" (OwnerRepoPath: always the maintainer's repository)
     std::string tag = "latest"; // GithubRelease
-    std::string asset_pattern; // GithubRelease, Gamebanana (file name pattern)
+    std::string asset_pattern; // GithubRelease, Gamebanana, Mega (file name pattern)
+    std::string mega_link;     // Mega: the public file or folder link, key included (AzaharFrame mega)
     u64 gb_mod = 0;            // Gamebanana: the mod's id (gamebanana.com/mods/<id>)
     std::string ref = "main";  // repo paths
     std::string path;          // repo paths

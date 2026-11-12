@@ -441,6 +441,13 @@ void Library::SetState(State::Phase phase, const std::string& mod_id, const std:
     state_ = {phase, mod_id, text};
 }
 
+/// AzaharFrame mega: the bytes fetched so far (the menu shows a percentage).
+void Library::SetProgress(u64 done, u64 total) {
+    std::lock_guard lock{state_mutex_};
+    state_.done = done;
+    state_.total = total;
+}
+
 State Library::GetState() const {
     std::lock_guard lock{state_mutex_};
     return state_;
@@ -560,6 +567,85 @@ bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& ou
     return false;
 }
 
+// AzaharFrame mega: a public MEGA link. A zip is read in place (central directory first), and only the
+// entries the entry's install rules keep are fetched and decrypted; any other file is fetched whole
+// (the usual size cap) and unpacked like a download from the other hosts.
+bool Library::DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
+                           std::string& error) {
+    constexpr u64 kMaxMegaTotal = 640ull * 1024 * 1024; // what the kept entries may add up to
+    const Source& s = entry.source;
+    const auto link = Mega::ParseLink(s.mega_link);
+    if (!link) {
+        error = Mega::kNotFound;
+        return false;
+    }
+    const auto resolved = Mega::Resolve(mega_net_, *link, s.asset_pattern, &error);
+    if (!resolved) {
+        return false;
+    }
+    SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
+    Mega::RemoteFile remote(mega_net_, *resolved, &cancel_);
+    std::vector<Mega::ZipEntry> entries;
+    bool not_zip = false;
+    if (!Mega::ListZip(remote, entries, not_zip, error)) {
+        if (!not_zip) {
+            return false;
+        }
+        error.clear();
+        if (resolved->size > kMaxAsset) {
+            error = "Download too large";
+            return false;
+        }
+        SetProgress(0, resolved->size);
+        remote.on_progress = [this, total = resolved->size](u64 done) { SetProgress(done, total); };
+        std::string body;
+        if (!remote.Read(0, resolved->size, body, error)) {
+            return false;
+        }
+        SetState(State::Phase::Extracting, entry.id, fmt::format("Unpacking {}", entry.name));
+        const ArchiveKind kind = DetectArchive(body);
+        if (kind == ArchiveKind::Unknown) {
+            files.push_back({resolved->name.empty() ? "file" : resolved->name, std::move(body)});
+            return true;
+        }
+        auto result = ExtractArchive(body, kind);
+        if (!result.error.empty()) {
+            error = result.error;
+            return false;
+        }
+        files = std::move(result.files);
+        return true;
+    }
+    std::vector<const Mega::ZipEntry*> keep;
+    u64 total = 0;
+    for (const auto& e : entries) {
+        if (!MapPath(e.name, entry.rules, title_id).empty()) {
+            keep.push_back(&e);
+            total += e.comp_size;
+        }
+    }
+    if (keep.empty()) {
+        error = "Nothing in the download fits this game";
+        return false;
+    }
+    if (total > kMaxMegaTotal) {
+        error = "Download too large";
+        return false;
+    }
+    SetProgress(0, total);
+    const u64 base = remote.BytesFetched(); // the central directory was counted already
+    remote.on_progress = [this, total, base](u64 fetched) { SetProgress(fetched - base, total); };
+    for (const auto* e : keep) {
+        ArchiveFile f;
+        f.path = e->name;
+        if (!Mega::ReadZipEntry(remote, *e, f.data, error)) {
+            return false;
+        }
+        files.push_back(std::move(f));
+    }
+    return true;
+}
+
 bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                              std::string& version, std::string& error) {
     (void)title_id;
@@ -621,6 +707,10 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
         files = std::move(result.files);
         return true;
         return false;
+    }
+
+    if (s.type == Source::Type::Mega) { // AzaharFrame mega
+        return DownloadMega(entry, title_id, files, error);
     }
 
     if (s.type == Source::Type::Gamebanana) { // AzaharFrame modcat
@@ -763,6 +853,9 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
     const Source& s = entry.source;
     HttpReply reply;
     std::string error;
+    if (s.type == Source::Type::Mega) { // AzaharFrame mega: no date without a download
+        return {};
+    }
     try {
         if (s.type == Source::Type::Gamebanana) {
             if (!Fetch(fmt::format("https://gamebanana.com/apiv11/Mod/{}/ProfilePage", s.gb_mod), kMaxApi,
@@ -815,7 +908,7 @@ void Library::RefreshDates(u64 title_id) {
         const std::string key = fmt::format("{}|{}|{}|{}|{}|{}", static_cast<int>(s.type), s.repo,
                                             s.type == Source::Type::GithubRelease ? s.tag : s.ref,
                                             s.type == Source::Type::GithubRelease ? "" : s.path,
-                                            s.gb_mod, "");
+                                            s.gb_mod, s.mega_link);
         auto it = by_source.find(key);
         if (it == by_source.end()) {
             it = by_source.emplace(key, LookupDate(e)).first;
@@ -1058,6 +1151,7 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
             return {InstallResult::Error, "Another install is running"};
         }
         busy_ = true;
+        cancel_ = false; // AzaharFrame mega
     }
     struct Done {
         Library& self;
@@ -1116,7 +1210,8 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         manifest.licence = entry.licence;
         manifest.source = entry.source.type == Source::Type::Gamebanana
                               ? fmt::format("gamebanana.com/mods/{}", entry.source.gb_mod)
-                              : "github.com/" + entry.source.repo;
+                          : entry.source.type == Source::Type::Mega ? std::string("mega.nz") // AzaharFrame mega
+                                                                    : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
         manifest.active = false;
         bool ok = true;

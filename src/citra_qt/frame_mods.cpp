@@ -549,7 +549,11 @@ void FrameMods::PollProgress() {
     if (!o) {
         return;
     }
-    const std::string text = PhaseText(Mods::Default().GetState().phase);
+    const Mods::State st = Mods::Default().GetState();
+    std::string text = PhaseText(st.phase);
+    if (!text.empty() && st.phase == Mods::State::Phase::Downloading && st.total > 0) {
+        text += fmt::format(" {}%", std::min<u64>(100, st.done * 100 / st.total)); // AzaharFrame mega
+    }
     if (!text.empty() && text != o->note) {
         o->note = text;
         PublishMods();

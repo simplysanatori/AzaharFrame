@@ -57,6 +57,7 @@ add_executable(tests
     core/sharkive.cpp # AzaharFrame cheats
     core/cheats_online.cpp # AzaharFrame cheats
     core/mods_library.cpp # AzaharFrame moddata
+    core/mods_mega.cpp # AzaharFrame mega
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     frame_xr/zip_install.cpp # AzaharFrame zipinstall

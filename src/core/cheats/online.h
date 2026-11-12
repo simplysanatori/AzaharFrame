@@ -99,6 +99,18 @@ struct RawReply {
 /// One HTTPS GET with no redirect followed (the caller checks where it leads). For the mod library.
 RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size_t max_body);
 
+/// AzaharFrame mega: one HTTPS request, no redirect followed, any status handed back (`error` is
+/// set only when there was no reply or the body passed `max_body`). `method` is "GET" or "POST"
+/// (`body` sent as `content_type`); `headers` are extra request headers (Range).
+struct RawRequest {
+    std::string method = "GET";
+    std::string body;
+    std::string content_type;
+    std::vector<std::pair<std::string, std::string>> headers;
+};
+RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const RawRequest& request,
+                         std::size_t max_body);
+
 struct DownloadResult {
     int developer_added = 0;
     int sharkive_added = 0;

@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
+#include "core/mods/mega.h" // AzaharFrame mega
 
 namespace Mods {
 
@@ -163,10 +164,21 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
         if (s.asset_pattern.find('/') != std::string::npos) {
             throw std::string("bad file_pattern");
         }
+    } else if (type == "mega") { // AzaharFrame mega
+        s.type = Source::Type::Mega;
+        s.mega_link = Str(*src, "link");
+        const auto link = Mega::ParseLink(s.mega_link);
+        if (!link) {
+            throw std::string("bad MEGA link");
+        }
+        s.asset_pattern = Str(*src, "file_pattern").empty() ? "*.zip" : Str(*src, "file_pattern");
+        if (link->folder && link->node.empty() && s.asset_pattern.empty()) {
+            throw std::string("bad file_pattern");
+        }
     } else {
         throw std::string("unknown source type");
     }
-    if (s.type != Source::Type::Gamebanana && !RepoOk(s.repo)) {
+    if (s.type != Source::Type::Gamebanana && s.type != Source::Type::Mega && !RepoOk(s.repo)) {
         throw std::string("bad repo");
     }
     if (s.type == Source::Type::GithubRepoPath || s.type == Source::Type::OwnerRepoPath) {
@@ -179,6 +191,7 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     // (AzaharFrame modcat); a GitHub release from a community author is never marked verified.
     e.verified = j.value("verified", false) &&
                  (s.type == Source::Type::OwnerRepoPath || s.type == Source::Type::Gamebanana);
+    // (a MEGA mod is never verified here: the owner marks one by testing it, not the catalog)
     const auto chip = j.find("version_chip"); // AzaharFrame modcat
     if (chip != j.end() && chip->is_object()) {
         e.chip = Str(*chip, "label");
