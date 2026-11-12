@@ -155,6 +155,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_mods.h"
 #include "core/custom_tex/packs.h" // AzaharFrame catalog3
 #include "core/mods/catalog.h" // AzaharFrame texui
+#include "core/mods/library.h" // AzaharFrame catalog3
 #include "citra_qt/frame_mode.h"
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
@@ -1417,6 +1418,21 @@ GMainWindow::GMainWindow(Core::System& system_)
                                                        !g_frame_game_config_name.empty());
                         if (!g_frame_mods) { // AzaharFrame texui
                             g_frame_mods = new FrameMods(this);
+                            // AzaharFrame catalog3: "<Mod> Downloaded. Restart to Enable.": a toast in the
+                            // headset, the status bar in Flat
+                            g_frame_mods->SetNotifier([this](const std::string& text) {
+                                if (FrameXr::VrShowing()) {
+                                    FrameXr::ShowToastText(text);
+                                } else if (!message_label_used_for_movie) {
+                                    const QString q = QString::fromStdString(text);
+                                    message_label->setText(q);
+                                    QTimer::singleShot(6000, this, [this, q] {
+                                        if (!message_label_used_for_movie && message_label->text() == q) {
+                                            message_label->clear();
+                                        }
+                                    });
+                                }
+                            });
                             // AzaharFrame catalog3: a mod with textures turns Custom Textures on for the game
                             g_frame_mods->SetTexturesEnabler([this]() {
                                 if (CustomTex::CustomTexturesEnabled()) {
@@ -2601,6 +2617,11 @@ bool GMainWindow::LoadROM(const QString& filename) {
         return false;
     }
 
+    // AzaharFrame catalog3: mods downloaded or removed while a game ran go in or out now, before the
+    // loader reads the game's folders
+    Mods::Default().SetRunningTitle(0);
+    Mods::Default().ApplyPending();
+
     const auto scope = render_window->Acquire();
 
     if (!UISettings::values.inserted_cartridge.GetValue().empty()) {
@@ -2697,6 +2718,7 @@ bool GMainWindow::LoadROM(const QString& filename) {
 
     game_path = filename;
     game_title_id = title_id;
+    Mods::Default().SetRunningTitle(title_id); // AzaharFrame catalog3: its folders are not touched now
 
     return true;
 }
@@ -3095,6 +3117,9 @@ void GMainWindow::ShutdownGame() {
 
     game_path.clear();
     game_title_id = 0;
+    // AzaharFrame catalog3: the game is not running: what waited goes in or out
+    Mods::Default().SetRunningTitle(0);
+    Mods::Default().ApplyPending();
 
     // Update the GUI
     UpdateMenuState();

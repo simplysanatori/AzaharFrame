@@ -103,6 +103,9 @@ struct ModInfo {
     std::vector<std::string> files; // paths relative to the mods folder
     /// AzaharFrame catalog3: the textures part, relative to load/textures/<TID>/<id>/
     std::vector<std::string> texture_files;
+    /// AzaharFrame catalog3: "activate" (downloaded, goes in when the running game stops), "deactivate"
+    /// or "remove" (the same), "" none. `state` already shows the outcome.
+    std::string pending;
 };
 
 struct AvailableMod {
@@ -118,6 +121,7 @@ struct AvailableMod {
                             // catalog3: the catalog's own value may be "YYYY-MM"
     u64 downloads = 0;      // AzaharFrame catalog3: lifetime downloads (CatalogEntry::downloads), 0 unknown
     u64 size = 0;           // AzaharFrame catalog3: bytes to download (CatalogEntry::size), 0 unknown
+    bool pending = false;   // AzaharFrame catalog3: downloaded for the running game; `active` is true, the files go in when it stops
     bool has_textures = false; // AzaharFrame catalog3: the mod also carries textures
     bool multipart = false;    // AzaharFrame catalog3: several downloads, joined
     std::string chip;       // AzaharFrame modcat: the version chip ("1.0"), "" none
@@ -142,6 +146,9 @@ struct InstallOutcome {
     /// AzaharFrame catalog3: the install put textures in load/textures/<TID>/<id>/ (the menu turns
     /// Custom Textures on for the game when it is off and says so)
     bool textures_installed = false;
+    /// AzaharFrame catalog3: the target is the running game, so the mod is downloaded and waits in the
+    /// library: "<Mod> Downloaded. Restart to Enable."
+    bool staged = false;
 };
 
 struct RemoveOutcome {
@@ -210,6 +217,13 @@ public:
     RemoveOutcome Remove(u64 title_id, const std::string& mod_id);
 
     State GetState() const;
+    /// AzaharFrame catalog3: the title that is running (0 none). Its mods/<TID>/ and load/textures/<TID>/
+    /// are never touched: installs there are staged in the library, removals wait. Set 0 when it stops.
+    void SetRunningTitle(u64 title_id);
+    u64 RunningTitle() const { return running_title_.load(); }
+    /// Applies what waited (staged installs, deactivations, removals) for every title but the running
+    /// one. Call when a game has stopped and before the next one loads. Returns how many were applied.
+    int ApplyPending();
     /// AzaharFrame mega: stops the running download soon (the install fails with "Cancelled"; nothing
     /// is installed). Does nothing when idle.
     void Cancel() { cancel_ = true; }
@@ -239,6 +253,7 @@ public:
 
 private:
     struct Manifest;
+    InstallOutcome InstallImpl(u64 title_id, const std::string& mod_id, bool replace);
     bool ReadManifest(const std::string& dir, Manifest& out) const;
     bool WriteManifest(const std::string& dir, const Manifest& m) const;
     bool Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error);
@@ -282,6 +297,7 @@ private:
     Mega::Net mega_net_ = Mega::DefaultNet();
     Multipart::FileTransport file_transport_ = Multipart::StreamGet; // AzaharFrame catalog3
     FreeSpaceFn free_space_ = Multipart::FreeBytes;
+    std::atomic<u64> running_title_{0}; // AzaharFrame catalog3
     std::string big_root_; // AzaharFrame catalog3: where DownloadBig unpacked (install thread only)
 };
 

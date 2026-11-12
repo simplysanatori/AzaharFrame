@@ -9,6 +9,7 @@
 #include <map>
 #include <ctime>
 #include <set>
+#include <thread>
 #include <json.hpp>
 #include <fmt/format.h>
 #include "common/file_util.h"
@@ -382,10 +383,20 @@ MapResult MapArchive(const std::vector<ArchiveFile>& archive, const std::vector<
 struct Library::Manifest {
     std::string id, name, version, author, licence, source;
     bool verified = false;
-    bool active = false;
+    bool active = false; // the files are in mods/<TID>/ now
     std::vector<std::string> files;
     std::vector<std::string> texture_files; // AzaharFrame catalog3: relative to load/textures/<TID>/<id>/
+    // AzaharFrame catalog3: a change that waits for the running game to stop ("" none): "activate"
+    // (downloaded, files not in the game's folders yet), "deactivate", "remove"
+    std::string pending;
 };
+
+namespace {
+// What the player sees: staged on, or still on and not about to go
+bool EffectiveActive(bool active, const std::string& pending) {
+    return pending == "activate" || (active && pending != "deactivate" && pending != "remove");
+}
+} // namespace
 
 Library::Library(std::string load_dir, Catalog catalog, Transport transport)
     : load_dir_(std::move(load_dir)), transport_(std::move(transport)), catalog_(std::move(catalog)) {
@@ -423,6 +434,7 @@ bool Library::ReadManifest(const std::string& dir, Manifest& m) const {
         m.source = j.value("source", "");
         m.verified = j.value("verified", false);
         m.active = j.value("active", false);
+        m.pending = j.value("pending", "");
         m.files.clear();
         for (const auto& f : j.at("files")) {
             const auto rel = f.get<std::string>();
@@ -458,6 +470,9 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     j["source"] = m.source;
     j["verified"] = m.verified;
     j["active"] = m.active;
+    if (!m.pending.empty()) {
+        j["pending"] = m.pending;
+    }
     j["files"] = m.files;
     if (!m.texture_files.empty()) {
         j["texture_files"] = m.texture_files;
@@ -1293,13 +1308,15 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
             info.source = m.source;
             info.verified = m.verified;
             info.managed = true;
-            info.state = m.active ? ModState::Active : ModState::Inactive;
+            const bool on = EffectiveActive(m.active, m.pending);
+            info.state = on ? ModState::Active : ModState::Inactive;
+            info.pending = m.pending; // AzaharFrame catalog3
             info.files = m.files;
             info.texture_files = m.texture_files; // AzaharFrame catalog3
             if (m.active) {
-                owned.insert(m.files.begin(), m.files.end());
+                owned.insert(m.files.begin(), m.files.end()); // still in the folder until it is taken out
             }
-            (m.active ? active : inactive).push_back(std::move(info));
+            (on ? active : inactive).push_back(std::move(info));
         }
     }
     const std::string mods = ModsDir(title_id);
@@ -1385,8 +1402,9 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         a.installable = e.Installable();
         Manifest m;
         if (ReadManifest(LibraryDir(title_id) + e.id + "/", m)) {
-            a.active = m.active;
-            a.in_library = !m.active;
+            a.active = EffectiveActive(m.active, m.pending);
+            a.in_library = !a.active && m.pending != "remove";
+            a.pending = m.pending == "activate"; // AzaharFrame catalog3: downloaded, in when the game stops
         }
         out.push_back(std::move(a));
     }
@@ -1452,6 +1470,11 @@ RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id)
     if (mod_id.find('/') != std::string::npos || !ReadManifest(dir, m)) {
         return {false, "Mod not found"};
     }
+    // AzaharFrame catalog3: the running game's folders are never touched: the change waits for it to stop
+    if (title_id == running_title_.load() && (m.active || m.pending == "activate")) {
+        m.pending = m.active ? "deactivate" : ""; // staged and never applied: just drop the stage
+        return WriteManifest(dir, m) ? RemoveOutcome{} : RemoveOutcome{false, "Cannot write the manifest"};
+    }
     if (m.active) {
         auto r = RemoveFilesOf(title_id, m.files);
         if (!r.ok) {
@@ -1462,9 +1485,10 @@ RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id)
             return r;
         }
         m.active = false;
-        if (!WriteManifest(dir, m)) {
-            return {false, "Cannot write the manifest"};
-        }
+    }
+    m.pending.clear();
+    if (!WriteManifest(dir, m)) {
+        return {false, "Cannot write the manifest"};
     }
     return {};
 }
@@ -1500,6 +1524,15 @@ RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
     if (!r.ok || mod_id == kLegacyFixId) {
         return r;
     }
+    {
+        // AzaharFrame catalog3: files in the running game's folders go when it stops
+        Manifest m;
+        const std::string dir = LibraryDir(title_id) + mod_id + "/";
+        if (mod_id.find('/') == std::string::npos && ReadManifest(dir, m) && m.pending == "deactivate") {
+            m.pending = "remove";
+            return WriteManifest(dir, m) ? RemoveOutcome{} : RemoveOutcome{false, "Cannot write the manifest"};
+        }
+    }
     std::error_code ec;
     fs::remove_all(LibraryDir(title_id) + mod_id, ec);
     if (ec) {
@@ -1508,7 +1541,19 @@ RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
     return {};
 }
 
+// AzaharFrame catalog3: the whole install (download, joining, unpacking, MEGA decryption) runs on a thread
+// of its own at the lowest priority, so a game that is running is not slowed by it. bsdtar inherits it.
 InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool replace) {
+    InstallOutcome outcome;
+    std::thread worker([&] {
+        Multipart::LowerThisThreadPriority();
+        outcome = InstallImpl(title_id, mod_id, replace);
+    });
+    worker.join();
+    return outcome;
+}
+
+InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, bool replace) {
     CatalogEntry entry;
     {
         std::lock_guard lock{mutex_};
@@ -1555,7 +1600,14 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         std::lock_guard lock{mutex_};
         have = ReadManifest(dir, manifest);
     }
-    if (have && manifest.active) {
+    if (have && EffectiveActive(manifest.active, manifest.pending)) {
+        SetState(State::Phase::Done, mod_id, "");
+        return {InstallResult::AlreadyInstalled, {}};
+    }
+    if (have && manifest.active) { // AzaharFrame catalog3: it was going out when the game stops: it stays
+        std::lock_guard lock{mutex_};
+        manifest.pending.clear();
+        WriteManifest(dir, manifest);
         SetState(State::Phase::Done, mod_id, "");
         return {InstallResult::AlreadyInstalled, {}};
     }
@@ -1778,6 +1830,21 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         }
     }
 
+    // AzaharFrame catalog3: the running game's folders are not touched: the mod waits in the library
+    // (its files are already there) and goes in when the game stops or the title boots next
+    if (title_id == running_title_.load()) {
+        manifest.pending = "activate";
+        manifest.active = false;
+        if (!WriteManifest(dir, manifest)) {
+            return fail(InstallResult::Error, "Cannot write the manifest");
+        }
+        SetState(State::Phase::Done, mod_id, fmt::format("{} Downloaded", manifest.name));
+        InstallOutcome staged;
+        staged.staged = true;
+        staged.textures_installed = !manifest.texture_files.empty();
+        return staged;
+    }
+
     // Compose: copy the library files into the mods folder
     const std::string mods = ModsDir(title_id);
     std::vector<std::string> written;
@@ -1812,6 +1879,7 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         tex_written.push_back(rel);
     }
     manifest.active = true;
+    manifest.pending.clear();
     if (!WriteManifest(dir, manifest)) {
         RemoveFilesOf(title_id, written);
         RemoveTextureFiles(title_id, manifest.id, tex_written);
@@ -1860,7 +1928,7 @@ InstallOutcome Library::InstallFromLibrary(u64 title_id, const std::string& mod_
             self.busy_ = false;
         }
     } done{*this};
-    if (manifest.active) {
+    if (EffectiveActive(manifest.active, manifest.pending)) {
         SetState(State::Phase::Done, mod_id, "");
         return {InstallResult::AlreadyInstalled, {}};
     }
@@ -1949,6 +2017,70 @@ InstallOutcome Library::InstallLocal(u64 title_id, const std::string& id, const 
 }
 
 // ---------------------------------------------------------------------------------------------
+
+// AzaharFrame catalog3: changes that waited for a game to stop (or for its next boot): removals first,
+// then the staged mods go into mods/<TID>/ and load/textures/<TID>/<id>/. Not while that title runs.
+int Library::ApplyPending() {
+    {
+        std::lock_guard sl{state_mutex_};
+        if (busy_) {
+            return 0;
+        }
+    }
+    std::lock_guard lock{mutex_};
+    int applied = 0;
+    std::error_code ec;
+    const std::string root = load_dir_ + "mod-library/";
+    struct Item {
+        u64 tid;
+        std::string id;
+        std::string pending;
+    };
+    std::vector<Item> removals, activations;
+    for (fs::directory_iterator t(root, ec), end; !ec && t != end; t.increment(ec)) {
+        const std::string name = t->path().filename().string();
+        if (name.size() != 16 || !t->is_directory(ec) ||
+            !std::all_of(name.begin(), name.end(), [](char c) { return std::isxdigit(static_cast<unsigned char>(c)); })) {
+            continue;
+        }
+        const u64 tid = std::stoull(name, nullptr, 16);
+        if (tid == running_title_.load()) {
+            continue;
+        }
+        for (fs::directory_iterator m(t->path(), ec), mend; !ec && m != mend; m.increment(ec)) {
+            Manifest manifest;
+            if (!m->is_directory(ec) || !ReadManifest(m->path().string() + "/", manifest) || manifest.pending.empty()) {
+                continue;
+            }
+            (manifest.pending == "activate" ? activations : removals).push_back({tid, manifest.id, manifest.pending});
+        }
+    }
+    for (const auto& item : removals) {
+        auto r = DeactivateLocked(item.tid, item.id);
+        if (r.ok && item.pending == "remove") {
+            fs::remove_all(LibraryDir(item.tid) + item.id, ec);
+        }
+        applied += r.ok ? 1 : 0;
+    }
+    for (const auto& item : activations) {
+        Manifest manifest;
+        const std::string dir = LibraryDir(item.tid) + item.id + "/";
+        if (!ReadManifest(dir, manifest)) {
+            continue;
+        }
+        manifest.pending.clear();
+        manifest.active = false;
+        WriteManifest(dir, manifest);
+        // conflicts were settled when it was staged; anything still in the way is replaced
+        const auto result = ActivateLocked(item.tid, item.id, manifest, manifest.verified, true);
+        applied += result.result == InstallResult::Ok ? 1 : 0;
+    }
+    return applied;
+}
+
+void Library::SetRunningTitle(u64 title_id) {
+    running_title_ = title_id;
+}
 
 Library& Default() {
     static Library library(FileUtil::GetUserPath(FileUtil::UserPath::LoadDir));

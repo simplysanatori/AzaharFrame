@@ -9,7 +9,13 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <httplib.h>
+#ifdef __linux__
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 #include <fmt/format.h>
 #include "common/request_path.h"
 #include "core/mods/multipart.h"
@@ -277,6 +283,46 @@ std::string JoinParts(const std::vector<std::string>& parts, const std::string& 
         return FixSplitZip(out_path, sizes);
     }
     return {};
+}
+
+namespace {
+std::mutex g_priority_mutex;
+PriorityBackend g_priority;
+} // namespace
+
+PriorityBackend RealPriorityBackend() {
+    PriorityBackend b;
+#ifdef __linux__
+    b.thread_id = [] { return static_cast<int>(::syscall(SYS_gettid)); };
+    b.set_priority = [](int which, int who, int priority) {
+        return ::setpriority(static_cast<__priority_which_t>(which), static_cast<id_t>(who), priority);
+    };
+    b.set_io_priority = [](int which, int who, int ioprio) {
+        return static_cast<long>(::syscall(SYS_ioprio_set, which, who, ioprio));
+    };
+#else
+    b.thread_id = [] { return 0; };
+    b.set_priority = [](int, int, int) { return -1; };
+    b.set_io_priority = [](int, int, int) { return -1L; };
+#endif
+    return b;
+}
+
+void SetPriorityBackend(PriorityBackend backend) {
+    std::lock_guard lock{g_priority_mutex};
+    g_priority = std::move(backend);
+}
+
+bool LowerThisThreadPriority() {
+    PriorityBackend b;
+    {
+        std::lock_guard lock{g_priority_mutex};
+        b = g_priority.thread_id ? g_priority : RealPriorityBackend();
+    }
+    const int tid = b.thread_id();
+    const bool nice_ok = b.set_priority(kPrioProcess, tid, kLowNice) == 0;
+    const bool io_ok = b.set_io_priority(kIoprioWhoProcess, tid, kIoprioClassIdle << kIoprioClassShift) == 0;
+    return nice_ok && io_ok;
 }
 
 namespace {

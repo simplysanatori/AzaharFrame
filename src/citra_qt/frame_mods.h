@@ -63,6 +63,8 @@ public:
     /// AzaharFrame catalog3: turns Custom Textures on for the running game (GUI thread); true when it
     /// was off and now is on. Called after a mod with a textures part installs.
     void SetTexturesEnabler(std::function<bool()> enabler);
+    /// AzaharFrame catalog3: where short messages go (a toast in VR, the status bar in Flat).
+    void SetNotifier(std::function<void(const std::string&)> notifier);
 
     /// The in-game menu opened on this game (`run` counts the games started, so a restart of the
     /// same game clears the snackbar): read its mods and packs and publish them.
@@ -77,6 +79,7 @@ public:
 private:
     std::function<std::optional<u32>()> code_crc_source; // AzaharFrame modcat
     std::function<bool()> textures_enabler;              // AzaharFrame catalog3
+    std::function<void(const std::string&)> notifier;    // AzaharFrame catalog3
     std::map<std::string, u64> mod_sizes; ///< AzaharFrame catalog3: bytes a mod still has to download (0 unknown or here already)
     std::optional<u32> game_crc;
     bool game_crc_read = false;

@@ -492,6 +492,10 @@ void FrameMods::SetTexturesEnabler(std::function<bool()> enabler) {
     textures_enabler = std::move(enabler);
 }
 
+void FrameMods::SetNotifier(std::function<void(const std::string&)> n) {
+    notifier = std::move(n);
+}
+
 void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
     if (mods.busy || id.empty()) {
         return;
@@ -547,6 +551,10 @@ void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
                 // AzaharFrame catalog3: a textures part needs Custom Textures on for this game
                 if (out.textures_installed && textures_enabler && textures_enabler()) {
                     mods.notice = "Installed. Custom Textures turned on for this game.";
+                }
+                // the running game's folders are not touched: it is downloaded and goes in at the next start
+                if (out.staged && notifier) {
+                    notifier(name + " Downloaded. Restart to Enable.");
                 }
                 break;
             case Mods::InstallResult::AlreadyInstalled:

@@ -48,6 +48,28 @@ std::string JoinParts(const std::vector<std::string>& parts, const std::string& 
 std::string FixSplitZip(const std::string& joined_path, const std::vector<u64>& part_sizes);
 
 // ---------------------------------------------------------------------------------------------
+// Priority: downloads and unpacking never compete with a running game
+
+/// The system calls behind LowerThisThreadPriority (tests replace them).
+struct PriorityBackend {
+    std::function<int()> thread_id;
+    std::function<int(int which, int who, int priority)> set_priority;      // setpriority(2)
+    std::function<long(int which, int who, int ioprio)> set_io_priority;    // ioprio_set(2)
+};
+/// The real calls; the default.
+PriorityBackend RealPriorityBackend();
+/// Replaces the calls (an empty backend restores the real ones).
+void SetPriorityBackend(PriorityBackend backend);
+constexpr int kLowNice = 19;
+constexpr int kPrioProcess = 0;  // PRIO_PROCESS
+constexpr int kIoprioWhoProcess = 1;
+constexpr int kIoprioClassShift = 13;
+constexpr int kIoprioClassIdle = 3;
+/// Nice 19 and I/O priority class idle for the calling thread (on Linux both are per thread, and
+/// bsdtar started from the thread inherits them). True when both calls worked.
+bool LowerThisThreadPriority();
+
+// ---------------------------------------------------------------------------------------------
 // Download to a file
 
 struct FileReply {

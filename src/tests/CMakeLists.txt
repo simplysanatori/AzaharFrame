@@ -59,6 +59,7 @@ add_executable(tests
     core/mods_library.cpp # AzaharFrame moddata
     core/mods_mega.cpp # AzaharFrame mega
     core/mods_catalog3.cpp # AzaharFrame catalog3
+    core/mods_running.cpp # AzaharFrame catalog3
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     frame_xr/zip_install.cpp # AzaharFrame zipinstall

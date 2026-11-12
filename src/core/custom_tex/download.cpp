@@ -1675,6 +1675,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
 }
 
 void Downloader::Run(Entry entry, u64 title_id) {
+    Mods::Multipart::LowerThisThreadPriority(); // AzaharFrame catalog3: nice 19, idle I/O; bsdtar inherits
     std::error_code ec;
     live_updated_.clear();
     const fs::path dl_dir = fs::path(load_dir_) / "texture-downloads";
