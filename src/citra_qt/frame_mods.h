@@ -60,6 +60,9 @@ public:
     /// AzaharFrame modcat: how to read the CRC32 of the running game's .code (GUI thread), for mods
     /// made for one build of a game (Project Restoration); nullopt when it cannot be read.
     void SetCodeCrcSource(std::function<std::optional<u32>()> source);
+    /// AzaharFrame catalog3: turns Custom Textures on for the running game (GUI thread); true when it
+    /// was off and now is on. Called after a mod with a textures part installs.
+    void SetTexturesEnabler(std::function<bool()> enabler);
 
     /// The in-game menu opened on this game (`run` counts the games started, so a restart of the
     /// same game clears the snackbar): read its mods and packs and publish them.
@@ -73,10 +76,12 @@ public:
 
 private:
     std::function<std::optional<u32>()> code_crc_source; // AzaharFrame modcat
+    std::function<bool()> textures_enabler;              // AzaharFrame catalog3
+    std::map<std::string, u64> mod_sizes; ///< AzaharFrame catalog3: bytes a mod still has to download (0 unknown or here already)
     std::optional<u32> game_crc;
     bool game_crc_read = false;
     struct Pending {
-        enum class Kind { None, Install, Remove, Download, Delete } kind = Kind::None;
+        enum class Kind { None, Install, Remove, Download, Delete, BigInstall } kind = Kind::None;
         std::string id;
     };
 
@@ -84,7 +89,7 @@ private:
     void RefreshAvailable();
     void RefreshPacks();
     void ComputeSizes();
-    void Install(const std::string& id, bool replace);
+    void Install(const std::string& id, bool replace, bool confirmed = false);
     void Deactivate(const std::string& id);
     void Remove(const std::string& id);
     void SelectPack(const std::string& id);

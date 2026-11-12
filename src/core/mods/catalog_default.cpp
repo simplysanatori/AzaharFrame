@@ -65,7 +65,15 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Puts the whole game on one screen with no touch screen needed, adds quality-of-life changes and an HD font, for the USA, Europe and Japan versions. It replaces any other code patch for the game, such as Ocarina ReFramed. Its optional HD UI textures are not installed."
+      "textures": {
+        "rules": [
+          {
+            "from": "*/*/Emulator/load/textures/{tid}/",
+            "to": ""
+          }
+        ]
+      },
+      "notes": "Puts the whole game on one screen with no touch screen needed, adds quality-of-life changes and an HD font, for the USA, Europe and Japan versions. It replaces any other code patch for the game, such as Ocarina ReFramed. Its three optional HD UI textures are installed too."
     },
     {
       "id": "ocarina-reframed-single-screen",

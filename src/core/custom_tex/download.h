@@ -82,6 +82,8 @@ struct Entry {
     std::string author_url;
     Source source;
     std::vector<Source> alternates; // tried in order when `source` fails (quota, gone, not shared)
+    std::vector<Source> parts;      // AzaharFrame catalog3: "parts", downloaded in order, joined, unpacked as one
+    u64 downloads = 0;              // AzaharFrame catalog3: the source's lifetime download count, 0 unknown
     u64 size = 0;       // bytes, 0 unknown (an estimate; the real size comes from the host)
     std::string sha256; // lower-case hex, "" unknown
     std::string format; // "auto", "zip", "7z", "rar"
@@ -89,7 +91,8 @@ struct Entry {
     std::string folder; // the pack folder's base name
     std::string licence;
     std::string notes;
-    std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown)
+    std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown);
+                           // catalog3: the catalog's own value may be "YYYY-MM"
     bool verified = false; // AzaharFrame zipinstall: known to work (the menu's verified badge)
 
     bool ServesTitle(u64 title_id) const;
@@ -201,6 +204,7 @@ struct PackInfo {
     std::string updated;            // AzaharFrame zipinstall: "YYYY-MM-DD": the installed copy's
                                     // source date when it was downloaded, else the catalog's
     bool verified = false;          // AzaharFrame zipinstall: the catalog's "verified"
+    u64 downloads = 0;              // AzaharFrame catalog3: lifetime downloads (Entry::downloads), 0 unknown
 };
 
 struct State {
@@ -261,6 +265,8 @@ private:
     bool refreshing_ = false;
     std::atomic<u64> done_{0};
     std::atomic<u64> total_{0};
+    std::atomic<u64> parts_base_{0};  // AzaharFrame catalog3: bytes of the parts already fetched
+    std::atomic<u64> parts_total_{0}; // and what all the parts add up to (0 = not a multipart run)
     std::string live_updated_; // AzaharFrame zipinstall: the source's date (worker thread only)
 };
 

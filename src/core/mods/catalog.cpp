@@ -74,8 +74,9 @@ std::string Str(const nlohmann::json& j, const char* key) {
     return it != j.end() && it->is_string() ? it->get<std::string>() : std::string{};
 }
 
+// AzaharFrame catalog3: "YYYY-MM-DD" or "YYYY-MM" (the month the source was last updated)
 bool DateOk(std::string_view d) {
-    if (d.size() != 10 || d[4] != '-' || d[7] != '-') {
+    if ((d.size() != 10 && d.size() != 7) || d[4] != '-' || (d.size() == 10 && d[7] != '-')) {
         return false;
     }
     for (std::size_t i = 0; i < d.size(); ++i) {
@@ -83,53 +84,38 @@ bool DateOk(std::string_view d) {
             return false;
         }
     }
-    return true;
+    const int month = (d[5] - '0') * 10 + (d[6] - '0');
+    return month >= 1 && month <= 12;
 }
 
-// Throws std::string with the reason.
-CatalogEntry ParseEntry(const nlohmann::json& j) {
-    if (!j.is_object()) {
-        throw std::string("not an object");
+// AzaharFrame catalog3: install rules (also the "textures" block's)
+std::vector<Rule> ParseRules(const nlohmann::json& rules) {
+    std::vector<Rule> out;
+    if (!rules.is_array()) {
+        return out;
     }
-    CatalogEntry e;
-    e.id = Str(j, "id");
-    if (!IdOk(e.id)) {
-        throw std::string("bad id");
-    }
-    e.name = Str(j, "name");
-    if (e.name.empty()) {
-        throw std::string("no name");
-    }
-    e.title = Str(j, "title");
-    e.author = Str(j, "author");
-    e.licence = Str(j, "licence");
-    e.homepage = Str(j, "homepage");
-    e.notes = Str(j, "notes");
-    e.author_url = Str(j, "author_url"); // AzaharFrame modcat
-    if (!e.author_url.empty() && e.author_url.rfind("https://", 0) != 0) {
-        throw std::string("author_url is not https");
-    }
-    e.updated = Str(j, "updated");
-    if (!e.updated.empty() && !DateOk(e.updated)) {
-        e.updated.clear();
-    }
-    const auto ids = j.find("title_ids");
-    if (ids == j.end() || !ids->is_array() || ids->empty()) {
-        throw std::string("no title_ids");
-    }
-    for (const auto& id : *ids) {
-        const auto tid = id.is_string() ? ParseTid(id.get<std::string>()) : std::nullopt;
-        if (!tid) {
-            throw std::string("bad title ID");
+    for (const auto& r : rules) {
+        Rule rule{Str(r, "from"), Str(r, "to")};
+        if (rule.from.empty() || !SafeRelativePath(rule.from)) {
+            throw std::string("bad install rule");
         }
-        e.title_ids.push_back(*tid);
+        const auto to = SafeRelativePath(rule.to);
+        if (!to) {
+            throw std::string("bad install rule");
+        }
+        // keep the folder marker (trailing '/')
+        rule.to = to->empty() ? std::string{} : (rule.to.back() == '/' ? *to + "/" : *to);
+        out.push_back(std::move(rule));
     }
-    const auto src = j.find("source");
-    if (src == j.end() || !src->is_object()) {
-        throw std::string("no source");
-    }
+    return out;
+}
+
+// AzaharFrame catalog3: one source object (an entry's "source" or each of its "parts"). Throws
+// std::string with the reason.
+Source ParseSource(const nlohmann::json& src_json) {
+    const nlohmann::json* src = &src_json;
+    Source s;
     const std::string type = Str(*src, "type");
-    Source& s = e.source;
     if (type == "owner_repo_path") {
         s.type = Source::Type::OwnerRepoPath;
         s.repo = kOwnerRepo;
@@ -187,6 +173,58 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
             throw std::string("bad path");
         }
     }
+    return s;
+}
+
+// Throws std::string with the reason.
+CatalogEntry ParseEntry(const nlohmann::json& j) {
+    if (!j.is_object()) {
+        throw std::string("not an object");
+    }
+    CatalogEntry e;
+    e.id = Str(j, "id");
+    if (!IdOk(e.id)) {
+        throw std::string("bad id");
+    }
+    e.name = Str(j, "name");
+    if (e.name.empty()) {
+        throw std::string("no name");
+    }
+    e.title = Str(j, "title");
+    e.author = Str(j, "author");
+    e.licence = Str(j, "licence");
+    e.homepage = Str(j, "homepage");
+    e.notes = Str(j, "notes");
+    e.author_url = Str(j, "author_url"); // AzaharFrame modcat
+    if (!e.author_url.empty() && e.author_url.rfind("https://", 0) != 0) {
+        throw std::string("author_url is not https");
+    }
+    e.updated = Str(j, "updated");
+    if (!e.updated.empty() && !DateOk(e.updated)) {
+        e.updated.clear();
+    }
+    const auto ids = j.find("title_ids");
+    if (ids == j.end() || !ids->is_array() || ids->empty()) {
+        throw std::string("no title_ids");
+    }
+    for (const auto& id : *ids) {
+        const auto tid = id.is_string() ? ParseTid(id.get<std::string>()) : std::nullopt;
+        if (!tid) {
+            throw std::string("bad title ID");
+        }
+        e.title_ids.push_back(*tid);
+    }
+    const auto src = j.find("source");
+    const auto first_part = j.find("parts");
+    if (src != j.end() && src->is_object()) {
+        e.source = ParseSource(*src);
+    } else if (first_part != j.end() && first_part->is_array() && !first_part->empty() &&
+               (*first_part)[0].is_object()) {
+        e.source = ParseSource((*first_part)[0]); // parts only: the first part stands for the source
+    } else {
+        throw std::string("no source");
+    }
+    const Source& s = e.source;
     // Verified: the maintainer's own mods and the GameBanana mods the maintainer has played through
     // (AzaharFrame modcat); a GitHub release from a community author is never marked verified.
     e.verified = j.value("verified", false) &&
@@ -213,31 +251,41 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     }
     const auto install = j.find("install");
     if (install != j.end() && install->is_object()) {
-        const auto parse_rules = [](const nlohmann::json& rules) {
-            std::vector<Rule> out;
-            if (!rules.is_array()) {
-                return out;
-            }
-            for (const auto& r : rules) {
-                Rule rule{Str(r, "from"), Str(r, "to")};
-                if (rule.from.empty() || !SafeRelativePath(rule.from)) {
-                    throw std::string("bad install rule");
-                }
-                const auto to = SafeRelativePath(rule.to);
-                if (!to) {
-                    throw std::string("bad install rule");
-                }
-                // keep the folder marker (trailing '/')
-                rule.to = to->empty() ? std::string{}
-                                      : (rule.to.back() == '/' ? *to + "/" : *to);
-                out.push_back(std::move(rule));
-            }
-            return out;
-        };
         const auto rules = install->find("rules");
         if (rules != install->end()) {
-            e.rules = parse_rules(*rules);
+            e.rules = ParseRules(*rules);
         }
+    }
+    // AzaharFrame catalog3: textures that come with the mod, parts, lifetime downloads
+    const auto textures = j.find("textures");
+    if (textures != j.end() && textures->is_object()) {
+        const auto rules = textures->find("rules");
+        if (rules != textures->end()) {
+            e.texture_rules = ParseRules(*rules);
+        }
+        if (e.texture_rules.empty()) {
+            throw std::string("textures block without rules");
+        }
+    }
+    const auto parts = j.find("parts");
+    if (parts != j.end()) {
+        if (!parts->is_array() || parts->empty() || parts->size() > 40) {
+            throw std::string("bad parts");
+        }
+        for (const auto& part : *parts) {
+            if (!part.is_object()) {
+                throw std::string("bad parts");
+            }
+            e.parts.push_back(ParseSource(part));
+        }
+    }
+    const auto size = j.find("size");
+    if (size != j.end() && size->is_number_unsigned()) {
+        e.size = size->get<u64>();
+    }
+    const auto downloads = j.find("downloads");
+    if (downloads != j.end() && downloads->is_number_unsigned()) {
+        e.downloads = downloads->get<u64>();
     }
     return e;
 }
@@ -254,6 +302,9 @@ bool CatalogEntry::ServesTitle(u64 title_id) const {
 }
 
 bool CatalogEntry::Installable() const {
+    if (!parts.empty()) {
+        return !FindBsdtar().empty(); // AzaharFrame catalog3: parts are joined and unpacked by bsdtar
+    }
     if (source.type != Source::Type::GithubRelease && source.type != Source::Type::Gamebanana) {
         return true;
     }

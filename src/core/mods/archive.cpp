@@ -635,7 +635,7 @@ struct TempDir {
 std::string CheckListing(const std::string& tool, const std::string& archive, ArchiveKind kind,
                          std::size_t max_total, int timeout_seconds,
                          const std::atomic_bool* cancel = nullptr) {
-    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 16u * 1024 * 1024, cancel);
+    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 64u * 1024 * 1024, cancel);
     if (!names.started) {
         return (std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
     }
@@ -651,7 +651,7 @@ std::string CheckListing(const std::string& tool, const std::string& archive, Ar
     if (names.status != 0) {
         return ("The archive is damaged or not readable");
     }
-    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 32u * 1024 * 1024, cancel);
+    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 128u * 1024 * 1024, cancel);
     if (verbose.cancelled) {
         return "Cancelled";
     }
@@ -665,7 +665,10 @@ std::string CheckListing(const std::string& tool, const std::string& archive, Ar
         if (line.empty()) {
             continue;
         }
-        ++count;
+        // AzaharFrame catalog3: big translations hold 17,000 files; only a sane cap
+        if (++count > 200000) {
+            return ("The archive holds too many files");
+        }
         const auto safe = SafeRelativePath(line);
         if (!safe || (safe->empty() && line != "./")) {
             return ("The archive holds an unsafe file path");

@@ -39,6 +39,19 @@
 //   link's key is part of the link, which the author published. A zip is read in place, only the
 //   entries the install rules keep are downloaded.
 //
+// AzaharFrame catalog3, optional entry fields:
+//   "textures": {"rules": [{"from": "...", "to": "..."}]}   the mod also carries textures. Same rule
+//     syntax; "to" is relative to the game's texture folder, load/textures/<TID>/, and the part installs
+//     under the entry's own subfolder: load/textures/<TID>/<entry id>/<to...> (so it can be removed on
+//     its own; removing the mod removes both parts). Custom Textures is turned on
+//     for the game by the install.
+//   "parts": [source, source, ...]   in place of "source" (when both are there, parts wins): several downloads,
+//     in order, joined and unpacked as one archive (multi-volume RAR, split 7z, split zip). Each part
+//     is any source type, usually gamebanana with a file_pattern.
+//   "size": 1234567890     bytes to download (all parts); a mod over 1 GB asks before it downloads
+//   "downloads": 12345      the source's lifetime download count (catalog-refresh.py keeps it)
+//   "updated": "2026-11"    "YYYY-MM" is accepted as well as "YYYY-MM-DD"
+//
 // Optional entry fields (AzaharFrame modcat):
 //   "author_url": "https://gamebanana.com/members/1544353"   what the author's name opens
 //   "updated": "2026-11-12"                                   shown until the source's own date is known
@@ -95,10 +108,14 @@ struct CatalogEntry {
     std::string licence;
     std::string homepage;
     std::string author_url; // AzaharFrame modcat
-    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD" or ""
+    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD" or ""; catalog3: also "YYYY-MM"
+    u64 size = 0;           // AzaharFrame catalog3: bytes to download (all parts), 0 unknown; over 1 GB the menu asks first
+    u64 downloads = 0;      // AzaharFrame catalog3: the source's lifetime download count, 0 unknown
     bool verified = false;
     Source source;
     std::vector<Rule> rules;
+    std::vector<Rule> texture_rules; // AzaharFrame catalog3: "textures": {"rules": [...]}, empty = none
+    std::vector<Source> parts;       // AzaharFrame catalog3: "parts": downloaded in order, joined, unpacked as one
     std::string chip;     // AzaharFrame modcat: "1.0", "Card 1.1", "Fallback" ("" none)
     std::string chip_tip; // its tooltip
     std::vector<u32> code_crc32; // the game code CRC32s it was made for

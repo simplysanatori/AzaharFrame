@@ -336,7 +336,8 @@ private:
     void DrawTextures(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
     /// The snackbar "Restart the Game to Apply" at the bottom of `area`; returns where a list
     /// over it must end.
-    float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area);
+    float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                              const std::string& text = {}); // AzaharFrame catalog3: "" = Restart the Game to Apply
     void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,

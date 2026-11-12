@@ -25,6 +25,10 @@ namespace {
 constexpr std::size_t kMaxApi = 4 * 1024 * 1024;
 constexpr std::size_t kMaxAsset = 128u * 1024 * 1024;
 constexpr std::size_t kMaxFiles = 400;
+// AzaharFrame catalog3: a big download goes to disk (no memory cap); the unpacked total and file count
+// have only a safety cap
+constexpr u64 kMaxExtracted = 20ull << 30;
+constexpr const char* kUnscanned = "GameBanana Hasn't Scanned This File Yet";
 constexpr const char* kLegacyMarker = "code.ips.developer";
 
 std::vector<std::string> Split(std::string_view path) {
@@ -263,38 +267,49 @@ std::string UnmanagedItem(const std::string& rel) {
 // ---------------------------------------------------------------------------------------------
 // Layout
 
+namespace {
+// The rules' answer for one path ("" = no rule matched); `rules` is not empty.
+std::string ApplyRules(const std::vector<std::string>& parts, const std::vector<Rule>& rules, u64 title_id) {
+    for (const Rule& rule : rules) {
+        const bool is_dir = rule.from.back() == '/';
+        const auto pattern = Split(rule.from);
+        if (is_dir ? parts.size() <= pattern.size() : parts.size() != pattern.size()) {
+            continue;
+        }
+        bool match = true;
+        for (std::size_t i = 0; i < pattern.size() && match; ++i) {
+            match = PartMatches(pattern[i], parts[i], title_id);
+        }
+        if (!match) {
+            continue;
+        }
+        if (is_dir) {
+            return rule.to + Join(parts, pattern.size());
+        }
+        return rule.to.empty() ? std::string{} : (rule.to.back() == '/' ? rule.to + parts.back() : rule.to);
+    }
+    return {};
+}
+} // namespace
+
 std::string MapPath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id) {
     const auto parts = Split(archive_path);
     if (parts.empty() || std::find(parts.begin(), parts.end(), "..") != parts.end()) {
         return {};
     }
-    std::string mapped;
-    if (rules.empty()) {
-        mapped = AutoMap(parts, title_id);
-    } else {
-        for (const Rule& rule : rules) {
-            const bool is_dir = rule.from.back() == '/';
-            const auto pattern = Split(rule.from);
-            if (is_dir ? parts.size() <= pattern.size() : parts.size() != pattern.size()) {
-                continue;
-            }
-            bool match = true;
-            for (std::size_t i = 0; i < pattern.size() && match; ++i) {
-                match = PartMatches(pattern[i], parts[i], title_id);
-            }
-            if (!match) {
-                continue;
-            }
-            if (is_dir) {
-                mapped = rule.to + Join(parts, pattern.size());
-            } else {
-                mapped = rule.to.empty() ? std::string{}
-                                         : (rule.to.back() == '/' ? rule.to + parts.back() : rule.to);
-            }
-            break;
-        }
-    }
+    const std::string mapped = rules.empty() ? AutoMap(parts, title_id) : ApplyRules(parts, rules, title_id);
     return IsModPath(mapped) ? mapped : std::string{};
+}
+
+// AzaharFrame catalog3: the "textures" block's rules; no layout detection, no rules = nothing.
+std::string MapTexturePath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id) {
+    const auto parts = Split(archive_path);
+    if (rules.empty() || parts.empty() || std::find(parts.begin(), parts.end(), "..") != parts.end()) {
+        return {};
+    }
+    const std::string mapped = ApplyRules(parts, rules, title_id);
+    const auto safe = SafeRelativePath(mapped);
+    return safe ? *safe : std::string{};
 }
 
 bool IsModPath(std::string_view rel) {
@@ -369,6 +384,7 @@ struct Library::Manifest {
     bool verified = false;
     bool active = false;
     std::vector<std::string> files;
+    std::vector<std::string> texture_files; // AzaharFrame catalog3: relative to load/textures/<TID>/<id>/
 };
 
 Library::Library(std::string load_dir, Catalog catalog, Transport transport)
@@ -415,6 +431,16 @@ bool Library::ReadManifest(const std::string& dir, Manifest& m) const {
             }
             m.files.push_back(rel);
         }
+        m.texture_files.clear();
+        if (j.contains("texture_files")) { // AzaharFrame catalog3
+            for (const auto& f : j.at("texture_files")) {
+                const auto rel = SafeRelativePath(f.get<std::string>());
+                if (!rel || rel->empty()) {
+                    return false;
+                }
+                m.texture_files.push_back(*rel);
+            }
+        }
         return !m.id.empty() && !m.name.empty();
     } catch (const std::exception&) {
         return false;
@@ -433,6 +459,9 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     j["verified"] = m.verified;
     j["active"] = m.active;
     j["files"] = m.files;
+    if (!m.texture_files.empty()) {
+        j["texture_files"] = m.texture_files;
+    }
     return WriteFile(dir + "manifest.json", j.dump(2) + "\n");
 }
 
@@ -501,6 +530,9 @@ void Library::RefreshCatalogOnce() {
 // One GET with redirects followed to GitHub's own hosts only.
 std::string ShortFailure(std::string_view e) {
     const auto has = [&](std::string_view needle) { return e.find(needle) != std::string_view::npos; };
+    if (e.rfind("Not Enough Space", 0) == 0 || e == kUnscanned) { // AzaharFrame catalog3
+        return std::string(e); // "Not Enough Space: Needs 4.6 GB Free", "GameBanana Hasn't Scanned This File Yet"
+    }
     if (has("rate limit")) {
         return "Rate Limited";
     }
@@ -596,9 +628,9 @@ bool Library::DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<
             return false;
         }
         error.clear();
-        if (resolved->size > kMaxAsset) {
-            error = "Download too large";
-            return false;
+        if (resolved->size > kMaxAsset) { // AzaharFrame catalog3: to disk
+            std::string version;
+            return DownloadBig(entry, title_id, version, error);
         }
         SetProgress(0, resolved->size);
         remote.on_progress = [this, total = resolved->size](u64 done) { SetProgress(done, total); };
@@ -632,9 +664,9 @@ bool Library::DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<
         error = "Nothing in the download fits this game";
         return false;
     }
-    if (total > kMaxMegaTotal) {
-        error = "Download too large";
-        return false;
+    if (total > kMaxMegaTotal) { // AzaharFrame catalog3: the whole file to disk
+        std::string version;
+        return DownloadBig(entry, title_id, version, error);
     }
     SetProgress(0, total);
     const u64 base = remote.BytesFetched(); // the central directory was counted already
@@ -650,9 +682,305 @@ bool Library::DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<
     return true;
 }
 
+// ---------------------------------------------------------------------------------------------
+// AzaharFrame catalog3: multipart downloads
+
+std::string Library::WorkDir(const std::string& mod_id) const {
+    return fmt::format("{}mod-downloads/{}/", load_dir_, mod_id);
+}
+
+// One GET into a file with redirects followed to the allowed hosts only.
+bool Library::FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
+                          std::string& error) {
+    std::string current = url;
+    for (int hop = 0; hop < 6; ++hop) {
+        std::string host, path;
+        if (!SplitUrl(current, host, path) || !HostAllowed(host)) {
+            error = "Download refused: not an allowed address";
+            return false;
+        }
+        const auto reply = file_transport_(host, path, dest, &cancel_, progress);
+        if ((reply.status == 301 || reply.status == 302 || reply.status == 303 || reply.status == 307 ||
+             reply.status == 308) &&
+            reply.error.empty()) {
+            if (reply.location.empty()) {
+                error = "Bad redirect";
+                return false;
+            }
+            current = reply.location.front() == '/' ? host + reply.location : reply.location;
+            continue;
+        }
+        if (reply.status == 0 || !reply.error.empty()) {
+            error = reply.error.empty() ? "No reply" : reply.error;
+            return false;
+        }
+        if (reply.status != 200) {
+            error = reply.status == 404 ? "Not found" : fmt::format("Server returned {}", reply.status);
+            return false;
+        }
+        return true;
+    }
+    error = "Too many redirects";
+    return false;
+}
+
+namespace {
+struct PartRef {
+    std::string url;  // https, the file
+    std::string name;
+    u64 size = 0;     // 0 unknown
+    bool mega = false;
+    Mega::Resolved mega_file;
+};
+} // namespace
+
+// AzaharFrame catalog3: a single download too big for memory goes through the multipart path as one
+// part: to disk, space checked, unpacked into a folder (big_root_, which Install maps from).
+bool Library::DownloadBig(const CatalogEntry& entry, u64 title_id, std::string& version, std::string& error) {
+    CatalogEntry copy = entry;
+    copy.parts = {entry.source};
+    big_root_.clear();
+    if (!DownloadParts(copy, title_id, big_root_, version, error)) {
+        big_root_.clear();
+        return false;
+    }
+    return true;
+}
+
+bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string& root, std::string& version,
+                            std::string& error) {
+    (void)title_id;
+    const std::string work = WorkDir(entry.id);
+    std::error_code ec;
+    fs::remove_all(work, ec);
+    fs::create_directories(work, ec);
+    if (ec) {
+        error = "Cannot write the download folder";
+        return false;
+    }
+    SetState(State::Phase::Resolving, entry.id, fmt::format("Looking Up {}", entry.name));
+    const std::string api = "https://api.github.com";
+    const std::string raw = "https://raw.githubusercontent.com";
+
+    // 1. Where each part is, and how big
+    std::vector<PartRef> refs;
+    for (const Source& s : entry.parts) {
+        if (cancel_) {
+            error = "Cancelled";
+            return false;
+        }
+        PartRef ref;
+        HttpReply reply;
+        if (s.type == Source::Type::GithubRelease) {
+            const std::string path = fmt::format("{}/repos/{}/releases/{}", api, s.repo,
+                                                 s.tag == "latest" ? "latest" : "tags/" + UrlEncodePath(s.tag));
+            if (!Fetch(path, kMaxApi, reply, error)) {
+                return false;
+            }
+            if (reply.status != 200) {
+                error = reply.status == 404 ? "No release found" : fmt::format("Server returned {}", reply.status);
+                return false;
+            }
+            try {
+                const auto j = nlohmann::json::parse(reply.body);
+                if (version.empty()) {
+                    version = j.value("tag_name", "");
+                }
+                for (const auto& a : j.at("assets")) {
+                    if (GlobMatch(s.asset_pattern, a.value("name", ""))) {
+                        ref.name = a.value("name", "");
+                        ref.url = a.value("browser_download_url", "");
+                        ref.size = a.value("size", static_cast<u64>(0));
+                        break;
+                    }
+                }
+            } catch (const std::exception&) {
+                error = "Release information not readable";
+                return false;
+            }
+            if (ref.url.empty()) {
+                error = "No matching file in the release";
+                return false;
+            }
+        } else if (s.type == Source::Type::Gamebanana) {
+            if (!Fetch(fmt::format("https://gamebanana.com/apiv11/Mod/{}/ProfilePage", s.gb_mod), kMaxApi, reply,
+                       error)) {
+                return false;
+            }
+            if (reply.status != 200) {
+                error = reply.status == 404 ? "Mod not found" : fmt::format("Server returned {}", reply.status);
+                return false;
+            }
+            bool unscanned = false;
+            try {
+                const auto j = nlohmann::json::parse(reply.body);
+                if (j.value("_bIsTrashed", false) || j.value("_bIsWithheld", false) ||
+                    j.value("_bIsPrivate", false)) {
+                    error = "Mod not found";
+                    return false;
+                }
+                if (version.empty()) {
+                    version = j.value("_sVersion", "");
+                }
+                long long newest = -1;
+                for (const auto& f : j.at("_aFiles")) {
+                    const auto name = f.value("_sFile", "");
+                    const std::string av = f.value("_sAvResult", "");
+                    if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name)) {
+                        continue;
+                    }
+                    if (av == "unknown") {
+                        unscanned = true; // refused, and the error says why
+                        continue;
+                    }
+                    if (av != "clean") {
+                        continue;
+                    }
+                    const long long added = f.value("_tsDateAdded", 0LL);
+                    if (added > newest) {
+                        newest = added;
+                        ref.name = name;
+                        ref.url = f.value("_sDownloadUrl", "");
+                        ref.size = f.value("_nFilesize", static_cast<u64>(0));
+                    }
+                }
+            } catch (const std::exception&) {
+                error = "Mod information not readable";
+                return false;
+            }
+            if (ref.url.empty()) {
+                error = unscanned ? kUnscanned : "No matching file in the mod";
+                return false;
+            }
+        } else if (s.type == Source::Type::Mega) {
+            const auto link = Mega::ParseLink(s.mega_link);
+            const auto resolved = link ? Mega::Resolve(mega_net_, *link, s.asset_pattern, &error) : std::nullopt;
+            if (!resolved) {
+                if (error.empty()) {
+                    error = Mega::kNotFound;
+                }
+                return false;
+            }
+            ref.mega = true;
+            ref.mega_file = *resolved;
+            ref.name = resolved->name;
+            ref.size = resolved->size;
+        } else { // a file of a repository
+            if (s.path.empty() || s.path.back() == '/') {
+                error = "A part must be one file";
+                return false;
+            }
+            ref.name = BaseName(s.path);
+            ref.url = fmt::format("{}/{}/{}/{}", raw, s.repo, UrlEncodePath(s.ref), UrlEncodePath(s.path));
+        }
+        refs.push_back(std::move(ref));
+    }
+
+    // 2. Room for the parts, the unpacked files and a margin: (parts + unpacked) x 1.1
+    u64 parts_total = 0;
+    for (const auto& r : refs) {
+        parts_total += r.size;
+    }
+    u64 free_bytes = 0;
+    if (free_space_(work, &free_bytes)) {
+        if (const auto problem = Multipart::SpaceError(parts_total, parts_total, free_bytes); !problem.empty()) {
+            error = problem;
+            return false;
+        }
+    }
+
+    // 3. Download every part, each once more when it fails
+    SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
+    SetProgress(0, parts_total);
+    std::vector<std::string> files;
+    u64 base = 0;
+    for (std::size_t i = 0; i < refs.size(); ++i) {
+        const PartRef& ref = refs[i];
+        const std::string dest = fmt::format("{}part{:03}", work, i + 1);
+        const auto progress = [this, base, parts_total](u64 done, u64) { SetProgress(base + done, parts_total); };
+        bool ok = false;
+        std::string why;
+        for (int attempt = 0; attempt < 2 && !ok; ++attempt) {
+            if (cancel_) {
+                error = "Cancelled";
+                return false;
+            }
+            fs::remove(dest, ec);
+            if (ref.mega) {
+                Mega::RemoteFile remote(mega_net_, ref.mega_file, &cancel_);
+                remote.on_progress = [&](u64 fetched) { SetProgress(base + fetched, parts_total); };
+                std::ofstream out(dest, std::ios::binary | std::ios::trunc);
+                constexpr u64 kChunk = 8ull * 1024 * 1024;
+                std::string chunk;
+                ok = static_cast<bool>(out);
+                for (u64 at = 0; ok && at < ref.mega_file.size; at += kChunk) {
+                    ok = remote.Read(at, kChunk, chunk, why);
+                    if (ok) {
+                        out.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+                        ok = static_cast<bool>(out);
+                        if (!ok) {
+                            why = "Not Enough Space: the disk is full";
+                        }
+                    }
+                }
+            } else {
+                ok = FetchToFile(ref.url, dest, progress, why);
+            }
+            if (!ok && why == "Cancelled") {
+                error = why;
+                return false;
+            }
+            if (!ok) {
+                LOG_WARNING(Frontend, "Mods: part {} of {} failed: {}{}", i + 1, entry.id, why,
+                            attempt == 0 ? "; retrying" : "");
+            }
+        }
+        if (!ok) {
+            error = why;
+            return false;
+        }
+        if (ref.size != 0 && static_cast<u64>(fs::file_size(dest, ec)) != ref.size) {
+            error = "Download incomplete (the size is not the one listed)";
+            return false;
+        }
+        base += ref.size != 0 ? ref.size : static_cast<u64>(fs::file_size(dest, ec));
+        files.push_back(dest);
+    }
+
+    // 4. One archive, then unpacked
+    SetState(State::Phase::Extracting, entry.id, fmt::format("Unpacking {}", entry.name));
+    const std::string joined = work + "joined.bin";
+    if (const auto problem = Multipart::JoinParts(files, joined, &cancel_); !problem.empty()) {
+        error = problem;
+        return false;
+    }
+    for (const auto& f : files) {
+        fs::remove(f, ec);
+    }
+    std::string head(16, '\0');
+    {
+        std::ifstream in(joined, std::ios::binary);
+        in.read(head.data(), static_cast<std::streamsize>(head.size()));
+        head.resize(static_cast<std::size_t>(in.gcount()));
+    }
+    const ArchiveKind kind = DetectArchive(head);
+    if (kind == ArchiveKind::Unknown) {
+        error = "The parts are not a zip, 7z or rar archive";
+        return false;
+    }
+    const std::string out_dir = work + "out";
+    const std::string problem = ExtractFileToDir(joined, kind, out_dir, kMaxExtracted, 7200, &cancel_);
+    if (!problem.empty()) {
+        error = problem;
+        return false;
+    }
+    fs::remove(joined, ec);
+    root = out_dir;
+    return true;
+}
+
 bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                              std::string& version, std::string& error) {
-    (void)title_id;
     const Source& s = entry.source;
     HttpReply reply;
     const std::string api = "https://api.github.com";
@@ -670,6 +998,7 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
             return false;
         }
         std::string url, asset_name;
+        u64 asset_size = 0;
         try {
             const auto j = nlohmann::json::parse(reply.body);
             version = j.value("tag_name", "");
@@ -678,6 +1007,7 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
                 if (GlobMatch(s.asset_pattern, name)) {
                     asset_name = name;
                     url = a.value("browser_download_url", "");
+                    asset_size = a.value("size", static_cast<u64>(0));
                     break;
                 }
             }
@@ -688,6 +1018,9 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
         if (url.empty()) {
             error = "No matching file in the release";
             return false;
+        }
+        if (asset_size > kMaxAsset) { // AzaharFrame catalog3: too big for memory: to disk
+            return DownloadBig(entry, title_id, version, error);
         }
         SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
         if (!Fetch(url, kMaxAsset, reply, error)) {
@@ -728,6 +1061,7 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
         }
         std::string url, asset_name;
         std::size_t size = 0;
+        bool unscanned = false;
         try {
             const auto j = nlohmann::json::parse(reply.body);
             if (j.value("_bIsTrashed", false) || j.value("_bIsWithheld", false) ||
@@ -740,8 +1074,14 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
             for (const auto& f : j.at("_aFiles")) {
                 const auto name = f.value("_sFile", "");
                 // The newest file of the mod that matches, that GameBanana's scan found clean
-                if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name) ||
-                    f.value("_sAvResult", "") != "clean") {
+                if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name)) {
+                    continue;
+                }
+                if (f.value("_sAvResult", "") == "unknown") {
+                    unscanned = true; // AzaharFrame catalog3: refused, and the error says why
+                    continue;
+                }
+                if (f.value("_sAvResult", "") != "clean") {
                     continue;
                 }
                 const long long added = f.value("_tsDateAdded", 0LL);
@@ -760,8 +1100,11 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
             return false;
         }
         if (url.empty()) {
-            error = "No matching file in the mod";
+            error = unscanned ? kUnscanned : "No matching file in the mod";
             return false;
+        }
+        if (size > kMaxAsset) { // AzaharFrame catalog3: too big for memory: to disk
+            return DownloadBig(entry, title_id, version, error);
         }
         SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
         if (!Fetch(url, kMaxAsset, reply, error)) {
@@ -952,6 +1295,7 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
             info.managed = true;
             info.state = m.active ? ModState::Active : ModState::Inactive;
             info.files = m.files;
+            info.texture_files = m.texture_files; // AzaharFrame catalog3
             if (m.active) {
                 owned.insert(m.files.begin(), m.files.end());
             }
@@ -1034,6 +1378,10 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         const auto date = dates_.find(e.id);
         a.updated = date != dates_.end() && !date->second.empty() ? date->second : e.updated;
         a.verified = e.verified;
+        a.downloads = e.downloads;                  // AzaharFrame catalog3
+        a.size = e.size;
+        a.has_textures = !e.texture_rules.empty();
+        a.multipart = !e.parts.empty();
         a.installable = e.Installable();
         Manifest m;
         if (ReadManifest(LibraryDir(title_id) + e.id + "/", m)) {
@@ -1071,6 +1419,30 @@ RemoveOutcome Library::RemoveFilesOf(u64 title_id, const std::vector<std::string
     return {};
 }
 
+std::string Library::TexturesDir(u64 title_id, const std::string& mod_id) const {
+    return fmt::format("{}textures/{}/{}/", load_dir_, TitleIdText(title_id), mod_id);
+}
+
+// AzaharFrame catalog3: takes a mod's textures part out of load/textures/<TID>/<id>/ (only the files it
+// wrote, then the empty folders).
+RemoveOutcome Library::RemoveTextureFiles(u64 title_id, const std::string& mod_id,
+                                          const std::vector<std::string>& files) {
+    if (files.empty()) {
+        return {};
+    }
+    const std::string dir = TexturesDir(title_id, mod_id);
+    const std::string stop = fmt::format("{}textures/{}/", load_dir_, TitleIdText(title_id));
+    std::error_code ec;
+    for (const auto& rel : files) {
+        fs::remove(dir + rel, ec);
+        if (ec) {
+            return {false, "Cannot delete " + rel};
+        }
+        PruneEmptyParents(stop, fs::path(dir + rel).parent_path());
+    }
+    return {};
+}
+
 RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id) {
     if (mod_id == kLegacyFixId) {
         return RemoveFilesOf(title_id, {"code.ips", kLegacyMarker});
@@ -1082,6 +1454,10 @@ RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id)
     }
     if (m.active) {
         auto r = RemoveFilesOf(title_id, m.files);
+        if (!r.ok) {
+            return r;
+        }
+        r = RemoveTextureFiles(title_id, m.id, m.texture_files); // AzaharFrame catalog3
         if (!r.ok) {
             return r;
         }
@@ -1185,20 +1561,71 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
     }
 
     if (!have) {
+        // AzaharFrame catalog3: the files come from memory (one download) or from a folder on disk
+        // (multipart); the same mapping puts them in the library either way.
         std::vector<ArchiveFile> archive;
-        std::string version, error;
-        if (!DownloadSource(entry, title_id, archive, version, error)) {
-            return fail(InstallResult::Error, error);
+        std::string version, error, root;
+        std::string work;
+        struct Cleanup {
+            std::string path;
+            ~Cleanup() {
+                if (!path.empty()) {
+                    std::error_code e;
+                    fs::remove_all(path, e);
+                }
+            }
+        } cleanup;
+        std::vector<std::string> paths;
+        big_root_.clear();
+        work = WorkDir(entry.id);
+        cleanup.path = work;
+        if (!entry.parts.empty()) {
+            if (!DownloadParts(entry, title_id, root, version, error)) {
+                return fail(InstallResult::Error, error);
+            }
+        } else {
+            if (!DownloadSource(entry, title_id, archive, version, error)) {
+                return fail(InstallResult::Error, error);
+            }
+            root = big_root_; // a download too big for memory was unpacked to disk
         }
-        auto mapped = MapArchive(archive, entry.rules, title_id);
-        archive.clear();
-        if (mapped.files.empty()) {
+        if (!root.empty()) {
+            for (const auto& f : ScanFiles(root)) {
+                paths.push_back(f);
+            }
+        } else {
+            for (const auto& f : archive) {
+                paths.push_back(f.path);
+            }
+        }
+        // target path -> index in `paths` (the later of two files with one target wins)
+        std::map<std::string, std::size_t> mod_targets, tex_targets;
+        for (std::size_t i = 0; i < paths.size(); ++i) {
+            const std::string target = MapPath(paths[i], entry.rules, title_id);
+            if (!target.empty()) {
+                mod_targets[target] = i;
+            }
+            const std::string tex = MapTexturePath(paths[i], entry.texture_rules, title_id);
+            if (!tex.empty()) {
+                tex_targets[tex] = i;
+            }
+        }
+        if (mod_targets.empty() && tex_targets.empty()) {
             return fail(InstallResult::Error, "Nothing in the download fits this game");
         }
-        for (const auto& f : mapped.files) {
-            const std::string base = BaseName(f.path);
-            if ((base == "code.ips" && f.data.compare(0, 5, "PATCH") != 0) ||
-                (base == "code.bps" && f.data.compare(0, 4, "BPS1") != 0)) {
+        const auto head_of = [&](std::size_t i, std::size_t n) {
+            if (root.empty()) {
+                return archive[i].data.substr(0, n);
+            }
+            std::ifstream in(fs::path(root) / paths[i], std::ios::binary);
+            std::string h(n, '\0');
+            in.read(h.data(), static_cast<std::streamsize>(n));
+            h.resize(static_cast<std::size_t>(in.gcount()));
+            return h;
+        };
+        for (const auto& [target, i] : mod_targets) {
+            const std::string base = BaseName(target);
+            if ((base == "code.ips" && head_of(i, 5) != "PATCH") || (base == "code.bps" && head_of(i, 4) != "BPS1")) {
                 return fail(InstallResult::Error, "Not a valid code patch");
             }
         }
@@ -1218,10 +1645,39 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
                                                                     : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
         manifest.active = false;
+        // one file into the library: from memory, or moved from the folder (copied when both parts
+        // want the same file)
+        std::set<std::size_t> wanted_twice;
+        for (const auto& [t, i] : mod_targets) {
+            for (const auto& [t2, i2] : tex_targets) {
+                if (i == i2) {
+                    wanted_twice.insert(i);
+                }
+            }
+        }
+        const auto put = [&](const std::string& dest, std::size_t i) {
+            if (root.empty()) {
+                return WriteFile(dest, archive[i].data);
+            }
+            fs::create_directories(fs::path(dest).parent_path(), ec);
+            if (wanted_twice.count(i) == 0) {
+                fs::rename(fs::path(root) / paths[i], dest, ec);
+                if (!ec) {
+                    return true;
+                }
+                ec.clear();
+            }
+            fs::copy_file(fs::path(root) / paths[i], dest, fs::copy_options::overwrite_existing, ec);
+            return !ec;
+        };
         bool ok = true;
-        for (const auto& f : mapped.files) {
-            manifest.files.push_back(f.path);
-            ok = ok && WriteFile(dir + "files/" + f.path, f.data);
+        for (const auto& [target, i] : mod_targets) {
+            manifest.files.push_back(target);
+            ok = ok && put(dir + "files/" + target, i);
+        }
+        for (const auto& [target, i] : tex_targets) {
+            manifest.texture_files.push_back(target);
+            ok = ok && put(dir + "tex/" + target, i);
         }
         if (!ok || !WriteManifest(dir, manifest)) {
             fs::remove_all(dir, ec);
@@ -1254,10 +1710,20 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         for (const auto& f : m.files) {
             taken.emplace(ConflictKey(f), std::make_pair(&m, f));
         }
+        for (const auto& f : m.texture_files) { // AzaharFrame catalog3: two texture parts, one file
+            taken.emplace("tex:" + f, std::make_pair(&m, f));
+        }
     }
     std::vector<const ModInfo*> clashes;
+    std::vector<std::string> mine_keys; // AzaharFrame catalog3: this mod's keys, mod files then textures
     for (const auto& f : manifest.files) {
-        const auto it = taken.find(ConflictKey(f));
+        mine_keys.push_back(ConflictKey(f));
+    }
+    for (const auto& f : manifest.texture_files) {
+        mine_keys.push_back("tex:" + f);
+    }
+    for (const auto& key : mine_keys) {
+        const auto it = taken.find(key);
         if (it == taken.end()) {
             continue;
         }
@@ -1290,14 +1756,15 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
             o.conflict_name = report->name;
             o.conflict_unmanaged = unmanaged;
             for (const auto& f : report->files) {
-                for (const auto& mine : manifest.files) {
-                    if (ConflictKey(f) == ConflictKey(mine)) {
-                        o.conflict_path = f;
-                        break;
-                    }
-                }
-                if (!o.conflict_path.empty()) {
+                if (std::find(mine_keys.begin(), mine_keys.end(), ConflictKey(f)) != mine_keys.end()) {
+                    o.conflict_path = f;
                     break;
+                }
+            }
+            for (const auto& f : report->texture_files) {
+                if (o.conflict_path.empty() &&
+                    std::find(mine_keys.begin(), mine_keys.end(), "tex:" + f) != mine_keys.end()) {
+                    o.conflict_path = "textures/" + f;
                 }
             }
             SetState(State::Phase::Failed, mod_id, "Install failed: " + o.error);
@@ -1324,13 +1791,36 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         }
         written.push_back(rel);
     }
+    // AzaharFrame catalog3: the textures part, into load/textures/<TID>/<id>/ (a hard link of the
+    // library copy when the file system allows it: a texture part can be large)
+    const std::string tex_dir = TexturesDir(title_id, manifest.id);
+    std::vector<std::string> tex_written;
+    for (const auto& rel : manifest.texture_files) {
+        fs::create_directories(fs::path(tex_dir + rel).parent_path(), ec);
+        fs::remove(tex_dir + rel, ec);
+        ec.clear();
+        fs::create_hard_link(dir + "tex/" + rel, tex_dir + rel, ec);
+        if (ec) {
+            ec.clear();
+            fs::copy_file(dir + "tex/" + rel, tex_dir + rel, fs::copy_options::overwrite_existing, ec);
+        }
+        if (ec) {
+            RemoveFilesOf(title_id, written);
+            RemoveTextureFiles(title_id, manifest.id, tex_written);
+            return fail(InstallResult::Error, "Cannot copy " + rel);
+        }
+        tex_written.push_back(rel);
+    }
     manifest.active = true;
     if (!WriteManifest(dir, manifest)) {
         RemoveFilesOf(title_id, written);
+        RemoveTextureFiles(title_id, manifest.id, tex_written);
         return fail(InstallResult::Error, "Cannot write the manifest");
     }
     SetState(State::Phase::Done, mod_id, fmt::format("{} Installed", manifest.name));
-    return {};
+    InstallOutcome ok;
+    ok.textures_installed = !manifest.texture_files.empty();
+    return ok;
 }
 
 // AzaharFrame zipinstall: Install from Zip's mods (core/mods/zip_install.h)
