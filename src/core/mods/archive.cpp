@@ -594,10 +594,35 @@ RunResult Run(const std::string& tool, const std::vector<std::string>& args, int
 }
 #endif
 
+// AzaharFrame integ3: bsdtar keeps an archive's modes (less the umask), and a folder stored
+// read-only (r-x, as some Windows-made 7z and RAR files have them) cannot be emptied, so the
+// temporary folder stayed behind and an unpacked pack could not be deleted. Every folder and file
+// under `dir` is made the owner's to read and write (folders also to enter), top down.
+void OwnerWritable(const std::string& dir) {
+    std::error_code ec;
+    constexpr auto kDir = fs::perms::owner_all;
+    constexpr auto kFile = fs::perms::owner_read | fs::perms::owner_write;
+    fs::permissions(dir, kDir, fs::perm_options::add, ec);
+    for (fs::recursive_directory_iterator it(dir, fs::directory_options::none, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        const auto st = it->symlink_status(ec);
+        if (ec) {
+            break;
+        }
+        if (fs::is_directory(st)) {
+            fs::permissions(it->path(), kDir, fs::perm_options::add, ec); // before it is entered
+        } else if (fs::is_regular_file(st)) {
+            fs::permissions(it->path(), kFile, fs::perm_options::add, ec);
+        }
+        ec.clear();
+    }
+}
+
 struct TempDir {
     std::string path;
     ~TempDir() {
         if (!path.empty()) {
+            OwnerWritable(path);
             std::error_code ec;
             fs::remove_all(path, ec);
         }
@@ -751,6 +776,7 @@ ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::s
     // 2. Extract with no owner or mode from the archive.
     const auto ex = Run(tool, {"-xf", archive, "-C", out_dir, "--no-same-owner", "--no-same-permissions"},
                         timeout_seconds, 1024 * 1024);
+    OwnerWritable(out_dir); // AzaharFrame integ3: read-only folders from the archive
     if (ex.timed_out) {
         return fail("Unpacking took too long");
     }
@@ -824,6 +850,7 @@ std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, 
     }
     const auto ex = Run(tool, {"-xf", archive_path, "-C", out_dir, "--no-same-owner", "--no-same-permissions"},
                         timeout_seconds, 1024 * 1024, cancel);
+    OwnerWritable(out_dir); // AzaharFrame integ3: the pack can be deleted again
     if (ex.cancelled) {
         return "Cancelled";
     }

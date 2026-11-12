@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <map>
 #include <optional>
+#include <set> // AzaharFrame integ3
 #include <tuple>
 #include <catch2/catch_test_macros.hpp>
 #include "core/mods/library.h"
@@ -416,6 +417,40 @@ TEST_CASE("Mods: 7z through bsdtar", "[mods]") {
         for (const auto& e : fs::directory_iterator(fs::temp_directory_path())) {
             REQUIRE(e.path().filename().string().rfind("azahar-mod-", 0) != 0);
         }
+    }
+    // AzaharFrame integ3: a folder stored read-only (as some Windows-made archives have them) once
+    // left the temporary folder behind and made an unpacked pack impossible to delete.
+    SECTION("a read-only folder in the archive leaves nothing behind") {
+        const auto ours = [] {
+            std::set<std::string> names;
+            for (const auto& e : fs::directory_iterator(fs::temp_directory_path())) {
+                const std::string n = e.path().filename().string();
+                if (n.rfind("azahar-mod-", 0) == 0) {
+                    names.insert(n);
+                }
+            }
+            return names;
+        };
+        fs::create_directories(dir + "ro/locked");
+        std::ofstream(dir + "ro/locked/a.bin", std::ios::binary) << "a";
+        fs::permissions(dir + "ro/locked", fs::perms::owner_read | fs::perms::owner_exec,
+                        fs::perm_options::replace);
+        const bool made = make("bsdtar -czf ro.tgz -C ro ."); // tar keeps the mode (7z does not)
+        fs::permissions(dir + "ro/locked", fs::perms::owner_all, fs::perm_options::replace);
+        REQUIRE(made);
+        const auto before = ours();
+        const auto r = ExtractWithBsdtar(Read(dir + "ro.tgz"), ArchiveKind::SevenZip);
+        INFO(r.error);
+        REQUIRE(r.error.empty());
+        REQUIRE(r.files.size() == 1);
+        CHECK(r.files[0].path == "locked/a.bin");
+        CHECK(ours() == before); // its temporary folder is gone (other runs' are left alone)
+        const std::string out = dir + "ro-out";
+        REQUIRE(ExtractFileToDir(dir + "ro.tgz", ArchiveKind::SevenZip, out, 1 << 20, 60).empty());
+        std::error_code ec;
+        fs::remove_all(out, ec);
+        CHECK_FALSE(ec);
+        CHECK_FALSE(fs::exists(out));
     }
     SECTION("zip-slip and absolute paths are refused before anything is written") {
         std::ofstream(dir + "a") << "evil";
