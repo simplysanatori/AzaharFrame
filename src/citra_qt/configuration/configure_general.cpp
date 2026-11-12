@@ -306,7 +306,9 @@ void ConfigureGeneral::SetupPerGameUI() {
         ConfigurationShared::SetHighlight(ui->widget_screenshot, index == 1);
     });
 
-    ui->turbo_limit->setVisible(false);
+    // AzaharFrame integ3: the whole Turbo Speed Limit row (upstream hid only the slider, which
+    // left its label bare); it stays a global setting, as upstream has it
+    ui->turbo_limit_layout->setVisible(false);
     ui->general_group->setVisible(false);
     ui->button_reset_defaults->setVisible(false);
     ui->toggle_gamemode->setVisible(false);
