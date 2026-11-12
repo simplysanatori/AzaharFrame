@@ -9,3 +9,5 @@
 /(?:lib|plugins)/.*\.so[^/]*$	/home/qt/work/\S*
 /(?:lib|plugins)/.*\.so[^/]*$	-----BEGIN (?:RSA |DSA |EC |ENCRYPTED )?PRIVATE KEY-----
 /(?:lib|plugins)/.*\.so[^/]*$	\((?:USA|Europe)\) (?:Inc|Ltd|GmbH|SA|AB|BV)\b
+# ICU's licence text (bundled with Qt) names third-party authors with their e-mail addresses in its copyright notices.
+(?:^|/)(?:steam-frame/portable/)?licenses/ICU-LICENSE\.txt$	[\w.+-]+@[\w.-]+

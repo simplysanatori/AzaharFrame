@@ -31,8 +31,7 @@ Libraries = lib
 Plugins = plugins
 CONF
 
-# The plugins: platforms (xcb for the Xwayland session and Game Mode, wayland for the desktop, offscreen and
-# minimal for tests), their GL and shell integrations, image formats, icon engines, input contexts, themes
+# The plugins: platforms (xcb for the Xwayland session and Game Mode, wayland for the desktop, offscreen for the tests), their GL and shell integrations, image formats, icon engines, input contexts, themes
 # that need only D-Bus, network information and TLS.
 echo "== plugins"
 for d in platforms xcbglintegrations wayland-shell-integration wayland-graphics-integration-client \
@@ -85,6 +84,13 @@ while :; do
 done
 
 if [ -n "${SDL_PREFIX:-}" ] && [ -d "$SDL_PREFIX/licenses" ]; then mkdir -p "$OUT/licenses"; cp "$SDL_PREFIX"/licenses/* "$OUT/licenses/"; fi
+# The licence texts of what the Qt Company's tree ships without them: Qt (LGPL-3.0, and GPL-3.0 for the modules that
+# are GPL-only) and ICU (the Unicode licence).  Kept in this folder, so that they do not depend on the build image.
+mkdir -p "$OUT/licenses"
+for f in Qt-LGPL-3.0.txt Qt-GPL-3.0.txt ICU-LICENSE.txt; do
+    [ -f "$HERE/licenses/$f" ] || { echo "missing licence text: $HERE/licenses/$f"; exit 1; }
+    cp "$HERE/licenses/$f" "$OUT/licenses/$f"
+done
 
 # RUNPATH: libraries find their neighbours in lib/, plugins two folders up.  Qt's own libraries are
 # built with $ORIGIN-relative paths already; whatever else is not gets one.  (No strip after this: strip
