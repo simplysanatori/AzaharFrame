@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -484,24 +485,63 @@ std::string GamepadKey(const InputCommon::SDLPadInfo& info) {
 
 namespace {
 
-template <typename Keep>
-std::vector<MouseInfo> ParseMice(const std::string& text, Keep keep) {
-    std::vector<MouseInfo> out;
+// AzaharFrame mouse: the kernel prints a capability bitmap as unsigned longs in hex, the
+// highest word first, leading zero words left out. Every kernel this runs on is 64-bit.
+constexpr int kProcBitsPerWord = 64;
+
+bool ProcBit(const std::string& words, int bit) {
+    std::vector<std::string> list;
+    std::istringstream in(words);
+    std::string w;
+    while (in >> w) {
+        list.push_back(w);
+    }
+    const std::size_t index = static_cast<std::size_t>(bit / kProcBitsPerWord);
+    if (index >= list.size()) {
+        return false;
+    }
+    const std::string& word = list[list.size() - 1 - index];
+    const unsigned long long v = std::strtoull(word.c_str(), nullptr, 16);
+    return ((v >> (bit % kProcBitsPerWord)) & 1ULL) != 0;
+}
+
+// Linux's input-event-codes.h, kept here so the parser builds (and is tested) anywhere.
+constexpr int kEvRel = 0x02;
+constexpr int kEvLed = 0x11;
+constexpr int kRelX = 0x00;
+constexpr int kRelY = 0x01;
+constexpr int kBtnLeft = 0x110;
+
+struct ProcNode {
+    MouseInfo info;
+    std::string phys;
+    std::string uniq;
+    std::string ev, key, rel;
+    bool mouse_handler = false;
+};
+
+std::vector<ProcNode> ParseProcNodes(const std::string& text) {
+    std::vector<ProcNode> out;
     std::istringstream in(text);
     std::string line;
-    MouseInfo cur;
-    bool mouse_handler = false;
-    bool rel_xy = false;
+    ProcNode cur;
     bool any = false;
     const auto finish = [&] {
-        if (any && mouse_handler && rel_xy && keep(cur)) {
+        if (any) {
             out.push_back(cur);
         }
         cur = {};
-        mouse_handler = rel_xy = any = false;
+        any = false;
+    };
+    const auto value = [&line](std::size_t from) {
+        std::string v = line.substr(std::min(from, line.size()));
+        while (!v.empty() && (v.back() == ' ' || v.back() == '\r')) {
+            v.pop_back();
+        }
+        return v;
     };
     while (std::getline(in, line)) {
-        if (line.empty()) {
+        if (line.empty() || line == "\r") {
             finish();
             continue;
         }
@@ -519,50 +559,176 @@ std::vector<MouseInfo> ParseMice(const std::string& text, Keep keep) {
             field("Bus=", bus);
             field("Vendor=", vendor);
             field("Product=", product);
-            cur.bus = static_cast<uint16_t>(bus);
-            cur.vendor = static_cast<uint16_t>(vendor);
-            cur.product = static_cast<uint16_t>(product);
+            cur.info.bus = static_cast<uint16_t>(bus);
+            cur.info.vendor = static_cast<uint16_t>(vendor);
+            cur.info.product = static_cast<uint16_t>(product);
         } else if (line.rfind("N: Name=", 0) == 0) {
-            std::string name = line.substr(8);
+            std::string name = value(8);
             if (name.size() >= 2 && name.front() == '"' && name.back() == '"') {
                 name = name.substr(1, name.size() - 2);
             }
-            cur.name = name;
+            cur.info.name = name;
+        } else if (line.rfind("P: Phys=", 0) == 0) {
+            cur.phys = value(8);
+        } else if (line.rfind("U: Uniq=", 0) == 0) {
+            cur.uniq = value(8);
         } else if (line.rfind("H: Handlers=", 0) == 0) {
             std::istringstream words(line.substr(12));
             std::string w;
             while (words >> w) {
                 if (w.rfind("mouse", 0) == 0) {
-                    mouse_handler = true;
+                    cur.mouse_handler = true;
                 } else if (w.rfind("event", 0) == 0) {
-                    cur.event = w;
+                    cur.info.event = w;
                 }
             }
+        } else if (line.rfind("B: EV=", 0) == 0) {
+            cur.ev = value(6);
+        } else if (line.rfind("B: KEY=", 0) == 0) {
+            cur.key = value(7);
         } else if (line.rfind("B: REL=", 0) == 0) {
-            // REL_X is bit 0, REL_Y bit 1 of the last (lowest) word.
-            const std::string bits = line.substr(7);
-            const std::size_t sp = bits.find_last_of(' ');
-            const std::string low = sp == std::string::npos ? bits : bits.substr(sp + 1);
-            const unsigned long v = std::strtoul(low.c_str(), nullptr, 16);
-            rel_xy = (v & 0x3) == 0x3;
+            cur.rel = value(7);
         }
     }
     finish();
     return out;
 }
 
+// The physical device a node belongs to: its bus, ids and Bluetooth address (Uniq), else its
+// Phys without the interface ("usb-xhci-hcd.0-1/input1" -> "usb-xhci-hcd.0-1"). Never logged.
+std::string GroupOf(const ProcNode& n) {
+    std::string where = n.uniq;
+    if (where.empty()) {
+        where = n.phys;
+        const std::size_t slash = where.rfind("/input");
+        if (slash != std::string::npos) {
+            where.resize(slash);
+        }
+    }
+    char ids[32];
+    std::snprintf(ids, sizeof(ids), "%04x:%04x:%04x:", n.info.bus, n.info.vendor,
+                  n.info.product);
+    return ids + where;
+}
+
+bool IsRelayNode(const ProcNode& n) {
+    return n.info.bus == 0x06 && n.info.name.rfind("frametop virtual mouse", 0) == 0;
+}
+
 } // namespace
 
+const char* MouseVerdictText(MouseVerdict verdict) {
+    switch (verdict) {
+    case MouseVerdict::Mouse:
+        return "a mouse";
+    case MouseVerdict::Companion:
+        return "a keyboard's mouse interface: used once it moves";
+    case MouseVerdict::Relay:
+        return "Frametop's relay mouse";
+    case MouseVerdict::Valve:
+        return "ignored: Valve's own";
+    case MouseVerdict::NoMotion:
+        return "ignored: no relative X and Y";
+    case MouseVerdict::NoButton:
+        return "ignored: no left button";
+    }
+    return "";
+}
+
+const char* BusName(uint16_t bus) {
+    switch (bus) {
+    case 0x03:
+        return "USB";
+    case 0x05:
+        return "Bluetooth";
+    case 0x06:
+        return "virtual";
+    case 0x18:
+        return "I2C";
+    default:
+        return "other bus";
+    }
+}
+
+std::vector<MouseCandidate> ClassifyInputDevices(const std::string& text) {
+    const std::vector<ProcNode> nodes = ParseProcNodes(text);
+    // A group with a keyboard that has LEDs (Caps Lock): its mouse node is that keyboard's (a
+    // Keychron's "Mouse" interface, for its mouse keys), not a mouse in the hand. A mouse's own
+    // keyboard node (Logitech's, for its programmable buttons) has no LEDs.
+    std::vector<std::string> keyboard_groups;
+    for (const ProcNode& n : nodes) {
+        if (ProcBit(n.ev, kEvLed)) {
+            keyboard_groups.push_back(GroupOf(n));
+        }
+    }
+    std::vector<MouseCandidate> out;
+    for (const ProcNode& n : nodes) {
+        const bool rel_any = !n.rel.empty() && n.rel.find_first_not_of("0 ") != std::string::npos;
+        const bool rel_xy = ProcBit(n.rel, kRelX) && ProcBit(n.rel, kRelY);
+        const bool left = ProcBit(n.key, kBtnLeft);
+        const std::string lower = [&] {
+            std::string s = n.info.name;
+            std::transform(s.begin(), s.end(), s.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return s;
+        }();
+        // Only nodes that look like a pointer at all are reported (and logged).
+        if (!rel_any && !left && !n.mouse_handler && lower.find("mouse") == std::string::npos) {
+            continue;
+        }
+        MouseCandidate c;
+        c.info = n.info;
+        c.info.group = GroupOf(n);
+        if (IsRelayNode(n)) {
+            c.verdict = rel_xy ? MouseVerdict::Relay : MouseVerdict::NoMotion;
+        } else if (n.info.vendor == kValveVendor) {
+            c.verdict = MouseVerdict::Valve;
+        } else if (!rel_xy) {
+            c.verdict = MouseVerdict::NoMotion;
+        } else if (!left) {
+            c.verdict = MouseVerdict::NoButton;
+        } else if (std::find(keyboard_groups.begin(), keyboard_groups.end(), c.info.group) !=
+                   keyboard_groups.end()) {
+            c.verdict = MouseVerdict::Companion;
+            c.info.companion = true;
+        } else {
+            c.verdict = MouseVerdict::Mouse;
+        }
+        out.push_back(std::move(c));
+    }
+    return out;
+}
+
 std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
-    return ParseMice(text, [](const MouseInfo& m) {
-        return (m.bus == 0x03 || m.bus == 0x05) && m.vendor != kValveVendor;
-    });
+    std::vector<MouseInfo> out;
+    for (const MouseCandidate& c : ClassifyInputDevices(text)) {
+        if (c.verdict == MouseVerdict::Mouse || c.verdict == MouseVerdict::Companion) {
+            out.push_back(c.info);
+        }
+    }
+    return out;
 }
 
 std::vector<MouseInfo> ParseRelayMice(const std::string& text) {
-    return ParseMice(text, [](const MouseInfo& m) {
-        return m.bus == 0x06 && m.name.rfind("frametop virtual mouse", 0) == 0;
-    });
+    std::vector<MouseInfo> out;
+    for (const MouseCandidate& c : ClassifyInputDevices(text)) {
+        if (c.verdict == MouseVerdict::Relay) {
+            out.push_back(c.info);
+        }
+    }
+    return out;
+}
+
+std::vector<MouseInfo> UsableMice(const std::vector<MouseInfo>& candidates,
+                                  const std::vector<std::string>& moved_groups) {
+    std::vector<MouseInfo> out;
+    for (const MouseInfo& m : candidates) {
+        if (!m.companion || std::find(moved_groups.begin(), moved_groups.end(), m.group) !=
+                                moved_groups.end()) {
+            out.push_back(m);
+        }
+    }
+    return out;
 }
 
 // ---- EchoGuard ----------------------------------------------------------------------------
@@ -956,7 +1122,7 @@ std::vector<DeviceInfo> GamepadHub::Devices(int64_t now_ns) {
         out.push_back(std::move(d));
     }
     if (!mice_read_ || now_ns - mice_read_ns_ >= 2'000'000'000 || now_ns < mice_read_ns_) {
-        std::vector<MouseInfo> mice = ParseInputDevices(source_.InputDevices());
+        std::vector<MouseInfo> mice = source_.Mice(); // AzaharFrame mouse
         const bool changed =
             mice.size() != mice_.size() ||
             !std::equal(mice.begin(), mice.end(), mice_.begin(), [](const auto& a, const auto& b) {

@@ -210,6 +210,7 @@ TEST_CASE("Mouse: the hub keeps its mapping, listens, switches the mode", "[fram
     src.devices = "I: Bus=0003 Vendor=046d Product=c077 Version=0111\n"
                   "N: Name=\"Logitech USB Optical Mouse\"\n"
                   "H: Handlers=mouse0 event7\n"
+                  "B: KEY=70000 0 0 0 0\n"
                   "B: REL=903\n\n"
                   "I: Bus=0006 Vendor=4d44 Product=0001 Version=0001\n"
                   "N: Name=\"frametop virtual mouse\"\n"
@@ -618,4 +619,209 @@ TEST_CASE("Touch: the newest press owns the one touch until it lifts", "[frame_x
     REQUIRE(r.event_count == 1);
     CHECK(r.events[0].type == TouchEventType::Pressed);
     CHECK(t.owner() == TouchSource::Cursor);
+}
+
+// AzaharFrame mouse: detection by capabilities, from a Frame's /proc/bus/input/devices with a
+// Keychron Q1 Pro and a Logitech MX Master 3 paired over Bluetooth (addresses made up).
+namespace {
+
+const char* const kFrameDevices = R"(I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="pmic_pwrkey"
+P: Phys=pmic_pwrkey/input0
+S: Sysfs=/devices/platform/soc@0/c400000.spmi/spmi-0/0-00/c400000.spmi:pmic@0:pon@1300/c400000.spmi:pmic@0:pon@1300:pwrkey/input/input0
+U: Uniq=
+H: Handlers=kbd event0 qcom_pon_combo_timer_listener 
+B: PROP=0
+B: EV=3
+B: KEY=10000000000000 0
+
+I: Bus=0018 Vendor=0000 Product=0000 Version=0000
+N: Name="als31300"
+P: Phys=
+S: Sysfs=/devices/platform/soc@0/ac0000.geniqup/a90000.i2c/i2c-8/8-006c/input/input2
+U: Uniq=
+H: Handlers=js0 event2 
+B: PROP=0
+B: EV=9
+B: ABS=10000000007
+
+I: Bus=0005 Vendor=3434 Product=0610 Version=0132
+N: Name="Keychron Q1 Pro Keyboard"
+P: Phys=00:11:22:33:44:55
+S: Sysfs=/devices/virtual/misc/uhid/0005:3434:0610.0001/input/input60
+U: Uniq=aa:aa:aa:00:00:01
+H: Handlers=sysrq kbd leds event5 qcom_pon_combo_timer_listener 
+B: PROP=0
+B: EV=12001f
+B: KEY=3f00733fff 0 0 483ffff17aff32d bfd4444600000000 1 130ff38b17d007 ffff7bfad9415fff ffbeffdfffefffff fffffffffffffffe
+B: REL=1040
+B: ABS=100000000
+B: MSC=10
+B: LED=1f
+
+I: Bus=0005 Vendor=3434 Product=0610 Version=0132
+N: Name="Keychron Q1 Pro Mouse"
+P: Phys=00:11:22:33:44:55
+S: Sysfs=/devices/virtual/misc/uhid/0005:3434:0610.0001/input/input61
+U: Uniq=aa:aa:aa:00:00:01
+H: Handlers=event6 qcom_pon_combo_timer_listener 
+B: PROP=0
+B: EV=17
+B: KEY=1f0000 0 0 0 0
+B: REL=1943
+B: MSC=10
+
+I: Bus=0005 Vendor=046d Product=b023 Version=0015
+N: Name="MX Master 3 Keyboard"
+P: Phys=00:11:22:33:44:55
+S: Sysfs=/devices/virtual/misc/uhid/0005:046D:B023.0003/input/input65
+U: Uniq=bb:bb:bb:00:00:02
+H: Handlers=sysrq kbd event7 qcom_pon_combo_timer_listener 
+B: PROP=0
+B: EV=100013
+B: KEY=1000000000007 ff800000000007ff febeffdfffefffff fffffffffffffffe
+B: MSC=10
+
+I: Bus=0005 Vendor=046d Product=b023 Version=0015
+N: Name="MX Master 3 Mouse"
+P: Phys=00:11:22:33:44:55
+S: Sysfs=/devices/virtual/misc/uhid/0005:046D:B023.0003/input/input66
+U: Uniq=bb:bb:bb:00:00:02
+H: Handlers=event8 qcom_pon_combo_timer_listener 
+B: PROP=0
+B: EV=17
+B: KEY=ffff0000 0 0 0 0
+B: REL=1943
+B: MSC=10
+)";
+
+// The same Frame with only the keyboard: the Keychron's mouse node alone.
+std::string KeychronOnly() {
+    const std::string all = kFrameDevices;
+    return all.substr(0, all.find("I: Bus=0005 Vendor=046d"));
+}
+
+} // namespace
+
+TEST_CASE("Mouse: a Bluetooth mouse with no mouse handler is found", "[frame_xr]") {
+    const std::vector<MouseCandidate> all = ClassifyInputDevices(kFrameDevices);
+    // The keyboard (relative wheels only), its mouse node, the MX Master's mouse node; the
+    // power key, the sensor and the MX Master's keyboard node are not pointers at all.
+    REQUIRE(all.size() == 3);
+    CHECK(all[0].info.name == "Keychron Q1 Pro Keyboard");
+    CHECK(all[0].verdict == MouseVerdict::NoMotion);
+    CHECK(all[1].info.name == "Keychron Q1 Pro Mouse");
+    CHECK(all[1].verdict == MouseVerdict::Companion);
+    CHECK(all[2].info.name == "MX Master 3 Mouse");
+    CHECK(all[2].verdict == MouseVerdict::Mouse);
+    CHECK(std::string{MouseVerdictText(all[2].verdict)} == "a mouse");
+
+    const std::vector<MouseInfo> mice = ParseInputDevices(kFrameDevices);
+    REQUIRE(mice.size() == 2);
+    CHECK(mice[0].companion);
+    CHECK(mice[0].event == "event6");
+    CHECK_FALSE(mice[1].companion);
+    CHECK(mice[1].event == "event8");
+    CHECK(mice[1].bus == 0x05);
+    CHECK(mice[1].vendor == 0x046d);
+    CHECK(mice[1].product == 0xb023);
+    CHECK(std::string{BusName(mice[1].bus)} == "Bluetooth");
+    CHECK(mice[0].group != mice[1].group);
+    CHECK(ParseRelayMice(kFrameDevices).empty());
+
+    // Only the MX Master counts until the Keychron's node moves.
+    std::vector<MouseInfo> usable = UsableMice(mice, {});
+    REQUIRE(usable.size() == 1);
+    CHECK(usable[0].name == "MX Master 3 Mouse");
+    usable = UsableMice(mice, {mice[0].group});
+    CHECK(usable.size() == 2);
+}
+
+TEST_CASE("Mouse: a keyboard's mouse node is no mouse until it moves", "[frame_xr]") {
+    MouseSource src;
+    src.devices = KeychronOnly();
+    const std::vector<MouseInfo> mice = ParseInputDevices(src.devices);
+    REQUIRE(mice.size() == 1);
+    CHECK(mice[0].companion);
+    // The default source has no motion to go by: no Mouse in the list.
+    CHECK(src.Mice().empty());
+    std::string saved;
+    GamepadHub hub(src, {[&] { return saved; }, [&](const std::string& t) {
+                             saved = t;
+                             return true;
+                         }});
+    for (const DeviceInfo& d : hub.Devices(0)) {
+        CHECK(d.kind != DeviceKind::Mouse);
+    }
+    // With the MX Master paired too, the Mouse shows under its name.
+    src.devices = kFrameDevices;
+    const std::vector<DeviceInfo> list = hub.Devices(2'000'000'000);
+    REQUIRE(list.size() == 2);
+    CHECK(list[1].kind == DeviceKind::Mouse);
+    CHECK(list[1].name == "MX Master 3 Mouse");
+    CHECK(list[1].vendor == 0x046d);
+}
+
+TEST_CASE("Mouse: capability bitmaps and other buses", "[frame_xr]") {
+    // A USB receiver's mouse (no LEDs anywhere in its group), a touchpad, Valve's, a mouse with
+    // no buttons, Frametop's relay, a pointer on another bus.
+    const std::string text = R"(I: Bus=0003 Vendor=046d Product=c52b Version=0111
+N: Name="Logitech USB Receiver Mouse"
+P: Phys=usb-xhci-hcd.1-1/input2
+U: Uniq=
+H: Handlers=event9
+B: EV=17
+B: KEY=ffff0000 0 0 0 0
+B: REL=1943
+
+I: Bus=0018 Vendor=06cb Product=7e7e Version=0100
+N: Name="SYNA Touchpad"
+H: Handlers=event10 mouse3
+B: EV=b
+B: KEY=e520 10000 0 0 0 0
+B: ABS=260800000000003
+
+I: Bus=0003 Vendor=28de Product=1205 Version=0111
+N: Name="Valve Software Steam Deck Mouse"
+H: Handlers=event11 mouse1
+B: EV=17
+B: KEY=70000 0 0 0 0
+B: REL=903
+
+I: Bus=0003 Vendor=1234 Product=0001 Version=0001
+N: Name="Wheel Only Mouse"
+H: Handlers=event12
+B: EV=7
+B: REL=3
+
+I: Bus=0006 Vendor=4d44 Product=0001 Version=0001
+N: Name="frametop virtual mouse"
+H: Handlers=event13
+B: EV=7
+B: KEY=1f0000 0 0 0 0
+B: REL=1943
+
+I: Bus=001d Vendor=1209 Product=0002 Version=0001
+N: Name="Trackball"
+H: Handlers=event14
+B: EV=7
+B: KEY=30000 0 0 0 0
+B: REL=3
+)";
+    const std::vector<MouseCandidate> all = ClassifyInputDevices(text);
+    REQUIRE(all.size() == 6);
+    CHECK(all[0].verdict == MouseVerdict::Mouse);
+    CHECK(all[1].verdict == MouseVerdict::NoMotion); // the touchpad: absolute
+    CHECK(all[2].verdict == MouseVerdict::Valve);
+    CHECK(all[3].verdict == MouseVerdict::NoButton);
+    CHECK(all[4].verdict == MouseVerdict::Relay);
+    CHECK(all[5].verdict == MouseVerdict::Mouse);
+    const std::vector<MouseInfo> mice = ParseInputDevices(text);
+    REQUIRE(mice.size() == 2);
+    CHECK(mice[0].event == "event9");
+    CHECK(mice[1].name == "Trackball");
+    const std::vector<MouseInfo> relay = ParseRelayMice(text);
+    REQUIRE(relay.size() == 1);
+    CHECK(relay[0].event == "event13");
+    CHECK(ClassifyInputDevices("").empty());
 }
