@@ -25,9 +25,11 @@ public:
     /// virtual pad (frame_xr/input/devices.h).
     /// AzaharFrame padsui: `mouse` (the hub's PollMouse of this frame) in Bottom Screen mode
     /// moves its cursor and touches; its buttons join with the gamepads'.
+    /// AzaharFrame mouse: `reticle` (Bottom Screen Reticle) touches through the same pipeline.
     const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels,
                                 const InputFrame* gamepads = nullptr,
-                                const MouseFrame* mouse = nullptr);
+                                const MouseFrame* mouse = nullptr,
+                                const ReticleSample* reticle = nullptr);
 
     /// Releases every button, centres the sticks and lifts a touch in progress. Call when the
     /// game ends, the session loses focus, or the picker takes over.

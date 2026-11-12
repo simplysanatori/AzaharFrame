@@ -377,3 +377,15 @@ With Frametop installed: Frametop's input relay grabs a mouse to drive its own 3
 **Every device at once.** The Frame controllers, every gamepad and the mouse feed the game together: their 3DS buttons press the Frame controls the profile gives those 3DS buttons, ORed, and of two sticks the one pushed further wins. Edit Controls' device row only chooses which device's mapping is edited; each device but the Frame Controllers has Use This Device (`use=0` when off: it reaches nothing). A dot on a device's chip shows it is connected (hollow when not used). The 3DS has one touch: the newest press of the beams, a touchpad or the mouse owns it until it lifts, and a source still down after losing it touches again only after a new press.
 
 Tests: `src/tests/frame_xr/mouse.cpp`, `gamepads.cpp` (every device in one frame), Edit Controls' in `src/tests/frame_xr/remap.cpp`.
+
+## Bottom Screen Reticle (AzaharFrame mouse)
+
+Controls tab, under Touchpad Touch: Off, Left Controller, Right Controller (`vr_bottom_screen_reticle`, global, 0, 1, 2). The chosen controller aims a point on the bottom screen the way a stylus would, without pointing at the bottom screen: for the reticle of Kid Icarus: Uprising. In a game with the menu closed:
+
+- **Aim is absolute, with edge drift.** The controller's yaw and pitch from a reference direction map onto the screen, which fills a cone 30 degrees wide and 22.5 high at Cursor Speed Normal (the mouse's Cursor Speed narrows or widens it: 15 degrees divided by 0.5 to 2). Where it points first is the middle. Pointed past an edge, the reference comes along and the point stays on the edge, so turning back moves it at once: nothing to clutch.
+- **Its trigger touches** at the point (pressed above 0.55, let go below 0.40); held, it drags. The trigger is then neither ZL/ZR nor a beam touch. It touches whether the bottom screen is shown or hidden; the dot shows on a shown one. It shares the one touch with the beams, the touchpads and the mouse (the newest press owns it).
+- **Its grip re-zeroes** (the middle where it points now) and grabs nothing while the reticle is on; the other controller still grabs. Recenter (SteamVR's, or the right stick click held 1 s) re-zeroes too. Its other buttons keep their mapping.
+- **Tremor:** a One Euro filter on the yaw and pitch (1.5 Hz at rest, faster as the hand moves), then a 0.08 degree dead zone that drags the point (it follows once the aim leaves it, without steps).
+- **Why not a gyro mouse** (rotation as relative deltas, a grip to lift it): a stylus is absolute and so is the reticle that follows it; absolute aim gives the same point for the same direction every time and never drifts, and a relative mouse needs a dead zone against tremor that also swallows slow, fine corrections.
+
+Logic: `reticle.{h,cpp}` (pure), the source `TouchSource::Reticle` in `touchpad_touch.cpp`, the frame loop in `controls.cpp` (`VrUi` game frame). Tests: `src/tests/frame_xr/reticle.cpp`.

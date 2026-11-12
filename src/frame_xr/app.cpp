@@ -24,6 +24,7 @@
 #include "common/thread.h"
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
 #include "frame_xr/watchdog.h"
@@ -301,6 +302,7 @@ bool Runtime::PollEvents() {
                 LOG_INFO(Frontend, "xr: SteamVR recentred, re-centring the immersive view");
                 Immersive::OnResetPanels();
                 Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
+                Input::RequestReticleRezero(); // AzaharFrame mouse: Bottom Screen Reticle
             }
             break;
         }

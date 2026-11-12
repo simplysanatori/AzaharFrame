@@ -24,6 +24,7 @@
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
+#include "frame_xr/input/reticle.h"       // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
@@ -219,6 +220,8 @@ private:
     // ring goes (the cursor last drawn).
     Input::MouseFrame mouse_frame;
     Input::MousePointer mouse_pointer;
+    Input::BottomScreenReticle reticle; ///< AzaharFrame mouse: Bottom Screen Reticle
+    int reticle_hand_logged = -2;
     OverlayChain ring_chain;
     bool mouse_mark_valid = false;
     XrPosef mouse_mark{};

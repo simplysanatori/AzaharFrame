@@ -244,6 +244,12 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     CHECK(has(Id::TouchpadTouch, 2));
     CHECK(has(Id::EditControls, -1));
     CHECK(OptionsFor(Id::TouchpadTouch) == std::vector<std::string>{"Off", "Touch", "Click"});
+    // AzaharFrame mouse: Bottom Screen Reticle under Touchpad Touch.
+    CHECK(has(Id::BottomScreenReticle, 0));
+    CHECK(has(Id::BottomScreenReticle, 2));
+    CHECK(OptionsFor(Id::BottomScreenReticle) ==
+          std::vector<std::string>{"Off", "Left Controller", "Right Controller"});
+    CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
 }
 
 // AzaharFrame cheatstab: the Mods tab and its Cheats segment.

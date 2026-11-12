@@ -138,6 +138,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
+    static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller"};
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -164,6 +165,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMove;
     case Id::TouchpadTouch:
         return kTouchpad;
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return kReticle;
     case Id::MouseMode:
         return kMouseMode;
     case Id::StatsPosition:
@@ -233,6 +236,8 @@ std::string LabelFor(Id id) {
         return "Detach Screens";
     case Id::TouchpadTouch:
         return "Touchpad Touch";
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return "Bottom Screen Reticle";
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
@@ -1067,30 +1072,35 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
     AddHit(edit, {Id::EditControls}, pane);
-    // Touchpad Touch: a label and its three choices.
-    const Rect tp_row{c.x0 - 12.0f, seg.y1 + 8.0f, c.x1 + 12.0f, seg.y1 + 8.0f + kControlH + 8.0f};
-    const Lock tp_lock = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)];
-    const bool tp_enabled = tp_lock == Lock::None;
-    AddHit(tp_row, {Id::TouchpadTouch, kLabelIndex}, pane);
-    anchors.push_back({Id::TouchpadTouch, c.x0, tp_row.y0 + 6.0f, tp_lock});
-    kit.TextMid(c.x0, tp_row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(Id::TouchpadTouch), 0,
-                tp_enabled ? 1.0f : kDisabledContent);
-    {
-        const auto& opts = OptionsFor(Id::TouchpadTouch);
+    // Touchpad Touch: a label and its three choices. AzaharFrame mouse: Bottom Screen Reticle
+    // under it, the same way.
+    const auto choice_row = [&](Id id, float y0, int value) {
+        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        AddHit(row, {id, kLabelIndex}, pane);
+        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        const auto& opts = OptionsFor(id);
         const float tw = kit.SegmentedWidth(opts, c.W() * 0.6f);
-        const Rect ts{c.x1 - tw, tp_row.Cy() - kControlH * 0.5f, c.x1, tp_row.Cy() + kControlH * 0.5f};
-        const int th = view.hover.id == Id::TouchpadTouch ? view.hover.index : -1;
-        const int tpr = view.pressed.id == Id::TouchpadTouch ? view.pressed.index : -1;
-        kit.Segmented(ts, opts, model.touchpad_touch, th, tpr, !tp_enabled);
-        if (tp_enabled) {
+        const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
+        const int th = view.hover.id == id ? view.hover.index : -1;
+        const int tpr = view.pressed.id == id ? view.pressed.index : -1;
+        kit.Segmented(ts, opts, value, th, tpr, !enabled);
+        if (enabled) {
             const auto e = kit.SegmentEdges(ts, opts);
             for (int i = 0; i < static_cast<int>(opts.size()); i++) {
                 AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
-                       {Id::TouchpadTouch, i}, pane);
+                       {id, i}, pane);
             }
         }
-    }
-    const Rect area{pane.x0 + 8.0f, tp_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+        return row;
+    };
+    const Rect tp_row = choice_row(Id::TouchpadTouch, seg.y1 + 8.0f, model.touchpad_touch);
+    const Rect reticle_row =
+        choice_row(Id::BottomScreenReticle, tp_row.y1, model.bottom_screen_reticle);
+    const Rect area{pane.x0 + 8.0f, reticle_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }

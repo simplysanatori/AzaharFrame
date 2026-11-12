@@ -790,6 +790,9 @@ struct Values {
     // AzaharFrame menu: Touchpad Touch, global: 0 Off, 1 Touch, 2 Click. The controller touchpad
     // maps onto the bottom screen.
     SwitchableSetting<u32, true> vr_touchpad_touch{0, 0, 2, "vr_touchpad_touch"};
+    // AzaharFrame mouse: Bottom Screen Reticle, global: 0 Off, 1 Left Controller, 2 Right
+    // Controller. That controller aims a point on the bottom screen; its trigger touches there.
+    SwitchableSetting<u32, true> vr_bottom_screen_reticle{0, 0, 2, "vr_bottom_screen_reticle"};
     // AzaharFrame menu: experimental real second window for the bottom screen. Config file only,
     // no menu row.
     SwitchableSetting<bool> vr_bottom_screen_window{false, "vr_bottom_screen_window"};
