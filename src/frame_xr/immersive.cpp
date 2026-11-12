@@ -76,6 +76,9 @@ struct Tuning {
     float game_fov_y_deg = kDefaultGameFovY;
     bool fov_from_env = false; ///< AZAHARFRAME_IMMERSIVE_FOV is set: it wins over the setting
     bool local_space = false; ///< head-locked screen placed in LOCAL from the head pose
+    /// AzaharFrame depth: size the head-locked screen with the game's measured projection
+    /// (AZAHARFRAME_IMMERSIVE_MEASURE=0 turns it off; the FOV variable wins over it too).
+    bool measure = true;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -102,6 +105,8 @@ Tuning ReadTuning() {
     t.game_fov_y_deg = EnvFloat("AZAHARFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
     const char* local = std::getenv("AZAHARFRAME_IMMERSIVE_LOCAL");
     t.local_space = local && std::string(local) == "1";
+    const char* measure = std::getenv("AZAHARFRAME_IMMERSIVE_MEASURE");
+    t.measure = !(measure && std::string(measure) == "0");
     return t;
 }
 
@@ -226,6 +231,15 @@ struct State {
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), every frame
     u32 shape = 0;             ///< "Screen Shape" (per game), every frame (g_top_aspect)
+    /// AzaharFrame depth: the game camera as measured from its projection (modes 2 and 3),
+    /// 0 while none was seen in the last second of this game.
+    float camera_fov_deg = 0.0f;
+    float camera_aspect = 0.0f;
+    float camera_pending_fov = 0.0f; ///< a new measurement waiting for a second one to agree
+    float camera_pending_aspect = 0.0f;
+    int camera_pending_count = 0;
+    int64_t camera_stamp = 0; ///< when the last measurement read was made
+    int64_t game_start_ms = 0;
     bool shape_logged = false; ///< both logged for this game
     L::Options options; ///< "Wider View" (every frame) and "Narrow Screen" (at start), per game
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
@@ -257,6 +271,56 @@ State g;
 
 bool IsViewMode(u32 mode) {
     return mode >= 2;
+}
+
+// AzaharFrame depth: the game camera's projection, measured on the emulation thread
+// (vr_view_matrix.h) every quarter second, in the last second and since this game started. A
+// new angle or shape is taken once two measurements in a row agree on it (a single odd one is
+// dropped); within 1.5 degrees and 4 % of the one in use nothing changes (a wobbling camera, a
+// zoom of a degree). Gone for a second (a menu, the bottom screen in focus), the last one is
+// kept until the next.
+void UpdateMeasuredCamera() {
+    if (!g.tuning.measure || g.tuning.fov_from_env) {
+        g.camera_fov_deg = g.camera_aspect = 0.0f;
+        g.camera_pending_count = 0;
+        return;
+    }
+    const int64_t now = VideoCore::Immersive::SteadyMs();
+    float tan_half_y = 0.0f, aspect = 0.0f;
+    int64_t stamp = 0;
+    if (!VideoCore::Immersive::g_measured_projection.Read(std::max(now - 1000, g.game_start_ms),
+                                                         tan_half_y, aspect, stamp) ||
+        stamp == g.camera_stamp) {
+        return;
+    }
+    g.camera_stamp = stamp;
+    // Within the setting's range (30 to 110): a close-up in a cutscene (Majora's Mask 3D has 10
+    // degrees) would otherwise shrink the screen to a stamp; there the world moves with the head
+    // a little instead.
+    const float fov = std::clamp(2.0f * std::atan(tan_half_y) / L::kDegToRad, 30.0f, 110.0f);
+    const auto near = [](float fov_a, float aspect_a, float fov_b, float aspect_b) {
+        return std::abs(fov_a - fov_b) < 1.5f && std::abs(aspect_a - aspect_b) < 0.04f * aspect_b;
+    };
+    if (g.camera_fov_deg > 0.0f && near(fov, aspect, g.camera_fov_deg, g.camera_aspect)) {
+        g.camera_pending_count = 0;
+        return;
+    }
+    if (g.camera_pending_count > 0 &&
+        near(fov, aspect, g.camera_pending_fov, g.camera_pending_aspect)) {
+        g.camera_pending_count++;
+    } else {
+        g.camera_pending_fov = fov;
+        g.camera_pending_aspect = aspect;
+        g.camera_pending_count = 1;
+    }
+    if (g.camera_pending_count < 2) {
+        return;
+    }
+    LOG_INFO(Frontend, "xr: immersive: game camera measured {:.1f} degrees high, {:.3f} wide{}",
+             fov, aspect, g.camera_fov_deg > 0.0f ? " (changed)" : "");
+    g.camera_fov_deg = fov;
+    g.camera_aspect = aspect;
+    g.camera_pending_count = 0;
 }
 
 L::ScreenDecision Decision() {
@@ -328,6 +392,9 @@ void OnFrame(const FrameInfo& info) {
         g.adjuster.Cancel();
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
+        g.game_start_ms = VideoCore::Immersive::SteadyMs(); // AzaharFrame depth
+        g.camera_fov_deg = g.camera_aspect = 0.0f;
+        g.camera_pending_count = 0;
         g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
@@ -439,7 +506,13 @@ void OnFrame(const FrameInfo& info) {
                 SaveStore();
             }
         }
-        g.solved = L::SolveHeadLocked(g.head_place, g.game_fov_y_deg, TopAspect(), g.view_fov,
+        // AzaharFrame depth: the game's own angle and shape when its projection was found
+        // (each change logged), else the settings.
+        UpdateMeasuredCamera();
+        const bool measured = g.camera_fov_deg > 0.0f;
+        g.solved = L::SolveHeadLocked(g.head_place,
+                                      measured ? g.camera_fov_deg : g.game_fov_y_deg,
+                                      measured ? g.camera_aspect : TopAspect(), g.view_fov,
                                       eye_shift, g.options, g.offset);
     }
 

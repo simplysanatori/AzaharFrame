@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <cstring>
 
 #include "common/common_types.h"
 #include "common/settings.h"
@@ -97,6 +99,48 @@ inline Mailbox g_mailbox;
 
 /// True while frame_xr's immersive module is installed (an XR session exists).
 inline std::atomic<bool> g_xr_active{false};
+
+/// AzaharFrame depth: the game camera's projection as the emulation thread last measured it in
+/// immersive modes 2 and 3 (vr_view_matrix.h ProjectionTracker), for the XR thread, which sizes
+/// the head-locked screen with it. Both floats in one word, so a read is never torn; `ms` is
+/// the steady clock in milliseconds when it was measured (0: never).
+class MeasuredProjection {
+public:
+    void Publish(float tan_half_y, float aspect, int64_t now_ms) noexcept {
+        u32 a, b;
+        std::memcpy(&a, &tan_half_y, 4);
+        std::memcpy(&b, &aspect, 4);
+        packed.store((static_cast<u64>(a) << 32) | b, std::memory_order_relaxed);
+        ms.store(now_ms, std::memory_order_release);
+    }
+    /// False when nothing was measured since `since_ms`; `stamp_ms` is when it was.
+    bool Read(int64_t since_ms, float& tan_half_y, float& aspect,
+              int64_t& stamp_ms) const noexcept {
+        const int64_t t = ms.load(std::memory_order_acquire);
+        if (t == 0 || t < since_ms) {
+            return false;
+        }
+        stamp_ms = t;
+        const u64 v = packed.load(std::memory_order_relaxed);
+        const u32 a = static_cast<u32>(v >> 32), b = static_cast<u32>(v);
+        std::memcpy(&tan_half_y, &a, 4);
+        std::memcpy(&aspect, &b, 4);
+        return true;
+    }
+
+private:
+    std::atomic<u64> packed{0};
+    std::atomic<int64_t> ms{0};
+};
+
+inline MeasuredProjection g_measured_projection;
+
+/// The steady clock in milliseconds, the time base of g_measured_projection.
+inline int64_t SteadyMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
 
 /// XR thread: the newest VR data for the emulation thread.
 inline void Publish(const VRData& data) {
