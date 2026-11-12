@@ -23,6 +23,9 @@
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
+#include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
+#include "frame_xr/toast_fit.h"     // AzaharFrame menuux
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/menu_diagram.h"
@@ -308,6 +311,49 @@ int main(int argc, char** argv) {
 
     const MenuModel m = SampleModel();
     bool ok = true;
+
+    // AzaharFrame mouse + menuux: toasts as hud.cpp draws them (a box sized by toast_fit.h, the
+    // text centred; one line in the large font, else two in the small one), one row each.
+    {
+        namespace ui = frame_xr::ui;
+        ui::InitFonts();
+        const std::vector<std::string> toasts{
+            Input::kReticleHint, Input::kMouseHint,
+            "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
+            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle"};
+        ui::Canvas cv;
+        cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
+        cv.Clear(Rgb(kBackdrop));
+        const ui::Color white = ui::rgb(240, 240, 245);
+        for (std::size_t i = 0; i < toasts.size(); i++) {
+            const std::string& t = toasts[i];
+            std::vector<std::string> lines;
+            const ToastFit::Box box = ToastFit::Fit(ui::TextWidth(ui::kFontLarge, t.c_str()), [&] {
+                lines = ui::WrapText(ui::kFontSmall, t,
+                                     ToastFit::kAtlasW - 2.0f * ToastFit::kPadPx, 2);
+                float w = 0.0f;
+                for (const auto& l : lines) {
+                    w = std::max(w, ui::TextWidth(ui::kFontSmall, l.c_str()));
+                }
+                return w;
+            });
+            const float top = static_cast<float>(i * ToastFit::kRowPx);
+            const float w = static_cast<float>(box.box_px);
+            cv.RoundRect(2, top + 2, w - 2, top + ToastFit::kRowPx - 2, 36,
+                         ui::rgb(28, 28, 34, 0.92f));
+            if (!box.two_lines) {
+                cv.Text(w / 2.0f, top + 62, ui::kFontLarge, t.c_str(), white, 1);
+            } else {
+                for (std::size_t l = 0; l < lines.size() && l < 2; l++) {
+                    cv.Text(w / 2.0f, top + (lines.size() == 1 ? 58 : 40 + 38 * l),
+                            ui::kFontSmall, lines[l].c_str(), white, 1);
+                }
+            }
+            std::printf("toast %zu: %d px%s: %s\n", i, box.box_px, box.two_lines ? ", two lines" : "",
+                        t.c_str());
+        }
+        ok &= WritePng(out + "/toasts.png", cv);
+    }
     MenuView v;
     v.tab = Tab::Main;
     v.hover = {Id::QuickSave};
@@ -354,6 +400,17 @@ int main(int argc, char** argv) {
     mw.controls_page = 1;
     v.hover = {};
     ok &= shot("4b-controls-window", mw, v);
+    // AzaharFrame mouse: Bottom Screen Reticle on (At Edge under it), Click for Input.
+    {
+        MenuModel mr = m;
+        mr.touchpad_touch = 1;
+        mr.bottom_screen_reticle = 2;
+        mr.reticle_at_edge = 1;
+        v = {};
+        v.tab = Tab::Controls;
+        v.hover = {Id::ReticleAtEdge, 1};
+        ok &= shot("4c-controls-reticle", mr, v);
+    }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
     // DualShock 4 (a touchpad), a mouse.

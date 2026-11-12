@@ -150,13 +150,19 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     // The Wider View row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f; // AzaharFrame depth3d: lower down now
     m.immersive_mode = 0;
-    d.Draw(m, v);
+    // AzaharFrame depth3d: lower down now; menuux: not at the end any more, so every scroll.
     bool label = false;
-    for (const auto& h : d.menu.Hits()) {
-        CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
-        label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+    for (float scroll = 0.0f;; scroll += 32.0f) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
+            label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+        }
+        if (scroll >= d.menu.MaxScroll()) {
+            break;
+        }
     }
     CHECK(label);
 
@@ -859,6 +865,7 @@ TEST_CASE("Tab menu: Switch to Flat on the Main and Settings tabs", "[frame_xr][
         }
     }
     CHECK(LabelFor(Id::SwitchToFlat) == "Switch to Flat");
+    const float main_w = main_flat->r.W(); // the hits are drawn again below
     // Settings: the last row, as wide as the pane's content, both scopes.
     for (int scope = 0; scope < 2; scope++) {
         m.scope = scope;
@@ -868,7 +875,7 @@ TEST_CASE("Tab menu: Switch to Flat on the Main and Settings tabs", "[frame_xr][
         d.Draw(m, v);
         const auto* flat = find(Id::SwitchToFlat);
         REQUIRE(flat != nullptr);
-        CHECK(flat->r.W() == main_flat->r.W());
+        CHECK(flat->r.W() == main_w);
         const auto* more = find(Id::MoreSettings);
         REQUIRE(more != nullptr);
         CHECK(flat->r.y0 >= more->r.y1);
@@ -1047,6 +1054,7 @@ TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][t
 // text), and the font has the middle dot.
 TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr][tabmenu]") {
     namespace ui = frame_xr::ui;
+    ui::InitFonts(); // alone, no other test has loaded them
     const float dot = ui::TextWidth(ui::kFontLarge, "\xC2\xB7");
     CHECK(dot != ui::TextWidth(ui::kFontLarge, "?"));
     constexpr float kOneLine =
