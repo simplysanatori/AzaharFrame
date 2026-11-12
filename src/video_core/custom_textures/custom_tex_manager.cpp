@@ -27,6 +27,7 @@
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
+#include "video_core/custom_textures/pack_config.h" // AzaharFrame jsoncrash
 #include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/utils.h"
@@ -605,41 +606,41 @@ bool CustomTexManager::ReadConfig(u64 title_id, bool options_only) {
         return false;
     }
 
-    nlohmann::json json = nlohmann::json::parse(config, nullptr, false, true);
-
-    const auto& options = json["options"];
-    skip_mipmap = options["skip_mipmap"].get<bool>();
-    flip_png_files = options["flip_png_files"].get<bool>();
-    use_new_hash = options["use_new_hash"].get<bool>();
+    // AzaharFrame jsoncrash: read without throwing (video_core/custom_textures/pack_config.h); a
+    // pack.json without options is a legacy pack.
+    const PackConfig::Config cfg = PackConfig::Parse(config);
+    if (!cfg.valid) {
+        LOG_INFO(Render, "pack.json of {:016X} has no options, using legacy defaults", title_id);
+        return false;
+    }
+    skip_mipmap = cfg.skip_mipmap;
+    flip_png_files = cfg.flip_png_files;
+    use_new_hash = cfg.use_new_hash;
 
     if (options_only) {
         return true;
     }
 
-    const auto& textures = json["textures"];
-    for (const auto& material : textures.items()) {
+    for (const auto& [key, files] : cfg.textures) {
         std::size_t idx{};
-        const u64 hash = std::stoull(material.key(), &idx, 16);
+        u64 hash = 0;
+        try {
+            hash = std::stoull(key, &idx, 16);
+        } catch (const std::exception&) {
+            idx = 0;
+        }
         if (!idx) {
-            LOG_ERROR(Render, "Key {} is invalid, skipping", material.key());
+            LOG_ERROR(Render, "Key {} is invalid, skipping", key);
             continue;
         }
-        const auto parse = [&](const std::string& file) {
+        if (files.empty()) {
+            LOG_ERROR(Render, "Material with key {} is invalid", key);
+            continue;
+        }
+        for (const std::string& file : files) {
             const std::string filename{FileUtil::GetFilename(file)};
             auto [it, new_hash] = path_to_hash_map.try_emplace(filename);
             it->second.push_back(hash);
-        };
-        const auto value = material.value();
-        if (value.is_string()) {
-            const auto file = value.get<std::string>();
-            parse(file);
-        } else if (value.is_array()) {
-            const auto files = value.get<std::vector<std::string>>();
-            for (const std::string& file : files) {
-                parse(file);
-            }
-        } else {
-            LOG_ERROR(Render, "Material with key {} is invalid", material.key());
         }
     }
     return true;

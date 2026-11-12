@@ -1590,6 +1590,11 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
     return out;
 }
 
+bool Library::Busy() const {
+    std::unique_lock lock{mutex_, std::try_to_lock};
+    return !lock.owns_lock();
+}
+
 std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32> game_code_crc,
                                                  const Compat::Game* game) const {
     std::lock_guard lock{mutex_};

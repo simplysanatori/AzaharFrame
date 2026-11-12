@@ -134,6 +134,7 @@ private:
     int stick_dir = 0;
     Menu::Id rest_id = Menu::Id::None; ///< what the beam rests on, for the tooltip
     int rest_index = -1; ///< AzaharFrame modcat: the resting target's index (ModVersion)
+    long long catalog_ask_ms = -1; ///< AzaharFrame jsoncrash: when Install Mods last asked for its list
     int turned_off_seen = 0; ///< AzaharFrame compat: ModsListModel::turned_off_serial last shown
     float rest_s = 0.0f;
     XrTime last_time = 0;

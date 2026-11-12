@@ -869,8 +869,28 @@ void MenuPanel::BuildModel(const Host& host) {
     m.mods.textures.preload = v.preload_textures.GetValue();
     // AzaharFrame stall: also while Install Mods waits for its first answer (the catalog still
     // Idle): the ring turns from the start, and never stands still.
+    {
+        // AzaharFrame jsoncrash: the page asks again until something answers (see ShouldAskCatalog)
+        const long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::steady_clock::now().time_since_epoch())
+                                     .count();
+        const bool shown = view.tab == Menu::Tab::Mods &&
+                           view.mods_segment == Menu::ModsSegment::Mods &&
+                           view.mods_page == Menu::ModsPage::Install;
+        if (!shown) {
+            catalog_ask_ms = -1;
+        } else if (Menu::ShouldAskCatalog(m.mods.mods.catalog, shown, now_ms, catalog_ask_ms)) {
+            catalog_ask_ms = now_ms;
+            if (host.request) {
+                MenuRequest r;
+                r.command = MenuCommand::LoadModCatalog;
+                host.request(r);
+            }
+        }
+    }
     bool spinning = m.mods.mods.catalog == Menu::CatalogState::Loading ||
                     (m.mods.mods.catalog != Menu::CatalogState::Ready &&
+                     m.mods.mods.catalog != Menu::CatalogState::Failed &&
                      view.mods_page == Menu::ModsPage::Install);
     for (const auto& o : m.mods.mods.available) {
         spinning |= o.state == Menu::OfferState::Installing;

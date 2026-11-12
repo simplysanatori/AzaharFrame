@@ -20,6 +20,7 @@
 
 #if defined(__linux__)
 #include <csignal>
+#include <cxxabi.h>
 #include <execinfo.h>
 #include <fcntl.h>
 #include <sys/prctl.h>
@@ -287,8 +288,12 @@ void OnTerminate() {
         try {
             std::rethrow_exception(e);
         } catch (const std::exception& ex) {
-            std::snprintf(g_exception, sizeof(g_exception), "%s: %s", typeid(ex).name(),
-                          ex.what());
+            // AzaharFrame jsoncrash: the type by its readable name (not "N8nlohmann...")
+            int status = 0;
+            char* readable = abi::__cxa_demangle(typeid(ex).name(), nullptr, nullptr, &status);
+            std::snprintf(g_exception, sizeof(g_exception), "%s: %s",
+                          status == 0 && readable ? readable : typeid(ex).name(), ex.what());
+            std::free(readable);
         } catch (...) {
             std::snprintf(g_exception, sizeof(g_exception), "an exception of unknown type");
         }

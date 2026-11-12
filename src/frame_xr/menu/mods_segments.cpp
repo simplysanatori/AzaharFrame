@@ -1250,7 +1250,16 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         DrawZipButton(kit, view, area, ZipTarget::Mods, !m.busy); // AzaharFrame zipinstall
         const float top = c.y0 + kBarH + 8.0f;
         const Rect list{area.x0, top, area.x1, bottom};
-        if (m.catalog != CatalogState::Ready) {
+        if (m.catalog == CatalogState::Failed) { // AzaharFrame jsoncrash: no list; Retry asks again
+            const Rect area_e{c.x0, top, c.x1, bottom};
+            const Rect text_e{area_e.x0, area_e.y0, area_e.x1, area_e.y1 - 64.0f};
+            EmptyState(kit, text_e, Sym::kInfo, false, 0, "Couldn't Load Mods",
+                       "Check the connection, then try again");
+            const Rect rb{text_e.Cx() - 60.0f, text_e.Cy() + 82.0f, text_e.Cx() + 60.0f,
+                          text_e.Cy() + 122.0f};
+            kit.Button(rb, ButtonStyle::Tonal, 0, "Retry", StateOf(view, {Id::InstallMods}));
+            AddHit(rb, {Id::InstallMods}, area);
+        } else if (m.catalog != CatalogState::Ready) {
             EmptyState(kit, {c.x0, top, c.x1, bottom}, 0, true, m.spin, "Loading Mods", "");
         } else if (m.available.empty()) {
             EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kExtension, false, 0,

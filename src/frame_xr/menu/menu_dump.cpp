@@ -1030,6 +1030,18 @@ int main(int argc, char** argv) {
         v.mods_page = ModsPage::Install;
         v.hover = {Id::ModInstall, 0};
         ok &= shot("mods-install", mi, v);
+        { // AzaharFrame jsoncrash: the list still being made, and the list that could not be made
+            MenuModel ml = m;
+            ml.game_title = "Pokemon X";
+            ml.mods.mods = {};
+            ml.mods.mods.catalog = CatalogState::Loading;
+            MenuView lv = v;
+            lv.hover = {};
+            ok &= shot("mods-install-loading", ml, lv);
+            ml.mods.mods.catalog = CatalogState::Failed;
+            lv.hover = {Id::InstallMods};
+            ok &= shot("mods-install-failed", ml, lv);
+        }
         { // AzaharFrame integ3: a homebrew game (no title id): No Mods for This Game at once
             MenuModel mh = m;
             mh.game_title = "Emerald 3DS";
