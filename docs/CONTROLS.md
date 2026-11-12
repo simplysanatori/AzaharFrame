@@ -147,13 +147,13 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with seven tabs down its left side:
 
-- **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved; a state from another version shows **From** and its version, dimmed, and asks before it loads), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**. **Load State** also has the **Autosave** card above the slots: tap it to load the newest autosave, or, when the game keeps more than one, to pick one from the list. After an autosave loads, **Undo Load** at the bottom goes back to the moment before. With Autosave off, the card's **Settings** goes to the Saves rows.
+- **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved; a state from another version shows **From** and its version, dimmed, and asks before it loads), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**. **Load State** also has the **Autosave** card above the slots: tap it to load the newest autosave, or, when the game keeps more than one, to pick one from the list. After a slot or an autosave loads, **Undo Load** at the bottom goes back to the moment before. With Autosave off, the card's **Settings** goes to the Saves rows.
 - **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
-- **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls** and **Touchpad Touch** (see Editing the controls).
+- **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls**, **Touchpad** and **Bottom Screen Reticle** (see Editing the controls).
 - **Mods**: **Cheats**, **Mods** and **Textures** for the running game (see Cheats, mods and textures).
 - **Homebrew**: Pokémon Emerald 3DS. **Install** asks for your Pokémon Emerald ROM in Azahar's window and builds the game from it. Once it is installed, **Play** starts it, and **Update** shows when a newer release is out. Otherwise **Check for Updates** asks GitHub at once, and **Reinstall** builds the game again. The progress shows on the row.
-- **Settings**: the VR settings, in three sections: **General** (Background, Window Scale, Face Buttons, Motion Controls, Show Controllers, Fast Forward Speed, the **Saves** group with **Autosave**, **Every** and **Keep**, **More Settings** and **Switch to Flat**), **Graphics** (3D Depth, Internal Resolution, Dynamic Resolution, Texture Filter, Async Shader Compilation) and **Immersive** (Immersive Mode, Wider View, Immersive Game FOV, Match Game Camera, Narrow Screen, Depth Factor Multiplier). The menu button at the end of the section row picks **Per-Game** (this game only) or **Global** (every game). The menu opens on **Per-Game** each time while a game runs, so a change is for that game unless you pick **Global**; the first change makes the game's own settings. Settings that are the same in every game, such as **Background** and **Dynamic Resolution**, always change for every game. A greyed-out row tells you why when you point at it. The menu remembers the last section until the app closes. **More Settings** opens **Emulation > Configure...**.
+- **Settings**: the VR settings, in three sections: **General** (Background, Window Scale, Face Buttons, Motion Controls, Show Controllers, Fast Forward Speed, the **Saves** group with **Autosave**, **Every** and **Keep**, **More Settings** and **Switch to Flat**), **Graphics** (3D Depth, Internal Resolution, Dynamic Resolution, Texture Filter, Async Shader Compilation) and **Immersive** (Immersive Mode, Wider View, Immersive Game FOV, Match Game Camera, Narrow Screen, Depth Factor Multiplier). The menu button at the end of the section row picks **Per-Game** (this game only) or **Global** (every game). The menu opens on **Per-Game** each time while a game runs, so a change is for that game unless you pick **Global**; the first change makes the game's own settings. Settings that are the same in every game, such as **Background** and **Dynamic Resolution**, always change for every game. In **Per-Game**, a row with its own value for this game shows **This Game**: select it to use the global value again. **Use Global Values for All**, in the same menu button, does it for the whole section. A greyed-out row tells you why when you point at it. The menu remembers the last section until the app closes. **More Settings** opens **Emulation > Configure...**.
 
 Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.
 
@@ -168,8 +168,8 @@ The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheat
 | List | What is there |
 |---|---|
 | **Cheats** | **Download** fetches the game's cheats from Sharkive and my 3ds-game-fixes repository. A switch per cheat, applied at once and kept. A red chip such as **v1.0** marks a cheat made for another version of the game. **Azahar's Window** opens Azahar's **Cheats** window to add or edit your own |
-| **Mods** | What is installed for the game, with a switch and **Remove**. **Install Mods** lists the mods known for the game, with the version and the month it was last updated when they are known; **Install** downloads one from its author's page. Two mods that change the same files are never installed over each other without asking. **Created by** opens the author's page in Steam's browser |
-| **Textures** | **Custom Textures**, the game's packs (or **Off**), **Download Packs** and **Preload**. **Download Packs** lists packs for the game from GitHub and Google Drive; **Download**, **Cancel** and **Delete** act on one. **Customize** opens a pack's page, with **Optimize for Frame** for a PNG pack and **Use Original** and **Remove Original** once it is optimized |
+| **Mods** | What is installed for the game, with a switch and **Remove**. **Install Mods** lists the mods known for the game, with the author, version, downloads and the month it was last updated when they are known; **Install** downloads one from its author's page. Two mods that change the same files are never installed over each other without asking. **Created by** opens the author's page in Steam's browser |
+| **Textures** | **Custom Textures**, the game's packs (or **Off**), **Download Packs** and **Preload**. **Download Packs** lists packs for the game from GitHub, GameBanana and Google Drive; **Download**, **Cancel** and **Delete** act on one. **Customize** opens a pack's page: its parts and variants, **Move Up** and **Move Down** (a part higher in the list wins), **Optimize for Frame** for a PNG pack, and **Use Original** and **Remove Original** once it is optimized |
 
 After a change to mods or textures, **Restart the Game to Apply** shows with a **Restart** button. More in the [user guide](USER_GUIDE.md#the-mods-tab).
 
@@ -192,14 +192,24 @@ The Frame controllers' layout is your controls profile (see Changing the layout)
 
 A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it in SteamOS. Both can be used at the same time.
 
-### Touchpad Touch
+### Touchpad
 
-**Touchpad Touch** on the **Controls** tab (**Off**, **Touch**, **Click**) makes a gamepad's touchpad the bottom screen. The pad covers the whole screen, and a dot shows where your finger is.
+A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad** on the **Controls** tab sets how it touches:
 
-- **Touch**: a finger on the pad touches the screen.
-- **Click**: pressing the pad touches it. The finger only moves the dot.
+- **Tap for Input** (the default): a finger on the pad touches the screen.
+- **Click for Input**: pressing the pad touches it, and holding it down drags. The finger alone only moves the dot.
 
 Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden bottom screen takes no touch.
+
+### Bottom Screen Reticle
+
+**Bottom Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the bottom screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
+
+- Where the controller points when it starts is the middle of the screen. Point further to move the dot; past an edge, the dot stays on the edge.
+- Its trigger touches, and held, it drags. Its grip re-centres the middle where it points now. SteamVR's recenter and the right stick click held for 1 second do too.
+- While it aims, that controller draws no beam. In the in-game menu, Azahar's window and the keyboard it is a normal pointer.
+- **Headset**: your head aims, and the trigger of either controller touches.
+- **At Edge**, under it: **Follow** (the default) keeps the dot on the edge. **Snap to Middle** lifts the touch at the edge and touches again in the middle, like a stylus swipe.
 
 ### The mouse
 

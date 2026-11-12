@@ -125,7 +125,7 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 **Mods**
 
 - The list shows what is installed for the game. Mods installed from here have a switch and **Remove**. Files you put in the mods folder yourself have **Remove** only, which asks first.
-- **Install Mods** lists the mods known for the game, with their author, their version and the date they were last updated (when the source says), and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
+- **Install Mods** lists the mods known for the game, with their author, their version and the date they were last updated (when the source says), and installs one with **Install**. The files come straight from the author's own page on GitHub, GameBanana, MEGA or Google Drive; nothing is re-hosted. Each row shows the author, the version, the downloads and the date on one line. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
 - When two mods change the same files, installing the second asks before it replaces the first, or tells you which one to remove first.
 - **Created by** and the author's name open the author's page in Steam's browser, after **Open GitHub?**.
 
@@ -133,9 +133,9 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 
 - **Custom Textures** turns texture packs on or off.
 - Pick one of the game's packs, or **Off**. Each row names the author, the version, the format and the size.
-- **Download Packs** lists packs for the game and downloads one with **Download**, from GitHub or Google Drive, with the free space checked first. They include Henriko Magnifico's 4K and 1080p packs for Ocarina of Time 3D, Majora's Mask 3D, Super Mario 3D Land and A Link Between Worlds. **Cancel** stops a download. **Delete** removes a downloaded pack.
-- **Preload** loads the whole pack when the game starts, instead of while you play.
-- **Customize** on a pack opens its page. A PNG pack has **Optimize for Frame** there: it makes the ASTC copy described under [Optimize Texture Pack for Frame](#optimize-texture-pack-for-frame), with the progress on the page and **Stop**. It keeps going if you close the menu, at the lowest priority, and never touches the files the game has open. The copy takes over at the next start, and the parts you turned off stay off. **Use Original** switches back. **Remove Original** deletes the PNG pack to free its space, once the game no longer reads it; to go back after that, download or add the pack again. A PNG pack over 1 GB asks once, **Optimize <Pack> for Frame?**, when you pick it or its download finishes.
+- **Download Packs** lists packs for the game and downloads one with **Download**, from GitHub, GameBanana or Google Drive, with the free space checked first. They include Henriko Magnifico's 4K and 1080p packs for Ocarina of Time 3D, Majora's Mask 3D, Super Mario 3D Land and A Link Between Worlds. **Cancel** stops a download. **Delete** removes a downloaded pack.
+- **Preload** loads the whole pack when the game starts, instead of while you play. It is off by default. Turning it on asks **Preload Textures?** first, with the pack's size, the memory in use and Azahar's limit. A pack too large to preload loads as you play, and a message says so.
+- **Customize** on a pack opens its page. A pack with parts, such as characters or backgrounds, lists them with a checkbox each; a pack that comes in variants lets you pick one. When two parts change the same texture, the one higher in the list wins (**Texture Conflicts: Parts Higher in the List Take Priority**); **Move Up** and **Move Down** set the order. In Flat the same page is **Customize Texture Pack...** in the game list's right-click menu, and under **Emulation** for the running game. A PNG pack has **Optimize for Frame** there: it makes the ASTC copy described under [Optimize Texture Pack for Frame](#optimize-texture-pack-for-frame), with the progress on the page and **Stop**. It keeps going if you close the menu, at the lowest priority, and never touches the files the game has open. The copy takes over at the next start, and the parts you turned off stay off. **Use Original** switches back. **Remove Original** deletes the PNG pack to free its space, once the game no longer reads it; to go back after that, download or add the pack again. A PNG pack over 1 GB asks once, **Optimize <Pack> for Frame?**, when you pick it or its download finishes.
 
 A change to mods or textures shows **Restart the Game to Apply**. **Restart** restarts the game.
 
@@ -150,7 +150,7 @@ The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built fro
 HD packs are PNG files, and the emulator decodes each one the first time the game uses it. A 4096×4096 texture takes over a second, so a new area shows the low-resolution textures first. I added a converter for that. In the Azahar window, right-click the game and choose **Optimize Texture Pack for Frame...**. It writes a copy of the pack in ASTC, the compressed format the Frame's GPU reads as it is, with every mip level made in advance. Those files load in a few milliseconds, with no decoding, and take a quarter of the GPU memory.
 
 - The original pack is not changed. The copy goes next to it (`<TitleID>-astc4x4`), and the game's folder in `load/textures/` becomes a link to the copy. **Use Original Texture Pack** in the same menu switches back. To remove the copy, delete its folder. **Remove Original Texture Pack...** deletes the original to free its space; it only ever deletes the folder the copy was made from, inside the texture folders. The in-game menu does the same from the pack's page (see **Textures** above).
-- The first time, it builds its encoder (ARM's astcenc). That takes under a minute and needs git, CMake and a C++ compiler.
+- The encoder (Arm's astcenc) comes with the release, so it needs no compiler.
 - **Stop** is safe. Choose the menu entry again and it carries on where it left off. It runs at the lowest priority, but it is still best not to run it while you play.
 - Ocarina of Time 3D with Henriko Magnifico's 4K pack: 2308 textures, 4.5 GB as PNG. As ASTC 4x4 it is 6.0 GB, and about 2.7 GB with `--block 6x6`. It takes about 15 to 20 minutes on the Frame, or about 6 with `--quality fast`, which looks nearly the same. Decoded, the PNGs would be 18 GB of memory; the emulator keeps an ASTC texture in memory only until the GPU has it.
 
@@ -222,7 +222,9 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 **Edit Controls**, on the in-game menu's **Controls** tab, shows a New 3DS XL with a chip on each button and stick. The chip says what drives that button on the device you picked at the bottom: **Frame Controllers**, each connected gamepad by name, and **Mouse**. Select a chip and press the button you want for it. A button that already had a job swaps with it. For the Circle Pad or the C-Stick, push the stick up, then right. **Cancel** stops listening, **Reset to Default** puts the device's layout back and **Done** goes back to the Controls tab. Each kind of gamepad keeps its own layout, in `user/controller-mappings.txt`. The Frame controllers' layout is your controls profile, as in **Emulation > Configure > Controls**.
 
-**Touchpad Touch**, on the **Controls** tab, makes a gamepad's touchpad the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touch**: touching the pad touches the screen. **Click**: pressing the pad touches it, and your finger only moves the dot. It is **Off** by default. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
+A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
+
+**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 The mouse has two modes, in **Mouse Mode** on its Edit Controls page. Hold the left and right buttons together for 3 seconds to switch; **Mouse: Pointer** or **Mouse: Bottom Screen** shows.
 
@@ -278,7 +280,9 @@ Hold **View** and press the right bumper to Quick Save, or hold the left bumper 
 
 Save states are NOT a replacement for saving in the game. A state only loads in the version of Azahar for Frame that made it, so save in the game before you update. The first time you save or load a state, **About Save States** says so once.
 
-A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data is copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
+A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data and extdata are copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops with a message and nothing is changed. Saving over a slot makes it a normal slot again.
+
+After you load a slot or an autosave, **Undo Load** goes back to the moment before, until the game closes.
 
 ### Autosave
 
@@ -288,11 +292,15 @@ All three can be set for one game: in the in-game menu choose **Per-Game** (the 
 
 An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the top screen beside it.
 
-While you play, "Autosaved" shows for a moment just above the top screen's right corner. When that corner is out of view (you look down at the bottom screen, or the game is in immersive mode), a short message in front of you says it instead. Autosaves made when the menu opens or the game closes show nothing. In Flat the status bar says "Autosaved" for 3 seconds.
+While you play, "Autosaved" shows for a moment just above the top screen's right corner. When that corner is out of view (you look down at the bottom screen, or the game is in immersive mode), a short message in front of you says it instead. Autosaves made when the menu opens or the game closes show nothing. In Flat the status bar says "Autosaved" for 3 seconds. If one fails, **Couldn't Autosave** says so.
 
-To load one, open **Load State**. In VR the **Autosave** card above the slots shows the newest, with its picture and how long ago it was made; with **Keep** above 1, tap it to see the others. In Flat they are at the end of **Emulation > Load State**, as **Autosave 1** (the newest) and on. Loading an autosave saves the moment before first, so **Undo Load** takes you back if you picked the wrong one, until the game closes. An autosave from another version asks first, as a slot does.
+To load one, open **Load State**. In VR the **Autosave** card above the slots shows the newest, with its picture and how long ago it was made; with **Keep** above 1, tap it to see the others. In Flat they are at the end of **Emulation > Load State**, as **Autosave 1** (the newest) and on. **Undo Load** takes you back if you picked the wrong one. An autosave from another version asks first, as a slot does.
 
-The game is held only while its state is copied, which takes far less time than a manual save state; the rest happens in the background.
+An autosave pauses the game for about 0.2 to 0.5 seconds while its state is copied; the rest happens in the background.
+
+### Microphone
+
+The 3DS microphone works through the Frame's microphone. Azahar's microphone input, in **Emulation > Configure > Audio**, is on **Auto** by default.
 
 ### Fast Forward
 
@@ -341,10 +349,16 @@ Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. I
 ## Performance
 
 The 3DS runs at 60 frames a second, and every one is shown on each refresh of the headset.
-The first time a game draws a new effect, the emulator compiles its shaders and the picture can hitch. They are kept in `~/.local/share/AzaharFrame/user/shaders`, so it happens once.
+The first time a game draws a new effect, the emulator compiles its shaders and the picture can hitch. They are kept in `~/.local/share/AzaharFrame/user/shaders`, so it happens once. While a game waits for them, **Preparing Shaders** shows.
 If a game drops frames, lower the internal resolution under **Emulation > Configure > Graphics**.
 **Show Stats**, or the **Stats** button above Azahar's window, shows the game's frame rate and the headset's late frames while you play.
 Keep other heavy work off the Frame while you play.
+
+### Memory
+
+Azahar runs under a memory limit, sized from the memory free when it starts. A texture pack that fills memory closes Azahar instead of freezing the Frame, and the next start says **Azahar Ran Out of Memory**. Before that, **Running Low on Memory** shows how many GB Azahar uses of its limit. Near the limit, the game pauses and offers **Turn Off Custom Textures**, **Resume** or **Stop Game**. The usual cause is a large PNG pack, or **Preload** on a pack that doesn't fit: turn off **Preload**, or use **Optimize for Frame** on the pack.
+
+If a game takes too long to start, for example while a pack preloads, hold **Menu** or **View** for 3 seconds to stop it.
 
 ## Files
 
@@ -368,7 +382,7 @@ Keep other heavy work off the Frame while you play.
 | What a run that ended badly left (read and removed at the next start) | `~/.local/share/AzaharFrame/user/crash-reports` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
 | Mode it starts in (`vr` or `flat`) | `~/.local/share/AzaharFrame/mode` |
-| Texture pack encoder (built on first use) | `~/.local/share/AzaharFrame/tools` |
+| Texture pack encoder, when a build has none of its own | `~/.local/share/AzaharFrame/tools` |
 | Controller models for VR | `~/.local/share/AzaharFrame/user/frame-models` (log: `~/.local/share/AzaharFrame/frame-models.log`) |
 | FrameDrop install log | `~/.local/state/framedrop-azaharframe/install.log` |
 
@@ -385,7 +399,8 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **Motion ghosts.** In SteamVR, check 120 Hz and motion smoothing off.
 - **No controllers in VR, only the beams.** The models are made from SteamVR's. Delete `user/frame-models` and start once more, then read `frame-models.log`.
 - **The immersive screen is in an odd place.** Squeeze a grip and click the right stick to put it back.
-- **A gamepad's touchpad does nothing.** Turn on **Touchpad Touch** and turn Steam Input off for that controller.
+- **A gamepad's touchpad does nothing.** Turn Steam Input off for that controller.
+- **Azahar Ran Out of Memory.** Turn off **Preload** for the texture pack, or use **Optimize for Frame** on it. See [Memory](#memory).
 - **A downloaded mod or texture pack does not show.** Restart the game.
 - **One edge of the immersive screen is cut off by the lenses.** Squeeze a grip and press the D-pad away from that edge until it shows: right when the left edge is cut off.
 
