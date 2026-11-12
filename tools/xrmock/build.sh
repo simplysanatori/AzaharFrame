@@ -20,8 +20,11 @@ done
 . "$HERE/lock.sh"
 cf_wait_and_lock
 mkdir -p "$OUT"
-$CC -O1 -g -Wall -Wextra -shared -fPIC -o "$OUT/libxrmock.so" "$HERE/xrmock.c" "$HERE/xrmock_vk.c" \
-    -I "$XRINC" -I "$VKINC" -I "$HERE" -lm -lpthread
+# AzaharFrame integ3: -z nodelete: SteamVR's OpenXR loader unloads the runtime when the last
+# XrInstance goes and loads it again for the next one; the mock's state (the app's Vulkan
+# handles, the instance count) must outlive that, as SteamVR's own does.
+$CC -O1 -g -Wall -Wextra -shared -fPIC -Wl,-z,nodelete -o "$OUT/libxrmock.so" "$HERE/xrmock.c" \
+    "$HERE/xrmock_vk.c" -I "$XRINC" -I "$VKINC" -I "$HERE" -lm -lpthread
 $CC -O1 -g -Wall -Wextra -o "$OUT/xrmock_test" "$HERE/test/xrmock_test.c" -I "$XRINC" -I "$VKINC" -ldl -lm
 sed "s#@LIB@#$OUT/libxrmock.so#" "$HERE/runtime.json.in" > "$OUT/runtime.json"
 cf_unlock
