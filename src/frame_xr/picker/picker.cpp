@@ -3,6 +3,8 @@
 
 #include "frame_xr/picker/picker.h"
 
+#include "frame_xr/menu/md3_fonts.h" // AzaharFrame emerald: the menu's fonts
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -123,7 +125,7 @@ std::string Plural(int n) {
 } // namespace
 
 Picker::Picker(std::shared_ptr<Library> lib) : library(std::move(lib)) {
-    ui::InitFonts();
+    font.LoadBase64(FrameXr::Menu::Fonts::kSans500); // AzaharFrame emerald
     canvas.Init(layout::kWidth, layout::kHeight);
 }
 
@@ -263,13 +265,26 @@ PickerResult Picker::Update(const PickerInput& in) {
     return result;
 }
 
+// AzaharFrame emerald: the canvas's 40 and 28 px faces, as sizes of the menu's font.
+constexpr float kLargePx = 40.0f;
+constexpr float kSmallPx = 28.0f;
+
+void Picker::Text(float x, float baseline, bool large, const std::string& s, const ui::Color& c,
+                  int align) {
+    font.Draw(canvas, x, baseline, large ? kLargePx : kSmallPx, c, s, align);
+}
+
+float Picker::TextWidth(bool large, const std::string& s) const {
+    return font.Width(large ? kLargePx : kSmallPx, s);
+}
+
 void Picker::DrawButton(const layout::Rect& r, const char* label, bool enabled, bool hovered) {
     const ui::Color fill = !enabled ? ui::rgb(30, 34, 46) : hovered ? kButtonHover : kButton;
     canvas.RoundRect(r.x0, r.y0, r.x1, r.y1, 16.0f, fill);
     if (enabled && hovered) {
         canvas.StrokeRoundRect(r.x0, r.y0, r.x1, r.y1, 16.0f, 4.0f, kAccent);
     }
-    canvas.Text((r.x0 + r.x1) * 0.5f, r.y0 + 44.0f, ui::kFontLarge, label,
+    Text((r.x0 + r.x1) * 0.5f, r.y0 + 44.0f, true, label,
                 enabled ? kText : ui::rgb(90, 98, 118), 1);
 }
 
@@ -290,13 +305,14 @@ void Picker::DrawTile(int slot, int index, bool hovered) {
                         e.icon_w * 4 != layout::kIconDraw, 16.0f);
     } else {
         canvas.RoundRect(ix0, iy0, ix1, iy1, 16.0f, kPlaceholder);
-        canvas.Text(cx, iy0 + layout::kIconDraw * 0.5f + 14.0f, ui::kFontLarge, "?", kTextDim, 1);
+        Text(cx, iy0 + layout::kIconDraw * 0.5f + 14.0f, true, "?", kTextDim, 1);
     }
 
-    const auto lines = ui::WrapText(ui::kFontSmall, e.title, layout::kTileW - 32.0f, 3);
+    const auto lines = ui::WrapText([this](const std::string& t) { return TextWidth(false, t); },
+                                    e.title, layout::kTileW - 32.0f, 3);
     float baseline = iy1 + 48.0f;
     for (const std::string& line : lines) {
-        canvas.Text(cx, baseline, ui::kFontSmall, line.c_str(), kText, 1);
+        Text(cx, baseline, false, line, kText, 1);
         baseline += 34.0f;
     }
 }
@@ -307,11 +323,11 @@ void Picker::Draw() {
 
     // Header: the "Azahar for Frame" lockup, or its name as text when the logo is missing.
     if (!DrawLogo(logo_header, kMargin, 10.0f)) {
-        canvas.Text(kMargin, 76.0f, ui::kFontLarge, "Azahar for Frame", kText);
+        Text(kMargin, 76.0f, true, "Azahar for Frame", kText);
     }
     const std::string count = scanning ? std::string("Scanning") : Plural(static_cast<int>(entries.size()));
     if (scanning || !entries.empty()) {
-        canvas.Text(RescanButton().x0 - 28.0f, 66.0f, ui::kFontSmall, count.c_str(), kTextDim, 2);
+        Text(RescanButton().x0 - 28.0f, 66.0f, false, count, kTextDim, 2);
     }
     DrawButton(RescanButton(), "Rescan", true, hover_hit.kind == HitKind::Rescan);
 
@@ -321,15 +337,15 @@ void Picker::Draw() {
         // The empty screens are what someone sees first: the big lockup above the message.
         DrawLogo(logo_large, cx - logo_large.w * 0.5f, 170.0f);
         if (!has_dirs) {
-            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Game Folders Set", kText, 1);
-            canvas.Text(cx, 520.0f, ui::kFontSmall,
+            Text(cx, 460.0f, true, "No Game Folders Set", kText, 1);
+            Text(cx, 520.0f, false,
                         "Add one in the Azahar for Frame window on the dashboard", kTextDim, 1);
-            canvas.Text(cx, 560.0f, ui::kFontSmall, "Then select Rescan", kTextDim, 1);
+            Text(cx, 560.0f, false, "Then select Rescan", kTextDim, 1);
         } else if (scanning) {
-            canvas.Text(cx, 480.0f, ui::kFontLarge, "Scanning Games", kText, 1);
+            Text(cx, 480.0f, true, "Scanning Games", kText, 1);
         } else {
-            canvas.Text(cx, 460.0f, ui::kFontLarge, "No Games Found", kText, 1);
-            canvas.Text(cx, 520.0f, ui::kFontSmall,
+            Text(cx, 460.0f, true, "No Games Found", kText, 1);
+            Text(cx, 520.0f, false,
                         "Check the folders in the Azahar for Frame window, then select Rescan", kTextDim, 1);
         }
     } else {
@@ -350,9 +366,9 @@ void Picker::Draw() {
         DrawButton(NextButton(), "Next", current_page < pages - 1, hover_hit.kind == HitKind::Next);
         char buf[48];
         std::snprintf(buf, sizeof(buf), "Page %d of %d", current_page + 1, pages);
-        canvas.Text(kWidth * 0.5f, 938.0f, ui::kFontSmall, buf, kTextDim, 1);
+        Text(kWidth * 0.5f, 938.0f, false, buf, kTextDim, 1);
     }
-    canvas.Text(kWidth * 0.5f, 1000.0f, ui::kFontSmall,
+    Text(kWidth * 0.5f, 1000.0f, false,
                 "Settings are in the Azahar for Frame window on the dashboard", kTextDim, 1);
 }
 

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,9 @@ float TextWidth(int font, const char* s);
 /// Breaks `s` at spaces into at most `max_lines` lines no wider than `width`.
 /// Words wider than a line are split by character. If the text does not fit,
 /// the last line is shortened and ends in "...". Returns no lines for "".
+/// The same with any text measure (a TtfFont's, frame_xr/ui/ui_ttf.h). AzaharFrame emerald
+std::vector<std::string> WrapText(const std::function<float(const std::string&)>& width_of,
+                                  const std::string& s, float width, int max_lines);
 std::vector<std::string> WrapText(int font, const std::string& s, float width, int max_lines);
 
 struct Canvas {

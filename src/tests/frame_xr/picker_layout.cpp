@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <atomic>
 #include <filesystem>
@@ -423,4 +424,53 @@ TEST_CASE("picker: the logo replaces the header text and is drawn 1:1", "[frame_
     bad.SetLibraryState({}, true, false);
     bad.Update({});
     CHECK(std::memcmp(bad.Pixels(), plain.Pixels(), plain.PixelBytes()) == 0);
+}
+
+// AzaharFrame emerald: titles draw with the in-game menu's font (Google Sans Flex, Latin-1),
+// so an accent shows: "Pokémon" and "Pokemon" differ only above the e.
+TEST_CASE("picker: accented titles draw their accents", "[frame_xr][picker]") {
+    const auto tile_text = [](const std::string& title) {
+        Picker p;
+        auto entries = MakeEntries(1);
+        entries[0].title = title;
+        p.SetLibraryState(entries, true, false);
+        p.Update(PickerInput{});
+        const Rect r = TileRect(0);
+        std::vector<uint32_t> px;
+        for (int y = static_cast<int>(r.y0) + 28 + kIconDraw; y < static_cast<int>(r.y1); y++) {
+            for (int x = static_cast<int>(r.x0); x < static_cast<int>(r.x1); x++) {
+                px.push_back(PixelAt(p, x, y));
+            }
+        }
+        return px;
+    };
+    const auto accented = tile_text("Pokémon Emerald 3DS");
+    const auto plain = tile_text("Pokemon Emerald 3DS");
+    const auto boxed = tile_text("Pok\xE4\xB8\x80mon Emerald 3DS"); // U+4E00: the missing box
+    CHECK(accented != plain);
+    CHECK(accented != boxed);
+}
+
+// AzaharFrame emerald: a picture of the picker with accented titles, by hand only:
+// AZAHARFRAME_DUMP_DIR=/some/dir ./frame_xr_picker_tests "[.dump]" writes picker.ppm.
+TEST_CASE("picker: dump with accented titles", "[.dump]") {
+    const char* dir = std::getenv("AZAHARFRAME_DUMP_DIR");
+    REQUIRE(dir != nullptr);
+    Picker p;
+    auto entries = MakeEntries(6);
+    const char* titles[] = {"Pokémon Emerald 3DS", "Pokémon Ultra Sun",
+                            "Mario & Luigi: Paper Jam Bros.", "Professeur Layton et l’Héritage des Aztèques",
+                            "Ñandú • Çà Ünïcödé", "The Legend of Zelda: Ocarina of Time 3D"};
+    for (int i = 0; i < 6; i++) {
+        entries[i].title = titles[i];
+    }
+    p.SetLibraryState(entries, true, false);
+    p.Update(PickerInput{});
+    std::ofstream out(std::string(dir) + "/picker.ppm", std::ios::binary);
+    out << "P6\n" << p.Width() << " " << p.Height() << "\n255\n";
+    const uint8_t* px = p.Pixels();
+    for (int i = 0; i < p.Width() * p.Height(); i++) {
+        out.write(reinterpret_cast<const char*>(px + i * 4), 3);
+    }
+    CHECK(out.good());
 }
