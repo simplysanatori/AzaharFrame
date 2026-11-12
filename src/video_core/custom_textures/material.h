@@ -54,8 +54,8 @@ public:
     /// (a preload that stopped; nothing has been uploaded from it yet)
     void Drop();
 
-    /// AzaharFrame: drops the pixel data of a DDS or KTX file once the GPU has it. Reading it
-    /// again is a plain file read, unlike a PNG, which is decoded. Returns true if it was dropped.
+    /// AzaharFrame: drops the pixel data once the GPU has it; it is read (a PNG decoded) again
+    /// if a surface needs it later. Returns true if it was dropped (memguard: PNGs too).
     bool Release();
 
     [[nodiscard]] bool IsParsed() const noexcept {

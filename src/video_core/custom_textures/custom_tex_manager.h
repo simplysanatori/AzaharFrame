@@ -65,6 +65,10 @@ public:
     /// no pack is loaded). Worked out once; any thread once the game has booted
     u64 PreloadEstimate();
 
+    /// AzaharFrame memguard: the custom texture pixel data held in memory now (decoded PNGs,
+    /// read DDS/KTX files), for the log when a game stops
+    u64 HeldBytes() const;
+
     /// Saves the provided pixel data described by params to disk as png
     void DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data, u64 data_hash);
 

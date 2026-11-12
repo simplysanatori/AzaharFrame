@@ -96,9 +96,10 @@ void CustomTexture::LoadFromDisk(bool flip_png, bool drop_cache) {
 }
 
 bool CustomTexture::Release() {
-    // A file mapped to more than one hash belongs to more than one material; it stays
-    if ((file_format != CustomFileFormat::DDS && file_format != CustomFileFormat::KTX) ||
-        hashes.size() > 1) {
+    // A file mapped to more than one hash belongs to more than one material; it stays.
+    // AzaharFrame memguard: a PNG is dropped too. Its decoded copy is four bytes a pixel, and
+    // keeping every one the game has shown let a PNG pack grow without limit over a session
+    if (hashes.size() > 1) {
         return false;
     }
     std::scoped_lock lock{decode_mutex};

@@ -148,8 +148,8 @@ void CustomTexManager::QueueDecode(Material* material) {
 }
 
 void CustomTexManager::ReleaseUploaded(Material* material) {
-    // A DDS/KTX file is read back in milliseconds, so keeping every uploaded one in memory
-    // (up to the whole pack over a long session) buys little. PNGs keep their decoded copy
+    // Keeping every uploaded texture in memory grows up to the whole pack over a long session.
+    // AzaharFrame memguard: PNGs too (decoded again on a worker if their surface is made again)
     if (!async_custom_loading || !material->IsDecoded()) {
         return;
     }
@@ -316,6 +316,15 @@ u64 CustomTexManager::PreloadEstimate() {
         estimate = EstimatePreload();
     }
     return *estimate;
+}
+
+u64 CustomTexManager::HeldBytes() const {
+    u64 bytes = 0;
+    for (const auto& texture : custom_textures) {
+        std::scoped_lock lock{texture->decode_mutex};
+        bytes += texture->data.size();
+    }
+    return bytes;
 }
 
 void CustomTexManager::DropPreloaded() {
@@ -516,10 +525,12 @@ bool CustomTexManager::Decode(Material* material, std::function<bool()>&& upload
         }
         material->LoadFromDisk(flip_png_files);
         const bool uploaded = upload();
-        // AzaharFrame memguard: after a preload the GPU holds the uploaded copy, and on the
-        // Frame GPU memory is the same RAM. A DDS/KTX file is read back in milliseconds when the
-        // surface is made again; a PNG keeps its decoded copy (decoding it is what preload saves)
-        if (preloaded) {
+        // AzaharFrame memguard: the GPU holds the uploaded copy, and on the Frame GPU memory is
+        // the same RAM, so the CPU copy goes. After a preload a PNG keeps its decoded copy
+        // (not decoding while playing is what the preload is for, and its budget counted it)
+        const bool png =
+            material->textures[0] && material->textures[0]->file_format == CustomFileFormat::PNG;
+        if (!preloaded || !png) {
             material->Release();
         }
         return uploaded;
