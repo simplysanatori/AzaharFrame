@@ -31,6 +31,7 @@
 #include "citra_qt/citra_qt.h"
 #include "citra_qt/compatibility_list.h"
 #include "citra_qt/frame_texture_pack.h" // AzaharFrame
+#include "citra_qt/frame_texture_parts.h" // AzaharFrame texparts
 #include "citra_qt/game_list.h"
 #include "citra_qt/game_list_p.h"
 #include "citra_qt/game_list_worker.h"
@@ -40,6 +41,7 @@
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/core.h"
+#include "core/loader/loader.h" // AzaharFrame texparts
 #include "core/file_sys/archive_extsavedata.h"
 #include "core/file_sys/archive_source_sd_savedata.h"
 #include "core/hle/service/am/am.h"
@@ -800,6 +802,17 @@ void GameList::AddGamePopup(QMenu& context_menu, const QString& path, const QStr
         context_menu.insertAction(shader_menu->menuAction(), texture_pack);
         connect(texture_pack, &QAction::triggered, this,
                 [this, program_id, name] { FrameTexturePack::Run(this, program_id, name); });
+        // AzaharFrame texparts: the pack's parts (the Emulation menu has it for the running game)
+        auto* customize = new QAction(tr("Customize Texture Pack..."), &context_menu);
+        context_menu.insertAction(shader_menu->menuAction(), customize);
+        connect(customize, &QAction::triggered, this, [this, program_id] {
+            u64 running = 0;
+            Core::System& system = Core::System::GetInstance();
+            if (system.IsPoweredOn()) {
+                system.GetAppLoader().ReadProgramId(running);
+            }
+            FrameTexturePartsDialog::Open(this, program_id, running == program_id);
+        });
     }
 #endif
 

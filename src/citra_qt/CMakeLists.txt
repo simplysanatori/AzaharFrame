@@ -314,6 +314,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_mode.cpp frame_mode.h)
     # AzaharFrame texui: the in-game menu's Mods and Textures segments, the Qt side.
     target_sources(citra_qt PRIVATE frame_mods.cpp frame_mods.h)
+    # AzaharFrame texparts: Customize Texture Pack in Flat (game list menu, Emulation menu).
+    target_sources(citra_qt PRIVATE frame_texture_parts.cpp frame_texture_parts.h)
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat
     # AzaharFrame cheatstab: the in-game menu's Cheats tab, the Qt side.
     target_sources(citra_qt PRIVATE frame_cheats.cpp frame_cheats.h)
