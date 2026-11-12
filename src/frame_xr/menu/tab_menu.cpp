@@ -370,6 +370,10 @@ std::string LabelFor(Id id) {
         return "Update";
     case Id::HomebrewPlay:
         return "Play";
+    case Id::AddCheat: // AzaharFrame ui2
+        return "Add Cheat";
+    case Id::InstallCheatFile:
+        return "Install from File";
     default:
         return {};
     }
@@ -1171,6 +1175,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // Touchpad: a label and its two choices; AzaharFrame menuux: under them one line saying what
     // the chosen one does (the only row with a supporting line: the owner asked for it).
     // AzaharFrame mouse: Bottom Screen Reticle under that line, the same way.
+    // AzaharFrame ui2: the controller picture at the top, under the pages; these rows at the
+    // bottom of the pane, under the picture (owner's report 14).
     const auto choice_row = [&](Id id, float y0, int value) {
         const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
@@ -1195,21 +1201,25 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
-    const Rect tp_row = choice_row(Id::TouchpadTouch, seg.y1 + 8.0f, model.touchpad_touch);
+    constexpr float kChoiceH = kControlH + 8.0f;
+    constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
+    const bool at_edge = model.bottom_screen_reticle != 0; // At Edge only while the reticle is on
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (at_edge ? kChoiceH : 0.0f);
+    const float rows_y0 = c.y1 - rows_h;
+    const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, pane.x1 - 8.0f, rows_y0 - 4.0f};
+    if (diagram) {
+        diagram(kit, area, model.controls_page);
+    }
+    const Rect tp_row = choice_row(Id::TouchpadTouch, rows_y0, model.touchpad_touch);
     const float support_y = tp_row.y1 + 6.0f;
     const bool tp_enabled = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)] == Lock::None;
     kit.TextMid(c.x0, support_y, Type::Tooltip, Tok::kOnSurfaceVariant,
                 kit.Fit(Type::Tooltip, TouchpadSupporting(model.touchpad_touch), c.W()), 0,
                 tp_enabled ? 1.0f : kDisabledContent);
-    Rect reticle_row =
+    const Rect reticle_row =
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
-    if (model.bottom_screen_reticle != 0) {
-        // At Edge only while the reticle is on.
-        reticle_row = choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
-    }
-    const Rect area{pane.x0 + 8.0f, reticle_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
-    if (diagram) {
-        diagram(kit, area, model.controls_page);
+    if (at_edge) {
+        choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
     }
 }
 

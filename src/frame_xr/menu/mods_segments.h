@@ -151,7 +151,8 @@ struct TexturesModel {
 /// Documents and Home, the folder's subfolders and .zip / .7z files), in Flat only the progress (Qt's
 /// file dialog picks the file); then the progress, a choice of game when the archive has several, and
 /// the questions. The Qt side (citra_qt/frame_mods.cpp) fills it.
-enum class ZipTarget : uint8_t { Textures, Mods };
+/// AzaharFrame ui2: Cheats: a cheat file (.txt, or a zip holding one), from the Cheats segment.
+enum class ZipTarget : uint8_t { Textures, Mods, Cheats };
 
 struct ZipEntry {
     std::string name;

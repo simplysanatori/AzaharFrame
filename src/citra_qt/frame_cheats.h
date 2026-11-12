@@ -41,6 +41,13 @@ private:
     void Publish();
     void Download();
     void SetCheat(int index, bool on);
+    // AzaharFrame ui2: Add Cheat: the name, then the code (the game's keyboard in VR, dialogs in
+    // Flat), then the cheat is added, off, and the file saved.
+    void AddCheat();
+    void AskName(u64 id);
+    void AskCode(u64 id, const std::string& name);
+    void AddFlat(u64 id);
+    void StoreCheat(u64 id, const std::string& name, const std::string& code);
     /// The title of the game running now, 0 when none (AzaharFrame integ).
     u64 RunningTitle() const;
 
@@ -52,4 +59,5 @@ private:
     FrameXr::Menu::CheatsModel model; ///< as last published
     bool published = false;
     std::function<bool()> menu_open;
+    bool adding = false; ///< AzaharFrame ui2: Add Cheat's keyboard is open
 };

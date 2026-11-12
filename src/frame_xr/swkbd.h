@@ -31,6 +31,9 @@ struct SwkbdOutcome {
 bool OpenGameKeyboard(Swkbd::Spec spec, std::function<void(const SwkbdOutcome&)> done);
 /// The keyboard is open (waiting for an answer). Any thread.
 bool GameKeyboardOpen();
+/// AzaharFrame ui2: the open keyboard was asked for by the in-game menu (Spec::over_menu). Any
+/// thread.
+bool GameKeyboardOverMenu();
 /// A physical keyboard: text typed into the field (UTF-8), and the editing keys. Any thread.
 void GameKeyboardText(const std::string& utf8);
 /// AzaharFrame input2: Enter is the confirm button, NewLine (Shift+Enter) a new line in multi-line

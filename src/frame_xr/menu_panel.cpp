@@ -269,9 +269,12 @@ bool ZipShown(const Menu::MenuModel& model, const Menu::MenuView& view) {
     if (!zip.open || view.tab != Menu::Tab::Mods) {
         return false;
     }
+    if (zip.target == Menu::ZipTarget::Cheats) { // AzaharFrame ui2
+        return view.mods_segment == Menu::ModsSegment::Cheats;
+    }
     if (zip.target == Menu::ZipTarget::Textures) {
-        return view.mods_segment == Menu::ModsSegment::Textures &&
-               view.textures_page == Menu::TexturesPage::Packs;
+        return view.mods_segment == Menu::ModsSegment::Textures && // AzaharFrame ui2
+               view.textures_page == Menu::TexturesPage::Download;
     }
     return view.mods_segment == Menu::ModsSegment::Mods && view.mods_page == Menu::ModsPage::Install;
 }
@@ -947,9 +950,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::DynamicResolution:
         Apply(v.vr_dynamic_resolution, value != 0, false);
         r.setting = MenuSetting::DynamicResolution;
-        if (value == 0) {
-            DynamicResolution::Reset();
-        }
+        // AzaharFrame ui2: off is the full factor at once; on again carries on where it was.
+        DynamicResolution::SetEnabled(value != 0);
         break;
     case Id::TextureFilter:
         r.value = Menu::kTextureFilters[std::min<std::size_t>(u, Menu::kTextureFilters.size() - 1)];
@@ -1188,6 +1190,13 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DownloadCheats:
         ask(MenuCommand::DownloadCheats);
         break;
+    case Id::AddCheat: // AzaharFrame ui2: the keyboard shows over the menu (frame_cheats.cpp)
+        ask(MenuCommand::AddCheat);
+        break;
+    case Id::InstallCheatFile: // AzaharFrame ui2: Install from Zip's browser, for a cheat file
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::InstallFromZip, static_cast<int>(Menu::ZipTarget::Cheats));
+        break;
     case Id::Cheat:
         if (t.index >= 0) {
             ask(MenuCommand::ToggleCheat, t.index);
@@ -1246,7 +1255,8 @@ void MenuPanel::Click(Target t, Host& host) {
     // AzaharFrame zipinstall: Install from Zip (citra_qt/frame_mods.cpp)
     case Id::InstallFromZip:
         if (t.index == static_cast<int>(Menu::ZipTarget::Textures) ||
-            t.index == static_cast<int>(Menu::ZipTarget::Mods)) {
+            t.index == static_cast<int>(Menu::ZipTarget::Mods) ||
+            t.index == static_cast<int>(Menu::ZipTarget::Cheats)) { // AzaharFrame ui2
             view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
             ask(MenuCommand::InstallFromZip, t.index);
         }

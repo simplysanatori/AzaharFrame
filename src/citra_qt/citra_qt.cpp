@@ -4249,6 +4249,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     }
     case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
+    case C::AddCheat: // AzaharFrame ui2
         if (g_frame_cheats) {
             g_frame_cheats->Command(r);
         }
@@ -4265,6 +4266,14 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::CancelPackDownload:
     case C::DeletePack:
     case C::TexturesDialog:
+    // AzaharFrame ui2: Install from Zip's commands were never passed on (they fell through to the
+    // setting below, as Hide Bottom Screen).
+    case C::InstallFromZip:
+    case C::ZipBrowse:
+    case C::ZipPick:
+    case C::ZipChoose:
+    case C::ZipDialog:
+    case C::ZipClose:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }
@@ -4287,6 +4296,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     }
     case C::SetSetting:
         break;
+    default:
+        return; // AzaharFrame ui2: only SetSetting goes on to the settings
     }
 
     // ---- A setting ----

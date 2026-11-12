@@ -845,9 +845,12 @@ void VrUi::EnterSwkbd() {
 }
 
 void VrUi::LeaveSwkbd(const Input::InputFrame& in) {
-    Immersive::SetMenuOpen(false);
+    Immersive::SetMenuOpen(menu_shown); // AzaharFrame ui2: over the menu: the menu again
     swkbd_shown = false;
     tab_menu.Forget(); // the menu's swapchain holds the keyboard now
+    if (menu_shown) {
+        tab_menu.Resume(); // what is held from the keyboard clicks nothing in the menu
+    }
     swallow = {in.a,
                in.b,
                in.x,
@@ -1306,10 +1309,12 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     }
     // AzaharFrame kbd: the game's keyboard while the game waits for it (the menu goes first).
     const bool want_swkbd = swkbd.Poll();
-    if (menu_shown && swkbd_shown) {
+    // AzaharFrame ui2: one the menu asked for (a cheat's name and code) shows over it instead.
+    const bool swkbd_first = want_swkbd && GameKeyboardOverMenu();
+    if (menu_shown && swkbd_shown && !swkbd_first) {
         swkbd_shown = false; // placed again once the menu closes
         tab_menu.Forget();
-    } else if (!menu_shown && want_swkbd && !swkbd_shown) {
+    } else if ((!menu_shown || swkbd_first) && want_swkbd && !swkbd_shown) {
         EnterSwkbd();
     } else if (swkbd_shown && !want_swkbd) {
         LeaveSwkbd(in);
@@ -1322,7 +1327,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     visuals.TakeInput(info, where, window_in, have_input);
     const std::size_t layers_before = layers.size();
     stats_screens.clear(); // AzaharFrame statspos: GameFrame fills it
-    if (menu_shown) {
+    if (menu_shown && !(swkbd_shown && swkbd_first)) {
         MenuFrame(rt, info, window_in, have_input, layers);
     } else if (swkbd_shown) {
         SwkbdFrame(info, window_in, have_input, layers); // AzaharFrame kbd

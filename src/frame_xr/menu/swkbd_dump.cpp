@@ -15,6 +15,7 @@
 #include <lodepng.h>
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
 #include "frame_xr/menu/swkbd_view.h"
 
 using namespace FrameXr;
@@ -199,6 +200,33 @@ int main(int argc, char** argv) {
         s.error = "That name cannot be used.";
         Model m(s); // the game's own message from its check, at the start
         ok &= shot("9-game-message", m, -1, -1);
+    }
+    // AzaharFrame ui2: the Cheats segment's Add Cheat (frame_cheats.cpp), the name, then the code
+    // with a line that is not a code.
+    {
+        Spec s;
+        s.hint = "Cheat Name";
+        s.max_length = 60;
+        s.buttons = {{"Cancel", 0, false}, {"Next", 1, true}};
+        s.validate = [](const std::string& t) { return Menu::CheckCheatName(t); };
+        Model m(s);
+        m.InsertText("Infinite Rupees");
+        ok &= shot("10-cheat-name", m, KindIndex(m, KeyKind::Button, 1), -1);
+    }
+    {
+        Spec s;
+        s.hint = "Code (XXXXXXXX YYYYYYYY)";
+        s.max_length = 4000;
+        s.multiline = true;
+        s.buttons = {{"Cancel", 0, false}, {"Add", 1, true}};
+        s.validate = [](const std::string& t) {
+            std::string code;
+            return Menu::NormalizeCheatCode(t, code);
+        };
+        Model m(s);
+        m.InsertText("D3000000 00000000\n2058AF4C 000003E7\n2058AF4");
+        m.PressButton(1);
+        ok &= shot("11-cheat-code-error", m, KindIndex(m, KeyKind::Button, 1), -1);
     }
     return ok ? 0 : 1;
 }

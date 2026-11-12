@@ -278,6 +278,37 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     CHECK(LabelFor(Id::ReticleAtEdge) == "At Edge");
 }
 
+// AzaharFrame ui2: the controller picture at the top, the Touchpad, Bottom Screen Reticle and
+// At Edge rows under it at the bottom of the pane (owner's report 14).
+TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "[frame_xr][tabmenu]") {
+    for (const int reticle : {0, 2}) {
+        Drawn d;
+        Rect picture{};
+        d.menu.SetDiagram([&picture](Kit&, const Rect& area, int) { picture = area; });
+        MenuModel m = Sample();
+        m.bottom_screen_reticle = reticle;
+        MenuView v;
+        v.tab = Tab::Controls;
+        d.Draw(m, v);
+        REQUIRE(picture.H() > 200.0f); // most of the pane
+        float edit_y1 = 0.0f, rows_y0 = 1e9f, rows_y1 = 0.0f;
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == Id::EditControls) {
+                edit_y1 = h.r.y1;
+            }
+            if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
+                h.t.id == Id::ReticleAtEdge) {
+                rows_y0 = std::min(rows_y0, h.r.y0);
+                rows_y1 = std::max(rows_y1, h.r.y1);
+            }
+        }
+        CHECK(picture.y0 >= edit_y1);   // under the pages and Edit Controls
+        CHECK(rows_y0 >= picture.y1);   // the rows under the picture
+        CHECK(rows_y1 <= kPanelH);      // and inside the panel
+        CHECK(rows_y1 > kPanelH - 80.0f); // at its bottom
+    }
+}
+
 // AzaharFrame cheatstab: the Mods tab and its Cheats segment.
 namespace {
 CheatsModel SampleCheats() {
@@ -1094,7 +1125,46 @@ TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr]
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }
 
-// AzaharFrame zipinstall: Install from Zip on the Textures page and Install Mods, and its page.
+// AzaharFrame ui2: Add Cheat and Install from File in the Cheats segment, with a list and without,
+// and Install from Zip's browser over the segment for a cheat file.
+TEST_CASE("Tab menu: Cheats add and install from a file", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Cheats;
+    CHECK(LabelFor(Id::AddCheat) == "Add Cheat");
+    CHECK(LabelFor(Id::InstallCheatFile) == "Install from File");
+    d.Draw(m, v); // no cheats
+    CHECK(HasHit(d, Id::AddCheat, -1));
+    CHECK(HasHit(d, Id::DownloadCheats, -1));
+    CHECK(HasHit(d, Id::InstallCheatFile, -1));
+    CHECK(HasHit(d, Id::CheatsWindow, -1));
+    CheckTargets(d);
+    m.mods.cheats.cheats = {{"Infinite Hearts", CheatSource::User, true, ""}};
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::AddCheat, -1));
+    REQUIRE(FindHit(d, Id::InstallCheatFile, -1));
+    CHECK(FindHit(d, Id::AddCheat, -1)->r.x0 > FindHit(d, Id::DownloadCheats, -1)->r.x1);
+    // At the bar's end, Azahar's Window before it.
+    CHECK(FindHit(d, Id::InstallCheatFile, -1)->r.x0 > FindHit(d, Id::CheatsWindow, -1)->r.x1);
+    CHECK(FindHit(d, Id::CheatsWindow, -1)->r.x0 > FindHit(d, Id::AddCheat, -1)->r.x1);
+    CheckTargets(d);
+    // The browser over the segment, not over the others.
+    m.mods.zip.open = true;
+    m.mods.zip.target = ZipTarget::Cheats;
+    m.mods.zip.browse = true;
+    m.mods.zip.entries = {{"codes.txt", false, "1 KB"}};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipBack, -1));
+    CHECK(HasHit(d, Id::ZipEntry, 0));
+    CHECK(!HasHit(d, Id::Cheat, 0));
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+}
+
+// AzaharFrame zipinstall: Install from Zip on Download Packs and Install Mods, and its page.
 TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
@@ -1103,15 +1173,37 @@ TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     v.mods_segment = ModsSegment::Textures;
     CHECK(LabelFor(Id::InstallFromZip) == "Install from Zip");
 
-    // the Textures page, with and without packs
+    // AzaharFrame ui2: not on the Textures page itself, with or without packs: Download Packs
+    // leads to the page that has it, as Install Mods does.
     d.Draw(m, v);
-    CHECK(HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(!HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
     CHECK(HasHit(d, Id::DownloadPacks, -1));
     m.mods.textures = Packs(2);
     d.Draw(m, v);
-    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
-    CHECK(FindHit(d, Id::InstallFromZip, 0)->r.x0 > FindHit(d, Id::DownloadPacks, -1)->r.x1);
+    CHECK(!HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    // Download Packs: at the bar's end, empty list or not, where Install Mods has it.
+    v.textures_page = TexturesPage::Download;
+    d.Draw(m, v);
+    const auto* tz = FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures));
+    REQUIRE(tz);
+    const MenuLayout::Hit tex_zip = *tz;
+    CHECK(HasHit(d, Id::TexturesBack, -1));
     CheckTargets(d);
+    {
+        MenuModel mi = m;
+        MenuView vi = v;
+        vi.mods_segment = ModsSegment::Mods;
+        vi.mods_page = ModsPage::Install;
+        mi.mods.mods.catalog = CatalogState::Ready;
+        d.Draw(mi, vi);
+        const auto* mz = FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Mods));
+        REQUIRE(mz);
+        CHECK(mz->r.x0 == tex_zip.r.x0);
+        CHECK(mz->r.x1 == tex_zip.r.x1);
+        CHECK(mz->r.y0 == tex_zip.r.y0);
+        CHECK(mz->r.y1 == tex_zip.r.y1);
+    }
 
     // the browser over the Textures page
     ZipModel& z = m.mods.zip;

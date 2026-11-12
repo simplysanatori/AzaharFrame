@@ -609,6 +609,32 @@ int main(int argc, char** argv) {
     em.mods.cheats.download = DownloadState::Done;
     em.mods.cheats.status = "No cheats for this game";
     ok &= shot("cheats-none-found", em, v);
+    // AzaharFrame ui2: Install from File's browser over the Cheats segment
+    {
+        MenuModel cf = cm;
+        ZipModel& z = cf.mods.zip;
+        z.open = true;
+        z.target = ZipTarget::Cheats;
+        z.browse = true;
+        z.folder = "/home/user/Downloads";
+        z.folder_text = "~/Downloads";
+        z.can_go_up = true;
+        z.chips = {{"Downloads", "/home/user/Downloads"},
+                   {"Documents", "/home/user/Documents"},
+                   {"Home", "/home/user"}};
+        z.entries = {{"Cheats", true, ""},
+                     {"0004000000033500.txt", false, "4 KB"},
+                     {"OoT3D Codes.zip", false, "12 KB"}};
+        v.hover = {Id::ZipEntry, 1};
+        ok &= shot("cheats-file-browse", cf, v);
+        z.file = "readme.txt";
+        z.error = "No Cheats in This File";
+        v.hover = {};
+        ok &= shot("cheats-file-error", cf, v);
+        v.hover = {Id::AddCheat};
+        ok &= shot("cheats-add-hover", cm, v);
+        v.hover = {};
+    }
     // AzaharFrame texui: the Mods and Textures segments.
     const Tab mods_tab = Tab::Mods;
     {
@@ -772,10 +798,11 @@ int main(int argc, char** argv) {
         dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
         v.hover = {Id::DialogConfirm};
         ok &= shot("textures-delete", dp, v);
-        // AzaharFrame zipinstall: Install from Zip
+        // AzaharFrame zipinstall: Install from Zip; AzaharFrame ui2: on Download Packs
+        v.textures_page = TexturesPage::Download;
         v.hover = {Id::InstallFromZip, 0};
         dp.mods.textures.dialog = {};
-        ok &= shot("zip-textures-button", dp, v);
+        ok &= shot("zip-textures-button", dm, v);
         MenuModel zm = dp;
         ZipModel& z = zm.mods.zip;
         z.open = true;
@@ -823,8 +850,11 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = mods_tab;
         v.mods_segment = ModsSegment::Textures;
+        v.textures_page = TexturesPage::Download;
         v.hover = {Id::InstallFromZip, 0};
-        ok &= shot("zip-textures-empty", dm, v);
+        MenuModel dz = dm;
+        dz.mods.textures.downloads.clear();
+        ok &= shot("zip-textures-empty", dz, v);
     }
     v = {};
     v.tab = Tab::Main;

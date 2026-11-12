@@ -414,17 +414,19 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
-    {
-        const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
-        DynamicResolution::NoteSecond({seconds, frames, display_period_ns / 1e6, emu_frames,
-                                       gpu.frames, gpu.avg_ms, screens_live.load()});
-    }
+    const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
+    DynamicResolution::NoteSecond({seconds, frames, display_period_ns / 1e6, emu_frames,
+                                   gpu.frames, gpu.avg_ms, screens_live.load()});
     stats.window_us_sum.exchange(0);
     take(stats.window_us_max);
+    // AzaharFrame ui2: and what Dynamic Resolution judged it by, every second (the logs of report
+    // 14 had it only on a step).
     const std::string emu =
-        emu_frames ? fmt::format("emu frame {:.1f} ms avg ({:.1f} max)",
-                                 emu_sum_us / 1000.0 / emu_frames, emu_max_us / 1000.0)
-                   : std::string{"emu frame -"};
+        (emu_frames ? fmt::format("emu frame {:.1f} ms avg ({:.1f} max)",
+                                  emu_sum_us / 1000.0 / emu_frames, emu_max_us / 1000.0)
+                    : std::string{"emu frame -"}) +
+        fmt::format(", GPU behind {:.1f} ms avg ({:.1f} max) over {} frames, resolution -{}",
+                    gpu.avg_ms, gpu.max_ms, gpu.frames, DynamicResolution::Drop());
     LOG_INFO(Frontend,
              "xr: {:.1f}s display {} frames, waitFrame period {:.2f} ms (max {:.2f}), releases "
              "TL/TR/B {}/{}/{}, late {}/{}/{} (copied in {}, replaced {}), emu waited on XR {} (max "
@@ -1067,6 +1069,9 @@ void SetFrontendHooks(FrontendHooks hooks) {
 }
 
 void SetGameRunning(bool running) {
+    // AzaharFrame ui2: each game (Restart too, which never stops the screens) starts from the
+    // setting, without what the last one learnt.
+    DynamicResolution::Reset();
     if (auto* rt = GetRuntime(); rt && rt->ui) {
         rt->ui->SetGameRunning(running);
     }

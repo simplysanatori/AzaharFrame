@@ -56,6 +56,7 @@ struct Requests {
     bool fresh = false; ///< the XR side has not taken `spec` yet
     Swkbd::Spec spec;
     uint8_t cancel_id = 0;
+    bool over_menu = false; ///< AzaharFrame ui2: Spec::over_menu of the open request
     std::function<void(const SwkbdOutcome&)> done;
     std::deque<KeyEvent> keys;
 };
@@ -126,6 +127,7 @@ bool OpenGameKeyboard(Swkbd::Spec spec, std::function<void(const SwkbdOutcome&)>
         r.seq++;
         r.open = true;
         r.fresh = true;
+        r.over_menu = spec.over_menu; // AzaharFrame ui2
         r.spec = std::move(spec);
         r.cancel_id = cancel_id;
         r.done = std::move(done);
@@ -146,6 +148,12 @@ bool GameKeyboardOpen() {
     Requests& r = Req();
     std::scoped_lock lock{r.mutex};
     return r.open;
+}
+
+bool GameKeyboardOverMenu() { // AzaharFrame ui2
+    Requests& r = Req();
+    std::scoped_lock lock{r.mutex};
+    return r.open && r.over_menu;
 }
 
 void GameKeyboardText(const std::string& utf8) {

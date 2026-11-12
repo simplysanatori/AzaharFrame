@@ -46,6 +46,9 @@ struct Spec {
     std::function<std::string(const std::string& utf8)> validate;
     /// Shown under the field at the start (the game's own message when it refused the last text).
     std::string error;
+    /// AzaharFrame ui2: asked for by the in-game menu (a cheat's name and code): shows over the
+    /// open menu instead of waiting for it to close.
+    bool over_menu = false;
 };
 
 /// What closes the keyboard: the text and the button.

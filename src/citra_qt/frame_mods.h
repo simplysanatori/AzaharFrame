@@ -107,6 +107,7 @@ private:
     void ZipAnswer(bool yes);
     void ZipDone(bool texture, u64 tid);
     void ZipFail(const std::string& error);
+    void ZipCheats(const std::string& path); ///< AzaharFrame ui2: a cheat file, or a zip of one
     void ZipCloseJob();
     void PublishZip();
 

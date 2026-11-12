@@ -189,6 +189,7 @@ enum class MenuCommand {
     // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
     ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
     DownloadCheats, ///< the developer's and Sharkive's cheats for the game
+    AddCheat,       ///< AzaharFrame ui2: a name and a code on the game's keyboard (Flat: dialogs)
     // AzaharFrame texui: the Mods tab's Mods and Textures segments (citra_qt/frame_mods.cpp;
     // core/mods/library.h and core/custom_tex/packs.h do the work). The snackbar's Restart is
     // Restart; Custom Textures and Preload are settings.

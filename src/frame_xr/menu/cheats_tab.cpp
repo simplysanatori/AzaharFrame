@@ -4,7 +4,7 @@
 
 // AzaharFrame cheatstab: the Mods tab's Cheats segment (cheats_tab.h), Material 3 on the pane:
 //
-//   [Download]                                     Azahar's Window     top bar
+//   [Download] [Add Cheat]           Azahar's Window [Install from File]  top bar (ui2)
 //   12 cheats added, 3 for another version                             status (after a download)
 //   No Bloom (USA) (v)                                       ( o)      one flat list, 48 dp rows
 //   Infinite HP in Battle                                    (o )
@@ -20,6 +20,7 @@
 #include <cmath>
 
 #include "frame_xr/menu/md3_fonts.h"
+#include "frame_xr/menu/mods_segments.h" // AzaharFrame ui2: ZipTarget
 #include "frame_xr/menu/tab_menu.h"
 
 namespace FrameXr::Menu {
@@ -30,6 +31,7 @@ namespace {
 
 constexpr float kPad = 24.0f;     ///< inside the pane, as the other tabs
 constexpr float kBarH = 48.0f;    ///< the top bar's buttons
+constexpr float kBarSide = 16.0f; ///< AzaharFrame ui2: their sides, so four fit in the bar
 constexpr float kStatusH = 24.0f; ///< the status line under the bar
 constexpr float kItemH = 48.0f;   ///< a list item (48 dp, the minimum touch target)
 constexpr float kSwitchW = 52.0f;
@@ -127,11 +129,26 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
     const bool downloading = m.download == DownloadState::Downloading;
     const bool failed = m.download == DownloadState::Failed;
 
-    // ---- Top bar: Download on the left (with a list), Azahar's Window on the right ----
+    // AzaharFrame ui2: Install from Zip's page, for a cheat file, over the segment.
+    if (model.mods.zip.open && model.mods.zip.target == ZipTarget::Cheats) {
+        DrawZip(kit, model.mods.zip, view, area, area.y1 - 8.0f);
+        return;
+    }
+    // ---- Top bar: Download and Add Cheat on the left (with a list), Azahar's Window and
+    // Install from File on the right (AzaharFrame ui2: at the bar's end, as Install from Zip on
+    // the Mods and Textures pages) ----
     {
+        const std::string file = LabelFor(Id::InstallCheatFile);
+        const float fw = ButtonWidth(kit, file, true, kBarSide);
+        const Rect fb{c.x1 - fw, c.y0, c.x1, c.y0 + kBarH};
+        kit.Button(fb, ButtonStyle::Tonal, Sym::kFolderOpen, file,
+                   StateOf(view, {Id::InstallCheatFile}, !downloading));
+        if (!downloading) {
+            AddHit(fb, {Id::InstallCheatFile}, area);
+        }
         const std::string label = LabelFor(Id::CheatsWindow);
         const float w = ButtonWidth(kit, label, true, 16.0f);
-        const Rect win{c.x1 - w, c.y0, c.x1, c.y0 + kBarH};
+        const Rect win{fb.x0 - 8.0f - w, c.y0, fb.x0 - 8.0f, c.y0 + kBarH};
         kit.Button(win, ButtonStyle::Text, Sym::kOpenInNew, label,
                    StateOf(view, {Id::CheatsWindow}));
         AddHit(win, {Id::CheatsWindow}, area);
@@ -167,25 +184,38 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
             y += small_h;
         }
         if (with_button) {
+            // AzaharFrame ui2: Add Cheat beside it
             y += 24.0f;
             const std::string label = failed ? "Try Again" : LabelFor(Id::DownloadCheats);
+            const std::string add = LabelFor(Id::AddCheat);
             const float w = ButtonWidth(kit, label, true);
-            const Rect b{mid.Cx() - w * 0.5f, y, mid.Cx() + w * 0.5f, y + button_h};
+            const float aw = ButtonWidth(kit, add, true);
+            const float x0 = mid.Cx() - (w + 8.0f + aw) * 0.5f;
+            const Rect b{x0, y, x0 + w, y + button_h};
             kit.Button(b, ButtonStyle::Filled, failed ? Sym::kRefresh : Sym::kCloudDownload, label,
                        StateOf(view, {Id::DownloadCheats}));
             AddHit(b, {Id::DownloadCheats}, area);
+            const Rect ab{b.x1 + 8.0f, y, b.x1 + 8.0f + aw, y + button_h};
+            kit.Button(ab, ButtonStyle::Tonal, Sym::kAdd, add, StateOf(view, {Id::AddCheat}));
+            AddHit(ab, {Id::AddCheat}, area);
         }
         layout.max_scroll = 0.0f;
         return;
     }
     {
         const std::string label = LabelFor(Id::DownloadCheats);
-        const Rect dl{c.x0, c.y0, c.x0 + ButtonWidth(kit, label, true), c.y0 + kBarH};
+        const Rect dl{c.x0, c.y0, c.x0 + ButtonWidth(kit, label, true, kBarSide), c.y0 + kBarH};
         kit.Button(dl, ButtonStyle::Tonal, Sym::kCloudDownload, label,
                    StateOf(view, {Id::DownloadCheats}, !downloading));
         if (!downloading) {
             AddHit(dl, {Id::DownloadCheats}, area);
         }
+        // AzaharFrame ui2: Add Cheat after Download
+        const std::string add = LabelFor(Id::AddCheat);
+        const Rect ab{dl.x1 + 8.0f, c.y0, dl.x1 + 8.0f + ButtonWidth(kit, add, true, kBarSide),
+                      c.y0 + kBarH};
+        kit.Button(ab, ButtonStyle::Tonal, Sym::kAdd, add, StateOf(view, {Id::AddCheat}));
+        AddHit(ab, {Id::AddCheat}, area);
     }
     float top = c.y0 + kBarH + 8.0f;
     if (downloading || !m.status.empty()) {
