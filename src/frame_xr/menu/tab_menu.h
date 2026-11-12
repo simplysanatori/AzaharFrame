@@ -22,6 +22,7 @@
 
 #include "frame_xr/menu/cheats_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/mods_tab.h" // AzaharFrame texui (the cheatstab lane's shell)
 
 namespace FrameXr::Menu {
 
@@ -85,6 +86,18 @@ enum class Id : int {
     CheatsWindow, ///< Azahar's cheat editor
     Cheat,        ///< index: MenuModel::cheats.cheats (Cheats::Online::SetCheatEnabled's)
     CheatFix,     ///< the developer's game fix: Install / Installed
+    // The Mods tab's Mods and Textures segments (AzaharFrame texui): mods_segments.h
+    InstallMods,    ///< opens Install Mods
+    ModsBack,       ///< Install Mods' back button
+    Mod,            ///< index: mods.mods.loaded (the row: a managed mod on or off)
+    ModRemove,      ///< index: mods.mods.loaded
+    ModInstall,     ///< index: mods.mods.available
+    DialogConfirm,  ///< the dialog's Replace / Remove
+    DialogCancel,   ///< and its Cancel / OK
+    CustomTextures,
+    TexturePack,    ///< index: 0 Off, i + 1 mods.textures.packs[i]
+    TexturePreload,
+    RestartGame,    ///< the snackbar's Restart
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -150,6 +163,7 @@ struct MenuModel {
     int narrow_screen = 0;
     int depth_factor = 0;
     CheatsModel cheats; ///< AzaharFrame cheatstab
+    ModsTabModel mods;  ///< AzaharFrame texui: the Mods tab's segments
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
     bool operator==(const MenuModel&) const = default;
@@ -168,6 +182,8 @@ struct MenuView {
     Id tooltip = Id::None;    ///< the one-line explanation of a row
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
+    ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame texui (cheatstab's shell)
+    ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
     bool operator==(const MenuView&) const = default;
 };
 
@@ -241,6 +257,13 @@ private:
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     /// AzaharFrame cheatstab: cheats_tab.cpp
     void DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    /// AzaharFrame texui: the Mods tab's Mods and Textures segments in `area` (mods_segments.cpp)
+    void DrawModsList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    void DrawTextures(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    /// The snackbar "Restart the Game to Apply" at the bottom of `area`; returns where a list
+    /// over it must end.
+    float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area);
+    void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;

@@ -263,6 +263,18 @@ std::string LabelFor(Id id) {
         return "Download";
     case Id::CheatsWindow:
         return "Azahar's Window";
+    case Id::InstallMods: // AzaharFrame texui
+        return "Install Mods";
+    case Id::ModRemove:
+        return "Remove";
+    case Id::ModInstall:
+        return "Install";
+    case Id::CustomTextures:
+        return "Custom Textures";
+    case Id::TexturePreload:
+        return "Preload";
+    case Id::RestartGame:
+        return "Restart";
     default:
         return {};
     }
@@ -397,7 +409,15 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
         DrawControls(kit, model, view, pane);
         break;
     case Tab::Cheats: // AzaharFrame cheatstab
-        DrawCheats(kit, model, view, pane);
+        // AzaharFrame texui: the Mods and Textures segments under where the cheatstab lane's
+        // segmented button goes, until its Mods tab shell is merged.
+        if (view.mods_segment == ModsSegment::Mods) {
+            DrawModsList(kit, model, view, {pane.x0, pane.y0 + 84.0f, pane.x1, pane.y1});
+        } else if (view.mods_segment == ModsSegment::Textures) {
+            DrawTextures(kit, model, view, {pane.x0, pane.y0 + 84.0f, pane.x1, pane.y1});
+        } else {
+            DrawCheats(kit, model, view, pane);
+        }
         break;
     default:
         DrawRows(kit, model, view, pane);

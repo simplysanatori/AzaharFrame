@@ -149,6 +149,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <csignal>
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_mirror.h"
+#include "citra_qt/frame_mods.h" // AzaharFrame texui
 #include "citra_qt/frame_bottom_window.h" // AzaharFrame window
 #include "citra_qt/frame_mode.h"
 #include "common/frame_bottom_window.h" // AzaharFrame window
@@ -213,6 +214,10 @@ private:
 std::unique_ptr<FrameXrTouchSink> g_frame_xr_touch_sink;
 // The VR home panel: this window mirrored (frame_mirror.cpp); null with the picker.
 QPointer<FrameMirror> g_frame_mirror;
+// AzaharFrame texui: the in-game menu's Mods and Textures segments (frame_mods.cpp), made with the
+// menu; the games started so far (a restart clears its snackbar).
+QPointer<FrameMods> g_frame_mods;
+int g_frame_runs = 0;
 // Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
 std::function<void(bool open)> g_frame_xr_set_menu;
 // Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
@@ -1321,6 +1326,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                         FrameXr::SetInGameMenuInfo(game_title.toStdString(), menu_slots,
                                                    have_id && title_id != 0 &&
                                                        !g_frame_game_config_name.empty());
+                        if (!g_frame_mods) { // AzaharFrame texui
+                            g_frame_mods = new FrameMods(this);
+                        }
+                        g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
                     }
                     if (open && flat) {
                         g_frame_flat_menu_fullscreen |= WindowFullscreen() || g_frame_fullscreen;
@@ -2575,6 +2584,7 @@ void GMainWindow::BootGame(const QString& filename) {
         QtConfig per_game_config(config_file_name, QtConfig::ConfigType::PerGameConfig);
 #ifdef ENABLE_FRAME_XR
         g_frame_game_config_name = config_file_name; // AzaharFrame widerview
+        g_frame_runs++;                              // AzaharFrame texui
 #endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
@@ -4006,6 +4016,16 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         LOG_INFO(Frontend, "xr: in-game menu: cheats command {} ({}) not wired yet",
                  static_cast<int>(r.command), r.value);
         return;
+    case C::SelectTexturePack: // AzaharFrame texui: the Mods tab (frame_mods.cpp)
+    case C::LoadModCatalog:
+    case C::InstallMod:
+    case C::SetModActive:
+    case C::RemoveMod:
+    case C::ModsDialog:
+        if (g_frame_mods) {
+            g_frame_mods->Command(r);
+        }
+        return;
     case C::SetSetting:
         break;
     }
@@ -4086,6 +4106,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::TouchpadTouch: // AzaharFrame menu
         set(v.vr_touchpad_touch, std::min<u32>(u, 2));
         break;
+    case S::CustomTextures: // AzaharFrame texui: from the next start
+        set(v.custom_textures, r.value != 0);
+        if (g_frame_mods) {
+            g_frame_mods->TextureSettingChanged();
+        }
+        break;
+    case S::PreloadTextures:
+        set(v.preload_textures, r.value != 0);
+        if (g_frame_mods) {
+            g_frame_mods->TextureSettingChanged();
+        }
+        break;
     }
     if (!per_game_setting) {
         config->Save(); // the global file gets the global values only (WriteGlobalSetting)
@@ -4104,6 +4136,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
+    FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
+    FrameKeepSetting keep_preload{v.preload_textures};
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4113,6 +4147,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_wider.Restore();
     keep_squeeze.Restore();
     keep_depth.Restore();
+    keep_custom_textures.Restore();
+    keep_preload.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }

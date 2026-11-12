@@ -326,3 +326,228 @@ TEST_CASE("Tab menu: the Cheats tab", "[frame_xr][tabmenu]") {
     CHECK(VersionChip("for Rev0, this cartridge is Rev1") == "Rev0");
     CHECK(VersionChip("") == "");
 }
+
+// AzaharFrame texui: the Mods tab's Mods and Textures segments (mods_segments.h).
+namespace {
+
+constexpr Tab kModsTab = Tab::Cheats; // the cheatstab lane's Mods tab
+
+bool HasHit(const Drawn& d, Id id, int index) {
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == id && h.t.index == index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const MenuLayout::Hit* FindHit(const Drawn& d, Id id, int index) {
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == id && h.t.index == index) {
+            return &h;
+        }
+    }
+    return nullptr;
+}
+
+/// Every target of the segment is at least 48 dp and inside the panel.
+void CheckTargets(const Drawn& d) {
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.index == kLabelIndex || h.t.index == kMenuAreaIndex) {
+            continue;
+        }
+        INFO("id " << static_cast<int>(h.t.id) << " index " << h.t.index << " " << h.r.W()
+                   << " x " << h.r.H());
+        CHECK(h.r.W() >= 48.0f);
+        CHECK(h.r.H() >= 48.0f);
+        CHECK(h.r.x1 <= kPanelW + 0.01f);
+        CHECK(h.r.y1 <= kPanelH + 0.01f);
+    }
+}
+
+TexturesModel Packs(int n) {
+    TexturesModel t;
+    t.custom_textures = true;
+    for (int i = 0; i < n; i++) {
+        t.packs.push_back({"p" + std::to_string(i), "Pack " + std::to_string(i),
+                           i % 2 ? "" : JoinDetail({"Henriko Magnifico", "3.2", "PNG", "5.8 GB"}),
+                           i == 1});
+    }
+    return t;
+}
+
+} // namespace
+
+TEST_CASE("Tab menu: the Textures segment", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+
+    // No packs: only the empty state, nothing to switch.
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::CustomTextures, -1));
+    CHECK(!HasHit(d, Id::TexturePack, 0));
+    CHECK(d.menu.MaxScroll() == 0.0f);
+
+    // Custom Textures, Off and three packs, Preload: all on view without scrolling.
+    m.mods.textures = Packs(3);
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::CustomTextures, -1));
+    CHECK(HasHit(d, Id::TexturePreload, -1));
+    for (int i = 0; i <= 3; i++) {
+        CHECK(HasHit(d, Id::TexturePack, i));
+    }
+    CHECK(d.menu.MaxScroll() == 0.0f);
+    CheckTargets(d);
+    // In that order, Off first.
+    REQUIRE(FindHit(d, Id::TexturePack, 0));
+    CHECK(FindHit(d, Id::CustomTextures, -1)->r.y1 <= FindHit(d, Id::TexturePack, 0)->r.y0);
+    CHECK(FindHit(d, Id::TexturePack, 0)->r.y1 <= FindHit(d, Id::TexturePack, 1)->r.y0 + 0.01f);
+    CHECK(FindHit(d, Id::TexturePack, 3)->r.y1 <= FindHit(d, Id::TexturePreload, -1)->r.y0);
+    // With the snackbar too.
+    m.mods.textures.needs_restart = true;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::RestartGame, -1));
+    CHECK(HasHit(d, Id::TexturePreload, -1));
+    CHECK(d.menu.MaxScroll() == 0.0f);
+
+    // Custom Textures off: the packs and Preload are labels only; busy: everything waits.
+    m.mods.textures.custom_textures = false;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::CustomTextures, -1));
+    CHECK(!HasHit(d, Id::TexturePack, 1));
+    CHECK(HasHit(d, Id::TexturePack, kLabelIndex));
+    CHECK(!HasHit(d, Id::TexturePreload, -1));
+    m.mods.textures.custom_textures = true;
+    m.mods.textures.busy = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::CustomTextures, -1));
+    CHECK(!HasHit(d, Id::TexturePack, 0));
+
+    // Many packs: the list scrolls above the snackbar, the last row shows whole at the end.
+    m.mods.textures = Packs(10);
+    m.mods.textures.needs_restart = true;
+    d.Draw(m, v);
+    REQUIRE(d.menu.MaxScroll() > 0.0f);
+    const float snack_y0 = FindHit(d, Id::RestartGame, -1)->r.y0;
+    for (const float scroll : {0.0f, 130.0f, 10000.0f}) {
+        v.scroll[static_cast<int>(kModsTab)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id != Id::RestartGame && h.t.id != Id::TabButton) {
+                CHECK(h.r.y1 <= snack_y0 + 0.01f); // nothing under the snackbar
+            }
+        }
+        CheckTargets(d);
+    }
+    CHECK(HasHit(d, Id::TexturePreload, -1)); // at the end
+    CHECK(LabelFor(Id::CustomTextures) == "Custom Textures");
+    CHECK(LabelFor(Id::TexturePreload) == "Preload");
+    CHECK(LabelFor(Id::RestartGame) == "Restart");
+}
+
+TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Mods;
+
+    // Nothing loaded: Install Mods only.
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::InstallMods, -1));
+    CHECK(!HasHit(d, Id::Mod, 0));
+    CheckTargets(d);
+
+    // A managed mod (its row switches it), one off in the library, your own files (Remove only).
+    auto& mm = m.mods.mods;
+    mm.loaded = {{"a", "No Bloom", "simplysanatori", true, true, true},
+                 {"b", "Ocarina ReFramed (Dual Screen)", "OTPR26 · v1.5.9", false, true, false},
+                 {"unmanaged:code.ips", "code.ips", "", false, false, true}};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::InstallMods, -1));
+    CHECK(HasHit(d, Id::Mod, 0));
+    CHECK(HasHit(d, Id::Mod, 1));
+    CHECK(!HasHit(d, Id::Mod, 2));
+    for (int i = 0; i < 3; i++) {
+        CHECK(HasHit(d, Id::ModRemove, i));
+    }
+    CheckTargets(d);
+    // Remove sits on its row and wins over it.
+    const auto* remove = FindHit(d, Id::ModRemove, 0);
+    REQUIRE(remove);
+    CHECK(d.menu.HitTest(remove->r.Cx(), remove->r.Cy()) == Target{Id::ModRemove, 0});
+    // Busy: nothing to press but Install Mods.
+    mm.busy = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::Mod, 0));
+    CHECK(!HasHit(d, Id::ModRemove, 0));
+    CHECK(HasHit(d, Id::InstallMods, -1));
+    mm.busy = false;
+
+    // Install Mods: loading, then the title's mods.
+    v.mods_page = ModsPage::Install;
+    mm.catalog = CatalogState::Loading;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModsBack, -1));
+    CHECK(!HasHit(d, Id::InstallMods, -1));
+    CHECK(!HasHit(d, Id::ModInstall, 0));
+    mm.catalog = CatalogState::Ready;
+    mm.available = {{"s", "Ocarina ReFramed (Single Screen)", "OTPR26", false, OfferState::Install, "", false},
+                    {"d", "Ocarina ReFramed (Dual Screen)", "OTPR26", false, OfferState::Installed, "", false},
+                    {"r", "Project Restoration", "leoetlino", false, OfferState::Unavailable,
+                     "Unsupported Archive", false},
+                    {"n", "No Bloom", "simplysanatori", true, OfferState::Installing, "Downloading", false}};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModInstall, 0));
+    CHECK(!HasHit(d, Id::ModInstall, 1)); // installed
+    CHECK(!HasHit(d, Id::ModInstall, 2)); // cannot install yet
+    CHECK(!HasHit(d, Id::ModInstall, 3)); // installing
+    CheckTargets(d);
+    mm.busy = true; // another install runs: Install waits
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ModInstall, 0));
+    mm.busy = false;
+
+    // A conflict: the dialog's two answers, nothing under it.
+    mm.dialog = {ModsDialogKind::Replace, "Ocarina ReFramed (Single Screen)",
+                 "Ocarina ReFramed (Dual Screen)"};
+    d.Draw(m, v);
+    const auto* confirm = FindHit(d, Id::DialogConfirm, -1);
+    const auto* cancel = FindHit(d, Id::DialogCancel, -1);
+    REQUIRE(confirm);
+    REQUIRE(cancel);
+    CHECK(cancel->r.x1 <= confirm->r.x0); // Replace last
+    CheckTargets(d);
+    CHECK(d.menu.HitTest(confirm->r.Cx(), confirm->r.Cy()) == Target{Id::DialogConfirm});
+    CHECK(d.menu.HitTest(10.0f, 10.0f).index == kMenuAreaIndex); // the rail too
+    CHECK(d.menu.HitTest(kPanelW - 40.0f, kPanelH - 40.0f).index == kMenuAreaIndex);
+    mm.dialog.kind = ModsDialogKind::Blocked;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    CHECK(!HasHit(d, Id::DialogConfirm, -1));
+    mm.dialog = {};
+
+    // The snackbar after a change, on both pages.
+    mm.needs_restart = true;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::RestartGame, -1));
+    v.mods_page = ModsPage::Loaded;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::RestartGame, -1));
+    CheckTargets(d);
+    CHECK(LabelFor(Id::InstallMods) == "Install Mods");
+    CHECK(LabelFor(Id::ModRemove) == "Remove");
+    CHECK(LabelFor(Id::ModInstall) == "Install");
+}
+
+TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
+    CHECK(JoinDetail({"OTPR26", "", "v1.5.9"}) == "OTPR26 · v1.5.9");
+    CHECK(JoinDetail({"", ""}) == "");
+    CHECK(SizeText(512) == "512 B");
+    CHECK(SizeText(640'000'000) == "640 MB");
+    CHECK(SizeText(2'100'000'000) == "2.1 GB");
+    CHECK(SizeText(12'345) == "12 KB");
+}

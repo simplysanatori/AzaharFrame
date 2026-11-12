@@ -79,6 +79,36 @@ CheatsModel SampleCheats() {
     return c;
 }
 
+// AzaharFrame texui: the Mods tab's Mods and Textures segments, with the real catalog's and the
+// owner's packs' names. Stella Glow (USA) with the developer's No Bloom loaded.
+ModsListModel SampleModsStellaGlow() {
+    ModsListModel mm;
+    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", true, true, true}};
+    return mm;
+}
+
+// Ocarina of Time 3D: the catalog's two Ocarina ReFramed builds.
+ModsListModel SampleModsOot3d() {
+    ModsListModel mm;
+    mm.catalog = CatalogState::Ready;
+    mm.available = {
+        {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26", false,
+         OfferState::Install, "", false},
+        {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)", "OTPR26", false,
+         OfferState::Install, "", false}};
+    return mm;
+}
+
+TexturesModel SampleTextures() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.preload = false;
+    t.packs = {{"oot3d-1080p", "1080p", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 640 MB", false},
+               {"oot3d-4k", "4K", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 2.1 GB", true},
+               {"oot3d-4k-png", "4K (PNG)", "PNG \u00b7 5.8 GB", false}};
+    return t;
+}
+
 bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
               bool keep_alpha = false) {
     // The canvas is premultiplied, R in the low byte: over the opaque backdrop it is plain RGB.
@@ -308,6 +338,78 @@ int main(int argc, char** argv) {
     em.cheats.download = DownloadState::Failed;
     em.cheats.status = "No Internet Connection";
     ok &= shot("cheats-error", em, v);
+    // AzaharFrame texui: the Mods and Textures segments.
+    const Tab mods_tab = Tab::Cheats; // the cheatstab lane's Mods tab
+    {
+        MenuModel mm = m;
+        mm.game_title = "Stella Glow";
+        mm.mods.mods = SampleModsStellaGlow();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        ok &= shot("mods", mm, v);
+        MenuModel me = m;
+        v.hover = {Id::InstallMods};
+        ok &= shot("mods-empty", me, v);
+        MenuModel mi = m;
+        mi.mods.mods = SampleModsOot3d();
+        v.mods_page = ModsPage::Install;
+        v.hover = {Id::ModInstall, 0};
+        ok &= shot("mods-install", mi, v);
+        MenuModel mp = mi; // downloading the first, the second waits
+        mp.mods.mods.busy = true;
+        mp.mods.mods.available[0].state = OfferState::Installing;
+        mp.mods.mods.available[0].note = "Downloading";
+        mp.mods.mods.spin = 9;
+        v.hover = {};
+        ok &= shot("mods-installing", mp, v);
+        MenuModel mc = mi; // Dual Screen in, Single Screen asked for
+        mc.mods.mods.available[1].state = OfferState::Installed;
+        mc.mods.mods.dialog = {ModsDialogKind::Replace, "Ocarina ReFramed (Single Screen)",
+                               "Ocarina ReFramed (Dual Screen)"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("mods-conflict", mc, v);
+        MenuModel ml = m; // loaded, waiting for a restart
+        ml.mods.mods.loaded = {
+            {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)",
+             "OTPR26 \u00b7 v1.5.9", false, true, true},
+            {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)",
+             "OTPR26 \u00b7 v1.5.9", false, true, false},
+            {"unmanaged:romfs", "romfs", "214 Files", false, false, true}};
+        ml.mods.mods.needs_restart = true;
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        v.hover = {Id::ModRemove, 2};
+        ok &= shot("mods-restart", ml, v);
+
+        MenuModel tm = m;
+        tm.mods.textures = SampleTextures();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::TexturePack, 1};
+        ok &= shot("textures", tm, v);
+        MenuModel tr = tm;
+        for (auto& p : tr.mods.textures.packs) {
+            p.active = p.id == "oot3d-1080p";
+        }
+        tr.mods.textures.needs_restart = true;
+        v.hover = {Id::RestartGame};
+        ok &= shot("textures-restart", tr, v);
+        v.hover = {};
+        v.scroll[static_cast<int>(mods_tab)] = -1.0f;
+        ok &= shot("textures-restart-end", tr, v);
+        MenuModel te = m;
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        ok &= shot("textures-empty", te, v);
+        MenuModel to = tm;
+        to.mods.textures.custom_textures = false;
+        v.hover = {Id::CustomTextures};
+        ok &= shot("textures-off", to, v);
+    }
     v = {};
     v.tab = Tab::Main;
     ok &= shot("main", m, v);

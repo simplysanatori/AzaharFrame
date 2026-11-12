@@ -11,6 +11,9 @@ add_library(frame_xr_menu STATIC
     md3_fonts.h
     cheats_tab.cpp
     cheats_tab.h
+    mods_segments.cpp # AzaharFrame texui
+    mods_segments.h
+    mods_tab.h
     tab_menu.cpp
     tab_menu.h
 )
