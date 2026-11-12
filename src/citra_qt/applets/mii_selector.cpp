@@ -9,6 +9,9 @@
 #include <QVBoxLayout>
 #include "citra_qt/applets/mii_selector.h"
 #include "common/string_util.h"
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd
+#include "frame_xr/frame_xr.h"
+#endif
 
 QtMiiSelectorDialog::QtMiiSelectorDialog(QWidget* parent, QtMiiSelector* mii_selector_)
     : QDialog(parent), mii_selector(mii_selector_) {
@@ -52,6 +55,27 @@ QtMiiSelector::QtMiiSelector(QWidget& parent_) : parent(parent_) {}
 
 void QtMiiSelector::Setup(const Frontend::MiiSelectorConfig& config) {
     MiiSelector::Setup(config);
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame kbd: the dialog is not on view in the headset, and the game would wait for it
+    // forever. In VR the Mii the game asks for first is chosen (as OK in the dialog, which starts
+    // on it), and a toast names it.
+    if (FrameXr::VrShowing()) {
+        std::vector<Mii::MiiData> miis{
+            HLE::Applets::MiiSelector::GetStandardMiiResult().selected_mii_data};
+        std::vector<std::string> names{"Standard Mii"};
+        for (const auto& mii : Frontend::LoadMiis()) {
+            miis.push_back(mii);
+            names.push_back(Common::UTF16BufferToUTF8(mii.mii_name));
+        }
+        const std::size_t index =
+            config.initially_selected_mii_index < miis.size() ? config.initially_selected_mii_index
+                                                               : 0;
+        LOG_INFO(Frontend, "Mii Selector in VR: Mii {} of {} chosen", index, miis.size());
+        FrameXr::ShowToastText("Mii: " + names[index]);
+        Finalize(0, miis[index]);
+        return;
+    }
+#endif
     QMetaObject::invokeMethod(this, "OpenDialog", Qt::BlockingQueuedConnection);
 }
 
