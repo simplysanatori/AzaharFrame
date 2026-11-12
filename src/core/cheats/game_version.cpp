@@ -432,6 +432,11 @@ InstalledVersion SelectInstalledVersion(u64 title_id, std::optional<u16> update_
     if (const auto entry = LookupVersion(title_id, *out.raw)) {
         out.version = entry->shown;
         out.table_source = entry->source;
+    } else if (out.source == VersionSource::CardInfo && out.revision == 0) {
+        // the first printing of a cartridge, no update installed: the game as released, whatever
+        // its card info version says (Pokemon X reads 32 at revision 0)
+        out.version = Version{1, 0};
+        out.table_source = "cartridge revision 0 is the game as released";
     } else if (*out.raw == 0 && !(out.revision && *out.revision > 0)) {
         out.version = Version{1, 0};
         out.table_source = "raw version 0 is the game as released";

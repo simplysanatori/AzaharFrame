@@ -27,7 +27,7 @@ const char* DefaultVersionsJson() {
       "title_ids": ["00030800"],
       "raw": 3072,
       "shown": "1.2",
-      "source": "Mario Kart 7 (USA): Nintendo's Dec 2022 update is Ver. 1.2 (shown at the lower right of the Online Multiplayer icon), the only update after 1.1 (v1040); its update title installs as raw 3072"
+      "source": "Mario Kart 7 (USA): the installed update's SMDH large icon reads Ver. 1.2 (Nintendo's Dec 2022 update, the only one after 1.1 = v1040)"
     }
   ]
 }

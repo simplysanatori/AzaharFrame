@@ -254,6 +254,18 @@ TEST_CASE("Versions: no entry says nothing misleading", "[versions]") {
     REQUIRE(r.Display() == "Update Installed");
     REQUIRE(r.State() == "has an update installed");
     REQUIRE(r.LogText().find("raw 5216 (5.6.0)") != std::string::npos);
+    // a cartridge at revision 0 is the game as released, whatever its card info says: never "Rev 0"
+    FileVersion first;
+    first.card_version = 32;
+    first.card_revision = 0;
+    r = SelectInstalledVersion(kOther, std::nullopt, std::nullopt, first, std::nullopt);
+    REQUIRE(r.version == Version{1, 0});
+    REQUIRE_FALSE(r.unmapped);
+    REQUIRE(r.Display() == "1.0");
+    // ... but an installed update still decides
+    r = SelectInstalledVersion(kOther, 5216, std::nullopt, first, std::nullopt);
+    REQUIRE(r.unmapped);
+    REQUIRE(r.Display() == "Update Installed");
     // a cartridge revision the table does not know
     FileVersion card;
     card.card_version = 48;
