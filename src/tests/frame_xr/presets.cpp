@@ -91,24 +91,26 @@ TEST_CASE("FrameXr presets: other games have none, ids are unique", "[frame_xr]"
     std::set<uint64_t> seen;
     for (std::size_t i = 0; i < count; ++i) {
         REQUIRE(seen.insert(titles[i].title_id).second);
-        REQUIRE((titles[i].preset->mode == 2 || titles[i].preset->mode == 3));
+        // AzaharFrame immersive: 0 only for a game that starts in the normal view.
+        REQUIRE((titles[i].preset->mode == 0 || titles[i].preset->mode == 2 ||
+                 titles[i].preset->mode == 3));
     }
 }
 
-// AzaharFrame immersive: Kid Icarus: Uprising has no immersive mode, in any region.
-TEST_CASE("FrameXr presets: games without immersive mode", "[frame_xr]") {
+// AzaharFrame immersive: Kid Icarus: Uprising starts in the normal view, in every region: its
+// preset keeps Immersive Mode Off and sets nothing else, so the player can still turn it on.
+TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[frame_xr]") {
     for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull, 0x0004000000030300ull}) {
-        REQUIRE_FALSE(ImmersiveOffered(id));
-        REQUIRE(FindImmersivePreset(id) == nullptr);
-    }
-    REQUIRE(ImmersiveOffered(0));
-    REQUIRE(ImmersiveOffered(0x0004000000030800ull)); // Mario Kart 7
-    REQUIRE(ImmersiveOffered(0x0004000000033500ull)); // Ocarina of Time 3D
-    // No game is both offered a preset and refused.
-    std::size_t refused = 0;
-    const uint64_t* ids = ImmersiveNotOfferedTitles(refused);
-    REQUIRE(refused == 3);
-    for (std::size_t i = 0; i < refused; ++i) {
-        REQUIRE(FindImmersivePreset(ids[i]) == nullptr);
+        const auto* kiu = FindImmersivePreset(id);
+        REQUIRE(kiu != nullptr);
+        REQUIRE(kiu->mode == 0);
+        REQUIRE(kiu->register_offset == -1);
+        REQUIRE(kiu->depth_multiplier == 0);
+        REQUIRE(kiu->game_fov == 0);
+        REQUIRE(kiu->eye_indicator == nullptr);
+        REQUIRE(kiu->wider_level == -1);
+        REQUIRE(kiu->narrow == -1);
+        REQUIRE(kiu->screen_size == 0.0f);
+        REQUIRE(kiu->match_camera == -1);
     }
 }

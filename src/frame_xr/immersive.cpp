@@ -22,7 +22,7 @@
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h"
 #include "frame_xr/input/input_frame.h"
-#include "frame_xr/presets.h" // AzaharFrame immersive: games without immersive mode, sizes
+#include "frame_xr/presets.h" // AzaharFrame immersive: preset screen sizes
 #include "video_core/vr_immersive.h"
 
 namespace FrameXr::Immersive {
@@ -333,11 +333,9 @@ void UpdateMeasuredCamera() {
     }
 }
 
-// AzaharFrame immersive: the immersive mode in use. Games whose immersive mode does not work
-// (presets.h ImmersiveOffered) always run in the normal view, whatever the setting says.
+// AzaharFrame immersive: the immersive mode in use, the setting's (every game can turn it on).
 u32 ModeInUse() {
-    return ImmersiveOffered(g_title_id.load()) ? Settings::values.vr_immersive_mode.GetValue()
-                                                : 0u;
+    return Settings::values.vr_immersive_mode.GetValue();
 }
 
 L::ScreenDecision Decision() {
@@ -466,9 +464,6 @@ void OnFrame(const FrameInfo& info) {
             g.store.Set(g.title_id, false, g.head_place);
             SaveStore();
             LogPlacement("earlier build's size replaced by the default", g.head_place, false);
-        }
-        if (!ImmersiveOffered(g.title_id) && Settings::values.vr_immersive_mode.GetValue() != 0) {
-            LOG_INFO(Frontend, "xr: immersive mode is not offered for this game: normal view");
         }
         if (mode != 0) {
             const bool is_wide = !IsViewMode(mode);

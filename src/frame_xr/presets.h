@@ -15,7 +15,8 @@ namespace FrameXr {
 
 struct ImmersivePreset {
     const char* name;
-    /// Settings::values.vr_immersive_mode (3 = Full (6DoF): Other Games)
+    /// Settings::values.vr_immersive_mode (3 = Full (6DoF): Other Games; 0 = the game starts in
+    /// the normal view, and the player can still turn Immersive Mode on)
     uint32_t mode;
     /// Settings::values.vr_si_mode_register_offset (the view matrix register)
     int32_t register_offset;
@@ -43,14 +44,6 @@ struct ImmersivePreset {
 
 /// The preset for the game with this title id (any region), or null.
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id);
-
-/// AzaharFrame immersive: false for a game whose immersive mode does not work (Kid Icarus:
-/// Uprising, every region): it always runs in the normal view, its config's Immersive Mode is set
-/// to Off when it starts, and the VR menu does not offer the setting.
-bool ImmersiveOffered(uint64_t title_id);
-
-/// Every title id without immersive mode, for tests and documentation.
-const uint64_t* ImmersiveNotOfferedTitles(std::size_t& count);
 
 /// Every title id with a preset, for tests and documentation.
 struct ImmersivePresetTitle {
