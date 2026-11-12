@@ -54,7 +54,10 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Autosave** makes save states of its own as you play: every few minutes of play (1, 2, 5, 10 or 15), when the VR menu opens and when you close the game, at most one a minute. It is off at first; turn it on in the VR menu's **Settings**, in **Emulation > Autosave** or in **Emulation > Configure > General**. Each game can have its own Autosave, Every and Keep.
 - Autosaves never replace a slot or the Quick Save. A game keeps the newest 3 by default (1 to 10).
 - **Load State** has an **Autosave** card above the slots, with a picture of the top screen and how long ago it was made. In Flat they are at the end of **Emulation > Load State**.
-- Loading an autosave saves the moment before, so **Undo Load** can take it back.
+- Loading an autosave or any slot saves the moment before, so **Undo Load** can take it back. It shows under the slots, for example "Slot 3 Loaded: 10:22".
+- The autosave made when the VR menu opens has a spot of its own, replaced each time. It doesn't count toward Keep, so opening the menu to go back never removes your oldest autosave.
+- Turning Autosave on or off in the VR menu's **Per-Game** scope says which game it's for, for example "Autosave On for Ocarina of Time 3D".
+- If an autosave fails, a short message says so, with the reason when known: "Couldn't Autosave: Not Enough Space".
 - "Autosaved" shows for a moment above the top screen's corner, or as a short message when that corner is out of view.
 - The game is held only while its state is copied; compressing and writing it happen in the background, so an autosave barely shows in play.
 
@@ -64,7 +67,9 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Save states
 
-- Save states from another version show which version made them, and ask before they load. **Load Anyway** backs up the game's save data first, and offers to restore it if the game then closes unexpectedly.
+- Save states from another version show which version made them, and ask before they load. **Load Anyway** backs up the game's save data and extra data first, and offers to restore them if the game then closes unexpectedly within 10 minutes of play.
+- **Restore** names the time of the backup, and backs up your current save data before replacing it, so newer progress is never lost.
+- A save state that can't be loaded now says so in the VR menu, and the game carries on as it was.
 - A save state that can't be read stops the game cleanly instead of crashing it.
 - **About Save States** explains once that save states are NOT a replacement for saving in the game.
 

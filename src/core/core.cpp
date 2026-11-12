@@ -225,6 +225,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         return ResultStatus::ShutdownRequested;
     case Signal::Load:
     case Signal::LoadAnyway: { // AzaharFrame savestate
+        savestate_error_on_load = true; // AzaharFrame advfix
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
@@ -257,6 +258,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     // AzaharFrame autosave: an autosave's file; the moment before goes to kUndoLoadSlot
     case Signal::LoadAutosave:
     case Signal::LoadAutosaveAnyway: {
+        savestate_error_on_load = true; // AzaharFrame advfix
         if (save_state_request_status != SaveStateStatus::NONE) {
             status_details = "A pending save state operation has not finished yet";
             return ResultStatus::ErrorSavestate;
@@ -288,6 +290,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         }
         break;
     case Signal::Save: {
+        savestate_error_on_load = false; // AzaharFrame advfix
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
@@ -306,6 +309,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         !kernel->AreAsyncOperationsPending()) {
         const u32 slot = save_state_slot;
         save_state_request_status = SaveStateStatus::NONE;
+        savestate_error_on_load = true; // AzaharFrame advfix
         const bool anyway = std::exchange(save_state_allow_mismatch, false);
         if (autosave_writer) {
             autosave_writer->WaitIdle(); // AzaharFrame autosave: an undo file still being written
@@ -338,9 +342,12 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             return ResultStatus::Success;
         }
         LOG_INFO(Core, "Begin load of slot {}{}", slot, anyway ? " (from another build)" : "");
-        if (anyway) { // AzaharFrame savestate: the moment before, in a file of its own
+        // AzaharFrame advfix: every slot's load first saves the moment before to Undo Load's file
+        // (kUndoLoadSlot, the one undo spot: the latest load wins), as an autosave's load does;
+        // not when that file is the one being loaded (Undo Load itself)
+        if (slot != Autosave::kUndoLoadSlot) {
             try {
-                System::SaveState(kBeforeLoadAnywaySlot);
+                System::SaveState(Autosave::kUndoLoadSlot);
             } catch (const std::exception& e) {
                 LOG_ERROR(Core, "Error saving the moment before: {}", e.what());
                 status_details = kSaveStateNotLoaded;
@@ -364,6 +371,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     } else if (save_state_request_status == SaveStateStatus::SAVING && kernel.get() &&
                !kernel->AreAsyncOperationsPending()) {
         save_state_request_status = SaveStateStatus::NONE;
+        savestate_error_on_load = false; // AzaharFrame advfix
         const u32 slot = save_state_slot;
         LOG_INFO(Core, "Begin save to slot {}", slot);
         try {
@@ -398,6 +406,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     } else if (save_state_request_status != SaveStateStatus::NONE &&
                (std::chrono::steady_clock::now() - save_state_request_time) >
                    std::chrono::seconds(5)) {
+        savestate_error_on_load = save_state_request_status == SaveStateStatus::LOADING; // advfix
         save_state_request_status = SaveStateStatus::NONE;
         LOG_ERROR(Core, "Cannot perform save state operation due to pending async operations");
         status_details = "Cannot perform save state operation due to pending async operations";
@@ -550,7 +559,7 @@ void System::MakeAutosave() {
     } catch (const std::exception& e) {
         LOG_ERROR(Core, "autosave: not made: {}", e.what());
         if (autosave_callback) {
-            autosave_callback(false, reason, {}, 0);
+            autosave_callback(false, reason, {}, -1); // AzaharFrame advfix: -1 not serialized
         }
         return;
     }
@@ -563,7 +572,10 @@ void System::MakeAutosave() {
     const u64 movie_id = movie.GetCurrentMovieID();
     Autosave::Writer::Job job;
     job.dir = Autosave::Dir(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir));
-    job.path = Autosave::PathFor(job.dir, title_id, movie_id, static_cast<s64>(now_s));
+    // AzaharFrame advfix: the menu-open autosave has a file of its own, replaced each time
+    job.path = reason == Autosave::Reason::MenuOpen
+                   ? Autosave::MenuPathFor(job.dir, title_id, movie_id)
+                   : Autosave::PathFor(job.dir, title_id, movie_id, static_cast<s64>(now_s));
     job.header = CurrentStateHeader(title_id, now_s);
     job.raw = std::move(raw);
     job.reason = reason;

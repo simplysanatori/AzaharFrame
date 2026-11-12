@@ -76,76 +76,189 @@ void Rotate(const std::string& root, std::size_t keep) {
     }
 }
 
-std::string Backup(const std::string& save_dir, const std::string& root, const std::string& stamp) {
+namespace {
+
+/// Each part's folder that exists copied to root/<name>/<part>/ ("-2", "-3" after <name> when
+/// taken), whole or not at all. The copy's path, or "" when no part's folder exists or a copy
+/// failed.
+std::string CopyParts(const std::vector<Part>& parts, const std::string& root,
+                      const std::string& name) {
     std::error_code ec;
-    if (!fs::is_directory(save_dir, ec)) {
+    const bool any = std::any_of(parts.begin(), parts.end(), [](const Part& p) {
+        std::error_code e;
+        return !p.dir.empty() && fs::is_directory(p.dir, e);
+    });
+    if (!any) {
         return {};
     }
     fs::create_directories(root, ec);
-    fs::path dst = fs::path(root) / stamp;
+    fs::path dst = fs::path(root) / name;
     for (int n = 2; fs::exists(dst, ec); n++) {
-        dst = fs::path(root) / fmt::format("{}-{}", stamp, n);
+        dst = fs::path(root) / fmt::format("{}-{}", name, n);
     }
     const fs::path tmp = dst.string() + ".part";
     fs::remove_all(tmp, ec);
-    fs::copy(save_dir, tmp, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
-    if (ec) {
-        fs::remove_all(tmp, ec);
-        return {};
+    fs::create_directories(tmp, ec);
+    for (const Part& p : parts) {
+        if (ec || p.dir.empty() || !fs::is_directory(p.dir, ec)) {
+            ec.clear();
+            continue;
+        }
+        fs::copy(p.dir, tmp / p.name, fs::copy_options::recursive | fs::copy_options::copy_symlinks,
+                 ec);
+        if (ec) {
+            fs::remove_all(tmp, ec);
+            return {};
+        }
     }
     fs::rename(tmp, dst, ec);
     if (ec) {
         fs::remove_all(tmp, ec);
         return {};
     }
-    Rotate(root, kKeep);
     return dst.string();
 }
 
-bool Restore(const std::string& backup, const std::string& save_dir) {
-    std::error_code ec;
-    if (!fs::is_directory(backup, ec) || save_dir.empty()) {
-        return false;
-    }
-    std::string dir = save_dir;
+std::string NoSlash(std::string dir) {
     while (dir.size() > 1 && dir.back() == '/') {
         dir.pop_back();
     }
-    const fs::path fresh = dir + ".restore";
-    const fs::path old = dir + ".old";
-    fs::remove_all(fresh, ec);
-    fs::remove_all(old, ec);
-    fs::create_directories(fs::path(dir).parent_path(), ec);
-    fs::copy(backup, fresh, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
-    if (ec) {
-        fs::remove_all(fresh, ec);
+    return dir;
+}
+
+} // namespace
+
+std::string Backup(const std::vector<Part>& parts, const std::string& root,
+                   const std::string& stamp) {
+    const std::string dst = CopyParts(parts, root, stamp);
+    if (!dst.empty()) {
+        Rotate(root, kKeep);
+    }
+    return dst;
+}
+
+bool Restore(const std::string& backup, const std::vector<Part>& parts, const std::string& root,
+             const std::string& stamp, std::string* kept) {
+    std::error_code ec;
+    if (kept) {
+        kept->clear();
+    }
+    if (!fs::is_directory(backup, ec) || parts.empty()) {
         return false;
     }
-    const bool had = fs::exists(dir, ec);
-    if (had) {
-        fs::rename(dir, old, ec);
+    // The parts the backup holds (a part it does not hold is left as it is)
+    struct Swap {
+        std::string dir, fresh, old;
+        bool had = false, swapped = false;
+    };
+    std::vector<Swap> swaps;
+    for (const Part& p : parts) {
+        if (!p.dir.empty() && fs::is_directory(fs::path(backup) / p.name, ec)) {
+            const std::string dir = NoSlash(p.dir);
+            swaps.push_back({dir, dir + ".restore", dir + ".old"});
+        }
+    }
+    if (swaps.empty()) {
+        return false;
+    }
+    // AzaharFrame advfix: what is being replaced may hold newer progress: it is kept first (not
+    // rotated yet, so the backup being restored cannot go before it is copied)
+    const bool any_now = std::any_of(parts.begin(), parts.end(), [](const Part& p) {
+        std::error_code e;
+        return !p.dir.empty() && fs::exists(p.dir, e);
+    });
+    if (any_now) {
+        const std::string before =
+            CopyParts(parts, root, stamp + std::string(kBeforeRestoreSuffix));
+        if (before.empty()) {
+            return false;
+        }
+        if (kept) {
+            *kept = before;
+        }
+    }
+    const auto undo = [&] {
+        std::error_code e;
+        for (Swap& w : swaps) {
+            if (w.swapped) {
+                fs::remove_all(w.dir, e);
+            }
+            if (w.had && !fs::exists(w.dir, e)) {
+                fs::rename(w.old, w.dir, e); // as it was
+            }
+            fs::remove_all(w.fresh, e);
+        }
+    };
+    // Each copied beside its folder first...
+    std::size_t i = 0;
+    for (const Part& p : parts) {
+        if (p.dir.empty() || !fs::is_directory(fs::path(backup) / p.name, ec)) {
+            continue;
+        }
+        Swap& w = swaps[i++];
+        fs::remove_all(w.fresh, ec);
+        fs::remove_all(w.old, ec);
+        fs::create_directories(fs::path(w.dir).parent_path(), ec);
+        fs::copy(fs::path(backup) / p.name, w.fresh,
+                 fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
         if (ec) {
-            fs::remove_all(fresh, ec);
+            undo();
             return false;
         }
     }
-    fs::rename(fresh, dir, ec);
-    if (ec) {
-        if (had) {
-            std::error_code ec2;
-            fs::rename(old, dir, ec2); // as it was
+    // ...then all swapped in, or none
+    for (Swap& w : swaps) {
+        w.had = fs::exists(w.dir, ec);
+        if (w.had) {
+            fs::rename(w.dir, w.old, ec);
+            if (ec) {
+                w.had = false; // still in place
+                undo();
+                return false;
+            }
         }
-        fs::remove_all(fresh, ec);
-        return false;
+        fs::rename(w.fresh, w.dir, ec);
+        if (ec) {
+            undo();
+            return false;
+        }
+        w.swapped = true;
     }
-    fs::remove_all(old, ec);
+    for (const Swap& w : swaps) {
+        fs::remove_all(w.old, ec);
+    }
+    Rotate(root, kKeep);
     return true;
 }
 
-void Arm(const std::string& root, const std::string& backup, const std::string& save_dir) {
+std::string TimeText(const std::string& backup, s64 now_unix) {
+    const std::string name = fs::path(backup).filename().string();
+    if (!IsBackupName(name) || !std::all_of(name.begin() + 9, name.begin() + 15,
+                                            [](char c) { return c >= '0' && c <= '9'; })) {
+        return {};
+    }
+    const std::string hm = name.substr(9, 2) + ":" + name.substr(11, 2);
+    if (name.compare(0, 8, Stamp(now_unix), 0, 8) == 0) {
+        return hm;
+    }
+    return fmt::format("{}-{}-{} {}", name.substr(0, 4), name.substr(4, 2), name.substr(6, 2), hm);
+}
+
+std::string RestoreQuestion(const std::string& time) {
+    return time.empty() ? std::string("Restore Save Data?")
+                        : fmt::format("Restore Save Data From {}?", time);
+}
+
+void Arm(const std::string& root, const std::string& backup, const std::vector<Part>& parts) {
     std::error_code ec;
     fs::create_directories(root, ec);
-    std::ofstream(fs::path(root) / kMarker, std::ios::trunc) << backup << '\n' << save_dir << '\n';
+    std::ofstream out(fs::path(root) / kMarker, std::ios::trunc);
+    out << backup << '\n';
+    for (const Part& p : parts) { // AzaharFrame advfix: "<name>\t<folder>" per part
+        if (!p.dir.empty()) {
+            out << p.name << '\t' << p.dir << '\n';
+        }
+    }
 }
 
 void Disarm(const std::string& root) {
@@ -156,8 +269,17 @@ void Disarm(const std::string& root) {
 std::optional<Pending> Armed(const std::string& root) {
     std::ifstream in(fs::path(root) / kMarker);
     Pending p;
-    if (!in || !std::getline(in, p.backup) || !std::getline(in, p.save_dir) || p.backup.empty() ||
-        p.save_dir.empty()) {
+    if (!in || !std::getline(in, p.backup) || p.backup.empty()) {
+        return std::nullopt;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        const std::size_t tab = line.find('\t');
+        if (tab != std::string::npos && tab > 0 && tab + 1 < line.size()) {
+            p.parts.push_back({line.substr(0, tab), line.substr(tab + 1)});
+        }
+    }
+    if (p.parts.empty()) {
         return std::nullopt;
     }
     return p;

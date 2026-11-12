@@ -167,8 +167,9 @@ public:
     /// Shutdown and then load again
     void Reset();
 
-    /// AzaharFrame savestate: LoadAnyway: a state from another build, after the moment before is
-    /// saved to kBeforeLoadAnywaySlot.
+    /// AzaharFrame savestate: LoadAnyway: a state from another build. AzaharFrame advfix: every
+    /// load of a slot (but Undo Load's own) first saves the moment before to
+    /// Autosave::kUndoLoadSlot.
     /// AzaharFrame autosave: Autosave (`param` an Autosave::Reason), LoadAutosave and
     /// LoadAutosaveAnyway (RequestLoadAutosave's file).
     enum class Signal : u32 {
@@ -195,6 +196,11 @@ public:
     /// A state is being saved or loaded, or an autosave is waiting (any thread; a hint).
     bool StateOperationPending() const {
         return save_state_request_status != SaveStateStatus::NONE || autosave_pending;
+    }
+    /// AzaharFrame advfix: the last ErrorSavestate came from a load (a slot, an autosave or Undo
+    /// Load), not a save. Set on the emulation thread before the error is reported.
+    bool SavestateErrorOnLoad() const {
+        return savestate_error_on_load.load();
     }
     /// The autosaves' writer (made on first use; it outlives the games).
     Autosave::Writer& AutosaveWriter();
@@ -607,7 +613,10 @@ private:
     std::chrono::steady_clock::time_point autosave_request_time{};
     std::string autosave_load_path;    ///< RequestLoadAutosave's, under signal_mutex
     std::string autosave_loading_path; ///< the one being loaded ("" a slot)
+    /// (made, reason, path, held_ms); AzaharFrame advfix: held_ms -1 when not made because the
+    /// system could not be serialized (0: the system was busy for 5 s).
     std::function<void(bool, Autosave::Reason, const std::string&, s64)> autosave_callback;
+    std::atomic<bool> savestate_error_on_load{false}; ///< AzaharFrame advfix: see accessor
     std::chrono::steady_clock::time_point save_state_request_time{};
 
     ResultStatus status = ResultStatus::Success;

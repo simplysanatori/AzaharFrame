@@ -43,6 +43,14 @@ inline constexpr s64 kThrottleMs = 60'000;
 inline constexpr s64 kBootGraceMs = 60'000;
 /// Loading an autosave first saves the moment before here (`<TID>.98.cst`, not a slot).
 inline constexpr u32 kUndoLoadSlot = 98;
+/// AzaharFrame advfix: the menu-open autosave's file name after the game's prefix: one file,
+/// replaced each time, apart from the timer's and the quit's rotation (not counted in Keep, never
+/// pruned, and its write prunes nothing), so opening the menu to go back loses no autosave.
+inline constexpr std::string_view kMenuOpenName = "menu";
+/// AzaharFrame advfix: a game title in ScopeToast is cut to this many characters ("...").
+inline constexpr std::size_t kScopeTitleMax = 24;
+/// AzaharFrame advfix: at most one "Couldn't Autosave" toast in this long.
+inline constexpr s64 kFailureToastGapMs = 180'000;
 
 /// The nearest of kEveryMinutes to `minutes` (an edited config file may hold anything).
 u32 ClampEvery(u32 minutes);
@@ -67,6 +75,8 @@ std::string Dir(const std::string& states_dir);
 std::string Prefix(u64 program_id, u64 movie_id);
 /// A new autosave's file: `<dir><prefix><YYYYMMDD-HHMMSS>.cst` (UTC, so names sort by time).
 std::string PathFor(const std::string& dir, u64 program_id, u64 movie_id, s64 unix_seconds);
+/// AzaharFrame advfix: the menu-open autosave's file: `<dir><prefix>menu.cst`.
+std::string MenuPathFor(const std::string& dir, u64 program_id, u64 movie_id);
 /// Its top screen picture: the same name with ".png".
 std::string ThumbPathFor(const std::string& state_path);
 
@@ -76,15 +86,19 @@ struct Entry {
     u64 time = 0;        ///< from the state's header (Unix seconds)
     bool other = false;  ///< made by another build (SaveStateInfo not OK)
     std::string version; ///< FrameVersionOf (only when `other`; "" another version of Azahar)
+    bool menu = false;   ///< AzaharFrame advfix: the menu-open autosave (MenuPathFor)
 };
-/// A game's autosaves, newest first (by the header's time, then the name). Files that are not a
-/// state of this game are left out.
+/// A game's autosaves, newest first (by the header's time, then the name), the menu-open one
+/// among them. Files that are not a state of this game are left out.
 std::vector<Entry> List(const std::string& dir, u64 program_id, u64 movie_id);
-/// Deletes all but the newest `keep` (and their pictures); returns how many went. Pictures with no
-/// state beside them go too.
+/// Deletes all but the newest `keep` of the rotation (and their pictures; the menu-open autosave
+/// is not counted and stays); returns how many went. Pictures with no state beside them go too.
 std::size_t Prune(const std::string& dir, u64 program_id, u64 movie_id, u32 keep);
 /// The same for every game in `dir` (Keep was lowered).
 std::size_t PruneAll(const std::string& dir, u32 keep);
+/// AzaharFrame advfix: the autosaves a list shows: the menu-open one and the newest `keep` of the
+/// rest (the rest are about to go: Keep was just lowered), newest first.
+std::vector<Entry> Shown(std::vector<Entry> all, u32 keep);
 
 // ---- When ------------------------------------------------------------------------------------
 
@@ -144,6 +158,14 @@ private:
 std::string Ago(s64 then, s64 now, s64 then_day, s64 now_day, const std::string& date_time);
 /// The same from the clock's local time zone.
 std::string AgoLocal(u64 then, u64 now);
+/// AzaharFrame advfix: the toast when the in-game menu turns Autosave on or off in Per-Game
+/// scope: "Autosave On for Ocarina of Time 3D" ("Autosave Off for ..."), the title cut to
+/// kScopeTitleMax characters with "..." (the toast font has no ellipsis), "This Game" when there
+/// is none.
+std::string ScopeToast(bool on, std::string_view title);
+/// AzaharFrame advfix: Undo Load's snackbar after a load: "Autosave Loaded: 10:22" (`slot` < 0),
+/// "Quick Save Loaded: 10:22" (0), "Slot 3 Loaded: 10:22"; `time` the loaded state's.
+std::string UndoText(int slot, u64 time);
 /// Local "YYYY-MM-DD hh:mm" (the VR menu's slot format) and "hh:mm".
 std::string LocalDateTime(u64 unix_seconds);
 std::string LocalTime(u64 unix_seconds);
@@ -152,6 +174,28 @@ std::string LocalDateTimeSeconds(u64 unix_seconds);
 /// An Emulation > Load State entry, as its slots are written: "Slot 1 - 2026-11-12 10:14:05",
 /// "Autosave 1 - 2026-11-12 10:14:05", "Undo Load - ..." (`when` "": the label alone).
 std::string MenuEntry(std::string_view label, std::string_view when);
+
+// ---- Failures --------------------------------------------------------------------------------
+
+/// AzaharFrame advfix: why an autosave was not made. Busy (the system was busy for 5 s) is a skip,
+/// not a failure: no toast.
+enum class Failure : u8 { None, Busy, Serialize, Compress, NoSpace, Write };
+const char* FailureName(Failure failure);
+/// "Couldn't Autosave", "Couldn't Autosave: Not Enough Space", "Couldn't Autosave: Couldn't Write
+/// the File"; "" for None and Busy.
+std::string FailureToast(Failure failure);
+/// Not Enough Space when the folder of `path` has less free space than `needed` bytes, else Write.
+Failure WriteFailure(const std::string& path, std::size_t needed);
+/// At most one toast every kFailureToastGapMs (a full disk fails every autosave).
+class FailureNotice {
+public:
+    /// The toast to show for `failure` now (`now_ms` any steady clock), or "".
+    std::string Show(Failure failure, s64 now_ms);
+
+private:
+    bool shown = false;
+    s64 last_ms = 0;
+};
 
 // ---- The worker -------------------------------------------------------------------------------
 
@@ -177,6 +221,7 @@ public:
         Reason reason = Reason::Timer;
         bool autosave = true;
         bool ok = false;
+        Failure failure = Failure::None; ///< AzaharFrame advfix: why not, when !ok
         std::size_t raw_bytes = 0;
         std::size_t file_bytes = 0;
         s64 serialize_ms = 0;

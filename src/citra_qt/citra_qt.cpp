@@ -4901,6 +4901,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     // AzaharFrame autosave: the game's own values in Per-Game (its file), else the global ones
     case S::Autosave:
         set(v.autosave_enabled, r.value != 0);
+        // AzaharFrame advfix: in Per-Game scope the switch is for this game only: say so
+        if (r.per_game) {
+            const std::string toast =
+                Core::Autosave::ScopeToast(r.value != 0, game_title.toStdString());
+            LOG_INFO(Frontend, "autosave: toast \"{}\"", toast);
+            FrameXr::ShowToastText(toast, FrameXr::ToastTime::Long);
+        }
         break;
     case S::AutosaveEvery:
         set(v.autosave_every, Core::Autosave::ClampEvery(u));
@@ -5333,8 +5340,31 @@ void GMainWindow::FrameDoSave(u32 slot) {
 void GMainWindow::FrameDoLoad(u32 slot) {
     frame_last_load_slot = slot;
     frame_last_load_autosave.clear(); // AzaharFrame autosave
-    system.SendSignal(Core::System::Signal::Load, slot);
+    if (!system.SendSignal(Core::System::Signal::Load, slot)) {
+        return;
+    }
     system.frame_limiter.AdvanceFrame();
+    FrameUndoOffered(slot); // AzaharFrame advfix
+}
+
+// AzaharFrame advfix: a slot's or an autosave's load saves the moment before to Undo Load's file
+// first (the core does, kUndoLoadSlot; the latest load wins): Undo Load in Load State (Qt) and the
+// VR menu's snackbar ("Slot 3 Loaded: 10:22"). `slot` < 0: an autosave (its time is
+// frame_loaded_autosave_time).
+void GMainWindow::FrameUndoOffered(int slot) {
+    u64 loaded_time = frame_loaded_autosave_time;
+    u64 title_id{};
+    if (slot >= 0 &&
+        system.GetAppLoader().ReadProgramId(title_id) == Loader::ResultStatus::Success) {
+        loaded_time =
+            Core::GetSaveStateInfo(title_id, movie.GetCurrentMovieID(), static_cast<u32>(slot))
+                .time;
+    }
+    frame_undo_available = true;
+    frame_undo_time = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+    frame_undo_text = Core::Autosave::UndoText(slot, loaded_time);
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
 }
 
 // The slot lists (the Load State menu, the in-game menu's grid) again once the state is written:
@@ -5400,8 +5430,9 @@ void GMainWindow::FrameAskLoadAnyway(u32 slot, const std::string& version) {
 }
 
 // Load Anyway: the game's save data is copied first (the newest 3 kept), and a marker offers it
-// back at the next start unless the session ends cleanly; the core saves the moment before to its
-// own file (kBeforeLoadAnywaySlot), then loads the state without the build check.
+// back at the next start unless the session ends cleanly; the core saves the moment before to Undo
+// Load's file (AzaharFrame advfix: kUndoLoadSlot, as every load), then loads the state without the
+// build check.
 void GMainWindow::FrameLoadAnyway(u32 slot) {
     u64 title_id{};
     if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
@@ -5415,8 +5446,11 @@ void GMainWindow::FrameLoadAnyway(u32 slot) {
     frame_last_load_autosave.clear();
     frame_load_anyway_pending = true;
     QTimer::singleShot(3000, this, [this] { frame_load_anyway_pending = false; });
-    system.SendSignal(Core::System::Signal::LoadAnyway, slot);
+    if (!system.SendSignal(Core::System::Signal::LoadAnyway, slot)) {
+        return;
+    }
     system.frame_limiter.AdvanceFrame();
+    FrameUndoOffered(static_cast<int>(slot)); // AzaharFrame advfix
 }
 
 // A question in the in-game menu (VR; it opens the menu if it is closed), else a message box.
@@ -5501,11 +5535,16 @@ void GMainWindow::FrameOfferSaveRescue(u64 title_id) {
         if (!emulation_running || root == frame_rescue_root || !Core::SaveBackup::Armed(root)) {
             return;
         }
-        FrameAsk(tr("Restore Save Data?"),
-                 tr("A save state from another version was loaded last time, and the game didn't "
-                    "close normally. You can put back this game's save data from before that "
-                    "load."),
-                 tr("Restore Save Data"), tr("Keep Current"), [this, root](bool yes) {
+        // AzaharFrame advfix: the question names the backup's time; Restore keeps the save data
+        // it replaces (newer progress is never lost)
+        const auto armed = Core::SaveBackup::Armed(root);
+        const std::string when =
+            armed ? Core::SaveBackup::TimeText(armed->backup, QDateTime::currentSecsSinceEpoch())
+                  : std::string{};
+        FrameAsk(QString::fromStdString(Core::SaveBackup::RestoreQuestion(when)),
+                 QString::fromUtf8(Core::SaveBackup::kRestoreBody),
+                 QString::fromUtf8(Core::SaveBackup::kRestoreButton),
+                 QString::fromUtf8(Core::SaveBackup::kKeepCurrentButton), [this, root](bool yes) {
                      const auto pending = Core::SaveBackup::Armed(root);
                      Core::SaveBackup::Disarm(root); // asked once
                      if (!yes || !pending) {
@@ -5513,10 +5552,15 @@ void GMainWindow::FrameOfferSaveRescue(u64 title_id) {
                      }
                      const QString path = game_path;
                      ShutdownGame();
-                     const bool restored =
-                         Core::SaveBackup::Restore(pending->backup, pending->save_dir);
-                     LOG_INFO(Frontend, "savestate: save data {} from {}",
-                              restored ? "restored" : "NOT restored", pending->backup);
+                     std::string kept;
+                     const bool restored = Core::SaveBackup::Restore(
+                         pending->backup, pending->parts, root,
+                         Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()), &kept);
+                     LOG_INFO(Frontend,
+                              "savestate: save data {} from {}; the save data it replaced "
+                              "kept in {}",
+                              restored ? "restored" : "NOT restored", pending->backup,
+                              kept.empty() ? std::string("(none)") : kept);
                      BootGame(path);
                      if (!restored) {
                          QTimer::singleShot(3000, this, [this] {
@@ -6574,6 +6618,10 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
         if (emu_thread) {
             emu_thread->SetRunning(true);
         }
+        // AzaharFrame advfix: not loaded (Load Anyway offers Undo Load again)
+        frame_undo_available = false;
+        FrameUpdateAutosaveActions();
+        FramePushAutosaves();
         if (!frame_last_load_autosave.empty()) { // AzaharFrame autosave
             frame_undo_available = false;
             FrameAskLoadAutosaveAnyway(frame_last_load_autosave, details);
@@ -6582,16 +6630,26 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
         FrameAskLoadAnyway(frame_last_load_slot, details);
         return;
     }
-    if (result == RS::ErrorSavestate && std::exchange(frame_load_anyway_pending, false)) {
-        if (!frame_rescue_root.empty()) { // not loaded: the save data is as it was
+    // AzaharFrame advfix: any load that failed before anything was restored (Load Anyway, a slot
+    // or an autosave from this build cut short, Undo Load) gets the same notice, through FrameAsk:
+    // in VR the in-game menu, where upstream's message box below would not be seen while the game
+    // runs with the menu closed. A failed save keeps upstream's message.
+    const bool anyway_failed =
+        result == RS::ErrorSavestate && std::exchange(frame_load_anyway_pending, false);
+    if (result == RS::ErrorSavestate && (anyway_failed || system.SavestateErrorOnLoad())) {
+        if (anyway_failed && !frame_rescue_root.empty()) { // not loaded: the save data is as it was
             Core::SaveBackup::Disarm(frame_rescue_root);
             frame_rescue_root.clear();
         }
+        LOG_WARNING(Frontend, "savestate: load failed: {}", details);
+        frame_undo_available = false; // nothing was loaded: nothing to undo
+        FrameUpdateAutosaveActions();
+        FramePushAutosaves();
         if (emu_thread) {
             emu_thread->SetRunning(true);
         }
         FrameAsk(QString::fromUtf8(Core::kSaveStateNotLoaded),
-                 tr("The game and its save data weren't changed."), tr("OK"), {}, {});
+                 QString::fromUtf8(Core::kSaveStateNotLoadedBody), tr("OK"), {}, {});
         return;
     }
 
@@ -7429,9 +7487,15 @@ void GMainWindow::FrameAutosaveInit() {
     }
     frame_autosave_timer.setInterval(1000);
     connect(&frame_autosave_timer, &QTimer::timeout, this, &GMainWindow::FrameAutosaveTick);
-    system.SetAutosaveCallback([this](bool ok, Core::Autosave::Reason, const std::string&, s64) {
-        frame_autosave_serialized = ok ? 1 : -1; // the emulation thread
-    });
+    system.SetAutosaveCallback(
+        [this](bool ok, Core::Autosave::Reason, const std::string&, s64 held_ms) {
+            frame_autosave_serialized = ok ? 1 : -1; // the emulation thread
+            if (!ok && held_ms < 0) { // AzaharFrame advfix: not serialized (not merely busy)
+                QMetaObject::invokeMethod(
+                    this, [this] { FrameAutosaveFailed(Core::Autosave::Failure::Serialize); },
+                    Qt::QueuedConnection);
+            }
+        });
     system.AutosaveWriter().SetOnDone([this](const Core::Autosave::Writer::Done& done) {
         QMetaObject::invokeMethod(
             this, [this, done] { FrameAutosaveWritten(done); }, Qt::QueuedConnection);
@@ -7537,6 +7601,20 @@ void GMainWindow::FrameAutosaveTick() {
     }
     const Core::Autosave::Gates g = FrameAutosaveGates();
     frame_autosave.Tick(FrameAutosaveNowMs(), g.playing && g.frames_recent);
+    // AzaharFrame advfix: after kOfferPlayMinutes of play with no error since a Load Anyway, the
+    // state is taken as fine and Restore Save Data is no longer offered after a later crash (the
+    // backup stays in save-backups). A test run's short minute counts here too.
+    if (!frame_rescue_root.empty() && !frame_rescue_keep && g.playing && g.frames_recent) {
+        frame_rescue_clean_ms += 1000;
+        if (frame_rescue_clean_ms >= Core::SaveBackup::kOfferPlayMinutes * frame_autosave_unit_ms) {
+            Core::SaveBackup::Disarm(frame_rescue_root);
+            frame_rescue_root.clear();
+            LOG_INFO(Frontend,
+                     "savestate: {} minutes played since Load Anyway with no error: "
+                     "Restore Save Data no longer offered",
+                     Core::SaveBackup::kOfferPlayMinutes);
+        }
+    }
     if (!Settings::values.autosave_enabled.GetValue()) {
         return;
     }
@@ -7626,11 +7704,11 @@ void GMainWindow::FrameAutosaveList() {
         system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
         return;
     }
-    frame_autosaves = Core::Autosave::List(FrameAutosaveDir(), title_id, movie.GetCurrentMovieID());
-    const std::size_t keep = Core::Autosave::ClampKeep(Settings::values.autosave_keep.GetValue());
-    if (frame_autosaves.size() > keep) {
-        frame_autosaves.resize(keep); // Keep was just lowered: the extra ones are going
-    }
+    // AzaharFrame advfix: the menu-open autosave and the newest Keep of the rest (Keep was just
+    // lowered: the extra ones are going)
+    frame_autosaves = Core::Autosave::Shown(
+        Core::Autosave::List(FrameAutosaveDir(), title_id, movie.GetCurrentMovieID()),
+        Settings::values.autosave_keep.GetValue());
 }
 
 void GMainWindow::FrameUpdateAutosaveActions() {
@@ -7638,9 +7716,11 @@ void GMainWindow::FrameUpdateAutosaveActions() {
         return;
     }
     const std::size_t keep = Core::Autosave::ClampKeep(Settings::values.autosave_keep.GetValue());
+    // AzaharFrame advfix: Keep's rows, and one more for the menu-open autosave when there is one
+    const std::size_t rows = std::max(keep, system.IsPoweredOn() ? frame_autosaves.size() : 0);
     for (std::size_t i = 0; i < actions_load_autosave.size(); i++) {
         QAction* a = actions_load_autosave[i];
-        a->setVisible(i < keep);
+        a->setVisible(i < rows);
         const std::string label = tr("Autosave %1").arg(i + 1).toStdString();
         QFont font = a->font();
         font.setItalic(false);
@@ -7700,17 +7780,43 @@ void GMainWindow::FramePushAutosaves() {
         }
         cards.push_back(std::move(c));
     }
-    const std::string undo =
-        frame_undo_available
-            ? "Autosave Loaded: " + Core::Autosave::LocalTime(frame_loaded_autosave_time)
-            : std::string{};
+    const std::string undo = frame_undo_available ? frame_undo_text : std::string{};
     FrameXr::SetInGameMenuAutosaves(cards, undo);
 #endif
+}
+
+// AzaharFrame advfix: "Couldn't Autosave" (with the reason when known), at most once every
+// kFailureToastGapMs: a toast in VR, the status bar in Flat. The details are in the log.
+void GMainWindow::FrameAutosaveFailed(Core::Autosave::Failure failure) {
+    LOG_WARNING(Frontend, "autosave: failed: {}", Core::Autosave::FailureName(failure));
+    const std::string text = frame_autosave_failures.Show(failure, FrameAutosaveNowMs());
+    if (text.empty() || !emulation_running) {
+        return;
+    }
+    LOG_INFO(Frontend, "autosave: toast \"{}\"", text);
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing()) {
+        FrameXr::ShowToastText(text, FrameXr::ToastTime::Long);
+        return;
+    }
+#endif
+    if (!message_label_used_for_movie) {
+        const QString q = QString::fromStdString(text);
+        message_label->setText(q);
+        QTimer::singleShot(6000, this, [this, q] {
+            if (!message_label_used_for_movie && message_label->text() == q) {
+                message_label->clear();
+            }
+        });
+    }
 }
 
 void GMainWindow::FrameAutosaveWritten(const Core::Autosave::Writer::Done& done) {
     if (!done.autosave || !emulation_running) {
         return;
+    }
+    if (!done.ok) { // AzaharFrame advfix
+        FrameAutosaveFailed(done.failure);
     }
     FrameAutosaveList();
     FrameUpdateAutosaveActions();
@@ -7807,10 +7913,7 @@ void GMainWindow::FrameDoLoadAutosave(const std::string& path, bool anyway) {
         return;
     }
     system.frame_limiter.AdvanceFrame();
-    frame_undo_available = true;
-    frame_undo_time = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
-    FrameUpdateAutosaveActions();
-    FramePushAutosaves();
+    FrameUndoOffered(-1); // AzaharFrame advfix
 }
 
 void GMainWindow::FrameUndoLoad() {
@@ -7895,16 +7998,33 @@ void GMainWindow::FrameAutosaveKeepChanged() {
     FramePushAutosaves();
 }
 
+// AzaharFrame advfix: the running game's folders a backup holds: its save data and, when it has an
+// extdata ID, its extra data (the SD card's extdata folder for that ID), where Azahar keeps them.
+std::vector<Core::SaveBackup::Part> GMainWindow::FrameSaveParts(u64 title_id) {
+    const std::string sdmc = FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir);
+    std::vector<Core::SaveBackup::Part> parts{
+        {Core::SaveBackup::kSavePart,
+         FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(sdmc, title_id)}};
+    u64 extdata_id{};
+    if (system.IsPoweredOn() &&
+        system.GetAppLoader().ReadExtdataId(extdata_id) == Loader::ResultStatus::Success &&
+        extdata_id != 0) {
+        parts.push_back(
+            {Core::SaveBackup::kExtdataPart, FileSys::GetExtDataPathFromId(sdmc, extdata_id)});
+    }
+    return parts;
+}
+
 bool GMainWindow::FrameBackupSaveDataForLoadAnyway(u64 title_id, const std::string& what) {
-    const std::string save_dir = FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(
-        FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir), title_id);
+    const auto parts = FrameSaveParts(title_id);
     const std::string root =
         Core::SaveBackup::Root(FileUtil::GetUserPath(FileUtil::UserPath::UserDir), title_id);
-    if (!FileUtil::IsDirectory(save_dir)) {
+    if (std::none_of(parts.begin(), parts.end(),
+                     [](const auto& p) { return FileUtil::IsDirectory(p.dir); })) {
         return true; // nothing to back up
     }
     const std::string backup = Core::SaveBackup::Backup(
-        save_dir, root, Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()));
+        parts, root, Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()));
     if (backup.empty()) {
         LOG_ERROR(Frontend, "savestate: save data not backed up, so not loaded");
         FrameAsk(tr("Save Data Not Backed Up"),
@@ -7913,9 +8033,10 @@ bool GMainWindow::FrameBackupSaveDataForLoadAnyway(u64 title_id, const std::stri
                  tr("OK"), {}, {});
         return false;
     }
-    Core::SaveBackup::Arm(root, backup, save_dir);
+    Core::SaveBackup::Arm(root, backup, parts);
     frame_rescue_root = root;
     frame_rescue_keep = false;
+    frame_rescue_clean_ms = 0; // AzaharFrame advfix
     LOG_INFO(Frontend, "savestate: Load Anyway, {}, save data backed up to {}", what, backup);
     return true;
 }

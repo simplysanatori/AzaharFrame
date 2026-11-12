@@ -52,8 +52,8 @@ std::string StatePathIn(const std::string& states_dir, u64 program_id, u64 movie
 
 /// Written to a new state's header build_version: "AZF " and the build's version ("AZF 1.2.0").
 inline constexpr std::string_view kFrameBuildTag = "AZF ";
-/// Load Anyway first saves the moment before here (a file of its own, not one of the slots).
-inline constexpr u32 kBeforeLoadAnywaySlot = 99;
+// AzaharFrame advfix: Load Anyway's moment before is no longer slot 99: every load saves it to
+// Autosave::kUndoLoadSlot (98), which Undo Load reads.
 
 /// Shown once, the first time a state is saved or loaded.
 inline constexpr const char* kSaveStatesAboutTitle = "About Save States";
@@ -66,6 +66,9 @@ inline constexpr const char* kSaveStatesAboutButton = "Got It";
 inline constexpr const char* kLoadAnywayButton = "Load Anyway";
 /// A load that failed: the state was not read, or (SaveStateHalfLoaded) the game stops.
 inline constexpr const char* kSaveStateNotLoaded = "This Save State Couldn't Be Loaded";
+/// AzaharFrame advfix: its body when nothing was restored (the game goes on as it was).
+inline constexpr const char* kSaveStateNotLoadedBody =
+    "The game and its save data weren't changed.";
 
 /// The Azahar for Frame version that made a state, from its header: build_version "AZF 1.2.0"
 /// (states from 1.2.0 on), else a build_name that is one of our releases ("1.1.1": every release

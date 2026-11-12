@@ -278,7 +278,7 @@ Hold **View** and press the right bumper to Quick Save, or hold the left bumper 
 
 Save states are NOT a replacement for saving in the game. A state only loads in the version of Azahar for Frame that made it, so save in the game before you update. The first time you save or load a state, **About Save States** says so once.
 
-A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data is copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
+A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data and extra data are copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept). If the game then closes unexpectedly within 10 minutes of play, the next time it starts it asks **Restore Save Data From 10:26?**, naming the time of the copy. **Restore** first copies your current save data to the same folder (named `...-before-restore`), so nothing you played since is lost; **Keep Current** leaves it as it is. Loading any slot or autosave saves the moment before, so **Undo Load** under the slots takes it back until the game closes. If a state can't be loaded, the menu says so and the game carries on as it was; if it was only partly read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
 
 ### Autosave
 
@@ -286,7 +286,9 @@ Autosave makes save states of its own while you play, so you can go back a few m
 
 All three can be set for one game: in the in-game menu choose **Per-Game** (the menu opens on it while a game runs), or in the game's **Properties** choose **Set autosave** under **General > Autosave**. A game without its own values uses the ones for every game. Lowering **Keep** removes that game's extra autosaves at once; other games keep theirs until their next autosave.
 
-An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the top screen beside it.
+An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the top screen beside it. The one made when the menu opens has a file of its own, replaced each time, and doesn't count toward **Keep**, so opening the menu to go back never removes your oldest autosave.
+
+Turning Autosave on or off in the in-game menu while it shows **Per-Game** changes it for that game only, and a short message says so: "Autosave On for Ocarina of Time 3D". If an autosave fails, a short message says "Couldn't Autosave", with the reason when it is known (such as "Not Enough Space"), at most once every 3 minutes.
 
 While you play, "Autosaved" shows for a moment just above the top screen's right corner. When that corner is out of view (you look down at the bottom screen, or the game is in immersive mode), a short message in front of you says it instead. Autosaves made when the menu opens or the game closes show nothing. In Flat the status bar says "Autosaved" for 3 seconds.
 
@@ -359,8 +361,8 @@ Keep other heavy work off the Frame while you play.
 | Screen places, per game | `~/.local/share/AzaharFrame/user/screen-placement.txt` |
 | Gamepad and mouse layouts | `~/.local/share/AzaharFrame/user/controller-mappings.txt` |
 | Cheats, per game | `~/.local/share/AzaharFrame/user/cheats/<TitleID>.txt` |
-| Save states, and the moment before a Load Anyway (`<TitleID>.99.cst`) | `~/.local/share/AzaharFrame/user/states` |
-| Save data copies made by Load Anyway, per game (last 3) | `~/.local/share/AzaharFrame/user/save-backups/<TitleID>` |
+| Save states, and the moment before the last load, for Undo Load (`<TitleID>.98.cst`, removed when the game closes) | `~/.local/share/AzaharFrame/user/states` |
+| Save data and extra data copies made by Load Anyway and Restore, per game (last 3) | `~/.local/share/AzaharFrame/user/save-backups/<TitleID>` |
 | Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |

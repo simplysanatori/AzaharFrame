@@ -8,13 +8,16 @@
 
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <span>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 #include <vector>
 #include <boost/archive/archive_exception.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <unistd.h>
 #include "common/scm_rev.h"
+#include "common/zstd_compression.h"
 #include "core/save_backup.h"
 #include "core/savestate.h"
 
@@ -149,26 +152,28 @@ TEST_CASE("Save states: a slot saved over is this build's at once", "[savestate_
     CHECK(info.slot == 3);
     CHECK(info.status == SaveStateInfo::ValidationStatus::OK);
 
-    // Load Anyway's moment before (slot 99) is a file of its own, never in the list
-    WriteStateFile(StatePathIn(states.Dir(), kTitle, 0, kBeforeLoadAnywaySlot),
-                   CurrentStateHeader(kTitle, 300), body);
+    // The moment before a load (Undo Load's file, 98) is a file of its own, never in the list
+    WriteStateFile(StatePathIn(states.Dir(), kTitle, 0, 98), CurrentStateHeader(kTitle, 300), body);
     CHECK(ListSaveStatesIn(states.Dir(), kTitle, 0).size() == 1);
 }
 
 TEST_CASE("Save states: Load Anyway's save data backups", "[savestate_frame]") {
     TempDir user("user");
     const fs::path save = user.path / "sdmc/title/00040000/00055d00/data/00000001";
+    const fs::path ext = user.path / "sdmc/extdata/00000000/00000335";
     WriteText(save / "system.dat", "v1");
     WriteText(save / "sub/slot.bin", "game");
+    WriteText(ext / "user/town.dat", "town v1");
+    const std::vector<SaveBackup::Part> parts{{SaveBackup::kSavePart, save.string()},
+                                              {SaveBackup::kExtdataPart, ext.string()}};
     const std::string root = SaveBackup::Root(user.Dir(), kTitle);
     CHECK(root == user.Dir() + "save-backups/0004000000055D00/");
     CHECK(SaveBackup::Stamp(0).size() == 15);
 
-    // Rotation: the newest three are kept
+    // Rotation: the newest three are kept; each holds the save data and the extra data
     std::string first;
     for (int i = 1; i <= 5; i++) {
-        const std::string b =
-            SaveBackup::Backup(save.string(), root, "20261112-10000" + std::to_string(i));
+        const std::string b = SaveBackup::Backup(parts, root, "20261112-10000" + std::to_string(i));
         REQUIRE(!b.empty());
         if (i == 5) {
             first = b;
@@ -178,31 +183,130 @@ TEST_CASE("Save states: Load Anyway's save data backups", "[savestate_frame]") {
     REQUIRE(list.size() == SaveBackup::kKeep);
     CHECK(list[0] == first);
     CHECK(list[2].find("20261112-100003") != std::string::npos);
-    CHECK(ReadText(fs::path(first) / "sub/slot.bin") == "game");
+    CHECK(ReadText(fs::path(first) / "save/sub/slot.bin") == "game");
+    CHECK(ReadText(fs::path(first) / "extdata/user/town.dat") == "town v1");
     // The same second twice: a second folder, not a mix
-    CHECK(SaveBackup::Backup(save.string(), root, "20261112-100005") != first);
-    // Not a folder: no backup
-    CHECK(SaveBackup::Backup((user.path / "none").string(), root, "20261112-110000").empty());
+    CHECK(SaveBackup::Backup(parts, root, "20261112-100005") != first);
+    // No folder at all: no backup; a game with no extra data: the save data alone
+    CHECK(SaveBackup::Backup({{SaveBackup::kSavePart, (user.path / "none").string()}}, root,
+                             "20261112-110000")
+              .empty());
+    const std::string save_only =
+        SaveBackup::Backup({{SaveBackup::kSavePart, save.string()},
+                            {SaveBackup::kExtdataPart, (user.path / "none").string()}},
+                           root, "20261112-110001");
+    REQUIRE(!save_only.empty());
+    CHECK(fs::exists(fs::path(save_only) / "save/system.dat"));
+    CHECK(!fs::exists(fs::path(save_only) / "extdata"));
+    CHECK(SaveBackup::List(root).size() == SaveBackup::kKeep);
+}
 
-    // Restore: the backup's files in place of the save data's, nothing left beside it
-    WriteText(save / "system.dat", "broken");
+TEST_CASE("Save states: Restore keeps the save data it replaces", "[savestate_frame]") {
+    TempDir user("restore");
+    const fs::path save = user.path / "sdmc/title/00040000/00055d00/data/00000001";
+    const fs::path ext = user.path / "sdmc/extdata/00000000/00000335";
+    WriteText(save / "system.dat", "v1");
+    WriteText(save / "sub/slot.bin", "game");
+    WriteText(ext / "town.dat", "town v1");
+    const std::vector<SaveBackup::Part> parts{{SaveBackup::kSavePart, save.string()},
+                                              {SaveBackup::kExtdataPart, ext.string()}};
+    const std::string root = SaveBackup::Root(user.Dir(), kTitle);
+    const std::string backup = SaveBackup::Backup(parts, root, "20261112-102600");
+    REQUIRE(!backup.empty());
+
+    // Played on after Load Anyway: newer progress in both folders
+    WriteText(save / "system.dat", "v2 three hours later");
     WriteText(save / "extra.bin", "x");
-    REQUIRE(SaveBackup::Restore(first, save.string()));
+    WriteText(ext / "town.dat", "town v2");
+
+    std::string kept;
+    REQUIRE(SaveBackup::Restore(backup, parts, root, "20261112-133000", &kept));
+    // The backup's files are in place, nothing left beside them
     CHECK(ReadText(save / "system.dat") == "v1");
     CHECK(ReadText(save / "sub/slot.bin") == "game");
     CHECK(!fs::exists(save / "extra.bin"));
+    CHECK(ReadText(ext / "town.dat") == "town v1");
     CHECK(!fs::exists(save.string() + ".old"));
     CHECK(!fs::exists(save.string() + ".restore"));
-    CHECK(!SaveBackup::Restore((user.path / "none").string(), save.string()));
-    CHECK(ReadText(save / "system.dat") == "v1");
+    CHECK(!fs::exists(ext.string() + ".old"));
+    // The newer progress was kept first, in the rotation, newest
+    REQUIRE(!kept.empty());
+    CHECK(fs::path(kept).filename().string() == "20261112-133000-before-restore");
+    CHECK(ReadText(fs::path(kept) / "save/system.dat") == "v2 three hours later");
+    CHECK(ReadText(fs::path(kept) / "save/extra.bin") == "x");
+    CHECK(ReadText(fs::path(kept) / "extdata/town.dat") == "town v2");
+    CHECK(SaveBackup::List(root).front() == kept);
+    // ...and can be restored in turn (changed my mind), keeping what it replaces again
+    std::string kept2;
+    REQUIRE(SaveBackup::Restore(kept, parts, root, "20261112-133100", &kept2));
+    CHECK(ReadText(save / "system.dat") == "v2 three hours later");
+    CHECK(ReadText(fs::path(kept2) / "save/system.dat") == "v1");
+    CHECK(SaveBackup::List(root).size() == SaveBackup::kKeep);
 
-    // The marker: armed until disarmed
+    // A part the backup does not hold is left as it is
+    const std::string save_only =
+        SaveBackup::Backup({{SaveBackup::kSavePart, save.string()}}, root, "20261112-140000");
+    WriteText(ext / "town.dat", "town v3");
+    REQUIRE(SaveBackup::Restore(save_only, parts, root, "20261112-140100"));
+    CHECK(ReadText(ext / "town.dat") == "town v3");
+
+    // Nothing to restore from: nothing changes
+    CHECK(!SaveBackup::Restore((user.path / "none").string(), parts, root, "20261112-150000"));
+    CHECK(ReadText(save / "system.dat") == "v2 three hours later");
+    // A game with no save data yet: restored, nothing to keep
+    fs::remove_all(save);
+    fs::remove_all(ext);
+    std::string none;
+    REQUIRE(
+        SaveBackup::Restore(SaveBackup::List(root).front(), parts, root, "20261112-150100", &none));
+    CHECK(none.empty());
+}
+
+TEST_CASE("Save states: Restore's question and the marker", "[savestate_frame]") {
+    TempDir user("marker");
+    const std::string root = SaveBackup::Root(user.Dir(), kTitle);
+    const s64 now = 1'794'000'000;
+    const std::string today = SaveBackup::Stamp(now).substr(0, 8);
+    CHECK(SaveBackup::TimeText(root + today + "-102612", now) == "10:26");
+    CHECK(SaveBackup::TimeText(root + "20200101-102612", now) == "2020-01-01 10:26");
+    CHECK(SaveBackup::TimeText(root + today + "-102612-2", now) == "10:26");
+    CHECK(SaveBackup::TimeText(root + "backup", now).empty());
+    CHECK(SaveBackup::RestoreQuestion("10:26") == "Restore Save Data From 10:26?");
+    CHECK(SaveBackup::RestoreQuestion("") == "Restore Save Data?");
+    CHECK(std::string(SaveBackup::kRestoreButton) == "Restore");
+    CHECK(std::string(SaveBackup::kKeepCurrentButton) == "Keep Current");
+    CHECK(SaveBackup::kOfferPlayMinutes == 10);
+
+    // The marker: armed until disarmed, with each part's folder
+    const std::vector<SaveBackup::Part> parts{{"save", "/x/save dir"}, {"extdata", "/x/ext"}};
     CHECK(!SaveBackup::Armed(root));
-    SaveBackup::Arm(root, first, save.string());
+    SaveBackup::Arm(root, root + "20261112-102612", parts);
     const auto pending = SaveBackup::Armed(root);
     REQUIRE(pending);
-    CHECK(pending->backup == first);
-    CHECK(pending->save_dir == save.string());
+    CHECK(pending->backup == root + "20261112-102612");
+    CHECK(pending->parts == parts);
     SaveBackup::Disarm(root);
     CHECK(!SaveBackup::Armed(root));
+    // A marker of the old form (no parts) is not offered
+    WriteText(fs::path(root) / "load-anyway.pending", "/a/backup\n/a/save\n");
+    CHECK(!SaveBackup::Armed(root));
+}
+
+TEST_CASE("Save states: a load that fails before restoring gets the clean notice",
+          "[savestate_frame]") {
+    // A state cut short (a slot written over on a full disk): its body does not decompress, so
+    // LoadStateAt stops before the system is touched (a plain error, not SaveStateHalfLoaded)
+    std::string raw(1 << 16, '\0');
+    u32 x = 12345;
+    for (char& c : raw) { // not too compressible
+        x = x * 1103515245u + 12345u;
+        c = static_cast<char>((x >> 16) & 0x3f);
+    }
+    auto body = Common::Compression::CompressDataZSTDDefault(
+        std::span<const u8>{reinterpret_cast<const u8*>(raw.data()), raw.size()});
+    REQUIRE(body.size() > 64);
+    body.resize(body.size() / 2);
+    CHECK(Common::Compression::DecompressDataZSTD(body).empty());
+    CHECK(std::string(kSaveStateNotLoaded) == "This Save State Couldn't Be Loaded");
+    CHECK(std::string(kSaveStateNotLoadedBody) == "The game and its save data weren't changed.");
 }
