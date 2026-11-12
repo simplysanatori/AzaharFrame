@@ -2252,8 +2252,14 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
     m.locked[static_cast<std::size_t>(Id::Autosave)] = Lock::GameValue;
     MenuView v;
     v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
-    d.Draw(m, v);
+    // AzaharFrame integ3: scrolled down to the Saves rows (the Help group follows them now)
+    for (float scroll = 0.0f; scroll < 3000.0f; scroll += kRowH) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        if (HasHit(d, Id::Autosave, kLabelIndex)) {
+            break;
+        }
+    }
     CHECK(HasHit(d, Id::Autosave, kLabelIndex));
     CHECK(!HasHit(d, Id::Autosave, -1));
     v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
@@ -2283,8 +2289,22 @@ TEST_CASE("Tab menu: the Saves group at General's end", "[frame_xr][tabmenu]") {
     m.autosave_keep = 3;
     MenuView v;
     v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
-    a.Draw(m, v);
+    // AzaharFrame integ3: scrolled until the whole Saves group shows (the Help group follows it)
+    const auto saves_shown = [&a] {
+        bool sw = false, keep = false;
+        for (const auto& h : a.menu.Hits()) {
+            sw |= h.t.id == Id::Autosave && h.t.index == -1;
+            keep |= h.t.id == Id::AutosaveKeep && h.t.index == -1;
+        }
+        return sw && keep;
+    };
+    for (float scroll = 0.0f; scroll < 3000.0f; scroll += kRowH) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        a.Draw(m, v);
+        if (saves_shown()) {
+            break;
+        }
+    }
     a.Check("Saves");
     CHECK(a.Drew("Saves"));
     CHECK(a.Drew("5 Min"));
