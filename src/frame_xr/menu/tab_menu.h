@@ -97,6 +97,7 @@ enum class Id : int {
     TexturePack,    ///< index: 0 Off, i + 1 mods.textures.packs[i]
     TexturePreload,
     RestartGame,    ///< the snackbar's Restart
+    ModLink,        ///< "Created by <author>": index into the page's list (loaded or available)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -182,6 +183,7 @@ struct MenuView {
     float drag_t = 0.0f;
     ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab
     ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
+    std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
     bool operator==(const MenuView&) const = default;
 };
 

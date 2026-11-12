@@ -195,6 +195,7 @@ enum class MenuCommand {
     SetModActive,      ///< `text`: a managed mod's id, `value` 1 into the mods folder, 0 out
     RemoveMod,         ///< `text`: the mod's id (your own files ask first)
     ModsDialog,        ///< the dialog's answer: `value` 1 Replace / Remove, 0 Cancel / OK
+    OpenUrl,           ///< `text`: an author's https://github.com/ page, in the desktop's browser
 };
 enum class MenuSetting {
     HideBottomScreen,

@@ -4030,6 +4030,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::SetModActive:
     case C::RemoveMod:
     case C::ModsDialog:
+    case C::OpenUrl:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }

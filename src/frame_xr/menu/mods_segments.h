@@ -32,7 +32,9 @@ enum class ModsPage : uint8_t { Loaded, Install };
 struct ModRow {
     std::string id;     ///< the library's id (the commands' `text`)
     std::string name;
-    std::string detail; ///< one supporting line: "OTPR26 · v1.5.9", a file for your own ("code.ips")
+    std::string author; ///< "Created by <author>" ("" for your own files)
+    std::string url;    ///< the author's repository, https://github.com/<owner>/<repo> ("" = no link)
+    std::string detail; ///< after the author: "v1.5.9"; your own files: "214 Files"
     bool verified = false; ///< the developer's: the verified badge after the name
     bool managed = false;  ///< installed by the menu: has a switch (unmanaged: Remove only)
     bool active = true;    ///< in the mods folder (managed and off: in the library only)
@@ -52,6 +54,7 @@ struct ModOffer {
     std::string id;
     std::string name;
     std::string author;
+    std::string url; ///< as ModRow::url
     bool verified = false;
     OfferState state = OfferState::Install;
     std::string note;   ///< after the author: why it cannot install, the phase, or what failed
@@ -67,6 +70,7 @@ enum class ModsDialogKind : uint8_t {
     Replace, ///< "Install <mod>?", "Replaces <other>": Cancel, Replace
     Remove,  ///< your own files: "Remove <mod>?", "Its Files Are Deleted": Cancel, Remove
     Blocked, ///< a conflict with your own files: "Remove <other> First": OK
+    OpenLink, ///< "Open GitHub?", "This opens <other> in your browser...": Cancel, Open
 };
 
 struct ModsDialog {
@@ -104,6 +108,10 @@ struct TexturesModel {
     bool needs_restart = false;         ///< the snackbar
     bool operator==(const TexturesModel&) const = default;
 };
+
+/// "github.com/owner/repo" for a link the menu may open: https://github.com/<owner>/<repo> only
+/// (letters, digits, '-', '_', '.'); "" for anything else.
+std::string GithubLinkText(const std::string& url);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);

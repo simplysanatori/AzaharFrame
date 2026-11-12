@@ -89,7 +89,7 @@ CheatsModel SampleCheats() {
 // owner's packs' names. Stella Glow (USA) with the developer's No Bloom loaded.
 ModsListModel SampleModsStellaGlow() {
     ModsListModel mm;
-    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", true, true, true}};
+    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", "https://github.com/simplysanatori/3ds-game-fixes", "", true, true, true}};
     return mm;
 }
 
@@ -98,10 +98,10 @@ ModsListModel SampleModsOot3d() {
     ModsListModel mm;
     mm.catalog = CatalogState::Ready;
     mm.available = {
-        {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26", false,
-         OfferState::Install, "", false},
-        {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)", "OTPR26", false,
-         OfferState::Install, "", false}};
+        {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
+         false, OfferState::Install, "", false},
+        {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
+         false, OfferState::Install, "", false}};
     return mm;
 }
 
@@ -367,13 +367,19 @@ int main(int argc, char** argv) {
                                "Ocarina ReFramed (Dual Screen)"};
         v.hover = {Id::DialogConfirm};
         ok &= shot("mods-conflict", mc, v);
+        v.hover = {Id::ModLink, 0}; // the author's link, underlined under the beam
+        ok &= shot("mods-link", mi, v);
+        v.open_link = "https://github.com/OTPR26/OOT3DHud";
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("mods-open-github", mi, v);
+        v.open_link.clear();
         MenuModel ml = m; // loaded, waiting for a restart
         ml.mods.mods.loaded = {
             {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)",
-             "OTPR26 \u00b7 v1.5.9", false, true, true},
+             "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, true},
             {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)",
-             "OTPR26 \u00b7 v1.5.9", false, true, false},
-            {"unmanaged:romfs", "romfs", "214 Files", false, false, true}};
+             "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, false},
+            {"unmanaged:romfs", "romfs", "", "", "214 Files", false, false, true}};
         ml.mods.mods.needs_restart = true;
         v = {};
         v.tab = mods_tab;

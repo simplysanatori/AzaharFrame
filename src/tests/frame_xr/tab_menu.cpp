@@ -496,14 +496,23 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
 
     // A managed mod (its row switches it), one off in the library, your own files (Remove only).
     auto& mm = m.mods.mods;
-    mm.loaded = {{"a", "No Bloom", "simplysanatori", true, true, true},
-                 {"b", "Ocarina ReFramed (Dual Screen)", "OTPR26 · v1.5.9", false, true, false},
-                 {"unmanaged:code.ips", "code.ips", "", false, false, true}};
+    mm.loaded = {{"a", "No Bloom", "simplysanatori", "https://github.com/simplysanatori/3ds-game-fixes", "", true, true, true},
+                 {"b", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, false},
+                 {"unmanaged:code.ips", "code.ips", "", "", "", false, false, true}};
     d.Draw(m, v);
     CHECK(HasHit(d, Id::InstallMods, -1));
     CHECK(HasHit(d, Id::Mod, 0));
     CHECK(HasHit(d, Id::Mod, 1));
     CHECK(!HasHit(d, Id::Mod, 2));
+    // "Created by <author>": a link for GitHub repositories only, over its row.
+    CHECK(HasHit(d, Id::ModLink, 0));
+    CHECK(HasHit(d, Id::ModLink, 1));
+    CHECK(!HasHit(d, Id::ModLink, 2)); // your own files: no author
+    {
+        const auto* link = FindHit(d, Id::ModLink, 0);
+        REQUIRE(link);
+        CHECK(d.menu.HitTest(link->r.Cx(), link->r.y1 - 4.0f) == Target{Id::ModLink, 0});
+    }
     for (int i = 0; i < 3; i++) {
         CHECK(HasHit(d, Id::ModRemove, i));
     }
@@ -528,16 +537,18 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(!HasHit(d, Id::InstallMods, -1));
     CHECK(!HasHit(d, Id::ModInstall, 0));
     mm.catalog = CatalogState::Ready;
-    mm.available = {{"s", "Ocarina ReFramed (Single Screen)", "OTPR26", false, OfferState::Install, "", false},
-                    {"d", "Ocarina ReFramed (Dual Screen)", "OTPR26", false, OfferState::Installed, "", false},
-                    {"r", "Project Restoration", "leoetlino", false, OfferState::Unavailable,
+    mm.available = {{"s", "Ocarina ReFramed (Single Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", false, OfferState::Install, "", false},
+                    {"d", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", false, OfferState::Installed, "", false},
+                    {"r", "Project Restoration", "leoetlino", "https://github.com/leoetlino/project-restoration", false, OfferState::Unavailable,
                      "Unsupported Archive", false},
-                    {"n", "No Bloom", "simplysanatori", true, OfferState::Installing, "Downloading", false}};
+                    {"n", "No Bloom", "simplysanatori", "https://example.com/x", true, OfferState::Installing, "Downloading", false}};
     d.Draw(m, v);
     CHECK(HasHit(d, Id::ModInstall, 0));
     CHECK(!HasHit(d, Id::ModInstall, 1)); // installed
     CHECK(!HasHit(d, Id::ModInstall, 2)); // cannot install yet
     CHECK(!HasHit(d, Id::ModInstall, 3)); // installing
+    CHECK(HasHit(d, Id::ModLink, 0));
+    CHECK(!HasHit(d, Id::ModLink, 3)); // not a GitHub address: no link
     CheckTargets(d);
     mm.busy = true; // another install runs: Install waits
     d.Draw(m, v);
@@ -557,6 +568,13 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(d.menu.HitTest(confirm->r.Cx(), confirm->r.Cy()) == Target{Id::DialogConfirm});
     CHECK(d.menu.HitTest(10.0f, 10.0f).index == kMenuAreaIndex); // the rail too
     CHECK(d.menu.HitTest(kPanelW - 40.0f, kPanelH - 40.0f).index == kMenuAreaIndex);
+    // A model dialog wins over a link's question; with none, "Open GitHub?" with Cancel, Open.
+    mm.dialog = {};
+    v.open_link = "https://github.com/OTPR26/OOT3DHud";
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(d.menu.HitTest(10.0f, 10.0f).index == kMenuAreaIndex);
+    v.open_link.clear();
     mm.dialog.kind = ModsDialogKind::Blocked;
     d.Draw(m, v);
     CHECK(HasHit(d, Id::DialogCancel, -1));
@@ -577,6 +595,15 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
 }
 
 TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
+    CHECK(GithubLinkText("https://github.com/OTPR26/OOT3DHud") == "github.com/OTPR26/OOT3DHud");
+    CHECK(GithubLinkText("https://github.com/simplysanatori/3ds-game-fixes/") ==
+          "github.com/simplysanatori/3ds-game-fixes");
+    CHECK(GithubLinkText("http://github.com/a/b").empty());
+    CHECK(GithubLinkText("https://github.com.evil.example/a/b").empty());
+    CHECK(GithubLinkText("https://github.com/a").empty());
+    CHECK(GithubLinkText("https://github.com/a/b/releases").empty());
+    CHECK(GithubLinkText("https://github.com/a/b?x=1").empty());
+    CHECK(GithubLinkText("https://github.com/../b").empty());
     CHECK(JoinDetail({"OTPR26", "", "v1.5.9"}) == "OTPR26 · v1.5.9");
     CHECK(JoinDetail({"", ""}) == "");
     CHECK(SizeText(512) == "512 B");

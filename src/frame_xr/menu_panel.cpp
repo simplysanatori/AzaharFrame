@@ -9,6 +9,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 
 #include <fmt/format.h>
 #include "common/logging/log.h"
@@ -634,11 +635,32 @@ void MenuPanel::Click(Target t, Host& host) {
                      model.mods.mods.available[static_cast<std::size_t>(t.index)].id);
         }
         break;
+    case Id::ModLink: { // "Open GitHub?" first
+        const auto& mm = model.mods.mods;
+        const bool install = view.mods_page == Menu::ModsPage::Install;
+        const std::size_t n = install ? mm.available.size() : mm.loaded.size();
+        if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
+            const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
+                                             : mm.loaded[static_cast<std::size_t>(t.index)].url;
+            if (!Menu::GithubLinkText(url).empty()) {
+                view.open_link = url;
+            }
+        }
+        break;
+    }
     case Id::DialogConfirm:
-        ask(MenuCommand::ModsDialog, 1);
+        if (model.mods.mods.dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
+            ask_text(MenuCommand::OpenUrl, std::exchange(view.open_link, {}));
+        } else {
+            ask(MenuCommand::ModsDialog, 1);
+        }
         break;
     case Id::DialogCancel:
-        ask(MenuCommand::ModsDialog, 0);
+        if (model.mods.mods.dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
+            view.open_link.clear();
+        } else {
+            ask(MenuCommand::ModsDialog, 0);
+        }
         break;
     case Id::EditControls: // AzaharFrame menu: the remap lane's
         ask(MenuCommand::EditControls);
@@ -812,7 +834,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                 view.mods_segment == Menu::ModsSegment::Mods;
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
-        } else if (mods_shown && model.mods.mods.dialog.kind != Menu::ModsDialogKind::None) {
+        } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
+                                  !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);
         } else if (mods_shown && view.mods_page == Menu::ModsPage::Install) {
             Click({Id::ModsBack}, host);

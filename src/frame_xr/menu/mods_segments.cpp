@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string_view>
 
 #include "frame_xr/menu/md3_fonts.h"
 #include "frame_xr/menu/tab_menu.h"
@@ -158,9 +159,9 @@ float ButtonWidth(const Kit& kit, const std::string& label, bool icon, float sid
 /// A row's headline (with the verified badge after it) and its supporting line; one line when
 /// `detail` is empty. `right` is where the text must end.
 void RowText(Kit& kit, float x, float right, float cy, const std::string& name, bool verified,
-             const std::string& detail, bool detail_error, float op) {
+             const std::string& detail, bool detail_error, float op, bool two_line = false) {
     const float nw = right - x - (verified ? kBadge + 8.0f : 0.0f);
-    const float ny = detail.empty() ? cy : cy - 11.0f;
+    const float ny = detail.empty() && !two_line ? cy : cy - 11.0f;
     const float drawn =
         kit.TextMid(x, ny, Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, name, nw), 0, op);
     if (verified) {
@@ -176,6 +177,42 @@ void RowText(Kit& kit, float x, float right, float cy, const std::string& name, 
 }
 
 /// A centred empty (or waiting) state: the icon or a progress ring, a title, a smaller line.
+/// A mod's supporting line: "Created by <author>" with the author as a link (the primary colour,
+/// underlined while the beam is on it), then " · <rest>". Returns the link's rectangle (empty
+/// when there is no link).
+Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& author, bool link,
+               State link_state, const std::string& rest, bool rest_error, float op) {
+    const float base = cy + 13.0f + kit.CapHeightSized(kSmall, false) * 0.5f;
+    float at = x;
+    Rect r{};
+    if (!author.empty()) {
+        const std::string by = "Created by ";
+        at += kit.TextSized(at, base, kSmall, false, Tok::kOnSurfaceVariant, by, 0, op);
+        const std::string name = kit.Fit(Type::Tooltip, author, std::max(24.0f, right - at));
+        const float w = kit.TextSized(at, base, kSmall, false,
+                                      link ? Tok::kPrimary : Tok::kOnSurfaceVariant, name, 0, op);
+        if (link) {
+            if (link_state == State::Hover || link_state == State::Pressed) {
+                kit.Fill({at, base + 2.0f, at + w, base + 3.0f}, 0.0f, Tok::kPrimary, op);
+            }
+            r = {at, base - 14.0f, at + w, base + 4.0f};
+        }
+        at += w;
+    }
+    if (!rest.empty() && right - at > 24.0f) {
+        const std::string text = (at > x ? " \u00b7 " : "") + rest;
+        kit.TextSized(at, base, kSmall, false, rest_error ? Tok::kError : Tok::kOnSurfaceVariant,
+                      kit.Fit(Type::Tooltip, text, right - at), 0, op);
+    }
+    return r;
+}
+
+/// The link's target: the text's width (at least 48) and the row's lower 48 dp.
+Rect LinkTarget(const Rect& link, const Rect& row) {
+    const float pad = std::max(8.0f, (48.0f - link.W()) * 0.5f);
+    return {link.x0 - pad, row.y1 - 48.0f, link.x1 + pad, row.y1};
+}
+
 void EmptyState(Kit& kit, const Rect& area, char32_t icon, bool ring, int spin,
                 const std::string& title, const std::string& line) {
     const float icon_h = 48.0f, title_h = 24.0f, small_h = 20.0f;
@@ -235,7 +272,42 @@ std::vector<std::string> Wrap(const Kit& kit, const std::string& s, float size, 
     return lines;
 }
 
+/// The dialog to show: the model's (the Qt side's question), else "Open GitHub?" for a link.
+ModsDialog DialogFor(const ModsListModel& m, const MenuView& view) {
+    if (m.dialog.kind != ModsDialogKind::None || view.open_link.empty()) {
+        return m.dialog;
+    }
+    return {ModsDialogKind::OpenLink, "", GithubLinkText(view.open_link)};
+}
+
 } // namespace
+
+std::string GithubLinkText(const std::string& url) {
+    static constexpr std::string_view kPrefix = "https://github.com/";
+    if (url.rfind(kPrefix, 0) != 0) {
+        return {};
+    }
+    std::string_view path = std::string_view(url).substr(kPrefix.size());
+    if (!path.empty() && path.back() == '/') {
+        path.remove_suffix(1);
+    }
+    const std::size_t slash = path.find('/');
+    if (slash == std::string_view::npos || slash == 0 || slash + 1 >= path.size() ||
+        path.find('/', slash + 1) != std::string_view::npos) {
+        return {}; // owner/repo, nothing more
+    }
+    for (const char ch : path) {
+        const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                        (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' || ch == '/';
+        if (!ok) {
+            return {};
+        }
+    }
+    if (path.find("..") != std::string_view::npos) {
+        return {};
+    }
+    return "github.com/" + std::string(path);
+}
 
 std::string JoinDetail(const std::vector<std::string>& parts) {
     std::string out;
@@ -312,6 +384,11 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     case ModsDialogKind::Blocked:
         headline = "Can't Install " + d.mod;
         body = "Remove " + d.other + " First";
+        break;
+    case ModsDialogKind::OpenLink:
+        headline = "Open GitHub?";
+        body = "This opens " + d.other + " in your browser and leaves the game.";
+        confirm = "Open";
         break;
     case ModsDialogKind::None:
         break;
@@ -433,13 +510,18 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     break;
                 }
                 }
-                RowText(kit, c.x0, right - kNameGap, cy, o.name, o.verified,
-                        JoinDetail({o.author, o.note}), o.error, 1.0f);
+                RowText(kit, c.x0, right - kNameGap, cy, o.name, o.verified, "", false, 1.0f, true);
+                const bool link = !GithubLinkText(o.url).empty();
+                const Rect l = CreatedBy(kit, c.x0, right - kNameGap, cy, o.author, link,
+                                         StateOf(view, {Id::ModLink, idx}), o.note, o.error, 1.0f);
+                if (link && l.W() > 0.0f) {
+                    AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
+                }
             }
             kit.ClearClip();
             ScrollIndicator(kit, list, area.x1, s);
         }
-        DrawModsDialog(kit, m.dialog, view);
+        DrawModsDialog(kit, DialogFor(m, view), view);
         return;
     }
 
@@ -458,7 +540,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, install,
                    StateOf(view, {Id::InstallMods}));
         AddHit(b, {Id::InstallMods}, area);
-        DrawModsDialog(kit, m.dialog, view);
+        DrawModsDialog(kit, DialogFor(m, view), view);
         return;
     }
     {
@@ -471,7 +553,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     const Rect list{area.x0, top, area.x1, bottom};
     std::vector<float> heights;
     for (const ModRow& r : m.loaded) {
-        heights.push_back(r.detail.empty() ? kRow1 : kRow2);
+        heights.push_back(r.detail.empty() && r.author.empty() ? kRow1 : kRow2);
     }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
@@ -506,12 +588,23 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         if (enabled) {
             AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModRemove, idx}, list);
         }
-        RowText(kit, c.x0, b.x0 + 12.0f - kNameGap, cy, r.name, r.verified, r.detail, false,
-                enabled ? 1.0f : kDisabledContent);
+        const float op = enabled ? 1.0f : kDisabledContent;
+        const float text_right = b.x0 + 12.0f - kNameGap;
+        if (r.author.empty()) {
+            RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
+        } else {
+            RowText(kit, c.x0, text_right, cy, r.name, r.verified, "", false, op, true);
+            const bool link = !GithubLinkText(r.url).empty();
+            const Rect l = CreatedBy(kit, c.x0, text_right, cy, r.author, link,
+                                     StateOf(view, {Id::ModLink, idx}, enabled), r.detail, false, op);
+            if (link && enabled && l.W() > 0.0f) {
+                AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
+            }
+        }
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
-    DrawModsDialog(kit, m.dialog, view);
+    DrawModsDialog(kit, DialogFor(m, view), view);
 }
 
 // ---------------------------------------------------------------------------------------------

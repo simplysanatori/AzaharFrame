@@ -5,13 +5,19 @@
 #include "citra_qt/frame_mods.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <optional>
 #include <thread>
 #include <utility>
 
 #include <QApplication>
+#include <QDesktopServices>
 #include <QPointer>
+#include <QProcess>
 #include <QTimer>
+#include <QUrl>
 #include <fmt/format.h>
 
 #include "common/logging/log.h"
@@ -56,7 +62,36 @@ std::string PhaseText(Mods::State::Phase phase) {
     }
 }
 
-Menu::ModRow ToRow(const Mods::ModInfo& info) {
+/// Whether Steam runs: ~/.steam/steam.pid names a live process.
+bool SteamRunning() {
+    const char* home = std::getenv("HOME");
+    if (!home) {
+        return false;
+    }
+    std::ifstream pid_file(std::string(home) + "/.steam/steam.pid");
+    long pid = 0;
+    if (!(pid_file >> pid) || pid <= 0) {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::exists("/proc/" + std::to_string(pid), ec);
+}
+
+/// The author's repository from the catalog entry ("https://github.com/owner/repo"), else from
+/// what the library recorded at install; "" when it is not a GitHub repository.
+std::string RepoUrl(const Mods::Catalog& catalog, const std::string& id,
+                    const std::string& source = {}) {
+    std::string url;
+    if (const Mods::CatalogEntry* e = catalog.Find(id)) {
+        const bool owner = e->source.type == Mods::Source::Type::OwnerRepoPath || e->source.repo.empty();
+        url = std::string("https://github.com/") + (owner ? Mods::kOwnerRepo : e->source.repo);
+    } else if (source.rfind("github.com/", 0) == 0) {
+        url = "https://" + source;
+    }
+    return Menu::GithubLinkText(url).empty() ? std::string{} : url;
+}
+
+Menu::ModRow ToRow(const Mods::ModInfo& info, const Mods::Catalog& catalog) {
     Menu::ModRow r;
     r.id = info.id;
     r.name = info.name;
@@ -64,7 +99,9 @@ Menu::ModRow ToRow(const Mods::ModInfo& info) {
     r.managed = info.managed;
     r.active = info.state == Mods::ModState::Active;
     if (info.managed) {
-        r.detail = Menu::JoinDetail({info.author, info.version});
+        r.author = info.author;
+        r.url = RepoUrl(catalog, info.id, info.source);
+        r.detail = info.version;
     } else if (info.files.size() > 1) {
         r.detail = fmt::format("{} Files", info.files.size()); // your own: what is there
     }
@@ -177,6 +214,22 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         }
         return;
     }
+    case C::OpenUrl:
+        // Only an author's GitHub page (the menu asked "Open GitHub?" first).
+        if (!Menu::GithubLinkText(r.text).empty()) {
+            // Steam's own browser, as other apps on the Frame show pages in the headset; the
+            // desktop's browser only when Steam is not running.
+            const QString url = QString::fromStdString(r.text);
+            if (SteamRunning() &&
+                QProcess::startDetached(QStringLiteral("steam"),
+                                        {QStringLiteral("steam://openurl/") + url})) {
+                LOG_INFO(Frontend, "xr: mods: opening {} in Steam", r.text);
+            } else {
+                LOG_INFO(Frontend, "xr: mods: opening {} in the browser", r.text);
+                QDesktopServices::openUrl(QUrl(url));
+            }
+        }
+        return;
     default:
         return;
     }
@@ -198,8 +251,9 @@ void FrameMods::RefreshLoaded() {
                 return;
             }
             mods.loaded.clear();
+            const Mods::Catalog catalog = Mods::Default().GetCatalog();
             for (const Mods::ModInfo& info : list) {
-                mods.loaded.push_back(ToRow(info));
+                mods.loaded.push_back(ToRow(info, catalog));
             }
             PublishMods();
         });
@@ -219,11 +273,13 @@ void FrameMods::RefreshAvailable() {
                 return;
             }
             mods.available.clear();
+            const Mods::Catalog catalog = Mods::Default().GetCatalog();
             for (const Mods::AvailableMod& a : list) {
                 Menu::ModOffer o;
                 o.id = a.id;
                 o.name = a.name;
                 o.author = a.author;
+                o.url = RepoUrl(catalog, a.id);
                 o.verified = a.verified;
                 if (a.id == installing) {
                     o.state = Menu::OfferState::Installing;
