@@ -64,6 +64,13 @@ public:
     bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad);
     /// XR thread, each frame after ToastQuad: the hint chip while it shows.
     bool HintQuad(XrTime time, Quad& quad);
+    /// AzaharFrame autosave: any thread. "Autosaved" over the top screen's corner (vis/
+    /// autosave_label.h), else the Autosaved toast.
+    void ShowAutosaved();
+    /// XR thread, each frame: the label while it shows. `top_ok`: the top screen is the normal
+    /// one, at `top_pose` (LOCAL space), `top_size` (not immersive, not swapped, not hidden).
+    bool LabelQuad(const ViewPose& head, bool top_ok, const XrPosef& top_pose, XrExtent2Df top_size,
+                   XrTime time, Quad& quad);
 
 private:
     /// The toasts and the passthrough layer's transparent square.
@@ -98,6 +105,10 @@ private:
     XrTime hint_since = 0;
     XrPosef hint_pose{{0, 0, 0, 1}, {0, 0, 0}};
     float hint_width = 0.4f;
+    // AzaharFrame autosave: the label
+    std::atomic<bool> label_requested{false};
+    bool label_shown = false;
+    XrTime label_since = 0;
 };
 
 } // namespace FrameXr

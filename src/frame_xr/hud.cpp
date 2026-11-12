@@ -10,9 +10,11 @@
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "frame_xr/hud.h"
+#include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: DrawAutosavedLabel
 #include "frame_xr/session.h"
 #include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
+#include "frame_xr/vis/autosave_label.h" // AzaharFrame autosave
 
 namespace FrameXr {
 
@@ -23,13 +25,18 @@ namespace {
 constexpr uint32_t kToastWidth = ToastFit::kAtlasW;
 constexpr uint32_t kHintWidth = 512;
 constexpr uint32_t kToastHeight = ToastFit::kRowPx;
-constexpr int kToastKinds = 5;
+constexpr int kToastKinds = 6; // AzaharFrame autosave: Autosaved
 // AzaharFrame vrsize: two rows for ShowToastText, used in turn (the one on view stays as it is
 // while the other is copied).
 constexpr int kTextRows = 2;
 // AzaharFrame controls: one more row for the grip hint chip (ShowHint), two small lines.
 constexpr int kHintRow = kToastKinds + kTextRows;
-constexpr int kAtlasRows = kToastKinds + kTextRows + 1;
+// AzaharFrame autosave: two rows for the "Autosaved" label at Vis::kLabelLevels opacities, two to
+// a row (kLabelPx wide each), drawn once at the start.
+constexpr uint32_t kLabelPx = 480;
+constexpr int kLabelRow = kHintRow + 1;
+constexpr int kLabelRows = (Vis::kLabelLevels + 1) / 2;
+constexpr int kAtlasRows = kToastKinds + kTextRows + 1 + kLabelRows;
 constexpr XrTime kHintNs = 3'000'000'000;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
@@ -50,6 +57,8 @@ const char* ToastText(int kind) {
         return "Fast Forward";
     case Toast::NormalSpeed:
         return "Normal Speed";
+    case Toast::Autosaved: // AzaharFrame autosave
+        return "Autosaved";
     }
     return "";
 }
@@ -201,6 +210,33 @@ void DrawHintRow(frame_xr::ui::Canvas& canvas, const std::string& text) {
     }
 }
 
+// AzaharFrame autosave: the label once, then at each level of opacity into its rows (the canvas is
+// premultiplied, so every channel scales).
+void DrawLabels(frame_xr::ui::Canvas& atlas) {
+    frame_xr::ui::Canvas one;
+    one.Init(static_cast<int>(kLabelPx), static_cast<int>(kToastHeight));
+    one.Clear(frame_xr::ui::rgb(0, 0, 0, 0.0f));
+    Menu::Kit kit(1.0f);
+    kit.Begin(one);
+    Menu::DrawAutosavedLabel(kit, {2.0f, 2.0f, kLabelPx - 2.0f, kToastHeight - 2.0f});
+    for (int level = 1; level <= Vis::kLabelLevels; level++) {
+        const float a = static_cast<float>(level) / Vis::kLabelLevels;
+        const int x0 = ((level - 1) % 2) * 512;
+        const int y0 = (kLabelRow + (level - 1) / 2) * static_cast<int>(kToastHeight);
+        for (int y = 0; y < static_cast<int>(kToastHeight); y++) {
+            for (int x = 0; x < static_cast<int>(kLabelPx); x++) {
+                const uint32_t p = one.px[static_cast<std::size_t>(y * one.w + x)];
+                uint32_t out = 0;
+                for (int c = 0; c < 4; c++) {
+                    const float v = static_cast<float>((p >> (c * 8)) & 0xFF) * a;
+                    out |= static_cast<uint32_t>(std::lround(v)) << (c * 8);
+                }
+                atlas.px[static_cast<std::size_t>((y0 + y) * atlas.w + x0 + x)] = out;
+            }
+        }
+    }
+}
+
 } // namespace
 
 void Hud::Create(Runtime& rt) {
@@ -223,6 +259,7 @@ void Hud::Create(Runtime& rt) {
         for (int kind = 0; kind < kToastKinds; ++kind) {
             row_boxes[static_cast<std::size_t>(kind)] = DrawRow(atlas, kind, ToastText(kind));
         }
+        DrawLabels(atlas); // AzaharFrame autosave
         toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
         toast_chain.Poll(); // starts the copy; released on a later frame
     }
@@ -332,6 +369,72 @@ bool Hud::HintQuad(XrTime time, Quad& quad) {
                        {static_cast<int32_t>(kHintWidth), static_cast<int32_t>(kToastHeight)}};
     quad.pose = hint_pose;
     quad.size = {hint_width, hint_width * kToastHeight / kHintWidth};
+    quad.eye = XR_EYE_VISIBILITY_BOTH;
+    quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    return true;
+}
+
+// AzaharFrame autosave
+void Hud::ShowAutosaved() {
+    label_requested = true;
+}
+
+bool Hud::LabelQuad(const ViewPose& head, bool top_ok, const XrPosef& top_pose,
+                    XrExtent2Df top_size, XrTime time, Quad& quad) {
+    if (!toast_chain.HasImage()) {
+        label_requested = false;
+        return false;
+    }
+    const auto to_input = [](const XrPosef& p) {
+        Input::Posef q;
+        q.orientation = {p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w};
+        q.position = {p.position.x, p.position.y, p.position.z};
+        return q;
+    };
+    const Input::Posef label = Vis::LabelPose(to_input(top_pose), top_size.width, top_size.height);
+    if (label_requested.exchange(false)) {
+        bool in_view = false;
+        if (top_ok && head.valid) {
+            Vis::EyeFov eyes[2];
+            for (int e = 0; e < 2; e++) {
+                eyes[e].pose = to_input(head.eye[e]);
+                eyes[e].left = head.fov[e].angleLeft;
+                eyes[e].right = head.fov[e].angleRight;
+                eyes[e].up = head.fov[e].angleUp;
+                eyes[e].down = head.fov[e].angleDown;
+            }
+            in_view = Vis::LabelInView(label, eyes[0], eyes[1]);
+        }
+        if (in_view) {
+            label_shown = true;
+            label_since = time;
+        } else {
+            label_shown = false;
+            toast_kind = static_cast<int>(Toast::Autosaved);
+        }
+        LOG_INFO(Frontend, "xr: autosave: {}",
+                 in_view ? "the label over the top screen"
+                 : top_ok
+                     ? "the toast (the corner is not in view)"
+                     : "the toast (immersive mode, or the top screen is not placed in the room)");
+    }
+    if (!label_shown) {
+        return false;
+    }
+    const int level = Vis::LabelLevel(Vis::LabelOpacity(time - label_since));
+    if (level == 0 || !top_ok) {
+        label_shown = level != 0 && top_ok;
+        return false;
+    }
+    quad.swapchain = toast_chain.Handle();
+    quad.image_rect = {
+        {((level - 1) % 2) * 512,
+         static_cast<int32_t>((kLabelRow + (level - 1) / 2) * static_cast<int>(kToastHeight))},
+        {static_cast<int32_t>(kLabelPx), static_cast<int32_t>(kToastHeight)}};
+    quad.pose.orientation = {label.orientation.x, label.orientation.y, label.orientation.z,
+                             label.orientation.w};
+    quad.pose.position = {label.position.x, label.position.y, label.position.z};
+    quad.size = {Vis::kLabelW, Vis::kLabelW * kToastHeight / kLabelPx};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;

@@ -17,7 +17,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -243,6 +245,7 @@ int main(int argc, char** argv) {
     float px_per_dp = 2.5f;
     bool diagram_only = false;
     std::string texparts; // AzaharFrame texparts
+    std::string autosave_thumbs; // AzaharFrame autosave: real top screens for the card
     for (int i = 2; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--diagram-only") {
@@ -255,8 +258,11 @@ int main(int argc, char** argv) {
             px_per_dp = static_cast<float>(std::atof(argv[i + 1]));
         } else if (a == "--texparts") {
             texparts = argv[i + 1];
+        } else if (a == "--autosave-thumbs") {
+            autosave_thumbs = argv[i + 1];
         }
-        if (a == "--models" || a == "--px-per-dp" || a == "--texparts") {
+        if (a == "--models" || a == "--px-per-dp" || a == "--texparts" ||
+            a == "--autosave-thumbs") {
             i++;
         }
     }
@@ -414,6 +420,94 @@ int main(int argc, char** argv) {
     v.page = Page::LoadSlots;
     v.hover = {Id::Slot, 2};
     ok &= shot("1b-main-load-slots", m, v);
+    { // AzaharFrame autosave: Load State's Autosave card (owner's Option B)
+        std::vector<std::shared_ptr<const AutosavePicture>> pics;
+        std::error_code ec;
+        std::vector<std::string> files;
+        for (const auto& e : std::filesystem::directory_iterator(autosave_thumbs, ec)) {
+            if (e.path().extension() == ".png") {
+                files.push_back(e.path().string());
+            }
+        }
+        std::sort(files.rbegin(), files.rend()); // newest first (the names are their times)
+        for (const std::string& f : files) {
+            std::vector<unsigned char> rgba;
+            unsigned pw = 0, ph = 0;
+            if (lodepng::decode(rgba, pw, ph, f) == 0 && pw > 0) {
+                auto p = std::make_shared<AutosavePicture>();
+                p->w = static_cast<int>(pw);
+                p->h = static_cast<int>(ph);
+                p->rgba = std::move(rgba);
+                pics.push_back(std::move(p));
+            }
+        }
+        const auto pic = [&pics](std::size_t i) {
+            return pics.empty() ? nullptr : pics[i % pics.size()];
+        };
+        MenuModel am = m;
+        am.autosave = true;
+        am.autosave_keep = 3;
+        am.autosaves = {{"Just Now", "2026-11-12 10:26", "10:26", false, pic(0)},
+                        {"4 Minutes Ago", "2026-11-12 10:22", "10:22", false, pic(1)},
+                        {"9 Minutes Ago", "2026-11-12 10:17", "10:17", false, pic(2)}};
+        MenuView av;
+        av.page = Page::LoadSlots;
+        av.hover = {Id::AutosaveCard};
+        ok &= shot("1i-load-autosave-card", am, av);
+        av.open_menu = Id::AutosaveCard;
+        av.hover = {Id::AutosaveEntry, 1};
+        ok &= shot("1j-load-autosave-list", am, av);
+        MenuModel ten = am; // Keep 10: two columns
+        ten.autosave_keep = 10;
+        const char* agos[] = {"Just Now",       "4 Minutes Ago",  "9 Minutes Ago",
+                              "14 Minutes Ago", "19 Minutes Ago", "24 Minutes Ago",
+                              "29 Minutes Ago", "34 Minutes Ago", "39 Minutes Ago",
+                              "1 Hour Ago"};
+        ten.autosaves.clear();
+        for (int i = 0; i < 10; i++) {
+            const int minute = 26 - i * 5;
+            const int h = minute < 0 ? 9 : 10, mm = minute < 0 ? minute + 60 : minute;
+            char clock[8];
+            std::snprintf(clock, sizeof(clock), "%02d:%02d", h, mm);
+            ten.autosaves.push_back({agos[i], std::string("2026-11-12 ") + clock, clock, false,
+                                     pic(static_cast<std::size_t>(i))});
+        }
+        av.hover = {Id::AutosaveEntry, 7};
+        ok &= shot("1j2-load-autosave-list-keep10", ten, av);
+        av.open_menu = Id::None;
+        av.hover = {};
+        MenuModel one = am; // Keep 1: no arrow; tapping the card loads it
+        one.autosave_keep = 1;
+        one.autosaves.resize(1);
+        ok &= shot("1k-load-autosave-keep1", one, av);
+        MenuModel aoff = m;
+        aoff.autosave = false;
+        av.hover = {Id::AutosaveSettings};
+        ok &= shot("1l-load-autosave-off", aoff, av);
+        MenuModel none = am; // on, none made yet
+        none.autosaves.clear();
+        av.hover = {};
+        ok &= shot("1m-load-autosave-none-yet", none, av);
+        MenuModel undo = am; // after an autosave was loaded
+        undo.undo_load = "Autosave Loaded: 10:22";
+        av.hover = {Id::UndoLoad};
+        ok &= shot("1n-load-autosave-undo", undo, av);
+        MenuModel other = am; // the newest from another build
+        other.autosaves[0].other = true;
+        other.autosaves[0].time = other.autosaves[0].clock = "From 1.1.1";
+        av.hover = {};
+        ok &= shot("1o-load-autosave-other-build", other, av);
+        // The "Autosaved" label as hud.cpp draws it into the toast atlas (480 x 96 px), and the
+        // toast it falls back to
+        frame_xr::ui::Canvas lc;
+        lc.Init(480, 96);
+        lc.Clear(Rgb(kBackdrop));
+        Kit lk(1.0f);
+        lk.Begin(lc);
+        DrawAutosavedLabel(lk, {2.0f, 2.0f, 478.0f, 94.0f});
+        ok &= WritePng(out + "/autosaved-label.png", lc);
+        ok &= toast_shot("autosaved-toast.png", {"Autosaved"});
+    }
     { // AzaharFrame savestate: slots from another build, the mismatch and About notices
         MenuModel sm = m;
         sm.slots = {{1, "From 1.1.1", true}, {2, "2026-11-09 19:02"}, {5, "From Another Version", true}};
@@ -592,39 +686,81 @@ int main(int argc, char** argv) {
         ok &= shot("edit-3ds-mouse-chord", mp, v, at);
     }
 
-    v = {};
-    v.tab = Tab::Settings;
+    // AzaharFrame autosave: Settings in three sections (General · Graphics · Immersive), the scope
+    // menu button at the section row's end, Per-Game as the menu opens; the Saves group at
+    // General's end, its rows per game.
+    const auto settings = [](SettingsSection section) {
+        MenuView sv;
+        sv.tab = Tab::Settings;
+        sv.section = section;
+        return sv;
+    };
+    MenuModel pg = m; // Per-Game: as the menu opens while a game runs
+    pg.scope = 1;
+    pg.autosave = true;
+    pg.autosave_every = 2;
+    pg.autosave_keep = 3;
+    v = settings(SettingsSection::General);
     v.hover = {Id::ShowControllers};
-    ok &= shot("5-settings", m, v);
-    v.hover = {Id::GameFov};
+    ok &= shot("5-settings", pg, v);
+    v.hover = {Id::AutosaveKeep};
     v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
-    ok &= shot("5b-settings-end", m, v);
+    ok &= shot("5a-settings-general-end-saves", pg, v);
+    {
+        MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
+        so.autosave = false;
+        so.locked[static_cast<std::size_t>(Id::AutosaveEvery)] = Lock::AutosaveOff;
+        so.locked[static_cast<std::size_t>(Id::AutosaveKeep)] = Lock::AutosaveOff;
+        v.hover = {Id::AutosaveEvery, kLabelIndex};
+        v.tooltip = Id::AutosaveEvery;
+        ok &= shot("5a2-settings-autosave-off", so, v);
+        v.tooltip = Id::None;
+        v.hover = {};
+        v.dragging = Id::AutosaveEvery; // Every held at 10 Min: the stops' minutes under it
+        v.drag_t = 0.75f;
+        ok &= shot("5a3-settings-every-drag", pg, v);
+        v.dragging = Id::None;
+        MenuModel gs = pg; // Global chosen, the game has its own Autosave
+        gs.scope = 0;
+        for (Id id : {Id::Autosave, Id::AutosaveEvery, Id::AutosaveKeep}) {
+            gs.locked[static_cast<std::size_t>(id)] = Lock::GameValue;
+        }
+        v.hover = {Id::Autosave, kLabelIndex};
+        v.tooltip = Id::Autosave;
+        ok &= shot("5a4-settings-saves-global-game-value", gs, v);
+        v = settings(SettingsSection::General);
+        v.open_menu = Id::Scope;
+        v.hover = {Id::Scope, 0};
+        ok &= shot("5a5-settings-general-scope-menu", pg, v);
+    }
+    v = settings(SettingsSection::Immersive);
+    v.hover = {Id::GameFov};
+    ok &= shot("5b-settings-immersive", pg, v);
     v.hover = {Id::NarrowScreen, kLabelIndex};
     v.tooltip = Id::NarrowScreen;
-    ok &= shot("5c-settings-tooltip-option", m, v);
+    ok &= shot("5c-settings-tooltip-option", pg, v);
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
-    v = {};
-    v.tab = Tab::Settings;
+    v = settings(SettingsSection::Immersive);
     v.hover = {Id::ImmersiveMode, kLabelIndex};
     v.tooltip = Id::ImmersiveMode;
     ok &= shot("5e-settings-game-value-locked", gv, v);
-    MenuModel off = m;
+    MenuModel off = pg;
     off.immersive_mode = 0;
-    v = {};
-    v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+    v = settings(SettingsSection::Immersive);
     v.open_menu = Id::ImmersiveMode;
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
 
     // AzaharFrame menuux: the renderer's rows, the Internal Resolution menu, Dynamic Resolution
-    // at 1x, and the Position tab's longest offset.
-    MenuModel rm = m;
+    // at 1x, and the Position tab's longest offset. AzaharFrame autosave: the Graphics section.
+    MenuModel rm = pg;
     rm.internal_resolution = 3;
-    v = {};
-    v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = 5.0f * 64.0f;
+    v = settings(SettingsSection::Graphics);
+    v.open_menu = Id::Scope;
+    v.hover = {Id::Scope, 0};
+    ok &= shot("5f2-settings-graphics-scope-menu", rm, v);
+    v.open_menu = Id::None;
     v.hover = {Id::DynamicResolution};
     ok &= shot("5f-settings-renderer", rm, v);
     v.open_menu = Id::InternalResolution;
