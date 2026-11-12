@@ -277,6 +277,37 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     CHECK(LabelFor(Id::ReticleAtEdge) == "At Edge");
 }
 
+// AzaharFrame ui2: the controller picture at the top, the Touchpad, Bottom Screen Reticle and
+// At Edge rows under it at the bottom of the pane (owner's report 14).
+TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "[frame_xr][tabmenu]") {
+    for (const int reticle : {0, 2}) {
+        Drawn d;
+        Rect picture{};
+        d.menu.SetDiagram([&picture](Kit&, const Rect& area, int) { picture = area; });
+        MenuModel m = Sample();
+        m.bottom_screen_reticle = reticle;
+        MenuView v;
+        v.tab = Tab::Controls;
+        d.Draw(m, v);
+        REQUIRE(picture.H() > 300.0f); // most of the pane
+        float edit_y1 = 0.0f, rows_y0 = 1e9f, rows_y1 = 0.0f;
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == Id::EditControls) {
+                edit_y1 = h.r.y1;
+            }
+            if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
+                h.t.id == Id::ReticleAtEdge) {
+                rows_y0 = std::min(rows_y0, h.r.y0);
+                rows_y1 = std::max(rows_y1, h.r.y1);
+            }
+        }
+        CHECK(picture.y0 >= edit_y1);   // under the pages and Edit Controls
+        CHECK(rows_y0 >= picture.y1);   // the rows under the picture
+        CHECK(rows_y1 <= kPanelH);      // and inside the panel
+        CHECK(rows_y1 > kPanelH - 80.0f); // at its bottom
+    }
+}
+
 // AzaharFrame cheatstab: the Mods tab and its Cheats segment.
 namespace {
 CheatsModel SampleCheats() {
