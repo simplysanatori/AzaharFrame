@@ -596,6 +596,25 @@ TEST_CASE("Tab menu: Download Packs", "[frame_xr][tabmenu]") {
         {"c", "Pack C", "", "", "", PackOfferState::Failed, -1, "Download Failed"}};
     d.Draw(m, v);
     CHECK(HasHit(d, Id::PackDownload, 0));
+    // AzaharFrame modcat2: a row's name is the anchor of its notes tooltip
+    CHECK(HasHit(d, Id::PackNote, 0));
+    CHECK(HasHit(d, Id::PackNote, 2));
+    {
+        const auto* name = FindHit(d, Id::PackNote, 0);
+        REQUIRE(name);
+        CHECK(d.menu.HitTest(name->r.x0 + 40.0f, name->r.Cy() - 8.0f) == Target{Id::PackNote, 0});
+        m.mods.textures.downloads[0].notes =
+            "A 4K pack for the whole game. It is large, so it asks first. Restart the game after it installs.";
+        v.tooltip = Id::PackNote;
+        v.tooltip_index = 0;
+        d.Draw(m, v); // the wrapped tooltip draws without disturbing the hits
+        CHECK(HasHit(d, Id::PackNote, 0));
+        CHECK(HasHit(d, Id::PackDownload, 0));
+        v.tooltip = Id::None;
+        v.tooltip_index = -1;
+        m.mods.textures.downloads[0].notes.clear();
+        d.Draw(m, v);
+    }
     CHECK(!HasHit(d, Id::PackDownload, 1)); // Installed: no action
     CHECK(HasHit(d, Id::PackDownload, 2));  // Try Again
     CHECK(HasHit(d, Id::PackLink, 0));
@@ -715,6 +734,29 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(!HasHit(d, Id::ModLink, 3)); // not an https address: no link
     CheckTargets(d);
     CHECK(!HasHit(d, Id::ModVersion, 2)); // no version chip
+    // AzaharFrame modcat2: every row's name anchors its notes tooltip
+    CHECK(HasHit(d, Id::ModNote, 0));
+    CHECK(HasHit(d, Id::ModNote, 2));
+    mm.available[0].notes = "Covers all regions. The folder for the game's own title ID is used. Replaces any other code patch.";
+    v.tooltip = Id::ModNote;
+    v.tooltip_index = 0;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModNote, 0));
+    CHECK(HasHit(d, Id::ModInstall, 0));
+    v.tooltip = Id::None;
+    v.tooltip_index = -1;
+    mm.available[0].notes.clear();
+    {
+        // three sentences wrap to the width and the box fits them
+        const std::string three = "A single screen layout with no touch screen needed. It covers the North America, Europe and Japan releases. It replaces any other code patch for the game.";
+        const auto lines = d.kit.TooltipLines(three, 300.0f);
+        CHECK(lines.size() >= 3);
+        for (const auto& l : lines) {
+            CHECK(d.kit.TextWidth(Type::Tooltip, l) <= 300.0f);
+        }
+        CHECK(d.kit.TooltipLines(three, 1000000.0f).size() == 1);
+        CHECK(d.kit.TooltipLines("", 300.0f).empty());
+    }
     // AzaharFrame modcat: version chips (a hit each), the matching one filled, a tooltip on hover
     mm.available[2].version = "1.0";
     mm.available[2].version_tip = "For the original 1.0 game, or 1.0 with the 1.1 update.";

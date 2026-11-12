@@ -238,6 +238,18 @@ std::optional<Source> ParseSource(const nlohmann::json& s, std::string* why) {
             *why = "bad gdrive_folder source (folder_id and a file_pattern are needed)";
             return std::nullopt;
         }
+    } else if (type == "gamebanana") { // AzaharFrame modcat2
+        src.type = Source::Type::Gamebanana;
+        if (!s.contains("mod") || !s["mod"].is_number_unsigned() || s["mod"].get<u64>() == 0) {
+            *why = "bad gamebanana source (the mod's number is needed)";
+            return std::nullopt;
+        }
+        src.gb_mod = s["mod"].get<u64>();
+        src.file_pattern = JStr(s, "file_pattern").empty() ? "*.zip" : JStr(s, "file_pattern");
+        if (src.file_pattern.size() > 100 || src.file_pattern.find('/') != std::string::npos) {
+            *why = "bad gamebanana source (file_pattern)";
+            return std::nullopt;
+        }
     } else {
         *why = "unknown source type";
         return std::nullopt;
@@ -463,6 +475,17 @@ bool HostAllowed(const std::string& host, const std::vector<std::string>& extra)
         if (host == "https://" + e) {
             return true;
         }
+    }
+    // AzaharFrame modcat2: GameBanana's download redirect and file hosts (files, filecache<N>)
+    if (host == "https://gamebanana.com" || host == "https://files.gamebanana.com") {
+        return true;
+    }
+    constexpr std::string_view cache = "https://filecache";
+    constexpr std::string_view tail = ".gamebanana.com";
+    if (host.size() > cache.size() + tail.size() && host.compare(0, cache.size(), cache) == 0 &&
+        host.compare(host.size() - tail.size(), tail.size(), tail) == 0) {
+        const std::string n = host.substr(cache.size(), host.size() - cache.size() - tail.size());
+        return n.size() <= 4 && std::all_of(n.begin(), n.end(), [](char c) { return c >= '0' && c <= '9'; });
     }
     return false;
 }
@@ -1048,6 +1071,7 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
         WriteMarker(dst.string(), entry.id,
                     entry.source.type == Source::Type::GithubRelease ? "github"
                     : entry.source.type == Source::Type::Gdrive      ? "gdrive"
+                    : entry.source.type == Source::Type::Gamebanana  ? "gamebanana"
                                                                      : "https",
                     entry.updated);
         if (!fs::exists(dst / "pack.json", ec)) {
@@ -1469,6 +1493,53 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         std::string host, path;
         if (SplitUrl(url, host, path)) {
             extra.push_back(host.substr(8));
+        }
+        break;
+    }
+    case Source::Type::Gamebanana: { // AzaharFrame modcat2: the newest clean file of the mod
+        SetState(State::Phase::Resolving, "Looking Up");
+        const auto r = Cheats::Online::HttpsGetRaw(
+            "https://gamebanana.com", fmt::format("/apiv11/Mod/{}/ProfilePage", source.gb_mod), 4 * 1024 * 1024);
+        if (cancel_) {
+            return "Cancelled";
+        }
+        if (!r.error.empty() || r.status == 0) {
+            return r.error.empty() ? "No reply from GameBanana" : r.error;
+        }
+        if (r.status != 200) {
+            return r.status == 404 ? "Mod not found" : fmt::format("Server returned {}", r.status);
+        }
+        try {
+            const auto j = nlohmann::json::parse(r.body);
+            if (j.value("_bIsTrashed", false) || j.value("_bIsWithheld", false) ||
+                j.value("_bIsPrivate", false)) {
+                return "Mod not found";
+            }
+            const long long updated = j.value("_tsDateUpdated", j.value("_tsDateAdded", 0LL));
+            if (updated > 0) {
+                const std::time_t tt = static_cast<std::time_t>(updated);
+                std::tm tm{};
+                gmtime_r(&tt, &tm);
+                live_updated_ = fmt::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+            }
+            long long newest = -1;
+            for (const auto& f : j.at("_aFiles")) {
+                if (f.value("_bIsArchived", false) || f.value("_sAvResult", "") != "clean" ||
+                    !Mods::GlobMatch(source.file_pattern, f.value("_sFile", ""))) {
+                    continue;
+                }
+                const long long added = f.value("_tsDateAdded", 0LL);
+                if (added > newest) {
+                    newest = added;
+                    url = f.value("_sDownloadUrl", "");
+                    expected = f.value("_nFilesize", expected);
+                }
+            }
+        } catch (const std::exception&) {
+            return "Mod information not readable";
+        }
+        if (url.empty()) {
+            return "The mod has no matching file";
         }
         break;
     }

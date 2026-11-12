@@ -511,10 +511,15 @@ RunResult Run(const std::string& tool, const std::vector<std::string>& args, int
     }
     std::vector<std::string> env_store;
     for (char** e = environ; e != nullptr && *e != nullptr; ++e) {
-        if (std::strncmp(*e, "LD_", 3) != 0) {
+        // AzaharFrame modcat2: also minus the locale; bsdtar turns a name with non-ASCII characters
+        // ("1⁄2", U+2044) into a file name only under a UTF-8 locale, so it always gets one
+        const bool locale = std::strncmp(*e, "LC_", 3) == 0 || std::strncmp(*e, "LANG=", 5) == 0 ||
+                            std::strncmp(*e, "LANGUAGE=", 9) == 0;
+        if (std::strncmp(*e, "LD_", 3) != 0 && !locale) {
             env_store.emplace_back(*e);
         }
     }
+    env_store.emplace_back("LC_ALL=C.UTF-8");
     std::vector<char*> envp;
     for (auto& s : env_store) {
         envp.push_back(s.data());

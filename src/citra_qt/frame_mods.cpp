@@ -444,6 +444,7 @@ void FrameMods::RefreshAvailable() {
                 o.author = a.author;
                 o.url = RepoUrl(catalog, a.id);
                 o.updated = CustomTex::Download::UpdatedText(a.updated); // AzaharFrame modcat
+                o.notes = a.notes; // AzaharFrame modcat2
                 o.version = a.chip;
                 o.version_tip = a.chip_tip;
                 o.version_match = a.matches_game;
@@ -799,6 +800,7 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.size_text = p.size_text;
         o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
         o.verified = p.verified;
+        o.notes = p.notes; // AzaharFrame modcat2
         if (running && st.pack_id == p.id) {
             o.state = Menu::PackOfferState::Downloading;
         } else if (p.installed) {

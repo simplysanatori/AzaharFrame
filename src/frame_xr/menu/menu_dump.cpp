@@ -701,6 +701,14 @@ int main(int argc, char** argv) {
         v.tooltip = Id::ModVersion;
         v.tooltip_index = 1;
         ok &= shot("mods-version-chips", mv, v);
+        // AzaharFrame modcat2: the notes tooltip over a row's name (three sentences, wrapped)
+        mv.mods.mods.available[1].notes =
+            "For the original 1.0 game, or 1.0 with the 1.1 update. The Korean release is not supported. "
+            "It conflicts with the other Project Restoration builds.";
+        v.hover = {Id::ModNote, 1};
+        v.tooltip = Id::ModNote;
+        v.tooltip_index = 1;
+        ok &= shot("mods-notes-tooltip", mv, v);
         v.tooltip = Id::None;
         v.tooltip_index = -1;
         v.open_link = "https://github.com/OTPR26/OOT3DHud";

@@ -174,6 +174,11 @@ public:
     }
     /// A plain tooltip above (or below) the point.
     void Tooltip(float cx, float y, const std::string& text, bool above = true);
+    /// AzaharFrame modcat2: a tooltip of up to three sentences, wrapped to `max_w` and sized to
+    /// fit (left aligned lines); `lines` is the line count it needs (for placing it).
+    void TooltipWrapped(float cx, float y, const std::string& text, bool above, float max_w);
+    /// The lines TooltipWrapped draws.
+    std::vector<std::string> TooltipLines(const std::string& text, float max_w) const;
 
     /// The width a segmented button wants for `options` within `max_width`: equal segments as
     /// wide as the widest label, or, when those do not fit, each as wide as its own label.
