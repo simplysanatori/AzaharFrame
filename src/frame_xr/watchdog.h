@@ -18,4 +18,17 @@ void Beat(const char* phase);
 /// The frame loop is not in a frame (flat, or the session not running): nothing to watch.
 void Idle();
 
+// AzaharFrame flatfix: Flat, always on (no variable). A frame loop that has not ticked in Flat
+// for 3 s is logged once with where it is (FlatPhase), the kernel state of its thread and of
+// input_common's SDL thread, and how often SDL was pumped meanwhile; a loop that ticks again is
+// logged too. In Flat nothing else would show it: SetVr(true) only sets a flag the loop reads.
+/// The frame loop ticks in Flat (each pass, about 120 a second).
+void FlatTick();
+/// Where in the Flat pass it is now (a string literal).
+void FlatPhase(const char* phase);
+/// The frame loop leaves Flat (a session is being made, or it stops).
+void FlatEnd();
+/// Seconds since the frame loop last ticked in Flat; negative when it is not in Flat.
+double FlatStalledSeconds();
+
 } // namespace FrameXr::Watchdog

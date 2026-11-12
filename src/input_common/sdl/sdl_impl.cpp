@@ -19,6 +19,7 @@
 #include "common/logging/log.h"
 #include "common/math_util.h"
 #include "common/param_package.h"
+#include "common/thread.h"
 #include "common/threadsafe_queue.h"
 #include "core/frontend/input.h"
 #include "input_common/sdl/sdl_impl.h"
@@ -853,11 +854,15 @@ SDLState::SDLState() {
         InitJoystick(i);
     }
     if (start_thread) {
+        PublishPads(); // AzaharFrame flatfix: before the poll thread takes it over
         poll_thread = std::thread([this] {
             using namespace std::chrono_literals;
+            // AzaharFrame flatfix: named, so the frame loop's watchdog can say what it does.
+            Common::SetCurrentThreadName("SDLPump");
             while (initialized) {
                 SDL_PumpEvents();
                 pump_count++; // AzaharFrame flat: the flat summary shows that SDL is pumped
+                PublishPads(); // AzaharFrame flatfix: on this thread, SDL's own
                 // Pump faster if there are controllers connected to reduce missed inputs per frame.
                 // AzaharFrame flat: our own count, not SDL_NumJoysticks (see above).
                 std::this_thread::sleep_for(pad_count.load() > 0 ? 1ms : 10ms);
@@ -1307,14 +1312,56 @@ bool SDLState::GetTouchpad(TouchpadSample& sample) {
 // reconnected controller twice (InitJoystick reuses its slot and adds it again), so each SDL
 // instance is taken once.
 std::uint64_t SDLState::GetPadGeneration() {
-    return pad_generation.load();
+    // AzaharFrame flatfix: the snapshot's, so GetPadInfos returns what this number stands for.
+    return start_thread ? snapshot_generation.load() : pad_generation.load();
+}
+
+// AzaharFrame flatfix: the poll thread's copy (see sdl_impl.h). Only a frontend that pumps SDL
+// itself (no poll thread) is read directly, on its own thread.
+void SDLState::GetPadInfos(std::vector<SDLPadInfo>& out) {
+    if (!start_thread) {
+        ReadPadInfos(out);
+        return;
+    }
+    std::scoped_lock lock{snapshot_mutex};
+    out = snapshot_infos;
+}
+
+void SDLState::GetPadStates(std::vector<SDLPadState>& out) {
+    if (!start_thread) {
+        ReadPadStates(out);
+        return;
+    }
+    std::scoped_lock lock{snapshot_mutex};
+    out.resize(snapshot_states.size()); // no allocation once it has grown
+    std::copy(snapshot_states.begin(), snapshot_states.end(), out.begin());
+}
+
+void SDLState::PublishPads() {
+    const std::uint64_t generation = pad_generation.load();
+    const bool new_infos = generation != published_generation;
+    if (!new_infos && scratch_states.empty()) {
+        return; // no controller, none added or gone: nothing changes
+    }
+    if (new_infos) {
+        ReadPadInfos(scratch_infos);
+    }
+    ReadPadStates(scratch_states);
+    std::scoped_lock lock{snapshot_mutex};
+    if (new_infos) {
+        published_generation = generation;
+        snapshot_infos = scratch_infos;
+        snapshot_generation.store(generation);
+    }
+    snapshot_states.resize(scratch_states.size());
+    std::copy(scratch_states.begin(), scratch_states.end(), snapshot_states.begin());
 }
 
 std::uint64_t SDLState::GetPumpCount() { // AzaharFrame flat
     return pump_count.load();
 }
 
-void SDLState::GetPadInfos(std::vector<SDLPadInfo>& out) {
+void SDLState::ReadPadInfos(std::vector<SDLPadInfo>& out) {
     out.clear();
     // AzaharFrame flat: SDL's joystick lock first, as everywhere else in this file. The SDL
     // calls below take it, and the event watcher holds it while it takes ours (AB-BA).
@@ -1353,7 +1400,7 @@ void SDLState::GetPadInfos(std::vector<SDLPadInfo>& out) {
     }
 }
 
-void SDLState::GetPadStates(std::vector<SDLPadState>& out) {
+void SDLState::ReadPadStates(std::vector<SDLPadState>& out) {
     static_assert(SDLPadState::kButtons == SDL_CONTROLLER_BUTTON_MAX);
     static_assert(SDLPadState::kAxes == SDL_CONTROLLER_AXIS_MAX);
     std::size_t count = 0;

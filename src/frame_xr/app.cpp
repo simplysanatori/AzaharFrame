@@ -470,15 +470,18 @@ void Runtime::LogFlatSummary(double seconds) {
 void Runtime::FlatStep(double& log_seconds) {
     constexpr auto kPeriod = std::chrono::milliseconds(8);
     const auto now = Clock::now();
+    Watchdog::FlatTick(); // AzaharFrame flatfix: a loop that stops here for 3 s is logged
     if (ui) {
         ui->FlatFrame(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch())
                           .count());
     }
     log_seconds += std::chrono::duration<double>(kPeriod).count();
     if (log_seconds >= 1.0) {
+        Watchdog::FlatPhase("the flat summary line");
         LogFlatSummary(log_seconds);
         log_seconds = 0.0;
     }
+    Watchdog::FlatPhase("the sleep between Flat passes");
     std::this_thread::sleep_for(kPeriod);
 }
 
@@ -530,9 +533,11 @@ void Runtime::FrameLoop() {
         if (!session) {
             Watchdog::Idle();
             if (stop) {
+                Watchdog::FlatEnd(); // AzaharFrame flatfix
                 break;
             }
             if (want_vr) {
+                Watchdog::FlatEnd(); // AzaharFrame flatfix: making a session may take a while
                 LOG_INFO(Frontend, "xr: VR again: making a session");
                 // AzaharFrame flat2: on a new XR instance (instance_policy.h).
                 loop_phase = "a new XR instance and session";
@@ -930,6 +935,17 @@ bool SetVr(bool vr) {
     }
     if (rt->want_vr.exchange(vr) != vr) {
         LOG_INFO(Frontend, "xr: {} asked for", vr ? "VR" : "flat");
+    } else if (vr && !rt->has_session) {
+        // AzaharFrame flatfix: asked again before the loop made the session: say why it waits.
+        const double stalled = Watchdog::FlatStalledSeconds();
+        if (stalled >= 3.0) {
+            LOG_ERROR(Frontend, "xr: VR asked for again, but the frame loop has not ticked for "
+                                "{:.1f} s ({})",
+                      stalled, rt->loop_phase.load());
+        } else {
+            LOG_INFO(Frontend, "xr: VR asked for again; the frame loop is making the session ({})",
+                     rt->loop_phase.load());
+        }
     }
     return true;
 }

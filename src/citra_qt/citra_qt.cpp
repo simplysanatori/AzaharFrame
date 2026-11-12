@@ -1134,6 +1134,8 @@ GMainWindow::GMainWindow(Core::System& system_)
                 // Flat to VR: the window's frame back from the theater first (Game Mode).
                 static bool leaving = false;
                 if (leaving) {
+                    // AzaharFrame flatfix: the first press goes on (LeaveFlat runs it within 5 s).
+                    LOG_INFO(Frontend, "xr: VR asked for again; the switch is under way");
                     return;
                 }
                 leaving = true;
