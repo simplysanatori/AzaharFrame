@@ -365,6 +365,8 @@ std::string ExplainLock(Lock lock) {
         return "Only in the Full immersive modes.";
     case Lock::Unavailable:
         return "Not available on this headset.";
+    case Lock::NotForGame: // AzaharFrame immersive
+        return "Not available for this game.";
     default:
         return {};
     }

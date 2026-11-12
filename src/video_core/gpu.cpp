@@ -345,6 +345,9 @@ void GPU::SetBufferSwap(u32 screen_id, const Service::GSP::FrameBufferInfo& info
         MicroProfileFlip();
         impl->system.perf_stats->EndGameFrame();
         right_eye_disabler->ReportEndFrame();
+        // AzaharFrame immersive: a game frame ended; the next one gets the newest head pose,
+        // all of its draws (both eyes) the same one (vr_immersive.h FrameLatch).
+        VideoCore::Immersive::OnTopScreenSwap(impl->rasterizer);
     }
 }
 
@@ -571,8 +574,9 @@ void GPU::VBlankCallback(std::uintptr_t user_data, s64 cycles_late) {
 
     // Present renderered frame.
     impl->renderer->SwapBuffers();
-    // AzaharFrame: the newest immersive-mode head pose for the next frame (vr_immersive.h).
-    VideoCore::Immersive::ApplyPending(impl->rasterizer);
+    // AzaharFrame: the newest immersive-mode head pose, when no top screen swap gave it for a
+    // few VBlanks (vr_immersive.h FrameLatch).
+    VideoCore::Immersive::OnVBlank(impl->rasterizer);
 
     // Reschedule recurrent event
     impl->timing.ScheduleEvent(FRAME_TICKS - cycles_late, impl->vblank_event);

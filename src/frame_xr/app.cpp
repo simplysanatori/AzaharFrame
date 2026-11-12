@@ -294,12 +294,12 @@ bool Runtime::PollEvents() {
             break;
         case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING: {
             // SteamVR's recenter (hold the Steam button) moves the LOCAL space. Re-centre the
-            // immersive view with it, as the right stick click hold does.
+            // immersive view with it; AzaharFrame immersive: its screen keeps its placement.
             const auto& e =
                 reinterpret_cast<const XrEventDataReferenceSpaceChangePending&>(event);
             if (e.referenceSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL) {
                 LOG_INFO(Frontend, "xr: SteamVR recentred, re-centring the immersive view");
-                Immersive::OnResetPanels();
+                Immersive::OnRecentred(e.changeTime);
                 Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
             }
             break;

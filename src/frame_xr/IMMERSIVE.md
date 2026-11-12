@@ -37,7 +37,7 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. Stick Click taps do nothing meanwhile (`Immersive::HoldingScreen`). A grab shows the hint chip low in front of you (`VrUi::ShowGripHint`, at most once per 10 s). |
 | D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Wider View for this game (Full modes), "Wider View: 1.2x". The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
-| Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). SteamVR's own re-centre does the same. The immersive screen of this mode also goes back to its default placement and its saved one is forgotten, held by a grip or not (`Immersive::OnResetPanels`). |
+| Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen of this mode also goes back to its default placement and its saved one is forgotten, held by a grip or not (`Immersive::OnResetPanels`). SteamVR's own recenter (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
 While immersive mode is paused (modes 2 and 3 with the bottom screen shown or the in-game menu open,
@@ -89,13 +89,23 @@ high, 1.2 to 3 times as wide), takes the one most draws used in each quarter sec
 (`ProjectionTracker`) and hands it to the XR thread (`g_measured_projection` in
 `video_core/vr_immersive.h`). The head-locked screen is then sized with the game's real angle and
 shape instead of the two settings, so the world stays put through camera changes, cutscenes and
-zooms, and with any widescreen mod, whatever Screen Shape says. A new value is taken once two
-measurements in a row agree on it, and nothing changes within 1.5 degrees and 4 % of the one in
-use (Jabu-Jabu's Belly in Ocarina of Time 3D changes its projection every frame). The angle used
-stays within the setting's 30 to 110 degrees: a 10 degree close-up in a cutscene would shrink the
-screen to a stamp, so there the world moves with the head a little instead. Logged as
-`xr: immersive: game camera measured 45.0 degrees high, 1.667 wide`. Screen Shape still shapes the
-normal top screen. **Match Game Camera** (`vr_immersive_match_camera`, global and per game, on
+zooms, and with any widescreen mod, whatever Screen Shape says. The XR thread splits it in two
+(`CameraFilter` in `immersive_layout.h`, AzaharFrame immersive):
+
+- the **live angle**, which the gain follows: taken once two measurements in a row agree on it,
+  nothing changes within 1.5 degrees (Jabu-Jabu's Belly in Ocarina of Time 3D changes its
+  projection every frame);
+- the **screen's camera**, which sizes and shapes the screen: its angle changes only once a new one
+  held for 2 seconds (8 measurements: a new scene, a cutscene, a menu), its shape only at the same
+  vertical angle (a widescreen mod or the game's own shape option widen the camera at the same
+  height). An aim or a dash (a zoom, sometimes with another shape) therefore zooms the picture on
+  a screen that keeps its size and shape, as on the 3DS, and the gain keeps the world locked at
+  the middle meanwhile. Earlier the screen followed every zoom: its shape changed while aiming.
+
+Angles stay within the setting's 30 to 110 degrees: a 10 degree close-up in a cutscene would push
+the gain past its limit, so there the world moves with the head a little instead. Logged as
+`xr: immersive: game camera measured 45.0 degrees high, 1.667 wide` (the screen's camera; the live
+angle at debug level). Screen Shape still shapes the normal top screen. **Match Game Camera** (`vr_immersive_match_camera`, global and per game, on
 by default, live) turns it off: the emulation thread then reads no registers at all
 (`g_measure_camera`, `MeasureDraw`) and the two settings are used as they are;
 `AZAHARFRAME_IMMERSIVE_MEASURE=0` forces it off.
@@ -103,7 +113,7 @@ by default, live) turns it off: the emulation thread then reads no registers at 
 ## Placement
 
 `frame_xr/immersive_layout.{h,cpp}` (unit tested in `src/tests/frame_xr/immersive_layout.cpp`), saved
-per game and mode group in `immersive-placement.txt` in the user directory (`<title id> head|wide
+per game and mode group in `immersive-placement.txt` in the user directory (`<title id> screen|wide
 <pitch> <distance> <size>`; written when a grip lets go, read when a game starts).
 
 In modes 2 and 3 the world only stays put when a head turn moves the picture by the angle the game
@@ -126,19 +136,27 @@ camera turned. Each of the three things a grip changes keeps that:
   widened it). The cost of a gain other than 1: a big head turn turns the game camera `gain` times
   as far, and away from the middle the planar picture moves a little against the head: at an angle
   `e` from the middle, by `(1 + gain^2 tan^2 e) / (1 + tan^2 e)` times the turn (1.25 at gain 1.3
-  and 37 degrees, 0.77 at gain 0.6 and 37 degrees). The gain stays within 0.4 to 2.0 (past that the
+  and 37 degrees, 0.56 at gain 0.5 and 50 degrees). The gain stays within 0.4 to 2.0 (past that the
   screen keeps its size and the world drifts a little), and the size within 0.6 to 2.5 times the
   default.
 
-The default puts the quad's sides, and the HUD there, at 37 degrees either side of straight ahead
-(`kComfortHalfWidthDeg`), the sharp middle of the lenses; the full width both eyes see (about
-+-50 degrees on the Frame) left the HUD of most games in the blurry lens edge. The whole quad also
-stays inside the part of the view both eyes see, from the runtime's per-eye FOV (logged once:
-`xr: immersive: both eyes see ...`) minus 2.5 degrees on every side, centred 5 degrees below the
-middle of that view. It is never larger than the game's own angle (gain 1 for a game whose frame
-already fits); a 60 degree 5:3 game gets a 74 x 49 degree screen and gain 1.28. The grips make it
-bigger, up to 2.5 times (about 125 degrees across). The line `xr: immersive mode N on` logs the
-factor, the screen's angles, its pitch, both gains and the size.
+**The default fills the view** (AzaharFrame immersive, after the owner's headset test of the 1.2.0
+build: a black edge around the screen in most games felt like a porthole). Its sides are 1 degree
+(`kFillMarginDeg`) past the farthest either eye sees to its side, from the runtime's per-eye FOV
+(logged once: `xr: immersive: both eyes see ..., either eye ... across`; on the Frame the left eye
+sees to 59 degrees left and the right eye as far right, both eyes only +-50), so neither eye sees
+a side edge from any angle. The height follows the picture's shape, at least +-35 degrees
+(`kMinFillHalfHeightDeg`), centred on the middle of the view (5 degrees below straight ahead on
+the Frame). On the Frame a 5:3 picture gets about 120 x 92 degrees; with the view +-110 degrees
+high the top and bottom edges stay only in the far corners of the lenses (covering those too would
+make a 5:3 screen 135 degrees wide). The picture is magnified to fill that (a 55 degree game:
+gain 0.5); it stops where the gain would go under 0.4 (a 30 degree camera keeps a smaller screen).
+Wider View magnifies less at the same size. The HUD at the picture's edges sits in the lens edge
+now; the grips make the screen smaller (down to 0.6 times) to bring it in. The earlier default
+(sides at +-37 degrees, never larger than the game's own angle) gave a 60 degree game a 74 x 49
+degree screen. The line `xr: immersive mode N on` logs the factor, the screen's angles, its
+pitch, both gains and the size. A preset can make a game's default bigger (`screen_size`: Mario
+Kart 7 1.1).
 
 Two per-game settings change this (**VR** group, logged as
 `xr: immersive: Wider View ..., Narrow Screen ...`):
@@ -151,23 +169,23 @@ Two per-game settings change this (**VR** group, logged as
   changes, and the gain with it. A level set in Properties keeps the size, so the gain changes.
   The old switch (`vr_immersive_wider_view`) is converted when a config is read: on becomes the
   level nearest to what it gave at the saved size (0.78 x size, 1.4x when no size is saved), off
-  becomes Off. No preset turns it on; Super Mario 3D Land shows black boxes with it.
+  becomes Off. No preset turns it on; Super Mario 3D Land shows black boxes with it. The default
+  size does not change with it (it fills the view already).
 - **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
   and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
   and the yaw gets its own gain, `gain_x = gain / (1 - squeeze)`, so the middle stays locked both
-  ways. The HUD at the sides moves in (from 37 to 34, 31 or 28 degrees by default) without changing the
-  vertical size. The cost: the world looks 10, 20 or 30 % thinner, a left-right turn turns the game
+  ways. The HUD at the sides moves in (from the lens edge to 90, 80 or 70 % of the way out) without
+  changing the vertical size. The cost: the world looks 10, 20 or 30 % thinner, a left-right turn turns the game
   camera more than an up-down turn (a diagonal turn is a little off), the stereo depth in mode 3 is
   that much flatter, a head roll cannot be matched exactly in a squeezed picture (kept 1:1), and the
   edges move a little more against the head (the formula above with `gain_x`). `gain_x` is
   clamped to `kMaxGain` (2.0) like the gain: at 30 % that limit is reached from a pitch gain of
-  1.4 (the Frame's default for a 60 degree game is about 1.3), and past it a left-right turn
-  drifts the world a little. It costs nothing to draw.
+  1.4, and past it a left-right turn drifts the world a little. It costs nothing to draw.
 
-Saved sizes are relative to that default. The file's `view` lines are written by this build; `head`
-lines come from earlier builds, whose default filled the whole view both eyes see: once the view is
-known they are converted so the screen keeps its angle (`SizeFromOldDefault`; a 1.5 there is about
-1.9 now), logged as `placement (converted from an earlier build)`, and saved as `view` lines.
+Saved sizes are relative to that default. The file's `screen` lines are written by this build;
+`view` lines (1.2.0 test builds) and `head` lines (1.0, 1.1) had sizes against smaller defaults:
+their pitch and distance are kept and the size becomes the game's default, logged as `placement
+(earlier build's size replaced by the default)` and saved as a `screen` line.
 
 **Immersive Offset** (`vr_immersive_offset_x`, `_y`, degrees right and up, global only, -10 to 10 in
 0.5 steps; `LensOffset` in `immersive_layout.h`). The Frame's lenses sit a little differently for
@@ -211,9 +229,16 @@ Three threads, and the rasterizer is only touched by the one that draws:
    1.0 to 1.4 with Wider View. Not immersive (setting 0, no game, bottom screen shown in modes 2/3): CitraVR's "off"
    values (mode 1, factor 1, identity). It publishes them into a seqlock of atomics
    (`video_core/vr_immersive.h`, one writer).
-2. **Emulation thread** (`GPU::VBlankCallback`, right after `SwapBuffers`, once per guest frame):
+2. **Emulation thread**, once per game frame (AzaharFrame immersive, `FrameLatch` in
+   `video_core/vr_immersive.h`): when the game swaps the top screen's framebuffer
+   (`GPU::SetBufferSwap`, the end of a frame), or after 4 VBlanks without a swap,
    `VideoCore::Immersive::ApplyPending` reads the newest snapshot and calls
-   `RasterizerInterface::SetVRData` (again after a new rasterizer, one per game boot).
+   `RasterizerInterface::SetVRData` (again after a new rasterizer, one per game boot). Every draw
+   of one game frame, both eyes, gets the same head pose. It used to change at every VBlank (60 a
+   second), and a game at 30 frames a second (Ocarina of Time 3D, Majora's Mask 3D) draws one
+   frame across two VBlanks: the draws after the VBlank got a newer pose than those before, so
+   the two eyes, and parts of one eye's picture, came from different head poses, and objects
+   doubled whenever the head moved.
    `SetVRData` marks the PICA uniforms dirty so the patched view matrix is uploaded with the new
    pose even when the game did not touch its uniforms.
 3. **XR thread, layers** (`app.cpp` asks `Immersive::Screens`): the top screen's space, per-eye
@@ -247,6 +272,13 @@ fields; that race is gone.
 - **Bottom screen** in mode 1 shows below the wide screen's middle, at 0.7 times its distance, with
   the normal bottom screen's angular size (CitraVR moved it to 1 m below the top screen). It is
   nearer than the wide screen and submitted after it, so it is never drawn through it.
+- **Mode 2 patches only perspective draws** (`HasPerspectiveProjection` in
+  `video_core/vr_view_matrix.h`, AzaharFrame immersive). CitraVR skipped only the HUD (by one
+  value of its orthographic projection, `f[0][3] == 1`); other screen-space passes got the head
+  pose too. A pass that draws an earlier picture again, turned and moved with the head, fed into
+  itself frame after frame (copies of the picture shrinking towards the middle, the owner's
+  screenshot in the Great Deku Tree), and what it no longer covered kept old pixels (streaks). Now
+  the projection in registers 0 to 3 must be a perspective one.
 - **Mode 3 patches only world cameras** (`video_core/vr_view_matrix.h`). CitraVR changed the
   register (rotation, head position and the eye offset) in every draw. Draws that keep other data
   there were corrupted: in Mario Kart 7 the register holds other numbers in many 2D and menu draws,
@@ -288,7 +320,6 @@ for a game whose properties have no value of their own.
 | --- | --- | --- | --- | --- | --- |
 | Super Mario 3D Land | 3, view 90, eye 87,2 | 45 degrees, 5:3, title and levels | 58 units in a level | 100x (58.5) | Wider View off: black boxes at the edges |
 | Mario Kart 7 | 3, view 90, eye 87,2 | 52 racing, 55 in the fly-by before a race, 40 and 16 in menus | 3.4 | 10x (5.9) | menus stay odd in the Full modes (Differences from CitraVR) |
-| Kid Icarus: Uprising | 3, view 90, eye 87,2 | 45 flying, 36 to 61 for a moment in dashes and hits | 6.3 | 10x (5.9) | the ground sections were not reached in a mock run; the measured camera covers them. Aiming: below |
 | Ocarina of Time 3D | 2 (view 4) | 55 in play (54.6 to 55.4: Jabu-Jabu's Belly wobbles), 35 to 70 in cutscenes, 5:3 without mods | (one flat picture) | 10x | leaning moves the camera; Link is about 56 units tall, so 10x at 3D Depth 30 is life size |
 | Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes (play not reached), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera |
 | Asphalt 3D | 3, view 8 | not measured | | 1x | CitraVR's notes only |
@@ -318,24 +349,20 @@ In immersive mode the measured camera sizes the screen, so the mod's shape needs
 The FOV setting is only used until the first measurement; leave the mod's own FOV at its default
 or the measurement follows it anyway.
 
-### Kid Icarus: Uprising: aiming
+### Kid Icarus: Uprising: no immersive mode
 
-The game aims with the touch screen: the stylus position is the reticle's. In the Full modes the
-bottom screen is hidden and showing it pauses immersive mode, so none of the three ways to touch
-it works while the camera follows the head: the beam needs the screen shown, **Touchpad Touch**
-has no touch on a hidden bottom screen, and **Detach Screens** does not change immersive mode.
-What works now:
-
-- Full (6DoF): Other Games (the preset): fly and shoot with the 3D and the head-turned camera;
-  tap the left stick click to show the bottom screen and aim with the beam or a touchpad
-  (immersive mode pauses), tap again to go back. The reticle aims through the game's own camera,
-  so a shot goes where the reticle is in the game's view: look ahead when you aim.
-- Wide (3DoF), mode 1: the bottom screen stays below the wide screen while you play, so the beam
-  or **Touchpad Touch** aims all the time. The game's own 3D, no head-turned camera.
-
-For touch while the camera follows the head, the bottom screen would have to show in the Full
-modes without pausing them, placed low (as **Detach Screens: Secondary** places it): a change
-for a later version.
+AzaharFrame immersive: Kid Icarus: Uprising (every region, `ImmersiveOffered` in
+`frame_xr/presets.h`) always runs in the normal view. Its Immersive Mode is set to Off when it
+starts (logged as `xr: immersive mode is not offered for this game: Off`), the VR menu shows the
+setting as not available for this game, and its Properties disable it. The cause, from the
+owner's headset test (shots and their effects came apart from the reticle): the game aims with a
+reticle it draws on the screen in 2D and shoots along its own camera. In the Full modes the world
+is drawn from a camera turned with the head, which the game does not know about, so the shots fly
+off where the unturned camera looked while the reticle stays on the screen; and the 2D reticle
+has no stereo depth (the game is shown a 3D slider of about 0) while the shots do. Nothing in the
+drawing can join them again: the reticle cannot be told from the rest of the HUD. It is not Match
+Game Camera (it measures perspective draws only, the HUD's projection is orthographic) and not
+the eye offset (both eyes' world draws get it). Its preset is gone.
 
 ## Tuning without a rebuild
 

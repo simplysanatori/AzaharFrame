@@ -8,7 +8,7 @@
 // CitraVR called RasterizerInterface::SetVRData from its OpenXR thread while the emulation
 // thread was drawing with the same fields (a data race). Here the XR thread only publishes a
 // snapshot (a seqlock of atomics, one writer); the emulation thread takes the newest one once
-// per guest frame (GPU::VBlankCallback, right after SwapBuffers) and calls SetVRData itself,
+// per game frame (when the game swaps the top screen, FrameLatch) and calls SetVRData itself,
 // so the rasterizer is only ever touched from the thread that draws.
 //
 // Header only: video_core does not link frame_xr; frame_xr links video_core and publishes.
@@ -183,8 +183,8 @@ inline void Publish(const VRData& data) {
     g_mailbox.Publish(data);
 }
 
-/// Emulation thread, once per guest frame: hands the newest snapshot to the rasterizer (again
-/// for a new rasterizer, as every game boot makes one).
+/// Emulation thread, once per game frame (FrameLatch): hands the newest snapshot to the
+/// rasterizer (again for a new rasterizer, as every game boot makes one).
 inline void ApplyPending(RasterizerInterface* rasterizer) {
     static u32 last_serial = 0;
     static const RasterizerInterface* last_rasterizer = nullptr;
@@ -202,6 +202,54 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
     last_serial = serial;
     last_rasterizer = rasterizer;
     rasterizer->SetVRData(d.mode, d.factor, d.uoffset, d.game_pos_scaler, d.inv_view.data());
+}
+
+/// AzaharFrame immersive: when the emulation thread may give the rasterizer a new head pose.
+///
+/// Every draw of one game frame, both eyes, has to use the same pose. The pose used to change
+/// at every VBlank (60 a second), but a game that runs at 30 frames a second (Ocarina of Time
+/// 3D, Majora's Mask 3D) draws one frame across two VBlanks: the draws after the VBlank got a
+/// newer pose than the ones before, so the two eyes, and parts of one eye's picture, were drawn
+/// from different head poses (doubled objects whenever the head moved). Now a new pose is taken
+/// only when the game hands over a finished top screen (its framebuffer swap, the end of a
+/// frame), or after kMaxVBlanks VBlanks without one (a game that does not swap, a loading
+/// screen), so a paused swap never leaves the pose stale for long. Emulation thread only.
+class FrameLatch {
+public:
+    static constexpr int kMaxVBlanks = 4;
+
+    /// The game swapped the top screen's framebuffer: a frame ended. True: apply the pose now.
+    bool OnTopSwap() noexcept {
+        vblanks_ = 0;
+        return true;
+    }
+    /// A VBlank. True: no swap for kMaxVBlanks VBlanks, apply the pose now.
+    bool OnVBlank() noexcept {
+        if (++vblanks_ < kMaxVBlanks) {
+            return false;
+        }
+        vblanks_ = 0;
+        return true;
+    }
+
+private:
+    int vblanks_ = 0;
+};
+
+inline FrameLatch g_frame_latch;
+
+/// GPU::SetBufferSwap for the top screen (emulation thread): a game frame ended.
+inline void OnTopScreenSwap(RasterizerInterface* rasterizer) {
+    if (g_frame_latch.OnTopSwap()) {
+        ApplyPending(rasterizer);
+    }
+}
+
+/// GPU::VBlankCallback (emulation thread).
+inline void OnVBlank(RasterizerInterface* rasterizer) {
+    if (g_frame_latch.OnVBlank()) {
+        ApplyPending(rasterizer);
+    }
 }
 
 /// CitraVR (vr_main.cpp:402) renders two resolution steps higher while immersive mode is set,

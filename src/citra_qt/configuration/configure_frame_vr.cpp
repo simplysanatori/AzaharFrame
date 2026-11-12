@@ -365,6 +365,13 @@ void ConfigureFrameVr::SetupPerGameUI() {
     });
 }
 
+void ConfigureFrameVr::SetImmersiveOffered(bool offered) { // AzaharFrame immersive
+    if (!offered) {
+        mode_combo->setEnabled(false);
+        mode_combo->setToolTip(tr("Not available for this game."));
+    }
+}
+
 void ConfigureFrameVr::SetConfiguration() {
     const auto& mode = Settings::values.vr_immersive_mode;
     const auto& depth = Settings::values.vr_immersive_positional_game_scaler;

@@ -21,6 +21,7 @@
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/presets.h" // AzaharFrame immersive: games without immersive mode, sizes
 #include "video_core/vr_immersive.h"
 
 namespace FrameXr::Immersive {
@@ -232,13 +233,9 @@ struct State {
     bool hide_bottom = false;    ///< "Hide Bottom Screen" (per game), read when the game starts
     float game_fov_y_deg = kDefaultGameFovY; ///< "Immersive Game FOV" (per game), every frame
     u32 shape = 0;             ///< "Screen Shape" (per game), every frame (g_top_aspect)
-    /// AzaharFrame depth: the game camera as measured from its projection (modes 2 and 3),
-    /// 0 while none was seen in the last second of this game.
-    float camera_fov_deg = 0.0f;
-    float camera_aspect = 0.0f;
-    float camera_pending_fov = 0.0f; ///< a new measurement waiting for a second one to agree
-    float camera_pending_aspect = 0.0f;
-    int camera_pending_count = 0;
+    /// AzaharFrame depth: the game camera as measured from its projection (modes 2 and 3);
+    /// AzaharFrame immersive: split into the screen's camera and the live angle (CameraFilter).
+    L::CameraFilter camera;
     int64_t camera_stamp = 0; ///< when the last measurement read was made
     int64_t game_start_ms = 0;
     bool shape_logged = false; ///< both logged for this game
@@ -246,6 +243,9 @@ struct State {
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     bool screens_were_live = false;
     bool recentre = false;
+    /// AzaharFrame immersive: SteamVR's recenter moves the LOCAL space at this time; a head pose
+    /// located before it is still in the old space and must not become the rest pose.
+    XrTime recentre_after = 0;
     bool have_ref = false;
     XrPosef ref{{0, 0, 0, 1}, {0, 0, 0}}; ///< head position and heading when immersive began
     ViewPose view;
@@ -256,7 +256,6 @@ struct State {
     L::Store store;
     bool store_loaded = false;
     L::Placement head_place;
-    bool head_old_size = false; ///< head_place.size is an earlier build's (converted once seen)
     L::Placement wide_place;
     L::ViewFov view_fov;
     bool view_fov_logged = false;
@@ -275,11 +274,10 @@ bool IsViewMode(u32 mode) {
 }
 
 // AzaharFrame depth: the game camera's projection, measured on the emulation thread
-// (vr_view_matrix.h) every quarter second, in the last second and since this game started. A
-// new angle or shape is taken once two measurements in a row agree on it (a single odd one is
-// dropped); within 1.5 degrees and 4 % of the one in use nothing changes (a wobbling camera, a
-// zoom of a degree). Gone for a second (a menu, the bottom screen in focus), the last one is
-// kept until the next.
+// (vr_view_matrix.h) every quarter second, in the last second and since this game started.
+// AzaharFrame immersive: CameraFilter splits it into the camera the screen is sized and shaped
+// with (it changes only for a new scene, never for a zoom) and the live angle the gain follows.
+// Gone for a second (a menu, the bottom screen in focus), the last one is kept until the next.
 bool MatchCamera() {
     return g.tuning.measure && !g.tuning.fov_from_env &&
            Settings::values.vr_immersive_match_camera.GetValue();
@@ -287,8 +285,7 @@ bool MatchCamera() {
 
 void UpdateMeasuredCamera() {
     if (!MatchCamera()) { // AzaharFrame depth: Match Game Camera off, the settings as they are
-        g.camera_fov_deg = g.camera_aspect = 0.0f;
-        g.camera_pending_count = 0;
+        g.camera.Reset();
         return;
     }
     const int64_t now = VideoCore::Immersive::SteadyMs();
@@ -300,33 +297,23 @@ void UpdateMeasuredCamera() {
         return;
     }
     g.camera_stamp = stamp;
-    // Within the setting's range (30 to 110): a close-up in a cutscene (Majora's Mask 3D has 10
-    // degrees) would otherwise shrink the screen to a stamp; there the world moves with the head
-    // a little instead.
-    const float fov = std::clamp(2.0f * std::atan(tan_half_y) / L::kDegToRad, 30.0f, 110.0f);
-    const auto near = [](float fov_a, float aspect_a, float fov_b, float aspect_b) {
-        return std::abs(fov_a - fov_b) < 1.5f && std::abs(aspect_a - aspect_b) < 0.04f * aspect_b;
-    };
-    if (g.camera_fov_deg > 0.0f && near(fov, aspect, g.camera_fov_deg, g.camera_aspect)) {
-        g.camera_pending_count = 0;
-        return;
+    const bool first = g.camera.ScreenFovDeg() <= 0.0f;
+    const unsigned change = g.camera.Add(tan_half_y, aspect);
+    if (change & L::CameraFilter::Screen) {
+        LOG_INFO(Frontend, "xr: immersive: game camera measured {:.1f} degrees high, {:.3f} wide{}",
+                 g.camera.ScreenFovDeg(), g.camera.ScreenAspect(), first ? "" : " (changed)");
+    } else if (change & L::CameraFilter::Live) {
+        LOG_DEBUG(Frontend, "xr: immersive: game camera now {:.1f} degrees high (the screen keeps "
+                            "its size and shape)",
+                  g.camera.LiveFovDeg());
     }
-    if (g.camera_pending_count > 0 &&
-        near(fov, aspect, g.camera_pending_fov, g.camera_pending_aspect)) {
-        g.camera_pending_count++;
-    } else {
-        g.camera_pending_fov = fov;
-        g.camera_pending_aspect = aspect;
-        g.camera_pending_count = 1;
-    }
-    if (g.camera_pending_count < 2) {
-        return;
-    }
-    LOG_INFO(Frontend, "xr: immersive: game camera measured {:.1f} degrees high, {:.3f} wide{}",
-             fov, aspect, g.camera_fov_deg > 0.0f ? " (changed)" : "");
-    g.camera_fov_deg = fov;
-    g.camera_aspect = aspect;
-    g.camera_pending_count = 0;
+}
+
+// AzaharFrame immersive: the immersive mode in use. Games whose immersive mode does not work
+// (presets.h ImmersiveOffered) always run in the normal view, whatever the setting says.
+u32 ModeInUse() {
+    return ImmersiveOffered(g_title_id.load()) ? Settings::values.vr_immersive_mode.GetValue()
+                                                : 0u;
 }
 
 L::ScreenDecision Decision() {
@@ -351,12 +338,16 @@ L::Placement DefaultPlacement() {
     return p;
 }
 
-// AzaharFrame widerview: the head-locked default grows with Wider View, so the picture has the
-// scale (and the gain) it has with Wider View off; only more shows around it.
+// AzaharFrame immersive: the head-locked default already fills the view, whatever Wider View
+// is (Wider View then shows more of the game around the middle and magnifies less); a preset
+// can make a game's screen a little bigger (presets.h screen_size).
 L::Placement DefaultHeadPlacement() {
     L::Placement p = DefaultPlacement();
-    p.size = L::SizeForWider(p.size, L::kFactorMin, g.options.wider);
-    return p;
+    if (const ImmersivePreset* preset = FindImmersivePreset(g.title_id);
+        preset && preset->screen_size > 0.0f) {
+        p.size = preset->screen_size;
+    }
+    return L::Clamped(p);
 }
 
 void LoadStore() {
@@ -387,7 +378,7 @@ void LogPlacement(const char* what, const L::Placement& p, bool wide) {
 }
 
 void OnFrame(const FrameInfo& info) {
-    const u32 mode = Settings::values.vr_immersive_mode.GetValue();
+    const u32 mode = ModeInUse(); // AzaharFrame immersive
     const bool visible =
         info.state == XR_SESSION_STATE_VISIBLE || info.state == XR_SESSION_STATE_FOCUSED;
     if (!info.screens_live) {
@@ -399,8 +390,7 @@ void OnFrame(const FrameInfo& info) {
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
         g.game_start_ms = VideoCore::Immersive::SteadyMs(); // AzaharFrame depth
-        g.camera_fov_deg = g.camera_aspect = 0.0f;
-        g.camera_pending_count = 0;
+        g.camera.Reset();
         g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue() ||
                         Settings::values.vr_bottom_screen_window.GetValue(); // AzaharFrame window
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
@@ -418,8 +408,18 @@ void OnFrame(const FrameInfo& info) {
         const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
         const auto wide = g.title_id ? g.store.Get(g.title_id, true) : std::nullopt;
         g.head_place = head.value_or(DefaultHeadPlacement());
-        g.head_old_size = head && g.store.OldSize(g.title_id);
         g.wide_place = wide.value_or(DefaultPlacement());
+        if (head && g.store.OldSize(g.title_id)) {
+            // AzaharFrame immersive: saved by an earlier build, against a smaller default: the
+            // pitch and distance stay, the size is this build's default (it fills the view).
+            g.head_place.size = DefaultHeadPlacement().size;
+            g.store.Set(g.title_id, false, g.head_place);
+            SaveStore();
+            LogPlacement("earlier build's size replaced by the default", g.head_place, false);
+        }
+        if (!ImmersiveOffered(g.title_id) && Settings::values.vr_immersive_mode.GetValue() != 0) {
+            LOG_INFO(Frontend, "xr: immersive mode is not offered for this game: normal view");
+        }
         if (mode != 0) {
             const bool is_wide = !IsViewMode(mode);
             LogPlacement((is_wide ? wide : head) ? "saved" : "default",
@@ -478,11 +478,15 @@ void OnFrame(const FrameInfo& info) {
     const bool was_engaged = g.engaged;
     g.engaged = Decision().immersive;
 
-    if (g.engaged && g.view.valid && (!g.have_ref || g.recentre)) {
+    // AzaharFrame immersive: a re-centre waits for a head pose located in the re-centred space
+    // (SteamVR's recenter moves the LOCAL space at recentre_after), and for immersive mode, so
+    // the rest pose is never taken from a pose in the old space.
+    if (g.engaged && g.view.valid &&
+        (!g.have_ref || (g.recentre && g.view.time >= g.recentre_after))) {
         g.ref = {YawOnly(g.view.head.orientation), g.view.head.position};
         g.have_ref = true;
+        g.recentre = false;
     }
-    g.recentre = false;
 
     if (g.view.valid) {
         const XrVector3f between = Rotate(Conj(g.view.head.orientation),
@@ -495,9 +499,11 @@ void OnFrame(const FrameInfo& info) {
             g.view_fov_logged = true;
             LOG_INFO(Frontend,
                      "xr: immersive: both eyes see {:.1f} to {:.1f} degrees across, {:.1f} to "
-                     "{:.1f} up (left eye {:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                     "{:.1f} up, either eye {:.1f} to {:.1f} across (left eye "
+                     "{:.1f}/{:.1f}/{:.1f}/{:.1f})",
                      Deg(g.view_fov.left), Deg(g.view_fov.right), Deg(g.view_fov.down),
-                     Deg(g.view_fov.up), Deg(g.view.fov[0].angleLeft),
+                     Deg(g.view_fov.up), Deg(g.view_fov.outer_left), Deg(g.view_fov.outer_right),
+                     Deg(g.view.fov[0].angleLeft),
                      Deg(g.view.fov[0].angleRight), Deg(g.view.fov[0].angleDown),
                      Deg(g.view.fov[0].angleUp));
         }
@@ -506,25 +512,19 @@ void OnFrame(const FrameInfo& info) {
         // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
         const float d = L::Clamped(g.head_place).distance;
         const float eye_shift = mode == 2 ? g.half_ipd / d : 0.0f;
-        if (g.head_old_size && g.view_fov_logged) {
-            // Saved by an earlier build, relative to its larger default: keep the screen's angle.
-            g.head_old_size = false;
-            g.head_place.size =
-                L::SizeFromOldDefault(g.head_place.size, g.head_place, g.game_fov_y_deg,
-                                      TopAspect(), g.view_fov, eye_shift);
-            LogPlacement("converted from an earlier build", g.head_place, false);
-            if (g.title_id) {
-                g.store.Set(g.title_id, false, g.head_place);
-                SaveStore();
-            }
-        }
         // AzaharFrame depth: the game's own angle and shape when its projection was found
-        // (each change logged), else the settings.
+        // (each change logged), else the settings. AzaharFrame immersive: the screen is sized
+        // and shaped with the settled camera; a zoom only changes the gain.
         UpdateMeasuredCamera();
-        const L::CameraShape cam = L::CameraInUse(MatchCamera(), g.camera_fov_deg, g.camera_aspect,
-                                                  g.game_fov_y_deg, TopAspect());
+        const L::CameraShape cam =
+            L::CameraInUse(MatchCamera(), g.camera.ScreenFovDeg(), g.camera.ScreenAspect(),
+                           g.game_fov_y_deg, TopAspect());
+        L::Options options = g.options;
+        options.live_fov_y_deg = MatchCamera() && g.camera.LiveFovDeg() > 0.0f
+                                     ? g.camera.LiveFovDeg()
+                                     : cam.fov_y_deg;
         g.solved = L::SolveHeadLocked(g.head_place, cam.fov_y_deg, cam.aspect, g.view_fov,
-                                      eye_shift, g.options, g.offset);
+                                      eye_shift, options, g.offset);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -748,7 +748,6 @@ WiderStep StepWiderView(int dir) {
     const float from = L::WiderFactor(before);
     const float to = L::WiderFactor(after);
     g.head_place.size = L::SizeForWider(g.head_place.size, from, to);
-    g.head_old_size = false;
     g.wider_level = after;
     g.options.wider = to;
     auto& level = Settings::values.vr_immersive_wider_view_level;
@@ -779,10 +778,20 @@ std::optional<float> SavedHeadSize(uint64_t title_id) {
     return p->size;
 }
 
+void OnRecentred(XrTime change_time) {
+    // AzaharFrame immersive: SteamVR's recenter only re-centres. The screen keeps its size,
+    // distance and pitch (the owner's report: each recenter after a resize put the screen back
+    // to the default size, "farther away"); the rest pose is taken from the first head pose
+    // located at or after the change.
+    g.recentre = true;
+    g.recentre_after = change_time;
+}
+
 void OnResetPanels() {
     // AzaharFrame controls: one reset rule. The view is re-centred and the immersive screen of
     // this mode goes back to its default placement, held by a grip or not.
     g.recentre = true;
+    g.recentre_after = 0;
     if (g.mode == 0 || !g.live) {
         return;
     }
@@ -790,9 +799,6 @@ void OnResetPanels() {
     const bool wide = !IsViewMode(g.mode);
     L::Placement& p = wide ? g.wide_place : g.head_place;
     p = wide ? DefaultPlacement() : DefaultHeadPlacement();
-    if (!wide) {
-        g.head_old_size = false;
-    }
     if (g.title_id && g.store.Get(g.title_id, wide)) {
         g.store.Erase(g.title_id, wide);
         SaveStore();
@@ -824,9 +830,6 @@ void OnGameInput(Input::InputFrame& in) {
     }
     if (r.released) {
         LogPlacement("moved", place, wide);
-        if (!wide) {
-            g.head_old_size = false;
-        }
         if (g.title_id) {
             g.store.Set(g.title_id, wide, place);
             SaveStore();

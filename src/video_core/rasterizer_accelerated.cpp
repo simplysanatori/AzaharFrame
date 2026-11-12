@@ -349,6 +349,18 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                 if (((vs_uniforms.b & (1u << 1)) != 0) // this is essential
                     && f[0][3] != 1.0) // This fixes the HUD
                 {
+                    // AzaharFrame immersive: only draws through the game's perspective camera
+                    // (registers 0 to 3); screen-space passes keep their own matrix
+                    // (vr_view_matrix.h HasPerspectiveProjection).
+                    float projection[4][4];
+                    for (int i = 0; i < 4; ++i) {
+                        for (int j = 0; j < 4; ++j) {
+                            projection[i][j] = f[i][j];
+                        }
+                    }
+                    if (!VideoCore::Immersive::HasPerspectiveProjection(projection)) {
+                        return;
+                    }
                     viewMatrixIndex = 4;
                 }
                 break;

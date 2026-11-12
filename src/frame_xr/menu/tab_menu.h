@@ -138,6 +138,7 @@ enum class Lock : uint8_t {
     GameValue,   ///< the game has its own value, while Global is chosen
     FullOnly,    ///< only in the Full immersive modes (TabMenu finds these itself)
     Unavailable, ///< the runtime does not offer it
+    NotForGame,  ///< AzaharFrame immersive: not offered for the running game (presets.h)
 };
 
 struct SaveSlot {

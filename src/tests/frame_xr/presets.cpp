@@ -47,15 +47,11 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     const auto* sm3dl = FindImmersivePreset(0x0004000000054000ull);
     REQUIRE(sm3dl->game_fov == 45);
     REQUIRE(std::string(sm3dl->eye_indicator) == "87,2");
-    for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull}) {
-        const auto* kiu = FindImmersivePreset(id); // Kid Icarus: Uprising
-        REQUIRE(kiu != nullptr);
-        REQUIRE(kiu->mode == 3);
-        REQUIRE(kiu->register_offset == 90);
-        REQUIRE(std::string(kiu->eye_indicator) == "87,2");
-        REQUIRE(kiu->game_fov == 45);
-        REQUIRE(kiu->depth_multiplier == 1);
-    }
+    // AzaharFrame immersive: Mario Kart 7's screen a little bigger ("closer"), the rest at the
+    // size that fills the view.
+    REQUIRE(mk7->screen_size > 1.0f);
+    REQUIRE(mk7->screen_size <= 1.2f);
+    REQUIRE(sm3dl->screen_size == 0.0f);
     // Ocarina of Time 3D and Majora's Mask 3D: mode 2, its own register (no register preset).
     for (const uint64_t id : {0x0004000000033500ull, 0x0004000000033600ull, 0x0004000000033400ull,
                               0x0004000000125500ull, 0x0004000000125600ull,
@@ -88,5 +84,23 @@ TEST_CASE("FrameXr presets: other games have none, ids are unique", "[frame_xr]"
     for (std::size_t i = 0; i < count; ++i) {
         REQUIRE(seen.insert(titles[i].title_id).second);
         REQUIRE((titles[i].preset->mode == 2 || titles[i].preset->mode == 3));
+    }
+}
+
+// AzaharFrame immersive: Kid Icarus: Uprising has no immersive mode, in any region.
+TEST_CASE("FrameXr presets: games without immersive mode", "[frame_xr]") {
+    for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull, 0x0004000000030300ull}) {
+        REQUIRE_FALSE(ImmersiveOffered(id));
+        REQUIRE(FindImmersivePreset(id) == nullptr);
+    }
+    REQUIRE(ImmersiveOffered(0));
+    REQUIRE(ImmersiveOffered(0x0004000000030800ull)); // Mario Kart 7
+    REQUIRE(ImmersiveOffered(0x0004000000033500ull)); // Ocarina of Time 3D
+    // No game is both offered a preset and refused.
+    std::size_t refused = 0;
+    const uint64_t* ids = ImmersiveNotOfferedTitles(refused);
+    REQUIRE(refused == 3);
+    for (std::size_t i = 0; i < refused; ++i) {
+        REQUIRE(FindImmersivePreset(ids[i]) == nullptr);
     }
 }
