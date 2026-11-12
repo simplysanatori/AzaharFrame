@@ -23,6 +23,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "DeathWrench",
       "author_url": "https://github.com/DeathWrench/MM3DHD",
+      "downloads": 13829,
+      "updated": "2021-05",
       "source": {
         "type": "github_release",
         "repo": "DeathWrench/MM3DHD",
@@ -36,7 +38,6 @@ const char* DefaultCatalogJson() {
       "folder": "MM3D HD",
       "licence": "Not stated; fan-made, credit the author",
       "notes": "Several variants (fonts, Link styles); each shows up as its own pack. Partial pack.",
-      "updated": "2021-05-06",
       "verified": false
     },
     {
@@ -49,6 +50,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Ullr8, Gray-Rice",
       "author_url": "https://github.com/Gray-Rice/PokeTex-3DS",
+      "downloads": 7347,
+      "updated": "2025-02",
       "source": {
         "type": "github_release",
         "repo": "Gray-Rice/PokeTex-3DS",
@@ -61,7 +64,6 @@ const char* DefaultCatalogJson() {
       "folder": "XY HD",
       "licence": "Not stated; fan-made, credit the authors",
       "notes": "Work in progress. Based on Pokemon Y Resurrection.",
-      "updated": "2025-02-28",
       "verified": false
     },
     {
@@ -74,6 +76,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Volya, Gray-Rice",
       "author_url": "https://github.com/Gray-Rice/PokeTex-3DS",
+      "downloads": 2768,
+      "updated": "2025-02",
       "source": {
         "type": "github_release",
         "repo": "Gray-Rice/PokeTex-3DS",
@@ -87,7 +91,6 @@ const char* DefaultCatalogJson() {
       "folder": "USUM HD",
       "licence": "Not stated; fan-made, credit the authors",
       "notes": "Textures from the Citra forum archive.",
-      "updated": "2025-02-28",
       "verified": false
     },
     {
@@ -305,6 +308,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "chubbycubby",
       "author_url": "https://gamebanana.com/members/5093056",
+      "downloads": 14303,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 701929,
@@ -317,7 +322,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/701929",
       "notes": "Rearranges the button prompts of the Single Screen Experience into the Xbox controller layout, as 4K textures for the USA version. It needs Single Screen Experience and Henriko's Ocarina of Time 3D 4K texture pack, and the buttons must be remapped as the mod page describes. The download is about 450 MB, and the pack's one message file (sys8.qbf) is not installed.",
-      "updated": "2026-10-21",
       "verified": false
     },
     {
@@ -329,6 +333,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "chubbycubby",
       "author_url": "https://gamebanana.com/members/5093056",
+      "downloads": 14303,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 701929,
@@ -341,7 +347,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/701929",
       "notes": "Rearranges the button prompts of the Single Screen Experience into the Switch controller layout, as 4K textures for the USA version. It needs Single Screen Experience and Henriko's Ocarina of Time 3D 4K texture pack, and the buttons must be remapped as the mod page describes. The download is about 450 MB, and the pack's one message file (sys8.qbf) is not installed.",
-      "updated": "2026-10-21",
       "verified": false
     },
     {
@@ -353,6 +358,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "chubbycubby",
       "author_url": "https://gamebanana.com/members/5093056",
+      "downloads": 14303,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 701929,
@@ -365,7 +372,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/701929",
       "notes": "Rearranges the button prompts of the Single Screen Experience into the Vanilla controller layout, as 4K textures for the USA version. It needs Single Screen Experience and Henriko's Ocarina of Time 3D 4K texture pack, and the buttons must be remapped as the mod page describes. The download is about 450 MB, and the pack's one message file (sys8.qbf) is not installed.",
-      "updated": "2026-10-21",
       "verified": false
     },
     {
@@ -377,6 +383,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Art-Does-Not-Compute",
       "author_url": "https://gamebanana.com/members/1716642",
+      "downloads": 6172,
+      "updated": "2020-06",
       "source": {
         "type": "gamebanana",
         "mod": 250777,
@@ -389,7 +397,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/250777",
       "notes": "Several looks for Link as textures for the USA version, each shown as its own pack. Base is the main set and the others replace part of it, and the Legacy textures pack mixes several older styles. It was made for Citra and has not been tested here.",
-      "updated": "2020-06-17",
       "verified": false
     },
     {
@@ -403,6 +410,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HardDanX",
       "author_url": "https://gamebanana.com/members/1877520",
+      "downloads": 4069,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 567711,
@@ -415,7 +424,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
       "notes": "Redraws the button prompts for Xbox, DualShock, Nintendo or SNES-colour controllers so the touch screen is not needed, for the original UI. Each layout is its own pack, and the one named Unedited textures is the stock reference set, not a layout. It needs the controller remapping and the sensor map described on the mod page.",
-      "updated": "2026-07-24",
       "verified": false
     },
     {
@@ -428,6 +436,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HardDanX",
       "author_url": "https://gamebanana.com/members/1877520",
+      "downloads": 4069,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 567711,
@@ -440,7 +450,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
       "notes": "The same controller layouts for Single Screen Experience, which must be installed first, for the USA and Europe versions. Each layout is its own pack, and the one named Unedited textures is the stock reference set. The author calls this version severely outdated.",
-      "updated": "2026-07-24",
       "verified": false
     },
     {
@@ -453,6 +462,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 2500,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 643864,
@@ -465,7 +476,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/643864",
       "notes": "Redraws the textures of the main NPCs to look closer to the 1998 official art, sorted into folders by character. The page does not name a region and the textures are not in a region folder, so Japan is left out. The author recommends it together with Better Remaster Experience.",
-      "updated": "2026-07-24",
       "verified": false
     },
     {
@@ -477,6 +487,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "LochNessHamster",
       "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 3688,
+      "updated": "2021-07",
       "source": {
         "type": "gamebanana",
         "mod": 250766,
@@ -489,7 +501,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/250766",
       "notes": "High-resolution face textures that make Link more expressive, for the USA version. The tunic recolour in the screenshots is part of the Majora's Mask 3D HD project and is not included.",
-      "updated": "2021-07-04",
       "verified": false
     },
     {
@@ -501,6 +512,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Broglerd",
       "author_url": "https://gamebanana.com/members/2015087",
+      "downloads": 2198,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 329196,
@@ -513,7 +526,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/329196",
       "notes": "Gives Link a traveller's outfit as textures for the USA version, built on the Expressive Face Textures for Link mod. Other texture packs for Link's face and clothes cannot be used with it at the same time.",
-      "updated": "2026-05-01",
       "verified": false
     },
     {
@@ -526,6 +538,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 1970,
+      "updated": "2020-02",
       "source": {
         "type": "gamebanana",
         "mod": 34052,
@@ -538,7 +552,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/34052",
       "notes": "Adds prompts for the controls that Project Restoration introduces, such as swim speed, arrow swapping and the song screen, with an Xbox One layout. It needs Project Restoration, was made for Citra, and the new prompts are small on a shrunk touch screen.",
-      "updated": "2019-09-13",
       "verified": false
     },
     {
@@ -551,6 +564,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HardDanX",
       "author_url": "https://gamebanana.com/members/1877520",
+      "downloads": 1843,
+      "updated": "2026-04",
       "source": {
         "type": "gamebanana",
         "mod": 569317,
@@ -563,7 +578,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/569317",
       "notes": "Controller prompts for Project Restoration in Xbox, DualShock, Nintendo or SNES-colour styles, for the USA and Europe versions. It needs Project Restoration and the controller remapping in the ReadMe, and each style is its own pack. Ignore the Unedited textures pack, and the N64 Patch pack only holds changed files for the Xbox or DualShock style.",
-      "updated": "2026-04-18",
       "verified": false
     },
     {
@@ -576,6 +590,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "vladone97",
       "author_url": "https://gamebanana.com/members/4293709",
+      "downloads": 280,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 688429,
@@ -588,7 +604,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/688429",
       "notes": "Removes most of the bottom screen's graphics so both screens can be laid over one display, with the lower one set to about 20% transparency. It was made for the Europe version, and the author has not tested the others. Non-paused maps are not removed.",
-      "updated": "2026-06-23",
       "verified": false
     },
     {
@@ -601,6 +616,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Magic Banana",
       "author_url": "https://gamebanana.com/members/2971173",
+      "downloads": 11655,
+      "updated": "2024-01",
       "source": {
         "type": "gamebanana",
         "mod": 489556,
@@ -613,7 +630,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/489556",
       "notes": "The UI, item and equipment icons, character portraits and map icons of the 4x HD pack, which is more than the name says. The full pack is hosted by the author on Google Drive and is not included here. It was made on the Europe version and works on the USA one, and preloading it adds under 1 GB of RAM.",
-      "updated": "2024-01-18",
       "verified": false
     },
     {
@@ -626,6 +642,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Magic Banana",
       "author_url": "https://gamebanana.com/members/2971173",
+      "downloads": 11655,
+      "updated": "2024-01",
       "source": {
         "type": "gamebanana",
         "mod": 489556,
@@ -638,7 +656,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/489556",
       "notes": "4x textures for the changes made by the Restoration Mod (party characters and armor), which do not need that mod installed. It is an add-on to the full HD pack, which the author hosts on Google Drive, so on its own it changes little. It was made on the Europe version and works on the USA one.",
-      "updated": "2024-07-17",
       "verified": false
     },
     {
@@ -651,6 +668,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Magic Banana",
       "author_url": "https://gamebanana.com/members/2971173",
+      "downloads": 11655,
+      "updated": "2024-01",
       "source": {
         "type": "gamebanana",
         "mod": 489556,
@@ -663,7 +682,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/489556",
       "notes": "2x textures for the changes made by the Restoration Mod (party characters and armor), which do not need that mod installed. It is an add-on to the full 2x HD pack, which the author hosts on Google Drive, so on its own it changes little. It was made on the Europe version and works on the USA one.",
-      "updated": "2024-01-11",
       "verified": false
     },
     {
@@ -676,6 +694,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "GalacticMoblin",
       "author_url": "https://gamebanana.com/members/2212885",
+      "downloads": 4811,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 394597,
@@ -687,7 +707,6 @@ const char* DefaultCatalogJson() {
       "folder": "SM3DL HD UI",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "Hand-redrawn HD versions of the game's UI art, made for Citra and Azahar. It is a partial pack that replaces only the UI textures; turn on Custom Textures and Preload Custom Textures.",
-      "updated": "2026-11-11",
       "verified": false
     },
     {
@@ -700,6 +719,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "blivveries",
       "author_url": "https://gamebanana.com/members/1731414",
+      "downloads": 25439,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 578206,
@@ -712,9 +733,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/578206",
       "notes": "Hand-redrawn and 5x-upscaled HUD, menus, fonts, type icons and Pokemon sprites for the USA, Europe and Japan versions, as custom textures only. The author tested it with Vulkan at 5x resolution and says any Texture Filter option must be turned off or the game can crash.",
-      "updated": "2025-04-27",
-      "verified": false,
-      "downloads": 25439
+      "verified": false
     },
     {
       "id": "pokemon-xy-modern-sprites",
@@ -726,6 +745,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "stingflyer",
       "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 1638,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 627411,
@@ -738,9 +759,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/627411",
       "notes": "Replaces every Pokemon sprite, including forms and Megas, with modern artwork from the later games. The author tested it on Azahar only and warns that texture filters must be off. To combine it with the 5X Redrawn UI pack, delete that pack's \"pokemon sprites\" folder.",
-      "updated": "2025-10-24",
-      "verified": false,
-      "downloads": 1638
+      "verified": false
     },
     {
       "id": "pokemon-xy-clean-pokedex",
@@ -752,6 +771,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "stingflyer",
       "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 1638,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 627411,
@@ -764,9 +785,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/627411",
       "notes": "A bonus file from the Modern Pokemon Sprites mod: a transparent texture that removes the dotted background of the Pokedex. It is one texture, so it is the same on every region.",
-      "updated": "2025-10-16",
-      "verified": false,
-      "downloads": 1638
+      "verified": false
     },
     {
       "id": "pokemon-oras-emerald-brendan",
@@ -778,6 +797,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Remontafb",
       "author_url": "https://gamebanana.com/members/2374192",
+      "downloads": 4034,
+      "updated": "2022-12",
       "source": {
         "type": "gamebanana",
         "mod": 415289,
@@ -790,9 +811,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/415289",
       "notes": "Reskins Brendan with his Emerald look as custom textures; the original design is by Dionn Runk and credited on the page. Remove any Brendan model mod first or the model shows instead. The file is named for Alpha Sapphire, and Omega Ruby is untested.",
-      "updated": "2022-12-04",
-      "verified": false,
-      "downloads": 4033
+      "verified": false
     },
     {
       "id": "pokemon-oras-modern-sprites",
@@ -804,6 +823,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "stingflyer",
       "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 1063,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 629004,
@@ -816,9 +837,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/629004",
       "notes": "Replaces the sprites of every Pokemon, including forms and Megas, with modern artwork at 8x resolution; Cosplay Pikachu is not included. The author tested it on Azahar only and has not tried a console.",
-      "updated": "2026-06-07",
-      "verified": false,
-      "downloads": 1062
+      "verified": false
     },
     {
       "id": "pokemon-oras-5x-redrawn-ui",
@@ -830,6 +849,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "stingflyer",
       "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 958,
+      "updated": "2025-11",
       "source": {
         "type": "gamebanana",
         "mod": 634437,
@@ -842,9 +863,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/634437",
       "notes": "An unfinished port of the 5X Redrawn UI textures from X and Y to Omega Ruby and Alpha Sapphire, at 8x resolution. Only the parts that carried over work, so some of the HUD stays at the original resolution. The author tested it on Azahar only.",
-      "updated": "2025-11-26",
-      "verified": false,
-      "downloads": 955
+      "verified": false
     },
     {
       "id": "pokemon-oras-ghibli-style",
@@ -856,6 +875,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Pandaa shiverian",
       "author_url": "https://gamebanana.com/members/2279174",
+      "downloads": 72,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 726809,
@@ -868,9 +889,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/726809",
       "notes": "Gives the game a Studio Ghibli look inspired by Howl's Moving Castle; the first three towns are nearly done and it is still in progress. It is made for the European version and all languages except Japanese and Korean, and the author cannot promise it works on the USA version. The notes are in Spanish.",
-      "updated": "2026-10-11",
-      "verified": false,
-      "downloads": 71
+      "verified": false
     },
     {
       "id": "bravely-default-hd-microturing",
@@ -882,6 +901,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "microturing",
       "author_url": "https://gamebanana.com/members/3611666",
+      "downloads": 4080,
+      "updated": "2024-07",
       "source": {
         "type": "gamebanana",
         "mod": 530500,
@@ -894,9 +915,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/530500",
       "notes": "A full HD texture pack by 1vierock, reuploaded by microturing as one large RAR, made for Citra-style custom textures. The download is about 1 GB, and the system bsdtar cannot open the file (unsupported RAR dictionary size), so its layout could not be checked.",
-      "updated": "2024-07-25",
-      "verified": false,
-      "downloads": 4079
+      "verified": false
     },
     {
       "id": "bravely-default-hd-font-icons",
@@ -908,6 +927,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Zominion",
       "author_url": "https://gamebanana.com/members/4458515",
+      "downloads": 958,
+      "updated": "2025-05",
       "source": {
         "type": "gamebanana",
         "mod": 592686,
@@ -920,9 +941,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/592686",
       "notes": "Redrawn font, numbers, job icons and simple icons for Bravely Default, hand-drawn rather than upscaled. The author calls it an unfinished release, and it has older patch folders inside that overlap the newer files.",
-      "updated": "2025-05-12",
-      "verified": false,
-      "downloads": 954
+      "verified": false
     },
     {
       "id": "bravely-second-hd-font-icons",
@@ -934,6 +953,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Zominion",
       "author_url": "https://gamebanana.com/members/4458515",
+      "downloads": 958,
+      "updated": "2025-05",
       "source": {
         "type": "gamebanana",
         "mod": 592686,
@@ -946,9 +967,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/592686",
       "notes": "Redrawn font, numbers and simple icons for Bravely Second, adapted from the Bravely Default set. The author could not fully test it and calls it an unfinished release.",
-      "updated": "2025-05-12",
-      "verified": false,
-      "downloads": 954
+      "verified": false
     },
     {
       "id": "persona-q2-hd-skill-icons",
@@ -959,6 +978,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Century_",
       "author_url": "https://gamebanana.com/members/1764202",
+      "downloads": 1157,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 371330,
@@ -971,9 +992,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/371330",
       "notes": "Redraws every skill icon at 4x resolution as one custom texture for the USA version. It replaces the same texture as the P5 Skill Icons pack, so use only one of them.",
-      "updated": "2023-08-10",
-      "verified": false,
-      "downloads": 1155
+      "verified": false
     },
     {
       "id": "persona-q2-p5-skill-icons",
@@ -984,6 +1003,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "rabbitgirlkris",
       "author_url": "https://gamebanana.com/members/2012756",
+      "downloads": 626,
+      "updated": "2022-04",
       "source": {
         "type": "gamebanana",
         "mod": 336082,
@@ -996,9 +1017,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY 4.0",
       "homepage": "https://gamebanana.com/mods/336082",
       "notes": "Redraws the battle skill icons in the Persona 5 style as a single HD texture, for use with the HD icon pack. It replaces the same texture as the HD Skill Icons pack. The page lists no region, so the USA folder is assumed; the base-resolution version needs a PC tool and is not included.",
-      "updated": "2021-11-15",
-      "verified": false,
-      "downloads": 624
+      "verified": false
     },
     {
       "id": "kirby-triple-deluxe-hd-shadowthenhedhog",
@@ -1009,6 +1028,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "ShadowThenHedHog",
       "author_url": "https://gamebanana.com/members/4762727",
+      "downloads": 1331,
+      "updated": "2025-10",
       "source": {
         "type": "gamebanana",
         "mod": 626409,
@@ -1021,9 +1042,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/626409",
       "notes": "An HD texture pack that upscales most of the in-game textures, including maps, stickers and the UI, for the USA version. The download is about 808 MB. It is texture-only.",
-      "updated": "2025-10-12",
-      "verified": false,
-      "downloads": 1330
+      "verified": false
     },
     {
       "id": "luigis-mansion-dark-moon-marios-mansion",
@@ -1036,6 +1055,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Zelda mystery",
       "author_url": "https://gamebanana.com/members/3014647",
+      "downloads": 274,
+      "updated": "2024-02",
       "source": {
         "type": "gamebanana",
         "mod": 495362,
@@ -1048,9 +1069,7 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/495362",
       "notes": "Lets you play as Mario in Dark Moon by replacing Luigi's textures; it is texture-only, with just a few files. The page does not say which regions it was made for, so other versions are untested.",
-      "updated": "2024-02-12",
-      "verified": false,
-      "downloads": 272
+      "verified": false
     },
     {
       "id": "luigis-mansion-dark-moon-marios-mansion-hd",
@@ -1063,6 +1082,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Zelda mystery",
       "author_url": "https://gamebanana.com/members/3014647",
+      "downloads": 274,
+      "updated": "2024-02",
       "source": {
         "type": "gamebanana",
         "mod": 495362,
@@ -1075,9 +1096,7 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/495362",
       "notes": "A higher-resolution version of the Mario's Mansion textures, about 1,750 files, which also replaces many other Dark Moon textures. The download is about 223 MB. The page does not say which regions it was made for, so other versions are untested.",
-      "updated": "2024-02-12",
-      "verified": false,
-      "downloads": 272
+      "verified": false
     },
     {
       "id": "luigis-mansion-dark-moon-playable-gooigi",
@@ -1090,6 +1109,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "MugginOven",
       "author_url": "https://gamebanana.com/members/5530670",
+      "downloads": 37,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 680977,
@@ -1102,9 +1123,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/680977",
       "notes": "Retextures the player so you play as Gooigi, as 48 custom textures only. The page shows only a short readme and no region, so other versions than the one the author used are untested.",
-      "updated": "2026-05-28",
-      "verified": false,
-      "downloads": 35
+      "verified": false
     },
     {
       "id": "mario-luigi-paper-jam-4x-texture-pack",
@@ -1115,6 +1134,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "zillaHD",
       "author_url": "https://gamebanana.com/members/5517231",
+      "downloads": 191,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 679668,
@@ -1127,9 +1148,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/679668",
       "notes": "A 4x upscale of the game textures by zillaHD, mixing hand-redrawn UI and text with AI upscaling, which turns the character pixel art into smoother 3D-looking art. The download is about 1.4 GB, and GameBanana has not finished scanning it. It is made for the USA version.",
-      "updated": "2026-05-26",
-      "verified": false,
-      "downloads": 189
+      "verified": false
     },
     {
       "id": "mario-luigi-paper-jam-4x-pixelart-plus",
@@ -1140,6 +1159,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "zillaHD",
       "author_url": "https://gamebanana.com/members/5517231",
+      "downloads": 129,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 680601,
@@ -1152,9 +1173,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/680601",
       "notes": "The alternate version of the 4x texture pack that keeps and sharpens the character pixel art instead of converting it to 3D. The download is about 1 GB. It is made for the USA version, and it replaces the same textures as the other 4x pack.",
-      "updated": "2026-05-26",
-      "verified": false,
-      "downloads": 128
+      "verified": false
     },
     {
       "id": "mpt100-wario-long-sleeves",
@@ -1165,6 +1184,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Metal-Mario-Fan",
       "author_url": "https://gamebanana.com/members/1692790",
+      "downloads": 66,
+      "updated": "2021-10",
       "source": {
         "type": "gamebanana",
         "mod": 327798,
@@ -1176,8 +1197,6 @@ const char* DefaultCatalogJson() {
       "folder": "Wario Long Sleeves",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "Retextures Wario's arms as long sleeves, like his classic look, with 58 replacement textures. It is made for the North American version, and the folder inside is named for that game's title ID. Turn on Custom Textures and Preload Custom Textures.",
-      "updated": "2021-10-12",
-      "downloads": 64,
       "homepage": "https://gamebanana.com/mods/327798",
       "verified": false
     },
@@ -1190,6 +1209,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Serbagz",
       "author_url": "https://gamebanana.com/members/2108748",
+      "downloads": 2222,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 373806,
@@ -1201,8 +1222,6 @@ const char* DefaultCatalogJson() {
       "folder": "Radiant Historia HD",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "A 4x upscale of the UI, fonts, CGs, character art and world and battle textures, with the official HD CGs used where they exist. The chibi art is still unfinished. It is a 727 MB RAR for the North American version, and its bonus-content archives are not installed. Turn on Custom Textures and Preload Custom Textures.",
-      "updated": "2026-05-04",
-      "downloads": 2222,
       "homepage": "https://gamebanana.com/mods/373806",
       "verified": false
     },
@@ -1239,6 +1258,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "rikimtasu",
       "author_url": "https://gamebanana.com/members/1323038",
+      "downloads": 2945,
+      "updated": "2022-04",
       "source": {
         "type": "gamebanana",
         "mod": 40630,
@@ -1250,8 +1271,6 @@ const char* DefaultCatalogJson() {
       "folder": "EO Nexus HD Portraits",
       "licence": "Not stated",
       "notes": "AI-upscaled 4x character portraits, covering most player and a few NPC textures, in the lighter AnimeSharp version. It was made for the European game and the author says it also works on the North American one. The page is titled Etrian Odyssey Nexus, not Untold; it is 754 MB, and the HD Texts pack is a separate entry.",
-      "updated": "2022-04-05",
-      "downloads": 1196,
       "homepage": "https://gamebanana.com/mods/40630",
       "verified": false
     },
@@ -1265,6 +1284,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "rikimtasu",
       "author_url": "https://gamebanana.com/members/1323038",
+      "downloads": 2945,
+      "updated": "2022-04",
       "source": {
         "type": "gamebanana",
         "mod": 40630,
@@ -1276,8 +1297,6 @@ const char* DefaultCatalogJson() {
       "folder": "EO Nexus HD Texts",
       "licence": "Not stated",
       "notes": "AI-upscaled text and font textures, a small companion to the HD Portraits pack. It was made for the European game and the author says it also works on the North American one. The page is titled Etrian Odyssey Nexus, not Untold.",
-      "updated": "2022-04-05",
-      "downloads": 951,
       "homepage": "https://gamebanana.com/mods/40630",
       "verified": false
     },
@@ -1290,6 +1309,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Furizu",
       "author_url": "https://gamebanana.com/members/4659102",
+      "downloads": 1587,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 608253,
@@ -1301,8 +1322,6 @@ const char* DefaultCatalogJson() {
       "folder": "EO Nexus HD v2",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "A 4x upscale of all the game's textures, with the PlayStation button layout, covering everything up to the 13th labyrinth. It is a four-part RAR of about 3.1 GB that must be fetched in order. Leave Preload Custom Textures off, as the author warns it will load everything and take very long.",
-      "updated": "2025-07-29",
-      "downloads": 1586,
       "homepage": "https://gamebanana.com/mods/608253",
       "verified": false,
       "parts": [
@@ -1340,6 +1359,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Butter_Lettuce",
       "author_url": "https://gamebanana.com/members/2023514",
+      "downloads": 598,
+      "updated": "2021-12",
       "source": {
         "type": "gamebanana",
         "mod": 346447,
@@ -1351,8 +1372,6 @@ const char* DefaultCatalogJson() {
       "folder": "Shadow Lugia",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "Recolours Lugia as Shadow Lugia with six replacement textures. The zip also holds a model file for the game's data archive, which is not installed because it needs a manual tool. It was made for the Generation 7 games.",
-      "updated": "2021-12-28",
-      "downloads": 597,
       "homepage": "https://gamebanana.com/mods/346447",
       "verified": false
     },
@@ -1366,6 +1385,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "stingflyer",
       "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 1820,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 629003,
@@ -1377,8 +1398,6 @@ const char* DefaultCatalogJson() {
       "folder": "USUM Modern Sprites",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "Replaces every Pokémon sprite, including variants and Megas, with modern art at 8x resolution, about 1,000 textures. It does not cover Poké Pelago. Turn off texture filtering, which the author warns can break the sprites; it is tested on Azahar only.",
-      "updated": "2026-06-07",
-      "downloads": 1818,
       "homepage": "https://gamebanana.com/mods/629003",
       "verified": false
     },
@@ -1392,6 +1411,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "MetalTxus",
       "author_url": "https://gamebanana.com/members/2566769",
+      "downloads": 1355,
+      "updated": "2025-11",
       "source": {
         "type": "gamebanana",
         "mod": 635130,
@@ -1403,8 +1424,6 @@ const char* DefaultCatalogJson() {
       "folder": "USUM HD Types",
       "licence": "CC BY-NC 4.0",
       "notes": "One replacement texture that redraws the type icons at 5x size on a 5-pixel grid, so they scale cleanly. It changes nothing else.",
-      "updated": "2025-11-22",
-      "downloads": 1355,
       "homepage": "https://gamebanana.com/mods/635130",
       "verified": false
     },
@@ -1418,6 +1437,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Motorblade",
       "author_url": "https://gamebanana.com/members/1775132",
+      "downloads": 1102,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 691013,
@@ -1429,8 +1450,6 @@ const char* DefaultCatalogJson() {
       "folder": "USUM HD Fonts and UI",
       "licence": "CC BY-NC-ND 4.0",
       "notes": "A work in progress that upscales the fonts and some UI by 4x, covering English text, most Japanese characters, the cursor, most Poké Ball and Z-Crystal icons and some battle UI. It is made by hand without AI, and much is still unfinished.",
-      "updated": "2026-07-02",
-      "downloads": 1100,
       "homepage": "https://gamebanana.com/mods/691013",
       "verified": false
     },
@@ -1444,6 +1463,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "ThisStombi",
       "author_url": "https://gamebanana.com/members/3183375",
+      "downloads": 8985,
+      "updated": "2025-02",
       "source": {
         "type": "gamebanana",
         "mod": 494239,
@@ -1455,8 +1476,6 @@ const char* DefaultCatalogJson() {
       "folder": "ACNL 4K TrueShade",
       "licence": "CC BY-ND 4.0",
       "notes": "A 4K texture pack that gives the game more realistic lighting while keeping its cozy style. It needs an internal resolution of at least 8x, and about 20 villagers are not upscaled. The author recommends game version 1.0 to 1.3 rather than 1.4.",
-      "updated": "2025-08-26",
-      "downloads": 8984,
       "homepage": "https://gamebanana.com/mods/494239",
       "verified": false
     },
@@ -1470,6 +1489,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "wexiyeb618",
       "author_url": "https://gamebanana.com/members/2641156",
+      "downloads": 20,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 467914,
@@ -1482,8 +1503,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC0 1.0",
       "homepage": "https://gamebanana.com/mods/467914",
       "notes": "Removes the scar from Dunban's face on every armour set that shows it, with five replacement textures. It is a tiny pack. The page names no region.",
-      "downloads": 18,
-      "updated": "2023-09",
       "verified": false
     },
     {
@@ -1495,6 +1514,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Miguel92398",
       "author_url": "https://gamebanana.com/members/1544766",
+      "downloads": 155,
+      "updated": "2020-05",
       "source": {
         "type": "gamebanana",
         "mod": 9572,
@@ -1507,8 +1528,6 @@ const char* DefaultCatalogJson() {
       "licence": "Free to use with credit and a link to the page",
       "homepage": "https://gamebanana.com/mods/9572",
       "notes": "Replaces the title screen artwork with a high-definition version taken from the XBCHD texture pack, using 23 textures. It was made for the USA version, and the author says it was meant for Citra.",
-      "downloads": 153,
-      "updated": "2020-05",
       "verified": false
     },
     {
@@ -1522,6 +1541,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 1669,
+      "updated": "2026-04",
       "source": {
         "type": "gamebanana",
         "mod": 428781,
@@ -1534,8 +1555,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/428781",
       "notes": "Upscaled textures for Samus's Power, Varia and Gravity suits and the arm cannon, with extra hand-drawn detail that an upscaler would miss. It was made for Citra with the USA title ID. Its Gravity Suit textures clash with the separate HD Gravity Suit pack.",
-      "downloads": 1669,
-      "updated": "2023-02",
       "verified": false
     },
     {
@@ -1549,6 +1568,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "sabre230",
       "author_url": "https://gamebanana.com/members/1816626",
+      "downloads": 171,
+      "updated": "2025-02",
       "source": {
         "type": "gamebanana",
         "mod": 573526,
@@ -1561,8 +1582,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/573526",
       "notes": "Hand-drawn textures for the Gravity Suit, based on the original concept art. It changes only the suit itself, not the arm cannon or morph ball. The textures sit in the USA title ID folder.",
-      "downloads": 170,
-      "updated": "2025-02",
       "verified": false
     },
     {
@@ -1574,6 +1593,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Sonic Beyond",
       "author_url": "https://gamebanana.com/members/2045892",
+      "downloads": 915,
+      "updated": "2023-12",
       "source": {
         "type": "gamebanana",
         "mod": 478937,
@@ -1586,8 +1607,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/478937",
       "notes": "Retextures Classic Sonic, Modern Sonic and Tails to match their HD Generations looks, with seven textures. It is a small pack and the page names no region.",
-      "downloads": 915,
-      "updated": "2023-11",
       "verified": false
     },
     {
@@ -1599,6 +1618,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "pancharubin",
       "author_url": "https://gamebanana.com/members/2163528",
+      "downloads": 813,
+      "updated": "2025-09",
       "source": {
         "type": "gamebanana",
         "mod": 619599,
@@ -1611,8 +1632,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/619599",
       "notes": "Upscales the levels, characters and artwork, 1,744 textures in all. The download is large (836 MB), and the page names no region.",
-      "downloads": 812,
-      "updated": "2025-09",
       "verified": false
     },
     {
@@ -1650,6 +1669,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "hotcapa",
       "author_url": "https://gamebanana.com/members/4122419",
+      "downloads": 992,
+      "updated": "2025-05",
       "source": {
         "type": "gamebanana",
         "mod": 597836,
@@ -1662,8 +1683,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/597836",
       "notes": "Retouches the backgrounds, menus and some scenery textures to be cleaner and more detailed while keeping the original style (99 large textures). The author says it is a beta and works only on the Spanish version of the game; the folder is named for title ID 1D6C00, which is not in the usual lists, so the USA ID is listed as well but not confirmed. The page is in Spanish and the download is 367 MB.",
-      "downloads": 990,
-      "updated": "2025-05",
       "verified": false
     },
     {
@@ -1675,6 +1694,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "microturing",
       "author_url": "https://gamebanana.com/members/3611666",
+      "downloads": 5996,
+      "updated": "2024-07",
       "source": {
         "type": "gamebanana",
         "mod": 530531,
@@ -1714,8 +1735,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/530531",
       "notes": "HD textures for characters, monsters, skills, the interface and many areas, about 2,800 textures. The author says it is unfinished and may need switching off in some areas to avoid crashes. The download is five 1 GB parts (4.7 GB in all) and the page warns about extraction errors; the folder is named for the USA title ID.",
-      "downloads": 5995,
-      "updated": "2024-07",
       "verified": false
     },
     {
@@ -1727,6 +1746,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "AspenVesper",
       "author_url": "https://gamebanana.com/members/4618311",
+      "downloads": 3588,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 651730,
@@ -1739,8 +1760,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/651730",
       "notes": "A hand-redrawn HD overhaul of 1,583 textures: fonts, UI, character and demon portraits and backgrounds, with some AI upscaling and full DLC support. Cutscenes and 3D textures are not covered. The PlayStation button add-ons on the page are not installed, and the download is 681 MB.",
-      "downloads": 3588,
-      "updated": "2026-02",
       "verified": false
     },
     {
@@ -1752,6 +1771,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "Pascali",
       "author_url": "https://gamebanana.com/members/3721128",
+      "downloads": 448,
+      "updated": "2024-08",
       "source": {
         "type": "gamebanana",
         "mod": 537150,
@@ -1764,8 +1785,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/537150",
       "notes": "Swaps 113 demon portraits (223 counting bosses and conversations) for the ones from Persona 5: The Phantom X. It can be combined with an HD texture pack if you let this one replace the portrait files. The download is 206 MB.",
-      "downloads": 447,
-      "updated": "2024-08",
       "verified": false
     },
     {
@@ -1777,6 +1796,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "PointBlankVT",
       "author_url": "https://gamebanana.com/members/2066424",
+      "downloads": 46,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 686074,
@@ -1789,8 +1810,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/686074",
       "notes": "Draws the Dark Goth outfit onto Nanashi's portrait and small icon, at the default resolution. The HD version on the page is not installed. It goes well with the She/Her text mod.",
-      "downloads": 44,
-      "updated": "2026-06",
       "verified": false
     },
     {
@@ -1867,6 +1886,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 348,
+      "updated": "2022-01",
       "source": {
         "type": "gamebanana",
         "mod": 250788,
@@ -1879,8 +1900,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/250788",
       "notes": "Gives Snake bare forearms and fingerless gloves, in the Virtuous Mission and the main game, with four textures. This is version 1.1; version 1.2 and a compatibility patch need the author's Haircut mod and are not installed. It does not affect the camo index and the author says it is for Citra.",
-      "downloads": 342,
-      "updated": "2022-01",
       "verified": false
     },
     {
@@ -1893,6 +1912,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 215,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 34055,
@@ -1905,8 +1926,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/34055",
       "notes": "Removes the gyro control icon from the balance screens, since Citra and Azahar do not use gyro controls there. It is seven small textures. The author made it for Citra.",
-      "downloads": 213,
-      "updated": "2020-01",
       "verified": false
     },
     {
@@ -1919,6 +1938,8 @@ const char* DefaultCatalogJson() {
       ],
       "author": "HugAMuffin",
       "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 175,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 34054,
@@ -1931,8 +1952,6 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/34054",
       "notes": "Makes the on-screen button prompts semi-transparent so they are less intrusive without being removed, with 30 small textures at 80% transparency. It is a tiny download, and the author made it for Citra.",
-      "downloads": 173,
-      "updated": "2020-02",
       "verified": false
     }
   ]

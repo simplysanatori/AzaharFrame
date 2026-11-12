@@ -52,6 +52,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/695893",
       "verified": true,
+      "downloads": 53068,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 695893,
@@ -90,6 +92,8 @@ const char* DefaultCatalogJson() {
       "licence": "GPL-3.0-or-later (source); HUD art and game data are not GPL",
       "homepage": "https://github.com/OTPR26/OOT3DHud",
       "verified": false,
+      "downloads": 193,
+      "updated": "2026-10",
       "source": {
         "type": "github_release",
         "repo": "OTPR26/OOT3DHud",
@@ -121,6 +125,8 @@ const char* DefaultCatalogJson() {
       "licence": "GPL-3.0-or-later (source); HUD art and game data are not GPL",
       "homepage": "https://github.com/OTPR26/OOT3DHud",
       "verified": false,
+      "downloads": 82,
+      "updated": "2026-10",
       "source": {
         "type": "github_release",
         "repo": "OTPR26/OOT3DHud",
@@ -150,6 +156,8 @@ const char* DefaultCatalogJson() {
       "licence": "GPL-2.0",
       "homepage": "https://github.com/leoetlino/project-restoration",
       "verified": false,
+      "downloads": 158682,
+      "updated": "2022-01",
       "source": {
         "type": "github_release",
         "repo": "leoetlino/project-restoration",
@@ -190,6 +198,8 @@ const char* DefaultCatalogJson() {
       "licence": "GPL-2.0",
       "homepage": "https://github.com/leoetlino/project-restoration",
       "verified": false,
+      "downloads": 158682,
+      "updated": "2022-01",
       "source": {
         "type": "github_release",
         "repo": "leoetlino/project-restoration",
@@ -230,6 +240,8 @@ const char* DefaultCatalogJson() {
       "licence": "GPL-2.0",
       "homepage": "https://github.com/leoetlino/project-restoration",
       "verified": false,
+      "downloads": 158682,
+      "updated": "2022-01",
       "source": {
         "type": "github_release",
         "repo": "leoetlino/project-restoration",
@@ -271,6 +283,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/705890",
       "verified": false,
+      "downloads": 9089,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 705890,
@@ -304,6 +318,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/379045",
       "verified": false,
+      "downloads": 8770,
+      "updated": "2022-11",
       "source": {
         "type": "gamebanana",
         "mod": 379045,
@@ -335,6 +351,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/379045",
       "verified": false,
+      "downloads": 8770,
+      "updated": "2022-11",
       "source": {
         "type": "gamebanana",
         "mod": 379045,
@@ -363,6 +381,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/633569",
       "verified": false,
+      "downloads": 2598,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 633569,
@@ -391,6 +411,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/713840",
       "verified": false,
+      "downloads": 71,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 713840,
@@ -418,6 +440,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/685525",
       "verified": false,
+      "downloads": 313,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 685525,
@@ -445,6 +469,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/734332",
       "verified": false,
+      "downloads": 9,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 734332,
@@ -472,6 +498,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/248300",
       "verified": false,
+      "downloads": 425,
+      "updated": "2017-11",
       "source": {
         "type": "gamebanana",
         "mod": 248300,
@@ -500,6 +528,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/464464",
       "verified": false,
+      "downloads": 273,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 464464,
@@ -528,6 +558,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/464067",
       "verified": false,
+      "downloads": 223,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 464067,
@@ -556,6 +588,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/565132",
       "verified": false,
+      "downloads": 78,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 565132,
@@ -585,6 +619,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/249447",
       "verified": false,
+      "downloads": 7297,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 249447,
@@ -628,6 +664,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/677712",
       "verified": false,
+      "downloads": 245,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 677712,
@@ -656,6 +694,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/429633",
       "verified": false,
+      "downloads": 3767,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 429633,
@@ -684,6 +724,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/589964",
       "verified": false,
+      "downloads": 671,
+      "updated": "2026-02",
       "source": {
         "type": "gamebanana",
         "mod": 589964,
@@ -712,6 +754,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/376715",
       "verified": false,
+      "downloads": 7749,
+      "updated": "2022-12",
       "source": {
         "type": "gamebanana",
         "mod": 376715,
@@ -740,6 +784,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/570759",
       "verified": false,
+      "downloads": 4622,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 570759,
@@ -767,6 +813,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51424",
       "verified": false,
+      "downloads": 23256,
+      "updated": "2020-12",
       "source": {
         "type": "gamebanana",
         "mod": 51424,
@@ -794,6 +842,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51424",
       "verified": false,
+      "downloads": 23256,
+      "updated": "2020-12",
       "source": {
         "type": "gamebanana",
         "mod": 51424,
@@ -823,6 +873,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51424",
       "verified": false,
+      "downloads": 23256,
+      "updated": "2020-12",
       "source": {
         "type": "gamebanana",
         "mod": 51424,
@@ -851,6 +903,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51424",
       "verified": false,
+      "downloads": 23256,
+      "updated": "2020-12",
       "source": {
         "type": "gamebanana",
         "mod": 51424,
@@ -879,6 +933,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51424",
       "verified": false,
+      "downloads": 23256,
+      "updated": "2020-12",
       "source": {
         "type": "gamebanana",
         "mod": 51424,
@@ -914,6 +970,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51421",
       "verified": false,
+      "downloads": 19272,
+      "updated": "2020-01",
       "source": {
         "type": "gamebanana",
         "mod": 51421,
@@ -949,6 +1007,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/34160",
       "verified": false,
+      "downloads": 29911,
+      "updated": "2021-05",
       "source": {
         "type": "gamebanana",
         "mod": 34160,
@@ -984,6 +1044,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/34160",
       "verified": false,
+      "downloads": 29911,
+      "updated": "2021-05",
       "source": {
         "type": "gamebanana",
         "mod": 34160,
@@ -1019,6 +1081,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51420",
       "verified": false,
+      "downloads": 57852,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 51420,
@@ -1046,6 +1110,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720762",
       "verified": false,
+      "downloads": 231,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720762,
@@ -1077,6 +1143,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720762",
       "verified": false,
+      "downloads": 231,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720762,
@@ -1108,6 +1176,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720762",
       "verified": false,
+      "downloads": 231,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720762,
@@ -1139,6 +1209,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1170,6 +1242,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1201,6 +1275,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1232,6 +1308,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1263,6 +1341,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1294,6 +1374,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/519419",
       "verified": false,
+      "downloads": 2886,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 519419,
@@ -1325,6 +1407,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/313495",
       "verified": false,
+      "downloads": 2662,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 313495,
@@ -1353,6 +1437,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/253291",
       "verified": false,
+      "downloads": 2056,
+      "updated": "2020-05",
       "source": {
         "type": "gamebanana",
         "mod": 253291,
@@ -1382,6 +1468,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/658361",
       "verified": false,
+      "downloads": 243,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 658361,
@@ -1409,6 +1497,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/732496",
       "verified": false,
+      "downloads": 15,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 732496,
@@ -1440,6 +1530,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/732496",
       "verified": false,
+      "downloads": 15,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 732496,
@@ -1471,6 +1563,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720758",
       "verified": false,
+      "downloads": 547,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720758,
@@ -1502,6 +1596,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720758",
       "verified": false,
+      "downloads": 547,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720758,
@@ -1533,6 +1629,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/720758",
       "verified": false,
+      "downloads": 547,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 720758,
@@ -1566,6 +1664,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/252179",
       "verified": false,
+      "downloads": 11816,
+      "updated": "2024-10",
       "source": {
         "type": "gamebanana",
         "mod": 252179,
@@ -1593,6 +1693,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/384484",
       "verified": false,
+      "downloads": 7884,
+      "updated": "2022-06",
       "source": {
         "type": "gamebanana",
         "mod": 384484,
@@ -1620,6 +1722,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/384484",
       "verified": false,
+      "downloads": 7884,
+      "updated": "2022-06",
       "source": {
         "type": "gamebanana",
         "mod": 384484,
@@ -1647,6 +1751,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/424187",
       "verified": false,
+      "downloads": 35526,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 424187,
@@ -1686,6 +1792,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/424187",
       "verified": false,
+      "downloads": 35526,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 424187,
@@ -1725,6 +1833,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/424187",
       "verified": false,
+      "downloads": 35526,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 424187,
@@ -1764,6 +1874,8 @@ const char* DefaultCatalogJson() {
       "licence": "MIT",
       "homepage": "https://gamebanana.com/mods/736542",
       "verified": false,
+      "downloads": 1,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 736542,
@@ -1903,6 +2015,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/502123",
       "verified": false,
+      "downloads": 5469,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 502123,
@@ -1916,9 +2030,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds Ash-Greninja as a new Mega Evolution for Greninja, using the Gen 7 stats and Protean, triggered by a new Greninjite found on the starter Froakie. It needs a base X or Y install and changes no trainers or wild Pokemon. The download is about 624 MB, so it is large for the app.",
-      "downloads": 5468,
-      "updated": "2024-03"
+      "notes": "Adds Ash-Greninja as a new Mega Evolution for Greninja, using the Gen 7 stats and Protean, triggered by a new Greninjite found on the starter Froakie. It needs a base X or Y install and changes no trainers or wild Pokemon. The download is about 624 MB, so it is large for the app."
     },
     {
       "id": "pokemon-y-delta-over-serena",
@@ -1932,6 +2044,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/610259",
       "verified": false,
+      "downloads": 3438,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 610259,
@@ -1945,9 +2059,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Swaps Serena's default hair, skirt and legs for the model of the author's character Delta; her other outfits still work. It is for Pokemon Y only. Its zip uses Deflate64 compression, which the system bsdtar cannot unpack.",
-      "downloads": 3436,
-      "updated": "2025-07"
+      "notes": "Swaps Serena's default hair, skirt and legs for the model of the author's character Delta; her other outfits still work. It is for Pokemon Y only. Its zip uses Deflate64 compression, which the system bsdtar cannot unpack."
     },
     {
       "id": "pokemon-y-delta-lite-over-serena",
@@ -1961,6 +2073,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/610259",
       "verified": false,
+      "downloads": 3438,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 610259,
@@ -1974,9 +2088,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The lighter variant of Delta over Serena, which swaps Serena's default hair, skirt and legs for the author's character Delta. It is for Pokemon Y only and conflicts with the full Delta mod. Its zip uses Deflate64 compression, which the system bsdtar cannot unpack.",
-      "downloads": 3436,
-      "updated": "2025-07"
+      "notes": "The lighter variant of Delta over Serena, which swaps Serena's default hair, skirt and legs for the author's character Delta. It is for Pokemon Y only and conflicts with the full Delta mod. Its zip uses Deflate64 compression, which the system bsdtar cannot unpack."
     },
     {
       "id": "pokemon-x-shiny-lock-removal",
@@ -1990,6 +2102,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486567",
       "verified": false,
+      "downloads": 3308,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486567,
@@ -2007,9 +2121,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the static and gift Pokemon, such as the legendaries, Snorlax and Lucario, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game.",
-      "downloads": 3308,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the static and gift Pokemon, such as the legendaries, Snorlax and Lucario, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game."
     },
     {
       "id": "pokemon-x-shiny-lock-removal-trades",
@@ -2056,6 +2168,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486567",
       "verified": false,
+      "downloads": 3308,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486567,
@@ -2073,9 +2187,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the static and gift Pokemon, such as the legendaries, Snorlax and Lucario, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game.",
-      "downloads": 3308,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the static and gift Pokemon, such as the legendaries, Snorlax and Lucario, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game."
     },
     {
       "id": "pokemon-y-shiny-lock-removal-trades",
@@ -2123,6 +2235,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/697028",
       "verified": false,
+      "downloads": 528,
+      "updated": "2026-07",
       "source": {
         "type": "gamebanana",
         "mod": 697028,
@@ -2136,9 +2250,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 903 MB, which is large for the app. It may clash with other mods that change Pokemon models.",
-      "downloads": 527,
-      "updated": "2026-07"
+      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 903 MB, which is large for the app. It may clash with other mods that change Pokemon models."
     },
     {
       "id": "pokemon-omega-ruby-shiny-lock-removal",
@@ -2152,6 +2264,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486570",
       "verified": false,
+      "downloads": 3668,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486570,
@@ -2169,9 +2283,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the static and gift Pokemon, such as Poochyena, Cosplay Pikachu, Primal Kyogre and Groudon, Rayquaza and Deoxys, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game.",
-      "downloads": 3660,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the static and gift Pokemon, such as Poochyena, Cosplay Pikachu, Primal Kyogre and Groudon, Rayquaza and Deoxys, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game."
     },
     {
       "id": "pokemon-omega-ruby-shiny-lock-removal-trades",
@@ -2185,6 +2297,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486570",
       "verified": false,
+      "downloads": 3668,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486570,
@@ -2202,9 +2316,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The same shiny lock removal plus the in-game trade Pokemon (Makuhita, Skitty and Corsola), which needs a deeper code edit. A side effect is that trainers' Pokemon can also be shiny, so use it only when hunting a trade. It only works with the base 1.0.0 game, so no update data may be installed.",
-      "downloads": 3660,
-      "updated": "2025-01"
+      "notes": "The same shiny lock removal plus the in-game trade Pokemon (Makuhita, Skitty and Corsola), which needs a deeper code edit. A side effect is that trainers' Pokemon can also be shiny, so use it only when hunting a trade. It only works with the base 1.0.0 game, so no update data may be installed."
     },
     {
       "id": "pokemon-alpha-sapphire-shiny-lock-removal",
@@ -2218,6 +2330,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486570",
       "verified": false,
+      "downloads": 3668,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486570,
@@ -2235,9 +2349,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the static and gift Pokemon, such as Poochyena, Cosplay Pikachu, Primal Kyogre and Groudon, Rayquaza and Deoxys, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game.",
-      "downloads": 3660,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the static and gift Pokemon, such as Poochyena, Cosplay Pikachu, Primal Kyogre and Groudon, Rayquaza and Deoxys, by replacing the game code and DllField.cro. It only works with the base 1.0.0 game, so no update data may be installed. Replaces other code patches for the game."
     },
     {
       "id": "pokemon-alpha-sapphire-shiny-lock-removal-trades",
@@ -2251,6 +2363,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486570",
       "verified": false,
+      "downloads": 3668,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 486570,
@@ -2268,9 +2382,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The same shiny lock removal plus the in-game trade Pokemon (Makuhita, Skitty and Corsola), which needs a deeper code edit. A side effect is that trainers' Pokemon can also be shiny, so use it only when hunting a trade. It only works with the base 1.0.0 game, so no update data may be installed.",
-      "downloads": 3660,
-      "updated": "2025-01"
+      "notes": "The same shiny lock removal plus the in-game trade Pokemon (Makuhita, Skitty and Corsola), which needs a deeper code edit. A side effect is that trainers' Pokemon can also be shiny, so use it only when hunting a trade. It only works with the base 1.0.0 game, so no update data may be installed."
     },
     {
       "id": "pokemon-oras-may-contest-dress",
@@ -2315,6 +2427,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/413784",
       "verified": false,
+      "downloads": 2451,
+      "updated": "2022-12",
       "source": {
         "type": "gamebanana",
         "mod": 413784,
@@ -2328,9 +2442,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces May's model with her Emerald-era design by swapping two model files. The author says some details, such as the shoes, are not exact. It conflicts with other mods that change May's model.",
-      "downloads": 2450,
-      "updated": "2022-12"
+      "notes": "Replaces May's model with her Emerald-era design by swapping two model files. The author says some details, such as the shoes, are not exact. It conflicts with other mods that change May's model."
     },
     {
       "id": "pokemon-oras-accurate-sizes",
@@ -2345,6 +2457,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/697065",
       "verified": false,
+      "downloads": 470,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 697065,
@@ -2358,9 +2472,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 570 MB, which is large for the app. It may clash with other mods that change Pokemon models.",
-      "downloads": 469,
-      "updated": "2026-09"
+      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 570 MB, which is large for the app. It may clash with other mods that change Pokemon models."
     },
     {
       "id": "mh4u-charge-blade-fast-morph-gp-usa",
@@ -2374,6 +2486,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-SA 4.0",
       "homepage": "https://gamebanana.com/mods/703777",
       "verified": false,
+      "downloads": 350,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 703777,
@@ -2395,9 +2509,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4U USA 1.1 only, so match your game version, and it conflicts with other code patches for the game.",
-      "downloads": 346,
-      "updated": "2026-08"
+      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4U USA 1.1 only, so match your game version, and it conflicts with other code patches for the game."
     },
     {
       "id": "mh4u-charge-blade-fast-morph-gp-eur",
@@ -2411,6 +2523,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-SA 4.0",
       "homepage": "https://gamebanana.com/mods/703777",
       "verified": false,
+      "downloads": 350,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 703777,
@@ -2432,9 +2546,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4U Europe 1.1 only, so match your game version, and it conflicts with other code patches for the game.",
-      "downloads": 346,
-      "updated": "2026-08"
+      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4U Europe 1.1 only, so match your game version, and it conflicts with other code patches for the game."
     },
     {
       "id": "mh4u-charge-blade-fast-morph-gp-jpn",
@@ -2448,6 +2560,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-SA 4.0",
       "homepage": "https://gamebanana.com/mods/703777",
       "verified": false,
+      "downloads": 350,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 703777,
@@ -2469,9 +2583,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4G Japan 1.2 only, so match your game version, and it conflicts with other code patches for the game.",
-      "downloads": 346,
-      "updated": "2026-08"
+      "notes": "Adds a Guard Point to the Charge Blade's Fast Morph Slash, including the directional version, while keeping its fast animation. It is a code patch for MH4G Japan 1.2 only, so match your game version, and it conflicts with other code patches for the game."
     },
     {
       "id": "mh4u-weapon-honing-life-usa",
@@ -2485,6 +2597,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/711049",
       "verified": false,
+      "downloads": 269,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 711049,
@@ -2506,9 +2620,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4U USA 1.1 only and conflicts with other code patches.",
-      "downloads": 261,
-      "updated": "2026-08"
+      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4U USA 1.1 only and conflicts with other code patches."
     },
     {
       "id": "mh4u-weapon-honing-life-eur",
@@ -2522,6 +2634,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/711049",
       "verified": false,
+      "downloads": 269,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 711049,
@@ -2543,9 +2657,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4U Europe 1.1 only and conflicts with other code patches.",
-      "downloads": 261,
-      "updated": "2026-08"
+      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4U Europe 1.1 only and conflicts with other code patches."
     },
     {
       "id": "mh4u-weapon-honing-life-jpn",
@@ -2559,6 +2671,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/711049",
       "verified": false,
+      "downloads": 269,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 711049,
@@ -2580,9 +2694,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4G Japan 1.2 only and conflicts with other code patches.",
-      "downloads": 261,
-      "updated": "2026-08"
+      "notes": "Reworks the Life honing so it heals 7.5% of eligible damage with a short cooldown and a green glow, like the Health Regen augment in Monster Hunter World. It also bundles the Fast Morph GP and Charged Double Slash GP changes, so do not install those separately. It is a code patch for MH4G Japan 1.2 only and conflicts with other code patches."
     },
     {
       "id": "mh4u-charged-double-slash-gp-usa",
@@ -2709,6 +2821,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/587363",
       "verified": false,
+      "downloads": 476,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 587363,
@@ -2722,9 +2836,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Makes every Support Ability cost 1 AP and sets all Norende Village timers to 2 minutes, so one villager is enough. It replaces the same files as the other two variants, and the author tested it on emulators, the USA version and the one with the Japanese title ID. It breaks mods that replace the same romfs files.",
-      "downloads": 471,
-      "updated": "2025-04"
+      "notes": "Makes every Support Ability cost 1 AP and sets all Norende Village timers to 2 minutes, so one villager is enough. It replaces the same files as the other two variants, and the author tested it on emulators, the USA version and the one with the Japanese title ID. It breaks mods that replace the same romfs files."
     },
     {
       "id": "bravely-default-1ap-support-abilities",
@@ -2740,6 +2852,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/587363",
       "verified": false,
+      "downloads": 476,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 587363,
@@ -2753,9 +2867,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Makes every Support Ability cost 1 AP by replacing the ability tables. It is a balance change that makes the game much easier. It breaks mods that replace the same romfs files.",
-      "downloads": 471,
-      "updated": "2025-04"
+      "notes": "Makes every Support Ability cost 1 AP by replacing the ability tables. It is a balance change that makes the game much easier. It breaks mods that replace the same romfs files."
     },
     {
       "id": "bravely-default-norende-2min",
@@ -2771,6 +2883,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/587363",
       "verified": false,
+      "downloads": 476,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 587363,
@@ -2784,9 +2898,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Sets all Norende Village timers to 2 minutes, so the village can be rebuilt with a single villager. Use it instead of the combined mod, not with it. It breaks mods that replace the same romfs files.",
-      "downloads": 471,
-      "updated": "2025-04"
+      "notes": "Sets all Norende Village timers to 2 minutes, so the village can be rebuilt with a single villager. Use it instead of the combined mod, not with it. It breaks mods that replace the same romfs files."
     },
     {
       "id": "bravely-default-hardmode",
@@ -2800,6 +2912,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/538489",
       "verified": false,
+      "downloads": 303,
+      "updated": "2025-04",
       "source": {
         "type": "gamebanana",
         "mod": 538489,
@@ -2813,9 +2927,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A hard-mode hack with stronger enemies, faster village unlocks, improved jobs and changed late-game boss AI. It is for the USA version only. Its RAR cannot be fully unpacked with the system bsdtar (one file errors), so the install may fail.",
-      "downloads": 300,
-      "updated": "2025-04"
+      "notes": "A hard-mode hack with stronger enemies, faster village unlocks, improved jobs and changed late-game boss AI. It is for the USA version only. Its RAR cannot be fully unpacked with the system bsdtar (one file errors), so the install may fail."
     },
     {
       "id": "bravely-default-usa-999999-limit",
@@ -2829,6 +2941,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/727665",
       "verified": false,
+      "downloads": 11,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 727665,
@@ -2842,9 +2956,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Raises the damage and healing cap from 9,999 to 999,999 and shows all six digits; maximum HP and MP are unchanged. It is a code patch for the USA base game only, and old save states do not work with it. It replaces other code patches for the game.",
-      "downloads": 9,
-      "updated": "2026-11"
+      "notes": "Raises the damage and healing cap from 9,999 to 999,999 and shows all six digits; maximum HP and MP are unchanged. It is a code patch for the USA base game only, and old save states do not work with it. It replaces other code patches for the game."
     },
     {
       "id": "persona-q-true-undub-usa",
@@ -2858,6 +2970,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/516347",
       "verified": false,
+      "downloads": 1543,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 516347,
@@ -2879,9 +2993,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin that load the audio, so it replaces other code patches. The patched archive is about 1.2 GB, which is large for the app; the author's Mod Compendium files are not needed.",
-      "downloads": 1543,
-      "updated": "2024-05"
+      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin that load the audio, so it replaces other code patches. The patched archive is about 1.2 GB, which is large for the app; the author's Mod Compendium files are not needed."
     },
     {
       "id": "persona-q-true-undub-eur",
@@ -2895,6 +3007,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/516347",
       "verified": false,
+      "downloads": 1543,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 516347,
@@ -2916,9 +3030,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin for the European version, which the author says can have problems detecting DLC. The patched archive is about 1.2 GB, which is large for the app.",
-      "downloads": 1543,
-      "updated": "2024-05"
+      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin for the European version, which the author says can have problems detecting DLC. The patched archive is about 1.2 GB, which is large for the app."
     },
     {
       "id": "persona-q-spanish-translation",
@@ -2933,6 +3045,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/511619",
       "verified": false,
+      "downloads": 485,
+      "updated": "2024-05",
       "source": {
         "type": "gamebanana",
         "mod": 511619,
@@ -2954,9 +3068,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Translates the text and the textures to Spanish. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. The download is about 396 MB, which is large for the app, and the page does not say which region it is built for.",
-      "downloads": 484,
-      "updated": "2024-05"
+      "notes": "Translates the text and the textures to Spanish. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. The download is about 396 MB, which is large for the app, and the page does not say which region it is built for."
     },
     {
       "id": "persona-q-portuguese-br-english",
@@ -2970,6 +3082,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/579957",
       "verified": false,
+      "downloads": 413,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 579957,
@@ -2991,9 +3105,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A full Brazilian Portuguese translation of the game by Phantasie Translate, built on the English version of the game audio. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. It is for the USA version, and GameBanana has not finished scanning this file.",
-      "downloads": 411,
-      "updated": "2025-03"
+      "notes": "A full Brazilian Portuguese translation of the game by Phantasie Translate, built on the English version of the game audio. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. It is for the USA version, and GameBanana has not finished scanning this file."
     },
     {
       "id": "persona-q-portuguese-br-japanese",
@@ -3007,6 +3119,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/579957",
       "verified": false,
+      "downloads": 413,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 579957,
@@ -3028,9 +3142,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A full Brazilian Portuguese translation of the game by Phantasie Translate, built on the Japanese version of the game audio. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. It is for the USA version, and GameBanana has not finished scanning this file.",
-      "downloads": 411,
-      "updated": "2025-03"
+      "notes": "A full Brazilian Portuguese translation of the game by Phantasie Translate, built on the Japanese version of the game audio. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. It is for the USA version, and GameBanana has not finished scanning this file."
     },
     {
       "id": "kirby-robobot-restored-moves",
@@ -3044,6 +3156,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/442680",
       "verified": false,
+      "downloads": 1360,
+      "updated": "2026-01",
       "source": {
         "type": "gamebanana",
         "mod": 442680,
@@ -3057,9 +3171,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Brings back moves and effects that were cut from the game, such as the Revolution Beam, a mid-air Ninja Reverse Slash, the Fire Breath spiral, Spark's lightning dash and the Hammer triple attack. It replaces one script file, so it clashes with other mods that edit the same mint code. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 1360,
-      "updated": "2026-02"
+      "notes": "Brings back moves and effects that were cut from the game, such as the Revolution Beam, a mid-air Ninja Reverse Slash, the Fire Breath spiral, Spark's lightning dash and the Hammer triple attack. It replaces one script file, so it clashes with other mods that edit the same mint code. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-robobot-retexture-custom-apple",
@@ -4233,6 +4345,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/309235",
       "verified": false,
+      "downloads": 891,
+      "updated": "2024-04",
       "source": {
         "type": "gamebanana",
         "mod": 309235,
@@ -4246,9 +4360,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives characters older-style textures and colours, adds custom music, changes the opening movie and adds the UFO copy essence to the True Arena, as many replaced model and sound files. The download is about 295 MB, which is large for the app, and the author says it does not work fully outside Citra.",
-      "downloads": 887,
-      "updated": "2024-04"
+      "notes": "Gives characters older-style textures and colours, adds custom music, changes the opening movie and adds the UFO copy essence to the True Arena, as many replaced model and sound files. The download is about 295 MB, which is large for the app, and the author says it does not work fully outside Citra."
     },
     {
       "id": "kirby-robobot-shadow-kirby",
@@ -4262,6 +4374,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/441977",
       "verified": false,
+      "downloads": 665,
+      "updated": "2023-05",
       "source": {
         "type": "gamebanana",
         "mod": 441977,
@@ -4275,9 +4389,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives Kirby a Shadow Kirby look, in the Triple Deluxe colouring, by replacing his base texture. It only affects the main modes, because the shadow texture glitches on the 3D Rumble model. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 661,
-      "updated": "2023-05"
+      "notes": "Gives Kirby a Shadow Kirby look, in the Triple Deluxe colouring, by replacing his base texture. It only affects the main modes, because the shadow texture glitches on the 3D Rumble model. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-robobot-shadow-kirby-kf2",
@@ -4291,6 +4403,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/441977",
       "verified": false,
+      "downloads": 665,
+      "updated": "2023-05",
       "source": {
         "type": "gamebanana",
         "mod": 441977,
@@ -4304,9 +4418,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives Kirby a Shadow Kirby look in the Kirby Fighters 2 colouring, by replacing his base texture. It only affects the main modes, because the shadow texture glitches on the 3D Rumble model. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 661,
-      "updated": "2023-05"
+      "notes": "Gives Kirby a Shadow Kirby look in the Kirby Fighters 2 colouring, by replacing his base texture. It only affects the main modes, because the shadow texture glitches on the 3D Rumble model. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-robobot-galacta-knightmare",
@@ -4320,6 +4432,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/354304",
       "verified": false,
+      "downloads": 577,
+      "updated": "2022-02",
       "source": {
         "type": "gamebanana",
         "mod": 354304,
@@ -4333,9 +4447,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Meta Knight's model with Galacta Knight, retextures the goggles, floaty and cloak, and changes the Meta Knightmare enemies and the name text. Galacta's eyes can clip out of his mask in cutscenes because of the different mask shape. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 575,
-      "updated": "2022-02"
+      "notes": "Replaces Meta Knight's model with Galacta Knight, retextures the goggles, floaty and cloak, and changes the Meta Knightmare enemies and the name text. Galacta's eyes can clip out of his mask in cutscenes because of the different mask shape. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-triple-deluxe-palette-blue",
@@ -4568,6 +4680,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/442679",
       "verified": false,
+      "downloads": 1227,
+      "updated": "2026-01",
       "source": {
         "type": "gamebanana",
         "mod": 442679,
@@ -4581,9 +4695,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Brings back moves and effects that were cut from the game, such as the Revolution Beam, the Spear triple throw, the Ice Ball, Spark's up and down lightning attacks and the Hammer triple attack. It replaces one script file, so it clashes with other mods that edit the same mint code. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 1225,
-      "updated": "2026-01"
+      "notes": "Brings back moves and effects that were cut from the game, such as the Revolution Beam, the Spear triple throw, the Ice Ball, Spark's up and down lightning attacks and the Hammer triple attack. It replaces one script file, so it clashes with other mods that edit the same mint code. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-triple-deluxe-fighters-hats",
@@ -4599,6 +4711,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/341584",
       "verified": false,
+      "downloads": 611,
+      "updated": "2021-12",
       "source": {
         "type": "gamebanana",
         "mod": 341584,
@@ -4612,9 +4726,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces some ability hats, such as Beam, Bomb, Cutter, Hammer, Ninja and Sword, with the ones from Kirby Fighters Deluxe, by swapping model files. It was made with Citra. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 609,
-      "updated": "2021-12"
+      "notes": "Replaces some ability hats, such as Beam, Bomb, Cutter, Hammer, Ninja and Sword, with the ones from Kirby Fighters Deluxe, by swapping model files. It was made with Citra. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-triple-deluxe-100x-deluxe",
@@ -4630,6 +4742,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/517051",
       "verified": false,
+      "downloads": 552,
+      "updated": "2024-05",
       "source": {
         "type": "gamebanana",
         "mod": 517051,
@@ -4643,9 +4757,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A joke mod from a mod jam: Kirby has Mach abilities and everything is 100 times faster, bosses are harder, and there are text edits, changed animations and new music. The author says some changes crash on real hardware. The files use the USA text folder, so other regions are untested.",
-      "downloads": 550,
-      "updated": "2024-05"
+      "notes": "A joke mod from a mod jam: Kirby has Mach abilities and everything is 100 times faster, bosses are harder, and there are text edits, changed animations and new music. The author says some changes crash on real hardware. The files use the USA text folder, so other regions are untested."
     },
     {
       "id": "kirby-triple-deluxe-ability-selector",
@@ -4661,6 +4773,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/704998",
       "verified": false,
+      "downloads": 111,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 704998,
@@ -4674,9 +4788,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds an ability selector: press Up and Y to open the mix state, then Y again to cycle through every ability, including Normal and Hypernova. It replaces one script file, so it clashes with other mint code mods. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 109,
-      "updated": "2026-08"
+      "notes": "Adds an ability selector: press Up and Y to open the mix state, then Y again to cycle through every ability, including Normal and Hypernova. It replaces one script file, so it clashes with other mint code mods. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-battle-royale-playable-story-npcs",
@@ -4691,6 +4803,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/412763",
       "verified": false,
+      "downloads": 408,
+      "updated": "2023-03",
       "source": {
         "type": "gamebanana",
         "mod": 412763,
@@ -4704,9 +4818,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds four NPC abilities, Bandana Waddle Dee, Soldier Waddle Dee, Axe Knight and Sandbag, by editing the mint code and the ability select layout. It is made for the USA and Europe 3.0 versions, and catching Axe Knight in a Coin Clash can crash the game.",
-      "downloads": 405,
-      "updated": "2023-01"
+      "notes": "Adds four NPC abilities, Bandana Waddle Dee, Soldier Waddle Dee, Axe Knight and Sandbag, by editing the mint code and the ability select layout. It is made for the USA and Europe 3.0 versions, and catching Axe Knight in a Coin Clash can crash the game."
     },
     {
       "id": "kirby-battle-royale-three-stupid-abilities",
@@ -4721,6 +4833,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/485525",
       "verified": false,
+      "downloads": 83,
+      "updated": "2023-12",
       "source": {
         "type": "gamebanana",
         "mod": 485525,
@@ -4734,9 +4848,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives the Hammer, Sleep and Tornado abilities much bigger hitboxes and some fast movement, by replacing three script files. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 81,
-      "updated": "2023-12"
+      "notes": "Gives the Hammer, Sleep and Tornado abilities much bigger hitboxes and some fast movement, by replacing three script files. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "kirby-battle-royale-fighters-palettes",
@@ -4750,6 +4862,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/505608",
       "verified": false,
+      "downloads": 73,
+      "updated": "2024-04",
       "source": {
         "type": "gamebanana",
         "mod": 505608,
@@ -4763,9 +4877,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives Kirby palette swaps that match Kirby Fighters Deluxe, such as blue and green, by replacing his model and colour files. The HUD stays unchanged and the Mirror ability still shows the original colours. It is for the USA version only.",
-      "downloads": 71,
-      "updated": "2024-04"
+      "notes": "Gives Kirby palette swaps that match Kirby Fighters Deluxe, such as blue and green, by replacing his model and colour files. The HUD stays unchanged and the Mirror ability still shows the original colours. It is for the USA version only."
     },
     {
       "id": "kirby-battle-royale-playable-axe-knight",
@@ -4809,6 +4921,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/643063",
       "verified": false,
+      "downloads": 23,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 643063,
@@ -4822,9 +4936,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Turns the Training Room into a green screen room with a close top view, edited Kirby animations, a no-hat Qibby and Bandana Dee in place of the Spear Waddle Dee. The Qibby move crashes if you charge it. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 21,
-      "updated": "2025-12"
+      "notes": "Turns the Training Room into a green screen room with a close top view, edited Kirby animations, a no-hat Qibby and Bandana Dee in place of the Spear Waddle Dee. The Qibby move crashes if you charge it. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "luigis-mansion-original-toad-voice",
@@ -4838,6 +4950,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/678581",
       "verified": false,
+      "downloads": 24,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 678581,
@@ -4851,9 +4965,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores Toad's voice from the GameCube release by replacing the game's sound archive. It is for the USA version, and the author says not to install it through OnionFS because that breaks the C-Stick.",
-      "downloads": 22,
-      "updated": "2026-05"
+      "notes": "Restores Toad's voice from the GameCube release by replacing the game's sound archive. It is for the USA version, and the author says not to install it through OnionFS because that breaks the C-Stick."
     },
     {
       "id": "luigis-mansion-dark-moon-blue-robomb",
@@ -4869,6 +4981,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/521709",
       "verified": false,
+      "downloads": 40,
+      "updated": "2024-06",
       "source": {
         "type": "gamebanana",
         "mod": 521709,
@@ -4882,9 +4996,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the texture of the normal Robombs in the ScareScraper with a blue one by editing the level bundle. The author calls it a hex-editing experiment and says it works on any region of the game.",
-      "downloads": 38,
-      "updated": "2024-06"
+      "notes": "Replaces the texture of the normal Robombs in the ScareScraper with a blue one by editing the level bundle. The author calls it a hex-editing experiment and says it works on any region of the game."
     },
     {
       "id": "mario-luigi-bowsers-inside-story-60fps-v12",
@@ -4898,6 +5010,8 @@ const char* DefaultCatalogJson() {
       "licence": "MIT",
       "homepage": "https://gamebanana.com/mods/653851",
       "verified": false,
+      "downloads": 891,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 653851,
@@ -4911,9 +5025,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Unlocks 60 fps with a code patch; holding R drops back to 30 fps where the game misbehaves. It is for the USA game with the 1.2 update installed, and the wrong version freezes on a black screen. It replaces other code patches for the game.",
-      "downloads": 889,
-      "updated": "2026-10"
+      "notes": "Unlocks 60 fps with a code patch; holding R drops back to 30 fps where the game misbehaves. It is for the USA game with the 1.2 update installed, and the wrong version freezes on a black screen. It replaces other code patches for the game."
     },
     {
       "id": "mario-luigi-bowsers-inside-story-60fps-v10",
@@ -4927,6 +5039,8 @@ const char* DefaultCatalogJson() {
       "licence": "MIT",
       "homepage": "https://gamebanana.com/mods/653851",
       "verified": false,
+      "downloads": 891,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 653851,
@@ -4940,9 +5054,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Unlocks 60 fps with a code patch; holding R drops back to 30 fps where the game misbehaves. It is for the USA game without the update, which is version 1.0, and the wrong version freezes on a black screen. It replaces other code patches for the game.",
-      "downloads": 889,
-      "updated": "2026-10"
+      "notes": "Unlocks 60 fps with a code patch; holding R drops back to 30 fps where the game misbehaves. It is for the USA game without the update, which is version 1.0, and the wrong version freezes on a black screen. It replaces other code patches for the game."
     },
     {
       "id": "mario-luigi-bowsers-inside-story-dx-hard-mode",
@@ -4957,6 +5069,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/660439",
       "verified": false,
+      "downloads": 647,
+      "updated": "2026-06",
       "source": {
         "type": "gamebanana",
         "mod": 660439,
@@ -4974,9 +5088,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A hard-mode hack with 1.5 times enemy HP and defence, 2.5 times power, three extra levels, faster and harder attacks, an item limit of 10 and Easy Mode removed. It is early work in progress, replaces the game code and many data files, and is for the version 1.2 game in the USA and Europe.",
-      "downloads": 645,
-      "updated": "2026-06"
+      "notes": "A hard-mode hack with 1.5 times enemy HP and defence, 2.5 times power, three extra levels, faster and harder attacks, an item limit of 10 and Easy Mode removed. It is early work in progress, replaces the game code and many data files, and is for the version 1.2 game in the USA and Europe."
     },
     {
       "id": "mario-luigi-dream-team-sm64-mario-luigi",
@@ -4991,6 +5103,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/440303",
       "verified": false,
+      "downloads": 282,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 440303,
@@ -5004,9 +5118,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives Mario and Luigi their Super Mario 64 models in the Giant Battles by replacing the HugeBattle model files. The extra Textures folder on the page is source material and is not installed. The page does not say which regions it was made for, so other versions are untested.",
-      "downloads": 278,
-      "updated": "2023-04"
+      "notes": "Gives Mario and Luigi their Super Mario 64 models in the Giant Battles by replacing the HugeBattle model files. The extra Textures folder on the page is source material and is not installed. The page does not say which regions it was made for, so other versions are untested."
     },
     {
       "id": "mario-luigi-dream-team-suspicious-drunk-driving",
@@ -5020,6 +5132,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/381382",
       "verified": false,
+      "downloads": 355,
+      "updated": "2022-06",
       "source": {
         "type": "gamebanana",
         "mod": 381382,
@@ -5041,9 +5155,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Google Translate text hack of the game, with the text put through many rounds of machine translation, plus redrawn textures. The author warns it has swearing and adult themes. It is for the USA version and the text in the English folder.",
-      "downloads": 353,
-      "updated": "2022-06"
+      "notes": "A Google Translate text hack of the game, with the text put through many rounds of machine translation, plus redrawn textures. The author warns it has swearing and adult themes. It is for the USA version and the text in the English folder."
     },
     {
       "id": "mario-luigi-dream-team-noexp-coins",
@@ -5057,6 +5169,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/606932",
       "verified": false,
+      "downloads": 70,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 606932,
@@ -5070,9 +5184,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the experience and coin drops from enemies with a code patch. It is for the USA version and replaces other code patches for the game. Its solid RAR cannot be unpacked by the system bsdtar, so the install may fail.",
-      "downloads": 68,
-      "updated": "2025-07"
+      "notes": "Removes the experience and coin drops from enemies with a code patch. It is for the USA version and replaces other code patches for the game. Its solid RAR cannot be unpacked by the system bsdtar, so the install may fail."
     },
     {
       "id": "mario-luigi-paper-jam-book-of-mario-bros-hd",
@@ -5086,6 +5198,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/381172",
       "verified": false,
+      "downloads": 204,
+      "updated": "2024-12",
       "source": {
         "type": "gamebanana",
         "mod": 381172,
@@ -5107,9 +5221,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Google Translate hack of Paper Jam that puts the text through many rounds of machine translation, and also redraws many textures to match. It is for the European version only, and the author warns it has adult content. Its static.crr file is not installed.",
-      "downloads": 202,
-      "updated": "2024-12"
+      "notes": "A Google Translate hack of Paper Jam that puts the text through many rounds of machine translation, and also redraws many textures to match. It is for the European version only, and the author warns it has adult content. Its static.crr file is not installed."
     },
     {
       "id": "mario-luigi-paper-jam-book-of-mario-bros-lowres",
@@ -5123,6 +5235,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/381172",
       "verified": false,
+      "downloads": 204,
+      "updated": "2024-12",
       "source": {
         "type": "gamebanana",
         "mod": 381172,
@@ -5144,9 +5258,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Google Translate hack of Paper Jam that puts the text through many rounds of machine translation, and also redraws many textures to match. It is for the European version only, and the author warns it has adult content. Its static.crr file is not installed.",
-      "downloads": 202,
-      "updated": "2024-12"
+      "notes": "A Google Translate hack of Paper Jam that puts the text through many rounds of machine translation, and also redraws many textures to match. It is for the European version only, and the author warns it has adult content. Its static.crr file is not installed."
     },
     {
       "id": "mario-luigi-paper-jam-noexp-coins",
@@ -5160,6 +5272,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/606933",
       "verified": false,
+      "downloads": 59,
+      "updated": "2025-07",
       "source": {
         "type": "gamebanana",
         "mod": 606933,
@@ -5173,9 +5287,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the experience and coin drops from enemies by replacing the DB data file. It is for the European version, and it clashes with other mods that replace the same file. Its solid RAR cannot be unpacked by the system bsdtar, so the install may fail.",
-      "downloads": 57,
-      "updated": "2025-07"
+      "notes": "Removes the experience and coin drops from enemies by replacing the DB data file. It is for the European version, and it clashes with other mods that replace the same file. Its solid RAR cannot be unpacked by the system bsdtar, so the install may fail."
     },
     {
       "id": "nsmb2-crystal-crescents",
@@ -5195,6 +5307,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/551330",
       "verified": false,
+      "downloads": 4338,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 551330,
@@ -5208,9 +5322,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A one-world mod with eight new levels, custom graphics, a new soundtrack and a custom world map. It covers the standard, Gold and Special editions of the game. It replaces other New Super Mario Bros. 2 level mods, which edit the same files, and the 141 MB download is over the app's current size limit.",
-      "downloads": 4337,
-      "updated": "2026-10"
+      "notes": "A one-world mod with eight new levels, custom graphics, a new soundtrack and a custom world map. It covers the standard, Gold and Special editions of the game. It replaces other New Super Mario Bros. 2 level mods, which edit the same files, and the 141 MB download is over the app's current size limit."
     },
     {
       "id": "nsmb2-lost-levels-part1",
@@ -5230,6 +5342,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51507",
       "verified": false,
+      "downloads": 4135,
+      "updated": "2022-05",
       "source": {
         "type": "gamebanana",
         "mod": 51507,
@@ -5243,9 +5357,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The first half of a collection of levels cut from the Super Mario Bros. Next project, with new courses, models and music. Parts 1 and 2 are separate halves and overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods.",
-      "downloads": 2532,
-      "updated": "2022-05"
+      "notes": "The first half of a collection of levels cut from the Super Mario Bros. Next project, with new courses, models and music. Parts 1 and 2 are separate halves and overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods."
     },
     {
       "id": "nsmb2-lost-levels-part2",
@@ -5265,6 +5377,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/51507",
       "verified": false,
+      "downloads": 4135,
+      "updated": "2022-05",
       "source": {
         "type": "gamebanana",
         "mod": 51507,
@@ -5278,9 +5392,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The second half of the Lost Levels collection from the Super Mario Bros. Next project, with more cut courses, models and music. Parts 1 and 2 overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods; the 121 MB download is close to the app's size limit.",
-      "downloads": 1400,
-      "updated": "2022-05"
+      "notes": "The second half of the Lost Levels collection from the Super Mario Bros. Next project, with more cut courses, models and music. Parts 1 and 2 overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods; the 121 MB download is close to the app's size limit."
     },
     {
       "id": "nsmb2-nsmb-3ds",
@@ -5300,6 +5412,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/443673",
       "verified": false,
+      "downloads": 2152,
+      "updated": "2024-02",
       "source": {
         "type": "gamebanana",
         "mod": 443673,
@@ -5313,9 +5427,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A two-world mod that changes every stage, the cannons and the Toad houses. It covers the standard, Gold and Special editions. Replaces other New Super Mario Bros. 2 level mods; the 144 MB download is over the app's current size limit, and a few preview images in the pack are copied into the mod folder but are never used.",
-      "downloads": 2152,
-      "updated": "2026-02"
+      "notes": "A two-world mod that changes every stage, the cannons and the Toad houses. It covers the standard, Gold and Special editions. Replaces other New Super Mario Bros. 2 level mods; the 144 MB download is over the app's current size limit, and a few preview images in the pack are copied into the mod folder but are never used."
     },
     {
       "id": "nsmb2-sm64-mario-luigi",
@@ -5370,6 +5482,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/545127",
       "verified": false,
+      "downloads": 1338,
+      "updated": "2025-09",
       "source": {
         "type": "gamebanana",
         "mod": 545127,
@@ -5383,9 +5497,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Remakes levels from Super Mario Bros., The Lost Levels, Super Mario Bros. 3, Super Mario World and New Super Mario Bros. in every world, each with three star coins. It covers the standard, Gold and Special editions. The newest regular version is downloaded; the Gold variant is not installed, and it replaces other level mods.",
-      "downloads": 946,
-      "updated": "2025-09"
+      "notes": "Remakes levels from Super Mario Bros., The Lost Levels, Super Mario Bros. 3, Super Mario World and New Super Mario Bros. in every world, each with three star coins. It covers the standard, Gold and Special editions. The newest regular version is downloaded; the Gold variant is not installed, and it replaces other level mods."
     },
     {
       "id": "pmss-ttyd-style",
@@ -5497,6 +5609,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/392990",
       "verified": false,
+      "downloads": 616,
+      "updated": "2022-07",
       "source": {
         "type": "gamebanana",
         "mod": 392990,
@@ -5510,9 +5624,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the game's English text with AI-generated text, written from the first few words of each line. It includes swearing and sensitive topics and does not change images such as the Talk prompt. It edits the US English messages only, so it works on the North American version.",
-      "downloads": 614,
-      "updated": "2022-07"
+      "notes": "Replaces the game's English text with AI-generated text, written from the first few words of each line. It includes swearing and sensitive topics and does not change images such as the Talk prompt. It edits the US English messages only, so it works on the North American version."
     },
     {
       "id": "pmss-skippable-dialogue",
@@ -5559,6 +5671,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/248298",
       "verified": false,
+      "downloads": 2217,
+      "updated": "2018-04",
       "source": {
         "type": "gamebanana",
         "mod": 248298,
@@ -5572,9 +5686,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Ports the Wii U Super Luigi Maker look to three of the four game styles by replacing the player models. The New Super Mario Bros. U style still shows Mario and the flags do not work, as the author notes. It clashes with other model mods for this game.",
-      "downloads": 2215,
-      "updated": "2018-04"
+      "notes": "Ports the Wii U Super Luigi Maker look to three of the four game styles by replacing the player models. The New Super Mario Bros. U style still shows Mario and the flags do not work, as the author notes. It clashes with other model mods for this game."
     },
     {
       "id": "smm3ds-all-stars-smb1-smb3",
@@ -5590,6 +5702,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/248299",
       "verified": false,
+      "downloads": 2078,
+      "updated": "2019-01",
       "source": {
         "type": "gamebanana",
         "mod": 248299,
@@ -5619,9 +5733,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the 8-bit Super Mario Bros. and Super Mario Bros. 3 styles with the 16-bit All-Stars art. It is unfinished: the enemy sprites, sounds, question blocks and brick blocks are not ported yet. The 624 MB archive is far over the app's size limit and its layout was read from the file list only.",
-      "downloads": 2077,
-      "updated": "2019-01"
+      "notes": "Replaces the 8-bit Super Mario Bros. and Super Mario Bros. 3 styles with the 16-bit All-Stars art. It is unfinished: the enemy sprites, sounds, question blocks and brick blocks are not ported yet. The 624 MB archive is far over the app's size limit and its layout was read from the file list only."
     },
     {
       "id": "smm3ds-smm2-themes",
@@ -5637,6 +5749,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/357832",
       "verified": false,
+      "downloads": 1691,
+      "updated": "2022-02",
       "source": {
         "type": "gamebanana",
         "mod": 357832,
@@ -5662,9 +5776,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Brings the Super Mario Maker 2 themes and music into the 3DS game as loose game files. The archive has no romfs folder, so the install rules place its folders inside romfs. The 95 MB download replaces a lot of the game's tile and sound data, so it clashes with other style mods.",
-      "downloads": 1689,
-      "updated": "2022-02"
+      "notes": "Brings the Super Mario Maker 2 themes and music into the 3DS game as loose game files. The archive has no romfs folder, so the install rules place its folders inside romfs. The 95 MB download replaces a lot of the game's tile and sound data, so it clashes with other style mods."
     },
     {
       "id": "smm3ds-wonder-gamestyle",
@@ -5711,6 +5823,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/394392",
       "verified": false,
+      "downloads": 436,
+      "updated": "2022-08",
       "source": {
         "type": "gamebanana",
         "mod": 394392,
@@ -5724,9 +5838,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives every game style an expanded moveset, such as wall jump in the Super Mario Bros. style and spin jump in the Super Mario Bros. 3 style. It is four small data files. It clashes with other mods that edit the same move data.",
-      "downloads": 434,
-      "updated": "2022-08"
+      "notes": "Gives every game style an expanded moveset, such as wall jump in the Super Mario Bros. style and spin jump in the Super Mario Bros. 3 style. It is four small data files. It clashes with other mods that edit the same move data."
     },
     {
       "id": "mpit-klonoa-over-mario",
@@ -5742,6 +5854,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/470317",
       "verified": false,
+      "downloads": 138,
+      "updated": "2023-09",
       "source": {
         "type": "gamebanana",
         "mod": 470317,
@@ -5755,9 +5869,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Mario's model with Klonoa. It is a model swap only and was made for the North American game; the author says it also runs on a real console. The European and Japanese title IDs are included but unconfirmed, and Mario is gone while it is installed.",
-      "downloads": 136,
-      "updated": "2023-09"
+      "notes": "Replaces Mario's model with Klonoa. It is a model swap only and was made for the North American game; the author says it also runs on a real console. The European and Japanese title IDs are included but unconfirmed, and Mario is gone while it is installed."
     },
     {
       "id": "mpit-sm64-mario",
@@ -5773,6 +5885,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/725818",
       "verified": false,
+      "downloads": 16,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 725818,
@@ -5786,9 +5900,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Mario's model with the Super Mario 64 version, with working mesh animations. It is a model swap only, and the zip has no romfs folder, so the install rules add it. The European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 15,
-      "updated": "2026-10"
+      "notes": "Replaces Mario's model with the Super Mario 64 version, with working mesh animations. It is a model swap only, and the zip has no romfs folder, so the install rules add it. The European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mpit-waluigi-rgba4",
@@ -5804,6 +5916,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/727118",
       "verified": false,
+      "downloads": 13,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 727118,
@@ -5817,9 +5931,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Swaps one character model for Waluigi as he appears in Mario Party 3, using RGBA4 textures for better quality. It is a model swap only and takes a slot, so that character is gone while it is installed. Use the ETC1A4 entry instead for the lighter version; the two overwrite each other.",
-      "downloads": 7,
-      "updated": "2026-10"
+      "notes": "Swaps one character model for Waluigi as he appears in Mario Party 3, using RGBA4 textures for better quality. It is a model swap only and takes a slot, so that character is gone while it is installed. Use the ETC1A4 entry instead for the lighter version; the two overwrite each other."
     },
     {
       "id": "mpit-waluigi-etc1a4",
@@ -5835,6 +5947,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/727118",
       "verified": false,
+      "downloads": 13,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 727118,
@@ -5848,9 +5962,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The same Mario Party 3 Waluigi model swap, using ETC1A4 textures that are lighter on the system but a little lower in quality. It takes a character slot, so that character is gone while it is installed. It overwrites the RGBA4 version, so use only one.",
-      "downloads": 4,
-      "updated": "2026-10"
+      "notes": "The same Mario Party 3 Waluigi model swap, using ETC1A4 textures that are lighter on the system but a little lower in quality. It takes a character slot, so that character is gone while it is installed. It overwrites the RGBA4 version, so use only one."
     },
     {
       "id": "mpit-robo-mario",
@@ -5866,6 +5978,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/725107",
       "verified": false,
+      "downloads": 8,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 725107,
@@ -5879,9 +5993,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Puts the Robo-Mario model from Mario Kart Arcade GP in Mario's slot. It is a model swap only, and the zip has no romfs folder, so the install rules add it. Mario is gone while it is installed.",
-      "downloads": 6,
-      "updated": "2026-10"
+      "notes": "Puts the Robo-Mario model from Mario Kart Arcade GP in Mario's slot. It is a model swap only, and the zip has no romfs folder, so the install rules add it. Mario is gone while it is installed."
     },
     {
       "id": "mpsr-fire-bros",
@@ -5897,6 +6009,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/549305",
       "verified": false,
+      "downloads": 142,
+      "updated": "2024-10",
       "source": {
         "type": "gamebanana",
         "mod": 549305,
@@ -5910,9 +6024,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Retextures Mario, Luigi, Wario and Waluigi as their fire variants. There is no menu art yet, and the zip has no romfs folder, so the install rules add it. The European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 140,
-      "updated": "2024-10"
+      "notes": "Retextures Mario, Luigi, Wario and Waluigi as their fire variants. There is no menu art yet, and the zip has no romfs folder, so the install rules add it. The European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mpsr-morgana-over-yoshi",
@@ -5928,6 +6040,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/419993",
       "verified": false,
+      "downloads": 67,
+      "updated": "2023-01",
       "source": {
         "type": "gamebanana",
         "mod": 419993,
@@ -5945,9 +6059,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Yoshi with Morgana from Persona 5 and changes some of the menu art. The author says it only works in the emulator and not on a real 3DS, and that it is unfinished. Yoshi is gone while it is installed.",
-      "downloads": 65,
-      "updated": "2023-01"
+      "notes": "Replaces Yoshi with Morgana from Persona 5 and changes some of the menu art. The author says it only works in the emulator and not on a real 3DS, and that it is unfinished. Yoshi is gone while it is installed."
     },
     {
       "id": "mpsr-klonoa",
@@ -5963,6 +6075,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/450474",
       "verified": false,
+      "downloads": 67,
+      "updated": "2023-06",
       "source": {
         "type": "gamebanana",
         "mod": 450474,
@@ -5976,9 +6090,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Puts Klonoa in Mario's slot. The author notes it has no menu art yet, and Mario is gone while it is installed. The European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 65,
-      "updated": "2023-06"
+      "notes": "Puts Klonoa in Mario's slot. The author notes it has no menu art yet, and Mario is gone while it is installed. The European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mpsr-red-yoshi",
@@ -5994,6 +6106,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/582392",
       "verified": false,
+      "downloads": 41,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 582392,
@@ -6007,9 +6121,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Retextures the green Yoshi red, which then shows in the minigames. It replaces the normal Yoshi texture file, so it clashes with other Yoshi mods. The contents are a single texture file, and the European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 40,
-      "updated": "2025-03"
+      "notes": "Retextures the green Yoshi red, which then shows in the minigames. It replaces the normal Yoshi texture file, so it clashes with other Yoshi mods. The contents are a single texture file, and the European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mpsr-no-amiibo-icon",
@@ -6054,6 +6166,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/592969",
       "verified": false,
+      "downloads": 55,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 592969,
@@ -6067,9 +6181,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Mario's player model with the Super Mario 64 version, including the trophy ceremony model. It is two model files, so it clashes with other Mario model mods. The author names no region, so the European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 54,
-      "updated": "2026-05"
+      "notes": "Replaces Mario's player model with the Super Mario 64 version, including the trophy ceremony model. It is two model files, so it clashes with other Mario model mods. The author names no region, so the European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mto-sm64-luigi",
@@ -6085,6 +6197,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/593197",
       "verified": false,
+      "downloads": 39,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 593197,
@@ -6098,9 +6212,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Luigi's player model with the Super Mario 64 version, including the ceremony model. It is two model files and clashes with other Luigi model mods. The author names no region, so the European and Japanese title IDs are included but unconfirmed.",
-      "downloads": 38,
-      "updated": "2026-05"
+      "notes": "Replaces Luigi's player model with the Super Mario 64 version, including the ceremony model. It is two model files and clashes with other Luigi model mods. The author names no region, so the European and Japanese title IDs are included but unconfirmed."
     },
     {
       "id": "mto-sm64-metal-mario",
@@ -6147,6 +6259,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/636384",
       "verified": false,
+      "downloads": 55,
+      "updated": "2025-11",
       "source": {
         "type": "gamebanana",
         "mod": 636384,
@@ -6164,9 +6278,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Diddy Kong with Sonic the Hedgehog, with new character and ceremony models plus voice and sound files. The zip has no romfs folder, so the install rules add it. Diddy Kong is gone while it is installed, and the European and Japanese title IDs are unconfirmed.",
-      "downloads": 54,
-      "updated": "2025-11"
+      "notes": "Replaces Diddy Kong with Sonic the Hedgehog, with new character and ceremony models plus voice and sound files. The zip has no romfs folder, so the install rules add it. Diddy Kong is gone while it is installed, and the European and Japanese title IDs are unconfirmed."
     },
     {
       "id": "mto-rosalina-over-peach",
@@ -6182,6 +6294,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/636574",
       "verified": false,
+      "downloads": 44,
+      "updated": "2026-04",
       "source": {
         "type": "gamebanana",
         "mod": 636574,
@@ -6199,9 +6313,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Peach with Rosalina, with new character and ceremony models plus sound files. The zip has no romfs folder, so the install rules add it. Peach is gone while it is installed, and the European and Japanese title IDs are unconfirmed.",
-      "downloads": 42,
-      "updated": "2026-04"
+      "notes": "Replaces Peach with Rosalina, with new character and ceremony models plus sound files. The zip has no romfs folder, so the install rules add it. Peach is gone while it is installed, and the European and Japanese title IDs are unconfirmed."
     },
     {
       "id": "tetris-axis-katyusha-threemix",
@@ -6215,6 +6327,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/579500",
       "verified": false,
+      "downloads": 25,
+      "updated": "2026-02",
       "source": {
         "type": "gamebanana",
         "mod": 579500,
@@ -6228,9 +6342,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Gypsy Dance track in Capture Mode with the previously unused Katyusha Threemix, and changes the matching name in the English text. The author only tested the North American version, and it replaces the whole sound archive, so it clashes with other music mods. The 74 MB download is under the app's size limit but sizeable.",
-      "downloads": 23,
-      "updated": "2026-02"
+      "notes": "Replaces the Gypsy Dance track in Capture Mode with the previously unused Katyusha Threemix, and changes the matching name in the English text. The author only tested the North American version, and it replaces the whole sound archive, so it clashes with other music mods. The 74 MB download is under the app's size limit but sizeable."
     },
     {
       "id": "rh-ptbr-translation",
@@ -6244,6 +6356,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/640252",
       "verified": false,
+      "downloads": 951,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 640252,
@@ -6257,9 +6371,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Brazilian Portuguese translation covering the story, side quests, items and most menus. It replaces the game's message and font files, and the contents are about 17,000 small files. GameBanana has not marked the file as scanned clean, which the app requires, so the download is refused until that changes.",
-      "downloads": 950,
-      "updated": "2025-12"
+      "notes": "A Brazilian Portuguese translation covering the story, side quests, items and most menus. It replaces the game's message and font files, and the contents are about 17,000 small files. GameBanana has not marked the file as scanned clean, which the app requires, so the download is refused until that changes."
     },
     {
       "id": "eo2u-hd-remaster-portraits",
@@ -6276,6 +6388,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/487683",
       "verified": false,
+      "downloads": 384,
+      "updated": "2024-01",
       "source": {
         "type": "gamebanana",
         "mod": 487683,
@@ -6289,9 +6403,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the new class portraits from the Etrian Odyssey HD Remaster by overwriting the extra DLC portrait slots. It needs the Yggdrasil Veteran DLC portrait pack installed, otherwise only one new portrait shows. The 1.1 GB archive replaces the game's main data archive and is far over the app's size limit.",
-      "downloads": 383,
-      "updated": "2024-01"
+      "notes": "Adds the new class portraits from the Etrian Odyssey HD Remaster by overwriting the extra DLC portrait slots. It needs the Yggdrasil Veteran DLC portrait pack installed, otherwise only one new portrait shows. The 1.1 GB archive replaces the game's main data archive and is far over the app's size limit."
     },
     {
       "id": "pkmn-sun-shiny-lock-removal",
@@ -6305,6 +6417,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486577",
       "verified": false,
+      "downloads": 975,
+      "updated": "2023-12",
       "source": {
         "type": "gamebanana",
         "mod": 486577,
@@ -6322,9 +6436,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version.",
-      "downloads": 169,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-moon-shiny-lock-removal",
@@ -6338,6 +6450,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486577",
       "verified": false,
+      "downloads": 975,
+      "updated": "2023-12",
       "source": {
         "type": "gamebanana",
         "mod": 486577,
@@ -6355,9 +6469,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version.",
-      "downloads": 179,
-      "updated": "2023-12"
+      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-sun-shiny-lock-removal-v12",
@@ -6371,6 +6483,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/513467",
       "verified": false,
+      "downloads": 650,
+      "updated": "2025-06",
       "source": {
         "type": "gamebanana",
         "mod": 513467,
@@ -6388,9 +6502,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version.",
-      "downloads": 90,
-      "updated": "2025-06"
+      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-moon-shiny-lock-removal-v12",
@@ -6404,6 +6516,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/513467",
       "verified": false,
+      "downloads": 650,
+      "updated": "2025-06",
       "source": {
         "type": "gamebanana",
         "mod": 513467,
@@ -6421,9 +6535,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version.",
-      "downloads": 60,
-      "updated": "2025-06"
+      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-ultrasun-shiny-lock-removal",
@@ -6437,6 +6549,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486586",
       "verified": false,
+      "downloads": 4388,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 486586,
@@ -6454,9 +6568,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version.",
-      "downloads": 1022,
-      "updated": "2025-12"
+      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-ultramoon-shiny-lock-removal",
@@ -6470,6 +6582,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/486586",
       "verified": false,
+      "downloads": 4388,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 486586,
@@ -6487,9 +6601,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version.",
-      "downloads": 737,
-      "updated": "2025-12"
+      "notes": "Removes the shiny lock from the game, so every legendary and gift Pokémon can be shiny. It ships a patched game code file, so it only works with the base 1.0.0 game; delete any installed update data first. It clashes with other code patches and does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-ultrasun-shiny-lock-removal-v12",
@@ -6503,6 +6615,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/513470",
       "verified": false,
+      "downloads": 2181,
+      "updated": "2025-06",
       "source": {
         "type": "gamebanana",
         "mod": 513470,
@@ -6520,9 +6634,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version.",
-      "downloads": 336,
-      "updated": "2025-06"
+      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-ultramoon-shiny-lock-removal-v12",
@@ -6536,6 +6648,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/513470",
       "verified": false,
+      "downloads": 2181,
+      "updated": "2025-06",
       "source": {
         "type": "gamebanana",
         "mod": 513470,
@@ -6553,9 +6667,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version.",
-      "downloads": 290,
-      "updated": "2025-06"
+      "notes": "Removes the shiny lock from version 1.2 of the game, so every legendary and gift Pokémon can be shiny. It needs the 1.2 update installed and crashes loading a save on any other version. It is a code patch, so it clashes with other code patches, and it does not include the Zygarde and in-game trade version."
     },
     {
       "id": "pkmn-sm-trans-ride-gear",
@@ -6570,6 +6682,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/435809",
       "verified": false,
+      "downloads": 377,
+      "updated": "2023-04",
       "source": {
         "type": "gamebanana",
         "mod": 435809,
@@ -6583,9 +6697,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours the Ride Gear in the light pink and blue of the trans flag, for both the girl and boy characters. It replaces four model files, so it clashes with other Ride Gear mods. It is a game-file replacement, not a texture pack.",
-      "downloads": 376,
-      "updated": "2023-04"
+      "notes": "Recolours the Ride Gear in the light pink and blue of the trans flag, for both the girl and boy characters. It replaces four model files, so it clashes with other Ride Gear mods. It is a game-file replacement, not a texture pack."
     },
     {
       "id": "pkmn-sm-playable-lillie",
@@ -6600,6 +6712,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/679771",
       "verified": false,
+      "downloads": 135,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 679771,
@@ -6613,9 +6727,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the male player character with Lillie, with matching overworld, battle and Ride outfit models for every clothing piece except glasses. Only the model files are installed; the optional dialogue changes that refer to Lillie are not. It clashes with other player model mods.",
-      "downloads": 134,
-      "updated": "2026-08"
+      "notes": "Replaces the male player character with Lillie, with matching overworld, battle and Ride outfit models for every clothing piece except glasses. Only the model files are installed; the optional dialogue changes that refer to Lillie are not. It clashes with other player model mods."
     },
     {
       "id": "pkmn-usum-accurate-sizes",
@@ -6630,6 +6742,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/694458",
       "verified": false,
+      "downloads": 1154,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 694458,
@@ -6643,9 +6757,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adjusts battle and overworld sizes so Pokémon match their real-world sizes. It replaces the Pokémon model archive, so any other mod that edits that file needs merging with it first. The 703 MB download is far over the app's size limit, and the author notes that Salandit shows only outlines.",
-      "downloads": 1154,
-      "updated": "2026-11"
+      "notes": "Adjusts battle and overworld sizes so Pokémon match their real-world sizes. It replaces the Pokémon model archive, so any other mod that edits that file needs merging with it first. The 703 MB download is far over the app's size limit, and the author notes that Salandit shows only outlines."
     },
     {
       "id": "pkmn-us-uhuru-gift-korean",
@@ -6673,7 +6785,8 @@ const char* DefaultCatalogJson() {
       },
       "notes": "An unofficial Korean edition of Aqua's Gen 8 and 9 expansion, adding Terastal, Dynamax, tournaments, Boss Rush and a roguelike tower. It needs Pokémon Ultra Sun (USA) version 1.0 with no update data. The mod-folder build is about 6.5 GB on Google Drive, far over the app's size limit, and it replaces the game code and data.",
       "downloads": 201,
-      "updated": "2026-10"
+      "updated": "2026-10",
+      "size": 6494646872
     },
     {
       "id": "albw-young-link-hero-of-time",
@@ -6689,6 +6802,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/659766",
       "verified": false,
+      "downloads": 6030,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 659766,
@@ -6702,9 +6817,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Swaps Link for the Young Link of Ocarina of Time and Majora's Mask, with a Kokiri Sword, Deku Shield, Hero's Shield and more. Only one Link model can be active at a time, so it clashes with the Adult Link entry and other Link mods. The voice pack is a separate download and is not installed.",
-      "downloads": 1297,
-      "updated": "2026-03"
+      "notes": "Swaps Link for the Young Link of Ocarina of Time and Majora's Mask, with a Kokiri Sword, Deku Shield, Hero's Shield and more. Only one Link model can be active at a time, so it clashes with the Adult Link entry and other Link mods. The voice pack is a separate download and is not installed."
     },
     {
       "id": "albw-adult-link-hero-of-time",
@@ -6720,6 +6833,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/659766",
       "verified": false,
+      "downloads": 6030,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 659766,
@@ -6733,9 +6848,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Swaps Link for the Adult Link of Ocarina of Time, with matching equipment. Only one Link model can be active at a time, so it clashes with the Young Link entry and other Link mods. The voice pack is a separate download and is not installed.",
-      "downloads": 1881,
-      "updated": "2026-03"
+      "notes": "Swaps Link for the Adult Link of Ocarina of Time, with matching equipment. Only one Link model can be active at a time, so it clashes with the Young Link entry and other Link mods. The voice pack is a separate download and is not installed."
     },
     {
       "id": "albw-toon-link",
@@ -6751,6 +6864,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/484137",
       "verified": false,
+      "downloads": 2418,
+      "updated": "2025-01",
       "source": {
         "type": "gamebanana",
         "mod": 484137,
@@ -6764,9 +6879,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Lets you play as Toon Link using the Tri Force Heroes model, with Wind Waker-style swords and shields and edited cutscenes. It clashes with other Link model mods. The Wind Waker voice pack is a separate download and is not installed.",
-      "downloads": 893,
-      "updated": "2026-03"
+      "notes": "Lets you play as Toon Link using the Tri Force Heroes model, with Wind Waker-style swords and shields and edited cutscenes. It clashes with other Link model mods. The Wind Waker voice pack is a separate download and is not installed."
     },
     {
       "id": "albw-fighters-shield-basic",
@@ -6782,6 +6895,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/479645",
       "verified": false,
+      "downloads": 1087,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 479645,
@@ -6795,9 +6910,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the Fighter's Shield from A Link to the Past in place of the basic orange shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed.",
-      "downloads": 295,
-      "updated": "2026-03"
+      "notes": "Adds the Fighter's Shield from A Link to the Past in place of the basic orange shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed."
     },
     {
       "id": "albw-fighters-shield-hylian",
@@ -6813,6 +6926,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/479645",
       "verified": false,
+      "downloads": 1087,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 479645,
@@ -6826,9 +6941,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the Fighter's Shield from A Link to the Past in place of the Hylian Shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed.",
-      "downloads": 142,
-      "updated": "2026-03"
+      "notes": "Adds the Fighter's Shield from A Link to the Past in place of the Hylian Shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed."
     },
     {
       "id": "albw-fighters-shield-and-red",
@@ -6844,6 +6957,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/479645",
       "verified": false,
+      "downloads": 1087,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 479645,
@@ -6857,9 +6972,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the basic orange shield with the Fighter's Shield and the Hylian Shield with a red shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed.",
-      "downloads": 347,
-      "updated": "2026-03"
+      "notes": "Replaces the basic orange shield with the Fighter's Shield and the Hylian Shield with a red shield. The three shield variants overwrite each other, so use only one. The separate files for manual merging are not installed."
     },
     {
       "id": "albw-linkle-hooded",
@@ -6875,6 +6988,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/694590",
       "verified": false,
+      "downloads": 1064,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 694590,
@@ -6888,9 +7003,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle with the green hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives.",
-      "downloads": 252,
-      "updated": "2026-08"
+      "notes": "Changes Link to Linkle with the green hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hoodless",
@@ -6906,6 +7019,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/694590",
       "verified": false,
+      "downloads": 1064,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 694590,
@@ -6919,9 +7034,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle without the hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives.",
-      "downloads": 145,
-      "updated": "2026-08"
+      "notes": "Changes Link to Linkle without the hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hooded-pink",
@@ -6937,6 +7050,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/694590",
       "verified": false,
+      "downloads": 1064,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 694590,
@@ -6950,9 +7065,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle with the green hood and pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives.",
-      "downloads": 120,
-      "updated": "2026-08"
+      "notes": "Changes Link to Linkle with the green hood and pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hoodless-pink",
@@ -6968,6 +7081,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/694590",
       "verified": false,
+      "downloads": 1064,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 694590,
@@ -6981,9 +7096,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle without the hood and with pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives.",
-      "downloads": 79,
-      "updated": "2026-08"
+      "notes": "Changes Link to Linkle without the hood and with pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
     },
     {
       "id": "albw-wolf-link",
@@ -6999,6 +7112,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/679885",
       "verified": false,
+      "downloads": 289,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 679885,
@@ -7012,9 +7127,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Link with Wolf Link, a commissioned mod that the author says also works on console. It replaces the Link model archives, so it clashes with other Link model mods.",
-      "downloads": 287,
-      "updated": "2026-05"
+      "notes": "Replaces Link with Wolf Link, a commissioned mod that the author says also works on console. It replaces the Link model archives, so it clashes with other Link model mods."
     },
     {
       "id": "tfh-light-blue-pink-link-na",
@@ -7028,6 +7141,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/500913",
       "verified": false,
+      "downloads": 483,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 500913,
@@ -7041,9 +7156,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the North America version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed.",
-      "downloads": 83,
-      "updated": "2024-03"
+      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the North America version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed."
     },
     {
       "id": "tfh-light-blue-pink-link-eu",
@@ -7057,6 +7170,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/500913",
       "verified": false,
+      "downloads": 483,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 500913,
@@ -7070,9 +7185,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Europe version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed.",
-      "downloads": 50,
-      "updated": "2024-03"
+      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Europe version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed."
     },
     {
       "id": "tfh-light-blue-pink-link-jp",
@@ -7086,6 +7199,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/500913",
       "verified": false,
+      "downloads": 483,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 500913,
@@ -7099,9 +7214,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Japan version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed.",
-      "downloads": 24,
-      "updated": "2024-03"
+      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Japan version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed."
     },
     {
       "id": "tfh-light-blue-pink-link-kr",
@@ -7115,6 +7228,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/500913",
       "verified": false,
+      "downloads": 483,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 500913,
@@ -7128,9 +7243,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Korea version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed.",
-      "downloads": 90,
-      "updated": "2024-03"
+      "notes": "Recolours two of the Links light blue and pink at once, by editing the shared costume and course textures for the Korea version. It replaces many of the game's costume files, so it clashes with other Link recolour mods. The matching colour cheat is a separate download and is not installed."
     },
     {
       "id": "tfh-hero-of-time-outfits",
@@ -7147,6 +7260,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/664643",
       "verified": false,
+      "downloads": 206,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 664643,
@@ -7160,9 +7275,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds Young Link and Adult Link as outfits, replacing the Kokiri Clothes and the Sword Suit by default. You can swap them to other slots by renaming the files, as the included list explains. Disable other costume mods first; the Adult Link voice pack is a separate download and is not installed.",
-      "downloads": 121,
-      "updated": "2026-03"
+      "notes": "Adds Young Link and Adult Link as outfits, replacing the Kokiri Clothes and the Sword Suit by default. You can swap them to other slots by renaming the files, as the included list explains. Disable other costume mods first; the Adult Link voice pack is a separate download and is not installed."
     },
     {
       "id": "tfh-lbw-link-blonde",
@@ -7176,6 +7289,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/499743",
       "verified": false,
+      "downloads": 156,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 499743,
@@ -7189,9 +7304,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the Link Between Worlds design in place of the Hero's Tunic, with blonde hair for all the Links. The model was built from an unused High Fairy costume. It is made for the North American version and overwrites the Multi-Coloured Hair version.",
-      "downloads": 83,
-      "updated": "2024-03"
+      "notes": "Adds the Link Between Worlds design in place of the Hero's Tunic, with blonde hair for all the Links. The model was built from an unused High Fairy costume. It is made for the North American version and overwrites the Multi-Coloured Hair version."
     },
     {
       "id": "tfh-lbw-link-multicolour",
@@ -7205,6 +7318,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gamebanana.com/mods/499743",
       "verified": false,
+      "downloads": 156,
+      "updated": "2024-03",
       "source": {
         "type": "gamebanana",
         "mod": 499743,
@@ -7218,9 +7333,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the Link Between Worlds design in place of the Hero's Tunic, with a different hair colour for each Link. The model was built from an unused High Fairy costume. It is made for the North American version and overwrites the Blonde version.",
-      "downloads": 69,
-      "updated": "2024-03"
+      "notes": "Adds the Link Between Worlds design in place of the Hero's Tunic, with a different hair colour for each Link. The model was built from an unused High Fairy costume. It is made for the North American version and overwrites the Blonde version."
     },
     {
       "id": "tfh-blond-links",
@@ -7237,6 +7350,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/670896",
       "verified": false,
+      "downloads": 123,
+      "updated": "2026-04",
       "source": {
         "type": "gamebanana",
         "mod": 670896,
@@ -7250,9 +7365,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Keeps Link's hair blond in multiplayer whatever colour the player is, and removes the yellow stripe from the Hero's Tunic hat. It also updates the matching UI and communication icons for the North American, European, Japanese and Korean versions. It clashes with other costume mods,.",
-      "downloads": 122,
-      "updated": "2026-04"
+      "notes": "Keeps Link's hair blond in multiplayer whatever colour the player is, and removes the yellow stripe from the Hero's Tunic hat. It also updates the matching UI and communication icons for the North American, European, Japanese and Korean versions. It clashes with other costume mods,."
     },
     {
       "id": "tfh-pink-link",
@@ -7266,6 +7379,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/351573",
       "verified": false,
+      "downloads": 122,
+      "updated": "2023-06",
       "source": {
         "type": "gamebanana",
         "mod": 351573,
@@ -7279,9 +7394,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Recolours the red Link pink across all 39 outfits, the multiplayer emotes, the loading screen icons, the Poes and the platforms. The author says it only works with the English North American version. It clashes with other Link recolour mods.",
-      "downloads": 121,
-      "updated": "2023-07"
+      "notes": "Recolours the red Link pink across all 39 outfits, the multiplayer emotes, the loading screen icons, the Poes and the platforms. The author says it only works with the English North American version. It clashes with other Link recolour mods."
     },
     {
       "id": "acnl-clean-texture-pack",
@@ -7298,6 +7411,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/40778",
       "verified": false,
+      "downloads": 4270,
+      "updated": "2020-11",
       "source": {
         "type": "gamebanana",
         "mod": 40778,
@@ -7311,9 +7426,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the grass, snow, cliff and sky textures in a New Horizons-inspired style, cleans up the villagers' fur and redoes a few wallpapers, the giant teddy bears and the TIY banner. Its files come from the Europe Welcome amiibo release, so the USA and Europe versions of the base game and of Welcome amiibo are listed. The author calls it a work in progress, and it replaces the same files as other New Leaf look mods.",
-      "downloads": 4268,
-      "updated": "2020-11"
+      "notes": "Replaces the grass, snow, cliff and sky textures in a New Horizons-inspired style, cleans up the villagers' fur and redoes a few wallpapers, the giant teddy bears and the TIY banner. Its files come from the Europe Welcome amiibo release, so the USA and Europe versions of the base game and of Welcome amiibo are listed. The author calls it a work in progress, and it replaces the same files as other New Leaf look mods."
     },
     {
       "id": "acnl-wolfsbane-cut-unisex",
@@ -7362,6 +7475,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/522625",
       "verified": false,
+      "downloads": 1484,
+      "updated": "2025-08",
       "source": {
         "type": "gamebanana",
         "mod": 522625,
@@ -7375,9 +7490,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Census menu with its values and title text. It needs a save editor (ACSE) or the Vapecord plugin to switch the menu on in your save, so it does nothing on its own. This is the newest of four archive versions on the page.",
-      "downloads": 1476,
-      "updated": "2025-08"
+      "notes": "Restores the Census menu with its values and title text. It needs a save editor (ACSE) or the Vapecord plugin to switch the menu on in your save, so it does nothing on its own. This is the newest of four archive versions on the page."
     },
     {
       "id": "acnl-elf-ears-lighter",
@@ -7554,6 +7667,8 @@ const char* DefaultCatalogJson() {
       "licence": "Free for personal use only; not for sale or reposting",
       "homepage": "https://gamebanana.com/mods/621588",
       "verified": false,
+      "downloads": 883,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 621588,
@@ -7567,9 +7682,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in black. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one.",
-      "downloads": 877,
-      "updated": "2026-03"
+      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in black. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one."
     },
     {
       "id": "acnl-baby-twintails-blondie",
@@ -7586,6 +7699,8 @@ const char* DefaultCatalogJson() {
       "licence": "Free for personal use only; not for sale or reposting",
       "homepage": "https://gamebanana.com/mods/621588",
       "verified": false,
+      "downloads": 883,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 621588,
@@ -7599,9 +7714,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in blonde. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one.",
-      "downloads": 877,
-      "updated": "2026-03"
+      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in blonde. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one."
     },
     {
       "id": "acnl-baby-twintails-brownie",
@@ -7618,6 +7731,8 @@ const char* DefaultCatalogJson() {
       "licence": "Free for personal use only; not for sale or reposting",
       "homepage": "https://gamebanana.com/mods/621588",
       "verified": false,
+      "downloads": 883,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 621588,
@@ -7631,9 +7746,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in brown. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one.",
-      "downloads": 877,
-      "updated": "2026-03"
+      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in brown. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one."
     },
     {
       "id": "acnl-baby-twintails-bubblegum",
@@ -7650,6 +7763,8 @@ const char* DefaultCatalogJson() {
       "licence": "Free for personal use only; not for sale or reposting",
       "homepage": "https://gamebanana.com/mods/621588",
       "verified": false,
+      "downloads": 883,
+      "updated": "2026-03",
       "source": {
         "type": "gamebanana",
         "mod": 621588,
@@ -7663,9 +7778,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in pink. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one.",
-      "downloads": 877,
-      "updated": "2026-03"
+      "notes": "Replaces the Pigtail wig with a bigger, retouched twintails hairstyle with bangs, in pink. The wig cannot be recoloured in game, which is why each colour is its own download. The four colours replace the same file, so install only one."
     },
     {
       "id": "sf64-star-dog-modpack",
@@ -7679,6 +7792,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/679753",
       "verified": false,
+      "downloads": 32,
+      "updated": "2026-05",
       "source": {
         "type": "gamebanana",
         "mod": 679753,
@@ -7700,9 +7815,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces some voice clips with new fan recordings (Molly, Goldie, Chica and Coninja so far) and also replaces some textures, the character portraits. The author says it works only on Azahar, and it is an early access release, so most characters are still to come. It is for the USA version only, as its folders are named for that title ID.",
-      "downloads": 30,
-      "updated": "2026-05"
+      "notes": "Replaces some voice clips with new fan recordings (Molly, Goldie, Chica and Coninja so far) and also replaces some textures, the character portraits. The author says it works only on Azahar, and it is an early access release, so most characters are still to come. It is for the USA version only, as its folders are named for that title ID."
     },
     {
       "id": "sf64-final-speech-restoration",
@@ -7748,6 +7861,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/537215",
       "verified": false,
+      "downloads": 549,
+      "updated": "2024-08",
       "source": {
         "type": "gamebanana",
         "mod": 537215,
@@ -7761,9 +7876,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Hides the bloom glow by changing one post-processing shader, which suits a reshade or a cleaner look. The author says it has not been tested widely and may break things or not work on a real 3DS. The file sits loose in the download, so the install folder is taken from the older version of the same mod.",
-      "downloads": 545,
-      "updated": "2024-08"
+      "notes": "Hides the bloom glow by changing one post-processing shader, which suits a reshade or a cleaner look. The author says it has not been tested widely and may break things or not work on a real 3DS. The file sits loose in the download, so the install folder is taken from the older version of the same mod."
     },
     {
       "id": "sg-shadow-the-hedgehog-hover",
@@ -7851,6 +7964,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/562735",
       "verified": false,
+      "downloads": 1214,
+      "updated": "2025-08",
       "source": {
         "type": "gamebanana",
         "mod": 562735,
@@ -7872,9 +7987,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Swaps in Sonic Jam Classic Sonic and Sonic Adventure Modern Sonic models, ported from the Sonic X Shadow Generations DLC, including in cutscenes. It also replaces some textures and a large game archive (about 590 MB). The author could not test it on a real 3DS, and the page names no region.",
-      "downloads": 1213,
-      "updated": "2025-08"
+      "notes": "Swaps in Sonic Jam Classic Sonic and Sonic Adventure Modern Sonic models, ported from the Sonic X Shadow Generations DLC, including in cutscenes. It also replaces some textures and a large game archive (about 590 MB). The author could not test it on a real 3DS, and the page names no region."
     },
     {
       "id": "sg-definitive-sonic-models",
@@ -7888,6 +8001,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/555882",
       "verified": false,
+      "downloads": 1205,
+      "updated": "2024-12",
       "source": {
         "type": "gamebanana",
         "mod": 555882,
@@ -7901,9 +8016,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the low-poly gameplay models of Classic and Modern Sonic, and their Super forms, with the detailed cutscene models. This is the recommended version; an older \"high quality models\" version on the page is not installed. It is one 590 MB game archive, so it clashes with other Sonic Generations model mods.",
-      "downloads": 1203,
-      "updated": "2024-12"
+      "notes": "Replaces the low-poly gameplay models of Classic and Modern Sonic, and their Super forms, with the detailed cutscene models. This is the recommended version; an older \"high quality models\" version on the page is not installed. It is one 590 MB game archive, so it clashes with other Sonic Generations model mods."
     },
     {
       "id": "yw1-brazilian-portuguese",
@@ -7931,7 +8044,8 @@ const char* DefaultCatalogJson() {
       },
       "notes": "Translates the story, interface and more into Brazilian Portuguese (the Traducoes Komainu patch, version 1.3.2). It works only with the USA version 1.0, so do not install the game update. The download is a 238 MB archive on the author's Google Drive.",
       "downloads": 3196,
-      "updated": "2023-07"
+      "updated": "2023-07",
+      "size": 237598614
     },
     {
       "id": "yw1-yo-kaizo-watch",
@@ -7946,6 +8060,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/461653",
       "verified": false,
+      "downloads": 1550,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 461653,
@@ -7959,9 +8075,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A hard mode with much stronger bosses, a weaker Holy Exporb, changed boss rewards and new textures, movies and sounds. It is for the Europe version and only works as intended with the game language set to English (GB). It replaces the main game archive (about 600 MB), and the author asks players not to use the Infinite Attack Exploit.",
-      "downloads": 1549,
-      "updated": "2023-08"
+      "notes": "A hard mode with much stronger bosses, a weaker Holy Exporb, changed boss rewards and new textures, movies and sounds. It is for the Europe version and only works as intended with the game language set to English (GB). It replaces the main game archive (about 600 MB), and the author asks players not to use the Infinite Attack Exploit."
     },
     {
       "id": "yw1-undub",
@@ -7977,6 +8091,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/495701",
       "verified": false,
+      "downloads": 1328,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 495701,
@@ -7990,9 +8106,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese voices and Yo-kai names, undubs the story text and textures, and brings back the uncensored NPC designs, the Japanese title background, the Terror Time icons and the original intro. Update the game to the latest version first. It is a 1 GB download that replaces the main game archive; the page names no region, and it ships both the English and the Europe sound banks.",
-      "downloads": 1327,
-      "updated": "2026-10"
+      "notes": "Restores the Japanese voices and Yo-kai names, undubs the story text and textures, and brings back the uncensored NPC designs, the Japanese title background, the Terror Time icons and the original intro. Update the game to the latest version first. It is a 1 GB download that replaces the main game archive; the page names no region, and it ships both the English and the Europe sound banks."
     },
     {
       "id": "yw1-revisited",
@@ -8022,7 +8136,8 @@ const char* DefaultCatalogJson() {
       },
       "notes": "A quality-of-life pack: a Yo-kai Watch 2 style interface (not every menu), every Exporb for sale in Whatta Find, Pandanoko always in the Wayfarer Manor VIP room, Orcanos's fight marks and Pandanoko's dialogue artwork. The download is one loose game archive (573 MB) on the author's Google Drive, and the Europe version is inferred from its size because the page does not say.",
       "downloads": 920,
-      "updated": "2024-04"
+      "updated": "2024-04",
+      "size": 572551388
     },
     {
       "id": "yw1-kirbendo-french-dub",
@@ -8037,6 +8152,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/543417",
       "verified": false,
+      "downloads": 787,
+      "updated": "2024-09",
       "source": {
         "type": "gamebanana",
         "mod": 543417,
@@ -8050,9 +8167,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the cutscene voices with a French dub by the YouTuber Kirbendo, and each Yo-kai now says an extra line when you befriend it, voiced by community members. It also replaces some item and medal graphics. French only, for the Europe version, and the download is 387 MB.",
-      "downloads": 786,
-      "updated": "2024-09"
+      "notes": "Replaces the cutscene voices with a French dub by the YouTuber Kirbendo, and each Yo-kai now says an extra line when you befriend it, voiced by community members. It also replaces some item and medal graphics. French only, for the Europe version, and the download is 387 MB."
     },
     {
       "id": "yw2-yo-kaizo-watch-2",
@@ -8069,6 +8184,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/422109",
       "verified": false,
+      "downloads": 3298,
+      "updated": "2023-02",
       "source": {
         "type": "gamebanana",
         "mod": 422109,
@@ -8082,9 +8199,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A hard mode with buffed main bosses and other bosses, nerfed items, lower experience and a cheat word (Cheater) for the password items. This is the English (GB) build for the Europe versions of Bony Spirits and Fleshy Souls, and the French build is a separate download. The download is 896 MB and replaces the game's main archives.",
-      "downloads": 3297,
-      "updated": "2023-02"
+      "notes": "A hard mode with buffed main bosses and other bosses, nerfed items, lower experience and a cheat word (Cheater) for the password items. This is the English (GB) build for the Europe versions of Bony Spirits and Fleshy Souls, and the French build is a separate download. The download is 896 MB and replaces the game's main archives."
     },
     {
       "id": "yw2-ultimate-boss-mod",
@@ -8099,6 +8214,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/529122",
       "verified": false,
+      "downloads": 3079,
+      "updated": "2026-10",
       "source": {
         "type": "gamebanana",
         "mod": 529122,
@@ -8116,9 +8233,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces normal Yo-kai with bosses so that every boss can be befriended without a save editor, with the scaling balanced in the final version 2.1. It carries the English text archive, so the USA versions are listed; the page does not say whether it is for Bony Spirits or Fleshy Souls, so both are. The download is 1 GB.",
-      "downloads": 3078,
-      "updated": "2025-08"
+      "notes": "Replaces normal Yo-kai with bosses so that every boss can be befriended without a save editor, with the scaling balanced in the final version 2.1. It carries the English text archive, so the USA versions are listed; the page does not say whether it is for Bony Spirits or Fleshy Souls, so both are. The download is 1 GB."
     },
     {
       "id": "yw3-project-ultimate",
@@ -8165,6 +8280,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/455126",
       "verified": false,
+      "downloads": 749,
+      "updated": "2023-07",
       "source": {
         "type": "gamebanana",
         "mod": 455126,
@@ -8178,9 +8295,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes all audio to Japanese, changes the BBQ text and art to USA and Blasters to Busters, and swaps Jibanyan B, Komasan B, Usapyon B and the Bustersmobile for the Japanese versions. This is the older GameBanana build: the page says to take version 1.1 from MediaFire, which the app cannot download. It only works on the base game, not the updated one, and is 389 MB.",
-      "downloads": 748,
-      "updated": "2023-07"
+      "notes": "Changes all audio to Japanese, changes the BBQ text and art to USA and Blasters to Busters, and swaps Jibanyan B, Komasan B, Usapyon B and the Bustersmobile for the Japanese versions. This is the older GameBanana build: the page says to take version 1.1 from MediaFire, which the app cannot download. It only works on the base game, not the updated one, and is 389 MB."
     },
     {
       "id": "yw3-yo-kaizo-watch-3",
@@ -8225,7 +8340,8 @@ const char* DefaultCatalogJson() {
       },
       "notes": "A Kaizo difficulty mod with boss stat changes, post-game rematches, Blasters T and Zombie Night, plus playable Zombie Yo-kai, Crabbycat, Yopplebot, Sternyan and Emperor mode, and some recoloured harder bosses. It is two loose game archives (about 2.1 GB together) on the author's Google Drive, for the English (USA) version. The whole download is very large.",
       "downloads": 689,
-      "updated": "2024-05"
+      "updated": "2024-05",
+      "size": 2146915176
     },
     {
       "id": "yw3-katie-fumi-over-hailey-inaho",
@@ -8239,6 +8355,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/564113",
       "verified": false,
+      "downloads": 648,
+      "updated": "2024-12",
       "source": {
         "type": "gamebanana",
         "mod": 564113,
@@ -8252,9 +8370,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces every Hailey and Inaho model except the cutscene ones with Katie and Fumi from Yo-kai Watch 2, and swaps the BBQ house for the Katie and Fumi one. It replaces the main game archive and is a 1.5 GB download. The page does not name a region, so the USA version is listed.",
-      "downloads": 647,
-      "updated": "2024-12"
+      "notes": "Replaces every Hailey and Inaho model except the cutscene ones with Katie and Fumi from Yo-kai Watch 2, and swaps the BBQ house for the Katie and Fumi one. It replaces the main game archive and is a 1.5 GB download. The page does not name a region, so the USA version is listed."
     },
     {
       "id": "smt4-undub",
@@ -8268,6 +8384,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/579153",
       "verified": false,
+      "downloads": 770,
+      "updated": "2026-01",
       "source": {
         "type": "gamebanana",
         "mod": 579153,
@@ -8281,9 +8399,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese audio and movies in the USA version, as a re-upload of an undub patch whose original download went down. It replaces the sound banks and movie files (about 540 MB), and the original thread has the instructions.",
-      "downloads": 768,
-      "updated": "2025-03"
+      "notes": "Restores the Japanese audio and movies in the USA version, as a re-upload of an undub patch whose original download went down. It replaces the sound banks and movie files (about 540 MB), and the original thread has the instructions."
     },
     {
       "id": "smt4-early-design-flynn",
@@ -8355,6 +8471,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/454847",
       "verified": false,
+      "downloads": 105,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 454847,
@@ -8368,9 +8486,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes the text and dialogue so Nanashi is referred to as she/her, with feminine wording elsewhere; the voice lines are not changed and there are no story changes. The author tested it on Citra, and it does not work with DLC events.",
-      "downloads": 104,
-      "updated": "2023-08"
+      "notes": "Changes the text and dialogue so Nanashi is referred to as she/her, with feminine wording elsewhere; the voice lines are not changed and there are no story changes. The author tested it on Citra, and it does not work with DLC events."
     },
     {
       "id": "smt4a-zeus",
@@ -8384,6 +8500,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/396271",
       "verified": false,
+      "downloads": 92,
+      "updated": "2022-08",
       "source": {
         "type": "gamebanana",
         "mod": 396271,
@@ -8397,9 +8515,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Thor with Zeus, including the model, portraits and profile text. The author tested it on Citra. It is a very small download.",
-      "downloads": 91,
-      "updated": "2022-08"
+      "notes": "Replaces Thor with Zeus, including the model, portraits and profile text. The author tested it on Citra. It is a very small download."
     },
     {
       "id": "smt4a-better-intro",
@@ -8413,6 +8529,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/463419",
       "verified": false,
+      "downloads": 92,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 463419,
@@ -8426,9 +8544,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the intro movie with the game's trailer, which the author finds a better introduction. It swaps one 18 MB video file. The page does not say whether it works on a real 3DS.",
-      "downloads": 91,
-      "updated": "2023-08"
+      "notes": "Replaces the intro movie with the game's trailer, which the author finds a better introduction. It swaps one 18 MB video file. The page does not say whether it works on a real 3DS."
     },
     {
       "id": "smt4a-hd-nanashi-hunter-suit",
@@ -8442,6 +8558,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/462655",
       "verified": false,
+      "downloads": 85,
+      "updated": "2023-08",
       "source": {
         "type": "gamebanana",
         "mod": 462655,
@@ -8455,9 +8573,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the body, head and legs models of Nanashi's old hunter suit with higher-detail ones. The author says it probably does not work on a real 3DS and that only this one outfit is covered so far.",
-      "downloads": 84,
-      "updated": "2023-08"
+      "notes": "Replaces the body, head and legs models of Nanashi's old hunter suit with higher-detail ones. The author says it probably does not work on a real 3DS and that only this one outfit is covered so far."
     },
     {
       "id": "kh3d-riku-aqua",
@@ -8472,6 +8588,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/700639",
       "verified": false,
+      "downloads": 312,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 700639,
@@ -8485,9 +8603,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Riku with Aqua in most places, with retargeted Birth by Sleep animations. This installs the Aqua-only game files; her extra Keyblades and the 625 MB voice lines are separate downloads and are not installed. It replaces the same file as Sora (KH2) and the KH1 outfits, so use only one character mod.",
-      "downloads": 300,
-      "updated": "2026-09"
+      "notes": "Replaces Riku with Aqua in most places, with retargeted Birth by Sleep animations. This installs the Aqua-only game files; her extra Keyblades and the 625 MB voice lines are separate downloads and are not installed. It replaces the same file as Sora (KH2) and the KH1 outfits, so use only one character mod."
     },
     {
       "id": "kh3d-sora-kh2",
@@ -8502,6 +8618,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/700640",
       "verified": false,
+      "downloads": 275,
+      "updated": "2026-09",
       "source": {
         "type": "gamebanana",
         "mod": 700640,
@@ -8515,9 +8633,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces Sora with his Kingdom Hearts II look, with retargeted KH2 animations. This installs the Sora-only game files; the page also offers a combined Sora and Aqua pack that is not used. It replaces the same file as Riku to Aqua and the KH1 outfits, so use only one character mod.",
-      "downloads": 269,
-      "updated": "2026-09"
+      "notes": "Replaces Sora with his Kingdom Hearts II look, with retargeted KH2 animations. This installs the Sora-only game files; the page also offers a combined Sora and Aqua pack that is not used. It replaces the same file as Riku to Aqua and the KH1 outfits, so use only one character mod."
     },
     {
       "id": "kh3d-kh2-inspired-textures-recolor",
@@ -8532,6 +8648,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/515459",
       "verified": false,
+      "downloads": 264,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 515459,
@@ -8545,9 +8663,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version mostly changes the colour scheme and keeps the original details. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region.",
-      "downloads": 262,
-      "updated": "2025-03"
+      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version mostly changes the colour scheme and keeps the original details. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region."
     },
     {
       "id": "kh3d-kh2-inspired-textures-adapt",
@@ -8562,6 +8678,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/515459",
       "verified": false,
+      "downloads": 264,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 515459,
@@ -8575,9 +8693,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version is very close to Kingdom Hearts II but keeps the X on Sora's shirt and the Dream Eater symbol on Riku's. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region.",
-      "downloads": 262,
-      "updated": "2025-03"
+      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version is very close to Kingdom Hearts II but keeps the X on Sora's shirt and the Dream Eater symbol on Riku's. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region."
     },
     {
       "id": "kh3d-kh2-inspired-textures-full",
@@ -8592,6 +8708,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/515459",
       "verified": false,
+      "downloads": 264,
+      "updated": "2025-03",
       "source": {
         "type": "gamebanana",
         "mod": 515459,
@@ -8605,9 +8723,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version is very close to Kingdom Hearts II throughout. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region.",
-      "downloads": 262,
-      "updated": "2025-03"
+      "notes": "Changes Sora's and Riku's looks toward their Kingdom Hearts II appearances; this version is very close to Kingdom Hearts II throughout. The files are a replacement character model archive rather than texture images, so it clashes with the other character mods. The three versions replace the same file, so install only one; the page names no region."
     },
     {
       "id": "kh3d-kh1-hud-outfits",
@@ -8622,6 +8738,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/487120",
       "verified": false,
+      "downloads": 209,
+      "updated": "2024-01",
       "source": {
         "type": "gamebanana",
         "mod": 487120,
@@ -8635,9 +8753,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Updates the HUD icons to the Kingdom Hearts 1 outfit versions and gives the models blinking faces, building on Isaac_MG's KH1 outfits mod. It has its own copy of the outfit models, so it replaces Play as KH1 Sora and Riku rather than adding to it. Some icon pixels are missing in the corners and the HP bar may clip.",
-      "downloads": 207,
-      "updated": "2023-12"
+      "notes": "Updates the HUD icons to the Kingdom Hearts 1 outfit versions and gives the models blinking faces, building on Isaac_MG's KH1 outfits mod. It has its own copy of the outfit models, so it replaces Play as KH1 Sora and Riku rather than adding to it. Some icon pixels are missing in the corners and the HP bar may clip."
     },
     {
       "id": "kh3d-play-as-kh1-sora-riku",
@@ -8652,6 +8768,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/454656",
       "verified": false,
+      "downloads": 207,
+      "updated": "2023-07",
       "source": {
         "type": "gamebanana",
         "mod": 454656,
@@ -8665,9 +8783,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Sora's and Riku's fighting appearance to their Kingdom Hearts 1 models by replacing one 19 MB character file. It replaces the same file as the other character mods, so use only one of them. The page names no region, so the USA and Europe versions are listed.",
-      "downloads": 205,
-      "updated": "2023-07"
+      "notes": "Changes Sora's and Riku's fighting appearance to their Kingdom Hearts 1 models by replacing one 19 MB character file. It replaces the same file as the other character mods, so use only one of them. The page names no region, so the USA and Europe versions are listed."
     },
     {
       "id": "dq7-advanced-vocations-keep-skills",
@@ -8681,6 +8797,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/638979",
       "verified": false,
+      "downloads": 69,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 638979,
@@ -8694,9 +8812,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Stops characters forgetting the spells and skills they learned from advanced human vocations when they change vocation. It replaces the game's code, so it clashes with any other code patch, and the page names no region, so the USA version is listed.",
-      "downloads": 68,
-      "updated": "2025-12"
+      "notes": "Stops characters forgetting the spells and skills they learned from advanced human vocations when they change vocation. It replaces the game's code, so it clashes with any other code patch, and the page names no region, so the USA version is listed."
     },
     {
       "id": "dq7-max-tame-rate",
@@ -8710,6 +8826,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/642707",
       "verified": false,
+      "downloads": 24,
+      "updated": "2025-12",
       "source": {
         "type": "gamebanana",
         "mod": 642707,
@@ -8723,9 +8841,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives every tameable monster a 25% tame rate by replacing the monster parameter file. It could clash with other mods that edit monster data, and the page names no region, so the USA version is listed.",
-      "downloads": 23,
-      "updated": "2025-12"
+      "notes": "Gives every tameable monster a 25% tame rate by replacing the monster parameter file. It could clash with other mods that edit monster data, and the page names no region, so the USA version is listed."
     },
     {
       "id": "layton-miracle-mask-turkish",
@@ -8739,6 +8855,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/701527",
       "verified": false,
+      "downloads": 38,
+      "updated": "2026-08",
       "source": {
         "type": "gamebanana",
         "mod": 701527,
@@ -8760,9 +8878,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Turkish translation for the European (UK) version, by Reqrefusion. It replaces the game's code and icon as well as the text archives, so it clashes with other code patches. The download also has a banner and logo that Azahar does not use, and these are skipped.",
-      "downloads": 36,
-      "updated": "2026-08"
+      "notes": "A Turkish translation for the European (UK) version, by Reqrefusion. It replaces the game's code and icon as well as the text archives, so it clashes with other code patches. The download also has a banner and logo that Azahar does not use, and these are skipped."
     },
     {
       "id": "phoenix-wright-trilogy-turkish",
@@ -8776,6 +8892,8 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/705559",
       "verified": false,
+      "downloads": 47,
+      "updated": "2026-11",
       "source": {
         "type": "gamebanana",
         "mod": 705559,
@@ -8793,9 +8911,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A Turkish translation for the European 3DS release, ported from the Switch patch by Reqrefusion. It replaces the game's code, so it clashes with other code patches, and its 132 MB data file makes the download about 113 MB. It is for the Europe version only.",
-      "downloads": 45,
-      "updated": "2026-11"
+      "notes": "A Turkish translation for the European 3DS release, ported from the Switch patch by Reqrefusion. It replaces the game's code, so it clashes with other code patches, and its 132 MB data file makes the download about 113 MB. It is for the Europe version only."
     }
   ]
 })AZCAT";
