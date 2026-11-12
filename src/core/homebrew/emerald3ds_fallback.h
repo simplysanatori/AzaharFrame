@@ -102,6 +102,9 @@ std::string ValidateOutput(const std::string& out_dir, const std::string& expect
 
 /// Copies the follower files of `from` (names of 64 hex digits) that `to` does not have yet.
 int SeedCache(const std::string& from, const std::string& to);
+/// Copies the follower files of `from` that `to` lacks, only those whose content's SHA-256 is the file's
+/// name (the pinned hash); the count. Used after a validated run so later runs do not download again.
+int CopyBackCache(const std::string& from, const std::string& to);
 
 // ---------------------------------------------------------------------------------------------
 // The player's answer, remembered per release version
@@ -111,7 +114,7 @@ enum class Choice { Unasked, Allowed, Declined };
 class Choices {
 public:
     Choice Get(const std::string& tag) const;
-    void Set(const std::string& tag, Choice choice); ///< Unasked forgets it
+    void Set(const std::string& tag, Choice choice); ///< Unasked forgets it; the app saves only Allowed
     std::string ToJson() const;
     static Choices FromJson(const std::string& json); ///< damaged text: nothing remembered
     bool operator==(const Choices& other) const {

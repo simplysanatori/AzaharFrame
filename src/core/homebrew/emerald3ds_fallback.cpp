@@ -329,6 +329,35 @@ int SeedCache(const std::string& from, const std::string& to) {
     return copied;
 }
 
+int CopyBackCache(const std::string& from, const std::string& to) {
+    std::error_code ec;
+    if (from.empty() || to.empty() || !fs::is_directory(from, ec)) {
+        return 0;
+    }
+    int copied = 0;
+    for (const auto& e : fs::directory_iterator(from, ec)) {
+        const std::string name = e.path().filename().string();
+        if (name.size() != 64 || !e.is_regular_file(ec) ||
+            name.find_first_not_of("0123456789abcdef") != std::string::npos) {
+            continue;
+        }
+        const fs::path dest = fs::path(to) / name;
+        if (fs::exists(dest, ec) || Homebrew::FileSha256(e.path().string()) != name) {
+            continue;
+        }
+        fs::create_directories(to, ec);
+        const fs::path tmp = fs::path(to) / (name + ".new");
+        if (fs::copy_file(e.path(), tmp, fs::copy_options::overwrite_existing, ec)) {
+            fs::rename(tmp, dest, ec);
+            if (!ec) {
+                ++copied;
+            }
+        }
+        fs::remove(tmp, ec);
+    }
+    return copied;
+}
+
 std::string ValidateOutput(const std::string& out_dir, const std::string& expected_abi,
                            const std::string& expected_rom_sha1,
                            const std::string& expected_3dsx_sha256) {
@@ -544,6 +573,10 @@ Build::Result Run(const Options& options) {
                                            options.expected_3dsx_sha256);
     if (!bad.empty()) {
         return fail(bad);
+    }
+    if (sb.network) {
+        const int added = CopyBackCache(cache_in_work, b.cache_dir);
+        LOG_INFO(Frontend, "emerald3ds: {} new follower files kept in the cache", added);
     }
     res.ok = true;
     res.abi = info.value("abi", std::string{});

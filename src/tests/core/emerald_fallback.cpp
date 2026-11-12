@@ -390,3 +390,17 @@ TEST_CASE("Emerald fallback: same pack as the built-in builder, and Cancel stops
     }
     CHECK(left.empty());
 }
+
+TEST_CASE("Emerald fallback: new follower files go back to the app's cache only when they match their hash",
+          "[emfallback]") {
+    const fs::path from = Scratch("back-from"), to = Scratch("back-to");
+    // sha256("abc")
+    const std::string good = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    std::ofstream(from / good) << "abc";
+    std::ofstream(from / std::string(64, 'b')) << "not its hash";
+    std::ofstream(from / "x.tmp") << "abc";
+    CHECK(F::CopyBackCache(from.string(), (to / "c").string()) == 1);
+    CHECK(fs::exists(to / "c" / good));
+    CHECK_FALSE(fs::exists(to / "c" / std::string(64, 'b')));
+    CHECK(F::CopyBackCache(from.string(), (to / "c").string()) == 0);
+}

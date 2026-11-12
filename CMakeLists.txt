@@ -163,8 +163,11 @@ CMAKE_DEPENDENT_OPTION(ENABLE_FRAME_XR "Enables the OpenXR frontend (Azahar for 
 # the player taps it. The DSN comes from -DAZAHARFRAME_SENTRY_DSN=..., else the environment variable
 # of that name; with none, Send Report is hidden and Save Report stays. Never commit a DSN.
 # AzaharFrame emfallback: test hooks (the Emerald fallback's forced run, its answers), never in a release
-option(AZAHARFRAME_TEST_HOOKS "Compile the AZAHARFRAME_TEST_* hooks of the Emerald builder fallback" OFF)
-if (AZAHARFRAME_TEST_HOOKS)
+# (lane/harden2 defines the same option, ON unless AZAHARFRAME_RELEASE; this guard lets both merge)
+if (NOT DEFINED AZAHARFRAME_TEST_HOOKS)
+    option(AZAHARFRAME_TEST_HOOKS "Compile the AZAHARFRAME_TEST_* hooks of the Emerald builder fallback" OFF)
+endif()
+if (AZAHARFRAME_TEST_HOOKS) # (same definition as harden2's; a repeat is harmless)
     add_compile_definitions(AZAHARFRAME_TEST_HOOKS=1)
 endif()
 CMAKE_DEPENDENT_OPTION(AZAHARFRAME_SENTRY "Crash reports can be sent to Sentry (sentry-native)" ON "ENABLE_FRAME_XR" OFF)

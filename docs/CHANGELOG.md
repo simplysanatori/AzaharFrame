@@ -82,7 +82,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - The new **Homebrew** tab builds Pokémon Emerald 3DS from your own Pokémon Emerald ROM, and plays it.
 - **Check for Updates** looks for a new release at once.
-- If a newer Emerald 3DS release changes how its data is built so that Azahar for Frame can't build it itself, it asks first. **Build With Emerald 3DS's Builder** then runs the release's own builder in a protected sandbox that can only read your ROM and write its own folder. I ask once per version.
+- If a newer Emerald 3DS release changes how its data is built so that Azahar for Frame can't build it itself, it asks first. **Build With Emerald 3DS's Builder** then runs the release's own builder in a protected sandbox that can only read your ROM and write its own folder. It remembers a yes for that version; Not Now asks again next time.
 
 ### Controls
 

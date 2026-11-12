@@ -604,17 +604,18 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
                 yes = box.clickedButton() == build_button;
                 dialog->show();
             }
-            choice = yes ? F::Choice::Allowed : F::Choice::Declined;
-            choices.Set(p.tag, choice);
-            if (!F::SaveChoices(choices_path, choices)) {
-                LOG_WARNING(Frontend, "emerald3ds: the choice could not be saved");
+            if (yes) { // only "Build" is remembered; Not Now just cancels this time
+                choice = F::Choice::Allowed;
+                choices.Set(p.tag, choice);
+                if (!F::SaveChoices(choices_path, choices)) {
+                    LOG_WARNING(Frontend, "emerald3ds: the choice could not be saved");
+                }
             }
         }
         if (choice != F::Choice::Allowed) {
             close_dialog();
             Finish(window,
-                   tr("Azahar for Frame can't build Emerald 3DS %1 itself yet, and you chose Not Now for "
-                      "this version.")
+                   tr("Azahar for Frame can't build Emerald 3DS %1 itself yet. Nothing was installed.")
                        .arg(Q(p.tag)),
                    {});
             return;
