@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include "common/test_hooks.h"
 #include "citra_qt/frame_memwarn.h"
 #include "common/logging/log.h"
 
@@ -54,7 +55,7 @@ void FrameMemWarn::Run() {
         double share; ///< "SECONDS:87%": as much as brings the use to 87 % of the limit
     };
     std::vector<Step> steps;
-    if (const char* env = std::getenv("AZAHARFRAME_TEST_MEMWARN_BALLAST")) {
+    if (const char* env = Common::TestHookEnv("AZAHARFRAME_TEST_MEMWARN_BALLAST")) {
         std::string text = env;
         std::size_t pos = 0;
         while (pos < text.size()) {

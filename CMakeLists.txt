@@ -118,6 +118,19 @@ foreach(_opt IN LISTS _LIBRETRO_INCOMPATIBLE_OPTIONS)
     endif()
 endforeach()
 
+# Azahar for Frame: AZAHARFRAME_TEST_HOOKS compiles in the environment switches that drive tests and diagnostics
+# (AZAHARFRAME_TEST_*, HOMEBREW_AUTO/ROM, DEBUG_STALL, XR_NO_GPU_WAIT; see common/test_hooks.h).  ON for development
+# builds (azbuild.sh) and the mock tooling, OFF in a release package (AZAHARFRAME_RELEASE=ON).
+option(AZAHARFRAME_RELEASE "Build for a release package" OFF)
+if (AZAHARFRAME_RELEASE)
+    set(AZAHARFRAME_TEST_HOOKS_DEFAULT OFF)
+else()
+    set(AZAHARFRAME_TEST_HOOKS_DEFAULT ON)
+endif()
+option(AZAHARFRAME_TEST_HOOKS "Compile in the test and diagnostic environment switches" ${AZAHARFRAME_TEST_HOOKS_DEFAULT})
+if (AZAHARFRAME_TEST_HOOKS)
+    add_compile_definitions(AZAHARFRAME_TEST_HOOKS=1)
+endif()
 option(ENABLE_SDL2 "Enable using SDL2" ON)
 option(USE_SYSTEM_FAAD "Use the system faad2 lib (instead of the bundled one)" OFF)
 option(USE_SYSTEM_SDL2 "Use the system SDL2 lib (instead of the bundled one)" OFF)

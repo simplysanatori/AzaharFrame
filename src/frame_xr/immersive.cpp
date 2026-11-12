@@ -16,6 +16,7 @@
 #include <string>
 
 #include <fmt/format.h>
+#include "common/test_hooks.h"
 #include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
@@ -403,7 +404,7 @@ void LogPlacement(const char* what, const L::Placement& p, bool wide) {
 // Resolution that long after the game started, once, as the menu does (mock runs that check a
 // resolution change mid-game).
 void TestResolutionHook() {
-    static const char* env = std::getenv("AZAHARFRAME_TEST_RESOLUTION");
+    static const char* env = Common::TestHookEnv("AZAHARFRAME_TEST_RESOLUTION");
     static bool done = false;
     if (!env || done || g.game_start_ms == 0) {
         return;

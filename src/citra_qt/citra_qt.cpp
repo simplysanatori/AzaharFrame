@@ -45,6 +45,7 @@
 #include <QVariant>
 #include <QtDBus/QDBusInterface>
 #include <QtDBus/QtDBus>
+#include "citra_qt/frame_test_env.h"
 #include "common/linux/gamemode.h"
 #endif
 #include "citra_meta/common_strings.h"
@@ -1760,7 +1761,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // Test driver: AZAHARFRAME_TEST_MEMWARN_ANSWER="textures|resume|stop:SECONDS"
             // answers the memory dialog that many seconds after it shows (and
             // AZAHARFRAME_TEST_MEMWARN_SHOTS=DIR saves the Qt dialog there as it shows, in VR too)
-            if (const QString answer = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_ANSWER");
+            if (const QString answer = FrameTestEnv("AZAHARFRAME_TEST_MEMWARN_ANSWER");
                 !answer.isEmpty()) {
                 const auto parts = answer.split(QLatin1Char(':'));
                 frame_memwarn_answer_test = parts[0];
@@ -1771,12 +1772,12 @@ GMainWindow::GMainWindow(Core::System& system_)
             // included): say so once, with Send Report and Save Report
             QTimer::singleShot(1500, this, [this] { FrameCrashDialog::ShowPending(this); });
 #ifndef AZAHARFRAME_RELEASE_BUILD
-            if (!qEnvironmentVariable("AZAHARFRAME_TEST_CRASH_SHOTS").isEmpty()) {
+            if (!FrameTestEnv("AZAHARFRAME_TEST_CRASH_SHOTS").isEmpty()) {
                 QTimer::singleShot(3000, this, [this] { FrameCrashDialog::TestShots(this); });
             }
             // Test only: Report a Problem opens by itself N s in (AZAHARFRAME_TEST_CRASH_ANSWER
             // answers it)
-            if (const int at = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_REPORT_PROBLEM");
+            if (const int at = FrameTestEnvInt("AZAHARFRAME_TEST_REPORT_PROBLEM");
                 at > 0) {
                 QTimer::singleShot(at * 1000, this, [] { g_frame_report_problem(); });
             }
@@ -1810,7 +1811,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // Test driver: AZAHARFRAME_TEST_VR_TOGGLES="20,35" switches VR / flat at those seconds
             // after start, as the chord does.
             for (const QString& at :
-                 qEnvironmentVariable("AZAHARFRAME_TEST_VR_TOGGLES").split(QLatin1Char(','),
+                 FrameTestEnv("AZAHARFRAME_TEST_VR_TOGGLES").split(QLatin1Char(','),
                                                                           Qt::SkipEmptyParts)) {
                 const int ms = static_cast<int>(at.toDouble() * 1000.0);
                 QTimer::singleShot(ms, this, [ms] {
@@ -1825,7 +1826,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // window (flat-window.png) and its status bar (flat-statusbar.png) at that time after
             // start, then opens "Switch to VR?" as Menu held 3 s does, saves it alone
             // (flat-vr-prompt.png) and over the window (flat-vr-prompt-window.png), and answers No.
-            if (const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_SHOTS");
+            if (const QString shots = FrameTestEnv("AZAHARFRAME_TEST_SHOTS");
                 shots.lastIndexOf(QLatin1Char(':')) > 0) {
                 const int colon = static_cast<int>(shots.lastIndexOf(QLatin1Char(':')));
                 const QString dir = shots.left(colon);
@@ -1860,7 +1861,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // the Flat "Preload Textures?" dialog with the numbers of that moment (the running
             // game's pack), saves it (flat-preload.png), and the VR one as the menu would get it
             // (the Textures dialog, through AskPreload), then closes both.
-            if (const QString shot = qEnvironmentVariable("AZAHARFRAME_TEST_PRELOAD_SHOT");
+            if (const QString shot = FrameTestEnv("AZAHARFRAME_TEST_PRELOAD_SHOT");
                 shot.lastIndexOf(QLatin1Char(':')) > 0) {
                 const int colon = static_cast<int>(shot.lastIndexOf(QLatin1Char(':')));
                 const QString dir = shot.left(colon);
@@ -1881,7 +1882,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // Test driver: AZAHARFRAME_TEST_RESOLUTIONS="20:1,35:4" sets Internal Resolution
             // (the setting's value) at those seconds after start, as the settings would.
             for (const QString& step :
-                 qEnvironmentVariable("AZAHARFRAME_TEST_RESOLUTIONS").split(QLatin1Char(','),
+                 FrameTestEnv("AZAHARFRAME_TEST_RESOLUTIONS").split(QLatin1Char(','),
                                                                            Qt::SkipEmptyParts)) {
                 const auto parts = step.split(QLatin1Char(':'));
                 if (parts.size() != 2) {
@@ -1898,7 +1899,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // Test driver: AZAHARFRAME_TEST_SHAPES="20:3,35:0" sets Screen Shape (vr_top_aspect)
             // at those seconds after start, as the settings would.
             for (const QString& step :
-                 qEnvironmentVariable("AZAHARFRAME_TEST_SHAPES").split(QLatin1Char(','),
+                 FrameTestEnv("AZAHARFRAME_TEST_SHAPES").split(QLatin1Char(','),
                                                                       Qt::SkipEmptyParts)) {
                 const auto parts = step.split(QLatin1Char(':'));
                 if (parts.size() != 2) {
@@ -1916,7 +1917,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // saves (saveN) or loads (loadN) state slot N (0: the quick save) that many seconds
             // after start, and logs the custom texture uploads so far (they go on after a load
             // when the replacements come back).
-            for (const QString& step : qEnvironmentVariable("AZAHARFRAME_TEST_STATES")
+            for (const QString& step : FrameTestEnv("AZAHARFRAME_TEST_STATES")
                                            .split(QLatin1Char(','), Qt::SkipEmptyParts)) {
                 const auto parts = step.split(QLatin1Char(':'));
                 if (parts.size() != 2) {
@@ -1954,7 +1955,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             // stop / quit (Emulation > Stop, the window closed), vr:<autosave|every|keep>:
             // <value>:<game|global> (the in-game menu's Settings rows, in that scope; useglobal:
             // the row's Use Global Value, the value ignored).
-            for (const QString& step : qEnvironmentVariable("AZAHARFRAME_TEST_AUTOSAVE")
+            for (const QString& step : FrameTestEnv("AZAHARFRAME_TEST_AUTOSAVE")
                                            .split(QLatin1Char(','), Qt::SkipEmptyParts)) {
                 const auto parts = step.split(QLatin1Char(':'));
                 if (parts.size() < 2) {
@@ -1986,7 +1987,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                     } else if (what == QStringLiteral("qtshots")) {
                         // Emulation > Load State, the Emulation menu and Configure > General
                         // (global, then this game's) as PNGs in AZAHARFRAME_TEST_AUTOSAVE_SHOTS.
-                        const QString dir = qEnvironmentVariable("AZAHARFRAME_TEST_AUTOSAVE_SHOTS");
+                        const QString dir = FrameTestEnv("AZAHARFRAME_TEST_AUTOSAVE_SHOTS");
                         UpdateSaveStates();
                         const auto shoot = [](QMenu* menu, QString file) {
                             menu->popup(QPoint(0, 0));
@@ -2046,9 +2047,9 @@ GMainWindow::GMainWindow(Core::System& system_)
 
             // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
             // each ROM in turn after the first, each for AZAHARFRAME_TEST_SECONDS (15).
-            const QString boots = qEnvironmentVariable("AZAHARFRAME_TEST_BOOTS");
+            const QString boots = FrameTestEnv("AZAHARFRAME_TEST_BOOTS");
             if (!boots.isEmpty()) {
-                const int seconds = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_SECONDS");
+                const int seconds = FrameTestEnvInt("AZAHARFRAME_TEST_SECONDS");
                 const int period_ms = (seconds > 0 ? seconds : 15) * 1000;
                 int at_ms = game_path.isEmpty() ? 1000 : period_ms;
                 for (const QString& rom : boots.split(QLatin1Char('|'), Qt::SkipEmptyParts)) {
@@ -5738,7 +5739,7 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
                     message_label->clear();
                 }
             });
-            if (const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_SHOTS");
+            if (const QString shots = FrameTestEnv("AZAHARFRAME_TEST_MEMWARN_SHOTS");
                 !shots.isEmpty()) {
                 QTimer::singleShot(300, this, [this, shots] {
                     statusBar()->grab().save(shots + QStringLiteral("/qt-status-bar-warning.png"));
@@ -5758,7 +5759,7 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
     const bool textures = Settings::values.custom_textures.GetValue();
     const MW::PauseText t = MW::MakePauseText(used, max, textures);
     LOG_WARNING(Frontend, "memwarn: paused: {}: {}", t.title, t.body);
-    const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_SHOTS");
+    const QString shots = FrameTestEnv("AZAHARFRAME_TEST_MEMWARN_SHOTS");
     const auto test_answer = [this] {
         if (frame_memwarn_answer_test.isEmpty()) {
             return;
@@ -7930,7 +7931,7 @@ std::string FrameAutosaveDir() {
 void GMainWindow::FrameAutosaveInit() {
     // Test runs only: AZAHARFRAME_TEST_AUTOSAVE_SECONDS=N makes a "minute" N seconds (Every, the
     // throttle and the first minute's grace).
-    if (const int s = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_AUTOSAVE_SECONDS"); s > 0) {
+    if (const int s = FrameTestEnvInt("AZAHARFRAME_TEST_AUTOSAVE_SECONDS"); s > 0) {
         frame_autosave_unit_ms = static_cast<s64>(s) * 1000;
         frame_autosave.SetTimes(frame_autosave_unit_ms, frame_autosave_unit_ms);
         LOG_INFO(Frontend, "autosave: test run: a minute is {} s", s);

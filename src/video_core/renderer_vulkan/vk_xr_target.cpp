@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <limits>
 
+#include "common/test_hooks.h"
 #include "common/assert.h"
 #include "common/debug_stall.h"
 #include "common/logging/log.h"
@@ -79,7 +80,7 @@ XrPresentTarget::XrPresentTarget(const Instance& instance_, Scheduler& scheduler
                                  vk::PipelineLayout pipeline_layout)
     : instance{instance_}, scheduler{scheduler_}, sink{sink_}, device{instance.GetDevice()},
       format{static_cast<vk::Format>(sink.SwapchainFormat())} {
-    const char* no_wait = std::getenv("AZAHARFRAME_XR_NO_GPU_WAIT");
+    const char* no_wait = Common::TestHookEnv("AZAHARFRAME_XR_NO_GPU_WAIT");
     skip_gpu_wait = no_wait && no_wait[0] == '1';
     if (skip_gpu_wait) {
         LOG_WARNING(Render_Vulkan, "xr: AZAHARFRAME_XR_NO_GPU_WAIT=1, images are released "
