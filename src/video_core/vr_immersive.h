@@ -25,6 +25,7 @@
 #include "common/common_types.h"
 #include "common/settings.h"
 #include "video_core/rasterizer_interface.h"
+#include "video_core/vr_view_matrix.h" // AzaharFrame depth
 
 namespace VideoCore::Immersive {
 
@@ -140,6 +141,41 @@ inline int64_t SteadyMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::steady_clock::now().time_since_epoch())
         .count();
+}
+
+/// AzaharFrame depth: Match Game Camera, as the XR thread wants it now (the setting, not forced
+/// off by AZAHARFRAME_IMMERSIVE_MEASURE=0 or AZAHARFRAME_IMMERSIVE_FOV, a game in a Full mode).
+/// False: the emulation thread measures nothing.
+inline std::atomic<bool> g_measure_camera{false};
+
+/// AzaharFrame depth: one patched draw in a Full mode (`matrix_mode` 2 or 3) with the view
+/// matrix at register `view_index` of `f` (`count` registers, rows of 4). When `enabled`, reads
+/// the projection in the four registers before it into `tracker` and publishes the winner of
+/// each window to `out`. When not, returns at once: no register read, no clock, no bookkeeping.
+/// True when the registers were read.
+template <typename Registers, typename Clock>
+inline bool MeasureDraw(bool enabled, const Registers& f, std::size_t count, int view_index,
+                        int matrix_mode, ProjectionTracker& tracker, MeasuredProjection& out,
+                        Clock&& now_ms) {
+    if (!enabled || view_index < 4 || count <= static_cast<std::size_t>(view_index) ||
+        (matrix_mode != 2 && matrix_mode != 3)) {
+        return false;
+    }
+    float rows[4][4];
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            rows[i][j] = f[view_index - 4 + i][j];
+        }
+    }
+    Projection p, winner;
+    if (!ProjectionFromRows(rows, p)) {
+        return true;
+    }
+    const int64_t now = now_ms();
+    if (tracker.Add(p, now, winner)) {
+        out.Publish(winner.tan_half_y, winner.aspect, now);
+    }
+    return true;
 }
 
 /// XR thread: the newest VR data for the emulation thread.

@@ -728,6 +728,11 @@ struct Values {
     // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
     // immersive screen (frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};
+    // AzaharFrame depth: Match Game Camera. On: the Full modes size the head-locked screen with the
+    // game camera's angle and shape, measured from its projection while it runs, instead of
+    // Immersive Game FOV and Screen Shape. Off: nothing is measured. Read every frame
+    // (frame_xr/immersive.cpp); AZAHARFRAME_IMMERSIVE_MEASURE=0 forces it off.
+    SwitchableSetting<bool> vr_immersive_match_camera{true, "vr_immersive_match_camera"};
     // AzaharFrame: Full (6DoF) only. Wider View: a bigger immersive screen also widens the game's
     // view (periphery factor 1.0 to 1.4) instead of only enlarging its picture. Off by default:
     // past its own view a game's culling and scenery run out. Read when a game starts.

@@ -277,6 +277,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_hide_bottom_screen.SetGlobal(true);
     values.vr_top_aspect.SetGlobal(true);
     values.vr_immersive_game_fov.SetGlobal(true);
+    values.vr_immersive_match_camera.SetGlobal(true); // AzaharFrame depth
     values.vr_immersive_wider_view.SetGlobal(true); // AzaharFrame
     values.vr_immersive_wider_view_level.SetGlobal(true); // AzaharFrame widerview
     values.vr_immersive_squeeze.SetGlobal(true);    // AzaharFrame

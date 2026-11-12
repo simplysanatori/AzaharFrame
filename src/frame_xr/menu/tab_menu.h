@@ -77,6 +77,7 @@ enum class Id : int {
     ImmersiveMode,
     WiderView,
     GameFov,
+    MatchCamera, ///< AzaharFrame depth: Match Game Camera, per game
     NarrowScreen,
     DepthFactor,
     MoreSettings,
@@ -166,6 +167,7 @@ struct MenuModel {
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
+    bool match_camera = true; ///< AzaharFrame depth: Match Game Camera
     int narrow_screen = 0;
     int depth_factor = 0;
     ModsTabModel mods; ///< AzaharFrame cheatstab: the Mods tab's segments

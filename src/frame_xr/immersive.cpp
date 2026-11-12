@@ -76,8 +76,9 @@ struct Tuning {
     float game_fov_y_deg = kDefaultGameFovY;
     bool fov_from_env = false; ///< AZAHARFRAME_IMMERSIVE_FOV is set: it wins over the setting
     bool local_space = false; ///< head-locked screen placed in LOCAL from the head pose
-    /// AzaharFrame depth: size the head-locked screen with the game's measured projection
-    /// (AZAHARFRAME_IMMERSIVE_MEASURE=0 turns it off; the FOV variable wins over it too).
+    /// AzaharFrame depth: size the head-locked screen with the game's measured projection when
+    /// Match Game Camera is on (AZAHARFRAME_IMMERSIVE_MEASURE=0 forces it off; the FOV variable
+    /// wins over it too).
     bool measure = true;
 };
 
@@ -279,8 +280,13 @@ bool IsViewMode(u32 mode) {
 // dropped); within 1.5 degrees and 4 % of the one in use nothing changes (a wobbling camera, a
 // zoom of a degree). Gone for a second (a menu, the bottom screen in focus), the last one is
 // kept until the next.
+bool MatchCamera() {
+    return g.tuning.measure && !g.tuning.fov_from_env &&
+           Settings::values.vr_immersive_match_camera.GetValue();
+}
+
 void UpdateMeasuredCamera() {
-    if (!g.tuning.measure || g.tuning.fov_from_env) {
+    if (!MatchCamera()) { // AzaharFrame depth: Match Game Camera off, the settings as they are
         g.camera_fov_deg = g.camera_aspect = 0.0f;
         g.camera_pending_count = 0;
         return;
@@ -462,6 +468,11 @@ void OnFrame(const FrameInfo& info) {
     }
     g.mode = mode;
     g.live = info.screens_live && visible;
+    // AzaharFrame depth: the emulation thread measures the game camera only while this is set
+    // (Match Game Camera on, a game in a Full mode); off, it does no work at all.
+    VideoCore::Immersive::g_measure_camera.store(info.screens_live && IsViewMode(mode) &&
+                                                     MatchCamera(),
+                                                 std::memory_order_relaxed);
     g.view = LatestViewPose();
 
     const bool was_engaged = g.engaged;
@@ -510,10 +521,9 @@ void OnFrame(const FrameInfo& info) {
         // AzaharFrame depth: the game's own angle and shape when its projection was found
         // (each change logged), else the settings.
         UpdateMeasuredCamera();
-        const bool measured = g.camera_fov_deg > 0.0f;
-        g.solved = L::SolveHeadLocked(g.head_place,
-                                      measured ? g.camera_fov_deg : g.game_fov_y_deg,
-                                      measured ? g.camera_aspect : TopAspect(), g.view_fov,
+        const L::CameraShape cam = L::CameraInUse(MatchCamera(), g.camera_fov_deg, g.camera_aspect,
+                                                  g.game_fov_y_deg, TopAspect());
+        g.solved = L::SolveHeadLocked(g.head_place, cam.fov_y_deg, cam.aspect, g.view_fov,
                                       eye_shift, g.options, g.offset);
     }
 
@@ -610,6 +620,7 @@ void Uninstall() {
     // The XR thread has stopped: this thread is the only writer now.
     VideoCore::Immersive::Publish({});
     VideoCore::Immersive::g_xr_active = false;
+    VideoCore::Immersive::g_measure_camera = false; // AzaharFrame depth
 }
 
 float TopAspect() {

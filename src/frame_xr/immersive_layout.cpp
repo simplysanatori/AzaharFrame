@@ -490,4 +490,13 @@ void Store::Erase(uint64_t title_id, bool wide) {
     entries_.erase(Key(title_id, wide));
 }
 
+// AzaharFrame depth
+CameraShape CameraInUse(bool match_camera, float measured_fov_deg, float measured_aspect,
+                        float setting_fov_deg, float setting_aspect) {
+    if (match_camera && measured_fov_deg > 0.0f && measured_aspect > 0.0f) {
+        return {measured_fov_deg, measured_aspect};
+    }
+    return {setting_fov_deg, setting_aspect};
+}
+
 } // namespace FrameXr::Immersive::Layout

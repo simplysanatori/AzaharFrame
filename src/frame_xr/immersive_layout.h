@@ -200,6 +200,16 @@ float SizeForWider(float size, float from, float to);
 /// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.
 uint32_t LevelForOldWiderView(std::optional<float> size);
 
+/// AzaharFrame depth: the game camera's angle and shape the head-locked screen is sized with.
+struct CameraShape {
+    float fov_y_deg = 0.0f;
+    float aspect = 0.0f;
+};
+/// Match Game Camera on and a measurement made (`measured_fov_deg` > 0): the measured angle and
+/// shape. Otherwise the settings' (Immersive Game FOV, Screen Shape), exactly as given.
+CameraShape CameraInUse(bool match_camera, float measured_fov_deg, float measured_aspect,
+                        float setting_fov_deg, float setting_aspect);
+
 /// `aspect` is the game picture's width over its height (the Screen Shape).
 /// `offset` turns the solved screen (yaw_rad, and pitch_rad on top of the placement's pitch);
 /// the size is fitted for the placement alone, so nudging never resizes the screen.

@@ -218,6 +218,7 @@ enum class MenuSetting {
     ImmersiveMode,
     WiderView,
     GameFov, ///< `value`: degrees
+    MatchCamera, ///< AzaharFrame depth: `value` 0 or 1 (vr_immersive_match_camera)
     NarrowScreen,
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)

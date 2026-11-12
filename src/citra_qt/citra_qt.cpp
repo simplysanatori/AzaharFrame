@@ -4136,6 +4136,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::GameFov:
         set(v.vr_immersive_game_fov, static_cast<s32>(r.value));
         break;
+    case S::MatchCamera: // AzaharFrame depth
+        set(v.vr_immersive_match_camera, r.value != 0);
+        break;
     case S::NarrowScreen:
         set(v.vr_immersive_squeeze, u);
         break;
@@ -4178,6 +4181,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
     FrameKeepSetting keep_shape{v.vr_top_aspect};
     FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
+    FrameKeepSetting keep_match{v.vr_immersive_match_camera}; // AzaharFrame depth
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
@@ -4189,6 +4193,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_hide.Restore();
     keep_shape.Restore();
     keep_fov.Restore();
+    keep_match.Restore();
     keep_wider.Restore();
     keep_squeeze.Restore();
     keep_depth.Restore();

@@ -117,6 +117,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         fov.t = (static_cast<float>(m.game_fov) - fr.min) / (fr.max - fr.min);
         fov.value = SliderText(Id::GameFov, static_cast<float>(m.game_fov));
         rows.push_back(fov);
+        rows.push_back(full(row(Id::MatchCamera, RowKind::Switch, 0, m.match_camera))); // depth
         rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
         rows.push_back(row(Id::MoreSettings, RowKind::Link));
@@ -256,6 +257,8 @@ std::string LabelFor(Id id) {
         return "Wider View";
     case Id::GameFov:
         return "Immersive Game FOV";
+    case Id::MatchCamera: // AzaharFrame depth
+        return "Match Game Camera";
     case Id::NarrowScreen:
         return "Narrow Screen";
     case Id::DepthFactor:
@@ -325,6 +328,8 @@ std::string ExplainFor(Id id) {
         return "Shows more of the game around the edges. Some games leave them empty.";
     case Id::GameFov:
         return "The game camera's vertical field of view.";
+    case Id::MatchCamera:
+        return "Reads the game's camera angle and shape while it runs.";
     case Id::NarrowScreen:
         return "Narrows the screen so the side HUD moves into view.";
     case Id::DepthFactor:

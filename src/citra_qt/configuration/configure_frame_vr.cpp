@@ -228,6 +228,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                       {fov_scope, fov_spin});
     layout->addWidget(fov_row);
 
+    // AzaharFrame depth: Settings::values.vr_immersive_match_camera, live.
+    match_camera_check = new QCheckBox(tr("Match Game Camera"), this);
+    match_camera_check->setObjectName(QStringLiteral("frame_vr_match_camera_check"));
+    match_camera_check->setToolTip(tr("Reads the game's camera angle and shape while it runs."));
+    layout->addWidget(match_camera_check);
+
     // AzaharFrame widerview: values 0..4 are Settings::values.vr_immersive_wider_view_level
     // (frame_xr/immersive_layout.h).
     wider_combo = new QComboBox(this);
@@ -316,6 +322,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
         lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
         lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
+        lock(match_camera_check, Settings::values.vr_immersive_match_camera.UsingGlobal());
         lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
         lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
         lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
@@ -327,6 +334,9 @@ void ConfigureFrameVr::SetupPerGameUI() {
 
     ConfigurationShared::SetColoredTristate(
         hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
+    ConfigurationShared::SetColoredTristate(match_camera_check,
+                                            Settings::values.vr_immersive_match_camera,
+                                            match_camera_state); // AzaharFrame depth
     ConfigurationShared::SetColoredComboBox(
         shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -367,6 +377,8 @@ void ConfigureFrameVr::SetConfiguration() {
     // it), OK would then have saved that value as the global one.
     const bool global = Settings::IsConfiguringGlobal();
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
+    match_camera_check->setChecked(
+        Settings::values.vr_immersive_match_camera.GetValue(global)); // AzaharFrame depth
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
     eye_edit->setText(QString::fromStdString(eye.GetValue(global)));
@@ -473,6 +485,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_match_camera,
+                                             match_camera_check, match_camera_state);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });

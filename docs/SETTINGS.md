@@ -31,6 +31,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
+| [Match Game Camera](#match-game-camera) | on or off | on | global and per game | at once |
 | [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | Off | global and per game | at once |
 | [Narrow Screen](#narrow-screen) | **Off**, **10%**, **20%**, **30%** | Off | global and per game | when the game starts |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
@@ -128,7 +129,11 @@ Shifts the immersive screen a little left or right to fit your lenses. Use it if
 
 ## Immersive Game FOV
 
-The game camera's vertical field of view, in degrees. In the Full modes the immersive screen reads the real angle from the game while it runs, so this is only used until then, or in a game where it is not found. Then set it to the game's angle, so the world stays still when you turn your head. A change shows at once.
+The game camera's vertical field of view, in degrees. In the Full modes with Match Game Camera on, the immersive screen reads the real angle from the game while it runs, so this is only used until then, or in a game where it is not found. Then set it to the game's angle, so the world stays still when you turn your head. A change shows at once.
+
+## Match Game Camera
+
+Full modes only. On, the immersive screen takes the game camera's angle and shape from the game while it runs; off, it uses Immersive Game FOV and Screen Shape as they are, and nothing is read from the game.
 
 ## Wider View
 

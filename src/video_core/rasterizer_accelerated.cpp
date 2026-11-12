@@ -603,22 +603,13 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
         // AzaharFrame depth: the game camera's angle and shape, from the projection in the four
         // registers before the view matrix of the draws patched here; the XR thread sizes the
         // head-locked screen with it, so the picture keeps the game's angle (vr_view_matrix.h).
-        if (viewMatrixIndex >= 4 && vs_uniforms.f.size() > viewMatrixIndex &&
-            (matrixMode == 2 || matrixMode == 3)) {
-            float rows[4][4];
-            for (int i = 0; i < 4; ++i) {
-                for (int j = 0; j < 4; ++j) {
-                    rows[i][j] = f[viewMatrixIndex - 4 + i][j];
-                }
-            }
-            VideoCore::Immersive::Projection p, winner;
+        // Only while Match Game Camera is on (vr_immersive.h MeasureDraw): off, nothing is read.
+        {
             static VideoCore::Immersive::ProjectionTracker tracker;
-            const int64_t now = VideoCore::Immersive::SteadyMs();
-            if (VideoCore::Immersive::ProjectionFromRows(rows, p) &&
-                tracker.Add(p, now, winner)) {
-                VideoCore::Immersive::g_measured_projection.Publish(winner.tan_half_y,
-                                                                    winner.aspect, now);
-            }
+            VideoCore::Immersive::MeasureDraw(
+                VideoCore::Immersive::g_measure_camera.load(std::memory_order_relaxed), f,
+                vs_uniforms.f.size(), viewMatrixIndex, matrixMode, tracker,
+                VideoCore::Immersive::g_measured_projection, VideoCore::Immersive::SteadyMs);
         }
 
         if (viewMatrixIndex != -1 && vs_uniforms.f.size() > viewMatrixIndex)

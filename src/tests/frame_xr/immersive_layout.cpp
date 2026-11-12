@@ -11,6 +11,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
 #include "frame_xr/immersive_layout.h"
+#include "video_core/vr_immersive.h" // AzaharFrame depth: MeasureDraw
 #include "video_core/vr_view_matrix.h"
 
 // AzaharFrame: the immersive screen's placement (frame_xr/immersive_layout.h).
@@ -834,4 +835,82 @@ TEST_CASE("FrameXr immersive: the projection most draws use wins each window", "
     }
     REQUIRE(t.Add(hud, ms + ProjectionTracker::kWindowMs, w));
     REQUIRE(w.tan_half_y == Approx(hud.tan_half_y));
+}
+
+// AzaharFrame depth: Match Game Camera. Off leaves Immersive Game FOV and Screen Shape as they are
+// and the emulation thread reads nothing; on, the draws are measured and the measured camera wins.
+TEST_CASE("FrameXr immersive: Match Game Camera off measures nothing, on measures",
+          "[frame_xr]") {
+    using namespace FrameXr::Immersive::Layout;
+    using VideoCore::Immersive::MeasureDraw;
+    using VideoCore::Immersive::MeasuredProjection;
+    using VideoCore::Immersive::ProjectionTracker;
+
+    // The setting: on by default, global and per game.
+    REQUIRE(Settings::values.vr_immersive_match_camera.GetDefault());
+
+    // XR side: the settings untouched when off (also with a measurement in hand), the measured
+    // camera when on, the settings again on while nothing was measured.
+    CameraShape c = CameraInUse(false, 45.0f, 16.0f / 9.0f, 60.0f, 5.0f / 3.0f);
+    REQUIRE(c.fov_y_deg == 60.0f);
+    REQUIRE(c.aspect == 5.0f / 3.0f);
+    c = CameraInUse(true, 45.0f, 16.0f / 9.0f, 60.0f, 5.0f / 3.0f);
+    REQUIRE(c.fov_y_deg == 45.0f);
+    REQUIRE(c.aspect == 16.0f / 9.0f);
+    c = CameraInUse(true, 0.0f, 0.0f, 72.0f, 4.0f / 3.0f);
+    REQUIRE(c.fov_y_deg == 72.0f);
+    REQUIRE(c.aspect == 4.0f / 3.0f);
+
+    // Emulation side: registers 86 to 89 hold Super Mario 3D Land's projection (45 degrees, 5:3),
+    // 90 the view matrix. A register that counts reads, so "off" can be seen to read none.
+    struct Reg {
+        const float* v;
+        int* reads;
+        float operator[](int j) const {
+            ++*reads;
+            return v[j];
+        }
+    };
+    const float sy = 1.0f / std::tan(22.5f * 3.14159265f / 180.0f);
+    static float data[96][4] = {};
+    data[86][0] = -sy / (5.0f / 3.0f);
+    data[87][1] = sy;
+    data[88][2] = 1.001f;
+    data[88][3] = 100.1f;
+    data[89][2] = -1.0f;
+    int reads = 0;
+    std::array<Reg, 96> regs;
+    for (std::size_t i = 0; i < regs.size(); i++) {
+        regs[i] = {data[i], &reads};
+    }
+    int clock_calls = 0;
+    int64_t now = 5000;
+    const auto clock = [&] {
+        clock_calls++;
+        return now;
+    };
+    ProjectionTracker tracker;
+    MeasuredProjection out;
+    float tan_half_y = 0.0f, aspect = 0.0f;
+    int64_t stamp = 0;
+    for (int i = 0; i < 100; i++, now += 5) {
+        REQUIRE_FALSE(MeasureDraw(false, regs, regs.size(), 90, 3, tracker, out, clock));
+    }
+    REQUIRE(reads == 0);
+    REQUIRE(clock_calls == 0);
+    REQUIRE_FALSE(out.Read(0, tan_half_y, aspect, stamp));
+
+    // On: a quarter second of draws publishes the camera.
+    for (int i = 0; i < 60; i++, now += 5) {
+        REQUIRE(MeasureDraw(true, regs, regs.size(), 90, 3, tracker, out, clock));
+    }
+    REQUIRE(reads > 0);
+    REQUIRE(out.Read(0, tan_half_y, aspect, stamp));
+    REQUIRE(2.0f * std::atan(tan_half_y) * 180.0f / 3.14159265f == Approx(45.0f).margin(0.05));
+    REQUIRE(aspect == Approx(5.0f / 3.0f).epsilon(0.001));
+    // Not a Full mode, or no room for the projection: nothing either.
+    reads = 0;
+    REQUIRE_FALSE(MeasureDraw(true, regs, regs.size(), 90, 1, tracker, out, clock));
+    REQUIRE_FALSE(MeasureDraw(true, regs, regs.size(), 3, 2, tracker, out, clock));
+    REQUIRE(reads == 0);
 }

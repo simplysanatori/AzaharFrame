@@ -117,6 +117,7 @@ bool PerGameSetting(Id id) {
     case Id::ImmersiveMode:
     case Id::WiderView:
     case Id::GameFov:
+    case Id::MatchCamera: // AzaharFrame depth
     case Id::NarrowScreen:
     case Id::DepthFactor:
     case Id::Depth3d: // AzaharFrame depth3d
@@ -139,6 +140,8 @@ bool UsesGlobal(Id id) {
         return v.vr_immersive_wider_view_level.UsingGlobal();
     case Id::GameFov:
         return v.vr_immersive_game_fov.UsingGlobal();
+    case Id::MatchCamera:
+        return v.vr_immersive_match_camera.UsingGlobal();
     case Id::NarrowScreen:
         return v.vr_immersive_squeeze.UsingGlobal();
     case Id::DepthFactor:
@@ -352,6 +355,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
+    m.match_camera = v.vr_immersive_match_camera.GetValue(); // AzaharFrame depth
     m.narrow_screen = static_cast<int>(std::min<u32>(v.vr_immersive_squeeze.GetValue(), 3));
     m.depth_factor =
         static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2));
@@ -468,6 +472,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::GameFov:
         Apply(v.vr_immersive_game_fov, static_cast<s32>(value), per_game);
         r.setting = MenuSetting::GameFov;
+        break;
+    case Id::MatchCamera: // AzaharFrame depth: live
+        Apply(v.vr_immersive_match_camera, value != 0, per_game);
+        r.setting = MenuSetting::MatchCamera;
         break;
     case Id::NarrowScreen:
         Apply(v.vr_immersive_squeeze, u, per_game);
@@ -727,6 +735,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
+        break;
+    case Id::MatchCamera: // AzaharFrame depth
+        SetSetting(t.id, model.match_camera ? 0 : 1, host);
         break;
     case Id::ImmersiveOffsetReset:
         SetSetting(t.id, 0, host);

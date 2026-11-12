@@ -95,7 +95,10 @@ use (Jabu-Jabu's Belly in Ocarina of Time 3D changes its projection every frame)
 stays within the setting's 30 to 110 degrees: a 10 degree close-up in a cutscene would shrink the
 screen to a stamp, so there the world moves with the head a little instead. Logged as
 `xr: immersive: game camera measured 45.0 degrees high, 1.667 wide`. Screen Shape still shapes the
-normal top screen. `AZAHARFRAME_IMMERSIVE_MEASURE=0` turns it off.
+normal top screen. **Match Game Camera** (`vr_immersive_match_camera`, global and per game, on
+by default, live) turns it off: the emulation thread then reads no registers at all
+(`g_measure_camera`, `MeasureDraw`) and the two settings are used as they are;
+`AZAHARFRAME_IMMERSIVE_MEASURE=0` forces it off.
 
 ## Placement
 
