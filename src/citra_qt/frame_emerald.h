@@ -30,7 +30,15 @@ public:
     bool ApplyBootSettings(const QString& path) override;
 
     /// The one place the ROM file is picked (to be swapped for the shared picker later).
-    static QString PickRom(QWidget* parent);
+    QString PickRom(QWidget* parent) const;
+
+    /// Developer and test runs: AZAHARFRAME_HOMEBREW_AUTO=emerald3ds installs at start with no
+    /// dialog, from AZAHARFRAME_HOMEBREW_ROM into AZAHARFRAME_HOMEBREW_ROMDIR (required: never a
+    /// game folder of the settings), in AZAHARFRAME_HOMEBREW_LANG (or the ROM's own); the result
+    /// is logged, and AZAHARFRAME_HOMEBREW_AUTO_QUIT=1 then quits.
+    bool Automatic() const override {
+        return automatic;
+    }
 
 private:
     struct Job {
@@ -46,6 +54,11 @@ private:
     void SaveState();
     /// The game folder for the copy: the installed one, else chosen (may add a game folder).
     QString ChooseRomDir(QWidget* parent);
+    /// The game language when the ROM builds more than one ("en" or "pt" from the English ROM),
+    /// `current` preselected; "" when cancelled.
+    std::string ChooseLanguage(QWidget* parent, const Homebrew::Emerald3ds::RomProfile& rom,
+                               const std::string& current);
+    void Warn(QWidget* parent, const QString& title, const QString& text);
     void Start(QWidget* parent, Job job);
     void SetBusy(bool busy, const QString& status, int progress = -1);
     void Finish(QWidget* parent, const QString& error, const QString& done_text);
@@ -57,4 +70,5 @@ private:
     int progress = -1;
     QString status;
     bool checking = false;
+    bool automatic = false;
 };

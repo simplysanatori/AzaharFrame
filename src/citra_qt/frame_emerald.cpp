@@ -104,6 +104,39 @@ FrameEmerald::FrameEmerald(const Homebrew::PackageInfo& info, QObject* parent)
     paths = E::PlanPaths(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir),
                          FileUtil::GetUserPath(FileUtil::UserPath::UserDir));
     LoadState();
+    automatic = qEnvironmentVariable("AZAHARFRAME_HOMEBREW_AUTO") == Q(info.id);
+}
+
+void FrameEmerald::Warn(QWidget* parent, const QString& title, const QString& text) {
+    LOG_WARNING(Frontend, "emerald3ds: {}", text.toStdString());
+    if (!automatic) {
+        QMessageBox::warning(parent, title, text);
+    }
+}
+
+std::string FrameEmerald::ChooseLanguage(QWidget* parent, const E::RomProfile& rom,
+                                         const std::string& current) {
+    const std::vector<std::string> langs = E::LanguagesFor(rom);
+    if (automatic) {
+        const std::string want = qEnvironmentVariable("AZAHARFRAME_HOMEBREW_LANG").toStdString();
+        return want.empty() ? langs.front() : want;
+    }
+    if (langs.size() == 1) {
+        return langs.front();
+    }
+    QStringList names;
+    int selected = 0;
+    for (std::size_t i = 0; i < langs.size(); i++) {
+        names << QString::fromStdString(E::LanguageName(langs[i]));
+        if (langs[i] == current) {
+            selected = static_cast<int>(i);
+        }
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getItem(parent, tr("Install Pokémon Emerald 3DS"),
+                                               tr("Game Language"), names, selected, false, &ok);
+    const auto index = names.indexOf(name);
+    return ok && index >= 0 ? langs[static_cast<std::size_t>(index)] : std::string{};
 }
 
 void FrameEmerald::LoadState() {
@@ -133,6 +166,9 @@ HomebrewPackager::Status FrameEmerald::GetStatus() const {
     s.busy = busy;
     s.progress = progress;
     s.status = status;
+    if (s.installed) {
+        s.detail = QString::fromStdString(E::LanguageName(state.language));
+    }
     s.game_path = !state.rom_dir_copy.empty() && FileUtil::Exists(state.rom_dir_copy)
                       ? QString::fromStdString(state.rom_dir_copy)
                       : QString::fromStdString(paths.three_dsx);
@@ -154,13 +190,19 @@ bool FrameEmerald::ApplyBootSettings(const QString& path) {
     return true;
 }
 
-QString FrameEmerald::PickRom(QWidget* parent) {
+QString FrameEmerald::PickRom(QWidget* parent) const {
+    if (automatic) {
+        return qEnvironmentVariable("AZAHARFRAME_HOMEBREW_ROM");
+    }
     return QFileDialog::getOpenFileName(parent, tr("Choose Your Pokémon Emerald ROM"),
                                         QDir::homePath(),
                                         tr("GBA ROM (*.gba *.GBA);;All Files (*)"));
 }
 
 QString FrameEmerald::ChooseRomDir(QWidget* parent) {
+    if (automatic) {
+        return qEnvironmentVariable("AZAHARFRAME_HOMEBREW_ROMDIR");
+    }
     if (!state.rom_dir_copy.empty()) {
         const QString dir = QFileInfo(QString::fromStdString(state.rom_dir_copy)).absolutePath();
         if (QFileInfo(dir).isDir()) {
@@ -207,11 +249,12 @@ void FrameEmerald::Install(QWidget* parent) {
     }
     const QString title = tr("Install Pokémon Emerald 3DS");
     Job job;
-    job.language = have_state ? state.language : std::string{};
     // Reinstall from the kept ROM when it is still the one installed from.
-    const bool kept = have_state && FileUtil::Exists(paths.rom_copy) &&
-                      E::CheckRomFile(paths.rom_copy).sha1 == state.rom_sha1;
-    if (kept) {
+    E::RomCheck check;
+    if (have_state && !automatic && FileUtil::Exists(paths.rom_copy)) {
+        check = E::CheckRomFile(paths.rom_copy);
+    }
+    if (check.ok && check.sha1 == state.rom_sha1) {
         job.rom = paths.rom_copy;
         job.rom_is_kept = true;
     } else {
@@ -219,16 +262,21 @@ void FrameEmerald::Install(QWidget* parent) {
         if (rom.isEmpty()) {
             return;
         }
-        const E::RomCheck check = E::CheckRomFile(rom.toStdString());
+        check = E::CheckRomFile(rom.toStdString());
         if (!check.ok) {
             LOG_WARNING(Frontend, "emerald3ds: ROM refused (SHA-1 {})", check.sha1);
-            QMessageBox::warning(parent, title, QString::fromStdString(check.error));
+            Warn(parent, title, QString::fromStdString(check.error));
             return;
         }
-        if (have_state && check.sha1 != state.rom_sha1) {
-            job.language.clear(); // another ROM: its own language
-        }
         job.rom = rom.toStdString();
+    }
+    LOG_INFO(Frontend, "emerald3ds: ROM {} (SHA-1 {})", check.profile->code, check.sha1);
+    // The game's language, when the ROM builds more than one; remembered for updates.
+    job.language =
+        ChooseLanguage(parent, *check.profile,
+                       have_state && check.sha1 == state.rom_sha1 ? state.language : std::string{});
+    if (job.language.empty()) {
+        return;
     }
     const QString dir = ChooseRomDir(parent);
     if (dir.isEmpty()) {
@@ -256,8 +304,7 @@ void FrameEmerald::Update(QWidget* parent) {
         }
         const E::RomCheck check = E::CheckRomFile(rom.toStdString());
         if (!check.ok) {
-            QMessageBox::warning(parent, tr("Update Pokémon Emerald 3DS"),
-                                 QString::fromStdString(check.error));
+            Warn(parent, tr("Update Pokémon Emerald 3DS"), QString::fromStdString(check.error));
             return;
         }
         job.rom = rom.toStdString();
@@ -315,13 +362,19 @@ void FrameEmerald::Finish(QWidget* parent, const QString& error, const QString& 
     LoadState();
     SetBusy(false, error);
     FileUtil::DeleteDirRecursively(paths.work_dir);
+    if (automatic) {
+        LOG_INFO(Frontend, "emerald3ds: automatic run ended: {}",
+                 error.isEmpty() ? done_text.toStdString() : "failed: " + error.toStdString());
+        if (qEnvironmentVariable("AZAHARFRAME_HOMEBREW_AUTO_QUIT") == QStringLiteral("1")) {
+            QTimer::singleShot(0, qApp, &QApplication::quit);
+        }
+    }
     if (!error.isEmpty()) {
-        LOG_WARNING(Frontend, "emerald3ds: {}", error.toStdString());
-        QMessageBox::warning(parent, tr("Pokémon Emerald 3DS"), error);
+        Warn(parent, tr("Pokémon Emerald 3DS"), error);
         return;
     }
     FrameHomebrew::RefreshList()();
-    if (!done_text.isEmpty()) {
+    if (!done_text.isEmpty() && !automatic) {
         QMessageBox::information(parent, tr("Pokémon Emerald 3DS"), done_text);
     }
 }
@@ -578,10 +631,10 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
             }
             const E::Variant* variant = E::FindVariant(*manifest, rom.sha1, job.language);
             if (variant == nullptr) {
-                variant = E::FindVariant(*manifest, rom.sha1);
-            }
-            if (variant == nullptr) {
-                p.error = "This release has no game data for this ROM";
+                p.error = job.language.empty()
+                              ? "This release has no game data for this ROM"
+                              : "This release has no " + E::LanguageName(job.language) +
+                                    " version for this ROM";
                 return p;
             }
             p.variant = *variant;

@@ -85,6 +85,32 @@ const RomProfile* FindRom(std::string_view sha1) {
     return nullptr;
 }
 
+std::vector<std::string> LanguagesFor(const RomProfile& rom) {
+    std::vector<std::string> out{std::string(rom.language)};
+    if (rom.code == "BPEE") {
+        out.emplace_back("pt"); // docs/PORTUGUESE.md: built from the English ROM
+    }
+    return out;
+}
+
+std::string LanguageName(std::string_view language) {
+    static constexpr std::array<std::pair<std::string_view, std::string_view>, 7> kNames{{
+        {"en", "English"},
+        {"es", "Español"},
+        {"fr", "Français"},
+        {"it", "Italiano"},
+        {"de", "Deutsch"},
+        {"ja", "日本語"},
+        {"pt", "Português (Brasil)"},
+    }};
+    for (const auto& [code, name] : kNames) {
+        if (code == language) {
+            return std::string(name);
+        }
+    }
+    return std::string(language);
+}
+
 RomCheck CheckRom(std::span<const u8> data) {
     RomCheck out;
     if (data.empty() || data.size() > kRomSize) {

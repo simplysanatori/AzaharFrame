@@ -36,6 +36,7 @@ public:
         int progress = -1;   ///< 0 to 1000 while busy, -1 when unknown
         QString status;      ///< while busy: what it does; else the last error ("" none)
         QString game_path;   ///< what Play starts
+        QString detail;      ///< installed: what was chosen ("Português (Brasil)"), or ""
     };
 
     HomebrewPackager(const Homebrew::PackageInfo& info, QObject* parent)
@@ -53,6 +54,10 @@ public:
     /// Settings this package's game needs, applied as it boots (`path`: the booted file). True when
     /// the file is this package's.
     virtual bool ApplyBootSettings(const QString& path) = 0;
+    /// An install started at launch with no dialogs (a developer setting), or false.
+    virtual bool Automatic() const {
+        return false;
+    }
 
 signals:
     void Changed();
@@ -68,6 +73,8 @@ public:
     FrameHomebrew(QWidget* window, QMenuBar* bar, QMenu* before,
                   std::function<void()> refresh_list);
 
+    /// A package's Automatic() run (a developer setting) starts once the window is up.
+    void StartAutomatic();
     /// The game list loaded: each installed package checks for updates (at most once a day).
     void CheckForUpdates();
     /// The Homebrew segment's Install and Update (the window shows already) and Play's file.

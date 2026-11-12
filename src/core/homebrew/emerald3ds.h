@@ -70,6 +70,12 @@ std::span<const RomProfile> SupportedRoms();
 /// The profile with this SHA-1, or nullptr.
 const RomProfile* FindRom(std::string_view sha1);
 
+/// The game languages a ROM builds, its own first: the English ROM also builds the Brazilian
+/// Portuguese fan translation ("en", "pt"); the others their own language only.
+std::vector<std::string> LanguagesFor(const RomProfile& rom);
+/// "English", "Português (Brasil)"... (the builder's own names); the code itself when unknown.
+std::string LanguageName(std::string_view language);
+
 constexpr std::string_view kRomRefused = "Not a Clean Pokémon Emerald ROM";
 
 struct RomCheck {

@@ -126,6 +126,23 @@ TEST_CASE("Emerald 3DS: the ROM check", "[frame_xr][emerald]") {
     std::filesystem::remove_all(dir);
 }
 
+TEST_CASE("Emerald 3DS: game languages", "[frame_xr][emerald]") {
+    // The English ROM builds English and the Brazilian Portuguese translation; the others one.
+    const RomProfile* en = FindRom("f3ae088181bf583e55daf962a92bb46f4f1d07b7");
+    REQUIRE(en != nullptr);
+    CHECK(LanguagesFor(*en) == std::vector<std::string>{"en", "pt"});
+    const RomProfile* de = FindRom("61c2eb2b380b1a75f0c94b767a2d4c26cd7ce4e3");
+    REQUIRE(de != nullptr);
+    CHECK(LanguagesFor(*de) == std::vector<std::string>{"de"});
+    for (const RomProfile& r : SupportedRoms()) {
+        CHECK(LanguagesFor(r).front() == r.language);
+    }
+    CHECK(LanguageName("en") == "English");
+    CHECK(LanguageName("pt") == "Português (Brasil)");
+    CHECK(LanguageName("ja") == "日本語");
+    CHECK(LanguageName("xx") == "xx");
+}
+
 TEST_CASE("Emerald 3DS: versions", "[frame_xr][emerald]") {
     CHECK(ParseVersion("v0.5.0") == std::vector<int>{0, 5, 0});
     CHECK(ParseVersion("1.2") == std::vector<int>{1, 2});

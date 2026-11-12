@@ -9,6 +9,7 @@
 #include <QAction>
 #include <QMenu>
 #include <QMenuBar>
+#include <QTimer>
 #include "citra_qt/frame_emerald.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/homebrew_tab.h"
@@ -47,6 +48,15 @@ FrameHomebrew::FrameHomebrew(QWidget* window_, QMenuBar* bar, QMenu* before,
         connect(p, &HomebrewPackager::Changed, this, &FrameHomebrew::Refresh);
     }
     Refresh();
+    QTimer::singleShot(3000, this, &FrameHomebrew::StartAutomatic);
+}
+
+void FrameHomebrew::StartAutomatic() {
+    for (HomebrewPackager* p : packagers) {
+        if (p->Automatic() && !p->GetStatus().busy) {
+            p->Install(window);
+        }
+    }
 }
 
 std::function<void()> FrameHomebrew::RefreshList() {
@@ -68,6 +78,9 @@ void FrameHomebrew::Refresh() {
         item.id = std::string(info.id);
         item.title = title;
         item.author = std::string(info.author);
+        if (!s.detail.isEmpty()) {
+            item.author += " · " + s.detail.toStdString(); // "ZallaxDev · English"
+        }
         item.installed = s.installed;
         item.update = s.update;
         item.busy = s.busy;
