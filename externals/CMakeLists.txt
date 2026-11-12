@@ -83,6 +83,51 @@ add_library(dds-ktx INTERFACE)
 target_include_directories(dds-ktx INTERFACE ./dds-ktx)
 target_disable_warnings(dds-ktx)
 
+# astcenc (Arm, Apache-2.0): the texture pack converter's ASTC encoder (core/custom_tex/convert*).
+# Built here from the library sources, as astcenc's own CMake would for one ISA (NEON on arm64, SSE2
+# elsewhere), and with its default floating-point invariance (no contraction), so the output does
+# not depend on the build. The stb_image copy in its ThirdParty folder decodes the PNGs.
+set(ASTCENC_SRC ${CMAKE_CURRENT_SOURCE_DIR}/astcenc/Source)
+add_library(astcenc STATIC
+    ${ASTCENC_SRC}/astcenc_averages_and_directions.cpp
+    ${ASTCENC_SRC}/astcenc_block_sizes.cpp
+    ${ASTCENC_SRC}/astcenc_color_quantize.cpp
+    ${ASTCENC_SRC}/astcenc_color_unquantize.cpp
+    ${ASTCENC_SRC}/astcenc_compress_symbolic.cpp
+    ${ASTCENC_SRC}/astcenc_compute_variance.cpp
+    ${ASTCENC_SRC}/astcenc_decompress_symbolic.cpp
+    ${ASTCENC_SRC}/astcenc_diagnostic_trace.cpp
+    ${ASTCENC_SRC}/astcenc_entry.cpp
+    ${ASTCENC_SRC}/astcenc_find_best_partitioning.cpp
+    ${ASTCENC_SRC}/astcenc_ideal_endpoints_and_weights.cpp
+    ${ASTCENC_SRC}/astcenc_image.cpp
+    ${ASTCENC_SRC}/astcenc_integer_sequence.cpp
+    ${ASTCENC_SRC}/astcenc_mathlib.cpp
+    ${ASTCENC_SRC}/astcenc_mathlib_softfloat.cpp
+    ${ASTCENC_SRC}/astcenc_partition_tables.cpp
+    ${ASTCENC_SRC}/astcenc_percentile_tables.cpp
+    ${ASTCENC_SRC}/astcenc_pick_best_endpoint_format.cpp
+    ${ASTCENC_SRC}/astcenc_quantization.cpp
+    ${ASTCENC_SRC}/astcenc_symbolic_physical.cpp
+    ${ASTCENC_SRC}/astcenc_weight_align.cpp
+    ${ASTCENC_SRC}/astcenc_weight_quant_xfer_tables.cpp)
+target_include_directories(astcenc PUBLIC ${ASTCENC_SRC} ${ASTCENC_SRC}/ThirdParty)
+set_target_properties(astcenc PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
+if ("arm64" IN_LIST ARCHITECTURE)
+    target_compile_definitions(astcenc PRIVATE ASTCENC_NEON=1 ASTCENC_SVE=0 ASTCENC_SSE=0
+        ASTCENC_AVX=0 ASTCENC_POPCNT=0 ASTCENC_F16C=0)
+elseif ("x86_64" IN_LIST ARCHITECTURE)
+    target_compile_definitions(astcenc PRIVATE ASTCENC_NEON=0 ASTCENC_SVE=0 ASTCENC_SSE=20
+        ASTCENC_AVX=0 ASTCENC_POPCNT=0 ASTCENC_F16C=0)
+else()
+    target_compile_definitions(astcenc PRIVATE ASTCENC_NEON=0 ASTCENC_SVE=0 ASTCENC_SSE=0
+        ASTCENC_AVX=0 ASTCENC_POPCNT=0 ASTCENC_F16C=0)
+endif()
+if (NOT MSVC)
+    target_compile_options(astcenc PRIVATE -pthread -ffp-contract=off -fno-math-errno)
+endif()
+target_disable_warnings(astcenc)
+
 # fmt and Xbyak need to be added before dynarmic
 # libfmt
 if(USE_SYSTEM_FMT)

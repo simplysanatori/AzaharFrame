@@ -27,7 +27,7 @@ constexpr std::size_t kLooseRank = static_cast<std::size_t>(-1) / 2;
 constexpr u64 kPreviewMaxBytes = 1'500'000;
 constexpr std::size_t kPreviewCandidates = 64;
 constexpr const char* kKtxMarker =
-    ".azaharframe-ktx.json"; // steam-frame/tools/convert_texture_pack.py
+    ".azaharframe-ktx.json"; // core/custom_tex/convert.h
 
 std::string Lower(std::string_view s) {
     std::string out(s);

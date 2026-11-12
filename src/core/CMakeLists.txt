@@ -65,6 +65,10 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/parts.h # AzaharFrame texparts
     custom_tex/optimize.cpp # AzaharFrame ui3
     custom_tex/optimize.h # AzaharFrame ui3
+    custom_tex/convert.cpp # AzaharFrame cppconv
+    custom_tex/convert.h # AzaharFrame cppconv
+    custom_tex/ktx_encode.cpp # AzaharFrame cppconv
+    custom_tex/ktx_encode.h # AzaharFrame cppconv
     custom_tex/download.cpp # AzaharFrame texdl
     custom_tex/download.h # AzaharFrame texdl
     custom_tex/download_default.cpp # AzaharFrame texdl
@@ -577,7 +581,7 @@ endif()
 if (AZAHARFRAME_RELEASE)
     target_compile_definitions(citra_core PRIVATE AZAHARFRAME_RELEASE_BUILD=1)
 endif()
-target_link_libraries(citra_core PUBLIC dds-ktx PRIVATE cryptopp fmt lodepng open_source_archives)
+target_link_libraries(citra_core PUBLIC dds-ktx PRIVATE astcenc cryptopp fmt lodepng open_source_archives)
 
 if (ENABLE_WEB_SERVICE)
     target_link_libraries(citra_core PRIVATE web_service)

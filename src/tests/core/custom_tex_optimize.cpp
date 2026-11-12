@@ -78,25 +78,8 @@ TEST_CASE("optimize: the copy's name and the pair", "[texparts][optimize]") {
     fs::remove_all(root);
 }
 
-TEST_CASE("optimize: what the converter prints", "[texparts][optimize]") {
-    const auto e = ParseEstimate("estimate 2308 4700000000 1200000000\n");
-    REQUIRE(e.has_value());
-    CHECK(e->textures == 2308);
-    CHECK(e->total_bytes == 4'700'000'000ULL);
-    CHECK(e->need_bytes == 1'200'000'000ULL);
-    CHECK_FALSE(ParseEstimate("estimate 1 2").has_value());
-    CHECK_FALSE(ParseEstimate("estimated 1 2 3").has_value());
-    CHECK_FALSE(ParseEstimate("estimate 1 2 x").has_value());
-    const auto p = ParseProgress("progress 1234 2308 534");
-    REQUIRE(p.has_value());
-    CHECK(p->done == 1234);
-    CHECK(p->total == 2308);
-    CHECK(p->permille == 534);
-    CHECK_FALSE(ParseProgress("progress 3 2 10").has_value());    // done past the total
-    CHECK_FALSE(ParseProgress("progress 1 2 1001").has_value());  // past 100 %
-    CHECK_FALSE(ParseProgress("2308 PNG textures, 0 already converted").has_value());
+TEST_CASE("optimize: a failed run in words", "[texparts][optimize]") {
     CHECK(FailureText(kExitNoSpace) == "Not Enough Space");
-    CHECK(FailureText(kExitNoEncoder) == "Encoder Not Built");
     CHECK(FailureText(2) == "Pack Not Readable");
     CHECK(FailureText(1) == "Conversion Failed");
 }

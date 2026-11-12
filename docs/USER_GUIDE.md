@@ -150,16 +150,9 @@ The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built fro
 HD packs are PNG files, and the emulator decodes each one the first time the game uses it. A 4096×4096 texture takes over a second, so a new area shows the low-resolution textures first. I added a converter for that. In the Azahar window, right-click the game and choose **Optimize Texture Pack for Frame...**. It writes a copy of the pack in ASTC, the compressed format the Frame's GPU reads as it is, with every mip level made in advance. Those files load in a few milliseconds, with no decoding, and take a quarter of the GPU memory.
 
 - The original pack is not changed. The copy goes next to it (`<TitleID>-astc4x4`), and the game's folder in `load/textures/` becomes a link to the copy. **Use Original Texture Pack** in the same menu switches back. To remove the copy, delete its folder. **Remove Original Texture Pack...** deletes the original to free its space; it only ever deletes the folder the copy was made from, inside the texture folders. The in-game menu does the same from the pack's page (see **Textures** above).
-- The encoder (Arm's astcenc) comes with the release, so it needs no compiler.
+- The encoder (Arm's astcenc) is part of the program, so it needs nothing else.
 - **Stop** is safe. Choose the menu entry again and it carries on where it left off. It runs at the lowest priority, but it is still best not to run it while you play.
-- Ocarina of Time 3D with Henriko Magnifico's 4K pack: 2308 textures, 4.5 GB as PNG. As ASTC 4x4 it is 6.0 GB, and about 2.7 GB with `--block 6x6`. It takes about 15 to 20 minutes on the Frame, or about 6 with `--quality fast`, which looks nearly the same. Decoded, the PNGs would be 18 GB of memory; the emulator keeps an ASTC texture in memory only until the GPU has it.
-
-From a terminal, with more options (`--block 6x6` for a pack half the size, `--quality thorough`, `--jobs`):
-
-```sh
-~/Games/AzaharFrame/app/tools/convert-texture-pack.sh --activate ~/.local/share/AzaharFrame/user/load/textures/<TitleID>
-~/Games/AzaharFrame/app/tools/convert-texture-pack.sh --restore ~/.local/share/AzaharFrame/user/load/textures/<TitleID>
-```
+- Ocarina of Time 3D with Henriko Magnifico's 4K pack: 2308 textures, 4.5 GB as PNG. As ASTC 4x4 it is 6.0 GB. It takes about 15 to 20 minutes on the Frame. Decoded, the PNGs would be 18 GB of memory; the emulator keeps an ASTC texture in memory only until the GPU has it.
 
 Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`, and their mip levels are used as stored.
 
@@ -451,7 +444,7 @@ If you find a bug that also happens in Azahar on a PC, report it to [Azahar](htt
 - [CitraVR](https://github.com/amwatson/CitraVR) by amwatson: the VR port this is built on
 - [Azahar](https://github.com/azahar-emu/azahar) and [Citra](https://github.com/citra-emu/citra): the emulator
 - The Azahar logo is by angyartanddraw and PabloMK7 (CC BY 4.0). The artwork backgrounds are SteamGridDB uploads by GarfieldGaming0624
-- [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder, built on first use
+- [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder, part of the program
 - [Frametop](https://github.com/Frametop/frametop) by DeeJanuz (MIT): the 3D mouse pointer is adapted from its pointer helper
 - [Sharkive](https://github.com/FlagBrew/Sharkive) by FlagBrew (GPL-3.0), with the 3DS codes kept by JourneyOver and its contributors, and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) (MIT): the cheats
 - Mods and texture packs come from their authors' own pages, under their own licences: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, Single Screen Experience by M-1, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name

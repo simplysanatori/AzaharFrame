@@ -71,6 +71,7 @@ add_executable(tests
     core/custom_tex_download.cpp # AzaharFrame texdl
     core/custom_tex_parts.cpp # AzaharFrame texparts
     core/custom_tex_optimize.cpp # AzaharFrame ui3
+    core/custom_tex_convert.cpp # AzaharFrame cppconv
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/homebrew_update_check.cpp # AzaharFrame ui3
@@ -115,6 +116,11 @@ target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers
 if (ENABLE_LIBRETRO)
     target_link_libraries(tests PRIVATE $<TARGET_OBJECTS:citra_libretro_common>)
 endif()
+
+# AzaharFrame cppconv: the texture pack converter as a program, for the parity check against the
+# old script and for timing (the app runs the same code in-process; not shipped).
+add_executable(af_texconv core/texconv_cli.cpp)
+target_link_libraries(af_texconv PRIVATE citra_common citra_core Threads::Threads)
 
 add_test(NAME tests COMMAND tests)
 if(NOT ANDROID AND (CMAKE_SYSTEM_NAME STREQUAL CMAKE_HOST_SYSTEM_NAME))

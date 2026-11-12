@@ -7,7 +7,7 @@
 # The tarball holds the stripped emulator (azahar), the launch wrapper, and at the top
 # level install.sh, uninstall.sh, steam-cef.py and dock-icon.py, plus the art in art/ (Steam library art, the
 # icon in four sizes, and logo.png and icon.png, which the program itself shows in VR and in its window), and the
-# texture pack converter in tools/ (its encoder is built on the Frame on first use), so the unpacked archive installs itself
+# texture pack converter is part of the program (astcenc is linked in; its licence ships in licenses/), so the unpacked archive installs itself
 # (this is how Frametanium runs it).  Files are packed by name, so settings, saves, keys,
 # logs and game files cannot end up in it.  The zip is the same files plus run.sh (framedrop-run.sh).
 #   steam-frame/release/make-release.sh [version [build-dir [out-dir]]]
@@ -55,22 +55,13 @@ cp "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr
 mkdir -p "$STAGE/art"
 cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$STAGE/art/"
 mkdir -p "$STAGE/tools"
-cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$STAGE/tools/"
-# AzaharFrame harden: the prebuilt texture pack encoder (steam-frame/portable/container-build.sh builds it beside
-# the program, with astcenc's licence), or AZAHARFRAME_KTXENC=FILE.  The headset has no compiler to build one.
-KTXENC=${AZAHARFRAME_KTXENC:-$BUILD/af-ktxenc}
-if [ -x "$KTXENC" ]; then
-  cp "$KTXENC" "$STAGE/tools/af-ktxenc"; chmod +x "$STAGE/tools/af-ktxenc"
-  ASTCLIC=${AZAHARFRAME_KTXENC_LICENSE:-$(dirname "$KTXENC")/astcenc-LICENSE.txt}
-  [ -f "$ASTCLIC" ] || { echo "make-release: $KTXENC has no astcenc-LICENSE.txt beside it" >&2; exit 1; }
-  mkdir -p "$STAGE/licenses"; cp "$ASTCLIC" "$STAGE/licenses/astcenc-LICENSE.txt"
-elif [ "${AZAHARFRAME_REQUIRE_PORTABLE:-0}" = 1 ]; then
-  echo "make-release: no prebuilt texture encoder ($KTXENC): run steam-frame/build-portable.sh" >&2; exit 1
-else
-  echo "make-release: WARNING: no af-ktxenc in $BUILD: Optimize Texture Pack will build it on the headset" >&2
-fi
+cp "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$STAGE/tools/"
+# AzaharFrame cppconv: astcenc (Apache-2.0) is linked into the program; its licence ships with it
+ASTCLIC=$SF/../externals/astcenc/LICENSE.txt
+[ -f "$ASTCLIC" ] || { echo "make-release: $ASTCLIC is missing (git submodule update --init externals/astcenc)" >&2; exit 1; }
+mkdir -p "$STAGE/licenses"; cp "$ASTCLIC" "$STAGE/licenses/astcenc-LICENSE.txt"
 "$SF/tools/fetch-7zip.sh" "$STAGE/tools" "$STAGE/licenses" # 7zz: the fallback extractor (pinned, sha256 checked)
-chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh" "$STAGE/tools/emerald3ds-build.py"
+chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/emerald3ds-build.py"
 echo "$VERSION" > "$STAGE/VERSION"
 FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md licenses art tools"
 # the program's own Qt and libraries (portable.sh; steam-frame/build-portable.sh)
