@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility> // AzaharFrame memguard
 #include <vector>
 
 namespace FrameXr::Menu {
@@ -98,12 +99,21 @@ enum class ModsDialogKind : uint8_t {
                  ///< confirming button ("Install Anyway", "Download Anyway", "Turn On Anyway"): Cancel
     Unscanned,   ///< AzaharFrame compat: "GameBanana Hasn't Scanned This File Yet", kUnscannedBody:
                  ///< Cancel, Download Anyway
+    Preload,     ///< AzaharFrame memguard: "Preload Textures?", `mod` = the supporting text, `rows`
+                 ///< the numbers, `status` and `other` the status row
+                 ///< (video_core/custom_textures/preload_budget.h MakeConfirmText): Cancel, Turn On
 };
 
 struct ModsDialog {
     ModsDialogKind kind = ModsDialogKind::None;
     std::string mod;   ///< the mod being installed or removed
     std::string other; ///< the mod it replaces
+    /// AzaharFrame memguard (Preload): label and value rows under the body, between dividers,
+    /// then a status row (0 none, 1 fits: check, 2 too large: warning) with `other` as its text;
+    /// `title` the headline
+    std::vector<std::pair<std::string, std::string>> rows;
+    int status = 0;
+    std::string title;
     bool operator==(const ModsDialog&) const = default;
 };
 

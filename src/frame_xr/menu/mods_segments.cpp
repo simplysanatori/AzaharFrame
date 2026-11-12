@@ -720,16 +720,30 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = kUnscannedBody;
         confirm = "Download Anyway";
         break;
+    case ModsDialogKind::Preload: // AzaharFrame memguard
+        headline = d.title;
+        body = d.mod;
+        confirm = "Turn On";
+        break;
     case ModsDialogKind::None:
         break;
     }
-    constexpr float kW = 440.0f, kP = 24.0f, kHead = 26.0f, kBody = 16.0f;
+    // AzaharFrame memguard: Preload is wider, with a list of numbers between two dividers and a
+    // status row (an icon and one line) under the supporting text
+    const bool numbers = d.kind == ModsDialogKind::Preload;
+    const float kW = numbers ? 520.0f : 440.0f;
+    constexpr float kP = 24.0f, kHead = 26.0f, kBody = 16.0f;
     const float tw = kW - kP * 2.0f;
     const auto head_lines = Wrap(kit, headline, kHead, false, tw, 3);
     const auto body_lines = Wrap(kit, body, kBody, false, tw, 7); // AzaharFrame compat: 7 lines
     const float head_lh = 32.0f, body_lh = 24.0f;
+    constexpr float kRowH = 40.0f; // a one-line list item, dense
+    const float numbers_h = numbers ? 16.0f + 1.0f + kRowH * static_cast<float>(d.rows.size()) +
+                                          1.0f + (d.status != 0 ? 8.0f + kRowH : 0.0f)
+                                    : 0.0f;
     const float h = kP + head_lh * static_cast<float>(head_lines.size()) + 16.0f +
-                    body_lh * static_cast<float>(body_lines.size()) + 24.0f + kButtonH + kP;
+                    body_lh * static_cast<float>(body_lines.size()) + numbers_h + 24.0f + kButtonH +
+                    kP;
     const Rect box{(kPanelW - kW) * 0.5f, (kPanelH - h) * 0.5f, (kPanelW + kW) * 0.5f,
                    (kPanelH + h) * 0.5f};
     kit.Fill(box, 28.0f, Tok::kSurfaceContainerHigh);
@@ -744,6 +758,40 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         kit.TextSized(box.x0 + kP, y + body_lh * 0.5f + kit.CapHeightSized(kBody, false) * 0.5f,
                       kBody, false, Tok::kOnSurfaceVariant, l);
         y += body_lh;
+    }
+    if (numbers) { // AzaharFrame memguard: the list (label left, value right), the status row
+        const auto divider = [&](float at) {
+            kit.Fill({box.x0 + kP, at, box.x1 - kP, at + 1.0f}, 0.0f, Tok::kOutlineVariant);
+        };
+        y += 16.0f;
+        divider(y);
+        y += 1.0f;
+        const float cap = kit.CapHeightSized(kBody, false) * 0.5f;
+        for (const auto& [label, value] : d.rows) {
+            const float base = y + kRowH * 0.5f + cap;
+            kit.TextSized(box.x0 + kP, base, kBody, false, Tok::kOnSurfaceVariant, label);
+            kit.TextSized(box.x1 - kP - kit.TextWidthSized(kBody, true, value), base, kBody, true,
+                          Tok::kOnSurface, value);
+            y += kRowH;
+        }
+        divider(y);
+        y += 1.0f;
+        if (d.status != 0) {
+            y += 8.0f;
+            const float cy = y + kRowH * 0.5f;
+            const float ix = box.x0 + kP + 12.0f;
+            // The font has no check_circle or warning: a filled circle with check in it, and
+            // info filled in the error colour
+            if (d.status == 1) {
+                kit.Fill({ix - 11.0f, cy - 11.0f, ix + 11.0f, cy + 11.0f}, 11.0f, Tok::kPrimary);
+                kit.Icon(ix, cy, 18.0f, Sym::kCheck, false, Tok::kOnPrimary);
+            } else {
+                kit.Icon(ix, cy, 24.0f, Sym::kInfo, true, Tok::kError);
+            }
+            kit.TextSized(ix + 24.0f, cy + kit.CapHeightSized(kBody, true) * 0.5f, kBody, true,
+                          d.status == 1 ? Tok::kOnSurface : Tok::kError, d.other);
+            y += kRowH;
+        }
     }
     // The actions: text buttons at the end, the confirming one last.
     float right = box.x1 - kP + 12.0f; // a text button's own padding lines its label up

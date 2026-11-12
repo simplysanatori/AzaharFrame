@@ -72,11 +72,16 @@ void EmuThread::run() {
     const auto scope = core_context.Acquire();
 
     if (Settings::values.custom_textures && Settings::values.preload_textures) {
-        emit LoadProgress(VideoCore::LoadCallbackStage::Preload, 0, 0, "");
-        system.CustomTexManager().PreloadTextures(
+        // AzaharFrame memguard: PreloadTextures reports the Preload stage itself once it has
+        // decided the pack fits in memory, and says when it did not
+        const VideoCore::PreloadResult result = system.CustomTexManager().PreloadTextures(
             stop_run,
             [this](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total,
                    const std::string& object) { emit LoadProgress(stage, value, total, object); });
+        if (result == VideoCore::PreloadResult::Declined ||
+            result == VideoCore::PreloadResult::Stopped) {
+            emit PreloadSkipped(result == VideoCore::PreloadResult::Stopped);
+        }
     }
 
     system.GPU().Renderer().Rasterizer()->SetSwitchDiskResourcesCallback(

@@ -52,6 +52,12 @@ void WriteModeFile(bool vr);
 /// the launcher started this run. GUI thread.
 void MarkFlatRunning(bool flat);
 
+/// AzaharFrame memguard: the launcher writes out-of-memory (the limit in MiB) next to the mode
+/// file when the kernel killed the last run at its memory limit. Returns that limit (1 when the
+/// file holds none) and removes the file, so the message shows once; 0: no such file, or the
+/// launcher did not start this run. GUI thread.
+unsigned TakeOutOfMemory();
+
 /// True under gamescope (Game Mode); AZAHARFRAME_FADE_WINDOW=0 / 1 overrides.
 bool FadesWindow();
 

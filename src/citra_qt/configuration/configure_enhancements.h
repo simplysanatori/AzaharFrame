@@ -43,6 +43,8 @@ private:
     ConfigurationShared::CheckState dump_textures;
     ConfigurationShared::CheckState custom_textures;
     ConfigurationShared::CheckState preload_textures;
+    bool preload_was_checked = false; ///< AzaharFrame memguard: before the click
+    ConfigurationShared::CheckState preload_prev_tracker{}; ///< AzaharFrame memguard
     ConfigurationShared::CheckState async_custom_loading;
     ConfigurationShared::CheckState disable_right_eye_render;
     QColor bg_color;

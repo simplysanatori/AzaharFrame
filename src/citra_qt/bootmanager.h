@@ -115,6 +115,10 @@ signals:
                              std::size_t total, const std::string& object);
 
     void HideLoadingScreen();
+
+    /// AzaharFrame memguard: the texture pack was not preloaded (too large, or memory ran low
+    /// part way: `stopped`); it loads as needed
+    void PreloadSkipped(bool stopped);
 };
 
 class GRenderWindow : public QWidget, public Frontend::EmuWindow {

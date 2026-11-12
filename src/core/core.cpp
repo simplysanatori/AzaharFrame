@@ -2,7 +2,18 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <set>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#ifdef __GLIBC__
+#include <malloc.h> // AzaharFrame memguard
+#endif
 #include <utility>
 #include <boost/serialization/array.hpp>
 #include "audio_core/dsp_interface.h"
@@ -60,10 +71,65 @@
 #endif
 #include "network/network.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
+#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
 
 namespace Core {
+
+namespace {
+// AzaharFrame memguard: this process's resident memory, as /proc/self/status gives it, in MB:
+// "RSS 900 MB (heap 600, files 200, shared 100)"; empty when unknown
+std::string RssText() {
+    std::ifstream status{"/proc/self/status"};
+    std::string line;
+    std::uint64_t rss = 0, anon = 0, file = 0, shmem = 0;
+    while (std::getline(status, line)) {
+        std::uint64_t* field = line.starts_with("VmRSS:")      ? &rss
+                               : line.starts_with("RssAnon:")  ? &anon
+                               : line.starts_with("RssFile:")  ? &file
+                               : line.starts_with("RssShmem:") ? &shmem
+                                                               : nullptr;
+        if (field) {
+            *field = std::strtoull(line.c_str() + line.find(':') + 1, nullptr, 10) / 1024;
+        }
+    }
+    if (rss == 0) {
+        return "RSS unknown";
+    }
+    return fmt::format("RSS {} MB (heap {}, files {}, shared {})", rss, anon, file, shmem);
+}
+
+// AzaharFrame memguard: GPU memory this process holds, in MB, from the DRM driver's per-client
+// numbers in /proc/self/fdinfo (msm on the Frame); -1 when the driver gives none
+std::int64_t GpuMb() {
+    std::error_code ec;
+    std::set<std::string> clients;
+    std::int64_t total = -1;
+    for (const auto& entry : std::filesystem::directory_iterator{"/proc/self/fdinfo", ec}) {
+        std::ifstream info{entry.path()};
+        std::string line, client;
+        std::int64_t bytes = -1;
+        while (std::getline(info, line)) {
+            if (line.starts_with("drm-client-id:")) {
+                client = line.substr(14);
+            } else if (line.starts_with("drm-total-memory:")) {
+                char* end = nullptr;
+                bytes = std::strtoll(line.c_str() + 17, &end, 10);
+                const std::string_view unit{end};
+                bytes *= unit.find("GiB") != std::string_view::npos   ? (1LL << 30)
+                         : unit.find("MiB") != std::string_view::npos ? (1LL << 20)
+                         : unit.find("KiB") != std::string_view::npos ? (1LL << 10)
+                                                                      : 1;
+            }
+        }
+        if (bytes >= 0 && !client.empty() && clients.insert(client).second) {
+            total = std::max<std::int64_t>(total, 0) + bytes;
+        }
+    }
+    return total < 0 ? -1 : total / (1LL << 20);
+}
+} // Anonymous namespace
 
 /*static*/ System System::s_instance;
 
@@ -816,6 +882,10 @@ void System::Shutdown(bool is_deserializing) {
         perf_stats.reset();
         app_loader.reset();
     }
+    if (custom_tex_manager) { // AzaharFrame memguard
+        LOG_INFO(Core, "custom textures at stop: {} MiB of pixel data in memory",
+                 custom_tex_manager->HeldBytes() / (1024 * 1024));
+    }
     custom_tex_manager.reset();
     archive_manager.reset();
     service_manager.reset();
@@ -839,6 +909,19 @@ void System::Shutdown(bool is_deserializing) {
     SetInfoLEDColor({});
 
     LOG_DEBUG(Core, "Shutdown OK");
+
+    // AzaharFrame memguard: give the freed heap (texture data, guest memory) back to the system
+    // before the next game, and log what is left so a leak between games shows in the logs
+    if (!is_deserializing) {
+#ifdef __GLIBC__
+        malloc_trim(0);
+#endif
+        const auto room = VideoCore::PreloadBudget::ReadRoom();
+        const std::uint64_t mib = VideoCore::PreloadBudget::kMiB;
+        LOG_INFO(Core, "memory after stop: {}, GPU {} MB, group {} MB, available {} MB", RssText(),
+                 GpuMb(), room.cgroup_limited ? room.cgroup_used / mib : 0,
+                 std::max<std::int64_t>(room.available, 0) / static_cast<std::int64_t>(mib));
+    }
 }
 
 void System::Reset() {

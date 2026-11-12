@@ -17,6 +17,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead |
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
+| **Menu** or **View**, while a game starts | | Hold for 3 seconds to stop it and go back to Azahar's window, for a start that takes too long (a texture preload) |
 | Left stick click, tap | Hide or Show Other Screen | See Swapping the screens |
 | Left stick click, held for 1 second | Screen Layout | See Screen layouts |
 | Right stick click, tap | Swap Screens | The Secondary Screen becomes the Primary Screen. Tap again to swap back |

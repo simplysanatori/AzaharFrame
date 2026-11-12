@@ -98,8 +98,9 @@ private:
     /// AzaharFrame compat: mods and packs whose unscanned GameBanana file the player allowed
     std::set<std::string> unscanned_ok;
     struct Pending {
-        enum class Kind { None, Install, Remove, Download, Delete, BigInstall,
-                          Unscanned /* AzaharFrame compat */ } kind = Kind::None;
+        // AzaharFrame compat: Unscanned. AzaharFrame memguard: Preload (the menu applies Turn On)
+        enum class Kind { None, Install, Remove, Download, Delete, BigInstall, Unscanned, Preload };
+        Kind kind = Kind::None;
         std::string id;
     };
 

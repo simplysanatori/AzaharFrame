@@ -46,10 +46,16 @@ public:
     explicit CustomTexture(Frontend::ImageInterface& image_interface);
     ~CustomTexture();
 
-    void LoadFromDisk(bool flip_png);
+    /// AzaharFrame memguard: `drop_cache` (a preload) asks the kernel to drop the file's page
+    /// cache once it is read, so the pack is not held twice (its pages and our copy)
+    void LoadFromDisk(bool flip_png, bool drop_cache = false);
 
-    /// AzaharFrame: drops the pixel data of a DDS or KTX file once the GPU has it. Reading it
-    /// again is a plain file read, unlike a PNG, which is decoded. Returns true if it was dropped.
+    /// AzaharFrame memguard: drops the pixel data whatever the format or the number of hashes
+    /// (a preload that stopped; nothing has been uploaded from it yet)
+    void Drop();
+
+    /// AzaharFrame: drops the pixel data once the GPU has it; it is read (a PNG decoded) again
+    /// if a surface needs it later. Returns true if it was dropped (memguard: PNGs too).
     bool Release();
 
     [[nodiscard]] bool IsParsed() const noexcept {
@@ -79,6 +85,7 @@ private:
 public:
     Frontend::ImageInterface& image_interface;
     std::string path;
+    u64 file_size{}; ///< AzaharFrame memguard: from the directory scan, for the preload estimate
     u32 width{};
     u32 height{};
     std::vector<u64> hashes;
@@ -101,7 +108,7 @@ struct Material {
     std::array<CustomTexture*, MAX_MAPS> textures;
     std::atomic<DecodeState> state{};
 
-    void LoadFromDisk(bool flip_png) noexcept;
+    void LoadFromDisk(bool flip_png, bool drop_cache = false) noexcept; ///< AzaharFrame memguard
 
     void AddMapTexture(CustomTexture* texture) noexcept;
 

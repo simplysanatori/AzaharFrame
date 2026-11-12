@@ -38,6 +38,8 @@ add_executable(tests
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
     frame_xr/flat_fit.cpp # AzaharFrame flatdialog
     frame_xr/mem_guard.cpp # AzaharFrame modfix
+    frame_xr/preload_budget.cpp # AzaharFrame memguard
+    frame_xr/startup_escape.cpp # AzaharFrame memguard
     frame_xr/list_nav.cpp # AzaharFrame gamelist
     frame_xr/flat_pads.cpp # AzaharFrame flat
     frame_xr/flat_vr_hold.cpp # AzaharFrame flat

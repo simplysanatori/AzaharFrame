@@ -3,11 +3,13 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <algorithm>
-#include <chrono> // AzaharFrame
+#include <array>   // AzaharFrame memguard
+#include <chrono>  // AzaharFrame
+#include <cstdlib> // AzaharFrame memguard
+#include <thread>  // AzaharFrame memguard
 #include <json.hpp>
 #include "common/file_util.h"
 #include "common/literals.h"
-#include "common/memory_detect.h"
 #include "common/microprofile.h"
 #include "common/scope_exit.h"      // AzaharFrame
 #include "common/stall_telemetry.h" // AzaharFrame
@@ -20,6 +22,7 @@
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
+#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/utils.h"
 
@@ -145,8 +148,8 @@ void CustomTexManager::QueueDecode(Material* material) {
 }
 
 void CustomTexManager::ReleaseUploaded(Material* material) {
-    // A DDS/KTX file is read back in milliseconds, so keeping every uploaded one in memory
-    // (up to the whole pack over a long session) buys little. PNGs keep their decoded copy
+    // Keeping every uploaded texture in memory grows up to the whole pack over a long session.
+    // AzaharFrame memguard: PNGs too (decoded again on a worker if their surface is made again)
     if (!async_custom_loading || !material->IsDecoded()) {
         return;
     }
@@ -241,6 +244,7 @@ bool CustomTexManager::ParseFilename(const FileUtil::FSTEntry& file, CustomTextu
     }
 
     texture->path = file.physicalName;
+    texture->file_size = file.size; // AzaharFrame memguard
     return true;
 }
 
@@ -276,38 +280,173 @@ void CustomTexManager::PrepareDumping(u64 title_id) {
     file.WriteString(output);
 }
 
-void CustomTexManager::PreloadTextures(const std::atomic_bool& stop_run,
-                                       const VideoCore::DiskResourceLoadCallback& callback) {
-    u64 size_sum = 0;
-    std::size_t preloaded = 0;
-    const u64 sys_mem = Common::GetMemInfo().total_physical_memory;
-    const u64 recommended_min_mem = 2_GiB;
-
-    // keep 2GiB memory for system stability if system RAM is 4GiB+ - use half of memory in other
-    // cases
-    const u64 max_mem =
-        (sys_mem / 2 < recommended_min_mem) ? (sys_mem / 2) : (sys_mem - recommended_min_mem);
-
-    workers->QueueWork([&]() {
-        for (auto& [hash, material] : material_map) {
-            if (size_sum > max_mem) {
-                LOG_WARNING(Render, "Aborting texture preload due to insufficient memory");
-                return;
+// AzaharFrame memguard: every texture the materials use, counted once (a file mapped to more than
+// one hash belongs to more than one material). DDS/KTX: the file as it is. PNG: decoded to RGBA8,
+// from the size in its header.
+u64 CustomTexManager::EstimatePreload() const {
+    std::unordered_set<const CustomTexture*> seen;
+    u64 bytes = 0;
+    for (const auto& [hash, material] : material_map) {
+        for (const CustomTexture* texture : material->textures) {
+            if (!texture || !seen.insert(texture).second) {
+                continue;
             }
+            const bool png = texture->file_format == CustomFileFormat::PNG;
+            u32 width = 0;
+            u32 height = 0;
+            if (png) {
+                std::array<u8, 24> head{};
+                FileUtil::IOFile file{texture->path, "rb"};
+                if (file.IsOpen() && file.ReadBytes(head.data(), head.size()) == head.size()) {
+                    PreloadBudget::ParsePngSize(head, width, height);
+                }
+            }
+            bytes += PreloadBudget::FileCost(png, texture->file_size, width, height);
+        }
+    }
+    return bytes;
+}
+
+u64 CustomTexManager::PreloadEstimate() {
+    if (!textures_loaded || material_map.empty()) {
+        return 0;
+    }
+    std::scoped_lock lock{estimate_mutex};
+    if (!estimate) {
+        estimate = EstimatePreload();
+    }
+    return *estimate;
+}
+
+u64 CustomTexManager::HeldBytes() const {
+    u64 bytes = 0;
+    for (const auto& texture : custom_textures) {
+        std::scoped_lock lock{texture->decode_mutex};
+        bytes += texture->data.size();
+    }
+    return bytes;
+}
+
+void CustomTexManager::DropPreloaded() {
+    for (const auto& texture : custom_textures) {
+        texture->Drop();
+    }
+    for (auto& [hash, material] : material_map) {
+        if (material->state != DecodeState::Failed) {
+            material->size = 0;
+            material->state = DecodeState::None;
+        }
+    }
+}
+
+PreloadResult CustomTexManager::PreloadTextures(
+    const std::atomic_bool& stop_run, const VideoCore::DiskResourceLoadCallback& callback) {
+    // AzaharFrame memguard: the pack is preloaded only when it fits in the memory the system and
+    // this process's cgroup can still give (preload_budget.h); else, or when memory runs low part
+    // way, it loads as needed (async custom loading) and the player is told.
+    // AZAHARFRAME_PRELOAD_RESERVE_MB: the system reserve (default the larger of 4 GiB and a
+    // quarter of RAM). AZAHARFRAME_PRELOAD_FORCE=1 (tests): skip the check before, keep the
+    // check while it runs.
+    using namespace PreloadBudget;
+    const u64 reserve = ReserveFromEnv();
+    const char* force_env = std::getenv("AZAHARFRAME_PRELOAD_FORCE");
+    const bool force = force_env && std::string_view{force_env} == "1";
+    // Tests: AZAHARFRAME_TEST_PRELOAD_DELAY_MS waits that long after each material, a slow disk
+    // or a busy headset, so the XR loop and the stop hold can be watched during a long preload
+    const char* delay_env = std::getenv("AZAHARFRAME_TEST_PRELOAD_DELAY_MS");
+    const int delay_ms = delay_env ? std::atoi(delay_env) : 0;
+
+    const auto mib = [](s64 bytes) { return bytes < 0 ? -1.0 : bytes / 1048576.0; };
+    const auto describe = [&](const Room& room) {
+        const u64 sys_reserve =
+            reserve ? reserve : SystemReserve(static_cast<u64>(std::max<s64>(room.total, 0)));
+        std::string text = fmt::format("MemAvailable {:.0f} MiB of {:.0f} (reserve {:.0f})",
+                                       mib(room.available), mib(room.total), mib(sys_reserve));
+        if (room.cgroup_limited) {
+            text += fmt::format(", cgroup {} {:.0f} of {:.0f} MiB used (reserve {:.0f})",
+                                room.cgroup, mib(room.cgroup_used), mib(room.cgroup_limit),
+                                mib(CgroupReserve(room.cgroup_limit)));
+        }
+        return text;
+    };
+
+    const u64 need = PreloadEstimate();
+    const Room before = ReadRoom();
+    const s64 budget = Budget(before, reserve);
+    const bool fits = ShouldPreload(need, before, reserve);
+    LOG_INFO(Render,
+             "custom textures: preload of {} materials needs about {:.0f} MiB; budget {:.0f} MiB "
+             "({}): {}",
+             material_map.size(), mib(static_cast<s64>(need)), mib(budget), describe(before),
+             fits ? "preloading"
+                  : (force ? "too large, preloading anyway (AZAHARFRAME_PRELOAD_FORCE)"
+                           : "too large, loading as needed"));
+    if (!fits && !force) {
+        return PreloadResult::Declined;
+    }
+
+    const std::size_t total = material_map.size();
+    if (callback) {
+        callback(VideoCore::LoadCallbackStage::Preload, 0, total, "");
+    }
+    u64 size_sum = 0;
+    std::size_t preloaded_count = 0;
+    bool low_memory = false;
+    Room at_stop;
+    const auto started = std::chrono::steady_clock::now();
+    workers->QueueWork([&]() {
+        std::size_t since_check = 0;
+        u64 bytes_since_check = 0;
+        for (auto& [hash, material] : material_map) {
             if (stop_run) {
                 return;
             }
-            material->LoadFromDisk(flip_png_files);
-            size_sum += material->size;
-            if (callback) {
-                callback(VideoCore::LoadCallbackStage::Preload, preloaded, custom_textures.size(),
-                         "");
+            if (since_check >= kRecheckEveryMaterials || bytes_since_check >= kRecheckEveryBytes) {
+                since_check = 0;
+                bytes_since_check = 0;
+                const Room now = ReadRoom();
+                if (ShouldStop(now, reserve)) {
+                    low_memory = true;
+                    at_stop = now;
+                    return;
+                }
             }
-            preloaded++;
+            material->LoadFromDisk(flip_png_files, true);
+            size_sum += material->size;
+            bytes_since_check += material->size;
+            since_check++;
+            preloaded_count++;
+            if (delay_ms > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            }
+            if (callback) {
+                callback(VideoCore::LoadCallbackStage::Preload, preloaded_count, total, "");
+            }
         }
     });
     workers->WaitForRequests();
+    const double secs =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    if (low_memory) {
+        LOG_WARNING(Render,
+                    "custom textures: preload stopped at {} of {} materials ({:.0f} MiB in {:.1f} "
+                    "s): memory low ({}); dropped, loading as needed",
+                    preloaded_count, total, mib(static_cast<s64>(size_sum)), secs,
+                    describe(at_stop));
+        DropPreloaded();
+        return PreloadResult::Stopped;
+    }
+    if (stop_run) {
+        LOG_INFO(Render, "custom textures: preload cancelled at {} of {} materials",
+                 preloaded_count, total);
+        DropPreloaded();
+        return PreloadResult::Cancelled;
+    }
+    LOG_INFO(Render, "custom textures: preloaded {} materials, {:.0f} MiB in {:.1f} s ({})",
+             preloaded_count, mib(static_cast<s64>(size_sum)), secs, describe(ReadRoom()));
     async_custom_loading = false;
+    preloaded = true;
+    return PreloadResult::Done;
 }
 
 void CustomTexManager::DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data,
@@ -385,7 +524,16 @@ bool CustomTexManager::Decode(Material* material, std::function<bool()>&& upload
             material->state = DecodeState::None;
         }
         material->LoadFromDisk(flip_png_files);
-        return upload();
+        const bool uploaded = upload();
+        // AzaharFrame memguard: the GPU holds the uploaded copy, and on the Frame GPU memory is
+        // the same RAM, so the CPU copy goes. After a preload a PNG keeps its decoded copy
+        // (not decoding while playing is what the preload is for, and its budget counted it)
+        const bool png =
+            material->textures[0] && material->textures[0]->file_format == CustomFileFormat::PNG;
+        if (!preloaded || !png) {
+            material->Release();
+        }
+        return uploaded;
     }
     if (material->IsUnloaded() || released) {
         QueueDecode(material);

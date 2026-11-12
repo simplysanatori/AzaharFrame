@@ -4,6 +4,10 @@
 
 #include <algorithm>
 #include <cstring>
+#ifdef __linux__
+#include <fcntl.h>  // AzaharFrame memguard
+#include <unistd.h> // AzaharFrame memguard
+#endif
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/texture.h"
@@ -56,7 +60,7 @@ CustomTexture::CustomTexture(Frontend::ImageInterface& image_interface_)
 
 CustomTexture::~CustomTexture() = default;
 
-void CustomTexture::LoadFromDisk(bool flip_png) {
+void CustomTexture::LoadFromDisk(bool flip_png, bool drop_cache) {
     std::scoped_lock lock{decode_mutex};
     if (IsLoaded()) {
         return;
@@ -68,6 +72,16 @@ void CustomTexture::LoadFromDisk(bool flip_png) {
         LOG_CRITICAL(Render, "Failed to open custom texture: {}", path);
         return;
     }
+#ifdef __linux__
+    // AzaharFrame memguard: a preload reads the whole pack once; its page cache would push out
+    // the pages SteamVR runs from before anything else is reclaimed
+    if (drop_cache) {
+        if (const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC); fd >= 0) {
+            ::posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
+            ::close(fd);
+        }
+    }
+#endif
     switch (file_format) {
     case CustomFileFormat::PNG:
         LoadPNG(input, flip_png);
@@ -82,15 +96,22 @@ void CustomTexture::LoadFromDisk(bool flip_png) {
 }
 
 bool CustomTexture::Release() {
-    // A file mapped to more than one hash belongs to more than one material; it stays
-    if ((file_format != CustomFileFormat::DDS && file_format != CustomFileFormat::KTX) ||
-        hashes.size() > 1) {
+    // A file mapped to more than one hash belongs to more than one material; it stays.
+    // AzaharFrame memguard: a PNG is dropped too. Its decoded copy is four bytes a pixel, and
+    // keeping every one the game has shown let a PNG pack grow without limit over a session
+    if (hashes.size() > 1) {
         return false;
     }
     std::scoped_lock lock{decode_mutex};
     data = {};
     levels.clear();
     return true;
+}
+
+void CustomTexture::Drop() {
+    std::scoped_lock lock{decode_mutex};
+    data = {};
+    levels.clear();
 }
 
 void CustomTexture::LoadPNG(std::span<const u8> input, bool flip_png) {
@@ -181,7 +202,7 @@ void CustomTexture::LoadDDS(std::vector<u8>&& input) {
     data = std::move(input);
 }
 
-void Material::LoadFromDisk(bool flip_png) noexcept {
+void Material::LoadFromDisk(bool flip_png, bool drop_cache) noexcept {
     if (IsDecoded()) {
         return;
     }
@@ -190,7 +211,7 @@ void Material::LoadFromDisk(bool flip_png) noexcept {
         if (!texture) {
             continue;
         }
-        texture->LoadFromDisk(flip_png);
+        texture->LoadFromDisk(flip_png, drop_cache);
         size += texture->data.size();
         LOG_DEBUG(Render, "Loading {} map {}", MapTypeName(texture->type), texture->path);
     }
