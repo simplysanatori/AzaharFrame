@@ -16,6 +16,7 @@
 #include <string>
 
 #include <fmt/format.h>
+#include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -386,10 +387,8 @@ void LoadStore() {
 
 void SaveStore() {
     const std::string path = PlacementPath();
-    const std::string tmp = path + ".new";
     const std::string text = g.store.Format();
-    if (FileUtil::WriteStringToFile(true, tmp, text) != text.size() ||
-        !FileUtil::Rename(tmp, path)) {
+    if (!Common::WriteFileAtomic(path, text)) { // AzaharFrame harden: fsynced, atomic
         LOG_WARNING(Frontend, "xr: immersive: could not save the screen placement");
     }
 }

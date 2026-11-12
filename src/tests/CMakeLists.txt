@@ -62,6 +62,7 @@ add_executable(tests
     core/mods_catalog3.cpp # AzaharFrame catalog3
     core/mods_running.cpp # AzaharFrame catalog3
     core/mods_compat.cpp # AzaharFrame compat
+    core/harden.cpp # AzaharFrame harden
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     core/custom_tex_parts.cpp # AzaharFrame texparts

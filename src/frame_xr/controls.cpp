@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <utility>
 
+#include "common/atomic_file.h"
 #include "common/file_util.h" // AzaharFrame move
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame curve
@@ -1148,10 +1149,8 @@ void VrUi::ErasePlacement() {
 void VrUi::WritePlacementFile() {
     const std::string path =
         FileUtil::GetUserPath(FileUtil::UserPath::UserDir) + kScreenPlacementFile;
-    const std::string tmp = path + ".new";
     const std::string text = placement_file.Format();
-    if (FileUtil::WriteStringToFile(true, tmp, text) != text.size() ||
-        !FileUtil::Rename(tmp, path)) {
+    if (!Common::WriteFileAtomic(path, text)) { // AzaharFrame harden: fsynced, atomic
         LOG_WARNING(Frontend, "xr: could not save the screen placement");
     }
 }

@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include "core/mods/catalog_schema.h"
 #include <algorithm>
 #include <cctype>
 #include <json.hpp>
@@ -398,7 +399,9 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error,
         return std::nullopt;
     }
     Catalog out;
-    out.schema = root.value("schema", 1);
+    if (!ReadSchema(root, out.schema, error)) { // AzaharFrame harden
+        return std::nullopt;
+    }
     for (const auto& item : *mods) {
         try {
             auto entry = ParseEntry(item);
