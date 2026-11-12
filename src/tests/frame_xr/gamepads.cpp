@@ -526,6 +526,39 @@ TEST_CASE("Gamepads: listening for the next input", "[frame_xr]") {
     REQUIRE_FALSE(rig.hub.BeginListen(k8BitDoGuid));
 }
 
+// AzaharFrame input2: the mouse listens past the pointer's select (Left Click in Pointer mode):
+// it is never reported and never kept from the pointer, so the menu still clicks.
+TEST_CASE("Gamepads: the mouse listens past the pointer's select", "[frame_xr]") {
+    Rig rig;
+    rig.source.mouse.present = true;
+    rig.source.devices = "I: Bus=0003 Vendor=046d Product=c077 Version=0111\n"
+                         "N: Name=\"USB Optical Mouse\"\nH: Handlers=mouse0 event7\n"
+                         "B: KEY=70000 0 0 0 0\nB: REL=903\n\n";
+    rig.hub.PollMouse(rig.now);
+    using State = GamepadHub::ListenResult::State;
+    const int left = static_cast<int>(MouseInput::LeftClick);
+    // The click that chose the chip, still held as listening starts: never the answer.
+    rig.source.mouse.buttons[0] = true;
+    REQUIRE(rig.hub.BeginListen(kMouseDeviceId));
+    CHECK(rig.hub.PollListen().state == State::Listening);
+    rig.source.mouse.buttons[0] = false;
+    CHECK(rig.hub.PollListen().state == State::Listening);
+    rig.hub.CancelListen();
+    // Pointer mode: Left Click is ignored, and reaches the pointer while listening.
+    REQUIRE(rig.hub.BeginListen(kMouseDeviceId, left));
+    rig.source.mouse.buttons[0] = true;
+    CHECK(rig.hub.PollListen().state == State::Listening);
+    rig.now += 11 * kMs;
+    CHECK(rig.hub.PollMouse(rig.now).held[static_cast<std::size_t>(left)]);
+    rig.source.mouse.buttons[0] = false;
+    rig.now += 11 * kMs;
+    rig.hub.PollMouse(rig.now);
+    rig.source.mouse.buttons[1] = true; // Right Click answers
+    const auto got = rig.hub.PollListen();
+    CHECK(got.state == State::Pressed);
+    CHECK(got.input == static_cast<int>(MouseInput::RightClick));
+}
+
 TEST_CASE("Gamepads: the touchpad for Touchpad Touch", "[frame_xr]") {
     Rig rig;
     ControlState c;

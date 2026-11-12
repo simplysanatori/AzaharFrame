@@ -6,7 +6,6 @@
 #include <atomic>
 #include <cmath>
 #include "frame_xr/input/geometry.h"
-#include "frame_xr/input/mouse.h"
 #include "frame_xr/input/reticle.h"
 
 // AzaharFrame mouse
@@ -47,6 +46,16 @@ bool TakeReticleRezero() {
     return g_rezero.exchange(false);
 }
 
+// AzaharFrame input2
+ReticleAim ReticleAimOf(const HandInput& hand) {
+    return {hand.active, hand.aim.orientation, hand.trigger, hand.grip};
+}
+
+ReticleAim ReticleHeadAim(bool head_active, const Quatf& head, const HandInput& left,
+                          const HandInput& right) {
+    return {head_active, head, std::max(left.trigger, right.trigger), 0.0f};
+}
+
 int ReticleHandIndex(ReticleHand hand) {
     switch (hand) {
     case ReticleHand::Left:
@@ -58,8 +67,16 @@ int ReticleHandIndex(ReticleHand hand) {
     }
 }
 
-float ReticleHalfWidthDeg(int speed) {
-    return 15.0f / CursorSpeedScale(speed);
+float ReticleHalfWidthDeg(ReticleHand source) {
+    switch (source) {
+    case ReticleHand::Left:
+    case ReticleHand::Right:
+        return kReticleControllerHalfWidthDeg;
+    case ReticleHand::Headset:
+        return kReticleHeadHalfWidthDeg;
+    default:
+        return 0.0f;
+    }
 }
 
 Vec2f ReticlePoint(float yaw_deg, float pitch_deg, float half_width_deg) {
@@ -96,16 +113,16 @@ void BottomScreenReticle::Reset() {
     snap_ready_ = 0;
 }
 
-ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int speed,
+ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, float half_width_deg,
                                          int64_t now, ReticleEdge edge) {
     ReticleFrame f;
     if (!live || !hand.active) {
         Reset();
         return f;
     }
-    // Where the controller points, as yaw (left positive) and pitch (up positive), the yaw
-    // unwrapped so a turn through behind you does not jump.
-    const Vec3f d = Rotate(hand.aim.orientation, {0.0f, 0.0f, -1.0f});
+    // Where the controller (or the head) points, as yaw (left positive) and pitch (up
+    // positive), the yaw unwrapped so a turn through behind you does not jump.
+    const Vec3f d = Rotate(hand.orientation, {0.0f, 0.0f, -1.0f});
     const float yaw = std::atan2(-d.x, -d.z) / kRad;
     const float pitch = std::asin(std::clamp(d.y, -1.0f, 1.0f)) / kRad;
     raw_yaw_ = started_ ? raw_yaw_ + Wrap180(yaw - Wrap180(raw_yaw_)) : yaw;
@@ -129,9 +146,13 @@ ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int s
         rezero_ = false;
     }
 
-    const float hw = ReticleHalfWidthDeg(speed);
+    const float hw = std::max(half_width_deg, 0.1f);
     const float hh = hw * kHeightOverWidth;
-    float dy = fy - ref_yaw_;
+    // AzaharFrame input2: the yaw across the cone, at the reference's pitch (a yaw of 10 degrees
+    // while pointing 40 degrees down turns the aim by about 7.7). `ys` is fixed for the frame, so
+    // the edge drift below stays exact.
+    const float ys = std::max(std::cos(ref_pitch_ * kRad), kMinYawScale);
+    float dy = (fy - ref_yaw_) * ys;
     float dp = fp - ref_pitch_;
     trigger_ = hand.trigger > (trigger_ ? kTriggerRelease : kTriggerPress);
     // Snap to Middle: past an edge (and not just after the last snap), the middle is where it
@@ -164,10 +185,10 @@ ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int s
     // Edge drift (Follow, and Snap to Middle while it waits): past an edge the reference comes
     // along, the point stays on the edge.
     if (dy > hw) {
-        ref_yaw_ += dy - hw;
+        ref_yaw_ += (dy - hw) / ys;
         dy = hw;
     } else if (dy < -hw) {
-        ref_yaw_ += dy + hw;
+        ref_yaw_ += (dy + hw) / ys;
         dy = -hw;
     }
     if (dp > hh) {

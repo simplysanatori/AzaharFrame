@@ -420,8 +420,8 @@ bool ResetMapping(const std::string& id) {
     return Hub().ResetMapping(id);
 }
 
-bool BeginListen(const std::string& id) {
-    return Hub().BeginListen(id);
+bool BeginListen(const std::string& id, int ignore) {
+    return Hub().BeginListen(id, ignore);
 }
 
 GamepadHub::ListenResult PollListen() {

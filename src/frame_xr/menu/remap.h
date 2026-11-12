@@ -54,6 +54,8 @@ struct RemapView {
     bool editing = false;
     int listening = -1; ///< the 3DS button (Settings::NativeButton) waiting for a press, or -1
     int step = 0;       ///< a stick listening: 0 "Push the Stick Up", 1 "Push the Stick Right"
+    /// AzaharFrame input2: 3, 2, 1 in the last seconds before listening gives up, else 0.
+    int countdown = 0;
     uint32_t rev = 0;   ///< counts every change, so the menu redraws
     bool operator==(const RemapView&) const = default;
 };
@@ -71,8 +73,15 @@ public:
         Done,      ///< edit mode ended
     };
 
-    /// Seconds a chip listens before it gives up.
-    static constexpr float kListenSeconds = 10.0f;
+    /// Seconds a chip listens before it gives up, keeping its binding. AzaharFrame input2: 3 s
+    /// quietly, then the prompt counts 3, 2, 1 (the countdown shows only when no answer came for
+    /// kQuietSeconds, so a quick press never sees it; a stick's first push starts it again).
+    static constexpr float kQuietSeconds = 3.0f;
+    static constexpr float kListenSeconds = 6.0f;
+    /// AzaharFrame input2: the pointer's select (the mouse's touch input in Pointer mode, the
+    /// trigger as the beam's select) is never taken for this long after a chip starts listening:
+    /// the click that chose the chip is not its answer.
+    static constexpr float kSelectGuardSeconds = 0.3f;
 
     /// A 3DS button Edit Controls can give a control: A, B, X, Y, the D-pad, L, R, ZL, ZR,
     /// Start, Select and Home.
@@ -148,6 +157,14 @@ public:
     Event Done();
     /// Time passes while listening; after kListenSeconds it cancels.
     Event Tick(float seconds);
+    /// AzaharFrame input2: the device's control that is the pointer's select now (a MouseInput
+    /// for the mouse), or -1. A press of it is ignored (listening goes on) for
+    /// kSelectGuardSeconds after a chip starts listening, and always while `pointer_mode` (the
+    /// device being edited is the pointer: its select must keep working the menu, so it can
+    /// never be bound away).
+    void SetPointerSelect(int control, bool pointer_mode);
+    /// The press is the pointer's select and is not taken now (Press would ignore it).
+    bool IgnoresPress(int control) const;
 
 private:
     RemapTable table{};
@@ -160,6 +177,9 @@ private:
     RemapView view;
     RemapSource source = RemapSource::Frame;
     float listened = 0.0f;
+    float since_choose = 0.0f; ///< AzaharFrame input2: for kSelectGuardSeconds
+    int select_control = -1;
+    bool select_pointer_mode = false;
 };
 
 /// The 3DS buttons on `control` in `table` (a bitmask by button index).

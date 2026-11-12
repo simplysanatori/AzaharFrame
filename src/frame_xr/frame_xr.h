@@ -238,7 +238,7 @@ enum class MenuSetting {
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
     TouchpadTouch, ///< AzaharFrame menu: `value` 1 Tap for Input, 2 Click for Input (0 Off)
-    BottomScreenReticle, ///< AzaharFrame mouse: `value` 0 Off, 1 Left, 2 Right Controller
+    BottomScreenReticle, ///< AzaharFrame mouse: `value` 0 Off, 1 Left, 2 Right, 3 Headset
     ReticleAtEdge,       ///< AzaharFrame mouse: `value` 0 Follow, 1 Snap to Middle
     CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
     PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)

@@ -77,7 +77,7 @@ bool SetMapping(const std::string& id, const GamepadMapping& mapping);
 bool SetButton(const std::string& id, int button, int input);
 bool ResetMapping(const std::string& id);
 
-bool BeginListen(const std::string& id);
+bool BeginListen(const std::string& id, int ignore = -1); ///< AzaharFrame input2: `ignore`
 GamepadHub::ListenResult PollListen();
 void CancelListen();
 

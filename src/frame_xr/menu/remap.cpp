@@ -4,6 +4,8 @@
 
 #include "frame_xr/menu/remap.h"
 
+#include <cmath>
+
 #include "frame_xr/input/mouse.h"
 
 namespace FrameXr::Menu {
@@ -71,6 +73,7 @@ void Remap::Begin(const RemapTable& from, const RemapTable& reset_to, RemapSourc
     view.editing = true;
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     listened = 0.0f;
 }
@@ -85,9 +88,11 @@ Remap::Event Remap::Choose(int target) {
     }
     view.listening = target;
     view.step = 0;
+    view.countdown = 0;
     up_push = {};
     view.rev++;
     listened = 0.0f;
+    since_choose = 0.0f;
     return Event::Listening;
 }
 
@@ -95,7 +100,7 @@ Remap::Event Remap::Press(int control) {
     if (!view.editing || view.listening < 0 || IsStick(view.listening)) {
         return Event::None;
     }
-    if (!Listenable(control, source)) {
+    if (!Listenable(control, source) || IgnoresPress(control)) {
         return Event::None; // a button that cannot be used: keep listening
     }
     // The table's 3DS buttons, then the mouse's Touch Screen and Open Menu, as one list.
@@ -106,6 +111,7 @@ Remap::Event Remap::Press(int control) {
     const int target = view.listening;
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     const int8_t old = slot(target);
     if (old == control) {
@@ -146,6 +152,7 @@ Remap::Event Remap::Stick(int stick, Input::Vec2f value) {
     if (view.step == 0) {
         up_push = push;
         view.step = 1;
+        view.countdown = 0;
         view.rev++;
         listened = 0.0f;
         return Event::Next;
@@ -158,6 +165,7 @@ Remap::Event Remap::Stick(int stick, Input::Vec2f value) {
     const std::size_t other = 1 - target;
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     const int8_t old = sticks[target];
     const int8_t now = Input::EncodeStickRoute(route);
@@ -179,6 +187,7 @@ Remap::Event Remap::Cancel() {
     }
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     return Event::Cancelled;
 }
@@ -192,6 +201,7 @@ Remap::Event Remap::Reset() {
     extras = extra_defaults;
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     return Event::Reset;
 }
@@ -203,6 +213,7 @@ Remap::Event Remap::Done() {
     view.editing = false;
     view.listening = -1;
     view.step = 0;
+    view.countdown = 0;
     view.rev++;
     return Event::Done;
 }
@@ -212,7 +223,28 @@ Remap::Event Remap::Tick(float seconds) {
         return Event::None;
     }
     listened += seconds;
-    return listened >= kListenSeconds ? Cancel() : Event::None;
+    since_choose += seconds;
+    if (listened >= kListenSeconds) {
+        return Cancel(); // the old binding stays
+    }
+    // AzaharFrame input2: 3, 2, 1 once nothing came for kQuietSeconds.
+    const int countdown =
+        listened >= kQuietSeconds ? static_cast<int>(std::ceil(kListenSeconds - listened)) : 0;
+    if (countdown != view.countdown) {
+        view.countdown = countdown;
+        view.rev++;
+    }
+    return Event::None;
+}
+
+void Remap::SetPointerSelect(int control, bool pointer_mode) {
+    select_control = control;
+    select_pointer_mode = control >= 0 && pointer_mode;
+}
+
+bool Remap::IgnoresPress(int control) const {
+    return control >= 0 && control == select_control &&
+           (select_pointer_mode || since_choose < kSelectGuardSeconds);
 }
 
 } // namespace FrameXr::Menu

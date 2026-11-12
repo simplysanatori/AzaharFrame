@@ -20,6 +20,8 @@ add_executable(tests
     ../frame_xr/input/mouse.cpp # AzaharFrame padsui
     ../frame_xr/input/mouse_pointer.cpp # AzaharFrame padsui
     ../frame_xr/input/reticle.cpp # AzaharFrame mouse
+    ../frame_xr/input/phys_keyboard.cpp # AzaharFrame input2
+    frame_xr/phys_keyboard.cpp # AzaharFrame input2
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/immersive_layout.cpp # AzaharFrame

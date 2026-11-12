@@ -383,16 +383,24 @@ std::optional<Result> Model::PressButton(int index) {
 }
 
 std::optional<Result> Model::Enter() {
-    if (spec.multiline) {
-        Insert(U'\n');
-        return std::nullopt;
-    }
     for (int i = 0; i < static_cast<int>(spec.buttons.size()); i++) {
         if (spec.buttons[static_cast<std::size_t>(i)].confirm) {
             return PressButton(i);
         }
     }
     return std::nullopt;
+}
+
+// AzaharFrame input2
+bool Model::NewLine() {
+    return spec.multiline && Insert(U'\n');
+}
+
+std::optional<Result> Model::Escape() {
+    if (spec.buttons.size() < 2 || spec.buttons.front().confirm) {
+        return std::nullopt;
+    }
+    return PressButton(0);
 }
 
 uint8_t Model::CancelId() const {

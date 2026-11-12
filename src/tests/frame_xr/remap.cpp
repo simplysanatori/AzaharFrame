@@ -9,7 +9,9 @@
 #include <algorithm>
 #include <initializer_list>
 #include <set>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "frame_xr/input/mouse.h"
 #include "frame_xr/menu/ds_drawing.h"
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/remap.h"
@@ -178,6 +180,90 @@ TEST_CASE("Remap: Cancel, another 3DS button, and the timeout", "[frame_xr]") {
     REQUIRE(r.Tick(Remap::kListenSeconds * 0.6f) == Remap::Event::Cancelled);
     REQUIRE(r.Listening() == -1);
     REQUIRE(r.Tick(100.0f) == Remap::Event::None);
+}
+
+// AzaharFrame input2: "Press a Button..." counts 3, 2, 1 once nothing came for 3 s, then closes
+// with the binding as it was.
+TEST_CASE("Remap: the listening timeout counts down and keeps the binding", "[frame_xr]") {
+    Remap r = Started();
+    r.Choose(B::X);
+    CHECK(r.View().countdown == 0);
+    // Frames of 1/90 s: quiet for the first 3 s.
+    float t = 0.0f;
+    const auto run_to = [&](float until) {
+        Remap::Event e = Remap::Event::None;
+        while (t + 1.0f / 90.0f <= until && e == Remap::Event::None) {
+            e = r.Tick(1.0f / 90.0f);
+            t += 1.0f / 90.0f;
+        }
+        return e;
+    };
+    CHECK(run_to(2.9f) == Remap::Event::None);
+    CHECK(r.View().countdown == 0);
+    uint32_t rev = r.View().rev;
+    CHECK(run_to(3.1f) == Remap::Event::None);
+    CHECK(r.View().countdown == 3);
+    CHECK(r.View().rev != rev); // the snackbar redraws with the number
+    CHECK(run_to(4.1f) == Remap::Event::None);
+    CHECK(r.View().countdown == 2);
+    CHECK(run_to(5.1f) == Remap::Event::None);
+    CHECK(r.View().countdown == 1);
+    CHECK(r.Listening() == B::X);
+    CHECK(run_to(6.5f) == Remap::Event::Cancelled);
+    CHECK(t == Catch::Approx(Remap::kListenSeconds).margin(0.02));
+    CHECK(r.Listening() == -1);
+    CHECK(r.View().countdown == 0);
+    CHECK(r.Table() == Defaults()); // nothing assigned, nothing cleared
+    // A press during the countdown still binds, and the number goes.
+    r.Choose(B::X);
+    r.Tick(4.0f);
+    CHECK(r.View().countdown == 2);
+    CHECK(r.Press(C(Control::Y)) == Remap::Event::Swapped);
+    CHECK(r.View().countdown == 0);
+}
+
+// AzaharFrame input2: the pointer's select (the mouse's Left Click in Pointer mode) is never
+// taken as the binding: the owner clicked a chip, then Cancel, and Left Click became the D-pad's
+// Up, which left the mouse unable to click anything.
+TEST_CASE("Remap: the pointer's select is never the answer", "[frame_xr]") {
+    using FrameXr::Input::MouseInput;
+    const int left = static_cast<int>(MouseInput::LeftClick);
+    const int right = static_cast<int>(MouseInput::RightClick);
+    RemapTable mouse;
+    mouse.fill(-1);
+    mouse[B::A] = static_cast<int8_t>(right);
+    Remap r;
+    r.Begin(mouse, mouse, RemapSource::Mouse, kDefaultSticks, kDefaultSticks,
+            {static_cast<int8_t>(left), static_cast<int8_t>(MouseInput::MiddleClick)},
+            {static_cast<int8_t>(left), static_cast<int8_t>(MouseInput::MiddleClick)});
+    // Pointer mode: Left Click clicks the menu, so it never binds, however late.
+    r.SetPointerSelect(left, true);
+    r.Choose(B::Up);
+    CHECK(r.IgnoresPress(left));
+    CHECK(r.Press(left) == Remap::Event::None);
+    r.Tick(2.0f);
+    CHECK(r.Press(left) == Remap::Event::None);
+    CHECK(r.Listening() == B::Up);
+    CHECK(r.Extras()[0] == left); // still the touch, so still the pointer's click
+    CHECK_FALSE(r.IgnoresPress(right));
+    CHECK(r.Press(right) == Remap::Event::Moved); // another button binds as before
+    CHECK(r.Table()[B::Up] == right);
+    CHECK(r.Table()[B::A] == -1);
+    // Bottom Screen mode: the same button binds, but not in the first 300 ms.
+    r.SetPointerSelect(left, false);
+    r.Choose(B::Down);
+    CHECK(r.Press(left) == Remap::Event::None);
+    r.Tick(0.2f);
+    CHECK(r.Press(left) == Remap::Event::None);
+    r.Tick(0.11f);
+    CHECK_FALSE(r.IgnoresPress(left));
+    CHECK(r.Press(left) != Remap::Event::None);
+    CHECK(r.Table()[B::Down] == left);
+    // No select (a gamepad, the Frame): nothing is held back.
+    r.SetPointerSelect(-1, true);
+    r.Choose(B::L);
+    CHECK_FALSE(r.IgnoresPress(-1));
+    CHECK(r.Press(right) != Remap::Event::None);
 }
 
 TEST_CASE("Remap: Reset to Default restores the device's default and stops listening", "[frame_xr]") {

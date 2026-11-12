@@ -33,8 +33,13 @@ bool OpenGameKeyboard(Swkbd::Spec spec, std::function<void(const SwkbdOutcome&)>
 bool GameKeyboardOpen();
 /// A physical keyboard: text typed into the field (UTF-8), and the editing keys. Any thread.
 void GameKeyboardText(const std::string& utf8);
-enum class GameKeyboardKey { Backspace, Delete, Left, Right, Home, End, Enter };
+/// AzaharFrame input2: Enter is the confirm button, NewLine (Shift+Enter) a new line in multi-line
+/// text, Escape the game's cancel button.
+enum class GameKeyboardKey { Backspace, Delete, Left, Right, Home, End, Enter, NewLine, Escape };
 void GameKeyboardPress(GameKeyboardKey key);
+/// AzaharFrame input2: the XR side reads the physical keyboards itself (their event nodes, while
+/// the keyboard is open): the Qt side then passes no keys on, or each would type twice. Any thread.
+bool GameKeyboardReadsKeyboards();
 /// Closes the keyboard from outside: with the game's cancel button and no text (the game is
 /// stopping), or, with `fallback`, as not shown (VR ended: Azahar's dialog takes over). Any thread.
 void CancelGameKeyboard(bool fallback = false);

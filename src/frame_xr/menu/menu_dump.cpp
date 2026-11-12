@@ -421,7 +421,7 @@ int main(int argc, char** argv) {
     {
         MenuModel mr = m;
         mr.touchpad_touch = 1;
-        mr.bottom_screen_reticle = 2;
+        mr.bottom_screen_reticle = 3; // AzaharFrame input2: Headset, the widest row
         mr.reticle_at_edge = 1;
         v = {};
         v.tab = Tab::Controls;

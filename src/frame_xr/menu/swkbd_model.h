@@ -165,8 +165,14 @@ public:
     /// The game's button `index` (into Spec::buttons): the confirm button checks the text first
     /// (and shows why it was refused); the others close at once.
     std::optional<Result> PressButton(int index);
-    /// Enter on a physical keyboard: a new line in multi-line text, else the confirm button.
+    /// Enter on a physical keyboard: the confirm button (AzaharFrame input2: in multi-line text
+    /// too; Shift+Enter is NewLine there).
     std::optional<Result> Enter();
+    /// AzaharFrame input2: Shift+Enter: a new line in multi-line text, else nothing.
+    bool NewLine();
+    /// AzaharFrame input2: Esc: the game's cancel button (the first of two or three, as Azahar's
+    /// dialog), or nothing when it has only one.
+    std::optional<Result> Escape();
     /// The button that cancels (the game's id 0 when it has two or three buttons), for closing
     /// the keyboard from outside (the game stops). Otherwise the confirm button's id.
     uint8_t CancelId() const;

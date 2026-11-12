@@ -539,8 +539,16 @@ void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt
     if (remap.Source() == Menu::RemapSource::Mouse) {
         // AzaharFrame padsui: the mouse being edited: its next click, button or wheel notch.
         if (remap.Listening() >= 0) {
+            // AzaharFrame input2: in Pointer mode its touch input is the pointer's select (the
+            // click that works this menu): never a binding, and never kept from the pointer, so
+            // Cancel and the other chips still click. In Bottom Screen mode it may be bound, but
+            // not in the first 300 ms (Remap::kSelectGuardSeconds).
+            const Input::GamepadMapping mm = Input::Devices::GetMapping(edit_device);
+            const bool pointer = mm.mode == static_cast<uint8_t>(Input::MouseMode::Pointer);
+            remap.SetPointerSelect(mm.touch, pointer);
             if (!edit_pad_listening) {
-                edit_pad_listening = Input::Devices::BeginListen(edit_device);
+                edit_pad_listening =
+                    Input::Devices::BeginListen(edit_device, pointer ? mm.touch : -1);
             }
             if (edit_pad_listening) {
                 using State = Input::GamepadHub::ListenResult::State;
@@ -561,6 +569,9 @@ void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt
         edit_prev = now;
         return;
     }
+    // AzaharFrame input2: a gamepad never works the menu, and the Frame's triggers (the beams'
+    // select) cannot be bound (Remap::Listenable): no pointer select to guard.
+    remap.SetPointerSelect(-1, false);
     if (remap.Source() == Menu::RemapSource::Pad) {
         if (remap.Listening() >= 0) {
             if (!edit_pad_listening) {
@@ -689,7 +700,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
     m.touchpad_touch = v.vr_touchpad_touch.GetValue() == 2 ? 1 : 0; // AzaharFrame menuux
     m.bottom_screen_reticle = // AzaharFrame mouse
-        static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 2));
+        static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 3)); // input2
     m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
@@ -963,10 +974,11 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
                  Menu::OptionsFor(id)[std::min<u32>(u, 1)]);
         break;
     case Id::BottomScreenReticle: // AzaharFrame mouse, global
-        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 2), false);
+        // AzaharFrame input2: 3 Headset
+        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 3), false);
         r.setting = MenuSetting::BottomScreenReticle;
         LOG_INFO(Frontend, "xr: in-game menu: Bottom Screen Reticle = {}",
-                 Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
+                 Menu::OptionsFor(id)[std::min<u32>(u, 3)]);
         break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();

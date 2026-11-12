@@ -709,6 +709,9 @@ bool QtKeyboard::eventFilter(QObject* object, QEvent* event) {
     case QEvent::KeyRelease:
         return true;
     case QEvent::KeyPress: {
+        if (FrameXr::GameKeyboardReadsKeyboards()) {
+            return true; // AzaharFrame input2: the XR side reads the keyboards: typed once
+        }
         const auto* key = static_cast<QKeyEvent*>(event);
         using K = FrameXr::GameKeyboardKey;
         switch (key->key()) {
@@ -732,7 +735,12 @@ bool QtKeyboard::eventFilter(QObject* object, QEvent* event) {
             return true;
         case Qt::Key_Return:
         case Qt::Key_Enter:
-            FrameXr::GameKeyboardPress(K::Enter);
+            // AzaharFrame input2: Enter is OK; Shift+Enter a new line in multi-line text.
+            FrameXr::GameKeyboardPress((key->modifiers() & Qt::ShiftModifier) ? K::NewLine
+                                                                              : K::Enter);
+            return true;
+        case Qt::Key_Escape:
+            FrameXr::GameKeyboardPress(K::Escape); // AzaharFrame input2: the cancel button
             return true;
         default:
             break;

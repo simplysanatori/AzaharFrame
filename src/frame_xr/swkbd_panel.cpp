@@ -8,6 +8,7 @@
 #include "frame_xr/swkbd_panel.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <deque>
@@ -64,6 +65,37 @@ Requests& Req() {
     return r;
 }
 
+/// AzaharFrame input2: the XR thread reads the physical keyboards (GameKeyboardReadsKeyboards).
+std::atomic<bool> g_reads_keyboards{false};
+
+/// AzaharFrame input2: a physical key, as the Qt side's keys are queued.
+KeyEvent FromKeyAction(const Input::KeyAction& a) {
+    using K = Input::KeyActionKind;
+    switch (a.kind) {
+    case K::Text:
+        return {true, a.text, GameKeyboardKey::Enter};
+    case K::Backspace:
+        return {false, {}, GameKeyboardKey::Backspace};
+    case K::Delete:
+        return {false, {}, GameKeyboardKey::Delete};
+    case K::Left:
+        return {false, {}, GameKeyboardKey::Left};
+    case K::Right:
+        return {false, {}, GameKeyboardKey::Right};
+    case K::Home:
+        return {false, {}, GameKeyboardKey::Home};
+    case K::End:
+        return {false, {}, GameKeyboardKey::End};
+    case K::NewLine:
+        return {false, {}, GameKeyboardKey::NewLine};
+    case K::Escape:
+        return {false, {}, GameKeyboardKey::Escape};
+    case K::Enter:
+    default:
+        return {false, {}, GameKeyboardKey::Enter};
+    }
+}
+
 /// Takes `done` if request `seq` is still open (any thread): the caller calls it, unlocked.
 std::function<void(const SwkbdOutcome&)> TakeDone(uint64_t seq) {
     Requests& r = Req();
@@ -104,6 +136,10 @@ bool OpenGameKeyboard(Swkbd::Spec spec, std::function<void(const SwkbdOutcome&)>
     }
     LOG_INFO(Frontend, "xr: game keyboard: asked for");
     return true;
+}
+
+bool GameKeyboardReadsKeyboards() {
+    return g_reads_keyboards.load();
 }
 
 bool GameKeyboardOpen() {
@@ -183,6 +219,8 @@ void SwkbdPanel::DestroyXr() {
         CancelGameKeyboard(true);
         model.reset();
     }
+    keyboards.Close(); // AzaharFrame input2
+    g_reads_keyboards.store(false);
     if (worker.joinable()) {
         {
             std::scoped_lock lock{shared->mutex};
@@ -247,7 +285,20 @@ bool SwkbdPanel::Poll() {
         keys.swap(r.keys);
     }
     if (!model) {
+        keyboards.Close(); // AzaharFrame input2 (nothing to do when not reading)
+        g_reads_keyboards.store(false);
         return false;
+    }
+    // AzaharFrame input2: the physical keyboards, read while the keyboard is open (no window of
+    // the app has the keyboard focus in VR, so Qt sees no keys); after the Qt side's, if any.
+    {
+        const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch())
+                                .count();
+        for (const Input::KeyAction& a : keyboards.Poll(now)) {
+            keys.push_back(FromKeyAction(a));
+        }
+        g_reads_keyboards.store(keyboards.Active());
     }
     std::optional<Swkbd::Result> result;
     for (const KeyEvent& k : keys) {
@@ -276,6 +327,12 @@ bool SwkbdPanel::Poll() {
             break;
         case GameKeyboardKey::Enter:
             result = model->Enter();
+            break;
+        case GameKeyboardKey::NewLine: // AzaharFrame input2
+            model->NewLine();
+            break;
+        case GameKeyboardKey::Escape:
+            result = model->Escape();
             break;
         }
         if (result) {

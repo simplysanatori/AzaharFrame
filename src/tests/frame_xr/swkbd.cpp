@@ -175,9 +175,24 @@ TEST_CASE("Swkbd: single and multi-line", "[frame_xr]") {
     Tap(multi, KeyKind::Enter);
     multi.InsertText("b");
     REQUIRE(multi.TextUtf8() == "a\nb");
-    REQUIRE_FALSE(multi.Enter()); // a physical Enter is a new line too
+    // AzaharFrame input2: a physical Shift+Enter is a new line, Enter is OK (in multi-line
+    // text too), Esc is Cancel.
+    REQUIRE(multi.NewLine());
     REQUIRE(multi.TextUtf8() == "a\nb\n");
+    REQUIRE_FALSE(one.NewLine());
     REQUIRE(multi.GetLayout().field.H() > one.GetLayout().field.H());
+    const auto ok = multi.Enter();
+    REQUIRE(ok);
+    REQUIRE(ok->button == 1);
+    REQUIRE(ok->text == "a\nb\n");
+    const auto esc = multi.Escape();
+    REQUIRE(esc);
+    REQUIRE(esc->button == 0);
+    REQUIRE(esc->text.empty());
+    // One button only (OK): Esc does nothing.
+    Spec single = Simple();
+    single.buttons = {{"OK", 0, true}};
+    REQUIRE_FALSE(Model(single).Escape());
 }
 
 TEST_CASE("Swkbd: every key and button lies on the panel, none overlap", "[frame_xr]") {
