@@ -88,6 +88,19 @@ struct ModOffer {
 
 enum class CatalogState : uint8_t { Idle, Loading, Ready, Failed }; // AzaharFrame jsoncrash: Failed
 
+/// AzaharFrame jsoncrash: whether the Install Mods page should ask for its list again. The request
+/// goes to the Qt side through a queue, and the Qt side drops one that reaches it while the menu is
+/// not (yet) open there or the game is between states; the page then showed "Loading Mods" for good
+/// (the catalog still Idle) until the owner backed out and opened it again. While the page is up and
+/// nothing has answered, it asks again every `retry_ms` (`last_ask_ms` < 0: not asked yet).
+inline bool ShouldAskCatalog(CatalogState state, bool install_page_shown, long long now_ms,
+                             long long last_ask_ms, long long retry_ms = 1500) {
+    if (!install_page_shown || state != CatalogState::Idle) {
+        return false;
+    }
+    return last_ask_ms < 0 || now_ms - last_ask_ms >= retry_ms;
+}
+
 /// The question over the panel, when there is one.
 enum class ModsDialogKind : uint8_t {
     None,
