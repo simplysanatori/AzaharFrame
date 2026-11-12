@@ -252,4 +252,25 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
                            const std::string& load_dir, const std::atomic_bool* cancel,
                            std::vector<std::string>* installed, const std::string& tool_override = {});
 
+// AzaharFrame zipinstall: the steps of InstallArchive that Install from Zip (core/mods/zip_install.h)
+// shares.
+
+/// Unpacks `archive_path` (zip, 7z or rar, kind from the file's first bytes) into `work` (emptied first;
+/// the caller removes it). `root` gets the folder that holds the files. "" on success, else the error
+/// ("The download is not a zip, 7z or rar archive", "Cancelled", ...). Unsafe paths ("..", absolute),
+/// links and special files are refused (Mods::ExtractZip, Mods::ExtractFileToDir); so is an unpacked
+/// total over `max_total`.
+std::string UnpackArchive(const std::string& archive_path, const std::string& work,
+                          const std::atomic_bool* cancel, std::string* root,
+                          const std::string& tool_override = {},
+                          std::uint64_t max_total = 64ull << 30);
+/// Every regular file under `root`: relative, '/' separated, sorted.
+std::vector<std::string> ListFiles(const std::string& root);
+/// tex1_*.png|dds|ktx, any case.
+bool IsTextureFileName(std::string_view base);
+/// The id in a pack folder's download marker; nullopt when the folder has none (the player's own).
+std::optional<std::string> MarkerId(const std::string& folder);
+/// Writes the marker (`source`: "github", "gdrive", "https", "zip"), which makes the folder deletable.
+bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source);
+
 } // namespace CustomTex::Download

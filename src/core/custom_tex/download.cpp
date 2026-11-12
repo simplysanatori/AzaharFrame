@@ -732,9 +732,9 @@ bool HasMarker(const fs::path& folder, std::string* id = nullptr) {
 
 } // namespace
 
-std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
-                           const std::string& load_dir, const std::atomic_bool* cancel,
-                           std::vector<std::string>* installed, const std::string& tool_override) {
+std::string UnpackArchive(const std::string& archive_path, const std::string& work_dir,
+                          const std::atomic_bool* cancel, std::string* root_out,
+                          const std::string& tool_override, std::uint64_t max_total) {
     std::string head(16, '\0');
     {
         std::ifstream in(archive_path, std::ios::binary);
@@ -748,22 +748,14 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
     if (kind == Mods::ArchiveKind::Unknown) {
         return "The download is not a zip, 7z or rar archive";
     }
-    const fs::path work = fs::path(load_dir) / "texture-downloads" / (entry.id + ".x");
+    const fs::path work = work_dir;
     std::error_code ec;
     fs::remove_all(work, ec);
     fs::create_directories(work, ec);
     if (ec) {
         return "Cannot make a work folder";
     }
-    struct Cleanup {
-        fs::path p;
-        ~Cleanup() {
-            std::error_code e;
-            fs::remove_all(p, e);
-        }
-    } cleanup{work};
 
-    const std::uint64_t max_total = 64ull << 30;
     std::string error;
     const std::string tool = tool_override.empty() ? Mods::FindBsdtar() : tool_override;
     const auto archive_size = fs::file_size(archive_path, ec);
@@ -771,7 +763,8 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
         // No bsdtar: the built-in reader takes a small zip.
         std::ifstream in(archive_path, std::ios::binary);
         const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        const auto r = Mods::ExtractZip(bytes);
+        const auto r = Mods::ExtractZip(
+            bytes, static_cast<std::size_t>(std::min<std::uint64_t>(max_total, 256ull * 1024 * 1024)));
         if (!r.error.empty()) {
             return r.error;
         }
@@ -791,14 +784,65 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
             return error;
         }
     }
-    const fs::path out_root = fs::exists(work / "out") ? work / "out" : work;
+    if (root_out != nullptr) {
+        *root_out = (fs::exists(work / "out") ? work / "out" : work).string();
+    }
+    return {};
+}
 
+std::vector<std::string> ListFiles(const std::string& root) {
     std::vector<std::string> files;
-    for (fs::recursive_directory_iterator it(out_root, ec), end; !ec && it != end; it.increment(ec)) {
-        if (it->is_regular_file(ec)) {
-            files.push_back(it->path().lexically_relative(out_root).generic_string());
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
+        if (it->is_regular_file(ec) && !it->is_symlink(ec)) {
+            files.push_back(it->path().lexically_relative(root).generic_string());
         }
     }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+bool IsTextureFileName(std::string_view base) {
+    return IsTextureFile(std::string(base));
+}
+
+std::optional<std::string> MarkerId(const std::string& folder) {
+    std::string id;
+    if (!HasMarker(folder, &id)) {
+        return std::nullopt;
+    }
+    return id;
+}
+
+bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source) {
+    nlohmann::json m;
+    m["id"] = id;
+    m["source"] = source;
+    std::ofstream out(fs::path(folder) / kMarker, std::ios::trunc);
+    out << m.dump();
+    return static_cast<bool>(out);
+}
+
+std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
+                           const std::string& load_dir, const std::atomic_bool* cancel,
+                           std::vector<std::string>* installed, const std::string& tool_override) {
+    // AzaharFrame zipinstall: the unpack step is UnpackArchive (Install from Zip shares it).
+    const fs::path work = fs::path(load_dir) / "texture-downloads" / (entry.id + ".x");
+    struct Cleanup {
+        fs::path p;
+        ~Cleanup() {
+            std::error_code e;
+            fs::remove_all(p, e);
+        }
+    } cleanup{work};
+    std::string unpacked;
+    if (std::string error = UnpackArchive(archive_path, work.string(), cancel, &unpacked, tool_override);
+        !error.empty()) {
+        return error;
+    }
+    const fs::path out_root = unpacked;
+    std::error_code ec;
+    const std::vector<std::string> files = ListFiles(unpacked);
     const auto folders = FindPackFolders(files, entry.layout);
     if (folders.empty()) {
         return "No textures found in the download";
@@ -828,14 +872,10 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
         if (ec) {
             return "Cannot move the pack into the library";
         }
-        {
-            nlohmann::json m;
-            m["id"] = entry.id;
-            m["source"] = entry.source.type == Source::Type::GithubRelease ? "github"
-                          : entry.source.type == Source::Type::Gdrive      ? "gdrive"
-                                                                           : "https";
-            std::ofstream(dst / kMarker) << m.dump();
-        }
+        WriteMarker(dst.string(), entry.id,
+                    entry.source.type == Source::Type::GithubRelease ? "github"
+                    : entry.source.type == Source::Type::Gdrive      ? "gdrive"
+                                                                     : "https");
         if (!fs::exists(dst / "pack.json", ec)) {
             nlohmann::json pj;
             pj["name"] = pf.name.empty() ? entry.name : entry.name + " - " + pf.name;

@@ -202,6 +202,13 @@ enum class MenuCommand {
     CancelPackDownload,
     DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
     TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
+    // AzaharFrame zipinstall: Install from Zip (Menu::ZipModel, citra_qt/frame_mods.cpp)
+    InstallFromZip, ///< `value`: Menu::ZipTarget; VR opens the browser, Flat Qt's file dialog
+    ZipBrowse,      ///< `text`: the folder to list
+    ZipPick,        ///< `text`: the archive to install
+    ZipChoose,      ///< `value`: the index of the game in ZipModel::choices
+    ZipDialog,      ///< the page's dialog: `value` 1 Replace, 0 Cancel / OK
+    ZipClose,       ///< the page's back button
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -356,10 +363,12 @@ namespace Menu {
 struct CheatsModel;
 struct ModsListModel;
 struct TexturesModel;
+struct ZipModel;
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
+void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

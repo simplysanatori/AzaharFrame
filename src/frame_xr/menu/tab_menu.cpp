@@ -307,6 +307,8 @@ std::string LabelFor(Id id) {
         return "Cancel";
     case Id::PackDelete:
         return "Delete";
+    case Id::InstallFromZip: // AzaharFrame zipinstall
+        return "Install from Zip";
     default:
         return {};
     }

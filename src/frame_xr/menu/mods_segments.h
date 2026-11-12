@@ -140,6 +140,46 @@ struct TexturesModel {
     bool operator==(const TexturesModel&) const = default;
 };
 
+/// AzaharFrame zipinstall: Install from Zip, on the Textures page and on Install Mods. The page shows
+/// over the segment it was opened from (`target`): in VR a file browser (quick chips for Downloads,
+/// Documents and Home, the folder's subfolders and .zip / .7z files), in Flat only the progress (Qt's
+/// file dialog picks the file); then the progress, a choice of game when the archive has several, and
+/// the questions. The Qt side (citra_qt/frame_mods.cpp) fills it.
+enum class ZipTarget : uint8_t { Textures, Mods };
+
+struct ZipEntry {
+    std::string name;
+    bool folder = false;
+    std::string detail; ///< an archive's size ("1.2 GB")
+    bool operator==(const ZipEntry&) const = default;
+};
+
+struct ZipChip {
+    std::string label; ///< "Downloads", "Documents", "Home"
+    std::string path;
+    bool operator==(const ZipChip&) const = default;
+};
+
+struct ZipModel {
+    bool open = false; ///< the page shows over its segment
+    ZipTarget target = ZipTarget::Textures;
+    bool browse = false;          ///< VR: the file browser
+    std::string folder;           ///< the folder listed (absolute)
+    std::string folder_text;      ///< as shown: "~/Downloads/Packs"
+    bool can_go_up = false;       ///< the ".." row
+    std::vector<ZipChip> chips;   ///< the quick folders that exist
+    std::vector<ZipEntry> entries; ///< folders first, then archives, by name
+    bool loading = false;         ///< the folder is being read
+    bool working = false;         ///< unpacking or installing `file`
+    std::string file;             ///< the archive's file name
+    std::string phase;            ///< "Unpacking", "Installing"
+    std::string error;            ///< why the last one was not installed ("Not a Texture Pack or Mod")
+    std::vector<std::string> choices; ///< several games in the archive: their title IDs
+    ModsDialog dialog;            ///< Replace / Blocked, over the page
+    int spin = 0;                 ///< the progress ring's step
+    bool operator==(const ZipModel&) const = default;
+};
+
 /// "github.com/owner/repo" for a link the menu may open: https://github.com/<owner>/<repo> only
 /// (letters, digits, '-', '_', '.'); "" for anything else.
 std::string GithubLinkText(const std::string& url);

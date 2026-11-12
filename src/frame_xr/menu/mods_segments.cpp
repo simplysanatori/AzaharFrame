@@ -447,7 +447,7 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         break;
     case ModsDialogKind::DeletePack:
         headline = "Delete " + d.mod + "?";
-        body = "You can download it again.";
+        body = d.other.empty() ? std::string("You can download it again.") : d.other; // zipinstall
         confirm = "Delete";
         break;
     case ModsDialogKind::None:
@@ -506,6 +506,11 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         bottom = DrawRestartSnackbar(kit, view, area);
     }
 
+    if (view.mods_page == ModsPage::Install && model.mods.zip.open &&
+        model.mods.zip.target == ZipTarget::Mods) {
+        DrawZip(kit, model.mods.zip, view, area, bottom); // AzaharFrame zipinstall
+        return;
+    }
     if (view.mods_page == ModsPage::Install) {
         // ---- Install Mods: the back button and the title, then the title's mods ----
         const Rect back{c.x0 - 12.0f, c.y0, c.x0 + 36.0f, c.y0 + kBarH};
@@ -514,6 +519,17 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit(back, {Id::ModsBack}, area);
         kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
                     LabelFor(Id::InstallMods));
+        {
+            // AzaharFrame zipinstall: Install from Zip at the bar's end
+            const std::string zip = LabelFor(Id::InstallFromZip);
+            const Target zt{Id::InstallFromZip, static_cast<int>(ZipTarget::Mods)};
+            const Rect b{c.x1 - ButtonWidth(kit, zip, true, 24.0f), c.y0 + (kBarH - kButtonH) * 0.5f,
+                         c.x1, c.y0 + (kBarH + kButtonH) * 0.5f};
+            kit.Button(b, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zt, !m.busy));
+            if (!m.busy) {
+                AddHit({b.x0, c.y0, b.x1, c.y0 + kBarH}, zt, area);
+            }
+        }
         const float top = c.y0 + kBarH + 8.0f;
         const Rect list{area.x0, top, area.x1, bottom};
         if (m.catalog != CatalogState::Ready) {
@@ -680,12 +696,20 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     if (m.needs_restart) {
         bottom = DrawRestartSnackbar(kit, view, area);
     }
+    if (view.textures_page == TexturesPage::Packs && model.mods.zip.open &&
+        model.mods.zip.target == ZipTarget::Textures) {
+        DrawZip(kit, model.mods.zip, view, area, bottom); // AzaharFrame zipinstall
+        return;
+    }
     if (view.textures_page == TexturesPage::Download) {
         DrawPackDownloads(kit, m, view, area, bottom);
         DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
     const std::string download = LabelFor(Id::DownloadPacks);
+    // AzaharFrame zipinstall: Install from Zip beside Download Packs
+    const std::string zip = LabelFor(Id::InstallFromZip);
+    const Target zip_target{Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)};
     if (m.packs.empty()) {
         // No Texture Packs, and where they come from: Download Packs, or Azahar's window.
         const Rect a{c.x0, c.y0, c.x1, bottom};
@@ -699,10 +723,15 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                       "Download them here or add them in Azahar's Window", 1);
         y += 20.0f + 24.0f;
         const float w = ButtonWidth(kit, download, true, 24.0f);
-        const Rect b{a.Cx() - w * 0.5f, y, a.Cx() + w * 0.5f, y + kBarH};
+        const float zw = ButtonWidth(kit, zip, true, 24.0f);
+        const float x0 = a.Cx() - (w + 8.0f + zw) * 0.5f;
+        const Rect b{x0, y, x0 + w, y + kBarH};
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, download,
                    StateOf(view, {Id::DownloadPacks}));
         AddHit(b, {Id::DownloadPacks}, area);
+        const Rect zb{b.x1 + 8.0f, y, b.x1 + 8.0f + zw, y + kBarH};
+        kit.Button(zb, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zip_target));
+        AddHit(zb, zip_target, area);
         DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
@@ -711,6 +740,9 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Tonal, Sym::kDownload, download,
                    StateOf(view, {Id::DownloadPacks}));
         AddHit(b, {Id::DownloadPacks}, area);
+        const Rect zb{b.x1 + 8.0f, c.y0, b.x1 + 8.0f + ButtonWidth(kit, zip, true, 24.0f), c.y0 + kBarH};
+        kit.Button(zb, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zip_target));
+        AddHit(zb, zip_target, area);
     }
 
     struct Item {
@@ -893,6 +925,144 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
+}
+
+// ---------------------------------------------------------------------------------------------
+// AzaharFrame zipinstall: Install from Zip
+//   <-  Install from Zip
+//   [v Downloads] [Documents] [Home]                       filter chips (VR)
+//   ~/Downloads                                            the folder, or why the last one failed
+//   [] ..
+//   [] Packs
+//   [] Ocarina 4K.zip                               1.2 GB
+// While it works: a progress ring, the phase and the file. Several games in the archive: "Choose
+// the Game" and their title IDs.
+
+void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area,
+                      float bottom) {
+    const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
+    const bool choosing = !m.choices.empty() && !m.working;
+    const Rect back{c.x0 - 12.0f, c.y0, c.x0 + 36.0f, c.y0 + kBarH};
+    if (!m.working) {
+        kit.StateLayer(back, 24.0f, Tok::kOnSurfaceVariant, StateOf(view, {Id::ZipBack}));
+        kit.Icon(back.Cx(), back.Cy(), 24.0f, Sym::kArrowBack, false, Tok::kOnSurface);
+        AddHit(back, {Id::ZipBack}, area);
+    } else {
+        kit.Icon(back.Cx(), back.Cy(), 24.0f, Sym::kArrowBack, false, Tok::kOnSurface,
+                 kDisabledContent);
+    }
+    kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
+                choosing ? std::string("Choose the Game") : LabelFor(Id::InstallFromZip));
+    float top = c.y0 + kBarH + 8.0f;
+    const Rect rest{c.x0, top, c.x1, bottom};
+    if (m.working) {
+        EmptyState(kit, rest, 0, true, m.spin, m.phase.empty() ? std::string("Installing") : m.phase,
+                   m.file);
+        DrawModsDialog(kit, m.dialog, view);
+        return;
+    }
+
+    struct Row {
+        Id id;
+        int index;
+        std::string name;
+        std::string detail;
+        char32_t icon;
+    };
+    std::vector<Row> rows;
+    if (choosing) {
+        for (std::size_t i = 0; i < m.choices.size(); i++) {
+            rows.push_back({Id::ZipChoice, static_cast<int>(i), m.choices[i], "", 0});
+        }
+    } else if (m.browse) {
+        // The quick folders: Material filter chips (the remap row's look)
+        constexpr float kChipH = 32.0f, kChipR = 8.0f, kCheckW = 18.0f + 8.0f;
+        float x = c.x0;
+        for (std::size_t i = 0; i < m.chips.size(); i++) {
+            const ZipChip& chip = m.chips[i];
+            const bool chosen = chip.path == m.folder;
+            const float w = (chosen ? 8.0f + kCheckW : 16.0f) + kit.TextWidth(Type::Label, chip.label) + 16.0f;
+            const Rect r{x, top + 8.0f, x + w, top + 8.0f + kChipH};
+            const Target tg{Id::ZipChip, static_cast<int>(i)};
+            if (chosen) {
+                kit.Fill(r, kChipR, Tok::kSecondaryContainer);
+            } else {
+                kit.Stroke(r, kChipR, 1.0f, Tok::kOutline);
+            }
+            const uint32_t fg = chosen ? Tok::kOnSecondaryContainer : Tok::kOnSurfaceVariant;
+            kit.StateLayer(r, kChipR, fg, StateOf(view, tg));
+            float tx = r.x0 + 16.0f;
+            if (chosen) {
+                kit.Icon(r.x0 + 8.0f + 9.0f, r.Cy(), 18.0f, Sym::kCheck, false, fg);
+                tx = r.x0 + 8.0f + kCheckW;
+            }
+            kit.TextMid(tx, r.Cy(), Type::Label, fg, chip.label);
+            AddHit({r.x0, top, r.x1, top + kRow1}, tg, area);
+            x += w + 8.0f;
+        }
+        top += kRow1;
+        // The folder, or why the last archive was not installed
+        const bool failed = !m.error.empty();
+        const std::string line = failed ? (m.file.empty() ? m.error : m.file + ": " + m.error)
+                                        : m.folder_text;
+        kit.TextSized(c.x0, top + 14.0f, kSmall, false, failed ? Tok::kError : Tok::kOnSurfaceVariant,
+                      kit.Fit(Type::Tooltip, line, c.W()));
+        top += 24.0f;
+        if (m.can_go_up && !m.loading) {
+            rows.push_back({Id::ZipUp, -1, "..", "", Sym::kFolderOpen});
+        }
+        if (!m.loading) {
+            const char32_t archive = m.target == ZipTarget::Mods ? Sym::kExtension : Sym::kTexture;
+            for (std::size_t i = 0; i < m.entries.size(); i++) {
+                const ZipEntry& e = m.entries[i];
+                rows.push_back({Id::ZipEntry, static_cast<int>(i), e.name, e.detail,
+                                e.folder ? Sym::kFolderOpen : archive});
+            }
+        }
+    }
+    const Rect list{area.x0, top, area.x1, bottom};
+    if (!choosing && !m.browse) {
+        // Flat: Qt's dialog picked the file; only a failure is left to show
+        EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kInfo, false, 0,
+                   m.error.empty() ? LabelFor(Id::InstallFromZip) : m.error, m.file);
+    } else if (m.browse && m.loading) {
+        EmptyState(kit, {c.x0, top, c.x1, bottom}, 0, true, m.spin, "Loading", "");
+    } else if (m.browse && rows.empty()) {
+        EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kFolderOpen, false, 0, "No Zip Files", "");
+    } else {
+        std::vector<float> heights(rows.size(), kRow1);
+        const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
+        layout.max_scroll = s.max_scroll;
+        layout.scroll_step = s.step;
+        kit.Clip(list);
+        for (std::size_t i = 0; i < rows.size(); i++) {
+            const float y = top + s.tops[i] - s.scroll;
+            if (y + kRow1 <= list.y0 || y + kRow1 > list.y1 + 0.01f) {
+                continue; // whole rows only
+            }
+            const Row& r = rows[i];
+            const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRow1};
+            const Target t{r.id, r.index};
+            kit.StateLayer(row, 16.0f, Tok::kOnSurface, StateOf(view, t));
+            AddHit(row, t, list);
+            float tx = c.x0;
+            if (r.icon != 0) {
+                kit.Icon(c.x0 + 12.0f, row.Cy(), 24.0f, r.icon, false, Tok::kOnSurfaceVariant);
+                tx = c.x0 + kLeading;
+            }
+            float right = c.x1;
+            if (!r.detail.empty()) {
+                const float dw = kit.TextWidthSized(kSmall, false, r.detail);
+                kit.TextSized(c.x1, row.Cy() + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall, false,
+                              Tok::kOnSurfaceVariant, r.detail, 2);
+                right = c.x1 - dw - kNameGap;
+            }
+            kit.TextMid(tx, row.Cy(), Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, r.name, right - tx));
+        }
+        kit.ClearClip();
+        ScrollIndicator(kit, list, area.x1, s);
+    }
+    DrawModsDialog(kit, m.dialog, view);
 }
 
 } // namespace FrameXr::Menu

@@ -722,3 +722,89 @@ TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(SizeText(2'100'000'000) == "2.1 GB");
     CHECK(SizeText(12'345) == "12 KB");
 }
+
+// AzaharFrame zipinstall: Install from Zip on the Textures page and Install Mods, and its page.
+TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    CHECK(LabelFor(Id::InstallFromZip) == "Install from Zip");
+
+    // the Textures page, with and without packs
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    m.mods.textures = Packs(2);
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(FindHit(d, Id::InstallFromZip, 0)->r.x0 > FindHit(d, Id::DownloadPacks, -1)->r.x1);
+    CheckTargets(d);
+
+    // the browser over the Textures page
+    ZipModel& z = m.mods.zip;
+    z.open = true;
+    z.target = ZipTarget::Textures;
+    z.browse = true;
+    z.folder = "/home/u/Downloads";
+    z.can_go_up = true;
+    z.chips = {{"Downloads", "/home/u/Downloads"}, {"Documents", "/home/u/Documents"}, {"Home", "/home/u"}};
+    for (int i = 0; i < 20; i++) {
+        z.entries.push_back({"Pack " + std::to_string(i) + ".zip", false, "12 MB"});
+    }
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TexturePack, 0));
+    CHECK(HasHit(d, Id::ZipBack, -1));
+    CHECK(HasHit(d, Id::ZipChip, 0));
+    CHECK(HasHit(d, Id::ZipChip, 2));
+    CHECK(HasHit(d, Id::ZipUp, -1));
+    CHECK(HasHit(d, Id::ZipEntry, 0));
+    CHECK(!HasHit(d, Id::ZipEntry, 19)); // scrolled away
+    CHECK(d.menu.MaxScroll() > 0.0f);
+    CheckTargets(d);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipEntry, 19));
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+
+    // only on its own segment
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    v.mods_segment = ModsSegment::Textures;
+
+    // working: no way back, no list
+    z.working = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.working = false;
+
+    // several games: choose one
+    z.choices = {"0004000000033500", "0004000000033600"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipChoice, 0));
+    CHECK(HasHit(d, Id::ZipChoice, 1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.choices.clear();
+
+    // a question is modal
+    z.dialog = {ModsDialogKind::Replace, "Pack 1", "Pack 1"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    CHECK(d.menu.HitTest(kPanelW * 0.5f, 140.0f).id != Id::ZipEntry);
+    z = {};
+
+    // Install Mods' bar
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    m.mods.mods.catalog = CatalogState::Ready;
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Mods)));
+    CHECK(FindHit(d, Id::InstallFromZip, 1)->r.H() >= 48.0f);
+    m.mods.mods.busy = true; // not while an install runs
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::InstallFromZip, 1));
+}

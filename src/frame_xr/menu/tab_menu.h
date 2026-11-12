@@ -116,6 +116,13 @@ enum class Id : int {
     PackCancel,     ///< index: mods.textures.downloads
     PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
     PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
+    // AzaharFrame zipinstall: Install from Zip (mods_segments.h ZipModel)
+    InstallFromZip, ///< index: ZipTarget (the Textures page's, Install Mods')
+    ZipBack,        ///< the page's back button
+    ZipChip,        ///< index: mods.zip.chips
+    ZipUp,          ///< the ".." row
+    ZipEntry,       ///< index: mods.zip.entries
+    ZipChoice,      ///< index: mods.zip.choices
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -295,6 +302,8 @@ private:
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);
+    /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
+    void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;
