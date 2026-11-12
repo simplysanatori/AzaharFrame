@@ -75,6 +75,12 @@ struct Options {
 struct Result {
     bool ok = false;
     bool stopped = false;
+    /// The release's recipe is one this builder cannot follow (a newer recipe schema, an operation
+    /// or a program it does not know, 3D scenery it has to generate with the release's scripts, or
+    /// data that does not come out to the release's ABI). Not a damaged download or a bad ROM:
+    /// the release's own builder may still build it (core/homebrew/emerald3ds_fallback.h).
+    /// `error` is set as well (one line, the reason).
+    bool unsupported = false;
     std::string error; ///< one line
     std::string abi;   ///< 8 hex digits
     std::string release;
@@ -91,7 +97,8 @@ Result BuildPack(const Options& options);
 
 /// `--frame-emerald-build --payload-zip ZIP --rom ROM --out DIR [--language L] [--cache DIR]
 /// [--no-network]`: prints "progress PERMILLE TEXT" lines, then "result {json}"; "error TEXT"
-/// and exit 1 on failure (4 when stopped). Returns the exit code.
+/// and exit 1 on failure (4 when stopped, 5 when the recipe is unsupported: "unsupported TEXT").
+/// Returns the exit code.
 int RunCli(const std::vector<std::string>& args);
 
 } // namespace Homebrew::Emerald3ds::Build

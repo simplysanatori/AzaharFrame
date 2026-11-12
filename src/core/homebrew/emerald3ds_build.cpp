@@ -22,6 +22,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/homebrew/emerald3ds.h"
+#include "core/homebrew/emerald3ds_fallback.h"
 #include "core/homebrew/net.h"
 #include "core/mods/archive.h"
 
@@ -1738,6 +1739,14 @@ Result BuildPack(const Options& options) {
             throw Stop{};
         }
     };
+    // A recipe this builder cannot follow: a result of its own, with the reason (AzaharFrame emfallback).
+    const auto unsupported = [&](const std::string& text) {
+        res.unsupported = true;
+        return fail(text);
+    };
+    const auto is_unknown_op = [](const std::string& why) {
+        return why.find("unknown operation") != std::string::npos;
+    };
     try {
         report(0.0, "Unpacking the builder");
         std::error_code ec;
@@ -1885,6 +1894,9 @@ Result BuildPack(const Options& options) {
             why = "the recipe could not be read from the download";
         }
         if (!recipe) {
+            if (why.find("unsupported recipe schema") != std::string::npos) {
+                return unsupported("This release's recipe uses a newer format (" + why + ").");
+            }
             return fail("The release's recipe could not be read. " + why);
         }
         if (recipe->rom_sha1 != rom_sha1) {
@@ -1901,6 +1913,10 @@ Result BuildPack(const Options& options) {
             std::string why2;
             auto data = BuildEntry(entry, rom, *recipe, nullptr, &why2);
             if (!data) {
+                if (is_unknown_op(why2)) {
+                    return unsupported("This release's recipe has a step this builder does not know (" +
+                                       why2 + ").");
+                }
                 return fail("A game data file could not be rebuilt from the ROM. " + why2);
             }
             files[entry["path"].get<std::string>()] = std::move(*data);
@@ -1917,9 +1933,8 @@ Result BuildPack(const Options& options) {
             if (g.contains("ops") && g["ops"].is_array() && !g["ops"].empty()) {
                 programs.push_back(&g);
             } else {
-                return fail(
-                    "This Emerald 3DS release needs its 3D scenery generators, which this version "
-                    "of Azahar for Frame does not run. Update Azahar for Frame.");
+                return unsupported(
+                    "This release needs its 3D scenery generators, which this builder does not run.");
             }
         }
         if (!recipe->generated.empty()) {
@@ -1986,8 +2001,12 @@ Result BuildPack(const Options& options) {
                 std::string why2;
                 auto data = BuildEntry(entry, rom, *recipe, &read, &why2);
                 if (!data) {
-                    return fail("A voxel data file could not be rebuilt from the ROM. " +
-                                (input_error.empty() ? why2 : input_error + " " + why2));
+                    const std::string full = input_error.empty() ? why2 : input_error + " " + why2;
+                    if (is_unknown_op(full)) {
+                        return unsupported("This release's 3D scenery programs have a step this builder "
+                                           "does not know (" + full + ").");
+                    }
+                    return fail("A voxel data file could not be rebuilt from the ROM. " + full);
                 }
                 files[path] = std::move(*data);
                 report(0.6 + 0.3 * static_cast<double>(i + 1) / n,
@@ -2002,9 +2021,9 @@ Result BuildPack(const Options& options) {
         }
         const u32 abi = PakEngineAbi(items);
         if (abi != recipe->engine_abi) {
-            return fail(fmt::format(
-                "The generated data does not match this release (ABI {:08x}, expected {:08x}).", abi,
-                recipe->engine_abi));
+            return unsupported(fmt::format(
+                "The data this builder made does not match this release (ABI {:08x}, expected {:08x}).",
+                abi, recipe->engine_abi));
         }
 
         // The optional follower sprites and texts
@@ -2209,6 +2228,7 @@ Result BuildPack(const Options& options) {
 
 int RunCli(const std::vector<std::string>& args) {
     Options o;
+    bool force_fallback = false;
     for (std::size_t i = 0; i < args.size(); ++i) {
         const auto value = [&]() -> std::string {
             return i + 1 < args.size() ? args[++i] : std::string{};
@@ -2225,6 +2245,8 @@ int RunCli(const std::vector<std::string>& args) {
             o.cache_dir = value();
         } else if (args[i] == "--no-network") {
             o.no_network = true;
+        } else if (args[i] == "--force-fallback") {
+            force_fallback = true; // test hook, honoured only in AZAHARFRAME_TEST_HOOKS builds
         }
     }
     if (o.payload_zip.empty() || o.rom.empty() || o.out_dir.empty()) {
@@ -2236,9 +2258,19 @@ int RunCli(const std::vector<std::string>& args) {
         std::printf("progress %d %s\n", permille, text.c_str());
         std::fflush(stdout);
     };
+#ifdef AZAHARFRAME_TEST_HOOKS
+    // AZAHARFRAME_TEST_HOOKS: the release's own builder in the sandbox, as when the recipe is unsupported
+    const Result r = force_fallback ? Fallback::Run({.build = o}) : BuildPack(o);
+#else
+    (void)force_fallback;
     const Result r = BuildPack(o);
+#endif
     if (r.stopped) {
         return 4;
+    }
+    if (r.unsupported) {
+        std::printf("unsupported %s\n", r.error.c_str());
+        return 5;
     }
     if (!r.ok) {
         std::printf("error %s\n", r.error.c_str());
