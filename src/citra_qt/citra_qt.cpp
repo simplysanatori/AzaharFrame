@@ -1539,6 +1539,8 @@ GMainWindow::GMainWindow(Core::System& system_)
                             g_frame_mods->SetGameInfoSource([this]() {
                                 return FrameGameInfoOf(system, this->game_path.toStdString());
                             });
+                            // AzaharFrame ui3: Optimize for Frame switches packs only between runs
+                            g_frame_mods->SetGameRunningSource([this]() { return emulation_running; });
                         }
                         g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
                         if (!g_frame_cheats) { // AzaharFrame cheatstab
@@ -2734,6 +2736,9 @@ bool GMainWindow::LoadROM(const QString& filename) {
     // loader reads the game's folders
     Mods::Default().SetRunningTitle(0);
     Mods::Default().ApplyPending();
+    if (g_frame_mods) { // AzaharFrame ui3: a texture pack switch Optimize for Frame asked for
+        g_frame_mods->ApplyPendingPack();
+    }
 
     const auto scope = render_window->Acquire();
 
@@ -3262,6 +3267,9 @@ void GMainWindow::ShutdownGame() {
     // AzaharFrame catalog3: the game is not running: what waited goes in or out
     Mods::Default().SetRunningTitle(0);
     Mods::Default().ApplyPending();
+    if (g_frame_mods) { // AzaharFrame ui3
+        g_frame_mods->ApplyPendingPack();
+    }
 
     // Update the GUI
     UpdateMenuState();
@@ -4455,6 +4463,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::TexturePart:
     case C::MoveTexturePart:
     case C::TexturePartsAll:
+    case C::OptimizePack: // AzaharFrame ui3
+    case C::OptimizeStop:
+    case C::UseOriginalPack:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }

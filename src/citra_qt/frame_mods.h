@@ -55,6 +55,7 @@ struct PackInfo;
 namespace FrameXr {
 struct MenuRequest;
 }
+class QProcess;
 class QTimer;
 
 class FrameMods : public QObject {
@@ -83,6 +84,13 @@ public:
     void Command(const FrameXr::MenuRequest& request);
     /// Custom Textures or Preload changed (the Qt side saved it): the snackbar.
     void TextureSettingChanged();
+    /// AzaharFrame ui3: whether a game runs now (GUI thread): a pack switch Optimize for Frame
+    /// or Use Original asks for then waits for ApplyPendingPack.
+    void SetGameRunningSource(std::function<bool()> source);
+    /// AzaharFrame ui3: the switch that waited (the game stopped, or the next one boots, before
+    /// its loader reads the folders): load/textures/<TID> points at the chosen pack of the pair,
+    /// the Customize choices carried over. GUI thread; quick (a listing and a symlink).
+    void ApplyPendingPack();
 
 private:
     std::function<std::optional<u32>()> code_crc_source; // AzaharFrame modcat
@@ -99,7 +107,8 @@ private:
     std::set<std::string> unscanned_ok;
     struct Pending {
         enum class Kind { None, Install, Remove, Download, Delete, BigInstall,
-                          Unscanned /* AzaharFrame compat */ } kind = Kind::None;
+                          Unscanned /* AzaharFrame compat */,
+                          Optimize /* AzaharFrame ui3: the PNG pack's path */ } kind = Kind::None;
         std::string id;
     };
 
@@ -134,6 +143,7 @@ private:
     struct PackParts {
         std::size_t count = 0; ///< Layout::PartCount
         std::string on_text;   ///< "6 of 7 Parts"
+        bool optimizable = false; ///< AzaharFrame ui3: PNG, or an optimized copy: it has a page
     };
     std::map<std::string, PackParts> pack_parts; ///< by pack id, from RefreshPacks
     std::string parts_path;                      ///< the pack the page is for
@@ -163,6 +173,39 @@ private:
     void ZipCheats(const std::string& path); ///< AzaharFrame ui2: a cheat file, or a zip of one
     void ZipCloseJob();
     void PublishZip();
+
+    // AzaharFrame ui3: Optimize for Frame (frame_mods_optimize.cpp; core/custom_tex/optimize.h)
+    void OptimizeAsk(const std::string& pack_id);   ///< the estimate, then the dialog
+    void OptimizeStart(const std::string& png);     ///< the dialog's Optimize
+    void OptimizeConvert(const std::string& png);   ///< after the encoder is there
+    void OptimizeStop();
+    void OptimizeDone(int code, bool stopped);
+    void UseOriginal(const std::string& pack_id);
+    /// Makes `path` (a pack of the game `tid`) the one used, now or (a game running) when it stops;
+    /// `carry_from`: the pair's other pack, whose Customize choices go with it.
+    void ChoosePack(u64 tid, const std::string& path, const std::string& carry_from);
+    void UpdateOptimizeRow(); ///< the page's row from the pair, the job and the pending switch
+    void CheckNudge();        ///< "Optimize <Pack> for Frame?" for a candidate, once a pack
+    const CustomTex::Pack* PackByPath(const std::string& path) const;
+    std::function<bool()> game_running_source;
+    QProcess* optimize_process = nullptr;
+    std::string optimize_png;   ///< the pack converting now (canonical path)
+    u64 optimize_title = 0;
+    FrameXr::Menu::PackOptimize optimize_progress; ///< its Converting state
+    bool optimize_stopping = false;
+    std::string optimize_output; ///< its last lines, for the log
+    std::string optimize_checking; ///< the pack whose estimate runs
+    /// Stopped or Failed, by the PNG pack's canonical path (until it runs again or ends well)
+    std::map<std::string, FrameXr::Menu::PackOptimize> optimize_states;
+    struct PendingSwitch {
+        u64 title = 0;
+        std::string path;       ///< the pack to use (canonical)
+        std::string carry_from; ///< its pair's other pack
+    };
+    std::optional<PendingSwitch> pending_switch;
+    /// Packs that became active (id) or were downloaded ("folder:" + folder name): the nudge's
+    /// candidates, checked once their size is known.
+    std::set<std::string> nudge_candidates;
 
     u64 title_id = 0;
     int run = -1;

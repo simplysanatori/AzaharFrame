@@ -36,6 +36,7 @@
 #include "core/cheats/online.h"
 #include "core/core.h"                 // AzaharFrame ui2
 #include "core/custom_tex/download.h"
+#include "core/custom_tex/optimize.h" // AzaharFrame ui3
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
@@ -187,7 +188,7 @@ FrameMods::FrameMods(QObject* parent) : QObject(parent) {
     connect(download_poll, &QTimer::timeout, this, [this] { PollDownload(); });
 }
 
-FrameMods::~FrameMods() = default;
+// AzaharFrame ui3: the destructor is in frame_mods_optimize.cpp (a conversion is stopped cleanly).
 
 void FrameMods::SetCodeCrcSource(std::function<std::optional<u32>()> source) {
     code_crc_source = std::move(source);
@@ -373,6 +374,15 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     case C::OpenTextureParts:
         OpenParts(r.text);
         return;
+    case C::OptimizePack: // AzaharFrame ui3
+        OptimizeAsk(r.text);
+        return;
+    case C::OptimizeStop:
+        OptimizeStop();
+        return;
+    case C::UseOriginalPack:
+        UseOriginal(r.text);
+        return;
     case C::TexturePart:
         PartClicked(r.value);
         return;
@@ -433,6 +443,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             StartDownload(p.id);
         } else if (p.kind == Pending::Kind::Delete) {
             DeletePack(p.id);
+        } else if (p.kind == Pending::Kind::Optimize) { // AzaharFrame ui3
+            OptimizeStart(p.id);
         }
         return;
     }
@@ -880,7 +892,10 @@ void FrameMods::RefreshPacks() {
                 namespace P = CustomTex::Parts;
                 const P::State state = P::ReadState(p.path);
                 const P::Layout layout = P::Build(P::ListFiles(p.path), state.hints);
-                parts[p.id] = {layout.PartCount(), P::PartsOnText(layout, state)};
+                parts[p.id] = {layout.PartCount(), P::PartsOnText(layout, state),
+                               // AzaharFrame ui3: Optimize for Frame is on the pack's page
+                               p.format == CustomTex::Format::Png ||
+                                   CustomTex::Optimize::IsOptimized(p.path)};
             }
             return std::make_tuple(std::move(list), std::move(zipped), std::move(parts));
         },
@@ -898,13 +913,20 @@ void FrameMods::RefreshPacks() {
                 const std::string folder = std::filesystem::path(p.path).filename().string();
                 const bool mine =
                     p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
-                textures.packs.push_back({p.id, p.name, PackDetail(p), p.active, mine});
+                // AzaharFrame ui3: a switch waiting for the next start shows as chosen
+                const bool active = pending_switch && pending_switch->title == tid
+                                        ? p.id == pending_switch->path
+                                        : p.active;
+                textures.packs.push_back({p.id, p.name, PackDetail(p), active, mine});
                 if (const auto it = pack_parts.find(p.id); it != pack_parts.end()) {
-                    textures.packs.back().customize = it->second.count >= 2; // AzaharFrame texparts
+                    // AzaharFrame texparts; ui3: a PNG or optimized pack has its page too
+                    textures.packs.back().customize = it->second.count >= 2 || it->second.optimizable;
                     textures.packs.back().detail =
                         Menu::JoinDetail({textures.packs.back().detail, it->second.on_text});
                 }
             }
+            UpdateOptimizeRow(); // AzaharFrame ui3
+            CheckNudge();
             PublishTextures();
             ComputeSizes();
         });
@@ -940,6 +962,8 @@ void FrameMods::ComputeSizes() {
                         Menu::JoinDetail({textures.packs[i].detail, it->second.on_text});
                 }
             }
+            UpdateOptimizeRow(); // AzaharFrame ui3: the sizes
+            CheckNudge();
             PublishTextures();
         });
 }
@@ -960,6 +984,12 @@ void FrameMods::SelectPack(const std::string& id) {
         }
     }
     textures.busy = true;
+    if (pending_switch && pending_switch->title == title_id) { // AzaharFrame ui3: this choice wins
+        LOG_INFO(Frontend, "xr: texture packs: the waiting switch to {} is dropped",
+                 pending_switch->path);
+        pending_switch.reset();
+    }
+    textures.nudge_pack.clear(); // AzaharFrame ui3
     for (Menu::TexturePackItem& p : textures.packs) {
         p.active = p.id == id; // at once; the list is read again after
     }
@@ -992,6 +1022,7 @@ void FrameMods::SelectPack(const std::string& id) {
                 }
                 if (pack) {
                     FrameCrashGuard::NoteOn(tid, {Kind::Pack, pack->id, pack->name});
+                    nudge_candidates.insert(pack->id); // AzaharFrame ui3
                 }
             } else {
                 LOG_WARNING(Frontend, "xr: texture packs: switch failed: {}", out.error);
@@ -1025,6 +1056,10 @@ void FrameMods::OpenParts(const std::string& pack_id) {
     textures.parts.author = pack->author;
     textures.parts.rest = pack->version;
     textures.parts.loading = true;
+    if (textures.nudge_pack == pack_id) { // AzaharFrame ui3: answered
+        textures.nudge_pack.clear();
+    }
+    UpdateOptimizeRow(); // AzaharFrame ui3
     PublishTextures();
     const std::string path = pack->path;
     OffThread(
@@ -1415,6 +1450,7 @@ void FrameMods::PollDownload() {
         LOG_INFO(Frontend, "xr: texture packs: {} downloaded", st.pack_id);
         for (const std::string& f : st.installed) {
             downloaded.insert(f);
+            nudge_candidates.insert("folder:" + f); // AzaharFrame ui3
         }
         RefreshPacks();
         break;
