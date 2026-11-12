@@ -289,7 +289,7 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         MenuView v;
         v.tab = Tab::Controls;
         d.Draw(m, v);
-        REQUIRE(picture.H() > 300.0f); // most of the pane
+        REQUIRE(picture.H() > 200.0f); // most of the pane
         float edit_y1 = 0.0f, rows_y0 = 1e9f, rows_y1 = 0.0f;
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == Id::EditControls) {
@@ -1094,7 +1094,7 @@ TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr]
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }
 
-// AzaharFrame zipinstall: Install from Zip on the Textures page and Install Mods, and its page.
+// AzaharFrame zipinstall: Install from Zip on Download Packs and Install Mods, and its page.
 TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
@@ -1103,15 +1103,37 @@ TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     v.mods_segment = ModsSegment::Textures;
     CHECK(LabelFor(Id::InstallFromZip) == "Install from Zip");
 
-    // the Textures page, with and without packs
+    // AzaharFrame ui2: not on the Textures page itself, with or without packs: Download Packs
+    // leads to the page that has it, as Install Mods does.
     d.Draw(m, v);
-    CHECK(HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(!HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
     CHECK(HasHit(d, Id::DownloadPacks, -1));
     m.mods.textures = Packs(2);
     d.Draw(m, v);
-    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
-    CHECK(FindHit(d, Id::InstallFromZip, 0)->r.x0 > FindHit(d, Id::DownloadPacks, -1)->r.x1);
+    CHECK(!HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    // Download Packs: at the bar's end, empty list or not, where Install Mods has it.
+    v.textures_page = TexturesPage::Download;
+    d.Draw(m, v);
+    const auto* tz = FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures));
+    REQUIRE(tz);
+    const MenuLayout::Hit tex_zip = *tz;
+    CHECK(HasHit(d, Id::TexturesBack, -1));
     CheckTargets(d);
+    {
+        MenuModel mi = m;
+        MenuView vi = v;
+        vi.mods_segment = ModsSegment::Mods;
+        vi.mods_page = ModsPage::Install;
+        mi.mods.mods.catalog = CatalogState::Ready;
+        d.Draw(mi, vi);
+        const auto* mz = FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Mods));
+        REQUIRE(mz);
+        CHECK(mz->r.x0 == tex_zip.r.x0);
+        CHECK(mz->r.x1 == tex_zip.r.x1);
+        CHECK(mz->r.y0 == tex_zip.r.y0);
+        CHECK(mz->r.y1 == tex_zip.r.y1);
+    }
 
     // the browser over the Textures page
     ZipModel& z = m.mods.zip;

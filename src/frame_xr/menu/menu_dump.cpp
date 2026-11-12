@@ -752,10 +752,11 @@ int main(int argc, char** argv) {
         dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
         v.hover = {Id::DialogConfirm};
         ok &= shot("textures-delete", dp, v);
-        // AzaharFrame zipinstall: Install from Zip
+        // AzaharFrame zipinstall: Install from Zip; AzaharFrame ui2: on Download Packs
+        v.textures_page = TexturesPage::Download;
         v.hover = {Id::InstallFromZip, 0};
         dp.mods.textures.dialog = {};
-        ok &= shot("zip-textures-button", dp, v);
+        ok &= shot("zip-textures-button", dm, v);
         MenuModel zm = dp;
         ZipModel& z = zm.mods.zip;
         z.open = true;
@@ -803,8 +804,11 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = mods_tab;
         v.mods_segment = ModsSegment::Textures;
+        v.textures_page = TexturesPage::Download;
         v.hover = {Id::InstallFromZip, 0};
-        ok &= shot("zip-textures-empty", dm, v);
+        MenuModel dz = dm;
+        dz.mods.textures.downloads.clear();
+        ok &= shot("zip-textures-empty", dz, v);
     }
     v = {};
     v.tab = Tab::Main;

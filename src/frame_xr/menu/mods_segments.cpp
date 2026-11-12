@@ -11,16 +11,20 @@
 //   simplysanatori · 2026-11-01
 //   code.ips                                        Remove          your own files: Remove only
 // Mods, Install Mods:
-//   <-  Install Mods
+//   <-  Install Mods                                 [Install from Zip]
 //   Ocarina ReFramed (Single Screen)                       [Install]
 //   OTPR26
 // Textures:
+//   [Download Packs]                                               tonal button
 //   Custom Textures                                          ( o)
 //   ---------------------------------------------------------------
 //   (o) Off
 //   ( ) 4K           Henriko Magnifico · 6.0.0 · ASTC/KTX · 2.1 GB
 //   ---------------------------------------------------------------
 //   Preload                                                  (o )
+// Textures, Download Packs (AzaharFrame ui2: the same page as Install Mods):
+//   <-  Download Packs                               [Install from Zip]
+//   4K                                                    [Download]
 // Both: [ Restart the Game to Apply                      Restart ]   snackbar after a change
 // No sections and no subheaders. A question (a conflict, deleting your own files) is a Material
 // basic dialog over the whole panel.
@@ -521,17 +525,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit(back, {Id::ModsBack}, area);
         kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
                     LabelFor(Id::InstallMods));
-        {
-            // AzaharFrame zipinstall: Install from Zip at the bar's end
-            const std::string zip = LabelFor(Id::InstallFromZip);
-            const Target zt{Id::InstallFromZip, static_cast<int>(ZipTarget::Mods)};
-            const Rect b{c.x1 - ButtonWidth(kit, zip, true, 24.0f), c.y0 + (kBarH - kButtonH) * 0.5f,
-                         c.x1, c.y0 + (kBarH + kButtonH) * 0.5f};
-            kit.Button(b, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zt, !m.busy));
-            if (!m.busy) {
-                AddHit({b.x0, c.y0, b.x1, c.y0 + kBarH}, zt, area);
-            }
-        }
+        DrawZipButton(kit, view, area, ZipTarget::Mods, !m.busy); // AzaharFrame zipinstall
         const float top = c.y0 + kBarH + 8.0f;
         const Rect list{area.x0, top, area.x1, bottom};
         if (m.catalog != CatalogState::Ready) {
@@ -698,7 +692,8 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     if (m.needs_restart) {
         bottom = DrawRestartSnackbar(kit, view, area);
     }
-    if (view.textures_page == TexturesPage::Packs && model.mods.zip.open &&
+    // AzaharFrame ui2: Install from Zip is on Download Packs, as it is on Install Mods.
+    if (view.textures_page == TexturesPage::Download && model.mods.zip.open &&
         model.mods.zip.target == ZipTarget::Textures) {
         DrawZip(kit, model.mods.zip, view, area, bottom); // AzaharFrame zipinstall
         return;
@@ -708,32 +703,22 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
+    // AzaharFrame ui2: the same as the Mods segment: one button to the page of this game's packs
+    // (with Install from Zip there), and with nothing installed one centred state.
     const std::string download = LabelFor(Id::DownloadPacks);
-    // AzaharFrame zipinstall: Install from Zip beside Download Packs
-    const std::string zip = LabelFor(Id::InstallFromZip);
-    const Target zip_target{Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)};
     if (m.packs.empty()) {
-        // No Texture Packs, and where they come from: Download Packs, or Azahar's window.
         const Rect a{c.x0, c.y0, c.x1, bottom};
-        const float h = 48.0f + 16.0f + 24.0f + 8.0f + 20.0f + 24.0f + kBarH;
+        const float h = 48.0f + 16.0f + 24.0f + 24.0f + kBarH;
         float y = a.Cy() - h * 0.5f;
         kit.Icon(a.Cx(), y + 24.0f, 48.0f, Sym::kTexture, false, Tok::kOnSurfaceVariant);
         y += 48.0f + 16.0f;
         kit.TextMid(a.Cx(), y + 12.0f, Type::Title, Tok::kOnSurface, "No Texture Packs", 1);
-        y += 24.0f + 8.0f;
-        kit.TextSized(a.Cx(), y + 15.0f, kSmall, false, Tok::kOnSurfaceVariant,
-                      "Download them here or add them in Azahar's Window", 1);
-        y += 20.0f + 24.0f;
+        y += 24.0f + 24.0f;
         const float w = ButtonWidth(kit, download, true, 24.0f);
-        const float zw = ButtonWidth(kit, zip, true, 24.0f);
-        const float x0 = a.Cx() - (w + 8.0f + zw) * 0.5f;
-        const Rect b{x0, y, x0 + w, y + kBarH};
+        const Rect b{a.Cx() - w * 0.5f, y, a.Cx() + w * 0.5f, y + kBarH};
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, download,
                    StateOf(view, {Id::DownloadPacks}));
         AddHit(b, {Id::DownloadPacks}, area);
-        const Rect zb{b.x1 + 8.0f, y, b.x1 + 8.0f + zw, y + kBarH};
-        kit.Button(zb, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zip_target));
-        AddHit(zb, zip_target, area);
         DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
@@ -742,9 +727,6 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Tonal, Sym::kDownload, download,
                    StateOf(view, {Id::DownloadPacks}));
         AddHit(b, {Id::DownloadPacks}, area);
-        const Rect zb{b.x1 + 8.0f, c.y0, b.x1 + 8.0f + ButtonWidth(kit, zip, true, 24.0f), c.y0 + kBarH};
-        kit.Button(zb, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zip_target));
-        AddHit(zb, zip_target, area);
     }
 
     struct Item {
@@ -843,6 +825,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     AddHit(back, {Id::TexturesBack}, area);
     kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
                 LabelFor(Id::DownloadPacks));
+    DrawZipButton(kit, view, area, ZipTarget::Textures, true); // AzaharFrame ui2
     const float top = c.y0 + kBarH + 8.0f;
     const Rect list{area.x0, top, area.x1, bottom};
     if (m.downloads.empty()) {
@@ -930,6 +913,21 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
+}
+
+// AzaharFrame ui2: Install from Zip at the end of a download page's bar (Install Mods, Download
+// Packs), in the same place with the same words on both.
+void TabMenu::DrawZipButton(Kit& kit, const MenuView& view, const Rect& area, ZipTarget target,
+                            bool enabled) {
+    const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
+    const std::string zip = LabelFor(Id::InstallFromZip);
+    const Target zt{Id::InstallFromZip, static_cast<int>(target)};
+    const Rect b{c.x1 - ButtonWidth(kit, zip, true, 24.0f), c.y0 + (kBarH - kButtonH) * 0.5f, c.x1,
+                 c.y0 + (kBarH + kButtonH) * 0.5f};
+    kit.Button(b, ButtonStyle::Tonal, Sym::kFolderOpen, zip, StateOf(view, zt, enabled));
+    if (enabled) {
+        AddHit({b.x0, c.y0, b.x1, c.y0 + kBarH}, zt, area);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

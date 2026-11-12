@@ -269,8 +269,8 @@ bool ZipShown(const Menu::MenuModel& model, const Menu::MenuView& view) {
         return false;
     }
     if (zip.target == Menu::ZipTarget::Textures) {
-        return view.mods_segment == Menu::ModsSegment::Textures &&
-               view.textures_page == Menu::TexturesPage::Packs;
+        return view.mods_segment == Menu::ModsSegment::Textures && // AzaharFrame ui2
+               view.textures_page == Menu::TexturesPage::Download;
     }
     return view.mods_segment == Menu::ModsSegment::Mods && view.mods_page == Menu::ModsPage::Install;
 }

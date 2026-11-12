@@ -124,7 +124,7 @@ enum class Id : int {
     PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
     PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
     // AzaharFrame zipinstall: Install from Zip (mods_segments.h ZipModel)
-    InstallFromZip, ///< index: ZipTarget (the Textures page's, Install Mods')
+    InstallFromZip, ///< index: ZipTarget (on Download Packs and Install Mods)
     ZipBack,        ///< the page's back button
     ZipChip,        ///< index: mods.zip.chips
     ZipUp,          ///< the ".." row
@@ -329,6 +329,9 @@ private:
                            const Rect& area, float bottom);
     /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
+    /// AzaharFrame ui2: Install from Zip at a download page's bar end.
+    void DrawZipButton(Kit& kit, const MenuView& view, const Rect& area, ZipTarget target,
+                       bool enabled);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;
