@@ -44,9 +44,23 @@ R"(    mat4 freecam_matrix;
 )"
 #endif
 R"(    float vr_immersive_mode_factor; // CitraVR: appended last to keep existing offsets
+    float vr_immersive_mode_factor_y; // AzaharFrame immersive: up and down (clip x)
 };
 
 const vec2 EPSILON_Z = vec2(0.000001f, -1.00001f);
+
+// AzaharFrame immersive: the periphery factors (clip x is up and down, the top screen is drawn
+// turned). A 2D vertex (w = 1) on or past the edge of the view keeps its place: a full-screen 2D
+// pass (a depth or stencil mask, a copy of the last frame) still covers the whole picture, where
+// shrunk it cut the world off at the game's own frame (Ocarina of Time 3D) or nested copies of
+// the last frame (Majora's Mask 3D). 2D inside the view (the HUD) shrinks with the world.
+vec2 VrFactor(vec4 pos) {
+    vec2 f = vec2(vr_immersive_mode_factor_y, vr_immersive_mode_factor);
+    if (abs(pos.w - 1.0) < 0.0001) {
+        f = mix(f, vec2(1.0), greaterThanEqual(abs(pos.xy), vec2(0.999)));
+    }
+    return f;
+}
 
 vec4 SanitizeVertex(vec4 vtx_pos) {
     float ndc_z = vtx_pos.z / vtx_pos.w;
@@ -75,11 +89,11 @@ vec4 ApplyFreeCam(vec4 clip_pos) {
 #ifdef ENABLE_FREECAM
 constexpr std::string_view PositionOutput =
     "    gl_Position = ApplyFreeCam(vec4(vtx_pos.x, vtx_pos.y, -vtx_pos.z, vtx_pos.w));\n"
-    "    gl_Position.xy /= vr_immersive_mode_factor;\n";
+    "    gl_Position.xy /= VrFactor(gl_Position);\n";
 #else
 constexpr std::string_view PositionOutput =
     "    gl_Position = vec4(vtx_pos.x, vtx_pos.y, -vtx_pos.z, vtx_pos.w);\n"
-    "    gl_Position.xy /= vr_immersive_mode_factor;\n";
+    "    gl_Position.xy /= VrFactor(gl_Position);\n";
 #endif
 
 static std::string GetVertexInterfaceDeclaration(bool is_output, bool use_clip_planes,

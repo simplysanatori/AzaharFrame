@@ -85,6 +85,8 @@ public:
 
     /// Set VR position data on the rasterizer
     virtual void SetVRData(const int32_t &vrImmersiveMode, const float& immersiveModeFactor, int uoffset, const float& gamePosScaler, const float inv_view[16]) {}
+    /// AzaharFrame immersive: the periphery factor up and down (SetVRData's is across).
+    virtual void SetVRFactorY(float factor_y) {}
 
     virtual void SwitchDiskResources([[maybe_unused]] u64 title_id) {}
 

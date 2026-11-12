@@ -17,10 +17,11 @@
 //     the game are scaled by `gain` = game angle / screen angle (tangents, at the middle), so
 //     the picture still moves with the head at the middle of the screen. The cost: a big head
 //     turn turns the game camera `gain` times as far, and the edges of the planar picture move a
-//     little against the head. The game's own view never widens with the size: past its edges
-//     its culling and scenery run out (black boxes in Super Mario 3D Land).
+//     little against the head. The game's own view never widens with the size, only with the
+//     periphery factors: past them a game's scenery can run out (black below the floor of a
+//     Super Mario 3D Land level).
 //   - Wider View (per game, Off by default; AzaharFrame widerview): the game's periphery factor
-//     (CitraVR's 1.4 at most, `gl_Position.xy /= factor`) is the level the player chose, 1.0x to
+//     across (CitraVR's 1.4 at most, `gl_Position.y /= factor`) is the level the player chose, 1.0x to
 //     1.4x, whatever the size. A step on the D-pad also scales the size by the same ratio
 //     (SizeForWider), so the picture keeps its scale and gain and only shows more or less around
 //     it; at the size limit the factor still changes (and the gain with it).
@@ -29,10 +30,12 @@
 //     the HUD at the sides moves in while the middle stays locked. The world looks that much
 //     thinner.
 //
-// AzaharFrame immersive: the default size fills the view. Its sides are kFillMarginDeg past the
-// farthest either eye sees to the side (the runtime's per-eye FOV), so no edge of the screen
-// shows from any angle the eyes turn to; the height follows the picture's shape, at least
-// +-kMinFillHalfHeightDeg, centred on the middle of the view. The picture is magnified to do
+// AzaharFrame immersive: the default size fills the view, across and up and down. Its edges are
+// kFillMarginDeg past the farthest either eye sees (the runtime's per-eye FOV, ViewFov::outer_*),
+// so no edge of the screen shows from any angle the eyes turn to. The screen takes the view's
+// shape, not the picture's: the Frame's view is taller than 5:3, so the game draws further up and
+// down than across (`factor_y` over `factor`, `gl_Position.x` and `.y` divided separately), and
+// the picture is not stretched (the gain is the same both ways). The picture is magnified to do
 // that (gain below 1), except where the game's own frame is already that big; it stops at the
 // size where the gain would go under kMinGain (a narrow telephoto camera). A zoom of the game
 // camera does not resize it: only the gain follows the live angle (CameraFilter).
@@ -64,10 +67,13 @@ inline constexpr float kMaxPitchDeg = 25.0f;
 /// Size, times the default (fitted) size.
 inline constexpr float kMinSize = 0.6f;
 inline constexpr float kMaxSize = 2.5f;
-/// AzaharFrame immersive: the default screen's sides this far past the farthest either eye sees,
+/// AzaharFrame immersive: the default screen's edges this far past the farthest either eye sees,
 /// degrees (ViewFov::outer_*), and its half height at least this, degrees.
 inline constexpr float kFillMarginDeg = 1.0f;
 inline constexpr float kMinFillHalfHeightDeg = 35.0f;
+/// AzaharFrame immersive: the game draws at most this much further up and down than its own
+/// frame (`factor_y`); a taller view leaves the screen's top and bottom edges in it.
+inline constexpr float kMaxFactorY = 2.0f;
 /// The rotation gain stays within these (past them the screen keeps its size and the world drifts
 /// a little). At the screen's edge, angle e, a head turn moves the picture by
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
@@ -117,8 +123,8 @@ std::string OffsetToast(const LensOffset& o, bool horizontal);
 
 /// The part of the view both eyes see: angles in radians from the head's forward axis (OpenXR
 /// XrFovf signs: left and down are negative). `outer_left` and `outer_right` are how far either
-/// eye sees to the side (the left eye farther left, the right eye farther right), which the
-/// default screen covers.
+/// eye sees to the side (the left eye farther left, the right eye farther right), `outer_up` and
+/// `outer_down` how far either eye sees up and down, which the default screen covers.
 struct ViewFov {
     float left = -kFallbackHalfFovDeg * kDegToRad;
     float right = kFallbackHalfFovDeg * kDegToRad;
@@ -126,6 +132,8 @@ struct ViewFov {
     float down = -kFallbackHalfFovDeg * kDegToRad;
     float outer_left = -kFallbackHalfFovDeg * kDegToRad;
     float outer_right = kFallbackHalfFovDeg * kDegToRad;
+    float outer_up = kFallbackHalfFovDeg * kDegToRad;
+    float outer_down = -kFallbackHalfFovDeg * kDegToRad;
 };
 
 /// One eye's FOV and the eye's yaw and pitch relative to the head (canted displays), radians.
@@ -136,7 +144,7 @@ struct EyeFov {
 };
 
 /// What both eyes see: the intersection of the two eyes' FOVs, in head angles, and how far
-/// either eye sees to the side (outer_left, outer_right).
+/// either eye sees to each side (outer_*).
 ViewFov BothEyes(const EyeFov& left, const EyeFov& right);
 
 /// What the player chose (saved per game). Defaults: kDefault*.
@@ -162,7 +170,11 @@ float SqueezeFor(uint32_t setting);
 
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
-    float factor = kFactorMax; ///< the game draws this much wider (gl_Position.xy /= factor)
+    float factor = kFactorMax; ///< the game draws this much wider (gl_Position.y /= factor)
+    /// AzaharFrame immersive: and this much higher (gl_Position.x /= factor_y; the 3DS top screen
+    /// is drawn turned, so x is up and down): at least `factor`, more when the screen is taller
+    /// than the picture's shape.
+    float factor_y = kFactorMax;
     float tan_half_y = 0.0f;   ///< the quad's half height over its distance
     float aspect = 5.0f / 3.0f; ///< the quad's width over its height (the picture's x (1 - squeeze))
     float pitch_rad = 0.0f; ///< the quad and the game camera turn by this about the eye
@@ -191,11 +203,16 @@ float ViewMiddlePitch(const ViewFov& view);
 float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float margin_rad,
                   float eye_shift = 0.0f);
 
-/// The default screen's tan(half height) (size 1), filling the view: its sides kFillMarginDeg
-/// past the farthest either eye sees (`eye_shift`: mode 2's shared quad seen from half the IPD
-/// to the side), at least kMinFillHalfHeightDeg high, at most `max_tan_half_y`. `aspect` is
-/// the picture's (unsqueezed).
-float DefaultTanHalfY(float aspect, const ViewFov& view, float eye_shift, float max_tan_half_y);
+/// AzaharFrame immersive: the default screen (size 1), filling the view: half its width and
+/// height over its distance.
+struct Cover {
+    float tan_x = 1.0f;
+    float tan_y = 1.0f;
+};
+/// The screen turned down by `pitch_rad` about the eye that covers what either eye sees, with
+/// kFillMarginDeg to spare on every side and at least kMinFillHalfHeightDeg high (`eye_shift`:
+/// mode 2's shared quad, seen from half the IPD to the side, needs that much more across).
+Cover DefaultCover(const ViewFov& view, float pitch_rad, float eye_shift);
 
 // ---- Wider View (AzaharFrame widerview) ----
 /// Settings::values.vr_immersive_wider_view_level: 0 = Off (1.0x), 1 to 4 = 1.1x to 1.4x.

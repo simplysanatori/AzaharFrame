@@ -88,7 +88,7 @@ The screens have two places. The Primary Screen is where the top screen starts. 
 |---|---|
 | Right stick click, tap | The bottom screen becomes the Primary Screen, at the top screen's height, and the top screen becomes the Secondary Screen. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
-| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
+| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode re-centres the view. The immersive screen keeps its size unless you hold it with a grip. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
@@ -264,7 +264,7 @@ Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Sc
 |---|---|
 | Both bumpers, then **View** | Shows or hides the bottom screen |
 | Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
-| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look and puts the screen back. SteamVR's recenter (hold the Steam button) only re-centres the view |
+| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look. The screen keeps its size, as with SteamVR's recenter (hold the Steam button). **Reset Position** in the menu puts the screen back |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 ## Moving the immersive screen
@@ -278,7 +278,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Wider View, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Wider View: 1.2x**. Kept for this game |
-| Right stick click, held for 1 second | Puts the screen back where it starts, re-centres the view and resets the normal screens, held or not. A tap does nothing while you hold the screen |
+| Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, re-centres the view and resets the normal screens. Without a grip it only re-centres, and the screen keeps its size. A tap does nothing while you hold the screen |
 
 Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 

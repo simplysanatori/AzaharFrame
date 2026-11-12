@@ -34,6 +34,7 @@ namespace VideoCore::Immersive {
 struct VRData {
     s32 mode = 1;
     float factor = 1.0f;
+    float factor_y = 1.0f; ///< AzaharFrame immersive: the factor up and down
     s32 uoffset = -1;
     float game_pos_scaler = 0.0f;
     std::array<float, 16> inv_view{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
@@ -50,6 +51,7 @@ public:
         std::atomic_thread_fence(std::memory_order_release);
         mode.store(data.mode, std::memory_order_relaxed);
         factor.store(data.factor, std::memory_order_relaxed);
+        factor_y.store(data.factor_y, std::memory_order_relaxed);
         uoffset.store(data.uoffset, std::memory_order_relaxed);
         game_pos_scaler.store(data.game_pos_scaler, std::memory_order_relaxed);
         for (std::size_t i = 0; i < 16; i++) {
@@ -72,6 +74,7 @@ public:
             VRData d;
             d.mode = mode.load(std::memory_order_relaxed);
             d.factor = factor.load(std::memory_order_relaxed);
+            d.factor_y = factor_y.load(std::memory_order_relaxed);
             d.uoffset = uoffset.load(std::memory_order_relaxed);
             d.game_pos_scaler = game_pos_scaler.load(std::memory_order_relaxed);
             for (std::size_t i = 0; i < 16; i++) {
@@ -91,6 +94,7 @@ private:
     std::atomic<u32> seq{0};
     std::atomic<s32> mode{1};
     std::atomic<float> factor{1.0f};
+    std::atomic<float> factor_y{1.0f};
     std::atomic<s32> uoffset{-1};
     std::atomic<float> game_pos_scaler{0.0f};
     std::array<std::atomic<float>, 16> inv_view{};
@@ -202,6 +206,7 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
     last_serial = serial;
     last_rasterizer = rasterizer;
     rasterizer->SetVRData(d.mode, d.factor, d.uoffset, d.game_pos_scaler, d.inv_view.data());
+    rasterizer->SetVRFactorY(d.factor_y);
 }
 
 /// AzaharFrame immersive: when the emulation thread may give the rasterizer a new head pose.

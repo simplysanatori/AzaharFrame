@@ -308,6 +308,14 @@ void RasterizerAccelerated::SetVRData(const int32_t &vrImmersiveMode, const floa
     std::memcpy(vr_inv_view, inv_view, sizeof(float) * 16);
 }
 
+// AzaharFrame immersive: see shader_uniforms.h.
+void RasterizerAccelerated::SetVRFactorY(float factor_y) {
+    if (vs_data.vr_immersive_mode_factor_y != factor_y) {
+        vs_data.vr_immersive_mode_factor_y = factor_y;
+        vs_data_dirty = true;
+    }
+}
+
 static void MatrixTranspose(float m[16], const float src[16]) {
     for (int i = 0; i < 4; ++i)
     {

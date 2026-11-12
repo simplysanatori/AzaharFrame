@@ -81,6 +81,9 @@ struct Tuning {
     /// Match Game Camera is on (AZAHARFRAME_IMMERSIVE_MEASURE=0 forces it off; the FOV variable
     /// wins over it too).
     bool measure = true;
+    /// AzaharFrame immersive: AZAHARFRAME_IMMERSIVE_WIDER (0 to 4) wins over the Wider View
+    /// setting (-1: unset), for comparing levels without changing a game's settings.
+    int wider_level = -1;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -109,6 +112,11 @@ Tuning ReadTuning() {
     t.local_space = local && std::string(local) == "1";
     const char* measure = std::getenv("AZAHARFRAME_IMMERSIVE_MEASURE");
     t.measure = !(measure && std::string(measure) == "0");
+    const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
+    if (wider && *wider) {
+        t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
+                                                  static_cast<float>(L::kMaxWiderLevel)));
+    }
     return t;
 }
 
@@ -278,6 +286,14 @@ bool IsViewMode(u32 mode) {
 // AzaharFrame immersive: CameraFilter splits it into the camera the screen is sized and shaped
 // with (it changes only for a new scene, never for a zoom) and the live angle the gain follows.
 // Gone for a second (a menu, the bottom screen in focus), the last one is kept until the next.
+// AzaharFrame widerview: the level in use (the setting, or AZAHARFRAME_IMMERSIVE_WIDER).
+u32 WiderLevel() {
+    if (g.tuning.wider_level >= 0) {
+        return static_cast<u32>(g.tuning.wider_level);
+    }
+    return std::min(Settings::values.vr_immersive_wider_view_level.GetValue(), L::kMaxWiderLevel);
+}
+
 bool MatchCamera() {
     return g.tuning.measure && !g.tuning.fov_from_env &&
            Settings::values.vr_immersive_match_camera.GetValue();
@@ -396,8 +412,7 @@ void OnFrame(const FrameInfo& info) {
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;
-        g.wider_level = std::min(Settings::values.vr_immersive_wider_view_level.GetValue(),
-                                 L::kMaxWiderLevel);
+        g.wider_level = WiderLevel();
         g.options.wider = L::WiderFactor(g.wider_level);
         g.options.squeeze = L::SqueezeFor(Settings::values.vr_immersive_squeeze.GetValue());
         LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x, Narrow Screen {:.0f}%",
@@ -442,8 +457,7 @@ void OnFrame(const FrameInfo& info) {
     }
     if (info.screens_live) {
         // AzaharFrame widerview: every frame too (Properties, or the D-pad in StepWiderView).
-        const u32 wider = std::min(Settings::values.vr_immersive_wider_view_level.GetValue(),
-                                   L::kMaxWiderLevel);
+        const u32 wider = WiderLevel();
         if (wider != g.wider_level) {
             g.wider_level = wider;
             g.options.wider = L::WiderFactor(wider);
@@ -499,10 +513,11 @@ void OnFrame(const FrameInfo& info) {
             g.view_fov_logged = true;
             LOG_INFO(Frontend,
                      "xr: immersive: both eyes see {:.1f} to {:.1f} degrees across, {:.1f} to "
-                     "{:.1f} up, either eye {:.1f} to {:.1f} across (left eye "
-                     "{:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                     "{:.1f} up, either eye {:.1f} to {:.1f} across, {:.1f} to {:.1f} up (left "
+                     "eye {:.1f}/{:.1f}/{:.1f}/{:.1f})",
                      Deg(g.view_fov.left), Deg(g.view_fov.right), Deg(g.view_fov.down),
                      Deg(g.view_fov.up), Deg(g.view_fov.outer_left), Deg(g.view_fov.outer_right),
+                     Deg(g.view_fov.outer_down), Deg(g.view_fov.outer_up),
                      Deg(g.view.fov[0].angleLeft),
                      Deg(g.view.fov[0].angleRight), Deg(g.view.fov[0].angleDown),
                      Deg(g.view.fov[0].angleUp));
@@ -531,6 +546,7 @@ void OnFrame(const FrameInfo& info) {
     if (g.engaged) {
         data.mode = static_cast<s32>(mode);
         data.factor = mode < 2 ? kWideFactor : g.solved.factor;
+        data.factor_y = mode < 2 ? kWideFactor : g.solved.factor_y;
         data.uoffset = -1;
         if (g.view.valid) {
             XrQuaternionf q = Normalized(Mul(Conj(g.ref.orientation), g.view.head.orientation));
@@ -558,10 +574,12 @@ void OnFrame(const FrameInfo& info) {
         if (g.engaged) {
             if (IsViewMode(mode)) {
                 LOG_INFO(Frontend,
-                         "xr: immersive mode {} on (factor {:.2f}, head-locked top screen "
+                         "xr: immersive mode {} on (factor {:.2f} across, {:.2f} up and down, "
+                         "head-locked top screen "
                          "{:.0f} x {:.0f} degrees, {:.1f} degrees from straight ahead, {:.1f} "
                          "to the right, gain {:.2f}, yaw gain {:.2f}, size {:.2f})",
-                         mode, data.factor, Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
+                         mode, data.factor, data.factor_y,
+                         Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
                          Deg(2 * std::atan(g.solved.tan_half_y)), Deg(g.solved.pitch_rad),
                          -Deg(g.solved.yaw_rad), g.solved.gain, g.solved.gain_x,
                          L::Clamped(g.head_place).size);
@@ -787,12 +805,14 @@ void OnRecentred(XrTime change_time) {
     g.recentre_after = change_time;
 }
 
-void OnResetPanels() {
-    // AzaharFrame controls: one reset rule. The view is re-centred and the immersive screen of
-    // this mode goes back to its default placement, held by a grip or not.
+void OnResetPanels(bool stick_hold) {
+    // AzaharFrame controls: the view is re-centred. AzaharFrame immersive: the immersive screen
+    // of this mode goes back to its default placement for Reset Position, and for the stick hold
+    // only while a grip holds the screen; a plain stick hold keeps its size, distance and pitch,
+    // as SteamVR's recenter does (the owner: a hold after a resize lost the size).
     g.recentre = true;
     g.recentre_after = 0;
-    if (g.mode == 0 || !g.live) {
+    if (g.mode == 0 || !g.live || (stick_hold && !g.adjuster.Active())) {
         return;
     }
     g.adjuster.Cancel();

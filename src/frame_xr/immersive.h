@@ -117,9 +117,10 @@ std::optional<float> SavedHeadSize(uint64_t title_id);
 /// view is re-centred on the head; the immersive screen keeps its placement. XR thread.
 void OnRecentred(XrTime change_time);
 
-/// Right Stick Click held for 1 second (reset_panels), in every mode: re-centres the view on the
-/// head, and in immersive mode the immersive screen goes back to its default placement for this
-/// game (the saved one is forgotten), held by a grip or not. XR thread.
-void OnResetPanels();
+/// Right Stick Click held for 1 second (reset_panels, `stick_hold`) or Reset Position, in every
+/// mode: re-centres the view on the head. In immersive mode the immersive screen goes back to
+/// its default placement for this game (the saved one is forgotten) on Reset Position, and on
+/// the stick hold only while a grip holds it; otherwise it keeps its placement. XR thread.
+void OnResetPanels(bool stick_hold);
 
 } // namespace FrameXr::Immersive

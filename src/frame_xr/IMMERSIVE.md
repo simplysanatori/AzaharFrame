@@ -37,7 +37,7 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. Stick Click taps do nothing meanwhile (`Immersive::HoldingScreen`). A grab shows the hint chip low in front of you (`VrUi::ShowGripHint`, at most once per 10 s). |
 | D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Wider View for this game (Full modes), "Wider View: 1.2x". The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
-| Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen of this mode also goes back to its default placement and its saved one is forgotten, held by a grip or not (`Immersive::OnResetPanels`). SteamVR's own recenter (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
+| Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen keeps its size, distance and pitch unless a grip holds it; then it goes back to its default placement and its saved one is forgotten (`Immersive::OnResetPanels`). **Reset Position** in the menu always puts it back. SteamVR's own recenter (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
 While immersive mode is paused (modes 2 and 3 with the bottom screen shown or the in-game menu open,
@@ -131,30 +131,36 @@ camera turned. Each of the three things a grip changes keeps that:
   game are scaled by `gain` = game angle / screen angle (tangents; `ScaleYawPitch`: the head
   rotation split into yaw, pitch and roll, the roll kept, since a picture turned in its plane keeps
   its angle at any scale). That keeps the picture moving with the head at the middle of the screen.
-  The game's own view does not change: past it a game's culling and scenery run out (black boxes
-  at the edges of Super Mario 3D Land, broken edges in Ocarina of Time 3D when earlier builds
-  widened it). The cost of a gain other than 1: a big head turn turns the game camera `gain` times
+  The game draws past its own frame only by the periphery factors (Wider View across, and up and
+  down as much as the screen's shape needs, below); past them the picture is magnified. Where a
+  game's scenery runs out, that part is black (below the floor of a Super Mario 3D Land level). The cost of a gain other than 1: a big head turn turns the game camera `gain` times
   as far, and away from the middle the planar picture moves a little against the head: at an angle
   `e` from the middle, by `(1 + gain^2 tan^2 e) / (1 + tan^2 e)` times the turn (1.25 at gain 1.3
   and 37 degrees, 0.56 at gain 0.5 and 50 degrees). The gain stays within 0.4 to 2.0 (past that the
   screen keeps its size and the world drifts a little), and the size within 0.6 to 2.5 times the
   default.
 
-**The default fills the view** (AzaharFrame immersive, after the owner's headset test of the 1.2.0
-build: a black edge around the screen in most games felt like a porthole). Its sides are 1 degree
-(`kFillMarginDeg`) past the farthest either eye sees to its side, from the runtime's per-eye FOV
-(logged once: `xr: immersive: both eyes see ..., either eye ... across`; on the Frame the left eye
-sees to 59 degrees left and the right eye as far right, both eyes only +-50), so neither eye sees
-a side edge from any angle. The height follows the picture's shape, at least +-35 degrees
-(`kMinFillHalfHeightDeg`), centred on the middle of the view (5 degrees below straight ahead on
-the Frame). On the Frame a 5:3 picture gets about 120 x 92 degrees; with the view +-110 degrees
-high the top and bottom edges stay only in the far corners of the lenses (covering those too would
-make a 5:3 screen 135 degrees wide). The picture is magnified to fill that (a 55 degree game:
-gain 0.5); it stops where the gain would go under 0.4 (a 30 degree camera keeps a smaller screen).
-Wider View magnifies less at the same size. The HUD at the picture's edges sits in the lens edge
-now; the grips make the screen smaller (down to 0.6 times) to bring it in. The earlier default
-(sides at +-37 degrees, never larger than the game's own angle) gave a 60 degree game a 74 x 49
-degree screen. The line `xr: immersive mode N on` logs the factor, the screen's angles, its
+**The default fills the view** (AzaharFrame immersive, after the owner's headset tests of the 1.2.0
+builds: a black edge around the screen felt like a porthole, then black bars stayed at the top
+and bottom). It covers the four corners of what either eye sees (`DefaultCover`, from the
+runtime's per-eye FOV, logged once: `xr: immersive: both eyes see ..., either eye ...`; on the
+Frame each eye sees 59 degrees to its side, 60 down and 49.5 up), 1 degree (`kFillMarginDeg`)
+past them, at least +-35 degrees high (`kMinFillHalfHeightDeg`), centred on the middle of the
+view (5 degrees below straight ahead on the Frame), fitted there so moving it up or down never
+resizes it. It takes the view's shape, not the picture's: about 126 x 112 degrees on the Frame.
+The game draws further up and down to fill it (`HeadLocked::factor_y` = factor x picture aspect x
+screen height / width, at least the factor and at most `kMaxFactorY`, 2.0; 1.26 on the Frame for
+5:3), so the picture has the same scale both ways and is not stretched: the vertex shader
+divides clip x by `factor_y` and clip y by the factor (the top screen is drawn turned by 90
+degrees, so clip x is up and down). A 2D vertex (w = 1) on or past the edge of the view keeps its
+place: full-screen 2D passes cover the whole picture. Shrunk with the rest, a full-screen mask cut
+Ocarina of Time 3D's world off at the game's own frame (sky outside it, even in Jabu-Jabu's Belly)
+and Majora's Mask 3D's copy of the last frame nested smaller copies of itself; the HUD, inside the
+view, still shrinks with the world. The picture is magnified to fill the screen (a 55 degree game:
+gain 0.44, 0.62 with Wider View 1.4x); it stops where the gain would go under 0.4. The HUD at the
+picture's sides sits in the lens edge; the grips make the screen smaller (down to 0.6 times) to
+bring it in. The earlier default (sides at +-37 degrees, never larger than the game's own angle)
+gave a 60 degree screen. The line `xr: immersive mode N on` logs the factor, the screen's angles, its
 pitch, both gains and the size. A preset can make a game's default bigger (`screen_size`: Mario
 Kart 7 1.1).
 
@@ -162,14 +168,17 @@ Two per-game settings change this (**VR** group, logged as
 `xr: immersive: Wider View ..., Narrow Screen ...`):
 
 - **Wider View** (`vr_immersive_wider_view_level`, per game: Off, 1.1x to 1.4x; read every
-  frame): the periphery factor (`gl_Position.xy /= factor`) is the level, whatever the size, and
+  frame): the periphery factor across (`gl_Position.y /= factor`) is the level, whatever the size
+  (up and down `factor_y`, which grows with it), and
   the gain is `factor x game angle / screen angle`. Grip + D-pad up or down on the immersive
   screen steps it and scales the size by the same ratio (`SizeForWider`), so the picture keeps its
   scale and gain and only more or less shows around it; at the 2.5 size limit the factor still
   changes, and the gain with it. A level set in Properties keeps the size, so the gain changes.
   The old switch (`vr_immersive_wider_view`) is converted when a config is read: on becomes the
   level nearest to what it gave at the saved size (0.78 x size, 1.4x when no size is saved), off
-  becomes Off. No preset turns it on; Super Mario 3D Land shows black boxes with it. The default
+  becomes Off. Off by default (mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario
+  3D Land draw correctly, but Super Mario 3D Land's levels are black below the floor, up and down
+  then 2.0x, and Mario Kart 7 could not be checked past its title in a mock run). The default
   size does not change with it (it fills the view already).
 - **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0: 0 off, 1 = 10 %, 2 = 20 %, 3 = 30 %): the quad keeps its height
   and is that much narrower than the picture (`HeadLocked::aspect` = the shape's x (1 - squeeze)),
@@ -304,6 +313,9 @@ fields; that race is gone.
   Qt window (CitraVR's Android app only had the mode per game).
 - `vr_immersive_mode_factor` defaults to 1 (`shader_uniforms.h`); it was 0 until CitraVR's
   Android frontend set it every frame, which made the vertex shader divide by zero elsewhere.
+- AzaharFrame immersive: `vr_immersive_mode_factor_y` (up and down, `SetVRFactorY`) next to it,
+  and full-screen 2D vertices are not divided (`VrFactor` in `glsl_shader_gen.cpp`). CitraVR
+  divided `gl_Position.xy` of every vertex by one factor.
 
 ## Tuned games
 
@@ -373,6 +385,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_IMMERSIVE_FOV` | unset | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size and wins over the Immersive Game FOV setting (default 60, 30..110) |
 | `AZAHARFRAME_IMMERSIVE_DISTANCE` | 0.75 | the default distance in metres (0.3..3) for a game without a saved placement; sizes scale with it, so only stereo depth changes |
 | `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
+| `AZAHARFRAME_IMMERSIVE_WIDER` | unset | 0 to 4: the Wider View level, over the setting (comparing levels in mock runs) |
 | `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
 
 ## Trying it
