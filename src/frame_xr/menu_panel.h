@@ -85,6 +85,16 @@ public:
     float Width() const {
         return width_m;
     }
+    /// AzaharFrame kbd: the game's keyboard (swkbd_panel.h) draws on this swapchain while the
+    /// menu is closed; Forget then makes the menu draw itself again before it next shows.
+    Vis::AsyncOverlay& Chain() {
+        return chain;
+    }
+    void Forget() {
+        posted_any = false;
+        stale = true;
+        stale_uploaded = false;
+    }
     float Height() const {
         return width_m * Menu::kPanelH / Menu::kPanelW;
     }
@@ -122,6 +132,7 @@ private:
     uint64_t posted = 0;   ///< redraws asked for
     uint64_t uploaded = 0; ///< the newest drawn pixels uploaded
     bool posted_any = false;
+    bool stale = false, stale_uploaded = false; ///< AzaharFrame kbd: Forget
     Menu::MenuModel posted_model;
     Menu::MenuView posted_view;
 

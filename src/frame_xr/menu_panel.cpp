@@ -974,9 +974,13 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             uploaded = shared->done_seq;
             chain.Upload(reinterpret_cast<const uint8_t*>(shared->pixels.data()));
             layout = shared->layout;
+            stale_uploaded = true; // AzaharFrame kbd
         }
     }
-    if (chain.HasImage() && info.should_render) {
+    if (stale && stale_uploaded && !chain.Busy()) {
+        stale = false; // AzaharFrame kbd: the keyboard's pixels are gone
+    }
+    if (chain.HasImage() && info.should_render && !stale) {
         Quad q;
         q.swapchain = chain.Handle();
         q.image_rect = {{0, 0}, {kTexW, kTexH}};

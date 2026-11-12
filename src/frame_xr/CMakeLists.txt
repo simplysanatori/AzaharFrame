@@ -114,6 +114,15 @@ target_link_libraries(frame_xr PUBLIC citra_common citra_core video_core input_c
 target_link_libraries(frame_xr PRIVATE frame_xr_picker ${CMAKE_DL_LIBS} Threads::Threads)
 target_link_libraries(frame_xr PUBLIC frame_xr_menu) # AzaharFrame tabmenu
 
+# AzaharFrame kbd: the game's keyboard (the 3DS software keyboard applet) in VR.
+target_sources(frame_xr PRIVATE
+    swkbd.h
+    swkbd_config.cpp
+    swkbd_config.h
+    swkbd_panel.cpp
+    swkbd_panel.h
+)
+
 # AzaharFrame tabmenu: renders the menu's tabs to PNG files without a headset. Built only when
 # asked for (ninja frame_xr_menu_dump), never part of a release.
 # The diagram's sources are compiled in (as the unit tests do), so it needs no core libraries.
@@ -127,3 +136,9 @@ add_executable(frame_xr_menu_dump EXCLUDE_FROM_ALL
 )
 target_include_directories(frame_xr_menu_dump PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(frame_xr_menu_dump PRIVATE frame_xr_menu lodepng citra_common)
+
+# AzaharFrame kbd: renders the game's keyboard to PNG files without a headset (ninja
+# frame_xr_swkbd_dump), never part of a release.
+add_executable(frame_xr_swkbd_dump EXCLUDE_FROM_ALL menu/swkbd_dump.cpp)
+target_include_directories(frame_xr_swkbd_dump PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(frame_xr_swkbd_dump PRIVATE frame_xr_menu lodepng)

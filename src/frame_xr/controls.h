@@ -27,6 +27,7 @@
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
 #include "frame_xr/menu_panel.h"            // AzaharFrame tabmenu
+#include "frame_xr/swkbd_panel.h"           // AzaharFrame kbd
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
 #include "frame_xr/vis/visuals.h" // AzaharFrame vrvis
@@ -203,6 +204,13 @@ private:
     void TabMenuFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
                       bool have_input, std::vector<Quad>& layers);
     bool menu_shown = false;
+    // AzaharFrame kbd: the game's keyboard (swkbd_panel.h) over the waiting game, as the menu.
+    SwkbdPanel swkbd;
+    bool swkbd_shown = false;
+    void EnterSwkbd();
+    void LeaveSwkbd(const Input::InputFrame& in);
+    void SwkbdFrame(const FrameInfo& info, const Input::InputFrame& in, bool have_input,
+                    std::vector<Quad>& layers);
     MirrorPanel::Placement home_place{};
     OverlayChain dim_chain; ///< a dark see-through quad between the game screens and the panel
     /// A hold of one button (the mapper, which times Menu and View in a game, does not run

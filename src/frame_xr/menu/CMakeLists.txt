@@ -20,3 +20,11 @@ add_library(frame_xr_menu STATIC
 )
 target_link_libraries(frame_xr_menu PUBLIC frame_xr_ui)
 target_compile_features(frame_xr_menu PUBLIC cxx_std_20)
+
+# AzaharFrame kbd: the game's keyboard in VR (content, layout, drawing).
+target_sources(frame_xr_menu PRIVATE
+    swkbd_model.cpp
+    swkbd_model.h
+    swkbd_view.cpp
+    swkbd_view.h
+)

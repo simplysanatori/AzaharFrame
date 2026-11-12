@@ -176,12 +176,19 @@ bool VrUi::Create(Runtime& rt) {
     }
     visuals.Create(rt); // AzaharFrame vrvis
     tab_menu.Create(rt); // AzaharFrame tabmenu
+    swkbd.Create();      // AzaharFrame kbd
+    swkbd_shown = false;
     return true;
 }
 
 void VrUi::DestroyXr() {
     visuals.DestroyXr(); // AzaharFrame vrvis
     tab_menu.DestroyXr(); // AzaharFrame tabmenu
+    swkbd.DestroyXr();    // AzaharFrame kbd: an open keyboard goes back to Azahar's dialog
+    if (swkbd_shown) {
+        Immersive::SetMenuOpen(false);
+        swkbd_shown = false;
+    }
     if (bridge_live) {
         bridge.Release();
         bridge_live = false;
@@ -569,6 +576,76 @@ void VrUi::LeaveMenu(const Input::InputFrame& in) {
                {in.hand[0].grip > 0.40f, in.hand[1].grip > 0.40f},
                {in.hand[0].bumper, in.hand[1].bumper}};
     LOG_INFO(Frontend, "xr: in-game menu hidden");
+}
+
+// AzaharFrame kbd: the game's keyboard shows in front of the head as the in-game menu does, with
+// the screens out of immersive mode (Immersive::SetMenuOpen) until it closes.
+void VrUi::EnterSwkbd() {
+    if (bridge_live) {
+        bridge.Release(); // the game sees nothing held while it waits
+        bridge_live = false;
+    }
+    const ViewPose view = LatestViewPose();
+    const Input::Vec3f head = view.valid ? ToInput(view.head).position : Input::Vec3f{0, 0, 0};
+    Input::Vec3f forward = view.valid ? Input::Rotate(ToInput(view.head).orientation, {0, 0, -1})
+                                      : Input::Vec3f{0, 0, -1};
+    forward.y = 0.0f;
+    forward = Input::Length(forward) > 1e-3f ? Input::Normalized(forward) : Input::Vec3f{0, 0, -1};
+    const ScreenPlacement place = GetScreenPlacement();
+    const float top = Input::Length(ToInput(place.top_pose).position - head);
+    const float bottom = Input::Length(ToInput(place.bottom_pose).position - head);
+    const float d =
+        std::clamp(std::min({kMenuDistance, top - 0.2f, bottom - 0.2f}), kMenuNearest, kMenuDistance);
+    const Input::Vec3f at = head + forward * d;
+    const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
+    swkbd.Place(ToXr(pose), kMenuWidthPerMetre * d);
+    Immersive::SetMenuOpen(true);
+    swkbd_shown = true;
+    LOG_INFO(Frontend, "xr: game keyboard shown {:.2f} m ahead", d);
+}
+
+void VrUi::LeaveSwkbd(const Input::InputFrame& in) {
+    Immersive::SetMenuOpen(false);
+    swkbd_shown = false;
+    tab_menu.Forget(); // the menu's swapchain holds the keyboard now
+    swallow = {in.a,
+               in.b,
+               in.x,
+               in.y,
+               in.menu,
+               in.view,
+               {in.hand[0].trigger > 0.40f, in.hand[1].trigger > 0.40f},
+               {in.hand[0].grip > 0.40f, in.hand[1].grip > 0.40f},
+               {in.hand[0].bumper, in.hand[1].bumper}};
+    LOG_INFO(Frontend, "xr: game keyboard hidden");
+}
+
+void VrUi::SwkbdFrame(const FrameInfo& info, const Input::InputFrame& in, bool have_input,
+                      std::vector<Quad>& layers) {
+    if (have_input && ModeChord(in)) {
+        RequestToggleVr("game keyboard"); // to flat: Azahar's dialog takes over
+    }
+    Immersive::SetMenuOpen(true);
+    mirror.Hide();
+    keyboard.Hide();
+    if (info.should_render && dim_chain.has_image) {
+        Quad dim;
+        dim.swapchain = dim_chain.handle;
+        dim.image_rect = {{0, 0}, {static_cast<int32_t>(kDimSize), static_cast<int32_t>(kDimSize)}};
+        dim.pose = swkbd.Pose();
+        const Input::Vec3f behind = Input::Rotate(ToInput(dim.pose).orientation, {0, 0, -0.02f});
+        dim.pose.position.x += behind.x;
+        dim.pose.position.y += behind.y;
+        dim.pose.position.z += behind.z;
+        dim.size = {swkbd.Width() * 6.0f, swkbd.Width() * 5.0f};
+        dim.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+        layers.push_back(dim);
+    }
+    std::optional<XrPosef> cursor;
+    swkbd.Frame(info, in, have_input, tab_menu.Chain(), layers, cursor);
+    if (cursor) {
+        AddCursor(*cursor, 0.02f * swkbd.Width() / 1.6f, layers);
+    }
 }
 
 void VrUi::FilterAfterMenu(Input::InputFrame& in) {
@@ -981,15 +1058,28 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     } else if (!want_menu && menu_shown) {
         LeaveMenu(in);
     }
+    // AzaharFrame kbd: the game's keyboard while the game waits for it (the menu goes first).
+    const bool want_swkbd = swkbd.Poll();
+    if (menu_shown && swkbd_shown) {
+        swkbd_shown = false; // placed again once the menu closes
+        tab_menu.Forget();
+    } else if (!menu_shown && want_swkbd && !swkbd_shown) {
+        EnterSwkbd();
+    } else if (swkbd_shown && !want_swkbd) {
+        LeaveSwkbd(in);
+    }
     // AzaharFrame vrvis: a hand on the help panel or the buttons is taken from the window.
-    const Vis::Where where =
-        menu_shown ? Vis::Where::Menu : game_running ? Vis::Where::Game : Vis::Where::Home;
+    const Vis::Where where = menu_shown || swkbd_shown ? Vis::Where::Menu
+                             : game_running            ? Vis::Where::Game
+                                                       : Vis::Where::Home;
     Input::InputFrame window_in = in;
     visuals.TakeInput(info, where, window_in, have_input);
     const std::size_t layers_before = layers.size();
     stats_screens.clear(); // AzaharFrame statspos: GameFrame fills it
     if (menu_shown) {
         MenuFrame(rt, info, window_in, have_input, layers);
+    } else if (swkbd_shown) {
+        SwkbdFrame(info, window_in, have_input, layers); // AzaharFrame kbd
     } else if (game_running) {
         if (picker_shown) {
             picker_shown = false;

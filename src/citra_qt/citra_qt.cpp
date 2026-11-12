@@ -158,6 +158,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/presets.h" // AzaharFrame vrqol
+#include "frame_xr/swkbd.h" // AzaharFrame kbd
 #include "input_common/frame_xr.h"
 
 namespace {
@@ -2815,6 +2816,9 @@ void GMainWindow::ShutdownGame() {
 #endif
 
     emu_thread->RequestStop();
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd: the emulation thread may wait for the VR keyboard
+    FrameXr::CancelGameKeyboard();
+#endif
 
     // Release emu threads from any breakpoints
     // This belongs after RequestStop() and before wait() because if emulation stops on a GPU

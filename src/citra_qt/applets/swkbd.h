@@ -144,6 +144,21 @@ public:
     void Execute(const Frontend::KeyboardConfig& config) override;
     void ShowError(const std::string& error) override;
 
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd
+protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
+
+private:
+    /// In VR: the keyboard in the headset (frame_xr/swkbd.h) instead of the dialog. False: not
+    /// in VR (or VR ended first), the dialog then.
+    bool ExecuteInVr();
+    /// GUI thread: a physical keyboard types into the VR keyboard while it is open.
+    void SetVrKeys(bool on);
+    std::string vr_error;          ///< the game's message (ShowError) for the next keyboard
+    qint64 vr_error_time_ms = 0;
+    bool vr_keys = false;
+#endif
+
 private:
     Q_INVOKABLE void OpenInputDialog();
     Q_INVOKABLE void OpenSoftwareKeyboardDialog();

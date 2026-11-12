@@ -25,6 +25,16 @@
 #ifdef HAVE_SDL2
 #include <SDL.h>
 #endif
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd
+#include <chrono>
+#include <future>
+#include <QApplication>
+#include <QDateTime>
+#include <QKeyEvent>
+#include "frame_xr/frame_xr.h"
+#include "frame_xr/swkbd.h"
+#include "frame_xr/swkbd_config.h"
+#endif
 
 namespace {
 constexpr int CONTROLLER_POLL_INTERVAL_MS = 16;
@@ -584,6 +594,11 @@ void QtKeyboard::Execute(const Frontend::KeyboardConfig& config) {
     if (this->config.button_config != Frontend::ButtonConfig::None) {
         ok_id = static_cast<u8>(this->config.button_config);
     }
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd: the dialog is not on view in the headset
+    if (ExecuteInVr()) {
+        return;
+    }
+#endif
     if (UISettings::values.use_on_screen_software_keyboard.GetValue()) {
         QMetaObject::invokeMethod(this, "OpenSoftwareKeyboardDialog", Qt::BlockingQueuedConnection);
     } else {
@@ -593,6 +608,14 @@ void QtKeyboard::Execute(const Frontend::KeyboardConfig& config) {
 }
 
 void QtKeyboard::ShowError(const std::string& error) {
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd: in VR the message shows under the next keyboard's field
+    if (FrameXr::VrShowing()) {
+        vr_error = error;
+        vr_error_time_ms = QDateTime::currentMSecsSinceEpoch();
+        LOG_INFO(Frontend, "SWKBD: the game refused the text (shown on the VR keyboard)");
+        return;
+    }
+#endif
     QString message = QString::fromStdString(error);
     QMetaObject::invokeMethod(this, "ShowErrorDialog", Qt::BlockingQueuedConnection,
                               Q_ARG(QString, message));
@@ -627,3 +650,102 @@ void QtKeyboard::OpenSoftwareKeyboardDialog() {
 void QtKeyboard::ShowErrorDialog(QString message) {
     QMessageBox::critical(&parent, tr("Software Keyboard"), message);
 }
+
+#ifdef ENABLE_FRAME_XR // AzaharFrame kbd
+bool QtKeyboard::ExecuteInVr() {
+    while (FrameXr::VrShowing()) {
+        FrameXr::Swkbd::Spec spec = FrameXr::MakeSwkbdSpec(*this, config);
+        // The game's message from its own check comes just before it asks again.
+        if (!vr_error.empty() && QDateTime::currentMSecsSinceEpoch() - vr_error_time_ms < 2000) {
+            spec.error = vr_error;
+        }
+        vr_error.clear();
+        auto answer = std::make_shared<std::promise<FrameXr::SwkbdOutcome>>();
+        std::future<FrameXr::SwkbdOutcome> got = answer->get_future();
+        if (!FrameXr::OpenGameKeyboard(std::move(spec), [answer](const FrameXr::SwkbdOutcome& o) {
+                answer->set_value(o);
+            })) {
+            return false;
+        }
+        QMetaObject::invokeMethod(this, [this] { SetVrKeys(true); }, Qt::QueuedConnection);
+        // The emulation thread waits here, as for the dialog. VR may end meanwhile (the switch
+        // to flat): the dialog then.
+        while (got.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
+            if (!FrameXr::VrShowing()) {
+                FrameXr::CancelGameKeyboard(true);
+            }
+        }
+        QMetaObject::invokeMethod(this, [this] { SetVrKeys(false); }, Qt::QueuedConnection);
+        const FrameXr::SwkbdOutcome o = got.get();
+        if (o.shown) {
+            LOG_INFO(Frontend, "SWKBD VR keyboard finished, button={}", o.button);
+            Finalize(o.text, o.button);
+            return true;
+        }
+    }
+    return false;
+}
+
+void QtKeyboard::SetVrKeys(bool on) {
+    if (on == vr_keys) {
+        return;
+    }
+    vr_keys = on;
+    if (on) {
+        qApp->installEventFilter(this);
+    } else {
+        qApp->removeEventFilter(this);
+    }
+}
+
+bool QtKeyboard::eventFilter(QObject* object, QEvent* event) {
+    if (!vr_keys || !FrameXr::GameKeyboardOpen()) {
+        return QObject::eventFilter(object, event);
+    }
+    switch (event->type()) {
+    case QEvent::ShortcutOverride:
+        event->accept(); // no hotkeys while typing
+        return true;
+    case QEvent::KeyRelease:
+        return true;
+    case QEvent::KeyPress: {
+        const auto* key = static_cast<QKeyEvent*>(event);
+        using K = FrameXr::GameKeyboardKey;
+        switch (key->key()) {
+        case Qt::Key_Backspace:
+            FrameXr::GameKeyboardPress(K::Backspace);
+            return true;
+        case Qt::Key_Delete:
+            FrameXr::GameKeyboardPress(K::Delete);
+            return true;
+        case Qt::Key_Left:
+            FrameXr::GameKeyboardPress(K::Left);
+            return true;
+        case Qt::Key_Right:
+            FrameXr::GameKeyboardPress(K::Right);
+            return true;
+        case Qt::Key_Home:
+            FrameXr::GameKeyboardPress(K::Home);
+            return true;
+        case Qt::Key_End:
+            FrameXr::GameKeyboardPress(K::End);
+            return true;
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+            FrameXr::GameKeyboardPress(K::Enter);
+            return true;
+        default:
+            break;
+        }
+        const QString text = key->text();
+        if (!text.isEmpty() && text.at(0).isPrint() &&
+            !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+            FrameXr::GameKeyboardText(text.toStdString());
+        }
+        return true;
+    }
+    default:
+        return QObject::eventFilter(object, event);
+    }
+}
+#endif
