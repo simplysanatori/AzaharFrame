@@ -34,6 +34,7 @@ add_executable(tests
     frame_xr/vis.cpp # AzaharFrame vrvis
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
     frame_xr/flat_fit.cpp # AzaharFrame flatdialog
+    frame_xr/mem_guard.cpp # AzaharFrame modfix
     frame_xr/list_nav.cpp # AzaharFrame gamelist
     frame_xr/swkbd.cpp # AzaharFrame kbd
     ../frame_xr/menu/swkbd_model.cpp # AzaharFrame kbd

@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <sstream>
 #include <thread>
 #include <utility>
 
@@ -25,6 +26,7 @@
 #include "core/custom_tex/download.h"
 #include "core/mods/library.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/mem_guard.h" // AzaharFrame modfix
 
 namespace Menu = FrameXr::Menu;
 
@@ -77,6 +79,14 @@ bool SteamRunning() {
     }
     std::error_code ec;
     return std::filesystem::exists("/proc/" + std::to_string(pid), ec);
+}
+
+/// AzaharFrame modfix: memory and swap nearly used up (see frame_xr/mem_guard.h).
+bool LowMemory() {
+    std::ifstream in("/proc/meminfo");
+    std::stringstream text;
+    text << in.rdbuf();
+    return FrameXr::BrowserWouldRunOutOfMemory(text.str());
 }
 
 /// The author's repository from the catalog entry ("https://github.com/owner/repo"), else from
@@ -286,6 +296,13 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             // Steam's own browser, as other apps on the Frame show pages in the headset; the
             // desktop's browser only when Steam is not running.
             const QString url = QString::fromStdString(r.text);
+            // AzaharFrame modfix: the browser's start can exhaust the Frame's memory and get the
+            // game killed by the kernel (exit 137); with little room left, don't open it.
+            if (LowMemory()) {
+                LOG_WARNING(Frontend, "xr: mods: not opening {}: little memory left", r.text);
+                FrameXr::ShowToastText("Link Not Opened: Low Memory");
+                return;
+            }
             if (SteamRunning() &&
                 QProcess::startDetached(QStringLiteral("steam"),
                                         {QStringLiteral("steam://openurl/") + url})) {
@@ -357,7 +374,8 @@ void FrameMods::RefreshAvailable() {
                     o.state = Menu::OfferState::Unavailable;
                     o.note = "Unsupported Archive";
                 } else if (a.id == failed) {
-                    o.note = "Install Failed";
+                    o.note = failed_reason.empty() ? std::string("Install Failed")
+                                                   : "Install Failed: " + failed_reason; // AzaharFrame modfix
                     o.error = true;
                 }
                 mods.available.push_back(std::move(o));
@@ -383,6 +401,7 @@ void FrameMods::Install(const std::string& id, bool replace) {
     mods.busy = true;
     installing = id;
     failed.clear();
+    failed_reason.clear();
     if (Menu::ModOffer* o = Offer(id)) {
         o->state = Menu::OfferState::Installing;
         o->note = PhaseText(Mods::State::Phase::Resolving);
@@ -432,6 +451,7 @@ void FrameMods::Install(const std::string& id, bool replace) {
             case Mods::InstallResult::Error:
                 LOG_WARNING(Frontend, "xr: mods: install {} failed: {}", id, out.error);
                 failed = id;
+                failed_reason = Mods::ShortFailure(out.error); // AzaharFrame modfix
                 break;
             }
             RefreshLoaded();

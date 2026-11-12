@@ -89,6 +89,7 @@ private:
     std::vector<CustomTex::Pack> packs; ///< as listed, for Activate
     std::string installing;             ///< the mod an install runs for
     std::string failed;                 ///< the mod whose last install failed
+    std::string failed_reason;          ///< AzaharFrame modfix: why, in a few words (Mods::ShortFailure)
     Pending pending;                    ///< what the dialog's Replace / Remove does
     Pending pack_pending;               ///< what the Textures dialog's Download / Delete does
     std::shared_ptr<CustomTex::Download::Downloader> downloader; ///< one for the session

@@ -51,6 +51,11 @@ namespace Mods {
 /// for the rule syntax; with no rules the layout is detected.
 std::string MapPath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id);
 
+/// AzaharFrame modfix: a few words for the menu from an install error ("No Connection", "Timed Out",
+/// "Rate Limited", "Not Found", "Bad Archive", "Disk Error"), so "Install Failed" says why. The
+/// full error goes to the log.
+std::string ShortFailure(std::string_view error);
+
 /// True for a path Azahar's loader can use (see the top of this file).
 bool IsModPath(std::string_view rel);
 
