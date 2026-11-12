@@ -256,6 +256,8 @@ Press both bumpers, **View** and **Menu** together to switch between VR and Flat
 
 Hold both bumpers first, then press **View** and **Menu**.
 
+In Flat there are two more ways back to VR: the **VR** button in the status bar of Azahar's window, next to the renderer and volume buttons, and, with no game running, holding **Menu** for 1 second.
+
 ## Hiding the bottom screen
 
 Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
@@ -341,7 +343,7 @@ The differences:
 - Before a game starts, the D-pad or the left stick moves through the game list, and **A** twice quickly starts the game, as in VR.
 - The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
-- Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
+- Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below. With no game running it switches to VR.
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 

@@ -39,7 +39,7 @@ class QWidget;
 namespace FrameMode {
 
 /// Steam Input's gamepad as one frame of Frame controller input (no aim). False: no gamepad.
-/// Any thread.
+/// Any thread. Reads input_common's SDL controllers; the one that changed last drives.
 bool ReadGamepad(FrameXr::Input::InputFrame& frame);
 
 /// "vr" or "flat" into the mode file, when the launcher started this run.

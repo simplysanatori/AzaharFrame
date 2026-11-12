@@ -169,7 +169,18 @@ bool g_frame_xr_start_flat = false;
 // The launcher's profile for flat without XR (SDL). With XR both modes use the Frame profile.
 constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 // Switches between VR and flat (writes the mode file); the XR thread's answer, the mode now.
+// g_frame_xr_switch is the one way to switch, GUI thread: the chord (FrontendHooks::toggle_vr),
+// the in-game menu's buttons (FrameMenuRequest), the status bar's VR button and the tests.
 std::function<void(bool vr)> g_frame_xr_switch;
+// AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
+QPushButton* g_frame_vr_button = nullptr;
+void UpdateFrameVrButton() {
+    if (g_frame_vr_button) {
+        const bool show = FrameXr::IsStarted() && !FrameXr::WantsVr() && !FrameXr::VrShowing();
+        g_frame_vr_button->setVisible(show);
+        g_frame_vr_button->setEnabled(show);
+    }
+}
 std::function<void(bool vr)> g_frame_xr_mode_changed;
 // SIGTERM / SIGINT: stop the game and quit, so the XR session ends cleanly.
 volatile std::sig_atomic_t g_frame_xr_terminate = 0;
@@ -1047,6 +1058,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (!FrameXr::SetVr(vr)) {
                         LOG_WARNING(Frontend, "xr: cannot switch to {} (no XR any more)",
                                     vr ? "VR" : "flat");
+                        UpdateFrameVrButton(); // AzaharFrame flat
                         return;
                     }
                     FrameMode::WriteModeFile(vr);
@@ -1127,6 +1139,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             };
             g_frame_xr_mode_changed = [this](bool vr) {
                 LOG_INFO(Frontend, "xr: now {}", vr ? "in VR" : "flat");
+                UpdateFrameVrButton(); // AzaharFrame flat
                 if (g_frame_xr_fast_forward) {
                     g_frame_xr_fast_forward(false, "the mode switched");
                 }
@@ -1412,6 +1425,7 @@ GMainWindow::GMainWindow(Core::System& system_)
             if (!FrameXr::VrShowing()) {
                 FrameMode::StartFlat(this); // the window to SteamVR's theater (Game Mode)
             }
+            UpdateFrameVrButton(); // AzaharFrame flat
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
 
@@ -1629,6 +1643,22 @@ void GMainWindow::InitializeWidgets() {
         volume_popup->setGeometry(QRect(bottomLeft, QSize(rect.width(), rect.height())));
     });
     statusBar()->insertPermanentWidget(1, volume_button);
+
+    // AzaharFrame flat: back to VR from flat, next to the Vulkan and volume buttons (hidden in
+    // VR and without OpenXR). The same switch as the chord: the window leaves the theater first.
+    g_frame_vr_button = new QPushButton(tr("VR"));
+    g_frame_vr_button->setObjectName(QStringLiteral("FrameVrStatusBarButton"));
+    g_frame_vr_button->setFocusPolicy(Qt::NoFocus);
+    g_frame_vr_button->setToolTip(tr("Switch to VR"));
+    g_frame_vr_button->setVisible(false);
+    connect(g_frame_vr_button, &QPushButton::clicked, this, [] {
+        LOG_INFO(Frontend, "xr: flat: the status bar's VR button");
+        g_frame_vr_button->setEnabled(false); // until the mode changed (or the switch failed)
+        if (g_frame_xr_switch) {
+            g_frame_xr_switch(true);
+        }
+    });
+    statusBar()->insertPermanentWidget(2, g_frame_vr_button);
 
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusText());
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusIcon());

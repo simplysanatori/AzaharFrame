@@ -63,6 +63,9 @@ public:
     /// SetFlatInput through the same mapper as in VR (no aim: no touch, no pointing).
     void FlatFrame(int64_t now_ns);
     void FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns); // AzaharFrame flat4
+    /// AzaharFrame flat: for the flat summary line, the gamepad input since the last call
+    /// ("gamepad, 12 changes", "no gamepad"). XR thread.
+    std::string TakeFlatInputSummary();
     /// XR thread: a session was made (true) or ended (false). Tells the Qt side.
     void NotifyVr(bool vr);
 
@@ -259,6 +262,9 @@ private:
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
+    Input::InputFrame flat_prev;  ///< AzaharFrame flat: the last frame, to count changes
+    uint32_t flat_changes = 0;    ///< AzaharFrame flat: frames that differed, for the summary
+    Hold flat_menu_hold;          ///< AzaharFrame flat: Menu held 1 s with no game: VR
     bool flat_menu_shown = false; ///< AzaharFrame flat4: FlatFrame is in the Flat menu
     bool flat_back_down = false;  ///< B's edge in the Flat menu
     Input::ListNav flat_list_nav; ///< AzaharFrame gamelist: the game list in Flat

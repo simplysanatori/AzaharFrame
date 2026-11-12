@@ -65,7 +65,8 @@ bool HasExtension(const char* name);
 // SetFlatInput (Steam Input's gamepad) through the same mapping as in VR.
 
 /// Asks for VR (true: make a session) or flat (false: end it). Any thread; the XR thread does
-/// it, and FrontendHooks::vr_changed reports the result. False when XR is not started.
+/// it, and FrontendHooks::vr_changed reports the result. False when XR is not started, and for
+/// VR once the OpenXR runtime has gone away (AzaharFrame flat).
 bool SetVr(bool vr);
 /// The mode asked for last.
 bool WantsVr();

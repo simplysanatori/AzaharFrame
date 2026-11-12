@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
@@ -28,6 +29,7 @@
 #include "frame_xr/session.h"
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
+#include "input_common/main.h" // AzaharFrame flat: SDL pump count
 
 namespace FrameXr {
 
@@ -418,11 +420,18 @@ void Runtime::LogFlatSummary(double seconds) {
     const uint32_t presents = take(stats.window_presents);
     const uint64_t us_sum = stats.window_us_sum.exchange(0);
     const uint32_t us_max = take(stats.window_us_max);
+    // AzaharFrame flat: what reaches the program from the gamepad, and whether input_common's
+    // SDL thread still pumps SDL's events (no pumps: no controller state changes at all).
+    static uint64_t last_pumps = 0;
+    const uint64_t pumps = InputCommon::GetSDLPumpCount();
+    const uint64_t pumped = pumps - std::exchange(last_pumps, pumps);
     LOG_INFO(Frontend,
              "xr: flat {:.1f}s, window presents {} ({:.2f} ms avg, {:.2f} max on the emu thread), "
-             "screens {}",
+             "screens {}, {}, SDL pumped {} times{}",
              seconds, presents, presents ? us_sum / 1000.0 / presents : 0.0, us_max / 1000.0,
-             screens_live.load() ? "live" : "off");
+             screens_live.load() ? "live" : "off",
+             ui ? ui->TakeFlatInputSummary() : std::string{"no input"}, pumped,
+             lost ? ", OpenXR gone" : "");
 }
 
 // Flat: no session. The gamepad (FlatFrame) about 120 times a second, a line a second.
@@ -464,8 +473,21 @@ void Runtime::FrameLoop() {
     while (true) {
         loop_top = Clock::now();
         Watchdog::Beat("events");
-        if (!PollEvents() || lost) {
-            break;
+        if (!lost && !PollEvents()) {
+            // AzaharFrame flat: the runtime is gone (SteamVR quit or crashed). This loop used to
+            // end here, which left the game holding whatever the controllers held last, flat
+            // with no input at all and no way back. Now any session ends, the game gets nothing
+            // held, and the loop carries on flat (the gamepad), with VR refused from here on.
+            LOG_ERROR(Frontend, "xr: the OpenXR runtime is gone; flat from now on");
+            want_vr = false;
+            if (session) {
+                exit_requested = false;
+                DestroySession();
+                flat_seconds = 0.0;
+                if (ui) {
+                    ui->NotifyVr(false);
+                }
+            }
         }
 
         // ---- Flat: no session ----
@@ -847,7 +869,7 @@ bool HasExtension(const char* name) {
 
 bool SetVr(bool vr) {
     auto* rt = GetRuntime();
-    if (!rt || !rt->loop_alive) {
+    if (!rt || !rt->loop_alive || (vr && rt->lost)) { // AzaharFrame flat: no runtime, no VR
         return false;
     }
     if (rt->want_vr.exchange(vr) != vr) {

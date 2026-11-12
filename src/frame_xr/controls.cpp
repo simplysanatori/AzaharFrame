@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <utility>
 
 #include "common/file_util.h" // AzaharFrame move
 #include "common/logging/log.h"
@@ -191,6 +192,9 @@ bool VrUi::Create(Runtime& rt) {
     menu_shown = false;
     flat_menu_shown = false; // AzaharFrame flat4: a Flat menu open before VR closes with it
     picker_shown = false;
+    if (bridge_live) {
+        bridge.Release(); // AzaharFrame flat: nothing flat held stays held into VR
+    }
     bridge_live = false;
     chord_down = false;
     SwallowHeld(); // the buttons of the chord that made this session are still held
@@ -423,6 +427,22 @@ void VrUi::FlatFrame(int64_t now_ns) {
     }
     in.time_ns = now_ns;
     if (have) {
+        // AzaharFrame flat: counted before the latch, for the summary line (the input arrives).
+        const auto& p = flat_prev;
+        bool same = in.a == p.a && in.b == p.b && in.x == p.x && in.y == p.y &&
+                    in.menu == p.menu && in.view == p.view && in.dpad_up == p.dpad_up &&
+                    in.dpad_down == p.dpad_down && in.dpad_left == p.dpad_left &&
+                    in.dpad_right == p.dpad_right;
+        for (int h = 0; h < Input::kNumHands && same; h++) {
+            const auto& a = in.hand[h];
+            const auto& b = p.hand[h];
+            same = a.bumper == b.bumper && a.stick_click == b.stick_click &&
+                   a.stick.x == b.stick.x && a.stick.y == b.stick.y && a.trigger == b.trigger;
+        }
+        if (!same) {
+            flat_changes++;
+        }
+        flat_prev = in;
         mode_latch.Filter(in);
     }
     if (have != flat_had_input) {
@@ -439,6 +459,20 @@ void VrUi::FlatFrame(int64_t now_ns) {
         }
         if (!have) {
             chord_down = false;
+        }
+        // AzaharFrame flat: Menu held 1 s with no game goes back to VR, the gesture that opens
+        // VR's menu (there is no Flat menu without a game). Not while the chord is formed.
+        if (have && !game_running) {
+            if (in.menu && (in.hand[0].bumper || in.hand[1].bumper || in.view)) {
+                flat_menu_hold.armed = false;
+                flat_menu_hold.down = false;
+            }
+            if (flat_menu_hold.Update(in.menu, now_ns, kMenuHoldNs)) {
+                LOG_INFO(Frontend, "xr: flat: Menu held with no game: VR");
+                RequestToggleVr("flat, Menu held");
+            }
+        } else {
+            flat_menu_hold = {}; // armed again only once Menu was seen up
         }
         // AzaharFrame gamelist: the game list with the D-pad, the left stick and A's double tap,
         // as on VR's window (there is no beam: one A does nothing here).
@@ -538,6 +572,15 @@ void VrUi::FlatFrame(int64_t now_ns) {
             hooks.stop_game();
         }
     }
+}
+
+std::string VrUi::TakeFlatInputSummary() { // AzaharFrame flat
+    const uint32_t changes = std::exchange(flat_changes, 0);
+    if (!flat_had_input) {
+        return "no gamepad";
+    }
+    return fmt::format("gamepad, {} changes{}", changes,
+                       mode_latch.latched() ? ", chord buttons held back" : "");
 }
 
 // AzaharFrame flat4: the Flat menu. The game sees no button; Menu held 1 s again closes the menu
