@@ -85,6 +85,14 @@ std::string OffsetText(float x, float y) {
     return s.empty() ? std::string{"None"} : s;
 }
 
+// AzaharFrame padsui: the menu's 3DS button indices are Settings::NativeButton's.
+static_assert(Menu::DsButton::A == Settings::NativeButton::A &&
+              Menu::DsButton::Select == Settings::NativeButton::Select &&
+              Menu::DsButton::ZL == Settings::NativeButton::ZL &&
+              Menu::DsButton::ZR == Settings::NativeButton::ZR &&
+              Menu::DsButton::Home == Settings::NativeButton::Home &&
+              Menu::kRemapButtons == Settings::NativeButton::NumButtons);
+
 // AzaharFrame remap: the controls profile's 3DS buttons as a table (the Frame control driving
 // each), and back. Only buttons bound to the frame_xr engine are in the table; the others are left
 // as they are.
@@ -389,6 +397,16 @@ void MenuPanel::BuildModel(const Host& host) {
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
     m.touchpad_touch = static_cast<int>(std::min<u32>(v.vr_touchpad_touch.GetValue(), 2));
+    if (remap.Editing()) {
+        // AzaharFrame padsui: Edit Controls' devices. The Frame controllers for now; lane pads'
+        // registry adds each gamepad and the mouse (their mappings, names and pointer).
+        Menu::EditDevice frame;
+        frame.key = "frame";
+        frame.name = "Frame Controllers";
+        frame.mapping = remap.Table();
+        m.devices.list = {frame};
+        m.devices.selected = 0;
+    }
     const float ox = v.vr_immersive_offset_x.GetValue(), oy = v.vr_immersive_offset_y.GetValue();
     m.immersive_offset = OffsetText(ox, oy);
     m.immersive_offset_set = std::fabs(ox) >= 0.05f || std::fabs(oy) >= 0.05f;
@@ -634,6 +652,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::RemapDone:
         remap.Done();
+        break;
+    case Id::EditDevice:
+        // AzaharFrame padsui: another device's buttons: Begin with its mapping (lane pads).
         break;
     case Id::ResetPosition:
         if (host.reset_position) {
@@ -899,12 +920,8 @@ void MenuPanel::Worker() {
     bool face_drawn = true;
     Vis::HelpDiagram diagram;
     bool have_diagram = false;
-    Vis::DiagramPage edit_page;
-    menu.SetDiagram([&](Menu::Kit& k, const Menu::Rect& area, int page, const Menu::DiagramEdit& edit,
-                        std::vector<Menu::DiagramChipHit>& chips) {
-        if (edit.on) {
-            Vis::DrawMenuEditDiagram(k, area, edit_page, art, edit, chips);
-        } else if (have_diagram) {
+    menu.SetDiagram([&](Menu::Kit& k, const Menu::Rect& area, int page) {
+        if (have_diagram) {
             Vis::DrawMenuDiagram(k, area, diagram, static_cast<Vis::DiagramPageId>(page), art);
         }
     });
@@ -937,7 +954,6 @@ void MenuPanel::Worker() {
                 bindings_drawn = bindings;
                 face_drawn = face;
                 have_diagram = true;
-                edit_page = Vis::BuildEditPage(bindings, face); // AzaharFrame remap
             }
         }
         const auto t0 = std::chrono::steady_clock::now();

@@ -8,7 +8,12 @@ namespace FrameXr::Menu {
 
 using Input::Control;
 
-bool Remap::Editable(int control) {
+bool Remap::Editable(int button) {
+    return (button >= DsButton::A && button <= DsButton::Select) || button == DsButton::ZL ||
+           button == DsButton::ZR || button == DsButton::Home;
+}
+
+bool Remap::Listenable(int control) {
     switch (static_cast<Control>(control)) {
     case Control::A:
     case Control::B:
@@ -18,8 +23,6 @@ bool Remap::Editable(int control) {
     case Control::DpadDown:
     case Control::DpadLeft:
     case Control::DpadRight:
-    case Control::TriggerL:
-    case Control::TriggerR:
     case Control::BumperL:
     case Control::BumperR:
     case Control::Menu:
@@ -30,9 +33,14 @@ bool Remap::Editable(int control) {
     }
 }
 
-bool Remap::Listenable(int control) {
-    return Editable(control) && control != static_cast<int>(Control::TriggerL) &&
-           control != static_cast<int>(Control::TriggerR);
+bool Remap::Listenable(int control, RemapSource from) {
+    if (from == RemapSource::Frame) {
+        return Listenable(control);
+    }
+    // A gamepad's controls are Input::Controls too (lane pads: SDL's A B X Y, the D-pad, the
+    // shoulders, the triggers, Start as Menu, Back as View, the stick clicks, the paddles as the
+    // grips); its triggers do not click the beam, and its Guide and touchpad never reach here.
+    return control >= 0 && control < Input::kNumControls;
 }
 
 uint32_t RemapButtonsOn(const RemapTable& table, int control) {
@@ -45,23 +53,24 @@ uint32_t RemapButtonsOn(const RemapTable& table, int control) {
     return mask;
 }
 
-void Remap::Begin(const RemapTable& from, const RemapTable& reset_to) {
+void Remap::Begin(const RemapTable& from, const RemapTable& reset_to, RemapSource from_source) {
     table = from;
     defaults = reset_to;
+    source = from_source;
     view.editing = true;
     view.listening = -1;
     view.rev++;
     listened = 0.0f;
 }
 
-Remap::Event Remap::Choose(int control) {
+Remap::Event Remap::Choose(int button) {
     if (!view.editing) {
         return Event::None;
     }
-    if (!Editable(control) || control == view.listening) {
+    if (!Editable(button) || button == view.listening) {
         return Cancel();
     }
-    view.listening = control;
+    view.listening = button;
     view.rev++;
     listened = 0.0f;
     return Event::Listening;
@@ -71,29 +80,26 @@ Remap::Event Remap::Press(int control) {
     if (!view.editing || view.listening < 0) {
         return Event::None;
     }
-    if (!Listenable(control)) {
-        return Event::None; // a button that cannot take a function: keep listening
+    if (!Listenable(control, source)) {
+        return Event::None; // a button that cannot be used: keep listening
     }
-    const int from = view.listening;
+    const auto target = static_cast<std::size_t>(view.listening);
     view.listening = -1;
     view.rev++;
-    if (control == from) {
+    const int8_t old = table[target];
+    if (old == control) {
         return Event::Cancelled;
     }
-    const uint32_t mine = RemapButtonsOn(table, from);
-    const uint32_t theirs = RemapButtonsOn(table, control);
-    if (mine == 0 && theirs == 0) {
-        return Event::Cancelled;
-    }
-    for (int i = 0; i < kRemapButtons; i++) {
-        auto& c = table[static_cast<std::size_t>(i)];
-        if (c == from) {
-            c = static_cast<int8_t>(control);
-        } else if (c == control) {
-            c = static_cast<int8_t>(from);
+    // A 3DS button that had the control takes the listening one's old control (or none).
+    bool swapped = false;
+    for (std::size_t i = 0; i < table.size(); i++) {
+        if (i != target && table[i] == control) {
+            table[i] = old;
+            swapped = swapped || old >= 0;
         }
     }
-    return mine != 0 && theirs != 0 ? Event::Swapped : Event::Moved;
+    table[target] = static_cast<int8_t>(control);
+    return swapped ? Event::Swapped : Event::Moved;
 }
 
 Remap::Event Remap::Cancel() {

@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/remap.h"
 
@@ -67,10 +68,11 @@ enum class Id : int {
     ControlsPage,
     TouchpadTouch, ///< AzaharFrame menu
     EditControls,  ///< AzaharFrame menu
-    RemapChip,     ///< AzaharFrame remap, index: the Input::Control of a chip
+    RemapChip,     ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
     RemapCancel,   ///< AzaharFrame remap: stop listening
     RemapReset,    ///< AzaharFrame remap: Reset to Default
     RemapDone,     ///< AzaharFrame remap: Done
+    EditDevice,    ///< AzaharFrame padsui, index: the device in MenuModel::devices
     // Settings
     Scope,
     Background,
@@ -136,6 +138,7 @@ struct MenuModel {
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
     int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
+    EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game
     int background = 0;
@@ -206,28 +209,11 @@ struct MenuLayout {
     float SliderAt(Id id, float x) const;
 };
 
-/// AzaharFrame remap: how the diagram is drawn in Edit Controls (labels as chips), and the
-/// chips it drew, for hit testing.
-struct DiagramEdit {
-    bool on = false;
-    int listening = -1; ///< the chip that waits for a button (an Input::Control)
-    int hover = -1;
-    int pressed = -1;
-};
-struct DiagramChipHit {
-    Rect r;
-    int control = -1;
-};
-/// The slot under Edit Controls' diagram: the page's note, or the snackbar while a chip listens.
-constexpr float kEditNoteH = 48.0f;
-
 class TabMenu {
 public:
-    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab; in Edit
-    /// Controls (`edit.on`) its labels are chips, whose rectangles it adds to `chips`.
-    using DiagramDraw = std::function<void(Kit& kit, const Rect& area, int page,
-                                           const DiagramEdit& edit,
-                                           std::vector<DiagramChipHit>& chips)>;
+    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab (Edit
+    /// Controls draws the 3DS itself, ds_drawing.h).
+    using DiagramDraw = std::function<void(Kit& kit, const Rect& area, int page)>;
 
     void SetDiagram(DiagramDraw draw) {
         diagram = std::move(draw);

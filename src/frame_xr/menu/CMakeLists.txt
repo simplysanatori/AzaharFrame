@@ -6,6 +6,10 @@ if (NOT TARGET frame_xr_ui)
 endif()
 
 add_library(frame_xr_menu STATIC
+    ds_drawing.cpp
+    ds_drawing.h
+    edit_devices.cpp
+    edit_devices.h
     md3.cpp
     md3.h
     md3_fonts.h
