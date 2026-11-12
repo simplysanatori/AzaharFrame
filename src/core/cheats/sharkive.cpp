@@ -89,66 +89,8 @@ std::vector<Entry> Parse(std::string_view text) {
     return result;
 }
 
-Version FromTitleVersion(u16 v) {
-    return Version{v >> 10, (v >> 4) & 0x3F};
-}
-
-namespace {
-
-// AzaharFrame echoes: the versions games show for their update TMDs, from each game's own screen
-// or its publisher's release list (the TMD alone does not tell; see GameVersionOf). Keyed by the
-// low half of the title ID (the game's and its update's are the same).
-struct KnownRelease {
-    u32 title_low;
-    u16 tmd;
-    Version shown;
-};
-constexpr KnownRelease kKnownReleases[] = {
-    // Fire Emblem Echoes: Shadows of Valentia: one update, "ver 1.1" on the title screen (Europe,
-    // seen in a mock run); the USA and Japan updates are the same release (the 1.1 mods' pages).
-    {0x001B4100, 1024, {1, 1}}, // Europe
-    {0x001B4000, 1024, {1, 1}}, // USA
-    {0x001A2B00, 1024, {1, 1}}, // Japan
-    // Mario Kart 7: Nintendo's updates are Ver. 1.1 (May 2012) and Ver. 1.2 (December 2022, the
-    // last); the 1.2 update shows "Ver. 1.2" by the Online Multiplayer icon. The USA update
-    // installed here is TMD 3072.
-    {0x00030800, 3072, {1, 2}}, // USA
-};
-
-} // namespace
-
-std::optional<Version> GameVersionOf(u64 title_id, u16 tmd) {
-    const u32 low = static_cast<u32>(title_id & 0xFFFFFFFFULL);
-    for (const auto& r : kKnownReleases) {
-        if (r.title_low == low && r.tmd == tmd) {
-            return r.shown;
-        }
-    }
-    if ((tmd >> 10) == 0) {
-        return Version{1, 0}; // the game as released
-    }
-    return std::nullopt;
-}
-
 std::string ToString(const Version& v) {
     return fmt::format("v{}.{}", v.major, v.minor);
-}
-
-InstalledVersion SelectInstalledVersion(u64 title_id, std::optional<u16> update_tmd,
-                                        std::optional<u16> base_tmd, std::optional<u16> ncch_remaster) {
-    const auto from_tmd = [title_id](u16 tmd, VersionSource source) {
-        return InstalledVersion{GameVersionOf(title_id, tmd), std::nullopt, source, tmd, tmd >> 10};
-    };
-    if (update_tmd) {
-        return from_tmd(*update_tmd, VersionSource::UpdateTmd);
-    }
-    if (base_tmd) {
-        return from_tmd(*base_tmd, VersionSource::BaseTmd);
-    }
-    if (ncch_remaster && *ncch_remaster != 0 && *ncch_remaster % 2 == 0) {
-        return {std::nullopt, static_cast<int>(*ncch_remaster / 2), VersionSource::Ncch};
-    }
-    return {};
 }
 
 namespace {
@@ -276,10 +218,10 @@ bool VersionMatches(const std::optional<Version>& tag, const std::optional<Versi
 }
 
 bool VersionMatches(const std::optional<Version>& tag, const InstalledVersion& installed) {
-    if (installed.version || installed.updates == 0) {
-        return VersionMatches(tag, installed.version);
+    if (installed.unmapped) {
+        return !tag; // AzaharFrame versions: what the game shows is not known: no tag is confirmed
     }
-    return !tag || !(*tag == Version{1, 0});
+    return VersionMatches(tag, installed.version);
 }
 
 int MarkOtherVersions(std::vector<Entry>& entries, const InstalledVersion& installed) {
@@ -289,11 +231,13 @@ int MarkOtherVersions(std::vector<Entry>& entries, const InstalledVersion& insta
         if (VersionMatches(tag, installed)) {
             continue;
         }
-        entry.comments += installed.version
-                              ? fmt::format("Version note: for {}, installed {}\n", ToString(*tag),
-                                            ToString(*installed.version))
-                              : fmt::format("Version note: for {}, this game has an update\n",
-                                            ToString(*tag));
+        entry.comments +=
+            installed.version
+                ? fmt::format("Version note: for {}, installed {}\n", ToString(*tag),
+                              ToString(*installed.version))
+                : fmt::format("Version note: for {}, this game {}\n", ToString(*tag),
+                              installed.State().empty() ? "has another version"
+                                                        : installed.State());
         ++count;
     }
     return count;

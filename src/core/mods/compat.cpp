@@ -4,6 +4,7 @@
 
 // AzaharFrame compat: see compat.h.
 
+#include "core/cheats/game_version.h"
 #include "core/mods/compat.h"
 
 #include <algorithm>
@@ -193,6 +194,17 @@ std::optional<Version> GameVersion(std::optional<Version> update_tmd, std::optio
     return Version{1, 0};
 }
 
+void UpdateVersion(Game& game) {
+    if (!game.raw_version) {
+        return;
+    }
+    if (const auto entry = Cheats::Sharkive::LookupVersion(game.title_id, *game.raw_version)) {
+        game.version = Version{entry->shown.major, entry->shown.minor};
+        game.unmapped = false;
+        game.version_state.clear();
+    }
+}
+
 std::string NormalizeTitle(std::string_view title) {
     std::string t(title);
     // A trailing "(USA)", "(Europe Special Edition)" note goes.
@@ -293,6 +305,10 @@ std::string VersionsOf(const std::vector<Region>& regions) {
 
 } // namespace
 
+std::string Verdict::YourState() const {
+    return your_state.empty() ? std::string("has an update installed") : your_state;
+}
+
 std::string Verdict::Reason() const {
     switch (kind) {
     case Mismatch::Build:
@@ -300,7 +316,7 @@ std::string Verdict::Reason() const {
     case Mismatch::Version:
         return "Made for game version " + VersionText(*made_for) + ". " +
                (your_version ? "Yours is " + VersionText(*your_version) + "."
-                             : std::string("Yours has an update installed.")) +
+                             : "Yours " + YourState() + ".") +
                " " + kMayNotWork;
     case Mismatch::Region:
         return "Made for " + VersionsOf(regions) + "." +
@@ -323,8 +339,7 @@ std::string Verdict::Body(std::string_view what) const {
                kMayNotStart;
     case Mismatch::Version:
         return start + "game version " + VersionText(*made_for) + ", and yours " +
-               (your_version ? "is version " + VersionText(*your_version)
-                             : std::string("has an update installed")) +
+               (your_version ? "is version " + VersionText(*your_version) : YourState()) +
                ". " + kMayNotStart;
     case Mismatch::Region:
         return start + VersionsOf(regions) + " of the game" +
@@ -373,10 +388,11 @@ Verdict Judge(const EntryFacts& entry, const Game& game, const Families& familie
             v.kind = Mismatch::Version;
             v.made_for = made_for;
             v.your_version = game.version;
-        } else if (made_for && !game.version && game.updates > 0 && *made_for == Version{1, 0}) {
-            // AzaharFrame echoes: an update whose version is not known is still not 1.0
+        } else if (made_for && !game.version && game.unmapped) {
+            // AzaharFrame versions: a raw version the table does not know confirms no version
             v.kind = Mismatch::Version;
             v.made_for = made_for;
+            v.your_state = game.version_state;
         }
         return v;
     }

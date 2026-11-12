@@ -17,10 +17,10 @@
 //            another entry of the game, and not this one ("Matches Your Game" on that one); when
 //            no entry matches the game's code, the version below decides
 //   Version  the entry's version chip is a plain version ("1.1") and the game's differs; the
-//            game's version is the one it shows (Cheats::Sharkive::GameVersionOf, from its
-//            installed update title or its own installed title), else 1.0 when the game runs from
-//            a cartridge or file with no update installed. An update whose version is not known
-//            is still not 1.0: a "1.0" entry does not fit it
+//            game's version is the one it shows (Cheats::Sharkive: its raw version, from an
+//            installed update, the cartridge or CIA itself, looked up in a table of what each
+//            raw version shows; 1.0 for a game as released). A raw version the table does not
+//            list ("Update Installed", "Rev 1") confirms no version: no entry's chip fits it
 //   Region   the entry does not list the game's title ID and serves other regions only
 //   Release  the entry does not list the game's title ID and the regions do not tell why (another
 //            edition, such as Fire Emblem Fates' Special Edition and Birthright)
@@ -64,17 +64,24 @@ struct Game {
     Region region = Region::Unknown;   ///< RegionOfTitle, else from the game's own region lock
     std::optional<Version> version;    ///< see the top of this file
     std::string version_source;        ///< "update, TMD v3072", "installed title, TMD v0", "assumed": for the log
-    int updates = 0; ///< AzaharFrame echoes: an installed update's TMD bits 10-15 (above 0: an
-                     ///< update's code); with `version` unknown, a 1.0 entry does not fit
+    bool unmapped = false;             ///< AzaharFrame versions: the game has a raw version above its
+                                       ///< release and the table does not know what it shows: no
+                                       ///< entry's version chip fits
+    std::string version_state;         ///< for a sentence: "has an update installed", "is Rev 1"
+    std::optional<u16> raw_version;    ///< the raw version (TMD style), for UpdateVersion and the log
     std::optional<u32> code_crc;       ///< the CRC32 of the game's .code
 };
 
-/// The game's version from what Cheats::Online::QueryInstalledVersion found: an installed update
-/// title's (or the installed title's own) TMD version as major/minor; with neither, 1.0 unless
-/// the cartridge names a later revision (then unknown). `source` gets "update", "installed
-/// title", "assumed" or "".
+/// The game's version for callers that have none from Cheats::Online::QueryInstalledVersion: an
+/// installed update title's (or the installed title's own) version; with neither, 1.0 unless the
+/// cartridge names a later revision (then unknown). `source` gets "update", "installed title",
+/// "assumed" or "".
 std::optional<Version> GameVersion(std::optional<Version> update_tmd, std::optional<Version> base_tmd,
                                    std::optional<int> cartridge_revision, std::string* source);
+
+/// Looks the game's raw version up again in the table (the online "versions" section may have
+/// arrived since the game's info was made): an entry gives the version it shows.
+void UpdateVersion(Game& game);
 
 /// "the legend of zelda: ocarina of time 3d" from "The Legend of Zelda: Ocarina of Time 3D (USA)".
 std::string NormalizeTitle(std::string_view title);
@@ -106,10 +113,13 @@ struct Verdict {
     Mismatch kind = Mismatch::None;
     std::vector<Region> regions; ///< Region: the ones it was made for (known ones, in order)
     Region yours = Region::Unknown;
-    std::optional<Version> made_for, your_version; ///< Version (your_version unset: an update of
-                                                   ///< a version not known)
+    std::optional<Version> made_for, your_version; ///< Version (your_version unset: a raw version
+                                                   ///< the table does not know, see your_state)
+    std::string your_state; ///< Version without your_version: "has an update installed", "is Rev 1"
     std::string your_build;                        ///< Build: the label that matches the game
 
+    /// "has an update installed" when your_state is empty.
+    std::string YourState() const;
     bool Fits() const {
         return kind == Mismatch::None;
     }

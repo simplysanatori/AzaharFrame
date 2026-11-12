@@ -34,6 +34,9 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     cheats/cheats.h
     cheats/gateway_cheat.cpp
     cheats/gateway_cheat.h
+    cheats/game_version.cpp # AzaharFrame versions
+    cheats/game_version.h # AzaharFrame versions
+    cheats/game_version_default.cpp # AzaharFrame versions
     cheats/online.cpp # AzaharFrame cheats
     cheats/online.h # AzaharFrame cheats
     cheats/sharkive.cpp # AzaharFrame cheats

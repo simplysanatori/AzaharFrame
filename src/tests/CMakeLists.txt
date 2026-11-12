@@ -60,6 +60,7 @@ add_executable(tests
     common/slot_vector.cpp
     core/core_timing.cpp
     core/sharkive.cpp # AzaharFrame cheats
+    core/game_version.cpp # AzaharFrame versions
     core/cheats_online.cpp # AzaharFrame cheats
     core/mods_library.cpp # AzaharFrame moddata
     core/mods_mega.cpp # AzaharFrame mega
