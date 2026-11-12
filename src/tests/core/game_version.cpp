@@ -206,6 +206,9 @@ TEST_CASE("Versions: the table", "[versions]") {
     REQUIRE(GameVersionOf(kEchoesEu, 1024) == Version{1, 1});
     REQUIRE(GameVersionOf(0x0004000E001B4100ULL, 1024) == Version{1, 1}); // the update's own ID
     REQUIRE(GameVersionOf(kMk7, 1040) == Version{1, 1});
+    REQUIRE(GameVersionOf(kMk7, 3072) == Version{1, 2});
+    REQUIRE(GameVersionOf(0x0004000E00030800ULL, 3072) == Version{1, 2});
+    REQUIRE_FALSE(GameVersionOf(0x0004000000030700ULL, 3072).has_value()); // Europe: not checked
     // never decoded: 1024 is 1.0.0 in the bits, and another title's 1024 says nothing
     REQUIRE(FromTitleVersion(1024) == Version{1, 0});
     REQUIRE_FALSE(GameVersionOf(kOther, 1024).has_value());

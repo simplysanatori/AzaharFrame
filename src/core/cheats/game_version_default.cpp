@@ -22,6 +22,12 @@ const char* DefaultVersionsJson() {
       "raw": 1040,
       "shown": "1.1",
       "source": "3dbrew Title list/Patches: Mario Kart 7 [Update Data] v1.1 (v1040), USA, Europe and Japan"
+    },
+    {
+      "title_ids": ["00030800"],
+      "raw": 3072,
+      "shown": "1.2",
+      "source": "Mario Kart 7 (USA): Nintendo's Dec 2022 update is Ver. 1.2 (shown at the lower right of the Online Multiplayer icon), the only update after 1.1 (v1040); its update title installs as raw 3072"
     }
   ]
 }
