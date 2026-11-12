@@ -2607,8 +2607,8 @@ void GMainWindow::BootGame(const QString& filename) {
                 LOG_INFO(Frontend, "xr: {}: Immersive Mode preset {}", preset->name,
                          preset->mode);
             }
-            if (mode.GetValue() == preset->mode && offset.UsingGlobal() &&
-                offset.GetValue() == -1) {
+            if (preset->register_offset != -1 && mode.GetValue() == preset->mode &&
+                offset.UsingGlobal() && offset.GetValue() == -1) {
                 offset.SetGlobal(false);
                 offset.SetValue(preset->register_offset);
                 LOG_INFO(Frontend, "xr: {}: View Matrix Register preset {}", preset->name,
@@ -2629,6 +2629,33 @@ void GMainWindow::BootGame(const QString& filename) {
                 depth.SetValue(static_cast<u32>(preset->depth_multiplier));
                 LOG_INFO(Frontend, "xr: {}: Depth Factor Multiplier preset {}", preset->name,
                          preset->depth_multiplier);
+            }
+            // AzaharFrame depth: the game camera's measured angle, the eye indicator and
+            // Narrow Screen, under the same rule (this game's own value or a changed global
+            // one wins).
+            auto& fov = Settings::values.vr_immersive_game_fov;
+            if (preset->game_fov != 0 && mode.GetValue() == preset->mode && fov.UsingGlobal() &&
+                fov.GetValue() == fov.GetDefault()) {
+                fov.SetGlobal(false);
+                fov.SetValue(preset->game_fov);
+                LOG_INFO(Frontend, "xr: {}: Immersive Game FOV preset {}", preset->name,
+                         preset->game_fov);
+            }
+            auto& eye = Settings::values.vr_immersive_eye_indicator;
+            if (preset->eye_indicator != nullptr && mode.GetValue() == preset->mode &&
+                eye.UsingGlobal() && eye.GetValue().empty()) {
+                eye.SetGlobal(false);
+                eye.SetValue(preset->eye_indicator);
+                LOG_INFO(Frontend, "xr: {}: Eye Indicator Register preset {}", preset->name,
+                         preset->eye_indicator);
+            }
+            auto& squeeze = Settings::values.vr_immersive_squeeze;
+            if (preset->squeeze != 0 && mode.GetValue() == preset->mode &&
+                squeeze.UsingGlobal() && squeeze.GetValue() == 0) {
+                squeeze.SetGlobal(false);
+                squeeze.SetValue(preset->squeeze);
+                LOG_INFO(Frontend, "xr: {}: Narrow Screen preset {}", preset->name,
+                         preset->squeeze);
             }
         }
 #endif

@@ -781,3 +781,57 @@ TEST_CASE("FrameXr immersive: the offset setting is global and in range", "[fram
     x.SetValue(0.0f);
     y.SetValue(0.0f);
 }
+
+// AzaharFrame depth: the game camera's angle and shape from its projection registers.
+TEST_CASE("FrameXr immersive: the projection gives the game camera's angle and shape",
+          "[frame_xr]") {
+    using VideoCore::Immersive::Projection;
+    using VideoCore::Immersive::ProjectionFromRows;
+    // Super Mario 3D Land's title camera (registers 86 to 89, mock run): the top screen turned
+    // by 90 degrees, so the first row scales x; 45 degrees high, 5:3, with the 3D slider's shear.
+    const float sy = 1.0f / std::tan(22.5f * 3.14159265f / 180.0f);
+    const float sm3dl[4][4] = {{-sy / (5.0f / 3.0f), 0, 0.05229f, 0},
+                               {0, sy, 0, 0},
+                               {0, 0, 1.001f, 100.1f},
+                               {0, 0, -1, 0}};
+    Projection p;
+    REQUIRE(ProjectionFromRows(sm3dl, p));
+    REQUIRE(2.0f * std::atan(p.tan_half_y) * 180.0f / 3.14159265f == Approx(45.0f).margin(0.05));
+    REQUIRE(p.aspect == Approx(5.0f / 3.0f).epsilon(0.001));
+    // The rows the other way round, 16:9 (Ocarina of Time 3D with a widescreen mod).
+    const float wide[4][4] = {{0, -sy, 0, 0}, {sy / (16.0f / 9.0f), 0, 0, 0}, {0, 0, 1, 7}, {0, 0, 1, 0}};
+    REQUIRE(ProjectionFromRows(wide, p));
+    REQUIRE(p.aspect == Approx(16.0f / 9.0f).epsilon(0.001));
+    // Not a perspective matrix: an orthographic 2D camera, a view matrix, a silly angle.
+    const float ortho[4][4] = {{0, 0.008f, 0, 0}, {0.005f, 0, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+    REQUIRE_FALSE(ProjectionFromRows(ortho, p));
+    const float view[4][4] = {{1, 0, 0, 5}, {0, 1, 0, 2}, {0, 0, 1, -300}, {0, 0, 0, 1}};
+    REQUIRE_FALSE(ProjectionFromRows(view, p));
+    const float narrow[4][4] = {{-60, 0, 0, 0}, {0, 100, 0, 0}, {0, 0, 1, 1}, {0, 0, -1, 0}};
+    REQUIRE_FALSE(ProjectionFromRows(narrow, p)); // about 1 degree high
+    // Taller than wide: another matrix in the same registers (Ocarina of Time 3D has some).
+    const float portrait[4][4] = {{-sy / 0.52f, 0, 0, 0}, {0, sy, 0, 0}, {0, 0, 1, 1}, {0, 0, -1, 0}};
+    REQUIRE_FALSE(ProjectionFromRows(portrait, p));
+}
+
+TEST_CASE("FrameXr immersive: the projection most draws use wins each window", "[frame_xr]") {
+    using VideoCore::Immersive::Projection;
+    using VideoCore::Immersive::ProjectionTracker;
+    ProjectionTracker t;
+    Projection w;
+    const Projection world{0.4142f, 5.0f / 3.0f}, hud{0.2f, 1.0f};
+    int64_t ms = 1000;
+    for (int i = 0; i < 30; i++) {
+        REQUIRE_FALSE(t.Add(i % 3 == 0 ? hud : world, ms + i, w));
+    }
+    REQUIRE(t.Add(world, ms + ProjectionTracker::kWindowMs, w));
+    REQUIRE(w.tan_half_y == Approx(world.tan_half_y));
+    REQUIRE(w.aspect == Approx(world.aspect));
+    // The next window starts afresh: a cut to another camera shows a quarter second later.
+    ms += 1000;
+    for (int i = 0; i < 10; i++) {
+        REQUIRE_FALSE(t.Add(hud, ms + i, w));
+    }
+    REQUIRE(t.Add(hud, ms + ProjectionTracker::kWindowMs, w));
+    REQUIRE(w.tan_half_y == Approx(hud.tan_half_y));
+}

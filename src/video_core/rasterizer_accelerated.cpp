@@ -9,6 +9,7 @@
 #include "core/memory.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/rasterizer_accelerated.h"
+#include "video_core/vr_immersive.h" // AzaharFrame depth
 #include "video_core/vr_view_matrix.h" // AzaharFrame
 
 #include <set>
@@ -596,6 +597,27 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
             }
             if (!VideoCore::Immersive::LooksLikeWorldView(m)) {
                 return;
+            }
+        }
+
+        // AzaharFrame depth: the game camera's angle and shape, from the projection in the four
+        // registers before the view matrix of the draws patched here; the XR thread sizes the
+        // head-locked screen with it, so the picture keeps the game's angle (vr_view_matrix.h).
+        if (viewMatrixIndex >= 4 && vs_uniforms.f.size() > viewMatrixIndex &&
+            (matrixMode == 2 || matrixMode == 3)) {
+            float rows[4][4];
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    rows[i][j] = f[viewMatrixIndex - 4 + i][j];
+                }
+            }
+            VideoCore::Immersive::Projection p, winner;
+            static VideoCore::Immersive::ProjectionTracker tracker;
+            const int64_t now = VideoCore::Immersive::SteadyMs();
+            if (VideoCore::Immersive::ProjectionFromRows(rows, p) &&
+                tracker.Add(p, now, winner)) {
+                VideoCore::Immersive::g_measured_projection.Publish(winner.tan_half_y,
+                                                                    winner.aspect, now);
             }
         }
 

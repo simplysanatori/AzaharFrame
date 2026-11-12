@@ -25,6 +25,13 @@ struct ImmersivePreset {
     /// 2 = 100x). In mode 3 it sets the eye distance and the head movement in the game's units
     /// (CitraVR: 10^value x 3D Depth / 10 x 6.5 cm), so it is the game's world scale.
     int32_t depth_multiplier = 0;
+    /// AzaharFrame depth: Settings::values.vr_immersive_game_fov, the game camera's vertical
+    /// angle in degrees, measured from the game's projection (0 = keep the setting).
+    int32_t game_fov = 0;
+    /// AzaharFrame depth: Settings::values.vr_immersive_eye_indicator ("87,2"; null = Auto).
+    const char* eye_indicator = nullptr;
+    /// AzaharFrame depth: Settings::values.vr_immersive_squeeze (Narrow Screen, 0 to 3).
+    uint32_t squeeze = 0;
 };
 
 /// The preset for the game with this title id (any region), or null.
