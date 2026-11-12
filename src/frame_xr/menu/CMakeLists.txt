@@ -13,6 +13,8 @@ add_library(frame_xr_menu STATIC
     md3.cpp
     md3.h
     md3_fonts.h
+    cheat_entry.cpp # AzaharFrame ui2
+    cheat_entry.h
     cheats_tab.cpp
     cheats_tab.h
     mods_segments.cpp # AzaharFrame texui

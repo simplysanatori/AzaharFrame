@@ -7,14 +7,20 @@
 #include <thread>
 
 #include <QApplication>
+#include <QInputDialog> // AzaharFrame ui2
+#include <QMessageBox>
 #include <QPointer>
 #include <QTimer>
+#include <QWidget>
 
 #include "common/logging/log.h"
+#include "core/cheats/gateway_cheat.h" // AzaharFrame ui2
 #include "core/cheats/online.h"
 #include "core/core.h"
 #include "core/loader/loader.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
+#include "frame_xr/swkbd.h"
 
 namespace Online = Cheats::Online;
 namespace Menu = FrameXr::Menu;
@@ -107,6 +113,9 @@ void FrameCheats::Command(const FrameXr::MenuRequest& r) {
     case C::DownloadCheats:
         Download();
         break;
+    case C::AddCheat: // AzaharFrame ui2
+        AddCheat();
+        break;
     default:
         break;
     }
@@ -163,4 +172,132 @@ u64 FrameCheats::RunningTitle() const {
         return 0;
     }
     return id;
+}
+
+// ---- Add Cheat (AzaharFrame ui2) ----
+
+void FrameCheats::AddCheat() {
+    if (adding || title_id == 0) {
+        return;
+    }
+    if (!FrameXr::VrShowing()) {
+        AddFlat(title_id);
+        return;
+    }
+    AskName(title_id);
+}
+
+void FrameCheats::AskName(u64 id) {
+    FrameXr::Swkbd::Spec spec;
+    spec.hint = "Cheat Name";
+    spec.max_length = 60;
+    spec.buttons = {{"Cancel", 0, false}, {"Next", 1, true}};
+    spec.validate = [](const std::string& text) { return Menu::CheckCheatName(text); };
+    spec.over_menu = true;
+    QPointer<FrameCheats> guard(this);
+    adding = FrameXr::OpenGameKeyboard(std::move(spec), [guard, id](const FrameXr::SwkbdOutcome& o) {
+        QMetaObject::invokeMethod(
+            qApp,
+            [guard, id, o] {
+                if (!guard) {
+                    return;
+                }
+                guard->adding = false;
+                if (!o.shown || o.button != 1 || guard->title_id != id) {
+                    return; // cancelled, VR ended, or another game
+                }
+                guard->AskCode(id, o.text);
+            },
+            Qt::QueuedConnection);
+    });
+    if (adding) {
+        LOG_INFO(Frontend, "xr: in-game menu: add cheat: name");
+    }
+}
+
+void FrameCheats::AskCode(u64 id, const std::string& name) {
+    FrameXr::Swkbd::Spec spec;
+    spec.hint = "Code (XXXXXXXX YYYYYYYY)";
+    spec.max_length = 4000;
+    spec.multiline = true;
+    spec.buttons = {{"Cancel", 0, false}, {"Add", 1, true}};
+    spec.validate = [](const std::string& text) {
+        std::string code;
+        return Menu::NormalizeCheatCode(text, code);
+    };
+    spec.over_menu = true;
+    QPointer<FrameCheats> guard(this);
+    adding = FrameXr::OpenGameKeyboard(
+        std::move(spec), [guard, id, name](const FrameXr::SwkbdOutcome& o) {
+            QMetaObject::invokeMethod(
+                qApp,
+                [guard, id, name, o] {
+                    if (!guard) {
+                        return;
+                    }
+                    guard->adding = false;
+                    if (!o.shown || o.button != 1 || guard->title_id != id) {
+                        return;
+                    }
+                    std::string code;
+                    if (Menu::NormalizeCheatCode(o.text, code).empty()) {
+                        guard->StoreCheat(id, name, code);
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void FrameCheats::AddFlat(u64 id) {
+    QWidget* owner = qobject_cast<QWidget*>(parent());
+    QString name;
+    for (;;) {
+        bool ok = false;
+        name = QInputDialog::getText(owner, QStringLiteral("Add Cheat"),
+                                     QStringLiteral("Cheat Name"), QLineEdit::Normal, name, &ok);
+        if (!ok || title_id != id) {
+            return;
+        }
+        const std::string why = Menu::CheckCheatName(name.toStdString());
+        if (why.empty()) {
+            break;
+        }
+        QMessageBox::warning(owner, QStringLiteral("Add Cheat"), QString::fromStdString(why));
+    }
+    QString text;
+    for (;;) {
+        bool ok = false;
+        text = QInputDialog::getMultiLineText(owner, QStringLiteral("Add Cheat"),
+                                              QStringLiteral("Code (XXXXXXXX YYYYYYYY)"), text, &ok);
+        if (!ok || title_id != id) {
+            return;
+        }
+        std::string code;
+        const std::string why = Menu::NormalizeCheatCode(text.toStdString(), code);
+        if (why.empty()) {
+            StoreCheat(id, name.trimmed().toStdString(), code);
+            return;
+        }
+        QMessageBox::warning(owner, QStringLiteral("Add Cheat"), QString::fromStdString(why));
+    }
+}
+
+void FrameCheats::StoreCheat(u64 id, const std::string& name_in, const std::string& code) {
+    if (id != title_id || id != RunningTitle()) {
+        return;
+    }
+    std::string name = name_in;
+    while (!name.empty() && (name.front() == ' ' || name.back() == ' ')) {
+        name = name.front() == ' ' ? name.substr(1) : name.substr(0, name.size() - 1);
+    }
+    auto& engine = system.CheatEngine();
+    Online::ListCheats(engine, id); // the game's file is loaded before one is added
+    auto cheat = std::make_shared<Cheats::GatewayCheat>(name, code, std::string{});
+    cheat->SetEnabled(true); // typed in to be used: on at once, as its switch shows
+    engine.AddCheat(std::move(cheat));
+    engine.SaveCheatFile(id);
+    LOG_INFO(Frontend, "xr: in-game menu: cheat added ({} lines)",
+             std::count(code.begin(), code.end(), '\n') + 1);
+    FrameXr::ShowToastText(Menu::CheatsAddedText(1));
+    Publish();
 }

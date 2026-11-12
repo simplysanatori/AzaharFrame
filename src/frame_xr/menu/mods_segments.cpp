@@ -954,8 +954,11 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
         kit.Icon(back.Cx(), back.Cy(), 24.0f, Sym::kArrowBack, false, Tok::kOnSurface,
                  kDisabledContent);
     }
+    // AzaharFrame ui2: a cheat file's page has the Cheats segment's button's name
+    const std::string title =
+        LabelFor(m.target == ZipTarget::Cheats ? Id::InstallCheatFile : Id::InstallFromZip);
     kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
-                choosing ? std::string("Choose the Game") : LabelFor(Id::InstallFromZip));
+                choosing ? std::string("Choose the Game") : title);
     float top = c.y0 + kBarH + 8.0f;
     const Rect rest{c.x0, top, c.x1, bottom};
     if (m.working) {
@@ -1015,7 +1018,9 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
             rows.push_back({Id::ZipUp, -1, "..", "", Sym::kFolderOpen});
         }
         if (!m.loading) {
-            const char32_t archive = m.target == ZipTarget::Mods ? Sym::kExtension : Sym::kTexture;
+            const char32_t archive = m.target == ZipTarget::Mods     ? Sym::kExtension
+                                     : m.target == ZipTarget::Cheats ? Sym::kCode // AzaharFrame ui2
+                                                                     : Sym::kTexture;
             for (std::size_t i = 0; i < m.entries.size(); i++) {
                 const ZipEntry& e = m.entries[i];
                 rows.push_back({Id::ZipEntry, static_cast<int>(i), e.name, e.detail,
@@ -1027,11 +1032,12 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
     if (!choosing && !m.browse) {
         // Flat: Qt's dialog picked the file; only a failure is left to show
         EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kInfo, false, 0,
-                   m.error.empty() ? LabelFor(Id::InstallFromZip) : m.error, m.file);
+                   m.error.empty() ? title : m.error, m.file);
     } else if (m.browse && m.loading) {
         EmptyState(kit, {c.x0, top, c.x1, bottom}, 0, true, m.spin, "Loading", "");
     } else if (m.browse && rows.empty()) {
-        EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kFolderOpen, false, 0, "No Zip Files", "");
+        EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kFolderOpen, false, 0,
+                   m.target == ZipTarget::Cheats ? "No Cheat or Zip Files" : "No Zip Files", "");
     } else {
         std::vector<float> heights(rows.size(), kRow1);
         const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));

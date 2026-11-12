@@ -4187,6 +4187,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
+    case C::AddCheat: // AzaharFrame ui2
         if (g_frame_cheats) {
             g_frame_cheats->Command(r);
         }

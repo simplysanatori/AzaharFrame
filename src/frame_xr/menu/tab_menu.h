@@ -130,6 +130,9 @@ enum class Id : int {
     ZipUp,          ///< the ".." row
     ZipEntry,       ///< index: mods.zip.entries
     ZipChoice,      ///< index: mods.zip.choices
+    // AzaharFrame ui2: the Cheats segment's own cheats (cheat_entry.h)
+    AddCheat,         ///< a name and a code on the game's keyboard
+    InstallCheatFile, ///< Install from Zip's browser, for a cheat file (.txt or a zip of one)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);

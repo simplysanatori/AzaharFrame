@@ -27,11 +27,14 @@
 #include <fmt/format.h>
 
 #include "common/logging/log.h"
+#include "core/cheats/gateway_cheat.h" // AzaharFrame ui2
 #include "core/cheats/online.h"
+#include "core/core.h"                 // AzaharFrame ui2
 #include "core/custom_tex/download.h"
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
 
 namespace Menu = FrameXr::Menu;
@@ -941,13 +944,19 @@ std::string FolderText(const std::string& folder) {
     return folder;
 }
 
-bool IsArchiveName(const std::string& name) {
+bool EndsWithNoCase(const std::string& name, std::string_view e) {
     std::string l = name;
     std::transform(l.begin(), l.end(), l.begin(), [](unsigned char c) { return std::tolower(c); });
-    const auto ends = [&l](std::string_view e) {
-        return l.size() > e.size() && l.compare(l.size() - e.size(), e.size(), e) == 0;
-    };
-    return ends(".zip") || ends(".7z");
+    return l.size() > e.size() && l.compare(l.size() - e.size(), e.size(), e) == 0;
+}
+
+bool IsArchiveName(const std::string& name) {
+    return EndsWithNoCase(name, ".zip") || EndsWithNoCase(name, ".7z");
+}
+
+/// AzaharFrame ui2: a cheat file (Citra's and Azahar's are .txt).
+bool IsCheatFileName(const std::string& name) {
+    return EndsWithNoCase(name, ".txt");
 }
 
 struct Listing {
@@ -955,8 +964,9 @@ struct Listing {
     std::vector<Menu::ZipEntry> entries;
 };
 
-/// The folder's subfolders and archives (hidden ones left out), folders first, by name.
-Listing ListFolder(const std::string& folder) {
+/// The folder's subfolders and archives (hidden ones left out), folders first, by name;
+/// AzaharFrame ui2: with `cheat_files`, .txt files too.
+Listing ListFolder(const std::string& folder, bool cheat_files) {
     namespace fs = std::filesystem;
     constexpr std::size_t kMax = 1000;
     Listing out;
@@ -976,7 +986,8 @@ Listing ListFolder(const std::string& folder) {
         std::error_code e2;
         if (it->is_directory(e2)) {
             folders.push_back({name, true, {}});
-        } else if (it->is_regular_file(e2) && IsArchiveName(name)) {
+        } else if (it->is_regular_file(e2) &&
+                   (IsArchiveName(name) || (cheat_files && IsCheatFileName(name)))) {
             const auto size = it->file_size(e2);
             files.push_back({name, false, e2 ? std::string{} : Menu::SizeText(size)});
         }
@@ -1010,7 +1021,7 @@ void FrameMods::ZipCloseJob() {
 }
 
 void FrameMods::ZipStart(int target) {
-    if (zip.working || (target != 0 && target != 1)) {
+    if (zip.working || target < 0 || target > 2) { // AzaharFrame ui2: 2 Cheats
         return;
     }
     ZipCloseJob();
@@ -1046,10 +1057,13 @@ void FrameMods::ZipStart(int target) {
             return;
         }
         QWidget* owner = qobject_cast<QWidget*>(guard->parent());
+        const bool cheats = guard->zip.target == Menu::ZipTarget::Cheats; // AzaharFrame ui2
         const QString path = QFileDialog::getOpenFileName(
-            owner, QStringLiteral("Install from Zip"), QString::fromStdString(start),
-            QStringLiteral("Zip or 7z (*.zip *.7z *.ZIP *.7Z)"), nullptr,
-            QFileDialog::DontUseNativeDialog);
+            owner, cheats ? QStringLiteral("Install from File") : QStringLiteral("Install from Zip"),
+            QString::fromStdString(start),
+            cheats ? QStringLiteral("Cheat File or Zip (*.txt *.zip *.7z *.TXT *.ZIP *.7Z)")
+                   : QStringLiteral("Zip or 7z (*.zip *.7z *.ZIP *.7Z)"),
+            nullptr, QFileDialog::DontUseNativeDialog);
         if (!guard || guard->title_id != tid || path.isEmpty()) {
             return;
         }
@@ -1072,7 +1086,9 @@ void FrameMods::ZipBrowse(const std::string& folder_in) {
     zip.error.clear();
     PublishZip();
     OffThread(
-        this, [folder] { return ListFolder(folder); },
+        this, [folder, cheats = zip.target == Menu::ZipTarget::Cheats] {
+            return ListFolder(folder, cheats);
+        },
         [this, folder](const Listing& listing) {
             if (zip.folder != folder) {
                 return; // another folder was asked for meanwhile
@@ -1091,6 +1107,9 @@ void FrameMods::ZipBrowse(const std::string& folder_in) {
 void FrameMods::ZipPick(const std::string& path) {
     if (zip.working || path.empty()) {
         return;
+    }
+    if (zip.target == Menu::ZipTarget::Cheats) { // AzaharFrame ui2
+        return ZipCheats(path);
     }
     ZipCloseJob();
     zip.working = true;
@@ -1275,4 +1294,101 @@ void FrameMods::ZipFail(const std::string& error) {
     zip.working = false;
     zip.error = error;
     PublishZip();
+}
+
+// AzaharFrame ui2: Install from File in the Cheats segment. A .txt is read as it is; an archive is
+// unpacked as Install from Zip does and its cheat file taken (cheat_entry.h PickCheatFile). The
+// cheats whose names the game's list does not have yet are added, off, and the file saved; the
+// Cheats segment shows them at its next read (frame_cheats.cpp, every second while the menu is open).
+void FrameMods::ZipCheats(const std::string& path) {
+    struct Read {
+        std::string text;
+        std::string name;  ///< the cheat's name for a plain list of codes
+        std::string error; ///< a few words for the page
+    };
+    zip.working = true;
+    zip.phase = IsCheatFileName(path) ? "Reading" : "Unpacking";
+    zip.file = std::filesystem::path(path).filename().string();
+    zip.error.clear();
+    zip.choices.clear();
+    PublishZip();
+    LOG_INFO(Frontend, "xr: zip: cheat file {}", zip.file);
+    const u64 tid = title_id;
+    OffThread(
+        this,
+        [path, tid] {
+            Read r;
+            constexpr std::uintmax_t kMaxText = 4u << 20;
+            const auto read_text = [&r](const std::filesystem::path& p) {
+                std::error_code ec;
+                const auto size = std::filesystem::file_size(p, ec);
+                if (ec || size > kMaxText) {
+                    r.error = ec ? "Can't Read the File" : "File Too Large";
+                    return;
+                }
+                std::ifstream f(p, std::ios::binary);
+                std::ostringstream ss;
+                ss << f.rdbuf();
+                r.text = ss.str();
+                r.name = p.stem().string();
+            };
+            if (IsCheatFileName(path)) {
+                read_text(path);
+                return r;
+            }
+            Zip::Job job;
+            const std::string err = Zip::Open(path, LoadDirPath(), job);
+            if (!err.empty()) {
+                r.error = Zip::ShortError(err);
+                return r;
+            }
+            const std::string pick = Menu::PickCheatFile(job.files, tid);
+            if (pick.empty()) {
+                r.error = "No Cheat File in the Zip";
+            } else {
+                read_text(std::filesystem::path(job.root) / pick);
+                if (r.error.empty() && Menu::IsTitleIdName(r.name)) {
+                    r.name = std::filesystem::path(path).stem().string(); // the zip's name
+                }
+            }
+            Zip::Close(job);
+            return r;
+        },
+        [this, tid](const Read& r) {
+            if (tid != title_id) {
+                return;
+            }
+            if (!r.error.empty()) {
+                LOG_INFO(Frontend, "xr: zip: {}: {}", zip.file, r.error);
+                return ZipFail(r.error);
+            }
+            const Menu::CheatFileText parsed = Menu::ParseCheatFile(r.text, r.name);
+            if (parsed.cheats.empty()) {
+                return ZipFail("No Cheats in This File");
+            }
+            auto& engine = Core::System::GetInstance().CheatEngine();
+            std::set<std::string> names;
+            for (const auto& c : Cheats::Online::ListCheats(engine, tid)) {
+                names.insert(c.name);
+            }
+            int added = 0;
+            for (const Menu::CheatText& c : parsed.cheats) {
+                if (!names.insert(c.name).second) {
+                    continue; // the game has it already
+                }
+                engine.AddCheat(std::make_shared<Cheats::GatewayCheat>(c.name, c.code, c.comments));
+                added++;
+            }
+            if (added > 0) {
+                engine.SaveCheatFile(tid);
+            }
+            LOG_INFO(Frontend, "xr: zip: {} cheats added from {} ({} skipped)", added, zip.file,
+                     parsed.skipped);
+            zip.working = false;
+            zip.open = false;
+            zip.error.clear();
+            zip.file.clear();
+            PublishZip();
+            FrameXr::ShowToastText(Menu::CheatsAddedText(added));
+        });
 }

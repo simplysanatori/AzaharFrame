@@ -362,6 +362,10 @@ std::string LabelFor(Id id) {
         return "Delete";
     case Id::InstallFromZip: // AzaharFrame zipinstall
         return "Install from Zip";
+    case Id::AddCheat: // AzaharFrame ui2
+        return "Add Cheat";
+    case Id::InstallCheatFile:
+        return "Install from File";
     default:
         return {};
     }

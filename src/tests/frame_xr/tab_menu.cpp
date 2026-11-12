@@ -1094,6 +1094,45 @@ TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr]
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }
 
+// AzaharFrame ui2: Add Cheat and Install from File in the Cheats segment, with a list and without,
+// and Install from Zip's browser over the segment for a cheat file.
+TEST_CASE("Tab menu: Cheats add and install from a file", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Cheats;
+    CHECK(LabelFor(Id::AddCheat) == "Add Cheat");
+    CHECK(LabelFor(Id::InstallCheatFile) == "Install from File");
+    d.Draw(m, v); // no cheats
+    CHECK(HasHit(d, Id::AddCheat, -1));
+    CHECK(HasHit(d, Id::DownloadCheats, -1));
+    CHECK(HasHit(d, Id::InstallCheatFile, -1));
+    CHECK(HasHit(d, Id::CheatsWindow, -1));
+    CheckTargets(d);
+    m.mods.cheats.cheats = {{"Infinite Hearts", CheatSource::User, true, ""}};
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::AddCheat, -1));
+    REQUIRE(FindHit(d, Id::InstallCheatFile, -1));
+    CHECK(FindHit(d, Id::AddCheat, -1)->r.x0 > FindHit(d, Id::DownloadCheats, -1)->r.x1);
+    // At the bar's end, Azahar's Window before it.
+    CHECK(FindHit(d, Id::InstallCheatFile, -1)->r.x0 > FindHit(d, Id::CheatsWindow, -1)->r.x1);
+    CHECK(FindHit(d, Id::CheatsWindow, -1)->r.x0 > FindHit(d, Id::AddCheat, -1)->r.x1);
+    CheckTargets(d);
+    // The browser over the segment, not over the others.
+    m.mods.zip.open = true;
+    m.mods.zip.target = ZipTarget::Cheats;
+    m.mods.zip.browse = true;
+    m.mods.zip.entries = {{"codes.txt", false, "1 KB"}};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipBack, -1));
+    CHECK(HasHit(d, Id::ZipEntry, 0));
+    CHECK(!HasHit(d, Id::Cheat, 0));
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+}
+
 // AzaharFrame zipinstall: Install from Zip on Download Packs and Install Mods, and its page.
 TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     Drawn d;
