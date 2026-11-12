@@ -11,7 +11,7 @@ COMMIT=1
 REF=${1:?usage: merge-upstream.sh [--no-commit] <ref>}
 cd "$(git rev-parse --show-toplevel)"
 LIST=steam-frame/dev/removed-upstream-paths.txt
-[ -z "$(git status --porcelain --untracked-files=no | grep -v '^ m')" ] || { echo "working tree not clean"; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no --ignore-submodules=all)" ] || { echo "working tree not clean"; exit 1; }
 git fetch --tags azahar || exit 1
 git rev-parse -q --verify "$REF^{commit}" >/dev/null || { echo "unknown ref $REF"; exit 1; }
 git merge --no-commit --no-ff "$REF" 2>&1 | tail -n 15
