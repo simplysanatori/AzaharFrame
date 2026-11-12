@@ -782,8 +782,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 // Delete, for the packs Download Packs brought (they can come again).
                 const std::string label = LabelFor(Id::PackDelete);
                 const float w = ButtonWidth(kit, label, false, 12.0f);
-                const Rect b{c.x1 + 12.0f - w, cy - kButtonH * 0.5f, c.x1 + 12.0f,
-                             cy + kButtonH * 0.5f};
+                const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f}; // integ
                 const bool can = !m.busy && !m.downloading;
                 const Target dt{Id::PackDelete, it.index - 1};
                 kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, dt, can));
@@ -852,7 +851,9 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
             // The ring, the percent, Cancel.
             const std::string label = LabelFor(Id::PackCancel);
             const float w = ButtonWidth(kit, label, false, 12.0f);
-            const Rect b{c.x1 + 12.0f - w, cy - kButtonH * 0.5f, c.x1 + 12.0f, cy + kButtonH * 0.5f};
+            // AzaharFrame integ: inside the content edge (its hover container too), the ring and
+            // percent left of it.
+            const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
             kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::PackCancel, idx}));
             AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::PackCancel, idx}, list);
             float x = b.x0 - 4.0f;

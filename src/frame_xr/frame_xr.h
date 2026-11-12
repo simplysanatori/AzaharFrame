@@ -221,7 +221,7 @@ enum class MenuSetting {
     NarrowScreen,
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
-    MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Other, 2 Both (Detach Screens)
+    MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
     TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
     CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
     PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)

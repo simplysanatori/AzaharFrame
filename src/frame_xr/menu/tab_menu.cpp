@@ -134,7 +134,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
-    static const std::vector<std::string> kMove{"Off", "Other", "Both"}; // provisional labels, with LabelFor
+    static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -225,7 +225,7 @@ std::string LabelFor(Id id) {
     case Id::ScreenLayout:
         return "Screen Layout";
     case Id::MoveScreens:
-        return "Detach Screens"; // provisional
+        return "Detach Screens";
     case Id::TouchpadTouch:
         return "Touchpad Touch";
     case Id::EditControls:
