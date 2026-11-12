@@ -194,6 +194,68 @@ const char* CaBundle() {
     return nullptr;
 }
 
+std::string JStr(const nlohmann::json& o, const char* key) {
+    return o.contains(key) && o[key].is_string() ? o[key].get<std::string>() : std::string{};
+}
+
+// One "source" object; nullopt with the reason in `why`.
+std::optional<Source> ParseSource(const nlohmann::json& s, std::string* why) {
+    Source src;
+    const std::string type = JStr(s, "type");
+    if (type == "github_release") {
+        src.type = Source::Type::GithubRelease;
+        src.repo = JStr(s, "repo");
+        src.tag = JStr(s, "tag").empty() ? "latest" : JStr(s, "tag");
+        src.asset_pattern = JStr(s, "asset_pattern");
+        if (!RepoOk(src.repo) || src.asset_pattern.empty() || src.asset_pattern.find('/') != std::string::npos ||
+            (src.tag != "latest" && !NameCharsOk(src.tag, "-_.+"))) {
+            *why = "bad github_release source";
+            return std::nullopt;
+        }
+    } else if (type == "https") {
+        src.type = Source::Type::Https;
+        src.url = JStr(s, "url");
+        std::string host, path;
+        if (!SplitUrl(src.url, host, path) || path.find("..") != std::string::npos || !HostNameOk(host.substr(8))) {
+            *why = "bad https source";
+            return std::nullopt;
+        }
+    } else if (type == "gdrive") {
+        src.type = Source::Type::Gdrive;
+        src.file_id = JStr(s, "file_id");
+        if (!DriveIdOk(src.file_id)) {
+            *why = "bad Google Drive file id (use gdrive_folder for a folder)";
+            return std::nullopt;
+        }
+    } else if (type == "gdrive_folder") {
+        src.type = Source::Type::GdriveFolder;
+        src.folder_id = JStr(s, "folder_id");
+        src.file_pattern = JStr(s, "file_pattern");
+        if (!DriveIdOk(src.folder_id) || src.file_pattern.empty() || src.file_pattern.size() > 100 ||
+            src.file_pattern.find('/') != std::string::npos) {
+            *why = "bad gdrive_folder source (folder_id and a file_pattern are needed)";
+            return std::nullopt;
+        }
+    } else {
+        *why = "unknown source type";
+        return std::nullopt;
+    }
+    if (s.contains("hosts")) {
+        if (!s["hosts"].is_array()) {
+            *why = "bad hosts (exact names only, no wildcards)";
+            return std::nullopt;
+        }
+        for (const auto& h : s["hosts"]) {
+            if (!h.is_string() || !HostNameOk(h.get<std::string>())) {
+                *why = "bad hosts (exact names only, no wildcards)";
+                return std::nullopt;
+            }
+            src.hosts.push_back(h.get<std::string>());
+        }
+    }
+    return src;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------
@@ -323,55 +385,27 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
                 warn(e.id, "no source");
                 continue;
             }
-            const auto& s = p["source"];
-            const std::string type = str(s, "type");
-            if (type == "github_release") {
-                e.source.type = Source::Type::GithubRelease;
-                e.source.repo = str(s, "repo");
-                e.source.tag = str(s, "tag").empty() ? "latest" : str(s, "tag");
-                e.source.asset_pattern = str(s, "asset_pattern");
-                if (!RepoOk(e.source.repo) || e.source.asset_pattern.empty() ||
-                    e.source.asset_pattern.find('/') != std::string::npos ||
-                    (e.source.tag != "latest" && !NameCharsOk(e.source.tag, "-_.+"))) {
-                    warn(e.id, "bad github_release source");
-                    continue;
-                }
-            } else if (type == "https") {
-                e.source.type = Source::Type::Https;
-                e.source.url = str(s, "url");
-                std::string host, path;
-                if (!SplitUrl(e.source.url, host, path) || path.find("..") != std::string::npos ||
-                    !HostNameOk(host.substr(8))) {
-                    warn(e.id, "bad https source");
-                    continue;
-                }
-            } else if (type == "gdrive") {
-                e.source.type = Source::Type::Gdrive;
-                e.source.file_id = str(s, "file_id");
-                if (!DriveIdOk(e.source.file_id)) {
-                    warn(e.id, "bad Google Drive file id (folders are not supported)");
-                    continue;
-                }
-            } else {
-                warn(e.id, "unknown source type");
+            std::string why;
+            auto primary = ParseSource(p["source"], &why);
+            if (!primary) {
+                warn(e.id, why);
                 continue;
             }
-            bool hosts_ok = true;
-            if (s.contains("hosts")) {
-                if (!s["hosts"].is_array()) {
-                    hosts_ok = false;
-                } else {
-                    for (const auto& h : s["hosts"]) {
-                        if (!h.is_string() || !HostNameOk(h.get<std::string>())) {
-                            hosts_ok = false;
-                            break;
-                        }
-                        e.source.hosts.push_back(h.get<std::string>());
+            e.source = std::move(*primary);
+            bool alternates_ok = true;
+            if (p.contains("alternates")) {
+                alternates_ok = p["alternates"].is_array() && p["alternates"].size() <= 4;
+                for (const auto& alt : alternates_ok ? p["alternates"] : nlohmann::json::array()) {
+                    auto parsed = alt.is_object() ? ParseSource(alt, &why) : std::nullopt;
+                    if (!parsed) {
+                        alternates_ok = false;
+                        break;
                     }
+                    e.alternates.push_back(std::move(*parsed));
                 }
             }
-            if (!hosts_ok) {
-                warn(e.id, "bad hosts (exact names only, no wildcards)");
+            if (!alternates_ok) {
+                warn(e.id, "bad alternates: " + why);
                 continue;
             }
         } catch (const std::exception&) {
@@ -493,6 +527,74 @@ DrivePage ParseDrivePage(std::string_view html) {
     }
     page.error = "Google Drive sent a web page instead of the file";
     return page;
+}
+
+std::vector<DriveItem> ParseDriveFolder(std::string_view html) {
+    std::vector<DriveItem> out;
+    constexpr std::string_view open = "id=\"entry-";
+    for (auto p = html.find(open); p != std::string_view::npos;) {
+        const auto next = html.find(open, p + open.size());
+        const auto chunk = html.substr(p, next == std::string_view::npos ? std::string_view::npos : next - p);
+        p = next;
+        DriveItem item;
+        const auto id_end = chunk.find('"', open.size());
+        if (id_end == std::string_view::npos) {
+            continue;
+        }
+        item.id = std::string(chunk.substr(open.size(), id_end - open.size()));
+        const auto href = chunk.find("href=\"");
+        if (href != std::string_view::npos) {
+            const auto end = chunk.find('"', href + 6);
+            const auto url = chunk.substr(href + 6, end == std::string_view::npos ? 0 : end - href - 6);
+            item.is_folder = Contains(url, "/folders/");
+        }
+        constexpr std::string_view title = "class=\"flip-entry-title\">";
+        const auto t = chunk.find(title);
+        if (t == std::string_view::npos) {
+            continue;
+        }
+        const auto t_end = chunk.find("</div>", t);
+        item.name = HtmlUnescape(std::string(chunk.substr(t + title.size(), t_end == std::string_view::npos ? 0 : t_end - t - title.size())));
+        if (DriveIdOk(item.id) && !item.name.empty()) {
+            out.push_back(std::move(item));
+        }
+    }
+    return out;
+}
+
+std::optional<DriveItem> PickDriveFile(const DriveLister& list, const std::string& folder_id,
+                                       const std::string& pattern, std::string* error, int max_depth,
+                                       int max_listings) {
+    std::vector<std::pair<std::string, int>> queue{{folder_id, 0}};
+    int listings = 0;
+    bool root_read = false;
+    for (std::size_t i = 0; i < queue.size() && listings < max_listings; ++i) {
+        const auto [id, depth] = queue[i];
+        ++listings;
+        auto items = list(id);
+        if (!items) {
+            continue;
+        }
+        root_read = true;
+        std::sort(items->begin(), items->end(), [](const DriveItem& a, const DriveItem& b) { return a.name < b.name; });
+        for (const auto& item : *items) {
+            if (!item.is_folder && Mods::GlobMatch(pattern, item.name)) {
+                return item;
+            }
+        }
+        if (depth < max_depth) {
+            for (const auto& item : *items) {
+                if (item.is_folder) {
+                    queue.emplace_back(item.id, depth + 1);
+                }
+            }
+        }
+    }
+    if (error != nullptr) {
+        *error = root_read ? fmt::format("Google Drive: no file named \"{}\" in the folder", pattern)
+                           : "Google Drive: the folder could not be read (is it shared publicly?)";
+    }
+    return std::nullopt;
 }
 
 std::vector<PackFolder> FindPackFolders(const std::vector<std::string>& files, Layout layout) {
@@ -1074,52 +1176,70 @@ bool IsDriveHost(const std::string& host) {
 
 } // namespace
 
-void Downloader::Run(Entry entry, u64 title_id) {
-    std::error_code ec;
-    const fs::path dl_dir = fs::path(load_dir_) / "texture-downloads";
-    fs::create_directories(dl_dir, ec);
-    if (ec) {
-        return Fail("Cannot make the download folder");
+namespace {
+
+// Errors another source of the same file might get around.
+bool Retryable(const std::string& error) {
+    for (const char* needle : {"too many downloads", "not shared", "not found", "(404)", "web page", "no matching file",
+                               "no file named", "could not be read", "refused the download", "not found"}) {
+        if (error.find(needle) != std::string::npos) {
+            return true;
+        }
     }
-    const std::string part = (dl_dir / (entry.id + ".part")).string();
-    std::vector<std::string> extra = entry.source.hosts;
+    return false;
+}
+
+std::optional<std::vector<DriveItem>> ListDriveFolder(const std::string& folder_id) {
+    const auto r = Cheats::Online::HttpsGetRaw("https://drive.google.com", "/embeddedfolderview?id=" + folder_id,
+                                               2 * 1024 * 1024);
+    if (r.status != 200 || !r.error.empty()) {
+        return std::nullopt;
+    }
+    return ParseDriveFolder(r.body);
+}
+
+} // namespace
+
+// One source: where the file is, the free space check, the transfer into `part`. "" on success.
+std::string Downloader::FetchSource(const Entry& entry, const Source& source, const std::string& part) {
+    std::error_code ec;
+    std::vector<std::string> extra = source.hosts;
     std::string url;
     u64 expected = entry.size;
 
-    // 1. Where the file is.
-    switch (entry.source.type) {
+    switch (source.type) {
     case Source::Type::GithubRelease: {
-        const std::string api_path = fmt::format("/repos/{}/releases/{}", entry.source.repo,
-                                                 entry.source.tag == "latest" ? "latest" : "tags/" + entry.source.tag);
+        const std::string api_path = fmt::format("/repos/{}/releases/{}", source.repo,
+                                                 source.tag == "latest" ? "latest" : "tags/" + source.tag);
         const auto r = Cheats::Online::HttpsGetRaw("https://api.github.com", api_path, 4 * 1024 * 1024);
         if (cancel_) {
-            return Fail("Cancelled");
+            return "Cancelled";
         }
         if (!r.error.empty() || r.status == 0) {
-            return Fail(r.error.empty() ? "No reply from GitHub" : r.error);
+            return r.error.empty() ? "No reply from GitHub" : r.error;
         }
         if (r.status != 200) {
-            return Fail(r.status == 404 ? "Release not found" : fmt::format("Server returned {}", r.status));
+            return r.status == 404 ? "Release not found" : fmt::format("Server returned {}", r.status);
         }
         try {
             const auto j = nlohmann::json::parse(r.body);
             for (const auto& a : j.at("assets")) {
-                if (Mods::GlobMatch(entry.source.asset_pattern, a.value("name", ""))) {
+                if (Mods::GlobMatch(source.asset_pattern, a.value("name", ""))) {
                     url = a.value("browser_download_url", "");
                     expected = a.value("size", expected);
                     break;
                 }
             }
         } catch (const std::exception&) {
-            return Fail("Release information not readable");
+            return "Release information not readable";
         }
         if (url.empty()) {
-            return Fail("The release has no matching file");
+            return "The release has no matching file";
         }
         break;
     }
     case Source::Type::Https: {
-        url = entry.source.url;
+        url = source.url;
         std::string host, path;
         if (SplitUrl(url, host, path)) {
             extra.push_back(host.substr(8));
@@ -1127,11 +1247,23 @@ void Downloader::Run(Entry entry, u64 title_id) {
         break;
     }
     case Source::Type::Gdrive:
-        url = DriveUrl(entry.source.file_id);
+        url = DriveUrl(source.file_id);
+        break;
+    case Source::Type::GdriveFolder: {
+        SetState(State::Phase::Resolving, "Looking Up");
+        std::string error;
+        const auto item = PickDriveFile(ListDriveFolder, source.folder_id, source.file_pattern, &error);
+        if (cancel_) {
+            return "Cancelled";
+        }
+        if (!item) {
+            return error;
+        }
+        url = DriveUrl(item->id);
         break;
     }
+    }
 
-    // 2. Space, then the transfer (resumes a kept partial file).
     const u64 existing = fs::exists(part, ec) ? static_cast<u64>(fs::file_size(part, ec)) : 0;
     const auto check_space = [this](u64 total, u64 resume) {
         const auto free = FreeSpace(load_dir_);
@@ -1139,40 +1271,34 @@ void Downloader::Run(Entry entry, u64 title_id) {
     };
     if (expected > 0) {
         if (const auto problem = check_space(expected, existing); !problem.empty()) {
-            return Fail(problem);
+            return problem;
         }
     }
-    {
-        std::lock_guard lock{mutex_};
-        state_.phase = State::Phase::Downloading;
-        state_.text = "Downloading";
-    }
+    SetState(State::Phase::Downloading, "Downloading");
     total_ = expected;
     done_ = existing;
     u64 resume = existing;
     bool retried_range = false;
     int confirms = 0;
-    bool complete = false;
-    for (int hop = 0; hop < 12 && !complete; ++hop) {
+    for (int hop = 0; hop < 12; ++hop) {
         std::string host, path;
         if (!SplitUrl(url, host, path) || !HostAllowed(host, extra)) {
-            return Fail("Download refused: not an allowed host");
+            return "Download refused: not an allowed host";
         }
         StepIo io{part, resume, &cancel_, &done_, &total_, check_space};
         const Step step = GetStep(host, path, io);
         if (step.cancelled || cancel_) {
-            return Fail("Cancelled");
+            return "Cancelled";
         }
         if (step.is_file) {
             if (!step.error.empty()) {
-                return Fail(step.error);
+                return step.error;
             }
             const u64 size = static_cast<u64>(fs::file_size(part, ec));
             if (step.total && size != *step.total) {
-                return Fail("The download was cut short, start it again to resume");
+                return "The download was cut short, start it again to resume";
             }
-            complete = true;
-            break;
+            return {};
         }
         if (step.status >= 300 && step.status < 400 && !step.location.empty()) {
             url = step.location.front() == '/' ? host + step.location : step.location;
@@ -1192,24 +1318,50 @@ void Downloader::Run(Entry entry, u64 title_id) {
                 url = page.url;
                 continue;
             }
-            return Fail(page.error.empty() ? "Google Drive did not give the file" : page.error);
+            return page.error.empty() ? "Google Drive did not give the file" : page.error;
         }
         if (step.status == 0) {
-            return Fail(step.error.empty() ? "No connection" : step.error);
+            return step.error.empty() ? "No connection" : step.error;
         }
         if (step.status == 404) {
-            return Fail("Download not found (404)");
+            return "Download not found (404)";
         }
         if (step.status == 200 && !step.html.empty()) {
-            return Fail("The link leads to a web page, not a file");
+            return "The link leads to a web page, not a file";
         }
-        return Fail(fmt::format("The host refused the download ({})", step.status));
+        return fmt::format("The host refused the download ({})", step.status);
     }
-    if (!complete) {
-        return Fail("Too many redirects");
+    return "Too many redirects";
+}
+
+void Downloader::Run(Entry entry, u64 title_id) {
+    std::error_code ec;
+    const fs::path dl_dir = fs::path(load_dir_) / "texture-downloads";
+    fs::create_directories(dl_dir, ec);
+    if (ec) {
+        return Fail("Cannot make the download folder");
+    }
+    const std::string part = (dl_dir / (entry.id + ".part")).string();
+
+    // 1. The file, from the first source that gives it.
+    std::vector<Source> sources{entry.source};
+    sources.insert(sources.end(), entry.alternates.begin(), entry.alternates.end());
+    std::string error;
+    for (std::size_t i = 0; i < sources.size(); ++i) {
+        error = FetchSource(entry, sources[i], part);
+        if (error.empty() || cancel_ || !Retryable(error)) {
+            break;
+        }
+        if (i + 1 < sources.size()) {
+            LOG_WARNING(Frontend, "Textures: {} failed ({}), trying the next source", entry.id, error);
+            fs::remove(part, ec); // a partial file belongs to the source that wrote it
+        }
+    }
+    if (!error.empty()) {
+        return Fail(error);
     }
 
-    // 3. Checksum, unpack.
+    // 2. Checksum, unpack.
     if (!entry.sha256.empty()) {
         SetState(State::Phase::Verifying, "Checking");
         bool cancelled = false;
@@ -1224,7 +1376,7 @@ void Downloader::Run(Entry entry, u64 title_id) {
     }
     SetState(State::Phase::Extracting, "Unpacking");
     std::vector<std::string> installed;
-    const std::string error = InstallArchive(part, entry, title_id, load_dir_, &cancel_, &installed);
+    error = InstallArchive(part, entry, title_id, load_dir_, &cancel_, &installed);
     if (!error.empty()) {
         if (error != "Cancelled") {
             fs::remove(part, ec);
