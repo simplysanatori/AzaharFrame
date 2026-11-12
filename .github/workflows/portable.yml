@@ -25,6 +25,7 @@ jobs:
       CONTAINER_ENGINE: docker
       AZAHARFRAME_NO_LOCK: '1'          # a CI runner is not the shared Frame
       AZAHARFRAME_PORTABLE_CACHE: ${{ github.workspace }}/../portable-cache
+      AZAHARFRAME_OUT: ${{ github.workspace }}/release-out
       ALLOW_MISSING_HOST: '1'           # the runner has no SteamOS libraries beyond those installed below
     steps:
       - uses: actions/checkout@v4
@@ -62,5 +63,7 @@ jobs:
         with:
           name: azaharframe-linux-arm64
           path: |
-            steam-frame/release/azaharframe-*-linux-arm64.tar.gz
-            steam-frame/release/SHA256SUMS
+            release-out/azaharframe-*-linux-arm64.tar.gz
+            release-out/azaharframe-*-framedrop-linux-arm64.zip
+            release-out/azaharframe.framedrop.json
+            release-out/SHA256SUMS
