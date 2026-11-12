@@ -109,6 +109,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/menu_diagram.h # AzaharFrame tabmenu
     vis/visuals.cpp
     vis/visuals.h
+    vis/layer_plan.h # AzaharFrame vis
 )
 # AzaharFrame tabmenu: the in-game menu (Material 3 on the UI canvas).
 add_subdirectory(menu)

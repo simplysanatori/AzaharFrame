@@ -950,6 +950,7 @@ TEST_CASE("Tab menu: Dynamic Resolution has nothing to do at 1x", "[frame_xr][ta
     };
     CHECK(hit(1) == kLabelIndex);
     CHECK(!ExplainLock(Lock::AtLowest).empty());
+    CHECK(!ExplainLock(Lock::InPassthrough).empty()); // AzaharFrame vis
     CHECK(hit(2) == -1);
     CHECK(hit(0) == -1); // Auto: whatever factor it works out
 }

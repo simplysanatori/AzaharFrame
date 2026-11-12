@@ -854,6 +854,11 @@ void MenuPanel::BuildModel(const Host& host) {
     if (!per_game_ok) {
         lock(Id::Scope, Lock::Unavailable);
     }
+    // AzaharFrame vis: no controller models in passthrough (vis/layer_plan.h); the switch keeps
+    // its saved value, greyed.
+    if (host.passthrough_ok && m.background == 1) {
+        lock(Id::ShowControllers, Lock::InPassthrough);
+    }
     // AzaharFrame immersive: a game without immersive mode (Kid Icarus: Uprising) runs in the
     // normal view; the menu shows Off and does not offer the setting.
     if (!ImmersiveOffered(GameTitleId())) {

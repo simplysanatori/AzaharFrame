@@ -30,6 +30,7 @@
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
+#include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
 #include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
@@ -807,20 +808,14 @@ void Runtime::FrameLoop() {
                 quad_layers.push_back(MakeQuad(local_space, q));
             }
         }
-        layer_ptrs.clear();
-        if (passthrough) {
-            layer_ptrs.push_back(
-                reinterpret_cast<const XrCompositionLayerBaseHeader*>(&passthrough_layer));
-        }
-        for (std::size_t i = 0; i < quad_layers.size(); i++) {
-            if (i == models_at && models_layer) {
-                layer_ptrs.push_back(models_layer);
-            }
-            layer_ptrs.push_back(quad_layers[i].Header());
-        }
-        if (models_layer && models_at == quad_layers.size()) {
-            layer_ptrs.push_back(models_layer);
-        }
+        // AzaharFrame vis: one projection layer a frame (vis/layer_plan.h). With the models
+        // showing, their layer stands in for the passthrough square; the blend mode stays.
+        Vis::AssembleLayers(
+            layer_ptrs,
+            passthrough ? reinterpret_cast<const XrCompositionLayerBaseHeader*>(&passthrough_layer)
+                        : nullptr,
+            models_layer, models_at, quad_layers.size(),
+            [&](std::size_t i) { return quad_layers[i].Header(); });
         if (ui && layer_ptrs.size() > ui->MaxLayers()) {
             // Never more than the runtime takes: xrEndFrame would drop the whole frame.
             static int said = 0;

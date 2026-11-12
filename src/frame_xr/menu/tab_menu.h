@@ -154,6 +154,7 @@ enum class Lock : uint8_t {
     Unavailable, ///< the runtime does not offer it
     AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
     NotForGame,  ///< AzaharFrame immersive: not offered for the running game (presets.h)
+    InPassthrough, ///< AzaharFrame vis: Show Controllers while the Background is Passthrough
 };
 
 struct SaveSlot {

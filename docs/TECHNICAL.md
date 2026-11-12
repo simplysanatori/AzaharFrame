@@ -45,7 +45,7 @@ The three screens are the 3DS's own images: the right eye is the 3DS's right ima
 - Tracking uses the LOCAL space; immersive mode also uses VIEW.
 - The display rate is not asked for in the code. `azaharframe.sh` sets SteamVR's per-app settings (120 Hz by default, no throttling, no motion smoothing) before every launch, and `install.sh` sets them for the library entry.
 
-The screens are quad layers, or cylinder layers (`XR_KHR_composition_layer_cylinder`, which SteamVR offers) when **Screen Curve** is on: see below. The immersive screen is always a quad. Passthrough is the alpha-blended environment mode, used for **Background: Passthrough** when the runtime offers it (`hud.cpp`).
+The screens are quad layers, or cylinder layers (`XR_KHR_composition_layer_cylinder`, which SteamVR offers) when **Screen Curve** is on: see below. The immersive screen is always a quad. Passthrough is the alpha-blended environment mode, used for **Background: Passthrough** when the runtime offers it (`hud.cpp`). A frame never holds two projection layers, because SteamVR on the Frame shakes the second one from frame to frame: while the controller models show, their layer (transparent round them) is the one the room shows behind, and the 16x16 transparent passthrough layer is sent only on frames without them (`vis/layer_plan.h`). In passthrough the models are not drawn at all (the room shows the real controllers; the beams and dots stay), and **Show Controllers** is greyed with its saved value kept until the Background is Black again.
 
 ## Screen Curve
 
