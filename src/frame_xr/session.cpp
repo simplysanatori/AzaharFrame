@@ -82,6 +82,38 @@ bool Runtime::CreateInstance(const StartOptions& options) {
     if (!LoadLoader()) {
         return false;
     }
+    start_options = options; // AzaharFrame flat2
+    instance_sessions = InstanceSessions{InstanceModeFrom(std::getenv("AZAHARFRAME_XR_INSTANCE"))};
+    LOG_INFO(Frontend, "xr: XR instance: {}",
+             instance_sessions.Mode() == InstanceMode::PerSession
+                 ? "a new one for each VR session"
+                 : "one for the whole run (AZAHARFRAME_XR_INSTANCE=keep)");
+    if (!CreateXrInstance(false)) {
+        return false;
+    }
+
+    // Vulkan: the hooks must be live before Azahar's Instance runs (bootstrap
+    // now, then every game boot adopts the same handles).
+    vulkan = std::make_unique<VulkanBridge>(instance, system);
+    if (!vulkan->Init()) {
+        Destroy();
+        return false;
+    }
+    VideoCore::SetVulkanHooks(vulkan.get());
+    if (!vulkan->Bootstrap(options.window_type)) {
+        Destroy();
+        return false;
+    }
+    want_vr = options.vr;
+    ui = std::make_unique<VrUi>();
+    ui->Init();
+    return true;
+}
+
+// AzaharFrame flat2: the XR half of CreateInstance, also for every VR session after the first
+// (RenewInstance). `renew`: the extension list chosen the first time is asked for again, and
+// stays as it is (other threads read it through HasExtension).
+bool Runtime::CreateXrInstance(bool renew) {
     auto& xr = Xr();
 
     uint32_t count = 0;
@@ -102,10 +134,19 @@ bool Runtime::CreateInstance(const StartOptions& options) {
         LOG_ERROR(Frontend, "xr: the runtime has no Vulkan binding (XR_KHR_vulkan_enable2)");
         return false;
     }
-    enabled_extensions = {XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME};
-    for (const auto& name : options.optional_extensions) {
-        if (offers(name) && !HasExtension(name.c_str())) {
-            enabled_extensions.push_back(name);
+    if (!renew) {
+        enabled_extensions = {XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME};
+        for (const auto& name : start_options.optional_extensions) {
+            if (offers(name) && !HasExtension(name.c_str())) {
+                enabled_extensions.push_back(name);
+            }
+        }
+    } else {
+        for (const auto& name : enabled_extensions) {
+            if (!offers(name)) {
+                LOG_ERROR(Frontend, "xr: the runtime no longer offers {}", name);
+                return false;
+            }
         }
     }
     std::vector<const char*> names;
@@ -131,7 +172,11 @@ bool Runtime::CreateInstance(const StartOptions& options) {
         return false;
     }
     if (!LoadInstanceFunctions(instance)) {
-        Destroy();
+        if (renew) {
+            DestroyXrInstance();
+        } else {
+            Destroy();
+        }
         return false;
     }
     XrInstanceProperties props{XR_TYPE_INSTANCE_PROPERTIES};
@@ -145,7 +190,11 @@ bool Runtime::CreateInstance(const StartOptions& options) {
     r = xr.xrGetSystem(instance, &sgi, &system);
     if (XR_FAILED(r)) {
         LOG_ERROR(Frontend, "xr: no headset ({})", ResultName(r));
-        Destroy();
+        if (renew) {
+            DestroyXrInstance();
+        } else {
+            Destroy();
+        }
         return false;
     }
     // AzaharFrame vrqol: the room behind the screens needs the alpha blend mode.
@@ -161,16 +210,17 @@ bool Runtime::CreateInstance(const StartOptions& options) {
                                                 &modes, blend.data());
         }
         std::string text;
-        alpha_blend_supported = false;
+        bool alpha = false; // AzaharFrame flat2: set once known (the GUI reads it any time)
         for (const auto mode : blend) {
             text += mode == XR_ENVIRONMENT_BLEND_MODE_OPAQUE        ? " opaque"
                     : mode == XR_ENVIRONMENT_BLEND_MODE_ADDITIVE    ? " additive"
                     : mode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND ? " alpha_blend"
                                                                     : " other";
-            alpha_blend_supported |= mode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
+            alpha |= mode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
         }
+        alpha_blend_supported = alpha;
         LOG_INFO(Frontend, "xr: environment blend modes:{} (passthrough background {})", text,
-                 alpha_blend_supported ? "available" : "not available");
+                 alpha ? "available" : "not available");
     }
 
     XrSystemProperties sys{XR_TYPE_SYSTEM_PROPERTIES};
@@ -178,23 +228,72 @@ bool Runtime::CreateInstance(const StartOptions& options) {
     LOG_INFO(Frontend, "xr: system {} (max {} layers, {}x{} max swapchain)", sys.systemName,
              sys.graphicsProperties.maxLayerCount, sys.graphicsProperties.maxSwapchainImageWidth,
              sys.graphicsProperties.maxSwapchainImageHeight);
-
-    // Vulkan: the hooks must be live before Azahar's Instance runs (bootstrap
-    // now, then every game boot adopts the same handles).
-    vulkan = std::make_unique<VulkanBridge>(instance, system);
-    if (!vulkan->Init()) {
-        Destroy();
-        return false;
-    }
-    VideoCore::SetVulkanHooks(vulkan.get());
-    if (!vulkan->Bootstrap(options.window_type)) {
-        Destroy();
-        return false;
-    }
-    want_vr = options.vr;
-    ui = std::make_unique<VrUi>();
-    ui->Init();
+    instance_sessions.InstanceMade();
     return true;
+}
+
+bool Runtime::RenewInstance() {
+    if (!instance_sessions.NeedsNewInstance()) {
+        if (instance_sessions.NextSessionReused()) {
+            LOG_WARNING(Frontend, "xr: a session again on the same XR instance "
+                                  "(AZAHARFRAME_XR_INSTANCE=keep): SteamVR may give it no "
+                                  "controllers");
+        }
+        return true;
+    }
+    if (instance) {
+        DestroyXrInstance();
+    }
+    if (!vulkan || !vulkan->Device()) {
+        return false;
+    }
+    LOG_INFO(Frontend, "xr: a new XR instance for this session (SteamVR gives the controllers to "
+                       "the first session of an instance)");
+    if (!CreateXrInstance(true)) {
+        DestroyXrInstance();
+        return false;
+    }
+    auto& xr = Xr();
+    // Before xrCreateSession, once per instance (XR_KHR_vulkan_enable2), then the GPU this
+    // instance wants must be the one the device was made on.
+    XrGraphicsRequirementsVulkan2KHR req{XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN2_KHR};
+    XrResult r = xr.xrGetVulkanGraphicsRequirements2KHR
+                     ? xr.xrGetVulkanGraphicsRequirements2KHR(instance, system, &req)
+                     : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (XR_FAILED(r)) {
+        LOG_ERROR(Frontend, "xr: xrGetVulkanGraphicsRequirements2KHR: {}", ResultName(r));
+        DestroyXrInstance();
+        return false;
+    }
+    XrVulkanGraphicsDeviceGetInfoKHR gi{XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR};
+    gi.systemId = system;
+    gi.vulkanInstance = vulkan->Instance();
+    VkPhysicalDevice wanted = VK_NULL_HANDLE;
+    r = xr.xrGetVulkanGraphicsDevice2KHR ? xr.xrGetVulkanGraphicsDevice2KHR(instance, &gi, &wanted)
+                                         : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (XR_FAILED(r) || wanted != vulkan->PhysicalDevice()) {
+        LOG_ERROR(Frontend, "xr: the new XR instance wants another GPU ({}); no VR",
+                  XR_FAILED(r) ? ResultName(r) : "a different device");
+        DestroyXrInstance();
+        return false;
+    }
+    vulkan->SetXr(instance, system);
+    return true;
+}
+
+void Runtime::DestroyXrInstance() {
+    auto& xr = Xr();
+    if (session) {
+        DestroySession(); // never an instance destroyed under its session
+    }
+    ForgetInstance(); // ResultName must not ask the instance being destroyed
+    if (instance && xr.xrDestroyInstance) {
+        const XrResult r = xr.xrDestroyInstance(instance);
+        LOG_INFO(Frontend, "xr: XR instance destroyed ({})", ResultName(r));
+    }
+    instance = XR_NULL_HANDLE;
+    instance_sessions.InstanceGone();
+    lost = false; // a lost instance is gone with it: VR may ask for a new one
 }
 
 bool Runtime::CreateSession() {
@@ -252,8 +351,9 @@ bool Runtime::CreateSession() {
         DestroySession();
         return false;
     }
-    LOG_INFO(Frontend, "xr: session made; screen swapchains in VkFormat {}",
-             static_cast<int>(swapchain_format));
+    LOG_INFO(Frontend, "xr: session made (session {} of this XR instance); screen swapchains in "
+                       "VkFormat {}",
+             instance_sessions.SessionMade(), static_cast<int>(swapchain_format));
 
     if (ui) {
         ui->Create(*this);

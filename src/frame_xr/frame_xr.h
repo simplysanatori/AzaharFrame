@@ -2,8 +2,9 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// Azahar for Frame's OpenXR frontend: one XrInstance and Vulkan device for the whole run of
-// citra_qt --vr / --flat, an XrSession while in VR (ended for flat, made again for VR), a frame
+// Azahar for Frame's OpenXR frontend: one Vulkan device for the whole run of citra_qt --vr /
+// --flat, an XrInstance and XrSession while in VR (both ended for flat, made again for VR:
+// instance_policy.h), a frame
 // loop thread at display rate that shows the game's three screens as quad layers, and the
 // extension points the input, picker and immersive code build on.
 //

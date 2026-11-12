@@ -92,6 +92,10 @@ void UnloadInstanceFunctions() {
 #undef FRAME_XR_CLEAR
 }
 
+void ForgetInstance() { // AzaharFrame flat2
+    g_instance = XR_NULL_HANDLE;
+}
+
 const char* ResultName(XrResult result) {
     thread_local char buffer[XR_MAX_RESULT_STRING_SIZE];
     if (g_instance && g_functions.xrResultToString &&
