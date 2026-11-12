@@ -14,9 +14,11 @@
 #include <fstream>
 #include <unistd.h>
 #include <catch2/catch_test_macros.hpp>
+#include "core/cheats/online.h"
 #include "core/custom_tex/download.h"
 #include "core/custom_tex/packs.h"
 #include "core/mods/archive.h"
+#include "core/mods/catalog.h"
 
 namespace fs = std::filesystem;
 using namespace CustomTex::Download;
@@ -450,4 +452,181 @@ TEST_CASE("texdl: real download of a small GitHub pack", "[.network]") {
     CHECK(st.installed == std::vector<std::string>{"USUM HD"});
     CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / "00040000001B5000" / "USUM HD"));
     CHECK_FALSE(fs::exists(fs::path(t.load()) / "texture-downloads" / "pokemon-usum-hd.part"));
+}
+
+namespace {
+
+// Condensed from the page https://drive.google.com/embeddedfolderview?id=<folder> (file entries as
+// Drive writes them; the subfolder entry follows the same shape with a /drive/folders/ link).
+const char* kFolderPage = R"(<html><head><title>OoT 3D 4K 5.0 Mirror 1</title></head><body><div class="flip-entries">
+<div class="flip-entry" id="entry-1w1Ez_V2ky56Kc-Gz18cH3VnpraxiOD0Q" tabindex="0" role="link"><div class="flip-entry-info"><a href="https://drive.google.com/file/d/1w1Ez_V2ky56Kc-Gz18cH3VnpraxiOD0Q/view?usp=drive_web" target="_blank"><div class="flip-entry-visual"><div class="flip-entry-visual-card"><div class="flip-entry-icon"><img src="https://drive-thirdparty.googleusercontent.com/128/type/application/x-zip-compressed" alt="Compressed Archive"/></div></div></div><div class="flip-entry-list-icon"><img src="x" alt=""/></div><div class="flip-entry-title">OOT3D 4K 5.0a (1080p).zip</div></a></div><div class="flip-entry-last-modified"><div>Sep 4</div></div></div>
+<div class="flip-entry" id="entry-1wwEdr86qgwV4Erp2W_phcDu73QlBWgzo" tabindex="0" role="link"><div class="flip-entry-info"><a href="https://drive.google.com/file/d/1wwEdr86qgwV4Erp2W_phcDu73QlBWgzo/view?usp=drive_web" target="_blank"><div class="flip-entry-visual"></div><div class="flip-entry-title">OOT3D 4K 5.0a (4K).zip</div></a></div><div class="flip-entry-last-modified"><div>Sep 4</div></div></div>
+<div class="flip-entry" id="entry-1SubFolderIdSubFolderId0001" tabindex="0" role="link"><div class="flip-entry-info"><a href="https://drive.google.com/drive/folders/1SubFolderIdSubFolderId0001" target="_blank"><div class="flip-entry-title">Old &amp; Extra</div></a></div></div>
+</div></body></html>)";
+
+std::vector<DriveItem> Items(std::initializer_list<DriveItem> l) {
+    return std::vector<DriveItem>(l);
+}
+
+} // namespace
+
+TEST_CASE("texdl: Drive folder listing page", "[texdl]") {
+    const auto items = ParseDriveFolder(kFolderPage);
+    REQUIRE(items.size() == 3);
+    CHECK(items[0].id == "1w1Ez_V2ky56Kc-Gz18cH3VnpraxiOD0Q");
+    CHECK(items[0].name == "OOT3D 4K 5.0a (1080p).zip");
+    CHECK_FALSE(items[0].is_folder);
+    CHECK(items[1].name == "OOT3D 4K 5.0a (4K).zip");
+    CHECK(items[2].is_folder);
+    CHECK(items[2].name == "Old & Extra");
+    CHECK(ParseDriveFolder("<html>nothing</html>").empty());
+    CHECK(ParseDriveFolder("").empty());
+}
+
+TEST_CASE("texdl: picking a file from a Drive folder", "[texdl]") {
+    const auto items = ParseDriveFolder(kFolderPage);
+    int reads = 0;
+    const DriveLister lister = [&](const std::string& id) -> std::optional<std::vector<DriveItem>> {
+        ++reads;
+        if (id == "ROOT123456") {
+            return items;
+        }
+        if (id == "1SubFolderIdSubFolderId0001") {
+            return Items({{"1DeepFileIdDeepFileId000001", "Extra pack (4K).zip", false},
+                          {"1DeeperFolderIdDeeperFolder01", "deeper", true}});
+        }
+        if (id == "1DeeperFolderIdDeeperFolder01") {
+            return Items({{"1VeryDeepFileIdVeryDeep00001", "Hidden (4K).zip", false},
+                          {"1Deeper2FolderIdDeeper2Folder", "deeper2", true}});
+        }
+        if (id == "1Deeper2FolderIdDeeper2Folder") {
+            return Items({{"1TooDeepFileIdTooDeepFile001", "Too Deep (4K).zip", false},
+                          {"1Deeper3FolderIdDeeper3Folder", "deeper3", true}});
+        }
+        return std::nullopt;
+    };
+    std::string error;
+    auto pick = PickDriveFile(lister, "ROOT123456", "OOT3D 4K * (4K).zip", &error);
+    REQUIRE(pick);
+    CHECK(pick->id == "1wwEdr86qgwV4Erp2W_phcDu73QlBWgzo");
+    pick = PickDriveFile(lister, "ROOT123456", "OOT3D 4K * (1080p).zip", &error);
+    REQUIRE(pick);
+    CHECK(pick->id == "1w1Ez_V2ky56Kc-Gz18cH3VnpraxiOD0Q");
+    // exact names work too, and a folder is never picked
+    CHECK(PickDriveFile(lister, "ROOT123456", "OOT3D 4K 5.0a (4K).zip", &error));
+    CHECK_FALSE(PickDriveFile(lister, "ROOT123456", "Old & Extra", &error));
+    // subfolders are searched, to a depth cap
+    pick = PickDriveFile(lister, "ROOT123456", "Extra pack*", &error);
+    REQUIRE(pick);
+    CHECK(pick->id == "1DeepFileIdDeepFileId000001");
+    CHECK(PickDriveFile(lister, "ROOT123456", "Hidden*", &error));
+    CHECK_FALSE(PickDriveFile(lister, "ROOT123456", "Too Deep*", &error, 2));
+    // the cap on folder reads
+    reads = 0;
+    CHECK_FALSE(PickDriveFile(lister, "ROOT123456", "Nothing*", &error, 10, 2));
+    CHECK(reads == 2);
+    CHECK(error == "Google Drive: no file named \"Nothing*\" in the folder");
+    // an unreadable folder
+    CHECK_FALSE(PickDriveFile(lister, "OTHER", "x*", &error));
+    CHECK(error == "Google Drive: the folder could not be read (is it shared publicly?)");
+}
+
+TEST_CASE("texdl: catalog sources for Drive folders and alternates", "[texdl]") {
+    const char* json = R"({"schema":1,"packs":[
+      {"id":"folder-ok","name":"A","title_ids":["0004000000033500"],
+       "source":{"type":"gdrive_folder","folder_id":"1QQ-4b8SvR2d4VKKQNS-I1WOIB5EaTuzt","file_pattern":"OOT3D 4K * (4K).zip"},
+       "alternates":[{"type":"gdrive_folder","folder_id":"1F2lJ_TJyZovp5TtKmqrl24fy97IdEh85","file_pattern":"OOT3D 4K * (4K).zip"}]},
+      {"id":"folder-no-pattern","name":"B","title_ids":["0004000000033500"],"source":{"type":"gdrive_folder","folder_id":"1QQ-4b8SvR2d4VKKQNS-I1WOIB5EaTuzt"}},
+      {"id":"folder-bad-id","name":"C","title_ids":["0004000000033500"],"source":{"type":"gdrive_folder","folder_id":"nope","file_pattern":"*.zip"}},
+      {"id":"bad-alt","name":"D","title_ids":["0004000000033500"],"source":{"type":"gdrive","file_id":"1GxvnzsPQznZ_v_6s-YMgETyLe5rN2Fak"},
+       "alternates":[{"type":"ftp","url":"ftp://x"}]},
+      {"id":"alt-wild","name":"E","title_ids":["0004000000033500"],"source":{"type":"gdrive","file_id":"1GxvnzsPQznZ_v_6s-YMgETyLe5rN2Fak"},
+       "alternates":[{"type":"https","url":"https://example.com/a.zip","hosts":["*.example.com"]}]}
+    ]})";
+    std::vector<std::string> warnings;
+    const auto cat = ParseCatalog(json, nullptr, &warnings);
+    REQUIRE(cat);
+    REQUIRE(cat->packs.size() == 1);
+    CHECK(warnings.size() == 4);
+    const Entry& e = cat->packs[0];
+    CHECK(e.source.type == Source::Type::GdriveFolder);
+    CHECK(e.source.file_pattern == "OOT3D 4K * (4K).zip");
+    REQUIRE(e.alternates.size() == 1);
+    CHECK(e.alternates[0].folder_id == "1F2lJ_TJyZovp5TtKmqrl24fy97IdEh85");
+}
+
+TEST_CASE("texdl: the Henriko Magnifico entries", "[texdl]") {
+    const auto cat = DefaultCatalog();
+    // the file names Drive listed on 2026-11-11
+    const std::vector<std::pair<std::string, std::string>> listed = {
+        {"oot3d-4k-henriko", "OOT3D 4K 5.0a (4K).zip"},      {"oot3d-1080p-henriko", "OOT3D 4K 5.0a (1080p).zip"},
+        {"mm3d-4k-henriko", "MM 3D 4K 3.0b-1 (4K).zip"},     {"mm3d-1080p-henriko", "MM 3D 4K 3.0b-1 (1080p).zip"},
+        {"sm3dl-4k-henriko", "SM3DL 4K 1.2.0b (4K).zip"},    {"sm3dl-1080p-henriko", "SM3DL 4K 1.2.0b (1080p).zip"},
+        {"albw-4k-henriko", "ALBW 4K 2.0b (4K).zip"},        {"albw-1080p-henriko", "ALBW 4K 2.0b (1080p).zip"}};
+    const std::vector<std::string> all_names = {"OOT3D 4K 5.0a (4K).zip",      "OOT3D 4K 5.0a (1080p).zip",
+                                                "MM 3D 4K 3.0b-1 (4K).zip",    "MM 3D 4K 3.0b-1 (1080p).zip",
+                                                "SM3DL 4K 1.2.0b (4K).zip",    "SM3DL 4K 1.2.0b (1080p).zip",
+                                                "ALBW 4K 2.0b (4K).zip",       "ALBW 4K 2.0b (1080p).zip"};
+    for (const auto& [id, name] : listed) {
+        const Entry* e = cat.Find(id);
+        REQUIRE(e != nullptr);
+        CHECK(e->source.type == Source::Type::GdriveFolder);
+        CHECK(e->author == "Henriko Magnifico");
+        CHECK(e->author_url.rfind("https://www.henrikomagnifico.com/", 0) == 0);
+        int matches = 0;
+        for (const auto& n : all_names) {
+            matches += Mods::GlobMatch(e->source.file_pattern, n) ? 1 : 0;
+        }
+        CHECK(matches == 1); // the pattern picks its own variant and no other
+        CHECK(Mods::GlobMatch(e->source.file_pattern, name));
+    }
+    CHECK(cat.Find("mm3d-4k-henriko")->ServesTitle(0x0004000000125600ULL));
+    CHECK(cat.Find("sm3dl-1080p-henriko")->ServesTitle(0x0004000000054000ULL));
+    CHECK(cat.Find("albw-4k-henriko")->ServesTitle(0x00040000000EC300ULL));
+    CHECK(cat.Find("oot3d-4k-henriko")->alternates.size() == 1);
+}
+
+// Real Drive folder listing and download of the smallest Henriko pack (107 MB), then every Henriko
+// folder listed only (hidden: "[.network]").
+TEST_CASE("texdl: real Drive folder download (SM3DL 1080p)", "[.network]") {
+    Temp t;
+    const auto cat = DefaultCatalog();
+    Catalog one;
+    one.packs.push_back(*cat.Find("sm3dl-1080p-henriko"));
+    Downloader dl(t.load(), one);
+    REQUIRE(dl.Start("sm3dl-1080p-henriko", 0x0004000000054000ULL));
+    for (int i = 0; i < 2400 && dl.GetState().Busy(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    const auto st = dl.GetState();
+    INFO(st.error);
+    REQUIRE(st.phase == State::Phase::Done);
+    REQUIRE(st.installed.size() == 1);
+    const fs::path pack = fs::path(t.load()) / "texture-packs" / "0004000000054000" / st.installed[0];
+    CHECK(fs::exists(pack / "pack.json"));
+    std::size_t textures = 0;
+    for (const auto& f : fs::recursive_directory_iterator(pack)) {
+        textures += f.path().filename().string().rfind("tex1_", 0) == 0 ? 1 : 0;
+    }
+    CHECK(textures > 50);
+}
+
+TEST_CASE("texdl: every Henriko pack is found in its live Drive folder", "[.network]") {
+    const auto cat = DefaultCatalog();
+    for (const auto& e : cat.packs) {
+        if (e.source.type != Source::Type::GdriveFolder) {
+            continue;
+        }
+        const auto lister = [](const std::string& id) -> std::optional<std::vector<DriveItem>> {
+            const auto r = Cheats::Online::HttpsGetRaw("https://drive.google.com", "/embeddedfolderview?id=" + id, 2 << 20);
+            if (r.status != 200) {
+                return std::nullopt;
+            }
+            return ParseDriveFolder(r.body);
+        };
+        std::string error;
+        const auto item = PickDriveFile(lister, e.source.folder_id, e.source.file_pattern, &error);
+        INFO(e.id << ": " << error);
+        CHECK(item);
+    }
 }

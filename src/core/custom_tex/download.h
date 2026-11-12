@@ -7,7 +7,11 @@
 // compiled in) says which pack serves which title and where its author keeps it:
 //   github_release  a release asset of the author's repository
 //   https           a direct https link (the catalog entry may name extra exact hosts for redirects)
-//   gdrive          a Google Drive FILE id (folder links are not supported)
+//   gdrive          a Google Drive file id
+//   gdrive_folder   a public Google Drive folder and a file name pattern in it (listed with the folder's
+//                   embedded view, no API key; subfolders searched, capped)
+// An entry may list `alternates` (more sources for the same file, e.g. a mirror) tried when the first
+// fails with a quota, not-found or not-shared error.
 // Hosts: github.com and GitHub's asset hosts, drive.google.com, drive.usercontent.google.com, plus
 // the exact hosts a catalog entry names. https only, no wildcards. Contacted only on a click.
 //
@@ -50,13 +54,15 @@
 namespace CustomTex::Download {
 
 struct Source {
-    enum class Type { GithubRelease, Https, Gdrive };
+    enum class Type { GithubRelease, Https, Gdrive, GdriveFolder };
     Type type = Type::GithubRelease;
     std::string repo;          // "owner/name"
     std::string tag = "latest";
     std::string asset_pattern; // '*' = any text
     std::string url;           // Https
     std::string file_id;       // Gdrive
+    std::string folder_id;     // GdriveFolder: a public folder, listed without an API key
+    std::string file_pattern;  // GdriveFolder: file name to pick ('*' = any text), searched in subfolders too
     std::vector<std::string> hosts; // extra exact hosts (bare names) the download may be redirected to
 };
 
@@ -73,6 +79,7 @@ struct Entry {
     std::string author;
     std::string author_url;
     Source source;
+    std::vector<Source> alternates; // tried in order when `source` fails (quota, gone, not shared)
     u64 size = 0;       // bytes, 0 unknown (an estimate; the real size comes from the host)
     std::string sha256; // lower-case hex, "" unknown
     std::string format; // "auto", "zip", "7z", "rar"
@@ -120,6 +127,22 @@ struct DrivePage {
 /// Reads the HTML page Drive answers with instead of a file: the "can't scan for viruses" form (the
 /// form action and its hidden fields become the new address), a quota message, or a sign-in wall.
 DrivePage ParseDrivePage(std::string_view html);
+
+struct DriveItem {
+    std::string id;
+    std::string name;
+    bool is_folder = false;
+};
+/// The entries of Drive's embedded folder view (https://drive.google.com/embeddedfolderview?id=ID):
+/// id, name and whether it is a subfolder. Empty for a page with no entries.
+std::vector<DriveItem> ParseDriveFolder(std::string_view html);
+/// A lister for one folder id; nullopt when it cannot be read.
+using DriveLister = std::function<std::optional<std::vector<DriveItem>>(const std::string& folder_id)>;
+/// Finds the file whose name matches `pattern` in the folder or its subfolders (breadth first, names
+/// sorted, at most `max_depth` levels and `max_listings` folder reads). `error` says why not.
+std::optional<DriveItem> PickDriveFile(const DriveLister& list, const std::string& folder_id,
+                                       const std::string& pattern, std::string* error, int max_depth = 3,
+                                       int max_listings = 40);
 
 struct PackFolder {
     std::string dir;  // folder inside the archive ("" = its top)
@@ -204,6 +227,7 @@ public:
 
 private:
     void Run(Entry entry, u64 title_id);
+    std::string FetchSource(const Entry& entry, const Source& source, const std::string& part);
     void SetState(State::Phase phase, const std::string& text);
     void Fail(const std::string& error);
 
