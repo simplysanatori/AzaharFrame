@@ -41,6 +41,7 @@ class QPushButton;
 class QToolBar;
 class QTreeView;
 class QWidget;
+class QWindow;
 struct FrameMirrorInbox;
 
 class FrameMirror final : public QObject {
@@ -97,6 +98,8 @@ private:
     void Capture();
     void LogLayout(const QRect& canvas);
     void FitDialog(QWidget* dialog);
+    /// AzaharFrame popups: a popup reaching past the panel is moved onto it (VR).
+    void FitPopup(QWidget* popup);
     // AzaharFrame vrfocus: in VR no other top-level window may map on the gamescope screen (it
     // could take the keyboard focus and die, and gamescope asserts on a focus that is gone).
     // They are shown with Qt::WA_DontShowOnScreen: Qt keeps them visible, painted and delivering
@@ -132,6 +135,22 @@ private:
     /// Visible top-level windows other than the main window, bottom to top.
     std::vector<QWidget*> Stack() const;
     QWidget* WindowAt(const QPoint& global) const;
+    // AzaharFrame popups: the title strip the mirror draws over each window (there is no window
+    // manager) has a close button, for windows whose own flags give them one.
+    /// The title strip of `w` (global), or empty for a window drawn without one.
+    QRect TitleStrip(const QWidget* w) const;
+    /// The close button in TitleStrip(w), or empty when the window has none.
+    QRect CloseBox(const QWidget* w) const;
+    /// The window whose title strip is at `global` (topmost), or null.
+    QWidget* StripAt(const QPoint& global) const;
+    /// True when the left click at `global` was for a title strip (it does not reach Qt).
+    bool TitleStripClick(const FrameXr::HomePanelEvent& e, const QPointF& global);
+    /// B: Escape went to `target`; a window that is not a QDialog (which closes itself on
+    /// Escape) and is still open on the next turn of the event loop is closed.
+    void CloseAfterEscape(QWidget* target);
+    std::vector<QPointer<QWidget>> raised; ///< windows, the one shown or raised last at the end
+    QPointer<QWidget> strip_press; ///< the window whose close button the left button went down on
+    bool strip_held = false;       ///< the left button went down on a title strip
     int Timestamp() const;
 
     QPointer<QWidget> main;
@@ -152,6 +171,7 @@ private:
     bool vr_showing = true;
     std::function<void()> close_menu;
     bool capturing = false;
+    bool panel_live = true; ///< AzaharFrame popups: Capturing() when Shown() last ran
     bool dirty = true;
     bool logged = false;
     QSize logged_size;
@@ -174,6 +194,7 @@ private:
     bool drain_queued = false;
     Qt::MouseButtons buttons;
     QPointer<QWidget> grab; ///< the window a held button was pressed in
+    QPointer<QWindow> pointer_in; ///< AzaharFrame popups: the window the beam last entered
     QPointF last_global{-1.0, -1.0};
 
     // AzaharFrame gamelist: the game list with the controller (frame_xr/input/list_nav.h). The
