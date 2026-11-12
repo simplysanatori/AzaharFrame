@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <functional>
+#include <map>
 #include <string>
 #include <QDialog>
 #include "core/custom_tex/parts.h"
@@ -30,9 +32,27 @@ public:
     /// Saves the choices (OK).
     bool Save();
 
-    /// Opens the dialog for the pack of `title_id` (load/textures/<TID>); a message instead when
-    /// the game has no pack or the pack has one part. `running`: the game runs now.
+    /// Opens the dialog for the packs of `title_id`: AzaharFrame texlayers: its packs with a
+    /// checkbox each and, with two or more on, their order (frame_texture_layers.h) over the parts
+    /// of the pack selected; a message instead when the game has no pack. `running`: the game
+    /// runs now.
     static void Open(QWidget* parent, u64 title_id, bool running);
+
+    // AzaharFrame texlayers: several packs in one dialog
+    /// Shows another pack's parts; the choices made in the one shown are kept for Save. `state`:
+    /// its choices as they are now (else read from the pack).
+    void ShowPack(const std::string& pack, const CustomTex::Parts::State* state = nullptr);
+    const std::string& ShownPack() const {
+        return pack;
+    }
+    /// A pack's choices changed outside (the order of the packs): shown again when it is shown.
+    void SetPackState(const std::string& pack, const CustomTex::Parts::State& state);
+    /// A widget over the parts list.
+    void AddTop(QWidget* widget);
+    /// After each change of the shown pack's parts.
+    std::function<void(const std::string& pack, const CustomTex::Parts::State& state)> on_change;
+    /// OK, after the parts are saved: false when it could not save.
+    std::function<bool()> on_save;
 
 private:
     enum Column { kPart, kTextures, kSize, kConflicts };
@@ -43,9 +63,13 @@ private:
     /// The group of the selected row, -1 none.
     int SelectedGroup() const;
 
+    void Changed(); ///< on_change, then the list again
     std::string pack;
     CustomTex::Parts::Layout layout;
     CustomTex::Parts::State state;
+    std::map<std::string, CustomTex::Parts::State> other_states; ///< changed packs not shown
+    QWidget* top = nullptr;
+    QLabel* title = nullptr;
     bool building = false;
     std::string selected_key; ///< the group selected, kept across a rebuild
 

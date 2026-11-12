@@ -101,6 +101,9 @@ private:
     /// Returns a vector of all custom texture files.
     std::vector<FileUtil::FSTEntry> GetTextures(u64 title_id);
 
+    /// AzaharFrame texlayers: a lower pack's pack.json "textures" (file to hash) map
+    void ReadTextureMap(const std::string& config_path);
+
     /// Creates the thread workers.
     void CreateWorkers();
 

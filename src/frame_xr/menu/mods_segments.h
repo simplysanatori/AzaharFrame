@@ -10,9 +10,10 @@
 // in the mods folder, off: kept in the library) and every row a Remove. Install Mods opens the
 // list of mods for this title (ListAvailable). A conflict asks before anything is replaced.
 //
-// Textures: Custom Textures, the game's packs (core/custom_tex/packs.h) as a single-select list
-// with Off first, Preload. AzaharFrame texparts: a pack of two or more parts has Customize, a page
-// of its parts (TexturePartsModel).
+// Textures: Custom Textures, the game's packs (core/custom_tex/packs.h), each with a checkbox,
+// Preload. AzaharFrame texparts: a pack of two or more parts has Customize, a page of its parts
+// (TexturePartsModel). AzaharFrame texlayers: with two or more packs on, Enabled Textures: every
+// entry of the packs on (core/custom_tex/layers.h) in one order, Move Up / Move Down.
 //
 // Both: a change applies from the next start, so a snackbar says "Restart the Game to Apply"
 // with a Restart action. The Qt side (citra_qt/frame_mods.cpp) fills these; nothing here depends
@@ -162,7 +163,7 @@ struct TexturePackItem {
     std::string id;     ///< CustomTex::Pack::id (the command's `text`)
     std::string name;   ///< "4K", "1080p", "4K (PNG)" or the pack.json name
     std::string detail; ///< one line: "Henriko Magnifico · 6.0.0 · ASTC/KTX · 2.1 GB" ("" = none)
-    bool active = false;
+    bool active = false;     ///< on (AzaharFrame texlayers: any number of them)
     bool downloaded = false; ///< from Download Packs: it has Delete
     bool customize = false;  ///< AzaharFrame texparts: two or more parts: the Customize button
     bool operator==(const TexturePackItem&) const = default;
@@ -275,8 +276,19 @@ struct PackOffer {
     bool operator==(const PackOffer&) const = default;
 };
 
+/// AzaharFrame texlayers: a row of Enabled Textures (CustomTex::Layers::Row).
+struct TextureLayerRow {
+    std::string name;   ///< the part ("Gen 1"), or the pack's name for a whole pack
+    std::string detail; ///< "Modern Pokemon Sprites · Replaces 120 Textures From 5X Redrawn UI HD"
+    int value = -1;     ///< its checkbox: 0 off, 1 some, 2 on; -1 none (a whole pack, variants)
+    bool up = false, down = false; ///< Move Up, Move Down can
+    bool operator==(const TextureLayerRow&) const = default;
+};
+
 struct TexturesModel {
-    std::vector<TexturePackItem> packs; ///< in the order shown; none active = Off
+    std::vector<TexturePackItem> packs; ///< in the order shown; `active`: on (none: no pack)
+    /// AzaharFrame texlayers: Enabled Textures, top first, when two or more packs are on
+    std::vector<TextureLayerRow> layers;
     bool custom_textures = false;       ///< Settings::values.custom_textures
     bool preload = false;               ///< Settings::values.preload_textures
     bool busy = false;                  ///< a switch of packs runs

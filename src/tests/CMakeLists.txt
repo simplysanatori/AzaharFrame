@@ -71,6 +71,7 @@ add_executable(tests
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     core/custom_tex_parts.cpp # AzaharFrame texparts
+    core/custom_tex_layers.cpp # AzaharFrame texlayers
     core/pack_config_json.cpp # AzaharFrame jsoncrash
     core/custom_tex_optimize.cpp # AzaharFrame ui3
     core/custom_tex_convert.cpp # AzaharFrame cppconv

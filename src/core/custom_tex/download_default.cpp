@@ -760,9 +760,10 @@ const char* DefaultCatalogJson() {
       "format": "zip",
       "layout": "single",
       "folder": "XY Modern Sprites",
+      "layer_on": "pokemon-xy-5x-redrawn-ui",
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/627411",
-      "notes": "Replaces every Pokemon sprite, including forms and Megas, with modern artwork from the later games. The author tested it on Azahar only and warns that texture filters must be off. To combine it with the 5X Redrawn UI pack, delete that pack's \"pokemon sprites\" folder.",
+      "notes": "Replaces every Pokemon sprite, including forms and Megas, with modern artwork from the later games. The author tested it on Azahar only and warns that texture filters must be off. To combine it with the 5X Redrawn UI pack, turn both on: it goes above that pack and replaces its Pokemon sprites.",
       "verified": false
     },
     {

@@ -31,6 +31,7 @@
 #include "common/file_util.h"
 #include "core/custom_tex/convert.h"
 #include "core/custom_tex/optimize.h"      // AzaharFrame ui3: Remove Original
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/packs.h"
 #include "frame_xr/menu/mods_segments.h" // AzaharFrame ui3: its dialog's text, as in VR
 
@@ -49,6 +50,28 @@ inline QString PackPath(u64 program_id) {
 inline bool HasPack(u64 program_id) {
     const QDir dir(PackPath(program_id));
     return dir.exists() && !dir.isEmpty();
+}
+
+/// AzaharFrame texlayers: the game has a pack, on or not (the library's folder, or the one read)
+inline bool HasAnyPack(u64 program_id) {
+    if (HasPack(program_id)) {
+        return true;
+    }
+    const QDir dir(QString::fromStdString(fmt::format(
+        "{}texture-packs/{:016X}", FileUtil::GetUserPath(FileUtil::UserPath::LoadDir), program_id)));
+    return !dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
+}
+
+/// AzaharFrame texlayers: with two or more packs on, the name of the one the game list's
+/// Optimize and Use Original act on (the top one, which load/textures/<TID> points at); else "".
+inline QString TopPackName(u64 program_id) {
+    const CustomTex::Paths paths = CustomTex::DefaultPaths();
+    const auto on = CustomTex::Layers::Packs(CustomTex::Layers::Current(paths, program_id));
+    if (on.size() < 2) {
+        return {};
+    }
+    const auto top = CustomTex::ActivePack(paths, program_id);
+    return top ? QString::fromStdString(top->name) : QString();
 }
 
 inline bool IsOptimized(u64 program_id) {

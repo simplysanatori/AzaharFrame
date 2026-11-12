@@ -525,8 +525,10 @@ std::string LabelFor(Id id) {
     case Id::PartsAllOff:
         return "All Off";
     case Id::PartUp:
+    case Id::LayerUp: // AzaharFrame texlayers
         return "Move Up";
     case Id::PartDown:
+    case Id::LayerDown:
         return "Move Down";
     case Id::InstallFromZip: // AzaharFrame zipinstall
         return "Install from Zip";

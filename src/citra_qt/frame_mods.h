@@ -38,6 +38,7 @@
 #include <QObject>
 
 #include "common/common_types.h"
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/packs.h"
 #include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/compat.h" // AzaharFrame compat
@@ -134,7 +135,13 @@ private:
     void Install(const std::string& id, bool replace, bool confirmed = false);
     void Deactivate(const std::string& id);
     void Remove(const std::string& id);
-    void SelectPack(const std::string& id);
+    void SelectPack(const std::string& id, bool on);
+    // AzaharFrame texlayers: Enabled Textures (core/custom_tex/layers.h)
+    void BuildLayerRows();
+    void LayersChanged(const std::string& pack); ///< saves, the rows and the pack's row again
+    void ToggleLayer(int row);
+    void MoveLayer(int row, int delta);
+    std::shared_ptr<CustomTex::Layers::Game> layers; ///< the game's packs and list, from RefreshPacks
     void PollProgress();
     void PublishMods();
     void PublishTextures();

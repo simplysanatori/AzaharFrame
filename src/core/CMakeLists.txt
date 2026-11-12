@@ -63,6 +63,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/packs.h # AzaharFrame texdata
     custom_tex/parts.cpp # AzaharFrame texparts
     custom_tex/parts.h # AzaharFrame texparts
+    custom_tex/layers.cpp # AzaharFrame texlayers
+    custom_tex/layers.h # AzaharFrame texlayers
     custom_tex/optimize.cpp # AzaharFrame ui3
     custom_tex/optimize.h # AzaharFrame ui3
     custom_tex/convert.cpp # AzaharFrame cppconv
