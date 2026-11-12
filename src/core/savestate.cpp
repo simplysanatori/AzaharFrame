@@ -11,6 +11,7 @@
 #include <cryptopp/hex.h>
 #include <fmt/ranges.h>
 #include "common/archives.h"
+#include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/scm_rev.h"
@@ -188,16 +189,15 @@ std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time) {
 
 void WriteStateFile(const std::string& path, std::span<const u8> header,
                     std::span<const u8> body) {
-    FileUtil::IOFile file(path, "wb"); // "wb": a slot saved over is replaced, header and all
-    if (!file) {
-        throw std::runtime_error("Could not open file " + path);
-    }
-    if (file.WriteBytes(header.data(), header.size()) != header.size() ||
-        file.WriteBytes(body.data(), body.size()) != body.size()) {
-        throw std::runtime_error("Could not write to file " + path);
-    }
-    if (!file.Close()) { // AzaharFrame advfix: a full disk can fail only at the last flush
-        throw std::runtime_error("Could not finish writing " + path);
+    // AzaharFrame advfix: atomically, as the autosaves are (common/atomic_file.h): <path>.tmp is
+    // written and fsynced, then renamed over the slot. A failed write (a full disk, a crash or a
+    // freeze mid-write) leaves the slot as it was; a slot saved over is replaced, header and all.
+    std::string file;
+    file.reserve(header.size() + body.size());
+    file.append(reinterpret_cast<const char*>(header.data()), header.size());
+    file.append(reinterpret_cast<const char*>(body.data()), body.size());
+    if (!Common::WriteFileAtomic(path, file)) {
+        throw std::runtime_error("Could not write " + path);
     }
 }
 

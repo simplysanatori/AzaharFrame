@@ -70,7 +70,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Save states from another version show which version made them, and ask before they load. **Load Anyway** backs up the game's save data and extra data first, and offers to restore them if the game then closes unexpectedly within 10 minutes of play.
 - **Restore** names the time of the backup, and backs up your current save data before replacing it, so newer progress is never lost.
 - A save state that can't be loaded now says so in the VR menu, and the game carries on as it was.
-- A save state or Quick Save that can't be written says so too, with the reason when known, such as "Not Enough Space". The game keeps running.
+- A save state or Quick Save that can't be written says so too, with the reason when known, such as "Not Enough Space". The game keeps running, and the slot keeps the state it had: slots and Quick Save are now written to a new file first, then swapped in.
 - A save state that can't be read stops the game cleanly instead of crashing it.
 - **About Save States** explains once that save states are NOT a replacement for saving in the game.
 

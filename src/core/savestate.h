@@ -111,6 +111,7 @@ std::array<u8, 256> MakeStateHeader(u64 program_id, std::string_view revision_he
 /// The header System::SaveState writes now: this build's revision and version ("AZF 1.2.0").
 std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time);
 /// Writes (replacing) a state file: header, then the compressed state. Throws on failure.
+/// AzaharFrame advfix: atomic (a temporary file renamed over it): a failure leaves the old file.
 void WriteStateFile(const std::string& path, std::span<const u8> header, std::span<const u8> body);
 /// What a header allows: a state of this game from this build (`revision_hex`), or with
 /// `allow_mismatch` from any build (the program id and the file type are always checked).

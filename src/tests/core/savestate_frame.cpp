@@ -332,3 +332,34 @@ TEST_CASE("Save states: a save that fails says why", "[savestate_frame]") {
     CHECK(e.failure == SaveFailure::NoSpace);
     CHECK(std::string(e.what()) == "details");
 }
+
+TEST_CASE("Save states: a failed save leaves the old slot loadable", "[savestate_frame]") {
+    TempDir states("atomic");
+    const std::string path = StatePathIn(states.Dir(), kTitle, 0, 1);
+    const std::string raw(4096, 'g');
+    const auto body = Common::Compression::CompressDataZSTDDefault(
+        std::span<const u8>{reinterpret_cast<const u8*>(raw.data()), raw.size()});
+    WriteStateFile(path, CurrentStateHeader(kTitle, 100), body);
+    const std::string before = ReadText(path);
+    // The next save of the slot fails (its temporary file cannot be made)
+    fs::create_directories(path + ".tmp/in the way");
+    CHECK_THROWS(
+        WriteStateFile(path, CurrentStateHeader(kTitle, 200), std::vector<u8>(64 * 1024, 7)));
+    // The old state is there whole: same bytes, its header, a body that decompresses
+    CHECK(ReadText(path) == before);
+    const auto info = GetSaveStateInfoIn(states.Dir(), kTitle, 0, 1);
+    CHECK(info.slot == 1);
+    CHECK(info.status == SaveStateInfo::ValidationStatus::OK);
+    CHECK(info.time == 100);
+    const std::string file = ReadText(path);
+    REQUIRE(file.size() > 256);
+    const auto back =
+        Common::Compression::DecompressDataZSTD(std::vector<u8>(file.begin() + 256, file.end()));
+    CHECK(back.size() == raw.size());
+    // Saved again once the way is clear: the new state, no temporary file left
+    fs::remove_all(path + ".tmp");
+    WriteStateFile(path, CurrentStateHeader(kTitle, 300), body);
+    CHECK(GetSaveStateInfoIn(states.Dir(), kTitle, 0, 1).time == 300);
+    CHECK(!fs::exists(path + ".tmp"));
+    CHECK(ListSaveStatesIn(states.Dir(), kTitle, 0).size() == 1);
+}
