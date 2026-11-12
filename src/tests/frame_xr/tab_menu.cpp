@@ -512,6 +512,12 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
         const auto* link = FindHit(d, Id::ModLink, 0);
         REQUIRE(link);
         CHECK(d.menu.HitTest(link->r.Cx(), link->r.y1 - 4.0f) == Target{Id::ModLink, 0});
+        // Not over the name line: the row's top 32 dp toggle the row.
+        const auto* row = FindHit(d, Id::Mod, 0);
+        REQUIRE(row);
+        CHECK(link->r.y0 >= row->r.y0 + 32.0f - 0.01f);
+        CHECK(link->r.H() >= 48.0f);
+        CHECK(d.menu.HitTest(link->r.Cx(), row->r.y0 + 24.0f) == Target{Id::Mod, 0});
     }
     for (int i = 0; i < 3; i++) {
         CHECK(HasHit(d, Id::ModRemove, i));

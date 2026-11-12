@@ -70,7 +70,7 @@ enum class ModsDialogKind : uint8_t {
     Replace, ///< "Install <mod>?", "Replaces <other>": Cancel, Replace
     Remove,  ///< your own files: "Remove <mod>?", "Its Files Are Deleted": Cancel, Remove
     Blocked, ///< a conflict with your own files: "Remove <other> First": OK
-    OpenLink, ///< "Open GitHub?", "This opens <other> in your browser...": Cancel, Open
+    OpenLink, ///< "Open GitHub?", "This opens <other> in Steam's browser.": Cancel, Open
 };
 
 struct ModsDialog {

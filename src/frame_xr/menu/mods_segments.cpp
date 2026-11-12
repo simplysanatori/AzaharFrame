@@ -45,6 +45,11 @@ constexpr float kPad = 24.0f;     ///< inside the pane, as the other tabs
 constexpr float kTop = 8.0f;      ///< under the segmented button's gap
 constexpr float kRow1 = 48.0f;    ///< a one-line row
 constexpr float kRow2 = 64.0f;    ///< a row with a supporting line
+/// A mod's row with "Created by <author>": its name in the top 32 dp, the link's 48 dp target
+/// in the lower 48, so pointing at the name never opens the link.
+constexpr float kRowLink = 80.0f;
+constexpr float kLinkNameDy = -5.0f;  ///< the name 16 dp over the middle (RowText puts it 11 up)
+constexpr float kLinkLineDy = 3.0f;   ///< "Created by" 16 dp under the middle (CreatedBy: 13 down)
 constexpr float kDividerH = 17.0f; ///< a 1 dp divider and 8 dp each side
 constexpr float kBarH = 48.0f;    ///< a top bar's buttons
 constexpr float kButtonH = 40.0f; ///< a button in a row (its target is 48)
@@ -207,7 +212,8 @@ Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& auth
     return r;
 }
 
-/// The link's target: the text's width (at least 48) and the row's lower 48 dp.
+/// The link's target: the text's width and more (at least 48) and the row's lower 48 dp, under
+/// the name line (rows of kRowLink).
 Rect LinkTarget(const Rect& link, const Rect& row) {
     const float pad = std::max(8.0f, (48.0f - link.W()) * 0.5f);
     return {link.x0 - pad, row.y1 - 48.0f, link.x1 + pad, row.y1};
@@ -387,7 +393,7 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         break;
     case ModsDialogKind::OpenLink:
         headline = "Open GitHub?";
-        body = "This opens " + d.other + " in your browser and leaves the game.";
+        body = "This opens " + d.other + " in Steam's browser.";
         confirm = "Open";
         break;
     case ModsDialogKind::None:
@@ -462,19 +468,19 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kExtension, false, 0,
                        "No Mods for This Game", "");
         } else {
-            std::vector<float> heights(m.available.size(), kRow2);
+            std::vector<float> heights(m.available.size(), kRowLink);
             const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
             layout.max_scroll = s.max_scroll;
             layout.scroll_step = s.step;
             kit.Clip(list);
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
-                if (y + kRow2 <= list.y0 || y + kRow2 > list.y1 + 0.01f) {
+                if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
                     continue; // whole rows only
                 }
                 const ModOffer& o = m.available[i];
                 const int idx = static_cast<int>(i);
-                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRow2};
+                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowLink};
                 const float cy = row.Cy();
                 AddHit(row, {Id::ModInstall, kLabelIndex}, list);
                 float right = c.x1;
@@ -510,9 +516,10 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     break;
                 }
                 }
-                RowText(kit, c.x0, right - kNameGap, cy, o.name, o.verified, "", false, 1.0f, true);
+                RowText(kit, c.x0, right - kNameGap, cy + kLinkNameDy, o.name, o.verified, "", false,
+                        1.0f, true);
                 const bool link = !GithubLinkText(o.url).empty();
-                const Rect l = CreatedBy(kit, c.x0, right - kNameGap, cy, o.author, link,
+                const Rect l = CreatedBy(kit, c.x0, right - kNameGap, cy + kLinkLineDy, o.author, link,
                                          StateOf(view, {Id::ModLink, idx}), o.note, o.error, 1.0f);
                 if (link && l.W() > 0.0f) {
                     AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
@@ -553,7 +560,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     const Rect list{area.x0, top, area.x1, bottom};
     std::vector<float> heights;
     for (const ModRow& r : m.loaded) {
-        heights.push_back(r.detail.empty() && r.author.empty() ? kRow1 : kRow2);
+        heights.push_back(!r.author.empty() ? kRowLink : r.detail.empty() ? kRow1 : kRow2);
     }
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
@@ -593,9 +600,9 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         if (r.author.empty()) {
             RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
         } else {
-            RowText(kit, c.x0, text_right, cy, r.name, r.verified, "", false, op, true);
+            RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
             const bool link = !GithubLinkText(r.url).empty();
-            const Rect l = CreatedBy(kit, c.x0, text_right, cy, r.author, link,
+            const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, r.author, link,
                                      StateOf(view, {Id::ModLink, idx}, enabled), r.detail, false, op);
             if (link && enabled && l.W() > 0.0f) {
                 AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
