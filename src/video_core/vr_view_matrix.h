@@ -50,6 +50,24 @@ inline bool LooksLikeWorldView(const float m[3][3]) {
     return !identity;
 }
 
+/// AzaharFrame immersive: whether a draw in mode 2 (Ocarina of Time 3D, Majora's Mask 3D) is
+/// drawn through a perspective camera, the only kind that gets the head pose. `r` is the four
+/// registers before the view matrix (0 to 3 there, where the game keeps its projection). CitraVR
+/// patched every draw with the bool uniform set and skipped only the HUD (by one value of its
+/// orthographic projection), so other screen-space passes got the head pose too: a full-screen
+/// pass that draws an earlier picture again was turned and moved with the head and fed into
+/// itself frame after frame, and what it no longer covered kept old pixels. A perspective
+/// projection's last row is (0, 0, +-1, 0); an orthographic one's is (0, 0, 0, 1).
+inline bool HasPerspectiveProjection(const float r[4][4]) {
+    for (int j = 0; j < 4; j++) {
+        if (!std::isfinite(r[3][j])) {
+            return false;
+        }
+    }
+    return std::abs(r[3][0]) <= 1e-4f && std::abs(r[3][1]) <= 1e-4f &&
+           std::abs(std::abs(r[3][2]) - 1.0f) <= 1e-3f && std::abs(r[3][3]) <= 1e-3f;
+}
+
 /// AzaharFrame depth: what CitraVR's register search in mode 3 still has to find. A view matrix
 /// register that is known (a preset such as Super Mario 3D Land's 90, or the setting) only ends
 /// the search for the register: the eye indicator, which gives each eye its half of the eye

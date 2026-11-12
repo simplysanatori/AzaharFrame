@@ -21,6 +21,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
+#include "frame_xr/presets.h" // AzaharFrame immersive
 #include "frame_xr/session.h"
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux: Edit Controls' click
 #include "frame_xr/vis/controller_models.h"
@@ -852,6 +853,12 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     if (!per_game_ok) {
         lock(Id::Scope, Lock::Unavailable);
+    }
+    // AzaharFrame immersive: a game without immersive mode (Kid Icarus: Uprising) runs in the
+    // normal view; the menu shows Off and does not offer the setting.
+    if (!ImmersiveOffered(GameTitleId())) {
+        m.immersive_mode = 0;
+        lock(Id::ImmersiveMode, Lock::NotForGame);
     }
     model = std::move(m);
 }

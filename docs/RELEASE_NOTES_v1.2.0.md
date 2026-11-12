@@ -38,7 +38,12 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Immersive View upgrades
 
 - **Match Game Camera** follows the game's camera while it runs, so cutscenes, zooms and widescreen mods stay correct. You can turn it off in the VR menu or in Azahar's settings if it causes problems.
-- New presets for Super Mario 3D Land, Mario Kart 7, Kid Icarus: Uprising, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets.
+- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets.
+- The immersive screen now fills your view, top to bottom too, so there is no black border around it. The game draws further up and down to fill it without stretching the picture. When a game zooms in to aim, the screen keeps its size and shape.
+- Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.
+- SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu still puts it back.
+- Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
+- Kid Icarus: Uprising always plays in the normal view: its aiming does not work with a head-turned camera.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
 ### Bug fixes

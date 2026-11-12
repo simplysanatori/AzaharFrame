@@ -2729,6 +2729,14 @@ void GMainWindow::BootGame(const QString& filename) {
         g_frame_game_config_name = config_file_name; // AzaharFrame widerview
         g_frame_runs++;                              // AzaharFrame texui
 #endif
+#ifdef ENABLE_FRAME_XR // AzaharFrame immersive: a game without immersive mode runs normally
+        if (!FrameXr::ImmersiveOffered(title_id) &&
+            Settings::values.vr_immersive_mode.GetValue() != 0) {
+            Settings::values.vr_immersive_mode.SetGlobal(false);
+            Settings::values.vr_immersive_mode.SetValue(0);
+            LOG_INFO(Frontend, "xr: immersive mode is not offered for this game: Off");
+        }
+#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
             auto& mode = Settings::values.vr_immersive_mode;

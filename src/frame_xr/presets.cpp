@@ -25,15 +25,13 @@ namespace {
 // the eye in 87,2.
 //
 // Mario Kart 7: 52 degrees racing (40 in the menus), the 3DS's eyes 3.4 units apart: 10x.
-constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90, false, 1, 52, "87,2"};
+// AzaharFrame immersive: its screen 1.1 times the size that fills the view (the owner: "a little
+// closer"; the gain stays above the limit, 0.42 without Wider View).
+constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90, false, 1, 52, "87,2", 0, 1.1f};
 // Super Mario 3D Land: 45 degrees on the title and in the levels; the 3DS's eyes 58 units
 // apart in a level (the title camera is about 1500 units away): 100x. At 1x its 3D could not
 // be seen.
 constexpr ImmersivePreset kSuperMario3DLand{"Super Mario 3D Land", 3, 90, false, 2, 45, "87,2"};
-// Kid Icarus: Uprising: 45 degrees flying, the 3DS's eyes about 6.3 units apart: 10x. The
-// reticle aims through the game's own camera, so look ahead when you shoot (IMMERSIVE.md).
-constexpr ImmersivePreset kKidIcarusUprising{"Kid Icarus: Uprising", 3, 90, false, 1, 45,
-                                            "87,2"};
 // Ocarina of Time 3D and Majora's Mask 3D: CitraVR's mode 2 (made for them; the view matrix is
 // register 4). The picture is one flat screen, so the multiplier only moves the camera when
 // you lean: Link is about 56 units tall, so 10x at a 3D Depth of 30 is life size, 10x at 50
@@ -43,8 +41,7 @@ constexpr ImmersivePreset kMajorasMask3D{"Majora's Mask 3D", 2, -1, false, 1, 55
 constexpr ImmersivePreset kAsphalt3D{"Asphalt 3D", 3, 8};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super
-// Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D, and Kid Icarus:
-// Uprising outside Japan and the USA, are not confirmed.
+// Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D are not confirmed.
 constexpr ImmersivePresetTitle kTitles[] = {
     // Mario Kart 7
     {0x0004000000030600, &kMarioKart7},
@@ -59,9 +56,6 @@ constexpr ImmersivePresetTitle kTitles[] = {
     {0x0004000000054100, &kSuperMario3DLand}, // JPN
     {0x0004000000089D00, &kSuperMario3DLand}, // KOR
     {0x0004000000089E00, &kSuperMario3DLand}, // CHN
-    // Kid Icarus: Uprising
-    {0x0004000000030100, &kKidIcarusUprising}, // JPN
-    {0x0004000000030200, &kKidIcarusUprising}, // USA
     // The Legend of Zelda: Ocarina of Time 3D
     {0x0004000000033400, &kOcarinaOfTime3D},
     {0x0004000000033500, &kOcarinaOfTime3D},
@@ -76,7 +70,35 @@ constexpr ImmersivePresetTitle kTitles[] = {
     {0x0004000000034C00, &kAsphalt3D},
 };
 
+// AzaharFrame immersive: Kid Icarus: Uprising has no immersive mode. It aims with a reticle the
+// game draws on the screen (2D) and shoots along its own camera; in the Full modes the world is
+// drawn from a camera turned with the head, which the game does not know about, so its shots
+// and their effects fly off where the unturned camera looked while the reticle stays on the
+// screen: they come apart whenever the head turns. Nothing in the drawing can join them again
+// (the reticle cannot be told from the rest of the HUD). Wide (mode 1) keeps them together but
+// adds little to this game; it plays in the normal view. Japan (compatibility list), the USA
+// (the owner's copy) and Europe (030300, not in the compatibility list).
+constexpr uint64_t kNotOffered[] = {
+    0x0004000000030100, // Kid Icarus: Uprising, JPN
+    0x0004000000030200, // USA
+    0x0004000000030300, // EUR
+};
+
 } // namespace
+
+bool ImmersiveOffered(uint64_t title_id) {
+    for (const uint64_t id : kNotOffered) {
+        if (id == title_id) {
+            return false;
+        }
+    }
+    return true;
+}
+
+const uint64_t* ImmersiveNotOfferedTitles(std::size_t& count) {
+    count = std::size(kNotOffered);
+    return kNotOffered;
+}
 
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id) {
     for (const auto& entry : kTitles) {

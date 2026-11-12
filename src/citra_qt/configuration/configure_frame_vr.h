@@ -27,6 +27,9 @@ public:
 
     void SetConfiguration();
     void ApplyConfiguration();
+    /// AzaharFrame immersive: false for a game without immersive mode (frame_xr/presets.h): its
+    /// Immersive Mode row is disabled.
+    void SetImmersiveOffered(bool offered);
 
 private:
     void SetupPerGameUI();

@@ -153,6 +153,7 @@ enum class Lock : uint8_t {
     FullOnly,    ///< only in the Full immersive modes (TabMenu finds these itself)
     Unavailable, ///< the runtime does not offer it
     AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
+    NotForGame,  ///< AzaharFrame immersive: not offered for the running game (presets.h)
 };
 
 struct SaveSlot {

@@ -27,6 +27,9 @@
 #include "core/core.h"
 #include "core/loader/loader.h"
 #include "core/loader/smdh.h"
+#ifdef ENABLE_FRAME_XR
+#include "frame_xr/presets.h" // AzaharFrame immersive
+#endif
 #include "ui_configure_per_game.h"
 
 ConfigurePerGame::ConfigurePerGame(QWidget* parent, u64 title_id_, const QString& file_name,
@@ -49,6 +52,9 @@ ConfigurePerGame::ConfigurePerGame(QWidget* parent, u64 title_id_, const QString
     debug_tab = std::make_unique<ConfigureDebug>(is_powered_on, this);
     cheat_tab = std::make_unique<ConfigureCheats>(system.CheatEngine(), title_id, this);
     cheat_tab->SetGamePath(filename); // AzaharFrame cheats
+#ifdef ENABLE_FRAME_XR
+    graphics_tab->SetImmersiveOffered(FrameXr::ImmersiveOffered(title_id)); // AzaharFrame immersive
+#endif
 
     ui->setupUi(this);
 

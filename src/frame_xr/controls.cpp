@@ -984,7 +984,7 @@ void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFr
     };
     host.reset_position = [this, &rt] {
         ResetPlacement(rt);
-        Immersive::OnResetPanels();
+        Immersive::OnResetPanels(false);
         Vis::RecentreStats(); // AzaharFrame statspos
         ShowToastText("Position Reset");
     };
@@ -1541,9 +1541,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::Vec3f eye = head_view.valid ? ToInput(head_view.head).position : Input::Vec3f{};
     if (cmd.reset_panels) {
         ResetPlacement(rt);
-        // AzaharFrame controls: one rule, the 1 s hold resets the screens and re-centres, in every
-        // mode (the immersive screen too, held or not); a tap never does.
-        Immersive::OnResetPanels();
+        // AzaharFrame controls: the 1 s hold resets the screens and re-centres, in every mode; a
+        // tap never does. AzaharFrame immersive: the immersive screen keeps its size unless a
+        // grip holds it (Immersive::OnResetPanels).
+        Immersive::OnResetPanels(true);
         reticle.Rezero(); // AzaharFrame mouse
         Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
     } else if (drag_free && cmd.drag_hand >= 0) {

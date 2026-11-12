@@ -87,6 +87,10 @@ struct VSUniformData {
     // AzaharFrame: 1 by default; 0 (value-initialised) made the shader divide by zero until
     // SetVRData ran, which only CitraVR's Android frontend did every frame.
     alignas(4) float vr_immersive_mode_factor = 1.0f;
+    // AzaharFrame immersive: the factor up and down. The 3DS top screen is drawn turned by 90
+    // degrees (its framebuffer is 240 wide, 400 high), so clip x is the picture's up and down and
+    // clip y its across: x is divided by this one, y by the one above.
+    float vr_immersive_mode_factor_y = 1.0f;
 };
 #ifdef ENABLE_FREECAM
 static_assert(sizeof(VSUniformData) == 112,
