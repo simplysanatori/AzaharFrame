@@ -2,15 +2,21 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <QCheckBox> // AzaharFrame autosave
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include <QFormLayout>
+#include <QGroupBox>
 #include <QMessageBox>
+#include <QSpinBox>
 #include <QUrl>
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_general.h"
 #include "citra_qt/uisettings.h"
 #include "common/file_util.h"
 #include "common/settings.h"
+#include "core/autosave.h" // AzaharFrame autosave
 #include "ui_configure_general.h"
 
 // The QSlider doesn't have an easy way to set a custom step amount,
@@ -47,6 +53,7 @@ ConfigureGeneral::ConfigureGeneral(QWidget* parent)
     ui->updates_group->setVisible(false);
 #endif
 
+    SetupAutosave(); // AzaharFrame autosave
     SetupPerGameUI();
     SetConfiguration();
 
@@ -138,6 +145,22 @@ void ConfigureGeneral::SetConfiguration() {
                                           !Settings::values.frame_limit.UsingGlobal());
     }
 
+    // AzaharFrame autosave: the running game's values (its own in Properties when it has them)
+    const auto& av = Settings::values;
+    autosave_every->setCurrentIndex(Core::Autosave::EveryIndex(av.autosave_every.GetValue()));
+    autosave_keep->setValue(
+        static_cast<int>(Core::Autosave::ClampKeep(av.autosave_keep.GetValue())));
+    if (Settings::IsConfiguringGlobal()) {
+        autosave_group->setChecked(av.autosave_enabled.GetValue());
+    } else {
+        autosave_check->setChecked(av.autosave_enabled.GetValue());
+        const bool own = !av.autosave_enabled.UsingGlobal() || !av.autosave_every.UsingGlobal() ||
+                         !av.autosave_keep.UsingGlobal();
+        autosave_combo->setCurrentIndex(own ? 1 : 0);
+        ConfigurationShared::SetHighlight(autosave_group, own);
+    }
+    SetAutosaveEnabledState();
+
     UISettings::values.screenshot_path.SetGlobal(ui->screenshot_combo->currentIndex() ==
                                                  ConfigurationShared::USE_GLOBAL_INDEX);
     std::string screenshot_path = UISettings::values.screenshot_path.GetValue();
@@ -177,6 +200,28 @@ void ConfigureGeneral::ApplyConfiguration() {
         &UISettings::values.screenshot_path, ui->screenshot_combo,
         [this](s32) { return ui->screenshot_dir_path->text().toStdString(); });
 
+    // AzaharFrame autosave
+    {
+        auto& av = Settings::values;
+        const u32 every = Core::Autosave::EveryAt(autosave_every->currentIndex());
+        const u32 keep = Core::Autosave::ClampKeep(static_cast<u32>(autosave_keep->value()));
+        if (Settings::IsConfiguringGlobal()) {
+            av.autosave_enabled.SetValue(autosave_group->isChecked());
+            av.autosave_every.SetValue(every);
+            av.autosave_keep.SetValue(keep);
+        } else {
+            const bool global = autosave_combo->currentIndex() == 0;
+            av.autosave_enabled.SetGlobal(global);
+            av.autosave_every.SetGlobal(global);
+            av.autosave_keep.SetGlobal(global);
+            if (!global) {
+                av.autosave_enabled.SetValue(autosave_check->isChecked());
+                av.autosave_every.SetValue(every);
+                av.autosave_keep.SetValue(keep);
+            }
+        }
+    }
+
     if (Settings::IsConfiguringGlobal()) {
         UISettings::values.confirm_before_closing = ui->toggle_check_exit->isChecked();
         UISettings::values.pause_when_in_background = ui->toggle_background_pause->isChecked();
@@ -190,6 +235,53 @@ void ConfigureGeneral::ApplyConfiguration() {
         Settings::values.enable_gamemode = ui->toggle_gamemode->isChecked();
 #endif
     }
+}
+
+// AzaharFrame autosave
+void ConfigureGeneral::SetupAutosave() {
+    autosave_group = new QGroupBox(tr("Autosave"), this);
+    autosave_group->setObjectName(QStringLiteral("autosave_group"));
+    auto* form = new QFormLayout(autosave_group);
+    if (Settings::IsConfiguringGlobal()) {
+        // Qt's usual on/off with settings that depend on it: a checkable group
+        autosave_group->setCheckable(true);
+    } else {
+        autosave_combo = new QComboBox(autosave_group);
+        autosave_combo->addItem(tr("Use global autosave"));
+        autosave_combo->addItem(tr("Set autosave"));
+        form->addRow(autosave_combo);
+        autosave_check = new QCheckBox(tr("Autosave"), autosave_group);
+        form->addRow(autosave_check);
+        connect(autosave_combo, qOverload<int>(&QComboBox::activated), this, [this](int index) {
+            ConfigurationShared::SetHighlight(autosave_group, index == 1);
+            SetAutosaveEnabledState();
+        });
+        connect(autosave_check, &QCheckBox::toggled, this, [this] { SetAutosaveEnabledState(); });
+    }
+    autosave_every = new QComboBox(autosave_group);
+    for (const u32 minutes : Core::Autosave::kEveryMinutes) {
+        autosave_every->addItem(tr("%1 Min").arg(minutes));
+    }
+    autosave_keep = new QSpinBox(autosave_group);
+    autosave_keep->setRange(static_cast<int>(Core::Autosave::kKeepMin),
+                            static_cast<int>(Core::Autosave::kKeepMax));
+    form->addRow(tr("Every"), autosave_every);
+    form->addRow(tr("Keep"), autosave_keep);
+    connect(autosave_group, &QGroupBox::toggled, this, [this] { SetAutosaveEnabledState(); });
+    ui->verticalLayout->insertWidget(ui->verticalLayout->indexOf(ui->screenshot_group),
+                                     autosave_group);
+}
+
+// Every and Keep greyed while Autosave is off (and, in Properties, everything while the game
+// uses the global values).
+void ConfigureGeneral::SetAutosaveEnabledState() {
+    if (Settings::IsConfiguringGlobal()) {
+        return; // the checkable group greys its own rows
+    }
+    const bool own = autosave_combo->currentIndex() == 1;
+    autosave_check->setEnabled(own);
+    autosave_every->setEnabled(own && autosave_check->isChecked());
+    autosave_keep->setEnabled(own && autosave_check->isChecked());
 }
 
 void ConfigureGeneral::RetranslateUI() {

@@ -39,6 +39,9 @@ std::vector<SaveStateInfo> ListSaveStatesIn(const std::string& states_dir, u64 p
                                             u64 movie_id);
 SaveStateInfo GetSaveStateInfoIn(const std::string& states_dir, u64 program_id, u64 movie_id,
                                  u32 slot);
+/// AzaharFrame autosave: the same for any state file; `slot` 0 when it is a state of this game,
+/// else std::numeric_limits<u32>::max().
+SaveStateInfo GetSaveStateInfoAt(const std::string& path, u64 program_id);
 /// A slot's file in `states_dir` ("<dir>0004000000055D00.03.cst").
 std::string StatePathIn(const std::string& states_dir, u64 program_id, u64 movie_id, u32 slot);
 

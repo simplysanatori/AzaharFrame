@@ -59,6 +59,7 @@
 #include "citra_qt/compatibility_list.h"
 #include "citra_qt/configuration/config.h"
 #include "citra_qt/configuration/configure_dialog.h"
+#include "citra_qt/configuration/configure_general.h"
 #include "citra_qt/configuration/configure_per_game.h"
 #include "citra_qt/debugger/console.h"
 #include "citra_qt/debugger/graphics/graphics.h"
@@ -169,6 +170,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
@@ -862,6 +864,7 @@ GMainWindow::GMainWindow(Core::System& system_)
     InitializeDebugWidgets();
     InitializeRecentFileMenuActions();
     InitializeSaveStateMenuActions();
+    FrameAutosaveInit(); // AzaharFrame autosave
     InitializeHotkeys();
 
     SetDefaultUIGeometry();
@@ -1492,9 +1495,30 @@ GMainWindow::GMainWindow(Core::System& system_)
                         g_frame_xr_fast_forward(false, flat ? "the Flat menu opened"
                                                             : "the in-game menu opened");
                     }
+                    // AzaharFrame autosave: the in-game menu's autosave, of the moment it opened
+                    // (asked before the pause; the emulation thread makes it at its next pass)
+                    const bool autosave =
+                        open && !flat && FrameRequestAutosave(Core::Autosave::Reason::MenuOpen);
                     if (open && emu_thread->IsRunning() &&
                         !system.frame_limiter.IsFrameAdvancing()) {
                         OnPauseGame();
+                    }
+                    if (autosave) {
+                        // Paused now: one pass to serialize it, then a frame for its picture.
+                        system.frame_limiter.AdvanceFrame();
+                        auto* t = new QTimer(this);
+                        t->setInterval(50);
+                        connect(t, &QTimer::timeout, this, [this, t, tries = 0]() mutable {
+                            const int s = frame_autosave_serialized;
+                            if (s != 0 || ++tries > 60) {
+                                t->deleteLater();
+                                if (s == 1 && emulation_running &&
+                                    system.frame_limiter.IsFrameAdvancing()) {
+                                    system.frame_limiter.AdvanceFrame();
+                                }
+                            }
+                        });
+                        t->start();
                     }
                     if (open && !flat) { // AzaharFrame tabmenu: the title and save slots
                         FramePushMenuInfo(); // AzaharFrame savestate: each slot's header
@@ -1799,6 +1823,94 @@ GMainWindow::GMainWindow(Core::System& system_)
                                      what.toStdString(), uploads());
                         });
                     });
+            }
+
+            // Test driver (AzaharFrame autosave): AZAHARFRAME_TEST_AUTOSAVE="5:on,20:menu,24:close,
+            // 40:load:1,50:undo,55:vr:keep:2:game" at those seconds after start: on / off
+            // (Emulation > Autosave), every:N / keep:N (the same way), menu / close (the in-game
+            // menu), load:N (Autosave N, newest 1), undo (Undo Load), slot:N (Save State N),
+            // stop / quit (Emulation > Stop, the window closed), vr:<autosave|every|keep>:
+            // <value>:<game|global> (the in-game menu's Settings rows, in that scope).
+            for (const QString& step : qEnvironmentVariable("AZAHARFRAME_TEST_AUTOSAVE")
+                                           .split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                const auto parts = step.split(QLatin1Char(':'));
+                if (parts.size() < 2) {
+                    continue;
+                }
+                const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
+                QTimer::singleShot(ms, this, [this, parts, ms] {
+                    const QString what = parts[1];
+                    const u32 n = parts.size() > 2 ? parts[2].toUInt() : 0;
+                    LOG_INFO(Frontend, "autosave test: {} at {} ms",
+                             parts.mid(1).join(QLatin1Char(':')).toStdString(), ms);
+                    if (what == QStringLiteral("on") || what == QStringLiteral("off")) {
+                        FrameSetAutosaveSetting(0, what == QStringLiteral("on") ? 1 : 0);
+                    } else if (what == QStringLiteral("every")) {
+                        FrameSetAutosaveSetting(1, n);
+                    } else if (what == QStringLiteral("keep")) {
+                        FrameSetAutosaveSetting(2, n);
+                    } else if (what == QStringLiteral("menu") || what == QStringLiteral("close")) {
+                        if (g_frame_xr_set_menu) {
+                            g_frame_xr_set_menu(what == QStringLiteral("menu"));
+                        }
+                    } else if (what == QStringLiteral("load") && n >= 1) {
+                        FrameLoadAutosave(static_cast<int>(n) - 1);
+                    } else if (what == QStringLiteral("qtshots")) {
+                        // Emulation > Load State, the Emulation menu and Configure > General
+                        // (global, then this game's) as PNGs in AZAHARFRAME_TEST_AUTOSAVE_SHOTS.
+                        const QString dir = qEnvironmentVariable("AZAHARFRAME_TEST_AUTOSAVE_SHOTS");
+                        UpdateSaveStates();
+                        const auto shoot = [](QMenu* menu, QString file) {
+                            menu->popup(QPoint(0, 0));
+                            QTimer::singleShot(400, menu, [menu, file] {
+                                menu->grab().save(file);
+                                menu->hide();
+                            });
+                        };
+                        shoot(ui->menu_Load_State, dir + QStringLiteral("/qt-load-state.png"));
+                        QTimer::singleShot(900, this, [this, shoot, dir] {
+                            shoot(ui->menu_Emulation, dir + QStringLiteral("/qt-emulation.png"));
+                        });
+                        QTimer::singleShot(1800, this, [dir] {
+                            for (const bool global : {true, false}) {
+                                Settings::SetConfiguringGlobal(global);
+                                ConfigureGeneral general;
+                                general.resize(general.sizeHint().expandedTo(QSize(560, 0)));
+                                general.grab().save(
+                                    dir + (global ? QStringLiteral("/qt-configure-general.png")
+                                                  : QStringLiteral("/qt-properties-general.png")));
+                            }
+                            Settings::SetConfiguringGlobal(true);
+                            LOG_INFO(Frontend, "autosave test: Qt pictures saved in {}",
+                                     dir.toStdString());
+                        });
+                    } else if (what == QStringLiteral("quit")) {
+                        close(); // the window's close, as a person quits
+                    } else if (what == QStringLiteral("stop")) {
+                        OnStopGame();
+                    } else if (what == QStringLiteral("slot") && n >= 1) {
+                        FrameDoSave(n); // a slot's save, held time compared with an autosave's
+                    } else if (what == QStringLiteral("undo")) {
+                        FrameUndoLoad();
+                    } else if (what == QStringLiteral("vr") && parts.size() >= 5 &&
+                               g_frame_mirror && g_frame_xr_set_menu) {
+                        const bool was_open = g_frame_mirror->MenuOpen();
+                        g_frame_xr_set_menu(true);
+                        FrameXr::MenuRequest r;
+                        r.command = FrameXr::MenuCommand::SetSetting;
+                        r.setting = parts[2] == QStringLiteral("autosave")
+                                        ? FrameXr::MenuSetting::Autosave
+                                    : parts[2] == QStringLiteral("every")
+                                        ? FrameXr::MenuSetting::AutosaveEvery
+                                        : FrameXr::MenuSetting::AutosaveKeep;
+                        r.value = parts[3].toInt();
+                        r.per_game = parts[4] == QStringLiteral("game");
+                        FrameMenuRequest(r);
+                        if (!was_open) {
+                            g_frame_xr_set_menu(false);
+                        }
+                    }
+                });
             }
 
             // Test driver (headless runs): AZAHARFRAME_TEST_BOOTS="a.3ds|b.cci" boots
@@ -3251,6 +3363,7 @@ void GMainWindow::BootGame(const QString& filename) {
     loading_screen->show();
 
     emulation_running = true;
+    FrameAutosaveBoot(); // AzaharFrame autosave
 #ifdef ENABLE_FRAME_XR // AzaharFrame: hides the picker / home panel (and the in-game menu)
     FrameXr::SetInGameMenu(false);
     FrameXr::SetGameRunning(true);
@@ -3267,9 +3380,12 @@ void GMainWindow::BootGame(const QString& filename) {
 }
 
 void GMainWindow::ShutdownGame() {
-    if (!emulation_running) {
+    if (!emulation_running || frame_autosave_quitting) {
         return;
     }
+    // AzaharFrame autosave: a clean stop's autosave (not after a core error), then its timer stops
+    FrameAutosaveBeforeQuit();
+    FrameAutosaveStop();
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: a normal stop is a clean run (not after an error)
     FrameCrashGuard::Get().Stopped();
 #endif
@@ -3454,6 +3570,8 @@ void GMainWindow::UpdateRecentFiles() {
 }
 
 void GMainWindow::UpdateSaveStates() {
+    FrameAutosaveList(); // AzaharFrame autosave: the Load State menu's autosaves too
+    FrameUpdateAutosaveActions();
     if (!system.IsPoweredOn()) {
         ui->menu_Load_State->setEnabled(false);
         ui->menu_Save_State->setEnabled(false);
@@ -4517,6 +4635,24 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::NoticeAnswer: // AzaharFrame savestate
         FrameNoticeAnswer(r.value == 1);
         return;
+    case C::LoadAutosave: { // AzaharFrame autosave: Load State's card
+        FrameAutosaveList();
+        if (r.value < 0 || r.value >= static_cast<int>(frame_autosaves.size())) {
+            return;
+        }
+        LOG_INFO(Frontend, "xr: in-game menu: load autosave {}", r.value + 1);
+        // About Save States or Load Anyway's question: a dialog in the menu, which stays open
+        if (!UISettings::values.save_state_warning &&
+            !frame_autosaves[static_cast<std::size_t>(r.value)].other) {
+            close_menu();
+        }
+        FrameLoadAutosave(r.value);
+        return;
+    }
+    case C::UndoLoad:
+        close_menu();
+        FrameUndoLoad();
+        return;
     case C::Screenshot:
         close_menu(); // the next frame of the game, not of the paused one
         OnCaptureScreenshot();
@@ -4762,6 +4898,21 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             g_frame_mods->TextureSettingChanged();
         }
         break;
+    // AzaharFrame autosave: the game's own values in Per-Game (its file), else the global ones
+    case S::Autosave:
+        set(v.autosave_enabled, r.value != 0);
+        break;
+    case S::AutosaveEvery:
+        set(v.autosave_every, Core::Autosave::ClampEvery(u));
+        break;
+    case S::AutosaveKeep:
+        set(v.autosave_keep, Core::Autosave::ClampKeep(u));
+        break;
+    }
+    if (r.setting == S::AutosaveKeep) { // AzaharFrame autosave: lowered: this game's oldest go
+        FrameAutosaveKeepChanged();
+    } else if (r.setting == S::Autosave) {
+        FrameUpdateAutosaveActions();
     }
     if (!per_game_setting) {
         config->Save(); // the global file gets the global values only (WriteGlobalSetting)
@@ -4787,6 +4938,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
     FrameKeepSetting keep_texture_filter{v.texture_filter};
     FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
+    FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
+    FrameKeepSetting keep_autosave_every{v.autosave_every};
+    FrameKeepSetting keep_autosave_keep{v.autosave_keep};
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4803,6 +4957,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_resolution.Restore();
     keep_texture_filter.Restore();
     keep_async_shaders.Restore();
+    keep_autosave.Restore();
+    keep_autosave_every.Restore();
+    keep_autosave_keep.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }
@@ -5175,6 +5332,7 @@ void GMainWindow::FrameDoSave(u32 slot) {
 
 void GMainWindow::FrameDoLoad(u32 slot) {
     frame_last_load_slot = slot;
+    frame_last_load_autosave.clear(); // AzaharFrame autosave
     system.SendSignal(Core::System::Signal::Load, slot);
     system.frame_limiter.AdvanceFrame();
 }
@@ -5249,28 +5407,12 @@ void GMainWindow::FrameLoadAnyway(u32 slot) {
     if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
         return;
     }
-    const std::string save_dir = FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(
-        FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir), title_id);
-    const std::string root =
-        Core::SaveBackup::Root(FileUtil::GetUserPath(FileUtil::UserPath::UserDir), title_id);
-    if (FileUtil::IsDirectory(save_dir)) {
-        const std::string backup = Core::SaveBackup::Backup(
-            save_dir, root, Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()));
-        if (backup.empty()) {
-            LOG_ERROR(Frontend, "savestate: save data not backed up, so not loaded");
-            FrameAsk(tr("Save Data Not Backed Up"),
-                     tr("This game's save data couldn't be backed up, so the save state wasn't "
-                        "loaded."),
-                     tr("OK"), {}, {});
-            return;
-        }
-        Core::SaveBackup::Arm(root, backup, save_dir);
-        frame_rescue_root = root;
-        frame_rescue_keep = false;
-        LOG_INFO(Frontend, "savestate: Load Anyway, slot {}, save data backed up to {}", slot,
-                 backup);
+    // AzaharFrame autosave: the backup shared with an autosave's Load Anyway
+    if (!FrameBackupSaveDataForLoadAnyway(title_id, fmt::format("slot {}", slot))) {
+        return;
     }
     frame_last_load_slot = slot;
+    frame_last_load_autosave.clear();
     frame_load_anyway_pending = true;
     QTimer::singleShot(3000, this, [this] { frame_load_anyway_pending = false; });
     system.SendSignal(Core::System::Signal::LoadAnyway, slot);
@@ -5429,6 +5571,7 @@ void GMainWindow::OnConfigure() {
         SyncMenuUISettings();
         game_list->RefreshGameDirectory();
         config->Save();
+        FrameAutosaveKeepChanged(); // AzaharFrame autosave: Keep lowered: the oldest go
 #ifdef ENABLE_FRAME_XR
         FrameXrPushControls(); // AzaharFrame vrvis
 #endif
@@ -6396,6 +6539,8 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: the stop that follows is not a clean run
     FrameCrashGuard::Get().CoreError();
 #endif
+    // AzaharFrame autosave: the stop that follows is no clean one
+    frame_autosave_quit_blocked = true;
 
     // Handle exception dialogs separately
     if (result == Core::System::ResultStatus::ErrorCoreExceptionRaised) {
@@ -6428,6 +6573,11 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
     if (result == RS::ErrorSavestateBuildMismatch) { // the slot changed after it was tapped
         if (emu_thread) {
             emu_thread->SetRunning(true);
+        }
+        if (!frame_last_load_autosave.empty()) { // AzaharFrame autosave
+            frame_undo_available = false;
+            FrameAskLoadAutosaveAnyway(frame_last_load_autosave, details);
+            return;
         }
         FrameAskLoadAnyway(frame_last_load_slot, details);
         return;
@@ -6559,6 +6709,10 @@ void GMainWindow::closeEvent(QCloseEvent* event) {
     if (emu_thread) {
         ShutdownGame();
     }
+    // AzaharFrame autosave: the last autosave's write finishes before the window goes
+    system.AutosaveWriter().WaitIdle();
+    system.AutosaveWriter().SetOnDone({});
+    system.SetAutosaveCallback({});
 
     // Save settings in case they were changed from outside the configuration menu.
     config->Save();
@@ -6821,6 +6975,7 @@ void GMainWindow::OpenPerGameConfiguration(u64 title_id, const QString& file_nam
     if (!is_powered_on) {
         config->Save();
     }
+    FrameAutosaveKeepChanged(); // AzaharFrame autosave: this game's Keep lowered
 
     UpdateStatusButtons();
 }
@@ -7249,4 +7404,518 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     FrameXr::Shutdown();
 #endif
     return result;
+}
+
+// ---- AzaharFrame autosave ----
+// Save states of their own (core/autosave.h): every few minutes of play, when the in-game menu
+// opens (VR) and when the game is closed cleanly, at most one a minute. Settings::values.autosave_*
+// are the running game's values (its own Per-Game ones, else the global ones).
+
+namespace {
+
+std::string FrameAutosaveDir() {
+    return Core::Autosave::Dir(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir));
+}
+
+} // namespace
+
+void GMainWindow::FrameAutosaveInit() {
+    // Test runs only: AZAHARFRAME_TEST_AUTOSAVE_SECONDS=N makes a "minute" N seconds (Every, the
+    // throttle and the first minute's grace).
+    if (const int s = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_AUTOSAVE_SECONDS"); s > 0) {
+        frame_autosave_unit_ms = static_cast<s64>(s) * 1000;
+        frame_autosave.SetTimes(frame_autosave_unit_ms, frame_autosave_unit_ms);
+        LOG_INFO(Frontend, "autosave: test run: a minute is {} s", s);
+    }
+    frame_autosave_timer.setInterval(1000);
+    connect(&frame_autosave_timer, &QTimer::timeout, this, &GMainWindow::FrameAutosaveTick);
+    system.SetAutosaveCallback([this](bool ok, Core::Autosave::Reason, const std::string&, s64) {
+        frame_autosave_serialized = ok ? 1 : -1; // the emulation thread
+    });
+    system.AutosaveWriter().SetOnDone([this](const Core::Autosave::Writer::Done& done) {
+        QMetaObject::invokeMethod(
+            this, [this, done] { FrameAutosaveWritten(done); }, Qt::QueuedConnection);
+    });
+
+    // Emulation > Autosave, under Save State (owner decision)
+    action_autosave = new QAction(tr("Autosave"), this);
+    action_autosave->setCheckable(true);
+    action_autosave->setChecked(Settings::values.autosave_enabled.GetValue());
+    const QList<QAction*> actions = ui->menu_Emulation->actions();
+    const int at = static_cast<int>(actions.indexOf(ui->menu_Save_State->menuAction()));
+    if (at >= 0 && at + 1 < actions.size()) {
+        ui->menu_Emulation->insertAction(actions[at + 1], action_autosave);
+    } else {
+        ui->menu_Emulation->addAction(action_autosave);
+    }
+    connect(action_autosave, &QAction::triggered, this,
+            [this](bool on) { FrameSetAutosaveSetting(0, on ? 1 : 0); });
+    connect(ui->menu_Emulation, &QMenu::aboutToShow, this,
+            [this] { action_autosave->setChecked(Settings::values.autosave_enabled.GetValue()); });
+
+    // Load State: after the slots, one separator, the autosaves as the slots are written
+    // ("Autosave 1 - 2026-11-12 10:14:05", newest first), then Undo Load.
+    frame_autosave_separator = ui->menu_Load_State->addSeparator();
+    for (std::size_t i = 0; i < actions_load_autosave.size(); i++) {
+        QAction* a = new QAction(this);
+        a->setData(static_cast<int>(i));
+        connect(a, &QAction::triggered, this,
+                [this, i] { FrameLoadAutosave(static_cast<int>(i)); });
+        ui->menu_Load_State->addAction(a);
+        actions_load_autosave[i] = a;
+    }
+    action_undo_load = new QAction(tr("Undo Load"), this);
+    connect(action_undo_load, &QAction::triggered, this, &GMainWindow::FrameUndoLoad);
+    ui->menu_Load_State->addAction(action_undo_load);
+    FrameUpdateAutosaveActions();
+}
+
+s64 GMainWindow::FrameAutosaveNowMs() const {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void GMainWindow::FrameAutosaveBoot() {
+    frame_autosave.Boot(FrameAutosaveNowMs());
+    frame_undo_available = false;
+    frame_last_load_autosave.clear();
+    frame_autosave_quit_blocked = false;
+    frame_autosave_timer.start();
+    FrameAutosaveList();
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
+}
+
+void GMainWindow::FrameAutosaveStop() {
+    frame_autosave.Stop();
+    frame_autosave_timer.stop();
+    // Undo Load is for the session: its file goes with it.
+    u64 title_id{};
+    if (system.IsPoweredOn() &&
+        system.GetAppLoader().ReadProgramId(title_id) == Loader::ResultStatus::Success) {
+        const std::string undo =
+            Core::StatePathIn(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), title_id,
+                              movie.GetCurrentMovieID(), Core::Autosave::kUndoLoadSlot);
+        if (FileUtil::Exists(undo)) {
+            FileUtil::Delete(undo);
+        }
+    }
+    frame_undo_available = false;
+    frame_autosaves.clear();
+#ifdef ENABLE_FRAME_XR
+    FrameXr::SetInGameMenuAutosaves({}, "");
+#endif
+}
+
+Core::Autosave::Gates GMainWindow::FrameAutosaveGates() const {
+    Core::Autosave::Gates g;
+    g.game = emulation_running && emu_thread && system.IsPoweredOn();
+    if (!g.game) {
+        return g;
+    }
+    g.playing = emu_thread->IsRunning() && !system.frame_limiter.IsFrameAdvancing();
+    g.paused = !g.playing;
+    const auto& t = Common::StallTelemetry::Get();
+    const s64 now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                           std::chrono::steady_clock::now().time_since_epoch())
+                           .count();
+    const s64 last = t.emu_frame_end_steady_us.load(std::memory_order_relaxed);
+    g.frames_recent = last > 0 && now_us - last < 1'000'000;
+    g.loading_state = system.StateOperationPending() || frame_load_anyway_pending;
+    const bool backlog = t.shader_builds_queued.load(std::memory_order_relaxed) >
+                         t.shader_builds_done.load(std::memory_order_relaxed);
+    // The game stands for its shaders (or the disk cache loads at the start)
+    g.shaders_busy =
+        loading_shaders_label->isVisible() || (backlog && (last <= 0 || now_us - last > 500'000));
+    return g;
+}
+
+void GMainWindow::FrameAutosaveTick() {
+    if (!emulation_running) {
+        return;
+    }
+    const Core::Autosave::Gates g = FrameAutosaveGates();
+    frame_autosave.Tick(FrameAutosaveNowMs(), g.playing && g.frames_recent);
+    if (!Settings::values.autosave_enabled.GetValue()) {
+        return;
+    }
+    const s64 every =
+        static_cast<s64>(Core::Autosave::ClampEvery(Settings::values.autosave_every.GetValue())) *
+        frame_autosave_unit_ms;
+    if (frame_autosave.Due(every)) {
+        FrameRequestAutosave(Core::Autosave::Reason::Timer);
+    }
+}
+
+bool GMainWindow::FrameRequestAutosave(Core::Autosave::Reason reason) {
+    using Core::Autosave::Reason;
+    if (!Settings::values.autosave_enabled.GetValue()) {
+        return false;
+    }
+    const char* name = Core::Autosave::ReasonName(reason);
+    std::string why;
+    if (reason == Reason::Quit && frame_autosave_quit_blocked) {
+        why = "the game stopped after an error";
+    } else {
+        why = frame_autosave.Blocked(reason, FrameAutosaveNowMs(), FrameAutosaveGates());
+    }
+    u64 title_id{};
+    if (why.empty() &&
+        (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success ||
+         !system.GetAppLoader().SupportsSaveStates())) {
+        why = "this game has no save states";
+    }
+    if (!why.empty()) {
+        // The timer asks every second while it is due: each reason once in the log.
+        static std::string last;
+        const std::string line = fmt::format("{}: not now: {}", name, why);
+        if (reason != Reason::Timer || line != last) {
+            LOG_INFO(Frontend, "autosave: {}", line);
+        }
+        last = line;
+        return false;
+    }
+    frame_autosave_serialized = 0;
+    if (!system.RequestAutosave(reason)) {
+        LOG_INFO(Frontend, "autosave: {}: not now: another request is in flight", name);
+        return false;
+    }
+    frame_autosave.Fired(FrameAutosaveNowMs());
+    LOG_INFO(Frontend, "autosave: {}: asked for", name);
+    if (system.frame_limiter.IsFrameAdvancing()) {
+        system.frame_limiter.AdvanceFrame(); // paused: the emulation thread's next pass
+    }
+    return true;
+}
+
+// A clean stop (Close Game, Emulation > Stop, the window closed, SIGTERM): an autosave first. The
+// emulation thread serializes it before the game goes away; the writer finishes on its own.
+void GMainWindow::FrameAutosaveBeforeQuit() {
+    if (frame_autosave_quitting || !FrameRequestAutosave(Core::Autosave::Reason::Quit)) {
+        return;
+    }
+    frame_autosave_quitting = true;
+    QElapsedTimer waited;
+    waited.start();
+    const auto step = [this] {
+        if (system.frame_limiter.IsFrameAdvancing()) {
+            system.frame_limiter.AdvanceFrame();
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    };
+    while (frame_autosave_serialized == 0 && waited.elapsed() < 5000) {
+        step();
+    }
+    if (frame_autosave_serialized == 1) {
+        // The top screen's picture is taken at the next frame or two.
+        const qint64 serialized_at = waited.elapsed();
+        while (waited.elapsed() < serialized_at + 150) {
+            step();
+        }
+    }
+    LOG_INFO(Frontend, "autosave: quit: {} after {} ms; the game stops",
+             frame_autosave_serialized == 1 ? "serialized" : "not made", waited.elapsed());
+    frame_autosave_quitting = false;
+}
+
+void GMainWindow::FrameAutosaveList() {
+    frame_autosaves.clear();
+    u64 title_id{};
+    if (!system.IsPoweredOn() ||
+        system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        return;
+    }
+    frame_autosaves = Core::Autosave::List(FrameAutosaveDir(), title_id, movie.GetCurrentMovieID());
+    const std::size_t keep = Core::Autosave::ClampKeep(Settings::values.autosave_keep.GetValue());
+    if (frame_autosaves.size() > keep) {
+        frame_autosaves.resize(keep); // Keep was just lowered: the extra ones are going
+    }
+}
+
+void GMainWindow::FrameUpdateAutosaveActions() {
+    if (!action_undo_load) {
+        return;
+    }
+    const std::size_t keep = Core::Autosave::ClampKeep(Settings::values.autosave_keep.GetValue());
+    for (std::size_t i = 0; i < actions_load_autosave.size(); i++) {
+        QAction* a = actions_load_autosave[i];
+        a->setVisible(i < keep);
+        const std::string label = tr("Autosave %1").arg(i + 1).toStdString();
+        QFont font = a->font();
+        font.setItalic(false);
+        if (system.IsPoweredOn() && i < frame_autosaves.size()) {
+            const auto& e = frame_autosaves[i];
+            // From another build: "From 1.1.1" in italics, as a slot
+            const std::string when = e.other ? Core::SaveStateFromText(e.version)
+                                             : Core::Autosave::LocalDateTimeSeconds(e.time);
+            a->setText(QString::fromStdString(Core::Autosave::MenuEntry(label, when)));
+            a->setEnabled(true);
+            font.setItalic(e.other);
+        } else {
+            a->setText(QString::fromStdString(label));
+            a->setEnabled(false);
+        }
+        a->setFont(font);
+    }
+    const bool undo = system.IsPoweredOn() && frame_undo_available;
+    action_undo_load->setEnabled(undo);
+    action_undo_load->setText(QString::fromStdString(Core::Autosave::MenuEntry(
+        tr("Undo Load").toStdString(),
+        undo ? Core::Autosave::LocalDateTimeSeconds(frame_undo_time) : std::string{})));
+    if (action_autosave) {
+        action_autosave->setChecked(Settings::values.autosave_enabled.GetValue());
+    }
+}
+
+void GMainWindow::FramePushAutosaves() {
+#ifdef ENABLE_FRAME_XR
+    if (!system.IsPoweredOn()) {
+        return;
+    }
+    const u64 now = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+    std::vector<FrameXr::Menu::AutosaveCard> cards;
+    for (const auto& e : frame_autosaves) {
+        FrameXr::Menu::AutosaveCard c;
+        c.ago = Core::Autosave::AgoLocal(e.time, now);
+        c.other = e.other;
+        c.time =
+            e.other ? Core::SaveStateFromText(e.version) : Core::Autosave::LocalDateTime(e.time);
+        c.clock = e.other ? c.time : Core::Autosave::LocalTime(e.time);
+        if (!e.thumb.empty()) {
+            QImage img(QString::fromStdString(e.thumb));
+            if (!img.isNull()) {
+                img = img.scaled(200, 120, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                          .convertToFormat(QImage::Format_RGBA8888);
+                auto pic = std::make_shared<FrameXr::Menu::AutosavePicture>();
+                pic->w = img.width();
+                pic->h = img.height();
+                pic->rgba.resize(static_cast<std::size_t>(pic->w) * pic->h * 4);
+                for (int y = 0; y < pic->h; y++) {
+                    std::memcpy(pic->rgba.data() + static_cast<std::size_t>(y) * pic->w * 4,
+                                img.constScanLine(y), static_cast<std::size_t>(pic->w) * 4);
+                }
+                c.picture = std::move(pic);
+            }
+        }
+        cards.push_back(std::move(c));
+    }
+    const std::string undo =
+        frame_undo_available
+            ? "Autosave Loaded: " + Core::Autosave::LocalTime(frame_loaded_autosave_time)
+            : std::string{};
+    FrameXr::SetInGameMenuAutosaves(cards, undo);
+#endif
+}
+
+void GMainWindow::FrameAutosaveWritten(const Core::Autosave::Writer::Done& done) {
+    if (!done.autosave || !emulation_running) {
+        return;
+    }
+    FrameAutosaveList();
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
+    // Its picture comes a frame or two later
+    QTimer::singleShot(1500, this, [this] {
+        if (emulation_running) {
+            FrameAutosaveList();
+            FramePushAutosaves();
+        }
+    });
+    if (!done.ok || done.reason != Core::Autosave::Reason::Timer) {
+        return; // the menu's and the quit's say nothing (owner decision)
+    }
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing() && !(g_frame_mirror && g_frame_mirror->MenuOpen())) {
+        FrameXr::ShowAutosaved(); // over the top screen's corner, else the toast
+        return;
+    }
+#endif
+    if (!message_label_used_for_movie) { // as Quick Saved: 3 s in the status bar
+        const QString text = tr("Autosaved");
+        message_label->setText(text);
+        QTimer::singleShot(3000, this, [this, text] {
+            if (!message_label_used_for_movie && message_label->text() == text) {
+                message_label->clear();
+            }
+        });
+    }
+}
+
+void GMainWindow::FrameLoadAutosave(int index) {
+    if (!system.IsPoweredOn()) {
+        return;
+    }
+    FrameAutosaveList();
+    if (index < 0 || index >= static_cast<int>(frame_autosaves.size())) {
+        return;
+    }
+    const Core::Autosave::Entry e = frame_autosaves[static_cast<std::size_t>(index)];
+    if (UISettings::values.save_state_warning) { // About Save States the first time, as a slot
+        FrameAsk(QString::fromUtf8(Core::kSaveStatesAboutTitle),
+                 QString::fromUtf8(Core::kSaveStatesAboutBody),
+                 QString::fromUtf8(Core::kSaveStatesAboutButton), {}, [this, index](bool yes) {
+                     if (!yes) {
+                         return;
+                     }
+                     UISettings::values.save_state_warning = false;
+                     config->Save();
+                     FrameLoadAutosave(index);
+                 });
+        return;
+    }
+    if (e.other) {
+        FrameAskLoadAutosaveAnyway(e.path, e.version);
+        return;
+    }
+    frame_loaded_autosave_time = e.time;
+    FrameDoLoadAutosave(e.path, false);
+}
+
+void GMainWindow::FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version) {
+    const std::string full = Common::g_build_fullname;
+    const std::string ours = Core::FrameVersionOf(full, std::string(Core::kFrameBuildTag) + full);
+    FrameAsk(QString::fromStdString(Core::SaveStateMismatchTitle(version, ours)),
+             QString::fromStdString(Core::SaveStateMismatchBody(version)),
+             QString::fromUtf8(Core::kLoadAnywayButton), tr("Cancel"), [this, path](bool yes) {
+                 if (yes && system.IsPoweredOn()) {
+                     u64 title_id{};
+                     system.GetAppLoader().ReadProgramId(title_id);
+                     frame_loaded_autosave_time = Core::GetSaveStateInfoAt(path, title_id).time;
+                     FrameDoLoadAutosave(path, true);
+                 }
+             });
+}
+
+// Loads `path`; the core first saves the moment before to its own file (Undo Load). Load Anyway
+// (another build) backs up the game's save data first, as for a slot.
+void GMainWindow::FrameDoLoadAutosave(const std::string& path, bool anyway) {
+    u64 title_id{};
+    if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        return;
+    }
+    if (anyway) {
+        if (!FrameBackupSaveDataForLoadAnyway(title_id, "an autosave")) {
+            return;
+        }
+        frame_load_anyway_pending = true;
+        QTimer::singleShot(3000, this, [this] { frame_load_anyway_pending = false; });
+    }
+    LOG_INFO(Frontend, "autosave: load {}{}", path, anyway ? " (Load Anyway)" : "");
+    frame_last_load_autosave = path;
+    if (!system.RequestLoadAutosave(path, anyway)) {
+        return;
+    }
+    system.frame_limiter.AdvanceFrame();
+    frame_undo_available = true;
+    frame_undo_time = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
+}
+
+void GMainWindow::FrameUndoLoad() {
+    if (!system.IsPoweredOn() || !frame_undo_available) {
+        return;
+    }
+    LOG_INFO(Frontend, "autosave: Undo Load (back to {})",
+             Core::Autosave::LocalDateTimeSeconds(frame_undo_time));
+    frame_undo_available = false;
+    frame_last_load_autosave.clear();
+    frame_last_load_slot = Core::Autosave::kUndoLoadSlot;
+    system.SendSignal(Core::System::Signal::Load, Core::Autosave::kUndoLoadSlot);
+    system.frame_limiter.AdvanceFrame();
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
+}
+
+// Emulation > Autosave (0), and the tests' Every (1) and Keep (2): written where the running
+// game's value comes from (its own file when it has its own value, else the global one).
+void GMainWindow::FrameSetAutosaveSetting(int which, u32 value) {
+    auto& v = Settings::values;
+    bool own = false;
+    switch (which) {
+    case 0:
+        own = !v.autosave_enabled.UsingGlobal();
+        v.autosave_enabled.SetValue(value != 0);
+        break;
+    case 1:
+        own = !v.autosave_every.UsingGlobal();
+        v.autosave_every.SetValue(Core::Autosave::ClampEvery(value));
+        break;
+    default:
+        own = !v.autosave_keep.UsingGlobal();
+        v.autosave_keep.SetValue(Core::Autosave::ClampKeep(value));
+        break;
+    }
+    LOG_INFO(Frontend, "autosave: {} = {} ({})",
+             which == 0   ? "Autosave"
+             : which == 1 ? "Every"
+                          : "Keep",
+             value, own ? "this game" : "global");
+#ifdef ENABLE_FRAME_XR
+    if (own && system.IsPoweredOn() && !g_frame_game_config_name.empty()) {
+        FrameKeepSetting keep_on{v.autosave_enabled};
+        FrameKeepSetting keep_every{v.autosave_every};
+        FrameKeepSetting keep_keep{v.autosave_keep};
+        QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
+        keep_on.Restore();
+        keep_every.Restore();
+        keep_keep.Restore();
+        game_config.Save();
+    } else {
+        config->Save();
+    }
+#else
+    config->Save();
+#endif
+    if (which == 2) {
+        FrameAutosaveKeepChanged();
+    }
+    FrameUpdateAutosaveActions();
+}
+
+// Keep lowered: the running game's oldest go at once (other games' at their next autosave).
+void GMainWindow::FrameAutosaveKeepChanged() {
+    u64 title_id{};
+    if (!system.IsPoweredOn() ||
+        system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        return;
+    }
+    // After any write in flight (it prunes too)
+    system.AutosaveWriter().WaitIdle();
+    const std::size_t gone =
+        Core::Autosave::Prune(FrameAutosaveDir(), title_id, movie.GetCurrentMovieID(),
+                              Settings::values.autosave_keep.GetValue());
+    if (gone > 0) {
+        LOG_INFO(Frontend, "autosave: Keep {}: {} older ones removed",
+                 Settings::values.autosave_keep.GetValue(), gone);
+    }
+    FrameAutosaveList();
+    FrameUpdateAutosaveActions();
+    FramePushAutosaves();
+}
+
+bool GMainWindow::FrameBackupSaveDataForLoadAnyway(u64 title_id, const std::string& what) {
+    const std::string save_dir = FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(
+        FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir), title_id);
+    const std::string root =
+        Core::SaveBackup::Root(FileUtil::GetUserPath(FileUtil::UserPath::UserDir), title_id);
+    if (!FileUtil::IsDirectory(save_dir)) {
+        return true; // nothing to back up
+    }
+    const std::string backup = Core::SaveBackup::Backup(
+        save_dir, root, Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()));
+    if (backup.empty()) {
+        LOG_ERROR(Frontend, "savestate: save data not backed up, so not loaded");
+        FrameAsk(tr("Save Data Not Backed Up"),
+                 tr("This game's save data couldn't be backed up, so the save state wasn't "
+                    "loaded."),
+                 tr("OK"), {}, {});
+        return false;
+    }
+    Core::SaveBackup::Arm(root, backup, save_dir);
+    frame_rescue_root = root;
+    frame_rescue_keep = false;
+    LOG_INFO(Frontend, "savestate: Load Anyway, {}, save data backed up to {}", what, backup);
+    return true;
 }

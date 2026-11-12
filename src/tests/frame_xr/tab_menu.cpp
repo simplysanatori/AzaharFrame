@@ -58,10 +58,16 @@ std::vector<MenuView> AllViews() {
     views.push_back(slots);
     slots.page = Page::LoadSlots;
     views.push_back(slots);
-    MenuView end;
-    end.tab = Tab::Settings;
-    end.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
-    views.push_back(end);
+    // AzaharFrame autosave: each Settings section, at its top and its end.
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
+        MenuView top;
+        top.tab = Tab::Settings;
+        top.section = static_cast<SettingsSection>(sec);
+        views.push_back(top);
+        MenuView end = top;
+        end.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
+        views.push_back(end);
+    }
     return views;
 }
 
@@ -153,6 +159,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     // The Wider View row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
+    v.section = SettingsSection::Immersive; // AzaharFrame autosave
     m.immersive_mode = 0;
     // AzaharFrame depth3d: lower down now; menuux: not at the end any more, so every scroll.
     bool label = false;
@@ -171,6 +178,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
 
     // A locked Background: no segments.
     m = Sample();
+    v.section = SettingsSection::General;
     v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
     m.locked[static_cast<std::size_t>(Id::Background)] = Lock::Unavailable;
     d.Draw(m, v);
@@ -185,6 +193,7 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
     Drawn d;
     MenuView v;
     v.tab = Tab::Settings;
+    v.section = SettingsSection::Immersive; // AzaharFrame autosave
     v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
     d.Draw(Sample(), v);
     const MenuLayout& layout = d.menu.Layout();
@@ -216,6 +225,7 @@ TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[fra
     Drawn d;
     MenuView v;
     v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics; // AzaharFrame autosave
     MenuModel m = Sample();
     m.depth_3d = 50;
     bool found = false;
@@ -1093,7 +1103,9 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     v.tab = Tab::Settings;
     bool seen_res = false, seen_dyn = false, seen_filter = false, seen_async = false,
          seen_ff = false;
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) // AzaharFrame autosave
     for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+        v.section = static_cast<SettingsSection>(sec);
         v.scroll[static_cast<int>(Tab::Settings)] = scroll;
         d.Draw(m, v);
         for (const auto& h : d.menu.Hits()) {
@@ -1135,6 +1147,7 @@ TEST_CASE("Tab menu: Dynamic Resolution has nothing to do at 1x", "[frame_xr][ta
     MenuModel m = Sample();
     MenuView v;
     v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics; // AzaharFrame autosave
     // Whether its switch can be pressed (-1), or only its tooltip shows (kLabelIndex).
     const auto hit = [&](int factor) {
         m.internal_resolution = factor;
@@ -1162,6 +1175,7 @@ TEST_CASE("Tab menu: an Internal Resolution the menu does not offer still shows"
     MenuModel m = Sample();
     MenuView v;
     v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics; // AzaharFrame autosave
     for (const auto& [factor, text] : std::vector<std::pair<int, std::string>>{
              {0, "Auto"}, {12, "12x"}, {4, "4x (1600x960)"}}) {
         m.internal_resolution = factor;
@@ -1200,12 +1214,17 @@ TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][t
         if (v.tab == Tab::Mods) {
             continue; // its segments have their own tests
         }
-        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
-            v.scroll[static_cast<std::size_t>(t)] = scroll;
-            a.Draw(m, v);
-            a.Check(("tab " + std::to_string(t)).c_str());
-            if (scroll >= a.menu.MaxScroll()) {
-                break;
+        // AzaharFrame autosave: every Settings section
+        const int sections = v.tab == Tab::Settings ? static_cast<int>(SettingsSection::Count) : 1;
+        for (int sec = 0; sec < sections; sec++) {
+            v.section = static_cast<SettingsSection>(sec);
+            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                v.scroll[static_cast<std::size_t>(t)] = scroll;
+                a.Draw(m, v);
+                a.Check(("tab " + std::to_string(t)).c_str());
+                if (scroll >= a.menu.MaxScroll()) {
+                    break;
+                }
             }
         }
     }
@@ -1215,13 +1234,21 @@ TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][t
         a.Draw(m, v);
         a.Check("slots");
     }
-    // Both scopes of the Settings tab (Per-Game shows the title beside them).
+    // Both scopes of the Settings tab, each section (AzaharFrame autosave: the scope's menu
+    // button at the section row's end).
     MenuModel per_game = m;
     per_game.scope = 1;
     MenuView v;
     v.tab = Tab::Settings;
-    a.Draw(per_game, v);
-    a.Check("Settings, Per-Game");
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
+        v.section = static_cast<SettingsSection>(sec);
+        a.Draw(per_game, v);
+        a.Check("Settings, Per-Game");
+        v.open_menu = Id::Scope;
+        a.Draw(per_game, v);
+        a.Check("Settings, the scope's menu");
+        v.open_menu = Id::None;
+    }
     // The Touchpad row's longer line.
     per_game.touchpad_touch = 1;
     v.tab = Tab::Controls;
@@ -2175,4 +2202,194 @@ TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr
     CHECK(a.Drew("Got It"));
     CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
     CHECK(centre(Id::DialogCancel) == Target{});
+}
+
+// AzaharFrame autosave: Settings in three sections, each with the scope's menu button; Per-Game
+// as the menu opens while a game runs.
+TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr][tabmenu]") {
+    CHECK(OpeningScope(true) == 1);
+    CHECK(OpeningScope(false) == 0);
+    CHECK(OptionsFor(Id::SettingsSection) ==
+          std::vector<std::string>{"General", "Graphics", "Immersive"});
+    Drawn d;
+    MenuModel m = Sample();
+    m.scope = 1;
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = static_cast<SettingsSection>(sec);
+        INFO("section " << sec);
+        for (float scroll = 0.0f;; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            CHECK(HasHit(d, Id::Scope, -1)); // General too: its Saves rows are per game
+            CHECK(HasHit(d, Id::SettingsSection, (sec + 1) % 3));
+            for (const auto& h : d.menu.Hits()) {
+                const Id id = h.t.id;
+                if (id == Id::Scope || id == Id::SettingsSection || id == Id::TabButton ||
+                    id == Id::None) {
+                    continue;
+                }
+                CHECK(static_cast<int>(SectionOf(id)) == sec); // only its own rows
+            }
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
+        }
+        // The scope's menu: Global and Per-Game, over the rows
+        v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
+        v.open_menu = Id::Scope;
+        d.Draw(m, v);
+        const MenuLayout::Hit* global = FindHit(d, Id::Scope, 0);
+        REQUIRE(global != nullptr);
+        CHECK(HasHit(d, Id::Scope, 1));
+        CHECK(d.menu.HitTest(global->r.Cx(), global->r.Cy()) == Target{Id::Scope, 0});
+        CheckTargets(d);
+    }
+    // In Global a game's own value is locked on General's Saves rows as anywhere else; the other
+    // General rows (global only) stay usable in either scope.
+    m.scope = 0;
+    m.locked[static_cast<std::size_t>(Id::Autosave)] = Lock::GameValue;
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::Autosave, kLabelIndex));
+    CHECK(!HasHit(d, Id::Autosave, -1));
+    v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::Background, 1));
+}
+
+TEST_CASE("Tab menu: the Saves group at General's end", "[frame_xr][tabmenu]") {
+    CHECK(LabelFor(Id::SavesHeader) == "Saves");
+    CHECK(LabelFor(Id::Autosave) == "Autosave");
+    CHECK(LabelFor(Id::AutosaveEvery) == "Every");
+    CHECK(LabelFor(Id::AutosaveKeep) == "Keep");
+    for (Id id : {Id::Autosave, Id::AutosaveEvery, Id::AutosaveKeep}) {
+        CHECK(!ExplainFor(id).empty());
+        CHECK(SectionOf(id) == SettingsSection::General);
+    }
+    CHECK(SliderFor(Id::AutosaveEvery).max == 4.0f);
+    CHECK(SliderFor(Id::AutosaveKeep).min == 1.0f);
+    CHECK(SliderFor(Id::AutosaveKeep).max == 10.0f);
+    CHECK(!ExplainLock(Lock::AutosaveOff).empty());
+
+    Audit a;
+    MenuModel m = Sample();
+    m.scope = 1;
+    m.autosave = true;
+    m.autosave_every = 2;
+    m.autosave_keep = 3;
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
+    a.Draw(m, v);
+    a.Check("Saves");
+    CHECK(a.Drew("Saves"));
+    CHECK(a.Drew("5 Min"));
+    for (const char* stop : {"1", "2", "5", "10", "15"}) {
+        CHECK(a.Drew(stop)); // the stops' minutes under Every's track
+    }
+    bool every = false, keep = false, sw = false;
+    for (const auto& h : a.menu.Hits()) {
+        every |= h.t.id == Id::AutosaveEvery && h.t.index == -1;
+        keep |= h.t.id == Id::AutosaveKeep && h.t.index == -1;
+        sw |= h.t.id == Id::Autosave && h.t.index == -1;
+        CHECK(h.t.id != Id::SavesHeader); // the subheader is no target
+    }
+    CHECK(every);
+    CHECK(keep);
+    CHECK(sw);
+    // The beam on Keep's track maps to 1 to 10
+    for (const auto& track : a.menu.Layout().sliders) {
+        if (track.id == Id::AutosaveKeep) {
+            CHECK(a.menu.Layout().SliderAt(Id::AutosaveKeep, track.x0 - 10.0f) == 0.0f);
+            CHECK(a.menu.Layout().SliderAt(Id::AutosaveKeep, track.x1 + 10.0f) == 1.0f);
+        }
+    }
+    // Off: Every and Keep greyed (only their tooltip)
+    m.autosave = false;
+    a.Draw(m, v);
+    for (const auto& h : a.menu.Hits()) {
+        CHECK(!((h.t.id == Id::AutosaveEvery || h.t.id == Id::AutosaveKeep) && h.t.index != kLabelIndex));
+    }
+    // Every held: the stop's minutes as the value
+    m.autosave = true;
+    v.dragging = Id::AutosaveEvery;
+    v.drag_t = 0.75f;
+    a.Draw(m, v);
+    CHECK(a.Drew("10 Min"));
+    v.drag_t = 1.0f;
+    a.Draw(m, v);
+    CHECK(a.Drew("15 Min"));
+}
+
+TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.page = Page::LoadSlots;
+    // Off: "Autosave: Off" and Settings, which goes to the Saves rows
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::AutosaveSettings, -1));
+    CHECK(!HasHit(d, Id::AutosaveCard, -1));
+    CheckTargets(d);
+    // On, none yet: nothing to tap
+    m.autosave = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::AutosaveCard, -1));
+    CHECK(!HasHit(d, Id::AutosaveSettings, -1));
+    // Three: the card, then its list over the slots
+    for (int i = 0; i < 3; i++) {
+        m.autosaves.push_back({i == 0 ? "Just Now" : std::to_string(i * 5) + " Minutes Ago",
+                               "2026-11-12 10:2" + std::to_string(6 - i), "10:2" + std::to_string(6 - i)});
+    }
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::AutosaveCard, -1));
+    CHECK(HasHit(d, Id::Slot, 1)); // the slots stay
+    CheckTargets(d);
+    v.open_menu = Id::AutosaveCard;
+    d.Draw(m, v);
+    for (int i = 0; i < 3; i++) {
+        const MenuLayout::Hit* e = FindHit(d, Id::AutosaveEntry, i);
+        REQUIRE(e != nullptr);
+        CHECK(d.menu.HitTest(e->r.Cx(), e->r.Cy()) == Target{Id::AutosaveEntry, i});
+    }
+    CheckTargets(d);
+    // Ten (Keep 10): two columns, every row a target of 48 dp or more
+    m.autosaves.clear();
+    for (int i = 0; i < 10; i++) {
+        m.autosaves.push_back({std::to_string(i * 5 + 1) + " Minutes Ago", "2026-11-12 09:59", "09:59"});
+    }
+    d.Draw(m, v);
+    for (int i = 0; i < 10; i++) {
+        const MenuLayout::Hit* e = FindHit(d, Id::AutosaveEntry, i);
+        REQUIRE(e != nullptr);
+        CHECK(e->r.H() >= 48.0f);
+        CHECK(e->r.y1 <= kPanelH);
+    }
+    // After a load: Undo Load under the slots, the slots still 48 dp
+    v.open_menu = Id::None;
+    m.undo_load = "Autosave Loaded: 10:22";
+    m.slots.push_back({5, "2026-11-10 08:47"}); // the bottom row
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::UndoLoad, -1));
+    CHECK(FindHit(d, Id::UndoLoad, -1)->r.y0 >= FindHit(d, Id::Slot, 5)->r.y1);
+    CHECK(FindHit(d, Id::Slot, 5)->r.H() >= 48.0f);
+    CheckTargets(d);
+    // No text runs into another, with the longest strings
+    Audit a;
+    MenuModel lm = Longest();
+    lm.autosave = true;
+    lm.autosaves = {{"59 Minutes Ago", "2026-12-31 23:59", "23:59"},
+                    {"Yesterday", "From Another Version", "From Another Version", true}};
+    lm.undo_load = "Autosave Loaded: 23:59";
+    a.Draw(lm, v);
+    a.Check("Load State, the card");
+    CHECK(a.Drew("Autosave · 59 Minutes Ago"));
+    lm.autosave = false;
+    a.Draw(lm, v);
+    a.Check("Load State, Autosave: Off");
+    CHECK(a.Drew("Autosave: Off"));
 }

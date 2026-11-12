@@ -49,6 +49,19 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
+### Autosave
+
+- **Autosave** makes save states of its own as you play: every few minutes of play (1, 2, 5, 10 or 15), when the VR menu opens and when you close the game, at most one a minute. It is off at first; turn it on in the VR menu's **Settings**, in **Emulation > Autosave** or in **Emulation > Configure > General**. Each game can have its own Autosave, Every and Keep.
+- Autosaves never replace a slot or the Quick Save. A game keeps the newest 3 by default (1 to 10).
+- **Load State** has an **Autosave** card above the slots, with a picture of the top screen and how long ago it was made. In Flat they are at the end of **Emulation > Load State**.
+- Loading an autosave saves the moment before, so **Undo Load** can take it back.
+- "Autosaved" shows for a moment above the top screen's corner, or as a short message when that corner is out of view.
+- The game is held only while its state is copied; compressing and writing it happen in the background, so an autosave barely shows in play.
+
+### Settings in sections
+
+- The VR menu's **Settings** tab has three sections: **General**, **Graphics** and **Immersive**. **Global** or **Per-Game** is a menu button at the end of the section row, and the menu opens on **Per-Game** while a game runs.
+
 ### Save states
 
 - Save states from another version show which version made them, and ask before they load. **Load Anyway** backs up the game's save data first, and offers to restore it if the game then closes unexpectedly.

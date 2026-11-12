@@ -691,6 +691,10 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("layers");
         quad_layers.clear();
+        // AzaharFrame autosave: the normal top screen, for the "Autosaved" label over its corner
+        bool label_top_ok = false;
+        XrPosef label_top_pose{{0, 0, 0, 1}, {0, 0, 0}};
+        XrExtent2Df label_top_size{0.0f, 0.0f};
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
             {
@@ -724,6 +728,10 @@ void Runtime::FrameLoop() {
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
+            label_top_ok = !draw.swapped && shown.show_top && shown.top_pointable &&
+                           shown.top_space == local_space;
+            label_top_pose = shown.top_pose[0];
+            label_top_size = shown.top_size;
             // AzaharFrame vrsize: a normal top screen bigger than its normal size gets that much
             // less 3D depth (common/frame_vr_depth.h); the immersive and the swapped one do not.
             // AzaharFrame move: swapped, the top screen is in the second slot at its own scale.
@@ -793,6 +801,12 @@ void Runtime::FrameLoop() {
             Quad hint;
             if (hud.HintQuad(fs.predictedDisplayTime, hint)) {
                 quad_layers.push_back(MakeQuad(local_space, hint));
+            }
+            // AzaharFrame autosave: "Autosaved" over the top screen's corner
+            Quad label;
+            if (hud.LabelQuad(LatestViewPose(), label_top_ok, label_top_pose, label_top_size,
+                              fs.predictedDisplayTime, label)) {
+                quad_layers.push_back(MakeQuad(local_space, label));
             }
         }
         // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
@@ -1046,6 +1060,12 @@ ViewPose LatestViewPose() {
 void ShowToast(Toast kind) {
     if (auto* rt = GetRuntime()) {
         rt->hud.ShowToast(kind);
+    }
+}
+
+void ShowAutosaved() { // AzaharFrame autosave
+    if (auto* rt = GetRuntime()) {
+        rt->hud.ShowAutosaved();
     }
 }
 

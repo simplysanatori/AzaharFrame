@@ -280,6 +280,20 @@ Save states are NOT a replacement for saving in the game. A state only loads in 
 
 A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data is copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
 
+### Autosave
+
+Autosave makes save states of its own while you play, so you can go back a few minutes. It is off at first. Turn it on in the in-game menu (**Settings** > **General**, the **Saves** group at the end), in **Emulation > Autosave**, or in **Emulation > Configure > General**. **Every** sets the minutes of play between autosaves (1, 2, 5, 10 or 15; 5 at first), and **Keep** how many each game keeps (1 to 10; 3 at first). When there are more, the oldest go.
+
+All three can be set for one game: in the in-game menu choose **Per-Game** (the menu opens on it while a game runs), or in the game's **Properties** choose **Set autosave** under **General > Autosave**. A game without its own values uses the ones for every game. Lowering **Keep** removes that game's extra autosaves at once; other games keep theirs until their next autosave.
+
+An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the top screen beside it.
+
+While you play, "Autosaved" shows for a moment just above the top screen's right corner. When that corner is out of view (you look down at the bottom screen, or the game is in immersive mode), a short message in front of you says it instead. Autosaves made when the menu opens or the game closes show nothing. In Flat the status bar says "Autosaved" for 3 seconds.
+
+To load one, open **Load State**. In VR the **Autosave** card above the slots shows the newest, with its picture and how long ago it was made; with **Keep** above 1, tap it to see the others. In Flat they are at the end of **Emulation > Load State**, as **Autosave 1** (the newest) and on. Loading an autosave saves the moment before first, so **Undo Load** takes you back if you picked the wrong one, until the game closes. An autosave from another version asks first, as a slot does.
+
+The game is held only while its state is copied, which takes far less time than a manual save state; the rest happens in the background.
+
 ### Fast Forward
 
 Hold **View** and pull the right trigger to run the game at Azahar's turbo speed. Do it again to go back. "Fast Forward" shows in front of you for 2 seconds; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).

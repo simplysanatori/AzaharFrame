@@ -562,6 +562,10 @@ void QtConfig::ReadVrValues() {
     }
     ReadGlobalSetting(Settings::values.vr_immersive_squeeze);
     ReadGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
+    // AzaharFrame autosave: a global value and, for a game, its own (Per-Game)
+    ReadGlobalSetting(Settings::values.autosave_enabled);
+    ReadGlobalSetting(Settings::values.autosave_every);
+    ReadGlobalSetting(Settings::values.autosave_keep);
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
@@ -1217,6 +1221,10 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze);
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
+    // AzaharFrame autosave: a global value and, for a game, its own (Per-Game)
+    WriteGlobalSetting(Settings::values.autosave_enabled);
+    WriteGlobalSetting(Settings::values.autosave_every);
+    WriteGlobalSetting(Settings::values.autosave_keep);
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);

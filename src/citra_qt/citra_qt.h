@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <set>
@@ -25,6 +26,7 @@
 #include "citra_qt/hotkeys.h"
 #include "citra_qt/notification_led.h"
 #include "citra_qt/user_data_migration.h"
+#include "core/autosave.h" // AzaharFrame autosave
 #include "core/core.h"
 #include "core/savestate.h"
 #include "video_core/rasterizer_interface.h"
@@ -246,6 +248,35 @@ private:
     void FrameOfferSaveRescue(u64 title_id);
     void FrameRefreshSlotsAfterSave(u32 slot);
     void FramePushMenuInfo();
+
+    // AzaharFrame autosave (citra_qt.cpp): the timer, the menu and quit triggers, Emulation >
+    // Load State's autosaves and Undo Load, the Autosave switch, the VR card's list, "Autosaved".
+    void FrameAutosaveInit();
+    void FrameAutosaveBoot();
+    void FrameAutosaveStop();
+    void FrameAutosaveTick();
+    /// Asks the core for one if nothing blocks it now (logged either way); true if asked.
+    bool FrameRequestAutosave(Core::Autosave::Reason reason);
+    /// Clean quit: an autosave, and waits (a few seconds at most) for it to be serialized.
+    void FrameAutosaveBeforeQuit();
+    Core::Autosave::Gates FrameAutosaveGates() const;
+    s64 FrameAutosaveNowMs() const;
+    /// The running game's autosaves, read again.
+    void FrameAutosaveList();
+    void FrameUpdateAutosaveActions();
+    void FramePushAutosaves();
+    void FrameLoadAutosave(int index);
+    void FrameDoLoadAutosave(const std::string& path, bool anyway);
+    void FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version);
+    void FrameUndoLoad();
+    /// Autosave, Every or Keep, from the Emulation menu or a test: the game's own value when it
+    /// has one, else the global one, saved to that file.
+    void FrameSetAutosaveSetting(int which, u32 value);
+    void FrameAutosaveKeepChanged();
+    void FrameAutosaveWritten(const Core::Autosave::Writer::Done& done);
+    /// Load Anyway's backup of the game's save data (and the marker for Restore Save Data);
+    /// false when it could not be made (nothing loads then).
+    bool FrameBackupSaveDataForLoadAnyway(u64 title_id, const std::string& what);
 
     /**
      * If the emulation is running,
@@ -501,6 +532,23 @@ private:
     bool frame_rescue_keep = false; ///< an error since: the marker stays for the next start
     bool frame_load_anyway_pending = false; ///< a Load Anyway in flight (its error is ours)
     u32 frame_last_load_slot = 0;
+
+    // AzaharFrame autosave
+    Core::Autosave::Scheduler frame_autosave;
+    QTimer frame_autosave_timer;
+    s64 frame_autosave_unit_ms = 60'000;                ///< a "minute" (shorter only in a test run)
+    std::vector<Core::Autosave::Entry> frame_autosaves; ///< the running game's, newest first
+    std::array<QAction*, Core::Autosave::kKeepMax> actions_load_autosave{};
+    QAction* action_undo_load = nullptr;
+    QAction* action_autosave = nullptr; ///< Emulation > Autosave (checkable)
+    QAction* frame_autosave_separator = nullptr;
+    bool frame_undo_available = false;        ///< an autosave was loaded: Undo Load
+    u64 frame_undo_time = 0;                  ///< the moment saved before it (Unix seconds)
+    u64 frame_loaded_autosave_time = 0;       ///< the autosave loaded ("Autosave Loaded: 10:12")
+    bool frame_autosave_quitting = false;     ///< waiting for the quit's autosave
+    std::string frame_last_load_autosave;     ///< "" a slot (the mismatch error's target)
+    bool frame_autosave_quit_blocked = false; ///< a core error: no autosave at the stop
+    std::atomic<int> frame_autosave_serialized{0}; ///< 1 ok, -1 failed (the quit's wait)
 
     // Secondary window actions
     QAction* action_secondary_fullscreen;

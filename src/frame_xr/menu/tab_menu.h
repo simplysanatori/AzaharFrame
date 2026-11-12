@@ -16,6 +16,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +33,8 @@ constexpr float kPanelW = 840.0f;
 constexpr float kPanelH = 560.0f;
 constexpr float kPanelRadius = 32.0f;
 constexpr float kRowH = 72.0f; ///< a settings row; the lists scroll in steps of one
+constexpr float kAutosaveCardH = 72.0f;  ///< AzaharFrame autosave: Load State's card
+constexpr float kAutosaveItemH = 56.0f;  ///< and a row of its list
 
 // AzaharFrame cheatstab: Mods; ui3: Homebrew (was a segment of Mods)
 enum class Tab : int { Main, Position, Stats, Controls, Mods, Homebrew, Settings, Count };
@@ -53,6 +56,11 @@ enum class Id : int {
     CloseGame,
     SlotsBack, ///< the slot list's back arrow
     Slot,      ///< index: the slot (1 to 10)
+    // AzaharFrame autosave: Load State's Autosave card (owner's Option B)
+    AutosaveCard,     ///< Keep 1: loads it; more: opens the list of them
+    AutosaveEntry,    ///< index: MenuModel::autosaves (the card's list)
+    AutosaveSettings, ///< "Autosave: Off"'s Settings: the Saves rows
+    UndoLoad,         ///< the snackbar's Undo Load, after an autosave was loaded
     // Position
     ResetPosition,
     SwapScreens,
@@ -82,7 +90,12 @@ enum class Id : int {
     BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right, 3 Headset
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     // Settings
-    Scope,
+    Scope, ///< AzaharFrame autosave: the "Global" / "Per-Game" menu button (index: a menu item)
+    SettingsSection, ///< AzaharFrame autosave: General, Graphics, Immersive (index)
+    SavesHeader,   ///< AzaharFrame autosave: the "Saves" subheader (no action)
+    Autosave,      ///< AzaharFrame autosave: autosave_enabled, per game
+    AutosaveEvery, ///< a slider of kAutosaveEvery's stops (index 0 to 4), per game
+    AutosaveKeep,  ///< a slider, 1 to 10, per game
     Background,
     FaceButtons,
     MotionControls,
@@ -187,6 +200,7 @@ enum class Lock : uint8_t {
     Unavailable, ///< the runtime does not offer it
     AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
     InPassthrough, ///< AzaharFrame vis: Show Controllers while the Background is Passthrough
+    AutosaveOff,   ///< AzaharFrame autosave: Every and Keep while Autosave is off
 };
 
 struct SaveSlot {
@@ -194,6 +208,24 @@ struct SaveSlot {
     std::string time; ///< "" = empty
     bool other = false; ///< AzaharFrame savestate: from another build ("From 1.1.1"): dimmed
     bool operator==(const SaveSlot&) const = default;
+};
+
+/// AzaharFrame autosave: Every's stops, in minutes (core/autosave.h kEveryMinutes).
+constexpr std::array<int, 5> kAutosaveEvery{1, 2, 5, 10, 15};
+
+/// AzaharFrame autosave: an autosave's top screen (straight RGBA, rows top down).
+struct AutosavePicture {
+    int w = 0, h = 0;
+    std::vector<uint8_t> rgba;
+};
+/// AzaharFrame autosave: one autosave on Load State's card and its list, newest first.
+struct AutosaveCard {
+    std::string ago;   ///< "Just Now", "3 Minutes Ago", ... (core/autosave.h Ago)
+    std::string time;  ///< "2026-11-12 10:14", or "From 1.1.1" when `other`
+    std::string clock; ///< "10:14" (the list's right column), or "From 1.1.1"
+    bool other = false; ///< made by another build: dimmed, still loads (after Load Anyway)
+    std::shared_ptr<const AutosavePicture> picture; ///< null: an icon
+    bool operator==(const AutosaveCard&) const = default;
 };
 
 /// The values the menu shows (the host's, read from the settings every frame).
@@ -222,7 +254,7 @@ struct MenuModel {
     int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
-    int scope = 0; ///< 0 Global, 1 Per-Game
+    int scope = 0; ///< 0 Global, 1 Per-Game (AzaharFrame autosave: the menu opens on Per-Game)
     int background = 0;
     int face_buttons = 0;
     int motion_controls = 1;
@@ -240,6 +272,12 @@ struct MenuModel {
     bool match_camera = true; ///< AzaharFrame depth: Match Game Camera
     int narrow_screen = 0;
     int depth_factor = 0;
+    // AzaharFrame autosave: the running game's values (Per-Game, else Global)
+    bool autosave = false;
+    int autosave_every = 2; ///< index into kAutosaveEvery
+    int autosave_keep = 3;
+    std::vector<AutosaveCard> autosaves; ///< newest first
+    std::string undo_load; ///< "Autosave Loaded: 10:12" until Undo Load or the game stops ("" none)
     ModsTabModel mods; ///< AzaharFrame cheatstab: the Mods tab's segments
     HomebrewTabModel homebrew; ///< AzaharFrame emerald
     /// Items that cannot change now, and why.
@@ -249,10 +287,26 @@ struct MenuModel {
 
 enum class Page { Tabs, SaveSlots, LoadSlots };
 
+/// AzaharFrame autosave: the Settings tab's sections (owner decision, round 2). Each shows the
+/// scope menu button: on General only the Saves rows follow it, the rest are global and usable in
+/// either scope (as Dynamic Resolution on Graphics).
+enum class SettingsSection : int { General, Graphics, Immersive, Count };
+/// Whether a section shows the scope menu button (all three since autosave is per game).
+constexpr bool SectionHasScope(SettingsSection) {
+    return true;
+}
+/// The scope the menu opens on: Per-Game (1) whenever the game can have settings of its own.
+constexpr int OpeningScope(bool per_game_ok) {
+    return per_game_ok ? 1 : 0;
+}
+/// The section a Settings row is in (General for the rest).
+SettingsSection SectionOf(Id id);
+
 /// What the menu looks like now (the host's, changed by the beam and the sticks).
 struct MenuView {
     Tab tab = Tab::Main;
     Page page = Page::Tabs; ///< the Main tab's slot lists
+    SettingsSection section = SettingsSection::General; ///< AzaharFrame autosave
     Target hover;
     Target pressed;
     std::array<float, static_cast<int>(Tab::Count)> scroll{}; ///< dp scrolled down
@@ -285,6 +339,11 @@ constexpr std::array<int, 5> kTextureFilters{0, 2, 3, 4, 5};
 constexpr std::array<int, 4> kFastForwardSpeeds{150, 200, 300, 400};
 /// AzaharFrame menuux: the line under the Touchpad row for its value (0 Tap, 1 Click).
 std::string TouchpadSupporting(int value);
+
+/// AzaharFrame autosave: the "Autosaved" label over the top screen's corner (hud.cpp draws it into
+/// the toast atlas at its levels of opacity; the menu dump draws it too): a dark pill, the save
+/// icon and the word, in `r` (5:1).
+void DrawAutosavedLabel(Kit& kit, const Rect& r);
 
 /// The option lists (Azahar for Frame's own strings).
 const std::vector<std::string>& OptionsFor(Id id);
@@ -356,6 +415,10 @@ private:
     void DrawRail(Kit& kit, const MenuView& view);
     void DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    /// AzaharFrame autosave: Load State's Autosave card, and its list when open.
+    void DrawAutosaveCard(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& r,
+                          const Rect& pane);
+    void DrawAutosaveList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& card);
     void DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawEditControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
