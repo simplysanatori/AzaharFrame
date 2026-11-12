@@ -154,6 +154,10 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h"
 #include "core/custom_tex/packs.h" // AzaharFrame catalog3
+#include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
+#include "core/cheats/online.h"         // AzaharFrame compat: the game's version
+#include "core/loader/smdh.h"           // AzaharFrame compat: its region
+#include "core/mods/compat.h"           // AzaharFrame compat
 #include "core/mods/catalog.h" // AzaharFrame texui
 #include "core/mods/library.h" // AzaharFrame catalog3
 #include "citra_qt/frame_mode.h"
@@ -234,6 +238,65 @@ QPointer<FrameMirror> g_frame_mirror;
 // menu; the games started so far (a restart clears its snackbar).
 QPointer<FrameMods> g_frame_mods;
 int g_frame_runs = 0;
+// AzaharFrame compat: the running game's region (the catalog's table, else the game's own region
+// lock when it names one region) and version (the installed update's), for FrameMods.
+Mods::Compat::Game FrameGameInfoOf(Core::System& system, const std::string& game_path) {
+    using Mods::Compat::Region;
+    Mods::Compat::Game g;
+    u64 tid = 0;
+    if (system.IsPoweredOn() && system.GetAppLoader().ReadProgramId(tid) == Loader::ResultStatus::Success) {
+        g.title_id = tid;
+    }
+    g.region = Mods::Compat::RegionOfTitle(g.title_id);
+    if (g.region == Region::Unknown && system.IsPoweredOn()) {
+        std::vector<u8> smdh_data;
+        if (system.GetAppLoader().ReadIcon(smdh_data, false) == Loader::ResultStatus::Success &&
+            Loader::IsValidSMDH(smdh_data)) {
+            Loader::SMDH smdh;
+            std::memcpy(&smdh, smdh_data.data(), sizeof(Loader::SMDH));
+            const auto regions = smdh.GetRegions();
+            if (regions.size() == 1) {
+                using G = Loader::SMDH::GameRegion;
+                switch (regions.front()) {
+                case G::NorthAmerica:
+                    g.region = Region::Usa;
+                    break;
+                case G::Europe:
+                case G::Australia:
+                    g.region = Region::Europe;
+                    break;
+                case G::Japan:
+                    g.region = Region::Japan;
+                    break;
+                case G::Korea:
+                    g.region = Region::Korea;
+                    break;
+                case G::Taiwan:
+                    g.region = Region::Taiwan;
+                    break;
+                case G::China:
+                    g.region = Region::China;
+                    break;
+                }
+            }
+        }
+    }
+    if (g.title_id != 0) {
+        const auto v = Cheats::Online::QueryInstalledVersion(g.title_id, game_path);
+        using S = Cheats::Sharkive::VersionSource;
+        const auto as = [](const std::optional<Cheats::Sharkive::Version>& x)
+            -> std::optional<Mods::Compat::Version> {
+            if (!x) {
+                return std::nullopt;
+            }
+            return Mods::Compat::Version{x->major, x->minor};
+        };
+        g.version = Mods::Compat::GameVersion(v.source == S::UpdateTmd ? as(v.version) : std::nullopt,
+                                              v.source == S::BaseTmd ? as(v.version) : std::nullopt,
+                                              v.revision, &g.version_source);
+    }
+    return g;
+}
 // AzaharFrame cheatstab: the in-game menu's Cheats segment (frame_cheats.cpp), made with the menu.
 QPointer<FrameCheats> g_frame_cheats;
 QPointer<FrameHomebrew> g_frame_homebrew; // AzaharFrame emerald
@@ -1455,6 +1518,11 @@ GMainWindow::GMainWindow(Core::System& system_)
                                     return std::nullopt;
                                 }
                                 return Mods::Crc32(code.data(), code.size());
+                            });
+                            // AzaharFrame compat: the game's region and version, for the mods and
+                            // packs made for another version of it
+                            g_frame_mods->SetGameInfoSource([this]() {
+                                return FrameGameInfoOf(system, this->game_path.toStdString());
                             });
                         }
                         g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
@@ -2908,6 +2976,20 @@ void GMainWindow::BootGame(const QString& filename) {
     game_list->SaveInterfaceLayout();
     config->Save();
 
+#ifdef ENABLE_FRAME_XR // AzaharFrame compat: a run that closed unexpectedly: its new mods go off
+    const u64 frame_guard_title = Loader::ResultStatus::Success == res ? title_id : 0;
+    FrameCrashGuard::Get().SetHooks(
+        {[this] { return emulation_running && emu_thread && emu_thread->IsRunning(); },
+         [] { return FrameXr::IsStarted() && FrameXr::VrShowing(); },
+         [] {
+             if (g_frame_xr_set_menu) {
+                 g_frame_xr_set_menu(true);
+             }
+         },
+         [this]() -> QWidget* { return this; }});
+    FrameCrashGuard::Get().BeforeBoot(frame_guard_title);
+#endif
+
     if (!LoadROM(filename)) {
         render_window->ReleaseRenderTarget();
         secondary_window->ReleaseRenderTarget();
@@ -2946,6 +3028,9 @@ void GMainWindow::BootGame(const QString& filename) {
     emu_thread = std::make_unique<EmuThread>(system, *render_window);
     emit EmulationStarting(emu_thread.get());
     emu_thread->start();
+#ifdef ENABLE_FRAME_XR // AzaharFrame compat: the new mods are watched until a clean run
+    FrameCrashGuard::Get().Started(frame_guard_title);
+#endif
 
     connect(render_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
     connect(render_window, &GRenderWindow::MouseActivity, this, &GMainWindow::OnMouseActivity);
@@ -3006,6 +3091,9 @@ void GMainWindow::ShutdownGame() {
     if (!emulation_running) {
         return;
     }
+#ifdef ENABLE_FRAME_XR // AzaharFrame compat: a normal stop is a clean run (not after an error)
+    FrameCrashGuard::Get().Stopped();
+#endif
 
     if (ui->action_Fullscreen->isChecked()) {
         HideFullscreen();
@@ -4300,6 +4388,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::CancelModInstall: // AzaharFrame integ3
     case C::DeletePack:
     case C::TexturesDialog:
+    case C::TurnBackOn: // AzaharFrame compat
     // AzaharFrame ui2: Install from Zip's commands were never passed on (they fell through to the
     // setting below, as Hide Bottom Screen).
     case C::InstallFromZip:
@@ -5820,6 +5909,9 @@ bool GMainWindow::ShowExceptionDialog(Core::System::ResultStatus result,
 
 void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string details) {
     QString status_message;
+#ifdef ENABLE_FRAME_XR // AzaharFrame compat: the stop that follows is not a clean run
+    FrameCrashGuard::Get().CoreError();
+#endif
 
     // Handle exception dialogs separately
     if (result == Core::System::ResultStatus::ErrorCoreExceptionRaised) {

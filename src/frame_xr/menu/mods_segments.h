@@ -66,6 +66,17 @@ struct ModOffer {
     std::string version_tip; ///< its tooltip
     bool version_match = false; ///< made for the game's own build: a filled chip, "Matches Your Game"
     std::string notes;       ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
+    // AzaharFrame compat: made for another region, release or version of the game (core/mods/compat.h):
+    // the "Not for Your Version" chip, a region chip, the reason (both chips' and the row's tooltip)
+    // and Install asks "This May Not Work" with `mismatch_body` first.
+    bool mismatch = false;
+    std::string region_chip;     ///< "USA Only", "USA and Japan", "" none
+    std::string mismatch_reason; ///< "Made for the USA version. Yours is the European version. ..."
+    std::string mismatch_body;   ///< "This mod was made for the USA version of the game, ..."
+    std::string downloads; ///< AzaharFrame compat: "10K+ Downloads" (DownloadsText), "" unknown
+    /// AzaharFrame compat: GameBanana has not scanned its file yet (AvailableMod::unscanned, known
+    /// after an install was refused for it): Install asks first
+    bool unscanned = false;
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -81,6 +92,10 @@ enum class ModsDialogKind : uint8_t {
               ///< Steam's browser.": Cancel, Open
     BigDownload, ///< "Download <other>?" (the size), `mod` = the pack: Cancel, Download
     DeletePack,  ///< "Delete <mod>?", "You can download it again.": Cancel, Delete
+    Mismatch,    ///< AzaharFrame compat: "This May Not Work", `mod` = the body, `other` = the
+                 ///< confirming button ("Install Anyway", "Download Anyway", "Turn On Anyway"): Cancel
+    Unscanned,   ///< AzaharFrame compat: "GameBanana Hasn't Scanned This File Yet", kUnscannedBody:
+                 ///< Cancel, Download Anyway
 };
 
 struct ModsDialog {
@@ -99,6 +114,12 @@ struct ModsListModel {
     bool needs_restart = false; ///< the snackbar
     std::string notice; ///< AzaharFrame catalog3: the snackbar's text instead of "Restart the Game to Apply"
     int spin = 0;               ///< the progress ring's step (15 a second) while anything runs
+    /// AzaharFrame compat: mods and packs turned off before this start because the game closed
+    /// unexpectedly after they were installed (core/mods/crash_guard.h): the snackbar
+    /// "Turned Off <names>: ..." with Turn Back On, on the Mods and Textures segments.
+    std::vector<std::string> turned_off;
+    /// Raised when `turned_off` is new: the menu shows the Mods tab's Mods segment once.
+    int turned_off_serial = 0;
     bool operator==(const ModsListModel&) const = default;
 };
 
@@ -133,6 +154,12 @@ struct PackOffer {
     std::string updated;   ///< AzaharFrame zipinstall: "Updated Sep 2026" ("" unknown)
     bool verified = false; ///< AzaharFrame zipinstall: known to work: the verified badge
     std::string notes;     ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
+    bool mismatch = false;       ///< AzaharFrame compat: as ModOffer (Download asks first)
+    std::string region_chip;
+    std::string mismatch_reason;
+    std::string mismatch_body;
+    std::string downloads; ///< AzaharFrame compat: "10K+ Downloads" (DownloadsText), "" unknown
+    bool unscanned = false; ///< AzaharFrame compat: as ModOffer (PackInfo::unscanned)
     bool operator==(const PackOffer&) const = default;
 };
 
@@ -199,6 +226,28 @@ std::string GithubLinkText(const std::string& url);
 std::string LinkText(const std::string& url);
 /// The host of such a link ("github.com"), "" when LinkText refuses it.
 std::string LinkHost(const std::string& url);
+
+/// AzaharFrame compat: the menu's own words for an entry made for another version.
+constexpr const char* kNotForYourVersion = "Not for Your Version";
+constexpr const char* kMayNotWorkTitle = "This May Not Work";
+/// AzaharFrame compat: a GameBanana file whose virus scan has not finished.
+constexpr const char* kUnscannedTitle = "GameBanana Hasn't Scanned This File Yet";
+constexpr const char* kUnscannedBody =
+    "GameBanana hasn't finished checking this file for viruses. Download it anyway?";
+/// After a version reason, in one dialog with it.
+constexpr const char* kUnscannedAlso = "GameBanana also hasn't finished checking this file for viruses.";
+/// What InstallMod / DownloadPack's value says the player allowed (bits).
+constexpr int kAnywayOtherVersion = 1;
+constexpr int kAnywayUnscanned = 2;
+/// "Turned Off No Bloom: The game closed unexpectedly after it was installed." (as
+/// Mods::CrashGuard::TurnedOffText, which the Flat message box uses).
+std::string TurnedOffText(const std::vector<std::string>& names);
+
+/// AzaharFrame compat: lifetime downloads, roughly: "Under 100 Downloads", "100+ Downloads",
+/// "1K+ Downloads", "5K+ Downloads", "10K+ Downloads", "50K+ Downloads".
+std::string DownloadsText(uint64_t count);
+/// "• a • b" of the parts that are not empty ("" when none is).
+std::string BulletLine(const std::vector<std::string>& parts);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);

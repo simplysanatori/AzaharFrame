@@ -649,6 +649,7 @@ void MenuPanel::Close() {
     view.remap = remap.View();
     open = false;
     view.open_menu = view.dragging = Id::None;
+    view.confirm = {}; // AzaharFrame compat: "This May Not Work" goes with the menu
     press_hand = -1;
 }
 
@@ -827,6 +828,17 @@ void MenuPanel::BuildModel(const Host& host) {
                 best = d;
                 m.fast_forward_speed = static_cast<int>(i);
             }
+        }
+    }
+    // AzaharFrame compat: mods turned off after the game closed unexpectedly: the Mods tab's Mods
+    // segment shows their snackbar, once per notice
+    if (m.mods.mods.turned_off_serial != turned_off_seen) {
+        turned_off_seen = m.mods.mods.turned_off_serial;
+        if (!m.mods.mods.turned_off.empty()) {
+            view.tab = Menu::Tab::Mods;
+            view.mods_segment = Menu::ModsSegment::Mods;
+            view.mods_page = Menu::ModsPage::Loaded;
+            view.page = Menu::Page::Tabs;
         }
     }
     // AzaharFrame texui: the two switches straight from the settings (the rest is the Qt side's)
@@ -1192,6 +1204,15 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::Cheat:
         if (t.index >= 0) {
+            // AzaharFrame compat: a cheat for another version asks before it turns on
+            const auto& cheats = model.mods.cheats.cheats;
+            if (t.index < static_cast<int>(cheats.size())) {
+                const auto& cheat = cheats[static_cast<std::size_t>(t.index)];
+                if (!cheat.enabled && !cheat.version_note.empty()) {
+                    view.confirm = {Id::Cheat, t.index, cheat.name};
+                    break;
+                }
+            }
             ask(MenuCommand::ToggleCheat, t.index);
         }
         break;
@@ -1226,8 +1247,12 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::PackDownload:
         if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
-            ask_text(MenuCommand::DownloadPack,
-                     model.mods.textures.downloads[static_cast<std::size_t>(t.index)].id);
+            const auto& o = model.mods.textures.downloads[static_cast<std::size_t>(t.index)];
+            if (o.mismatch || o.unscanned) { // AzaharFrame compat: "This May Not Work" first
+                view.confirm = {Id::PackDownload, t.index, o.id};
+                break;
+            }
+            ask_text(MenuCommand::DownloadPack, o.id);
         }
         break;
     case Id::PackCancel:
@@ -1247,6 +1272,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::RestartGame:
         ask(MenuCommand::Restart);
+        break;
+    case Id::TurnBackOn: // AzaharFrame compat: the "Turned Off" snackbar's action
+        ask(MenuCommand::TurnBackOn);
         break;
     // AzaharFrame zipinstall: Install from Zip (citra_qt/frame_mods.cpp)
     case Id::InstallFromZip:
@@ -1318,8 +1346,12 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ModInstall:
         if (t.index >= 0 && t.index < static_cast<int>(model.mods.mods.available.size())) {
-            ask_text(MenuCommand::InstallMod,
-                     model.mods.mods.available[static_cast<std::size_t>(t.index)].id);
+            const auto& o = model.mods.mods.available[static_cast<std::size_t>(t.index)];
+            if (o.mismatch || o.unscanned) { // AzaharFrame compat: "This May Not Work" first
+                view.confirm = {Id::ModInstall, t.index, o.id};
+                break;
+            }
+            ask_text(MenuCommand::InstallMod, o.id);
         }
         break;
     case Id::ModLink: { // "Open GitHub?" first
@@ -1340,6 +1372,35 @@ void MenuPanel::Click(Target t, Host& host) {
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
             break;
+        }
+        // AzaharFrame compat: "This May Not Work": Install Anyway, Download Anyway, Turn On Anyway
+        // (the model's own question, drawn first, is answered first)
+        if (view.confirm.id != Id::None) {
+            const Menu::MenuView::Confirm c = std::exchange(view.confirm, {});
+            const bool own = (view.mods_segment == Menu::ModsSegment::Textures
+                                  ? model.mods.textures.dialog
+                                  : model.mods.mods.dialog)
+                                 .kind != Menu::ModsDialogKind::None;
+            Menu::MenuView v = view;
+            v.confirm = c;
+            if (!own && Menu::CompatConfirmDialog(model, v).kind != Menu::ModsDialogKind::None) {
+                if (t.id == Id::DialogConfirm) {
+                    const int allowed = Menu::CompatConfirmFlags(model, v);
+                    if (c.id == Id::ModInstall) {
+                        ask_text(MenuCommand::InstallMod, c.key, allowed);
+                    } else if (c.id == Id::PackDownload) {
+                        ask_text(MenuCommand::DownloadPack, c.key, allowed);
+                    } else if (c.id == Id::Cheat) {
+                        ask(MenuCommand::ToggleCheat, c.index);
+                    }
+                    LOG_INFO(Frontend, "xr: in-game menu: {} anyway", c.key);
+                }
+                break;
+            }
+            if (!own) {
+                break; // the row went: nothing to answer
+            }
+            view.confirm = c; // after the model's question
         }
         // The segment's own dialog (the Qt side's), else the link's (the view's).
         const bool textures = view.mods_segment == Menu::ModsSegment::Textures;
@@ -1615,6 +1676,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         const bool zip_shown = ZipShown(model, view);
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
+        } else if (view.tab == Menu::Tab::Mods && !zip_shown &&
+                   Menu::CompatConfirmDialog(model, view).kind != Menu::ModsDialogKind::None) {
+            Click({Id::DialogCancel}, host); // AzaharFrame compat: "This May Not Work"
         } else if (zip_shown && zip.dialog.kind != Menu::ModsDialogKind::None) {
             Click({Id::DialogCancel}, host);
         } else if (zip_shown) {
@@ -1676,7 +1740,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
 
     // ---- The tooltip: a beam resting on a setting ----
     const Id rest = hover.id;
-    const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote;
+    const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote ||
+                         rest == Id::ModCompat || rest == Id::PackCompat; // AzaharFrame compat
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
@@ -1695,10 +1760,15 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         if (rest == Id::ModVersion) {
             row_text = at_offer(rest_idx) && !at_offer(rest_idx)->version_tip.empty();
         } else if (rest == Id::ModNote) {
-            row_text = at_offer(rest_idx) && !at_offer(rest_idx)->notes.empty();
-        } else if (rest == Id::PackNote) {
+            row_text = at_offer(rest_idx) && (!at_offer(rest_idx)->notes.empty() ||
+                                              !at_offer(rest_idx)->mismatch_reason.empty());
+        } else if (rest == Id::PackNote || rest == Id::PackCompat) {
             row_text = rest_idx >= 0 && rest_idx < static_cast<int>(packs.size()) &&
-                       !packs[static_cast<std::size_t>(rest_idx)].notes.empty();
+                       (rest == Id::PackNote ? !packs[static_cast<std::size_t>(rest_idx)].notes.empty() ||
+                                                   !packs[static_cast<std::size_t>(rest_idx)].mismatch_reason.empty()
+                                             : !packs[static_cast<std::size_t>(rest_idx)].mismatch_reason.empty());
+        } else if (rest == Id::ModCompat) { // AzaharFrame compat
+            row_text = at_offer(rest_idx) && !at_offer(rest_idx)->mismatch_reason.empty();
         }
         const bool has_text =
             row_text || (!indexed && !Menu::ExplainFor(rest).empty()) ||

@@ -354,6 +354,8 @@ std::string LabelFor(Id id) {
         return "Preload";
     case Id::RestartGame:
         return "Restart";
+    case Id::TurnBackOn: // AzaharFrame compat
+        return "Turn Back On";
     case Id::DownloadPacks:
         return "Download Packs";
     case Id::PackDownload:

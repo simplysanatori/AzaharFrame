@@ -206,6 +206,9 @@ enum class MenuCommand {
     CancelModInstall, ///< AzaharFrame integ3: the catalog mod downloading now (Mods::Library::Cancel)
     DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
     TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
+    TurnBackOn,        ///< AzaharFrame compat: the "Turned Off" snackbar's action
+    // AzaharFrame compat: InstallMod and DownloadPack with `value` 1: after "This May Not Work"
+    // (Install Anyway, Download Anyway), for an entry made for another version
     // AzaharFrame zipinstall: Install from Zip (Menu::ZipModel, citra_qt/frame_mods.cpp)
     InstallFromZip, ///< `value`: Menu::ZipTarget; VR opens the browser, Flat Qt's file dialog
     ZipBrowse,      ///< `text`: the folder to list

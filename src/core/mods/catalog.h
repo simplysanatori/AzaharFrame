@@ -54,7 +54,9 @@
 //
 // Optional entry fields (AzaharFrame modcat):
 //   "author_url": "https://gamebanana.com/members/1544353"   what the author's name opens
-//   "updated": "2026-11-12"                                   shown until the source's own date is known
+//   "updated": "2026-11-12" or "2026-11"                     shown until the source's own date is known
+//   "downloads": 12345                                        AzaharFrame compat: lifetime downloads
+//     (the order of Install Mods, and "10K+ Downloads" on the row)
 //   "version_chip": {"label": "1.0", "tip": "For the original 1.0 game.", "code_crc32": ["c75021d9"]}
 //     A mod made for one build of a game, shown as a chip on its row ("label", with "tip" as its
 //     tooltip). "code_crc32": the CRC32 of the game's .code this mod's code patch was made for (a

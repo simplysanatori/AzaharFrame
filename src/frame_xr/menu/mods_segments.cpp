@@ -52,6 +52,11 @@ constexpr float kRow2 = 64.0f;    ///< a row with a supporting line
 /// A mod's row with "Created by <author>": its name in the top 32 dp, the link's 48 dp target
 /// in the lower 48, so pointing at the name never opens the link.
 constexpr float kRowLink = 80.0f;
+/// AzaharFrame compat: a catalog row (Install Mods, Download Packs): the name, "Created by
+/// <author>" (its link's 48 dp target round that line) and the bulleted line ("• 10K+ Downloads
+/// • Updated Mar 2026"), at these centres from the row's top.
+constexpr float kRowCatalog = 96.0f;
+constexpr float kCatalogNameY = 22.0f, kCatalogByY = 50.0f, kCatalogBulletsY = 76.0f;
 constexpr float kLinkNameDy = -5.0f;  ///< the name 16 dp over the middle (RowText puts it 11 up)
 constexpr float kLinkLineDy = 3.0f;   ///< "Created by" 16 dp under the middle (CreatedBy: 13 down)
 constexpr float kDividerH = 17.0f; ///< a 1 dp divider and 8 dp each side
@@ -228,8 +233,10 @@ Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& auth
     return r;
 }
 
-/// AzaharFrame modcat2: where a row's notes tooltip goes (over the row's name, above it; under the
-/// row when it is the first one shown). Drawn after the list, up to three sentences wrapped.
+/// AzaharFrame modcat2: where a row's notes tooltip goes. AzaharFrame compat: wholly above the row
+/// (under it when there is no room above in the list), never over its own band, and no wider
+/// than the names' column (`name_x1`: where the leftmost chip or button of the rows shown
+/// starts), so it covers no chip. Drawn after the list, wrapped.
 struct NoteTip {
     float cx = 0.0f, y = 0.0f;
     bool above = true;
@@ -240,18 +247,70 @@ NoteTip MakeNoteTip(const Kit& kit, const std::string& text, const Rect& row, co
                     const Rect& area, float name_x0, float name_x1) {
     NoteTip t;
     t.text = text;
-    t.max_w = std::min(area.W() - 48.0f, 560.0f);
+    const float left = std::max(area.x0 + 4.0f, name_x0 - 12.0f);
+    t.max_w = std::max(200.0f, std::min(name_x1 - left, 560.0f));
     const auto lines = kit.TooltipLines(text, t.max_w - 20.0f);
     float widest = 0.0f;
     for (const auto& l : lines) {
         widest = std::max(widest, kit.TextWidth(Type::Tooltip, l));
     }
     const float half = (widest + 20.0f) * 0.5f;
-    t.cx = std::clamp(name_x0 + (name_x1 - name_x0) * 0.5f, area.x0 + half + 4.0f, area.x1 - half - 4.0f);
+    t.cx = left + half; // from the names' left edge
     const float h = 20.0f * static_cast<float>(lines.size()) + 10.0f;
-    t.above = row.y0 - h - 8.0f > list.y0;
-    t.y = t.above ? row.y0 + 8.0f : row.y1 - 8.0f;
+    // TooltipWrapped puts its box 4 dp from `y`: 2 dp clear of the row either way.
+    t.above = row.y0 - h - 2.0f >= list.y0;
+    t.y = t.above ? row.y0 + 2.0f : row.y1 - 2.0f;
     return t;
+}
+
+/// AzaharFrame compat: a chip's wrapped tooltip over (or under) the chip, inside the area.
+NoteTip MakeChipTip(const Kit& kit, const std::string& text, const Rect& chip, const Rect& list,
+                    const Rect& area) {
+    NoteTip t;
+    t.text = text;
+    t.max_w = std::min(area.W() - 48.0f, 600.0f);
+    const auto lines = kit.TooltipLines(text, t.max_w - 20.0f);
+    float widest = 0.0f;
+    for (const auto& l : lines) {
+        widest = std::max(widest, kit.TextWidth(Type::Tooltip, l));
+    }
+    const float half = (widest + 20.0f) * 0.5f;
+    t.cx = std::clamp(chip.Cx(), area.x0 + half + 4.0f, area.x1 - half - 4.0f);
+    const float h = 20.0f * static_cast<float>(lines.size()) + 10.0f;
+    t.above = chip.y0 - h - 8.0f >= list.y0;
+    t.y = t.above ? chip.y0 - 4.0f : chip.y1 + 4.0f;
+    return t;
+}
+
+/// AzaharFrame compat: "Not for Your Version" (filled, the error container) and the region chip
+/// (outlined in the error colour, as the Cheats rows' version chip), right-aligned at `right`;
+/// returns where they start (`right` when there is none) and sets `chips` to their extent.
+float CompatChips(Kit& kit, float right, float cy, const std::string& region, Rect* chips) {
+    constexpr float kChipH = 32.0f, kChipPad = 12.0f, kGap = 8.0f;
+    float x = right;
+    if (!region.empty()) {
+        const float w = kit.TextWidth(Type::Label, region) + kChipPad * 2.0f;
+        const Rect r{x - w, cy - kChipH * 0.5f, x, cy + kChipH * 0.5f};
+        kit.Stroke(r, 8.0f, 1.0f, Tok::kError);
+        kit.TextMid(r.Cx(), cy, Type::Label, Tok::kError, region, 1);
+        x = r.x0 - kGap;
+    }
+    const float w = kit.TextWidth(Type::Label, kNotForYourVersion) + kChipPad * 2.0f;
+    const Rect r{x - w, cy - kChipH * 0.5f, x, cy + kChipH * 0.5f};
+    kit.Fill(r, 8.0f, Tok::kErrorContainer);
+    kit.TextMid(r.Cx(), cy, Type::Label, Tok::kOnErrorContainer, kNotForYourVersion, 1);
+    if (chips) {
+        *chips = {r.x0, cy - kChipH * 0.5f, right, cy + kChipH * 0.5f};
+    }
+    return r.x0;
+}
+
+/// The row's tooltip: why it may not fit, then its notes.
+std::string RowTip(bool mismatch, const std::string& reason, const std::string& notes) {
+    if (!mismatch || reason.empty()) {
+        return notes;
+    }
+    return notes.empty() ? reason : reason + " " + notes;
 }
 
 /// The link's target: the text's width and more (at least 48) and the row's lower 48 dp, under
@@ -259,6 +318,32 @@ NoteTip MakeNoteTip(const Kit& kit, const std::string& text, const Rect& row, co
 Rect LinkTarget(const Rect& link, const Rect& row) {
     const float pad = std::max(8.0f, (48.0f - link.W()) * 0.5f);
     return {link.x0 - pad, row.y1 - 48.0f, link.x1 + pad, row.y1};
+}
+
+/// AzaharFrame compat: a catalog row's three lines; returns the link's 48 dp target (empty: no
+/// link). `bullets` are the bulleted line's parts ("" ones left out); `error` draws it in the
+/// error colour (a failure).
+Rect CatalogRowText(Kit& kit, float x, float right, const Rect& row, const std::string& name,
+                    bool verified, const std::string& author, bool link, State link_state,
+                    const std::vector<std::string>& bullets, bool error) {
+    RowText(kit, x, right, row.y0 + kCatalogNameY, name, verified, "", false, 1.0f);
+    Rect target{};
+    if (!author.empty()) {
+        // CreatedBy draws 13 dp under its `cy` (the old second line's place)
+        const Rect l = CreatedBy(kit, x, right, row.y0 + kCatalogByY - 13.0f, author, link,
+                                 link_state, "", false, 1.0f, true);
+        if (link && l.W() > 0.0f) {
+            const float pad = std::max(8.0f, (48.0f - l.W()) * 0.5f);
+            target = {l.x0 - pad, row.y0 + kCatalogByY - 24.0f, l.x1 + pad, row.y0 + kCatalogByY + 24.0f};
+        }
+    }
+    const std::string line = BulletLine(bullets);
+    if (!line.empty()) {
+        const float base = row.y0 + kCatalogBulletsY + kit.CapHeightSized(kSmall, false) * 0.5f;
+        kit.TextSized(x, base, kSmall, false, error ? Tok::kError : Tok::kOnSurfaceVariant,
+                      kit.Fit(Type::Tooltip, line, right - x));
+    }
+    return target;
 }
 
 void EmptyState(Kit& kit, const Rect& area, char32_t icon, bool ring, int spin,
@@ -320,15 +405,90 @@ std::vector<std::string> Wrap(const Kit& kit, const std::string& s, float size, 
     return lines;
 }
 
-/// The dialog to show: the model's (the Qt side's question), else "Open GitHub?" for a link.
-ModsDialog DialogFor(const ModsDialog& dialog, const MenuView& view) {
-    if (dialog.kind != ModsDialogKind::None || view.open_link.empty()) {
+/// AzaharFrame compat: "This May Not Work" for the row the view asks about ("" kind None when
+/// the row is gone or fits after all).
+/// The dialog to show: the model's (the Qt side's question), else "This May Not Work" (AzaharFrame
+/// compat), else "Open GitHub?" for a link.
+ModsDialog DialogFor(const ModsDialog& dialog, const MenuView& view, const MenuModel& model) {
+    if (dialog.kind != ModsDialogKind::None) {
+        return dialog;
+    }
+    if (const ModsDialog c = CompatConfirmDialog(model, view); c.kind != ModsDialogKind::None) {
+        return c;
+    }
+    if (view.open_link.empty()) {
         return dialog;
     }
     return {ModsDialogKind::OpenLink, LinkHost(view.open_link), LinkText(view.open_link)};
 }
 
 } // namespace
+
+// AzaharFrame compat
+namespace {
+template <typename T>
+const T* At(const std::vector<T>& list, int index) {
+    return index >= 0 && index < static_cast<int>(list.size()) ? &list[static_cast<std::size_t>(index)]
+                                                               : nullptr;
+}
+
+} // namespace
+
+namespace {
+/// The version reason, the scan, or both in one dialog (the version reason first).
+template <typename Offer>
+ModsDialog OfferQuestion(const Offer& o, const char* anyway) {
+    if (o.mismatch && o.unscanned) {
+        return {ModsDialogKind::Mismatch, o.mismatch_body + " " + kUnscannedAlso, anyway};
+    }
+    if (o.mismatch) {
+        return {ModsDialogKind::Mismatch, o.mismatch_body, anyway};
+    }
+    if (o.unscanned) {
+        return {ModsDialogKind::Unscanned, kUnscannedBody, "Download Anyway"};
+    }
+    return {};
+}
+template <typename Offer>
+int OfferFlags(const Offer& o) {
+    return (o.mismatch ? kAnywayOtherVersion : 0) | (o.unscanned ? kAnywayUnscanned : 0);
+}
+} // namespace
+
+int CompatConfirmFlags(const MenuModel& model, const MenuView& view) {
+    const MenuView::Confirm& c = view.confirm;
+    if (c.id == Id::ModInstall) {
+        const ModOffer* o = At(model.mods.mods.available, c.index);
+        return o && o->id == c.key ? OfferFlags(*o) : 0;
+    }
+    if (c.id == Id::PackDownload) {
+        const PackOffer* o = At(model.mods.textures.downloads, c.index);
+        return o && o->id == c.key ? OfferFlags(*o) : 0;
+    }
+    return 0;
+}
+
+ModsDialog CompatConfirmDialog(const MenuModel& model, const MenuView& view) {
+    const MenuView::Confirm& c = view.confirm;
+    if (c.id == Id::ModInstall) {
+        const ModOffer* o = At(model.mods.mods.available, c.index);
+        if (o && o->id == c.key) {
+            return OfferQuestion(*o, "Install Anyway");
+        }
+    } else if (c.id == Id::PackDownload) {
+        const PackOffer* o = At(model.mods.textures.downloads, c.index);
+        if (o && o->id == c.key) {
+            return OfferQuestion(*o, "Download Anyway");
+        }
+    } else if (c.id == Id::Cheat) {
+        const CheatItem* o = At(model.mods.cheats.cheats, c.index);
+        if (o && o->name == c.key && !o->version_note.empty()) {
+            return {ModsDialogKind::Mismatch, CheatMismatchBody(o->version_note), "Turn On Anyway"};
+        }
+    }
+    return {};
+}
+
 
 std::string LinkText(const std::string& url) {
     static constexpr std::string_view kPrefix = "https://";
@@ -391,6 +551,35 @@ std::string GithubLinkText(const std::string& url) {
     return "github.com/" + std::string(path);
 }
 
+std::string DownloadsText(uint64_t count) {
+    if (count < 100) {
+        return "Under 100 Downloads";
+    }
+    if (count < 1000) {
+        return "100+ Downloads";
+    }
+    if (count < 5000) {
+        return "1K+ Downloads";
+    }
+    if (count < 10000) {
+        return "5K+ Downloads";
+    }
+    if (count < 50000) {
+        return "10K+ Downloads";
+    }
+    return "50K+ Downloads";
+}
+
+std::string BulletLine(const std::vector<std::string>& parts) {
+    std::string out;
+    for (const std::string& p : parts) {
+        if (!p.empty()) {
+            out += (out.empty() ? "\u2022 " : " \u2022 ") + p;
+        }
+    }
+    return out;
+}
+
 std::string JoinDetail(const std::vector<std::string>& parts) {
     std::string out;
     for (const std::string& p : parts) {
@@ -442,6 +631,45 @@ float TabMenu::DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& a
     return bar.y0 - 8.0f;
 }
 
+// AzaharFrame compat: "Turned Off <names>: The game closed unexpectedly after ..." with Turn
+// Back On; Material's two-line snackbar (68 dp) when the text needs it.
+std::string TurnedOffText(const std::vector<std::string>& names) {
+    std::string joined;
+    for (std::size_t i = 0; i < names.size(); i++) {
+        if (i > 0) {
+            joined += i + 1 == names.size() ? " and " : ", ";
+        }
+        joined += names[i];
+    }
+    return "Turned Off " + joined + ": The game closed unexpectedly after " +
+           (names.size() > 1 ? "they were" : "it was") + " installed.";
+}
+
+float TabMenu::DrawTurnedOffSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                                     const std::vector<std::string>& names, float bottom) {
+    const Rect c{area.x0 + kPad, area.y0, area.x1 - kPad, area.y1};
+    const std::string action = LabelFor(Id::TurnBackOn);
+    const float aw = kit.TextWidth(Type::Label, action) + 24.0f;
+    const float text_w = c.W() - 16.0f - 8.0f - aw - 8.0f;
+    const auto lines = Wrap(kit, TurnedOffText(names), 16.0f, false, text_w, 2);
+    const float h = lines.size() > 1 ? 68.0f : kSnackH;
+    const float y1 = std::min(bottom, area.y1 - kSnackGap);
+    const Rect bar{c.x0, y1 - h, c.x1, y1};
+    kit.Fill(bar, 4.0f, Tok::kInverseSurface);
+    const Rect a{bar.x1 - 8.0f - aw, bar.Cy() - 20.0f, bar.x1 - 8.0f, bar.Cy() + 20.0f};
+    kit.StateLayer(a, 20.0f, kInversePrimary, StateOf(view, {Id::TurnBackOn}));
+    kit.TextMid(a.Cx(), bar.Cy(), Type::Label, kInversePrimary, action, 1);
+    AddHit({a.x0, bar.y0, a.x1, bar.y1}, {Id::TurnBackOn}, area);
+    const float lh = 20.0f;
+    float ty = bar.Cy() - lh * static_cast<float>(lines.size()) * 0.5f;
+    for (const std::string& l : lines) {
+        kit.TextSized(bar.x0 + 16.0f, ty + lh * 0.5f + kit.CapHeightSized(16.0f, false) * 0.5f, 16.0f,
+                      false, Tok::kInverseOnSurface, l);
+        ty += lh;
+    }
+    return bar.y0 - 8.0f;
+}
+
 void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view) {
     if (d.kind == ModsDialogKind::None) {
         return;
@@ -482,13 +710,23 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = d.other.empty() ? std::string("You can download it again.") : d.other; // zipinstall
         confirm = "Delete";
         break;
+    case ModsDialogKind::Mismatch: // AzaharFrame compat
+        headline = kMayNotWorkTitle;
+        body = d.mod;
+        confirm = d.other;
+        break;
+    case ModsDialogKind::Unscanned: // AzaharFrame compat
+        headline = kUnscannedTitle;
+        body = kUnscannedBody;
+        confirm = "Download Anyway";
+        break;
     case ModsDialogKind::None:
         break;
     }
     constexpr float kW = 440.0f, kP = 24.0f, kHead = 26.0f, kBody = 16.0f;
     const float tw = kW - kP * 2.0f;
     const auto head_lines = Wrap(kit, headline, kHead, false, tw, 3);
-    const auto body_lines = Wrap(kit, body, kBody, false, tw, 3);
+    const auto body_lines = Wrap(kit, body, kBody, false, tw, 7); // AzaharFrame compat: 7 lines
     const float head_lh = 32.0f, body_lh = 24.0f;
     const float h = kP + head_lh * static_cast<float>(head_lines.size()) + 16.0f +
                     body_lh * static_cast<float>(body_lines.size()) + 24.0f + kButtonH + kP;
@@ -534,7 +772,10 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
     layout.max_scroll = 0.0f;
     float bottom = area.y1 - 8.0f;
-    if (m.needs_restart) {
+    if (!m.turned_off.empty()) { // AzaharFrame compat
+        bottom = DrawTurnedOffSnackbar(kit, view, area, m.turned_off, area.y1);
+    }
+    if (m.needs_restart && m.turned_off.empty()) { // one snackbar at a time: Turned Off first
         bottom = DrawRestartSnackbar(kit, view, area, m.notice); // AzaharFrame catalog3
     }
 
@@ -560,7 +801,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kExtension, false, 0,
                        "No Mods for This Game", "");
         } else {
-            std::vector<float> heights(m.available.size(), kRowLink);
+            std::vector<float> heights(m.available.size(), kRowCatalog);
             const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
             layout.max_scroll = s.max_scroll;
             layout.scroll_step = s.step;
@@ -572,14 +813,19 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                 std::string text;
             } chip_tip;
             NoteTip note_tip; // AzaharFrame modcat2
+            // AzaharFrame compat: the row whose notes show and where the names' column ends
+            const ModOffer* tip_row = nullptr;
+            Rect tip_rect{};
+            float names_right = c.x1;
+            NoteTip compat_tip;
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
-                if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
+                if (y + kRowCatalog <= list.y0 || y + kRowCatalog > list.y1 + 0.01f) {
                     continue; // whole rows only
                 }
                 const ModOffer& o = m.available[i];
                 const int idx = static_cast<int>(i);
-                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowLink};
+                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowCatalog};
                 const float cy = row.Cy();
                 AddHit(row, {Id::ModInstall, kLabelIndex}, list);
                 float right = c.x1;
@@ -650,37 +896,59 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     }
                     name_right = chip.x0 - kNameGap;
                 }
-                AddHit({row.x0, y, name_right, y + kRowLink}, {Id::ModNote, idx}, list);
-                if (view.tooltip == Id::ModNote && view.tooltip_index == idx && !o.notes.empty()) {
-                    note_tip = MakeNoteTip(kit, o.notes, row, list, area, c.x0, name_right);
+                // AzaharFrame compat: made for another version: the red chip and the region's
+                if (o.mismatch) {
+                    Rect chips{};
+                    const float x0 = CompatChips(kit, name_right + kNameGap - (o.version.empty() ? 16.0f : 8.0f), cy,
+                                                 o.region_chip, &chips);
+                    AddHit({chips.x0, cy - 24.0f, chips.x1, cy + 24.0f}, {Id::ModCompat, idx}, list);
+                    if (view.tooltip == Id::ModCompat && view.tooltip_index == idx &&
+                        !o.mismatch_reason.empty()) {
+                        compat_tip = MakeChipTip(kit, o.mismatch_reason, chips, list, area);
+                    }
+                    name_right = x0 - kNameGap;
                 }
-                RowText(kit, c.x0, name_right, cy + kLinkNameDy, o.name, o.verified, "", false,
-                        1.0f, true);
-                // AzaharFrame modcat: as Download Packs: the author alone, then "Updated Sep 2026"
-                // (the phase or the failure while it installs or when it failed); any https page
+                names_right = std::min(names_right, name_right);
+                AddHit({row.x0, y, name_right, y + kRowCatalog}, {Id::ModNote, idx}, list);
+                if (view.tooltip == Id::ModNote && view.tooltip_index == idx) {
+                    tip_row = &o;
+                    tip_rect = row;
+                }
+                // AzaharFrame compat: "Created by <author>" (any https page), then "• Matches Your
+                // Game • 10K+ Downloads • Updated Sep 2026" (the phase or the failure while it
+                // installs or when it failed)
                 const bool link = !LinkText(o.url).empty();
-                std::string rest = o.note;
-                if (rest.empty()) {
-                    rest = o.version_match ? (o.updated.empty() ? std::string("Matches Your Game")
-                                                                : "Matches Your Game \u00b7 " + o.updated)
-                                           : o.updated;
-                }
-                const Rect l = CreatedBy(kit, c.x0, name_right, cy + kLinkLineDy, o.author, link,
-                                         StateOf(view, {Id::ModLink, idx}), rest, o.error, 1.0f, false);
-                if (link && l.W() > 0.0f) {
-                    AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
+                const std::vector<std::string> bullets =
+                    !o.note.empty() ? std::vector<std::string>{o.note}
+                                    : std::vector<std::string>{o.version_match ? "Matches Your Game" : "",
+                                                               o.downloads, o.updated};
+                const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.verified, o.author,
+                                              link, StateOf(view, {Id::ModLink, idx}), bullets,
+                                              !o.note.empty() && o.error);
+                if (l.W() > 0.0f) {
+                    AddHit(l, {Id::ModLink, idx}, list);
                 }
             }
             kit.ClearClip();
             ScrollIndicator(kit, list, area.x1, s);
+            if (tip_row != nullptr) {
+                const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
+                if (!text.empty()) {
+                    note_tip = MakeNoteTip(kit, text, tip_rect, list, area, c.x0, names_right);
+                }
+            }
             if (!note_tip.text.empty()) {
                 kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
             }
             if (!chip_tip.text.empty()) {
                 kit.Tooltip(chip_tip.cx, chip_tip.y, chip_tip.text, chip_tip.above);
             }
+            if (!compat_tip.text.empty()) {
+                kit.TooltipWrapped(compat_tip.cx, compat_tip.y, compat_tip.text, compat_tip.above,
+                                   compat_tip.max_w);
+            }
         }
-        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
     }
 
@@ -699,7 +967,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, install,
                    StateOf(view, {Id::InstallMods}));
         AddHit(b, {Id::InstallMods}, area);
-        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
     }
     {
@@ -763,7 +1031,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
-    DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+    DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -775,7 +1043,11 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
     layout.max_scroll = 0.0f;
     float bottom = area.y1 - 8.0f;
-    if (m.needs_restart) {
+    const std::vector<std::string>& turned_off = model.mods.mods.turned_off; // AzaharFrame compat
+    if (!turned_off.empty()) {
+        bottom = DrawTurnedOffSnackbar(kit, view, area, turned_off, area.y1);
+    }
+    if (m.needs_restart && turned_off.empty()) {
         bottom = DrawRestartSnackbar(kit, view, area);
     }
     // AzaharFrame ui2: Install from Zip is on Download Packs, as it is on Install Mods.
@@ -786,7 +1058,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     if (view.textures_page == TexturesPage::Download) {
         DrawPackDownloads(kit, m, view, area, bottom);
-        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
     }
     // AzaharFrame ui2: the same as the Mods segment: one button to the page of this game's packs
@@ -805,7 +1077,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, download,
                    StateOf(view, {Id::DownloadPacks}));
         AddHit(b, {Id::DownloadPacks}, area);
-        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
     }
     {
@@ -898,7 +1170,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
-    DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+    DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
 }
 
 void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
@@ -919,20 +1191,24 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
                    "No Packs for This Game", "");
         return;
     }
-    std::vector<float> heights(m.downloads.size(), kRowLink);
+    std::vector<float> heights(m.downloads.size(), kRowCatalog);
     const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
     kit.Clip(list);
     NoteTip note_tip; // AzaharFrame modcat2
+    const PackOffer* tip_row = nullptr; // AzaharFrame compat: as Install Mods
+    Rect tip_rect{};
+    float names_right = c.x1;
+    NoteTip compat_tip;
     for (std::size_t i = 0; i < m.downloads.size(); i++) {
         const float y = top + s.tops[i] - s.scroll;
-        if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
+        if (y + kRowCatalog <= list.y0 || y + kRowCatalog > list.y1 + 0.01f) {
             continue; // whole rows only
         }
         const PackOffer& o = m.downloads[i];
         const int idx = static_cast<int>(i);
-        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowLink};
+        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowCatalog};
         const float cy = row.Cy();
         AddHit(row, {Id::PackDownload, kLabelIndex}, list);
         float right = c.x1;
@@ -984,28 +1260,51 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
             break;
         }
         }
-        const float text_right = right - kNameGap;
+        float text_right = right - kNameGap;
+        if (o.mismatch) { // AzaharFrame compat: made for another version
+            Rect chips{};
+            const float x0 = CompatChips(kit, right - 16.0f, cy, o.region_chip, &chips);
+            AddHit({chips.x0, cy - 24.0f, chips.x1, cy + 24.0f}, {Id::PackCompat, idx}, list);
+            if (view.tooltip == Id::PackCompat && view.tooltip_index == idx && !o.mismatch_reason.empty()) {
+                compat_tip = MakeChipTip(kit, o.mismatch_reason, chips, list, area);
+            }
+            text_right = x0 - kNameGap;
+        }
+        names_right = std::min(names_right, text_right);
         // AzaharFrame zipinstall: the verified badge; "<author> · Updated Sep 2026" (the phase
         // while it downloads, the error when it failed)
-        AddHit({row.x0, y, text_right, y + kRowLink}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
-        if (view.tooltip == Id::PackNote && view.tooltip_index == idx && !o.notes.empty()) {
-            note_tip = MakeNoteTip(kit, o.notes, row, list, area, c.x0, text_right);
+        AddHit({row.x0, y, text_right, y + kRowCatalog}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
+        if (view.tooltip == Id::PackNote && view.tooltip_index == idx) {
+            tip_row = &o;
+            tip_rect = row;
         }
-        RowText(kit, c.x0, text_right, cy + kLinkNameDy, o.name, o.verified, "", false, 1.0f, true);
+        // AzaharFrame compat: "Created by <author>", then "• 10K+ Downloads • Updated Sep 2026"
+        // (the phase while it downloads, the error when it failed)
         const bool failed = o.state == PackOfferState::Failed;
         const bool busy = o.state == PackOfferState::Downloading;
-        const std::string rest = failed || busy ? o.note : o.updated;
+        const std::vector<std::string> bullets = failed || busy ? std::vector<std::string>{o.note}
+                                                                : std::vector<std::string>{o.downloads, o.updated};
         const bool link = !LinkText(o.url).empty();
-        const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, o.author, link,
-                                 StateOf(view, {Id::PackLink, idx}), rest, failed, 1.0f, false);
-        if (link && l.W() > 0.0f) {
-            AddHit(LinkTarget(l, row), {Id::PackLink, idx}, list);
+        const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, o.verified, o.author, link,
+                                      StateOf(view, {Id::PackLink, idx}), bullets, failed);
+        if (l.W() > 0.0f) {
+            AddHit(l, {Id::PackLink, idx}, list);
         }
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
+    if (tip_row != nullptr) {
+        const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
+        if (!text.empty()) {
+            note_tip = MakeNoteTip(kit, text, tip_rect, list, area, c.x0, names_right);
+        }
+    }
     if (!note_tip.text.empty()) {
         kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
+    }
+    if (!compat_tip.text.empty()) {
+        kit.TooltipWrapped(compat_tip.cx, compat_tip.y, compat_tip.text, compat_tip.above,
+                           compat_tip.max_w);
     }
 }
 

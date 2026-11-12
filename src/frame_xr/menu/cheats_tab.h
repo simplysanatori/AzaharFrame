@@ -69,6 +69,11 @@ struct CheatsModel {
 /// The chip's text from a version note: "for v1.0, this game is v1.1" gives "v1.0".
 std::string VersionChip(const std::string& version_note);
 
+/// AzaharFrame compat: the "This May Not Work" body for turning on a cheat made for another
+/// version: "This cheat was made for version 1.1, and your game is version 1.0. It may not work."
+/// (a revision: "... made for revision 0, and your game is revision 1. ..."); "" for no note.
+std::string CheatMismatchBody(const std::string& version_note);
+
 /// The reason alone from a failed download's text: "Download failed: No Internet Connection"
 /// gives "No Internet Connection" (the title already says the download failed).
 std::string FailureReason(const std::string& error);

@@ -1507,14 +1507,36 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
     return out;
 }
 
-std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32> game_code_crc) const {
+std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32> game_code_crc,
+                                                 const Compat::Game* game) const {
     std::lock_guard lock{mutex_};
     std::vector<AvailableMod> out;
+    // AzaharFrame compat: the game's other regions and releases, and the build its code matches
+    Compat::Families families;
+    std::string matched_build;
+    if (game) {
+        game_code_crc = game->code_crc;
+        for (const auto& e : catalog_.mods) {
+            families.Add(e.title, e.title_ids);
+            if (game_code_crc && e.ServesTitle(title_id) &&
+                std::find(e.code_crc32.begin(), e.code_crc32.end(), *game_code_crc) !=
+                    e.code_crc32.end()) {
+                matched_build = e.chip;
+            }
+        }
+    }
     for (const auto& e : catalog_.mods) {
-        if (!e.ServesTitle(title_id)) {
+        Compat::Verdict verdict;
+        if (game) {
+            verdict = Compat::Judge({e.title_ids, e.chip, e.code_crc32}, *game, families, matched_build);
+            if (!verdict.shown) {
+                continue;
+            }
+        } else if (!e.ServesTitle(title_id)) {
             continue;
         }
         AvailableMod a;
+        a.compat = std::move(verdict);
         a.id = e.id;
         a.name = e.name;
         a.title = e.title;
@@ -1545,12 +1567,22 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         }
         out.push_back(std::move(a));
     }
-    // Made for the game's own build first, the maintainer's next, then by name
+    // AzaharFrame compat: those for the game's own version first (with `game`; without it the
+    // build the code matches first), then the most downloaded (unknown counts last), then by name
     std::stable_sort(out.begin(), out.end(), [](const AvailableMod& a, const AvailableMod& b) {
+        if (a.compat.Fits() != b.compat.Fits()) {
+            return a.compat.Fits();
+        }
         if (a.matches_game != b.matches_game) {
             return a.matches_game;
         }
-        return a.verified != b.verified ? a.verified : a.name < b.name;
+        if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
+            return a.downloads > 0;
+        }
+        if (a.downloads != b.downloads) {
+            return a.downloads > b.downloads;
+        }
+        return a.name < b.name;
     });
     return out;
 }
@@ -1680,13 +1712,14 @@ RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
 
 // AzaharFrame catalog3: the whole install (download, joining, unpacking, MEGA decryption) runs on a thread
 // of its own at the lowest priority, so a game that is running is not slowed by it. bsdtar inherits it.
-InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool replace, bool allow_unscanned) {
+InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool replace, bool allow_unscanned,
+                                bool other_version) {
     InstallOutcome outcome;
     std::thread worker([&] {
         Multipart::LowerThisThreadPriority();
         allow_unscanned_ = allow_unscanned;
         hit_unscanned_ = false;
-        outcome = InstallImpl(title_id, mod_id, replace);
+        outcome = InstallImpl(title_id, mod_id, replace, other_version);
         outcome.unscanned = hit_unscanned_;
         if (hit_unscanned_) {
             std::lock_guard lock{mutex_};
@@ -1698,12 +1731,18 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
     return outcome;
 }
 
-InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, bool replace) {
+InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, bool replace,
+                                    bool other_version) {
     CatalogEntry entry;
     {
         std::lock_guard lock{mutex_};
         const CatalogEntry* found = catalog_.Find(mod_id);
-        if (found == nullptr || !found->ServesTitle(title_id)) {
+        // AzaharFrame compat: another version's mod after Install Anyway, or one already kept
+        // in this title's library (turned on again)
+        Manifest kept;
+        const bool in_library = found != nullptr && mod_id.find('/') == std::string::npos &&
+                                ReadManifest(LibraryDir(title_id) + mod_id + "/", kept);
+        if (found == nullptr || !(found->ServesTitle(title_id) || other_version || in_library)) {
             found = nullptr;
         } else {
             entry = *found;
@@ -1797,14 +1836,30 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
         }
         // target path -> index in `paths` (the later of two files with one target wins)
         std::map<std::string, std::size_t> mod_targets, tex_targets;
-        for (std::size_t i = 0; i < paths.size(); ++i) {
-            const std::string target = MapPath(paths[i], entry.rules, title_id);
-            if (!target.empty()) {
-                mod_targets[target] = i;
+        const auto map_for = [&](u64 rules_tid) {
+            mod_targets.clear();
+            tex_targets.clear();
+            for (std::size_t i = 0; i < paths.size(); ++i) {
+                // the targets are always this title's folder; only the rules' {tid} changes
+                const std::string target = MapPath(paths[i], entry.rules, rules_tid);
+                if (!target.empty()) {
+                    mod_targets[target] = i;
+                }
+                const std::string tex = MapTexturePath(paths[i], entry.texture_rules, rules_tid);
+                if (!tex.empty()) {
+                    tex_targets[tex] = i;
+                }
             }
-            const std::string tex = MapTexturePath(paths[i], entry.texture_rules, title_id);
-            if (!tex.empty()) {
-                tex_targets[tex] = i;
+        };
+        map_for(title_id);
+        // AzaharFrame compat: Install Anyway: the files of the region it was made for
+        for (std::size_t i = 0; mod_targets.empty() && tex_targets.empty() &&
+                                !entry.ServesTitle(title_id) && i < entry.title_ids.size();
+             i++) {
+            map_for(entry.title_ids[i]);
+            if (!mod_targets.empty() || !tex_targets.empty()) {
+                LOG_INFO(Core, "mods: {} installed from its files for {}", entry.id,
+                         TitleIdText(entry.title_ids[i]));
             }
         }
         if (mod_targets.empty() && tex_targets.empty()) {
