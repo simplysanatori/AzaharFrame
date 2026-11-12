@@ -91,7 +91,7 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
 
 namespace {
 
-/// "2.0.0" as numbers ({2, 0, 0}); a "-rc1" style suffix is left out; nullopt when not x.y.z.
+/// "1.2.0" as numbers ({1, 2, 0}); a "-rc1" style suffix is left out; nullopt when not x.y.z.
 std::optional<std::array<u32, 3>> ParseVersion(std::string_view v) {
     std::array<u32, 3> out{};
     std::size_t at = 0;
@@ -126,7 +126,7 @@ std::string FrameVersionOf(std::string_view build_name, std::string_view build_v
         build_version.substr(0, kFrameBuildTag.size()) == kFrameBuildTag) {
         return std::string(build_version.substr(kFrameBuildTag.size()));
     }
-    // Before 2.0.0 only build_name was written: one of our releases is "1.<minor>.<patch>".
+    // Before 1.2.0 only build_name was written: one of our releases is "1.<minor>.<patch>".
     const auto v = ParseVersion(build_name);
     if (v && (*v)[0] == 1) {
         return std::string(build_name);
@@ -178,7 +178,7 @@ std::array<u8, 256> MakeStateHeader(u64 program_id, std::string_view revision_he
 }
 
 std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time) {
-    // build_version "AZF 2.0.0", so a later build can name the version
+    // build_version "AZF 1.2.0", so a later build can name the version
     const std::string build_fullname = Common::g_build_fullname;
     return MakeStateHeader(program_id, Common::g_scm_rev, build_fullname,
                            std::string(kFrameBuildTag) + build_fullname, time);
