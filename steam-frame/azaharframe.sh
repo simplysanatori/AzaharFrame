@@ -22,6 +22,11 @@
 #   AZAHARFRAME_REFRESH_HZ   90 or 120 (default 120), asked of SteamVR
 #   QT_SCALE_FACTOR=1.25    scale Azahar's window, if it is too small
 #   AZAHARFRAME_VR_PICKER=1  the old VR game picker instead of Azahar's window in VR
+# Headset A/B runs (several launches, each with its own settings): session.queue in the data
+# folder, one launch per line, "label: AZAHARFRAME_X=1 AZAHARFRAME_Y=0" (only AZAHARFRAME_
+# variables; # comments and empty lines are skipped). Each launch takes the first line, sets its
+# variables for that launch only and removes it; the emulator's log of that launch is kept as
+# ab-logs/<time>-<label>.txt in the data folder. launch.log says which line ran.
 HERE=$(dirname "$(readlink -f "$0")")
 DATA=${AZAHARFRAME_HOME:-$HOME/.local/share/AzaharFrame}
 mkdir -p "$DATA/user" || exit 1
@@ -49,6 +54,29 @@ echo "== $(date -Is) Azahar for Frame (SteamAppId=${SteamAppId:-none})"
 if [ -f "$DATA/session.env" ]; then
   echo "session.env:"; cat "$DATA/session.env"
   set -a; . "$DATA/session.env"; set +a
+fi
+
+# AzaharFrame doubling: one line of session.queue for this launch (see the top of this file).
+QUEUE=$DATA/session.queue
+AB_LABEL=
+if [ -f "$QUEUE" ]; then
+  AB_LINE=$(grep -m 1 -v -E '^[[:space:]]*(#|$)' "$QUEUE")
+  if [ -n "$AB_LINE" ]; then
+    awk '!taken && $0 !~ /^[[:space:]]*(#|$)/ {taken = 1; next} {print}' "$QUEUE" > "$QUEUE.new" &&
+      mv -f "$QUEUE.new" "$QUEUE"
+    AB_VARS=${AB_LINE#*:}
+    AB_LABEL=${AB_LINE%%:*}
+    [ "$AB_LABEL" = "$AB_LINE" ] && { AB_LABEL=ab; AB_VARS=$AB_LINE; }
+    AB_LABEL=$(printf '%s' "$AB_LABEL" | tr -c 'A-Za-z0-9_.-' '-' | head -c 40)
+    echo "session.queue: $AB_LABEL:$AB_VARS"
+    for kv in $AB_VARS; do
+      case "$kv" in
+        AZAHARFRAME_[A-Z0-9_]*=*) export "$kv" ;;
+        *) echo "session.queue: '$kv' left out (only AZAHARFRAME_ variables)" ;;
+      esac
+    done
+    echo "session.queue: $(grep -c -v -E '^[[:space:]]*(#|$)' "$QUEUE") more launches queued"
+  fi
 fi
 
 # The mode: --flat / --vr on the command line, else AZAHARFRAME_FLAT (1 or 0, from the
@@ -342,6 +370,12 @@ done
 trap - TERM INT HUP
 [ -n "$MADE_MARK" ] && rm -f "$MARK"
 echo "exit status $rc"
+# AzaharFrame doubling: an A/B launch keeps its emulator log (the next start rotates it away).
+if [ -n "$AB_LABEL" ] && [ -f "$DATA/user/log/azahar_log.txt" ]; then
+  mkdir -p "$DATA/ab-logs" &&
+    cp -p "$DATA/user/log/azahar_log.txt" "$DATA/ab-logs/$(date +%Y%m%d-%H%M%S)-$AB_LABEL.txt" &&
+    echo "session.queue: log kept in ab-logs"
+fi
 # AzaharFrame memguard: why the scope ended. oom-kill: the emulator ran into its memory limit;
 # the next start says so once (out-of-memory holds the limit, in MiB).
 if [ ${#SCOPE[@]} -gt 0 ]; then
