@@ -186,7 +186,7 @@ Narrows the screen so the side HUD moves into view. Full modes only. The game lo
 
 ## Depth Factor Multiplier
 
-Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value: Super Mario 3D Land 100x, Mario Kart 7 10x (their presets).
+Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value. Mario Kart 7 and Super Mario 3D Land start at 10x (their presets).
 
 ## View Matrix Register
 

@@ -18,7 +18,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - New **Mods** tab in the VR menu, with **Cheats**, **Mods** and **Textures**.
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
 - Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
-- Cheats made for a different version of the game show which version.
+- Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions.
+- Code patches are matched to the game's own code. Fire Emblem Echoes (Europe) with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
 - **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' pages on GitHub, GameBanana, MEGA or Google Drive.
 - Each mod shows its author, version, downloads and date on one line.
@@ -113,13 +114,13 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Immersive View upgrades
 
 - **Match Game Camera** follows the game's camera while it runs, so cutscenes, zooms and widescreen mods stay correct. You can turn it off in the VR menu or in Azahar's settings if it causes problems.
-- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets.
+- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Narrow Screen, Wider View and where the screen sits. A value you set yourself always wins.
 - The immersive screen now fills your view, top to bottom too, so there is no black border around it. The game draws further up and down to fill it without stretching the picture. When a game zooms in to aim, the screen keeps its size and shape.
 - Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
 - Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
-- Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. You can still turn Immersive Mode on for it.
+- Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
 ### Smaller changes
@@ -128,12 +129,16 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Preparing Shaders** shows while a game waits for its shaders.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - Messages in the headset stay for 5 seconds.
+- Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
+- The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 
 ### Bug fixes
 
 - Fixed a freeze when switching between VR and Flat.
 - Fixed Azahar's menus no longer responding after some messages in VR.
 - Fixed a crash when loading a save state after a long pause with the microphone in use.
+- Fixed a crash when starting a game with a downloaded texture pack that has no options, such as 5X Redrawn UI HD in Pokémon X and Y.
+- **Install Mods** no longer stays on **Loading Mods**. It asks again, and after 20 seconds shows **Couldn't Load Mods** with **Retry**.
 - A game's **Properties** no longer shows a stray Turbo Speed Limit label.
 - From Azahar: a freeze when a controller connects or disconnects, signature checks for encrypted content, keyboard navigation, pop-ups on screens with a different DPI, the default hotkeys and a local wireless fix.
 
