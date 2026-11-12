@@ -191,6 +191,30 @@ void CancelGameKeyboard(bool fallback) {
     done(o);
 }
 
+bool CancelMenuKeyboard() { // AzaharFrame ui2
+    uint8_t cancel_id;
+    uint64_t seq;
+    {
+        Requests& r = Req();
+        std::scoped_lock lock{r.mutex};
+        if (!r.open || !r.over_menu) {
+            return false;
+        }
+        cancel_id = r.cancel_id;
+        seq = r.seq;
+    }
+    auto done = TakeDone(seq);
+    if (!done) {
+        return false;
+    }
+    LOG_INFO(Frontend, "xr: game keyboard: closed with the menu");
+    SwkbdOutcome o;
+    o.shown = true;
+    o.button = cancel_id;
+    done(o);
+    return true;
+}
+
 struct SwkbdPanel::Shared {
     std::mutex mutex;
     std::condition_variable cv;

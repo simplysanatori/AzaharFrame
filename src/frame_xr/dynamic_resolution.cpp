@@ -41,6 +41,10 @@ int Controller::Judge(const Second& s, int max_drop) {
         settle--;
         return drop;
     }
+    const bool holding = hold > 0; // AzaharFrame ui2
+    if (holding) {
+        hold--;
+    }
     if (Bad(s)) {
         good = 0;
         if (++bad >= kDownAfter && drop < max_drop) {
@@ -55,8 +59,9 @@ int Controller::Judge(const Second& s, int max_drop) {
             drop++;
             bad = 0;
             settle = kSettle;
+            hold = kHoldAfterDown; // AzaharFrame ui2
         }
-    } else if (Good(s)) {
+    } else if (Good(s) && !holding) {
         bad = 0;
         if (++good >= kUpAfter && drop > 0 && now >= blocked_until[drop - 1]) {
             drop--;
@@ -65,7 +70,11 @@ int Controller::Judge(const Second& s, int max_drop) {
             last_up = now;
         }
     } else {
-        good = 0; // neither: the good seconds must come in a row
+        // neither (or good while it holds): the good seconds must come in a row
+        if (Good(s)) {
+            bad = 0; // a good second breaks a bad run as ever
+        }
+        good = 0;
     }
     return drop;
 }
@@ -77,6 +86,7 @@ void Controller::Reset() {
 void Controller::Resume() { // AzaharFrame ui2
     bad = good = 0;
     settle = drop > 0 ? kSettle : 0; // the step back down is a hitch of its own
+    hold = drop > 0 ? kHoldAfterDown : 0;
 }
 
 namespace {
