@@ -103,14 +103,16 @@ bool CustomTexture::Release() {
         return false;
     }
     std::scoped_lock lock{decode_mutex};
-    data = {};
+    // AzaharFrame memwarn: `data = {}` is assign() from an empty initializer list, which keeps
+    // the capacity: nothing was freed. A swap with an empty vector frees it.
+    std::vector<u8>().swap(data);
     levels.clear();
     return true;
 }
 
 void CustomTexture::Drop() {
     std::scoped_lock lock{decode_mutex};
-    data = {};
+    std::vector<u8>().swap(data); // AzaharFrame memwarn: frees it (see Release)
     levels.clear();
 }
 
