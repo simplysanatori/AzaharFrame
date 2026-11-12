@@ -581,6 +581,61 @@ std::string BulletLine(const std::vector<std::string>& parts) {
     return out;
 }
 
+std::string CountWithCommas(uint64_t n) { // AzaharFrame ui3
+    std::string s = std::to_string(n);
+    for (int i = static_cast<int>(s.size()) - 3; i > 0; i -= 3) {
+        s.insert(static_cast<std::size_t>(i), ",");
+    }
+    return s;
+}
+
+std::string OptimizeNudgeText(const std::string& pack) {
+    return "Optimize " + pack + " for Frame?";
+}
+
+OptimizeRowText OptimizeText(const PackOptimize& o) {
+    OptimizeRowText t;
+    const std::string size = o.size_text.empty() ? std::string{} : " \u00b7 " + o.size_text;
+    t.title = "PNG" + size;
+    switch (o.state) {
+    case OptimizeState::None:
+        return {};
+    case OptimizeState::Png:
+        t.line = kOptimizeLine;
+        t.button = 1;
+        break;
+    case OptimizeState::Checking:
+        t.line = kOptimizeLine;
+        t.ring = true;
+        break;
+    case OptimizeState::Converting:
+        t.bar = true;
+        t.button = 2;
+        if (o.total > 0 && o.permille >= 0) {
+            t.line = CountWithCommas(static_cast<uint64_t>(o.done)) + " of " +
+                     CountWithCommas(static_cast<uint64_t>(o.total)) + " Textures \u00b7 " +
+                     std::to_string(o.permille / 10) + "%";
+        } else {
+            t.line = o.phase.empty() ? std::string("Starting") : o.phase;
+        }
+        break;
+    case OptimizeState::Stopped:
+        t.line = kOptimizeStopped;
+        t.button = 1;
+        break;
+    case OptimizeState::Failed:
+        t.line = "Not Optimized" + (o.error.empty() ? std::string{} : " \u00b7 " + o.error);
+        t.line_error = true;
+        t.button = 1;
+        break;
+    case OptimizeState::Optimized:
+        t.title = "Optimized for Frame \u00b7 ASTC" + size;
+        t.button = 3;
+        break;
+    }
+    return t;
+}
+
 std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
     if (!version.empty() && version.front() >= '0' && version.front() <= '9') {
         return "v" + version;
@@ -689,6 +744,95 @@ float TabMenu::DrawTurnedOffSnackbar(Kit& kit, const MenuView& view, const Rect&
     return bar.y0 - 8.0f;
 }
 
+// AzaharFrame ui3: Material's snackbar with one action (one line, two when the text needs it).
+float TabMenu::DrawActionSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                                  const std::string& text, Id action_id, float bottom) {
+    const Rect c{area.x0 + kPad, area.y0, area.x1 - kPad, area.y1};
+    const std::string action = LabelFor(action_id);
+    const float aw = kit.TextWidth(Type::Label, action) + 24.0f;
+    const float text_w = c.W() - 16.0f - 8.0f - aw - 8.0f;
+    const auto lines = Wrap(kit, text, 16.0f, false, text_w, 2);
+    const float h = lines.size() > 1 ? 68.0f : kSnackH;
+    const float y1 = std::min(bottom, area.y1 - kSnackGap);
+    const Rect bar{c.x0, y1 - h, c.x1, y1};
+    kit.Fill(bar, 4.0f, Tok::kInverseSurface);
+    const Rect a{bar.x1 - 8.0f - aw, bar.Cy() - 20.0f, bar.x1 - 8.0f, bar.Cy() + 20.0f};
+    kit.StateLayer(a, 20.0f, kInversePrimary, StateOf(view, {action_id}));
+    kit.TextMid(a.Cx(), bar.Cy(), Type::Label, kInversePrimary, action, 1);
+    AddHit({a.x0, bar.y0, a.x1, bar.y1}, {action_id}, area);
+    const float lh = 20.0f;
+    float ty = bar.Cy() - lh * static_cast<float>(lines.size()) * 0.5f;
+    for (const std::string& l : lines) {
+        kit.TextSized(bar.x0 + 16.0f, ty + lh * 0.5f + kit.CapHeightSized(16.0f, false) * 0.5f, 16.0f,
+                      false, Tok::kInverseOnSurface, l);
+        ty += lh;
+    }
+    return bar.y0 - 8.0f;
+}
+
+// AzaharFrame ui3: Optimize for Frame on a pack's page:
+//
+//   PNG · 4.7 GB                                          [Optimize for Frame]
+//   Converts the pack to a format the GPU reads directly. HD textures show
+//   sooner and use less memory. The original is kept.
+//
+//   PNG · 4.7 GB                                                      Stop
+//   ===========--------------------------
+//   1,234 of 2,308 Textures · 42%
+float TabMenu::DrawOptimizeRow(Kit& kit, const PackOptimize& o, const MenuView& view,
+                               const Rect& area, float x0, float x1, float y) {
+    const OptimizeRowText t = OptimizeText(o);
+    if (o.state == OptimizeState::None) {
+        return y;
+    }
+    constexpr float kTitleH = 48.0f, kLineH = 20.0f;
+    const float cy = y + kTitleH * 0.5f;
+    float right = x1;
+    if (t.button != 0) {
+        const Id id = t.button == 1 ? Id::OptimizePack : t.button == 2 ? Id::OptimizeStop : Id::UseOriginal;
+        const bool tonal = t.button == 1;
+        const std::string label = LabelFor(id);
+        const float w = ButtonWidth(kit, label, false, tonal ? 24.0f : 12.0f);
+        // a text button's own padding lines its label up with the edge
+        const float edge = tonal ? x1 : x1 + 12.0f;
+        const Rect b{edge - w, cy - kButtonH * 0.5f, edge, cy + kButtonH * 0.5f};
+        kit.Button(b, tonal ? ButtonStyle::Tonal : ButtonStyle::Text, 0, label, StateOf(view, {id}));
+        AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id}, area);
+        right = b.x0 - kNameGap;
+    } else if (t.ring) {
+        Ring(kit, x1 - 12.0f, cy, 24.0f, o.spin);
+        right = x1 - 24.0f - kNameGap;
+    }
+    kit.TextMid(x0, cy, Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, t.title, right - x0));
+    float yy = y + kTitleH;
+    if (t.bar) { // Material 3 linear progress: the indicator, a 4 dp gap, the track, the stop dot
+        constexpr float kH = 4.0f;
+        const float w = x1 - x0;
+        const float f = o.permille < 0 ? 0.0f : std::clamp(o.permille / 1000.0f, 0.0f, 1.0f);
+        const float split = x0 + w * f;
+        if (f > 0.0f) {
+            kit.Fill({x0, yy, split, yy + kH}, kH * 0.5f, Tok::kPrimary);
+        }
+        const float t0 = f > 0.0f ? split + 4.0f : x0;
+        if (t0 < x1) {
+            kit.Fill({t0, yy, x1, yy + kH}, kH * 0.5f, Tok::kSecondaryContainer);
+            kit.Fill({x1 - kH, yy, x1, yy + kH}, kH * 0.5f, Tok::kPrimary);
+        }
+        yy += kH + 8.0f;
+    }
+    if (!t.line.empty()) {
+        const auto lines = Wrap(kit, t.line, kSmall, false, x1 - x0, 2);
+        for (const std::string& l : lines) {
+            kit.TextSized(x0, yy + kLineH * 0.5f + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall,
+                          false, t.line_error ? Tok::kError : Tok::kOnSurfaceVariant, l);
+            yy += kLineH;
+        }
+    }
+    yy += 12.0f;
+    kit.Line(x0, yy, x1, yy, 1.0f, Tok::kOutlineVariant);
+    return yy + 8.0f;
+}
+
 void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view) {
     if (d.kind == ModsDialogKind::None) {
         return;
@@ -739,16 +883,28 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = kUnscannedBody;
         confirm = "Download Anyway";
         break;
+    case ModsDialogKind::Optimize: // AzaharFrame ui3
+        headline = "Optimize Texture Pack?";
+        body = kOptimizeBody;
+        confirm = "Optimize";
+        break;
     case ModsDialogKind::None:
         break;
     }
+    // AzaharFrame ui3: label and value rows under the supporting text (no "Label: value").
+    std::vector<std::pair<std::string, std::string>> rows;
+    if (d.kind == ModsDialogKind::Optimize) {
+        rows = {{"Textures", d.mod}, {"Size", d.other}};
+    }
+    constexpr float kInfoRowH = 28.0f;
+    const float rows_h = rows.empty() ? 0.0f : 8.0f + kInfoRowH * static_cast<float>(rows.size());
     constexpr float kW = 440.0f, kP = 24.0f, kHead = 26.0f, kBody = 16.0f;
     const float tw = kW - kP * 2.0f;
     const auto head_lines = Wrap(kit, headline, kHead, false, tw, 3);
     const auto body_lines = Wrap(kit, body, kBody, false, tw, 7); // AzaharFrame compat: 7 lines
     const float head_lh = 32.0f, body_lh = 24.0f;
     const float h = kP + head_lh * static_cast<float>(head_lines.size()) + 16.0f +
-                    body_lh * static_cast<float>(body_lines.size()) + 24.0f + kButtonH + kP;
+                    body_lh * static_cast<float>(body_lines.size()) + rows_h + 24.0f + kButtonH + kP;
     const Rect box{(kPanelW - kW) * 0.5f, (kPanelH - h) * 0.5f, (kPanelW + kW) * 0.5f,
                    (kPanelH + h) * 0.5f};
     kit.Fill(box, 28.0f, Tok::kSurfaceContainerHigh);
@@ -763,6 +919,16 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         kit.TextSized(box.x0 + kP, y + body_lh * 0.5f + kit.CapHeightSized(kBody, false) * 0.5f,
                       kBody, false, Tok::kOnSurfaceVariant, l);
         y += body_lh;
+    }
+    if (!rows.empty()) { // AzaharFrame ui3: the label left, the value right
+        y += 8.0f;
+        for (const auto& [label, value] : rows) {
+            const float base = y + kInfoRowH * 0.5f + kit.CapHeightSized(kBody, false) * 0.5f;
+            kit.TextSized(box.x0 + kP, base, kBody, false, Tok::kOnSurfaceVariant, label);
+            kit.TextSized(box.x1 - kP - kit.TextWidthSized(kBody, true, value), base, kBody, true,
+                          Tok::kOnSurface, value);
+            y += kInfoRowH;
+        }
     }
     // The actions: text buttons at the end, the confirming one last.
     float right = box.x1 - kP + 12.0f; // a text button's own padding lines its label up
@@ -1066,6 +1232,11 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     if (m.needs_restart && turned_off.empty()) {
         bottom = DrawRestartSnackbar(kit, view, area);
     }
+    // AzaharFrame ui3: "Optimize <Pack> for Frame?" over the pack list (once a pack)
+    if (!m.nudge_pack.empty() && view.textures_page == TexturesPage::Packs) {
+        bottom = DrawActionSnackbar(kit, view, area, OptimizeNudgeText(m.nudge_name), Id::OptimizeNudge,
+                                    bottom);
+    }
     // AzaharFrame ui2: Install from Zip is on Download Packs, as it is on Install Mods.
     if (view.textures_page == TexturesPage::Download && model.mods.zip.open &&
         model.mods.zip.target == ZipTarget::Textures) {
@@ -1079,6 +1250,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     if (view.textures_page == TexturesPage::Parts) { // AzaharFrame texparts
         DrawTextureParts(kit, m.parts, view, area, bottom);
+        DrawModsDialog(kit, DialogFor(m.dialog, view, model), view); // AzaharFrame ui3: Optimize
         return;
     }
     // AzaharFrame ui2: the same as the Mods segment: one button to the page of this game's packs
@@ -1595,6 +1767,7 @@ void TabMenu::DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuV
                   m.author, false, State::Rest, m.rest, false, 1.0f);
         y += 32.0f;
     }
+    y = DrawOptimizeRow(kit, m.optimize, view, area, c.x0, c.x1, y); // AzaharFrame ui3
     if (m.loading) {
         EmptyState(kit, {c.x0, y, c.x1, bottom}, Sym::kTexture, true, 0, "Reading the Pack", "");
         return;

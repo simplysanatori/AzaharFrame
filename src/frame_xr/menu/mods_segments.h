@@ -101,6 +101,8 @@ enum class ModsDialogKind : uint8_t {
                  ///< confirming button ("Install Anyway", "Download Anyway", "Turn On Anyway"): Cancel
     Unscanned,   ///< AzaharFrame compat: "GameBanana Hasn't Scanned This File Yet", kUnscannedBody:
                  ///< Cancel, Download Anyway
+    Optimize,    ///< AzaharFrame ui3: "Optimize Texture Pack?", kOptimizeBody, the rows Textures
+                 ///< (`mod`, "2,308") and Size (`other`, "About 4.7 GB"): Cancel, Optimize
 };
 
 struct ModsDialog {
@@ -163,6 +165,41 @@ struct TexturePartRow {
     bool operator==(const TexturePartRow&) const = default;
 };
 
+/// AzaharFrame ui3: Optimize for Frame, the pack-level row at the top of a pack's page
+/// (core/custom_tex/optimize.h; the Qt side runs the converter). The pair is the PNG pack and its
+/// optimized copy; the row shows the one chosen (active, or waiting for the next start).
+enum class OptimizeState : uint8_t {
+    None,       ///< no row (not a PNG pack, nor an optimized one)
+    Png,        ///< "PNG · 4.7 GB", Optimize for Frame
+    Checking,   ///< the estimate runs (a ring where the button was)
+    Converting, ///< the progress, Stop
+    Stopped,    ///< "Stopped. Optimize Again to Carry On.", Optimize for Frame
+    Failed,     ///< the reason in the error colour, Optimize for Frame
+    Optimized,  ///< "Optimized for Frame · ASTC · 2.1 GB", Use Original
+};
+
+struct PackOptimize {
+    OptimizeState state = OptimizeState::None;
+    std::string size_text; ///< the shown pack's size ("4.7 GB"), "" unknown
+    int done = 0, total = 0; ///< Converting: textures
+    int permille = -1;       ///< Converting: 0 to 1000, -1 not yet known
+    std::string phase;       ///< Converting before the first texture ("Preparing the Encoder")
+    std::string error;       ///< Failed: why ("Not Enough Space")
+    int spin = 0;            ///< Checking: the ring's step (menu_panel.cpp)
+    bool operator==(const PackOptimize&) const = default;
+};
+
+/// AzaharFrame ui3: the row's text and button, for the state (unit-tested).
+struct OptimizeRowText {
+    std::string title;   ///< "PNG · 4.7 GB", "Optimized for Frame · ASTC · 2.1 GB"
+    std::string line;    ///< under it ("" none)
+    bool line_error = false;
+    int button = 0;      ///< 0 none, 1 Optimize for Frame (tonal), 2 Stop (text), 3 Use Original (text)
+    bool ring = false;   ///< a progress ring in the button's place (Checking)
+    bool bar = false;    ///< a linear progress bar under the title (Converting)
+};
+OptimizeRowText OptimizeText(const PackOptimize& o);
+
 struct TexturePartsModel {
     std::string pack_id; ///< the pack the page is for ("" none)
     std::string title;   ///< the pack's name
@@ -172,6 +209,7 @@ struct TexturePartsModel {
     bool all_buttons = false; ///< it has checkboxes: All On, All Off
     bool note = false;        ///< parts conflict: the order note
     std::vector<TexturePartRow> rows;
+    PackOptimize optimize; ///< AzaharFrame ui3: Optimize for Frame
     bool operator==(const TexturePartsModel&) const = default;
 };
 
@@ -216,6 +254,10 @@ struct TexturesModel {
     ModsDialog dialog;                  ///< BigDownload, DeletePack
     int spin = 0;                       ///< the progress ring's step while a download runs
     TexturePartsModel parts;            ///< AzaharFrame texparts: the Customize page
+    /// AzaharFrame ui3: "Optimize <Pack> for Frame?" with Optimize (the pack's page), once a pack:
+    /// a PNG pack over 1 GB turned on or downloaded. "" none.
+    std::string nudge_pack; ///< its id
+    std::string nudge_name;
     bool operator==(const TexturesModel&) const = default;
 };
 
@@ -294,6 +336,19 @@ std::string BulletLine(const std::vector<std::string>& parts);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);
+
+/// AzaharFrame ui3: Optimize for Frame's strings (the Flat ones, shortened).
+inline constexpr const char* kOptimizeLine =
+    "Converts the pack to a format the GPU reads directly. HD textures show sooner and use less "
+    "memory. The original is kept.";
+inline constexpr const char* kOptimizeBody =
+    "Converts the pack to a format the GPU reads directly, so HD textures show sooner and use "
+    "less memory. The original is kept.";
+inline constexpr const char* kOptimizeStopped = "Stopped. Optimize Again to Carry On.";
+/// "Optimize 4K (PNG) for Frame?"
+std::string OptimizeNudgeText(const std::string& pack);
+/// "2,308"
+std::string CountWithCommas(uint64_t n);
 
 /// AzaharFrame ui3: a mod's version as its rows show it: "v172", "v1.5.9", "Beta 2"; a bare number
 /// gets the "v" ("172" -> "v172"); "" stays "".

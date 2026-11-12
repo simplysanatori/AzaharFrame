@@ -1863,3 +1863,126 @@ TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
         }
     }
 }
+
+// AzaharFrame ui3: Optimize for Frame, the pack-level row on a pack's page, its dialog and the
+// snackbar that points to it. No colons anywhere (label and value rows instead).
+TEST_CASE("Tab menu: Optimize for Frame", "[frame_xr][tabmenu]") {
+    // The row's text, state by state.
+    PackOptimize o;
+    CHECK(OptimizeText(o).title.empty());
+    CHECK(OptimizeText(o).button == 0);
+    o.state = OptimizeState::Png;
+    o.size_text = "4.7 GB";
+    OptimizeRowText t = OptimizeText(o);
+    CHECK(t.title == "PNG · 4.7 GB");
+    CHECK(t.line == kOptimizeLine);
+    CHECK(t.button == 1);
+    o.state = OptimizeState::Checking;
+    t = OptimizeText(o);
+    CHECK(t.ring);
+    CHECK(t.button == 0);
+    o.state = OptimizeState::Converting;
+    o.phase = "Preparing the Encoder";
+    t = OptimizeText(o);
+    CHECK(t.line == "Preparing the Encoder");
+    CHECK(t.bar);
+    CHECK(t.button == 2);
+    o.done = 1234;
+    o.total = 2308;
+    o.permille = 534;
+    t = OptimizeText(o);
+    CHECK(t.line == "1,234 of 2,308 Textures · 53%");
+    o.state = OptimizeState::Stopped;
+    t = OptimizeText(o);
+    CHECK(t.line == "Stopped. Optimize Again to Carry On.");
+    CHECK(t.button == 1);
+    CHECK_FALSE(t.bar);
+    o.state = OptimizeState::Failed;
+    o.error = "Not Enough Space";
+    t = OptimizeText(o);
+    CHECK(t.line == "Not Optimized · Not Enough Space");
+    CHECK(t.line_error);
+    o.state = OptimizeState::Optimized;
+    o.size_text = "2.1 GB";
+    t = OptimizeText(o);
+    CHECK(t.title == "Optimized for Frame · ASTC · 2.1 GB");
+    CHECK(t.line.empty());
+    CHECK(t.button == 3);
+    CHECK(CountWithCommas(0) == "0");
+    CHECK(CountWithCommas(999) == "999");
+    CHECK(CountWithCommas(2308) == "2,308");
+    CHECK(CountWithCommas(1234567) == "1,234,567");
+    CHECK(OptimizeNudgeText("4K (PNG)") == "Optimize 4K (PNG) for Frame?");
+    CHECK(LabelFor(Id::OptimizePack) == "Optimize for Frame");
+    CHECK(LabelFor(Id::OptimizeStop) == "Stop");
+    CHECK(LabelFor(Id::UseOriginal) == "Use Original");
+    CHECK(LabelFor(Id::OptimizeNudge) == "Optimize");
+    for (const std::string& s : {std::string(kOptimizeLine), std::string(kOptimizeBody),
+                                std::string(kOptimizeStopped), LabelFor(Id::OptimizePack)}) {
+        CHECK(s.find(':') == std::string::npos);
+    }
+
+    // On the page: under the pack's line, the button; the parts list starts below the row.
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Parts;
+    m.mods.textures = Packs(2);
+    TexturePartsModel& p = m.mods.textures.parts;
+    p.pack_id = "p1";
+    p.title = "4K (PNG)";
+    p.author = "Henriko Magnifico";
+    p.rest = "3.2 · 2,308 Textures On · 4.7 GB";
+    p.rows = {{PartRowKind::Check, "Effects", "52 Textures · 73 MB"},
+              {PartRowKind::Check, "UI", "40 Textures · 20 MB"}};
+    p.optimize.state = OptimizeState::Png;
+    p.optimize.size_text = "4.7 GB";
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::OptimizePack, -1));
+    REQUIRE(HasHit(d, Id::TexturePart, 0));
+    CHECK(FindHit(d, Id::TexturePart, 0)->r.y0 > FindHit(d, Id::OptimizePack, -1)->r.y1);
+    CheckTargets(d);
+    p.optimize.state = OptimizeState::Converting;
+    p.optimize.total = 2308;
+    p.optimize.done = 10;
+    p.optimize.permille = 4;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::OptimizeStop, -1));
+    CHECK(!HasHit(d, Id::OptimizePack, -1));
+    p.optimize.state = OptimizeState::Optimized;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::UseOriginal, -1));
+    p.optimize.state = OptimizeState::None; // a KTX pack of its own: no row
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::OptimizePack, -1));
+    CHECK(!HasHit(d, Id::UseOriginal, -1));
+
+    // The dialog: Optimize and Cancel over the page.
+    p.optimize.state = OptimizeState::Png;
+    m.mods.textures.dialog = {ModsDialogKind::Optimize, "2,308", "About 4.7 GB"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    { // under the scrim: the beam on the button hits the dialog's area
+        const MenuLayout::Hit* b = FindHit(d, Id::OptimizePack, -1);
+        REQUIRE(b != nullptr);
+        CHECK(d.menu.HitTest(b->r.Cx(), b->r.Cy()).id != Id::OptimizePack);
+    }
+    m.mods.textures.dialog = {};
+
+    // The snackbar on the pack list, with the restart one under it.
+    v.textures_page = TexturesPage::Packs;
+    m.mods.textures.nudge_pack = "p1";
+    m.mods.textures.nudge_name = "4K (PNG)";
+    m.mods.textures.needs_restart = true;
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::OptimizeNudge, -1));
+    REQUIRE(HasHit(d, Id::RestartGame, -1));
+    CHECK(FindHit(d, Id::OptimizeNudge, -1)->r.y1 <= FindHit(d, Id::RestartGame, -1)->r.y0);
+    CheckTargets(d);
+    v.textures_page = TexturesPage::Parts; // not over the pack's own page
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::OptimizeNudge, -1));
+}

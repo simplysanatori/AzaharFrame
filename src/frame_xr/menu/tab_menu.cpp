@@ -385,6 +385,14 @@ std::string LabelFor(Id id) {
         return "Play";
     case Id::HomebrewReinstall: // AzaharFrame ui3
         return "Reinstall";
+    case Id::OptimizePack: // AzaharFrame ui3
+        return "Optimize for Frame";
+    case Id::OptimizeStop:
+        return "Stop";
+    case Id::UseOriginal:
+        return "Use Original";
+    case Id::OptimizeNudge:
+        return "Optimize";
     case Id::AddCheat: // AzaharFrame ui2
         return "Add Cheat";
     case Id::InstallCheatFile:

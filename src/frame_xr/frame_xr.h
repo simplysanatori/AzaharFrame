@@ -226,6 +226,10 @@ enum class MenuCommand {
     TexturePart,       ///< `value`: the row clicked (a checkbox or a radio button)
     MoveTexturePart,   ///< `value`: the row; `text` "up" or "down"
     TexturePartsAll,   ///< `value` 1 All On, 0 All Off
+    // AzaharFrame ui3: Optimize for Frame on a pack's page (frame_mods.cpp), `text`: the page's pack
+    OptimizePack,    ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)
+    OptimizeStop,    ///< stops the conversion (carried on by the next Optimize)
+    UseOriginalPack, ///< the PNG pack again, from the next start
 };
 enum class MenuSetting {
     HideBottomScreen,

@@ -156,6 +156,11 @@ enum class Id : int {
     PartUp,      ///< index: mods.textures.parts.rows
     PartDown,    ///< index: mods.textures.parts.rows
     HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index: homebrew.items
+    // AzaharFrame ui3: Optimize for Frame on a pack's page (mods_segments.h PackOptimize)
+    OptimizePack,  ///< Optimize for Frame (the estimate, then the dialog)
+    OptimizeStop,  ///< Stop while it converts
+    UseOriginal,   ///< back to the PNG pack (from the next start)
+    OptimizeNudge, ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -365,6 +370,13 @@ private:
     float DrawTurnedOffSnackbar(Kit& kit, const MenuView& view, const Rect& area,
                                 const std::vector<std::string>& names, float bottom);
     void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
+    /// AzaharFrame ui3: a snackbar with one action ending at `bottom` (one or two lines); returns
+    /// where a list over it must end.
+    float DrawActionSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                             const std::string& text, Id action, float bottom);
+    /// AzaharFrame ui3: Optimize for Frame's row on a pack's page, from `y`; returns its bottom.
+    float DrawOptimizeRow(Kit& kit, const PackOptimize& o, const MenuView& view, const Rect& area,
+                          float x0, float x1, float y);
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);

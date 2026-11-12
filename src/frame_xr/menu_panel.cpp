@@ -875,6 +875,15 @@ void MenuPanel::BuildModel(const Host& host) {
                 .count() /
             66);
     }
+    if (m.mods.textures.parts.optimize.state == Menu::OptimizeState::Checking &&
+        view.tab == Menu::Tab::Mods && view.textures_page == Menu::TexturesPage::Parts) {
+        // AzaharFrame ui3: Optimize for Frame's ring while the estimate runs
+        m.mods.textures.parts.optimize.spin = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count() /
+            66);
+    }
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
@@ -1263,6 +1272,23 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::PartsBack:
         view.textures_page = Menu::TexturesPage::Packs;
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    // AzaharFrame ui3: Optimize for Frame on the pack's page; the snackbar's Optimize opens it
+    case Id::OptimizePack:
+        ask_text(MenuCommand::OptimizePack, model.mods.textures.parts.pack_id);
+        break;
+    case Id::OptimizeStop:
+        ask_text(MenuCommand::OptimizeStop, model.mods.textures.parts.pack_id);
+        break;
+    case Id::UseOriginal:
+        ask_text(MenuCommand::UseOriginalPack, model.mods.textures.parts.pack_id);
+        break;
+    case Id::OptimizeNudge:
+        if (!model.mods.textures.nudge_pack.empty()) {
+            view.textures_page = Menu::TexturesPage::Parts;
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask_text(MenuCommand::OpenTextureParts, model.mods.textures.nudge_pack);
+        }
         break;
     case Id::PartsAllOn:
     case Id::PartsAllOff:

@@ -824,6 +824,58 @@ int main(int argc, char** argv) {
         v.mods_segment = ModsSegment::Textures;
         v.hover = {Id::TexturePack, 1};
         ok &= shot("textures", tm, v);
+        { // AzaharFrame ui3: Optimize for Frame on a PNG pack's page, each state, and its snackbar
+            MenuModel om = m;
+            om.mods.textures = SampleTextures();
+            TexturePartsModel& pp = om.mods.textures.parts;
+            pp.pack_id = "oot3d-4k-png";
+            pp.title = "4K (PNG)";
+            pp.author = "Henriko Magnifico";
+            pp.rest = "3.2 \u00b7 2,034 Textures On \u00b7 4.7 GB";
+            pp.all_buttons = true;
+            pp.rows = {{PartRowKind::Check, "Characters", "291 Textures \u00b7 263 MB", nullptr, 0, 2},
+                       {PartRowKind::Check, "Effects", "52 Textures \u00b7 73 MB", nullptr, 0, 2},
+                       {PartRowKind::Check, "Environment", "1,434 Textures \u00b7 4.2 GB", nullptr, 0, 2},
+                       {PartRowKind::Check, "UI", "257 Textures \u00b7 160 MB", nullptr, 0, 0}};
+            pp.optimize.state = OptimizeState::Png;
+            pp.optimize.size_text = "4.7 GB";
+            MenuView ov;
+            ov.tab = mods_tab;
+            ov.mods_segment = ModsSegment::Textures;
+            ov.textures_page = TexturesPage::Parts;
+            ov.hover = {Id::OptimizePack};
+            ok &= shot("optimize-png", om, ov);
+            om.mods.textures.dialog = {ModsDialogKind::Optimize, "2,308", "About 4.7 GB"};
+            ov.hover = {Id::DialogConfirm};
+            ok &= shot("optimize-confirm", om, ov);
+            om.mods.textures.dialog = {};
+            pp.optimize.state = OptimizeState::Converting;
+            pp.optimize.done = 1234;
+            pp.optimize.total = 2308;
+            pp.optimize.permille = 534;
+            ov.hover = {};
+            ok &= shot("optimize-converting", om, ov);
+            pp.optimize = {OptimizeState::Stopped, "4.7 GB"};
+            ok &= shot("optimize-stopped", om, ov);
+            pp.optimize = {OptimizeState::Failed, "4.7 GB", 0, 0, -1, {}, "Not Enough Space"};
+            ok &= shot("optimize-failed", om, ov);
+            pp.optimize = {OptimizeState::Optimized, "2.1 GB"};
+            om.mods.textures.needs_restart = true;
+            ok &= shot("optimize-optimized", om, ov);
+            MenuModel nm = m;
+            nm.mods.textures = SampleTextures();
+            nm.mods.textures.packs[2].active = true;
+            nm.mods.textures.packs[1].active = false;
+            nm.mods.textures.packs[2].customize = true;
+            nm.mods.textures.nudge_pack = "oot3d-4k-png";
+            nm.mods.textures.nudge_name = "4K (PNG)";
+            nm.mods.textures.needs_restart = true;
+            MenuView nv;
+            nv.tab = mods_tab;
+            nv.mods_segment = ModsSegment::Textures;
+            nv.hover = {Id::OptimizeNudge};
+            ok &= shot("optimize-nudge", nm, nv);
+        }
         MenuModel tr = tm;
         for (auto& p : tr.mods.textures.packs) {
             p.active = p.id == "oot3d-1080p";
