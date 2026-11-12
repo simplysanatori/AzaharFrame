@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_map>
 #include "common/settings.h"
@@ -61,6 +62,13 @@ private:
     void InitJoystick(int joystick_index);
     void CloseJoystick(SDL_JoystickID instance_id);
 
+    /// AzaharFrame flatfix: read the controllers through SDL (SDL's joystick lock, then the map's).
+    void ReadPadInfos(std::vector<SDLPadInfo>& out);
+    void ReadPadStates(std::vector<SDLPadState>& out);
+    /// AzaharFrame flatfix: the poll thread (or the constructor, before it starts) copies them
+    /// into the snapshot below after each SDL_PumpEvents.
+    void PublishPads();
+
     /// Needs to be called before SDL_QuitSubSystem.
     void CloseJoysticks();
 
@@ -74,6 +82,17 @@ private:
     std::atomic<std::uint64_t> pad_generation{1}; ///< AzaharFrame pads: bumped on add / remove
     std::atomic<int> pad_count{0};             ///< AzaharFrame flat: open controllers
     std::atomic<std::uint64_t> pump_count{0};  ///< AzaharFrame flat: SDL_PumpEvents calls
+
+    // AzaharFrame flatfix: the controllers as the poll thread saw them after its last pump. Other
+    // threads (the XR frame loop, in VR and in Flat) read this copy and never take SDL's joystick
+    // lock: a frame loop that waited on SDL in Flat never got to switch back to VR.
+    std::mutex snapshot_mutex;
+    std::vector<SDLPadInfo> snapshot_infos;
+    std::vector<SDLPadState> snapshot_states;
+    std::atomic<std::uint64_t> snapshot_generation{0}; ///< pad_generation of snapshot_infos
+    std::uint64_t published_generation = 0;              ///< poll thread only
+    std::vector<SDLPadInfo> scratch_infos;               ///< poll thread only
+    std::vector<SDLPadState> scratch_states;             ///< poll thread only
 
     std::shared_ptr<SDLTouchFactory> touch_factory;
     std::shared_ptr<SDLButtonFactory> button_factory;
