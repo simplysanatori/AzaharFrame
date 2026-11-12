@@ -36,6 +36,11 @@ add_executable(tests
     frame_xr/swkbd.cpp # AzaharFrame kbd
     ../frame_xr/menu/swkbd_model.cpp # AzaharFrame kbd
     ../frame_xr/swkbd_config.cpp # AzaharFrame kbd
+    frame_xr/dynamic_resolution.cpp # AzaharFrame menuux
+    ../frame_xr/dynamic_resolution.cpp # AzaharFrame menuux
+    frame_xr/ui_sound.cpp # AzaharFrame menuux
+    ../frame_xr/ui_sound_wav.cpp # AzaharFrame menuux
+    frame_xr/toast_fit.cpp # AzaharFrame menuux
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

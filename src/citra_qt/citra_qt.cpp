@@ -151,9 +151,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h" // AzaharFrame texui
-#include "citra_qt/frame_bottom_window.h" // AzaharFrame window
 #include "citra_qt/frame_mode.h"
-#include "common/frame_bottom_window.h" // AzaharFrame window
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
@@ -1165,7 +1163,6 @@ GMainWindow::GMainWindow(Core::System& system_)
                 // Flat's own screen layout in flat, the configured one in VR.
                 Settings::frame_flat_layout.active = !vr;
                 SyncMenuUISettings();
-                UpdateSecondaryWindowVisibility(); // AzaharFrame window
                 if (emulation_running && system.IsPoweredOn()) {
                     system.GPU().Renderer().UpdateCurrentFramebufferLayout();
                 }
@@ -2863,12 +2860,7 @@ void GMainWindow::ShutdownGame() {
     disconnect(secondary_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
 
     render_window->hide();
-#ifdef ENABLE_FRAME_XR
-    // AzaharFrame window: the bottom screen's window goes see-through, never unmapped.
-    FrameBottomWindow::Update(secondary_window, false, false);
-    if (!FrameBottomWindow::KeepMapped())
-#endif
-        secondary_window->hide();
+    secondary_window->hide();
     loading_screen->hide();
     loading_screen->Clear();
 
@@ -4084,7 +4076,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             profile.analogs[i] = r.analogs[i]; // AzaharFrame padsui: the sticks
         }
         Settings::SaveProfile(Settings::values.current_input_profile_index);
-        system.ApplySettings(); // the game's input devices read the profile again
+        // AzaharFrame menuux: the game's input devices read the profile again; not
+        // ApplySettings, whose new audio sink was the "blip" (and a stutter) on every edit.
+        system.ReloadInputDevices();
         config->Save();
         FrameXrPushControls();
         return;
@@ -4172,6 +4166,21 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::TouchpadTouch: // AzaharFrame menu
         set(v.vr_touchpad_touch, std::min<u32>(u, 2));
         break;
+    case S::InternalResolution: // AzaharFrame menuux: the renderer reads it every frame
+        set(v.resolution_factor, std::clamp<u32>(u, 1, 18));
+        break;
+    case S::DynamicResolution:
+        set(v.vr_dynamic_resolution, r.value != 0);
+        break;
+    case S::TextureFilter:
+        set(v.texture_filter, static_cast<Settings::TextureFilter>(std::min<u32>(u, 5)));
+        break;
+    case S::AsyncShaders: // from the next start
+        set(v.async_shader_compilation, r.value != 0);
+        break;
+    case S::FastForwardSpeed:
+        set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
+        break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
         if (g_frame_mods) {
@@ -4205,6 +4214,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
+    FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
+    FrameKeepSetting keep_texture_filter{v.texture_filter};
+    FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4217,6 +4229,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();
+    keep_resolution.Restore();
+    keep_texture_filter.Restore();
+    keep_async_shaders.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }
@@ -4310,29 +4325,15 @@ void GMainWindow::ToggleWindowMode() {
 }
 
 void GMainWindow::UpdateSecondaryWindowVisibility() {
-#ifdef ENABLE_FRAME_XR
-    // AzaharFrame window: in VR the bottom screen's own window (vr_bottom_screen_window).
-    const bool bottom_window =
-        FrameBottomWindow::Update(secondary_window, FrameXr::VrShowing(), emulation_running);
-#else
-    const bool bottom_window = false;
-#endif
     if (!emulation_running) {
         return;
     }
-    if (bottom_window) {
-        // AzaharFrame window: shown above; the focus stays with the main window below.
-    } else if (Settings::values.layout_option.GetValue() ==
-               Settings::LayoutOption::SeparateWindows) {
+    if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
         secondary_window->restoreGeometry(UISettings::values.secondarywindow_geometry);
-        secondary_window->setWindowOpacity(1.0); // AzaharFrame window: see-through after VR
         secondary_window->show();
     } else {
         UISettings::values.secondarywindow_geometry = secondary_window->saveGeometry();
-#ifdef ENABLE_FRAME_XR
-        if (!FrameBottomWindow::KeepMapped()) // AzaharFrame window: see-through, never unmapped
-#endif
-            secondary_window->hide();
+        secondary_window->hide();
     }
     // make sure focus is on primary window whenever this changes
     if (UISettings::values.single_window_mode.GetValue()) {
@@ -6029,11 +6030,6 @@ void GMainWindow::UpdateWindowTitle() {
         secondary_window->setWindowTitle(QStringLiteral("Azahar for Frame %1 | %2 | %3")
                                              .arg(full_name, game_title, tr("Secondary Window")));
     }
-#ifdef ENABLE_FRAME_XR
-    if (Settings::frame_vr_bottom_window) { // AzaharFrame window
-        secondary_window->setWindowTitle(FrameBottomWindow::Title());
-    }
-#endif
 }
 
 void GMainWindow::UpdateUISettings() {

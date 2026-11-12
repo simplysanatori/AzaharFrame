@@ -189,6 +189,8 @@ public:
     QueueLock queue_lock;
     std::chrono::steady_clock::time_point last_emu_frame{}; // emu thread only
     Stats stats;
+    /// AzaharFrame menuux: the runtime's display period at the last xrWaitFrame (XR thread).
+    XrDuration display_period_ns = 0;
 
     // Session state (XR thread writes, others read).
     std::atomic<XrSessionState> state{XR_SESSION_STATE_UNKNOWN};

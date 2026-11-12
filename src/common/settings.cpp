@@ -293,7 +293,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_screen_layout.SetGlobal(true);      // AzaharFrame layout
     values.vr_move_screens.SetGlobal(true);       // AzaharFrame menu
     values.vr_touchpad_touch.SetGlobal(true);     // AzaharFrame menu
-    values.vr_bottom_screen_window.SetGlobal(true); // AzaharFrame menu
+    values.vr_dynamic_resolution.SetGlobal(true); // AzaharFrame menuux
 }
 
 /// Gets the graphics API that should be used; not necessarily one set in settings

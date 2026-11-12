@@ -929,6 +929,25 @@ void System::ApplySettings() {
     }
 }
 
+// AzaharFrame menuux
+void System::ReloadInputDevices() {
+    if (!IsPoweredOn()) {
+        return;
+    }
+    if (auto hid = Service::HID::GetModule(*this)) {
+        hid->ReloadInputDevices();
+    }
+    if (auto apt = Service::APT::GetModule(*this)) {
+        apt->GetAppletManager()->ReloadInputDevices();
+    }
+    if (auto ir_user = service_manager->GetService<Service::IR::IR_USER>("ir:USER")) {
+        ir_user->ReloadInputDevices();
+    }
+    if (auto ir_rst = service_manager->GetService<Service::IR::IR_RST>("ir:rst")) {
+        ir_rst->ReloadInputDevices();
+    }
+}
+
 void System::RegisterAppLoaderEarly(std::unique_ptr<Loader::AppLoader>& loader) {
     early_app_loader = std::move(loader);
 }

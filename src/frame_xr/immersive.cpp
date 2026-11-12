@@ -401,8 +401,7 @@ void OnFrame(const FrameInfo& info) {
         g.game_start_ms = VideoCore::Immersive::SteadyMs(); // AzaharFrame depth
         g.camera_fov_deg = g.camera_aspect = 0.0f;
         g.camera_pending_count = 0;
-        g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue() ||
-                        Settings::values.vr_bottom_screen_window.GetValue(); // AzaharFrame window
+        g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;

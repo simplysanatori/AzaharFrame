@@ -787,12 +787,13 @@ struct Values {
     // AzaharFrame menu: Detach Screens, global: 0 Off (both screens move as one), 1 Secondary (the
     // Secondary Screen moves freely), 2 Both (each screen moves on its own). Normal VR screens only.
     SwitchableSetting<u32, true> vr_move_screens{0, 0, 2, "vr_move_screens"};
-    // AzaharFrame menu: Touchpad Touch, global: 0 Off, 1 Touch, 2 Click. The controller touchpad
-    // maps onto the bottom screen.
-    SwitchableSetting<u32, true> vr_touchpad_touch{0, 0, 2, "vr_touchpad_touch"};
-    // AzaharFrame menu: experimental real second window for the bottom screen. Config file only,
-    // no menu row.
-    SwitchableSetting<bool> vr_bottom_screen_window{false, "vr_bottom_screen_window"};
+    // AzaharFrame menu: Touchpad, global: 1 Tap for Input (a finger on the pad touches), 2 Click
+    // for Input (pressing the pad touches, held it drags); 0 Off (config file only). The
+    // controller touchpad maps onto the bottom screen. AzaharFrame menuux: Tap by default.
+    SwitchableSetting<u32, true> vr_touchpad_touch{1, 0, 2, "vr_touchpad_touch"};
+    // AzaharFrame menuux: Dynamic Resolution, global: the internal resolution goes down a step
+    // while the headset misses frames and back up when it holds them (frame_xr/dynamic_resolution.h).
+    SwitchableSetting<bool> vr_dynamic_resolution{false, "vr_dynamic_resolution"};
 };
 
 extern Values values;

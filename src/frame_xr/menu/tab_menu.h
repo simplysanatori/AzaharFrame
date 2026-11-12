@@ -66,7 +66,7 @@ enum class Id : int {
     StatsPosition, ///< AzaharFrame statspos
     // Controls
     ControlsPage,
-    TouchpadTouch, ///< AzaharFrame menu
+    TouchpadTouch, ///< AzaharFrame menu: the Touchpad row (Tap for Input, Click for Input)
     EditControls,  ///< AzaharFrame menu
     RemapChip,     ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
     RemapCancel,   ///< AzaharFrame remap: stop listening
@@ -85,6 +85,11 @@ enum class Id : int {
     ShowControllers,
     WindowScale,
     Depth3d, ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
+    InternalResolution, ///< AzaharFrame menuux: resolution_factor, per game (a menu, 1x to 8x)
+    DynamicResolution,  ///< AzaharFrame menuux: vr_dynamic_resolution, global
+    TextureFilter,      ///< AzaharFrame menuux: texture_filter, per game
+    AsyncShaders,       ///< AzaharFrame menuux: async_shader_compilation, per game
+    FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
     ImmersiveMode,
     WiderView,
     GameFov,
@@ -138,6 +143,7 @@ enum class Lock : uint8_t {
     GameValue,   ///< the game has its own value, while Global is chosen
     FullOnly,    ///< only in the Full immersive modes (TabMenu finds these itself)
     Unavailable, ///< the runtime does not offer it
+    AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
 };
 
 struct SaveSlot {
@@ -166,7 +172,7 @@ struct MenuModel {
     std::string version;
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
-    int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
+    int touchpad_touch = 0; ///< AzaharFrame menuux: 0 Tap for Input, 1 Click for Input
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game
@@ -176,6 +182,11 @@ struct MenuModel {
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %
+    int internal_resolution = 1; ///< AzaharFrame menuux: resolution_factor (0 Auto, 1 to 18)
+    bool dynamic_resolution = false;
+    int texture_filter = 0;      ///< index into OptionsFor(Id::TextureFilter)
+    bool async_shaders = false;
+    int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
@@ -208,6 +219,15 @@ struct MenuView {
     RemapView remap; ///< AzaharFrame remap: Edit Controls
     bool operator==(const MenuView&) const = default;
 };
+
+/// AzaharFrame menuux: Internal Resolution's choices are 1x to kMaxResolution (the XR screens
+/// stop at 8x: renderer_vulkan_xr.cpp); Texture Filter's are these Settings::TextureFilter values
+/// (Anime4K is OpenGL only); Fast Forward Speed's these turbo_limit percentages.
+constexpr int kMaxResolution = 8;
+constexpr std::array<int, 5> kTextureFilters{0, 2, 3, 4, 5};
+constexpr std::array<int, 4> kFastForwardSpeeds{150, 200, 300, 400};
+/// AzaharFrame menuux: the line under the Touchpad row for its value (0 Tap, 1 Click).
+std::string TouchpadSupporting(int value);
 
 /// The option lists (Azahar for Frame's own strings).
 const std::vector<std::string>& OptionsFor(Id id);

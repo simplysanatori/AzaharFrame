@@ -224,9 +224,14 @@ enum class MenuSetting {
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
-    TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
+    TouchpadTouch, ///< AzaharFrame menu: `value` 1 Tap for Input, 2 Click for Input (0 Off)
     CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
     PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)
+    InternalResolution, ///< AzaharFrame menuux: `value` 1 to 8 (resolution_factor)
+    DynamicResolution,  ///< AzaharFrame menuux: `value` 0 or 1 (vr_dynamic_resolution)
+    TextureFilter,      ///< AzaharFrame menuux: `value` a Settings::TextureFilter
+    AsyncShaders,       ///< AzaharFrame menuux: `value` 0 or 1 (async_shader_compilation)
+    FastForwardSpeed,   ///< AzaharFrame menuux: `value` percent (turbo_limit)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

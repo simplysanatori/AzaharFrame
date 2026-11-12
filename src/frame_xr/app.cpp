@@ -23,11 +23,14 @@
 #include "common/stall_telemetry.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
+#include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
+#include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
+#include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
 
 namespace FrameXr {
 
@@ -390,6 +393,12 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double alloc_ms = telemetry.device_alloc_max_us.exchange(0) / 1000.0;
     const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
+    // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
+    {
+        const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
+        DynamicResolution::NoteSecond({seconds, frames, display_period_ns / 1e6, emu_frames,
+                                       gpu.frames, gpu.avg_ms, screens_live.load()});
+    }
     stats.window_us_sum.exchange(0);
     take(stats.window_us_max);
     const std::string emu =
@@ -415,6 +424,9 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
 
 void Runtime::LogFlatSummary(double seconds) {
     const auto take = [](std::atomic<uint32_t>& a) { return a.exchange(0); };
+    if (DynamicResolution::Drop() != 0) { // AzaharFrame menuux: flat draws at the setting
+        DynamicResolution::Reset();
+    }
     const uint32_t presents = take(stats.window_presents);
     const uint64_t us_sum = stats.window_us_sum.exchange(0);
     const uint32_t us_max = take(stats.window_us_max);
@@ -562,6 +574,7 @@ void Runtime::FrameLoop() {
         }
         last_wait = now;
         phases = {};
+        display_period_ns = fs.predictedDisplayPeriod; // AzaharFrame menuux
 
         auto mark = Clock::now();
         Watchdog::Beat("xrBeginFrame (with the queue lock)");
@@ -819,6 +832,7 @@ bool Start(const StartOptions& options) {
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
     Immersive::Install(); // AzaharFrame immersive mode; before the XR thread reads its state
+    DynamicResolution::Install(); // AzaharFrame menuux
     g_runtime->StartThread();
     LOG_INFO(Frontend, "xr: started");
     return true;
@@ -832,6 +846,8 @@ void Shutdown() {
     VideoCore::SetXrScreenSink(nullptr);
     g_runtime->StopThread();
     Immersive::Uninstall(); // AzaharFrame immersive mode
+    DynamicResolution::Uninstall(); // AzaharFrame menuux
+    UiSound::Shutdown();
     g_runtime->Destroy();
     g_runtime.reset();
     Settings::frame_flat_mono = false;

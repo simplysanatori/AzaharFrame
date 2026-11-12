@@ -11,14 +11,18 @@
 #include "common/settings.h"
 #include "frame_xr/hud.h"
 #include "frame_xr/session.h"
+#include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
 
 namespace FrameXr {
 
 namespace {
 
-constexpr uint32_t kToastWidth = 512;
-constexpr uint32_t kToastHeight = 96;
+// AzaharFrame menuux: rows as wide as the longest toast may need (toast_fit.h); each toast's box
+// is as wide as its text. The hint chip keeps its 512.
+constexpr uint32_t kToastWidth = ToastFit::kAtlasW;
+constexpr uint32_t kHintWidth = 512;
+constexpr uint32_t kToastHeight = ToastFit::kRowPx;
 constexpr int kToastKinds = 5;
 // AzaharFrame vrsize: two rows for ShowToastText, used in turn (the one on view stays as it is
 // while the other is copied).
@@ -34,7 +38,6 @@ constexpr uint32_t kAtlasHeight = kToastHeight * kAtlasRows + kPassthroughSize;
 constexpr XrTime kToastNs = 2'000'000'000;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
 constexpr float kToastDrop = 0.25f;     // metres below eye level
-constexpr float kToastWidthM = 0.45f;
 
 const char* ToastText(int kind) {
     switch (static_cast<Toast>(kind)) {
@@ -52,34 +55,74 @@ const char* ToastText(int kind) {
     return "";
 }
 
-// One toast row: the rounded box and the text centred in it. The font has no degree sign, so a
-// "°" in the text is drawn as a small ring.
-void DrawRow(frame_xr::ui::Canvas& canvas, int row, const std::string& text) {
+// A line of a toast centred on `cx`. The font has no degree sign, so a "°" in the text is
+// drawn as a small ring.
+void DrawToastLine(frame_xr::ui::Canvas& canvas, int font, float cx, float baseline,
+                   const std::string& text, const frame_xr::ui::Color& color) {
     namespace ui = frame_xr::ui;
+    const std::size_t deg = text.find("\xC2\xB0");
+    if (deg == std::string::npos) {
+        canvas.Text(cx, baseline, font, text.c_str(), color, 1);
+        return;
+    }
+    const float k = font == ui::kFontLarge ? 1.0f : 0.7f; // 40 and 28 px fonts
+    const std::string before = text.substr(0, deg);
+    const std::string after = text.substr(deg + 2);
+    const float ring_r = 5.5f * k, ring_w = 15.0f * k;
+    const float w_before = ui::TextWidth(font, before.c_str());
+    const float w_after = ui::TextWidth(font, after.c_str());
+    float x = cx - (w_before + ring_w + w_after) / 2.0f;
+    canvas.Text(x, baseline, font, before.c_str(), color);
+    x += w_before;
+    const float rx = x + ring_w / 2.0f, ry = baseline - 24.0f * k;
+    canvas.StrokeRoundRect(rx - ring_r, ry - ring_r, rx + ring_r, ry + ring_r, ring_r, 3.0f * k,
+                           color);
+    canvas.Text(x + ring_w, baseline, font, after.c_str(), color);
+}
+
+// The width of a toast line ("°" as the ring).
+float ToastLineWidth(int font, const std::string& text) {
+    namespace ui = frame_xr::ui;
+    const std::size_t deg = text.find("\xC2\xB0");
+    if (deg == std::string::npos) {
+        return ui::TextWidth(font, text.c_str());
+    }
+    const float k = font == ui::kFontLarge ? 1.0f : 0.7f;
+    return ui::TextWidth(font, text.substr(0, deg).c_str()) + 15.0f * k +
+           ui::TextWidth(font, text.substr(deg + 2).c_str());
+}
+
+// One toast row: the rounded box, as wide as the text needs (AzaharFrame menuux: toast_fit.h),
+// and the text centred in it; one line in the large font, else two in the small one.
+ToastFit::Box DrawRow(frame_xr::ui::Canvas& canvas, int row, const std::string& text) {
+    namespace ui = frame_xr::ui;
+    std::vector<std::string> lines;
+    const ToastFit::Box box =
+        ToastFit::Fit(ToastLineWidth(ui::kFontLarge, text), [&] {
+            lines = ui::WrapText(ui::kFontSmall, text,
+                                 static_cast<float>(kToastWidth) - 2.0f * ToastFit::kPadPx, 2);
+            float w = 0.0f;
+            for (const std::string& l : lines) {
+                w = std::max(w, ToastLineWidth(ui::kFontSmall, l));
+            }
+            return w;
+        });
     const int top_px = row * static_cast<int>(kToastHeight);
     std::fill(canvas.px.begin() + top_px * canvas.w,
               canvas.px.begin() + (top_px + static_cast<int>(kToastHeight)) * canvas.w, 0u);
     const float top = static_cast<float>(top_px);
-    canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 36,
-                     ui::rgb(28, 28, 34, 0.92f));
+    const float w = static_cast<float>(box.box_px);
+    canvas.RoundRect(2, top + 2, w - 2, top + kToastHeight - 2, 36, ui::rgb(28, 28, 34, 0.92f));
     const ui::Color white = ui::rgb(240, 240, 245);
-    const float baseline = top + 62;
-    const std::size_t deg = text.find("\xC2\xB0");
-    if (deg == std::string::npos) {
-        canvas.Text(kToastWidth / 2.0f, baseline, ui::kFontLarge, text.c_str(), white, 1);
-        return;
+    if (!box.two_lines) {
+        DrawToastLine(canvas, ui::kFontLarge, w / 2.0f, top + 62, text, white);
+    } else if (lines.size() == 1) {
+        DrawToastLine(canvas, ui::kFontSmall, w / 2.0f, top + 58, lines[0], white);
+    } else if (lines.size() >= 2) {
+        DrawToastLine(canvas, ui::kFontSmall, w / 2.0f, top + 40, lines[0], white);
+        DrawToastLine(canvas, ui::kFontSmall, w / 2.0f, top + 78, lines[1], white);
     }
-    const std::string before = text.substr(0, deg);
-    const std::string after = text.substr(deg + 2);
-    constexpr float kRingR = 5.5f, kRingWidth = 15.0f;
-    const float w_before = ui::TextWidth(ui::kFontLarge, before.c_str());
-    const float w_after = ui::TextWidth(ui::kFontLarge, after.c_str());
-    float x = kToastWidth / 2.0f - (w_before + kRingWidth + w_after) / 2.0f;
-    canvas.Text(x, baseline, ui::kFontLarge, before.c_str(), white);
-    x += w_before;
-    const float cx = x + kRingWidth / 2.0f, cy = baseline - 24.0f;
-    canvas.StrokeRoundRect(cx - kRingR, cy - kRingR, cx + kRingR, cy + kRingR, kRingR, 3.0f, white);
-    canvas.Text(x + kRingWidth, baseline, ui::kFontLarge, after.c_str(), white);
+    return box;
 }
 
 // AzaharFrame controls: a line of the hint chip in the small font, centred at `y` (baseline).
@@ -113,7 +156,7 @@ void DrawHintLine(frame_xr::ui::Canvas& canvas, float baseline, const std::strin
     for (const Piece& p : pieces) {
         width += p.arrow ? kArrowWidth : ui::TextWidth(ui::kFontSmall, p.text.c_str());
     }
-    float x = kToastWidth / 2.0f - width / 2.0f;
+    float x = kHintWidth / 2.0f - width / 2.0f;
     for (const Piece& p : pieces) {
         if (!p.arrow) {
             canvas.Text(x, baseline, ui::kFontSmall, p.text.c_str(), color);
@@ -147,7 +190,7 @@ void DrawHintRow(frame_xr::ui::Canvas& canvas, const std::string& text) {
     std::fill(canvas.px.begin() + top_px * canvas.w,
               canvas.px.begin() + (top_px + static_cast<int>(kToastHeight)) * canvas.w, 0u);
     const float top = static_cast<float>(top_px);
-    canvas.RoundRect(2, top + 2, kToastWidth - 2, top + kToastHeight - 2, 30,
+    canvas.RoundRect(2, top + 2, kHintWidth - 2, top + kToastHeight - 2, 30,
                      ui::rgb(28, 28, 34, 0.88f));
     const ui::Color white = ui::rgb(240, 240, 245);
     const std::size_t nl = text.find('\n');
@@ -177,8 +220,9 @@ void Hud::Create(Runtime& rt) {
         frame_xr::ui::InitFonts();
         atlas.Init(kToastWidth, kAtlasHeight); // all transparent black, then the toasts
         atlas.Clear(frame_xr::ui::rgb(0, 0, 0, 0.0f));
+        row_boxes.assign(kAtlasRows, ToastFit::Box{});
         for (int kind = 0; kind < kToastKinds; ++kind) {
-            DrawRow(atlas, kind, ToastText(kind));
+            row_boxes[static_cast<std::size_t>(kind)] = DrawRow(atlas, kind, ToastText(kind));
         }
         toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
         toast_chain.Poll(); // starts the copy; released on a later frame
@@ -285,9 +329,9 @@ bool Hud::HintQuad(XrTime time, Quad& quad) {
     }
     quad.swapchain = toast_chain.Handle();
     quad.image_rect = {{0, static_cast<int32_t>(kHintRow * static_cast<int>(kToastHeight))},
-                       {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
+                       {static_cast<int32_t>(kHintWidth), static_cast<int32_t>(kToastHeight)}};
     quad.pose = hint_pose;
-    quad.size = {hint_width, hint_width * kToastHeight / kToastWidth};
+    quad.size = {hint_width, hint_width * kToastHeight / kHintWidth};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;
@@ -346,7 +390,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
             const int row = text_row_waiting >= 0      ? text_row_waiting
                             : shown_kind == kToastKinds ? kToastKinds + 1
                                                         : kToastKinds;
-            DrawRow(atlas, row, text);
+            row_boxes[static_cast<std::size_t>(row)] = DrawRow(atlas, row, text);
             toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
             text_row_waiting = row;
             waiting_text = text;
@@ -370,11 +414,15 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
     if (row < 0) {
         return false;
     }
+    // AzaharFrame menuux: the row's box only, at its own size.
+    const ToastFit::Box box = static_cast<std::size_t>(row) < row_boxes.size()
+                                  ? row_boxes[static_cast<std::size_t>(row)]
+                                  : ToastFit::Box{};
     quad.swapchain = toast_chain.Handle();
     quad.image_rect = {{0, static_cast<int32_t>(row * static_cast<int>(kToastHeight))},
-                       {static_cast<int32_t>(kToastWidth), static_cast<int32_t>(kToastHeight)}};
+                       {static_cast<int32_t>(box.box_px), static_cast<int32_t>(kToastHeight)}};
     quad.pose = shown_pose;
-    quad.size = {kToastWidthM, kToastWidthM * kToastHeight / kToastWidth};
+    quad.size = {box.width_m, box.height_m};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;

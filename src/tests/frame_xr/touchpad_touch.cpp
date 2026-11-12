@@ -151,6 +151,57 @@ TEST_CASE("FrameXr touchpad: Click mode, contact only aims", "[frame_xr]") {
     REQUIRE_FALSE(r.cursor.visible);
 }
 
+// AzaharFrame menuux: Click for Input: holding the click keeps the touch and drags it.
+TEST_CASE("FrameXr touchpad: Click mode, a held click sustains and drags", "[frame_xr]") {
+    Rig r;
+    r.mode = TouchpadMode::Click;
+    r.Settle();
+    r.pad.contact = true;
+    r.pad.click = true;
+    r.pad.x = 0.25f;
+    r.pad.y = 0.5f;
+    r.Step();
+    REQUIRE(r.events.size() == 1);
+    REQUIRE(r.events[0].type == TouchEventType::Pressed);
+    // Held for a while with the finger still: no release, no moves.
+    for (int i = 0; i < 30; i++) {
+        r.Step();
+        REQUIRE(r.events.empty());
+    }
+    // Dragged while held: moves follow the finger, still no release.
+    for (int i = 1; i <= 10; i++) {
+        r.pad.x = 0.25f + 0.05f * static_cast<float>(i);
+        r.Step();
+        REQUIRE(r.events.size() == 1);
+        REQUIRE(r.events[0].type == TouchEventType::Moved);
+        REQUIRE(r.events[0].x == Approx(320.0f * r.pad.x).margin(0.01f));
+    }
+    // The pad stops reporting the finger (and puts it at 0, 0) while the click is held: the
+    // touch stays where it was.
+    const float x = r.events[0].x;
+    r.pad.contact = false;
+    r.pad.x = 0.0f;
+    r.pad.y = 0.0f;
+    for (int i = 0; i < 5; i++) {
+        r.Step();
+        REQUIRE(r.events.empty());
+        REQUIRE(r.cursor.pressed);
+        REQUIRE(r.cursor.px == Approx(x));
+    }
+    // The finger back: it drags on from its new point.
+    r.pad.contact = true;
+    r.pad.x = 0.5f;
+    r.pad.y = 0.5f;
+    r.Step();
+    REQUIRE(r.events.size() == 1);
+    REQUIRE(r.events[0].type == TouchEventType::Moved);
+    // Let go of the click: released.
+    r.pad.click = false;
+    r.Step();
+    REQUIRE(r.events.size() == 1);
+    REQUIRE(r.events[0].type == TouchEventType::Released);
+}
+
 TEST_CASE("FrameXr touchpad: Touch mode shows the dot while touching", "[frame_xr]") {
     Rig r;
     r.Settle();
