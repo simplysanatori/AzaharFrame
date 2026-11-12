@@ -2030,7 +2030,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds Ash-Greninja as a new Mega Evolution for Greninja, using the Gen 7 stats and Protean, triggered by a new Greninjite found on the starter Froakie. It needs a base X or Y install and changes no trainers or wild Pokemon. The download is about 624 MB, so it is large for the app."
+      "notes": "Adds Ash-Greninja as a new Mega Evolution for Greninja, using the Gen 7 stats and Protean, triggered by a new Greninjite found on the starter Froakie. It needs a base X or Y install and changes no trainers or wild Pokemon. The download is about 624 MB."
     },
     {
       "id": "pokemon-y-delta-over-serena",
@@ -2250,7 +2250,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 903 MB, which is large for the app. It may clash with other mods that change Pokemon models."
+      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 903 MB. It may clash with other mods that change Pokemon models."
     },
     {
       "id": "pokemon-omega-ruby-shiny-lock-removal",
@@ -2472,7 +2472,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 570 MB, which is large for the app. It may clash with other mods that change Pokemon models."
+      "notes": "Scales the battle size of every Pokemon to its real-world size, in the style of True Scale, by replacing one model data file. The download is about 570 MB. It may clash with other mods that change Pokemon models."
     },
     {
       "id": "mh4u-charge-blade-fast-morph-gp-usa",
@@ -2993,7 +2993,8 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin that load the audio, so it replaces other code patches. The patched archive is about 1.2 GB, which is large for the app; the author's Mod Compendium files are not needed."
+      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin that load the audio, so it replaces other code patches. The download is about 1.2 GB; the author's Mod Compendium files are not needed.",
+      "size": 1184516283
     },
     {
       "id": "persona-q-true-undub-eur",
@@ -3030,7 +3031,8 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin for the European version, which the author says can have problems detecting DLC. The patched archive is about 1.2 GB, which is large for the app."
+      "notes": "Restores the Japanese voices for the game and its DLC and keeps English-subtitled cutscenes. It ships a patched code.bin and exheader.bin for the European version, which the author says can have problems detecting DLC. The download is about 1.2 GB.",
+      "size": 1184516283
     },
     {
       "id": "persona-q-spanish-translation",
@@ -3068,7 +3070,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Translates the text and the textures to Spanish. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. The download is about 396 MB, which is large for the app, and the page does not say which region it is built for."
+      "notes": "Translates the text and the textures to Spanish. It carries a patched code.bin and exheader.bin, so it replaces other code patches and clashes with other text mods. The download is about 396 MB, and the page does not say which region it is built for."
     },
     {
       "id": "persona-q-portuguese-br-english",
@@ -4360,7 +4362,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives characters older-style textures and colours, adds custom music, changes the opening movie and adds the UFO copy essence to the True Arena, as many replaced model and sound files. The download is about 295 MB, which is large for the app, and the author says it does not work fully outside Citra."
+      "notes": "Gives characters older-style textures and colours, adds custom music, changes the opening movie and adds the UFO copy essence to the True Arena, as many replaced model and sound files. The download is about 295 MB, and the author says it does not work fully outside Citra."
     },
     {
       "id": "kirby-robobot-shadow-kirby",
@@ -5322,7 +5324,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A one-world mod with eight new levels, custom graphics, a new soundtrack and a custom world map. It covers the standard, Gold and Special editions of the game. It replaces other New Super Mario Bros. 2 level mods, which edit the same files, and the 141 MB download is over the app's current size limit."
+      "notes": "A one-world mod with eight new levels, custom graphics, a new soundtrack and a custom world map. It covers the standard, Gold and Special editions of the game. It replaces other New Super Mario Bros. 2 level mods, which edit the same files, and the download is 141 MB."
     },
     {
       "id": "nsmb2-lost-levels-part1",
@@ -5392,7 +5394,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The second half of the Lost Levels collection from the Super Mario Bros. Next project, with more cut courses, models and music. Parts 1 and 2 overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods; the 121 MB download is close to the app's size limit."
+      "notes": "The second half of the Lost Levels collection from the Super Mario Bros. Next project, with more cut courses, models and music. Parts 1 and 2 overwrite each other, so use one at a time. Replaces other New Super Mario Bros. 2 level mods; the download is 121 MB."
     },
     {
       "id": "nsmb2-nsmb-3ds",
@@ -5427,7 +5429,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "A two-world mod that changes every stage, the cannons and the Toad houses. It covers the standard, Gold and Special editions. Replaces other New Super Mario Bros. 2 level mods; the 144 MB download is over the app's current size limit, and a few preview images in the pack are copied into the mod folder but are never used."
+      "notes": "A two-world mod that changes every stage, the cannons and the Toad houses. It covers the standard, Gold and Special editions. Replaces other New Super Mario Bros. 2 level mods; the download is 144 MB, and a few preview images in the pack are copied into the mod folder but are never used."
     },
     {
       "id": "nsmb2-sm64-mario-luigi",
@@ -5532,7 +5534,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Restyles the game after the first three Paper Mario games: new models, sprites, text, music and a full retexture of the world. It is built for the European game, so the North American and Japanese versions are not covered. The pack is about 846 MB, far over the app's size limit, and its optional emblem textures are not installed.",
+      "notes": "Restyles the game after the first three Paper Mario games: new models, sprites, text, music and a full retexture of the world. It is built for the European game, so the North American and Japanese versions are not covered. The pack is about 846 MB, and its optional emblem textures are not installed.",
       "downloads": 1532,
       "updated": "2023-10"
     },
@@ -5733,7 +5735,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the 8-bit Super Mario Bros. and Super Mario Bros. 3 styles with the 16-bit All-Stars art. It is unfinished: the enemy sprites, sounds, question blocks and brick blocks are not ported yet. The 624 MB archive is far over the app's size limit and its layout was read from the file list only."
+      "notes": "Replaces the 8-bit Super Mario Bros. and Super Mario Bros. 3 styles with the 16-bit All-Stars art. It is unfinished: the enemy sprites, sounds, question blocks and brick blocks are not ported yet. The archive is 624 MB and its layout was read from the file list only."
     },
     {
       "id": "smm3ds-smm2-themes",
@@ -5805,7 +5807,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the whole New Super Mario Bros. U game style with Super Mario Bros. Wonder themes, tilesets, semi-solids, sound effects and music. It also changes the editor music, backgrounds and palette icons. The 275 MB download is over the app's size limit and the style it replaces is gone while it is installed.",
+      "notes": "Replaces the whole New Super Mario Bros. U game style with Super Mario Bros. Wonder themes, tilesets, semi-solids, sound effects and music. It also changes the editor music, backgrounds and palette icons. The download is 275 MB and the style it replaces is gone while it is installed.",
       "downloads": 1179,
       "updated": "2025-01"
     },
@@ -6342,7 +6344,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Replaces the Gypsy Dance track in Capture Mode with the previously unused Katyusha Threemix, and changes the matching name in the English text. The author only tested the North American version, and it replaces the whole sound archive, so it clashes with other music mods. The 74 MB download is under the app's size limit but sizeable."
+      "notes": "Replaces the Gypsy Dance track in Capture Mode with the previously unused Katyusha Threemix, and changes the matching name in the English text. The author only tested the North American version, and it replaces the whole sound archive, so it clashes with other music mods. The download is 74 MB."
     },
     {
       "id": "rh-ptbr-translation",
@@ -6403,7 +6405,8 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adds the new class portraits from the Etrian Odyssey HD Remaster by overwriting the extra DLC portrait slots. It needs the Yggdrasil Veteran DLC portrait pack installed, otherwise only one new portrait shows. The 1.1 GB archive replaces the game's main data archive and is far over the app's size limit."
+      "notes": "Adds the new class portraits from the Etrian Odyssey HD Remaster by overwriting the extra DLC portrait slots. It needs the Yggdrasil Veteran DLC portrait pack installed, otherwise only one new portrait shows. The 1.1 GB download replaces the game's main data archive.",
+      "size": 1155422774
     },
     {
       "id": "pkmn-sun-shiny-lock-removal",
@@ -6757,7 +6760,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Adjusts battle and overworld sizes so Pokémon match their real-world sizes. It replaces the Pokémon model archive, so any other mod that edits that file needs merging with it first. The 703 MB download is far over the app's size limit, and the author notes that Salandit shows only outlines."
+      "notes": "Adjusts battle and overworld sizes so Pokémon match their real-world sizes. It replaces the Pokémon model archive, so any other mod that edits that file needs merging with it first. The download is 703 MB, and the author notes that Salandit shows only outlines."
     },
     {
       "id": "pkmn-us-uhuru-gift-korean",
@@ -6783,7 +6786,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "An unofficial Korean edition of Aqua's Gen 8 and 9 expansion, adding Terastal, Dynamax, tournaments, Boss Rush and a roguelike tower. It needs Pokémon Ultra Sun (USA) version 1.0 with no update data. The mod-folder build is about 6.5 GB on Google Drive, far over the app's size limit, and it replaces the game code and data.",
+      "notes": "An unofficial Korean edition of Aqua's Gen 8 and 9 expansion, adding Terastal, Dynamax, tournaments, Boss Rush and a roguelike tower. It needs Pokémon Ultra Sun (USA) version 1.0 with no update data. The mod-folder build is about 6.5 GB on Google Drive, and it replaces the game code and data.",
       "downloads": 201,
       "updated": "2026-10",
       "size": 6494646872
@@ -7003,7 +7006,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle with the green hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
+      "notes": "Changes Link to Linkle with the green hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The download is 60 MB and replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hoodless",
@@ -7034,7 +7037,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle without the hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
+      "notes": "Changes Link to Linkle without the hood, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The download is 60 MB and replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hooded-pink",
@@ -7065,7 +7068,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle with the green hood and pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
+      "notes": "Changes Link to Linkle with the green hood and pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The download is 60 MB and replaces many of the game's model archives."
     },
     {
       "id": "albw-linkle-hoodless-pink",
@@ -7096,7 +7099,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Changes Link to Linkle without the hood and with pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The 60 MB download is under the app's size limit but replaces many of the game's model archives."
+      "notes": "Changes Link to Linkle without the hood and with pink hair, with her voice and some dialogue tweaks. The four Linkle variants overwrite each other, so use only one. The download is 60 MB and replaces many of the game's model archives."
     },
     {
       "id": "albw-wolf-link",
@@ -8914,7 +8917,8 @@ const char* DefaultCatalogJson() {
       "notes": "A Turkish translation for the European 3DS release, ported from the Switch patch by Reqrefusion. It replaces the game's code, so it clashes with other code patches, and its 132 MB data file makes the download about 113 MB. It is for the Europe version only."
     }
   ]
-})AZCAT";
+}
+)AZCAT";
 }
 
 } // namespace Mods
