@@ -169,9 +169,9 @@ TEST_CASE("Dock icon: desktop file and manifest", "[cpphelpers]") {
     const std::string desktop = FrameDockIcon::DesktopText(2147483648ULL);
     CHECK(desktop.find("[Desktop Entry]") == 0);
     CHECK(desktop.find("Azahar for Frame") != std::string::npos);
-    const std::string m = FrameDockIcon::ManifestText("/home/x/app", 2147483648ULL, "/nonexistent");
+    const std::string m = FrameDockIcon::ManifestText("/opt/x/app", 2147483648ULL, "/nonexistent");
     CHECK(m.find("\"app_key\"") != std::string::npos);
-    CHECK(m.find("/home/x/app") != std::string::npos);
+    CHECK(m.find("/opt/x/app") != std::string::npos);
 }
 
 TEST_CASE("Controller models: area-average scaling", "[cpphelpers]") {

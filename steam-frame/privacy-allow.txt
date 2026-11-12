@@ -11,3 +11,5 @@
 /(?:lib|plugins)/.*\.so[^/]*$	\((?:USA|Europe)\) (?:Inc|Ltd|GmbH|SA|AB|BV)\b
 # ICU's licence text (bundled with Qt) names third-party authors with their e-mail addresses in its copyright notices.
 (?:^|/)(?:steam-frame/portable/)?licenses/ICU-LICENSE\.txt$	[\w.+-]+@[\w.-]+
+# The vendored xz-embedded decoder (Emerald 3DS's pack builder) keeps its author's credit lines.
+^src/core/homebrew/xz/	Lasse Collin <lasse\.collin@tukaani\.org>
