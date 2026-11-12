@@ -8,7 +8,7 @@ It is my unofficial fork of [Azahar](https://github.com/azahar-emu/azahar), with
 ## Features
 
 - Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
-- Immersive modes, set up for Mario, Zelda and Kid Icarus
+- Immersive modes, set up for Mario and Zelda
 - Screens you move, resize, curve and detach
 - An in-game menu: save states, screen position and VR settings
 - Cheats, mods and texture packs, downloaded from the headset
