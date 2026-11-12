@@ -119,13 +119,13 @@ else
 fi
 # The texture pack converter (Optimize Texture Pack for Frame in the game list menu).  Its
 # encoder is built on first use into $DATA/tools, which stays across updates.
-TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp frame-controller-models.py"
+TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp frame-controller-models.py emerald3ds-build.py"
 TOOLS_SRC=$SRC_DIR/tools
 if [ "$(readlink -f "$TOOLS_SRC")" != "$(readlink -f "$DEST/tools")" ]; then
   act mkdir -p "$DEST/tools"
   for f in $TOOLFILES; do if [ -f "$TOOLS_SRC/$f" ]; then put "$TOOLS_SRC/$f" "$DEST/tools/$f"; fi; done
 fi
-for f in convert-texture-pack.sh build-astcenc.sh; do
+for f in convert-texture-pack.sh build-astcenc.sh emerald3ds-build.py; do  # AzaharFrame integ3: emerald3ds-build.py too
   if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
 done
 # The licences of the in-game menu's font and icons (THIRD_PARTY_NOTICES.md).

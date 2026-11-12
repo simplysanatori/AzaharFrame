@@ -87,6 +87,16 @@ check "fresh install: exit 0" test $rc -eq 0
 for f in azahar azaharframe.sh steam-cef.py dock-icon.py uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art/portrait.png art/wide.png art/hero.png art/logo.png art/icon.png art/icon-64.png art/icon-128.png art/icon-256.png tools/convert-texture-pack.sh azaharframe.vrmanifest; do
     check "installed $f" test -e "$APP/$f"
 done
+# AzaharFrame integ3: every file make-release.sh staged under tools/ is installed (a dry run into a
+# scratch program folder names each one, the real install puts each in place, executables stay executable).
+(cd "$U" && AZAHARFRAME_APP=$T/app-dry AZAHARFRAME_SKIP_STEAM=1 bash ./install.sh --dry-run < /dev/null > "$T/idry.log" 2>&1); rc=$?
+check "dry-run install: exit 0, nothing made" test $rc -eq 0 -a ! -e "$T/app-dry"
+for p in "$U"/tools/*; do
+    f=tools/$(basename "$p")
+    check "dry run would install $f" grep -qF "would copy $U/$f -> $T/app-dry/$f" "$T/idry.log"
+    check "installed $f" test -f "$APP/$f"
+    if [ -x "$p" ]; then check "  and it is executable" test -x "$APP/$f"; fi
+done
 check "installed programs are executable" test -x "$APP/azahar" -a -x "$APP/azaharframe.sh" -a -x "$APP/uninstall.sh"
 check "installed VERSION matches" test "$(head -n 1 "$APP/VERSION")" = "$VER"
 check "data folder made" test -d "$DATA/user"
