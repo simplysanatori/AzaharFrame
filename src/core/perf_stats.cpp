@@ -100,6 +100,8 @@ void PerfStats::BeginSystemFrame() {
         Common::StallTelemetry::Get().staging_wait_us.load(std::memory_order_relaxed);
     frame_begin_surface_gc_us =
         Common::StallTelemetry::Get().surface_gc_us.load(std::memory_order_relaxed);
+    frame_begin_shader_builds = // AzaharFrame stall
+        Common::StallTelemetry::Get().shader_builds_queued.load(std::memory_order_relaxed);
 }
 
 void PerfStats::EndSystemFrame() {
@@ -194,9 +196,12 @@ void PerfStats::UpdateStallTracking(Clock::time_point frame_end, Clock::duration
     LOG_WARNING(Core,
                 "[STALL] Emu frame took {:.1f} ms (budget {:.1f} ms): svc={:.1f} ipc={:.1f} "
                 "gpu={:.1f} swap={:.1f} other={:.1f} ms (custom textures {:.1f}, surface frees "
-                "{:.1f}, stream buffer waits {:.1f}); {} draw-time shader compile(s) this frame",
+                "{:.1f}, stream buffer waits {:.1f}); {} draw-time shader compile(s) this frame, {} "
+                "shader and pipeline build(s) queued (Vulkan)",
                 frame_ms, ToMs(kFrameBudget), svc_ms, ipc_ms, gpu_ms, swap_ms, other_ms, tex_ms,
-                gc_ms, stream_wait_ms, compiles_this_frame);
+                gc_ms, stream_wait_ms, compiles_this_frame,
+                telemetry.shader_builds_queued.load(std::memory_order_relaxed) -
+                    frame_begin_shader_builds);
 }
 
 void PerfStats::EndGameFrame() {
