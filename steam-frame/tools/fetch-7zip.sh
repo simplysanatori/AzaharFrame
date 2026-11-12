@@ -6,10 +6,10 @@
 # Writes <tools>/7zz (the statically linked 7zzs of the package: no libraries, nothing for
 # check-bundle.sh to resolve) and <licenses>/7zip-License.txt (default <tools>/../licenses).
 set -euo pipefail
-VERSION=25.01
-FILE=7z2501-linux-arm64.tar.xz
-URL=https://www.7-zip.org/a/$FILE
-SHA256=39c5140f02ce4436599303c59a149f654cb1bbc47cdc105a942120d747ae040d
+VERSION=26.06
+FILE=7z2606-linux-arm64.tar.xz
+URL=https://github.com/ip7z/7zip/releases/download/$VERSION/$FILE
+SHA256=edcc408aacce77da5223728f2eceb5e9f6dc713b8a9df934ad21e2a7f7560627
 DEST=${1:?usage: fetch-7zip.sh <tools dir> [<licenses dir>]}
 LIC=${2:-$DEST/../licenses}
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/azaharframe/7zip

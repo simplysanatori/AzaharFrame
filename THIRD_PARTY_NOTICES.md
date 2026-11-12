@@ -44,7 +44,7 @@ The Download Cheats button, the Mods tab's downloads and the Homebrew downloads 
 
 ## 7-Zip
 
-The release ships Igor Pavlov's official 7-Zip command line program, version 25.01 (the statically linked linux-arm64 build `7zz`, https://www.7-zip.org, in `tools/`), unmodified. It is used only as a fallback to unpack mod and texture pack downloads that the system's bsdtar cannot read (zips with Deflate64, solid RAR4 archives, RAR5 archives with a very large dictionary). 7-Zip is licensed under the GNU LGPL; the code of the RAR decoder carries the "unRAR restriction" (it may not be used to re-create the RAR compression algorithm), and some files are BSD-licensed. The full terms are in `licenses/7zip-License.txt`, and the source is available from https://www.7-zip.org. It is run as a separate program (no linking), with a fixed argument list and no shell.
+The release ships Igor Pavlov's official 7-Zip command line program, version 26.06 (the statically linked linux-arm64 build `7zz`, https://www.7-zip.org, in `tools/`), unmodified. It is used only as a fallback to unpack mod and texture pack downloads that the system's bsdtar cannot read (zips with Deflate64, solid RAR4 archives, RAR5 archives with a very large dictionary). 7-Zip is licensed under the GNU LGPL; the code of the RAR decoder carries the "unRAR restriction" (it may not be used to re-create the RAR compression algorithm), and some files are BSD-licensed. The full terms are in `licenses/7zip-License.txt`, and the source is available from https://www.7-zip.org. It is run as a separate program (no linking), with a fixed argument list and no shell.
 
 ## Texture packs from their authors' pages
 
