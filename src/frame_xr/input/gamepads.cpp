@@ -506,7 +506,6 @@ bool ProcBit(const std::string& words, int bit) {
 }
 
 // Linux's input-event-codes.h, kept here so the parser builds (and is tested) anywhere.
-constexpr int kEvRel = 0x02;
 constexpr int kEvLed = 0x11;
 constexpr int kRelX = 0x00;
 constexpr int kRelY = 0x01;
