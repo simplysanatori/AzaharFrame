@@ -918,3 +918,40 @@ TEST_CASE("Mods: real install of Project Restoration", "[.network]") {
     REQUIRE(library.Remove(tid, "mm3d-project-restoration-v100").ok);
     REQUIRE(Tree(dir).empty());
 }
+
+// AzaharFrame modfix: the short reason shown after "Install Failed".
+TEST_CASE("Mods: short failure reasons", "[mods]") {
+    REQUIRE(ShortFailure("Connection") == "No Connection");
+    REQUIRE(ShortFailure("No reply") == "No Connection");
+    REQUIRE(ShortFailure("SSLServerVerification") == "No Connection");
+    REQUIRE(ShortFailure("Read") == "Timed Out");
+    REQUIRE(ShortFailure("GitHub rate limit reached, try again later") == "Rate Limited");
+    REQUIRE(ShortFailure("No matching file in the release") == "Not Found");
+    REQUIRE(ShortFailure("Server returned 502") == "Server Error");
+    REQUIRE(ShortFailure("Download too large") == "Too Large");
+    REQUIRE(ShortFailure("Damaged zip file") == "Bad Archive");
+    REQUIRE(ShortFailure("Cannot write the mod library") == "Disk Error");
+    REQUIRE(ShortFailure("something else") == "Error");
+}
+
+TEST_CASE("Mods: one retry when a download gets no reply", "[mods]") {
+    const std::string dir = (fs::temp_directory_path() / "azf_modfix_retry").string() + "/";
+    fs::remove_all(dir);
+    int calls = 0;
+    Transport t = [&](const std::string&, const std::string&, std::size_t) {
+        HttpReply r;
+        if (++calls == 1) {
+            r.error = "Read"; // status 0
+        } else {
+            r.status = 404;
+        }
+        return r;
+    };
+    auto parsed = ParseCatalog(kCatalog);
+    REQUIRE(parsed.has_value());
+    Library library(dir, *parsed, t);
+    const auto out = library.Install(kTid, "reframed");
+    REQUIRE(out.result == InstallResult::Error);
+    REQUIRE(calls == 2); // release lookup: no reply, retried (404 = no release)
+    fs::remove_all(dir);
+}

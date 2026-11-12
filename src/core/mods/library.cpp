@@ -456,6 +456,39 @@ void Library::RefreshCatalogOnce() {
 }
 
 // One GET with redirects followed to GitHub's own hosts only.
+std::string ShortFailure(std::string_view e) {
+    const auto has = [&](std::string_view needle) { return e.find(needle) != std::string_view::npos; };
+    if (has("rate limit")) {
+        return "Rate Limited";
+    }
+    if (has("Connection") || has("SSL") || has("No reply") || has("certificate") || has("Resolve")) {
+        return "No Connection";
+    }
+    if (has("Read") || has("Write") || has("Timeout") || has("timed out")) {
+        return "Timed Out";
+    }
+    if (has("too large") || has("too big")) {
+        return "Too Large";
+    }
+    if (has("No release") || has("No matching") || has("not found") || has("Server returned 404")) {
+        return "Not Found";
+    }
+    if (has("Server returned")) {
+        return "Server Error";
+    }
+    if (has("archive") || has("zip") || has("Zip") || has("Nothing in the download") || has("code patch") ||
+        has("Unsupported")) {
+        return "Bad Archive";
+    }
+    if (has("Cannot write") || has("Cannot copy") || has("Cannot delete")) {
+        return "Disk Error";
+    }
+    if (has("Another install")) {
+        return "Busy";
+    }
+    return "Error";
+}
+
 bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error) {
     std::string current = url;
     for (int hop = 0; hop < 6; ++hop) {
@@ -465,6 +498,13 @@ bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& ou
             return false;
         }
         out = transport_(host, path, max_bytes);
+        if (out.status == 0 && out.error != "Download too large") {
+            // AzaharFrame modfix: one retry when the connection failed or timed out (a download
+            // while the headset is busy has been seen to fail once and work the next time).
+            LOG_WARNING(Frontend, "Mods: GET {}{} failed: {}; retrying", host, path,
+                        out.error.empty() ? "No reply" : out.error);
+            out = transport_(host, path, max_bytes);
+        }
         if (out.status == 301 || out.status == 302 || out.status == 303 || out.status == 307 ||
             out.status == 308) {
             if (out.location.empty()) {
