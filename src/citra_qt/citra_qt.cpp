@@ -181,11 +181,19 @@ constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 std::function<void(bool vr)> g_frame_xr_switch;
 // AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
 QPushButton* g_frame_vr_button = nullptr;
+// AzaharFrame polish: its partner in VR, "Flat", in the same place (right of Volume) while
+// Azahar's window shows in the headset; the in-game menu's Switch to Flat does the same.
+QPushButton* g_frame_flat_button = nullptr;
 void UpdateFrameVrButton() {
     if (g_frame_vr_button) {
         const bool show = FrameXr::IsStarted() && !FrameXr::WantsVr() && !FrameXr::VrShowing();
         g_frame_vr_button->setVisible(show);
         g_frame_vr_button->setEnabled(show);
+    }
+    if (g_frame_flat_button) {
+        const bool show = FrameXr::IsStarted() && FrameXr::WantsVr() && FrameXr::VrShowing();
+        g_frame_flat_button->setVisible(show);
+        g_frame_flat_button->setEnabled(show);
     }
 }
 std::function<void(bool vr)> g_frame_xr_mode_changed;
@@ -1874,6 +1882,21 @@ void GMainWindow::InitializeWidgets() {
         }
     });
     statusBar()->insertPermanentWidget(2, g_frame_vr_button);
+    // AzaharFrame polish: "Flat" in VR, made as the VR button and next to it (one of the two
+    // shows at a time, so either sits right of Volume). The same switch as the in-game menu's
+    // Switch to Flat (FrameMenuRequest, MenuCommand::SwitchToFlat).
+    g_frame_flat_button = new QPushButton(QStringLiteral("Flat"));
+    g_frame_flat_button->setObjectName(QStringLiteral("GraphicsAPIStatusBarButton"));
+    g_frame_flat_button->setFocusPolicy(Qt::NoFocus);
+    g_frame_flat_button->setStyleSheet(g_frame_vr_button->styleSheet());
+    g_frame_flat_button->setVisible(false);
+    connect(g_frame_flat_button, &QPushButton::clicked, this, [] {
+        LOG_INFO(Frontend, "xr: the status bar's Flat button");
+        if (g_frame_xr_switch) {
+            g_frame_xr_switch(false);
+        }
+    });
+    statusBar()->insertPermanentWidget(3, g_frame_flat_button);
 
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusText());
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusIcon());
