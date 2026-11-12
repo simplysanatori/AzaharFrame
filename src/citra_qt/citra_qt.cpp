@@ -1080,15 +1080,18 @@ GMainWindow::GMainWindow(Core::System& system_)
                             if (!emulation_running || g_frame_game_config_name.empty()) {
                                 return;
                             }
-                            auto& level = Settings::values.vr_immersive_wider_view_level;
-                            const bool custom = !level.UsingGlobal();
-                            const u32 value = level.GetValue();
+                            // AzaharFrame immersive2: Narrow Screen and Narrow Height too
+                            // (both grips + D-pad).
+                            FrameKeepSetting keep_wider{
+                                Settings::values.vr_immersive_wider_view_level};
+                            FrameKeepSetting keep_squeeze{Settings::values.vr_immersive_squeeze};
+                            FrameKeepSetting keep_squeeze_y{
+                                Settings::values.vr_immersive_squeeze_y};
                             QtConfig game_config(g_frame_game_config_name,
                                                  QtConfig::ConfigType::PerGameConfig);
-                            level.SetGlobal(!custom);
-                            if (custom) {
-                                level.SetValue(value);
-                            }
+                            keep_wider.Restore();
+                            keep_squeeze.Restore();
+                            keep_squeeze_y.Restore();
                             game_config.Save();
                         });
                     },
@@ -2756,12 +2759,23 @@ void GMainWindow::BootGame(const QString& filename) {
                 LOG_INFO(Frontend, "xr: {}: View Matrix Register preset {}", preset->name,
                          preset->register_offset);
             }
+            // AzaharFrame immersive2: a preset's Wider View, Narrow Screen and Match Game Camera,
+            // where this game has no value of its own and the global one is the default.
             auto& wider = Settings::values.vr_immersive_wider_view_level; // AzaharFrame widerview
-            if (preset->wider_view && mode.GetValue() == preset->mode && wider.UsingGlobal() &&
-                wider.GetValue() == 0) {
+            if (preset->wider_level >= 0 && mode.GetValue() == preset->mode &&
+                wider.UsingGlobal() && wider.GetValue() == wider.GetDefault()) {
                 wider.SetGlobal(false);
-                wider.SetValue(4);
-                LOG_INFO(Frontend, "xr: {}: Wider View preset", preset->name);
+                wider.SetValue(static_cast<u32>(preset->wider_level));
+                LOG_INFO(Frontend, "xr: {}: Wider View preset {}", preset->name,
+                         preset->wider_level);
+            }
+            auto& match = Settings::values.vr_immersive_match_camera;
+            if (preset->match_camera >= 0 && mode.GetValue() == preset->mode &&
+                match.UsingGlobal() && match.GetValue() == match.GetDefault()) {
+                match.SetGlobal(false);
+                match.SetValue(preset->match_camera != 0);
+                LOG_INFO(Frontend, "xr: {}: Match Game Camera preset {}", preset->name,
+                         preset->match_camera);
             }
             // AzaharFrame depth: the game's world scale (the eye distance in mode 3).
             auto& depth = Settings::values.vr_immersive_positional_game_scaler;
@@ -2792,12 +2806,12 @@ void GMainWindow::BootGame(const QString& filename) {
                          preset->eye_indicator);
             }
             auto& squeeze = Settings::values.vr_immersive_squeeze;
-            if (preset->squeeze != 0 && mode.GetValue() == preset->mode &&
-                squeeze.UsingGlobal() && squeeze.GetValue() == 0) {
+            if (preset->narrow >= 0 && mode.GetValue() == preset->mode && squeeze.UsingGlobal() &&
+                squeeze.GetValue() == squeeze.GetDefault()) {
                 squeeze.SetGlobal(false);
-                squeeze.SetValue(preset->squeeze);
-                LOG_INFO(Frontend, "xr: {}: Narrow Screen preset {}", preset->name,
-                         preset->squeeze);
+                squeeze.SetValue(static_cast<u32>(preset->narrow));
+                LOG_INFO(Frontend, "xr: {}: Narrow Screen preset {}%", preset->name,
+                         preset->narrow);
             }
         }
 #endif
@@ -4357,6 +4371,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_match{v.vr_immersive_match_camera}; // AzaharFrame depth
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
+    FrameKeepSetting keep_squeeze_y{v.vr_immersive_squeeze_y}; // AzaharFrame immersive2
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
@@ -4372,6 +4387,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_match.Restore();
     keep_wider.Restore();
     keep_squeeze.Restore();
+    keep_squeeze_y.Restore();
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();

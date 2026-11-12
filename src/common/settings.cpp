@@ -281,6 +281,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_wider_view.SetGlobal(true); // AzaharFrame
     values.vr_immersive_wider_view_level.SetGlobal(true); // AzaharFrame widerview
     values.vr_immersive_squeeze.SetGlobal(true);    // AzaharFrame
+    values.vr_immersive_squeeze_y.SetGlobal(true);  // AzaharFrame immersive2
     values.vr_face_buttons.SetGlobal(true); // AzaharFrame
     values.vr_motion_controls.SetGlobal(true); // AzaharFrame
     values.vr_background.SetGlobal(true);      // AzaharFrame

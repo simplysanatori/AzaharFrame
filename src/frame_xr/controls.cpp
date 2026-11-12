@@ -13,14 +13,15 @@
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h"
-#include "frame_xr/input/devices.h" // AzaharFrame padsui
+#include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
+#include "frame_xr/input/devices.h"    // AzaharFrame padsui
 #include "frame_xr/input/geometry.h"
-#include "input_common/frame_xr.h" // AzaharFrame padsui
 #include "frame_xr/picker/library.h"
 #include "frame_xr/picker/library_loader.h"
 #include "frame_xr/picker/logo_loader.h"
 #include "frame_xr/picker/picker.h"
 #include "frame_xr/session.h"
+#include "input_common/frame_xr.h" // AzaharFrame padsui
 
 namespace FrameXr {
 
@@ -1605,7 +1606,27 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         place.bottom_pose = BottomFromTop(place.top_pose, place.top_scale);
         SetScreenPlacement(place);
     }
-    if (nudge.Any()) {
+    // AzaharFrame immersive2: both grips down while one holds the immersive screen: the D-pad
+    // shapes the screen (Narrow Screen, Narrow Height) instead of the offset and Wider View. The
+    // raw grips: a Bottom Screen Reticle hand's grip is taken out of game_in.
+    const bool both_grips = holding_immersive && in.hand[0].grip > Immersive::Layout::kGripPress &&
+                            in.hand[1].grip > Immersive::Layout::kGripPress;
+    if (nudge.Any() && both_grips) {
+        // Right narrower, left wider; up taller, down lower. Held, they repeat.
+        bool changed = false;
+        if (nudge.right != 0) {
+            changed |= Immersive::StepNarrow(nudge.right, 0) == Immersive::WiderStep::Changed;
+        }
+        if (nudge.up != 0) {
+            changed |= Immersive::StepNarrow(0, nudge.up) == Immersive::WiderStep::Changed;
+        }
+        if (changed) {
+            std::scoped_lock lock{hooks_mutex};
+            if (hooks.game_setting_changed) {
+                hooks.game_setting_changed();
+            }
+        }
+    } else if (nudge.Any()) {
         if (holding_immersive) {
             // Left and right: the lens offset; up and down: Wider View (AzaharFrame widerview;
             // the vertical offset stays in the settings). Both show their own toast.

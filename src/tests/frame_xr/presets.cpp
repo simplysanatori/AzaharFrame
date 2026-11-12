@@ -17,7 +17,7 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset != nullptr);
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
-        REQUIRE_FALSE(preset->wider_view); // off by default in every game
+        REQUIRE(preset->wider_level == -1); // AzaharFrame immersive2: the default, 1.4x
     }
     for (const uint64_t id : {0x0004000000054000ull, 0x0004000000053F00ull, 0x0004000000054100ull,
                               0x0004000000089D00ull, 0x0004000000089E00ull}) {
@@ -25,7 +25,7 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
         REQUIRE(preset != nullptr);
         REQUIRE(preset->mode == 3);
         REQUIRE(preset->register_offset == 90);
-        REQUIRE_FALSE(preset->wider_view); // Super Mario 3D Land shows black boxes with it
+        REQUIRE(preset->wider_level == -1); // the owner plays it at the default 1.4x
         REQUIRE(preset->depth_multiplier == 2); // AzaharFrame depth: 100x, or no visible 3D
     }
     const auto* asphalt = FindImmersivePreset(0x0004000000034C00ull);
@@ -47,11 +47,12 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     const auto* sm3dl = FindImmersivePreset(0x0004000000054000ull);
     REQUIRE(sm3dl->game_fov == 45);
     REQUIRE(std::string(sm3dl->eye_indicator) == "87,2");
-    // AzaharFrame immersive: Mario Kart 7's screen a little bigger ("closer"), the rest at the
-    // size that fills the view.
-    REQUIRE(mk7->screen_size > 1.0f);
-    REQUIRE(mk7->screen_size <= 1.2f);
+    // AzaharFrame immersive2: Mario Kart 7 without Narrow Screen (it stretched), its screen 10 %
+    // smaller instead; the rest at the true-scale default.
+    REQUIRE(mk7->narrow == 0);
+    REQUIRE(mk7->screen_size == 0.9f);
     REQUIRE(sm3dl->screen_size == 0.0f);
+    REQUIRE(sm3dl->narrow == -1);
     // Ocarina of Time 3D and Majora's Mask 3D: mode 2, its own register (no register preset).
     for (const uint64_t id : {0x0004000000033500ull, 0x0004000000033600ull, 0x0004000000033400ull,
                               0x0004000000125500ull, 0x0004000000125600ull,
@@ -64,13 +65,20 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
         REQUIRE(zelda->depth_multiplier == 1);
         REQUIRE(zelda->game_fov == 55);
     }
-    // Nothing turns Wider View or Narrow Screen on.
+    // AzaharFrame immersive2: Majora's Mask 3D's measured angle swings in play: its 55 degrees
+    // hold (Match Game Camera off); Ocarina of Time 3D keeps the default (on).
+    REQUIRE(FindImmersivePreset(0x0004000000125600ull)->match_camera == 0);
+    REQUIRE(FindImmersivePreset(0x0004000000033500ull)->match_camera == -1);
+    // Nothing changes Wider View; Narrow Screen is the default or off; values in range.
     std::size_t count = 0;
     const auto* titles = ImmersivePresetTitles(count);
     for (std::size_t i = 0; i < count; ++i) {
-        REQUIRE_FALSE(titles[i].preset->wider_view);
-        REQUIRE(titles[i].preset->squeeze == 0);
-        REQUIRE(titles[i].preset->game_fov <= 110); // the setting's range
+        const ImmersivePreset& p = *titles[i].preset;
+        REQUIRE(p.wider_level == -1);
+        REQUIRE((p.narrow == -1 || p.narrow == 0));
+        REQUIRE(p.game_fov <= 110); // the setting's range
+        REQUIRE((p.screen_size == 0.0f || (p.screen_size >= 0.6f && p.screen_size <= 2.5f)));
+        REQUIRE((p.match_camera >= -1 && p.match_camera <= 1));
     }
 }
 

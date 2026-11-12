@@ -12,10 +12,11 @@
 #include <utility>
 
 #include <fmt/format.h>
-#include "common/param_package.h"
 #include "common/logging/log.h"
+#include "common/param_package.h"
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
+#include "frame_xr/immersive_layout.h"   // AzaharFrame immersive2: Narrow Screen percent
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
@@ -832,7 +833,9 @@ void MenuPanel::BuildModel(const Host& host) {
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
     m.match_camera = v.vr_immersive_match_camera.GetValue(); // AzaharFrame depth
-    m.narrow_screen = static_cast<int>(std::min<u32>(v.vr_immersive_squeeze.GetValue(), 3));
+    // AzaharFrame immersive2: percent; a 5 % step between two segments shows the lower one.
+    m.narrow_screen = static_cast<int>(
+        FrameXr::Immersive::Layout::NarrowPercent(v.vr_immersive_squeeze.GetValue()) / 10);
     m.depth_factor =
         static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2));
 
@@ -1011,9 +1014,11 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::MatchCamera;
         break;
     case Id::NarrowScreen:
-        Apply(v.vr_immersive_squeeze, u, per_game);
+        // AzaharFrame immersive2: the setting is in percent (Off, 10 %, 20 %, 30 % here; both grips
+        // + D-pad set 5 % steps), and live.
+        r.value = static_cast<int>(std::min<u32>(u, 3) * 10);
+        Apply(v.vr_immersive_squeeze, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::NarrowScreen;
-        ShowToastText("Narrow Screen: From the Next Start");
         break;
     case Id::DepthFactor:
         Apply(v.vr_immersive_positional_game_scaler, u, per_game);

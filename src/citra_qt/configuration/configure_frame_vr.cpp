@@ -48,6 +48,17 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
 // 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
+// AzaharFrame immersive2: Narrow Screen (Settings::values.vr_immersive_squeeze) is in percent,
+// 5 % steps up to 30 % (frame_xr/immersive_layout.h); 1, 2 and 3 are the 10 % steps of earlier
+// builds (Layout::NarrowPercent). The combo's item n is n x 5 %.
+constexpr u32 kNarrowStep = 5;
+constexpr u32 kNarrowMax = 30;
+int NarrowIndex(u32 setting) {
+    const u32 percent =
+        (setting >= 1 && setting <= 3) ? setting * 10 : std::min(setting, kNarrowMax);
+    return static_cast<int>((percent + kNarrowStep / 2) / kNarrowStep);
+}
+
 int CurveIndex(u32 deg) {
     static constexpr int kSteps[] = {0, 15, 30, 45, 60, 75, 90};
     int best = deg == 0 ? 0 : 1;
@@ -246,12 +257,13 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                         {wider_combo});
     layout->addWidget(wider_row);
 
-    // Values 0..3 are Settings::values.vr_immersive_squeeze (frame_xr/immersive_layout.h).
+    // AzaharFrame immersive2: item n is n x 5 % of Settings::values.vr_immersive_squeeze
+    // (percent; Layout::NarrowPercent reads the steps of earlier builds).
     squeeze_combo = new QComboBox(this);
     squeeze_combo->addItem(tr("Off"));
-    squeeze_combo->addItem(QStringLiteral("10%"));
-    squeeze_combo->addItem(QStringLiteral("20%"));
-    squeeze_combo->addItem(QStringLiteral("30%"));
+    for (u32 percent = kNarrowStep; percent <= kNarrowMax; percent += kNarrowStep) {
+        squeeze_combo->addItem(QStringLiteral("%1%").arg(percent));
+    }
     squeeze_row = MakeRow(
         this, QStringLiteral("frame_vr_squeeze_row"), tr("Narrow Screen"),
         tr("Narrows the screen so the side HUD moves into view."),
@@ -344,7 +356,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         squeeze_combo, squeeze_row,
-        static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -394,7 +406,7 @@ void ConfigureFrameVr::SetConfiguration() {
         shape_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
         squeeze_combo->setCurrentIndex(
-            static_cast<int>(Settings::values.vr_immersive_squeeze.GetValue(true)));
+            NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
         wider_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
@@ -421,7 +433,11 @@ void ConfigureFrameVr::SetConfiguration() {
 
     ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
     ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
-    ConfigurationShared::SetPerGameSetting(squeeze_combo, &Settings::values.vr_immersive_squeeze);
+    squeeze_combo->setCurrentIndex(
+        Settings::values.vr_immersive_squeeze.UsingGlobal()
+            ? ConfigurationShared::USE_GLOBAL_INDEX
+            : NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue()) +
+                  ConfigurationShared::USE_GLOBAL_OFFSET);
     ConfigurationShared::SetPerGameSetting(wider_combo,
                                            &Settings::values.vr_immersive_wider_view_level);
     ConfigurationShared::SetHighlight(
@@ -499,8 +515,9 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              [this](s32) { return fov_spin->value(); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
                                              wider_combo);
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_squeeze,
-                                             squeeze_combo);
+    ConfigurationShared::ApplyPerGameSetting(
+        &Settings::values.vr_immersive_squeeze, squeeze_combo,
+        [](s32 index) { return static_cast<u32>(std::max(index, 0)) * kNarrowStep; });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);
