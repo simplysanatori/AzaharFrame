@@ -58,6 +58,18 @@ inline Vec2f ApplyStickRoute(Vec2f raw, const StickRoute& r) {
     return out;
 }
 
+/// The device stick's value that ApplyStickRoute turns into `v` (to drive a stick that a route
+/// reads, such as the Frame's virtual stick behind the profile's route).
+inline Vec2f UnapplyStickRoute(Vec2f v, const StickRoute& r) {
+    if (r.invert_x) {
+        v.x = -v.x;
+    }
+    if (r.invert_y) {
+        v.y = -v.y;
+    }
+    return r.swap_xy ? Vec2f{v.y, v.x} : v;
+}
+
 /// One push of a stick: which stick, which of its axes (0 X, 1 Y) and which way (+1, -1).
 struct StickPush {
     int stick = -1;

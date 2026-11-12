@@ -108,6 +108,7 @@ private:
 #ifndef HAVE_LIBRETRO
     bool RenderToXr(); // AzaharFrame: renderer_vulkan_xr.cpp; true: drew and submitted
     bool XrShowsScreens() const; // AzaharFrame: the headset shows the screens (no window)
+    void PresentBottomWindow();  // AzaharFrame window: the bottom screen's own window in VR
 #endif
 
     void DrawScreens(Frame* frame, const Layout::FramebufferLayout& layout, bool flipped);
@@ -172,6 +173,16 @@ private:
     std::unique_ptr<XrPresentTarget> xr_target; // AzaharFrame
     u64 xr_target_generation = 0;               // AzaharFrame: of the swapchains it uses
     std::chrono::steady_clock::time_point xr_window_alive{}; // AzaharFrame: last window present in VR
+    // AzaharFrame window: the bottom screen's own window in VR (PresentBottomWindow).
+    struct BottomWindowStats {
+        std::chrono::steady_clock::time_point last_present{};
+        std::chrono::steady_clock::time_point last_log{};
+        u64 presents = 0;
+        u64 busy = 0;      ///< skipped: no free frame (the window's present is behind)
+        u64 total_us = 0;  ///< time on this thread for the presents
+        u64 max_us = 0;
+        bool failed = false; ///< no surface: given up
+    } bottom_window;
 #endif
 };
 

@@ -17,6 +17,7 @@
 #include "common/vector_math.h"
 #include "core/frontend/input.h"
 #include "frame_xr/input/controls.h"
+#include "frame_xr/input/profile_routes.h" // AzaharFrame pads
 #include "input_common/main.h"
 
 // AzaharFrame
@@ -94,6 +95,19 @@ void SendTouchPressed(float x, float y);
 void SendTouchMoved(float x, float y);
 void SendTouchReleased();
 
+/// AzaharFrame touchpad: the real mouse over the render window (invisible in VR), written by the
+/// Qt thread, read by the XR thread. x and y are 0..1 over the window. Never fed by the mirror
+/// panel's synthesised mouse (the menu), only by the mouse events the window itself gets.
+struct MouseState {
+    bool inside = false;
+    bool down = false;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+void SetMouseState(const MouseState& state);
+void ClearMouseState();
+MouseState GetMouseState();
+
 /// The default VR profile: CitraVR's mapping with the Frame's D-pad (see MAPPING.md). The XR core
 /// applies it when VR starts so the Qt Controls dialog edits a profile that already works.
 struct DefaultProfile {
@@ -121,6 +135,19 @@ bool UseFrameMotionDevice(Settings::InputProfile& profile);
 /// True when the profile already binds frame_xr to at least one button (a user profile saved
 /// earlier), so VR start-up can leave their bindings alone.
 bool ProfileUsesFrameXr(const Settings::InputProfile& profile);
+
+/// AzaharFrame pads: which Frame control (Input::Control, -1 none) drives each 3DS button and
+/// which stick (Input::AnalogControl, -1 none) each 3DS analog, in the controls profile in use:
+/// the bindings of the "frame_xr" engine. A gamepad's 3DS buttons reach the game through them
+/// (frame_xr/input/gamepads.h), so it drives every 3DS button the Frame controllers drive.
+using ::FrameXr::Input::ProfileRoutes;
+/// The routes of a profile's button and analog strings.
+ProfileRoutes RoutesOf(const std::array<std::string, Settings::NativeButton::NumButtons>& buttons,
+                       const std::array<std::string, Settings::NativeAnalog::NumAnalogs>& analogs);
+/// Called by the Qt side whenever the profile in use changes (any thread).
+void SetProfileRoutes(const ProfileRoutes& routes);
+/// The routes last set; the default profile's until then. Any thread.
+ProfileRoutes GetProfileRoutes();
 
 /// Display text for the Controls dialog (used by InputCommon::ButtonToText / AnalogToText).
 std::string ButtonToText(const Common::ParamPackage& param);

@@ -30,6 +30,11 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/actions.h
     input/controls.h
     input/default_bindings.h
+    input/devices.cpp # AzaharFrame pads
+    input/devices.h
+    input/gamepads.cpp
+    input/gamepads.h
+    input/profile_routes.h
     input/click_gesture.h
     input/geometry.cpp
     input/geometry.h
@@ -46,6 +51,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/screen_rig.h
     input/screen_view.cpp
     input/screen_view.h
+    input/touchpad_touch.cpp # AzaharFrame touchpad
+    input/touchpad_touch.h
     input/types.h
     # The Qt window mirrored as the VR home panel, XR side (qt_mirror; no Qt here).
     qt_mirror/mirror_panel.cpp

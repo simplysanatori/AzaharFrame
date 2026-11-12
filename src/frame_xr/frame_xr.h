@@ -138,10 +138,19 @@ struct ScreenPlacement {
     /// AzaharFrame vrsize: the top screen's size, times NormalTopSize (grip + stick sideways;
     /// input/screen_rig.h). The bottom screen keeps its size and moves down with the top edge.
     float top_scale = 1.0f;
+    /// AzaharFrame move: Detach Screens (input/screen_rig.h Slots). `top_pose` and `top_scale`
+    /// are the main slot's; `bottom_pose` and `bottom_size` the second slot's as drawn. While
+    /// `second_free` (and the setting is not Off) the second slot is at `second_pose`, NormalBottomSize
+    /// times `second_scale`; else it follows the main slot by the Screen Layout.
+    bool second_free = false;
+    XrPosef second_pose{{0, 0, 0, 1}, {0, 0, 0}};
+    float second_scale = 1.0f;
 };
 /// The normal top screen's size in metres: 1 m high times `scale`, as wide as "VR Screen
 /// Shape" says.
 XrExtent2Df NormalTopSize(float scale = 1.0f);
+/// AzaharFrame move: the second slot's size at `scale` (1: the bottom screen as CitraVR).
+XrExtent2Df NormalBottomSize(float scale = 1.0f);
 ScreenPlacement DefaultScreenPlacement();
 ScreenPlacement GetScreenPlacement();
 void SetScreenPlacement(const ScreenPlacement& placement);
@@ -255,6 +264,8 @@ void SetGameRunning(bool running);
 /// The title id of the game being started (0 for none or homebrew without one), before it
 /// runs. The immersive screen's placement is saved per title id. Any thread.
 void SetGameTitleId(uint64_t title_id);
+/// AzaharFrame move: the title id SetGameTitleId gave last (0 for none). Any thread.
+uint64_t GameTitleId();
 
 /// The folders the picker scans (UISettings::values.game_dirs). GUI thread; rescans.
 struct LibraryDir {

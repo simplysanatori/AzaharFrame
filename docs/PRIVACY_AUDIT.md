@@ -33,6 +33,18 @@ Run on 2026-11-06 over the tracked tree of the release branch and the whole hist
 
 Note on the history: `steam-frame` is pushed to the private repository up to `004790172`, which includes `e0d831665`, the commit that added the ROM file name to `IMMERSIVE.md` (the name of a retail game's standard dump, with no path or product code). The repository is not public. Before it is made public, rewrite the history of this fork's own commits (24 of them, and nothing of Azahar's or CitraVR's) to drop that name and to reword the nine messages above, and push the rewritten branch; a rewrite limited to commits not reachable from the Azahar tag and CitraVR's master leaves upstream's commit ids alone.
 
+## The outbound connections
+
+The emulator makes no network connection of its own (web service, telemetry, update check and Discord are all compiled out). The exception is the Cheats window's "Download Cheats" button and the Cheats tab of the VR menu (Download, Install), in `src/core/cheats/online.cpp`. Only when the player clicks them, the program makes HTTPS requests to these hosts and no others:
+
+| Host | Request | Why |
+|---|---|---|
+| `api.github.com` | `GET /repos/simplysanatori/3ds-game-fixes/git/trees/main?recursive=1` (once per download) | Finds the game's Developer cheat file and code patch in the file list |
+| `raw.githubusercontent.com` | `GET /simplysanatori/3ds-game-fixes/main/games/<slug>/cheats/<title id>.txt` and `.../patch/<title id>/code.ips` | The Developer cheats and fix |
+| `raw.githubusercontent.com` | `GET /FlagBrew/Sharkive/master/3ds/<title id>.txt` | The Sharkive cheats |
+
+The requests carry the open game's 16-digit title ID in the path and the usual HTTP headers (host, `User-Agent: cpp-httplib/<version>`), no account, no cookie and no other identifier; GitHub sees the player's IP address as for any download. The certificate is checked against the system's store (`/etc/ssl/certs/ca-certificates.crt` and the usual alternatives); with none, nothing is sent. Redirects are not followed. Nothing is stored except the cheats merged into `cheats/<title id>.txt` (disabled, each with a `*source:` line) and, when Install is used, `load/mods/<title id>/code.ips` with a marker file beside it. The release check: `git grep -n "githubusercontent.com\|api.github.com" src` must find `src/core/cheats/online.cpp` and `src/core/cheats/sharkive.*` only.
+
 ## What the emulator writes to logs
 
 Two files are what a user attaches to an issue: `~/.local/share/AzaharFrame/launch.log` and `~/.local/share/AzaharFrame/user/log/azahar_log.txt`.

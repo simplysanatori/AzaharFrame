@@ -174,6 +174,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_REFRESH_HZ` | `azaharframe.sh` | 90 or 120 (default 120), set in SteamVR for the entry |
 | `AZAHARFRAME_FDM=1` | `azaharframe.sh`, `citra_qt.cpp` | leaves Valve's FDM injection layer on (by default `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` turns it off, see [AGENTS.md](../AGENTS.md)) |
 | `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning (the FOV one overrides the Immersive Game FOV setting), see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
+| `AZAHARFRAME_PADS=0` | `frame_xr/input/devices.cpp` | other gamepads stay out of the game in VR (they are still listed in Edit Controls), see [MAPPING.md](../src/frame_xr/input/MAPPING.md#other-gamepads-in-vr-azaharframe-pads) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
 | `AZAHARFRAME_ART` | picker, Qt icon | folder with `logo.png` and `icon.png` (default: `art/` next to the program) |
 | `AZAHARFRAME_TOOLS` | game list menu | folder with `convert-texture-pack.sh` (default: `tools/` next to the program) |

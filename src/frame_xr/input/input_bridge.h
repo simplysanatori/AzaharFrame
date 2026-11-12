@@ -6,6 +6,7 @@
 
 #include "frame_xr/input/mapper.h"
 #include "frame_xr/input/motion.h"
+#include "frame_xr/input/touchpad_touch.h"
 
 // AzaharFrame
 // Glue between the mapper and the emulator: runs the mapper on an InputFrame, writes the virtual
@@ -18,8 +19,11 @@ public:
     explicit InputBridge(const MapperConfig& config = {});
 
     /// One display frame. `panels` is where the screens are now. The returned reference is valid
-    /// until the next call.
-    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels);
+    /// until the next call. AzaharFrame pads: with `gamepads` (VR, a game running, the menu
+    /// closed: the controllers' raw input of this frame) the other gamepads join the Frame's
+    /// virtual pad (frame_xr/input/devices.h).
+    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels,
+                                const InputFrame* gamepads = nullptr);
 
     /// Releases every button, centres the sticks and lifts a touch in progress. Call when the
     /// game ends, the session loses focus, or the picker takes over.
@@ -29,9 +33,17 @@ public:
         return mapper_;
     }
 
+    /// AzaharFrame touchpad: the pad's or the mouse's dot of the last Process (never visible
+    /// while the beam holds the touch, or with the bottom screen hidden).
+    const TouchpadCursor& touchpad_cursor() const {
+        return touchpad_cursor_;
+    }
+
 private:
     Mapper mapper_;
     MotionTracker motion_;
+    TouchpadTouch touchpad_;
+    TouchpadCursor touchpad_cursor_;
     MapperOutput last_;
 };
 

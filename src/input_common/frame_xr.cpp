@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/stick_route.h"
 #include "input_common/frame_xr.h"
@@ -172,6 +173,8 @@ private:
 };
 
 std::mutex sink_mutex;
+std::mutex mouse_mutex; // AzaharFrame touchpad
+MouseState mouse_state;
 TouchSink* touch_sink = nullptr;
 
 } // namespace
@@ -277,6 +280,21 @@ void SendTouchReleased() {
     }
 }
 
+void SetMouseState(const MouseState& state) {
+    std::lock_guard lock{mouse_mutex};
+    mouse_state = state;
+}
+
+void ClearMouseState() {
+    std::lock_guard lock{mouse_mutex};
+    mouse_state = {};
+}
+
+MouseState GetMouseState() {
+    std::lock_guard lock{mouse_mutex};
+    return mouse_state;
+}
+
 DefaultProfile GetDefaultProfile() {
     DefaultProfile profile;
     profile.name = "Azahar for Frame VR";
@@ -343,6 +361,52 @@ bool ProfileUsesFrameXr(const Settings::InputProfile& profile) {
         }
     }
     return false;
+}
+
+namespace {
+std::mutex routes_mutex; // AzaharFrame pads
+std::optional<ProfileRoutes> routes_set;
+} // namespace
+
+ProfileRoutes RoutesOf(const std::array<std::string, Settings::NativeButton::NumButtons>& buttons,
+                       const std::array<std::string, Settings::NativeAnalog::NumAnalogs>& analogs) {
+    ProfileRoutes routes;
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        const Common::ParamPackage param{buttons[i]};
+        const int c = param.Get("engine", "") == "frame_xr" ? param.Get("button", -1) : -1;
+        routes.buttons[i] = static_cast<std::int8_t>(c >= 0 && c < kNumControls ? c : -1);
+    }
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        const Common::ParamPackage param{analogs[i]};
+        const int a = param.Get("engine", "") == "frame_xr" ? param.Get("analog", -1) : -1;
+        // AzaharFrame padsui: with the route's axes (stick_route.h).
+        ::FrameXr::Input::StickRoute route;
+        route.stick = a >= 0 && a < kNumAnalogControls ? a : -1;
+        route.swap_xy = param.Get("swap_xy", 0) != 0;
+        route.invert_x = param.Get("invert_x", 0) != 0;
+        route.invert_y = param.Get("invert_y", 0) != 0;
+        routes.analogs[i] = ::FrameXr::Input::EncodeStickRoute(route);
+    }
+    return routes;
+}
+
+void SetProfileRoutes(const ProfileRoutes& routes) {
+    std::lock_guard lock{routes_mutex};
+    routes_set = routes;
+}
+
+ProfileRoutes GetProfileRoutes() {
+    {
+        std::lock_guard lock{routes_mutex};
+        if (routes_set) {
+            return *routes_set;
+        }
+    }
+    static const ProfileRoutes defaults = [] {
+        const DefaultProfile profile = GetDefaultProfile();
+        return RoutesOf(profile.buttons, profile.analogs);
+    }();
+    return defaults;
 }
 
 std::string ButtonToText(const Common::ParamPackage& param) {

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include "core/frontend/input.h"
@@ -32,6 +33,17 @@ public:
     virtual Pollers GetPollers(Polling::DeviceType type) = 0;
 
     virtual void GetSystemBatteryState(float& percentage, bool& charging) = 0;
+
+    /// AzaharFrame touchpad: see InputCommon::GetSDLTouchpad.
+    virtual bool GetTouchpad(TouchpadSample& sample) {
+        return false;
+    }
+    /// AzaharFrame pads: see InputCommon::GetSDLPadInfos and friends.
+    virtual std::uint64_t GetPadGeneration() {
+        return 0;
+    }
+    virtual void GetPadInfos(std::vector<SDLPadInfo>& out) {}
+    virtual void GetPadStates(std::vector<SDLPadState>& out) {}
 };
 
 class NullState : public State {

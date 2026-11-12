@@ -46,6 +46,11 @@ public:
 
     void GetSystemBatteryState(float& percentage, bool& charging) override;
 
+    bool GetTouchpad(TouchpadSample& sample) override; // AzaharFrame touchpad
+    std::uint64_t GetPadGeneration() override; // AzaharFrame pads
+    void GetPadInfos(std::vector<SDLPadInfo>& out) override;
+    void GetPadStates(std::vector<SDLPadState>& out) override;
+
     /// Used by the Pollers during config
     std::atomic<bool> polling = false;
     Common::SPSCQueue<SDL_Event> event_queue;
@@ -65,6 +70,7 @@ private:
     std::shared_ptr<std::vector<std::shared_ptr<SDLJoystick>>> joystick_vector =
         std::make_shared<std::vector<std::shared_ptr<SDLJoystick>>>();
     std::mutex joystick_map_mutex;
+    std::atomic<std::uint64_t> pad_generation{1}; ///< AzaharFrame pads: bumped on add / remove
 
     std::shared_ptr<SDLTouchFactory> touch_factory;
     std::shared_ptr<SDLButtonFactory> button_factory;

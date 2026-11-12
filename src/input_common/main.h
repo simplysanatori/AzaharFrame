@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,6 +54,52 @@ struct BatteryState {
 };
 
 BatteryState GetSystemBatteryState();
+
+/// AzaharFrame touchpad: the touchpad of the first connected controller that has one (the right
+/// pad when it has two, as the Steam Controller's). x and y are 0..1 from the top left.
+struct TouchpadSample {
+    bool present = false;
+    bool contact = false;
+    bool click = false;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+/// Safe from any thread. False (and `sample` untouched) without SDL or a controller touchpad.
+bool GetSDLTouchpad(TouchpadSample& sample);
+
+/// AzaharFrame pads: every SDL game controller, for the VR gamepad merge (frame_xr/input/
+/// gamepads.h). `id` is SDL's instance id (stable while connected). `vendor`, `product`, `name`
+/// and `type` are the real controller's, also behind Steam Input (SDL reads Steam's
+/// SteamVirtualGamepadInfo); `guid` is SDL's GUID string, which for a Steam Input pad is the
+/// virtual pad's (the same for all of them). `type` is SDL_GameControllerType.
+struct SDLPadInfo {
+    int id = -1;
+    std::string guid;
+    std::string name;
+    int type = 0;
+    std::uint16_t vendor = 0;
+    std::uint16_t product = 0;
+    bool steam_virtual = false; ///< a Steam Input virtual pad (Valve 28de:11ff)
+    bool has_touchpad = false;
+};
+/// One controller's state. `buttons` in SDL_GameControllerButton order (A, B, X, Y, Back,
+/// Guide, Start, LeftStick, RightStick, LeftShoulder, RightShoulder, Up, Down, Left, Right, Misc1,
+/// Paddle1..4, Touchpad); `axes` in SDL_GameControllerAxis order (LeftX, LeftY, RightX, RightY,
+/// TriggerLeft, TriggerRight), -1..1 (triggers 0..1), Y down as SDL's.
+struct SDLPadState {
+    static constexpr int kButtons = 21;
+    static constexpr int kAxes = 6;
+    int id = -1;
+    std::array<bool, kButtons> buttons{};
+    std::array<float, kAxes> axes{};
+    TouchpadSample touchpad; ///< present: the controller has a touchpad (the right one of two)
+};
+/// Counts controllers added and removed; the infos only change when it does. Any thread.
+std::uint64_t GetSDLPadGeneration();
+/// Fills `out` with the connected controllers (replacing its contents). Any thread.
+void GetSDLPadInfos(std::vector<SDLPadInfo>& out);
+/// Fills `out` with their states (replacing its contents; no allocation once it has grown).
+void GetSDLPadStates(std::vector<SDLPadState>& out);
 
 namespace Polling {
 

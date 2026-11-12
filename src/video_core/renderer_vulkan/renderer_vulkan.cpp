@@ -5,6 +5,7 @@
 #include <cstdlib>     // AzaharFrame
 #include <string_view> // AzaharFrame
 #include "common/assert.h"
+#include "common/frame_bottom_window.h" // AzaharFrame window
 #include "common/frame_flat.h" // AzaharFrame
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
@@ -1142,6 +1143,65 @@ void RendererVulkan::DrawCursor(const Layout::FramebufferLayout& layout) {
     });
 }
 
+#ifndef HAVE_LIBRETRO
+// AzaharFrame window: in VR with vr_bottom_screen_window, the bottom screen also goes to the
+// second render window, shown by citra_qt as a desktop window (Settings::frame_vr_bottom_window).
+// The XR frame must never wait for it: at most about 60 presents a second, skipped while the
+// window's previous present is still in flight, and the swapchain is MAILBOX or IMMEDIATE in VR
+// (vk_swapchain.cpp). The present itself runs on the present thread (async presentation).
+void RendererVulkan::PresentBottomWindow() {
+    if (!secondary_window || bottom_window.failed || !Settings::frame_vr_bottom_window) {
+        return;
+    }
+    using namespace std::chrono;
+    const auto start = steady_clock::now();
+    if (start - bottom_window.last_present < microseconds(15500)) {
+        return;
+    }
+    if (!secondary_present_window_ptr) {
+        try {
+            secondary_present_window_ptr = std::make_unique<PresentWindow>(
+                *secondary_window, instance, scheduler, IsLowRefreshRate());
+            LOG_INFO(Render_Vulkan, "xr: bottom screen window: swapchain made");
+        } catch (const std::exception& e) {
+            bottom_window.failed = true;
+            LOG_ERROR(Render_Vulkan, "xr: bottom screen window: no swapchain ({}), not shown",
+                      e.what());
+            return;
+        }
+    }
+    if (!secondary_present_window_ptr->HasFreeFrame()) {
+        bottom_window.busy++;
+        return;
+    }
+    // RenderToWindow clears these for the main window's logic; keep the XR path's values.
+    const bool frames_updated = Core::PerfStats::game_frames_updated;
+    const bool was_rendered = screenRendered;
+    isSecondaryWindow = true;
+    RenderToWindow(*secondary_present_window_ptr, secondary_window->GetFramebufferLayout(), false);
+    isSecondaryWindow = false;
+    const bool presented = screenRendered && !was_rendered;
+    Core::PerfStats::game_frames_updated = frames_updated;
+    screenRendered = was_rendered;
+    if (presented) {
+        const auto end = steady_clock::now();
+        const u64 us = duration_cast<microseconds>(end - start).count();
+        bottom_window.last_present = start;
+        bottom_window.presents++;
+        bottom_window.total_us += us;
+        bottom_window.max_us = std::max(bottom_window.max_us, us);
+        if (end - bottom_window.last_log >= seconds(10)) {
+            LOG_INFO(Render_Vulkan,
+                     "xr: bottom screen window: {} presents, {} skipped (busy), {} us average, "
+                     "{} us most",
+                     bottom_window.presents, bottom_window.busy,
+                     bottom_window.total_us / bottom_window.presents, bottom_window.max_us);
+            bottom_window = BottomWindowStats{.last_present = start, .last_log = end};
+        }
+    }
+}
+#endif
+
 void RendererVulkan::SwapBuffers() {
     system.perf_stats->StartSwap();
     screenRendered = false;
@@ -1188,6 +1248,7 @@ void RendererVulkan::SwapBuffers() {
     };
     if (XrShowsScreens()) {
         RenderToXr(); // the three screens into the XR swapchains
+        PresentBottomWindow();
         const auto now = std::chrono::steady_clock::now();
         if (window_every_frame) {
             window_timed(layout);
