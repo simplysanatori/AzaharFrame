@@ -4,6 +4,7 @@
 
 // AzaharFrame texparts: see parts.h.
 
+#include "common/atomic_file.h"
 #include "core/custom_tex/parts.h"
 
 #include <algorithm>
@@ -1078,25 +1079,8 @@ State ReadState(const std::string& pack) {
 }
 
 bool WriteState(const std::string& pack, const State& state) {
-    const fs::path dst = fs::path(pack) / kStateFile;
-    const fs::path tmp = fs::path(pack) / (std::string(kStateFile) + ".tmp");
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        if (!out) {
-            return false;
-        }
-        out << StateJson(state);
-        if (!out) {
-            return false;
-        }
-    }
-    std::error_code ec;
-    fs::rename(tmp, dst, ec);
-    if (ec) {
-        fs::remove(tmp, ec);
-        return false;
-    }
-    return true;
+    // AzaharFrame harden: fsynced temp file, rename, fsynced folder
+    return Common::WriteFileAtomic((fs::path(pack) / kStateFile).string(), StateJson(state));
 }
 
 bool WriteHints(const std::string& pack, const Hints& hints) {

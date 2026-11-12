@@ -17,6 +17,7 @@
 #include <sstream>
 #include <system_error>
 #include <httplib.h>
+#include "common/atomic_file.h"
 #include "common/request_path.h"
 #include <json.hpp>
 #include <cryptopp/sha.h>
@@ -29,6 +30,7 @@
 #include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
+#include "core/mods/catalog_schema.h" // AzaharFrame harden
 #include "core/mods/multipart.h" // AzaharFrame catalog3
 
 namespace CustomTex::Download {
@@ -334,7 +336,9 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
         return std::nullopt;
     }
     Catalog catalog;
-    catalog.schema = j.value("schema", 1);
+    if (!Mods::ReadSchema(j, catalog.schema, error)) { // AzaharFrame harden
+        return std::nullopt;
+    }
     std::set<std::string> seen;
     for (const auto& p : j["packs"]) {
         Entry e;
@@ -1039,9 +1043,7 @@ bool WriteMarker(const std::string& folder, const std::string& id, const std::st
     if (!updated.empty()) {
         m["updated"] = updated;
     }
-    std::ofstream out(fs::path(folder) / kMarker, std::ios::trunc);
-    out << m.dump();
-    return static_cast<bool>(out);
+    return Common::WriteFileAtomic((fs::path(folder) / kMarker).string(), m.dump()); // AzaharFrame harden
 }
 
 std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
@@ -1103,7 +1105,7 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
             nlohmann::json pj;
             pj["name"] = pf.name.empty() ? entry.name : entry.name + " - " + pf.name;
             pj["author"] = entry.author;
-            std::ofstream(dst / "pack.json") << pj.dump(2);
+            Common::WriteFileAtomic((dst / "pack.json").string(), pj.dump(2)); // AzaharFrame harden
         }
         if (!entry.customize.Empty()) {
             Parts::WriteHints(dst.string(), entry.customize); // AzaharFrame texparts
@@ -1306,7 +1308,7 @@ void Downloader::SetCatalog(Catalog catalog) {
 
 void Downloader::RefreshCatalogAsync() {
     std::lock_guard lock{mutex_};
-    if (refreshing_) {
+    if (refreshing_ || catalog_too_new_) { // AzaharFrame harden: a newer format is not asked for again
         return;
     }
     refreshing_ = true;
@@ -1314,19 +1316,38 @@ void Downloader::RefreshCatalogAsync() {
         refresher_.join();
     }
     refresher_ = std::thread([this] {
+        // AzaharFrame harden: 8 MB (textures.json is about 70 KB); past it the fetch fails, it is not cut
         const auto r = Cheats::Online::HttpsGetRaw(
-            "https://raw.githubusercontent.com", fmt::format("/{}/main/{}", kOwnerRepo, kCatalogPath), 1024 * 1024);
-        if (r.status == 200 && r.error.empty()) {
-            std::string error;
-            if (auto parsed = ParseCatalog(r.body, &error); parsed && !parsed->packs.empty()) {
-                SetCatalog(std::move(*parsed));
-            } else {
-                LOG_WARNING(Frontend, "Textures: catalog not usable: {}", error);
-            }
-        }
+            "https://raw.githubusercontent.com", fmt::format("/{}/main/{}", kOwnerRepo, kCatalogPath), kMaxCatalogBytes);
+        ApplyFetchedCatalog(r.status, r.error, r.body);
         std::lock_guard lock{mutex_};
         refreshing_ = false;
     });
+}
+
+// AzaharFrame harden: what a catalog fetch did. Every failure keeps the current list (the compiled-in copy or
+// the last good fetch) and says so in the log; a catalog from a newer format puts the compiled-in copy back,
+// and it is not asked for again this run.
+void Downloader::ApplyFetchedCatalog(int status, const std::string& fetch_error, const std::string& body) {
+    if (status != 200 || !fetch_error.empty()) {
+        LOG_WARNING(Frontend, "Textures: catalog kept as it was: {}",
+                    !fetch_error.empty() ? fetch_error : fmt::format("Server returned {}", status));
+        return;
+    }
+    std::string error;
+    auto parsed = ParseCatalog(body, &error);
+    if (!parsed && Mods::SchemaTooNew(error)) {
+        LOG_WARNING(Frontend, "Textures: {}; using the list built into this version", error);
+        std::lock_guard lock{mutex_};
+        catalog_ = DefaultCatalog();
+        catalog_too_new_ = true;
+        return;
+    }
+    if (parsed && !parsed->packs.empty()) {
+        SetCatalog(std::move(*parsed));
+    } else {
+        LOG_WARNING(Frontend, "Textures: catalog kept as it was: {}", error.empty() ? "no packs in it" : error);
+    }
 }
 
 std::vector<PackInfo> Downloader::ListForTitle(u64 title_id, const Mods::Compat::Game* game) const {
@@ -1674,6 +1695,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
     done_ = existing;
     u64 resume = existing;
     bool retried_range = false;
+    bool retried_empty = false; // AzaharFrame harden
     int confirms = 0;
     for (int hop = 0; hop < 12; ++hop) {
         std::string host, path;
@@ -1723,6 +1745,20 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         }
         if (step.status == 200 && !step.html.empty()) {
             return "The link leads to a web page, not a file";
+        }
+        if (step.status == 200 && !retried_empty) {
+            // AzaharFrame harden: a bare 200 with no body (seen on a GameBanana file host): ask once more after
+            // a short wait, then report it as before
+            retried_empty = true;
+            LOG_WARNING(Frontend, "Textures: GET {}{} answered 200 with no body; retrying once", host, path);
+            const auto end = std::chrono::steady_clock::now() + empty_retry_delay_;
+            while (std::chrono::steady_clock::now() < end && !cancel_) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            if (cancel_) {
+                return "Cancelled";
+            }
+            continue;
         }
         return fmt::format("The host refused the download ({})", step.status);
     }

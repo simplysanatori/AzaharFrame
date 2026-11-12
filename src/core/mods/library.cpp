@@ -12,9 +12,11 @@
 #include <thread>
 #include <json.hpp>
 #include <fmt/format.h>
+#include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/cheats/online.h"
+#include "core/mods/catalog_schema.h" // AzaharFrame harden
 #include "core/custom_tex/download.h" // AzaharFrame catalog3 round 2: Drive pages, ids
 #include "core/mods/library.h"
 
@@ -25,6 +27,8 @@ namespace Mods {
 namespace {
 
 constexpr std::size_t kMaxApi = 4 * 1024 * 1024;
+// AzaharFrame harden: mods.json is about 300 KB today; a fetch that passes the cap is a failure, never a cut list
+constexpr std::size_t kMaxCatalog = 16u * 1024 * 1024;
 constexpr std::size_t kMaxAsset = 128u * 1024 * 1024;
 constexpr std::size_t kMaxFiles = 400;
 // AzaharFrame catalog3: a big download goes to disk (no memory cap); the unpacked total and file count
@@ -32,6 +36,18 @@ constexpr std::size_t kMaxFiles = 400;
 constexpr u64 kMaxExtracted = 20ull << 30;
 constexpr const char* kUnscanned = "GameBanana Hasn't Scanned This File Yet";
 constexpr const char* kLegacyMarker = "code.ips.developer";
+
+// AzaharFrame harden: sleeps in short steps; false when `cancel` was set meanwhile
+bool SleepUnlessCancelled(std::chrono::milliseconds total, const std::atomic_bool& cancel) {
+    const auto end = std::chrono::steady_clock::now() + total;
+    while (std::chrono::steady_clock::now() < end) {
+        if (cancel) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::min(std::chrono::milliseconds(50), total));
+    }
+    return !cancel;
+}
 
 std::vector<std::string> Split(std::string_view path) {
     std::vector<std::string> v;
@@ -488,7 +504,7 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     if (!m.texture_files.empty()) {
         j["texture_files"] = m.texture_files;
     }
-    return WriteFile(dir + "manifest.json", j.dump(2) + "\n");
+    return Common::WriteFileAtomic(dir + "manifest.json", j.dump(2) + "\n"); // AzaharFrame harden: fsynced, atomic
 }
 
 void Library::SetState(State::Phase phase, const std::string& mod_id, const std::string& text) {
@@ -519,21 +535,44 @@ void Library::SetCatalog(Catalog catalog) {
 }
 
 bool Library::RefreshCatalog(std::string* error) {
+    // AzaharFrame harden: every way this fails leaves the catalog as it was (the compiled-in copy or the
+    // last good fetch), with a log line; a catalog from a newer format puts the compiled-in copy back and
+    // is not asked for again this run.
+    const auto fail = [&](const std::string& why) {
+        LOG_WARNING(Frontend, "Mods: catalog kept as it was: {}", why);
+        if (error) {
+            *error = why;
+        }
+        return false;
+    };
+    {
+        std::lock_guard lock{mutex_};
+        if (!catalog_too_new_error_.empty()) {
+            if (error) {
+                *error = catalog_too_new_error_;
+            }
+            return false;
+        }
+    }
     HttpReply reply;
     std::string err;
     const std::string path = fmt::format("/{}/main/{}", kOwnerRepo, kCatalogPath);
-    if (!Fetch("https://raw.githubusercontent.com" + path, kMaxApi, reply, err) || reply.status != 200) {
+    if (!Fetch("https://raw.githubusercontent.com" + path, kMaxCatalog, reply, err) || reply.status != 200) {
+        return fail(err.empty() ? "Mod list not available" : err);
+    }
+    auto parsed = ParseCatalog(reply.body, &err);
+    if (!parsed && SchemaTooNew(err)) {
+        LOG_WARNING(Frontend, "Mods: {}; using the list built into this version", err);
+        std::lock_guard lock{mutex_};
+        catalog_ = DefaultCatalog();
+        catalog_too_new_error_ = err;
         if (error) {
-            *error = err.empty() ? "Mod list not available" : err;
+            *error = err;
         }
         return false;
     }
-    auto parsed = ParseCatalog(reply.body, &err);
     if (!parsed || parsed->mods.empty()) {
-        if (error) {
-            *error = err.empty() ? "Mod list is empty" : err;
-        }
-        return false;
+        return fail(err.empty() ? "Mod list is empty" : err);
     }
     SetCatalog(std::move(*parsed));
     return true;
@@ -728,13 +767,29 @@ bool Library::FetchToFile(const std::string& url, const std::string& dest, const
                           std::string& error, const std::vector<std::string>& extra_hosts) {
     std::string current = url;
     int confirms = 0;
+    bool retried_empty = false;
     for (int hop = 0; hop < 12; ++hop) {
         std::string host, path;
         if (!SplitUrl(current, host, path) || !HostAllowed(host, extra_hosts)) {
             error = "Download refused: not an allowed address";
             return false;
         }
-        const auto reply = file_transport_(host, path, dest, &cancel_, progress);
+        auto reply = file_transport_(host, path, dest, &cancel_, progress);
+        // AzaharFrame harden: a bare 200 with no body (seen on a GameBanana file host) once: ask again after a
+        // short wait, then report it.
+        if (reply.status == 200 && reply.error.empty() && reply.html.empty() && !retried_empty) {
+            std::error_code size_ec;
+            const auto size = fs::exists(dest, size_ec) ? fs::file_size(dest, size_ec) : 0;
+            if (size == 0 && reply.total == 0) {
+                retried_empty = true;
+                LOG_WARNING(Frontend, "Mods: GET {}{} answered 200 with no body; retrying once", host, path);
+                if (!SleepUnlessCancelled(empty_retry_delay_, cancel_)) {
+                    error = "Cancelled";
+                    return false;
+                }
+                reply = file_transport_(host, path, dest, &cancel_, progress);
+            }
+        }
         if ((reply.status == 301 || reply.status == 302 || reply.status == 303 || reply.status == 307 ||
              reply.status == 308) &&
             reply.error.empty()) {
@@ -767,6 +822,13 @@ bool Library::FetchToFile(const std::string& url, const std::string& dest, const
         if (reply.status != 200) {
             error = reply.status == 404 ? "Not found" : fmt::format("Server returned {}", reply.status);
             return false;
+        }
+        if (retried_empty) {
+            std::error_code size_ec;
+            if (!fs::exists(dest, size_ec) || fs::file_size(dest, size_ec) == 0) {
+                error = "The host refused the download (200)";
+                return false;
+            }
         }
         return true;
     }

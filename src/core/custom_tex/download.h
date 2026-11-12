@@ -48,6 +48,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <chrono>
 #include <thread>
 #include <vector>
 #include "common/common_types.h"
@@ -117,6 +118,7 @@ Catalog DefaultCatalog();
 
 constexpr const char* kOwnerRepo = "simplysanatori/3ds-game-fixes";
 constexpr const char* kCatalogPath = "catalog/textures.json";
+constexpr std::size_t kMaxCatalogBytes = 8u * 1024 * 1024; // AzaharFrame harden: the live catalog fetch (about 70 KB today)
 
 // ---------------------------------------------------------------------------------------------
 // Pure parts (tested without a network)
@@ -261,6 +263,10 @@ public:
     Result Delete(u64 title_id, const std::string& folder);
 
     void RefreshCatalogAsync();
+    /// AzaharFrame harden: what RefreshCatalogAsync does with a reply (a test calls it directly).
+    void ApplyFetchedCatalog(int status, const std::string& fetch_error, const std::string& body);
+    /// The wait before the one retry of a download answered with a bare 200 and no body (tests shorten it).
+    void SetEmptyReplyRetryDelay(std::chrono::milliseconds d) { empty_retry_delay_ = d; }
     void SetCatalog(Catalog catalog);
 
     std::string LoadDir() const { return load_dir_; }
@@ -279,6 +285,8 @@ private:
     std::thread worker_;
     std::thread refresher_;
     bool refreshing_ = false;
+    bool catalog_too_new_ = false; // AzaharFrame harden (mutex_)
+    std::chrono::milliseconds empty_retry_delay_{2000};
     std::atomic<u64> done_{0};
     std::atomic<u64> total_{0};
     std::atomic<bool> allow_unscanned_{false}; // AzaharFrame catalog3

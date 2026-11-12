@@ -13,6 +13,7 @@
 #include <system_error>
 #include <json.hpp>
 #include <fmt/format.h>
+#include "common/atomic_file.h"
 #include "core/custom_tex/download.h"
 #include "core/custom_tex/packs.h"
 #include "core/mods/library.h"
@@ -454,7 +455,7 @@ Outcome InstallTextures(Job& job, u64 title_id, const std::string& load_dir, boo
     if (!fs::exists(dst / "pack.json", ec)) {
         nlohmann::json pj;
         pj["name"] = name;
-        std::ofstream(dst / "pack.json") << pj.dump(2);
+        Common::WriteFileAtomic((dst / "pack.json").string(), pj.dump(2)); // AzaharFrame harden
     }
     out.installed = dst.filename().string();
     return out;

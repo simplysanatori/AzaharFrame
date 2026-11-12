@@ -4,6 +4,7 @@
 
 // AzaharFrame compat: see crash_guard.h.
 
+#include "common/atomic_file.h"
 #include "core/mods/crash_guard.h"
 
 #include <algorithm>
@@ -11,6 +12,7 @@
 #include <fstream>
 #include <fmt/format.h>
 #include "common/file_util.h"
+#include "common/logging/log.h"
 
 namespace fs = std::filesystem;
 
@@ -82,20 +84,15 @@ void Guard::Write(const std::string& path, const std::vector<Item>& items) const
         return;
     }
     fs::create_directories(dir_, ec);
-    const std::string tmp = path + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::trunc);
-        for (const Item& i : items) {
-            out << (i.kind == Item::Kind::Mod ? "mod" : "pack") << '\t' << OneLine(i.id) << '\t'
-                << OneLine(i.name) << '\n';
-        }
-        out.flush();
-        if (!out) {
-            fs::remove(tmp, ec);
-            return;
-        }
+    std::string text;
+    for (const Item& i : items) {
+        text += (i.kind == Item::Kind::Mod ? "mod" : "pack");
+        text += '\t' + OneLine(i.id) + '\t' + OneLine(i.name) + '\n';
     }
-    fs::rename(tmp, path, ec);
+    // AzaharFrame harden: fsynced temp file, rename, fsynced folder: a freeze and reboot keep the marker
+    if (!Common::WriteFileAtomic(path, text)) {
+        LOG_WARNING(Frontend, "Mods: could not write the crash-undo marker {}", path);
+    }
 }
 
 void Guard::NoteOn(u64 title_id, const Item& item) {

@@ -9,7 +9,8 @@
 # PACK is a pack folder with pack.json at its root, for example the one Azahar reads:
 #   ~/.local/share/AzaharFrame/user/load/textures/<TitleID>
 # --activate makes that folder use the new pack when done; --restore goes back to the original.
-# It runs at the lowest CPU and disk priority.  The encoder comes from build-astcenc.sh.
+# It runs at the lowest CPU and disk priority.  The encoder is af-ktxenc beside this script (shipped
+# in the release); build-astcenc.sh builds one into the data folder only if it is missing.
 HERE=$(cd "$(dirname "$0")" && pwd)
 case "$1" in -h) set -- --help ;; esac
 NICE=(nice -n 19)

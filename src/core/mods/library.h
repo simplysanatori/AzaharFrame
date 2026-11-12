@@ -252,6 +252,9 @@ public:
     /// is installed). Does nothing when idle.
     void Cancel() { cancel_ = true; }
     /// AzaharFrame catalog3: where multipart downloads are written (tests replace it).
+    /// AzaharFrame harden: the wait before the one retry of a download the host answers with a bare 200
+    /// and no body (tests shorten it).
+    void SetEmptyReplyRetryDelay(std::chrono::milliseconds d) { empty_retry_delay_ = d; }
     void SetFileTransport(Multipart::FileTransport transport) { file_transport_ = std::move(transport); }
     /// AzaharFrame catalog3: free bytes of the file system holding a folder (tests replace it).
     using FreeSpaceFn = std::function<bool(const std::string& dir, u64* out)>;
@@ -321,6 +324,8 @@ private:
     mutable std::mutex mutex_; // disk and catalog
     Catalog catalog_;
     bool catalog_refreshed_ = false;
+    std::chrono::milliseconds empty_retry_delay_{2000};
+    std::string catalog_too_new_error_; // AzaharFrame harden: set once a live catalog was from a newer format
     std::map<std::string, std::string> dates_; // catalog id -> "YYYY-MM-DD" (AzaharFrame modcat)
     mutable std::mutex state_mutex_;
     State state_;

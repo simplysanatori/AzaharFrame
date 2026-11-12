@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #endif
+#include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "frame_xr/input/devices.h"
@@ -350,9 +351,7 @@ GamepadStorage SystemStorage() {
     };
     s.save = [](const std::string& text) {
         const std::string path = MappingPath();
-        const std::string tmp = path + ".new";
-        if (FileUtil::WriteStringToFile(true, tmp, text) != text.size() ||
-            !FileUtil::Rename(tmp, path)) {
+        if (!Common::WriteFileAtomic(path, text)) { // AzaharFrame harden: fsynced, atomic
             LOG_ERROR(Frontend, "xr: could not save {}", kMappingFile);
             return false;
         }

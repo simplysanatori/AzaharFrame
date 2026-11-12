@@ -47,6 +47,11 @@ def encoder_path():
     env = os.environ.get("AF_KTXENC")
     if env:
         return env
+    # AzaharFrame harden: the release ships a prebuilt encoder next to this script (the app's
+    # tools folder); the one build-astcenc.sh makes in the data folder is the fallback.
+    bundled = os.path.join(os.path.dirname(os.path.realpath(__file__)), "af-ktxenc")
+    if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
+        return bundled
     data = os.environ.get("AZAHARFRAME_HOME") or os.path.expanduser("~/.local/share/AzaharFrame")
     return os.path.join(data, "tools", "af-ktxenc")
 
@@ -434,7 +439,9 @@ def main():
         say("error: the output folder must be outside the pack", file=sys.stderr)
         return EXIT_USAGE
     if not args.estimate and not have_encoder:
-        say(f"error: the encoder is not built ({encoder}); run build-astcenc.sh first",
+        say("error: the texture encoder is missing: the release's tools/af-ktxenc is not "
+            f"there and none was built ({encoder}). Install Azahar for Frame again, or run "
+            "build-astcenc.sh (needs git, CMake and a C++ compiler)",
             file=sys.stderr)
         return EXIT_NO_ENCODER
     if args.jobs <= 0:

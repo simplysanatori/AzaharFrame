@@ -4,6 +4,7 @@
 
 // AzaharFrame emerald: see frame_emerald.h.
 
+#include "common/atomic_file.h"
 #include "citra_qt/frame_emerald.h"
 
 #include <algorithm>
@@ -153,10 +154,7 @@ void FrameEmerald::LoadState() {
 
 void FrameEmerald::SaveState() {
     FileUtil::CreateFullPath(paths.data_dir);
-    const std::string tmp = paths.state_file + ".new";
-    if (FileUtil::WriteStringToFile(true, tmp, E::SerializeState(state)) > 0) {
-        FileUtil::Rename(tmp, paths.state_file);
-    }
+    Common::WriteFileAtomic(paths.state_file, E::SerializeState(state)); // AzaharFrame harden: fsynced, atomic
 }
 
 HomebrewPackager::Status FrameEmerald::GetStatus() const {

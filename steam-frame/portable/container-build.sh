@@ -87,6 +87,15 @@ BIN="$BLD/bin/Release/azahar"
 rm -rf /out/bin /out/bundle
 mkdir -p /out/bin
 cp "$BIN" /out/bin/azahar
+# AzaharFrame harden: the texture pack encoder (af-ktxenc: astcenc 5.7.1, Apache-2.0, NEON) is built here, against
+# the container's glibc 2.39, with libstdc++ and libgcc linked statically, and ships in the release's tools/ so that
+# the headset needs no compiler.  build-astcenc.sh keeps the astcenc checkout on the work volume (needs network
+# the first time).
+echo "== af-ktxenc"
+AZAHARFRAME_HOME=/work/astc-home AF_KTXENC_OUT_DIR=/out/bin AF_KTXENC_LDFLAGS="-static-libstdc++ -static-libgcc" \
+    AZAHARFRAME_JOBS="$JOBS" bash "$SRC/steam-frame/tools/build-astcenc.sh" --force
+strip --strip-unneeded /out/bin/af-ktxenc
+[ -x /out/bin/af-ktxenc ] && [ -f /out/bin/astcenc-LICENSE.txt ] || { echo "af-ktxenc was not built"; exit 1; }
 SDL_PREFIX="$SDLP" "$HERE/stage-bundle.sh" "$QT" /out/bin/azahar /out/bundle "$SRC/steam-frame/tools/host-libs.allow"
 {
     echo "built: $(date -u +%FT%TZ)"
