@@ -40,7 +40,7 @@ The same button then fetches a game's cheat codes from Sharkive (https://github.
 
 ## LibreSSL
 
-The Download Cheats button, the Mods tab's downloads and the Homebrew downloads talk HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
+The Download Cheats button, the Mods tab's downloads and the Homebrew downloads talk HTTPS with cpp-httplib 0.14.0 (MIT) and LibreSSL 4.4.1 (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` (LibreSSL is the official release tarball without its tools and tests, see `externals/libressl/AZAHARFRAME-VENDORED.txt`) and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
 
 ## 7-Zip
 
@@ -180,7 +180,7 @@ in the file named.
 | [enet](https://github.com/lsalzman/enet) | networking (local multiplayer) | MIT | `externals/enet/LICENSE` |
 | [cpp-jwt](https://github.com/arun11299/cpp-jwt) | tokens for the network code | MIT | `externals/cpp-jwt/LICENSE` |
 | [cryptopp-modern](https://github.com/cryptopp-modern/cryptopp-modern) | AES and hashing for the 3DS file formats | BSL-1.0 | `externals/cryptopp/LICENSE` |
-| [LibreSSL](https://github.com/azahar-emu/ext-libressl-portable) | TLS | ISC and OpenSSL-style | `externals/libressl/COPYING` |
+| [LibreSSL](https://www.libressl.org/) | TLS | ISC and OpenSSL-style | `externals/libressl/COPYING` |
 | [libusb](https://github.com/libusb/libusb) | USB devices (GameCube adapter) | LGPL-2.1 | `externals/libusb/libusb/COPYING` |
 | [inih](https://github.com/benhoyt/inih) | ini files | BSD-3-Clause | `externals/inih/inih/LICENSE.txt` |
 | [nlohmann/json](https://github.com/nlohmann/json) | JSON | MIT | `externals/json/json.hpp` |

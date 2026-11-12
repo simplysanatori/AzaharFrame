@@ -337,6 +337,9 @@ else()
     # LibreSSL
     set(LIBRESSL_SKIP_INSTALL ON CACHE BOOL "")
     set(OPENSSLDIR "/etc/ssl/")
+    # Azahar for Frame: LibreSSL 4.x, vendored without its apps, tests and manual pages
+    set(LIBRESSL_APPS OFF CACHE BOOL "" FORCE)
+    set(LIBRESSL_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(libressl EXCLUDE_FROM_ALL)
     target_include_directories(ssl INTERFACE ./libressl/include)
     target_disable_warnings(ssl)
