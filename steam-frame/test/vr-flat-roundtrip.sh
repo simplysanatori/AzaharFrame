@@ -2,8 +2,11 @@
 # AzaharFrame flat2 / flatfix: VR -> Flat -> VR three times (and back to Flat once more) against
 # xrmock, with 15 s and more of gamepad input in each Flat stint and each way back to VR used once:
 #   Flat 1 ends with Menu held 3 s + A ("Switch to VR?"),
-#   Flat 2 with the status bar's VR button,
+#   Flat 2 with the status bar's VR button, pressed twice quickly, while the window's frame never
+#     comes back into the dashboard (a fake steam-cef.py that never answers: VR after 5 s anyway),
 #   Flat 3 with the chord (both bumpers + View + Menu) on the gamepad.
+# For every round: the way back was taken, a new session was made and reached FOCUSED, and the
+# controllers reached it (its VR chord came through).
 # Each VR session is left with the chord through the mock's input script, which only works when
 # the new session gets controller input. MOCK_XR_FOCUS_ONCE=1 makes the mock act as SteamVR does:
 # only the first session of an XrInstance gets controller input, so an app that reuses its
@@ -43,7 +46,7 @@ MOCKRUN=${MOCKRUN:-$CF/mockgo.sh}
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # VR (seconds since the first session began, about 0.6 s after the start): the chord for 0.2 s
-# once in each of the four VR sessions (they begin at about 0.6, 22, 44 and 67 s).
+# once in each of the four VR sessions (they begin at about 0.6, 22, 49 and 72 s).
 vr_chord() { # AT
     local p
     for p in left/input/bumper right/input/bumper left/input/view right/input/menu; do
@@ -53,7 +56,7 @@ vr_chord() { # AT
         echo "$(echo "$1 + 0.2" | bc) /user/hand/${p}/click 0"
     done
 }
-{ vr_chord 3.0; vr_chord 26.0; vr_chord 50.0; vr_chord 73.0; } > "$T/vr.script"
+{ vr_chord 3.0; vr_chord 26.0; vr_chord 54.0; vr_chord 77.0; } > "$T/vr.script"
 
 # Flat (seconds since the start): 15 s of input from T on.
 flat_input() { # T RECONNECT
@@ -86,16 +89,22 @@ flat_input() { # T RECONNECT
     echo "18.0 menu 1"; echo "21.5 menu 0" # the question at 21 s
     echo "22.0 a 1"; echo "22.3 a 0"       # Yes
     flat_input 28.0 0                     # Flat 2 (from about 27 s)
-    echo "44.0 vrbutton 1"
-    flat_input 52.0 1                     # Flat 3 (from about 51 s)
-    for c in lb rb view menu; do echo "67.5 $c 1"; done
-    for c in lb rb view menu; do echo "67.8 $c 0"; done
+    echo "44.0 vrbutton 1"; echo "44.3 vrbutton 1" # twice quickly; the dock never answers
+    flat_input 56.5 1                     # Flat 3 (from about 55 s)
+    for c in lb rb view menu; do echo "72.0 $c 1"; done
+    for c in lb rb view menu; do echo "72.3 $c 0"; done
 } > "$T/pad.txt"
 
+# The window's frame (steam-cef.py): a fake that answers at once, but never for the second move
+# back into the dashboard (Flat 2's way back).
 MOCK_XR_FOCUS_ONCE=1 AZAHARFRAME_TEST_FLAT_PAD=$T/pad.txt AZAHARFRAME_TEST_FLAT_PAD_SDL=1 \
-    "$MOCKRUN" --bin "$BIN" --seconds 80 --script "$T/vr.script" --out "$OUT" > "$OUT.out" 2>&1
+    AZAHARFRAME_TEST_CEF=$HERE/fake-steam-cef.py AZ_FAKE_CEF_COUNT=$T/cef-count \
+    AZ_FAKE_CEF_HANG_DASHBOARD=2 \
+    "$MOCKRUN" --bin "$BIN" --seconds 82 --script "$T/vr.script" --out "$OUT" > "$OUT.out" 2>&1
 RC=$?
 LOG=$OUT/app_azahar_log.txt
+# A second, short-lived process may rotate the log at the end: the run's own one says "xr: started".
+grep -aq 'xr: started' "$LOG" 2>/dev/null || [ ! -f "$OUT/app_azahar_log.old.txt" ] || LOG=$OUT/app_azahar_log.old.txt
 TRACE=$OUT/trace.txt
 FAILS=0
 check() { # NAME WANT GOT
@@ -115,8 +124,25 @@ check "XR instances destroyed for Flat" 4 "$(count 'xr: XR instance destroyed' "
 check "VR -> Flat by the VR chord (input in each session)" 4 "$(count 'both bumpers + View + Menu (home): switching' "$LOG")"
 check "Flat -> VR by Menu held + A" 1 "$(count 'Switch to VR? A: Yes' "$LOG")"
 check "  Switch to VR? asked" 1 "$(count 'Menu held 3 s: asking Switch to VR?' "$LOG")"
-check "Flat -> VR by the status bar's VR button" 1 "$(count "xr: flat: the status bar's VR button" "$LOG")"
+check "Flat -> VR by the status bar's VR button (pressed twice)" 2 "$(count "xr: flat: the status bar's VR button" "$LOG")"
+check "  the second press while the first is under way" 1 "$(count 'xr: VR asked for again; the switch is under way' "$LOG")"
+check "  the dock that never answered: VR after 5 s anyway" 1 "$(count 'did not come back into the dashboard within 5 s; VR anyway' "$LOG")"
 check "Flat -> VR by the chord on the gamepad" 1 "$(count 'both bumpers + View + Menu (flat, no game): switching' "$LOG")"
+# Every round in order: the way back, a new session, FOCUSED, then the VR chord (input arrived).
+ROUNDS=$(grep -a -e "Switch to VR? A: Yes" -e "xr: flat: the status bar's VR button" \
+        -e 'both bumpers + View + Menu (flat, no game)' -e 'xr: VR again: making a session' \
+        -e 'xr: session made (session 1' -e 'xr: session VISIBLE -> FOCUSED' \
+        -e 'both bumpers + View + Menu (home)' "$LOG" |
+    awk '/Switch to VR\? A: Yes/ {route = "Menu held + A"; step = 1; next}
+         /status bar.s VR button/ {if (step != 1) {route = "the VR button"; step = 1}; next}
+         /\(flat, no game\)/ {route = "the gamepad chord"; step = 1; next}
+         /VR again: making a session/ {if (step == 1) step = 2; next}
+         /session made/ {if (step == 2) step = 3; next}
+         /-> FOCUSED/ {if (step == 3) step = 4; next}
+         /\(home\)/ {if (step == 4) {print route; step = 0}; next}')
+for r in "Menu held + A" "the VR button" "the gamepad chord"; do
+    check "round by $r: new session, FOCUSED, input in VR" 1 "$(printf '%s\n' "$ROUNDS" | grep -cx "$r")"
+done
 check "VR again (after Flat)" 3 "$(count 'xr: VR again: making a session' "$LOG")"
 check "sessions ended for Flat" 4 "$(count 'xr: ending the session (flat)' "$LOG")"
 check "no session refused" 0 "$(count 'xr: no session, staying flat' "$LOG")"

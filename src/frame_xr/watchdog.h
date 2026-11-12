@@ -28,5 +28,7 @@ void FlatTick();
 void FlatPhase(const char* phase);
 /// The frame loop leaves Flat (a session is being made, or it stops).
 void FlatEnd();
+/// Seconds since the frame loop last ticked in Flat; negative when it is not in Flat.
+double FlatStalledSeconds();
 
 } // namespace FrameXr::Watchdog

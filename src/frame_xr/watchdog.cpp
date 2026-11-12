@@ -256,4 +256,9 @@ void FlatEnd() {
     g_flat_us.store(0, std::memory_order_release);
 }
 
+double FlatStalledSeconds() {
+    const int64_t tick = g_flat_us.load(std::memory_order_acquire);
+    return tick == 0 ? -1.0 : (NowUs() - tick) / 1e6;
+}
+
 } // namespace FrameXr::Watchdog

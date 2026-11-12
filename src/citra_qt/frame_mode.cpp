@@ -466,12 +466,24 @@ QString SteamAppId() {
     return qEnvironmentVariable("SteamAppId").trimmed();
 }
 
+// AzaharFrame flatfix: test driver. AZAHARFRAME_TEST_CEF=FILE runs FILE in place of steam-cef.py,
+// outside Game Mode and Steam too (a mock run's fake: Steam itself is never asked).
+QString TestCefScript() {
+    return qEnvironmentVariable("AZAHARFRAME_TEST_CEF");
+}
+
 QString CefScript() {
+    if (const QString test = TestCefScript(); !test.isEmpty()) {
+        return test;
+    }
     return QCoreApplication::applicationDirPath() + QStringLiteral("/steam-cef.py");
 }
 
 /// Under gamescope, started by Steam, with steam-cef.py next to the program.
 bool CanAskSteam() {
+    if (!TestCefScript().isEmpty()) {
+        return QFileInfo::exists(CefScript()) && FlatScreenMode() != QStringLiteral("off");
+    }
     return InGameMode() && !SteamAppId().isEmpty() && QFileInfo::exists(CefScript()) &&
            FlatScreenMode() != QStringLiteral("off");
 }
@@ -747,7 +759,8 @@ void LeaveFlat(QWidget* window, std::function<void()> then) {
     if (g_in_theater) {
         // Back into the dashboard while the window is still opaque (its overlay goes away once it
         // is see-through), so the theater screen does not stay over the VR game.
-        // Once, when the move is done or after 8 s at the latest (vrcmd may hang).
+        // Once, when the move is done or after 5 s at the latest (vrcmd may hang, or never see
+        // the overlay): VR comes either way. AzaharFrame flatfix: 5 s (was 8), logged.
         auto once = std::make_shared<std::function<void()>>(std::move(then));
         const auto run = [once] {
             if (*once) {
@@ -757,7 +770,14 @@ void LeaveFlat(QWidget* window, std::function<void()> then) {
             }
         };
         DockWindow(false, 0, run);
-        QTimer::singleShot(8000, qApp, run);
+        QTimer::singleShot(5000, qApp, [once, run] {
+            if (*once) {
+                LOG_WARNING(Frontend, "xr: the window's frame did not come back into the "
+                                      "dashboard within 5 s; VR anyway");
+                StopScreenHelper();
+                run();
+            }
+        });
     } else {
         StopScreenHelper(); // a move to the theater may still be under way
         if (then) {

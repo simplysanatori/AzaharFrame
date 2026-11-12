@@ -935,6 +935,17 @@ bool SetVr(bool vr) {
     }
     if (rt->want_vr.exchange(vr) != vr) {
         LOG_INFO(Frontend, "xr: {} asked for", vr ? "VR" : "flat");
+    } else if (vr && !rt->has_session) {
+        // AzaharFrame flatfix: asked again before the loop made the session: say why it waits.
+        const double stalled = Watchdog::FlatStalledSeconds();
+        if (stalled >= 3.0) {
+            LOG_ERROR(Frontend, "xr: VR asked for again, but the frame loop has not ticked for "
+                                "{:.1f} s ({})",
+                      stalled, rt->loop_phase.load());
+        } else {
+            LOG_INFO(Frontend, "xr: VR asked for again; the frame loop is making the session ({})",
+                     rt->loop_phase.load());
+        }
     }
     return true;
 }
