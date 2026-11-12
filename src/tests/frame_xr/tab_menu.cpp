@@ -473,6 +473,37 @@ const MenuLayout::Hit* FindHit(const Drawn& d, Id id, int index) {
 }
 
 /// Every target of the segment is at least 48 dp and inside the panel.
+// AzaharFrame useglobal; reticle: the views with per-game rows, and a model where the game has
+// its own value for every one.
+namespace {
+std::vector<MenuView> PerGameViews() {
+    std::vector<MenuView> views;
+    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
+        for (float scroll : {0.0f, 10000.0f}) {
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = static_cast<SettingsSection>(sec);
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            views.push_back(v);
+        }
+    }
+    MenuView position;
+    position.tab = Tab::Position;
+    views.push_back(position);
+    MenuView controls; // AzaharFrame reticle
+    controls.tab = Tab::Controls;
+    views.push_back(controls);
+    return views;
+}
+
+MenuModel AllOwn(MenuModel m) {
+    for (int i = 0; i < kIdCount; i++) {
+        m.game_value[static_cast<std::size_t>(i)] = PerGameSetting(static_cast<Id>(i));
+    }
+    return m;
+}
+} // namespace
+
 void CheckTargets(const Drawn& d) {
     for (const auto& h : d.menu.Hits()) {
         if (h.t.index == kLabelIndex || h.t.index == kMenuAreaIndex) {
@@ -1244,10 +1275,19 @@ TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][t
         v.section = static_cast<SettingsSection>(sec);
         a.Draw(per_game, v);
         a.Check("Settings, Per-Game");
-        v.open_menu = Id::Scope;
-        a.Draw(per_game, v);
+        v.open_menu = Id::ScopeMore; // AzaharFrame reticle: the ⋮ menu
+        a.Draw(AllOwn(per_game), v);
         a.Check("Settings, the scope's menu");
         v.open_menu = Id::None;
+    }
+    // AzaharFrame reticle: the count line on every tab with the scope control
+    for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+        MenuView sv;
+        sv.tab = t;
+        MenuModel own = AllOwn(per_game);
+        own.bottom_screen_reticle = 3;
+        a.Draw(own, sv);
+        a.Check("the scope control's count line");
     }
     // The Touchpad row's longer line.
     per_game.touchpad_touch = 1;
@@ -2233,12 +2273,13 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
         for (float scroll = 0.0f;; scroll += kRowH) {
             v.scroll[static_cast<int>(Tab::Settings)] = scroll;
             d.Draw(m, v);
-            CHECK(HasHit(d, Id::Scope, -1)); // General too: its Saves rows are per game
+            CHECK(HasHit(d, Id::Scope, 0)); // General too: its Saves rows are per game
+            CHECK(HasHit(d, Id::Scope, 1));
             CHECK(HasHit(d, Id::SettingsSection, (sec + 1) % 3));
             for (const auto& h : d.menu.Hits()) {
                 const Id id = h.t.id;
-                if (id == Id::Scope || id == Id::SettingsSection || id == Id::TabButton ||
-                    id == Id::None) {
+                if (id == Id::Scope || id == Id::ScopeMore || id == Id::SettingsSection ||
+                    id == Id::TabButton || id == Id::None) {
                     continue;
                 }
                 CHECK(static_cast<int>(SectionOf(id)) == sec); // only its own rows
@@ -2247,13 +2288,11 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
                 break;
             }
         }
-        // The scope's menu: Global and Per-Game, over the rows
+        // AzaharFrame reticle: the toggle's two halves, Global and Per-Game
         v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
-        v.open_menu = Id::Scope;
         d.Draw(m, v);
         const MenuLayout::Hit* global = FindHit(d, Id::Scope, 0);
         REQUIRE(global != nullptr);
-        CHECK(HasHit(d, Id::Scope, 1));
         CHECK(d.menu.HitTest(global->r.Cx(), global->r.Cy()) == Target{Id::Scope, 0});
         CheckTargets(d);
     }
@@ -2444,191 +2483,249 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
     CHECK(a.Drew("Autosave: Off"));
 }
 
-// AzaharFrame useglobal: a per-game row the game has its own value for shows the "This Game"
-// chip in Per-Game, whose click is Use Global Value; the scope's menu offers it for the section.
-namespace {
-std::vector<MenuView> PerGameViews() {
-    std::vector<MenuView> views;
-    for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) {
-        for (float scroll : {0.0f, 10000.0f}) {
-            MenuView v;
-            v.tab = Tab::Settings;
-            v.section = static_cast<SettingsSection>(sec);
-            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
-            views.push_back(v);
+// AzaharFrame reticle: the scope control replaced the per-row "This Game" chips (owner's design,
+// round 24): Global | Per-Game at the top right of Settings, Controls and Position, ⋮ with Use
+// Global Values for All, and a count line in Per-Game.
+TEST_CASE("Tab menu: the scope control is the same on Settings, Controls and Position",
+          "[frame_xr][tabmenu][scope]") {
+    CHECK(TabHasScope(Tab::Settings));
+    CHECK(TabHasScope(Tab::Controls));
+    CHECK(TabHasScope(Tab::Position));
+    CHECK(!TabHasScope(Tab::Main));
+    CHECK(!TabHasScope(Tab::Stats));
+    CHECK(!TabHasScope(Tab::Mods));
+    CHECK(!TabHasScope(Tab::Homebrew));
+    CHECK(OptionsFor(Id::Scope) == std::vector<std::string>{"Global", "Per-Game"});
+    CHECK(LabelFor(Id::ScopeMore) == "Use Global Values for All");
+    Drawn d;
+    MenuModel m = Sample();
+    m.scope = 1;
+    Rect first_global{}, first_more{};
+    bool first = true;
+    for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+        MenuView v;
+        v.tab = t;
+        d.Draw(m, v);
+        INFO("tab " << static_cast<int>(t));
+        const MenuLayout::Hit* global = FindHit(d, Id::Scope, 0);
+        const MenuLayout::Hit* per_game = FindHit(d, Id::Scope, 1);
+        REQUIRE(global != nullptr);
+        REQUIRE(per_game != nullptr);
+        // ⋮ is there but greyed while nothing on the tab is per game
+        const MenuLayout::Hit* more = FindHit(d, Id::ScopeMore, kLabelIndex);
+        REQUIRE(more != nullptr);
+        CHECK(!HasHit(d, Id::ScopeMore, -1));
+        if (first) {
+            first_global = global->r;
+            first_more = more->r;
+            first = false;
+        } else {
+            // the same place and size on every tab
+            CHECK(std::fabs(global->r.x0 - first_global.x0) < 0.01f);
+            CHECK(std::fabs(global->r.y0 - first_global.y0) < 0.01f);
+            CHECK(std::fabs(more->r.x1 - first_more.x1) < 0.01f);
+        }
+        CHECK(global->r.x1 <= per_game->r.x0 + 0.01f);
+        CHECK(per_game->r.x1 <= more->r.x0 + 0.01f);
+        CHECK(d.menu.HitTest(per_game->r.Cx(), per_game->r.Cy()) == Target{Id::Scope, 1});
+        CheckTargets(d);
+        // no tab's own control under it
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == Id::Scope || h.t.id == Id::ScopeMore || h.t.id == Id::None ||
+                h.t.index == kLabelIndex || h.t.id == Id::TabButton) {
+                continue;
+            }
+            const bool apart = h.r.x1 <= global->r.x0 || h.r.y0 >= global->r.y1 ||
+                               h.r.y1 <= global->r.y0;
+            INFO("id " << static_cast<int>(h.t.id));
+            CHECK(apart);
         }
     }
-    MenuView position;
-    position.tab = Tab::Position;
-    views.push_back(position);
-    return views;
-}
-
-MenuModel AllOwn(MenuModel m) {
-    for (int i = 0; i < kIdCount; i++) {
-        m.game_value[static_cast<std::size_t>(i)] = PerGameSetting(static_cast<Id>(i));
+    // No game that can have its own values: Global alone, no Per-Game, ⋮ greyed
+    MenuModel none = Sample();
+    none.scope = 0;
+    none.locked[static_cast<std::size_t>(Id::Scope)] = Lock::NoGame;
+    for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+        MenuView v;
+        v.tab = t;
+        d.Draw(AllOwn(none), v);
+        CHECK(!HasHit(d, Id::Scope, 0));
+        CHECK(!HasHit(d, Id::Scope, 1));
+        CHECK(HasHit(d, Id::Scope, kLabelIndex));
+        CHECK(!HasHit(d, Id::ScopeMore, -1));
+        Audit a;
+        a.Draw(AllOwn(none), v);
+        CHECK(a.Drew("Global"));
+        CHECK(!a.Drew("Per-Game"));
+        CHECK(!a.Drew("Per-Game Values"));
     }
-    return m;
+    CHECK(ExplainLock(Lock::NoGame) == "Per-Game values need a running game.");
+    CHECK(ExplainLock(Lock::NoGameValues) == "Nothing on this tab is set for this game.");
 }
-} // namespace
 
-TEST_CASE("Tab menu: Use Global Value chips only on rows with the game's own value",
-          "[frame_xr][tabmenu][useglobal]") {
-    CHECK(LabelFor(Id::UseGlobal) == "This Game");
-    CHECK(ExplainFor(Id::UseGlobal) == "Use Global Value");
+TEST_CASE("Tab menu: no per-row chips any more", "[frame_xr][tabmenu][scope]") {
+    Drawn d;
+    MenuModel m = AllOwn(Sample());
+    m.autosave = true;
+    m.bottom_screen_reticle = 3;
+    for (const int scope : {0, 1}) {
+        m.scope = scope;
+        for (const MenuView& v : PerGameViews()) {
+            d.Draw(m, v);
+            CHECK(!HasHit(d, Id::UseGlobal, -1));
+            for (const auto& h : d.menu.Hits()) {
+                CHECK(h.t.id != Id::UseGlobal);
+            }
+        }
+    }
+}
+
+TEST_CASE("Tab menu: the count line and Use Global Values for All, per tab",
+          "[frame_xr][tabmenu][scope]") {
+    CHECK(GameValueCount(1) == "1 Per-Game Value");
+    CHECK(GameValueCount(2) == "2 Per-Game Values");
     // Global-only rows are never per game
     for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::MotionControls,
-                  Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution}) {
+                  Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution,
+                  Id::ScreenLayout, Id::MoveScreens, Id::ScreenCurve, Id::CursorSpeed}) {
         CHECK(!PerGameSetting(id));
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
                   Id::ImmersiveMode, Id::WiderView, Id::GameFov, Id::MatchCamera,
                   Id::NarrowScreen, Id::DepthFactor, Id::Autosave, Id::AutosaveEvery,
-                  Id::AutosaveKeep}) {
+                  Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape, Id::TouchpadTouch,
+                  Id::BottomScreenReticle, Id::ReticleSpeed, Id::ReticleAtEdge}) {
         CHECK(PerGameSetting(id));
     }
-    Drawn d;
+    CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
+                                                 Id::ReticleSpeed, Id::ReticleAtEdge});
     MenuModel m = Sample();
     m.scope = 1;
-    m.autosave = true;
-    const auto chips = [&d] {
-        std::vector<int> rows;
-        for (const auto& h : d.menu.Hits()) {
-            if (h.t.id == Id::UseGlobal) {
-                rows.push_back(h.t.index);
-            }
-        }
-        return rows;
-    };
-    // None while every row follows the global value
-    for (const MenuView& v : PerGameViews()) {
-        d.Draw(m, v);
-        CHECK(chips().empty());
+    for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+        CHECK(GameValueRows(m, t).empty());
     }
-    // Only the rows with a value of their own; one chip each
-    MenuModel own = m;
-    own.game_value[static_cast<std::size_t>(Id::InternalResolution)] = true; // a menu button
-    own.game_value[static_cast<std::size_t>(Id::Depth3d)] = true;            // a slider
-    own.game_value[static_cast<std::size_t>(Id::AsyncShaders)] = true;       // a switch
-    MenuView v;
-    v.tab = Tab::Settings;
-    v.section = SettingsSection::Graphics;
-    d.Draw(own, v);
-    std::vector<int> rows = chips();
-    std::sort(rows.begin(), rows.end());
-    CHECK(rows == std::vector<int>{static_cast<int>(Id::Depth3d),
-                                   static_cast<int>(Id::InternalResolution),
-                                   static_cast<int>(Id::AsyncShaders)});
-    // The chip wins over its row (a switch row is a target as a whole)
-    const MenuLayout::Hit* chip = FindHit(d, Id::UseGlobal, static_cast<int>(Id::AsyncShaders));
-    REQUIRE(chip != nullptr);
-    CHECK(d.menu.HitTest(chip->r.Cx(), chip->r.Cy()) ==
-          Target{Id::UseGlobal, static_cast<int>(Id::AsyncShaders)});
-    // A global-only row never gets one, even if the model said so
-    own.game_value[static_cast<std::size_t>(Id::DynamicResolution)] = true;
-    d.Draw(own, v);
-    CHECK(!HasHit(d, Id::UseGlobal, static_cast<int>(Id::DynamicResolution)));
-    // Not in Global: there the row is locked with its tooltip instead
-    own.scope = 0;
-    d.Draw(own, v);
-    CHECK(chips().empty());
-    // A greyed row (Full only, Autosave off) still clears
-    MenuModel grey = m;
-    grey.immersive_mode = 0;
-    grey.game_value[static_cast<std::size_t>(Id::WiderView)] = true;
-    v.section = SettingsSection::Immersive;
-    d.Draw(grey, v);
-    CHECK(HasHit(d, Id::UseGlobal, static_cast<int>(Id::WiderView)));
-    CHECK(!HasHit(d, Id::WiderView, 1));
-}
-
-TEST_CASE("Tab menu: the chip's room is kept, so no control moves when it shows",
-          "[frame_xr][tabmenu][useglobal]") {
-    Drawn plain, chip;
-    MenuModel m = Sample();
-    m.scope = 1;
-    m.autosave = true;
-    const MenuModel own = AllOwn(m);
-    for (const MenuView& v : PerGameViews()) {
-        plain.Draw(m, v);
-        chip.Draw(own, v);
-        INFO("tab " << static_cast<int>(v.tab) << " section " << static_cast<int>(v.section));
-        // Every control target of the plain drawing is in the same place with the chips
-        for (const auto& h : plain.menu.Hits()) {
-            if (h.t.index == kLabelIndex) {
-                continue;
-            }
-            const MenuLayout::Hit* same = FindHit(chip, h.t.id, h.t.index);
-            REQUIRE(same != nullptr);
-            CHECK(std::fabs(same->r.x0 - h.r.x0) < 0.01f);
-            CHECK(std::fabs(same->r.x1 - h.r.x1) < 0.01f);
-        }
-        // A chip covers no control but its own row's label
-        for (const auto& c : chip.menu.Hits()) {
-            if (c.t.id != Id::UseGlobal) {
-                continue;
-            }
-            if (c.r.y1 < kListBottom - 0.01f) { // else cut by the list's edge
-                CHECK(c.r.W() >= 48.0f);
-                CHECK(c.r.H() >= 48.0f - 0.01f);
-            }
-            for (const auto& h : chip.menu.Hits()) {
-                if (h.t.id == Id::UseGlobal || h.t.index == kLabelIndex ||
-                    h.t.id == Id::None || h.t.index == kMenuAreaIndex) {
-                    continue;
-                }
-                const bool switch_row = h.t.index == -1 && static_cast<int>(h.t.id) == c.t.index;
-                if (switch_row) {
-                    continue; // a switch row is a target as a whole; the chip is hit first
-                }
-                const bool apart = c.r.x1 <= h.r.x0 || h.r.x1 <= c.r.x0 || c.r.y1 <= h.r.y0 ||
-                                   h.r.y1 <= c.r.y0;
-                INFO("chip " << c.t.index << " over id " << static_cast<int>(h.t.id) << " index "
-                             << h.t.index);
-                CHECK(apart);
-            }
-        }
-    }
-    // No line of text runs into another with every chip shown
-    Audit a;
-    for (const MenuView& v : PerGameViews()) {
-        a.Draw(own, v);
-        a.Check("chips");
-    }
-}
-
-TEST_CASE("Tab menu: Use Global Values for All in the scope's menu",
-          "[frame_xr][tabmenu][useglobal]") {
-    Drawn d;
-    MenuModel m = Sample();
-    m.scope = 1;
-    MenuView v;
-    v.tab = Tab::Settings;
-    v.section = SettingsSection::Graphics;
-    v.open_menu = Id::Scope;
-    d.Draw(m, v);
-    CHECK(!HasHit(d, Id::Scope, kScopeUseGlobalAll)); // nothing to clear
-    CHECK(GameValueRows(m, SettingsSection::Graphics).empty());
     m.game_value[static_cast<std::size_t>(Id::TextureFilter)] = true;
     m.game_value[static_cast<std::size_t>(Id::Depth3d)] = true;
-    m.game_value[static_cast<std::size_t>(Id::GameFov)] = true; // another section's
-    CHECK(GameValueRows(m, SettingsSection::Graphics) ==
-          std::vector<Id>{Id::Depth3d, Id::TextureFilter});
-    CHECK(GameValueRows(m, SettingsSection::Immersive) == std::vector<Id>{Id::GameFov});
-    CHECK(GameValueRows(m, SettingsSection::General).empty());
-    d.Draw(m, v);
-    const MenuLayout::Hit* all = FindHit(d, Id::Scope, kScopeUseGlobalAll);
-    REQUIRE(all != nullptr);
-    CHECK(d.menu.HitTest(all->r.Cx(), all->r.Cy()) == Target{Id::Scope, kScopeUseGlobalAll});
-    CheckTargets(d);
-    Audit a;
-    a.Draw(m, v);
-    CHECK(a.Drew("Use Global Values for All"));
-    // In Global too (the rows are locked there; this is the way back for all of them)
-    m.scope = 0;
-    d.Draw(m, v);
-    CHECK(HasHit(d, Id::Scope, kScopeUseGlobalAll));
-    // The Saves rows on General
+    m.game_value[static_cast<std::size_t>(Id::GameFov)] = true;
     m.game_value[static_cast<std::size_t>(Id::AutosaveKeep)] = true;
-    CHECK(GameValueRows(m, SettingsSection::General) == std::vector<Id>{Id::AutosaveKeep});
+    m.game_value[static_cast<std::size_t>(Id::ScreenShape)] = true;
+    m.game_value[static_cast<std::size_t>(Id::ReticleAtEdge)] = true; // shown or not
+    m.game_value[static_cast<std::size_t>(Id::BottomScreenReticle)] = true;
+    m.game_value[static_cast<std::size_t>(Id::ScreenLayout)] = true; // global only: never
+    // The Settings tab: its section's
+    CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Graphics) ==
+          std::vector<Id>{Id::Depth3d, Id::TextureFilter});
+    CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Immersive) ==
+          std::vector<Id>{Id::GameFov});
+    CHECK(GameValueRows(m, Tab::Settings, SettingsSection::General) ==
+          std::vector<Id>{Id::AutosaveKeep});
+    CHECK(GameValueRows(m, Tab::Position) == std::vector<Id>{Id::ScreenShape});
+    CHECK(GameValueRows(m, Tab::Controls) ==
+          std::vector<Id>{Id::BottomScreenReticle, Id::ReticleAtEdge});
+    CHECK(GameValueRows(m, Tab::Main).empty());
+
+    Drawn d;
+    struct Case {
+        Tab tab;
+        SettingsSection section;
+        const char* count;
+    };
+    for (const Case& c : {Case{Tab::Settings, SettingsSection::Graphics, "2 Per-Game Values"},
+                          Case{Tab::Settings, SettingsSection::General, "1 Per-Game Value"},
+                          Case{Tab::Position, SettingsSection::General, "1 Per-Game Value"},
+                          Case{Tab::Controls, SettingsSection::General, "2 Per-Game Values"}}) {
+        INFO("tab " << static_cast<int>(c.tab) << " " << c.count);
+        MenuView v;
+        v.tab = c.tab;
+        v.section = c.section;
+        // Per-Game: the count line, which opens the ⋮ menu as ⋮ does
+        m.scope = 1;
+        Audit a;
+        a.Draw(m, v);
+        CHECK(a.Drew(c.count));
+        d.Draw(m, v);
+        int more_hits = 0;
+        for (const auto& h : d.menu.Hits()) {
+            more_hits += h.t == Target{Id::ScopeMore} ? 1 : 0;
+        }
+        CHECK(more_hits == 2); // ⋮ and the count line
+        // Global: no count line; ⋮ still clears (the locked rows' way back)
+        m.scope = 0;
+        Audit g;
+        g.Draw(m, v);
+        CHECK(!g.Drew(c.count));
+        d.Draw(m, v);
+        CHECK(HasHit(d, Id::ScopeMore, -1));
+        // The ⋮ menu: one item over the rest
+        v.open_menu = Id::ScopeMore;
+        m.scope = 1;
+        d.Draw(m, v);
+        const MenuLayout::Hit* all = FindHit(d, Id::ScopeMore, 0);
+        REQUIRE(all != nullptr);
+        CHECK(d.menu.HitTest(all->r.Cx(), all->r.Cy()) == Target{Id::ScopeMore, 0});
+        Audit om;
+        om.Draw(m, v);
+        CHECK(om.Drew("Use Global Values for All"));
+        CHECK(!om.Drew(c.count)); // under the menu
+    }
+}
+
+// AzaharFrame reticle: Reticle Speed, a slider under Bottom Screen Reticle while it is on, its
+// value as "2.0x"; greyed in Global while the game has its own value.
+TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tabmenu][reticle]") {
+    CHECK(LabelFor(Id::ReticleSpeed) == "Reticle Speed");
+    CHECK(!ExplainFor(Id::ReticleSpeed).empty());
+    const SliderRange r = SliderFor(Id::ReticleSpeed);
+    CHECK(r.min == 5.0f);
+    CHECK(r.max == 40.0f);
+    CHECK(r.step == 1.0f);
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Controls;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleSpeed, -1)); // the reticle is off
+    for (const int source : {1, 2, 3}) {
+        m.bottom_screen_reticle = source;
+        m.reticle_speed = 20;
+        d.Draw(m, v);
+        const MenuLayout::Hit* speed = FindHit(d, Id::ReticleSpeed, -1);
+        REQUIRE(speed != nullptr);
+        const MenuLayout::Hit* reticle = FindHit(d, Id::BottomScreenReticle, 0);
+        const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
+        REQUIRE(reticle != nullptr);
+        REQUIRE(edge != nullptr);
+        CHECK(speed->r.y0 >= reticle->r.y1 - 0.01f); // under Bottom Screen Reticle
+        CHECK(edge->r.y0 >= speed->r.y1 - 0.01f);    // and over At Edge
+        // The track: 2.0x at (20 - 5) / 35 of the way
+        float x0 = 0.0f, x1 = 0.0f;
+        for (const auto& t : d.menu.Layout().sliders) {
+            if (t.id == Id::ReticleSpeed) {
+                x0 = t.x0;
+                x1 = t.x1;
+            }
+        }
+        REQUIRE(x1 > x0);
+        const float t = d.menu.SliderAt(Id::ReticleSpeed, x1);
+        CHECK(std::fabs(t - 1.0f) < 0.02f);
+        Audit a;
+        a.Draw(m, v);
+        a.Check("Controls, Reticle Speed");
+        CHECK(a.Drew("2.0x"));
+        CHECK(a.Drew("Reticle Speed"));
+    }
+    m.reticle_speed = 5;
+    Audit lo;
+    lo.Draw(m, v);
+    CHECK(lo.Drew("0.5x"));
+    m.reticle_speed = 40;
+    Audit hi;
+    hi.Draw(m, v);
+    CHECK(hi.Drew("4.0x"));
+    // Global with the game's own value: greyed, the tooltip says why
+    m.scope = 0;
+    m.locked[static_cast<std::size_t>(Id::ReticleSpeed)] = Lock::GameValue;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleSpeed, -1));
+    CHECK(HasHit(d, Id::ReticleSpeed, kLabelIndex));
 }

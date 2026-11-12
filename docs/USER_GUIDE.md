@@ -224,7 +224,7 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
 
-**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 The mouse has two modes, in **Mouse Mode** on its Edit Controls page. Hold the left and right buttons together for 3 seconds to switch; **Mouse: Pointer** or **Mouse: Bottom Screen** shows.
 
@@ -253,7 +253,7 @@ Everything is in the Azahar window, under **Emulation > Configure**. Resolution,
 
 **Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row is greyed out in **Configure** and shows the value for all games.
 
-In the in-game menu's **Settings** tab, a row this game has its own value for shows **This Game** while **Per-Game** is chosen. Select **This Game** to use the global value again: the game's own value is removed, so later changes in **Global** apply to it. **Use Global Values for All**, in the menu button at the end of the section row, does this for every row of the section.
+In the in-game menu, the **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right. While a game runs the menu opens on **Per-Game**, so a change is for that game only; **Global** changes every game. In **Per-Game** a line under the switch counts the values on the tab this game has of its own, for example "2 Per-Game Values". **Use Global Values for All**, in the **⋮** menu next to the switch (or by selecting that line), removes them, so the game follows the global values again. On **Settings** it counts and clears the section you are in. In **Global**, a row the game has its own value for is greyed out.
 
 The first time VR starts, the buttons and sticks of the current controls profile get the Frame layout (**Emulation > Configure > Controls**). After that your changes stay. In VR the Single Screen and Separate Windows layouts are changed to Default, and the 3D depth is set to 50 % if it is 0.
 

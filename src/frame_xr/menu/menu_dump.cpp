@@ -664,6 +664,15 @@ int main(int argc, char** argv) {
         v.tab = Tab::Controls;
         v.hover = {Id::ReticleAtEdge, 1};
         ok &= shot("4c-controls-reticle", mr, v);
+        // AzaharFrame reticle: Reticle Speed held at 3.0x, and its tooltip
+        v.hover = {};
+        v.dragging = Id::ReticleSpeed;
+        v.drag_t = (30.0f - 5.0f) / 35.0f;
+        ok &= shot("4d-controls-reticle-speed-drag", mr, v);
+        v.dragging = Id::None;
+        v.hover = {Id::ReticleSpeed, kLabelIndex};
+        v.tooltip = Id::ReticleSpeed;
+        ok &= shot("4e-controls-reticle-speed-tooltip", mr, v);
     }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
@@ -805,9 +814,8 @@ int main(int argc, char** argv) {
         v.tooltip = Id::Autosave;
         ok &= shot("5a4-settings-saves-global-game-value", gs, v);
         v = settings(SettingsSection::General);
-        v.open_menu = Id::Scope;
         v.hover = {Id::Scope, 0};
-        ok &= shot("5a5-settings-general-scope-menu", pg, v);
+        ok &= shot("5a5-settings-general-scope-hover", pg, v);
         // AzaharFrame crashreport: the Help group at General's end
         v = settings(SettingsSection::General);
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
@@ -838,10 +846,6 @@ int main(int argc, char** argv) {
     MenuModel rm = pg;
     rm.internal_resolution = 3;
     v = settings(SettingsSection::Graphics);
-    v.open_menu = Id::Scope;
-    v.hover = {Id::Scope, 0};
-    ok &= shot("5f2-settings-graphics-scope-menu", rm, v);
-    v.open_menu = Id::None;
     v.hover = {Id::DynamicResolution};
     ok &= shot("5f-settings-renderer", rm, v);
     v.open_menu = Id::InternalResolution;
@@ -852,13 +856,16 @@ int main(int argc, char** argv) {
     v.hover = {Id::DynamicResolution, kLabelIndex};
     v.tooltip = Id::DynamicResolution;
     ok &= shot("5h-settings-dynamic-at-1x", rm, v);
-    // AzaharFrame useglobal: the "This Game" chip on rows the game has its own value for
-    // (Per-Game), its tooltip, Use Global Values for All in the scope's menu; option B (the chip
-    // opens a one-item menu) drawn over the real menu for comparison.
+    // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, the count line) on the
+    // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.
     {
-        const auto own = [](MenuModel mm, std::initializer_list<Id> ids) {
+        const auto own = [](MenuModel mm, std::initializer_list<Id> ids, int scope) {
+            mm.scope = scope;
             for (Id id : ids) {
                 mm.game_value[static_cast<std::size_t>(id)] = true;
+                if (scope == 0) {
+                    mm.locked[static_cast<std::size_t>(id)] = Lock::GameValue;
+                }
             }
             return mm;
         };
@@ -866,83 +873,82 @@ int main(int argc, char** argv) {
         ug.internal_resolution = 3;
         ug.depth_3d = 80;
         ug.async_shaders = true;
+        const std::initializer_list<Id> gfx{Id::Depth3d, Id::InternalResolution, Id::AsyncShaders};
         v = settings(SettingsSection::Graphics);
-        ok &= shot("ug0-graphics-before", ug, v);
-        const MenuModel ugr =
-            own(ug, {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders});
-        ok &= shot("ug1-graphics-this-game", ugr, v);
-        v.hover = {Id::UseGlobal, static_cast<int>(Id::InternalResolution)};
-        v.tooltip = Id::UseGlobal;
-        v.tooltip_index = static_cast<int>(Id::InternalResolution);
-        ok &= shot("ug1a-graphics-chip-tooltip", ugr, v);
-        {
-            // After the click: Internal Resolution follows the global value (2x) again
-            MenuModel after = own(ug, {Id::Depth3d, Id::AsyncShaders});
-            after.internal_resolution = 2;
-            v.tooltip = Id::None;
-            v.tooltip_index = -1;
-            ok &= shot("ug1b-graphics-after-use-global", after, v);
-        }
+        ok &= shot("sc0-settings-graphics-per-game-none", own(ug, {}, 1), v);
+        ok &= shot("sc1-settings-graphics-per-game", own(ug, gfx, 1), v);
+        ok &= shot("sc2-settings-graphics-global", own(ug, gfx, 0), v);
+        v.hover = {Id::Depth3d, kLabelIndex};
+        v.tooltip = Id::Depth3d;
+        ok &= shot("sc2a-settings-graphics-global-locked-tooltip", own(ug, gfx, 0), v);
         v = settings(SettingsSection::Graphics);
-        v.open_menu = Id::Scope;
-        v.hover = {Id::Scope, kScopeUseGlobalAll};
-        ok &= shot("ug2-scope-menu-use-global-all", ugr, v);
-        MenuModel ugi = pg;
-        ugi.game_fov = 85;
-        ugi.wider_view = 3;
-        ugi.match_camera = false;
-        v = settings(SettingsSection::Immersive);
-        ok &= shot("ug3-immersive-this-game",
-                   own(ugi, {Id::WiderView, Id::GameFov, Id::MatchCamera}), v);
+        v.open_menu = Id::ScopeMore;
+        v.hover = {Id::ScopeMore, 0};
+        ok &= shot("sc3-settings-scope-more-menu", own(ug, gfx, 1), v);
+        v = settings(SettingsSection::Graphics);
+        v.hover = {Id::ScopeMore, kLabelIndex};
+        v.tooltip = Id::ScopeMore;
+        ok &= shot("sc3a-settings-scope-more-disabled", own(ug, {}, 1), v);
         MenuModel ugs = pg;
         ugs.autosave_keep = 8;
         v = settings(SettingsSection::General);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
-        ok &= shot("ug4-general-saves-this-game", own(ugs, {Id::Autosave, Id::AutosaveKeep}), v);
-        {
-            MenuModel gl = own(ug, {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders});
-            gl.scope = 0; // Global: the rows locked, the way back is the scope's menu
-            for (Id id : {Id::Depth3d, Id::InternalResolution, Id::AsyncShaders}) {
-                gl.locked[static_cast<std::size_t>(id)] = Lock::GameValue;
-            }
-            v = settings(SettingsSection::Graphics);
-            v.open_menu = Id::Scope;
-            v.hover = {Id::Scope, kScopeUseGlobalAll};
-            ok &= shot("ug5-global-scope-menu", gl, v);
-        }
-        {
-            MenuModel pos = own(pg, {Id::HideBottomScreen, Id::ScreenShape});
-            pos.screen_shape = 1;
+        ok &= shot("sc4-settings-general-per-game", own(ugs, {Id::Autosave, Id::AutosaveKeep}, 1), v);
+        MenuModel ugi = pg;
+        ugi.game_fov = 85;
+        ugi.wider_view = 3;
+        v = settings(SettingsSection::Immersive);
+        ok &= shot("sc5-settings-immersive-per-game",
+                   own(ugi, {Id::WiderView, Id::GameFov, Id::MatchCamera}, 1), v);
+        // Position: Hide Bottom Screen and Screen Shape follow the toggle too
+        MenuModel pos = pg;
+        pos.screen_shape = 1;
+        v = {};
+        v.tab = Tab::Position;
+        ok &= shot("sc6-position-per-game", own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 1), v);
+        ok &= shot("sc7-position-global", own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 0), v);
+        v.open_menu = Id::ScopeMore;
+        v.hover = {Id::ScopeMore, 0};
+        ok &= shot("sc8-position-scope-more-menu",
+                   own(pos, {Id::HideBottomScreen, Id::ScreenShape}, 1), v);
+        // Controls: Kid Icarus: Uprising with its own Bottom Screen Reticle and Reticle Speed
+        MenuModel ctl = pg;
+        ctl.game_title = "Kid Icarus: Uprising";
+        ctl.bottom_screen_reticle = 3;
+        ctl.reticle_speed = 25;
+        const std::initializer_list<Id> cids{Id::BottomScreenReticle, Id::ReticleSpeed};
+        v = {};
+        v.tab = Tab::Controls;
+        ok &= shot("sc9-controls-per-game", own(ctl, cids, 1), v);
+        ok &= shot("sc10-controls-global", own(ctl, cids, 0), v);
+        v.hover = {Id::BottomScreenReticle, kLabelIndex};
+        v.tooltip = Id::BottomScreenReticle;
+        ok &= shot("sc10a-controls-global-locked-tooltip", own(ctl, cids, 0), v);
+        v = {};
+        v.tab = Tab::Controls;
+        v.open_menu = Id::ScopeMore;
+        v.hover = {Id::ScopeMore, 0};
+        ok &= shot("sc11-controls-scope-more-menu", own(ctl, cids, 1), v);
+        MenuModel ctlw = own(ctl, cids, 1);
+        ctlw.controls_page = 1;
+        v = {};
+        v.tab = Tab::Controls;
+        ok &= shot("sc12-controls-window-page-per-game", ctlw, v);
+        // No game that can have its own values: Global alone, ⋮ greyed
+        for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
+            MenuModel ng = m;
+            ng.scope = 0;
+            ng.locked[static_cast<std::size_t>(Id::Scope)] = Lock::NoGame;
             v = {};
-            v.tab = Tab::Position;
-            ok &= shot("ug6-position-this-game", pos, v);
-        }
-        // Option B: "This Game ▾" opens a menu with Use Global Value (not built; mock)
-        v = settings(SettingsSection::Graphics);
-        {
-            frame_xr::ui::Canvas scratch; // where the chip is
-            scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
-                         static_cast<int>(kPanelH * px_per_dp + 0.5f));
-            kit.Begin(scratch);
-            menu.Draw(kit, ugr, v);
-        }
-        Rect chip{};
-        for (const auto& h : menu.Hits()) {
-            if (h.t.id == Id::UseGlobal && h.t.index == static_cast<int>(Id::InternalResolution)) {
-                chip = {h.r.x0 + 4.0f, h.r.Cy() - 16.0f, h.r.x1 - 4.0f, h.r.Cy() + 16.0f};
+            v.tab = t;
+            if (t == Tab::Settings) {
+                v.section = SettingsSection::General;
             }
+            v.hover = {Id::Scope, kLabelIndex};
+            v.tooltip = Id::Scope;
+            ok &= shot(std::string("sc13-no-game-") +
+                           (t == Tab::Settings ? "settings" : t == Tab::Controls ? "controls" : "position"),
+                       ng, v);
         }
-        ok &= shot("ug9-option-b-chip-menu", ugr, v, {}, [chip](Kit& k) {
-            k.Fill({chip.x1 - 30.0f, chip.y0 + 2.0f, chip.x1 - 2.0f, chip.y1 - 2.0f}, 6.0f,
-                   Tok::kSurface);
-            k.StateLayer(chip, 8.0f, Tok::kOnSurfaceVariant, State::Pressed);
-            k.Icon(chip.x1 - 17.0f, chip.Cy(), 20.0f, FrameXr::Menu::Icon::kArrowDropDown, false,
-                   Tok::kOnSurfaceVariant);
-            const float w = k.TextWidth(Type::Label, "Use Global Value") + 72.0f;
-            const Rect box = k.Menu({chip.x0, chip.y1 + 4.0f, chip.x0 + w, chip.y1 + 4.0f + 64.0f},
-                                    {"Use Global Value"}, -1, 0);
-            (void)box;
-        });
     }
 
     MenuModel om = m;

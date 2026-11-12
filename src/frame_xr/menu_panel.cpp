@@ -20,6 +20,7 @@
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
+#include "frame_xr/input/reticle.h" // AzaharFrame reticle: Reticle Speed
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
 #include "frame_xr/per_game.h" // AzaharFrame useglobal
@@ -245,6 +246,14 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::Autosave;
     case Id::AutosaveEvery:
         return MenuSetting::AutosaveEvery;
+    case Id::TouchpadTouch: // AzaharFrame reticle: the Controls tab's rows
+        return MenuSetting::TouchpadTouch;
+    case Id::BottomScreenReticle:
+        return MenuSetting::BottomScreenReticle;
+    case Id::ReticleAtEdge:
+        return MenuSetting::ReticleAtEdge;
+    case Id::ReticleSpeed:
+        return MenuSetting::ReticleSpeed;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -728,6 +737,8 @@ void MenuPanel::BuildModel(const Host& host) {
     m.bottom_screen_reticle = // AzaharFrame mouse
         static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 3)); // input2
     m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
+    m.reticle_speed = static_cast<int>(std::lround( // AzaharFrame reticle: tenths
+        Input::ClampReticleSpeed(v.vr_reticle_speed.GetValue()) * 10.0f));
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -926,7 +937,7 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     m.autosave_keep = static_cast<int>(std::clamp<u32>(v.autosave_keep.GetValue(), 1, 10));
 
-    PerGame::FillGameValues(m); // AzaharFrame useglobal: the "This Game" chips
+    PerGame::FillGameValues(m); // AzaharFrame useglobal; reticle: the scope control's count
     const auto lock = [&m](Id id, Lock l) { m.locked[static_cast<std::size_t>(id)] = l; };
     for (int i = 0; i < Menu::kIdCount; i++) {
         const Id id = static_cast<Id>(i);
@@ -943,7 +954,7 @@ void MenuPanel::BuildModel(const Host& host) {
         lock(Id::Background, Lock::Unavailable);
     }
     if (!per_game_ok) {
-        lock(Id::Scope, Lock::Unavailable);
+        lock(Id::Scope, Lock::NoGame); // AzaharFrame reticle: the toggle shows Global alone
     }
     // AzaharFrame vis: no controller models in passthrough (vis/layer_plan.h); the switch keeps
     // its saved value, greyed.
@@ -985,9 +996,9 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::MoveScreens;
         ShowToastText(Menu::LabelFor(id) + ": " + Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
         break;
-    case Id::TouchpadTouch: // AzaharFrame menu, global; menuux: 0 Tap (1), 1 Click (2)
+    case Id::TouchpadTouch: // AzaharFrame menu; menuux: 0 Tap (1), 1 Click (2); reticle: per game
         r.value = u >= 1 ? 2 : 1;
-        Apply(v.vr_touchpad_touch, static_cast<u32>(r.value), false);
+        Apply(v.vr_touchpad_touch, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::TouchpadTouch;
         break;
     // AzaharFrame menuux: the renderer's settings. A new Internal Resolution or Texture Filter
@@ -1035,19 +1046,27 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.autosave_keep, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::AutosaveKeep;
         break;
-    case Id::ReticleAtEdge: // AzaharFrame mouse, global
-        Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), false);
+    case Id::ReticleAtEdge: // AzaharFrame mouse; reticle: per game
+        Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), per_game);
         r.setting = MenuSetting::ReticleAtEdge;
         LOG_INFO(Frontend, "xr: in-game menu: At Edge = {}",
                  Menu::OptionsFor(id)[std::min<u32>(u, 1)]);
         break;
-    case Id::BottomScreenReticle: // AzaharFrame mouse, global
+    case Id::BottomScreenReticle: // AzaharFrame mouse; reticle: per game
         // AzaharFrame input2: 3 Headset
-        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 3), false);
+        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 3), per_game);
         r.setting = MenuSetting::BottomScreenReticle;
         LOG_INFO(Frontend, "xr: in-game menu: Bottom Screen Reticle = {}",
                  Menu::OptionsFor(id)[std::min<u32>(u, 3)]);
         break;
+    case Id::ReticleSpeed: { // AzaharFrame reticle: tenths of 1x from the slider
+        r.value = std::clamp(value, 5, 40);
+        Apply(v.vr_reticle_speed, static_cast<float>(r.value) / 10.0f, per_game);
+        r.setting = MenuSetting::ReticleSpeed;
+        LOG_INFO(Frontend, "xr: in-game menu: Reticle Speed = {:.1f}x",
+                 static_cast<float>(r.value) / 10.0f);
+        break;
+    }
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
         Apply(v.custom_textures, value != 0, r.per_game);
@@ -1192,14 +1211,12 @@ void MenuPanel::Click(Target t, Host& host) {
         const Id menu = view.open_menu;
         view.open_menu = Id::None;
         if (t.id == menu && t.index >= 0) {
-            if (menu == Id::Scope && t.index == Menu::kScopeUseGlobalAll) {
-                // AzaharFrame useglobal: every row of the section the game has its own value for
-                for (const Id id : Menu::GameValueRows(model, view.section)) {
+            if (menu == Id::ScopeMore && t.index == 0) {
+                // AzaharFrame useglobal; reticle: every row of this tab (the Settings tab: this
+                // section) the game has its own value for
+                for (const Id id : Menu::GameValueRows(model, view.tab, view.section)) {
                     UseGlobal(id, host);
                 }
-            } else if (menu == Id::Scope) { // AzaharFrame autosave: the scope's menu button
-                scope = std::clamp(t.index, 0, 1);
-                LOG_INFO(Frontend, "xr: in-game menu: Settings: {}", scope ? "Per-Game" : "Global");
             } else if (menu == Id::AutosaveCard) { // AzaharFrame autosave: the card's list
                 LOG_INFO(Frontend, "xr: in-game menu: Load Autosave {}", t.index + 1);
                 // AzaharFrame advfix: the entry as drawn (its file and time), not its place
@@ -1271,7 +1288,7 @@ void MenuPanel::Click(Target t, Host& host) {
             view.open_menu = Id::AutosaveCard;
         }
         break;
-    case Id::UseGlobal: // AzaharFrame useglobal: a row's "This Game" chip
+    case Id::UseGlobal: // AzaharFrame useglobal: one row (no chip draws it since round 24)
         if (t.index > 0 && t.index < Menu::kIdCount) {
             UseGlobal(static_cast<Id>(t.index), host);
         }
@@ -1734,8 +1751,14 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ControlsPage:
         controls_page = t.index;
         break;
-    case Id::Scope: // AzaharFrame autosave: a menu button now (Global, Per-Game)
-        view.open_menu = Id::Scope;
+    case Id::Scope: // AzaharFrame reticle: the scope toggle (Global, Per-Game), every tab's
+        if (t.index >= 0) {
+            scope = std::clamp(t.index, 0, 1);
+            LOG_INFO(Frontend, "xr: in-game menu: scope: {}", scope ? "Per-Game" : "Global");
+        }
+        break;
+    case Id::ScopeMore: // AzaharFrame reticle: ⋮ (or the count line): Use Global Values for All
+        view.open_menu = Id::ScopeMore;
         break;
     case Id::SettingsSection: // AzaharFrame autosave: kept for the rest of the run
         if (t.index >= 0 && t.index < static_cast<int>(Menu::SettingsSection::Count) &&

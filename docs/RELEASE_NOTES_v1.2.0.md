@@ -4,7 +4,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### What's Different From 1.1
 
-- Changes on the in-game menu's **Settings** tab now apply to the running game by default. Choose **Global** to change them for every game.
+- Changes on the in-game menu's **Settings**, **Controls** and **Position** tabs now apply to the running game by default. Choose **Global** to change them for every game.
 - **Settings** is in three sections: **General**, **Graphics** and **Immersive**.
 - Homebrew has its own tab in the in-game menu.
 - **Preload Custom Textures** is off by default, and turning it on now asks first.
@@ -64,8 +64,10 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Settings
 
-- The in-game menu's **Settings** tab opens on **Per-Game** while a game runs. Choose **Global** to change every game.
-- A row with its own value for this game shows **This Game**. Select it to use the global value again.
+- **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
+- Under the switch, **Per-Game** shows how many values on the tab are set for this game, for example "2 Per-Game Values".
+- **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and **Touchpad** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**.
 
 ### Crash reports
 
@@ -85,6 +87,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
 - **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
+- **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
 
 ### Mouse and Pointer Controls
 

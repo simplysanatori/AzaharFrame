@@ -798,20 +798,26 @@ struct Values {
     // AzaharFrame menu: Detach Screens, global: 0 Off (both screens move as one), 1 Secondary (the
     // Secondary Screen moves freely), 2 Both (each screen moves on its own). Normal VR screens only.
     SwitchableSetting<u32, true> vr_move_screens{0, 0, 2, "vr_move_screens"};
-    // AzaharFrame menu: Touchpad, global: 1 Tap for Input (a finger on the pad touches), 2 Click
+    // AzaharFrame menu: Touchpad (AzaharFrame reticle: per game too): 1 Tap for Input (a finger on the pad touches), 2 Click
     // for Input (pressing the pad touches, held it drags); 0 Off (config file only). The
     // controller touchpad maps onto the bottom screen. AzaharFrame menuux: Tap by default.
     SwitchableSetting<u32, true> vr_touchpad_touch{1, 0, 2, "vr_touchpad_touch"};
     // AzaharFrame menuux: Dynamic Resolution, global: the internal resolution goes down a step
     // while the headset misses frames and back up when it holds them (frame_xr/dynamic_resolution.h).
     SwitchableSetting<bool> vr_dynamic_resolution{false, "vr_dynamic_resolution"};
-    // AzaharFrame mouse: Bottom Screen Reticle, global: 0 Off, 1 Left Controller, 2 Right
-    // Controller, 3 Headset (AzaharFrame input2). That controller (or the head) aims a point on
-    // the bottom screen; its trigger (with Headset: either trigger) touches there.
+    // AzaharFrame mouse: Bottom Screen Reticle: 0 Off, 1 Left Controller, 2 Right Controller,
+    // 3 Headset (AzaharFrame input2). That controller (or the head) aims a point on the bottom
+    // screen; its trigger (with Headset: either trigger) touches there. AzaharFrame reticle: a
+    // global value and, for a game, its own (Per-Game), as the Controls tab's other rows.
     SwitchableSetting<u32, true> vr_bottom_screen_reticle{0, 0, 3, "vr_bottom_screen_reticle"};
-    // AzaharFrame mouse: the reticle's At Edge, global: 0 Follow (the edges drift), 1 Snap to
-    // Middle (past an edge it re-zeroes; a held touch lifts and touches again at the middle).
+    // AzaharFrame mouse: the reticle's At Edge: 0 Follow (the edges drift), 1 Snap to Middle
+    // (past an edge it re-zeroes; a held touch lifts and touches again at the middle). Per game
+    // too (AzaharFrame reticle).
     SwitchableSetting<u32, true> vr_reticle_at_edge{0, 0, 1, "vr_reticle_at_edge"};
+    // AzaharFrame reticle: Reticle Speed, how far the reticle moves for a turn of the head or
+    // the controller, times the base mapping (0.5 to 4; frame_xr/input/reticle.h). One value
+    // for every aim source; per game too.
+    SwitchableSetting<float, true> vr_reticle_speed{2.0f, 0.5f, 4.0f, "vr_reticle_speed"};
     // AzaharFrame mouse: one-time toasts, shown once per install: the reticle's controls when it
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};

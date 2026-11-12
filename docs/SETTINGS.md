@@ -11,9 +11,9 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab.
 
 While a game with its own value runs, that row is greyed out in **Configure**.
 
-The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**, and opens on **Per-Game** while a game runs. A row with its own value for this game shows **This Game**: select it to use the global value again. **Global** changes every game.
+The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. In **Per-Game** a line under the switch counts the values on the tab set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle** and **At Edge** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed** and **At Edge** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -29,9 +29,10 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
-| [Touchpad](#touchpad) | **Tap for Input**, **Click for Input** | Tap for Input | global | at once |
-| [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off | global | at once |
-| [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global | at once |
+| [Touchpad](#touchpad) | **Tap for Input**, **Click for Input** | Tap for Input | global and per game | at once |
+| [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
+| [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
+| [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
@@ -108,7 +109,11 @@ How a gamepad's touchpad touches the bottom screen in VR. The pad covers the who
 
 ## Bottom Screen Reticle
 
-A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+
+## Reticle Speed
+
+How far the reticle moves when you turn your head or the controller, from where aiming started or was re-centred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Bottom Screen Reticle** while it is on.
 
 ## At Edge
 

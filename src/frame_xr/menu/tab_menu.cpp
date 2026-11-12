@@ -74,6 +74,9 @@ std::string SliderText(Id id, float value) {
     if (id == Id::Depth3d) {
         return Format("%.0f%%", value);
     }
+    if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
+        return Format("%.1fx", value / 10.0f);
+    }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
         const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
                                  static_cast<int>(kAutosaveEvery.size()) - 1);
@@ -223,21 +226,45 @@ bool PerGameSetting(Id id) {
     case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
     case Id::AutosaveEvery:
     case Id::AutosaveKeep:
+    case Id::TouchpadTouch: // AzaharFrame reticle: the Controls tab's rows
+    case Id::BottomScreenReticle:
+    case Id::ReticleSpeed:
+    case Id::ReticleAtEdge:
         return true;
     default:
         return false;
     }
 }
 
-// AzaharFrame useglobal
-std::vector<Id> GameValueRows(const MenuModel& model, SettingsSection section) {
+// AzaharFrame reticle
+const std::vector<Id>& ControlsScopeRows() {
+    static const std::vector<Id> kRows{Id::TouchpadTouch, Id::BottomScreenReticle,
+                                       Id::ReticleSpeed, Id::ReticleAtEdge};
+    return kRows;
+}
+
+// AzaharFrame useglobal; reticle: any tab with the scope control
+std::vector<Id> GameValueRows(const MenuModel& model, Tab tab, SettingsSection section) {
     std::vector<Id> ids;
-    for (const Row& r : RowsFor(Tab::Settings, model, section)) {
-        if (PerGameSetting(r.id) && model.game_value[static_cast<std::size_t>(r.id)]) {
-            ids.push_back(r.id);
+    const auto add = [&](Id id) {
+        if (PerGameSetting(id) && model.game_value[static_cast<std::size_t>(id)]) {
+            ids.push_back(id);
+        }
+    };
+    if (tab == Tab::Controls) {
+        for (const Id id : ControlsScopeRows()) {
+            add(id);
+        }
+    } else if (tab == Tab::Settings || tab == Tab::Position) {
+        for (const Row& r : RowsFor(tab, model, section)) {
+            add(r.id);
         }
     }
     return ids;
+}
+
+std::string GameValueCount(std::size_t n) {
+    return std::to_string(n) + (n == 1 ? " Per-Game Value" : " Per-Game Values");
 }
 
 const std::vector<std::string>& OptionsFor(Id id) {
@@ -374,6 +401,10 @@ std::string LabelFor(Id id) {
         return "Bottom Screen Reticle";
     case Id::ReticleAtEdge:
         return "At Edge";
+    case Id::ReticleSpeed: // AzaharFrame reticle
+        return "Reticle Speed";
+    case Id::ScopeMore:
+        return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
@@ -529,6 +560,8 @@ std::string ExplainFor(Id id) {
     switch (id) {
     case Id::UseGlobal: // AzaharFrame useglobal: the chip's action
         return "Use Global Value";
+    case Id::ReticleSpeed: // AzaharFrame reticle
+        return "How far the reticle moves when you turn your head or the controller.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -602,6 +635,10 @@ std::string ExplainLock(Lock lock) {
         return "Off while the Background is Passthrough.";
     case Lock::AutosaveOff: // AzaharFrame autosave
         return "Turn on Autosave to change it.";
+    case Lock::NoGameValues: // AzaharFrame reticle
+        return "Nothing on this tab is set for this game.";
+    case Lock::NoGame:
+        return "Per-Game values need a running game.";
     default:
         return {};
     }
@@ -642,6 +679,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::AutosaveKeep) {
         return {1.0f, 10.0f, 1.0f};
+    }
+    if (id == Id::ReticleSpeed) { // AzaharFrame reticle: 0.5x to 4.0x in tenths
+        return {5.0f, 40.0f, 1.0f};
     }
     return {};
 }
@@ -1450,6 +1490,21 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     }
 }
 
+// AzaharFrame reticle: the scope control's measures (dp).
+namespace {
+constexpr float kScopeMoreW = 32.0f;    ///< the ⋮ button
+constexpr float kScopeGapMore = 2.0f;   ///< between the toggle and ⋮
+constexpr float kScopeGapX = 6.0f;      ///< between the tab's own controls and the toggle
+constexpr float kScopeRowsGap = 16.0f;  ///< under the toggle's line, before the rows
+constexpr float kScopeCountCy = 11.0f;  ///< the count line's middle, under the toggle
+
+/// The room a row's label takes.
+float LabelRoom(const Kit& kit, const MenuModel& model, Id id) {
+    (void)model;
+    return kit.TextWidth(Type::Body, LabelFor(id));
+}
+} // namespace
+
 void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& view,
                            const Rect& pane) {
     if (view.remap.editing) {
@@ -1457,9 +1512,12 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         return;
     }
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
+    // AzaharFrame reticle: the scope control at the top right, as on Settings and Position.
+    const float scope_x0 = DrawScope(kit, model, view, c, pane);
     const auto& pages = OptionsFor(Id::ControlsPage);
-    const float w = kit.SegmentedWidth(pages);
-    // AzaharFrame menu: the pages on the left, Edit Controls on the right.
+    const float w = kit.SegmentedWidth(pages, scope_x0 - kScopeGapX - c.x0);
+    // AzaharFrame menu: the pages on the left. AzaharFrame reticle: Edit Controls at the top of
+    // a column on the right, under the scope control, beside the controller picture.
     const Rect seg{c.x0, c.y0, c.x0 + w, c.y0 + kControlH};
     const int hover = view.hover.id == Id::ControlsPage ? view.hover.index : -1;
     const int pressed = view.pressed.id == Id::ControlsPage ? view.pressed.index : -1;
@@ -1469,7 +1527,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit({pe[static_cast<std::size_t>(i)], seg.y0, pe[static_cast<std::size_t>(i + 1)], seg.y1},
                {Id::ControlsPage, i}, pane);
     }
-    const Rect edit{c.x1 - 200.0f, seg.y0, c.x1, seg.y1};
+    const float edit_w =
+        std::min(200.0f, kit.TextWidth(Type::Label, LabelFor(Id::EditControls)) + 82.0f);
+    const Rect edit{c.x1 - edit_w, seg.y1 + kScopeRowsGap + 8.0f, c.x1,
+                    seg.y1 + kScopeRowsGap + 8.0f + kControlH};
     kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
     AddHit(edit, {Id::EditControls}, pane);
@@ -1478,6 +1539,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // AzaharFrame mouse: Bottom Screen Reticle under that line, the same way.
     // AzaharFrame ui2: the controller picture at the top, under the pages; these rows at the
     // bottom of the pane, under the picture (owner's report 14).
+    // AzaharFrame reticle: in Global, a row the game has its own value for is greyed (its
+    // tooltip says why), as on the Settings tab.
     const auto choice_row = [&](Id id, float y0, int value) {
         const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
@@ -1502,12 +1565,39 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
+    // AzaharFrame reticle: Reticle Speed, a slider row as on the Settings tab (its value at the
+    // right, "2.0x"), as wide as the reticle's choices.
+    const auto slider_row = [&](Id id, float y0, int value) {
+        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        AddHit(row, {id, kLabelIndex}, pane);
+        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        const SliderRange range = SliderFor(id);
+        float v = std::clamp(static_cast<float>(value), range.min, range.max);
+        if (view.dragging == id) {
+            v = range.min + std::round(view.drag_t * (range.max - range.min) / range.step) *
+                                range.step;
+        }
+        const float tw = kit.SegmentedWidth(OptionsFor(Id::BottomScreenReticle), c.W() * 0.64f);
+        const Rect sl{c.x1 - tw, row.y0, c.x1, row.y1};
+        kit.Slider(sl, (v - range.min) / (range.max - range.min), SliderText(id, v),
+                   view.dragging == id ? State::Pressed : StateOf(view, {id}, enabled));
+        layout.sliders.push_back({id, sl.x0, sl.x1 - 80.0f});
+        if (enabled) {
+            AddHit(sl, {id}, pane);
+        }
+        return row;
+    };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    const bool at_edge = model.bottom_screen_reticle != 0; // At Edge only while the reticle is on
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (at_edge ? kChoiceH : 0.0f);
+    // At Edge and Reticle Speed only while the reticle is on.
+    const bool reticle_on = model.bottom_screen_reticle != 0;
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 2.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
-    const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, pane.x1 - 8.0f, rows_y0 - 4.0f};
+    const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }
@@ -1519,82 +1609,129 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
                 tp_enabled ? 1.0f : kDisabledContent);
     const Rect reticle_row =
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
-    if (at_edge) {
-        choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
+    if (reticle_on) {
+        const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
+        choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
     }
+    DrawScopeMenu(kit, model, view, pane);
 }
 
-// AzaharFrame useglobal: a per-game row's "This Game" chip (Material's input chip: outlined, the
-// label and a trailing close icon), after the row's label while the game has its own value.
-// Clicking it is "Use Global Value" (its tooltip). In Per-Game every per-game row keeps its room
-// whether the chip shows or not, so a control never moves when a change makes the game's value.
-namespace {
-constexpr float kGameChipH = 32.0f;
-constexpr float kGameChipPadL = 12.0f, kGameChipIcon = 18.0f, kGameChipPadR = 8.0f;
-constexpr float kGameChipGap = 12.0f; ///< from the label
+// ---- AzaharFrame reticle: the scope control (tab_menu.h) -------------------------------------
+// One place draws it for the Settings, Controls and Position tabs: the same size and spot (the
+// top right of the pane's content), so a later restyle changes all three. It replaced the
+// Settings tab's scope menu button and the per-row "This Game" chips (owner's design, round 24).
 
-float GameChipWidth(const Kit& kit) {
-    return kGameChipPadL + kit.TextWidth(Type::Label, LabelFor(Id::UseGlobal)) + 8.0f +
-           kGameChipIcon + kGameChipPadR;
+float TabMenu::DrawScope(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& c,
+                         const Rect& pane) {
+    static const std::vector<std::string> kGlobalOnly{"Global"};
+    const auto& both = OptionsFor(Id::Scope);
+    const bool per_game_ok = model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
+    const auto& opts = per_game_ok ? both : kGlobalOnly;
+    // As wide with or without a game, so nothing beside it moves.
+    const float seg_w = kit.SegmentedWidth(both);
+    const Rect more{c.x1 - kScopeMoreW, c.y0, c.x1, c.y0 + kControlH};
+    const Rect seg{more.x0 - kScopeGapMore - seg_w, c.y0, more.x0 - kScopeGapMore,
+                   c.y0 + kControlH};
+    const int hover = view.hover.id == Id::Scope ? view.hover.index : -1;
+    const int pressed = view.pressed.id == Id::Scope ? view.pressed.index : -1;
+    kit.Segmented(seg, opts, per_game_ok ? std::clamp(model.scope, 0, 1) : 0, hover, pressed);
+    if (per_game_ok) {
+        const auto e = kit.SegmentEdges(seg, opts);
+        for (int i = 0; i < static_cast<int>(opts.size()); i++) {
+            AddHit({e[static_cast<std::size_t>(i)], seg.y0, e[static_cast<std::size_t>(i + 1)],
+                    seg.y1},
+                   {Id::Scope, i}, pane);
+        }
+    } else {
+        // No game that can have its own settings: Global alone, and its tooltip says why.
+        AddHit(seg, {Id::Scope, kLabelIndex}, pane);
+        anchors.push_back({Id::Scope, seg.x0, seg.y0 + 6.0f,
+                           model.locked[static_cast<std::size_t>(Id::Scope)], -1, seg.Cx()});
+    }
+    // ⋮: Use Global Values for All, while this tab (the Settings tab: this section) has any.
+    const std::vector<Id> rows = GameValueRows(model, view.tab, view.section);
+    const bool can_clear = per_game_ok && !rows.empty();
+    const Target more_t{Id::ScopeMore};
+    const State ms = view.open_menu == Id::ScopeMore ? State::Pressed
+                                                     : StateOf(view, more_t, can_clear);
+    kit.StateLayer({more.Cx() - 16.0f, more.Cy() - 20.0f, more.Cx() + 16.0f, more.Cy() + 20.0f},
+                   16.0f, Tok::kOnSurfaceVariant, ms);
+    for (int i = -1; i <= 1; i++) {
+        kit.Dot(more.Cx(), more.Cy() + 6.0f * static_cast<float>(i), 2.0f,
+                Tok::kOnSurfaceVariant, can_clear ? 1.0f : kDisabledContent);
+    }
+    if (can_clear) {
+        AddHit(more, more_t, pane);
+    } else {
+        AddHit(more, {Id::ScopeMore, kLabelIndex}, pane);
+        anchors.push_back({Id::ScopeMore, more.x0, more.y0 + 6.0f,
+                           per_game_ok ? Lock::NoGameValues : Lock::NoGame, -1, more.Cx()});
+    }
+    scope_more_ = more;
+    // The count line, in Per-Game only and only when there is something to count; it opens
+    // the ⋮ menu too.
+    if (per_game_ok && model.scope == 1 && !rows.empty() && view.open_menu != Id::ScopeMore) {
+        const std::string text = GameValueCount(rows.size());
+        const float cy = seg.y1 + kScopeCountCy;
+        const float tw = kit.TextMid(c.x1, cy, Type::Tooltip, Tok::kOnSurfaceVariant, text, 2);
+        AddHit({c.x1 - tw - 8.0f, cy - 9.0f, c.x1 + 4.0f, cy + 9.0f}, more_t, pane);
+    }
+    return seg.x0;
 }
 
-/// The room a row's label takes, with the chip's when the row can have one now.
-float LabelRoom(const Kit& kit, const MenuModel& model, Id id) {
-    const float w = kit.TextWidth(Type::Body, LabelFor(id));
-    return model.scope == 1 && PerGameSetting(id) ? w + kGameChipGap + GameChipWidth(kit) : w;
+void TabMenu::DrawScopeMenu(Kit& kit, const MenuModel& model, const MenuView& view,
+                            const Rect& pane) {
+    (void)model;
+    if (view.open_menu != Id::ScopeMore || scope_more_.W() <= 0.0f) {
+        return;
+    }
+    const std::vector<std::string> opts{LabelFor(Id::ScopeMore)};
+    const float w = kit.TextWidth(Type::Label, opts[0]) + 72.0f;
+    const float item = Kit::MenuItemHeight();
+    const float y0 = scope_more_.y1 + 4.0f;
+    const Rect box = kit.Menu({scope_more_.x1 - w, y0, scope_more_.x1,
+                               y0 + item + 16.0f},
+                              opts, -1, view.hover.id == Id::ScopeMore ? view.hover.index : -1);
+    (void)pane;
+    const Rect everything{0, 0, kPanelW, kPanelH};
+    AddHit(box, {Id::None, kMenuAreaIndex}, everything); // the menu's own area eats clicks
+    AddHit({box.x0, box.y0 + 8.0f, box.x1, box.y0 + 8.0f + item}, {Id::ScopeMore, 0}, everything);
 }
-} // namespace
 
 void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane) {
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     float top = c.y0;
-    Rect scope_anchor{}; // AzaharFrame autosave: the scope menu button, when its menu is open
-    if (view.tab == Tab::Position) {
-        // The two actions of CitraVR's Position tab (Reset) and of the right stick (Swap).
-        const float bw = (c.W() - 12.0f) * 0.5f;
-        const Rect a{c.x0, top, c.x0 + bw, top + 56.0f};
-        const Rect b{c.x1 - bw, top, c.x1, top + 56.0f};
-        kit.Button(a, ButtonStyle::Tonal, Sym::kRecenter, LabelFor(Id::ResetPosition),
-                   StateOf(view, {Id::ResetPosition}));
-        kit.Button(b, ButtonStyle::Tonal, Sym::kSwapVert, LabelFor(Id::SwapScreens),
-                   StateOf(view, {Id::SwapScreens}));
-        AddHit(a, {Id::ResetPosition}, pane);
-        AddHit(b, {Id::SwapScreens}, pane);
-        top = a.y1 + 12.0f;
-    } else if (view.tab == Tab::Settings) {
-        // AzaharFrame autosave: the section (General, Graphics, Immersive), and on the sections
-        // with per-game rows CitraVR's Global / Per-Game choice as a menu button at the row's end.
-        const auto& sections = OptionsFor(Id::SettingsSection);
-        const Rect seg{c.x0, top, c.x0 + kit.SegmentedWidth(sections), top + kControlH};
-        const int hover = view.hover.id == Id::SettingsSection ? view.hover.index : -1;
-        const int pressed = view.pressed.id == Id::SettingsSection ? view.pressed.index : -1;
-        kit.Segmented(seg, sections, static_cast<int>(view.section), hover, pressed);
-        const auto se = kit.SegmentEdges(seg, sections);
-        for (int i = 0; i < static_cast<int>(sections.size()); i++) {
-            AddHit({se[static_cast<std::size_t>(i)], seg.y0, se[static_cast<std::size_t>(i + 1)],
-                    seg.y1},
-                   {Id::SettingsSection, i}, pane);
-        }
-        if (SectionHasScope(view.section)) {
-            const auto& scopes = OptionsFor(Id::Scope);
-            const bool enabled = model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
-            const float w = std::max(150.0f, kit.TextWidth(Type::Label, scopes[1]) + 72.0f);
-            const Rect mb{c.x1 - w, top, c.x1, top + kControlH};
-            const int sel = std::clamp(model.scope, 0, 1);
-            kit.MenuButton(mb, scopes[static_cast<std::size_t>(sel)], view.open_menu == Id::Scope,
-                           StateOf(view, {Id::Scope}, enabled));
-            if (enabled) {
-                AddHit(mb, {Id::Scope}, pane);
-            } else {
-                AddHit(mb, {Id::Scope, kLabelIndex}, pane);
-            }
-            anchors.push_back(
-                {Id::Scope, mb.x0, mb.y0 + 6.0f, enabled ? Lock::None : Lock::Unavailable});
-            if (view.open_menu == Id::Scope) {
-                scope_anchor = {mb.x0 - 40.0f, mb.y0, mb.x1, mb.y1};
+    if (TabHasScope(view.tab)) { // AzaharFrame reticle: Settings and Position
+        const float scope_x0 = DrawScope(kit, model, view, c, pane);
+        const float room = scope_x0 - kScopeGapX - c.x0;
+        if (view.tab == Tab::Position) {
+            // The two actions of CitraVR's Position tab (Reset) and of the right stick (Swap),
+            // left of the scope control.
+            const float bw = (room - 12.0f - 10.0f) * 0.5f; // filled: a wider gap to the toggle
+            const Rect a{c.x0, top, c.x0 + bw, top + kControlH};
+            const Rect b{a.x1 + 12.0f, top, a.x1 + 12.0f + bw, top + kControlH};
+            kit.Button(a, ButtonStyle::Tonal, Sym::kRecenter, LabelFor(Id::ResetPosition),
+                       StateOf(view, {Id::ResetPosition}));
+            kit.Button(b, ButtonStyle::Tonal, Sym::kSwapVert, LabelFor(Id::SwapScreens),
+                       StateOf(view, {Id::SwapScreens}));
+            AddHit(a, {Id::ResetPosition}, pane);
+            AddHit(b, {Id::SwapScreens}, pane);
+        } else {
+            // AzaharFrame autosave: the section (General, Graphics, Immersive).
+            const auto& sections = OptionsFor(Id::SettingsSection);
+            const Rect seg{c.x0, top, c.x0 + kit.SegmentedWidth(sections, room),
+                           top + kControlH};
+            const int hover = view.hover.id == Id::SettingsSection ? view.hover.index : -1;
+            const int pressed = view.pressed.id == Id::SettingsSection ? view.pressed.index : -1;
+            kit.Segmented(seg, sections, static_cast<int>(view.section), hover, pressed);
+            const auto se = kit.SegmentEdges(seg, sections);
+            for (int i = 0; i < static_cast<int>(sections.size()); i++) {
+                AddHit({se[static_cast<std::size_t>(i)], seg.y0,
+                        se[static_cast<std::size_t>(i + 1)], seg.y1},
+                       {Id::SettingsSection, i}, pane);
             }
         }
-        top = seg.y1 + 12.0f;
+        top += kControlH + kScopeRowsGap;
     }
 
     const std::vector<Row> rows = RowsFor(view.tab, model, view.section);
@@ -1619,10 +1756,6 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     kit.Clip(list);
     Rect open_anchor{};
     int open_selected = -1;
-    if (view.open_menu == Id::Scope && scope_anchor.W() > 0.0f) { // AzaharFrame autosave
-        open_anchor = scope_anchor;
-        open_selected = std::clamp(model.scope, 0, 1);
-    }
     float y = top - scroll;
     for (const Row& r : rows) {
         const Rect row{c.x0 - 12.0f, y + 4.0f, c.x1 + 12.0f, y + kRowH - 4.0f};
@@ -1758,26 +1891,6 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         case RowKind::Header:
             break;
         }
-        if (model.scope == 1 && PerGameSetting(r.id) &&
-            model.game_value[static_cast<std::size_t>(r.id)]) {
-            // AzaharFrame useglobal: the chip, usable on a greyed row too (Full Only, Autosave
-            // off): the game's value goes either way. Its hit after the row's, so it wins.
-            const float x0 = c.x0 + kit.TextWidth(Type::Body, LabelFor(r.id)) + kGameChipGap;
-            const Rect chip{x0, cy - kGameChipH * 0.5f, x0 + GameChipWidth(kit),
-                            cy + kGameChipH * 0.5f};
-            const Target t{Id::UseGlobal, static_cast<int>(r.id)};
-            kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
-            kit.StateLayer(chip, 8.0f, Tok::kOnSurfaceVariant, StateOf(view, t));
-            kit.TextMid(chip.x0 + kGameChipPadL, cy, Type::Label, Tok::kOnSurfaceVariant,
-                        LabelFor(Id::UseGlobal));
-            kit.Icon(chip.x1 - kGameChipPadR - kGameChipIcon * 0.5f, cy, kGameChipIcon,
-                     Sym::kClose, false, Tok::kOnSurfaceVariant);
-            AddHit({chip.x0 - 4.0f, cy - 24.0f, chip.x1 + 4.0f, cy + 24.0f}, t, list);
-            if (row.y1 > list.y0 && row.y0 < list.y1) {
-                anchors.push_back({Id::UseGlobal, chip.x0, std::max(row.y0, list.y0) + 6.0f,
-                                   Lock::None, t.index, chip.Cx()});
-            }
-        }
         y += kRowH;
     }
     kit.ClearClip();
@@ -1791,14 +1904,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     }
     // An open menu goes over everything, its items before the rest in hit testing.
     if (view.open_menu != Id::None && open_anchor.W() > 0.0f) {
-        std::vector<std::string> opts = OptionsFor(view.open_menu);
-        const bool clear_all = // AzaharFrame useglobal: the scope's menu, after a divider
-            view.open_menu == Id::Scope && !GameValueRows(model, view.section).empty();
-        if (clear_all) {
-            opts.push_back("Use Global Values for All");
-            open_anchor.x0 = std::min(open_anchor.x0,
-                                      open_anchor.x1 - kit.TextWidth(Type::Label, opts.back()) - 72.0f);
-        }
+        const std::vector<std::string>& opts = OptionsFor(view.open_menu);
         const float item = Kit::MenuItemHeight();
         const float h = item * static_cast<float>(opts.size()) + 16.0f;
         float y0 = open_anchor.y1 + 4.0f;
@@ -1808,10 +1914,6 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         const int hover = view.hover.id == view.open_menu ? view.hover.index : -1;
         const Rect box = kit.Menu({open_anchor.x0, y0, open_anchor.x1, y0 + h}, opts, open_selected,
                                   hover);
-        if (clear_all) {
-            const float dy = box.y0 + 8.0f + item * static_cast<float>(kScopeUseGlobalAll);
-            kit.Line(box.x0 + 12.0f, dy, box.x1 - 12.0f, dy, 1.0f, Tok::kOutlineVariant);
-        }
         const Rect everything{0, 0, kPanelW, kPanelH};
         AddHit(box, {Id::None, kMenuAreaIndex}, everything); // the menu's own area eats clicks
         for (int i = 0; i < static_cast<int>(opts.size()); i++) {
@@ -1820,6 +1922,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
                    {view.open_menu, i}, everything);
         }
     }
+    DrawScopeMenu(kit, model, view, pane); // AzaharFrame reticle
 }
 
 // The tooltip (owner option A: after the beam rests on a row) over the row's label.

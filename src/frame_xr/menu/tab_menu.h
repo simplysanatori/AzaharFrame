@@ -89,11 +89,17 @@ enum class Id : int {
     CursorSpeed,         ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right, 3 Headset
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
+    ReticleSpeed,        ///< AzaharFrame reticle: a slider, 5 to 40 (tenths of 1x)
     // Settings
-    Scope, ///< AzaharFrame autosave: the "Global" / "Per-Game" menu button (index: a menu item)
+    /// AzaharFrame reticle: the scope toggle on the Settings, Controls and Position tabs, index:
+    /// 0 Global, 1 Per-Game (DrawScope).
+    Scope,
+    /// AzaharFrame reticle: the scope's ⋮ menu button and the count line under the toggle (no
+    /// index); its menu's item 0 is Use Global Values for All.
+    ScopeMore,
     SettingsSection, ///< AzaharFrame autosave: General, Graphics, Immersive (index)
-    /// AzaharFrame useglobal: a per-game row's "This Game" chip, in Per-Game while the game has
-    /// its own value (index: the row's Id): back to the global value.
+    /// AzaharFrame useglobal: Use Global Value for one row (index: the row's Id). AzaharFrame
+    /// reticle: no longer drawn (the chips went); Use Global Values for All uses it per row.
     UseGlobal,
     SavesHeader,   ///< AzaharFrame autosave: the "Saves" subheader (no action)
     Autosave,      ///< AzaharFrame autosave: autosave_enabled, per game
@@ -215,6 +221,8 @@ enum class Lock : uint8_t {
     AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
     InPassthrough, ///< AzaharFrame vis: Show Controllers while the Background is Passthrough
     AutosaveOff,   ///< AzaharFrame autosave: Every and Keep while Autosave is off
+    NoGameValues,  ///< AzaharFrame reticle: the scope's ⋮ while nothing on the tab is per game
+    NoGame,        ///< AzaharFrame reticle: the scope with no game that can have its own values
 };
 
 struct SaveSlot {
@@ -267,6 +275,7 @@ struct MenuModel {
     int touchpad_touch = 0; ///< AzaharFrame menuux: 0 Tap for Input, 1 Click for Input
     int bottom_screen_reticle = 0; ///< AzaharFrame mouse: 0 Off, 1 Left, 2 Right, 3 Headset
     int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
+    int reticle_speed = 20;        ///< AzaharFrame reticle: tenths of 1x (5 to 40)
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game (AzaharFrame autosave: the menu opens on Per-Game)
@@ -297,36 +306,47 @@ struct MenuModel {
     HomebrewTabModel homebrew; ///< AzaharFrame emerald
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
-    /// AzaharFrame useglobal: per-game rows the running game has its own value for (the
-    /// "This Game" chip in Per-Game).
+    /// AzaharFrame useglobal: per-game rows the running game has its own value for (the scope
+    /// control's count line and Use Global Values for All; AzaharFrame reticle).
     std::array<bool, kIdCount> game_value{};
     bool operator==(const MenuModel&) const = default;
 };
 
 enum class Page { Tabs, SaveSlots, LoadSlots };
 
-/// AzaharFrame autosave: the Settings tab's sections (owner decision, round 2). Each shows the
-/// scope menu button: on General only the Saves rows follow it, the rest are global and usable in
-/// either scope (as Dynamic Resolution on Graphics).
+/// AzaharFrame autosave: the Settings tab's sections (owner decision, round 2).
 enum class SettingsSection : int { General, Graphics, Immersive, Count };
-/// Whether a section shows the scope menu button (all three since autosave is per game).
-constexpr bool SectionHasScope(SettingsSection) {
-    return true;
-}
 /// The scope the menu opens on: Per-Game (1) whenever the game can have settings of its own.
 constexpr int OpeningScope(bool per_game_ok) {
     return per_game_ok ? 1 : 0;
 }
 /// The section a Settings row is in (General for the rest).
 SettingsSection SectionOf(Id id);
-/// Per-game settings (Azahar's Properties have them too): a change in Per-Game is the game's own
-/// value; in Global they are locked while the game has one.
+/// Per-game settings (Azahar's Properties have most of them too): a change in Per-Game is the
+/// game's own value; in Global they are locked while the game has one. AzaharFrame reticle: the
+/// Controls tab's rows too (ControlsScopeRows).
 bool PerGameSetting(Id id);
-/// AzaharFrame useglobal: the rows of a Settings section the game has its own value for, in the
-/// section's order (what "Use Global Values for All" clears).
-std::vector<Id> GameValueRows(const MenuModel& model, SettingsSection section);
-/// AzaharFrame useglobal: the scope menu's third item, there while GameValueRows has any.
-constexpr int kScopeUseGlobalAll = 2;
+
+// ---- AzaharFrame reticle: the scope control (owner's design, round 24) ----------------------
+// The Settings, Controls and Position tabs show the same control at their top right: a
+// Global | Per-Game toggle (MenuModel::scope, one for the whole menu), a ⋮ menu button whose
+// one item is Use Global Values for All, and under the toggle, in Per-Game only, a quiet line
+// counting the values this tab has for the game ("2 Per-Game Values"). With no game that can
+// have settings of its own the toggle is Global alone. Drawn by TabMenu::DrawScope only.
+
+/// Whether a tab shows the scope control.
+constexpr bool TabHasScope(Tab tab) {
+    return tab == Tab::Settings || tab == Tab::Controls || tab == Tab::Position;
+}
+/// The Controls tab's per-game rows (in the order they show; At Edge and Reticle Speed only show
+/// while the reticle is on, but are counted and cleared all the same).
+const std::vector<Id>& ControlsScopeRows();
+/// The per-game rows of a tab (the Settings tab: of `section`) the running game has its own
+/// value for, in order: what the count line counts and Use Global Values for All clears.
+std::vector<Id> GameValueRows(const MenuModel& model, Tab tab,
+                              SettingsSection section = SettingsSection::General);
+/// The count line: "1 Per-Game Value", "3 Per-Game Values".
+std::string GameValueCount(std::size_t n);
 
 /// What the menu looks like now (the host's, changed by the beam and the sticks).
 struct MenuView {
@@ -484,12 +504,18 @@ private:
     void DrawZipButton(Kit& kit, const MenuView& view, const Rect& area, ZipTarget target,
                        bool enabled);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    /// AzaharFrame reticle: the scope control at the top right of `c` (the pane's content);
+    /// returns its left edge. DrawScopeMenu draws its ⋮ menu when open (last, over the rest).
+    float DrawScope(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& c,
+                    const Rect& pane);
+    void DrawScopeMenu(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;
     void AddHit(const Rect& r, Target t, const Rect& clip);
 
     DiagramDraw diagram;
     MenuLayout layout;
+    Rect scope_more_; ///< AzaharFrame reticle: the ⋮ button as last drawn (its menu's anchor)
     /// Where each row's label is (the tooltip goes over it).
     struct Anchor {
         Id id;
