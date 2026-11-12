@@ -437,3 +437,38 @@ TEST_CASE("Reticle: tremor at an edge does not creep the reference", "[frame_xr]
     const ReticleFrame& f = t.Step(Aim(0.0f, 0.0f), 120);
     CHECK(f.point.x == Approx(0.5f).margin(0.008));
 }
+
+// AzaharFrame polish: which controller drives the reticle (no beam, no pointer) this frame:
+// only the chosen one, only in a game's frame, only while tracked. Everywhere else every
+// controller is a normal pointer.
+TEST_CASE("Reticle: the controller that drives it", "[frame_xr]") {
+    InputFrame in;
+    in.hand[0].active = true;
+    in.hand[1].active = true;
+
+    SECTION("in a game: the chosen controller") {
+        CHECK(ReticleDrivingHand(ReticleHand::Right, true, in) == 1);
+        CHECK(ReticleDrivingHand(ReticleHand::Left, true, in) == 0);
+    }
+    SECTION("Off and Headset take no controller") {
+        CHECK(ReticleDrivingHand(ReticleHand::Off, true, in) == -1);
+        CHECK(ReticleDrivingHand(ReticleHand::Headset, true, in) == -1);
+        CHECK(ReticleDrivingHand(ReticleHandFrom(7), true, in) == -1);
+    }
+    SECTION("not a game's frame (in-game menu, Azahar's window, keyboard): a normal pointer") {
+        for (const ReticleHand hand : {ReticleHand::Left, ReticleHand::Right}) {
+            CHECK(ReticleDrivingHand(hand, false, in) == -1);
+        }
+    }
+    SECTION("not tracked: nothing to hide") {
+        in.hand[1].active = false;
+        CHECK(ReticleDrivingHand(ReticleHand::Right, true, in) == -1);
+        CHECK(ReticleDrivingHand(ReticleHand::Left, true, in) == 0);
+    }
+    SECTION("the setting's values") {
+        CHECK(ReticleDrivingHand(ReticleHandFrom(1), true, in) == 0);
+        CHECK(ReticleDrivingHand(ReticleHandFrom(2), true, in) == 1);
+        CHECK(ReticleDrivingHand(ReticleHandFrom(3), true, in) == -1);
+        CHECK(ReticleDrivingHand(ReticleHandFrom(0), true, in) == -1);
+    }
+}

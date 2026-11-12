@@ -634,7 +634,8 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         } else {
             for (const Hand& hand : order) {
                 const HandInput& input = frame.hand[static_cast<std::size_t>(HandIndex(hand))];
-                if (!input.active) {
+                // AzaharFrame polish: the Bottom Screen Reticle's controller points at nothing.
+                if (!input.active || input.reticle) {
                     continue;
                 }
                 const PanelHit target = NearestInBounds(RayFromPose(input.aim), panels);

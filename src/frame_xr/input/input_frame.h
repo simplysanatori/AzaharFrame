@@ -27,6 +27,10 @@ struct HandInput {
     /// AzaharFrame padsui: the mouse's ray stands in for this hand (Mouse Mode: Pointer): no
     /// controller to draw, no beam, its trigger only clicks (mouse_pointer.h).
     bool mouse = false;
+    /// AzaharFrame polish: this controller drives the Bottom Screen Reticle this frame
+    /// (ReticleDrivingHand, reticle.h): no beam, no pointer dot and no stats grab of its own.
+    /// Only in a game with the menu closed; everywhere else it is a normal pointer.
+    bool reticle = false;
 };
 
 /// Everything the controllers report in one display frame. A and B and X and Y and Menu are on the

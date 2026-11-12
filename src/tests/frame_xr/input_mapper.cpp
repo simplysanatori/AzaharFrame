@@ -1787,3 +1787,29 @@ TEST_CASE("FrameXr mapper: Flat, grip + D-pad left or right cycles the layout", 
         REQUIRE(runner.Step(frame).commands.cycle_layout == 0);
     }
 }
+
+// AzaharFrame polish: the Bottom Screen Reticle's controller (HandInput::reticle) points at
+// nothing in a game: no dot on the bottom screen, so no beam ends there; the other one does.
+TEST_CASE("FrameXr mapper: the reticle's controller has no pointer dot", "[frame_xr]") {
+    Runner runner;
+    InputFrame frame = IdleFrame();
+    Point(frame, Hand::Right, kOnBottomCentre);
+    REQUIRE(runner.Step(frame).cursor.visible);
+
+    frame.hand[1].reticle = true;
+    MapperOutput out = runner.Step(frame);
+    REQUIRE_FALSE(out.cursor.visible);
+
+    SECTION("the other controller keeps its dot") {
+        Point(frame, Hand::Left, kOnBottomCentre);
+        out = runner.Step(frame);
+        REQUIRE(out.cursor.visible);
+        REQUIRE(out.cursor.hand == Hand::Left);
+    }
+    SECTION("a normal pointer again once it no longer drives the reticle") {
+        frame.hand[1].reticle = false;
+        out = runner.Step(frame);
+        REQUIRE(out.cursor.visible);
+        REQUIRE(out.cursor.hand == Hand::Right);
+    }
+}

@@ -1330,6 +1330,21 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
                              : game_running            ? Vis::Where::Game
                                                        : Vis::Where::Home;
     Input::InputFrame window_in = in;
+    // AzaharFrame polish: the Bottom Screen Reticle's controller, while it aims the bottom screen
+    // in a game: no beam, no pointer, no stats grab. Anywhere else a normal pointer.
+    const int reticle_hand = Input::ReticleDrivingHand(
+        Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue()),
+        where == Vis::Where::Game && have_input && info.screens_live, in);
+    if (reticle_hand >= 0) {
+        window_in.hand[static_cast<std::size_t>(reticle_hand)].reticle = true;
+    }
+    if (reticle_hand != reticle_hand_shown) {
+        reticle_hand_shown = reticle_hand;
+        LOG_INFO(Frontend, "xr: Bottom Screen Reticle: {}",
+                 reticle_hand < 0 ? "every controller points"
+                                  : reticle_hand == 0 ? "the left controller aims, no beam"
+                                                      : "the right controller aims, no beam");
+    }
     visuals.TakeInput(info, where, window_in, have_input);
     const std::size_t layers_before = layers.size();
     stats_screens.clear(); // AzaharFrame statspos: GameFrame fills it
@@ -1381,7 +1396,11 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
             window.height = kPickerHeight;
         }
     }
-    visuals.Frame(rt, info, where, window, stats_screens, in, have_input, layers,
+    Input::InputFrame vis_in = in; // AzaharFrame polish: the reticle's controller has no beam
+    if (reticle_hand >= 0) {
+        vis_in.hand[static_cast<std::size_t>(reticle_hand)].reticle = true;
+    }
+    visuals.Frame(rt, info, where, window, stats_screens, vis_in, have_input, layers,
                   cursor_chain.handle, dim_chain.handle);
     AddMouseRing(info, layers); // AzaharFrame padsui
     last_time = info.display_time;

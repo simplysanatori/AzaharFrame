@@ -67,6 +67,14 @@ int ReticleHandIndex(ReticleHand hand) {
     }
 }
 
+int ReticleDrivingHand(ReticleHand source, bool game_frame, const InputFrame& in) {
+    const int h = ReticleHandIndex(source); // AzaharFrame polish
+    if (!game_frame || h < 0 || !in.hand[static_cast<std::size_t>(h)].active) {
+        return -1;
+    }
+    return h;
+}
+
 float ReticleHalfWidthDeg(ReticleHand source) {
     switch (source) {
     case ReticleHand::Left:

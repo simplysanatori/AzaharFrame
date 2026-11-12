@@ -490,8 +490,8 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
             m.front_pose = StatsPoseAt(eye, dir, d);
             hand.grip = 0.0f;
             hand.stick = {};
-        } else if (m.grab_hand < 0 && grip_edge && have_input && hand.active && m.front_shown &&
-                   view.valid) {
+        } else if (m.grab_hand < 0 && grip_edge && have_input && hand.active && !hand.reticle &&
+                   m.front_shown && view.valid) { // AzaharFrame polish: its grip re-zeroes
             const auto hit = Input::IntersectQuad(ray, m.FrontQuad());
             if (hit.in_bounds) {
                 m.grab_hand = h;
@@ -886,7 +886,8 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     dot_hand.fill(-1);
     for (int h = 0; h < Input::kNumHands; h++) {
         const Input::HandInput& hand = in.hand[static_cast<std::size_t>(h)];
-        if (!have_input || !hand.active) {
+        // AzaharFrame polish: the Bottom Screen Reticle's controller (in a game only) has no beam.
+        if (!have_input || !hand.active || hand.reticle) {
             continue;
         }
         const Input::Ray ray = Input::RayFromPose(hand.aim);
