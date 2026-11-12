@@ -4969,6 +4969,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::TexturePart:
     case C::MoveTexturePart:
     case C::TexturePartsAll:
+    case C::TextureLayer: // AzaharFrame texlayers: Enabled Textures
+    case C::MoveTextureLayer:
     case C::OptimizePack: // AzaharFrame ui3
     case C::OptimizeStop:
     case C::UseOriginalPack:
