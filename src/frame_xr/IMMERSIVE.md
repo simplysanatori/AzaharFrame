@@ -68,8 +68,9 @@ Two more per-game settings, in the same **VR** group, both read every frame whil
   screen stays below it as before. The last three match game cheats that change the game's own
   aspect: Screen Shape must match what the game renders, or the picture stretches.
 - `vr_immersive_game_fov`, **Immersive Game FOV**: the game camera's vertical angle in degrees,
-  30 to 110, default 60 (Ocarina of Time's). It sizes the head-locked screen of modes 2 and 3. The
-  environment variable `AZAHARFRAME_IMMERSIVE_FOV` still wins when it is set.
+  30 to 110, default 60. It sizes the head-locked screen of modes 2 and 3 until the game's own
+  angle is measured (below), and in games where it is not found. The environment variable
+  `AZAHARFRAME_IMMERSIVE_FOV` wins over both when it is set.
 
 In the immersive modes the quad has to show the game's picture at the angle the game drew it (or
 that angle over the gain, see Placement), so its aspect must be the aspect of the game's projection.
@@ -77,7 +78,24 @@ The vertical half angle comes from the FOV setting and the horizontal one from t
 `tan(h / 2) = aspect x tan(v / 2)`. In mode 1 the width is the normal top
 screen's angular size times 3, and the height is the width over the aspect. If the shape in
 Azahar for Frame and the mod's own aspect option disagree, the picture is stretched, and in modes
-2 and 3 the world drifts against your head turns.
+2 and 3 the world drifts against your head turns, unless the camera is measured.
+
+**Measured camera** (modes 2 and 3; AzaharFrame depth). The game's projection matrix sits in the
+four registers just before its view matrix: 86 to 89 in Nintendo's own games (view matrix 90),
+0 to 3 in Ocarina of Time 3D and Majora's Mask 3D (view matrix 4). In the draws immersive mode
+patches, the emulation thread reads the vertical angle and the shape from it
+(`ProjectionFromRows` in `video_core/vr_view_matrix.h`: a perspective matrix, 10 to 150 degrees
+high, 1.2 to 3 times as wide), takes the one most draws used in each quarter second
+(`ProjectionTracker`) and hands it to the XR thread (`g_measured_projection` in
+`video_core/vr_immersive.h`). The head-locked screen is then sized with the game's real angle and
+shape instead of the two settings, so the world stays put through camera changes, cutscenes and
+zooms, and with any widescreen mod, whatever Screen Shape says. A new value is taken once two
+measurements in a row agree on it, and nothing changes within 1.5 degrees and 4 % of the one in
+use (Jabu-Jabu's Belly in Ocarina of Time 3D changes its projection every frame). The angle used
+stays within the setting's 30 to 110 degrees: a 10 degree close-up in a cutscene would shrink the
+screen to a stamp, so there the world moves with the head a little instead. Logged as
+`xr: immersive: game camera measured 45.0 degrees high, 1.667 wide`. Screen Shape still shapes the
+normal top screen. `AZAHARFRAME_IMMERSIVE_MEASURE=0` turns it off.
 
 ## Placement
 
@@ -241,15 +259,80 @@ fields; that race is gone.
   register only ends the register search; the eye indicator is still searched for, outside that
   register's matrix, unless **Eye Indicator Register** is set. The log names both once the search
   ends (`immersive mode 3: view matrix register 90 (set), eye indicator 87,2 (found)` in Super
-  Mario 3D Land). Its preset also sets the Depth Factor Multiplier to 100x: at 1x its eyes were
-  0.65 units apart in a world seen from about 1500 units, a third of a 3DS pixel of difference;
-  at 100x it is about the 3DS's own 3D at full depth (mock runs of the title scene).
+  Mario 3D Land). The presets now set the eye indicator too, so the 3D is there from the first
+  frame (the search needs 5000 uniform uploads first). Super Mario 3D Land's preset also sets the
+  Depth Factor Multiplier to 100x: at 1x its eyes were 0.65 units apart in a world seen from
+  about 1500 units, a third of a 3DS pixel of difference (see Tuned games).
 - The `vr_immersive_mode > 90` register search mode (thumbrest touch steps `uoffset`) is not
   carried over; `uoffset` is always -1.
 - The four `vr_*` settings are now `SwitchableSetting`s so they can be set per application in the
   Qt window (CitraVR's Android app only had the mode per game).
 - `vr_immersive_mode_factor` defaults to 1 (`shader_uniforms.h`); it was 0 until CitraVR's
   Android frontend set it every frame, which made the vertex shader divide by zero elsewhere.
+
+## Tuned games
+
+Measured in mock runs of each game's play (AzaharFrame depth, 1.2.0) with the uniform registers
+dumped: the camera's angle and shape from its projection, and the 3DS's own eye distance at full
+3D (the difference between the two eyes' view matrices, in the game's units). In mode 3 the eye
+distance here is 6.5 cm x 3D Depth / 10 x 10^multiplier game units, and the head moves the camera
+by the same scale, so the **Depth Factor Multiplier** is the game's world scale. It is picked so
+that at a 3D Depth of 90 the eyes are about as far apart as the 3DS's at full 3D, the depth the
+game was made for; 3D Depth then turns it down. The presets (`frame_xr/presets.cpp`) set these
+for a game whose properties have no value of their own.
+
+| Game | Mode, registers | Camera (measured) | 3DS eyes at full 3D | Multiplier | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Super Mario 3D Land | 3, view 90, eye 87,2 | 45 degrees, 5:3, title and levels | 58 units in a level | 100x (58.5) | Wider View off: black boxes at the edges |
+| Mario Kart 7 | 3, view 90, eye 87,2 | 52 racing, 55 in the fly-by before a race, 40 and 16 in menus | 3.4 | 10x (5.9) | menus stay odd in the Full modes (Differences from CitraVR) |
+| Kid Icarus: Uprising | 3, view 90, eye 87,2 | 45 flying, 36 to 61 for a moment in dashes and hits | 6.3 | 10x (5.9) | the ground sections were not reached in a mock run; the measured camera covers them. Aiming: below |
+| Ocarina of Time 3D | 2 (view 4) | 55 in play (54.6 to 55.4: Jabu-Jabu's Belly wobbles), 35 to 70 in cutscenes, 5:3 without mods | (one flat picture) | 10x | leaning moves the camera; Link is about 56 units tall, so 10x at 3D Depth 30 is life size |
+| Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes (play not reached), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera |
+| Asphalt 3D | 3, view 8 | not measured | | 1x | CitraVR's notes only |
+
+Checked and left without a preset: Pushmo (a 9 degree telephoto camera on the puzzles, so the
+head-locked window is 9 x 15 degrees; Off or Wide), Fire Emblem Awakening and Fates (menus and a
+22.6 degree map camera; in Fates no draw passes the world-camera test, so nothing turns), Fire
+Emblem Echoes (its world map works in mode 3 with view 90 and eye 94,1 at 30 degrees; not tried
+in battle or the dungeons), Tetris Ultimate (no world camera found), Stella Glow (the title
+needs Start; not reached), and homebrew without a 3D camera.
+
+### Ocarina of Time 3D with a widescreen mod
+
+Single Screen Experience (SSE) draws Ultrawide, 16:9, 4:3 or 5:3 by changing the projection's
+width and keeping its height (Hor+): with SSE and a save set to its widest shape the camera
+measured 54.7 degrees high and 2.22 wide (20:9; 5:3 x 4/3), without the mod 55 degrees and 5:3.
+In immersive mode the measured camera sizes the screen, so the mod's shape needs nothing here.
+**Screen Shape** still shapes the normal top screen (the bottom screen shown, immersive mode off):
+
+| Mod's shape | Camera | Screen Shape | Immersive Game FOV |
+| --- | --- | --- | --- |
+| 5:3 (or no mod) | 55 x 1.667 (measured) | 3DS (5:3) | 55 |
+| 16:9 | 55 x 1.778 | Widescreen (16:9) | 55 |
+| Ultrawide | 55 x 2.22 (measured) | Ultrawide (21:9), 5 % too wide | 55 |
+| 4:3 | 55 x 1.333 | Standard (4:3) | 55 |
+
+The FOV setting is only used until the first measurement; leave the mod's own FOV at its default
+or the measurement follows it anyway.
+
+### Kid Icarus: Uprising: aiming
+
+The game aims with the touch screen: the stylus position is the reticle's. In the Full modes the
+bottom screen is hidden and showing it pauses immersive mode, so none of the three ways to touch
+it works while the camera follows the head: the beam needs the screen shown, **Touchpad Touch**
+has no touch on a hidden bottom screen, and **Detach Screens** does not change immersive mode.
+What works now:
+
+- Full (6DoF): Other Games (the preset): fly and shoot with the 3D and the head-turned camera;
+  tap the left stick click to show the bottom screen and aim with the beam or a touchpad
+  (immersive mode pauses), tap again to go back. The reticle aims through the game's own camera,
+  so a shot goes where the reticle is in the game's view: look ahead when you aim.
+- Wide (3DoF), mode 1: the bottom screen stays below the wide screen while you play, so the beam
+  or **Touchpad Touch** aims all the time. The game's own 3D, no head-turned camera.
+
+For touch while the camera follows the head, the bottom screen would have to show in the Full
+modes without pausing them, placed low (as **Detach Screens: Secondary** places it): a change
+for a later version.
 
 ## Tuning without a rebuild
 
@@ -260,6 +343,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_IMMERSIVE_FOV` | unset | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size and wins over the Immersive Game FOV setting (default 60, 30..110) |
 | `AZAHARFRAME_IMMERSIVE_DISTANCE` | 0.75 | the default distance in metres (0.3..3) for a game without a saved placement; sizes scale with it, so only stereo depth changes |
 | `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
+| `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
 
 ## Trying it
 
@@ -275,8 +359,9 @@ What to look for:
 
 - Mode 2 in Ocarina of Time 3D: the top screen fills most of your view, a little below eye level, with
   its edges and the HUD inside the view, and stays in front of your eyes; there is no bottom screen. Turn your head slowly: the game camera turns with it and the world stays
-  put. If the world swims along with your head, the screen is too small: raise
-  **Immersive Game FOV** (try 70, 80; a mod that changes the game's FOV needs the same value here). If it swims against your head, lower it (50).
+  put. The log line `game camera measured ... degrees high` shows the angle in use. Before it
+  shows, **Immersive Game FOV** is used: if the world swims along with your head then, raise it;
+  against your head, lower it.
 - Leaning and crouching move the camera a little (Depth Factor Multiplier 1x).
 - Squeeze a grip and move the hand down: the screen goes lower and the world stays where it was.
   Push the stick of that hand up: the screen goes farther (mode 2) without changing size. Push it

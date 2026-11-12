@@ -131,8 +131,7 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 [CONTROLS.md](CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience. Short version for Single Screen Experience:
 
 - Turn on **Hide Bottom Screen** for the game.
-- If you turn on the mod's 16:9 option, set **Screen Shape** to **Widescreen (16:9)**.
-- Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value.
+- Set **Screen Shape** to the mod's shape: **Widescreen (16:9)** for its 16:9 option, **Ultrawide (21:9)** for its widest one. Immersive mode reads the game's own shape and angle, so it needs no setting.
 - If it stutters, turn off the mod's 60 FPS option first.
 
 ## Controls
@@ -234,9 +233,9 @@ Normally the top screen floats two metres away. In immersive mode the game draws
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
 - **Full (6DoF): Other Games:** the same, for other games; it finds the camera while you play.
 
-Three games start with a setup already, from CitraVR's notes: Mario Kart 7, Super Mario 3D Land and Asphalt 3D. They start in **Full (6DoF): Other Games**, with **View Matrix Register** 90 for the first two and 8 for Asphalt 3D. Super Mario 3D Land also starts with **Depth Factor Multiplier** 100x; at 1x its 3D cannot be seen in immersive mode. That applies only when the game's own properties have no **Immersive Mode**, register or multiplier of their own, and the global one is still **Off** or **Auto**. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
+Six games start with a setup already. Mario Kart 7, Super Mario 3D Land and Kid Icarus: Uprising start in **Full (6DoF): Other Games** with **View Matrix Register** 90, **Eye Indicator Register** `87,2` and their camera's angle; Super Mario 3D Land with **Depth Factor Multiplier** 100x, the other two with 10x. Ocarina of Time 3D and Majora's Mask 3D start in **Full (6DoF): Ocarina of Time, Majora's Mask** with 10x. Asphalt 3D starts in **Full (6DoF): Other Games** with register 8, from CitraVR's notes. That applies only when the game's own properties have no value of their own for each setting, and the global one is still the default. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins.
 
-**Immersive Game FOV** is the game camera's vertical angle in degrees (60 by default). Change it only if a mod changes the game's FOV. A change shows at once. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
+In the Full modes the immersive screen takes the game camera's angle and shape from the game itself while it runs, so the world stays still when you turn your head, also with widescreen mods. **Immersive Game FOV** (60 degrees by default) is only used until then, or in a game where it is not found. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second re-centres the view.
 
 The screen starts a little below eye level. The whole picture is in view, and its sides, where most games keep the HUD, sit inside the sharp middle of the lenses. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Hold the right stick click for 1 second to put it back; that also re-centres the view.
 

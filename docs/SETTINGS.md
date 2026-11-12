@@ -102,7 +102,7 @@ Match the shape the game or mod draws, or the picture stretches. A change shows 
 
 How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
 
-A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the 3D comes from your own eyes, so the setting does not change the 3D there. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
+A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the game's own 3D is off and the two eyes are set apart in the game by your own eye distance times this setting (with the [Depth Factor Multiplier](#depth-factor-multiplier)), so it still sets how deep the 3D looks. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
 
 ## Immersive Mode
 
@@ -123,7 +123,7 @@ Shifts the immersive screen a little left or right to fit your lenses. Use it if
 
 ## Immersive Game FOV
 
-The game camera's vertical field of view, in degrees. Change it only if a mod changes the game's FOV, and set it to the same value. Then the world stays still when you turn your head. A change shows at once.
+The game camera's vertical field of view, in degrees. In the Full modes the immersive screen reads the real angle from the game while it runs, so this is only used until then, or in a game where it is not found. Then set it to the game's angle, so the world stays still when you turn your head. A change shows at once.
 
 ## Wider View
 
@@ -135,15 +135,15 @@ Narrows the screen so the side HUD moves into view. Full modes only. The game lo
 
 ## Depth Factor Multiplier
 
-Full modes only. How far the game camera moves when you move your head, together with the 3D depth. Some games need a larger value.
+Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value: Super Mario 3D Land 100x, Mario Kart 7 and Kid Icarus: Uprising 10x (their presets).
 
 ## View Matrix Register
 
-**Full (6DoF): Other Games** only. The shader register that holds the game's camera. **Auto** finds it while you play. Mario Kart 7 and Super Mario 3D Land use 90, and Asphalt 3D uses 8. Change it only for a game that already has a known value.
+**Full (6DoF): Other Games** only. The shader register that holds the game's camera. **Auto** finds it while you play. Mario Kart 7, Super Mario 3D Land and Kid Icarus: Uprising use 90, and Asphalt 3D uses 8. Change it only for a game that already has a known value.
 
 ## Eye Indicator Register
 
-**Full (6DoF): Other Games** only. The register and index that tell the two eyes apart, such as `87,2`. Leave it empty to find it while you play.
+**Full (6DoF): Other Games** only. The register and index that tell the two eyes apart, such as `87,2` (Mario Kart 7, Super Mario 3D Land, Kid Icarus: Uprising). Leave it empty to find it while you play; that takes a little while, and until then both eyes see the same picture.
 
 ## What changes from Azahar
 
