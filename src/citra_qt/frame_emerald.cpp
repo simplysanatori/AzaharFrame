@@ -21,7 +21,6 @@
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QPointer>
-#include <QProcess>
 #include <QProgressDialog>
 #include <QTimer>
 #include "citra_qt/frame_texture_pack.h"
@@ -29,6 +28,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "core/homebrew/emerald3ds_build.h"
 #include "core/homebrew/net.h"
 
 namespace E = Homebrew::Emerald3ds;
@@ -249,6 +249,19 @@ QString FrameEmerald::ChooseRomDir(QWidget* parent) {
     return dir;
 }
 
+/// AzaharFrame cpphelpers: what is about to be downloaded and from where, so the player decides
+/// knowingly.
+bool FrameEmerald::ConfirmSource(QWidget* parent, const QString& title) {
+    const QString version = state.latest_tag.empty() ? tr("the latest release")
+                                                     : tr("Version %1").arg(Q(state.latest_tag));
+    return QMessageBox::question(
+               parent, title,
+               tr("Download %1 from ZallaxDev/emerald-3ds on GitHub?\n\n"
+                  "Your ROM is read only. The game's data is built from it with Emerald 3DS's own "
+                  "build recipe from that release.")
+                   .arg(version)) == QMessageBox::Yes;
+}
+
 void FrameEmerald::Install(QWidget* parent) {
     if (busy) {
         return;
@@ -289,6 +302,9 @@ void FrameEmerald::Install(QWidget* parent) {
         return;
     }
     job.rom_dir = dir.toStdString();
+    if (!ConfirmSource(parent, title)) {
+        return;
+    }
     Start(parent, std::move(job));
 }
 
@@ -320,6 +336,9 @@ void FrameEmerald::Update(QWidget* parent) {
         return;
     }
     job.rom_dir = dir.toStdString();
+    if (!ConfirmSource(parent, tr("Update Pokémon Emerald 3DS"))) {
+        return;
+    }
     Start(parent, std::move(job));
 }
 
@@ -541,87 +560,46 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
             });
     };
 
-    // ---- 2. Build: emerald3ds.pak with Emerald 3DS's own builder ----
+    // ---- 2. Build: emerald3ds.pak from the release's recipe (AzaharFrame cpphelpers: in this
+    // program, off the GUI thread; no Python and no separate process) ----
     auto build = [this, window, job, close_dialog, install, cancel, dialog, shown](Prepared p) {
-        const QString tool = FrameTexturePack::ToolPath(QStringLiteral("emerald3ds-build.py"));
-        if (tool.isEmpty()) {
-            close_dialog();
-            Finish(window, tr("The Emerald 3DS builder tool is missing from this installation"),
-                   {});
-            return;
-        }
         SetBusy(true, tr("Building"), 400);
-        dialog->setLabelText(tr("Building the Data Pack"));
-        auto* process = new QProcess(dialog);
-        auto output = std::make_shared<QString>();
-        auto error = std::make_shared<QString>();
-        auto result = std::make_shared<QJsonObject>();
-        connect(dialog, &QProgressDialog::canceled, process, [process] { process->terminate(); });
-        connect(process, &QProcess::readyReadStandardOutput, dialog,
-                [process, output, error, result, shown] {
-                    while (process->canReadLine()) {
-                        const QString line = QString::fromUtf8(process->readLine()).trimmed();
-                        if (line.startsWith(QStringLiteral("progress "))) {
-                            const int permille = line.section(QLatin1Char(' '), 1, 1).toInt();
-                            shown->store(400 + permille * 550 / 1000);
-                        } else if (line.startsWith(QStringLiteral("result "))) {
-                            *result = QJsonDocument::fromJson(line.mid(7).toUtf8()).object();
-                        } else if (line.startsWith(QStringLiteral("error "))) {
-                            *error = line.mid(6);
-                        } else {
-                            output->append(line + QLatin1Char('\n'));
-                        }
-                    }
-                });
-        connect(process, &QProcess::readyReadStandardError, dialog, [process, output] {
-            output->append(QString::fromUtf8(process->readAllStandardError()));
-        });
-        connect(process, &QProcess::finished, dialog,
-                [this, window, close_dialog, install, cancel, p, error, result,
-                 output](int code, QProcess::ExitStatus) {
-                    if (cancel->load()) {
-                        close_dialog();
-                        Finish(window, tr("Cancelled"), {});
-                        return;
-                    }
-                    if (code != 0 || result->isEmpty()) {
-                        LOG_WARNING(Frontend, "emerald3ds: builder exit {}: {}", code,
-                                    FrameTexturePack::Tail(*output).toStdString());
-                        close_dialog();
-                        Finish(window,
-                               error->isEmpty() ? tr("The data pack could not be built") : *error,
-                               {});
-                        return;
-                    }
-                    const QString abi = result->value(QStringLiteral("abi")).toString();
-                    if (abi != QString::fromStdString(p.variant.data_abi)) {
-                        close_dialog();
-                        Finish(window, tr("The data pack does not match this release"), {});
-                        return;
-                    }
-                    install(p);
-                });
-        connect(process, &QProcess::errorOccurred, dialog,
-                [this, window, close_dialog](QProcess::ProcessError e) {
-                    if (e == QProcess::FailedToStart) {
-                        close_dialog();
-                        Finish(window, tr("Python 3 is needed to build the data pack"), {});
-                    }
-                });
-        QStringList args{QStringLiteral("-I"),
-                         tool,
-                         QStringLiteral("--payload-zip"),
-                         QString::fromStdString(p.payload_zip),
-                         QStringLiteral("--rom"),
-                         QString::fromStdString(job.rom),
-                         QStringLiteral("--out"),
-                         QString::fromStdString(p.out_dir),
-                         QStringLiteral("--cache"),
-                         QString::fromStdString(paths.data_dir + "followers-cache")};
-        if (!p.variant.language.empty()) {
-            args << QStringLiteral("--language") << QString::fromStdString(p.variant.language);
-        }
-        process->start(QStringLiteral("python3"), args);
+        dialog->setLabelText(
+            tr("Building the Data Pack\nUsing Emerald 3DS's own build recipe from the release"));
+        E::Build::Options options;
+        options.payload_zip = p.payload_zip;
+        options.rom = job.rom;
+        options.out_dir = p.out_dir;
+        options.cache_dir = paths.data_dir + "followers-cache";
+        options.language = p.variant.language;
+        options.cancel = cancel.get();
+        options.progress = [shown](int permille, const std::string&) {
+            shown->store(400 + permille * 550 / 1000);
+        };
+        OffThread(
+            this, [options]() { return E::Build::BuildPack(options); },
+            [this, window, close_dialog, install, cancel, p](E::Build::Result r) {
+                if (cancel->load() || r.stopped) {
+                    close_dialog();
+                    Finish(window, tr("Cancelled"), {});
+                    return;
+                }
+                if (!r.ok) {
+                    LOG_WARNING(Frontend, "emerald3ds: builder: {}", r.error);
+                    close_dialog();
+                    Finish(window,
+                           r.error.empty() ? tr("The data pack could not be built")
+                                           : QString::fromStdString(r.error),
+                           {});
+                    return;
+                }
+                if (r.abi != p.variant.data_abi) {
+                    close_dialog();
+                    Finish(window, tr("The data pack does not match this release"), {});
+                    return;
+                }
+                install(p);
+            });
     };
 
     // ---- 1. Download: the release's manifest and checksums, then what this run needs ----

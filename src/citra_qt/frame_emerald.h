@@ -4,8 +4,8 @@
 
 // AzaharFrame emerald: the Pokémon Emerald 3DS package (core/homebrew/emerald3ds.h): its dialogs
 // and steps. Install: the player's own ROM (its SHA-1 checked), a game folder, then the latest
-// release from GitHub, emerald3ds.pak made by Emerald 3DS's own builder (steam-frame/tools/
-// emerald3ds-build.py, a separate Python process), and the files put in place. Update: the .3dsx
+// release from GitHub, emerald3ds.pak made from the ROM and the release's build recipe by the program itself
+// (core/homebrew/emerald3ds_build.h, no Python, nothing downloaded is run), and the files put in place. Update: the .3dsx
 // and .smdh alone when the release keeps the data ABI, else the pack made again from the kept ROM.
 // The save is backed up first and never touched.
 
@@ -60,6 +60,7 @@ private:
     std::string ChooseLanguage(QWidget* parent, const Homebrew::Emerald3ds::RomProfile& rom,
                                const std::string& current);
     void Warn(QWidget* parent, const QString& title, const QString& text);
+    bool ConfirmSource(QWidget* parent, const QString& title); // AzaharFrame cpphelpers
     void Start(QWidget* parent, Job job);
     void SetBusy(bool busy, const QString& status, int progress = -1);
     void Finish(QWidget* parent, const QString& error, const QString& done_text);

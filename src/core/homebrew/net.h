@@ -25,6 +25,11 @@ struct Reply {
 /// A small reply (release information, a manifest), at most `max_body` bytes.
 Reply GetText(const std::string& url, std::size_t max_body);
 
+/// AzaharFrame cpphelpers: a file pinned by commit, size and SHA-256 (Emerald 3DS's follower
+/// sprites), from raw.githubusercontent.com or cdn.jsdelivr.net as well as the GitHub hosts. The
+/// caller checks size and hash.
+Reply GetPinned(const std::string& url, std::size_t max_body);
+
 /// A file, written to dest + ".part" and renamed when whole. `progress(done, total)` (total 0
 /// when the host does not say) returns false to stop. "" on success, else why.
 std::string Download(const std::string& url, const std::string& dest,
@@ -32,6 +37,8 @@ std::string Download(const std::string& url, const std::string& dest,
 
 /// Whether a host ("https://github.com") may be fetched from.
 bool HostAllowed(std::string_view host);
+/// The two extra hosts GetPinned may use.
+bool PinnedHostAllowed(std::string_view host);
 
 /// Lower-case hex digests ("" when the file cannot be read).
 std::string Sha1Hex(std::span<const u8> data);

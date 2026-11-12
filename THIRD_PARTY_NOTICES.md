@@ -52,7 +52,11 @@ The Textures list of the VR menu's Mods tab downloads texture packs for a game f
 
 ## Emerald 3DS
 
-The Homebrew menu (and the Homebrew segment of the VR menu's Mods tab) installs Emerald 3DS, a fan port of Pokémon Emerald to the Nintendo 3DS by ZallaxDev and its contributors (https://github.com/ZallaxDev/emerald-3ds, https://emerald-3ds.com), released under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 licence from version 0.5.0 (MIT up to 0.4.x). Nothing from it is shipped or re-hosted, and none of its code is in this program: when the player asks, its latest release is downloaded from GitHub, and its own builder, from that release's `Emerald3DS-WebPayload.zip`, is run as a separate Python process (`tools/emerald3ds-build.py`, written for this program, only starts it) to make the game's data pack from the player's own Pokémon Emerald ROM. No ROM, Nintendo firmware or Emerald 3DS file is included; the ROM is the player's own and is never downloaded. The `3ds/dspfirm.cdc` this program writes when none exists is a text placeholder with no firmware in it. Emerald 3DS is an unofficial fan project, not affiliated with or endorsed by Nintendo, Game Freak, Creatures or The Pokémon Company; Pokémon and Pokémon Emerald are trademarks of their respective owners.
+The Homebrew menu (and the Homebrew segment of the VR menu's Mods tab) installs Emerald 3DS, a fan port of Pokémon Emerald to the Nintendo 3DS by ZallaxDev and its contributors (https://github.com/ZallaxDev/emerald-3ds, https://emerald-3ds.com), released under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 licence from version 0.5.0 (MIT up to 0.4.x). Nothing from it is shipped or re-hosted, and none of its code is in this program: when the player asks, its latest release is downloaded from GitHub, and the game's data pack is made from the player's own Pokémon Emerald ROM by this program's own builder (`src/core/homebrew/emerald3ds_build.cpp`, written for this program), which follows the data recipe in that release's `Emerald3DS-WebPayload.zip`. Nothing downloaded is run. No ROM, Nintendo firmware or Emerald 3DS file is included; the ROM is the player's own and is never downloaded. The `3ds/dspfirm.cdc` this program writes when none exists is a text placeholder with no firmware in it. Emerald 3DS is an unofficial fan project, not affiliated with or endorsed by Nintendo, Game Freak, Creatures or The Pokémon Company; Pokémon and Pokémon Emerald are trademarks of their respective owners.
+
+## XZ Embedded
+
+`src/core/homebrew/xz/` is XZ Embedded by Lasse Collin and Igor Pavlov (https://tukaani.org/xz/embedded.html), in the public domain (BSD Zero Clause License, 0BSD), with CRC-64 turned on. It reads the .xz data in Emerald 3DS's release payload.
 
 ## Frametop
 
@@ -133,7 +137,7 @@ The in-game menu (`src/frame_xr/menu/`) follows the structure of CitraVR's VR me
 
 ## Controller models, beams and panels in VR
 
-The controller models' converter (`steam-frame/tools/frame-controller-models.py`), their file format, posing and shaders (`src/frame_xr/vis/`), and the look of the pointer beam come from Moonlight XR Native, by the same author, under the GNU General Public License, version 3.
+The controller models' converter (`azahar --frame-controller-models`, `src/core/frame_controller_models.cpp`), their file format, posing and shaders (`src/frame_xr/vis/`), and the look of the pointer beam come from Moonlight XR Native, by the same author, under the GNU General Public License, version 3.
 
 - The models themselves are Valve's, from SteamVR's Steam Frame controller driver on your Frame (`/opt/steamvr/drivers/frame_controller/resources/rendermodels`). They are converted on your Frame at install time and are not part of this repository or of the release.
 - The controls help and stats panels use Noto Sans Regular and Bold (SIL Open Font License 1.1) from SteamOS's own `/usr/share/fonts/noto/`, with the stb_truetype above.

@@ -70,6 +70,12 @@ bool HostAllowed(std::string_view host) {
     return std::find(allowed.begin(), allowed.end(), host) != allowed.end();
 }
 
+bool PinnedHostAllowed(std::string_view host) {
+    static constexpr std::array<std::string_view, 2> allowed{"https://raw.githubusercontent.com",
+                                                             "https://cdn.jsdelivr.net"};
+    return std::find(allowed.begin(), allowed.end(), host) != allowed.end();
+}
+
 namespace {
 
 /// "sp,sv,sig" for "?sp=r&sv=1&sig=x": the names only.
@@ -199,10 +205,12 @@ Hop GetOnce(const std::string& host, const std::string& path,
 
 /// Follows redirects among the allowed hosts. "" on success.
 std::string Fetch(std::string url, const std::function<bool(u64 total)>& start,
-                  const std::function<bool(const char*, std::size_t)>& sink, int* status) {
+                  const std::function<bool(const char*, std::size_t)>& sink, int* status,
+                  bool pinned_hosts = false) {
     for (int hops = 0; hops < 8; ++hops) {
         std::string host, path;
-        if (!SplitUrl(url, host, path) || !HostAllowed(host)) {
+        if (!SplitUrl(url, host, path) ||
+            !(HostAllowed(host) || (pinned_hosts && PinnedHostAllowed(host)))) {
             return "Download refused: not a GitHub address";
         }
         const Hop hop = GetOnce(host, path, start, sink);
@@ -245,6 +253,29 @@ Reply GetText(const std::string& url, std::size_t max_body) {
             return true;
         },
         &out.status);
+    if (too_large) {
+        out.error = "Download too large";
+    }
+    if (!out.error.empty()) {
+        out.body.clear();
+    }
+    return out;
+}
+
+Reply GetPinned(const std::string& url, std::size_t max_body) {
+    Reply out;
+    bool too_large = false;
+    out.error = Fetch(
+        url, [&](u64 total) { return !(too_large = total > max_body); },
+        [&](const char* data, std::size_t len) {
+            if (out.body.size() + len > max_body) {
+                too_large = true;
+                return false;
+            }
+            out.body.append(data, len);
+            return true;
+        },
+        &out.status, true);
     if (too_large) {
         out.error = "Download too large";
     }
