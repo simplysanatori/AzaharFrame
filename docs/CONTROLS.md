@@ -144,12 +144,13 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 
 ## The in-game menu
 
-Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with five tabs down its left side:
+Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with six tabs down its left side:
 
 - **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**.
 - **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
-- **Controls**: the drawings of both controllers, in a game and on Azahar's window.
+- **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls** and **Touchpad Touch** (see Editing the controls).
+- **Mods**: **Cheats**, **Mods** and **Textures** for the running game (see Cheats, mods and textures).
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
 
 Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts; the rest apply at once.
@@ -157,6 +158,82 @@ Point and pull the trigger or press **A**. Either stick scrolls a long list. Res
 **Azahar's Window** shows the window itself, with the same controls as above, for everything else: the game's **Properties**, the **Emulation** menu and any dialog, which also brings the window up by itself. Press **B** with nothing open there to go back to the menu.
 
 To go back to the game, select **Continue**, press **B**, or hold **Menu** for 1 second again. Holding **View** for 1.5 seconds stops the game. The Full immersive modes show the normal screens while the menu is open.
+
+## Cheats, mods and textures
+
+The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheats and fixes carry a verified badge after their name. Point and pull the trigger, as in the rest of the menu; the right stick scrolls.
+
+| List | What is there |
+|---|---|
+| **Cheats** | **Download** fetches the game's cheats from Sharkive and my 3ds-game-fixes repository. A switch per cheat, applied at once and kept. A red chip such as **v1.0** marks a cheat made for another version of the game. **Azahar's Window** opens Azahar's **Cheats** window to add or edit your own |
+| **Mods** | What is installed for the game, with a switch and **Remove**. **Install Mods** lists the mods known for the game; **Install** downloads one from its author's GitHub repository. Two mods that change the same files are never installed over each other without asking. **Created by** opens the author's page in Steam's browser |
+| **Textures** | **Custom Textures**, the game's packs (or **Off**), **Download Packs** and **Preload**. **Download Packs** lists packs for the game from GitHub and Google Drive; **Download**, **Cancel** and **Delete** act on one |
+
+After a change to mods or textures, **Restart the Game to Apply** shows with a **Restart** button. More in the [user guide](USER_GUIDE.md#the-mods-tab).
+
+## Editing the controls
+
+**Edit Controls** on the in-game menu's **Controls** tab opens a drawing of a New 3DS XL with a chip on every 3DS button and stick. Each chip names what drives that 3DS input on the device chosen at the bottom.
+
+| Control | What it does |
+|---|---|
+| A device chip at the bottom | Picks what you edit: **Frame Controllers**, a connected gamepad, or **Mouse** |
+| A chip on the drawing | Listens: **Press a Button…** shows. Press the device's button for that 3DS input. A button that already had a job swaps with it |
+| A chip on the Circle Pad or the C-Stick | **Push the Stick Up…**, then **Push the Stick Right…**. The two pushes set the stick and its directions |
+| **Cancel** | Stops listening |
+| **Reset to Default** | Puts the device's layout back |
+| **Done** | Back to the Controls tab |
+
+The Frame controllers' layout is your controls profile (see Changing the layout). A gamepad's layout is kept per kind of gamepad, in `user/controller-mappings.txt`. A new gamepad starts with its buttons in the 3DS's places: the face buttons by position, the bumpers L and R, the triggers ZL and ZR, the sticks the Circle Pad and the C-Stick.
+
+### Gamepads
+
+A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it in SteamOS. Both can be used at the same time.
+
+### Touchpad Touch
+
+**Touchpad Touch** on the **Controls** tab (**Off**, **Touch**, **Click**) makes a gamepad's touchpad the bottom screen. The pad covers the whole screen, and a dot shows where your finger is.
+
+- **Touch**: a finger on the pad touches the screen.
+- **Click**: pressing the pad touches it. The finger only moves the dot.
+
+Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden bottom screen takes no touch.
+
+### The mouse
+
+A mouse works in VR. **Mouse Mode** on its Edit Controls page has two modes:
+
+- **Bottom Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
+- **Pointer**: the mouse moves a pointer around you that works like the right controller's beam, on the menu, Azahar's window and the screens. Moving your head leaves it where it is.
+
+| Mouse | What it does |
+|---|---|
+| Left and right button, held together for 3 seconds | Switches **Mouse Mode**. **Mouse: Pointer** or **Mouse: Bottom Screen** shows |
+| Left button | Touch |
+| Right button | A |
+| Back, Forward | L, R |
+| Middle button | Opens and closes the in-game menu |
+| Wheel | Scrolls the menu's lists |
+
+Edit Controls changes what each button and the wheel do. Holding the left and right buttons to switch modes always works.
+
+With Frametop installed, Frametop holds the mouse while it is not paused. It pauses itself while a VR game runs, by default. If the mouse does nothing in VR, pause Frametop.
+
+## The game keyboard and the Mii Selector
+
+When a game asks for text, such as a name, a keyboard opens in front of you over the paused game, with the game's own hint, length limit and buttons.
+
+| Control | What it does |
+|---|---|
+| Trigger or **A** on a key | Types it. Backspace repeats while held |
+| **B** | Backspace |
+| Shift | One capital; again: caps lock; again: off |
+| **?123** | Digits and symbols |
+| The game's buttons | Answer the game, such as **OK** or **Cancel** |
+
+A keyboard connected to the Frame types into it too. The screens leave immersive mode while it is open. Stopping the game closes it.
+
+When a game asks you to choose a Mii, the Mii it suggests is chosen, and its name shows. In Flat both are Azahar's own dialogs.
 
 ## The controls help, the controllers and the stats
 
@@ -284,7 +361,7 @@ If VR cannot start at all (no SteamVR, or a renderer other than Vulkan), Azahar 
 
 The VR layout (apart from Face Buttons) is a controls profile in **Emulation > Configure > Controls**. There the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile get this layout, unless one of them already is a Frame control. After that your changes stay. The face buttons there are the 3DS-named ones, so they follow **Face Buttons**: with By Position, **Frame A** is the button in the 3DS's A place, which is the Frame's **B**. Keep a profile of your own under another name if you also use the window with a keyboard.
 
-SDL game controllers still work, and so do a keyboard and mouse on the window.
+In VR, gamepads and the mouse have their own layouts, set in **Edit Controls** (see Editing the controls). In Flat, SDL game controllers work as in Azahar, and so do a keyboard and mouse on the window.
 
 ## Rumble
 

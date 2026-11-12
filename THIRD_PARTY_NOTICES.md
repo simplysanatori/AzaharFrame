@@ -28,11 +28,11 @@ in [misc/licenses/gplv2.txt](misc/licenses/gplv2.txt).
 
 ## 3ds-game-fixes
 
-The Cheats window's "Download Cheats" button (and the Cheats tab of the VR menu) first fetches the Developer cheats and code patches for a game from https://github.com/simplysanatori/3ds-game-fixes, the maintainer's own repository, released under the MIT licence (its LICENSE file). Nothing from it is shipped: the files for the open game are downloaded only when the button is clicked or a fix is installed.
+The Cheats window's "Download Cheats" button (and the Cheats list of the VR menu's Mods tab) first fetches the Developer cheats and code patches for a game from https://github.com/simplysanatori/3ds-game-fixes, the maintainer's own repository, released under the MIT licence (its LICENSE file). Nothing from it is shipped: the files for the open game are downloaded only when the button is clicked or a fix is installed.
 
 ## Mods from their authors' repositories
 
-The Mods tab of the VR menu installs mods for a game from a list (catalog/mods.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player installs a mod, its files are downloaded from the mod author's own GitHub repository (a release asset or repository files) and placed in the player's load folder. The mods stay under their authors' licences, which the list shows (the maintainer's own fixes: MIT; Ocarina ReFramed by OTPR26, https://github.com/OTPR26/OOT3DHud: GPL-3.0-or-later for its source, with its HUD art and game data outside that grant; Project Restoration by leoetlino, https://github.com/leoetlino/project-restoration: GPL-2.0). The zip reader (`src/core/mods/archive.cpp`) is written for this program: its inflate follows the algorithm of Mark Adler's "puff" (zlib licence), which needs no zlib code or library.
+The Mods list of the VR menu's Mods tab installs mods for a game from a list (catalog/mods.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player installs a mod, its files are downloaded from the mod author's own GitHub repository (a release asset or repository files) and placed in the player's load folder. The mods stay under their authors' licences, which the list shows (the maintainer's own fixes: MIT; Ocarina ReFramed by OTPR26, https://github.com/OTPR26/OOT3DHud: GPL-3.0-or-later for its source, with its HUD art and game data outside that grant; Project Restoration by leoetlino, https://github.com/leoetlino/project-restoration: GPL-2.0). The zip reader (`src/core/mods/archive.cpp`) is written for this program: its inflate follows the algorithm of Mark Adler's "puff" (zlib licence), which needs no zlib code or library.
 
 ## Sharkive
 
@@ -40,7 +40,39 @@ The same button then fetches a game's cheat codes from Sharkive (https://github.
 
 ## LibreSSL
 
-The Download Cheats button talks HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
+The Download Cheats button and the Mods tab's downloads talk HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
+
+## Texture packs from their authors' pages
+
+The Textures list of the VR menu's Mods tab downloads texture packs for a game from a list (catalog/textures.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player downloads a pack, it comes from the place its author shares it (a GitHub release, a public Google Drive file or folder, or an https link) and is unpacked into the player's load folder. The packs stay their authors' work, under the terms each author states; the list names the author and links their page (among them Henriko Magnifico, https://www.henrikomagnifico.com; DeathWrench, https://github.com/DeathWrench/MM3DHD; Gray-Rice, Ullr8 and Volya, https://github.com/Gray-Rice/PokeTex-3DS).
+
+## Frametop
+
+The mouse's Pointer mode in VR (`src/frame_xr/input/mouse_pointer.{h,cpp}`) is adapted from Frametop's pointer helper (pointer/helper/ft-pointer.cpp, pointer/common/vec3.h, screens/posemath.h; https://github.com/Frametop/frametop) by DeeJanuz, released under the MIT licence:
+
+```
+MIT License
+
+Copyright (c) 2026 DeeJanuz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Artwork
 

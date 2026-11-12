@@ -1,31 +1,25 @@
 # Azahar for Frame
 
 Nintendo 3DS games in VR, running natively on the Valve Steam Frame.
-
-> This is my personal, unofficial fork of [Azahar](https://github.com/azahar-emu/azahar). It brings over the VR modes of amwatson's [CitraVR](https://github.com/amwatson/CitraVR), which is built on [Citra](https://github.com/citra-emu/citra).
-> It is not an official Azahar project. The Azahar team and the CitraVR author did not make or endorse it.
-> If you're one of Azahar's maintainers and want the repo renamed or changed, open an issue or a pull request. I'll happily do it.
+It is my unofficial fork of [Azahar](https://github.com/azahar-emu/azahar), with the VR modes of amwatson's [CitraVR](https://github.com/amwatson/CitraVR).
 
 ![Azahar for Frame](docs/images/cover.jpg)
 
 ## Features
 
 - Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
-- Immersive modes, with a screen you move and resize per game
+- Immersive modes, set up for Mario, Zelda and Kid Icarus
+- Screens you move, resize, curve and detach
 - An in-game menu: save states, screen position and VR settings
-- Pick and start games with the controller
-- Stats in front of you or on your wrist
-- **Screen Curve**: bend the main screen like a curved monitor
-- **Side by Side** and stacked screen layouts, in VR and Flat
-- Steam Frame controls, with Quick Save, Quick Load and Fast Forward
-- Azahar's own window and settings in VR
+- Cheats, mods and texture packs, downloaded from the headset
+- Edit the controls of any gamepad or mouse
 - Flat mode in the same app, on SteamVR's big screen
-- **Optimize Texture Pack for Frame**: converts HD texture packs so they load with no stutter
-- Texture packs and mods
 
 ## How it works
 
-The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothing is streamed from a PC.
+The emulator runs on the Frame itself and draws both eyes through SteamVR.
+You bring your own games. Nothing is streamed from a PC.
+Cheats, mods and texture packs download only when you ask for them.
 
 ## Requirements
 
@@ -44,10 +38,10 @@ The emulator runs on the Frame itself and draws both eyes through SteamVR. Nothi
    cd AzaharFrame
    ```
 
-2. Download `azaharframe-1.1.1-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
+2. Download `azaharframe-1.2.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
 
    ```sh
-   steam-frame/install.sh ~/Downloads/azaharframe-1.1.1-linux-arm64.tar.gz
+   steam-frame/install.sh ~/Downloads/azaharframe-1.2.0-linux-arm64.tar.gz
    ```
 
 3. Launch **Azahar for Frame** from your Steam library.
@@ -78,12 +72,9 @@ Keys and texture packs: [user guide](docs/USER_GUIDE.md#games).
 | Hold **View**, then right or left bumper | Quick Save or Quick Load |
 | Hold **View**, then right trigger | Fast Forward on or off |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
+| Trigger on the bottom screen | Touch |
 
-The **Controls** button above Azahar's window shows this panel in VR. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
-
-## Settings
-
-The VR settings are in **Emulation > Configure**, on the **Graphics** tab, in the **VR** group. For one game, right-click it and choose **Properties**. [docs/SETTINGS.md](docs/SETTINGS.md) explains each one.
+To change them, use **Edit Controls** on the in-game menu's **Controls** tab. Full list: [docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Update
 
@@ -117,6 +108,7 @@ Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFra
 ## More
 
 - [User guide](docs/USER_GUIDE.md)
+- [Settings](docs/SETTINGS.md)
 - [AGENTS.md](AGENTS.md): for developers and AI agents
 - [Building from source](docs/TECHNICAL_NOTES.md#building)
 - [Changelog](docs/CHANGELOG.md)
@@ -132,6 +124,9 @@ If you would like more Steam Frame ports, you can also [buy me a coffee](https:/
 - [CitraVR](https://github.com/amwatson/CitraVR) by amwatson: the VR modes
 - [Qt](https://www.qt.io), [SDL](https://www.libsdl.org), [OpenXR](https://www.khronos.org/openxr/): window, gamepad, VR
 - [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder
+- [Frametop](https://github.com/Frametop/frametop) by DeeJanuz: the 3D mouse pointer is adapted from it
+- [Sharkive](https://github.com/FlagBrew/Sharkive) by FlagBrew, and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes): the cheats
+- Mods and texture packs: downloaded from their authors' own pages
 - Azahar logo by angyartanddraw and PabloMK7; backgrounds by GarfieldGaming0624 on [SteamGridDB](https://www.steamgriddb.com/game/5480678)
 - Valve: SteamVR and the Frame
 

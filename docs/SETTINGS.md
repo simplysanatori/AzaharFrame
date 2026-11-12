@@ -11,6 +11,8 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab.
 
 While a game with its own value runs, that row is greyed out in **Configure**.
 
+**Detach Screens** and **Touchpad Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+
 ## At a glance
 
 | Setting | Choices | Default | Scope | Takes effect |
@@ -25,6 +27,9 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
+| [Touchpad Touch](#touchpad-touch) | **Off**, **Touch**, **Click** | Off | global | at once |
+| [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
+| [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
@@ -88,6 +93,18 @@ Where the Secondary Screen sits in VR. **Stacked**: below the Primary Screen, ti
 ## Detach Screens
 
 Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the Secondary Screen follows the Primary Screen. **Secondary**: the Primary Screen moves as with **Off**, and the Secondary Screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. After a swap the Secondary Screen is the top screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the Secondary Screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
+
+## Touchpad Touch
+
+Makes a gamepad's touchpad the bottom screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Touch**: a finger on the pad touches the screen. **Click**: pressing the pad touches it, and the finger only moves the dot. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad-touch).
+
+## Mouse Mode
+
+What a mouse does in VR. **Bottom Screen**: it moves a cursor on the bottom screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
+
+## Recentre at Edge
+
+For the mouse in **Bottom Screen** mode and for touchpads. A drag that runs into an edge of the bottom screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
 
 ## Screen Curve
 

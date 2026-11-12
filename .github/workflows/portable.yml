@@ -10,7 +10,7 @@ on:
     inputs:
       version:
         description: Version for the tarball name
-        default: '1.1.1'
+        default: '1.2.0'
   push:
     tags: ['v*']
 
