@@ -5,10 +5,12 @@
 // AzaharFrame compat: catalog entries for another region, release or version of the game
 // (core/mods/compat.h), Install Mods' order and the crash guard's marker (core/mods/crash_guard.h).
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
+#include "core/mods/catalog.h"
 #include "core/mods/compat.h"
 #include "core/mods/crash_guard.h"
 #include "core/mods/library.h"
@@ -289,4 +291,44 @@ TEST_CASE("Compat: the crash guard's marker", "[mods][compat]") {
           "Turned Off No Bloom: The game closed unexpectedly after it was installed.");
     CHECK(CrashGuard::TurnedOffText({"No Bloom", "HD Textures"}) ==
           "Turned Off No Bloom and HD Textures: The game closed unexpectedly after they were installed.");
+}
+
+// AzaharFrame echoes: the European Fire Emblem Echoes update is TMD version 1024, read as 1.0,
+// while the game and its mods call it 1.1. The shipped catalog's EU code patches carry their
+// build's code CRC32, so the code decides: on the 1.1 code the 1.1 patches fit and the 1.0
+// Ghosting Shader Fix does not, whatever the version reads.
+TEST_CASE("Compat: Echoes EU code patches follow the game's code", "[mods][compat]") {
+    constexpr u64 kEchoesEur = 0x00040000001B4100ULL;
+    const auto parsed = ParseCatalog(DefaultCatalogJson());
+    REQUIRE(parsed.has_value());
+    Library library(TempDir("echoes"), *parsed,
+                    [](const std::string&, const std::string&, std::size_t) { return HttpReply{}; });
+    const auto find = [](const std::vector<AvailableMod>& list, const std::string& id) {
+        const auto it = std::find_if(list.begin(), list.end(), [&](const auto& a) { return a.id == id; });
+        REQUIRE(it != list.end());
+        return *it;
+    };
+
+    Game updated = GameOf(kEchoesEur, Version{1, 0}); // the update's TMD 1024
+    updated.code_crc = 0x23cc4afbu;
+    auto list = library.ListAvailable(kEchoesEur, std::nullopt, &updated);
+    for (const char* id : {"echoes-ghosting-shader-fix-eu-v11", "echoes-60fps-eu",
+                           "echoes-continuous-player-phase-music",
+                           "echoes-continuous-player-phase-music-combat"}) {
+        const auto a = find(list, id);
+        CHECK(a.compat.Fits());
+        CHECK(a.matches_game);
+    }
+    const auto old_fix = find(list, "echoes-ghosting-shader-fix-eu-v10");
+    CHECK(old_fix.compat.kind == Mismatch::Build);
+    CHECK(old_fix.compat.your_build == "1.1");
+    CHECK_FALSE(old_fix.matches_game);
+
+    Game card = GameOf(kEchoesEur); // the cartridge alone: 1.0 code
+    card.code_crc = 0x40d93b41u;
+    list = library.ListAvailable(kEchoesEur, std::nullopt, &card);
+    CHECK(find(list, "echoes-ghosting-shader-fix-eu-v10").compat.Fits());
+    CHECK(find(list, "echoes-ghosting-shader-fix-eu-v10").matches_game);
+    CHECK(find(list, "echoes-ghosting-shader-fix-eu-v11").compat.kind == Mismatch::Build);
+    CHECK(find(list, "echoes-60fps-eu").compat.kind == Mismatch::Build);
 }
