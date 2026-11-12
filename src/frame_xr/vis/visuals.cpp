@@ -22,6 +22,7 @@
 #include "frame_xr/vis/async_overlay.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/help_content.h"
+#include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/vis/panels.h"
 #include "frame_xr/vis/stats_place.h"
 #include "frame_xr/vis/visuals.h"
@@ -1005,7 +1006,12 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
 
     // ---- The controllers ----
     std::array<ControllerModels::Hand, 2> hands{};
-    if (Settings::values.vr_show_controllers.GetValue() && info.should_render) {
+    // AzaharFrame vis: none in passthrough (layer_plan.h), read every frame so it is live.
+    const bool passthrough_shown =
+        Settings::values.vr_background.GetValue() == 1 && rt.alpha_blend_supported;
+    if (ControllerModelsWanted(Settings::values.vr_show_controllers.GetValue(),
+                               passthrough_shown) &&
+        info.should_render) {
         for (int h = 0; h < Input::kNumHands; h++) {
             auto& out = hands[static_cast<std::size_t>(h)];
             out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f &&

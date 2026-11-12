@@ -43,4 +43,12 @@ void AssembleLayers(std::vector<Layer>& out, Layer passthrough, Layer models,
     }
 }
 
+/// Owner's call: in passthrough the room shows the real controllers, so the models are not
+/// drawn (the beams and dots stay). "Show Controllers" keeps its saved value and counts again
+/// as soon as the Background is Black. `passthrough_shown`: Background is Passthrough and the
+/// runtime offers it.
+constexpr bool ControllerModelsWanted(bool show_controllers, bool passthrough_shown) {
+    return show_controllers && !passthrough_shown;
+}
+
 } // namespace FrameXr::Vis

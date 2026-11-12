@@ -716,3 +716,12 @@ TEST_CASE("FrameXr vis: a frame never holds two projection layers", "[frame_xr]"
         REQUIRE(out == std::vector<const int*>{&quads[0], &quads[1], &quads[2], &quads[3]});
     }
 }
+
+// AzaharFrame vis: owner's call, no controller models in passthrough; Show Controllers keeps
+// its value and counts again on Black.
+TEST_CASE("FrameXr vis: the controller models are off in passthrough only", "[frame_xr]") {
+    STATIC_REQUIRE(ControllerModelsWanted(true, false));
+    STATIC_REQUIRE_FALSE(ControllerModelsWanted(true, true));
+    STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, false));
+    STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, true));
+}
