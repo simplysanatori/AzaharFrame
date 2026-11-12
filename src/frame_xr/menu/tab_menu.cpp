@@ -161,7 +161,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
-    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
+    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures",
+                                                         "Homebrew"}; // cheatstab, emerald
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
@@ -362,6 +363,12 @@ std::string LabelFor(Id id) {
         return "Delete";
     case Id::InstallFromZip: // AzaharFrame zipinstall
         return "Install from Zip";
+    case Id::HomebrewInstall: // AzaharFrame emerald
+        return "Install";
+    case Id::HomebrewUpdate:
+        return "Update";
+    case Id::HomebrewPlay:
+        return "Play";
     default:
         return {};
     }

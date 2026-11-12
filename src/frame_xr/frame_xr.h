@@ -211,6 +211,10 @@ enum class MenuCommand {
     ZipChoose,      ///< `value`: the index of the game in ZipModel::choices
     ZipDialog,      ///< the page's dialog: `value` 1 Replace, 0 Cancel / OK
     ZipClose,       ///< the page's back button
+    // AzaharFrame emerald: the Mods tab's Homebrew segment (citra_qt/frame_homebrew.cpp), `text`: the package's id
+    HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
+    HomebrewUpdate,  ///< the same for an update
+    HomebrewPlay,    ///< close the menu and start the installed package
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -385,11 +389,14 @@ struct CheatsModel;
 struct ModsListModel;
 struct TexturesModel;
 struct ZipModel;
+struct HomebrewTabModel; // AzaharFrame emerald
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
+/// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
+void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

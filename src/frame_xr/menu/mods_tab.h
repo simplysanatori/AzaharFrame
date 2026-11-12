@@ -15,7 +15,7 @@
 
 namespace FrameXr::Menu {
 
-enum class ModsSegment : uint8_t { Cheats, Mods, Textures };
+enum class ModsSegment : uint8_t { Cheats, Mods, Textures, Homebrew }; // AzaharFrame emerald: Homebrew
 
 struct ModsTabModel {
     CheatsModel cheats;

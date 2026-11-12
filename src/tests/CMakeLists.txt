@@ -58,6 +58,7 @@ add_executable(tests
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
+    core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

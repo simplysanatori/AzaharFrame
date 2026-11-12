@@ -40,11 +40,15 @@ The same button then fetches a game's cheat codes from Sharkive (https://github.
 
 ## LibreSSL
 
-The Download Cheats button and the Mods tab's downloads talk HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
+The Download Cheats button, the Mods tab's downloads and the Homebrew downloads talk HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
 
 ## Texture packs from their authors' pages
 
 The Textures list of the VR menu's Mods tab downloads texture packs for a game from a list (catalog/textures.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player downloads a pack, it comes from the place its author shares it (a GitHub release, a public Google Drive file or folder, or an https link) and is unpacked into the player's load folder. The packs stay their authors' work, under the terms each author states; the list names the author and links their page (among them Henriko Magnifico, https://www.henrikomagnifico.com; DeathWrench, https://github.com/DeathWrench/MM3DHD; Gray-Rice, Ullr8 and Volya, https://github.com/Gray-Rice/PokeTex-3DS).
+
+## Emerald 3DS
+
+The Homebrew menu (and the Homebrew segment of the VR menu's Mods tab) installs Emerald 3DS, a fan port of Pokémon Emerald to the Nintendo 3DS by ZallaxDev and its contributors (https://github.com/ZallaxDev/emerald-3ds, https://emerald-3ds.com), released under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 licence from version 0.5.0 (MIT up to 0.4.x). Nothing from it is shipped or re-hosted, and none of its code is in this program: when the player asks, its latest release is downloaded from GitHub, and its own builder, from that release's `Emerald3DS-WebPayload.zip`, is run as a separate Python process (`tools/emerald3ds-build.py`, written for this program, only starts it) to make the game's data pack from the player's own Pokémon Emerald ROM. No ROM, Nintendo firmware or Emerald 3DS file is included; the ROM is the player's own and is never downloaded. The `3ds/dspfirm.cdc` this program writes when none exists is a text placeholder with no firmware in it. Emerald 3DS is an unofficial fan project, not affiliated with or endorsed by Nintendo, Game Freak, Creatures or The Pokémon Company; Pokémon and Pokémon Emerald are trademarks of their respective owners.
 
 ## Frametop
 

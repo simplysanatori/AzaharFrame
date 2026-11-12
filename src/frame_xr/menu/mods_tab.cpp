@@ -36,6 +36,9 @@ void TabMenu::DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, c
     case ModsSegment::Textures:
         DrawTextures(kit, model, view, area);
         break;
+    case ModsSegment::Homebrew: // AzaharFrame emerald: homebrew_tab.cpp
+        DrawHomebrew(kit, model, view, area);
+        break;
     }
 }
 

@@ -150,6 +150,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <csignal>
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
+#include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h" // AzaharFrame texui
 #include "citra_qt/frame_mode.h"
@@ -232,6 +233,7 @@ QPointer<FrameMods> g_frame_mods;
 int g_frame_runs = 0;
 // AzaharFrame cheatstab: the in-game menu's Cheats segment (frame_cheats.cpp), made with the menu.
 QPointer<FrameCheats> g_frame_cheats;
+QPointer<FrameHomebrew> g_frame_homebrew; // AzaharFrame emerald
 // Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
 std::function<void(bool open)> g_frame_xr_set_menu;
 // Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
@@ -2270,6 +2272,18 @@ void GMainWindow::ConnectWidgetEvents() {
             FrameXrPushGameDirs();
         }
     });
+    // AzaharFrame emerald: the Homebrew menu, before Help; updates checked as the list loads.
+    g_frame_homebrew = new FrameHomebrew(this, ui->menubar, ui->menu_Help, [this] {
+        game_list->PopulateAsync(UISettings::values.game_dirs);
+        if (FrameXr::IsStarted()) {
+            FrameXrPushGameDirs();
+        }
+    });
+    connect(game_list, &GameList::PopulatingCompleted, this, [] {
+        if (g_frame_homebrew) {
+            g_frame_homebrew->CheckForUpdates();
+        }
+    });
 #endif
 #ifdef ENABLE_DEVELOPER_OPTIONS
     connect(game_list, &GameList::StartingLaunchStressTest, this,
@@ -2805,6 +2819,7 @@ void GMainWindow::BootGame(const QString& filename) {
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: the immersive screen's placement is saved per title id.
     FrameXr::SetGameTitleId(Loader::ResultStatus::Success == res ? title_id : 0);
+    FrameHomebrew::ApplyBootSettings(filename); // AzaharFrame emerald: e.g. HLE audio
 #endif
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).
@@ -4185,6 +4200,28 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     case C::EditControls: // AzaharFrame remap: the menu does it all
         return;
+    case C::HomebrewInstall: // AzaharFrame emerald: the Mods tab's Homebrew segment; dialogs in the window
+    case C::HomebrewUpdate:
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [r] {
+            if (g_frame_homebrew) {
+                g_frame_homebrew->Run(QString::fromStdString(r.text),
+                                      r.command == FrameXr::MenuCommand::HomebrewUpdate);
+            }
+        });
+        return;
+    case C::HomebrewPlay: {
+        const QString path = g_frame_homebrew
+                                 ? g_frame_homebrew->GamePath(QString::fromStdString(r.text))
+                                 : QString{};
+        if (path.isEmpty()) {
+            return;
+        }
+        LOG_INFO(Frontend, "xr: in-game menu: Homebrew: Play {}", r.text);
+        close_menu();
+        QTimer::singleShot(0, this, [this, path] { BootGame(path); });
+        return;
+    }
     case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
         if (g_frame_cheats) {
