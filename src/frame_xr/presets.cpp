@@ -98,15 +98,9 @@ constexpr ImmersivePreset kAsphalt3D{.name = "Asphalt 3D", .mode = 3, .register_
 // Off); the player can still turn it on from the VR menu or its properties.
 constexpr ImmersivePreset kKidIcarusUprising{.name = "Kid Icarus: Uprising",
                                              .mode = 0,
-                                             .register_offset = 90,
-                                             .eye_indicator = "87,2",
-                                             .screen_size = 0.8f,
+                                             .register_offset = -1,
                                              .resolution = 4,
-                                             .texture_filter = 2,
-                                             .narrow_y = 15,
-                                             .own_placement = true,
-                                             .place_pitch_deg = -15.19f,
-                                             .place_distance = 1.221f};
+                                             .texture_filter = 2};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super
 // Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D are not confirmed.

@@ -126,6 +126,12 @@ TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[f
         REQUIRE(kiu->wider_level == -1);
         REQUIRE(kiu->narrow == -1);
         REQUIRE(kiu->match_camera == -1);
+        // Graphics only; Immersive stays the player's to turn on.
+        REQUIRE(kiu->resolution == 4);
+        REQUIRE(kiu->texture_filter == 2);
+        REQUIRE(kiu->register_offset == -1);
+        REQUIRE(kiu->eye_indicator == nullptr);
+        REQUIRE(!kiu->own_placement);
     }
 }
 

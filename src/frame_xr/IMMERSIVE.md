@@ -367,9 +367,7 @@ owner's own tuned per-game settings of 2026-11-12 (`frame_xr/presets.cpp`; each 
 where a game has no value of its own and the global one is still the default): Mario Kart 7 FOV
 40, Wider View 1.3x, Narrow Screen 30 % and Height 15 %, Internal Resolution 3x, ScaleForce, the
 screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
-4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view) view
-register 90, eye 87,2, 4x, Bicubic, Narrow Height 15 %, screen 15.19 degrees below the middle,
-1.22 m, size 0.8; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
+4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view; Immersive stays Off by default, the player can turn it on) Internal Resolution 4x and Bicubic only; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
 Game Camera off, Narrow Screen 1 %, 3D Depth 30, screen 9.21 degrees below the middle, 3 m.
 
 ### The immersive screen per game
