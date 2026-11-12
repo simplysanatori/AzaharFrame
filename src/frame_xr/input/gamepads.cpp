@@ -811,7 +811,6 @@ std::vector<DeviceInfo> GamepadHub::Devices(int64_t now_ns) {
         mouse.name = mice_.size() == 1 && !mice_[0].name.empty() ? mice_[0].name : "Mouse";
         mouse.vendor = mice_[0].vendor;
         mouse.product = mice_[0].product;
-        mouse.has_touchpad = true; // the pointer touches (Touchpad Touch)
         out.push_back(std::move(mouse));
     }
     return out;
