@@ -10,7 +10,7 @@ It is my unofficial fork of [Azahar](https://github.com/azahar-emu/azahar), with
 - Stereoscopic 3D top screen and touch bottom screen, at 90 or 120 Hz
 - Immersive modes, set up for Mario and Zelda
 - Screens you move, resize, curve and detach
-- An in-game menu: save states, screen position and VR settings
+- An in-game menu: save states, autosave, screen position and VR settings
 - Cheats, mods and texture packs, downloaded from the headset
 - Edit the controls of any gamepad or mouse
 - Flat mode in the same app, on SteamVR's big screen
@@ -98,12 +98,14 @@ steam-frame/uninstall.sh
 - The SteamVR dock shows a question mark: restart Steam once.
 - The screens do not appear: start SteamVR first, then Azahar for Frame.
 - An encrypted game does not start: it needs `aes_keys.txt` in `~/.local/share/AzaharFrame/user/sysdata/`.
+- **Azahar Ran Out of Memory**: turn off **Preload Custom Textures**, or use **Optimize for Frame** on the pack.
 
 More: [docs/USER_GUIDE.md](docs/USER_GUIDE.md#troubleshooting).
 
 ## Reporting a problem
 
-Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues). They hold your user name and game names. Check them before sharing.
+Use **Report a Problem**: **Settings** > **General** > **Help** in the in-game menu, or **Help** in Azahar's window. After a crash, the next start offers it too.
+**See What's Sent** shows the whole report. **Save Report** makes a zip in `~/Documents/AzaharFrame Reports` to attach to an [issue](https://github.com/simplysanatori/AzaharFrame/issues); check it before sharing. **Send Report** sends it to me. Nothing is sent unless you tap it.
 
 ## More
 

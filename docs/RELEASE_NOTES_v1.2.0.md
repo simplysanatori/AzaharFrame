@@ -1,6 +1,15 @@
 # Azahar for Frame 1.2.0
 
-A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, and a keyboard in the headset.
+A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, a keyboard in the headset, autosave and crash protection.
+
+### What's Different From 1.1
+
+- Changes on the in-game menu's **Settings** tab now apply to the running game by default. Choose **Global** to change them for every game.
+- **Settings** is in three sections: **General**, **Graphics** and **Immersive**.
+- Homebrew has its own tab in the in-game menu.
+- **Preload Custom Textures** is off by default, and turning it on now asks first.
+- Save states from 1.1.1 are dimmed. They still load with **Load Anyway**.
+- Azahar runs under a memory limit. If a texture pack fills memory, Azahar closes instead of freezing the Frame.
 
 ### Mods tab
 
@@ -9,14 +18,69 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
 - Cheats made for a different version of the game show which version.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
-- **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' GitHub pages.
+- **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' pages on GitHub, GameBanana, MEGA or Google Drive.
+- Each mod shows its author, version, downloads and date on one line.
 - When two mods conflict, you choose which one to use.
 - Texture packs have their own section in the VR menu. **Download Packs** downloads packs from their original sources, all within the app.
+
+### Texture packs
+
+- **Customize** on a pack turns its parts on or off, such as characters or backgrounds. When two parts change the same texture, the one higher in the list wins. **Move Up** and **Move Down** set the order.
+- Packs that come in variants install as one pack. You pick the variant on its **Customize** page.
+- **Optimize for Frame** converts a PNG pack to ASTC, which the Frame's GPU reads as it is. It is now on a pack's **Customize** page in the headset too.
+- The converter is built in, so it needs no compiler. It uses Arm's astcenc.
+- **Remove Original** deletes the PNG pack once the optimized copy is in use.
+- A PNG pack over 1 GB suggests **Optimize for Frame** once.
+- In Flat, **Customize Texture Pack...** is in the game list's right-click menu.
+
+### Crash protection
+
+- Azahar runs under a memory limit. A texture pack that fills memory closes Azahar instead of freezing the Frame. The next start says **Azahar Ran Out of Memory**.
+- **Running Low on Memory** shows how many GB Azahar uses of its limit as it gets close.
+- Near the limit, the game pauses and offers **Turn Off Custom Textures**, **Resume** or **Stop Game**.
+- Turning on **Preload Custom Textures** asks first, with the pack's size, the memory in use and Azahar's limit. A pack too large to preload loads as you play instead.
+- Holding **Menu** or **View** for 3 seconds stops a game that takes too long to start.
+
+### Save states
+
+- **About Save States** says it once: save states are NOT a replacement for saving in the game.
+- A state loads in the version that made it. States from 1.1.1 show **From 1.1.1**, dimmed.
+- **Load Anyway** still loads one. It backs up the game's save data and extdata first. If the game then closes unexpectedly, the next start offers **Restore Save Data**.
+- **Undo Load** takes back a load from a slot or an autosave, until the game closes.
+- A state that can't be read stops the game with a message instead of crashing it.
+
+### Autosave
+
+- **Autosave** makes save states while you play. It is off by default. Turn it on in **Settings** > **General**.
+- It saves every 5 minutes, when you open the menu and when you close the game. Each game keeps its newest 3. Both can be set per game.
+- **Load State** has an **Autosave** card with the newest one, and a list of the others.
+- "Autosaved" shows above the top screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
+- Autosaves never replace a slot or the Quick Save.
+- In Azahar's window, autosaves are at the end of **Emulation > Load State**. The settings are in **Emulation > Configure > General** and in a game's **Properties**.
+
+### Settings
+
+- The in-game menu's **Settings** tab opens on **Per-Game** while a game runs. Choose **Global** to change every game.
+- A row with its own value for this game shows **This Game**. Select it to use the global value again.
+
+### Crash reports
+
+- If Azahar closed unexpectedly, the next start says so, with the reason and the game.
+- **What Were You Doing?** takes a note, typed on the VR keyboard.
+- **See What's Sent** shows the whole report. **Save Report** saves it as a zip. **Send Report** sends it to me.
+- Nothing is sent unless you tap **Send Report**, and then only that one report. It goes through Sentry, which I've set not to store IP addresses. Your user name and home folder are removed. The log can include the names and folders of your games.
+- **Report a Problem** sends any other problem the same way. It is in **Settings** > **General** > **Help** in VR, and under **Help** in Azahar's window, next to **About Azahar for Frame**.
+
+### Homebrew
+
+- The new **Homebrew** tab builds Pokémon Emerald 3DS from your own Pokémon Emerald ROM, and plays it.
+- **Check for Updates** looks for a new release at once.
 
 ### Controls
 
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
+- **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 
 ### Mouse and Pointer Controls
 
@@ -28,7 +92,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Screens
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
-- **Touchpad Touch**: a gamepad's touchpad works as the bottom screen.
+- **Touchpad**: a gamepad's touchpad works as the bottom screen.
 
 ### Game keyboard
 
@@ -47,9 +111,20 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 
+### Smaller changes
+
+- The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
+- **Preparing Shaders** shows while a game waits for its shaders.
+- In VR, Azahar's window has a **FLAT** button on its status bar.
+- Messages in the headset stay for 5 seconds.
+
 ### Bug fixes
 
-- From Azahar: a freeze when a controller connects or disconnects, and signature checks for encrypted content.
+- Fixed a freeze when switching between VR and Flat.
+- Fixed Azahar's menus no longer responding after some messages in VR.
+- Fixed a crash when loading a save state after a long pause with the microphone in use.
+- A game's **Properties** no longer shows a stray Turbo Speed Limit label.
+- From Azahar: a freeze when a controller connects or disconnects, signature checks for encrypted content, keyboard navigation, pop-ups on screens with a different DPI, the default hotkeys and a local wireless fix.
 
 ## Download
 
@@ -63,7 +138,8 @@ Download the tarball and run `steam-frame/install.sh` from the repository with i
 ## Known
 
 - Mario Kart 7's menus show white panels in Full (6DoF): Other Games mode.
+- An autosave pauses the game for about 0.2 to 0.5 seconds.
 
 ## Reporting problems
 
-Open an issue with what you did, what you expected and what happened, and attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame`. They hold the paths of your games, which include your user name. Read them first.
+Use **Report a Problem**: in the in-game menu under **Settings** > **General** > **Help**, or under **Help** in Azahar's window. You can also open an issue with what you did, what you expected and what happened, and attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame`. They hold the paths of your games, which include your user name. Read them first.

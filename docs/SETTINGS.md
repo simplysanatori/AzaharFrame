@@ -11,7 +11,9 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab.
 
 While a game with its own value runs, that row is greyed out in **Configure**.
 
-**Detach Screens** and **Touchpad Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**, and opens on **Per-Game** while a game runs. A row with its own value for this game shows **This Game**: select it to use the global value again. **Global** changes every game.
+
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle** and **At Edge** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -27,9 +29,14 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
-| [Touchpad Touch](#touchpad-touch) | **Off**, **Touch**, **Click** | Off | global | at once |
+| [Touchpad](#touchpad) | **Tap for Input**, **Click for Input** | Tap for Input | global | at once |
+| [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off | global | at once |
+| [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
+| [Autosave](#autosave) | on or off | off | global and per game | at once |
+| [Every](#autosave) | **1**, **2**, **5**, **10**, **15** minutes | 5 | global and per game | at once |
+| [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
@@ -95,9 +102,21 @@ Where the Secondary Screen sits in VR. **Stacked**: below the Primary Screen, ti
 
 Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the Secondary Screen follows the Primary Screen. **Secondary**: the Primary Screen moves as with **Off**, and the Secondary Screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. After a swap the Secondary Screen is the top screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the Secondary Screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
 
-## Touchpad Touch
+## Touchpad
 
-Makes a gamepad's touchpad the bottom screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Touch**: a finger on the pad touches the screen. **Click**: pressing the pad touches it, and the finger only moves the dot. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad-touch).
+How a gamepad's touchpad touches the bottom screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Tap for Input**: a finger on the pad touches the screen. **Click for Input**: pressing the pad touches it, and holding it down drags. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad).
+
+## Bottom Screen Reticle
+
+A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+
+## At Edge
+
+What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Bottom Screen Reticle** while it is on.
+
+## Autosave
+
+Save states made while you play, separate from the 10 slots and Quick Save. **Every** is the minutes of play between autosaves, and **Keep** how many each game keeps. They are in the in-game menu's **Settings** > **General**, in **Emulation > Configure > General** and in a game's **Properties**. See the [user guide](USER_GUIDE.md#autosave).
 
 ## Mouse Mode
 
