@@ -15,7 +15,7 @@ const char* DefaultVersionsJson() {
       "title_ids": ["001B4100"],
       "raw": 1024,
       "shown": "1.1",
-      "source": "Fire Emblem Echoes (Europe) with its update installed: the title screen shows ver 1.1 (checked in a run of the emulator)"
+      "source": "Fire Emblem Echoes, European release, with its update installed: the title screen shows ver 1.1 (checked in a run of the emulator)"
     },
     {
       "title_ids": ["00030800", "00030700", "00030600"],
@@ -27,7 +27,7 @@ const char* DefaultVersionsJson() {
       "title_ids": ["00030800"],
       "raw": 3072,
       "shown": "1.2",
-      "source": "Mario Kart 7 (USA): the installed update's SMDH large icon reads Ver. 1.2 (Nintendo's Dec 2022 update, the only one after 1.1 = v1040)"
+      "source": "Mario Kart 7, USA release: the installed update's SMDH large icon reads Ver. 1.2 (Nintendo's Dec 2022 update, the only one after 1.1 = v1040)"
     }
   ]
 }
