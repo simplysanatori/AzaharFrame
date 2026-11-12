@@ -7,20 +7,24 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <optional>
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QDialog>
 #include <QEvent>
 #include <QHeaderView>
 #include <QFont>
 #include <QImage>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
 #include <QPushButton>
 #include <QScreen>
+#include <QStatusBar>
 #include <QStringList>
 #include <QStyleHints>
 #include <QToolBar>
@@ -67,6 +71,8 @@ namespace {
 constexpr int kMaxPixels = 3400;
 // Dialogs get a title strip drawn above them (the window manager's is not in the image).
 constexpr int kTitleHeight = 28;
+// AzaharFrame popups: the close button at the right end of that strip.
+constexpr int kCloseWidth = 40;
 constexpr int kCaptureMs = 33; // at most 30 captures a second
 // Window Scale: the panel grows by this much of the scale's excess over 100 % (at 150 %: 30 %
 // wider, at 200 %: 50 %), because the window would otherwise be too small to use; a dialog that does not fit
@@ -240,6 +246,15 @@ void FrameMirror::UpdateVrBar() {
 
 void FrameMirror::Shown() {
     UpdateVrBar();
+    // AzaharFrame popups: no menu outlives the panel it was opened on (a game starting or
+    // stopping, the in-game menu, VR and flat): it is closed when the panel hides or shows.
+    if (Capturing() != panel_live) {
+        panel_live = Capturing();
+        if (const int closed = FrameOffscreen::CloseAllPopups()) {
+            LOG_INFO(Frontend, "xr: home panel {}: {} popup(s) closed",
+                     panel_live ? "shown" : "hidden", closed);
+        }
+    }
     if (!Capturing()) {
         capture_timer.stop();
         refresh_timer.stop();
@@ -403,7 +418,18 @@ std::vector<QWidget*> FrameMirror::Stack() const {
             break;
         }
     }
-    // The modal dialog and the newest popup on top.
+    // AzaharFrame popups: in the order they were shown or raised, then the modal dialog and the
+    // newest popup on top.
+    const auto rank = [this](QWidget* w) {
+        for (std::size_t i = 0; i < raised.size(); i++) {
+            if (raised[i] == w) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    };
+    std::stable_sort(windows.begin(), windows.end(),
+                     [&](QWidget* a, QWidget* b) { return rank(a) < rank(b); });
     std::stable_partition(windows.begin(), windows.end(), [&](QWidget* w) { return w != modal; });
     std::stable_partition(popups.begin(), popups.end(), [&](QWidget* w) { return w != popup; });
     windows.insert(windows.end(), popups.begin(), popups.end());
@@ -423,6 +449,92 @@ QWidget* FrameMirror::WindowAt(const QPoint& global) const {
         }
     }
     return main;
+}
+
+QRect FrameMirror::TitleStrip(const QWidget* w) const {
+    if (!w || w == main || !w->isWindow() || !IsDialogLike(w) || w->inherits("GRenderWindow")) {
+        return {};
+    }
+    const QRect r = w->geometry();
+    return QRect(r.left() - 1, r.top() - kTitleHeight, r.width() + 2, kTitleHeight);
+}
+
+QRect FrameMirror::CloseBox(const QWidget* w) const {
+    const QRect strip = TitleStrip(w);
+    if (strip.isEmpty()) {
+        return {};
+    }
+    // The window's own flags: a window that asked for no close button gets none here either.
+    const Qt::WindowFlags flags = w->windowFlags();
+    if ((flags & Qt::CustomizeWindowHint) && !(flags & Qt::WindowCloseButtonHint)) {
+        return {};
+    }
+    return QRect(strip.right() + 1 - kCloseWidth, strip.top(), kCloseWidth, strip.height());
+}
+
+QWidget* FrameMirror::StripAt(const QPoint& global) const {
+    const auto stack = Stack();
+    for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
+        QWidget* w = *it;
+        if (w->windowType() == Qt::ToolTip) {
+            continue;
+        }
+        if (w->geometry().contains(global)) {
+            return nullptr; // a window above is there
+        }
+        if (TitleStrip(w).contains(global)) {
+            return w;
+        }
+    }
+    return nullptr;
+}
+
+bool FrameMirror::TitleStripClick(const FrameXr::HomePanelEvent& e, const QPointF& global) {
+    using Type = FrameXr::HomePanelEvent::Type;
+    const QPoint at = global.toPoint();
+    if (e.type == Type::Press) {
+        QWidget* w = StripAt(at);
+        if (!w) {
+            return false;
+        }
+        strip_held = true;
+        strip_press = nullptr;
+        // A modal dialog over the window: its close button does nothing, as on the desktop.
+        QWidget* modal = QApplication::activeModalWidget();
+        if (CloseBox(w).contains(at) && (!modal || modal == w)) {
+            strip_press = w;
+        }
+        LOG_INFO(Frontend, "xr: home panel: press on the title strip of {}{}",
+                 w->metaObject()->className(), strip_press ? " (close button)" : "");
+        return true;
+    }
+    if (e.type == Type::Release && strip_held) {
+        strip_held = false;
+        const QPointer<QWidget> w = strip_press;
+        strip_press = nullptr;
+        if (w && w->isVisible() && CloseBox(w).contains(at)) {
+            LOG_INFO(Frontend, "xr: home panel: close button closes {}", w->metaObject()->className());
+            w->close();
+        }
+        return true;
+    }
+    return false;
+}
+
+void FrameMirror::CloseAfterEscape(QWidget* target) {
+    if (!target || target == main || !target->isWindow() || target->windowType() == Qt::Popup ||
+        qobject_cast<QDialog*>(target)) {
+        return;
+    }
+    QPointer<QWidget> window{target};
+    QTimer::singleShot(0, this, [this, window] {
+        if (window && window != main && window->isVisible()) {
+            LOG_INFO(Frontend, "xr: home panel: B closes {} (Escape left it open)",
+                     window->metaObject()->className());
+            window->close();
+            MarkDirty();
+        }
+    });
 }
 
 bool FrameMirror::Transient(const QWidget* w) const {
@@ -494,6 +606,32 @@ bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
             FrameOffscreen::DropStaleModal(w);
         }
     }
+    // AzaharFrame popups: the windows' order on the panel, as a window manager keeps it: one
+    // that shows or is raised goes on top (Qt's list of top-level windows is in creation order,
+    // so a window opened after another was drawn under it and B went to the one below).
+    if (event->type() == QEvent::Show || event->type() == QEvent::ZOrderChange) {
+        if (auto* w = qobject_cast<QWidget*>(object);
+            w && w != main && w->isWindow() && w->windowType() != Qt::Popup &&
+            w->windowType() != Qt::ToolTip && w->windowType() != Qt::Desktop) {
+            std::erase_if(raised, [w](const QPointer<QWidget>& p) { return !p || p == w; });
+            raised.emplace_back(w);
+        }
+    }
+    // AzaharFrame popups: in VR a popup stays on the panel (Qt keeps it on the screen, which is
+    // larger than the window: a context menu low in the game list reached past the panel's edge,
+    // where the beam cannot go).
+    if (event->type() == QEvent::Show && vr_showing) {
+        if (auto* w = qobject_cast<QWidget*>(object); w && w->windowType() == Qt::Popup) {
+            FitPopup(w);
+        }
+    }
+    // AzaharFrame popups: a menu or list kept off the screen is an open popup for Qt too, so it
+    // takes the beam, closes on a click outside or Escape, and leaves the panel when it hides.
+    if (event->type() == QEvent::ShowToParent) {
+        if (auto* w = qobject_cast<QWidget*>(object); w && w->isWindow()) {
+            FrameOffscreen::OpenPopup(w);
+        }
+    }
     if (vr_showing && FilterVr(object, event)) {
         return true;
     }
@@ -551,6 +689,42 @@ bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
         break;
     }
     return false;
+}
+
+void FrameMirror::FitPopup(QWidget* popup) {
+    if (!main) {
+        return;
+    }
+    const QRect area = Canvas();
+    QRect r = popup->geometry();
+    if (area.isEmpty() || area.contains(r)) {
+        return;
+    }
+    // Moved, not resized, as Qt keeps a menu on its screen: one too low opens upwards from where
+    // it would have opened (a context menu then ends at the beam, not under it), else it is moved
+    // up or left by what is past the edge.
+    if (r.bottom() > area.bottom()) {
+        if (r.top() - r.height() >= area.top()) {
+            r.moveBottom(r.top() - 1);
+        } else {
+            r.moveBottom(area.bottom());
+        }
+    }
+    if (r.right() > area.right()) {
+        r.moveRight(area.right());
+    }
+    if (r.top() < area.top()) {
+        r.moveTop(area.top());
+    }
+    if (r.left() < area.left()) {
+        r.moveLeft(area.left());
+    }
+    if (r != popup->geometry()) {
+        LOG_INFO(Frontend, "xr: home panel: {} moved onto the panel ({},{} to {},{})",
+                 popup->metaObject()->className(), popup->x() - area.x(), popup->y() - area.y(),
+                 r.x() - area.x(), r.y() - area.y());
+        popup->move(r.topLeft() + (popup->pos() - popup->geometry().topLeft()));
+    }
 }
 
 void FrameMirror::FitDialog(QWidget* dialog) {
@@ -646,12 +820,26 @@ void FrameMirror::Capture() {
                 }
                 const QRect title(r.left() - 1, r.top() - kTitleHeight, r.width() + 2, kTitleHeight);
                 p.fillRect(title, w->palette().color(QPalette::Highlight).darker(130));
+                // AzaharFrame popups: the close button (the window manager's is not drawn).
+                const QRect close = CloseBox(w).translated(-canvas.topLeft());
+                if (!close.isEmpty()) {
+                    p.fillRect(close.adjusted(4, 4, -4, -4), QColor(255, 255, 255, 46));
+                    const QPoint c = close.center();
+                    const int k = kTitleHeight / 5;
+                    p.setPen(QPen(Qt::white, 2.0, Qt::SolidLine, Qt::RoundCap));
+                    p.setRenderHint(QPainter::Antialiasing, true);
+                    p.drawLine(c + QPoint(-k, -k), c + QPoint(k, k));
+                    p.drawLine(c + QPoint(-k, k), c + QPoint(k, -k));
+                    p.setRenderHint(QPainter::Antialiasing, false);
+                }
                 QFont font = w->font();
                 font.setBold(true);
                 p.setFont(font);
                 p.setPen(Qt::white);
-                p.drawText(title.adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                           w->windowTitle());
+                p.drawText(title.adjusted(10, 0, close.isEmpty() ? -10 : -kCloseWidth - 4, 0),
+                           Qt::AlignVCenter | Qt::AlignLeft,
+                           p.fontMetrics().elidedText(w->windowTitle(), Qt::ElideRight,
+                                                      title.width() - 14 - (close.isEmpty() ? 0 : kCloseWidth)));
             }
             w->render(&p, r.topLeft(), QRegion(),
                       QWidget::DrawWindowBackground | QWidget::DrawChildren);
@@ -716,13 +904,25 @@ void FrameMirror::Queue(const FrameXr::HomePanelEvent& e) {
 }
 
 void FrameMirror::Drain() {
-    std::vector<FrameXr::HomePanelEvent> events;
-    {
-        std::scoped_lock lock{queue_mutex};
-        events.swap(queue);
-        drain_queued = false;
-    }
-    for (const auto& e : events) {
+    // One event at a time: Deliver can run a nested event loop (a context menu's QMenu::exec,
+    // a dialog's exec) until a later event ends it, so the events after it are handed to another
+    // Drain, which that loop runs. (A right click's release, queued with its press, waited for the
+    // menu to close before: the menu saw the right button held the whole time.)
+    for (;;) {
+        FrameXr::HomePanelEvent e;
+        {
+            std::scoped_lock lock{queue_mutex};
+            if (queue.empty()) {
+                drain_queued = false;
+                return;
+            }
+            e = queue.front();
+            queue.erase(queue.begin());
+            drain_queued = !queue.empty();
+            if (drain_queued) {
+                QMetaObject::invokeMethod(this, [this] { Drain(); }, Qt::QueuedConnection);
+            }
+        }
         Deliver(e);
     }
 }
@@ -739,7 +939,9 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         return;
     }
     if (e.type == Type::Leave) {
-        // TODO(AzaharFrame): Qt has no public way to send a leave; the last hover stays.
+        // AzaharFrame popups: the beam left the panel (the hover goes, as for a mouse).
+        FrameOffscreen::PointerIn(pointer_in, nullptr, {}, {});
+        MarkDirty();
         return;
     }
     if (e.type == Type::ListStep || e.type == Type::ListStart) {
@@ -782,10 +984,22 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         if (QWindow* win = target->windowHandle()) {
             LOG_INFO(Frontend, "xr: home panel: Escape to {}",
                      target->metaObject()->className());
+            const QPointer<QWidget> window{target};
             const QString esc(QChar(0x1b));
-            qt_handleKeyEvent(win, QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier, esc, false, 1);
-            qt_handleKeyEvent(win, QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier, esc, false,
-                              1);
+            {
+                // AzaharFrame popups: Exit Fullscreen's Esc must not take it (frame_offscreen.h).
+                std::optional<FrameOffscreen::EscapeShortcutsPaused> paused;
+                if (target != main) {
+                    paused.emplace(main);
+                }
+                qt_handleKeyEvent(win, QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier, esc,
+                                  false, 1);
+                qt_handleKeyEvent(win, QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier, esc,
+                                  false, 1);
+            }
+            if (window) {
+                CloseAfterEscape(window); // AzaharFrame popups
+            }
         }
         MarkDirty();
         return;
@@ -793,6 +1007,14 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
 
     const QRect canvas = Canvas();
     const QPointF global(canvas.x() + e.u * canvas.width(), canvas.y() + e.v * canvas.height());
+    // AzaharFrame popups: a left click on a window's title strip (its close button) is the
+    // mirror's own; no popup is open then (a click outside a popup is the popup's).
+    if ((e.type == Type::Press || e.type == Type::Release) &&
+        e.button == FrameXr::HomePanelEvent::Button::Left && !QApplication::activePopupWidget() &&
+        !(e.type == Type::Press && grab) && TitleStripClick(e, global)) {
+        MarkDirty();
+        return;
+    }
     QWidget* target = QApplication::activePopupWidget();
     if (!target) {
         target = grab ? grab.data() : WindowAt(global.toPoint());
@@ -806,6 +1028,7 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
     const QPointF local = global - QPointF(target->geometry().topLeft());
     const Qt::MouseButton button =
         e.button == FrameXr::HomePanelEvent::Button::Right ? Qt::RightButton : Qt::LeftButton;
+    FrameOffscreen::PointerIn(pointer_in, win, local, global); // AzaharFrame popups
     const auto move = [&] {
         if (global != last_global) {
             qt_handleMouseEvent(win, local, global, buttons, Qt::NoButton, QEvent::MouseMove,
@@ -821,6 +1044,11 @@ void FrameMirror::Deliver(const FrameXr::HomePanelEvent& e) {
         move();
         buttons |= button;
         grab = target;
+        // AzaharFrame popups: a click in a window behind another brings it to the front.
+        if (target != main && IsDialogLike(target) && !raised.empty() && raised.back() != target) {
+            target->raise();
+            MarkDirty();
+        }
         LOG_INFO(Frontend, "xr: home panel: {} press at {:.0f},{:.0f} in {}",
                  button == Qt::RightButton ? "right" : "left", global.x() - canvas.x(),
                  global.y() - canvas.y(), target->metaObject()->className());
@@ -1006,7 +1234,19 @@ void FrameMirror::LogLayout(const QRect& canvas) {
             }
         }
     }
+    // AzaharFrame popups: the status bar's labels (the Multiplayer room link) and the title
+    // strips' close buttons.
+    if (auto* status = main->findChild<QStatusBar*>(); status && status->isVisible()) {
+        for (QLabel* l : status->findChildren<QLabel*>()) {
+            if (l->isVisible() && !l->text().isEmpty() && l->window() == main) {
+                add("status", l->text(), QRect(l->mapToGlobal(QPoint()), l->size()), l->isEnabled());
+            }
+        }
+    }
     for (QWidget* w : Stack()) {
+        if (const QRect close = CloseBox(w); !close.isEmpty()) {
+            add("close button", w->windowTitle(), close, true);
+        }
         if (auto* menu = qobject_cast<QMenu*>(w)) {
             for (QAction* a : menu->actions()) {
                 const QRect g = menu->actionGeometry(a);
@@ -1170,8 +1410,14 @@ void FrameMirror::TypeKey(const FrameXr::KeyboardEvent& e) {
     const int key = QtKey(e);
     const Qt::KeyboardModifiers mods = QtModifiers(e.modifiers);
     const QString text = QString::fromStdString(e.text);
-    qt_handleKeyEvent(win, QEvent::KeyPress, key, mods, text, false, 1);
-    qt_handleKeyEvent(win, QEvent::KeyRelease, key, mods, text, false, 1);
+    {
+        std::optional<FrameOffscreen::EscapeShortcutsPaused> paused; // AzaharFrame popups
+        if (key == Qt::Key_Escape && target != main) {
+            paused.emplace(main);
+        }
+        qt_handleKeyEvent(win, QEvent::KeyPress, key, mods, text, false, 1);
+        qt_handleKeyEvent(win, QEvent::KeyRelease, key, mods, text, false, 1);
+    }
     MarkDirty();
     // Tab or Enter can move the keys to another widget, or close the dialog.
     QTimer::singleShot(0, this, [this] { CheckTextFocus(false); });
