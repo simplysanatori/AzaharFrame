@@ -1048,6 +1048,12 @@ void SetInGameMenu(bool open) {
     }
 }
 
+void SetFlatVrPrompt(bool open) { // AzaharFrame flat
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetFlatVrPrompt(open);
+    }
+}
+
 void SetInGameMenuWindow(bool window) { // AzaharFrame tabmenu
     if (auto* rt = GetRuntime(); rt && rt->ui) {
         rt->ui->SetInGameMenuWindow(window);

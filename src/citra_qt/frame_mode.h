@@ -17,12 +17,13 @@
 //   SteamVR closes the game's flat screen when a session starts and does not open it again when
 //   the session ends, and the dashboard only docks a window in the theater by itself when its
 //   frame first comes alive (dashboard.autoShowGameTheater; the frame stays alive across
-//   sessions). So after VR the window is shown in the dashboard (ShowDashboard through
-//   steam-cef.py) and its frame moved to the theater (steam-cef.py --screen theater --after-vr,
-//   which runs vrcmd --dock-overlay), where it stays when the dashboard closes; a flat start does
-//   the latter too. Both wait until the overlay has a picture and the VisibleInDashboard flag
-//   (vrcmd --overlays): before that the dashboard has no frame for the window, ShowDashboard
-//   opens Steam's library and a dock request moves the active frame (the library) instead. After
+//   sessions). So after VR the window's frame is moved to the theater (steam-cef.py --screen
+//   theater --after-vr, which runs vrcmd --dock-overlay), where it stays when the dashboard closes;
+//   a flat start does the same. AzaharFrame flat: the dashboard is not opened for that (no
+//   ShowDashboard): while it is open Steam Input gives the controller to Steam's UI, and a theater
+//   dock does not open it. Both wait until the overlay has a picture and the VisibleInDashboard flag
+//   (vrcmd --overlays): before that the dashboard has no frame for the window and a dock request
+//   moves the active frame (Steam's library) instead. After
 //   VR the window is docked again when it does not show, and asked for again when it never
 //   became showable. Before VR again the frame goes back into the dashboard while the window is
 //   still opaque. AZAHARFRAME_FLAT_SCREEN=dashboard keeps it in the dashboard, =off asks Steam
@@ -44,6 +45,12 @@ bool ReadGamepad(FrameXr::Input::InputFrame& frame);
 
 /// "vr" or "flat" into the mode file, when the launcher started this run.
 void WriteModeFile(bool vr);
+
+/// AzaharFrame flat: the crash safety net. True while this run is in Flat (the file
+/// flat-running next to the mode file), false in VR and on a clean quit. The launcher finds the
+/// file only after a Flat run that crashed or was killed, and starts that once in VR. Only when
+/// the launcher started this run. GUI thread.
+void MarkFlatRunning(bool flat);
 
 /// True under gamescope (Game Mode); AZAHARFRAME_FADE_WINDOW=0 / 1 overrides.
 bool FadesWindow();

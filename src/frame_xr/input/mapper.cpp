@@ -385,7 +385,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
     // Once the stop fired, the game no longer sees View (it would still be Select-down).
     controls.Set(Control::View, (view && !stop_fired_) || select_pulse_);
 
-    // ---- Menu: Start when tapped (sent as it is let go), held 1 s: the in-game menu ----
+    // ---- Menu: Start when tapped (under 0.3 s, sent as it is let go), held 1 s: the in-game menu ----
     // The game never sees a held Menu, so opening the menu sends no Start.
     if (frame.menu && !swallow_menu_) {
         if (!menu_down_) {
@@ -410,7 +410,9 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         }
     } else if (menu_down_) {
         menu_down_ = false;
-        if (!menu_fired_ && !menu_cancelled_) {
+        // AzaharFrame flat: a tap only (menu_tap_max_ns); a hold let go before 1 s sends nothing.
+        if (!menu_fired_ && !menu_cancelled_ &&
+            frame.time_ns - menu_down_since_ns_ < config_.menu_tap_max_ns) {
             start_pulse_ = true;
             start_pulse_until_ns_ = frame.time_ns + config_.start_pulse_ns;
         }

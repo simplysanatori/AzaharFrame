@@ -333,7 +333,7 @@ The same controller still points at the screens, so aiming also moves its beam. 
 
 ## Playing in a window (Flat)
 
-The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat).
+The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat). If a run in Flat ends without a clean quit (a crash, or the system closing it), the next launch starts in VR, once, and the one after that is Flat again.
 
 In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Azahar maps it the same way as in VR: the same controls profile, the same buttons, holds and chords. A tap of **View** is still Select and a tap of **Menu** is still Start, so the game's own menus work.
 
@@ -343,7 +343,9 @@ The differences:
 - Before a game starts, the D-pad or the left stick moves through the game list, and **A** twice quickly starts the game, as in VR.
 - The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
-- Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below. With no game running it switches to VR.
+- Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
+- Holding **Menu** for 3 seconds asks **Switch to VR?**, in a game or in the game list. **A** is **Yes**, **B** is **No**, and the buttons can be clicked too. In a game the Flat menu opens on the way, at 1 second; **No** goes back to the game, in Fullscreen if it was. Let go before 3 seconds and nothing more happens. The **VR** button in the status bar, next to the renderer and volume buttons, switches with one click.
+- Only a tap of **Menu**, under 0.3 seconds, reaches the game as Start. A longer press never pauses or unpauses the game, even if you let go before 1 second.
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 
@@ -353,7 +355,7 @@ Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Fo
 
 Hold **Menu** for 1 second in a game in Flat. The game pauses and Azahar's window leaves Fullscreen, with its menu bar and status bar, so the pointer reaches **File**, **Emulation**, **View** and the rest, **Emulation > Configure Current Application...** included. The window stays on the big screen, 16:9.
 
-To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. Holding **View** for 1.5 seconds stops the game.
+To go back to the game, hold **Menu** for 1 second again and let go (held on to 3 seconds, it asks **Switch to VR?** instead), press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. Holding **View** for 1.5 seconds stops the game.
 
 Switching between VR and Flat with the in-game menu or the Flat menu open closes it, and the game goes on.
 

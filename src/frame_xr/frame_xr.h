@@ -239,6 +239,11 @@ struct MenuRequest {
     std::vector<std::string> analogs; ///< AzaharFrame padsui: SetButtons, InputProfile::analogs (or none)
 };
 
+/// AzaharFrame flat: FrontendHooks::flat_vr_prompt. OpenFromGame: the hold began in a game and
+/// opened the Flat menu on its way (leaving Fullscreen), so No closes that menu again (the game
+/// goes on, Fullscreen again if it was). Open: the game list, or a hold begun in the Flat menu.
+enum class FlatVrPrompt { Open, OpenFromGame, Yes, No };
+
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
 struct FrontendHooks {
     std::function<void(const std::string& path)> launch_game; ///< picker selection
@@ -279,6 +284,10 @@ struct FrontendHooks {
     /// AzaharFrame tabmenu: a button or setting of the in-game menu (menu_panel.h). Queue to the
     /// GUI thread.
     std::function<void(const MenuRequest& request)> menu_request;
+    /// AzaharFrame flat: Menu held 3 s in Flat: open the "Switch to VR?" question (Open), or A
+    /// (Yes: switch) or B (No: close it) while it shows. The Qt side calls SetFlatVrPrompt(false)
+    /// once it closes, however it closes. Queue to the GUI thread.
+    std::function<void(FlatVrPrompt what)> flat_vr_prompt;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -338,6 +347,9 @@ void SetHomePanelListNav(bool enabled);
 /// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
 /// the controllers drive the panel and not the game. GUI thread, after the game paused.
 void SetInGameMenu(bool open);
+/// AzaharFrame flat: the "Switch to VR?" question (FrontendHooks::flat_vr_prompt) closed (false)
+/// or opened (true). While it shows Flat's controller drives only it. Any thread.
+void SetFlatVrPrompt(bool open);
 /// AzaharFrame tabmenu: while the in-game menu is open, show Azahar's window (true; the Qt side
 /// captures it as the home panel, for "Azahar's Window", "More Settings" and any dialog) or the
 /// menu (false). GUI thread.

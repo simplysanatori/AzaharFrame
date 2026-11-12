@@ -241,13 +241,49 @@ bool ReadGamepad(FrameXr::Input::InputFrame& frame) {
 
 // ---- The mode file ----------------------------------------------------------------------
 
-void WriteModeFile(bool vr) {
+// The launcher's data folder (AZAHARFRAME_HOME), or empty when the launcher did not start this
+// run (a test or a terminal run): its files are left alone then.
+static QString LauncherDataDir() {
     if (qEnvironmentVariable("AZAHARFRAME_MODE").isEmpty()) {
-        return; // not started by the launcher (a test or a terminal run): leave it alone
+        return {};
     }
     QString home = qEnvironmentVariable("AZAHARFRAME_HOME");
     if (home.isEmpty()) {
         home = QDir::homePath() + QStringLiteral("/.local/share/AzaharFrame");
+    }
+    return home;
+}
+
+void MarkFlatRunning(bool flat) { // AzaharFrame flat
+    const QString home = LauncherDataDir();
+    if (home.isEmpty()) {
+        return;
+    }
+    const QString path = home + QStringLiteral("/flat-running");
+    static int marked = -1;
+    if (marked == static_cast<int>(flat)) {
+        return;
+    }
+    marked = static_cast<int>(flat);
+    if (flat) {
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QByteArray::number(QCoreApplication::applicationPid()) + '\n');
+            file.close();
+            LOG_INFO(Frontend, "xr: flat-running marked (gone on a clean quit)");
+        } else {
+            LOG_WARNING(Frontend, "xr: could not write {}", path.toStdString());
+        }
+    } else if (QFile::exists(path)) {
+        QFile::remove(path);
+        LOG_INFO(Frontend, "xr: flat-running cleared");
+    }
+}
+
+void WriteModeFile(bool vr) {
+    const QString home = LauncherDataDir();
+    if (home.isEmpty()) {
+        return; // not started by the launcher (a test or a terminal run): leave it alone
     }
     QSaveFile file(home + QStringLiteral("/mode"));
     const QByteArray word = vr ? QByteArrayLiteral("vr\n") : QByteArrayLiteral("flat\n");
@@ -344,8 +380,8 @@ void StopScreenHelper() {
     }
 }
 
-// after_vr: steam-cef.py first opens the dashboard on the window once SteamVR can show it, and
-// docks it again when it does not show (--after-vr); with nothing moved (the window never became
+// after_vr: steam-cef.py docks the window again (through the world) when it does not show once
+// docked (--after-vr); with nothing moved (the window never became
 // showable) it is asked again twice, 2 s apart, while flat.
 void DockWindow(bool theater, int wait_s, std::function<void()> then = {}, bool after_vr = false,
                 int tries_left = 0) {
@@ -538,10 +574,10 @@ void ReturnToFlat(QWidget* window) {
         watch->StartReturn();
     }
     // SteamVR does not bring the window back by itself after a session. In the theater (the
-    // default) steam-cef.py --after-vr shows it in the dashboard and moves its frame to the
-    // theater once SteamVR can show the window: asked any earlier, the dashboard opens Steam's
-    // library and the dock moves the library's frame (the theater stays empty). Kept in the
-    // dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.
+    // default) steam-cef.py --after-vr moves its frame to the theater once SteamVR can show the
+    // window (asked any earlier, the dock moves the active frame, Steam's library), without
+    // opening the dashboard, so Steam Input leaves the controller with the app (AzaharFrame flat).
+    // Kept in the dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.
     if (FlatScreenMode() == QStringLiteral("theater")) {
         DockWindow(true, 15, {}, true, 2);
     } else {

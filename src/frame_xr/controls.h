@@ -22,6 +22,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
+#include "frame_xr/input/flat_vr_hold.h" // AzaharFrame flat
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
@@ -119,6 +120,8 @@ public:
     void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                            bool per_game);
     void SetFlatInput(FlatInputSource source);
+    /// AzaharFrame flat: the "Switch to VR?" question opened (Qt) or closed. Any thread.
+    void SetFlatVrPrompt(bool open);
 
 private:
     void GameFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
@@ -264,7 +267,11 @@ private:
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
     Input::InputFrame flat_prev;  ///< AzaharFrame flat: the last frame, to count changes
     uint32_t flat_changes = 0;    ///< AzaharFrame flat: frames that differed, for the summary
-    Hold flat_menu_hold;          ///< AzaharFrame flat: Menu held 1 s with no game: VR
+    Input::FlatVrHold flat_vr_hold; ///< AzaharFrame flat: Menu held 3 s: "Switch to VR?"
+    std::atomic<bool> flat_prompt{false}; ///< AzaharFrame flat: the question shows (Qt clears it)
+    bool prompt_a_down = false;   ///< A's and B's edges while it shows
+    bool prompt_b_down = false;
+    void FlatPromptFrame(const Input::InputFrame& in); // AzaharFrame flat
     bool flat_menu_shown = false; ///< AzaharFrame flat4: FlatFrame is in the Flat menu
     bool flat_back_down = false;  ///< B's edge in the Flat menu
     Input::ListNav flat_list_nav; ///< AzaharFrame gamelist: the game list in Flat
