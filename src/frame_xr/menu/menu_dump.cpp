@@ -66,16 +66,22 @@ Menu::MenuModel SampleModel() {
     return m;
 }
 
-// AzaharFrame cheatstab: the Cheats tab's sample list (Stella Glow, USA).
+// AzaharFrame cheatstab: the Cheats segment's sample list (Stella Glow, USA), file order.
 CheatsModel SampleCheats() {
     CheatsModel c;
-    c.fix = FixState::NotInstalled;
-    c.cheats = {{"No Bloom (USA)", CheatSource::Developer, true, ""},
-                {"Infinite HP in Battle", CheatSource::Sharkive, true, ""},
-                {"Max EXP After Battle", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
-                {"Max Money", CheatSource::User, false, ""}};
+    c.cheats = {
+        {"No Bloom (USA)", CheatSource::Developer, true, ""},
+        {"Infinite HP in Battle", CheatSource::Sharkive, true, ""},
+        {"Max EXP After Battle", CheatSource::Sharkive, false, "for v1.0, this game is v1.1"},
+        {"Max Money", CheatSource::Sharkive, false, ""},
+        {"All Items x99", CheatSource::Sharkive, false, ""},
+        {"Unlock All Songs", CheatSource::Sharkive, false, ""},
+        {"Max Affinity With Everyone", CheatSource::Sharkive, false, ""},
+        {"Walk Through Walls (Press L+R to Toggle, Hold to Keep It On)", CheatSource::Sharkive,
+         false, ""},
+        {"My Speed Hack", CheatSource::User, false, ""}};
     c.download = DownloadState::Done;
-    c.status = "4 cheats added, 1 for another version";
+    c.status = "8 cheats added, 1 for another version";
     return c;
 }
 
@@ -266,48 +272,46 @@ int main(int argc, char** argv) {
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
 
-    // AzaharFrame cheatstab: the Cheats tab, both badges and each state.
+    // AzaharFrame cheatstab: the Mods tab's Cheats segment and each state.
     MenuModel cm = m;
-    cm.cheats = SampleCheats();
+    cm.mods.cheats = SampleCheats();
     v = {};
-    v.tab = Tab::Cheats;
-    v.hover = {Id::Cheat, 1};
-    ok &= shot("cheats-A", cm, v);
-    cm.cheats.badge = CheatBadge::Verified;
-    cm.cheats.fix = FixState::Installed;
-    v.hover = {Id::CheatFix, 0};
-    ok &= shot("cheats-B", cm, v);
+    v.tab = Tab::Mods;
+    v.hover = {Id::Cheat, 2};
+    ok &= shot("cheats", cm, v);
     v.hover = {};
     MenuModel dl = cm; // downloading again over a list
-    dl.cheats.download = DownloadState::Downloading;
-    dl.cheats.progress = 40;
-    dl.cheats.status.clear();
+    dl.mods.cheats.download = DownloadState::Downloading;
+    dl.mods.cheats.spin = 10;
+    dl.mods.cheats.status.clear();
     ok &= shot("cheats-downloading-list", dl, v);
     MenuModel fl = cm; // a failed download over a list
-    fl.cheats.download = DownloadState::Failed;
-    fl.cheats.status = "Download Failed: No Internet Connection";
+    fl.mods.cheats.download = DownloadState::Failed;
+    fl.mods.cheats.status = "Could not establish connection";
     ok &= shot("cheats-error-list", fl, v);
-    MenuModel long_list = m; // a long list, scrolled
-    long_list.cheats = SampleCheats();
-    for (const char* n : {"Infinite Movement", "One Hit Kill", "All Items x99", "Max Song Gauge",
-                          "Unlock All Songs", "Max Affinity With Everyone",
-                          "Walk Through Walls (Press L+R to Toggle, Hold to Keep It On)"}) {
-        long_list.cheats.cheats.push_back({n, CheatSource::Sharkive, false, ""});
-    }
-    v.scroll[static_cast<int>(Tab::Cheats)] = 200.0f;
-    ok &= shot("cheats-scrolled", long_list, v);
+    v.scroll[static_cast<int>(Tab::Mods)] = -1.0f; // the end of the list
+    ok &= shot("cheats-scrolled", cm, v);
     v = {};
-    v.tab = Tab::Cheats;
+    v.tab = Tab::Mods;
     MenuModel em = m;
     v.hover = {Id::DownloadCheats};
     ok &= shot("cheats-empty", em, v);
     v.hover = {};
-    em.cheats.download = DownloadState::Downloading;
-    em.cheats.progress = 40;
+    em.mods.cheats.download = DownloadState::Downloading;
+    em.mods.cheats.spin = 10;
     ok &= shot("cheats-downloading", em, v);
-    em.cheats.download = DownloadState::Failed;
-    em.cheats.status = "No Internet Connection";
+    em.mods.cheats.download = DownloadState::Failed;
+    em.mods.cheats.status = "Download failed: Could not establish connection";
     ok &= shot("cheats-error", em, v);
+    em.mods.cheats.download = DownloadState::Done;
+    em.mods.cheats.status = "No cheats for this game";
+    ok &= shot("cheats-none-found", em, v);
+    v.mods_segment = ModsSegment::Mods; // the texui lane's segments (placeholders here)
+    v.hover = {Id::ModsSegment, 2};
+    ok &= shot("mods-segment-mods", m, v);
+    v.mods_segment = ModsSegment::Textures;
+    v.hover = {};
+    ok &= shot("mods-segment-textures", m, v);
     v = {};
     v.tab = Tab::Main;
     ok &= shot("main", m, v);

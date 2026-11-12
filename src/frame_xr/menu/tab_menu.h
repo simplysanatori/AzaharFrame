@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame tabmenu: the in-game menu as one panel in the structure of CitraVR's VR menu (a
-// column of tabs on the left: Main, Position, Stats, Controls, Cheats, Settings), drawn in Material 3
+// column of tabs on the left: Main, Position, Stats, Controls, Mods, Settings), drawn in Material 3
 // (md3.h). This file is the menu's content, layout, drawing and hit testing; it knows nothing of
 // OpenXR, Qt or the settings. The host fills a MenuModel with the current values, keeps a
 // MenuView (the tab, what the beam points at, scrolling, an open menu), draws with Draw and maps
@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "frame_xr/menu/cheats_tab.h" // AzaharFrame cheatstab
+#include "frame_xr/menu/mods_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
 
 namespace FrameXr::Menu {
@@ -30,7 +30,7 @@ constexpr float kPanelH = 560.0f;
 constexpr float kPanelRadius = 32.0f;
 constexpr float kRowH = 72.0f; ///< a settings row; the lists scroll in steps of one
 
-enum class Tab : int { Main, Position, Stats, Controls, Cheats, Settings, Count }; // AzaharFrame cheatstab: Cheats
+enum class Tab : int { Main, Position, Stats, Controls, Mods, Settings, Count }; // AzaharFrame cheatstab: Mods
 
 /// Everything on the menu a beam can point at.
 enum class Id : int {
@@ -80,11 +80,11 @@ enum class Id : int {
     NarrowScreen,
     DepthFactor,
     MoreSettings,
-    // Cheats (AzaharFrame cheatstab)
-    DownloadCheats,
-    CheatsWindow, ///< Azahar's cheat editor
-    Cheat,        ///< index: MenuModel::cheats.cheats (Cheats::Online::SetCheatEnabled's)
-    CheatFix,     ///< the developer's game fix: Install / Installed
+    // Mods (AzaharFrame cheatstab): mods_tab.h
+    ModsSegment,    ///< index: ModsSegment
+    DownloadCheats, ///< the Cheats segment's
+    CheatsWindow,   ///< Azahar's cheat editor
+    Cheat,          ///< index: MenuModel::mods.cheats.cheats (Cheats::Online::SetCheatEnabled's)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -149,7 +149,7 @@ struct MenuModel {
     int game_fov = 60;   ///< 30 to 110 degrees
     int narrow_screen = 0;
     int depth_factor = 0;
-    CheatsModel cheats; ///< AzaharFrame cheatstab
+    ModsTabModel mods; ///< AzaharFrame cheatstab: the Mods tab's segments
     /// Items that cannot change now, and why.
     std::array<Lock, kIdCount> locked{};
     bool operator==(const MenuModel&) const = default;
@@ -168,6 +168,7 @@ struct MenuView {
     Id tooltip = Id::None;    ///< the one-line explanation of a row
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
+    ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab
     bool operator==(const MenuView&) const = default;
 };
 
@@ -199,6 +200,9 @@ struct MenuLayout {
     std::vector<Hit> hits;
     std::vector<SliderTrack> sliders;
     float max_scroll = 0.0f; ///< how far the current tab can scroll (dp)
+    /// AzaharFrame cheatstab: one row of the scrolling list (dp): a stick step, and where a beam
+    /// drag settles. A multiple of it is max_scroll.
+    float scroll_step = kRowH;
 
     /// What is at (x, y) dp.
     Target HitTest(float x, float y) const;
@@ -239,8 +243,12 @@ private:
     void DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
-    /// AzaharFrame cheatstab: cheats_tab.cpp
-    void DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    /// AzaharFrame cheatstab: the Mods tab (mods_tab.cpp) and its segments, each drawn in `area`
+    /// (the pane's width, under the segmented button): cheats_tab.cpp, mods_segments.cpp.
+    void DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    void DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    void DrawModsList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    void DrawTextures(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;

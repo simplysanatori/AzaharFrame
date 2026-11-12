@@ -320,6 +320,16 @@ struct MenuSaveSlot {
 };
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
+/// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,
+/// mods_segments.h), from the Qt side whenever they change. Any thread.
+namespace Menu {
+struct CheatsModel;
+struct ModsListModel;
+struct TexturesModel;
+} // namespace Menu
+void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
+void SetInGameMenuModsList(const Menu::ModsListModel& mods);
+void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 
 /// A short message on a small panel in front of you for two seconds (any thread; VR only).
 enum class Toast {

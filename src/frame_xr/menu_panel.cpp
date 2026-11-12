@@ -149,7 +149,27 @@ bool UsesGlobal(Id id) {
     }
 }
 
+// AzaharFrame cheatstab: the Mods tab's values from the Qt side (SetInGameMenuCheats and so on).
+std::mutex g_mods_mutex;
+Menu::ModsTabModel g_mods;
+constexpr float kDragSlop = 12.0f; ///< dp the beam moves before a press scrolls the list
+
 } // namespace
+
+void SetInGameMenuCheats(const Menu::CheatsModel& cheats) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.cheats = cheats;
+}
+
+void SetInGameMenuModsList(const Menu::ModsListModel& mods) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.mods = mods;
+}
+
+void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.textures = textures;
+}
 
 struct MenuPanel::Shared {
     std::mutex mutex;
@@ -267,6 +287,19 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     if (!per_game_ok) {
         scope = 0;
+    }
+    { // AzaharFrame cheatstab
+        std::scoped_lock lock{g_mods_mutex};
+        m.mods = g_mods;
+    }
+    if (m.mods.cheats.download == Menu::DownloadState::Downloading && view.tab == Menu::Tab::Mods &&
+        view.mods_segment == Menu::ModsSegment::Cheats) {
+        // The progress indicators turn, 15 steps a second (a redraw each step) while they show.
+        m.mods.cheats.spin =
+            static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now().time_since_epoch())
+                                 .count() /
+                             66);
     }
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
     m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
@@ -446,11 +479,15 @@ void MenuPanel::Click(Target t, Host& host) {
     if (t.index == Menu::kLabelIndex || t.index == Menu::kMenuAreaIndex) {
         return;
     }
-    static constexpr std::array<const char*, 6> kTabNames{"Main",   "Position", "Stats",
-                                                          "Controls", "Cheats", "Settings"};
+    static constexpr std::array<const char*, 6> kTabNames{"Main",     "Position", "Stats",
+                                                          "Controls", "Mods",     "Settings"};
+    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
                  kTabNames[static_cast<std::size_t>(std::clamp(t.index, 0, 5))]);
+    } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
+        LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -501,7 +538,14 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoreSettings:
         ask(MenuCommand::MoreSettings);
         break;
-    // AzaharFrame cheatstab: the Cheats tab (stubs until the cheats data lane is merged)
+    // AzaharFrame cheatstab: the Mods tab and its Cheats segment
+    case Id::ModsSegment:
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
+            static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
+            view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
+            view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
+        }
+        break;
     case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
         break;
@@ -511,13 +555,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::Cheat:
         if (t.index >= 0) {
             ask(MenuCommand::ToggleCheat, t.index);
-        }
-        break;
-    case Id::CheatFix:
-        if (model.cheats.fix == Menu::FixState::NotInstalled) {
-            ask(MenuCommand::InstallFix);
-        } else if (model.cheats.fix == Menu::FixState::Installed) {
-            ask(MenuCommand::RemoveFix);
         }
         break;
     case Id::EditControls: // AzaharFrame menu: the remap lane's
@@ -636,6 +673,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     if (press_hand < 0 && p >= 0 && (edge[p] || a_edge) && hover.id != Id::None) {
         press_hand = p;
         view.pressed = hover;
+        drag_y0 = y; // AzaharFrame cheatstab: a press that moves scrolls the list
+        drag_scroll0 = view.scroll[static_cast<std::size_t>(view.tab)];
+        beam_drag = false;
         if (Menu::SliderFor(hover.id).max > 1.0f && hover.index != Menu::kLabelIndex &&
             view.open_menu == Id::None) {
             view.dragging = hover.id;
@@ -647,10 +687,23 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             if (t >= 0.0f) {
                 view.drag_t = t;
             }
+        } else if (view.open_menu == Id::None && layout.max_scroll > 0.0f && p == press_hand &&
+                   hit[p].on_plane && (beam_drag || std::fabs(y - drag_y0) > kDragSlop)) {
+            // AzaharFrame cheatstab: dragged, the list follows the beam and nothing is clicked.
+            beam_drag = true;
+            view.pressed = {};
+            view.scroll[static_cast<std::size_t>(view.tab)] =
+                std::clamp(drag_scroll0 - (y - drag_y0), 0.0f, layout.max_scroll);
         }
         const bool let_go = !trigger_down[press_hand] && !a_down; // both let go
         if (let_go) {
-            if (view.dragging != Id::None) {
+            if (beam_drag) {
+                // Settles on a whole row, as the stick scrolls.
+                beam_drag = false;
+                float& s = view.scroll[static_cast<std::size_t>(view.tab)];
+                const float step = std::max(1.0f, layout.scroll_step);
+                s = std::clamp(std::round(s / step) * step, 0.0f, layout.max_scroll);
+            } else if (view.dragging != Id::None) {
                 const Menu::SliderRange r = Menu::SliderFor(view.dragging);
                 const float value =
                     r.min + std::round(view.drag_t * (r.max - r.min) / r.step) * r.step;
@@ -698,14 +751,16 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         if (dir != 0) {
             stick_repeat = kStickFirstRepeat;
             float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + Menu::kRowH * static_cast<float>(dir), 0.0f, layout.max_scroll);
+            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
+                           layout.max_scroll);
         }
     } else if (dir != 0) {
         stick_hold += dt;
         if (stick_hold >= stick_repeat) {
             stick_repeat += kStickRepeat;
             float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + Menu::kRowH * static_cast<float>(dir), 0.0f, layout.max_scroll);
+            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
+                           layout.max_scroll);
         }
     }
     {

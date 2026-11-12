@@ -30,6 +30,8 @@ ICONS = [
     "fit_screen", "aspect_ratio", "view_in_ar", "speed", "tune", "tv", "code", "edit",
     # AzaharFrame cheatstab: the Cheats tab
     "star", "verified", "cloud_download", "cloud_off", "download", "refresh",
+    # AzaharFrame cheatstab: the Mods tab
+    "extension",
 ]
 
 # Text: printable ASCII and the few other characters the labels and values use.
