@@ -322,3 +322,140 @@ TEST_CASE("Crash report: Send Report to a server on this machine", "[frame_xr]")
     REQUIRE_FALSE(Exists(dir + "/sentry-db")); // its database went with it
     std::filesystem::remove_all(dir);
 }
+
+// AzaharFrame crashreport: Report a Problem
+
+TEST_CASE("Problem report: no crash fields, no reason", "[frame_xr]") {
+    CR::LastRun now;
+    now.marker = true;
+    now.version = "1.2.0 (steam-frame abc)";
+    now.release = "azaharframe@1.2.0";
+    now.title_id = 0x0004000000054000;
+    now.title = "Super Mario 3D Land";
+    now.vr = true;
+    // a crash record's fields left in by mistake are not reported
+    CR::ParseCrash(kCrashRecord, now);
+    now.cause = Cause::DeviceLost;
+    now.detail = "Device lost";
+    const std::string dir = TempDir("manual");
+    Write(dir + "azahar_log.txt", "[0.1] Render.Vulkan <Info> VK_DEVICE: Turnip Adreno (TM) 750\n"
+                                  "[0.2] Frontend <Info> Booting /home/player/Documents/Roms/sm3dl.3ds\n");
+    CR::Context ctx;
+    ctx.log_path = dir + "azahar_log.txt";
+    ctx.settings_now = {"Graphics API: Vulkan"};
+    ctx.scrub = Player();
+    CR::Report r = CR::BuildManual(now, ctx);
+    REQUIRE(r.kind == CR::Kind::Manual);
+    REQUIRE(r.headline == "Report a Problem");
+    REQUIRE(r.reason.empty());
+    REQUIRE(r.detail.empty());
+    REQUIRE(r.crash_line.empty());
+    REQUIRE(r.exception.empty());
+    REQUIRE(r.frames.empty());
+    REQUIRE(r.modules.empty());
+    REQUIRE(r.title == "Super Mario 3D Land");
+    REQUIRE(r.gpu == "Turnip Adreno (TM) 750");
+    REQUIRE(r.settings == std::vector<std::string>{"Graphics API: Vulkan"});
+    REQUIRE(CR::KindKey(r.kind) == "manual");
+    r.note = "Flickers on the map";
+    const std::string text = CR::FullText(r);
+    REQUIRE(text.rfind("Azahar for Frame Problem Report", 0) == 0);
+    REQUIRE(text.find("Reason:") == std::string::npos);
+    REQUIRE(text.find("\nCrash\n") == std::string::npos);
+    REQUIRE(text.find("What Happened?\n  Flickers on the map") != std::string::npos);
+    REQUIRE(text.find("What Were You Doing?") == std::string::npos);
+    REQUIRE(text.find("~/Documents/Roms/sm3dl.3ds") != std::string::npos); // the log, scrubbed
+    REQUIRE(text.find("/home/player") == std::string::npos);
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("Problem report: the screenshot only when included", "[frame_xr]") {
+    CR::Report r;
+    r.kind = CR::Kind::Manual;
+    r.headline = "Report a Problem";
+    r.note = "It froze";
+    auto files = CR::Files(r);
+    REQUIRE(files.size() == 2);
+    REQUIRE(CR::ReportText(r).find("Screenshot") == std::string::npos);
+    r.screenshot_png = std::string("\x89PNG\r\n\x1a\n\0\0binary", 16);
+    files = CR::Files(r);
+    REQUIRE(files.size() == 3);
+    REQUIRE(files[2].first == "screenshot.png");
+    REQUIRE(files[2].second == r.screenshot_png); // byte for byte, NULs included
+    REQUIRE(CR::ReportText(r).find("Screenshot: Included (screenshot.png)") != std::string::npos);
+    const std::string zip = CR::MakeZip(files, 1731400000);
+    REQUIRE(zip.find("screenshot.png") != std::string::npos);
+    REQUIRE(zip.find(r.screenshot_png) != std::string::npos); // stored, not compressed
+}
+
+TEST_CASE("Problem report: what the player typed, scrubbed and titled", "[frame_xr]") {
+    const CR::Scrubber sc = Player();
+    // only paths and user names change; the rest is the player's own words
+    REQUIRE(sc.Apply("My save in /home/player/saves broke, player here, on player-frame. Help!") ==
+            "My save in ~/saves broke, <user> here, on <host>. Help!");
+    REQUIRE(CR::ManualTitle("Sentry test feedback 2026-11-12T17:00:00Z\nmore") ==
+            "Sentry test feedback 2026-11-12T17:00:00Z");
+    REQUIRE(CR::ManualTitle("") == "Problem Report");
+    REQUIRE(CR::ManualTitle("   ") == "Problem Report");
+    const std::string longer(200, 'a');
+    REQUIRE(CR::ManualTitle(longer).size() == 120);
+    // a cut never splits a UTF-8 character
+    std::string accents;
+    for (int i = 0; i < 80; i++) {
+        accents += "\xc3\xa9"; // é
+    }
+    const std::string t = CR::ManualTitle(accents);
+    REQUIRE(t.size() <= 120);
+    REQUIRE((t.size() - 3) % 2 == 0); // whole two-byte characters only
+    REQUIRE(t.substr(t.size() - 3) == "...");
+}
+
+TEST_CASE("Problem report: Send Report as a warning, tagged manual", "[frame_xr]") {
+    CR::Report r;
+    r.kind = CR::Kind::Manual;
+    r.headline = "Report a Problem";
+    r.note = "Sentry test feedback (unit test)\nThe map flickers";
+    r.title = "Super Mario 3D Land";
+    r.settings = {"Graphics API: Vulkan", "Internal Resolution: 3x"};
+    r.log_tail = "[1.0] Frontend <Info> last line\n";
+    r.screenshot_png = "\x89PNG fake";
+    r.release = "azaharframe@test";
+    httplib::Server server;
+    std::string body;
+    server.Post(R"(/api/(\d+)/envelope/)", [&](const httplib::Request& req, httplib::Response& res) {
+        body = req.body;
+        res.set_content(R"({"id":"0123"})", "application/json");
+    });
+    const int port = server.bind_to_any_port("127.0.0.1");
+    std::thread t([&] { server.listen_after_bind(); });
+    const std::string dir = TempDir("send-manual");
+    const CR::SendResult result =
+        CR::Send(r, "http://publickey@127.0.0.1:" + std::to_string(port) + "/42", dir);
+    server.stop();
+    t.join();
+    if (result.error == "Sending Isn't Built In") {
+        SKIP("Sentry is not built in");
+    }
+    REQUIRE(result.ok);
+    REQUIRE(body.find("\"level\":\"warning\"") != std::string::npos);
+    REQUIRE(body.find("\"report\":\"manual\"") != std::string::npos);
+    REQUIRE(body.find("\"formatted\":\"Sentry test feedback (unit test)\"") != std::string::npos);
+    REQUIRE(body.find("\"exception\"") == std::string::npos); // nothing crashed
+    REQUIRE(body.find("Internal Resolution: 3x") != std::string::npos);
+    REQUIRE(body.find("\"filename\":\"screenshot.png\"") != std::string::npos);
+    REQUIRE(body.find("\"filename\":\"azahar_log.txt\"") != std::string::npos);
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("Crash report: IP and MAC addresses out of the log", "[frame_xr]") {
+    REQUIRE(CR::ScrubNetwork("Connected to 192.168.0.12, room 10.0.0.1:24872.") ==
+            "Connected to <ip>, room <ip>:24872.");
+    REQUIRE(CR::ScrubNetwork("wlan0 a4:5e:60:c2:11:9f up, peer A4-5E-60-C2-11-9F") ==
+            "wlan0 <mac> up, peer <mac>");
+    REQUIRE(CR::ScrubNetwork("via fe80::1c2b:3aff:fe4d:5e6f and 2001:db8:0:0:0:0:2:1 and ::1") ==
+            "via <ip> and <ip> and <ip>");
+    // left alone: times, versions, hashes, C++ names, timestamps, file names
+    const std::string keep = "[  33.459260] 12:30:45 Mesa 26.2.99 v1.2.0 0xdeadbeef "
+                             "Core::System::Run cafe:babe 2026-11-12 Pushmo.cci 999.1.1.1";
+    REQUIRE(CR::ScrubNetwork(keep) == keep);
+}

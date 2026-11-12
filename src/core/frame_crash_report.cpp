@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -101,6 +102,109 @@ std::string SymbolOf(std::string_view line) {
 }
 
 } // namespace
+
+// ---- Network addresses --------------------------------------------------------------------
+
+namespace {
+bool IsHex(char c) {
+    return std::isxdigit(static_cast<unsigned char>(c)) != 0;
+}
+bool IsWordChar(char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+}
+bool IsIpv4(std::string_view s) {
+    int parts = 0;
+    std::size_t at = 0;
+    while (true) {
+        const std::size_t dot = s.find('.', at);
+        const std::string_view part = s.substr(at, dot == std::string_view::npos ? s.npos : dot - at);
+        if (part.empty() || part.size() > 3 ||
+            !std::all_of(part.begin(), part.end(), [](char c) { return c >= '0' && c <= '9'; }) ||
+            std::atoi(std::string(part).c_str()) > 255) {
+            return false;
+        }
+        parts++;
+        if (dot == std::string_view::npos) {
+            break;
+        }
+        at = dot + 1;
+    }
+    return parts == 4;
+}
+bool IsMac(std::string_view s) {
+    if (s.size() != 17) {
+        return false;
+    }
+    const char sep = s[2];
+    if (sep != ':' && sep != '-') {
+        return false;
+    }
+    for (std::size_t i = 0; i < 17; i++) {
+        if (i % 3 == 2 ? s[i] != sep : !IsHex(s[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+bool IsIpv6(std::string_view s) {
+    const auto colons = std::count(s.begin(), s.end(), ':');
+    if (colons < 2 || colons > 7 || (colons != 7 && s.find("::") == std::string_view::npos) ||
+        !std::any_of(s.begin(), s.end(), IsHex)) {
+        return false;
+    }
+    std::size_t group = 0;
+    for (char c : s) {
+        if (c == ':') {
+            group = 0;
+        } else if (!IsHex(c) || ++group > 4) {
+            return false;
+        }
+    }
+    return true;
+}
+} // namespace
+
+std::string ScrubNetwork(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto in_run = [](char c) { return IsHex(c) || c == '.' || c == ':' || c == '-'; };
+        if (!in_run(text[i]) || (i > 0 && (IsWordChar(text[i - 1]) || text[i - 1] == '.'))) {
+            out.push_back(text[i++]);
+            continue;
+        }
+        std::size_t j = i;
+        while (j < text.size() && in_run(text[j])) {
+            j++;
+        }
+        // trailing punctuation ends a sentence, not an address
+        while (j > i && (text[j - 1] == '.' || text[j - 1] == ':' || text[j - 1] == '-')) {
+            j--;
+        }
+        if (j == i || (j < text.size() && IsWordChar(text[j]))) {
+            out.append(text.substr(i, std::max<std::size_t>(j - i, 1)));
+            i += std::max<std::size_t>(j - i, 1);
+            continue;
+        }
+        const std::string_view run = text.substr(i, j - i);
+        if (IsMac(run)) {
+            out += "<mac>";
+        } else if (IsIpv4(run)) {
+            out += "<ip>";
+        } else if (const std::size_t colon = run.rfind(':');
+                   colon != std::string_view::npos && IsIpv4(run.substr(0, colon))) {
+            out += "<ip>"; // address:port
+            out.append(run.substr(colon));
+        } else if (IsIpv6(run)) {
+            out += "<ip>";
+        } else {
+            out.append(run);
+        }
+        i = j;
+    }
+    return out;
+}
 
 // ---- Reading the last run -----------------------------------------------------------------
 
@@ -276,6 +380,8 @@ std::string ReasonText(Kind kind) {
         return "The Game Hit a Fatal Error";
     case Kind::Crashed:
         return "Azahar Crashed";
+    case Kind::Manual:
+        return {}; // the player says what happened
     case Kind::Unexpected:
         break;
     }
@@ -292,6 +398,8 @@ std::string_view KindKey(Kind kind) {
         return "game-fatal";
     case Kind::Crashed:
         return "crashed";
+    case Kind::Manual:
+        return "manual";
     case Kind::Unexpected:
         break;
     }
@@ -660,7 +768,7 @@ Report Build(const LastRun& run, bool out_of_memory, const Context& ctx) {
         s = sc.Apply(s);
     }
     const LogRead log = ReadLog(ctx.log_path, ctx.log_lines);
-    r.log_tail = sc.Apply(log.tail);
+    r.log_tail = ScrubNetwork(sc.Apply(log.tail));
     r.log_lines = log.lines;
     r.gpu = log.gpu;
     r.driver = log.driver;
@@ -736,8 +844,22 @@ Report Build(const LastRun& run, bool out_of_memory, const Context& ctx) {
     return r;
 }
 
+Report BuildManual(const LastRun& now, const Context& ctx) {
+    LastRun run = now;
+    run.crash = false; // no stack, no modules: nothing crashed
+    run.cause = Common::FrameCrash::Cause::None;
+    run.detail.clear();
+    Report r = Build(run, false, ctx);
+    r.kind = Kind::Manual;
+    r.headline = "Report a Problem";
+    r.reason.clear();
+    r.detail.clear();
+    return r;
+}
+
 std::string ReportText(const Report& r) {
-    std::string s = "Azahar for Frame Crash Report\n\n";
+    const bool manual = r.kind == Kind::Manual;
+    std::string s = manual ? "Azahar for Frame Problem Report\n\n" : "Azahar for Frame Crash Report\n\n";
     const auto row = [&](std::string_view label, std::string_view value) {
         if (!value.empty()) {
             s += fmt::format("{}: {}\n", label, value);
@@ -757,8 +879,11 @@ std::string ReportText(const Report& r) {
     row("System", r.os);
     row("GPU", r.gpu.empty() ? std::string("Unknown") : r.gpu);
     row("Driver", r.driver.empty() ? std::string("Unknown") : r.driver);
+    if (!r.screenshot_png.empty()) {
+        row("Screenshot", "Included (screenshot.png)");
+    }
     if (!r.note.empty()) {
-        s += "\nWhat Were You Doing?\n";
+        s += manual ? "\nWhat Happened?\n" : "\nWhat Were You Doing?\n";
         ForLines(r.note, [&](std::string_view l) { s += fmt::format("  {}\n", l); });
     }
     if (!r.settings.empty()) {
@@ -808,7 +933,12 @@ std::string FullText(const Report& r) {
 }
 
 std::vector<std::pair<std::string, std::string>> Files(const Report& r) {
-    return {{"report.txt", ReportText(r)}, {"azahar_log.txt", r.log_tail}};
+    std::vector<std::pair<std::string, std::string>> files{{"report.txt", ReportText(r)},
+                                                           {"azahar_log.txt", r.log_tail}};
+    if (!r.screenshot_png.empty()) {
+        files.emplace_back("screenshot.png", r.screenshot_png);
+    }
+    return files;
 }
 
 // ---- The zip ------------------------------------------------------------------------------

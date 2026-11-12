@@ -14,6 +14,7 @@
 #include <optional>
 #include <thread>
 #include <unordered_map>
+#include <QBuffer>
 #include <QFileDialog>
 #include <QFutureWatcher>
 #include <QIcon>
@@ -191,6 +192,9 @@ constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 // g_frame_xr_switch is the one way to switch, GUI thread: the chord (FrontendHooks::toggle_vr),
 // the in-game menu's buttons (FrameMenuRequest), the status bar's VR button and the tests.
 std::function<void(bool vr)> g_frame_xr_switch;
+// AzaharFrame crashreport: Report a Problem with the game running now (Help, the VR menu's
+// Settings, General, Help); set in ConnectMenuEvents, GUI thread.
+std::function<void()> g_frame_report_problem;
 // AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
 QPushButton* g_frame_vr_button = nullptr;
 // AzaharFrame polish: its partner in VR, "FLAT", in the same place (right of Volume) while
@@ -1671,6 +1675,12 @@ GMainWindow::GMainWindow(Core::System& system_)
             if (!qEnvironmentVariable("AZAHARFRAME_TEST_CRASH_SHOTS").isEmpty()) {
                 QTimer::singleShot(3000, this, [this] { FrameCrashDialog::TestShots(this); });
             }
+            // Test only: Report a Problem opens by itself N s in (AZAHARFRAME_TEST_CRASH_ANSWER
+            // answers it)
+            if (const int at = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_REPORT_PROBLEM");
+                at > 0) {
+                QTimer::singleShot(at * 1000, this, [] { g_frame_report_problem(); });
+            }
             // Test only: a deliberate crash, for the report's way to Sentry
             if (qEnvironmentVariable("AZAHARFRAME_SENTRY_TEST_CRASH") == QStringLiteral("1")) {
                 QTimer::singleShot(5000, this, [] {
@@ -2807,6 +2817,57 @@ void GMainWindow::ConnectMenuEvents() {
         QDesktopServices::openUrl(QUrl(QStringLiteral("https://azahar-emu.org/pages/faq/")));
     });
     connect_menu(ui->action_About, &GMainWindow::OnMenuAboutCitra, QAction::AboutRole);
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame crashreport: Report a Problem... over About (the VR menu's About Azahar for
+    // Frame is FrameCrashDialog::ShowAbout). The screenshot is the game's top and bottom screens (Tools > Capture Screenshot's
+    // way, at 1x): a paused game runs for that one frame, as there.
+    g_frame_report_problem = [this] {
+        FrameCrashDialog::ProblemContext context;
+        if (emulation_running) {
+            system.GetAppLoader().ReadProgramId(context.title_id);
+            context.title = game_title.toStdString();
+            context.screenshot = [this](std::function<void(QByteArray)> done) {
+                if (!emu_thread || !emulation_running) {
+                    done({});
+                    return;
+                }
+                const auto layout = Layout::FrameLayoutFromResolutionScale(1);
+                auto image = std::make_shared<QImage>(QSize(layout.width, layout.height),
+                                                      QImage::Format_RGB32);
+                auto finished = std::make_shared<std::atomic<bool>>(false);
+                const bool was_running = emu_thread->IsRunning();
+                QPointer<GMainWindow> self = this;
+                auto finish = [self, done, finished, was_running](const QByteArray& png) {
+                    if (finished->exchange(true)) {
+                        return;
+                    }
+                    if (self && !was_running && self->emu_thread && self->emulation_running) {
+                        self->emu_thread->SetRunning(false);
+                    }
+                    done(png);
+                };
+                system.GPU().Renderer().RequestScreenshot(
+                    image->bits(),
+                    [image, finish](bool invert_y) {
+                        QByteArray png;
+                        QBuffer buffer(&png);
+                        buffer.open(QIODevice::WriteOnly);
+                        GetMirroredImage(*image, false, invert_y).save(&buffer, "PNG");
+                        QMetaObject::invokeMethod(qApp, [finish, png] { finish(png); });
+                    },
+                    layout);
+                if (!was_running) {
+                    emu_thread->SetRunning(true);
+                }
+                QTimer::singleShot(3000, this, [finish] { finish({}); });
+            };
+        }
+        FrameCrashDialog::ShowReportProblem(this, context);
+    };
+    auto* report_problem = new QAction(tr("Report a Problem..."), this);
+    ui->menu_Help->insertAction(ui->action_About, report_problem);
+    connect(report_problem, &QAction::triggered, this, [] { g_frame_report_problem(); });
+#endif
 }
 
 void GMainWindow::UpdateMenuState() {

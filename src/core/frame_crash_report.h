@@ -74,6 +74,7 @@ enum class Kind {
     GameFatal,   ///< ERR:F, an unknown core error or a CPU exception, then the end
     Crashed,     ///< a fatal signal
     Unexpected,  ///< none of these: it just did not end cleanly (killed, frozen, power)
+    Manual,      ///< AzaharFrame crashreport: Report a Problem (BuildManual), no crash
 };
 
 Kind Classify(const LastRun& run, bool out_of_memory);
@@ -94,6 +95,10 @@ struct Scrubber {
     /// From $HOME, the login name and the host name of this machine.
     static Scrubber ForThisMachine();
 };
+
+/// AzaharFrame crashreport: IPv4, IPv6 and MAC addresses become "<ip>" and "<mac>" (for the log
+/// tail: a network log line can name the console's or the PC's address).
+std::string ScrubNetwork(std::string_view text);
 
 /// One mapping of /proc/self/maps that holds a file.
 struct Module {
@@ -145,7 +150,8 @@ struct Report {
     std::vector<Module> modules; ///< the ones the frames are in
     std::string log_tail;
     std::size_t log_lines = 0;
-    std::string note; ///< "What Were You Doing?"
+    std::string note; ///< "What Were You Doing?" (a manual report: "What Happened?")
+    std::string screenshot_png; ///< a manual report's top and bottom screens, "" none
 };
 
 /// What Build reads besides the run.
@@ -160,6 +166,10 @@ struct Context {
 };
 
 Report Build(const LastRun& run, bool out_of_memory, const Context& ctx);
+
+/// Report a Problem: the report of this run as it is now (`now`: the game, the mode, the version;
+/// no crash), with this run's log (ctx.log_path) and no reason. The screenshot is the caller's.
+Report BuildManual(const LastRun& now, const Context& ctx);
 
 /// The last `lines` lines of the file, and the GPU and driver lines found anywhere in it
 /// ("VK_DEVICE: ...", "VK_DRIVER: ...").
@@ -177,7 +187,8 @@ std::string OsText();
 /// (FullText: what "See What's Sent" shows).
 std::string ReportText(const Report& r);
 std::string FullText(const Report& r);
-/// The files of a saved or sent report: report.txt and azahar_log.txt.
+/// The files of a saved or sent report: report.txt and azahar_log.txt, and screenshot.png when
+/// the player included one.
 std::vector<std::pair<std::string, std::string>> Files(const Report& r);
 
 /// A zip of `files`, stored (no compression).

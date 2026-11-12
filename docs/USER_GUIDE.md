@@ -400,11 +400,15 @@ You can type what you were doing in **What Were You Doing?** In VR, tapping the 
 - **Send Report** sends it to me through [Sentry](https://sentry.io), a crash reporting service. It only sends when you tap it, and only that one report.
 - **Don't Send** closes it. Nothing is kept.
 
-A report holds the reason, the game's name and title ID, Azahar for Frame's version, SteamOS's version, your graphics chip and driver, the main graphics and VR settings, the last 2,000 lines of the emulator log, what you typed, and for a crash the signal, the stack (memory addresses and the names of the program's own files) and the build IDs of those files. Your home folder is shown as `~` and your user name as `<user>`. It holds no IP address, no account and nothing else about you, and Azahar for Frame doesn't send anything in the background.
+A report holds the reason, the game's name and title ID, Azahar for Frame's version, SteamOS's version, your graphics chip and driver, the main graphics and VR settings, the last 2,000 lines of the emulator log, what you typed, and for a crash the signal, the stack (memory addresses and the names of the program's own files) and the build IDs of those files. The log names the games you started and the folders they are in, so a report can too. Your home folder is shown as `~`, your user name as `<user>`, and IP and MAC addresses in the log as `<ip>` and `<mac>`. The report holds no account. Sentry sees the address a report comes from, like any website does; I've set it not to store IP addresses. Azahar for Frame doesn't send anything in the background.
+
+### Report a Problem
+
+For anything that isn't a crash, use **Report a Problem**: in VR it's in the menu under **Settings**, **General**, **Help**; in Flat it's under **Help**. Type what happened in **What Happened?** (Send Report needs it). Tick **Include a Screenshot** to add the game's top and bottom screens as they are now (never the VR view or the room). If the game is paused, it runs for one frame to take it. Then **See What's Sent**, **Save Report** or **Send Report**, as above; **Cancel** closes it. **About Azahar for Frame** is next to it in VR: the version, the GitHub and Ko-fi links, and the credits.
 
 ## Reporting a problem
 
-Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues).
+**Report a Problem** (above) is the quickest way. You can also attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues).
 They hold the paths of your games, which include your user name, the names of the games you started, your computer's processor, graphics card and system version, your headset's name, and the settings you use. They hold no network addresses. Read them before sharing and replace anything you want to keep private.
 If the same thing happens in Azahar on a PC, report it to [Azahar](https://github.com/azahar-emu/azahar/issues) instead.
 

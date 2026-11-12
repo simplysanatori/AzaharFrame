@@ -8,7 +8,9 @@
 // an event with the reason, the game, the version, the GPU and the crash's stack (addresses and
 // the build ids of the modules, so Sentry can name the functions), and report.txt and the log
 // tail as attachments. Sentry's own extras (the OS context, the user, breadcrumbs, the modules
-// of this process) are taken out; no IP or other personal data is sent (send-default-PII off).
+// of this process) are taken out, and send-default-PII is off. Sentry still sees the address the
+// request comes from (the project is set not to store it); the event asks it not to attach it
+// (sdk.settings.infer_ip: never) and to derive no place from it (an empty user.geo).
 
 #pragma once
 
@@ -33,6 +35,10 @@ struct SendResult {
     std::string error;    ///< what went wrong, for the player ("Couldn't Connect")
     std::string event_id; ///< Sentry's id for the report
 };
+
+/// A manual report's title in Sentry: the first line of what the player wrote (120 characters at
+/// most), or "Problem Report".
+std::string ManualTitle(const std::string& note);
 
 /// Sends `r` to `dsn` (a test passes its own; the app BuiltInDsn()). `work_dir` holds Sentry's
 /// database while it runs, removed after. Blocks (a few seconds at most): call it off the GUI

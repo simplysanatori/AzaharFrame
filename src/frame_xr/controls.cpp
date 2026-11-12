@@ -846,8 +846,8 @@ void VrUi::EnterSwkbd() {
     const float d =
         std::clamp(std::min({kMenuDistance, top - 0.2f, bottom - 0.2f}), kMenuNearest, kMenuDistance);
     if (SwkbdUnderWindow()) {
-        // AzaharFrame crashreport: no game (a dialog of Azahar's window asked, "What Were You
-        // Doing?"): the keyboard goes under the window, a little nearer and turned up to the
+        // AzaharFrame crashreport: a dialog of Azahar's window asked ("What Were You Doing?",
+        // "What Happened?"): the keyboard goes under the window, a little nearer and turned up to the
         // head, so the dialog stays in view above it.
         const Input::Posef win = ToInput(mirror.Pose());
         const float w = mirror.Width();
@@ -890,7 +890,9 @@ void VrUi::LeaveSwkbd(const Input::InputFrame& in) {
 }
 
 bool VrUi::SwkbdUnderWindow() const { // AzaharFrame crashreport
-    return !game_running && mirror.Enabled();
+    // no game (the crash dialog at start), or the in-game menu showing Azahar's window (Report a
+    // Problem's dialog): the window stays in view over the keyboard
+    return mirror.Enabled() && (!game_running || (menu_shown && menu_window));
 }
 
 void VrUi::SwkbdFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,

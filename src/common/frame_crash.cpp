@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <sys/prctl.h>
 #include <ucontext.h>
+#include <pthread.h>
 #include <unistd.h>
 #define FRAME_CRASH_POSIX 1
 #endif
@@ -186,6 +187,21 @@ void Handler(int sig, siginfo_t* info, void* raw_context) {
         }
     }
     if (!g_in_handler.exchange(true)) {
+        // AzaharFrame crashreport: a watchdog. backtrace() is not async-signal-safe (it unwinds
+        // through libgcc, which can take a lock the crashed thread held), so the handler could
+        // hang and leave a frozen process. SIGALRM at its default action ends the process 5 s
+        // from now whatever the handler is doing; what was written by then stays (the record is
+        // written in order of safety: the plain fields and the memory map with write() only,
+        // then the stack). sigaction and alarm are async-signal-safe.
+        struct sigaction alarm_action {};
+        alarm_action.sa_handler = SIG_DFL;
+        sigemptyset(&alarm_action.sa_mask);
+        sigaction(SIGALRM, &alarm_action, nullptr);
+        sigset_t alarm_set;
+        sigemptyset(&alarm_set);
+        sigaddset(&alarm_set, SIGALRM);
+        pthread_sigmask(SIG_UNBLOCK, &alarm_set, nullptr);
+        alarm(5);
         const int fd = open(g_crash_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
         if (fd >= 0) {
             Put(fd, "signal=");
@@ -225,16 +241,7 @@ void Handler(int sig, siginfo_t* info, void* raw_context) {
                 Put(fd, "\n");
             }
 #endif
-            void* frames[64];
-            const int n = backtrace(frames, 64);
-            for (int i = 0; i < n; i++) {
-                Put(fd, "frame=");
-                PutHex(fd, reinterpret_cast<unsigned long long>(frames[i]));
-                Put(fd, "\n");
-            }
-            Put(fd, "symbols-begin\n");
-            backtrace_symbols_fd(frames, n, fd);
-            Put(fd, "symbols-end\nmaps-begin\n");
+            Put(fd, "maps-begin\n");
             const int maps = open(g_maps_path, O_RDONLY | O_CLOEXEC);
             if (maps >= 0) {
                 char buf[4096];
@@ -245,9 +252,22 @@ void Handler(int sig, siginfo_t* info, void* raw_context) {
                 close(maps);
             }
             Put(fd, "maps-end\n");
+            fsync(fd); // the safe part is on disk before the unwinder runs
+            // the stack last: the one call that can hang (the watchdog above covers it)
+            void* frames[64];
+            const int n = backtrace(frames, 64);
+            for (int i = 0; i < n; i++) {
+                Put(fd, "frame=");
+                PutHex(fd, reinterpret_cast<unsigned long long>(frames[i]));
+                Put(fd, "\n");
+            }
+            Put(fd, "symbols-begin\n");
+            backtrace_symbols_fd(frames, n, fd);
+            Put(fd, "symbols-end\n");
             fsync(fd);
             close(fd);
         }
+        alarm(0); // done in time: the watchdog is off
     }
     // Hand the signal on: the handler that was there before, else the default action.
     if (index < std::size(kSignals)) {

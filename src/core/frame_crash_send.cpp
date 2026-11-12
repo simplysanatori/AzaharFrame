@@ -46,6 +46,24 @@ std::string Environment() {
     return AZAHARFRAME_SENTRY_ENVIRONMENT;
 }
 
+std::string ManualTitle(const std::string& note) {
+    std::string line = note.substr(0, note.find('\n'));
+    while (!line.empty() && (line.back() == ' ' || line.back() == '\r')) {
+        line.pop_back();
+    }
+    if (line.empty()) {
+        return "Problem Report";
+    }
+    if (line.size() > 120) {
+        std::size_t cut = 117;
+        while (cut > 0 && (static_cast<unsigned char>(line[cut]) & 0xC0) == 0x80) {
+            cut--; // not inside a UTF-8 character
+        }
+        line = line.substr(0, cut) + "...";
+    }
+    return line;
+}
+
 #ifdef AZAHARFRAME_SENTRY
 
 namespace {
@@ -260,12 +278,17 @@ SendResult Send(const Report& r, const std::string& dsn_text, const std::string&
         sentry_attach_bytes(text.data(), text.size(), name.c_str());
     }
 
+    // A crash is a fatal event named by its reason; Report a Problem a warning named by the
+    // first line of what the player wrote (tag report: crash or manual)
+    const bool manual = r.kind == Kind::Manual;
     sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_by_key(event, "level", Str("fatal"));
+    sentry_value_set_by_key(event, "level", Str(manual ? "warning" : "fatal"));
     sentry_value_t message = sentry_value_new_object();
-    sentry_value_set_by_key(message, "formatted", Str(r.headline + ": " + r.reason));
+    sentry_value_set_by_key(message, "formatted",
+                            Str(manual ? ManualTitle(r.note) : r.headline + ": " + r.reason));
     sentry_value_set_by_key(event, "message", message);
     sentry_value_t tags = sentry_value_new_object();
+    sentry_value_set_by_key(tags, "report", Str(manual ? "manual" : "crash"));
     sentry_value_set_by_key(tags, "reason", Str(std::string(KindKey(r.kind))));
     sentry_value_set_by_key(tags, "mode", Str(r.vr ? "vr" : "flat"));
     if (r.title_id != 0) {
@@ -287,6 +310,13 @@ SendResult Send(const Report& r, const std::string& dsn_text, const std::string&
     }
     if (!r.note.empty()) {
         sentry_value_set_by_key(extra, "note", Str(r.note));
+    }
+    if (!r.settings.empty()) {
+        std::string settings;
+        for (const std::string& s : r.settings) {
+            settings += s + "\n";
+        }
+        sentry_value_set_by_key(extra, "settings", Str(settings));
     }
     sentry_value_set_by_key(event, "extra", extra);
     if (!r.crash_line.empty()) {

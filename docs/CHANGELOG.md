@@ -71,6 +71,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Crash reports
 
 - If Azahar closed badly last time, the next start says why (ran out of memory, the graphics driver stopped responding, the game hit a fatal error, Azahar crashed, or closed unexpectedly) and which game was running. You can add what you were doing, see exactly what a report holds, save it as a zip, or send it to me. Nothing is sent unless you tap **Send Report**.
+- **Report a Problem** sends me any other problem the same way, with a screenshot of the game's screens if you want one. It's under **Settings**, **General**, **Help** in VR and under **Help** in Flat, next to **About Azahar for Frame**.
 
 ### Bug fixes
 

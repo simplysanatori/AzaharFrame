@@ -10,10 +10,19 @@
 // DSN built in). It is a Qt dialog in both modes: at start in VR no game runs, so there is no
 // in-game menu, and Azahar's window (with this dialog over it) is what VR shows, with the headset
 // keyboard for the text box. Nothing is sent without the Send Report tap.
+//
+// Report a Problem (Help in Qt; Settings, General, Help in the VR menu) is the same dialog for a
+// report the player starts: "What Happened?" (needed for Send Report), Include a Screenshot (the
+// game's top and bottom screens, off by default), no reason. About Azahar for Frame is beside it.
 
 #pragma once
 
+#include <functional>
+
+#include <QByteArray>
 #include <QString>
+
+#include "common/common_types.h"
 
 class QDialog;
 class QWidget;
@@ -31,6 +40,23 @@ void Detect();
 /// Shows the dialog for what Detect found, once (nothing when the last run ended cleanly).
 void ShowPending(QWidget* parent);
 
+/// Takes the game's top and bottom screens and calls back on the GUI thread with a PNG ("" when it
+/// could not).
+using ScreenshotFn = std::function<void(std::function<void(QByteArray)>)>;
+
+/// What Report a Problem knows of the game now (none: title_id 0 and title "").
+struct ProblemContext {
+    u64 title_id = 0;
+    std::string title;
+    ScreenshotFn screenshot; ///< empty when no game runs (no Include a Screenshot)
+};
+
+/// Report a Problem, over `parent` (in VR Azahar's window shows it).
+void ShowReportProblem(QWidget* parent, const ProblemContext& context);
+/// About Azahar for Frame: the version and build, GitHub and Ko-fi, and the credits
+/// (THIRD_PARTY_NOTICES.md next to the program). Links open in Flat; VR shows them as text.
+void ShowAbout(QWidget* parent);
+
 /// Where Save Report writes: AZAHARFRAME_REPORTS_DIR, else ~/Documents/AzaharFrame Reports.
 QString ReportsDir();
 
@@ -38,10 +64,14 @@ QString ReportsDir();
 QDialog* MakeDialog(QWidget* parent, const Core::CrashReport::Report& report, bool can_send);
 QDialog* MakeWhatsSent(QWidget* parent, const Core::CrashReport::Report& report, bool can_send);
 QDialog* MakeSaved(QWidget* parent, const QString& shown_path);
+QDialog* MakeProblem(QWidget* parent, const ProblemContext& context);
+QDialog* MakeAbout(QWidget* parent, bool links_open);
 
 /// Test driver (not in release builds): AZAHARFRAME_TEST_CRASH_SHOTS=DIR saves the dialogs of a
 /// sample report as PNGs into DIR. AZAHARFRAME_TEST_CRASH_ANSWER=send|save|dont answers the real
-/// dialog by itself after 2 s (with the note "Mock run: Send Report test").
+/// dialog by itself after 2 s (with the note "Mock run: Send Report test"; Report a Problem's:
+/// "Sentry test feedback <time>"). AZAHARFRAME_TEST_REPORT_PROBLEM=1 opens Report a Problem 4 s
+/// after the start.
 void TestShots(QWidget* parent);
 
 } // namespace FrameCrashDialog

@@ -5,7 +5,8 @@
 // AzaharFrame crashreport: the crash report's "What Were You Doing?" box on the VR keyboard
 // (swkbd_model.h): multi-line, up to 500 characters, Cancel, Clear and Done. The Qt side
 // (citra_qt/frame_crash_dialog.cpp) opens it when the box is tapped in VR; the dumps and the
-// tests use the same spec.
+// tests use the same spec. Report a Problem's "What Happened?" box is the same keyboard, opened
+// over the in-game menu (Settings, General, Help).
 
 #pragma once
 
@@ -17,10 +18,12 @@ namespace FrameXr::Menu {
 
 inline constexpr int kCrashNoteMax = 500;
 inline constexpr const char* kCrashNoteLabel = "What Were You Doing?";
+inline constexpr const char* kProblemNoteLabel = "What Happened?";
 
-inline Swkbd::Spec CrashNoteSpec(const std::string& initial) {
+inline Swkbd::Spec CrashNoteSpec(const std::string& initial, const char* label = kCrashNoteLabel) {
     Swkbd::Spec s;
-    s.hint = kCrashNoteLabel;
+    s.hint = label;
+    s.over_menu = true; // Report a Problem opens it from the in-game menu
     s.max_length = kCrashNoteMax;
     s.multiline = true;
     s.initial = initial;
