@@ -122,6 +122,7 @@ struct ModsDialog {
     int status = 0;
     std::string title;
     std::string confirm, cancel; ///< AzaharFrame savestate: Notice's buttons (cancel "" none)
+    std::string extra; ///< AzaharFrame memwarn: Notice's third button, before them ("" none)
     bool operator==(const ModsDialog&) const = default;
 };
 

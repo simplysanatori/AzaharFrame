@@ -308,7 +308,8 @@ void SetInGameMenuAutosaves(const std::vector<Menu::AutosaveCard>& autosaves,
 }
 
 void SetInGameMenuNotice(const std::string& title, const std::string& body,
-                         const std::string& confirm, const std::string& cancel) {
+                         const std::string& confirm, const std::string& cancel,
+                         const std::string& extra) {
     std::scoped_lock lock{g_mods_mutex};
     g_notice = {};
     if (!title.empty()) {
@@ -317,6 +318,7 @@ void SetInGameMenuNotice(const std::string& title, const std::string& body,
         g_notice.other = body;
         g_notice.confirm = confirm;
         g_notice.cancel = cancel;
+        g_notice.extra = extra; // AzaharFrame memwarn
     }
 }
 
@@ -1565,6 +1567,11 @@ void MenuPanel::Click(Target t, Host& host) {
         }
         break;
     }
+    case Id::DialogExtra: // AzaharFrame memwarn: only a notice has one
+        if (model.notice.kind != Menu::ModsDialogKind::None) {
+            ask(MenuCommand::NoticeAnswer, 2);
+        }
+        break;
     case Id::DialogConfirm:
     case Id::DialogCancel: {
         if (model.notice.kind != Menu::ModsDialogKind::None) { // AzaharFrame savestate: drawn on top

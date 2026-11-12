@@ -1118,7 +1118,9 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     constexpr float kInfoRowH = 28.0f;
     const float rows_h =
         info_rows.empty() ? 0.0f : 8.0f + kInfoRowH * static_cast<float>(info_rows.size());
-    const float kW = numbers ? 520.0f : 440.0f;
+    // AzaharFrame memwarn: three buttons need Preload's width too
+    const bool three = d.kind == ModsDialogKind::Notice && !d.extra.empty();
+    const float kW = numbers || three ? 520.0f : 440.0f;
     constexpr float kP = 24.0f, kHead = 26.0f, kBody = 16.0f;
     const float tw = kW - kP * 2.0f;
     const auto head_lines = Wrap(kit, headline, kHead, false, tw, 3);
@@ -1206,6 +1208,9 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         action(Id::DialogConfirm, d.confirm);
         if (!d.cancel.empty()) {
             action(Id::DialogCancel, d.cancel);
+        }
+        if (!d.extra.empty()) { // AzaharFrame memwarn: Stop Game, first
+            action(Id::DialogExtra, d.extra);
         }
     } else {
         action(Id::DialogConfirm, confirm);

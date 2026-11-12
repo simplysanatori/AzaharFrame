@@ -53,6 +53,7 @@
 #include "citra_qt/applets/swkbd.h"
 #include "citra_qt/bootmanager.h"
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#include "citra_qt/frame_memwarn.h"         // AzaharFrame memwarn
 #include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "citra_qt/camera/qt_multimedia_camera.h"
 #include "citra_qt/camera/still_image_camera.h"
@@ -1567,7 +1568,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                         FrameXr::SetInGameMenuNotice("", "", "", "");
                         frame_notice_opened_menu = false;
                         auto answer = std::exchange(frame_notice_answer, {});
-                        answer(false);
+                        answer(0);
                         if (!emulation_running || !g_frame_mirror->MenuOpen()) {
                             return;
                         }
@@ -1747,6 +1748,25 @@ GMainWindow::GMainWindow(Core::System& system_)
             UpdateFrameVrButton(); // AzaharFrame flat
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
+            // AzaharFrame memwarn: the memory watch (frame_memwarn.h): its toast and pause come
+            // to the GUI thread
+            frame_memwarn = std::make_unique<FrameMemWarn>(
+                [this](FrameXr::MemWatch::Action a, u64 used, u64 max) {
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, a, used, max] { FrameMemoryEvent(static_cast<int>(a), used, max); },
+                        Qt::QueuedConnection);
+                });
+            // Test driver: AZAHARFRAME_TEST_MEMWARN_ANSWER="textures|resume|stop:SECONDS"
+            // answers the memory dialog that many seconds after it shows (and
+            // AZAHARFRAME_TEST_MEMWARN_SHOTS=DIR saves the Qt dialog there as it shows, in VR too)
+            if (const QString answer = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_ANSWER");
+                !answer.isEmpty()) {
+                const auto parts = answer.split(QLatin1Char(':'));
+                frame_memwarn_answer_test = parts[0];
+                frame_memwarn_answer_test_ms =
+                    parts.size() > 1 ? static_cast<int>(parts[1].toDouble() * 1000.0) : 3000;
+            }
             // AzaharFrame crashreport: the last run ended badly (memguard's out of memory
             // included): say so once, with Send Report and Save Report
             QTimer::singleShot(1500, this, [this] { FrameCrashDialog::ShowPending(this); });
@@ -2053,6 +2073,7 @@ GMainWindow::GMainWindow(Core::System& system_)
 }
 
 GMainWindow::~GMainWindow() {
+    frame_memwarn.reset(); // AzaharFrame memwarn: its thread posts to this window
     // Will get automatically deleted otherwise
     if (!render_window->parent()) {
         delete render_window;
@@ -3690,6 +3711,15 @@ void GMainWindow::ShutdownGame() {
     render_window->ReleaseRenderTarget();
     secondary_window->ReleaseRenderTarget();
 
+    // AzaharFrame memwarn: the dialog goes with the game; custom textures turned off by it come
+    // back for the next one (before the per-application overrides go: it may be the game's value)
+    frame_memwarn_asking = false; // first: closing the dialog answers nothing now
+    frame_memwarn_resume = false;
+    if (QDialog* d = std::exchange(frame_memwarn_dialog, nullptr)) {
+        d->close();
+    }
+    FrameMemoryRestoreTextures();
+
     // AzaharFrame: drop the per-application overrides here too, not only in OnStopGame, so the
     // VR picker, the global settings window and the final config->Save() in closeEvent never see
     // them (the VR and window-close paths call ShutdownGame() directly).
@@ -4803,7 +4833,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     }
     case C::NoticeAnswer: // AzaharFrame savestate
-        FrameNoticeAnswer(r.value == 1);
+        FrameNoticeAnswer(r.value);
         return;
     case C::LoadAutosave: { // AzaharFrame autosave: Load State's card
         // AzaharFrame advfix: the autosave the card showed (r.text, its file and time), found
@@ -5652,9 +5682,13 @@ void GMainWindow::FrameAsk(const QString& title, const QString& body, const QStr
 #ifdef ENABLE_FRAME_XR
     if (FrameXr::VrShowing() && g_frame_mirror && g_frame_xr_set_menu && emulation_running) {
         if (frame_notice_answer) {
-            std::exchange(frame_notice_answer, {})(false);
+            std::exchange(frame_notice_answer, {})(0);
         }
-        frame_notice_answer = answer ? std::move(answer) : [](bool) {};
+        frame_notice_answer = [answer = std::move(answer)](int choice) {
+            if (answer) {
+                answer(choice == 1);
+            }
+        };
         frame_notice_opened_menu = frame_notice_opened_menu || !g_frame_mirror->MenuOpen();
         FrameXr::SetInGameMenuNotice(title.toStdString(), body.toStdString(), confirm.toStdString(),
                                      cancel.toStdString());
@@ -5677,13 +5711,206 @@ void GMainWindow::FrameAsk(const QString& title, const QString& body, const QStr
     }
 }
 
-void GMainWindow::FrameNoticeAnswer(bool yes) {
+// AzaharFrame memwarn: Level 1's toast and Level 2's pause and dialog (frame_xr/mem_watch.h).
+void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
+    namespace MW = FrameXr::MemWatch;
+    if (!emulation_running || !emu_thread || !system.IsPoweredOn()) {
+        return; // only a game is paused or saved; the watch's log has the numbers
+    }
+    if (static_cast<MW::Action>(action) == MW::Action::Warn) {
+        if (frame_memwarn_asking) {
+            return;
+        }
+        const std::string text = MW::WarnText(used, max);
+        LOG_INFO(Frontend, "memwarn: shown: {}", text);
+#ifdef ENABLE_FRAME_XR
+        if (FrameXr::VrShowing() && !(g_frame_mirror && g_frame_mirror->MenuOpen())) {
+            FrameXr::ShowToastText(text, FrameXr::ToastTime::Long);
+            return;
+        }
+#endif
+        // Flat has no toast: the status bar's message label, as Quick Saved, for 5 s
+        if (!message_label_used_for_movie) {
+            const QString q = QString::fromStdString(text);
+            message_label->setText(q);
+            QTimer::singleShot(5000, this, [this, q] {
+                if (!message_label_used_for_movie && message_label->text() == q) {
+                    message_label->clear();
+                }
+            });
+            if (const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_SHOTS");
+                !shots.isEmpty()) {
+                QTimer::singleShot(300, this, [this, shots] {
+                    statusBar()->grab().save(shots + QStringLiteral("/qt-status-bar-warning.png"));
+                });
+            }
+        }
+        return;
+    }
+    if (frame_memwarn_asking) {
+        return;
+    }
+    frame_memwarn_asking = true;
+    // No Save State in this dialog: a save state needs about 0.9 GB more while it is written (the
+    // serialized system, then its compressed copy), so at this level it could cross the limit and
+    // get Azahar closed in the middle of it. The autosaves wait for the same reason
+    // (FrameMemWarn::Critical in FrameAutosaveGates). Saving in the game costs nothing.
+    const bool textures = Settings::values.custom_textures.GetValue();
+    const MW::PauseText t = MW::MakePauseText(used, max, textures);
+    LOG_WARNING(Frontend, "memwarn: paused: {}: {}", t.title, t.body);
+    const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_MEMWARN_SHOTS");
+    const auto test_answer = [this] {
+        if (frame_memwarn_answer_test.isEmpty()) {
+            return;
+        }
+        QTimer::singleShot(frame_memwarn_answer_test_ms, this, [this] {
+            if (!frame_memwarn_asking) {
+                return;
+            }
+            const QString a = frame_memwarn_answer_test;
+            LOG_INFO(Frontend, "memwarn test: answered {}", a.toStdString());
+            const int code = a == QStringLiteral("textures") ? kMemoryTextures
+                             : a == QStringLiteral("stop")   ? kMemoryStop
+                                                             : kMemoryResume;
+            if (frame_memwarn_dialog) {
+                frame_memwarn_dialog->done(code);
+#ifdef ENABLE_FRAME_XR
+            } else if (frame_notice_answer) {
+                // as the in-game menu's buttons: confirm 1, cancel 0, extra 2
+                const bool tex = Settings::values.custom_textures.GetValue();
+                FrameNoticeAnswer(code == kMemoryStop       ? 2
+                                  : code == kMemoryTextures ? (tex ? 1 : 0)
+                                                            : (tex ? 0 : 1));
+#endif
+            }
+        });
+    };
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing() && g_frame_mirror && g_frame_xr_set_menu) {
+        // The in-game menu's dialog (as FrameAsk): opening the menu pauses the game. Its buttons:
+        // confirm, cancel, then the extra one first: Turn Off Custom Textures, Resume, Stop Game;
+        // with custom textures off Resume, Stop Game. The menu closed unanswered resumes.
+        if (frame_notice_answer) {
+            std::exchange(frame_notice_answer, {})(0);
+        }
+        frame_notice_answer = [this, textures](int choice) {
+            FrameMemoryAnswer(choice == 2               ? kMemoryStop
+                              : choice == 1 && textures ? kMemoryTextures
+                                                        : kMemoryResume);
+        };
+        frame_notice_opened_menu = frame_notice_opened_menu || !g_frame_mirror->MenuOpen();
+        FrameXr::SetInGameMenuNotice(t.title, t.body, textures ? t.textures : t.resume,
+                                     textures ? t.resume : std::string{}, t.stop);
+        g_frame_xr_set_menu(true);
+        if (!shots.isEmpty()) { // the Qt one too, for the record (not shown in VR)
+            QDialog* d = FrameMakeMemoryDialog(this, t);
+            d->ensurePolished();
+            d->adjustSize();
+            d->grab().save(shots + QStringLiteral("/qt-memory-dialog-vr-run.png"));
+            d->deleteLater();
+        }
+        test_answer();
+        return;
+    }
+#endif
+    if (emu_thread->IsRunning() && !system.frame_limiter.IsFrameAdvancing()) {
+        OnPauseGame();
+        frame_memwarn_resume = true;
+    }
+    QDialog* d = FrameMakeMemoryDialog(this, t);
+    d->setAttribute(Qt::WA_DeleteOnClose);
+    frame_memwarn_dialog = d;
+    connect(d, &QDialog::finished, this, [this, d](int code) {
+        if (frame_memwarn_dialog == d) {
+            frame_memwarn_dialog = nullptr;
+        }
+        if (frame_memwarn_asking) {
+            FrameMemoryAnswer(code);
+        }
+    });
+    d->open();
+    if (!shots.isEmpty()) {
+        QTimer::singleShot(500, this, [this, shots] {
+            if (frame_memwarn_dialog) {
+                frame_memwarn_dialog->grab().save(shots + QStringLiteral("/qt-memory-dialog.png"));
+            }
+        });
+    }
+    test_answer();
+}
+
+void GMainWindow::FrameMemoryAnswer(int choice) {
+    if (!frame_memwarn_asking) {
+        return;
+    }
+    frame_memwarn_asking = false;
+    const bool resume = std::exchange(frame_memwarn_resume, false);
+    if (choice == kMemoryStop) {
+        LOG_INFO(Frontend, "memwarn: Stop Game");
+        OnStopGame();
+        return;
+    }
+    if (choice == kMemoryTextures) {
+        FrameMemoryTexturesOff();
+    } else {
+        LOG_INFO(Frontend, "memwarn: Resume");
+    }
+    // In VR the menu closes after the answer and the game goes on; in Qt the dialog paused it
+    if (resume && emulation_running && emu_thread &&
+        (!emu_thread->IsRunning() || system.frame_limiter.IsFrameAdvancing())) {
+        OnResumeGame(false);
+        LOG_INFO(Frontend, "memwarn: the game goes on");
+    }
+}
+
+// Off for this game only: the setting's value now (the game's own when it has one), never the
+// config files (QtConfig::SaveUtilityValues writes it as on), back on when the game stops. The
+// renderer sees it at its next frame: its surfaces go and CustomTexManager::Unload frees the
+// pixel data (RasterizerCache::TickFrame).
+void GMainWindow::FrameMemoryTexturesOff() {
+    auto& ct = Settings::values.custom_textures;
+    if (!ct.GetValue()) {
+        return;
+    }
+    Settings::values.custom_textures_off_for_memory = ct.UsingGlobal() ? 1 : 2;
+    ct.SetValue(false);
+    const u64 before = frame_memwarn ? frame_memwarn->ReadNow().Used() : 0;
+    LOG_INFO(Frontend, "memwarn: Turn Off Custom Textures ({} MiB in use)", before >> 20);
+    // What it freed, for the log: the renderer's surfaces go after a few frames
+    if (frame_memwarn) {
+        for (const int s : {2, 6}) {
+            QTimer::singleShot(s * 1000, this, [this, before, s] {
+                if (frame_memwarn) {
+                    const auto now = frame_memwarn->ReadNow();
+                    LOG_INFO(Frontend,
+                             "memwarn: {} s after Turn Off Custom Textures: {} MiB in use "
+                             "(was {} MiB; RAM {} MiB, page cache {} MiB, swap {} MiB)",
+                             s, now.Used() >> 20, before >> 20, now.current >> 20, now.cache >> 20,
+                             now.swap >> 20);
+                }
+            });
+        }
+    }
+}
+
+void GMainWindow::FrameMemoryRestoreTextures() {
+    const int off = std::exchange(Settings::values.custom_textures_off_for_memory, 0);
+    auto& ct = Settings::values.custom_textures;
+    // Only on the layer it was turned off in (the game's own value goes with the game anyway)
+    if (off != 0 && (off == 1) == ct.UsingGlobal() && !ct.GetValue()) {
+        ct.SetValue(true);
+        LOG_INFO(Frontend, "memwarn: custom textures back on for the next game");
+    }
+}
+
+void GMainWindow::FrameNoticeAnswer(int choice) {
 #ifdef ENABLE_FRAME_XR
     FrameXr::SetInGameMenuNotice("", "", "", "");
     auto answer = std::exchange(frame_notice_answer, {});
     const bool opened = std::exchange(frame_notice_opened_menu, false);
+    const bool yes = choice != 0;
     if (answer) {
-        answer(yes);
+        answer(choice);
     }
     if (frame_notice_answer) { // the answer asked again (About, then Load Anyway)
         frame_notice_opened_menu = frame_notice_opened_menu || opened;
@@ -7807,6 +8034,8 @@ Core::Autosave::Gates GMainWindow::FrameAutosaveGates() const {
     // The game stands for its shaders (or the disk cache loads at the start)
     g.shaders_busy =
         loading_shaders_label->isVisible() || (backlog && (last <= 0 || now_us - last > 500'000));
+    // AzaharFrame memwarn: at the pause level a save state's extra 0.9 GB could cross the limit
+    g.memory_low = FrameMemWarn::Critical();
     return g;
 }
 

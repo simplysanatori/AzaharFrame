@@ -26,19 +26,20 @@
 #include <lodepng.h>
 
 #include "frame_xr/input/controls.h"
-#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
+#include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
+#include "frame_xr/mem_watch.h"     // AzaharFrame memwarn
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/md3_fonts.h" // AzaharFrame useglobal: the option B mock's icon
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/menu/texparts_dump.h" // AzaharFrame texparts
-#include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
-#include "frame_xr/input/reticle.h" // AzaharFrame mouse
-#include "frame_xr/toast_fit.h"     // AzaharFrame menuux
+#include "frame_xr/toast_fit.h"          // AzaharFrame menuux
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/menu_diagram.h"
 #include "frame_xr/vis/model_file.h"
+#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 
 using namespace FrameXr;
 using namespace FrameXr::Menu;
@@ -600,6 +601,31 @@ int main(int argc, char** argv) {
         sm.notice.other = "The game is still running. Try another slot, or free up space on the "
                           "Frame.";
         ok &= shot("1h4-save-state-not-saved", sm, sv);
+    }
+    { // AzaharFrame memwarn: Level 1's toast and Level 2's dialog (custom textures on, then off)
+        namespace MW = FrameXr::MemWatch;
+        constexpr std::uint64_t kMiB = 1024 * 1024;
+        const std::uint64_t max = 8396 * kMiB; // 8.2 GB
+        ok &= toast_shot("memwarn-toast.png", {MW::WarnText(7270 * kMiB, max)});
+        MenuModel mm = m;
+        MenuView mv;
+        mv.page = Page::Tabs;
+        const auto dialog = [&](const std::string& name, bool textures, Id hover) {
+            const MW::PauseText t = MW::MakePauseText(7782 * kMiB, max, textures);
+            mm.notice = {};
+            mm.notice.kind = ModsDialogKind::Notice;
+            mm.notice.mod = t.title;
+            mm.notice.other = t.body;
+            mm.notice.confirm = textures ? t.textures : t.resume;
+            mm.notice.cancel = textures ? t.resume : std::string{};
+            mm.notice.extra = t.stop;
+            mv.hover = {hover};
+            return shot(name, mm, mv);
+        };
+        ok &= dialog("memwarn-dialog", true, Id::None);
+        ok &= dialog("memwarn-dialog-hover-textures", true, Id::DialogConfirm);
+        ok &= dialog("memwarn-dialog-hover-stop", true, Id::DialogExtra);
+        ok &= dialog("memwarn-dialog-no-textures", false, Id::None);
     }
 
     v = {};

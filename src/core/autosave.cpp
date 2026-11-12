@@ -340,6 +340,10 @@ std::string Scheduler::Blocked(Reason reason, s64 now_ms, const Gates& g) const 
     if (!booted || !g.game) {
         return "no game";
     }
+    if (g.memory_low) { // AzaharFrame memwarn: first, so the log says why; the quit's too (Stop
+                        // Game)
+        return "memory is almost full";
+    }
     if (now_ms - boot_ms < grace) {
         return "the game started less than a minute ago";
     }

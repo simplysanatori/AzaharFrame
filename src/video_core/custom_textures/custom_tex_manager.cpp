@@ -6,7 +6,11 @@
 #include <array>   // AzaharFrame memguard
 #include <chrono>  // AzaharFrame
 #include <cstdlib> // AzaharFrame memguard
+#include <fstream> // AzaharFrame memwarn
 #include <thread>  // AzaharFrame memguard
+#ifdef __GLIBC__
+#include <malloc.h> // AzaharFrame memwarn: malloc_trim
+#endif
 #include <json.hpp>
 #include "common/file_util.h"
 #include "common/literals.h"
@@ -322,9 +326,45 @@ u64 CustomTexManager::HeldBytes() const {
     u64 bytes = 0;
     for (const auto& texture : custom_textures) {
         std::scoped_lock lock{texture->decode_mutex};
-        bytes += texture->data.size();
+        bytes += texture->data.capacity(); // AzaharFrame memwarn: what is held, not used
     }
     return bytes;
+}
+
+namespace {
+// AzaharFrame memwarn: RssAnon of /proc/self/status in MiB, for Unload's log line
+u64 RssAnonMiB() {
+    std::ifstream status{"/proc/self/status"};
+    std::string line;
+    while (std::getline(status, line)) {
+        if (line.starts_with("RssAnon:")) {
+            return std::strtoull(line.c_str() + 8, nullptr, 10) / 1024;
+        }
+    }
+    return 0;
+}
+} // namespace
+
+u64 CustomTexManager::Unload() { // AzaharFrame memwarn
+    if (!textures_loaded) {
+        return 0;
+    }
+    const u64 anon_before = RssAnonMiB();
+    if (workers) {
+        workers->WaitForRequests(); // no worker is reading into a texture now
+    }
+    const u64 held = HeldBytes();
+    async_uploads.clear();
+    DropPreloaded();
+    preloaded = false; // turned on again: uploads drop their copies, as without a preload
+#ifdef __GLIBC__
+    malloc_trim(0); // large frees stay in the heap otherwise (the mmap threshold grows)
+#endif
+    LOG_INFO(Render,
+             "custom textures: turned off, {} MiB of pixel data freed ({} left); anonymous memory "
+             "{} -> {} MiB",
+             held >> 20, HeldBytes() >> 20, anon_before, RssAnonMiB());
+    return held;
 }
 
 void CustomTexManager::DropPreloaded() {

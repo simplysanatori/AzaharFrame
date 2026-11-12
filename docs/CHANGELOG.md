@@ -62,6 +62,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Autosaves never replace a slot or the Quick Save.
 - The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - An autosave pauses the game for about 0.2 to 0.5 seconds.
+- Autosaves wait while memory is nearly full, because writing one needs about 0.9 GB more for a moment.
 - In Azahar's window, autosaves are at the end of **Emulation > Load State**. The settings are in **Emulation > Configure > General** and in a game's **Properties**.
 
 ### Settings

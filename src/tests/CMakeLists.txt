@@ -40,6 +40,7 @@ add_executable(tests
     frame_xr/mem_guard.cpp # AzaharFrame modfix
     frame_xr/crash_report.cpp # AzaharFrame crashreport
     frame_xr/preload_budget.cpp # AzaharFrame memguard
+    frame_xr/mem_watch.cpp # AzaharFrame memwarn
     frame_xr/startup_escape.cpp # AzaharFrame memguard
     frame_xr/list_nav.cpp # AzaharFrame gamelist
     frame_xr/flat_pads.cpp # AzaharFrame flat

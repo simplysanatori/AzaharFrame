@@ -1206,7 +1206,18 @@ void QtConfig::SaveUtilityValues() {
     qt_config->beginGroup(QStringLiteral("Utility"));
 
     WriteGlobalSetting(Settings::values.dump_textures);
-    WriteGlobalSetting(Settings::values.custom_textures);
+    // AzaharFrame memwarn: turned off by the memory dialog for this game only: the file keeps on
+    if (const int off = Settings::values.custom_textures_off_for_memory;
+        off != 0 && (off == 1) == global) {
+        const QString name = QString::fromStdString(Settings::values.custom_textures.GetLabel());
+        if (!global) {
+            qt_config->setValue(name + QStringLiteral("/use_global"),
+                                Settings::values.custom_textures.UsingGlobal());
+        }
+        WriteBasicSetting(Settings::values.custom_textures, true);
+    } else {
+        WriteGlobalSetting(Settings::values.custom_textures);
+    }
     WriteGlobalSetting(Settings::values.preload_textures);
     WriteGlobalSetting(Settings::values.async_custom_loading);
 
