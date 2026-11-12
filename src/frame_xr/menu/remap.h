@@ -32,14 +32,22 @@ namespace DsButton {
 enum : int { A, B, X, Y, Up, Down, Left, Right, L, R, Start, Select, ZL = 14, ZR = 15, Home = 16 };
 /// The two sticks, as Edit Controls' targets (after the buttons).
 enum : int { CirclePad = 32, CStick = 33 };
+/// The mouse's own targets: the input that touches the bottom screen, the one that opens the
+/// menu (RemapExtras).
+enum : int { Touch = 34, OpenMenu = 35 };
 } // namespace DsButton
 
 /// AzaharFrame padsui: Circle Pad, C-Stick -> an encoded Input::StickRoute (stick_route.h), or -1.
 using RemapSticks = std::array<int8_t, 2>;
 inline constexpr RemapSticks kDefaultSticks{0, 1}; ///< the left stick the Circle Pad, the right the C-Stick
 
+/// AzaharFrame padsui: the mouse's Touch Screen and Open Menu inputs (MouseInputs), or -1.
+using RemapExtras = std::array<int8_t, 2>;
+inline constexpr RemapExtras kNoExtras{-1, -1};
+
 /// AzaharFrame padsui: whose buttons the table holds, for which presses can take a 3DS button.
-enum class RemapSource : uint8_t { Frame, Pad };
+/// The mouse's table holds MouseInputs (Left Click...) and it has the extras.
+enum class RemapSource : uint8_t { Frame, Pad, Mouse };
 
 /// What the drawing needs of the state.
 struct RemapView {
@@ -81,12 +89,18 @@ public:
     static bool IsStick(int target) {
         return target == DsButton::CirclePad || target == DsButton::CStick;
     }
+    /// Touch Screen and Open Menu (the mouse's).
+    static bool IsExtra(int target) {
+        return target == DsButton::Touch || target == DsButton::OpenMenu;
+    }
 
     /// Edit mode starts from `table` and `sticks` of `source`; the defaults are what Reset to
     /// Default restores.
     void Begin(const RemapTable& table, const RemapTable& defaults,
                RemapSource source = RemapSource::Frame, const RemapSticks& sticks = kDefaultSticks,
-               const RemapSticks& stick_defaults = kDefaultSticks);
+               const RemapSticks& stick_defaults = kDefaultSticks,
+               const RemapExtras& extras = kNoExtras,
+               const RemapExtras& extra_defaults = kNoExtras);
     RemapSource Source() const {
         return source;
     }
@@ -102,6 +116,9 @@ public:
     const RemapSticks& Sticks() const {
         return sticks;
     }
+    const RemapExtras& Extras() const {
+        return extras;
+    }
     /// A stick target listens.
     bool ListeningStick() const {
         return IsStick(view.listening);
@@ -114,7 +131,8 @@ public:
     /// change, stops listening).
     Event Choose(int target);
     /// A button of the device was pressed while a 3DS button listens: the 3DS button takes it,
-    /// and a 3DS button that had it takes the listening one's old control. Pressing the control
+    /// and a 3DS button that had it takes the listening one's old control (the mouse's Touch
+    /// Screen and Open Menu swap with the buttons alike). Pressing the control
     /// it already has ends listening (Cancelled); one that cannot be used keeps it (None).
     Event Press(int control);
     /// The device's stick `stick` (Input::AnalogControl) is at `value` while a 3DS stick
@@ -136,6 +154,8 @@ private:
     RemapTable defaults{};
     RemapSticks sticks = kDefaultSticks;
     RemapSticks stick_defaults = kDefaultSticks;
+    RemapExtras extras = kNoExtras;
+    RemapExtras extra_defaults = kNoExtras;
     Input::StickPush up_push;
     RemapView view;
     RemapSource source = RemapSource::Frame;

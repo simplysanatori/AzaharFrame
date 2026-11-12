@@ -107,6 +107,10 @@ struct MouseState {
 void SetMouseState(const MouseState& state);
 void ClearMouseState();
 MouseState GetMouseState();
+/// AzaharFrame padsui: VR reads the real mouse itself (frame_xr/input/devices.h): the window
+/// leaves its clicks alone (no touch at the window's own layout). Any thread.
+void SetVrMouseOwned(bool owned);
+bool VrMouseOwned();
 
 /// The default VR profile: CitraVR's mapping with the Frame's D-pad (see MAPPING.md). The XR core
 /// applies it when VR starts so the Qt Controls dialog edits a profile that already works.

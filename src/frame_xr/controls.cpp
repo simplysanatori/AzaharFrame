@@ -12,7 +12,9 @@
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
 #include "frame_xr/immersive.h"
+#include "frame_xr/input/devices.h" // AzaharFrame padsui
 #include "frame_xr/input/geometry.h"
+#include "input_common/frame_xr.h" // AzaharFrame padsui
 #include "frame_xr/picker/library.h"
 #include "frame_xr/picker/library_loader.h"
 #include "frame_xr/picker/logo_loader.h"
@@ -122,6 +124,48 @@ std::vector<uint8_t> MakeDot() {
     return px;
 }
 
+// AzaharFrame padsui: the ring that fills while Left and Right Click are held (the mouse's mode
+// switch): kRingFrames pictures side by side, the n-th filled (n + 1) / kRingFrames of the way
+// round from the top, clockwise; premultiplied, as the dot.
+constexpr uint32_t kRingSize = 64;
+constexpr uint32_t kRingFrames = 16;
+
+std::vector<uint8_t> MakeRingAtlas() {
+    const uint32_t w = kRingSize * kRingFrames;
+    std::vector<uint8_t> px(w * kRingSize * 4, 0);
+    const float c = (kRingSize - 1) / 2.0f;
+    const float outer = kRingSize / 2.0f - 2.0f, inner = outer - 7.0f;
+    for (uint32_t f = 0; f < kRingFrames; f++) {
+        const float fill = static_cast<float>(f + 1) / static_cast<float>(kRingFrames);
+        for (uint32_t y = 0; y < kRingSize; y++) {
+            for (uint32_t x = 0; x < kRingSize; x++) {
+                const float dx = x - c, dy = y - c;
+                const float d = std::hypot(dx, dy);
+                const float a = std::clamp(outer - d, 0.0f, 1.0f) * std::clamp(d - inner, 0.0f, 1.0f);
+                if (a <= 0.0f) {
+                    continue;
+                }
+                // 0 at the top, growing clockwise.
+                float turn = std::atan2(dx, -dy) / 6.2831853f;
+                if (turn < 0.0f) {
+                    turn += 1.0f;
+                }
+                const bool done = turn <= fill;
+                // Done: Material's primary on dark (#A8C7FA); to go: a faint white track.
+                const float alpha = a * (done ? 1.0f : 0.35f);
+                const float r = done ? 168.0f : 255.0f, g = done ? 199.0f : 255.0f,
+                            b = done ? 250.0f : 255.0f;
+                uint8_t* p = &px[(y * w + f * kRingSize + x) * 4];
+                p[0] = static_cast<uint8_t>(r * alpha);
+                p[1] = static_cast<uint8_t>(g * alpha);
+                p[2] = static_cast<uint8_t>(b * alpha);
+                p[3] = static_cast<uint8_t>(alpha * 255.0f);
+            }
+        }
+    }
+    return px;
+}
+
 } // namespace
 
 VrUi::VrUi() = default;
@@ -167,6 +211,14 @@ bool VrUi::Create(Runtime& rt) {
         uploader.Upload(cursor_chain, dot.data());
     }
 
+    // AzaharFrame padsui: the mouse's mode-switch ring.
+    if (uploader.CreateChain(rt.session, rt.swapchain_format, kRingSize * kRingFrames, kRingSize,
+                             ring_chain)) {
+        const auto ring = MakeRingAtlas();
+        uploader.Upload(ring_chain, ring.data());
+    }
+    visuals.SetMousePointer(&mouse_pointer);
+
     if (uploader.CreateChain(rt.session, rt.swapchain_format, kDimSize, kDimSize, dim_chain)) {
         std::vector<uint8_t> dim(kDimSize * kDimSize * 4, 0); // premultiplied black
         for (std::size_t i = 3; i < dim.size(); i += 4) {
@@ -196,6 +248,9 @@ void VrUi::DestroyXr() {
     uploader.DestroyChain(dim_chain);
     uploader.DestroyChain(picker_chain);
     uploader.DestroyChain(cursor_chain);
+    uploader.DestroyChain(ring_chain); // AzaharFrame padsui
+    mouse_pointer.Reset();
+    InputCommon::FrameXr::SetVrMouseOwned(false);
     uploader.Shutdown();
     actions.Destroy();
     actions_ok = false;
@@ -221,6 +276,89 @@ void VrUi::NotifyVr(bool vr) {
     if (hooks.vr_changed) {
         hooks.vr_changed(vr);
     }
+}
+
+// AzaharFrame padsui: the mouse, once a frame: its frame from the hub (the game gets its buttons
+// and, in Bottom Screen mode, its touch through the bridge); the toast when the chord switched
+// the mode; Open Menu; in Pointer mode its ray in place of the right controller's.
+void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_input) {
+    mouse_frame = Input::Devices::Hub().PollMouse(info.display_time);
+    // The window gets the mouse's clicks too: it leaves them alone while we read the mouse.
+    InputCommon::FrameXr::SetVrMouseOwned(mouse_frame.present);
+    const bool pointer_mode = mouse_frame.mode == Input::MouseMode::Pointer;
+    if (mouse_frame.switch_mode) {
+        LOG_INFO(Frontend, "xr: mouse: Left and Right Click held: Mouse Mode {}",
+                 pointer_mode ? "Pointer" : "Bottom Screen");
+        ShowToastText(pointer_mode ? "Mouse: Pointer" : "Mouse: Bottom Screen");
+        if (bridge_live) {
+            bridge.Release(); // no touch carries over into the other mode
+            bridge_live = false;
+        }
+    }
+    if (mouse_frame.open_menu && game_running) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.toggle_menu) {
+            LOG_INFO(Frontend, "xr: mouse: Open Menu");
+            hooks.toggle_menu();
+        }
+    }
+    const ViewPose view = LatestViewPose();
+    const std::size_t right = static_cast<std::size_t>(Input::HandIndex(Input::Hand::Right));
+    const auto ray = mouse_pointer.Update(mouse_frame, pointer_mode, in.hand[right],
+                                          ToInput(view.head), view.valid, info.display_time);
+    if (ray.took) {
+        LOG_INFO(Frontend, "xr: mouse: the pointer has the right hand's ray");
+    } else if (ray.gave_back) {
+        LOG_INFO(Frontend, "xr: mouse: the right controller has its ray back");
+    }
+    if (ray.active && have_input) {
+        // The wheel scrolls the menu's lists (as a stick); in a game it is the game's.
+        const bool lists = menu_shown || !game_running;
+        const auto& held = mouse_frame.held;
+        const float wheel =
+            !lists ? 0.0f
+            : held[static_cast<std::size_t>(Input::MouseInput::WheelUp)]   ? 1.0f
+            : held[static_cast<std::size_t>(Input::MouseInput::WheelDown)] ? -1.0f
+                                                                           : 0.0f;
+        Input::ApplyMousePointer(in, static_cast<int>(right), ray.aim, mouse_frame.Touch(), wheel);
+    }
+    mouse_mark_valid = false; // set again by whoever draws the cursor this frame
+}
+
+// AzaharFrame padsui: Left and Right Click held: the ring fills round the cursor (or, with none
+// drawn, in front of you).
+void VrUi::AddMouseRing(const FrameInfo& info, std::vector<Quad>& layers) {
+    if (mouse_frame.chord <= 0.0f || !ring_chain.has_image || !info.should_render) {
+        return;
+    }
+    XrPosef pose{};
+    float size = 0.0f;
+    if (mouse_mark_valid) {
+        pose = mouse_mark;
+        size = mouse_mark_size * 3.0f;
+    } else if (Vis::Visuals::Mark mark = visuals.MouseDot(); mark.shown) {
+        pose = mark.pose;
+        size = mark.size_m * 3.0f;
+    } else {
+        const ViewPose view = LatestViewPose();
+        if (!view.valid) {
+            return;
+        }
+        const Input::Posef head = ToInput(view.head);
+        const Input::Vec3f at = Input::Transform(head, {0.0f, 0.0f, -1.0f});
+        pose = ToXr(Input::Posef{head.orientation, at});
+        size = 0.05f;
+    }
+    const uint32_t frame = std::min<uint32_t>(
+        kRingFrames - 1, static_cast<uint32_t>(mouse_frame.chord * static_cast<float>(kRingFrames)));
+    Quad q;
+    q.swapchain = ring_chain.handle;
+    q.image_rect = {{static_cast<int32_t>(frame * kRingSize), 0},
+                    {static_cast<int32_t>(kRingSize), static_cast<int32_t>(kRingSize)}};
+    q.pose = pose;
+    q.size = {size, size};
+    q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    layers.push_back(q);
 }
 
 void VrUi::SwallowHeld() {
@@ -970,6 +1108,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     if (have_input) {
         mode_latch.Filter(in); // the chord that made this session stays away until let go
     }
+    MouseTick(info, in, have_input); // AzaharFrame padsui
 
     if (launch_pending && info.display_time - launch_time > 10'000'000'000LL) {
         launch_pending = false; // the boot failed or was refused; allow another pick
@@ -1036,6 +1175,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     }
     visuals.Frame(rt, info, where, window, stats_screens, in, have_input, layers,
                   cursor_chain.handle, dim_chain.handle);
+    AddMouseRing(info, layers); // AzaharFrame padsui
     last_time = info.display_time;
 }
 
@@ -1119,7 +1259,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         game_in.head = ToInput(view.head);
     }
     // AzaharFrame pads: the other gamepads play too (the raw `in` tells Steam's echo of the Frame).
-    const Input::MapperOutput& out = bridge.Process(game_in, panels, &in);
+    const Input::MapperOutput& out = bridge.Process(game_in, panels, &in, &mouse_frame);
     bridge_live = true;
 
     const auto& cmd = out.commands;
@@ -1341,6 +1481,12 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                             dot.orientation.w},
                            {dot.position.x, dot.position.y, dot.position.z}};
         AddCursor(pose, dot.size_m, layers);
+        if (pad_dot.source == Input::TouchSource::Cursor) {
+            // AzaharFrame padsui: the mouse's ring goes round its cursor.
+            mouse_mark_valid = true;
+            mouse_mark = pose;
+            mouse_mark_size = dot.size_m;
+        }
     }
     if (out.cursor.visible) {
         const XrPosef pose{{out.cursor.orientation.x, out.cursor.orientation.y,

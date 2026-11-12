@@ -139,6 +139,9 @@ private:
     std::string edit_device{"frame"};
     bool edit_pad_by_label = false;
     bool edit_pad_listening = false;
+    /// AzaharFrame padsui: the mouse's Pointer Test cursor (0..1 on the bottom screen).
+    Input::Vec2f mouse_test{0.5f, 0.5f};
+    bool mouse_test_started = false;
     void BeginDeviceEdit(const std::string& id, bool by_label);
     Menu::MenuModel posted_model;
     Menu::MenuView posted_view;

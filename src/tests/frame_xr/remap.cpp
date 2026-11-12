@@ -285,6 +285,12 @@ struct EditScreen {
         EditDevice mouse;
         mouse.name = "Mouse";
         mouse.kind = DeviceKind::Mouse;
+        mouse.names = ButtonNames::Mouse; // AzaharFrame padsui: as the mouse's default
+        mouse.sticks = {-1, -1};
+        mouse.mapping[B::A] = 1;
+        mouse.mapping[B::L] = 3;
+        mouse.mapping[B::R] = 4;
+        mouse.extras = {0, 2};
         m.devices.list = {frame, pad, mouse};
         v.tab = Tab::Controls;
         v.remap.editing = true;
@@ -348,7 +354,7 @@ TEST_CASE("Edit Controls: a chip on every 3DS button, the devices, Cancel only w
     CHECK_FALSE(s.Has(Id::EditDevice, 0)); // the snackbar is where the devices were
 }
 
-TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse only that",
+TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse its Mouse Mode",
           "[frame_xr]") {
     EditScreen s;
     s.m.devices.selected = 1;
@@ -357,17 +363,84 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
     CHECK(s.Has(Id::TouchpadTouch, 0));
     CHECK(s.Has(Id::TouchpadTouch, 2));
     CHECK(s.Has(Id::RemapReset, -1));
+    CHECK(s.Has(Id::RecentreAtEdge, -1));
+    CHECK_FALSE(s.Has(Id::RemapChip, B::Touch));
+    CHECK_FALSE(s.Has(Id::MouseMode, 0));
+    // AzaharFrame padsui: the mouse: its buttons, Touch Screen and Open Menu, no sticks; Mouse
+    // Mode in place of Touchpad Touch; Recentre at Edge in Bottom Screen mode only.
     s.m.devices.selected = 2;
     s.Draw();
-    CHECK_FALSE(s.Has(Id::RemapChip, B::A));
-    CHECK_FALSE(s.Has(Id::RemapReset, -1));
-    CHECK(s.Has(Id::TouchpadTouch, 1));
+    for (const int b : std::initializer_list<int>{B::A, B::B, B::X, B::Y, B::Up, B::L, B::R, B::ZL,
+                                                  B::ZR, B::Start, B::Select, B::Home, B::Touch,
+                                                  B::OpenMenu}) {
+        CHECK(s.Has(Id::RemapChip, b));
+    }
+    CHECK_FALSE(s.Has(Id::RemapChip, kDsCirclePad));
+    CHECK_FALSE(s.Has(Id::RemapChip, kDsCStick));
+    CHECK(s.Has(Id::RemapReset, -1));
+    CHECK(s.Has(Id::MouseMode, 0));
+    CHECK(s.Has(Id::MouseMode, 1));
+    CHECK_FALSE(s.Has(Id::TouchpadTouch, 1));
+    CHECK(s.Has(Id::RecentreAtEdge, -1));
     CHECK(s.Has(Id::EditDevice, 2));
+    const auto& hits = s.menu.Hits();
+    for (std::size_t i = 0; i < hits.size(); i++) {
+        const Id ai = hits[i].t.id;
+        if (ai != Id::RemapChip && ai != Id::RecentreAtEdge) {
+            continue;
+        }
+        CHECK(hits[i].r.H() >= 48.0f - 0.01f);
+        for (std::size_t j = i + 1; j < hits.size(); j++) {
+            const Id bj = hits[j].t.id;
+            if (bj != Id::RemapChip && bj != Id::RecentreAtEdge) {
+                continue;
+            }
+            const Rect& a = hits[i].r;
+            const Rect& b = hits[j].r;
+            CHECK((a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 + 0.01f || b.y1 <= a.y0 + 0.01f));
+        }
+    }
+    CHECK(SourceName(ButtonNames::Mouse, 1) == "Right Click");
+    s.m.devices.list[2].mouse_mode = 1;
+    s.Draw();
+    CHECK_FALSE(s.Has(Id::RecentreAtEdge, -1));
     // No devices from the host: the chips still show, each with nothing on it.
     EditScreen none;
     none.m.devices = {};
     none.Draw();
     CHECK(none.Has(Id::RemapChip, B::A));
+}
+
+TEST_CASE("Remap: the mouse's Touch Screen and Open Menu swap with its buttons", "[frame_xr]") {
+    // Left Click 0, Right Click 1, Middle Click 2, Back 3, Forward 4, Wheel Up 5, Wheel Down 6.
+    RemapTable t = kNoMapping;
+    t[B::A] = 1;
+    t[B::L] = 3;
+    Remap r;
+    r.Begin(t, t, RemapSource::Mouse, {-1, -1}, {-1, -1}, {0, 2}, {0, 2});
+    CHECK(Remap::Listenable(6, RemapSource::Mouse));
+    CHECK_FALSE(Remap::Listenable(7, RemapSource::Mouse));
+    // A takes Left Click: Touch Screen gets Right Click.
+    REQUIRE(r.Choose(B::A) == Remap::Event::Listening);
+    CHECK(r.Press(0) == Remap::Event::Swapped);
+    CHECK(r.Table()[B::A] == 0);
+    CHECK(r.Extras()[0] == 1);
+    // Open Menu takes Back: L has Middle Click.
+    REQUIRE(r.Choose(B::OpenMenu) == Remap::Event::Listening);
+    CHECK(r.Press(3) == Remap::Event::Swapped);
+    CHECK(r.Extras()[1] == 3);
+    CHECK(r.Table()[B::L] == 2);
+    // Touch Screen takes Wheel Down, which nothing had.
+    REQUIRE(r.Choose(B::Touch) == Remap::Event::Listening);
+    CHECK(r.Press(6) == Remap::Event::Moved);
+    CHECK(r.Extras()[0] == 6);
+    CHECK(r.Reset() == Remap::Event::Reset);
+    CHECK(r.Extras() == RemapExtras{0, 2});
+    // A gamepad has no Touch Screen to choose.
+    Remap pad;
+    pad.Begin(t, t, RemapSource::Pad);
+    pad.Choose(B::Touch);
+    CHECK(pad.Listening() < 0);
 }
 
 TEST_CASE("Edit Controls: many devices still fit the row", "[frame_xr]") {

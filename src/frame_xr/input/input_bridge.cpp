@@ -14,7 +14,7 @@ namespace FrameXr::Input {
 InputBridge::InputBridge(const MapperConfig& config) : mapper_(config) {}
 
 const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeometry& panels,
-                                         const InputFrame* gamepads) {
+                                         const InputFrame* gamepads, const MouseFrame* mouse) {
     const bool by_position = Settings::values.vr_face_buttons.GetValue() == 0;
     mapper_.SetFaceButtonsByPosition(by_position);
     last_ = mapper_.Update(frame, panels);
@@ -22,7 +22,8 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     // routes), and give Touchpad Touch its touchpad.
     const TouchpadMode touch_mode = TouchpadModeFrom(Settings::values.vr_touchpad_touch.GetValue());
     GamepadHub::MergeResult pads;
-    if (gamepads || touch_mode != TouchpadMode::Off) {
+    const bool mouse_here = mouse && mouse->present; // AzaharFrame padsui
+    if (gamepads || touch_mode != TouchpadMode::Off || mouse_here) {
         GamepadHub& hub = Devices::Hub();
         hub.SetFaceButtonsByPosition(by_position);
         pads = hub.Merge(gamepads ? *gamepads : frame, InputCommon::FrameXr::GetProfileRoutes(),
@@ -52,8 +53,18 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     touch.beam_count = last_.touch_event_count;
     if (touch.mode != TouchpadMode::Off) {
         touch.pad = pads.touchpad.pad; // AzaharFrame pads: the chosen pad's, or the touched one's
-        const auto mouse = InputCommon::FrameXr::GetMouseState();
-        touch.mouse = {mouse.inside, mouse.down, mouse.x, mouse.y};
+        touch.pad_recentre = pads.touchpad.recentre;
+        // The pointer over the window (a touchpad as a mouse, Steam Input's); not while a real
+        // mouse is read directly (AzaharFrame padsui), whose clicks the window also gets.
+        if (!mouse_here) {
+            const auto window_mouse = InputCommon::FrameXr::GetMouseState();
+            touch.mouse = {window_mouse.inside, window_mouse.down, window_mouse.x, window_mouse.y};
+        }
+    }
+    // AzaharFrame padsui: the mouse in Bottom Screen mode, a game running and the menu closed.
+    if (mouse_here && gamepads && mouse->mode == MouseMode::BottomScreen) {
+        touch.cursor = {true, mouse->motion, MouseScreenGain(mouse->speed), mouse->Touch(),
+                        mouse->recentre};
     }
     const TouchpadResult result = touchpad_.Update(touch);
     touchpad_cursor_ = result.cursor;

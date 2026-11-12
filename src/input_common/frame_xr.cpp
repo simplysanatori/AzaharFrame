@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include "frame_xr/input/default_bindings.h"
@@ -293,6 +294,18 @@ void ClearMouseState() {
 MouseState GetMouseState() {
     std::lock_guard lock{mouse_mutex};
     return mouse_state;
+}
+
+namespace {
+std::atomic<bool> vr_mouse_owned{false}; // AzaharFrame padsui
+}
+
+void SetVrMouseOwned(bool owned) {
+    vr_mouse_owned.store(owned, std::memory_order_relaxed);
+}
+
+bool VrMouseOwned() {
+    return vr_mouse_owned.load(std::memory_order_relaxed);
 }
 
 DefaultProfile GetDefaultProfile() {

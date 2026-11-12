@@ -94,6 +94,34 @@ The controller models' converter (`steam-frame/tools/frame-controller-models.py`
 - The models themselves are Valve's, from SteamVR's Steam Frame controller driver on your Frame (`/opt/steamvr/drivers/frame_controller/resources/rendermodels`). They are converted on your Frame at install time and are not part of this repository or of the release.
 - The controls help and stats panels use Noto Sans Regular and Bold (SIL Open Font License 1.1) from SteamOS's own `/usr/share/fonts/noto/`, with the stb_truetype above.
 
+## Frametop
+
+The mouse's Pointer mode is adapted from the pointer helper of Frametop (https://github.com/Frametop/frametop) by DeeJanuz, released under the MIT licence: its 3D mouse's cursor model (yaw and pitch fixed in the room, waking on a deliberate move, the controller taking the ray back, the dot on a panel's plane past its edge, head follow), from `pointer/helper/ft-pointer.cpp`, `pointer/common/vec3.h` and `screens/posemath.h`. The adapted code is `src/frame_xr/input/mouse_pointer.h` and `mouse_pointer.cpp`, which keep this notice at their top. Nothing else of Frametop is used or shipped.
+
+```
+MIT License
+
+Copyright (c) 2026 DeeJanuz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## SDL
 
 SDL 2 (https://www.libsdl.org) reads game controllers and, in the Azahar

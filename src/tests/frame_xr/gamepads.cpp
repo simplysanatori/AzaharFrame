@@ -458,7 +458,6 @@ TEST_CASE("Gamepads: per-device mappings are saved", "[frame_xr]") {
         GamepadHub hub(source, storage.Get());
         source.Add(1, kDs4Guid, "Wireless Controller", PadType::PS4, 0x054c, 0x09cc, true);
         REQUIRE_FALSE(hub.SetMapping(kFrameDeviceId, EmptyMapping()));
-        REQUIRE_FALSE(hub.SetMapping(kMouseDeviceId, EmptyMapping()));
         REQUIRE_FALSE(hub.SetMapping("nope", EmptyMapping()));
         GamepadMapping m = hub.Mapping(kDs4Guid, DefaultRoutes());
         REQUIRE(m == DefaultGamepadMapping(PadType::PS4, true));

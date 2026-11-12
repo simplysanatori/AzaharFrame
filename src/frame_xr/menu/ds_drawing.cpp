@@ -292,7 +292,7 @@ void DrawDs(Kit& kit, const DsDrawing& d, int lit) {
     circle(kSelect, kSmallR, kPart);
 
     // The chosen input: a ring in the primary colour.
-    if (lit >= 0) {
+    if (lit >= 0 && !Remap::IsExtra(lit)) { // padsui: the mouse's own targets are not on the 3DS
         const DsPoint c = d.Anchor(lit);
         const float r = d.Radius(lit) + 4.0f;
         kit.Stroke({c.x - r, c.y - r, c.x + r, c.y + r}, r, 2.0f, Tok::kPrimary);
@@ -375,6 +375,24 @@ void DrawDsGlyph(Kit& kit, const Rect& b, int target, uint32_t fg, uint32_t bg) 
         kit.Dot(cx, cy, r * 0.8f, bg);
         kit.Dot(cx, cy, r * 0.32f, fg);
         break;
+    case DsButton::Touch: {
+        // AzaharFrame padsui: a small screen with a touch on it.
+        const Rect sc{cx - r * 0.9f, cy - r * 0.68f, cx + r * 0.9f, cy + r * 0.68f};
+        kit.Fill(sc, r * 0.18f, bg);
+        kit.Stroke(sc, r * 0.18f, 1.2f, fg, 0.7f);
+        kit.Dot(cx + r * 0.2f, cy + r * 0.1f, r * 0.26f, fg);
+        break;
+    }
+    case DsButton::OpenMenu: {
+        // AzaharFrame padsui: three lines, a menu.
+        kit.Dot(cx, cy, r, bg);
+        const float w = r * 0.56f, h = r * 0.09f;
+        for (int i = -1; i <= 1; i++) {
+            const float y = cy + static_cast<float>(i) * r * 0.32f;
+            kit.Fill({cx - w, y - h, cx + w, y + h}, h, fg);
+        }
+        break;
+    }
     default:
         kit.Dot(cx, cy, r * 0.7f, bg);
         break;

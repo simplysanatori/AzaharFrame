@@ -15,6 +15,7 @@
 #include "frame_xr/input/controls.h"
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/mouse.h"
 #include "frame_xr/input/profile_routes.h"
 #include "frame_xr/input/stick_route.h"
 #include "frame_xr/input/touchpad_touch.h"
@@ -124,6 +125,14 @@ PadInputs PadInputsFromRaw(const InputCommon::SDLPadState& raw, const PadInputs&
 struct GamepadMapping {
     ButtonTable buttons{};
     AnalogTable analogs{};
+    /// AzaharFrame padsui: the mouse's (its buttons and analogs above hold MouseInputs): the
+    /// input that touches the bottom screen (Pointer: clicks), the one that opens the menu, its
+    /// Mouse Mode and speed. Recentre at Edge is the mouse's and a touchpad's.
+    int8_t touch = -1;
+    int8_t open_menu = -1;
+    uint8_t mode = 0;  ///< MouseMode
+    uint8_t speed = 1; ///< MouseSpeed
+    bool recentre = true;
     bool operator==(const GamepadMapping&) const = default;
 };
 /// An empty mapping (every entry -1).
@@ -137,6 +146,13 @@ GamepadMapping EmptyMapping();
 /// none.
 GamepadMapping DefaultGamepadMapping(PadType type, bool by_position);
 
+/// AzaharFrame padsui: the mouse's default: Right Click A, Back L, Forward R, Left Click the
+/// touch, Middle Click Open Menu, Bottom Screen, Normal speed, Recentre at Edge on.
+GamepadMapping DefaultMouseMapping();
+/// The 3DS buttons a mouse's held inputs press under `mapping` (the touch and Open Menu are not
+/// buttons).
+ThreeDsPadState ApplyMouseMapping(const std::array<bool, kNumMouseInputs>& held,
+                                  const GamepadMapping& mapping);
 /// The 3DS buttons and sticks a pad's inputs press under `mapping`.
 ThreeDsPadState ApplyGamepadMapping(const PadInputs& pad, const GamepadMapping& mapping);
 
@@ -184,6 +200,7 @@ bool IsFrameOwnPad(const InputCommon::SDLPadInfo& info);
 
 struct MouseInfo {
     std::string name;
+    std::string event; ///< AzaharFrame padsui: its event node ("event5"), "" none
     uint16_t bus = 0;
     uint16_t vendor = 0;
     uint16_t product = 0;
@@ -192,6 +209,9 @@ struct MouseInfo {
 /// or Bluetooth, not Valve's (the Frame's and Steam's virtual devices). Touchpads (absolute)
 /// are not mice.
 std::vector<MouseInfo> ParseInputDevices(const std::string& text);
+/// AzaharFrame padsui: Frametop's virtual mouse ("frametop virtual mouse"), which its input relay
+/// feeds the real mice into while it holds them (EVIOCGRAB) and Frametop is paused for a VR game.
+std::vector<MouseInfo> ParseRelayMice(const std::string& text);
 
 // ---- Telling the Frame's own pad from a real one -------------------------------------------
 
@@ -241,7 +261,10 @@ std::array<bool, kNumPadInputs> FrameAsPad(const InputFrame& frame);
 /// user/controller-mappings.txt: one line per gamepad model with a mapping of its own,
 ///   <key> buttons=<18 values> analogs=<2 values> vendor=<hex> product=<hex> name=<name>
 /// values comma separated (PadInput / PadStick numbers), -1 for none; the name runs to the end
-/// of the line. Lines starting with # are comments.
+/// of the line. Lines starting with # are comments. AzaharFrame padsui: the mouse is the line
+/// "mouse" (MouseInputs), with touch=, menu=, mode=, speed=; recentre=0 turns Recentre at Edge
+/// off. Each is written only when it is not the plain value (touch and menu -1, mode 0, speed 1,
+/// recentre 1), and a line without them reads as those, so older files read the same.
 struct MappingEntry {
     GamepadMapping mapping;
     uint16_t vendor = 0;
@@ -280,6 +303,11 @@ public:
     virtual void States(std::vector<InputCommon::SDLPadState>& out) = 0;
     /// /proc/bus/input/devices' text, or empty.
     virtual std::string InputDevices() = 0;
+    /// AzaharFrame padsui: the mice's running totals (all real mice, and Frametop's relay mouse
+    /// while it feeds them), present when a real mouse is connected.
+    virtual MouseRaw Mouse() {
+        return {};
+    }
 };
 
 /// Where the mapping file lives (user/controller-mappings.txt in the program).
@@ -318,6 +346,7 @@ inline constexpr const char* kMouseDeviceId = "mouse";
 struct TouchpadPick {
     PadSample pad;
     std::string id; ///< the device it came from, "" none
+    bool recentre = true; ///< AzaharFrame padsui: its Recentre at Edge
 };
 
 /// The registry and the merge. Thread-safe: every call locks.
@@ -347,7 +376,7 @@ public:
     void CancelListen();
     struct ListenResult {
         enum class State { Idle, Listening, Pressed, Gone } state = State::Idle;
-        int input = -1; ///< Pressed: a PadInput
+        int input = -1; ///< Pressed: a PadInput (the mouse: a MouseInput)
         /// AzaharFrame padsui: Listening: where the pad's sticks are (a 3DS stick listening).
         std::array<Vec2f, kNumPadSticks> sticks{};
     };
@@ -374,6 +403,13 @@ public:
                       ControlState& controls, bool merge_buttons);
     /// Everything held now stays away from the game until let go (the menu closed, a new game).
     void Release();
+
+    /// AzaharFrame padsui: the mouse, once a display frame (the XR thread): its frame, with
+    /// its mapping's mode, speed, Recentre at Edge and touch input. The chord switching the
+    /// mode saves the new mode. Merge then gives the game its buttons.
+    MouseFrame PollMouse(int64_t now_ns);
+    /// The mouse frame of the last PollMouse.
+    MouseFrame LastMouse();
 
 private:
     struct Pad {
@@ -402,6 +438,8 @@ private:
     GamepadMapping MappingLocked(const Pad& pad);
     GamepadMapping DefaultLocked(const Pad& pad) const;
     TouchpadPick PickTouchpadLocked();
+    GamepadMapping MouseMappingLocked();
+    bool SetMouseMappingLocked(const GamepadMapping& mapping);
 
     std::mutex mutex_;
     GamepadSource& source_;
@@ -423,6 +461,11 @@ private:
     std::vector<MouseInfo> mice_;
     int64_t mice_read_ns_ = 0;
     bool mice_read_ = false;
+    // AzaharFrame padsui: the mouse.
+    MouseLogic mouse_logic_;
+    MouseFrame mouse_frame_;
+    MouseRaw listen_mouse_;
+    bool listen_is_mouse_ = false;
     // Listening.
     std::string listen_id_;
     bool listening_ = false;

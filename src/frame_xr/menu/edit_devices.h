@@ -32,6 +32,7 @@ enum class ButtonNames : uint8_t {
     Nintendo,    ///< by label as SDL reports a Switch pad (Control::A is the right button, A)
     NintendoPos, ///< a Switch pad behind Steam Input: by position (Control::A is the bottom, B)
     Steam,       ///< Steam Controller, Steam Deck: A B X Y, LB RB LT RT, View, Menu, grips
+    Mouse,       ///< AzaharFrame padsui: Left Click... Wheel Down (Input::MouseInput)
 };
 
 /// The names of lane pads' PadType (its SDL_GameControllerType numbers, Steam = 100).
@@ -53,6 +54,10 @@ struct EditDevice {
     RemapTable mapping = kNoMapping; ///< 3DS button -> the device's Input::Control, or -1
     /// Circle Pad, C-Stick -> an encoded Input::StickRoute of the device's sticks, or -1.
     RemapSticks sticks = kDefaultSticks;
+    /// The mouse: Touch Screen, Open Menu -> an Input::MouseInput, or -1.
+    RemapExtras extras = kNoExtras;
+    int mouse_mode = 0;   ///< the mouse: 0 Bottom Screen, 1 Pointer
+    bool recentre = true; ///< the mouse and a touchpad: Recentre at Edge
     bool operator==(const EditDevice&) const = default;
 };
 
@@ -83,16 +88,26 @@ std::string SourceName(ButtonNames names, int control, bool face_by_position = t
 std::string StickRouteName(int8_t route);
 
 constexpr RemapSource SourceOf(DeviceKind kind) {
-    return kind == DeviceKind::Frame ? RemapSource::Frame : RemapSource::Pad;
+    return kind == DeviceKind::Frame   ? RemapSource::Frame
+           : kind == DeviceKind::Mouse ? RemapSource::Mouse
+                                       : RemapSource::Pad;
 }
 
 /// The Pointer Test shows for the mouse and for gamepads with a touchpad.
 inline bool HasPointer(const EditDevice& d) {
     return d.kind == DeviceKind::Mouse || d.has_touchpad;
 }
-/// The mouse has no buttons to give the 3DS; Edit Controls shows it the Pointer Test only.
-inline bool HasButtons(const EditDevice& d) {
+/// Every device gives the 3DS buttons (AzaharFrame padsui: the mouse too).
+inline bool HasButtons(const EditDevice&) {
+    return true;
+}
+/// The device has sticks for the Circle Pad and the C-Stick (not the mouse).
+inline bool HasSticks(const EditDevice& d) {
     return d.kind != DeviceKind::Mouse;
+}
+/// Recentre at Edge shows: the mouse in Bottom Screen mode, a touchpad.
+inline bool HasRecentre(const EditDevice& d) {
+    return d.kind == DeviceKind::Mouse ? d.mouse_mode == 0 : d.has_touchpad;
 }
 
 /// A gamepad's mapping by position, as lane pads' DefaultGamepadMapping by position for an

@@ -280,6 +280,28 @@ GamepadMapping DefaultGamepadMapping(PadType type, bool by_position) {
     return m;
 }
 
+GamepadMapping DefaultMouseMapping() {
+    GamepadMapping m = EmptyMapping();
+    m.buttons[NB::A] = static_cast<int8_t>(MouseInput::RightClick);
+    m.buttons[NB::L] = static_cast<int8_t>(MouseInput::Back);
+    m.buttons[NB::R] = static_cast<int8_t>(MouseInput::Forward);
+    m.touch = static_cast<int8_t>(MouseInput::LeftClick);
+    m.open_menu = static_cast<int8_t>(MouseInput::MiddleClick);
+    return m;
+}
+
+ThreeDsPadState ApplyMouseMapping(const std::array<bool, kNumMouseInputs>& held,
+                                  const GamepadMapping& mapping) {
+    ThreeDsPadState out;
+    for (std::size_t b = 0; b < mapping.buttons.size(); b++) {
+        const int input = mapping.buttons[b];
+        if (input >= 0 && input < kNumMouseInputs && held[static_cast<std::size_t>(input)]) {
+            out.buttons[b] = true;
+        }
+    }
+    return out;
+}
+
 ThreeDsPadState ApplyGamepadMapping(const PadInputs& pad, const GamepadMapping& mapping) {
     ThreeDsPadState out;
     for (std::size_t b = 0; b < mapping.buttons.size(); b++) {
@@ -460,7 +482,10 @@ std::string GamepadKey(const InputCommon::SDLPadInfo& info) {
 
 // ---- Pointer devices --------------------------------------------------------------------
 
-std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
+namespace {
+
+template <typename Keep>
+std::vector<MouseInfo> ParseMice(const std::string& text, Keep keep) {
     std::vector<MouseInfo> out;
     std::istringstream in(text);
     std::string line;
@@ -469,8 +494,7 @@ std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
     bool rel_xy = false;
     bool any = false;
     const auto finish = [&] {
-        if (any && mouse_handler && rel_xy && (cur.bus == 0x03 || cur.bus == 0x05) &&
-            cur.vendor != kValveVendor) {
+        if (any && mouse_handler && rel_xy && keep(cur)) {
             out.push_back(cur);
         }
         cur = {};
@@ -510,6 +534,8 @@ std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
             while (words >> w) {
                 if (w.rfind("mouse", 0) == 0) {
                     mouse_handler = true;
+                } else if (w.rfind("event", 0) == 0) {
+                    cur.event = w;
                 }
             }
         } else if (line.rfind("B: REL=", 0) == 0) {
@@ -523,6 +549,20 @@ std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
     }
     finish();
     return out;
+}
+
+} // namespace
+
+std::vector<MouseInfo> ParseInputDevices(const std::string& text) {
+    return ParseMice(text, [](const MouseInfo& m) {
+        return (m.bus == 0x03 || m.bus == 0x05) && m.vendor != kValveVendor;
+    });
+}
+
+std::vector<MouseInfo> ParseRelayMice(const std::string& text) {
+    return ParseMice(text, [](const MouseInfo& m) {
+        return m.bus == 0x06 && m.name.rfind("frametop virtual mouse", 0) == 0;
+    });
 }
 
 // ---- EchoGuard ----------------------------------------------------------------------------
@@ -654,6 +694,18 @@ void MappingFile::Parse(const std::string& text) {
                         a = -1;
                     }
                 }
+            } else if (k == "touch" || k == "menu") {
+                // AzaharFrame padsui: the mouse's touch and Open Menu inputs.
+                const long n = std::strtol(v.c_str(), nullptr, 10);
+                const int8_t value = n >= -1 && n < kNumMouseInputs ? static_cast<int8_t>(n) : -1;
+                (k == "touch" ? e.mapping.touch : e.mapping.open_menu) = value;
+            } else if (k == "mode") {
+                e.mapping.mode = v == "1" ? 1 : 0;
+            } else if (k == "speed") {
+                const long n = std::strtol(v.c_str(), nullptr, 10);
+                e.mapping.speed = static_cast<uint8_t>(std::clamp<long>(n, 0, 2));
+            } else if (k == "recentre") {
+                e.mapping.recentre = v != "0";
             } else if (k == "vendor") {
                 e.vendor = static_cast<uint16_t>(std::strtoul(v.c_str(), nullptr, 16));
             } else if (k == "product") {
@@ -675,6 +727,23 @@ std::string MappingFile::Format() const {
         out += key;
         out += " buttons=" + JoinValues(e.mapping.buttons.data(), e.mapping.buttons.size());
         out += " analogs=" + JoinValues(e.mapping.analogs.data(), e.mapping.analogs.size());
+        // AzaharFrame padsui: what is not the plain value (MappingFile in gamepads.h).
+        const GamepadMapping plain;
+        if (e.mapping.touch != plain.touch) {
+            out += " touch=" + std::to_string(e.mapping.touch);
+        }
+        if (e.mapping.open_menu != plain.open_menu) {
+            out += " menu=" + std::to_string(e.mapping.open_menu);
+        }
+        if (e.mapping.mode != plain.mode) {
+            out += " mode=" + std::to_string(e.mapping.mode);
+        }
+        if (e.mapping.speed != plain.speed) {
+            out += " speed=" + std::to_string(e.mapping.speed);
+        }
+        if (e.mapping.recentre != plain.recentre) {
+            out += " recentre=0";
+        }
         out += " vendor=" + Hex4(e.vendor) + " product=" + Hex4(e.product);
         out += " name=" + e.name + "\n";
     }
@@ -913,17 +982,41 @@ uint32_t GamepadHub::Revision() {
     return revision_;
 }
 
+GamepadMapping GamepadHub::MouseMappingLocked() {
+    LoadLocked();
+    if (const MappingEntry* e = file_.Find(kMouseDeviceId, 0, 0, "")) {
+        return e->mapping;
+    }
+    return DefaultMouseMapping();
+}
+
+bool GamepadHub::SetMouseMappingLocked(const GamepadMapping& mapping) {
+    LoadLocked();
+    file_.Remove(kMouseDeviceId, 0, 0, "");
+    if (!(mapping == DefaultMouseMapping())) {
+        file_.Set(kMouseDeviceId, {mapping, 0, 0, "Mouse"});
+    }
+    revision_++;
+    return SaveLocked();
+}
+
 GamepadMapping GamepadHub::Mapping(const std::string& id, const ProfileRoutes& routes) {
     if (id == kFrameDeviceId) {
         return MappingOfRoutes(routes);
     }
     std::scoped_lock lock{mutex_};
+    if (id == kMouseDeviceId) {
+        return MouseMappingLocked();
+    }
     RefreshLocked();
     const Pad* pad = FindLocked(id);
     return pad ? MappingLocked(*pad) : EmptyMapping();
 }
 
 GamepadMapping GamepadHub::DefaultMapping(const std::string& id) {
+    if (id == kMouseDeviceId) {
+        return DefaultMouseMapping();
+    }
     std::scoped_lock lock{mutex_};
     RefreshLocked();
     const Pad* pad = FindLocked(id);
@@ -932,6 +1025,9 @@ GamepadMapping GamepadHub::DefaultMapping(const std::string& id) {
 
 bool GamepadHub::SetMapping(const std::string& id, const GamepadMapping& mapping) {
     std::scoped_lock lock{mutex_};
+    if (id == kMouseDeviceId) {
+        return SetMouseMappingLocked(mapping);
+    }
     LoadLocked();
     RefreshLocked();
     const Pad* pad = FindLocked(id);
@@ -952,6 +1048,14 @@ bool GamepadHub::SetMapping(const std::string& id, const GamepadMapping& mapping
 bool GamepadHub::ResetMapping(const std::string& id) {
     std::scoped_lock lock{mutex_};
     LoadLocked();
+    if (id == kMouseDeviceId) {
+        if (!file_.Remove(kMouseDeviceId, 0, 0, "")) {
+            return false;
+        }
+        revision_++;
+        SaveLocked();
+        return true;
+    }
     RefreshLocked();
     const Pad* pad = FindLocked(id);
     if (!pad || !file_.Remove(pad->key, pad->info.vendor, pad->info.product, pad->info.name)) {
@@ -964,6 +1068,19 @@ bool GamepadHub::ResetMapping(const std::string& id) {
 
 bool GamepadHub::BeginListen(const std::string& id) {
     std::scoped_lock lock{mutex_};
+    if (id == kMouseDeviceId) {
+        // AzaharFrame padsui: the mouse's next click, button or wheel notch.
+        listen_mouse_ = source_.Mouse();
+        if (!listen_mouse_.present) {
+            return false;
+        }
+        listen_id_ = id;
+        listen_is_mouse_ = true;
+        listening_ = true;
+        listen_result_ = {ListenResult::State::Listening, -1};
+        return true;
+    }
+    listen_is_mouse_ = false;
     RefreshLocked();
     Pad* pad = FindLocked(id);
     if (!pad || !pad->connected) {
@@ -990,6 +1107,37 @@ GamepadHub::ListenResult GamepadHub::PollListen() {
         const ListenResult r = listen_result_;
         listen_result_ = {};
         return r;
+    }
+    if (listen_is_mouse_) {
+        const MouseRaw now = source_.Mouse();
+        if (!now.present) {
+            listening_ = false;
+            listen_result_ = {};
+            return {ListenResult::State::Gone, -1};
+        }
+        int input = -1;
+        for (int b = 0; b < kNumMouseButtons && input < 0; b++) {
+            const std::size_t k = static_cast<std::size_t>(b);
+            if (!now.buttons[k]) {
+                listen_mouse_.buttons[k] = false;
+            } else if (!listen_mouse_.buttons[k]) {
+                input = b;
+            }
+        }
+        if (input < 0 && now.wheel_up > listen_mouse_.wheel_up) {
+            input = static_cast<int>(MouseInput::WheelUp);
+        } else if (input < 0 && now.wheel_down > listen_mouse_.wheel_down) {
+            input = static_cast<int>(MouseInput::WheelDown);
+        }
+        listen_mouse_.wheel_up = now.wheel_up;
+        listen_mouse_.wheel_down = now.wheel_down;
+        if (input >= 0) {
+            listening_ = false;
+            listen_result_ = {};
+            mouse_logic_.Swallow(input); // held until let go: never the game's
+            return {ListenResult::State::Pressed, input};
+        }
+        return {ListenResult::State::Listening, -1};
     }
     RefreshLocked();
     Pad* pad = FindLocked(listen_id_);
@@ -1052,8 +1200,9 @@ void GamepadHub::SetMergeEnabled(bool enabled) {
 }
 
 TouchpadPick GamepadHub::PickTouchpadLocked() {
-    const auto sample = [](const Pad& p) -> TouchpadPick {
-        return {{true, p.touch.contact, p.touch.click, p.touch.x, p.touch.y}, p.id};
+    const auto sample = [this](const Pad& p) -> TouchpadPick {
+        return {{true, p.touch.contact, p.touch.click, p.touch.x, p.touch.y}, p.id,
+                MappingLocked(p).recentre};
     };
     const auto usable = [this](const Pad& p) {
         return p.connected && !p.frame_own && p.touch.present;
@@ -1093,13 +1242,19 @@ GamepadHub::MergeResult GamepadHub::Merge(const InputFrame& frame, const Profile
     LoadLocked();
     RefreshLocked();
     MergeResult result;
+    const bool swallow_now = release_pending_;
+    release_pending_ = false;
+    // AzaharFrame padsui: the mouse's 3DS buttons (the frame PollMouse read).
+    if (swallow_now) {
+        mouse_logic_.Release();
+    } else if (merge_buttons && merge_enabled_ && mouse_frame_.present) {
+        MergeIntoFrame(ApplyMouseMapping(mouse_frame_.held, MouseMappingLocked()), routes, controls);
+    }
     if (pads_.empty()) {
         return result;
     }
     ReadStatesLocked();
     result.touchpad = PickTouchpadLocked();
-    const bool swallow_now = release_pending_;
-    release_pending_ = false;
     const std::array<bool, kNumPadInputs> frame_pad = FrameAsPad(frame);
     // The Frame's sticks by label, for an unknown pad's sticks.
     const std::array<bool, kNumPadSticks> frame_stick_moved = {
@@ -1156,6 +1311,28 @@ GamepadHub::MergeResult GamepadHub::Merge(const InputFrame& frame, const Profile
 void GamepadHub::Release() {
     std::scoped_lock lock{mutex_};
     release_pending_ = true;
+    mouse_logic_.Release();
+}
+
+MouseFrame GamepadHub::PollMouse(int64_t now_ns) {
+    std::scoped_lock lock{mutex_};
+    GamepadMapping m = MouseMappingLocked();
+    MouseFrame f = mouse_logic_.Update(source_.Mouse(), m.open_menu, now_ns);
+    if (f.switch_mode) {
+        m.mode = m.mode == 0 ? 1 : 0;
+        SetMouseMappingLocked(m);
+    }
+    f.mode = m.mode == 1 ? MouseMode::Pointer : MouseMode::BottomScreen;
+    f.speed = m.speed;
+    f.recentre = m.recentre;
+    f.touch_input = m.touch;
+    mouse_frame_ = f;
+    return f;
+}
+
+MouseFrame GamepadHub::LastMouse() {
+    std::scoped_lock lock{mutex_};
+    return mouse_frame_;
 }
 
 } // namespace FrameXr::Input

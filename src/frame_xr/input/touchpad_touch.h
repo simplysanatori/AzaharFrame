@@ -46,12 +46,23 @@ struct MouseSample {
     float y = 0.0f;
 };
 
-enum class TouchSource : int { None = 0, Beam, Pad, Mouse };
+/// AzaharFrame padsui: the mouse in Mouse Mode: Bottom Screen: relative, a cursor of its own.
+struct CursorSample {
+    bool on = false;   ///< a mouse in Bottom Screen mode, a game running, the menu closed
+    Vec2f motion;      ///< counts this frame, right and down
+    float gain = 0.3f; ///< 3DS pixels per count
+    bool down = false; ///< the touch input held
+    bool recentre = true;
+};
+
+enum class TouchSource : int { None = 0, Beam, Pad, Mouse, Cursor };
 
 struct TouchpadFrame {
     TouchpadMode mode = TouchpadMode::Off;
     PadSample pad;
     MouseSample mouse;
+    CursorSample cursor; ///< AzaharFrame padsui
+    bool pad_recentre = false; ///< AzaharFrame padsui: the pad's Recentre at Edge
     bool bottom_visible = false;
     int64_t time_ns = 0;
     /// The mapper's touch events of this frame (the controller beam).
@@ -83,6 +94,11 @@ public:
     static constexpr int64_t kMouseIdleNs = 2'000'000'000;
     /// A touch only moves when it changed by at least this many 3DS pixels (as the mapper's).
     static constexpr float kMoveEpsilonPx = 0.25f;
+    /// AzaharFrame padsui: Recentre at Edge: a drag that runs into an edge lifts for this long
+    /// (so the game sees the lift) and touches again at the middle.
+    static constexpr int64_t kRecentreGapNs = 50'000'000;
+    /// A touchpad's point this near an edge (a fraction of the screen) is at it.
+    static constexpr float kPadEdge = 0.02f;
 
     TouchpadResult Update(const TouchpadFrame& frame);
 
@@ -116,6 +132,16 @@ private:
     float sent_py_ = 0.0f;
     Source pad_;
     Source mouse_;
+    // AzaharFrame padsui: the mouse's cursor, and Recentre at Edge.
+    Source cursor_;
+    bool cursor_started_ = false;
+    int64_t cursor_move_ns_ = 0;
+    bool cursor_gap_ = false;
+    int64_t cursor_gap_until_ = 0;
+    Vec2f pad_offset_;
+    bool pad_gap_ = false;
+    int64_t pad_gap_until_ = 0;
+    bool pad_at_edge_ = false;
     bool mouse_seen_ = false;
     float mouse_last_x_ = 0.0f;
     float mouse_last_y_ = 0.0f;

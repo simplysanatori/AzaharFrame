@@ -35,13 +35,16 @@
 //    GetDefaultMapping(id)     the default (positional, follows Face Buttons).
 //    SetButton(id, b, input)   one 3DS button to one input (-1 clears it); saves.
 //    SetMapping(id, mapping)   the whole table; a table equal to the default removes the pad's
-//                              own entry. Saves. False for "frame", "mouse", unknown ids.
+//                              own entry. Saves. False for "frame" and unknown ids.
+//      - "mouse" (AzaharFrame padsui): buttons hold MouseInputs (mouse.h); touch, open_menu,
+//        mode (Bottom Screen, Pointer), speed and recentre are its own.
 //    ResetMapping(id)          back to the default; saves.
 //    Mappings are per model (two DualShock 4s share one), kept in user/controller-mappings.txt.
 //
 //  Listening (the UI picked a 3DS button and waits for the device's button):
 //    BeginListen(id)   start; inputs already held count only once let go. False if the pad is
-//                      not connected (or is "frame" / "mouse": the Frame has its own path).
+//                      not connected (or is "frame": the Frame has its own path). "mouse":
+//                      its clicks, side buttons and wheel notches (a MouseInput).
 //    PollListen()      every frame: Listening, Pressed (input = the PadInput, delivered once),
 //                      Gone (the pad went away), Idle. The press is kept from the game.
 //    CancelListen()    stop.
@@ -51,7 +54,7 @@
 //                           is touched (the default).
 //    GetTouchpad(id)        that pad's touchpad now (present false without one): x, y 0..1
 //                           from the top left, contact, click. For "mouse" use
-//                           InputCommon::FrameXr::GetMouseState().
+//                           Hub().LastMouse() (its motion and inputs this frame).
 //
 //  The game: in VR, with a game running and the in-game menu closed, every connected gamepad
 //  (but the Frame's own pad and Steam echoes of it) is merged into the Frame's virtual pad each

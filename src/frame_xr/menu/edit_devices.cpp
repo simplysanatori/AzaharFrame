@@ -98,6 +98,13 @@ ButtonNames NamesFor(int pad_type, bool steam_input) {
 }
 
 std::string SourceName(ButtonNames names, int control, bool face_by_position) {
+    if (names == ButtonNames::Mouse) { // AzaharFrame padsui: as Input::MouseInputName
+        static constexpr std::array<const char*, 7> kMouse{
+            "Left Click", "Right Click", "Middle Click", "Back", "Forward", "Wheel Up", "Wheel Down"};
+        return control >= 0 && control < static_cast<int>(kMouse.size())
+                   ? kMouse[static_cast<std::size_t>(control)]
+                   : std::string{};
+    }
     if (control < 0 || control >= Input::kNumControls) {
         return {};
     }

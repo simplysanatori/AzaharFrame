@@ -14,6 +14,7 @@ New code, in files of its own:
 | `src/video_core/renderer_vulkan/vk_xr_target.*` | the three OpenXR swapchains, the spill images and the handoff thread (`vk_xr_handoff.h`: its rules) |
 | `src/video_core/renderer_vulkan/renderer_vulkan_xr.cpp` | `RenderToXr()` |
 | `src/input_common/frame_xr.*` | the Frame controller input engine |
+| `src/frame_xr/input/mouse_pointer.*` | the mouse's Pointer mode, adapted from Frametop's pointer helper (MIT, see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md#frametop)) |
 | `src/citra_qt/configuration/configure_frame_vr.*`, `src/citra_qt/frame_branding.h` | the **VR** group in the Graphics tab, the Azahar for Frame icon |
 | `src/citra_qt/frame_texture_pack.h` | **Optimize Texture Pack for Frame...** and **Use Original Texture Pack** in the game list menu |
 | `src/tests/frame_xr/` | unit tests for the input mapper, the screen geometry and the picker |

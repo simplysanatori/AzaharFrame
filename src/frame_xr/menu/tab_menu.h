@@ -73,6 +73,8 @@ enum class Id : int {
     RemapReset,    ///< AzaharFrame remap: Reset to Default
     RemapDone,     ///< AzaharFrame remap: Done
     EditDevice,    ///< AzaharFrame padsui, index: the device in MenuModel::devices
+    MouseMode,     ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
+    RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
     // Settings
     Scope,
     Background,

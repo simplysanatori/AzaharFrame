@@ -11,6 +11,7 @@
 // installer makes, in the user folder's frame-models/); without them the Controls tab is empty.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -95,6 +96,57 @@ bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
     return true;
 }
 
+// AzaharFrame padsui: the mouse's pointer over the panel, as VR draws it (controls.cpp's MakeDot
+// and MakeRingAtlas, the same formulas): the dot and, while Left and Right Click are held, the
+// ring round it, `fill` of the way round.
+struct MouseOverlay {
+    bool shown = false;
+    float x = 0.0f, y = 0.0f; ///< dp on the panel
+    float ring = 0.0f;        ///< 0 none, else how far round
+};
+
+void DrawMouseOverlay(frame_xr::ui::Canvas& cv, const MouseOverlay& o, float px_per_dp, float ox) {
+    if (!o.shown) {
+        return;
+    }
+    const float cx = ox + o.x * px_per_dp, cy = ox + o.y * px_per_dp;
+    // The dot: about 12 dp across on a 1 m menu at arm's length; the ring three times that.
+    const float dot_r = 6.0f * px_per_dp;
+    const float ring_outer = 18.0f * px_per_dp - 2.0f * px_per_dp * 18.0f / 32.0f;
+    const float ring_w = 7.0f * 18.0f / 32.0f * px_per_dp;
+    const int reach = static_cast<int>(18.0f * px_per_dp) + 2;
+    for (int y = static_cast<int>(cy) - reach; y <= static_cast<int>(cy) + reach; y++) {
+        for (int x = static_cast<int>(cx) - reach; x <= static_cast<int>(cx) + reach; x++) {
+            if (x < 0 || y < 0 || x >= cv.w || y >= cv.h) {
+                continue;
+            }
+            const float dx = static_cast<float>(x) + 0.5f - cx, dy = static_cast<float>(y) + 0.5f - cy;
+            const float d = std::hypot(dx, dy);
+            if (o.ring > 0.0f) {
+                const float a = std::clamp(ring_outer - d, 0.0f, 1.0f) *
+                                std::clamp(d - (ring_outer - ring_w), 0.0f, 1.0f);
+                if (a > 0.0f) {
+                    float turn = std::atan2(dx, -dy) / 6.2831853f;
+                    if (turn < 0.0f) {
+                        turn += 1.0f;
+                    }
+                    const bool done = turn <= o.ring;
+                    cv.Blend(x, y,
+                             done ? frame_xr::ui::Color{168.0f, 199.0f, 250.0f, 1.0f}
+                                  : frame_xr::ui::Color{255.0f, 255.0f, 255.0f, 1.0f},
+                             a * (done ? 1.0f : 0.35f));
+                }
+            }
+            const float alpha = std::clamp(dot_r - d, 0.0f, 1.0f);
+            if (alpha > 0.0f) {
+                const float white = std::clamp(dot_r * 0.72f - d, 0.0f, 1.0f);
+                const float v = white * 255.0f + (1.0f - white) * 40.0f;
+                cv.Blend(x, y, {v, v, v, 1.0f}, alpha);
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -160,7 +212,8 @@ int main(int argc, char** argv) {
 
     const int w = static_cast<int>((kPanelW + kMargin * 2.0f) * px_per_dp + 0.5f);
     const int h = static_cast<int>((kPanelH + kMargin * 2.0f) * px_per_dp + 0.5f);
-    const auto shot = [&](const std::string& name, const MenuModel& m, MenuView v) {
+    const auto shot = [&](const std::string& name, const MenuModel& m, MenuView v,
+                          const MouseOverlay& mouse = {}) {
         frame_xr::ui::Canvas cv;
         cv.Init(w, h);
         cv.Clear(Rgb(kBackdrop));
@@ -190,6 +243,7 @@ int main(int argc, char** argv) {
                          a);
             }
         }
+        DrawMouseOverlay(cv, mouse, px_per_dp, static_cast<float>(ox));
         return WritePng(out + "/" + name + ".png", cv);
     };
 
@@ -199,6 +253,18 @@ int main(int argc, char** argv) {
     v.tab = Tab::Main;
     v.hover = {Id::QuickSave};
     ok &= shot("1-main", m, v);
+    // AzaharFrame padsui: the mouse's pointer on Quick Save.
+    {
+        MouseOverlay at;
+        for (const auto& hit : menu.Hits()) {
+            if (hit.t.id == Id::QuickSave) {
+                at = {true, hit.r.Cx() + 120.0f, hit.r.Cy() - 22.0f};
+            }
+        }
+        ok &= shot("1-main-mouse-pointer", m, v, at);
+        at.ring = 0.6f;
+        ok &= shot("1-main-mouse-chord", m, v, at);
+    }
     v.page = Page::LoadSlots;
     v.hover = {Id::Slot, 2};
     ok &= shot("1b-main-load-slots", m, v);
@@ -258,11 +324,16 @@ int main(int argc, char** argv) {
         ds4.has_touchpad = true;
         ds4.mapping = PositionalPadTable();
         ds4.sticks = {0, Input::EncodeStickRoute({1, false, false, true})}; // C-Stick Y turned round
-        EditDevice mouse;
+        EditDevice mouse; // AzaharFrame padsui: its default mapping
         mouse.key = "mouse";
         mouse.name = "Mouse";
         mouse.kind = DeviceKind::Mouse;
+        mouse.names = ButtonNames::Mouse;
         mouse.sticks = {-1, -1};
+        mouse.mapping[DsButton::A] = 1; // Right Click
+        mouse.mapping[DsButton::L] = 3; // Back
+        mouse.mapping[DsButton::R] = 4; // Forward
+        mouse.extras = {0, 2};          // Left Click touches, Middle Click opens the menu
         me.devices.list = {frame, ds4, mouse};
 
         v = {};
@@ -290,6 +361,26 @@ int main(int argc, char** argv) {
         me.touchpad_touch = 2;
         me.devices.pointer = {.shown = true, .down = false, .x = 0.3f, .y = 0.62f};
         ok &= shot("edit-3ds-mouse", me, v);
+        // AzaharFrame padsui: A (Right Click) listening; Mouse Mode: Pointer, the pointer on it;
+        // the chord's ring half way.
+        v.remap.listening = DsButton::A;
+        v.hover = {Id::RemapCancel};
+        ok &= shot("edit-3ds-mouse-listening", me, v);
+        v.remap.listening = -1;
+        MenuModel mp = me;
+        mp.devices.list[2].mouse_mode = 1;
+        mp.devices.pointer = {};
+        v.hover = {Id::MouseMode, 1};
+        const auto& hits = menu.Hits();
+        MouseOverlay at;
+        for (const auto& hit : hits) {
+            if (hit.t.id == Id::MouseMode && hit.t.index == 1) {
+                at = {true, hit.r.Cx() + 30.0f, hit.r.Cy() + 15.0f};
+            }
+        }
+        ok &= shot("edit-3ds-mouse-pointer", mp, v, at);
+        at.ring = 0.5f;
+        ok &= shot("edit-3ds-mouse-chord", mp, v, at);
     }
 
     v = {};
