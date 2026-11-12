@@ -488,6 +488,18 @@ int main(int argc, char** argv) {
         }
         av.hover = {Id::AutosaveEntry, 7};
         ok &= shot("1j2-load-autosave-list-keep10", ten, av);
+        // AzaharFrame advfix: the menu-open autosave in the list as the newest, beyond Keep
+        MenuModel mo = am;
+        mo.autosaves.insert(mo.autosaves.begin(),
+                            {"Just Now", "2026-11-12 10:31", "10:31", false, pic(3)});
+        mo.autosaves[1].ago = "5 Minutes Ago";
+        av.hover = {Id::AutosaveEntry, 3};
+        ok &= shot("1j3-load-autosave-list-menu-open", mo, av);
+        MenuModel ten_mo = ten;
+        ten_mo.autosaves.insert(ten_mo.autosaves.begin(),
+                                {"Just Now", "2026-11-12 10:31", "10:31", false, pic(5)});
+        av.hover = {Id::AutosaveEntry, 10};
+        ok &= shot("1j4-load-autosave-list-keep10-menu-open", ten_mo, av);
         av.open_menu = Id::None;
         av.hover = {};
         MenuModel one = am; // Keep 1: no arrow; tapping the card loads it
@@ -506,6 +518,10 @@ int main(int argc, char** argv) {
         undo.undo_load = "Autosave Loaded: 10:22";
         av.hover = {Id::UndoLoad};
         ok &= shot("1n-load-autosave-undo", undo, av);
+        undo.undo_load = "Slot 3 Loaded: 10:22"; // AzaharFrame advfix: Undo Load for slots
+        ok &= shot("1n2-load-slot-undo", undo, av);
+        undo.undo_load = "Quick Save Loaded: 10:22";
+        ok &= shot("1n3-quick-load-undo", undo, av);
         MenuModel other = am; // the newest from another build
         other.autosaves[0].other = true;
         other.autosaves[0].time = other.autosaves[0].clock = "From 1.1.1";
@@ -521,6 +537,12 @@ int main(int argc, char** argv) {
         DrawAutosavedLabel(lk, {2.0f, 2.0f, 478.0f, 94.0f});
         ok &= WritePng(out + "/autosaved-label.png", lc);
         ok &= toast_shot("autosaved-toast.png", {"Autosaved"});
+        // AzaharFrame advfix: the Per-Game scope's toasts and the failures'
+        ok &= toast_shot("advfix-toasts.png",
+                         {"Autosave On for Ocarina of Time 3D",
+                          "Autosave Off for The Legend of Zelda: Maj...", "Couldn't Autosave",
+                          "Couldn't Autosave: Not Enough Space",
+                          "Couldn't Autosave: Couldn't Write the File"});
     }
     { // AzaharFrame savestate: slots from another build, the mismatch and About notices
         MenuModel sm = m;
@@ -551,11 +573,12 @@ int main(int argc, char** argv) {
         sm.notice.cancel.clear();
         sv.page = Page::SaveSlots;
         ok &= shot("1f-about-save-states", sm, sv);
-        sm.notice.mod = "Restore Save Data?";
+        // AzaharFrame advfix: the backup's time, and the current save data backed up first
+        sm.notice.mod = "Restore Save Data From 10:26?";
         sm.notice.other = "A save state from another version was loaded last time, and the game "
-                          "didn't close normally. You can put back this game's save data from "
-                          "before that load.";
-        sm.notice.confirm = "Restore Save Data";
+                          "didn't close normally. Restore puts back this game's save data from "
+                          "before that load. Your current save data is backed up first.";
+        sm.notice.confirm = "Restore";
         sm.notice.cancel = "Keep Current";
         sv.page = Page::Tabs;
         ok &= shot("1g-restore-save-data", sm, sv);
@@ -564,6 +587,19 @@ int main(int argc, char** argv) {
         sm.notice.confirm = "OK";
         sm.notice.cancel.clear();
         ok &= shot("1h-save-state-not-loaded", sm, sv);
+        // AzaharFrame advfix: a load that failed before restoring (a same-version state cut short)
+        sm.notice.other = "The game and its save data weren't changed.";
+        sv.page = Page::LoadSlots;
+        ok &= shot("1h2-save-state-not-loaded-unchanged", sm, sv);
+        // AzaharFrame advfix: a save that failed, with its reason, and with none
+        sm.notice.mod = "Couldn't Save State";
+        sm.notice.other = "Not Enough Space\nThe game is still running. Try another slot, or "
+                          "free up space on the Frame.";
+        sv.page = Page::SaveSlots;
+        ok &= shot("1h3-save-state-not-saved-no-space", sm, sv);
+        sm.notice.other = "The game is still running. Try another slot, or free up space on the "
+                          "Frame.";
+        ok &= shot("1h4-save-state-not-saved", sm, sv);
     }
 
     v = {};

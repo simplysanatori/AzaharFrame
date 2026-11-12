@@ -28,6 +28,7 @@
 #include "citra_qt/user_data_migration.h"
 #include "core/autosave.h" // AzaharFrame autosave
 #include "core/core.h"
+#include "core/save_backup.h" // AzaharFrame advfix
 #include "core/savestate.h"
 #include "video_core/rasterizer_interface.h"
 
@@ -265,15 +266,21 @@ private:
     void FrameAutosaveList();
     void FrameUpdateAutosaveActions();
     void FramePushAutosaves();
-    void FrameLoadAutosave(int index);
-    void FrameDoLoadAutosave(const std::string& path, bool anyway);
-    void FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version);
+    /// AzaharFrame advfix: by Autosave::EntryId as the list showed it; gone: the clean notice.
+    void FrameLoadAutosave(const std::string& id);
+    // AzaharFrame advfix: `time`, when not 0, the header time the list showed (checked by the core)
+    void FrameDoLoadAutosave(const std::string& path, bool anyway, u64 time = 0);
+    void FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version,
+                                    u64 time = 0);
     void FrameUndoLoad();
     /// Autosave, Every or Keep, from the Emulation menu or a test: the game's own value when it
     /// has one, else the global one, saved to that file.
     void FrameSetAutosaveSetting(int which, u32 value);
     void FrameAutosaveKeepChanged();
     void FrameAutosaveWritten(const Core::Autosave::Writer::Done& done);
+    void FrameAutosaveFailed(Core::Autosave::Failure failure);        // AzaharFrame advfix
+    void FrameUndoOffered(int slot);                                  // AzaharFrame advfix
+    std::vector<Core::SaveBackup::Part> FrameSaveParts(u64 title_id); // AzaharFrame advfix
     /// Load Anyway's backup of the game's save data (and the marker for Restore Save Data);
     /// false when it could not be made (nothing loads then).
     bool FrameBackupSaveDataForLoadAnyway(u64 title_id, const std::string& what);
@@ -530,6 +537,8 @@ private:
     bool frame_notice_opened_menu = false;         ///< the notice opened the menu (Cancel closes it)
     std::string frame_rescue_root;  ///< Load Anyway armed Restore Save Data in this session
     bool frame_rescue_keep = false; ///< an error since: the marker stays for the next start
+    s64 frame_rescue_clean_ms = 0;  ///< AzaharFrame advfix: play since Load Anyway, no error
+    int frame_save_failures = 0;    ///< AzaharFrame advfix: saves that failed (Quick Saved's check)
     bool frame_load_anyway_pending = false; ///< a Load Anyway in flight (its error is ours)
     u32 frame_last_load_slot = 0;
 
@@ -538,11 +547,14 @@ private:
     QTimer frame_autosave_timer;
     s64 frame_autosave_unit_ms = 60'000;                ///< a "minute" (shorter only in a test run)
     std::vector<Core::Autosave::Entry> frame_autosaves; ///< the running game's, newest first
-    std::array<QAction*, Core::Autosave::kKeepMax> actions_load_autosave{};
+    // AzaharFrame advfix: Keep's most, and the menu-open autosave
+    std::array<QAction*, Core::Autosave::kKeepMax + 1> actions_load_autosave{};
     QAction* action_undo_load = nullptr;
     QAction* action_autosave = nullptr; ///< Emulation > Autosave (checkable)
     QAction* frame_autosave_separator = nullptr;
-    bool frame_undo_available = false;        ///< an autosave was loaded: Undo Load
+    bool frame_undo_available = false; ///< a slot or an autosave was loaded: Undo Load
+    std::string frame_undo_text; ///< AzaharFrame advfix: the snackbar's "Slot 3 Loaded: 10:22"
+    Core::Autosave::FailureNotice frame_autosave_failures; ///< AzaharFrame advfix
     u64 frame_undo_time = 0;                  ///< the moment saved before it (Unix seconds)
     u64 frame_loaded_autosave_time = 0;       ///< the autosave loaded ("Autosave Loaded: 10:12")
     bool frame_autosave_quitting = false;     ///< waiting for the quit's autosave

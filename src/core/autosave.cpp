@@ -177,6 +177,10 @@ std::string PathFor(const std::string& dir, u64 program_id, u64 movie_id, s64 un
     return dir + Prefix(program_id, movie_id) + stamp + std::string(kStateExt);
 }
 
+std::string MenuPathFor(const std::string& dir, u64 program_id, u64 movie_id) {
+    return dir + Prefix(program_id, movie_id) + std::string(kMenuOpenName) + std::string(kStateExt);
+}
+
 std::string ThumbPathFor(const std::string& state_path) {
     if (!EndsWith(state_path, kStateExt)) {
         return state_path + std::string(kThumbExt);
@@ -186,11 +190,13 @@ std::string ThumbPathFor(const std::string& state_path) {
 
 std::vector<Entry> List(const std::string& dir, u64 program_id, u64 movie_id) {
     const std::string prefix = Prefix(program_id, movie_id);
+    const std::string menu_name = prefix + std::string(kMenuOpenName) + std::string(kStateExt);
     std::vector<std::pair<Entry, std::string>> found; // the entry, its name
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
         const std::string name = e.path().filename().string();
-        if (KeyOf(name, kStateExt) != prefix || !e.is_regular_file(ec)) {
+        const bool menu = name == menu_name; // AzaharFrame advfix
+        if ((!menu && KeyOf(name, kStateExt) != prefix) || !e.is_regular_file(ec)) {
             continue;
         }
         const std::string path = e.path().string();
@@ -203,6 +209,7 @@ std::vector<Entry> List(const std::string& dir, u64 program_id, u64 movie_id) {
         const std::string thumb = ThumbPathFor(path);
         entry.thumb = fs::exists(thumb, ec) ? thumb : std::string{};
         entry.time = info.time;
+        entry.menu = menu;
         entry.other = info.status != SaveStateInfo::ValidationStatus::OK;
         if (entry.other) {
             entry.version = FrameVersionOf(info.build_name, info.build_version);
@@ -222,7 +229,9 @@ std::vector<Entry> List(const std::string& dir, u64 program_id, u64 movie_id) {
 
 std::size_t Prune(const std::string& dir, u64 program_id, u64 movie_id, u32 keep) {
     keep = ClampKeep(keep);
-    const std::vector<Entry> all = List(dir, program_id, movie_id);
+    std::vector<Entry> all = List(dir, program_id, movie_id);
+    // AzaharFrame advfix: the menu-open autosave is not one of the rotation
+    std::erase_if(all, [](const Entry& e) { return e.menu; });
     std::size_t removed = 0;
     for (std::size_t i = keep; i < all.size(); i++) {
         Remove(all[i].path);
@@ -270,6 +279,36 @@ std::size_t PruneAll(const std::string& dir, u32 keep) {
         }
     }
     return removed;
+}
+
+std::string EntryId(const Entry& entry) {
+    return fmt::format("{}@{}", fs::path(entry.path).filename().string(), entry.time);
+}
+
+int FindEntry(const std::vector<Entry>& entries, const std::string& id) {
+    for (std::size_t i = 0; i < entries.size(); i++) {
+        if (!id.empty() && EntryId(entries[i]) == id) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+bool SameState(const std::string& path, u64 program_id, u64 time) {
+    const SaveStateInfo info = GetSaveStateInfoAt(path, program_id);
+    return info.slot == 0 && (time == 0 || info.time == time);
+}
+
+std::vector<Entry> Shown(std::vector<Entry> all, u32 keep) {
+    keep = ClampKeep(keep);
+    std::vector<Entry> out;
+    std::size_t rotation = 0;
+    for (auto& e : all) {
+        if (e.menu || rotation++ < keep) {
+            out.push_back(std::move(e));
+        }
+    }
+    return out;
 }
 
 // ---- When ------------------------------------------------------------------------------------
@@ -344,6 +383,54 @@ void Scheduler::Fired(s64 now_ms) {
     play_ms = 0;
 }
 
+// ---- Failures --------------------------------------------------------------------------------
+
+const char* FailureName(Failure failure) {
+    switch (failure) {
+    case Failure::None:
+        return "none";
+    case Failure::Busy:
+        return "the system was busy";
+    case Failure::Serialize:
+        return "not serialized";
+    case Failure::Compress:
+        return "not compressed";
+    case Failure::NoSpace:
+        return "not enough space";
+    case Failure::Write:
+        return "not written";
+    }
+    return "?";
+}
+
+std::string FailureToast(Failure failure) {
+    switch (failure) {
+    case Failure::None:
+    case Failure::Busy:
+        return {};
+    case Failure::NoSpace:
+        return "Couldn't Autosave: Not Enough Space";
+    case Failure::Write:
+        return "Couldn't Autosave: Couldn't Write the File";
+    default:
+        return "Couldn't Autosave";
+    }
+}
+
+Failure WriteFailure(const std::string& path, std::size_t needed) {
+    return WriteFailureAt(path, needed) == SaveFailure::NoSpace ? Failure::NoSpace : Failure::Write;
+}
+
+std::string FailureNotice::Show(Failure failure, s64 now_ms) {
+    std::string text = FailureToast(failure);
+    if (text.empty() || (shown && now_ms - last_ms < kFailureToastGapMs)) {
+        return {};
+    }
+    shown = true;
+    last_ms = now_ms;
+    return text;
+}
+
 // ---- Texts -----------------------------------------------------------------------------------
 
 std::string Ago(s64 then, s64 now, s64 then_day, s64 now_day, const std::string& date_time) {
@@ -368,6 +455,36 @@ std::string Ago(s64 then, s64 now, s64 then_day, s64 now_day, const std::string&
 std::string AgoLocal(u64 then, u64 now) {
     return Ago(static_cast<s64>(then), static_cast<s64>(now), LocalDay(static_cast<s64>(then)),
                LocalDay(static_cast<s64>(now)), LocalDateTime(then));
+}
+
+std::string ScopeToast(bool on, std::string_view title) {
+    // Cut by characters (UTF-8 sequences kept whole), trailing spaces dropped before the dots.
+    std::string name;
+    std::size_t chars = 0, i = 0;
+    while (i < title.size() && chars < kScopeTitleMax) {
+        const auto c = static_cast<unsigned char>(title[i]);
+        const std::size_t n = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+        name.append(title.substr(i, n));
+        i += n;
+        chars++;
+    }
+    if (i < title.size()) {
+        while (!name.empty() && name.back() == ' ') {
+            name.pop_back();
+        }
+        name += "...";
+    }
+    if (name.empty()) {
+        name = "This Game";
+    }
+    return fmt::format("Autosave {} for {}", on ? "On" : "Off", name);
+}
+
+std::string UndoText(int slot, u64 time) {
+    const std::string what = slot < 0    ? std::string("Autosave")
+                             : slot == 0 ? std::string("Quick Save")
+                                         : fmt::format("Slot {}", slot);
+    return fmt::format("{} Loaded: {}", what, LocalTime(time));
 }
 
 std::string LocalDateTime(u64 unix_seconds) {
@@ -459,6 +576,7 @@ Writer::Done Writer::Write(Job& job) {
     done.compress_ms = Ms(t1 - t0);
     if (body.empty() && done.raw_bytes > 0) {
         LOG_ERROR(Core, "autosave: {} not compressed", job.path);
+        done.failure = Failure::Compress;
         return done;
     }
     std::string file;
@@ -472,10 +590,13 @@ Writer::Done Writer::Write(Job& job) {
     done.file_bytes = file.size();
     done.write_ms = Ms(std::chrono::steady_clock::now() - t1);
     if (!done.ok) {
-        LOG_ERROR(Core, "autosave: {} not written", job.path);
+        done.failure = WriteFailure(job.path, file.size());
+        LOG_ERROR(Core, "autosave: {} not written ({}, {} bytes)", job.path,
+                  FailureName(done.failure), file.size());
         return done;
     }
-    if (job.autosave) {
+    // AzaharFrame advfix: the menu-open autosave replaces its own file and prunes nothing
+    if (job.autosave && job.reason != Reason::MenuOpen) {
         Prune(job.dir, job.program_id, job.movie_id, job.keep);
     }
     return done;

@@ -5,11 +5,13 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <optional>
 #include <sstream>
 #include <cryptopp/hex.h>
 #include <fmt/ranges.h>
 #include "common/archives.h"
+#include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/scm_rev.h"
@@ -187,14 +189,43 @@ std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time) {
 
 void WriteStateFile(const std::string& path, std::span<const u8> header,
                     std::span<const u8> body) {
-    FileUtil::IOFile file(path, "wb"); // "wb": a slot saved over is replaced, header and all
-    if (!file) {
-        throw std::runtime_error("Could not open file " + path);
+    // AzaharFrame advfix: atomically, as the autosaves are (common/atomic_file.h): <path>.tmp is
+    // written and fsynced, then renamed over the slot. A failed write (a full disk, a crash or a
+    // freeze mid-write) leaves the slot as it was; a slot saved over is replaced, header and all.
+    std::string file;
+    file.reserve(header.size() + body.size());
+    file.append(reinterpret_cast<const char*>(header.data()), header.size());
+    file.append(reinterpret_cast<const char*>(body.data()), body.size());
+    if (!Common::WriteFileAtomic(path, file)) {
+        throw std::runtime_error("Could not write " + path);
     }
-    if (file.WriteBytes(header.data(), header.size()) != header.size() ||
-        file.WriteBytes(body.data(), body.size()) != body.size()) {
-        throw std::runtime_error("Could not write to file " + path);
+}
+
+// AzaharFrame advfix
+std::string SaveFailedBody(SaveFailure failure) {
+    switch (failure) {
+    case SaveFailure::NoSpace:
+        return std::string("Not Enough Space\n") + kSaveFailedBody;
+    case SaveFailure::Write:
+        return std::string("Couldn't Write the File\n") + kSaveFailedBody;
+    case SaveFailure::Unknown:
+        break;
     }
+    return kSaveFailedBody;
+}
+
+SaveFailure WriteFailureAt(const std::string& path, std::size_t needed) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::path(path).parent_path();
+    while (!dir.empty() && !fs::exists(dir, ec) && dir != dir.parent_path()) {
+        dir = dir.parent_path(); // a folder not made yet: the free space where it would be
+    }
+    const fs::space_info space = fs::space(dir.empty() ? fs::path(".") : dir, ec);
+    if (!ec && space.available < needed) {
+        return SaveFailure::NoSpace;
+    }
+    return SaveFailure::Write;
 }
 
 HeaderCheck CheckStateHeader(std::span<const u8> data, u64 program_id,
@@ -335,17 +366,23 @@ void System::SaveState(u32 slot) const {
 
     const u64 movie_id = movie.GetCurrentMovieID();
     const auto path = GetSaveStatePath(title_id, movie_id, slot);
+    // AzaharFrame advfix: a write that fails says why, when it can (the notice's reason)
+    const std::size_t needed = buffer.size() + 256;
     if (!FileUtil::CreateFullPath(path)) {
-        throw std::runtime_error("Could not create path " + path);
+        throw SaveStateWriteFailed(WriteFailureAt(path, needed), "Could not create path " + path);
     }
 
-    WriteStateFile(path,
-                   CurrentStateHeader(
-                       title_id, static_cast<u64>(
-                                     std::chrono::duration_cast<std::chrono::seconds>(
-                                         std::chrono::system_clock::now().time_since_epoch())
-                                         .count())),
-                   buffer);
+    try {
+        WriteStateFile(
+            path,
+            CurrentStateHeader(
+                title_id, static_cast<u64>(std::chrono::duration_cast<std::chrono::seconds>(
+                                               std::chrono::system_clock::now().time_since_epoch())
+                                               .count())),
+            buffer);
+    } catch (const std::exception& e) {
+        throw SaveStateWriteFailed(WriteFailureAt(path, needed), e.what());
+    }
 }
 
 void System::LoadState(u32 slot, bool allow_mismatch) {

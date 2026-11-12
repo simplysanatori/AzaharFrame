@@ -2202,6 +2202,17 @@ TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr
     CHECK(a.Drew("Got It"));
     CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
     CHECK(centre(Id::DialogCancel) == Target{});
+    // AzaharFrame advfix: Couldn't Save State, its reason on a line of its own
+    m.notice.mod = "Couldn't Save State";
+    m.notice.other = "Not Enough Space\nThe game is still running. Try another slot, or free up "
+                     "space on the Frame.";
+    m.notice.confirm = "OK";
+    a.Draw(m, v);
+    a.Check("Couldn't Save State");
+    CHECK(a.Drew("Couldn't Save State"));
+    CHECK(a.Drew("Not Enough Space"));
+    CHECK(!a.Drew("Not Enough Space The game is still running."));
+    CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
 }
 
 // AzaharFrame autosave: Settings in three sections, each with the scope's menu button; Per-Game
@@ -2389,6 +2400,17 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
         CHECK(e->r.H() >= 48.0f);
         CHECK(e->r.y1 <= kPanelH);
     }
+    // AzaharFrame advfix: Keep 10 and the menu-open autosave, eleven: still in the panel
+    m.autosaves.push_back({"Just Now", "2026-11-12 10:30", "10:30"});
+    d.Draw(m, v);
+    for (int i = 0; i < 11; i++) {
+        const MenuLayout::Hit* e = FindHit(d, Id::AutosaveEntry, i);
+        REQUIRE(e != nullptr);
+        CHECK(e->r.H() >= 48.0f);
+        CHECK(e->r.y1 <= kPanelH);
+        CHECK(d.menu.HitTest(e->r.Cx(), e->r.Cy()) == Target{Id::AutosaveEntry, i});
+    }
+    CheckTargets(d);
     // After a load: Undo Load under the slots, the slots still 48 dp
     v.open_menu = Id::None;
     m.undo_load = "Autosave Loaded: 10:22";
@@ -2407,6 +2429,14 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
     lm.undo_load = "Autosave Loaded: 23:59";
     a.Draw(lm, v);
     a.Check("Load State, the card");
+    // AzaharFrame advfix: Undo Load after a slot's load too, the longest text
+    lm.undo_load = "Quick Save Loaded: 23:59";
+    a.Draw(lm, v);
+    a.Check("Load State, Undo Load after Quick Load");
+    CHECK(a.Drew("Quick Save Loaded: 23:59"));
+    lm.undo_load = "Slot 10 Loaded: 23:59";
+    a.Draw(lm, v);
+    a.Check("Load State, Undo Load after a slot");
     CHECK(a.Drew("Autosave · 59 Minutes Ago"));
     lm.autosave = false;
     a.Draw(lm, v);
