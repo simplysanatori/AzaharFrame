@@ -45,6 +45,7 @@ ConfigurePerGame::ConfigurePerGame(QWidget* parent, u64 title_id_, const QString
     layout_tab = std::make_unique<ConfigureLayout>(this);
     graphics_tab =
         std::make_unique<ConfigureGraphics>(gl_renderer, physical_devices, is_powered_on, this);
+    graphics_tab->SetFrameTitleId(title_id); // AzaharFrame presets: no Immersive View for some
     system_tab = std::make_unique<ConfigureSystem>(system, this);
     debug_tab = std::make_unique<ConfigureDebug>(is_powered_on, this);
     cheat_tab = std::make_unique<ConfigureCheats>(system.CheatEngine(), title_id, this);

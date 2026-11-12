@@ -105,6 +105,19 @@ inline Mailbox g_mailbox;
 /// True while frame_xr's immersive module is installed (an XR session exists).
 inline std::atomic<bool> g_xr_active{false};
 
+/// AzaharFrame presets: the game being started does not work in Immersive View (presets.h
+/// no_immersive). Set with the game's title id (FrameXr::SetGameTitleId).
+inline std::atomic<bool> g_immersive_blocked{false};
+
+/// The Immersive Mode in use: the setting's, and 0 (Off) for a game that does not support it,
+/// whatever the global or per-game value is. The settings themselves are never changed, so no
+/// config file is.
+inline u32 ImmersiveModeSetting() {
+    return g_immersive_blocked.load(std::memory_order_relaxed)
+               ? 0u
+               : Settings::values.vr_immersive_mode.GetValue();
+}
+
 /// AzaharFrame depth: the game camera's projection as the emulation thread last measured it in
 /// immersive modes 2 and 3 (vr_view_matrix.h ProjectionTracker), for the XR thread, which sizes
 /// the head-locked screen with it. Both floats in one word, so a read is never torn; `ms` is
@@ -264,7 +277,7 @@ inline u32 AdjustResolution(u32 base) {
     constexpr u32 kSteps = 2;
     constexpr u32 kMaxScale = 8;
     if (!g_xr_active.load(std::memory_order_relaxed) ||
-        Settings::values.vr_immersive_mode.GetValue() == 0) {
+        ImmersiveModeSetting() == 0) {
         return base;
     }
     return std::min(base + kSteps, std::max(base, kMaxScale));

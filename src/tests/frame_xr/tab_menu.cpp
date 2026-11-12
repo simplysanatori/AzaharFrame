@@ -187,6 +187,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     }
     CHECK(!ExplainLock(Lock::GameValue).empty());
     CHECK(!ExplainLock(Lock::Unavailable).empty());
+    CHECK(ExplainLock(Lock::NoImmersive) == "This Game Doesn't Work in Immersive View.");
 }
 
 TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]") {

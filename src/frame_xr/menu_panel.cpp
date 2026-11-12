@@ -16,6 +16,7 @@
 #include "common/param_package.h"
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
+#include "video_core/vr_immersive.h" // AzaharFrame presets: no Immersive View for some games
 #include "frame_xr/immersive_layout.h"   // AzaharFrame immersive2: Narrow Screen percent
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
@@ -907,7 +908,8 @@ void MenuPanel::BuildModel(const Host& host) {
                 .count() /
             66);
     }
-    m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
+    m.immersive_mode = static_cast<int>(
+        std::min<u32>(VideoCore::Immersive::ImmersiveModeSetting(), 3)); // presets: 0 if unsupported
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
     m.match_camera = v.vr_immersive_match_camera.GetValue(); // AzaharFrame depth
@@ -944,6 +946,10 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     if (!per_game_ok) {
         lock(Id::Scope, Lock::Unavailable);
+    }
+    // AzaharFrame presets: a game that does not work in Immersive View (Kid Icarus: Uprising).
+    if (VideoCore::Immersive::g_immersive_blocked.load()) {
+        lock(Id::ImmersiveMode, Lock::NoImmersive);
     }
     // AzaharFrame vis: no controller models in passthrough (vis/layer_plan.h); the switch keeps
     // its saved value, greyed.
@@ -1100,6 +1106,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::WindowScale;
         break;
     case Id::ImmersiveMode:
+        if (VideoCore::Immersive::g_immersive_blocked.load()) {
+            LOG_INFO(Frontend, "xr: in-game menu: Immersive Mode ignored (not supported here)");
+            return; // AzaharFrame presets
+        }
         Apply(v.vr_immersive_mode, u, per_game);
         r.setting = MenuSetting::ImmersiveMode;
         break;

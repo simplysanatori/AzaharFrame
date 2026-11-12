@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
 #include "frame_xr/presets.h"
+#include "video_core/vr_immersive.h"
 
 // AzaharFrame
 using namespace FrameXr;
@@ -211,4 +212,33 @@ TEST_CASE("FrameXr presets: the player's own values win", "[frame_xr]") {
     REQUIRE(v.resolution_factor.GetValue() == 7);
     REQUIRE(v.resolution_factor.UsingGlobal());
     ResetPresetSettings();
+}
+
+// AzaharFrame presets: Kid Icarus: Uprising does not work in Immersive View: in every region,
+// whatever the global or per-game value is, and no other game is gated.
+TEST_CASE("FrameXr presets: Immersive View is gated off for Kid Icarus: Uprising", "[frame_xr]") {
+    for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull, 0x0004000000030300ull}) {
+        REQUIRE(!ImmersiveSupported(id));
+    }
+    for (const uint64_t id : {0ull, 0x0004000000030800ull, 0x0004000000054000ull,
+                              0x0004000000033500ull, 0x0004000000125600ull,
+                              0x0004000000034C00ull, 0x0004000000068E00ull}) {
+        REQUIRE(ImmersiveSupported(id));
+    }
+    auto& mode = Settings::values.vr_immersive_mode;
+    mode.SetGlobal(true);
+    mode.SetValue(3); // the player's global value
+    VideoCore::Immersive::g_immersive_blocked = false;
+    REQUIRE(VideoCore::Immersive::ImmersiveModeSetting() == 3);
+    VideoCore::Immersive::g_immersive_blocked = true; // what SetGameTitleId does for the game
+    REQUIRE(VideoCore::Immersive::ImmersiveModeSetting() == 0);
+    mode.SetGlobal(false); // the game's own value
+    mode.SetValue(2);
+    REQUIRE(VideoCore::Immersive::ImmersiveModeSetting() == 0);
+    // The preset sets no Immersive value and changes nothing that is saved of it.
+    ApplyPresetSettings(*FindImmersivePreset(0x0004000000030200ull));
+    REQUIRE(mode.GetValue() == 2);
+    VideoCore::Immersive::g_immersive_blocked = false;
+    mode.SetGlobal(true);
+    mode.SetValue(0);
 }

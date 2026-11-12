@@ -17,6 +17,7 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
 #include "common/settings.h"
+#include "frame_xr/presets.h" // AzaharFrame presets
 
 namespace {
 
@@ -307,6 +308,16 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
 
 ConfigureFrameVr::~ConfigureFrameVr() = default;
 
+void ConfigureFrameVr::SetTitleId(u64 title_id) {
+    no_immersive = !FrameXr::ImmersiveSupported(title_id);
+    if (!no_immersive) {
+        return;
+    }
+    mode_combo->setEnabled(false);
+    mode_row->setToolTip(tr("This Game Doesn't Work in Immersive View."));
+    mode_combo->setToolTip(tr("This Game Doesn't Work in Immersive View."));
+}
+
 void ConfigureFrameVr::SetupPerGameUI() {
     // Face Buttons and Motion Controls are not per game.
     face_row->setVisible(Settings::IsConfiguringGlobal());
@@ -511,7 +522,9 @@ void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.vr_immersive_squeeze, squeeze_combo,
         [](s32 index) { return static_cast<u32>(std::max(index, 0)) * kNarrowStep; });
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
+    if (!no_immersive) { // AzaharFrame presets: nothing is written for a game without it
+        ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
+    }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_si_mode_register_offset,

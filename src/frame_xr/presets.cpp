@@ -95,18 +95,15 @@ constexpr ImmersivePreset kAsphalt3D{.name = "Asphalt 3D", .mode = 3, .register_
 // the game does not know about, so its shots fly off where the unturned camera looked while the
 // reticle stays on the screen: they come apart whenever the head turns. Wide (mode 1) keeps
 // them together but adds little. So it starts in the normal view (mode 0: Immersive Mode stays
-// Off); the player can still turn it on from the VR menu or its properties.
+// Off). The owner: "Immersive view should not be on for Kid Icarus": the 3D effects are linked to
+// where the head is, so it does not work well; now `no_immersive`: Immersive stays Off whatever
+// the setting says, and the menus show the row unavailable.
 constexpr ImmersivePreset kKidIcarusUprising{.name = "Kid Icarus: Uprising",
                                              .mode = 0,
-                                             .register_offset = 90,
-                                             .eye_indicator = "87,2",
-                                             .screen_size = 0.8f,
+                                             .register_offset = -1,
                                              .resolution = 4,
                                              .texture_filter = 2,
-                                             .narrow_y = 15,
-                                             .own_placement = true,
-                                             .place_pitch_deg = -15.19f,
-                                             .place_distance = 1.221f};
+                                             .no_immersive = true};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super
 // Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D are not confirmed.
@@ -148,6 +145,11 @@ constexpr ImmersivePresetTitle kTitles[] = {
 void ApplyPresetSettings(const ImmersivePreset& preset) {
     auto& v = Settings::values;
     auto& mode = v.vr_immersive_mode;
+    if (preset.no_immersive) {
+        // Immersive stays Off for this game (vr_immersive.h ImmersiveModeSetting); no immersive
+        // value is set, and the config files are not touched.
+        LOG_INFO(Frontend, "xr: {}: Immersive View is not supported", preset.name);
+    }
     auto& offset = v.vr_si_mode_register_offset;
     // Only where this game's config has no value of its own and the global one is still the
     // default (Off, Auto); a value the player set, even Off, is left alone. A mode 0 preset (Kid
@@ -160,7 +162,8 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
     }
     // The immersive values apply when the game runs in the preset's mode (any mode for a game
     // that starts in the normal view).
-    const bool fits = preset.mode == 0 || mode.GetValue() == preset.mode;
+    const bool fits =
+        !preset.no_immersive && (preset.mode == 0 || mode.GetValue() == preset.mode);
     // AzaharFrame presets: a value of the preset's own, where this game has none and the global
     // one is the default.
     const auto fill = [&](auto& setting, auto value, const char* what) {
@@ -230,6 +233,11 @@ const ImmersivePreset* FindImmersivePreset(uint64_t title_id) {
         }
     }
     return nullptr;
+}
+
+bool ImmersiveSupported(uint64_t title_id) {
+    const ImmersivePreset* preset = FindImmersivePreset(title_id);
+    return preset == nullptr || !preset->no_immersive;
 }
 
 const ImmersivePresetTitle* ImmersivePresetTitles(std::size_t& count) {

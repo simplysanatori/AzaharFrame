@@ -28,6 +28,7 @@ public:
     ~ConfigureGraphics() override;
 
     void ApplyConfiguration();
+    void SetFrameTitleId(u64 title_id); // AzaharFrame presets
     void RetranslateUI();
     void SetConfiguration();
 

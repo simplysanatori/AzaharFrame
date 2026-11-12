@@ -8,6 +8,7 @@
 #pragma once
 
 #include <QGroupBox>
+#include "common/common_types.h"
 #include "citra_qt/configuration/configuration_shared.h"
 
 class QCheckBox;
@@ -27,6 +28,9 @@ public:
 
     void SetConfiguration();
     void ApplyConfiguration();
+    /// AzaharFrame presets: the game this per-game window is for; Immersive Mode is shown
+    /// unavailable for a game that does not work in Immersive View.
+    void SetTitleId(u64 title_id);
 
 private:
     void SetupPerGameUI();
@@ -56,6 +60,7 @@ private:
     QComboBox* stats_position_combo;
     QWidget* shape_row;
     QComboBox* shape_combo;
+    bool no_immersive = false; ///< AzaharFrame presets
     QWidget* mode_row;
     QComboBox* mode_combo;
     QWidget* offset_row; ///< AzaharFrame vrsize, global only: the Immersive Offset and a reset

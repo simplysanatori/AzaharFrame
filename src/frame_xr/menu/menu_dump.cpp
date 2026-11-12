@@ -826,6 +826,16 @@ int main(int argc, char** argv) {
     v.hover = {Id::ImmersiveMode, kLabelIndex};
     v.tooltip = Id::ImmersiveMode;
     ok &= shot("5e-settings-game-value-locked", gv, v);
+    // AzaharFrame presets: Kid Icarus: Uprising running, Immersive View unavailable
+    MenuModel kiu = pg;
+    kiu.immersive_mode = 0;
+    kiu.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::NoImmersive;
+    v = settings(SettingsSection::Immersive);
+    v.hover = {Id::ImmersiveMode, kLabelIndex};
+    v.tooltip = Id::ImmersiveMode;
+    ok &= shot("5f-settings-immersive-unsupported", kiu, v);
+    v = settings(SettingsSection::Immersive);
+    ok &= shot("5g-settings-immersive-unsupported-overview", kiu, v);
     MenuModel off = pg;
     off.immersive_mode = 0;
     v = settings(SettingsSection::Immersive);

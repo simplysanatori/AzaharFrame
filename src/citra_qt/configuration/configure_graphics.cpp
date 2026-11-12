@@ -167,6 +167,14 @@ void ConfigureGraphics::SetConfiguration() {
     }
 }
 
+void ConfigureGraphics::SetFrameTitleId(u64 title_id) { // AzaharFrame presets
+#ifdef ENABLE_FRAME_XR
+    frame_vr->SetTitleId(title_id);
+#else
+    (void)title_id;
+#endif
+}
+
 void ConfigureGraphics::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.graphics_api,
                                              ui->graphics_api_combo);
