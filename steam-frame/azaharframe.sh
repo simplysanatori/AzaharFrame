@@ -48,7 +48,32 @@ echo "== $(date -Is) Azahar for Frame (SteamAppId=${SteamAppId:-none})"
 
 if [ -f "$DATA/session.env" ]; then
   echo "session.env:"; cat "$DATA/session.env"
-  set -a; . "$DATA/session.env"; set +a
+  # Read as data, never run: only KEY=VALUE lines, only these names, no expansion of the value.
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in ''|'#'*) continue ;; esac
+    line=${line#export }
+    key=${line%%=*}
+    [ "$key" != "$line" ] || { echo "  (ignored, not KEY=VALUE: ${line:0:40})"; continue; }
+    val=${line#*=}
+    case "$val" in
+      \"*\") val=${val#\"}; val=${val%\"} ;;
+      \'*\') val=${val#\'}; val=${val%\'} ;;
+    esac
+    case "$key" in
+      AZAHARFRAME_FLAT|AZAHARFRAME_FLAT_SCREEN|AZAHARFRAME_REFRESH_HZ|AZAHARFRAME_FDM|AZAHARFRAME_PADS| \
+      AZAHARFRAME_MEMORY_SCOPE|AZAHARFRAME_MEMORY_MAX_PCT|AZAHARFRAME_MEMORY_RESERVE_MB| \
+      AZAHARFRAME_MEMORY_FLOOR_MB|AZAHARFRAME_MEMORY_MAX_MB|AZAHARFRAME_MEMORY_SWAP_MB| \
+      AZAHARFRAME_PRELOAD_RESERVE_MB|AZAHARFRAME_IMMERSIVE_FOV|AZAHARFRAME_IMMERSIVE_DISTANCE| \
+      AZAHARFRAME_IMMERSIVE_LOCAL|AZAHARFRAME_IMMERSIVE_WIDER|AZAHARFRAME_IMMERSIVE_MEASURE| \
+      AZAHARFRAME_MODELS|AZAHARFRAME_MODEL_EYE_PX|AZAHARFRAME_MIRROR_SIZE|AZAHARFRAME_MIRROR_SCALE| \
+      AZAHARFRAME_FADE_WINDOW|AZAHARFRAME_KEYBOARD_FONT|AZAHARFRAME_VMA_BLOCK_MIB|AZAHARFRAME_XR_WATCHDOG| \
+      AZAHARFRAME_XR_INSTANCE|AZAHARFRAME_XR_WINDOW_EVERY_FRAME|AZAHARFRAME_VR_PICKER| \
+      QT_SCALE_FACTOR|XR_RUNTIME_JSON)
+        export "$key=$val" ;;
+      *) echo "  (ignored, name not allowed: $key)" ;;
+    esac
+  done < "$DATA/session.env"
 fi
 
 # The mode: --flat / --vr on the command line, else AZAHARFRAME_FLAT (1 or 0, from the

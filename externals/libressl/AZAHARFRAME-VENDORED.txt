@@ -1,0 +1,7 @@
+LibreSSL 4.4.1 (portable release tarball), unpacked here by Azahar for Frame in place of the older
+azahar-emu/ext-libressl-portable submodule (3.8.0).
+Source:  https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.4.1.tar.gz
+SHA-256: 290cdf1b53c086255dc302f118b98602a444e9ae6d11e9bfdd8c9b1b60aa3a22
+         (the same value is in the SHA256 file at that address)
+Left out: apps/, tests/, man/, scripts/ and the autotools files (the build here is CMake, with
+LIBRESSL_APPS and LIBRESSL_TESTS off). One local edit: CMakeLists.txt only adds man/ when it exists.

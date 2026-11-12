@@ -53,14 +53,20 @@ inline bool IsOptimized(u64 program_id) {
     return QFileInfo::exists(PackPath(program_id) + QStringLiteral("/.azaharframe-ktx.json"));
 }
 
-/// tools/<name> of the installed program, or of the checkout for a build tree
+/// tools/<name> of the installed program.  Only in a build with test hooks (a development build, not a release) also
+/// AZAHARFRAME_TOOLS and the checkout's steam-frame/tools; a release never runs a tool from anywhere else.
 inline QString ToolPath(const QString& name) {
-    const QString env = qEnvironmentVariable("AZAHARFRAME_TOOLS");
     const QDir app_dir(QCoreApplication::applicationDirPath());
     const QString candidates[] = {
-        env.isEmpty() ? QString() : QDir(env).filePath(name),
+#ifdef AZAHARFRAME_TEST_HOOKS
+        qEnvironmentVariable("AZAHARFRAME_TOOLS").isEmpty()
+            ? QString()
+            : QDir(qEnvironmentVariable("AZAHARFRAME_TOOLS")).filePath(name),
+#endif
         app_dir.filePath(QStringLiteral("tools/") + name),
+#ifdef AZAHARFRAME_TEST_HOOKS
         app_dir.filePath(QStringLiteral("../../../steam-frame/tools/") + name),
+#endif
     };
     for (const QString& path : candidates) {
         if (!path.isEmpty() && QFileInfo(path).isExecutable()) {

@@ -30,6 +30,7 @@
 
 #include <fmt/format.h>
 
+#include "citra_qt/frame_test_env.h"
 #include "citra_qt/frame_mode.h"
 #include "common/logging/log.h"
 #include "frame_xr/input/flat_pads.h"
@@ -60,7 +61,7 @@ const std::chrono::steady_clock::time_point g_start = std::chrono::steady_clock:
 const std::vector<TestPadEvent>* TestPadScript() {
     static const std::unique_ptr<std::vector<TestPadEvent>> script = [] {
         std::unique_ptr<std::vector<TestPadEvent>> out;
-        const QString path = qEnvironmentVariable("AZAHARFRAME_TEST_FLAT_PAD");
+        const QString path = FrameTestEnv("AZAHARFRAME_TEST_FLAT_PAD");
         QFile file(path);
         if (path.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             return out;
@@ -124,7 +125,7 @@ void ReadTestPad(const std::vector<TestPadEvent>& script, FrameXr::Input::InputF
 // brings it back (as Steam Input re-creates its pad), "vrbutton 1" clicks the status bar's VR
 // button. The pad comes with the first Flat pass; the thread ends after the last event.
 bool TestPadThroughSdl() {
-    static const bool on = qEnvironmentVariable("AZAHARFRAME_TEST_FLAT_PAD_SDL") ==
+    static const bool on = FrameTestEnv("AZAHARFRAME_TEST_FLAT_PAD_SDL") ==
                            QStringLiteral("1");
     return on;
 }
@@ -488,7 +489,7 @@ QString SteamAppId() {
 // AzaharFrame flatfix: test driver. AZAHARFRAME_TEST_CEF=FILE runs FILE in place of steam-cef.py,
 // outside Game Mode and Steam too (a mock run's fake: Steam itself is never asked).
 QString TestCefScript() {
-    return qEnvironmentVariable("AZAHARFRAME_TEST_CEF");
+    return FrameTestEnv("AZAHARFRAME_TEST_CEF");
 }
 
 QString CefScript() {

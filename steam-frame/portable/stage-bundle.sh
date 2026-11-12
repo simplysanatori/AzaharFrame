@@ -31,8 +31,7 @@ Libraries = lib
 Plugins = plugins
 CONF
 
-# The plugins: platforms (xcb for the Xwayland session and Game Mode, wayland for the desktop, offscreen and
-# minimal for tests), their GL and shell integrations, image formats, icon engines, input contexts, themes
+# The plugins: platforms (xcb for the Xwayland session and Game Mode, wayland for the desktop, offscreen for the tests), their GL and shell integrations, image formats, icon engines, input contexts, themes
 # that need only D-Bus, network information and TLS.
 echo "== plugins"
 for d in platforms xcbglintegrations wayland-shell-integration wayland-graphics-integration-client \
@@ -41,9 +40,17 @@ for d in platforms xcbglintegrations wayland-shell-integration wayland-graphics-
     [ -d "$QT/plugins/$d" ] && cp -a "$QT/plugins/$d" "$OUT/plugins/"
 done
 find "$OUT/plugins/platforms" -name '*.so' ! -name 'libqxcb.so' ! -name 'libqwayland*.so' \
-    ! -name 'libqoffscreen.so' ! -name 'libqminimal.so' -delete
+    ! -name 'libqoffscreen.so' -delete
 # the GTK theme needs GTK, which SteamOS may not have; the KDE and others would need their own libraries
 find "$OUT/plugins/platformthemes" -name '*.so' ! -name 'libqxdgdesktopportal.so' -delete 2> /dev/null || true
+# Plugins nothing here uses (the program is Vulkan-only and makes no Qt network or TLS connection; SteamOS has KDE's
+# xdg-shell, no IBus): the other platform and Wayland shell plugins, the GL integrations (the Wayland graphics ones and
+# the xcb GLX and EGL ones), TLS and network information, and the GIF and ICO readers.  Their libraries (libQt6OpenGL,
+# libQt6WlShellIntegration) then fall out of the scan below.  libqoffscreen stays: release/portable.sh starts with it.
+rm -rf "$OUT/plugins/wayland-graphics-integration-client" "$OUT/plugins/xcbglintegrations" "$OUT/plugins/tls" \
+       "$OUT/plugins/networkinformation"
+find "$OUT/plugins/wayland-shell-integration" -name '*.so' ! -name 'libxdg-shell.so' -delete 2> /dev/null || true
+find "$OUT/plugins/imageformats" -name 'libqgif.so' -delete -o -name 'libqico.so' -delete 2> /dev/null || true
 # No Qt Multimedia backend: Qt's FFmpeg backend needs FFmpeg 7's libraries and the GStreamer one needs GStreamer,
 # and both are what a SteamOS update moves (FFmpeg 8).  Azahar uses Multimedia only for the 3DS camera, which then
 # lists no cameras.
@@ -85,6 +92,13 @@ while :; do
 done
 
 if [ -n "${SDL_PREFIX:-}" ] && [ -d "$SDL_PREFIX/licenses" ]; then mkdir -p "$OUT/licenses"; cp "$SDL_PREFIX"/licenses/* "$OUT/licenses/"; fi
+# The licence texts of what the Qt Company's tree ships without them: Qt (LGPL-3.0, and GPL-3.0 for the modules that
+# are GPL-only) and ICU (the Unicode licence).  Kept in this folder, so that they do not depend on the build image.
+mkdir -p "$OUT/licenses"
+for f in Qt-LGPL-3.0.txt Qt-GPL-3.0.txt ICU-LICENSE.txt; do
+    [ -f "$HERE/licenses/$f" ] || { echo "missing licence text: $HERE/licenses/$f"; exit 1; }
+    cp "$HERE/licenses/$f" "$OUT/licenses/$f"
+done
 
 # RUNPATH: libraries find their neighbours in lib/, plugins two folders up.  Qt's own libraries are
 # built with $ORIGIN-relative paths already; whatever else is not gets one.  (No strip after this: strip

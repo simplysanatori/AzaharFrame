@@ -4,6 +4,7 @@
 
 // AzaharFrame crashreport: the start after a run that ended badly (frame_crash_dialog.h).
 
+#include "citra_qt/frame_test_env.h"
 #include "citra_qt/frame_crash_dialog.h"
 
 #include <filesystem>
@@ -583,7 +584,7 @@ void Answer(CrashDialog* self, const QString& answer) {
 // Test driver (not in release builds): answers a dialog by itself (a mock has no hands)
 void AnswerForTest(CrashDialog* d, const QString& note) {
 #ifndef AZAHARFRAME_RELEASE_BUILD
-    const QString answer = qEnvironmentVariable("AZAHARFRAME_TEST_CRASH_ANSWER");
+    const QString answer = FrameTestEnv("AZAHARFRAME_TEST_CRASH_ANSWER");
     if (answer.isEmpty()) {
         return;
     }
@@ -880,7 +881,7 @@ QDialog* MakeSaved(QWidget* parent, const QString& shown_path) {
 
 void TestShots(QWidget* parent) {
 #ifndef AZAHARFRAME_RELEASE_BUILD
-    const QString dir = qEnvironmentVariable("AZAHARFRAME_TEST_CRASH_SHOTS");
+    const QString dir = FrameTestEnv("AZAHARFRAME_TEST_CRASH_SHOTS");
     if (dir.isEmpty()) {
         return;
     }

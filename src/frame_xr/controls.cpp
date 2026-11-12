@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <utility>
 
+#include "common/test_hooks.h"
 #include "common/atomic_file.h"
 #include "common/file_util.h" // AzaharFrame move
 #include "common/logging/log.h"
@@ -704,7 +705,7 @@ void VrUi::SetFlatVrPrompt(bool open) {
 // Test driver (with AZAHARFRAME_TEST_FLAT_PAD, citra_qt/frame_mode.cpp): what the game is sent
 // in flat, one line per change, so a mock run can check what reaches it.
 void VrUi::LogFlatGameButtons(const Input::ControlState& controls) {
-    static const bool enabled = std::getenv("AZAHARFRAME_TEST_FLAT_PAD") != nullptr;
+    static const bool enabled = Common::TestHookEnv("AZAHARFRAME_TEST_FLAT_PAD") != nullptr;
     if (!enabled) {
         return;
     }

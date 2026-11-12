@@ -5,6 +5,7 @@
 // AzaharFrame kbd: the game's keyboard on the XR thread (swkbd_panel.h) and the requests from the
 // Qt side (swkbd.h).
 
+#include "common/test_hooks.h"
 #include "frame_xr/swkbd_panel.h"
 
 #include <algorithm>
@@ -270,7 +271,7 @@ void SwkbdPanel::DestroyXr() {
 // keyboard as Majora's Mask asks for a name, that long after the session began; the answer is
 // logged.
 void SwkbdPanel::TestRequest() {
-    static const char* env = std::getenv("AZAHARFRAME_TEST_SWKBD");
+    static const char* env = Common::TestHookEnv("AZAHARFRAME_TEST_SWKBD");
     if (!env || test_fired) {
         return;
     }

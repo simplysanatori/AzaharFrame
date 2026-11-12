@@ -1760,6 +1760,19 @@ RemoveOutcome Library::Deactivate(u64 title_id, const std::string& mod_id) {
     return DeactivateLocked(title_id, mod_id);
 }
 
+namespace {
+/// A managed mod's id as installs make it (catalog ids, "zip-..." ids): lower-case letters, digits,
+/// '-', '_' and '.', at most 80 characters, no leading '.'. Never contains '/'.
+bool LibraryIdOk(const std::string& id) {
+    if (id.empty() || id.size() > 80 || id.front() == '.') {
+        return false;
+    }
+    return std::all_of(id.begin(), id.end(), [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.';
+    });
+}
+} // namespace
+
 RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
     {
         std::lock_guard sl{state_mutex_};
@@ -1774,6 +1787,10 @@ RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
                 return RemoveFilesOf(title_id, m.files);
             }
         }
+        return {false, "Mod not found"};
+    }
+    // The id becomes a folder name below: the characters installs allow, nothing else.
+    if (!LibraryIdOk(mod_id)) {
         return {false, "Mod not found"};
     }
     auto r = DeactivateLocked(title_id, mod_id);

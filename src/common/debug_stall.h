@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 
+#include "common/test_hooks.h"
 #include "common/logging/log.h"
 
 namespace Common::DebugStall {
@@ -35,7 +36,7 @@ struct Config {
 inline const Config& Get() {
     static const Config config = [] {
         Config c;
-        const char* v = std::getenv("AZAHARFRAME_DEBUG_STALL");
+        const char* v = Common::TestHookEnv("AZAHARFRAME_DEBUG_STALL");
         if (!v || !*v) {
             return c;
         }

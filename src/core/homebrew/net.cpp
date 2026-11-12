@@ -117,6 +117,8 @@ struct Hop {
     bool done = false; // the body went to `sink`
 };
 
+constexpr std::size_t kMaxDiscardedBody = 1024 * 1024;
+
 /// One GET, no redirect followed. A 200 body goes to `sink` (false stops it).
 Hop GetOnce(const std::string& host, const std::string& path,
             const std::function<bool(u64 total)>& start,
@@ -145,6 +147,7 @@ Hop GetOnce(const std::string& host, const std::string& path,
         LOG_INFO(Frontend, "homebrew: GET {}{} (query: {}; headers: {})", host,
                  path.substr(0, path.find('?')), QueryNames(path), HeaderText(headers));
         bool stopped = false;
+        std::size_t discarded = 0;
         const auto res = client.Get(
             Common::RequestPath(path), headers,
             [&](const httplib::Response& r) {
@@ -168,7 +171,9 @@ Hop GetOnce(const std::string& host, const std::string& path,
                     if (hop.status >= 400 && hop.error_body.size() < 1000) {
                         hop.error_body.append(data, std::min<std::size_t>(len, 1000));
                     }
-                    return true; // a redirect's or an error's body
+                    // a redirect's or an error's body: read, never kept, and cut off at 1 MiB
+                    discarded += len;
+                    return discarded <= kMaxDiscardedBody;
                 }
                 if (!sink(data, len)) {
                     stopped = true;
@@ -186,7 +191,9 @@ Hop GetOnce(const std::string& host, const std::string& path,
                             hop.error_body.substr(0, 1000));
             }
         }
-        if (!res && !stopped) {
+        if (!res && !stopped && discarded > kMaxDiscardedBody) {
+            hop.error = "The server's answer was too large";
+        } else if (!res && !stopped) {
             hop.error = httplib::to_string(res.error());
         } else if (stopped && hop.error.empty()) {
             hop.error = "Stopped";
@@ -255,17 +262,22 @@ Reply GetText(const std::string& url, std::size_t max_body) {
 }
 
 std::string Download(const std::string& url, const std::string& dest,
-                     const std::function<bool(u64, u64)>& progress) {
+                     const std::function<bool(u64, u64)>& progress, u64 max_bytes) {
     const std::string part = dest + ".part";
     std::FILE* file = nullptr;
     u64 total = 0, done = 0;
     bool write_failed = false;
+    bool too_large = false;
     int status = 0;
     std::string error = Fetch(
         url,
         [&](u64 t) {
             total = t;
             done = 0;
+            if (total > max_bytes) {
+                too_large = true;
+                return false;
+            }
             if (file != nullptr) {
                 std::fclose(file);
             }
@@ -273,6 +285,10 @@ std::string Download(const std::string& url, const std::string& dest,
             return file != nullptr && progress(0, total);
         },
         [&](const char* data, std::size_t len) {
+            if (done + len > max_bytes) {
+                too_large = true;
+                return false;
+            }
             if (std::fwrite(data, 1, len, file) != len) {
                 write_failed = true;
                 return false;
@@ -286,7 +302,9 @@ std::string Download(const std::string& url, const std::string& dest,
             write_failed = true;
         }
     }
-    if (write_failed) {
+    if (too_large) {
+        error = "Download too large";
+    } else if (write_failed) {
         error = "Not enough free space (or the disk is read-only)";
     } else if (error.empty() && total != 0 && done != total) {
         error = "The download was cut short";

@@ -4,6 +4,7 @@
 
 // AzaharFrame emerald: see frame_emerald.h.
 
+#include "citra_qt/frame_test_env.h"
 #include "common/atomic_file.h"
 #include "citra_qt/frame_emerald.h"
 
@@ -105,7 +106,7 @@ FrameEmerald::FrameEmerald(const Homebrew::PackageInfo& info, QObject* parent)
     paths = E::PlanPaths(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir),
                          FileUtil::GetUserPath(FileUtil::UserPath::UserDir));
     LoadState();
-    automatic = qEnvironmentVariable("AZAHARFRAME_HOMEBREW_AUTO") == Q(info.id);
+    automatic = FrameTestEnv("AZAHARFRAME_HOMEBREW_AUTO") == Q(info.id);
 }
 
 void FrameEmerald::Warn(QWidget* parent, const QString& title, const QString& text) {
@@ -198,7 +199,7 @@ bool FrameEmerald::ApplyBootSettings(const QString& path) {
 
 QString FrameEmerald::PickRom(QWidget* parent) const {
     if (automatic) {
-        return qEnvironmentVariable("AZAHARFRAME_HOMEBREW_ROM");
+        return FrameTestEnv("AZAHARFRAME_HOMEBREW_ROM");
     }
     return QFileDialog::getOpenFileName(parent, tr("Choose Your Pokémon Emerald ROM"),
                                         QDir::homePath(),
@@ -207,7 +208,7 @@ QString FrameEmerald::PickRom(QWidget* parent) const {
 
 QString FrameEmerald::ChooseRomDir(QWidget* parent) {
     if (automatic) {
-        return qEnvironmentVariable("AZAHARFRAME_HOMEBREW_ROMDIR");
+        return FrameTestEnv("AZAHARFRAME_HOMEBREW_ROMDIR");
     }
     if (!state.rom_dir_copy.empty()) {
         const QString dir = QFileInfo(QString::fromStdString(state.rom_dir_copy)).absolutePath();
@@ -404,7 +405,7 @@ void FrameEmerald::Finish(QWidget* parent, const QString& error, const QString& 
     if (automatic) {
         LOG_INFO(Frontend, "emerald3ds: automatic run ended: {}",
                  error.isEmpty() ? done_text.toStdString() : "failed: " + error.toStdString());
-        if (qEnvironmentVariable("AZAHARFRAME_HOMEBREW_AUTO_QUIT") == QStringLiteral("1")) {
+        if (FrameTestEnv("AZAHARFRAME_HOMEBREW_AUTO_QUIT") == QStringLiteral("1")) {
             QTimer::singleShot(0, qApp, &QApplication::quit);
         }
     }
@@ -706,7 +707,7 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
                         shown->store(
                             static_cast<int>((base + done) * 400 / std::max<u64>(total, 1)));
                         return !cancel->load();
-                    });
+                    }, asset->size != 0 ? asset->size + (4ULL << 20) : 128ULL << 20);
                 if (cancel->load()) {
                     p.error = "Cancelled";
                     return p;

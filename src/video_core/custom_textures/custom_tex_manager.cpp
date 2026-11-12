@@ -12,6 +12,7 @@
 #include <malloc.h> // AzaharFrame memwarn: malloc_trim
 #endif
 #include <json.hpp>
+#include "common/test_hooks.h"
 #include "common/file_util.h"
 #include "common/literals.h"
 #include "common/microprofile.h"
@@ -393,7 +394,7 @@ PreloadResult CustomTexManager::PreloadTextures(
     const bool force = force_env && std::string_view{force_env} == "1";
     // Tests: AZAHARFRAME_TEST_PRELOAD_DELAY_MS waits that long after each material, a slow disk
     // or a busy headset, so the XR loop and the stop hold can be watched during a long preload
-    const char* delay_env = std::getenv("AZAHARFRAME_TEST_PRELOAD_DELAY_MS");
+    const char* delay_env = Common::TestHookEnv("AZAHARFRAME_TEST_PRELOAD_DELAY_MS");
     const int delay_ms = delay_env ? std::atoi(delay_env) : 0;
 
     const auto mib = [](s64 bytes) { return bytes < 0 ? -1.0 : bytes / 1048576.0; };
