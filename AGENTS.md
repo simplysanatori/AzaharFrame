@@ -100,7 +100,7 @@ FrameDrop: `run.sh` at the top of the zip installs with `AZAHARFRAME_SKIP_STEAM=
 - The file's `screen` lines are sizes against that default; `view` (1.2.0 test builds) and `head` (1.0, 1.1) lines keep their pitch and distance and get the default size, then are saved as `screen`.
 - SteamVR's recenter (`Immersive::OnRecentred`) only re-centres; the right stick hold and Reset Position also put the screen back (`OnResetPanels`). The rest pose waits for a head pose located at or after the event's `changeTime`.
 - The head pose reaches the rasterizer once per game frame (`FrameLatch` in `video_core/vr_immersive.h`: at the top screen's swap, or after 4 VBlanks without one), so both eyes of a 30 fps game share one pose. Mode 2 patches only draws with a perspective projection in registers 0 to 3 (`HasPerspectiveProjection`).
-- Kid Icarus: Uprising has no immersive mode (`ImmersiveOffered` in `presets.h`): Off at boot, the VR menu row locked (`Lock::NotForGame`), its Properties row disabled.
+- Kid Icarus: Uprising starts in the normal view (its preset's mode 0, Immersive Mode Off), because its reticle and shots come apart when the head turns; nothing is locked or hidden for it, and the player can turn Immersive Mode on from the VR menu or its Properties like in any game.
 - Screens are submitted farther first (`ScreenLayers::bottom_first`): quad layers have no depth test. A hidden bottom screen is never submitted (`Layout::Decide`).
 - `Immersive::SetBottomFocused` pauses immersive mode while the bottom screen is the screen in focus.
 
