@@ -148,6 +148,20 @@ void MergeIntoFrame(const ThreeDsPadState& pad, const ProfileRoutes& routes,
 /// The routes as a mapping in the Frame's terms (values: Input::Control, Input::AnalogControl).
 GamepadMapping MappingOfRoutes(const ProfileRoutes& routes);
 
+/// The menu's terms (Edit Controls, lane padsui): a gamepad's buttons as Input::Controls, SDL's
+/// own numbering (Control::A is SDL's A: the bottom button, or on a pad that reports by label,
+/// ReportsByLabel, the right one), Start Menu, Back View, the stick clicks, the back paddles the
+/// grips (left: Paddle2 or Paddle4, right: Paddle1 or Paddle3). Guide, Misc1 and the touchpad
+/// click have no Control (-1).
+int ControlOfPadInput(int input, bool by_label);
+/// The other way (GripL is Paddle2, GripR Paddle1); -1 for none.
+int PadInputOfControl(int control, bool by_label);
+/// A gamepad mapping's buttons in the menu's terms.
+ButtonTable ControlTableOf(const GamepadMapping& mapping, bool by_label);
+/// `mapping` with the 3DS buttons the menu changed (`table` against ControlTableOf(mapping))
+/// set from `table`; the others keep their inputs, those with no Control included.
+GamepadMapping WithControlTable(GamepadMapping mapping, const ButtonTable& table, bool by_label);
+
 /// PadType of an SDL pad (its type, or Steam for Valve's gamepads).
 PadType PadTypeOf(const InputCommon::SDLPadInfo& info);
 

@@ -549,3 +549,33 @@ TEST_CASE("Gamepads: the touchpad for Touchpad Touch", "[frame_xr]") {
     REQUIRE(rig.hub.Touchpad("0300000028de00000211000000000000").contact);
     REQUIRE_FALSE(rig.hub.Touchpad("nope").present);
 }
+
+TEST_CASE("Gamepads: the menu's terms", "[frame_xr]") {
+    // Xbox-style: SDL's A (the bottom button) is Control::A.
+    REQUIRE(ControlOfPadInput(P(PadInput::South), false) == static_cast<int>(Control::A));
+    REQUIRE(ControlOfPadInput(P(PadInput::Start), false) == static_cast<int>(Control::Menu));
+    REQUIRE(ControlOfPadInput(P(PadInput::Paddle4), false) == static_cast<int>(Control::GripL));
+    REQUIRE(ControlOfPadInput(P(PadInput::Guide), false) == -1);
+    // A Switch pad reported by label: SDL's A is the right button.
+    REQUIRE(ControlOfPadInput(P(PadInput::East), true) == static_cast<int>(Control::A));
+    for (int c = 0; c < kNumControls; c++) {
+        for (const bool label : {false, true}) {
+            REQUIRE(ControlOfPadInput(PadInputOfControl(c, label), label) == c);
+        }
+    }
+    // The positional default in the menu's terms: the 3DS's A on SDL's B (Xbox) or A (Switch).
+    const GamepadMapping def = DefaultGamepadMapping(PadType::XboxOne, true);
+    REQUIRE(ControlTableOf(def, false)[NB::A] == static_cast<int>(Control::B));
+    REQUIRE(ControlTableOf(DefaultGamepadMapping(PadType::SwitchPro, true), true)[NB::A] ==
+            static_cast<int>(Control::A));
+    // A change from the menu keeps the inputs it did not touch, Home on Guide included.
+    GamepadMapping m = def;
+    m.buttons[NB::Home] = P(PadInput::Guide);
+    ButtonTable t = ControlTableOf(m, false);
+    REQUIRE(t[NB::Home] == -1);
+    t[NB::A] = static_cast<int8_t>(Control::A);
+    const GamepadMapping after = WithControlTable(m, t, false);
+    REQUIRE(after.buttons[NB::A] == P(PadInput::South));
+    REQUIRE(after.buttons[NB::Home] == P(PadInput::Guide));
+    REQUIRE(after.buttons[NB::B] == P(PadInput::South)); // the menu swaps; here only A changed
+}

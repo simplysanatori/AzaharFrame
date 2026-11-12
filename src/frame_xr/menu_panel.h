@@ -131,6 +131,12 @@ private:
     Menu::RemapTable edit_table{};
     std::array<bool, 11> edit_prev{};
     bool edit_b_prev = true;
+    /// AzaharFrame pads: the device Edit Controls edits ("frame", a gamepad's id, "mouse"), and
+    /// whether its next button is being listened for (frame_xr/input/devices.h).
+    std::string edit_device{"frame"};
+    bool edit_pad_by_label = false;
+    bool edit_pad_listening = false;
+    void BeginDeviceEdit(const std::string& id, bool by_label);
     Menu::MenuModel posted_model;
     Menu::MenuView posted_view;
 

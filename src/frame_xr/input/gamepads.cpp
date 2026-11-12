@@ -324,6 +324,87 @@ GamepadMapping MappingOfRoutes(const ProfileRoutes& routes) {
     return m;
 }
 
+int ControlOfPadInput(int input, bool by_label) {
+    switch (static_cast<PadInput>(input)) {
+    case PadInput::South:
+        return static_cast<int>(by_label ? Control::B : Control::A);
+    case PadInput::East:
+        return static_cast<int>(by_label ? Control::A : Control::B);
+    case PadInput::West:
+        return static_cast<int>(by_label ? Control::Y : Control::X);
+    case PadInput::North:
+        return static_cast<int>(by_label ? Control::X : Control::Y);
+    case PadInput::Back:
+        return static_cast<int>(Control::View);
+    case PadInput::Start:
+        return static_cast<int>(Control::Menu);
+    case PadInput::LeftStick:
+        return static_cast<int>(Control::StickClickL);
+    case PadInput::RightStick:
+        return static_cast<int>(Control::StickClickR);
+    case PadInput::LeftShoulder:
+        return static_cast<int>(Control::BumperL);
+    case PadInput::RightShoulder:
+        return static_cast<int>(Control::BumperR);
+    case PadInput::DpadUp:
+        return static_cast<int>(Control::DpadUp);
+    case PadInput::DpadDown:
+        return static_cast<int>(Control::DpadDown);
+    case PadInput::DpadLeft:
+        return static_cast<int>(Control::DpadLeft);
+    case PadInput::DpadRight:
+        return static_cast<int>(Control::DpadRight);
+    case PadInput::Paddle1:
+    case PadInput::Paddle3:
+        return static_cast<int>(Control::GripR);
+    case PadInput::Paddle2:
+    case PadInput::Paddle4:
+        return static_cast<int>(Control::GripL);
+    case PadInput::LeftTrigger:
+        return static_cast<int>(Control::TriggerL);
+    case PadInput::RightTrigger:
+        return static_cast<int>(Control::TriggerR);
+    default:
+        return -1;
+    }
+}
+
+int PadInputOfControl(int control, bool by_label) {
+    if (control < 0 || control >= kNumControls) {
+        return -1;
+    }
+    for (const PadInput input : {PadInput::South, PadInput::East, PadInput::West,
+                                 PadInput::North, PadInput::Back, PadInput::Start,
+                                 PadInput::LeftStick, PadInput::RightStick,
+                                 PadInput::LeftShoulder, PadInput::RightShoulder,
+                                 PadInput::DpadUp, PadInput::DpadDown, PadInput::DpadLeft,
+                                 PadInput::DpadRight, PadInput::Paddle1, PadInput::Paddle2,
+                                 PadInput::LeftTrigger, PadInput::RightTrigger}) {
+        if (ControlOfPadInput(I(input), by_label) == control) {
+            return I(input);
+        }
+    }
+    return -1;
+}
+
+ButtonTable ControlTableOf(const GamepadMapping& mapping, bool by_label) {
+    ButtonTable t;
+    for (std::size_t b = 0; b < t.size(); b++) {
+        t[b] = static_cast<int8_t>(ControlOfPadInput(mapping.buttons[b], by_label));
+    }
+    return t;
+}
+
+GamepadMapping WithControlTable(GamepadMapping mapping, const ButtonTable& table, bool by_label) {
+    const ButtonTable before = ControlTableOf(mapping, by_label);
+    for (std::size_t b = 0; b < table.size(); b++) {
+        if (table[b] != before[b]) {
+            mapping.buttons[b] = static_cast<int8_t>(PadInputOfControl(table[b], by_label));
+        }
+    }
+    return mapping;
+}
+
 bool IsValveGamepad(uint16_t vendor, uint16_t product) {
     if (vendor != kValveVendor) {
         return false;
