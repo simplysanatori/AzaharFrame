@@ -15,10 +15,15 @@ namespace FrameXr::Menu {
 
 namespace {
 
-// The console in millimetres (x right, y down), opened flat and seen from the front: the lid
-// (0 to 93.5), the hinge's barrel, the base (from kBase). New 3DS XL: 160 x 93.5 mm each half,
-// a 4.88" 5:3 top screen (106.3 x 63.8 mm), a 4.18" 4:3 touch screen (84.9 x 63.7 mm). Drawn
-// as the Frame controllers' drawings on the Controls tab are: 1.5 dp outlines, finer detail
+// The console in its own units (x right, y down; 160 across, about a millimetre), opened flat
+// and seen from the front, laid out after a front photo of an open New 3DS XL: the lid (well
+// rounded top corners, a screw mark in each corner, the camera and its light between two round
+// dots on the top edge, a five-dot speaker grille each side of the screen, the volume slider on
+// the left edge and the 3D slider on the right), the hinge (a long barrel between two end caps),
+// the base (the Circle Pad in its ring over the D-pad; the C-Stick by the touch screen's corner,
+// A B X Y under it, Start over Select under those; the touch screen in a raised surround that runs
+// to the bottom edge, Home on it under the screen) with the shoulder buttons along its top edge.
+// Drawn as the Frame controllers' drawings on the Controls tab are: 1.5 dp outlines, finer detail
 // lines, tonal fills a step or two over the pane.
 constexpr float kLine = 1.5f;   // dp: outlines
 constexpr float kDetail = 1.0f; // dp: bevels, frames, textures
@@ -32,27 +37,49 @@ constexpr uint32_t kGlass = 0x0B0E12;
 struct U {
     float x0, y0, x1, y1;
 };
-constexpr float kHalfW = 160.0f, kHalfH = 93.5f;
-constexpr float kBase = 99.0f; ///< the base's back edge (the lid ends at kHalfH, the barrel between)
-constexpr float kShellR = 9.5f;
-constexpr U kLid{0, 0, kHalfW, kHalfH};
-constexpr U kTopScreen{26.85f, 15.0f, 133.15f, 78.8f};
-constexpr U kBaseShell{0, kBase, kHalfW, kBase + kHalfH};
-constexpr U kBottomScreen{37.55f, kBase + 8.5f, 122.45f, kBase + 72.2f};
-constexpr U kBarrel{36.0f, 92.6f, 124.0f, 99.6f};
+constexpr float kMid = 80.0f; ///< the console's centre line
+constexpr U Mirror(const U& u) {
+    return {2.0f * kMid - u.x1, u.y0, 2.0f * kMid - u.x0, u.y1};
+}
+constexpr DsPoint Centre(const U& u) {
+    return {(u.x0 + u.x1) * 0.5f, (u.y0 + u.y1) * 0.5f};
+}
 
-constexpr DsPoint kCirclePad{19.5f, kBase + 24.0f};
-constexpr float kCirclePadWell = 9.6f, kCirclePadCap = 7.4f;
-constexpr DsPoint kDpad{19.5f, kBase + 54.5f};
-constexpr float kDpadArm = 8.6f, kDpadHalf = 2.9f;
-constexpr DsPoint kFace{140.5f, kBase + 40.0f};
-constexpr float kFaceGap = 8.4f, kFaceR = 3.6f;
-constexpr DsPoint kCStick{133.0f, kBase + 20.0f};
-constexpr float kCStickR = 2.6f;
-constexpr DsPoint kSelect{146.0f, kBase + 57.5f};
-constexpr DsPoint kStart{146.0f, kBase + 64.5f};
-constexpr float kSmallR = 2.2f;
-constexpr DsPoint kHome{80.0f, kBase + 81.5f};
+// The lid runs on under the hinge (its lower corners hidden there).
+constexpr U kLid{0.0f, 0.0f, 160.0f, 86.0f};
+constexpr float kLidR = 10.0f;
+constexpr U kTopBezel{23.0f, 8.3f, 137.0f, 79.0f};
+constexpr U kTopScreen{26.0f, 11.4f, 134.0f, 75.6f};
+constexpr float kGrilleY = 35.5f, kGrilleX = 11.6f, kGrilleArm = 4.0f;
+constexpr U kVolSlot{-0.8f, 50.0f, 1.8f, 66.0f};
+// The hinge: the end caps the halves' full depth, the barrel between them slimmer.
+constexpr float kHingeY0 = 79.5f, kHingeY1 = 89.5f;
+constexpr U kHingeCap{0.0f, kHingeY0, 15.6f, kHingeY1};
+constexpr U kHingeBarrel{15.0f, kHingeY0 + 1.0f, 145.0f, kHingeY1 - 1.0f};
+// The base, and the shoulder buttons along its top edge (the hinge hides their upper part).
+constexpr DsPoint Shoulder(const U& u) {
+    return {(u.x0 + u.x1) * 0.5f, (89.5f + u.y1) * 0.5f};
+}
+constexpr U kBaseShell{0.0f, kHingeY1, 160.0f, 174.0f};
+constexpr float kBaseR = 12.0f;
+constexpr U kShoulderL{1.5f, 85.0f, 15.5f, 94.5f};
+constexpr U kShoulderZL{17.5f, 85.0f, 26.5f, 93.5f};
+constexpr U kSurround{34.0f, 90.6f, 126.0f, 174.0f};
+constexpr U kBottomScreen{37.0f, 94.0f, 123.0f, 159.0f};
+constexpr U kHomeKey{74.5f, 163.7f, 85.5f, 168.7f};
+
+constexpr DsPoint kCirclePad{16.2f, 107.5f};
+constexpr float kCirclePadRing = 10.8f, kCirclePadCap = 7.6f;
+constexpr DsPoint kDpad{15.4f, 134.2f};
+constexpr float kDpadArm = 9.4f, kDpadHalf = 3.0f;
+constexpr DsPoint kFace{140.8f, 112.5f};
+constexpr float kFaceGap = 7.6f, kFaceR = 3.5f;
+constexpr DsPoint kCStick{132.0f, 98.6f};
+constexpr float kCStickR = 3.0f;
+constexpr DsPoint kStart{136.5f, 138.5f};
+constexpr DsPoint kSelect{136.5f, 148.5f};
+constexpr float kSmallR = 2.4f;
+constexpr DsPoint kHome = Centre(kHomeKey);
 
 DsPoint UnitAnchor(int target) {
     switch (target) {
@@ -73,13 +100,13 @@ DsPoint UnitAnchor(int target) {
     case DsButton::Right:
         return {kDpad.x + kDpadArm - 3.0f, kDpad.y};
     case DsButton::L:
-        return {12.5f, 96.0f};
+        return Shoulder(kShoulderL);
     case DsButton::R:
-        return {kHalfW - 12.5f, 96.0f};
+        return Shoulder(Mirror(kShoulderL));
     case DsButton::ZL:
-        return {30.0f, 96.5f};
+        return Shoulder(kShoulderZL);
     case DsButton::ZR:
-        return {kHalfW - 30.0f, 96.5f};
+        return Shoulder(Mirror(kShoulderZL));
     case DsButton::Start:
         return kStart;
     case DsButton::Select:
@@ -91,7 +118,7 @@ DsPoint UnitAnchor(int target) {
     case DsButton::CStick:
         return kCStick;
     default:
-        return {80, 96};
+        return {kMid, kHingeY1};
     }
 }
 
@@ -110,11 +137,12 @@ float DsDrawing::Radius(int target) const {
     case DsButton::Y:
         return kFaceR * s;
     case DsButton::CirclePad:
-        return kCirclePadWell * s;
+        return kCirclePadRing * s;
     case DsButton::CStick:
         return kCStickR * s;
     case DsButton::Select:
     case DsButton::Start:
+    case DsButton::Home:
         return kSmallR * s;
     default:
         return 3.5f * s;
@@ -157,49 +185,77 @@ void DrawDs(Kit& kit, const DsDrawing& d, int lit) {
         kit.Dot(X(x), Y(y), r * s, kInk, opacity);
     };
 
-    // The shoulder buttons on the base's back corners, L and R outside, ZL and ZR in from them;
-    // the base covers their lower part.
-    shape({1.5f, 92.8f, 24.0f, kBase + 6.0f}, 5.0f, kPart);
-    shape({26.0f, 94.0f, 34.0f, kBase + 6.0f}, 3.0f, kPart);
-    shape({kHalfW - 24.0f, 92.8f, kHalfW - 1.5f, kBase + 6.0f}, 5.0f, kPart);
-    shape({kHalfW - 34.0f, 94.0f, kHalfW - 26.0f, kBase + 6.0f}, 3.0f, kPart);
-
-    // The lid: the shell and its bevel, the screen's black surround, the screen; the inner camera
-    // and its light, the speakers, the 3D depth slider and its light at the screen's right.
-    shape(kLid, kShellR, kShell);
-    detail(inset(kLid, 2.2f), kShellR - 2.2f, 0.3f);
-    kit.Fill(R(inset(kTopScreen, -4.5f)), 3.0f * s, kBezel);
-    detail(inset(kTopScreen, -4.5f), 3.0f, 0.5f);
-    kit.Fill(R(kTopScreen), 0.8f * s, kGlass);
-    detail(kTopScreen, 0.8f, 0.55f);
-    ring({80.0f, 7.4f}, 1.8f, 0.7f);
-    dot(80.0f, 7.4f, 0.7f, 0.7f);
-    dot(86.0f, 7.4f, 0.6f, 0.5f);
-    for (int row = 0; row < 4; row++) {
-        const float y = 50.0f + static_cast<float>(row) * 4.0f;
-        for (const float x : {10.5f, 13.5f, kHalfW - 13.5f, kHalfW - 10.5f}) {
-            dot(x, y, 0.65f, 0.6f);
+    // The lid: the shell and its bevel, the screw marks in its corners, the screen's black
+    // surround, the screen; on the top edge the camera with its light between two round dots; a
+    // five-dot speaker grille each side; the volume slider on the left edge, the 3D slider on the
+    // right (at Off), each with its wedge beside it.
+    shape(kLid, kLidR, kShell);
+    detail(inset(kLid, 2.0f), kLidR - 2.0f, 0.3f);
+    for (const float x : {11.8f, 2.0f * kMid - 11.8f}) {
+        for (const float y : {9.0f, 75.5f}) {
+            detail({x - 1.2f, y - 1.2f, x + 1.2f, y + 1.2f}, 0.5f, 0.45f);
         }
     }
-    shape({140.3f, 19.0f, 143.1f, 42.0f}, 1.4f, kWell);
-    kit.Fill(R({139.6f, 36.0f, 143.8f, 41.4f}), 1.2f * s, kPart);
-    detail({139.6f, 36.0f, 143.8f, 41.4f}, 1.2f, 0.8f);
-    dot(141.7f, 14.8f, 0.8f, 0.6f);
+    kit.Fill(R(kTopBezel), 3.0f * s, kBezel);
+    detail(kTopBezel, 3.0f, 0.5f);
+    kit.Fill(R(kTopScreen), 0.8f * s, kGlass);
+    detail(kTopScreen, 0.8f, 0.55f);
+    circle({kMid, 3.6f}, 2.3f, kWell);
+    dot(kMid, 3.6f, 0.9f, 0.7f);
+    dot(kMid + 4.6f, 3.6f, 0.7f, 0.6f);
+    circle({42.6f, 3.4f}, 1.6f, kPart);
+    circle({2.0f * kMid - 42.6f, 3.4f}, 1.6f, kPart);
+    for (const float cx : {kGrilleX, 2.0f * kMid - kGrilleX}) {
+        for (const DsPoint o : {DsPoint{0, 0}, DsPoint{0, -kGrilleArm}, DsPoint{0, kGrilleArm},
+                                DsPoint{-kGrilleArm, 0}, DsPoint{kGrilleArm, 0}}) {
+            dot(cx + o.x, kGrilleY + o.y, 0.6f, 0.65f);
+        }
+    }
+    const auto slider = [&](const U& slot, float knob_y, float wedge_x, float inward) {
+        shape(slot, 1.3f, kWell);
+        const U knob{slot.x0 - 0.4f, knob_y, slot.x1 + 0.4f, knob_y + 4.5f};
+        kit.Fill(R(knob), 1.2f * s, kPart);
+        detail(knob, 1.2f, 0.8f);
+        kit.Line(X(wedge_x), Y(slot.y0 + 1.5f), X(wedge_x), Y(slot.y1 - 2.0f), kDetail, kInk, 0.5f);
+        kit.Line(X(wedge_x + inward * 2.8f), Y(slot.y0 + 1.5f), X(wedge_x), Y(slot.y1 - 2.0f), kDetail, kInk,
+                 0.5f);
+    };
+    slider(kVolSlot, kVolSlot.y0 + 1.0f, 4.2f, 1.0f);
+    slider(Mirror(kVolSlot), kVolSlot.y1 - 5.5f, 2.0f * kMid - 4.2f, -1.0f);
 
-    // The base: the shell and its bevel, the touch screen in its frame.
-    shape(kBaseShell, kShellR, kShell);
-    detail(inset(kBaseShell, 2.2f), kShellR - 2.2f, 0.3f);
-    kit.Fill(R(inset(kBottomScreen, -3.5f)), 2.5f * s, kBezel);
-    detail(inset(kBottomScreen, -3.5f), 2.5f, 0.5f);
+    // The base: the shell and its bevel, the
+    // raised surround (to the bottom edge) with the touch screen and Home.
+    shape(kBaseShell, kBaseR, kShell);
+    detail(inset(kBaseShell, 2.0f), kBaseR - 2.0f, 0.3f);
+    // The shoulder buttons' faces along its top edge, under the hinge.
+    for (const U& u : {kShoulderL, Mirror(kShoulderL), kShoulderZL, Mirror(kShoulderZL)}) {
+        const float r = u.x1 - u.x0 > 10.0f ? 3.0f : 2.0f;
+        shape({u.x0, kHingeY1 - 1.0f, u.x1, u.y1}, std::min(r, (u.y1 - kHingeY1) * 0.5f), kPart);
+    }
+    shape(kSurround, 4.0f, kWell);
     kit.Fill(R(kBottomScreen), 0.8f * s, kGlass);
     detail(kBottomScreen, 0.8f, 0.55f);
+    shape(kHomeKey, 2.5f, kPart);
+    {
+        // The house on Home.
+        const float hx = kHome.x, hy = kHome.y;
+        kit.Line(X(hx - 1.4f), Y(hy - 0.1f), X(hx), Y(hy - 1.5f), kDetail, kInk, 0.7f);
+        kit.Line(X(hx), Y(hy - 1.5f), X(hx + 1.4f), Y(hy - 0.1f), kDetail, kInk, 0.7f);
+        kit.Line(X(hx - 1.0f), Y(hy - 0.4f), X(hx - 1.0f), Y(hy + 1.3f), kDetail, kInk, 0.7f);
+        kit.Line(X(hx + 1.0f), Y(hy - 0.4f), X(hx + 1.0f), Y(hy + 1.3f), kDetail, kInk, 0.7f);
+        kit.Line(X(hx - 1.0f), Y(hy + 1.3f), X(hx + 1.0f), Y(hy + 1.3f), kDetail, kInk, 0.7f);
+    }
 
-    // The hinge: a slim barrel over the join, between the shoulder buttons.
-    shape(kBarrel, 2.0f, kShell);
-    kit.Line(X(kBarrel.x0 + 2.0f), Y(96.1f), X(kBarrel.x1 - 2.0f), Y(96.1f), kDetail, kInk, 0.25f);
+    // The hinge: the long barrel, the two end caps over its ends.
+    shape(kHingeBarrel, (kHingeBarrel.y1 - kHingeBarrel.y0) * 0.5f, kShell);
+    kit.Line(X(kHingeBarrel.x0 + 2.0f), Y((kHingeY0 + kHingeY1) * 0.5f), X(kHingeBarrel.x1 - 2.0f),
+             Y((kHingeY0 + kHingeY1) * 0.5f), kDetail, kInk, 0.2f);
+    shape(kHingeCap, 4.5f, kShell);
+    shape(Mirror(kHingeCap), 4.5f, kShell);
 
-    // Circle Pad: the well, the cap, the cap's grip ring.
-    circle(kCirclePad, kCirclePadWell, kWell);
+    // Circle Pad: the recessed ring, the cap, the cap's grip ring.
+    circle(kCirclePad, kCirclePadRing, kWell);
+    ring(kCirclePad, kCirclePadRing - 1.6f, 0.3f);
     circle(kCirclePad, kCirclePadCap, kPart);
     ring(kCirclePad, kCirclePadCap - 2.6f, 0.35f);
     // D-pad: the cross (its outline as twelve sides), the dimple in the middle.
@@ -226,15 +282,14 @@ void DrawDs(Kit& kit, const DsDrawing& d, int lit) {
         }
         ring(kDpad, 1.4f, 0.35f);
     }
-    // A, B, X, Y; the C-Stick; Select over Start; Home under the touch screen.
+    // A, B, X, Y; the C-Stick above them; Start over Select below them.
     for (const int b : {DsButton::A, DsButton::B, DsButton::X, DsButton::Y}) {
         circle(UnitAnchor(b), kFaceR, kPart);
     }
     circle(kCStick, kCStickR, kPart);
-    ring(kCStick, 1.0f, 0.4f);
-    circle(kSelect, kSmallR, kPart);
+    ring(kCStick, 1.2f, 0.4f);
     circle(kStart, kSmallR, kPart);
-    shape({kHome.x - 5.25f, kHome.y - 2.3f, kHome.x + 5.25f, kHome.y + 2.3f}, 2.3f, kPart);
+    circle(kSelect, kSmallR, kPart);
 
     // The chosen input: a ring in the primary colour.
     if (lit >= 0) {
@@ -300,13 +355,11 @@ void DrawDsGlyph(Kit& kit, const Rect& b, int target, uint32_t fg, uint32_t bg) 
         break;
     case DsButton::Start:
     case DsButton::Select: {
-        // The two small pills, one lit (Select over Start, as on the console).
-        const float w = r * 0.9f, h = r * 0.34f;
-        const Rect top{cx - w, cy - r * 0.62f, cx + w, cy - r * 0.62f + h * 2.0f};
-        const Rect low{cx - w, cy + r * 0.62f - h * 2.0f, cx + w, cy + r * 0.62f};
+        // The two small round buttons, Start over Select, the one meant lit.
+        const float br = r * 0.38f, dy = r * 0.5f;
         const bool start = target == DsButton::Start;
-        kit.Fill(top, h, start ? bg : fg);
-        kit.Fill(low, h, start ? fg : bg);
+        kit.Dot(cx, cy - dy, br, start ? fg : bg);
+        kit.Dot(cx, cy + dy, br, start ? bg : fg);
         break;
     }
     case DsButton::Home:

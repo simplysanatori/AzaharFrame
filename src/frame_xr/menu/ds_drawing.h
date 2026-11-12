@@ -4,8 +4,8 @@
 
 // AzaharFrame padsui: Edit Controls' drawing of a 3DS: an open New 3DS XL from the front, both
 // screens, in line art made of the menu kit's shapes (our own drawing, no logos), with a dot on
-// every input Edit Controls shows. The drawing is laid out in its own units (about a millimetre
-// of the real console: 160 wide, 192.5 tall open) and scaled into the space it gets.
+// every input Edit Controls shows. The drawing is laid out in its own units (160 across, about a
+// millimetre; 174 tall open) and scaled into the space it gets.
 
 #pragma once
 
@@ -19,7 +19,7 @@ constexpr int kDsCirclePad = DsButton::CirclePad;
 constexpr int kDsCStick = DsButton::CStick;
 
 constexpr float kDsUnitsW = 160.0f;
-constexpr float kDsUnitsH = 192.5f;
+constexpr float kDsUnitsH = 174.0f;
 
 struct DsPoint {
     float x = 0, y = 0;

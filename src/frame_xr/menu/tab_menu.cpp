@@ -602,13 +602,15 @@ constexpr float kLeader = 24.0f;   ///< the columns' inner edges to the drawing
 /// The longest chip the columns must hold whole (a gamepad's stick clicks are as long).
 constexpr const char* kWidestChip = "Right Stick Flipped";
 
-// The chips round the drawing: each column top to bottom, the row under it left to right.
-// (Ordered so no two leader lines cross: ZL over L, its button being further in.)
+// The chips round the drawing: each column top to bottom, Home, Select and Start under it (nine
+// chips in the right column would not keep 48 dp targets).
+// (Ordered so no two leader lines cross: ZL over L, its button being further in; B over Y, so
+// Y's leader passes under B.)
 constexpr std::array<int, 7> kLeftChips{DsButton::ZL,   DsButton::L,     kDsCirclePad, DsButton::Up,
                                         DsButton::Left, DsButton::Right, DsButton::Down};
 constexpr std::array<int, 7> kRightChips{DsButton::ZR, DsButton::R, kDsCStick, DsButton::X,
-                                         DsButton::A,  DsButton::Y, DsButton::B};
-constexpr std::array<int, 3> kRowChips{DsButton::Home, DsButton::Select, DsButton::Start};
+                                         DsButton::A,  DsButton::B, DsButton::Y};
+
 
 bool IsStick(int target) {
     return Remap::IsStick(target);
@@ -708,17 +710,23 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         };
         column(kLeftChips, true);
         column(kRightChips, false);
-        float total = -kChipGap;
-        for (const int t : kRowChips) {
-            total += chip_w(t, c.W()) + kChipGap;
-        }
-        // Under the drawing, ending under its right edge (Start's leader then goes straight down).
-        float x = ds.box.x1 + kChipGap - total;
-        for (const int t : kRowChips) {
-            const float w = chip_w(t, c.W());
-            const Rect r{x, area.y1 - kChipH, x + w, area.y1};
-            chips.push_back({t, r, {r.Cx(), r.y0}});
-            x += w + kChipGap;
+        // The row under the drawing: Select's and Start's chips either side of their buttons'
+        // line (Select's leader then stays left of Start's), Home's under Home or, when that
+        // would meet Select's, just left of it.
+        {
+            const float sel_w = chip_w(DsButton::Select, c.W());
+            const float start_w = chip_w(DsButton::Start, c.W());
+            const float home_w = chip_w(DsButton::Home, c.W());
+            float mid = ds.Anchor(DsButton::Start).x;
+            mid = std::min(mid, c.x1 - start_w - kChipGap * 0.5f);
+            const Rect start{mid + kChipGap * 0.5f, area.y1 - kChipH, mid + kChipGap * 0.5f + start_w, area.y1};
+            const Rect sel{start.x0 - kChipGap - sel_w, start.y0, start.x0 - kChipGap, start.y1};
+            float hx = std::min(ds.Anchor(DsButton::Home).x - home_w * 0.5f, sel.x0 - kChipGap - home_w);
+            hx = std::max(hx, c.x0);
+            const Rect home{hx, start.y0, hx + home_w, start.y1};
+            chips.push_back({DsButton::Home, home, {home.Cx(), home.y0}});
+            chips.push_back({DsButton::Select, sel, {sel.Cx(), sel.y0}});
+            chips.push_back({DsButton::Start, start, {start.Cx(), start.y0}});
         }
         for (const Chip& ch : chips) {
             const DsPoint to = ds.Anchor(ch.target);
