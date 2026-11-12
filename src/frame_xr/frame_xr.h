@@ -23,6 +23,7 @@
 
 #include "common/common_types.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/toast_fit.h" // AzaharFrame ui3: ToastTime
 #include "frame_xr/xr_includes.h"
 #include "video_core/vulkan_hooks.h"
 
@@ -408,7 +409,8 @@ void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 
-/// A short message on a small panel in front of you for two seconds (any thread; VR only).
+/// A short message on a small panel in front of you (any thread; VR only): Quick Saved, Quick
+/// Loaded and No Quick Save for five seconds, Fast Forward and Normal Speed for two (ToastTimeOf).
 enum class Toast {
     QuickSaved = 0,
     QuickLoaded = 1,
@@ -417,9 +419,15 @@ enum class Toast {
     NormalSpeed = 4,
 };
 void ShowToast(Toast kind);
+/// AzaharFrame ui3: how long each of those stays.
+constexpr ToastTime ToastTimeOf(Toast kind) {
+    return kind == Toast::FastForward || kind == Toast::NormalSpeed ? ToastTime::Short
+                                                                    : ToastTime::Long;
+}
 /// AzaharFrame vrsize: a short message of any text (UTF-8, one line; a degree sign is drawn
-/// too) in the same place and for as long as a toast. Any thread.
-void ShowToastText(const std::string& text);
+/// too) in the same place as a toast. Any thread. AzaharFrame ui3: `time` (toast_fit.h): Short
+/// (2 s) for the answer to a press, Long (5 s) for a one-shot message.
+void ShowToastText(const std::string& text, ToastTime time = ToastTime::Short);
 /// AzaharFrame controls: takes a text toast back before its time if it is `text` (any thread).
 void HideToastText(const std::string& text);
 /// AzaharFrame controls: the grip hint chip (two short lines, '\n'; "↕" and "↔" are drawn as

@@ -308,7 +308,7 @@ void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_inp
     if (mouse_frame.present && !Settings::values.vr_hint_mouse_shown.GetValue()) {
         // AzaharFrame mouse: once per install, the first mouse found.
         Settings::values.vr_hint_mouse_shown.SetValue(true);
-        ShowToastText(Input::kMouseHint);
+        ShowToastText(Input::kMouseHint, ToastTime::Long); // AzaharFrame ui3: once
         SaveVrSettingSoon();
     }
     // The window gets the mouse's clicks too: it leaves them alone while we read the mouse.
@@ -1236,7 +1236,7 @@ void VrUi::CycleScreenLayout() {
 
 void VrUi::StepScreenCurve(int dir) {
     if (!cylinder_ok) {
-        ShowToastText("Screen Curve: Not Available");
+        ShowToastText("Screen Curve: Not Available", ToastTime::Long);
         LOG_INFO(Frontend, "xr: screen curve: the runtime has no cylinder layers");
         return;
     }
@@ -1475,7 +1475,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 // Once per install: what the controller does now.
                 Settings::values.vr_hint_reticle_shown.SetValue(true);
                 ShowToastText(source == Input::ReticleHand::Headset ? Input::kReticleHeadHint
-                                                                    : Input::kReticleHint);
+                                                                    : Input::kReticleHint,
+                              ToastTime::Long); // AzaharFrame ui3
                 SaveVrSettingSoon();
             }
         }

@@ -1499,7 +1499,8 @@ GMainWindow::GMainWindow(Core::System& system_)
                             // headset, the status bar in Flat
                             g_frame_mods->SetNotifier([this](const std::string& text) {
                                 if (FrameXr::VrShowing()) {
-                                    FrameXr::ShowToastText(text);
+                                    // AzaharFrame ui3: five seconds, a one-shot message
+                                    FrameXr::ShowToastText(text, FrameXr::ToastTime::Long);
                                 } else if (!message_label_used_for_movie) {
                                     const QString q = QString::fromStdString(text);
                                     message_label->setText(q);

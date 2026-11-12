@@ -35,7 +35,6 @@ constexpr XrTime kHintNs = 3'000'000'000;
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
 constexpr uint32_t kAtlasHeight = kToastHeight * kAtlasRows + kPassthroughSize;
-constexpr XrTime kToastNs = 2'000'000'000;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
 constexpr float kToastDrop = 0.25f;     // metres below eye level
 
@@ -279,9 +278,10 @@ void Hud::ShowToast(Toast kind) {
     toast_kind = static_cast<int>(kind);
 }
 
-void Hud::ShowToastText(const std::string& text) {
+void Hud::ShowToastText(const std::string& text, ToastTime time) {
     std::scoped_lock lock{text_mutex};
     text_request = text;
+    text_request_time = time;
     text_requested = true;
 }
 
@@ -362,11 +362,13 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
         shown_pose = ahead();
         shown_kind = requested;
         shown_since = time;
+        shown_ns = ToastFit::DurationNs(ToastTimeOf(static_cast<Toast>(requested))); // ui3
         text_row_waiting = -1;
     }
     // AzaharFrame vrsize: a text toast goes into the text row not on view; it shows once copied.
     {
         std::string text;
+        ToastTime text_time = ToastTime::Short;
         bool has_text = false;
         {
             std::scoped_lock lock{text_mutex};
@@ -382,6 +384,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
             }
             if (text_requested) {
                 text = std::move(text_request);
+                text_time = text_request_time;
                 text_requested = false;
                 has_text = true;
             }
@@ -394,20 +397,22 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad) {
             toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
             text_row_waiting = row;
             waiting_text = text;
+            waiting_time = text_time;
         }
     }
     if (text_row_waiting >= 0 && !toast_chain.Busy()) {
         // Nudged again while the last one shows: it stays where it is, with the new text.
-        const bool showing_text = shown_kind >= kToastKinds && time - shown_since <= kToastNs;
+        const bool showing_text = shown_kind >= kToastKinds && time - shown_since <= shown_ns;
         if (!showing_text) {
             shown_pose = ahead();
         }
         shown_kind = text_row_waiting;
         shown_since = time;
+        shown_ns = ToastFit::DurationNs(waiting_time); // AzaharFrame ui3
         shown_text = waiting_text;
         text_row_waiting = -1;
     }
-    if (shown_kind >= 0 && time - shown_since > kToastNs) {
+    if (shown_kind >= 0 && time - shown_since > shown_ns) {
         shown_kind = -1;
     }
     const int row = shown_kind;

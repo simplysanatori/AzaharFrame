@@ -923,7 +923,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::HideBottomScreen:
         Apply(v.vr_hide_bottom_screen, value != 0, per_game);
         r.setting = MenuSetting::HideBottomScreen;
-        ShowToastText("Hide Bottom Screen: From the Next Start");
+        ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
         break;
     case Id::ScreenShape:
         Apply(v.vr_top_aspect, u, per_game);
@@ -970,7 +970,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::AsyncShaders:
         Apply(v.async_shader_compilation, value != 0, per_game);
         r.setting = MenuSetting::AsyncShaders;
-        ShowToastText("Async Shader Compilation: From the Next Start");
+        ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
         break;
     case Id::FastForwardSpeed:
         r.value =

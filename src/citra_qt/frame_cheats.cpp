@@ -298,6 +298,6 @@ void FrameCheats::StoreCheat(u64 id, const std::string& name_in, const std::stri
     engine.SaveCheatFile(id);
     LOG_INFO(Frontend, "xr: in-game menu: cheat added ({} lines)",
              std::count(code.begin(), code.end(), '\n') + 1);
-    FrameXr::ShowToastText(Menu::CheatsAddedText(1));
+    FrameXr::ShowToastText(Menu::CheatsAddedText(1), FrameXr::ToastTime::Long);
     Publish();
 }

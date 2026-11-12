@@ -494,7 +494,7 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             // game killed by the kernel (exit 137); with little room left, don't open it.
             if (LowMemory()) {
                 LOG_WARNING(Frontend, "xr: mods: not opening {}: little memory left", r.text);
-                FrameXr::ShowToastText("Link Not Opened: Low Memory");
+                FrameXr::ShowToastText("Link Not Opened: Low Memory", FrameXr::ToastTime::Long);
                 return;
             }
             if (SteamRunning() &&
@@ -841,7 +841,7 @@ void FrameMods::TurnBackOn() {
             return;
         }
         if (!ok) {
-            FrameXr::ShowToastText("Not Turned Back On");
+            FrameXr::ShowToastText("Not Turned Back On", FrameXr::ToastTime::Long);
         }
         mods.needs_restart = true;
         textures.needs_restart = true;
@@ -994,7 +994,7 @@ void FrameMods::SelectPack(const std::string& id) {
                 }
             } else {
                 LOG_WARNING(Frontend, "xr: texture packs: switch failed: {}", out.error);
-                FrameXr::ShowToastText("Texture Pack Not Changed");
+                FrameXr::ShowToastText("Texture Pack Not Changed", FrameXr::ToastTime::Long);
             }
             RefreshPacks();
         });
@@ -1214,7 +1214,7 @@ void FrameMods::PartsChanged() {
     namespace P = CustomTex::Parts;
     if (!P::WriteState(parts_path, parts_state)) {
         LOG_WARNING(Frontend, "xr: texture parts: cannot save {}", parts_path);
-        FrameXr::ShowToastText("Texture Pack Not Changed");
+        FrameXr::ShowToastText("Texture Pack Not Changed", FrameXr::ToastTime::Long);
         return;
     }
     const auto [on, all] = P::CountOn(parts_layout, parts_state);
@@ -1463,7 +1463,7 @@ void FrameMods::DeletePack(const std::string& folder) {
                 textures.needs_restart |= was_active; // the game still has its textures
             } else {
                 LOG_WARNING(Frontend, "xr: texture packs: delete {} failed: {}", folder, out.error);
-                FrameXr::ShowToastText("Texture Pack Not Deleted");
+                FrameXr::ShowToastText("Texture Pack Not Deleted", FrameXr::ToastTime::Long);
             }
             RefreshPacks();
             ListPackDownloads();
@@ -1846,7 +1846,8 @@ void FrameMods::ZipDone(bool texture, u64 tid, const std::string& mod_id) {
     const bool here = tid == title_id;
     FrameXr::ShowToastText(!here      ? "Installed for Another Game"
                            : texture ? "Texture Pack Installed"
-                                     : "Mod Installed");
+                                     : "Mod Installed",
+                           FrameXr::ToastTime::Long);
     if (texture) {
         RefreshPacks();
     } else {
@@ -1959,6 +1960,6 @@ void FrameMods::ZipCheats(const std::string& path) {
             zip.error.clear();
             zip.file.clear();
             PublishZip();
-            FrameXr::ShowToastText(Menu::CheatsAddedText(added));
+            FrameXr::ShowToastText(Menu::CheatsAddedText(added), FrameXr::ToastTime::Long);
         });
 }

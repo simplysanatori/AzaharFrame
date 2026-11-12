@@ -37,3 +37,12 @@ TEST_CASE("Toasts: the box fits the text, never cut", "[frame_xr]") {
     b = Fit(5000.0f, [] { return 5000.0f; });
     CHECK(b.box_px == kAtlasW);
 }
+
+// AzaharFrame ui3: a one-shot message stays five seconds, the answer to a press two (a newer toast
+// replaces either at once: hud.cpp).
+TEST_CASE("Toasts: how long they stay", "[frame_xr]") {
+    using FrameXr::ToastTime;
+    CHECK(DurationNs(ToastTime::Short) == 2'000'000'000);
+    CHECK(DurationNs(ToastTime::Long) == 5'000'000'000);
+    CHECK(DurationNs(ToastTime::Long) >= 4'000'000'000);
+}

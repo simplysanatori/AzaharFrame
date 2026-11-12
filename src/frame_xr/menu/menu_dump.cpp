@@ -352,7 +352,8 @@ int main(int argc, char** argv) {
             Input::kReticleHint, Input::kMouseHint,
             "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
             "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
-            "Preparing Shaders 3 / 9"}; // AzaharFrame integ3: the stall lane's shader notice
+            "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
+            "C-Stick & Gyro Downloaded. Restart to Enable."}; // AzaharFrame ui3: five seconds
         ui::Canvas cv;
         cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
         cv.Clear(Rgb(kBackdrop));

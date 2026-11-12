@@ -801,7 +801,7 @@ WiderStep StepWiderView(int dir) {
         return WiderStep::None;
     }
     if (!IsViewMode(g.mode)) {
-        ShowToastText("Wider View: Full Modes Only");
+        ShowToastText("Wider View: Full Modes Only", ToastTime::Long);
         return WiderStep::None;
     }
     const u32 before = g.wider_level;
@@ -832,7 +832,7 @@ WiderStep StepNarrow(int narrower_steps, int taller_steps) {
         return WiderStep::None;
     }
     if (!IsViewMode(g.mode)) {
-        ShowToastText("Narrow Screen: Full Modes Only");
+        ShowToastText("Narrow Screen: Full Modes Only", ToastTime::Long);
         return WiderStep::None;
     }
     // AzaharFrame immersive2: both grips + D-pad. Right narrower, left wider; up taller (less
