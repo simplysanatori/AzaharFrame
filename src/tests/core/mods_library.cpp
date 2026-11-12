@@ -1239,6 +1239,37 @@ TEST_CASE("Mods: GameBanana install", "[mods]") {
     }
 }
 
+// AzaharFrame integ3: the Mods row's Cancel (Library::Cancel) stops a GitHub or GameBanana install
+// before its next request, as it stops a MEGA download; nothing is installed.
+TEST_CASE("Mods: Cancel stops a GameBanana install between requests", "[mods]") {
+    const std::string dir = TempDir("gbcancel");
+    FakeNet net;
+    const std::string zip = SingleScreenZip();
+    net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage",
+           GbProfile(GbFile(1879915, "singlescreen_322.zip", zip.size(), 1794037831)));
+    net.Redirect("https://gamebanana.com/dl/1879915", "https://files.gamebanana.com/mods/singlescreen_322.zip");
+    net.Ok("https://files.gamebanana.com/mods/singlescreen_322.zip", zip);
+    Library* self = nullptr;
+    const Transport inner = net.Get();
+    Library library(dir, DefaultCatalog(), [&](const std::string& host, const std::string& path, std::size_t max) {
+        if (path.find("ProfilePage") != std::string::npos && self != nullptr) {
+            self->Cancel(); // pressed while the mod's page loads
+        }
+        return inner(host, path, max);
+    });
+    self = &library;
+    const auto out = library.Install(kTid, kGbOot);
+    REQUIRE(out.result == InstallResult::Error);
+    REQUIRE(out.error == "Cancelled"); // the Mods row goes back to Install, no failure shown
+    for (const auto& r : net.log) {
+        REQUIRE(r.find("/dl/") == std::string::npos); // the file was never asked for
+    }
+    REQUIRE(library.ListLoaded(kTid).empty());
+    // the next install starts afresh
+    self = nullptr;
+    REQUIRE(library.Install(kTid, kGbOot).result == InstallResult::Ok);
+}
+
 TEST_CASE("Mods: Project Restoration builds are chips, the one for the game comes first", "[mods]") {
     const auto c = DefaultCatalog();
     constexpr u64 tid = 0x0004000000125500ULL;

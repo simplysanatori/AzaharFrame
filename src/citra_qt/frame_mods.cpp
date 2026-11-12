@@ -210,6 +210,12 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     case C::InstallMod:
         Install(r.text, false);
         return;
+    case C::CancelModInstall: // AzaharFrame integ3: the install fails with "Cancelled"
+        if (mods.busy && !installing.empty()) {
+            LOG_INFO(Frontend, "xr: mods: install {} cancelled", installing);
+            Mods::Default().Cancel();
+        }
+        return;
     case C::SetModActive:
         if (r.value != 0) {
             Install(r.text, false); // from the library: no download
@@ -533,6 +539,10 @@ void FrameMods::Install(const std::string& id, bool replace) {
                 break;
             case Mods::InstallResult::NotAvailable:
             case Mods::InstallResult::Error:
+                if (out.error == "Cancelled") { // AzaharFrame integ3: back to Install
+                    LOG_INFO(Frontend, "xr: mods: install {} cancelled", id);
+                    break;
+                }
                 LOG_WARNING(Frontend, "xr: mods: install {} failed: {}", id, out.error);
                 failed = id;
                 failed_reason = Mods::ShortFailure(out.error); // AzaharFrame modfix

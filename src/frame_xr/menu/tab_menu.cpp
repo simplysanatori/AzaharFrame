@@ -359,6 +359,7 @@ std::string LabelFor(Id id) {
     case Id::PackDownload:
         return "Download";
     case Id::PackCancel:
+    case Id::ModCancel: // AzaharFrame integ3
         return "Cancel";
     case Id::PackDelete:
         return "Delete";

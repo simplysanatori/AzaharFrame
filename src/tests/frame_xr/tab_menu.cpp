@@ -731,6 +731,15 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(!HasHit(d, Id::ModInstall, 1)); // installed
     CHECK(!HasHit(d, Id::ModInstall, 2)); // cannot install yet
     CHECK(!HasHit(d, Id::ModInstall, 3)); // installing
+    // AzaharFrame integ3: while it downloads, Cancel in the Install button's place (only there)
+    CHECK(HasHit(d, Id::ModCancel, 3));
+    CHECK(!HasHit(d, Id::ModCancel, 0));
+    CHECK(LabelFor(Id::ModCancel) == "Cancel");
+    {
+        const auto* cancel = FindHit(d, Id::ModCancel, 3);
+        REQUIRE(cancel);
+        CHECK(d.menu.HitTest(cancel->r.Cx(), cancel->r.Cy()) == Target{Id::ModCancel, 3});
+    }
     CHECK(HasHit(d, Id::ModLink, 0));
     CHECK(!HasHit(d, Id::ModLink, 3)); // not an https address: no link
     CheckTargets(d);

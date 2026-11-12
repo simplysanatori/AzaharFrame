@@ -203,6 +203,7 @@ enum class MenuCommand {
     LoadPackDownloads, ///< Download Packs opened: the packs for the title
     DownloadPack,      ///< `text`: the catalog pack's id (a large one asks first)
     CancelPackDownload,
+    CancelModInstall, ///< AzaharFrame integ3: the catalog mod downloading now (Mods::Library::Cancel)
     DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
     TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
     // AzaharFrame zipinstall: Install from Zip (Menu::ZipModel, citra_qt/frame_mods.cpp)

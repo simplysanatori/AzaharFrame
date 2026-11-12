@@ -1233,6 +1233,9 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::PackCancel:
         ask(MenuCommand::CancelPackDownload);
         break;
+    case Id::ModCancel: // AzaharFrame integ3
+        ask(MenuCommand::CancelModInstall);
+        break;
     case Id::PackLink: // "Open <host>?" first
         if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
             const std::string& url =

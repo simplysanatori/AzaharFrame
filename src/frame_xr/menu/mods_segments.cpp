@@ -599,10 +599,15 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     break;
                 }
                 case OfferState::Installing: {
-                    // Where the Install button was, at its centre.
-                    const float w = ButtonWidth(kit, LabelFor(Id::ModInstall), false, 24.0f);
-                    Ring(kit, c.x1 - w * 0.5f, cy, 24.0f, m.spin);
-                    right = c.x1 - w;
+                    // AzaharFrame integ3: Cancel where the Install button was (as Download Packs'
+                    // rows), the ring left of it; the row's line says "Downloading 42%".
+                    const std::string label = LabelFor(Id::ModCancel);
+                    const float w = ButtonWidth(kit, label, false, 12.0f);
+                    const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
+                    kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::ModCancel, idx}));
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModCancel, idx}, list);
+                    Ring(kit, b.x0 - 16.0f, cy, 24.0f, m.spin);
+                    right = b.x0 - 32.0f;
                     break;
                 }
                 case OfferState::Installed: {

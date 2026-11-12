@@ -669,9 +669,9 @@ int main(int argc, char** argv) {
         MenuModel mp = mi; // downloading the first, the second waits
         mp.mods.mods.busy = true;
         mp.mods.mods.available[0].state = OfferState::Installing;
-        mp.mods.mods.available[0].note = "Downloading";
+        mp.mods.mods.available[0].note = "Downloading 42%"; // AzaharFrame mega + integ3: Cancel
         mp.mods.mods.spin = 9;
-        v.hover = {};
+        v.hover = {Id::ModCancel, 0};
         ok &= shot("mods-installing", mp, v);
         MenuModel mc = mi; // Dual Screen in, Single Screen asked for
         mc.mods.mods.available[1].state = OfferState::Installed;

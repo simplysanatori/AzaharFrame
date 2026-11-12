@@ -535,6 +535,10 @@ std::string ShortFailure(std::string_view e) {
 bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error) {
     std::string current = url;
     for (int hop = 0; hop < 6; ++hop) {
+        if (cancel_) { // AzaharFrame integ3: Cancel also stops GitHub and GameBanana downloads
+            error = "Cancelled";
+            return false;
+        }
         std::string host, path;
         if (!SplitUrl(current, host, path) || !HostAllowed(host)) {
             error = "Download refused: not an allowed address";

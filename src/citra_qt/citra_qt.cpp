@@ -4258,6 +4258,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::LoadPackDownloads:
     case C::DownloadPack:
     case C::CancelPackDownload:
+    case C::CancelModInstall: // AzaharFrame integ3
     case C::DeletePack:
     case C::TexturesDialog:
     // AzaharFrame ui2: Install from Zip's commands were never passed on (they fell through to the
