@@ -651,6 +651,28 @@ TEST_CASE("FrameXr immersive: mode 3 patches only world cameras", "[frame_xr]") 
     REQUIRE_FALSE(LooksLikeWorldView(skew));
 }
 
+// AzaharFrame depth
+TEST_CASE("FrameXr immersive: a known register still searches for the eye indicator",
+          "[frame_xr]") {
+    using VideoCore::Immersive::RegisterSearchFor;
+    // Super Mario 3D Land's and Mario Kart 7's preset register (90), no eye indicator set:
+    // the eye indicator is still searched for, or both eyes get the same picture.
+    const auto preset = RegisterSearchFor(90, false);
+    REQUIRE_FALSE(preset.view_matrix);
+    REQUIRE(preset.eye_indicator);
+    REQUIRE(preset.Any());
+    // Auto: both, as CitraVR did.
+    const auto automatic = RegisterSearchFor(-1, false);
+    REQUIRE(automatic.view_matrix);
+    REQUIRE(automatic.eye_indicator);
+    // Both set: nothing to search for.
+    REQUIRE_FALSE(RegisterSearchFor(90, true).Any());
+    // Only the eye indicator set: the register is searched for.
+    const auto eye_set = RegisterSearchFor(-1, true);
+    REQUIRE(eye_set.view_matrix);
+    REQUIRE_FALSE(eye_set.eye_indicator);
+}
+
 // ---- AzaharFrame vrsize: the Immersive Offset ----
 
 TEST_CASE("FrameXr immersive: the offset's steps and limits", "[frame_xr]") {

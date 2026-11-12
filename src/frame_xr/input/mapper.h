@@ -123,6 +123,11 @@ struct PanelCommands {
     /// When the bottom screen was grabbed it is the top screen's centre moved by the same amount
     /// as the grabbed bottom point.
     Vec3f top_drag_target;
+    /// AzaharFrame move: the screen the grip holds as drawn (None without a drag) and the hand
+    /// that holds it (0 left, 1 right, -1 none). With Detach Screens the caller moves only the
+    /// slot under it (screen_rig.h).
+    Panel drag_panel = Panel::None;
+    int drag_hand = -1;
     /// Add to the top screen's position.z this frame (negative = further away). Zero when the
     /// stick is within the threshold. Only non-zero while top_drag_active.
     float top_depth_delta_z = 0.0f;
@@ -203,6 +208,10 @@ public:
     /// AzaharFrame vrsize: a grip holds a screen (after the last Update).
     bool DragActive() const {
         return drag_active_;
+    }
+    /// AzaharFrame move: the screen a grip holds, as drawn (after the last Update).
+    Panel DragPanel() const {
+        return drag_active_ ? drag_panel_ : Panel::None;
     }
     /// AzaharFrame vrsize: the screens were moved under the dragging hand (the D-pad nudge): at
     /// the next Update the grab point is taken again from the screens where they are then, so

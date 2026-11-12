@@ -15,7 +15,11 @@ namespace {
 // Wider View stays off in every preset: it is the player's choice per game. Super Mario 3D
 // Land shows black boxes at the edges with it.
 constexpr ImmersivePreset kMarioKart7{"Mario Kart 7", 3, 90};
-constexpr ImmersivePreset kSuperMario3DLand{"Super Mario 3D Land", 3, 90};
+// AzaharFrame depth: Super Mario 3D Land's world is large in its own units (the title scene is
+// about 1500 units from the camera). At 1x the two eyes were 0.65 units apart at 3D Depth 100,
+// a third of a 3DS pixel of difference: no visible 3D. At 100x it matches the 3DS's own 3D at
+// full depth (about 12 pixels in the title scene, mock runs); 3D Depth lowers it.
+constexpr ImmersivePreset kSuperMario3DLand{"Super Mario 3D Land", 3, 90, false, 2};
 constexpr ImmersivePreset kAsphalt3D{"Asphalt 3D", 3, 8};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super

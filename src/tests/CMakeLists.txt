@@ -4,6 +4,7 @@ add_executable(tests
     frame_xr/input_mapper.cpp # AzaharFrame
     frame_xr/screen_rig.cpp # AzaharFrame vrsize
     frame_xr/screen_view.cpp # AzaharFrame screenswap
+    frame_xr/touchpad_touch.cpp # AzaharFrame touchpad
     frame_xr/keyboard_layout.cpp # AzaharFrame
     frame_xr/presets.cpp # AzaharFrame vrqol
     ../frame_xr/presets.cpp # AzaharFrame vrqol
@@ -11,6 +12,7 @@ add_executable(tests
     ../frame_xr/input/mapper.cpp # AzaharFrame
     ../frame_xr/input/screen_rig.cpp # AzaharFrame vrsize
     ../frame_xr/input/screen_view.cpp # AzaharFrame screenswap
+    ../frame_xr/input/touchpad_touch.cpp # AzaharFrame touchpad
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/immersive_layout.cpp # AzaharFrame
@@ -34,6 +36,7 @@ add_executable(tests
     core/sharkive.cpp # AzaharFrame cheats
     core/cheats_online.cpp # AzaharFrame cheats
     core/mods_library.cpp # AzaharFrame moddata
+    core/custom_tex_packs.cpp # AzaharFrame texdata
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

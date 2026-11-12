@@ -149,7 +149,9 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include <csignal>
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_mirror.h"
+#include "citra_qt/frame_bottom_window.h" // AzaharFrame window
 #include "citra_qt/frame_mode.h"
+#include "common/frame_bottom_window.h" // AzaharFrame window
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
@@ -1150,6 +1152,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                 // Flat's own screen layout in flat, the configured one in VR.
                 Settings::frame_flat_layout.active = !vr;
                 SyncMenuUISettings();
+                UpdateSecondaryWindowVisibility(); // AzaharFrame window
                 if (emulation_running && system.IsPoweredOn()) {
                     system.GPU().Renderer().UpdateCurrentFramebufferLayout();
                 }
@@ -2599,6 +2602,15 @@ void GMainWindow::BootGame(const QString& filename) {
                 wider.SetValue(4);
                 LOG_INFO(Frontend, "xr: {}: Wider View preset", preset->name);
             }
+            // AzaharFrame depth: the game's world scale (the eye distance in mode 3).
+            auto& depth = Settings::values.vr_immersive_positional_game_scaler;
+            if (preset->depth_multiplier != 0 && mode.GetValue() == preset->mode &&
+                depth.UsingGlobal() && depth.GetValue() == 0) {
+                depth.SetGlobal(false);
+                depth.SetValue(static_cast<u32>(preset->depth_multiplier));
+                LOG_INFO(Frontend, "xr: {}: Depth Factor Multiplier preset {}", preset->name,
+                         preset->depth_multiplier);
+            }
         }
 #endif
     }
@@ -2797,7 +2809,12 @@ void GMainWindow::ShutdownGame() {
     disconnect(secondary_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
 
     render_window->hide();
-    secondary_window->hide();
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame window: the bottom screen's window goes see-through, never unmapped.
+    FrameBottomWindow::Update(secondary_window, false, false);
+    if (!FrameBottomWindow::KeepMapped())
+#endif
+        secondary_window->hide();
     loading_screen->hide();
     loading_screen->Clear();
 
@@ -4182,15 +4199,29 @@ void GMainWindow::ToggleWindowMode() {
 }
 
 void GMainWindow::UpdateSecondaryWindowVisibility() {
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame window: in VR the bottom screen's own window (vr_bottom_screen_window).
+    const bool bottom_window =
+        FrameBottomWindow::Update(secondary_window, FrameXr::VrShowing(), emulation_running);
+#else
+    const bool bottom_window = false;
+#endif
     if (!emulation_running) {
         return;
     }
-    if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
+    if (bottom_window) {
+        // AzaharFrame window: shown above; the focus stays with the main window below.
+    } else if (Settings::values.layout_option.GetValue() ==
+               Settings::LayoutOption::SeparateWindows) {
         secondary_window->restoreGeometry(UISettings::values.secondarywindow_geometry);
+        secondary_window->setWindowOpacity(1.0); // AzaharFrame window: see-through after VR
         secondary_window->show();
     } else {
         UISettings::values.secondarywindow_geometry = secondary_window->saveGeometry();
-        secondary_window->hide();
+#ifdef ENABLE_FRAME_XR
+        if (!FrameBottomWindow::KeepMapped()) // AzaharFrame window: see-through, never unmapped
+#endif
+            secondary_window->hide();
     }
     // make sure focus is on primary window whenever this changes
     if (UISettings::values.single_window_mode.GetValue()) {
@@ -5887,6 +5918,11 @@ void GMainWindow::UpdateWindowTitle() {
         secondary_window->setWindowTitle(QStringLiteral("Azahar for Frame %1 | %2 | %3")
                                              .arg(full_name, game_title, tr("Secondary Window")));
     }
+#ifdef ENABLE_FRAME_XR
+    if (Settings::frame_vr_bottom_window) { // AzaharFrame window
+        secondary_window->setWindowTitle(FrameBottomWindow::Title());
+    }
+#endif
 }
 
 void GMainWindow::UpdateUISettings() {

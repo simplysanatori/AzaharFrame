@@ -284,6 +284,15 @@ Frame* PresentWindow::GetRenderFrame() {
     return frame;
 }
 
+bool PresentWindow::HasFreeFrame() {
+    std::scoped_lock lock{free_mutex};
+    if (free_queue.empty()) {
+        return false;
+    }
+    return instance.GetDevice().getFenceStatus(free_queue.front()->present_done) ==
+           vk::Result::eSuccess;
+}
+
 void PresentWindow::Present(Frame* frame) {
     if (!use_present_thread) {
         scheduler.WaitWorker();

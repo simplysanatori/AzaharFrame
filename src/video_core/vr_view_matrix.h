@@ -49,4 +49,22 @@ inline bool LooksLikeWorldView(const float m[3][3]) {
     return !identity;
 }
 
+/// AzaharFrame depth: what CitraVR's register search in mode 3 still has to find. A view matrix
+/// register that is known (a preset such as Super Mario 3D Land's 90, or the setting) only ends
+/// the search for the register: the eye indicator, which gives each eye its half of the eye
+/// distance, is still searched for unless the setting names it. CitraVR searched for both or
+/// neither, so a preset game got no eye indicator and both eyes the same picture (the game
+/// itself is shown a 3D slider of 0.01 in mode 3, so its own stereo is gone too).
+struct RegisterSearch {
+    bool view_matrix = false;
+    bool eye_indicator = false;
+    bool Any() const {
+        return view_matrix || eye_indicator;
+    }
+};
+
+inline RegisterSearch RegisterSearchFor(int view_matrix_register, bool eye_indicator_set) {
+    return {view_matrix_register == -1, !eye_indicator_set};
+}
+
 } // namespace VideoCore::Immersive

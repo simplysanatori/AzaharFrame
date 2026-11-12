@@ -6,6 +6,7 @@
 
 #include "frame_xr/input/mapper.h"
 #include "frame_xr/input/motion.h"
+#include "frame_xr/input/touchpad_touch.h"
 
 // AzaharFrame
 // Glue between the mapper and the emulator: runs the mapper on an InputFrame, writes the virtual
@@ -29,9 +30,17 @@ public:
         return mapper_;
     }
 
+    /// AzaharFrame touchpad: the pad's or the mouse's dot of the last Process (never visible
+    /// while the beam holds the touch, or with the bottom screen hidden).
+    const TouchpadCursor& touchpad_cursor() const {
+        return touchpad_cursor_;
+    }
+
 private:
     Mapper mapper_;
     MotionTracker motion_;
+    TouchpadTouch touchpad_;
+    TouchpadCursor touchpad_cursor_;
     MapperOutput last_;
 };
 
