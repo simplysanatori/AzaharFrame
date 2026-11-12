@@ -1245,6 +1245,34 @@ void MenuPanel::Click(Target t, Host& host) {
         view.textures_page = Menu::TexturesPage::Packs;
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
         break;
+    // AzaharFrame texparts: a pack's Customize page
+    case Id::PackCustomize:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.packs.size())) {
+            view.textures_page = Menu::TexturesPage::Parts;
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask_text(MenuCommand::OpenTextureParts,
+                     model.mods.textures.packs[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::PartsBack:
+        view.textures_page = Menu::TexturesPage::Packs;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    case Id::PartsAllOn:
+    case Id::PartsAllOff:
+        ask(MenuCommand::TexturePartsAll, t.id == Id::PartsAllOn ? 1 : 0);
+        break;
+    case Id::TexturePart:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.parts.rows.size())) {
+            ask(MenuCommand::TexturePart, t.index);
+        }
+        break;
+    case Id::PartUp:
+    case Id::PartDown:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.parts.rows.size())) {
+            ask_text(MenuCommand::MoveTexturePart, t.id == Id::PartUp ? "up" : "down", t.index);
+        }
+        break;
     case Id::PackDownload:
         if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
             const auto& o = model.mods.textures.downloads[static_cast<std::size_t>(t.index)];
@@ -1696,6 +1724,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             Click({Id::ModsBack}, host);
         } else if (textures_shown && view.textures_page == Menu::TexturesPage::Download) {
             Click({Id::TexturesBack}, host);
+        } else if (textures_shown && view.textures_page == Menu::TexturesPage::Parts) {
+            Click({Id::PartsBack}, host); // AzaharFrame texparts
         } else if (view.page != Menu::Page::Tabs) {
             view.page = Menu::Page::Tabs;
         } else {
@@ -1741,7 +1771,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     // ---- The tooltip: a beam resting on a setting ----
     const Id rest = hover.id;
     const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote ||
-                         rest == Id::ModCompat || rest == Id::PackCompat; // AzaharFrame compat
+                         rest == Id::ModCompat || rest == Id::PackCompat || // AzaharFrame compat
+                         rest == Id::PartUp || rest == Id::PartDown;        // AzaharFrame texparts
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
@@ -1769,6 +1800,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                              : !packs[static_cast<std::size_t>(rest_idx)].mismatch_reason.empty());
         } else if (rest == Id::ModCompat) { // AzaharFrame compat
             row_text = at_offer(rest_idx) && !at_offer(rest_idx)->mismatch_reason.empty();
+        } else if (rest == Id::PartUp || rest == Id::PartDown) { // AzaharFrame texparts
+            // Move Up, Move Down
+            row_text = true;
         }
         const bool has_text =
             row_text || (!indexed && !Menu::ExplainFor(rest).empty()) ||

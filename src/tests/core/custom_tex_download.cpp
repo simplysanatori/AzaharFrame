@@ -269,25 +269,18 @@ TEST_CASE("texdl: finding the textures inside an archive", "[texdl]") {
         REQUIRE(r.size() == 1);
         CHECK(r[0].dir == "");
     }
-    SECTION("variants") {
+    SECTION("variants are one pack (AzaharFrame texparts: its folders are the parts)") {
         const auto r = FindPackFolders({"[Fonts] N64/tex1_8x8_AB_1.png", "[Link] Nerrel/tex1_8x8_AC_1.png", "[Link] Nerrel/sub/tex1_8x8_AD_1.png",
                                         "readme.txt"},
                                        Layout::Variants);
-        REQUIRE(r.size() == 2);
-        CHECK(r[0].dir == "[Fonts] N64");
-        CHECK(r[0].name == "[Fonts] N64");
-        CHECK(r[1].dir == "[Link] Nerrel");
+        REQUIRE(r.size() == 1);
+        CHECK(r[0].dir == "");
+        CHECK(r[0].name.empty());
     }
     SECTION("variants inside a wrapper") {
         const auto r = FindPackFolders({"Wrap/4K/tex1_8x8_AB_1.png", "Wrap/1080p/tex1_8x8_AC_1.png"}, Layout::Variants);
-        REQUIRE(r.size() == 2);
-        CHECK(r[0].dir == "Wrap/1080p");
-        CHECK(r[1].dir == "Wrap/4K");
-    }
-    SECTION("variants with textures at the common parent are one pack") {
-        const auto r = FindPackFolders({"tex1_8x8_AB_1.png", "x/tex1_8x8_AC_1.png"}, Layout::Variants);
         REQUIRE(r.size() == 1);
-        CHECK(r[0].dir == "");
+        CHECK(r[0].dir == "Wrap");
     }
     SECTION("single folder under variants is one pack") {
         const auto r = FindPackFolders({"Only/tex1_8x8_AB_1.png"}, Layout::Variants);
@@ -377,28 +370,51 @@ TEST_CASE("texdl: installing a zip into the pack library", "[texdl]") {
     CHECK(installed == std::vector<std::string>{"Test HD"});
 }
 
-TEST_CASE("texdl: variants become separate packs, a folder of the player's is never touched", "[texdl]") {
+TEST_CASE("texdl: variants install as one pack with hints, the player's folder untouched",
+          "[texdl]") {
+    // AzaharFrame texparts: one pack, its folders the parts Customize shows
     Temp t;
-    WriteFile(fs::path(t.load()) / "texture-packs" / kTid / "Test HD - Alpha" / "mine.txt", "mine");
+    WriteFile(fs::path(t.load()) / "texture-packs" / kTid / "Test HD" / "mine.txt", "mine");
     const auto zip = StoredZip({{"Alpha/tex1_8x8_ABCDEF0123456789_1.png", "a"},
                                 {"Beta/tex1_8x8_ABCDEF0123456780_1.png", "b"},
                                 {"Beta/deep/tex1_8x8_ABCDEF0123456781_1.png", "c"}});
     const std::string archive = (fs::path(t.load()) / "v.zip").string();
     WriteFile(archive, zip);
+    Entry e = MakeEntry(Layout::Variants);
+    e.customize.choose_one = "Style";
+    e.customize.off = {"Beta"};
     std::vector<std::string> installed;
-    REQUIRE(InstallArchive(archive, MakeEntry(Layout::Variants), kTitle, t.load(), nullptr, &installed).empty());
-    REQUIRE(installed.size() == 2);
-    CHECK(installed[0] == "Test HD - Alpha (2)");
-    CHECK(installed[1] == "Test HD - Beta");
-    CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / kTid / "Test HD - Alpha" / "mine.txt"));
-    CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / kTid / "Test HD - Beta" / "deep" / "tex1_8x8_ABCDEF0123456781_1.png"));
+    REQUIRE(InstallArchive(archive, e, kTitle, t.load(), nullptr, &installed).empty());
+    REQUIRE(installed.size() == 1);
+    CHECK(installed[0] == "Test HD (2)");
+    const fs::path pack = fs::path(t.load()) / "texture-packs" / kTid / "Test HD (2)";
+    CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / kTid / "Test HD" / "mine.txt"));
+    CHECK(fs::exists(pack / "Beta" / "deep" / "tex1_8x8_ABCDEF0123456781_1.png"));
+    const auto state = CustomTex::Parts::ReadState(pack.string());
+    CHECK(state.hints == e.customize);
+    CHECK_FALSE(state.set);
     Catalog cat;
     cat.packs.push_back(MakeEntry(Layout::Variants));
     Downloader dl(t.load(), cat);
-    CHECK(dl.ListForTitle(kTitle)[0].folders.size() == 2);
+    CHECK(dl.ListForTitle(kTitle)[0].folders.size() == 1);
     // a folder with no marker is refused
-    CHECK_FALSE(dl.Delete(kTitle, "Test HD - Alpha").ok);
-    CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / kTid / "Test HD - Alpha" / "mine.txt"));
+    CHECK_FALSE(dl.Delete(kTitle, "Test HD").ok);
+    CHECK(fs::exists(fs::path(t.load()) / "texture-packs" / kTid / "Test HD" / "mine.txt"));
+}
+
+TEST_CASE("texdl: catalog customize hints", "[texdl]") {
+    const auto cat = ParseCatalog(DefaultCatalogJson(), nullptr, nullptr);
+    REQUIRE(cat);
+    const Entry* tl = cat->Find("oot3d-touchless-layout-vanilla");
+    REQUIRE(tl != nullptr);
+    CHECK(tl->customize.choose_one == "Controller");
+    CHECK(tl->customize.off == std::vector<std::string>{"Unedited textures*"});
+    const Entry* omni = cat->Find("mm3d-omni-ui-project-restoration");
+    REQUIRE(omni != nullptr);
+    CHECK(omni->customize.keep == std::vector<std::string>{"N64 Patch"});
+    const Entry* mm = cat->Find("mm3d-hd-deathwrench");
+    REQUIRE(mm != nullptr);
+    CHECK(mm->customize.Empty());
 }
 
 TEST_CASE("texdl: bad archives are refused", "[texdl]") {

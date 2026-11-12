@@ -1677,3 +1677,90 @@ TEST_CASE("Compat: GameBanana hasn't scanned the file yet", "[frame_xr][tabmenu]
     CHECK(dr.menu.HitTest(install.Cx(), install.Cy()).id != Id::ModInstall); // modal
     CHECK(std::string(kUnscannedTitle) == "GameBanana Hasn't Scanned This File Yet");
 }
+
+// AzaharFrame texparts: Customize on a pack row, and the pack's Customize page.
+TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    m.mods.textures = Packs(3);
+    m.mods.textures.packs[1].customize = true;
+    m.mods.textures.packs[2].customize = true;
+    m.mods.textures.packs[2].downloaded = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::PackCustomize, 0));
+    REQUIRE(HasHit(d, Id::PackCustomize, 1));
+    REQUIRE(HasHit(d, Id::PackCustomize, 2));
+    // beside Delete, not over it, and inside the pack's row
+    CHECK(FindHit(d, Id::PackCustomize, 2)->r.x1 <= FindHit(d, Id::PackDelete, 2)->r.x0 + 0.01f);
+    CHECK(FindHit(d, Id::PackCustomize, 1)->r.y0 >= FindHit(d, Id::TexturePack, 2)->r.y0 - 0.01f);
+    CheckTargets(d);
+    CHECK(LabelFor(Id::PackCustomize) == "Customize");
+
+    // The page: a checkbox part with order buttons, a folder and its part, a choice.
+    v.textures_page = TexturesPage::Parts;
+    TexturePartsModel& p = m.mods.textures.parts;
+    p.pack_id = "p1";
+    p.title = "4K";
+    p.author = "Henriko Magnifico";
+    p.rest = "6.0.0 · 2,034 Textures On · 5.0 GB";
+    p.all_buttons = true;
+    p.note = true;
+    p.rows.resize(6);
+    p.rows[0] = {PartRowKind::Check, "Effects", "52 Textures · 73 MB · Conflicts with UI"};
+    p.rows[0].arrows = true;
+    p.rows[0].down = true;
+    p.rows[1] = {PartRowKind::Folder, "Characters", "291 Textures · 263 MB"};
+    p.rows[2] = {PartRowKind::Check, "Sprites", "9 Textures · 1.8 MB"};
+    p.rows[2].child = true;
+    p.rows[3] = {PartRowKind::ChoiceTitle, "Fonts"};
+    p.rows[4] = {PartRowKind::ChoiceOff, "Off"};
+    p.rows[5] = {PartRowKind::Choice, "Original N64", "1 Texture · 178 KB"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::PartsBack, -1));
+    CHECK(HasHit(d, Id::PartsAllOn, -1));
+    CHECK(HasHit(d, Id::PartsAllOff, -1));
+    for (const int i : {0, 1, 2, 4}) {
+        CHECK(HasHit(d, Id::TexturePart, i));
+    }
+    CHECK(!HasHit(d, Id::TexturePart, 5)); // under the list's end: whole rows only
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TexturePart, 5));
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TexturePart, 3)); // a choice's title is not a button
+    CHECK(!HasHit(d, Id::PartUp, 0));      // the top row cannot move up
+    REQUIRE(HasHit(d, Id::PartDown, 0));
+    CHECK(!HasHit(d, Id::PartUp, 1)); // no conflict, no order buttons
+    CHECK(FindHit(d, Id::PartDown, 0)->r.x1 <= FindHit(d, Id::TexturePart, 0)->r.x1 + 0.01f);
+    CHECK(FindHit(d, Id::TexturePart, 0)->r.y1 <= FindHit(d, Id::TexturePart, 1)->r.y0 + 0.01f);
+    CHECK(!HasHit(d, Id::TexturePack, 0)); // the pack list is not under it
+    CheckTargets(d);
+    // A choice title with order buttons is a full row.
+    p.rows[3].arrows = true;
+    p.rows[3].up = true;
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::PartUp, 3));
+    CheckTargets(d);
+    // Loading: no rows, no All On / All Off.
+    p.loading = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TexturePart, 0));
+    CHECK(!HasHit(d, Id::PartsAllOn, -1));
+    CHECK(HasHit(d, Id::PartsBack, -1));
+    // Many rows: the list scrolls, whole rows only.
+    p.loading = false;
+    for (int i = 0; i < 20; i++) {
+        p.rows.push_back({PartRowKind::Check, "Part " + std::to_string(i), "1 Texture · 1 KB"});
+    }
+    d.Draw(m, v);
+    CHECK(d.menu.MaxScroll() > 0.0f);
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::TexturePart) {
+            CHECK(h.r.y1 <= kListBottom + 0.01f);
+        }
+    }
+}

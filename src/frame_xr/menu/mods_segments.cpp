@@ -1061,6 +1061,10 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
     }
+    if (view.textures_page == TexturesPage::Parts) { // AzaharFrame texparts
+        DrawTextureParts(kit, m.parts, view, area, bottom);
+        return;
+    }
     // AzaharFrame ui2: the same as the Mods segment: one button to the page of this game's packs
     // (with Install from Zip there), and with nothing installed one centred state.
     const std::string download = LabelFor(Id::DownloadPacks);
@@ -1152,6 +1156,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         } else {
             const TexturePackItem& p = m.packs[static_cast<std::size_t>(it.index - 1)];
             float right = c.x1;
+            float trail = c.x1; // AzaharFrame texparts: where the next button ends
             if (p.downloaded) {
                 // Delete, for the packs Download Packs brought (they can come again).
                 const std::string label = LabelFor(Id::PackDelete);
@@ -1162,6 +1167,19 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, dt, can));
                 if (can) {
                     AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, dt, list);
+                }
+                right = b.x0 + 12.0f - kNameGap;
+                trail = b.x0 - 8.0f;
+            }
+            if (p.customize) {
+                // AzaharFrame texparts: Customize, a page of the pack's parts
+                const std::string label = LabelFor(Id::PackCustomize);
+                const float w = ButtonWidth(kit, label, true, 12.0f);
+                const Rect b{trail - w, cy - kButtonH * 0.5f, trail, cy + kButtonH * 0.5f};
+                const Target ct{Id::PackCustomize, it.index - 1};
+                kit.Button(b, ButtonStyle::Text, Sym::kTune, label, StateOf(view, ct, !m.busy));
+                if (!m.busy) {
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, ct, list);
                 }
                 right = b.x0 + 12.0f - kNameGap;
             }
@@ -1465,6 +1483,211 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
         ScrollIndicator(kit, list, area.x1, s);
     }
     DrawModsDialog(kit, m.dialog, view);
+}
+
+// ---------------------------------------------------------------------------------------------
+// AzaharFrame texparts: a pack's Customize page
+//   <-  4K                                                 All On  All Off
+//   Created by Henriko Magnifico · 6.0.0 · 2,034 Textures On · 5.0 GB
+//   (i) Texture Conflicts: Parts Higher in the List Take Priority
+//   [x] [img] Effects                                           ^   v
+//             52 Textures · 73 MB · Conflicts with Environment
+//   Fonts                                                  (a choice's title)
+//   ( ) Off
+//   (o) [img] Original N64
+
+namespace {
+
+constexpr float kSubhead = 40.0f; ///< a choice's title over its rows
+constexpr float kThumb = 40.0f;   ///< a part's preview
+constexpr float kIndent = 32.0f;  ///< a part in a folder
+constexpr float kIconBtn = 48.0f;
+
+/// Material 3 checkbox: an 18 dp box, 2 dp outline, 2 dp corners; checked or mixed (a folder with
+/// some parts on) filled with the primary colour, the mark in on-primary.
+void Checkbox(Kit& kit, float cx, float cy, int value, bool enabled) {
+    const Rect b{cx - 9.0f, cy - 9.0f, cx + 9.0f, cy + 9.0f};
+    const float op = enabled ? 1.0f : kDisabledContent;
+    if (value == 0) {
+        kit.Stroke(b, 2.0f, 2.0f, enabled ? Tok::kOnSurfaceVariant : Tok::kOnSurface, op);
+        return;
+    }
+    kit.Fill(b, 2.0f, enabled ? Tok::kPrimary : Tok::kOnSurface, op);
+    const uint32_t mark = enabled ? Tok::kOnPrimary : Tok::kSurface;
+    if (value == 1) {
+        kit.Line(cx - 5.0f, cy, cx + 5.0f, cy, 2.0f, mark);
+    } else {
+        kit.Line(cx - 5.0f, cy + 0.5f, cx - 1.5f, cy + 4.0f, 2.0f, mark);
+        kit.Line(cx - 1.5f, cy + 4.0f, cx + 5.5f, cy - 3.5f, 2.0f, mark);
+    }
+}
+
+/// arrow_upward / arrow_downward (not in the menu's icon font) in a standard icon button.
+void ArrowButton(Kit& kit, float cx, float cy, bool up, bool enabled, State st) {
+    if (enabled && st != State::Rest) {
+        kit.Dot(cx, cy, 20.0f, Tok::kOnSurfaceVariant,
+                st == State::Pressed ? kPressedLayer : kHoverLayer);
+    }
+    const float op = enabled ? 1.0f : kDisabledContent;
+    const uint32_t ink = enabled ? Tok::kOnSurfaceVariant : Tok::kOnSurface;
+    const float d = up ? -1.0f : 1.0f;
+    kit.Line(cx, cy - 7.0f * d, cx, cy + 7.0f * d, 2.0f, ink, op);
+    kit.Line(cx, cy + 7.5f * d, cx - 6.0f, cy + 1.5f * d, 2.0f, ink, op);
+    kit.Line(cx, cy + 7.5f * d, cx + 6.0f, cy + 1.5f * d, 2.0f, ink, op);
+}
+
+float PartRowHeight(const TexturePartRow& r) {
+    switch (r.kind) {
+    case PartRowKind::ChoiceTitle:
+        return r.arrows ? kRow1 : kSubhead; // the order buttons' 48 dp targets
+    case PartRowKind::ChoiceOff:
+        return kRow1;
+    default:
+        return r.detail.empty() ? kRow1 : kRow2;
+    }
+}
+
+} // namespace
+
+void TabMenu::DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuView& view,
+                               const Rect& area, float bottom) {
+    const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
+    // The top bar: back, the pack's name, All On and All Off.
+    const Rect back{c.x0 - 12.0f, c.y0, c.x0 + 36.0f, c.y0 + kBarH};
+    kit.StateLayer(back, 24.0f, Tok::kOnSurfaceVariant, StateOf(view, {Id::PartsBack}));
+    kit.Icon(back.Cx(), back.Cy(), 24.0f, Sym::kArrowBack, false, Tok::kOnSurface);
+    AddHit(back, {Id::PartsBack}, area);
+    float title_right = c.x1;
+    if (m.all_buttons && !m.loading) {
+        float right = c.x1 + 12.0f; // a text button's padding lines its label up with the edge
+        for (const Id id : {Id::PartsAllOff, Id::PartsAllOn}) {
+            const std::string label = LabelFor(id);
+            const float w = ButtonWidth(kit, label, false, 12.0f);
+            const Rect b{right - w, back.Cy() - kButtonH * 0.5f, right,
+                         back.Cy() + kButtonH * 0.5f};
+            kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {id}));
+            AddHit({b.x0, back.y0, b.x1, back.y1}, {id}, area);
+            right = b.x0 - 8.0f;
+        }
+        title_right = right - 8.0f;
+    }
+    kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
+                kit.Fit(Type::Title, m.title, title_right - back.x1 - 12.0f));
+    float y = c.y0 + kBarH;
+    if (!m.author.empty() || !m.rest.empty()) {
+        CreatedBy(kit, c.x0, c.x1, y + 20.0f - 13.0f - kit.CapHeightSized(kSmall, false) * 0.5f,
+                  m.author, false, State::Rest, m.rest, false, 1.0f);
+        y += 32.0f;
+    }
+    if (m.loading) {
+        EmptyState(kit, {c.x0, y, c.x1, bottom}, Sym::kTexture, true, 0, "Reading the Pack", "");
+        return;
+    }
+    if (m.note) {
+        kit.Icon(c.x0 + 10.0f, y + 14.0f, 20.0f, Sym::kInfo, false, Tok::kOnSurfaceVariant);
+        const std::string text = "Texture Conflicts: Parts Higher in the List Take Priority";
+        kit.TextSized(c.x0 + 30.0f, y + 14.0f + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall,
+                      false, Tok::kOnSurfaceVariant, kit.Fit(Type::Tooltip, text, c.W() - 30.0f));
+        y += 32.0f;
+    }
+    const float top = y + 4.0f;
+    const Rect list{area.x0, top, area.x1, bottom};
+    std::vector<float> heights;
+    for (const TexturePartRow& r : m.rows) {
+        heights.push_back(PartRowHeight(r));
+    }
+    const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
+    layout.max_scroll = s.max_scroll;
+    layout.scroll_step = s.step;
+    struct Tip {
+        float cx = 0.0f, y = 0.0f;
+        std::string text;
+        bool above = true;
+    } tip;
+    kit.Clip(list);
+    for (std::size_t i = 0; i < m.rows.size(); i++) {
+        const TexturePartRow& r = m.rows[i];
+        const float h = heights[i];
+        const float ry = top + s.tops[i] - s.scroll;
+        if (ry < list.y0 - 0.01f || ry + h > list.y1 + 0.01f) {
+            continue; // whole rows only
+        }
+        const int idx = static_cast<int>(i);
+        const Rect row{c.x0 - 12.0f, ry, c.x1 + 12.0f, ry + h};
+        const float cy = row.Cy();
+        const bool title = r.kind == PartRowKind::ChoiceTitle;
+        if (title) {
+            // Material list subheader: the choice's name.
+            const float w = c.W() - (r.arrows ? 2.0f * kIconBtn : 0.0f);
+            kit.TextSized(c.x0, ry + h - 12.0f, kSmall, true, Tok::kPrimary,
+                          kit.Fit(Type::Tooltip, r.name, w));
+            if (!r.arrows) {
+                continue;
+            }
+        } else {
+            const Target t{Id::TexturePart, idx};
+            const State st = StateOf(view, t);
+            kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
+            AddHit(row, t, list);
+        }
+        const float indent = r.child ? kIndent : 0.0f;
+        const float lead = c.x0 + 12.0f + indent;
+        const bool radio = r.kind == PartRowKind::Choice || r.kind == PartRowKind::ChoiceOff;
+        if (radio) {
+            Radio(kit, lead, cy, r.value == 2, true);
+        } else if (!title) {
+            Checkbox(kit, lead, cy, r.value, true);
+        }
+        float tx = c.x0 + kLeading + indent;
+        if (!title && r.kind != PartRowKind::ChoiceOff) {
+            const Rect th{tx, cy - kThumb * 0.5f, tx + kThumb, cy + kThumb * 0.5f};
+            kit.Fill(th, 8.0f, Tok::kSurfaceContainerHighest);
+            if (r.preview && r.preview_px > 0 &&
+                r.preview->size() >= static_cast<std::size_t>(r.preview_px) * r.preview_px * 4) {
+                kit.Image(r.preview->data(), r.preview_px, r.preview_px, th);
+            } else {
+                kit.Icon(th.Cx(), th.Cy(), 24.0f,
+                         r.kind == PartRowKind::Folder ? Sym::kFolderOpen : Sym::kTexture, false,
+                         Tok::kOnSurfaceVariant);
+            }
+            tx = th.x1 + 16.0f;
+        }
+        float right = c.x1;
+        if (r.arrows) {
+            const float down_cx = c.x1 - kIconBtn * 0.5f + 12.0f;
+            const float up_cx = down_cx - kIconBtn;
+            for (const bool up : {true, false}) {
+                const float bx = up ? up_cx : down_cx;
+                const Target at{up ? Id::PartUp : Id::PartDown, idx};
+                const bool can = up ? r.up : r.down;
+                ArrowButton(kit, bx, cy, up, can, StateOf(view, at, can));
+                if (can) {
+                    AddHit({bx - kIconBtn * 0.5f, cy - 24.0f, bx + kIconBtn * 0.5f, cy + 24.0f}, at,
+                           list);
+                }
+                if (view.tooltip == at.id && view.tooltip_index == idx) {
+                    // Above, unless that covers the row above's buttons or leaves the list: then
+                    // below (never over another row's order buttons).
+                    const bool prev_arrows = i > 0 && m.rows[i - 1].arrows;
+                    const bool first = ry - kRow1 < list.y0;
+                    const bool next_arrows = i + 1 < m.rows.size() && m.rows[i + 1].arrows;
+                    const bool above = !(prev_arrows || first) || next_arrows;
+                    tip = {bx, above ? row.y0 + 4.0f : row.y1 - 4.0f,
+                           up ? "Move Up" : "Move Down", above};
+                }
+            }
+            right = up_cx - kIconBtn * 0.5f - 8.0f;
+        }
+        if (!title) {
+            RowText(kit, tx, right, cy, r.name, false, r.detail, false, 1.0f);
+        }
+    }
+    kit.ClearClip();
+    ScrollIndicator(kit, list, area.x1, s);
+    if (!tip.text.empty()) {
+        const float half = (kit.TextWidth(Type::Tooltip, tip.text) + 20.0f) * 0.5f;
+        kit.Tooltip(std::min(tip.cx, area.x1 - 8.0f - half), tip.y, tip.text, tip.above);
+    }
 }
 
 } // namespace FrameXr::Menu

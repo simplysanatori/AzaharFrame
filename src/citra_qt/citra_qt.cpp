@@ -153,6 +153,8 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h"
+#include "citra_qt/frame_texture_pack.h"  // AzaharFrame texparts: HasPack
+#include "citra_qt/frame_texture_parts.h" // AzaharFrame texparts
 #include "core/custom_tex/packs.h" // AzaharFrame catalog3
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
 #include "core/cheats/online.h"         // AzaharFrame compat: the game's version
@@ -2398,6 +2400,21 @@ void GMainWindow::ConnectWidgetEvents() {
             g_frame_homebrew->CheckForUpdates();
         }
     });
+    {
+        // AzaharFrame texparts: Customize Texture Pack for the running game, under Configure
+        // Current Game (the game list menu has it for any game); applies at the next start.
+        auto* customize = new QAction(tr("Customize Texture Pack..."), this);
+        ui->menu_Emulation->addAction(customize);
+        connect(ui->menu_Emulation, &QMenu::aboutToShow, this, [this, customize] {
+            customize->setEnabled(emulation_running && game_title_id != 0 &&
+                                  FrameTexturePack::HasPack(game_title_id));
+        });
+        connect(customize, &QAction::triggered, this, [this] {
+            if (emulation_running && game_title_id != 0) {
+                FrameTexturePartsDialog::Open(this, game_title_id, true);
+            }
+        });
+    }
 #endif
 #ifdef ENABLE_DEVELOPER_OPTIONS
     connect(game_list, &GameList::StartingLaunchStressTest, this,
@@ -4399,6 +4416,10 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::ZipChoose:
     case C::ZipDialog:
     case C::ZipClose:
+    case C::OpenTextureParts: // AzaharFrame texparts: a pack's Customize page
+    case C::TexturePart:
+    case C::MoveTexturePart:
+    case C::TexturePartsAll:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }

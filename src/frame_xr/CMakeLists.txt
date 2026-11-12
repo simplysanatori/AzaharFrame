@@ -156,6 +156,8 @@ target_sources(frame_xr PRIVATE
 # The diagram's sources are compiled in (as the unit tests do), so it needs no core libraries.
 add_executable(frame_xr_menu_dump EXCLUDE_FROM_ALL
     menu/menu_dump.cpp
+    menu/texparts_dump.cpp # AzaharFrame texparts: the Customize screens, dump only
+    menu/texparts_dump.h
     vis/controller_diagram.cpp
     vis/help_content.cpp
     vis/help_layout.cpp

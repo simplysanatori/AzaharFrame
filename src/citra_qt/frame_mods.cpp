@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -18,6 +19,9 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QImage> // AzaharFrame texparts
+#include <QPainter>
+#include <QPainterPath>
 #include <QStandardPaths>
 #include <QWidget>
 #include <QPointer>
@@ -134,6 +138,39 @@ Menu::ModRow ToRow(const Mods::ModInfo& info, const Mods::Catalog& catalog) {
     }
     return r;
 }
+
+/// AzaharFrame texparts: a part's preview for the menu: the PNG's middle square, `px` across,
+/// corners rounded as the page's 8 dp of 40 (RGBA, straight alpha).
+std::shared_ptr<const std::vector<uint8_t>> PartPreview(const std::string& path, int px) {
+    QImage src(QString::fromStdString(path));
+    if (src.isNull()) {
+        return {};
+    }
+    const int side = std::min(src.width(), src.height());
+    const QImage sq = src.copy((src.width() - side) / 2, (src.height() - side) / 2, side, side)
+                          .scaled(px, px, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                          .convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+    QImage out(px, px, QImage::Format_RGBA8888_Premultiplied);
+    out.fill(Qt::transparent);
+    {
+        QPainter painter(&out);
+        painter.setRenderHint(QPainter::Antialiasing);
+        QPainterPath clip;
+        const qreal r = px * 8.0 / 40.0;
+        clip.addRoundedRect(QRectF(0, 0, px, px), r, r);
+        painter.setClipPath(clip);
+        painter.drawImage(0, 0, sq);
+    }
+    out = out.convertToFormat(QImage::Format_RGBA8888);
+    auto rgba = std::make_shared<std::vector<uint8_t>>(static_cast<std::size_t>(px) * px * 4);
+    for (int y = 0; y < px; y++) {
+        std::memcpy(rgba->data() + static_cast<std::size_t>(y) * px * 4, out.constScanLine(y),
+                    static_cast<std::size_t>(px) * 4);
+    }
+    return rgba;
+}
+
+constexpr int kPreviewPx = 96; ///< the page's 40 dp previews
 
 std::string PackDetail(const CustomTex::Pack& p) {
     return Menu::JoinDetail({p.author, p.version, CustomTex::FormatName(p.format),
@@ -320,6 +357,19 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     }
     case C::LoadPackDownloads:
         LoadPackDownloads();
+        return;
+    // AzaharFrame texparts: a pack's Customize page
+    case C::OpenTextureParts:
+        OpenParts(r.text);
+        return;
+    case C::TexturePart:
+        PartClicked(r.value);
+        return;
+    case C::MoveTexturePart:
+        MovePart(r.value, r.text == "up" ? -1 : 1);
+        return;
+    case C::TexturePartsAll:
+        AllParts(r.value != 0);
         return;
     case C::DownloadPack: {
         const Menu::PackOffer* o = PackOffer(r.text);
@@ -773,20 +823,28 @@ void FrameMods::RefreshPacks() {
             auto list = CustomTex::ListPacks(CustomTex::DefaultPaths(), tid);
             // AzaharFrame zipinstall: the packs Install from Zip made can be deleted too
             std::set<std::string> zipped;
+            // AzaharFrame texparts: which packs have Customize, and "6 of 7 Parts"
+            std::map<std::string, PackParts> parts;
             for (const CustomTex::Pack& p : list) {
                 const auto id = p.managed ? CustomTex::Download::MarkerId(p.path) : std::nullopt;
                 if (id && id->rfind("zip:", 0) == 0) {
                     zipped.insert(std::filesystem::path(p.path).filename().string());
                 }
+                namespace P = CustomTex::Parts;
+                const P::State state = P::ReadState(p.path);
+                const P::Layout layout = P::Build(P::ListFiles(p.path), state.hints);
+                parts[p.id] = {layout.PartCount(), P::PartsOnText(layout, state)};
             }
-            return std::make_pair(std::move(list), std::move(zipped));
+            return std::make_tuple(std::move(list), std::move(zipped), std::move(parts));
         },
-        [this, tid](const std::pair<std::vector<CustomTex::Pack>, std::set<std::string>>& result) {
+        [this, tid](const std::tuple<std::vector<CustomTex::Pack>, std::set<std::string>,
+                                     std::map<std::string, PackParts>>& result) {
             if (tid != title_id) {
                 return;
             }
-            const std::vector<CustomTex::Pack>& list = result.first;
-            zip_packs = result.second;
+            const std::vector<CustomTex::Pack>& list = std::get<0>(result);
+            zip_packs = std::get<1>(result);
+            pack_parts = std::get<2>(result);
             packs = list;
             textures.packs.clear();
             for (const CustomTex::Pack& p : packs) {
@@ -794,6 +852,11 @@ void FrameMods::RefreshPacks() {
                 const bool mine =
                     p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
                 textures.packs.push_back({p.id, p.name, PackDetail(p), p.active, mine});
+                if (const auto it = pack_parts.find(p.id); it != pack_parts.end()) {
+                    textures.packs.back().customize = it->second.count >= 2; // AzaharFrame texparts
+                    textures.packs.back().detail =
+                        Menu::JoinDetail({textures.packs.back().detail, it->second.on_text});
+                }
             }
             PublishTextures();
             ComputeSizes();
@@ -825,6 +888,10 @@ void FrameMods::ComputeSizes() {
             for (std::size_t i = 0; i < packs.size() && i < textures.packs.size(); i++) {
                 packs[i].size_bytes = CustomTex::CachedSize(packs[i].path);
                 textures.packs[i].detail = PackDetail(packs[i]);
+                if (const auto it = pack_parts.find(packs[i].id); it != pack_parts.end()) {
+                    textures.packs[i].detail = // AzaharFrame texparts
+                        Menu::JoinDetail({textures.packs[i].detail, it->second.on_text});
+                }
             }
             PublishTextures();
         });
@@ -889,6 +956,236 @@ void FrameMods::SelectPack(const std::string& id) {
 
 void FrameMods::PublishTextures() {
     FrameXr::SetInGameMenuTextures(textures);
+}
+
+// ---- AzaharFrame texparts: a pack's Customize page ----
+
+void FrameMods::OpenParts(const std::string& pack_id) {
+    const auto pack = std::find_if(packs.begin(), packs.end(),
+                                   [&](const CustomTex::Pack& p) { return p.id == pack_id; });
+    if (pack == packs.end()) {
+        return;
+    }
+    const int serial = ++parts_serial;
+    parts_path = pack->path;
+    parts_layout = {};
+    parts_state = {};
+    part_actions.clear();
+    part_previews.clear();
+    textures.parts = {};
+    textures.parts.pack_id = pack_id;
+    textures.parts.title = pack->name;
+    textures.parts.author = pack->author;
+    textures.parts.rest = pack->version;
+    textures.parts.loading = true;
+    PublishTextures();
+    const std::string path = pack->path;
+    OffThread(
+        this,
+        [path] {
+            namespace P = CustomTex::Parts;
+            P::State state = P::ReadState(path);
+            P::Layout layout = P::Scan(path, state.hints);
+            std::map<std::string, std::shared_ptr<const std::vector<uint8_t>>> previews;
+            for (const P::Group& g : layout.groups) {
+                for (const P::Part& p : g.parts) {
+                    if (!p.preview.empty()) {
+                        if (auto px = PartPreview(p.preview, kPreviewPx)) {
+                            previews[p.key] = std::move(px);
+                        }
+                    }
+                }
+            }
+            return std::make_tuple(std::move(layout), std::move(state), std::move(previews));
+        },
+        [this, serial, pack_id](const std::tuple<CustomTex::Parts::Layout, CustomTex::Parts::State,
+                                                 decltype(part_previews)>& result) {
+            if (serial != parts_serial || textures.parts.pack_id != pack_id) {
+                return;
+            }
+            parts_layout = std::get<0>(result);
+            parts_state = std::get<1>(result);
+            part_previews = std::get<2>(result);
+            LOG_INFO(Frontend, "xr: texture parts: {} has {} parts in {} groups", parts_path,
+                     parts_layout.PartCount(), parts_layout.groups.size());
+            BuildPartRows();
+            PublishTextures();
+        });
+}
+
+void FrameMods::BuildPartRows() {
+    namespace P = CustomTex::Parts;
+    const P::Layout& l = parts_layout;
+    const P::State& st = parts_state;
+    Menu::TexturePartsModel& m = textures.parts;
+    m.loading = false;
+    m.rows.clear();
+    part_actions.clear();
+    m.note = P::AnyConflicts(l);
+    m.all_buttons = std::any_of(l.groups.begin(), l.groups.end(),
+                                [](const P::Group& g) { return g.kind != P::Kind::Choice; });
+    const auto [on_textures, on_bytes] = P::TotalsOn(l, st);
+    const auto pack = std::find_if(packs.begin(), packs.end(), [&](const CustomTex::Pack& p) {
+        return p.id == m.pack_id;
+    });
+    m.rest = Menu::JoinDetail({pack != packs.end() ? pack->version : std::string{},
+                               P::CountText(on_textures, "Texture On", "Textures On"),
+                               P::SizeText(on_bytes)});
+    const auto preview = [this](Menu::TexturePartRow& row, const std::string& key) {
+        if (const auto it = part_previews.find(key); it != part_previews.end()) {
+            row.preview = it->second;
+            row.preview_px = kPreviewPx;
+        }
+    };
+    const std::vector<std::size_t> order = P::Order(l, st);
+    for (std::size_t pos = 0; pos < order.size(); pos++) {
+        const std::size_t gi = order[pos];
+        const P::Group& g = l.groups[gi];
+        const bool arrows = P::CanMove(l, g);
+        const auto with_arrows = [&](Menu::TexturePartRow& row) {
+            row.arrows = arrows;
+            row.up = arrows && pos > 0;
+            row.down = arrows && pos + 1 < order.size();
+        };
+        Menu::TexturePartRow row;
+        switch (g.kind) {
+        case P::Kind::Single:
+            row.kind = Menu::PartRowKind::Check;
+            row.name = g.name;
+            row.detail = P::PartDetail(l, g.parts[0]);
+            row.value = P::IsOn(l, st, g, g.parts[0]) ? 2 : 0;
+            preview(row, g.parts[0].key);
+            with_arrows(row);
+            m.rows.push_back(std::move(row));
+            part_actions.push_back({PartAction::Kind::Part, gi, g.parts[0].key});
+            break;
+        case P::Kind::Folder:
+            row.kind = Menu::PartRowKind::Folder;
+            row.name = g.name;
+            row.detail = P::GroupDetail(l, g);
+            row.value = P::GroupValue(l, st, g);
+            with_arrows(row);
+            m.rows.push_back(std::move(row));
+            part_actions.push_back({PartAction::Kind::Folder, gi, {}});
+            for (const P::Part& p : g.parts) {
+                Menu::TexturePartRow child;
+                child.kind = Menu::PartRowKind::Check;
+                child.name = p.name;
+                child.detail = P::PartDetail(l, p);
+                child.value = P::IsOn(l, st, g, p) ? 2 : 0;
+                child.child = true;
+                preview(child, p.key);
+                m.rows.push_back(std::move(child));
+                part_actions.push_back({PartAction::Kind::Part, gi, p.key});
+            }
+            break;
+        case P::Kind::Choice: {
+            row.kind = Menu::PartRowKind::ChoiceTitle;
+            row.name = g.name;
+            with_arrows(row);
+            m.rows.push_back(std::move(row));
+            part_actions.push_back({});
+            const std::string chosen = P::Chosen(l, st, g);
+            Menu::TexturePartRow off;
+            off.kind = Menu::PartRowKind::ChoiceOff;
+            off.name = "Off";
+            off.value = chosen.empty() ? 2 : 0;
+            m.rows.push_back(std::move(off));
+            part_actions.push_back({PartAction::Kind::Choose, gi, {}});
+            for (const P::Part& p : g.parts) {
+                Menu::TexturePartRow choice;
+                choice.kind = Menu::PartRowKind::Choice;
+                choice.name = p.name;
+                choice.detail = P::PartDetail(l, p);
+                choice.value = p.key == chosen ? 2 : 0;
+                preview(choice, p.key);
+                m.rows.push_back(std::move(choice));
+                part_actions.push_back({PartAction::Kind::Choose, gi, p.key});
+            }
+            break;
+        }
+        }
+    }
+}
+
+void FrameMods::PartClicked(int row) {
+    if (row < 0 || row >= static_cast<int>(part_actions.size()) || textures.parts.loading) {
+        return;
+    }
+    namespace P = CustomTex::Parts;
+    const PartAction a = part_actions[static_cast<std::size_t>(row)];
+    if (a.group >= parts_layout.groups.size()) {
+        return;
+    }
+    const P::Group& g = parts_layout.groups[a.group];
+    switch (a.kind) {
+    case PartAction::Kind::Part: {
+        const P::Part* p = parts_layout.FindPart(a.key);
+        if (!p) {
+            return;
+        }
+        P::SetPart(parts_state, parts_layout, a.key, !P::IsOn(parts_layout, parts_state, g, *p));
+        break;
+    }
+    case PartAction::Kind::Folder:
+        P::SetGroup(parts_state, parts_layout, g, P::GroupValue(parts_layout, parts_state, g) != 2);
+        break;
+    case PartAction::Kind::Choose:
+        P::Choose(parts_state, parts_layout, g, a.key);
+        break;
+    case PartAction::Kind::None:
+        return;
+    }
+    PartsChanged();
+}
+
+void FrameMods::MovePart(int row, int delta) {
+    if (row < 0 || row >= static_cast<int>(part_actions.size()) || textures.parts.loading) {
+        return;
+    }
+    // The row's group: a choice's title row has no action of its own, the next row does.
+    std::size_t at = static_cast<std::size_t>(row);
+    while (at < part_actions.size() && part_actions[at].kind == PartAction::Kind::None) {
+        at++;
+    }
+    if (at >= part_actions.size() || part_actions[at].group >= parts_layout.groups.size()) {
+        return;
+    }
+    CustomTex::Parts::Move(parts_state, parts_layout,
+                           parts_layout.groups[part_actions[at].group].key, delta);
+    PartsChanged();
+}
+
+void FrameMods::AllParts(bool on) {
+    if (textures.parts.loading || parts_layout.groups.empty()) {
+        return;
+    }
+    CustomTex::Parts::SetAll(parts_state, parts_layout, on);
+    PartsChanged();
+}
+
+void FrameMods::PartsChanged() {
+    namespace P = CustomTex::Parts;
+    if (!P::WriteState(parts_path, parts_state)) {
+        LOG_WARNING(Frontend, "xr: texture parts: cannot save {}", parts_path);
+        FrameXr::ShowToastText("Texture Pack Not Changed");
+        return;
+    }
+    const auto [on, all] = P::CountOn(parts_layout, parts_state);
+    LOG_INFO(Frontend, "xr: texture parts: {} of {} parts on in {}", on, all, parts_path);
+    BuildPartRows();
+    for (std::size_t i = 0; i < packs.size() && i < textures.packs.size(); i++) {
+        if (packs[i].id != textures.parts.pack_id) {
+            continue;
+        }
+        pack_parts[packs[i].id].on_text = P::PartsOnText(parts_layout, parts_state);
+        textures.packs[i].detail =
+            Menu::JoinDetail({PackDetail(packs[i]), pack_parts[packs[i].id].on_text});
+        if (packs[i].active) {
+            textures.needs_restart = true; // the loader reads the parts at the next start
+        }
+    }
+    PublishTextures();
 }
 
 // ---- Download Packs ----
