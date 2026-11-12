@@ -259,6 +259,10 @@ After the first install through Frametanium the library entry is the same one `i
 
 FrameDrop adds its own library entry for `run.sh`. On the first start, and whenever the zip's `VERSION` differs from the one it installed last (kept in `~/.local/state/framedrop-azaharframe/installed-version`), `run.sh` runs `install.sh` with `AZAHARFRAME_SKIP_STEAM=1`, so no second entry is made, and logs to `install.log` in the same folder. Then it starts the installed `azaharframe.sh`. It also gives back the executable bits a zip unpack can lose. If the install fails it starts the version installed before. `FRAMEDROP_RUN_DRY=1` installs if needed and prints what it would start.
 
+## Merging upstream Azahar
+
+The Android app (`src/android`, its CI script, Kotlin format scripts, `AndroidNdkModules.cmake` and the Android-only submodules `libadrenotools`, `libyuv` and `openxr-sdk-src`) is removed from this fork because only the Linux Qt app is built. `#ifdef ANDROID` branches in shared C++ are left as upstream has them. The removed paths are listed in `steam-frame/dev/removed-upstream-paths.txt`. To merge upstream, run `steam-frame/dev/merge-upstream.sh <ref>` (for example `azahar/master` or `2127.0-rc3`): it fetches the azahar remote, merges the ref, deletes any of those paths the merge brings back, then commits, or lists the remaining real conflicts and stops.
+
 ## Before publishing a release
 
 Run the checks in [PRIVACY_AUDIT.md](PRIVACY_AUDIT.md) on the tracked tree, the history that is pushed, and the tarball.
