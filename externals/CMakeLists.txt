@@ -545,6 +545,21 @@ if(NOT USE_SYSTEM_XXHASH)
     endif()
 endif()
 
+# AzaharFrame crashreport: sentry-native (vendored in-tree: src, include, vendor and the CMake files of
+# release 0.17.6, without external/, tests or examples). No crash backend and no transport: the app
+# records crashes itself (common/frame_crash.cpp) and Sentry is only started when the player taps
+# Send Report, with a transport over httplib (core/frame_crash_send.cpp). Built static.
+if (AZAHARFRAME_SENTRY)
+    set(SENTRY_BACKEND "none" CACHE STRING "" FORCE)
+    set(SENTRY_TRANSPORT "none" CACHE STRING "" FORCE)
+    set(SENTRY_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(SENTRY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(SENTRY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SENTRY_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(sentry-native EXCLUDE_FROM_ALL)
+    target_disable_warnings(sentry)
+endif()
+
 # OpenXR
 if (ANDROID)
     add_subdirectory(openxr-sdk-src)
