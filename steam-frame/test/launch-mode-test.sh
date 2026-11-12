@@ -147,5 +147,25 @@ launch AZAHARFRAME_MEMORY_SCOPE=0
 check "a marker from this boot: left alone" yes "$([ -e "$AZAHARFRAME_MARK" ] && echo yes || echo no)"
 check "  not taken over" 0 "$(grep -c 'taken over' "$T/launch.log")"
 rm -f "$AZAHARFRAME_MARK"
+
+# AzaharFrame doubling: session.queue, one line per launch; the stand-in writes the switches it got.
+cat > "$T/app/azahar" << SH
+#!/bin/bash
+echo "\${AZAHARFRAME_XR_PACKED:-unset} \${AZAHARFRAME_IMMERSIVE_ANCHOR:-unset} \${EVIL:-unset}" > "$T/ab"
+mkdir -p "$T/user/log" && echo "log of \$AZAHARFRAME_XR_PACKED" > "$T/user/log/azahar_log.txt"
+SH
+chmod +x "$T/app/azahar"
+printf '# A/B\n\nAB1 control: AZAHARFRAME_XR_PACKED=0 AZAHARFRAME_IMMERSIVE_ANCHOR=0 EVIL=1\n\nAB2 new:\n' > "$T/session.queue"
+launch AZAHARFRAME_MEMORY_SCOPE=0
+check "queue: the first line's switches, only AZAHARFRAME_ ones" "0 0 unset" "$(cat "$T/ab")"
+check "  launch.log names it" 1 "$(grep -c '^session.queue: AB1-control: ' "$T/launch.log")"
+check "  the other variable is left out" 1 "$(grep -c "'EVIL=1' left out" "$T/launch.log")"
+check "  the line is gone, comments stay" "# A/B|||AB2 new:" "$(paste -sd'|' "$T/session.queue")"
+check "  the log is kept" 1 "$(ls "$T/ab-logs/"*-AB1-control.txt 2> /dev/null | wc -l)"
+launch AZAHARFRAME_MEMORY_SCOPE=0
+check "queue: the second line (no switches: the defaults)" "unset unset unset" "$(cat "$T/ab")"
+check "  nothing left" 0 "$(grep -c -v -E '^[[:space:]]*(#|$)' "$T/session.queue")"
+launch AZAHARFRAME_MEMORY_SCOPE=0
+check "an empty queue changes nothing" 0 "$(grep -c '^session.queue' "$T/launch.log")"
 check "the real headset marker is still untouched" "$MARK_BEFORE" "$(mark_state)"
 [ "$FAILS" = 0 ] && echo "all passed" || { echo "$FAILS failed"; exit 1; }

@@ -21,6 +21,7 @@
 
 // vk_common.h first: it sets the Vulkan defines (no prototypes) for the whole project.
 #include "video_core/renderer_vulkan/vk_common.h"
+#include "video_core/xr_content_pose.h" // AzaharFrame doubling
 
 namespace VideoCore {
 
@@ -80,6 +81,17 @@ public:
     /// Releases the image last acquired, once the GPU finished writing it
     /// (gpu_finished: the caller checked that it had). Takes the queue lock itself.
     virtual void Release(XrScreen screen, bool gpu_finished) = 0;
+
+    /// AzaharFrame doubling: releases the waited image of every screen, one game frame, once
+    /// the GPU finished it. `content`: the head pose its picture was drawn with. With set
+    /// releases on (AZAHARFRAME_XR_SET_RELEASE, the default) no xrEndFrame comes between the
+    /// screens' releases, so both eyes always show the same game frame. Takes the queue lock.
+    virtual void ReleaseFrame(bool gpu_finished, const XrContentPose& content) = 0;
+
+    /// AzaharFrame doubling: the two top screen images share one swapchain (AZAHARFRAME_XR_PACKED):
+    /// the left eye's swapchain is made kXrPackedGap + twice as high, the right eye's is never
+    /// made, and the right eye is drawn into the lower half. Fixed for the sink's life.
+    virtual bool PackedTop() const = 0;
 
     /// The mutex that guards the renderer's VkQueue (Scheduler::submit_mutex), or
     /// nullptr when no renderer exists. The XR thread holds it around the OpenXR

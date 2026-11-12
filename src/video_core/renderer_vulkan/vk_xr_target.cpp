@@ -79,7 +79,7 @@ XrPresentTarget::XrPresentTarget(const Instance& instance_, Scheduler& scheduler
                                  VideoCore::XrScreenSink& sink_, vk::ShaderModule vertex_shader,
                                  vk::PipelineLayout pipeline_layout)
     : instance{instance_}, scheduler{scheduler_}, sink{sink_}, device{instance.GetDevice()},
-      format{static_cast<vk::Format>(sink.SwapchainFormat())} {
+      format{static_cast<vk::Format>(sink.SwapchainFormat())}, packed{sink.PackedTop()} {
     const char* no_wait = Common::TestHookEnv("AZAHARFRAME_XR_NO_GPU_WAIT");
     skip_gpu_wait = no_wait && no_wait[0] == '1';
     if (skip_gpu_wait) {
@@ -104,7 +104,7 @@ XrPresentTarget::~XrPresentTarget() {
     // Images waited for ahead of time go back (not shown: the screens are off), so that the
     // next game's target can wait for images of the same swapchains.
     for (std::size_t i = 0; i < kScreens; i++) {
-        if (screens[i].armed >= 0) {
+        if (Used(i) && screens[i].armed >= 0) {
             sink.Release(static_cast<VideoCore::XrScreen>(i), true);
             screens[i].armed = -1;
         }
@@ -382,8 +382,12 @@ void XrPresentTarget::DestroyTargets(Screen& screen) {
 }
 
 bool XrPresentTarget::SpillReady() const {
-    return std::all_of(screens.begin(), screens.end(),
-                       [](const Screen& screen) { return screen.spill_ok; });
+    for (std::size_t i = 0; i < kScreens; i++) {
+        if (Used(i) && !screens[i].spill_ok) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void XrPresentTarget::Drain() {
@@ -409,6 +413,9 @@ bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
     for (std::size_t i = 0; i < kScreens; i++) {
         Screen& screen = screens[i];
         const vk::Extent2D size = sizes[i];
+        if (!Used(i)) {
+            continue; // AzaharFrame doubling: the packed right eye has no swapchain of its own
+        }
         if (screen.size == size && !screen.framebuffers.empty()) {
             continue;
         }
@@ -473,20 +480,45 @@ bool XrPresentTarget::Prepare(const std::array<vk::Extent2D, kScreens>& sizes) {
     return ok;
 }
 
-bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets) {
+bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets,
+                                 const VideoCore::XrContentPose& content) {
     sink.NoteEmuFrame();
+    // The framebuffer of each screen this frame: a swapchain image (Direct) or a spill slot.
+    const auto fill = [&](const auto& framebuffer_of) {
+        for (std::size_t i = 0; i < kScreens; i++) {
+            if (!Used(i)) {
+                continue; // the packed right eye: below
+            }
+            const Screen& screen = screens[i];
+            targets[i] = Target{
+                .framebuffer = framebuffer_of(screen),
+                .width = screen.size.width,
+                .height = screen.size.height,
+                .fb_width = screen.size.width,
+                .fb_height = screen.size.height,
+            };
+        }
+        if (packed) {
+            // AzaharFrame doubling: both eyes in the TopLeft image, one render pass.
+            constexpr auto tl = static_cast<std::size_t>(VideoCore::XrScreen::TopLeft);
+            constexpr auto tr = static_cast<std::size_t>(VideoCore::XrScreen::TopRight);
+            const u32 eye_h = (screens[tl].size.height - VideoCore::kXrPackedGap) / 2;
+            targets[tl].height = eye_h;
+            targets[tl].end_pass = false;
+            targets[tr] = targets[tl];
+            targets[tr].offset_y = eye_h + VideoCore::kXrPackedGap;
+            targets[tr].begin_pass = false;
+            targets[tr].end_pass = true;
+        }
+    };
     {
         std::scoped_lock lock{mutex};
         frame = handoff.BeginFrame(SpillReady());
+        frame_content = content;
         if (frame.path == XrHandoff::Path::Direct) {
-            for (std::size_t i = 0; i < kScreens; i++) {
-                const Screen& screen = screens[i];
-                targets[i] = Target{
-                    .framebuffer = screen.framebuffers[static_cast<std::size_t>(screen.armed)],
-                    .width = screen.size.width,
-                    .height = screen.size.height,
-                };
-            }
+            fill([](const Screen& screen) {
+                return screen.framebuffers[static_cast<std::size_t>(screen.armed)];
+            });
         }
         cv.notify_all(); // arm when the images are not armed yet
     }
@@ -496,14 +528,10 @@ bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets) {
     if (frame.path == XrHandoff::Path::Spill) {
         // The swapchain images are still in use (the GPU has not finished the frame
         // before, or its copy is in flight): drawn aside, copied in by the handoff thread.
+        const std::size_t slot = frame.slot;
+        fill([slot](const Screen& screen) { return screen.spill[slot].framebuffer; });
         for (std::size_t i = 0; i < kScreens; i++) {
-            const Screen& screen = screens[i];
             sink.NoteLateRelease(static_cast<VideoCore::XrScreen>(i));
-            targets[i] = Target{
-                .framebuffer = screen.spill[frame.slot].framebuffer,
-                .width = screen.size.width,
-                .height = screen.size.height,
-            };
         }
         if (frame.replaced) {
             sink.NoteSpillReplaced();
@@ -515,6 +543,11 @@ bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets) {
 void XrPresentTarget::EndFrame(u64 tick) {
     VideoCore::DynamicResolution::NoteSubmit(); // AzaharFrame menuux: how far behind the GPU is
     std::scoped_lock lock{mutex};
+    if (frame.path == XrHandoff::Path::Direct) {
+        direct_content = frame_content;
+    } else if (frame.path == XrHandoff::Path::Spill) {
+        slot_content[frame.slot] = frame_content; // a replaced frame's pose goes with it
+    }
     handoff.EndFrame(frame, tick);
     frame = {};
     cv.notify_all();
@@ -529,7 +562,7 @@ void XrPresentTarget::RunArm() {
         }
     }
     for (std::size_t i = 0; i < kScreens; i++) {
-        if (got[i] >= 0) {
+        if (got[i] >= 0 || !Used(i)) {
             continue;
         }
         const auto which = static_cast<VideoCore::XrScreen>(i);
@@ -546,6 +579,9 @@ void XrPresentTarget::RunArm() {
     std::scoped_lock lock{mutex};
     bool all = true;
     for (std::size_t i = 0; i < kScreens; i++) {
+        if (!Used(i)) {
+            continue; // never armed: drawn into the TopLeft image
+        }
         screens[i].armed = got[i];
         all &= got[i] >= 0;
     }
@@ -561,9 +597,13 @@ void XrPresentTarget::RunReleaseDirect(u64 tick) {
     }
     const bool finished = master->IsFree(tick);
     Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
-    for (std::size_t i = 0; i < kScreens; i++) {
-        sink.Release(static_cast<VideoCore::XrScreen>(i), finished);
+    VideoCore::XrContentPose content;
+    {
+        std::scoped_lock lock{mutex};
+        content = direct_content;
     }
+    // AzaharFrame doubling: the screens of one game frame go together (Runtime::ReleaseFrame).
+    sink.ReleaseFrame(finished, content);
     std::scoped_lock lock{mutex};
     for (Screen& screen : screens) {
         screen.armed = -1;
@@ -587,10 +627,15 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
     };
     std::array<vk::ImageMemoryBarrier, kScreens * 2> pre{};
     std::array<vk::ImageMemoryBarrier, kScreens> post{};
+    // AzaharFrame doubling: the packed right eye is in the TopLeft image: copied with it.
+    std::size_t n_pre = 0, n_post = 0;
     for (std::size_t i = 0; i < kScreens; i++) {
+        if (!Used(i)) {
+            continue;
+        }
         const Screen& screen = screens[i];
         const vk::Image dst = screen.images[static_cast<std::size_t>(screen.armed)];
-        pre[i * 2] = vk::ImageMemoryBarrier{
+        pre[n_pre++] = vk::ImageMemoryBarrier{
             .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
             .dstAccessMask = vk::AccessFlagBits::eTransferRead,
             .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -601,7 +646,7 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
             .subresourceRange = range,
         };
         // The runtime is done with a waited image; every pixel is written.
-        pre[i * 2 + 1] = vk::ImageMemoryBarrier{
+        pre[n_pre++] = vk::ImageMemoryBarrier{
             .srcAccessMask = {},
             .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
             .oldLayout = vk::ImageLayout::eUndefined,
@@ -612,7 +657,7 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
             .subresourceRange = range,
         };
         // Back in COLOR_ATTACHMENT_OPTIMAL for the runtime (XR_KHR_vulkan_enable2).
-        post[i] = vk::ImageMemoryBarrier{
+        post[n_post++] = vk::ImageMemoryBarrier{
             .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
             .dstAccessMask = {},
             .oldLayout = vk::ImageLayout::eTransferDstOptimal,
@@ -625,8 +670,13 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
     }
     copy_cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput |
                                     vk::PipelineStageFlagBits::eTopOfPipe,
-                                vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, pre);
+                                vk::PipelineStageFlagBits::eTransfer, {}, {}, {},
+                                vk::ArrayProxy<const vk::ImageMemoryBarrier>{
+                                    static_cast<u32>(n_pre), pre.data()});
     for (std::size_t i = 0; i < kScreens; i++) {
+        if (!Used(i)) {
+            continue;
+        }
         const Screen& screen = screens[i];
         const vk::ImageCopy region = {
             .srcSubresource{vk::ImageAspectFlagBits::eColor, 0, 0, 1},
@@ -640,7 +690,9 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
                               vk::ImageLayout::eTransferDstOptimal, region);
     }
     copy_cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
-                                vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, post);
+                                vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {},
+                                vk::ArrayProxy<const vk::ImageMemoryBarrier>{
+                                    static_cast<u32>(n_post), post.data()});
     copy_cmdbuf.end();
     const vk::SubmitInfo submit = {
         .commandBufferCount = 1,
@@ -662,9 +714,12 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
     }
     copy_cmdbuf.reset();
     Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
-    for (std::size_t i = 0; i < kScreens; i++) {
-        sink.Release(static_cast<VideoCore::XrScreen>(i), finished);
+    VideoCore::XrContentPose content;
+    {
+        std::scoped_lock lock{mutex};
+        content = slot_content[slot];
     }
+    sink.ReleaseFrame(finished, content); // AzaharFrame doubling: one game frame together
     sink.NoteSpillShown();
     std::scoped_lock lock{mutex};
     for (Screen& screen : screens) {

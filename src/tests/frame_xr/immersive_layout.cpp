@@ -1182,6 +1182,59 @@ TEST_CASE("FrameXr immersive: the head pose changes only between game frames", "
     REQUIRE(applied == 4);
 }
 
+// AzaharFrame doubling: the head pose a picture was drawn with goes through the mailbox, and the
+// picture on the screens after a latch is the game frame that just ended, drawn with the pose
+// applied at the latch before (not the one applied now, which the next frame is drawn with).
+TEST_CASE("FrameXr immersive: the picture's head pose follows the game frame", "[frame_xr]") {
+    using VideoCore::XrContentPose;
+    using VideoCore::Immersive::ContentTrack;
+    using VideoCore::Immersive::Mailbox;
+    using VideoCore::Immersive::VRData;
+    const auto pose = [](int64_t time, float yaw_w) {
+        XrContentPose p;
+        p.valid = true;
+        p.orientation[1] = std::sqrt(1.0f - yaw_w * yaw_w);
+        p.orientation[3] = yaw_w;
+        p.position[0] = 0.25f;
+        p.time = time;
+        return p;
+    };
+    Mailbox box;
+    VRData d;
+    d.mode = 2;
+    d.pose = pose(1000, 0.9f);
+    box.Publish(d);
+    VRData out;
+    u32 serial = 0;
+    REQUIRE(box.Read(out, serial));
+    REQUIRE(out.pose.valid);
+    REQUIRE(out.pose.time == 1000);
+    REQUIRE(out.pose.orientation[3] == 0.9f);
+    REQUIRE(out.pose.orientation[1] == d.pose.orientation[1]);
+    REQUIRE(out.pose.position[0] == 0.25f);
+    VRData off; // not immersive: no pose
+    box.Publish(off);
+    REQUIRE(box.Read(out, serial));
+    REQUIRE_FALSE(out.pose.valid);
+
+    ContentTrack track;
+    REQUIRE_FALSE(track.Drawn().valid);
+    track.Applied(pose(1, 1.0f)); // frame 1 is drawn with pose 1
+    track.Latch();                // frame 1 ends: on the screens now
+    track.Applied(pose(2, 0.99f)); // frame 2 gets pose 2
+    REQUIRE(track.Drawn().time == 1);
+    // A 30 frames a second game: the VBlank in the middle of frame 2 is no latch; the screens
+    // still show frame 1.
+    REQUIRE(track.Drawn().time == 1);
+    track.Latch();
+    track.Applied(pose(3, 0.98f));
+    REQUIRE(track.Drawn().time == 2);
+    // No new snapshot at a latch (the mailbox was busy): the next frame keeps pose 3.
+    track.Latch();
+    track.Latch();
+    REQUIRE(track.Drawn().time == 3);
+}
+
 // AzaharFrame immersive: the owner's report: after a resolution change (Internal Resolution,
 // Dynamic Resolution, a game's own option) the character was off to one side and the camera
 // swung round it. Nothing about the render size goes into the rest pose, the screen or the

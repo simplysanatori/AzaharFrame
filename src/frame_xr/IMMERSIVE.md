@@ -442,6 +442,34 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_TEST_RESOLUTION` | unset | `<seconds>:<factor>`: sets Internal Resolution that long after the game started, once (mock runs) |
 | `AZAHARFRAME_IMMERSIVE_WIDER` | unset | 0 to 4: the Wider View level, over the setting (comparing levels in mock runs) |
 | `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
+| `AZAHARFRAME_IMMERSIVE_ANCHOR` | 1 | 0: the Full modes' screen locked to the head at display time, as up to 1.2 (see below) |
+| `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` | 250 | 50..2000: a picture further behind the display than this (the game stopped drawing) goes back to the head |
+
+## Head turns and the picture (AzaharFrame doubling)
+
+The game camera follows the head pose the XR thread published when the game frame began
+(`FrameLatch`), so a picture is right for that pose. Up to 1.2 the Full modes' screen was locked to
+the head at display time: the picture came on view 25 to 70 ms later (a frame of the game, the GPU,
+the compositor's lead) and stayed for 2 display frames (60 a second) or 4 (30 a second), all the
+while moving with the head. On a quick head turn the world swung along with the head and jumped
+back at every new picture: a double image in every game, at any resolution (the owner's report of
+2026-11-12; Ocarina of Time 3D in the mock, at 54 degrees a second: pictures 62 ms old on average,
+the head 2.1 degrees on, up to 4.5).
+
+Now the picture carries its head pose (`VRData::pose`, `ContentTrack` in `video_core/vr_immersive.h`:
+the frame that ended at a latch was drawn with the pose applied at the latch before), the renderer
+tags the XR images with it (`XrPresentTarget::BeginFrame`), the release hands it back
+(`Runtime::ReleaseFrame`, `ShownContentPose`), and `Immersive::Screens` places the screen in LOCAL
+space where the head was (`AnchorPose`). SteamVR re-projects that layer for the head at display time,
+so the world stays where it is between pictures; only the screen's edges move. A picture drawn
+before SteamVR's last recenter, or more than `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` behind, goes back
+to the head. Once a second while a Full mode is on, the log says how old the pictures were, how far
+the head turned since, how many frames the screen was anchored, and how many display frames each
+picture stayed (`xr: immersive: 121 frames, 30 pictures, picture drawn 62.4 ms ...`).
+
+Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
+swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
+(`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
 
 ## Trying it
 

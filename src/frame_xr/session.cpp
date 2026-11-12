@@ -57,6 +57,20 @@ void ReturnHeldImage(ScreenChain& chain, QueueLock& queue_lock) {
 
 Runtime::Runtime() {
     placement = DefaultScreenPlacement();
+    // AzaharFrame doubling: A/B switches, fixed for the run (the renderer asks PackedTop once per
+    // session, the swapchains are made to match).
+    const auto env_on = [](const char* name, bool fallback) {
+        const char* v = std::getenv(name);
+        if (!v || !*v) {
+            return fallback;
+        }
+        return v[0] == '1';
+    };
+    set_release = env_on("AZAHARFRAME_XR_SET_RELEASE", true);
+    packed_top = env_on("AZAHARFRAME_XR_PACKED", true);
+    LOG_INFO(Frontend, "xr: eye images: {}, {} (AZAHARFRAME_XR_PACKED, AZAHARFRAME_XR_SET_RELEASE)",
+             packed_top ? "both in one swapchain" : "a swapchain each",
+             set_release ? "released together" : "released one by one");
 }
 
 Runtime::~Runtime() {
@@ -572,6 +586,53 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     if (!gpu_finished) {
         stats.unfinished[i]++;
     }
+}
+
+void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) {
+    std::shared_lock chains_lock{chains_mutex};
+    // Set releases: under screens_mutex (taken before the queue lock, as in the frame loop), so
+    // the frame loop's layers and xrEndFrame see every screen of this game frame or none.
+    std::unique_lock set_lock{screens_mutex, std::defer_lock};
+    if (set_release) {
+        set_lock.lock();
+    }
+    const uint64_t serial = ++release_serial; // only the handoff thread releases
+    for (std::size_t i = 0; i < kScreens; i++) {
+        ScreenChain& chain = screens[i];
+        if (!chain.handle || !chain.waited) {
+            continue; // no image of this screen (the packed right eye, a session that ended)
+        }
+        XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+        const XrResult r =
+            queue_lock.With([&] { return Xr().xrReleaseSwapchainImage(chain.handle, &ri); });
+        if (XR_FAILED(r)) {
+            LOG_ERROR(Frontend, "xr: xrReleaseSwapchainImage {}: {}", ScreenName(i),
+                      ResultName(r));
+        }
+        chain.waited = false;
+        if (set_release) {
+            chain.has_image = true;
+            chain.frame_serial = serial;
+        } else {
+            std::scoped_lock lock{screens_mutex};
+            chain.has_image = true;
+            chain.frame_serial = serial;
+        }
+        // A packed top screen counts for both eyes (the log line keeps its meaning).
+        const bool both = packed_top && i == static_cast<std::size_t>(VideoCore::XrScreen::TopLeft);
+        for (std::size_t k = i; k <= (both ? i + 1 : i); k++) {
+            stats.releases[k]++;
+            if (!gpu_finished) {
+                stats.unfinished[k]++;
+            }
+        }
+    }
+    std::scoped_lock lock{content_mutex};
+    shown_content = content;
+}
+
+bool Runtime::PackedTop() const {
+    return packed_top;
 }
 
 void Runtime::SetQueueMutex(std::mutex* mutex) {

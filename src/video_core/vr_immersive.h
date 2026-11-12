@@ -26,6 +26,7 @@
 #include "common/settings.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/vr_view_matrix.h" // AzaharFrame depth
+#include "video_core/xr_content_pose.h" // AzaharFrame doubling
 
 namespace VideoCore::Immersive {
 
@@ -38,6 +39,9 @@ struct VRData {
     s32 uoffset = -1;
     float game_pos_scaler = 0.0f;
     std::array<float, 16> inv_view{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    /// AzaharFrame doubling: the head pose inv_view was made from (not for the rasterizer):
+    /// the XR thread places the immersive screen where the head was when a picture was drawn.
+    XrContentPose pose{};
 };
 
 /// One writer (the XR thread), any number of readers. A reader never blocks the writer; a
@@ -57,6 +61,14 @@ public:
         for (std::size_t i = 0; i < 16; i++) {
             inv_view[i].store(data.inv_view[i], std::memory_order_relaxed);
         }
+        pose_valid.store(data.pose.valid, std::memory_order_relaxed);
+        for (std::size_t i = 0; i < 4; i++) {
+            pose_q[i].store(data.pose.orientation[i], std::memory_order_relaxed);
+        }
+        for (std::size_t i = 0; i < 3; i++) {
+            pose_p[i].store(data.pose.position[i], std::memory_order_relaxed);
+        }
+        pose_time.store(data.pose.time, std::memory_order_relaxed);
         seq.store(s + 2, std::memory_order_release);
     }
 
@@ -80,6 +92,14 @@ public:
             for (std::size_t i = 0; i < 16; i++) {
                 d.inv_view[i] = inv_view[i].load(std::memory_order_relaxed);
             }
+            d.pose.valid = pose_valid.load(std::memory_order_relaxed);
+            for (std::size_t i = 0; i < 4; i++) {
+                d.pose.orientation[i] = pose_q[i].load(std::memory_order_relaxed);
+            }
+            for (std::size_t i = 0; i < 3; i++) {
+                d.pose.position[i] = pose_p[i].load(std::memory_order_relaxed);
+            }
+            d.pose.time = pose_time.load(std::memory_order_relaxed);
             std::atomic_thread_fence(std::memory_order_acquire);
             if (seq.load(std::memory_order_relaxed) == s0) {
                 out = d;
@@ -98,6 +118,10 @@ private:
     std::atomic<s32> uoffset{-1};
     std::atomic<float> game_pos_scaler{0.0f};
     std::array<std::atomic<float>, 16> inv_view{};
+    std::atomic<bool> pose_valid{false};
+    std::array<std::atomic<float>, 4> pose_q{};
+    std::array<std::atomic<float>, 3> pose_p{};
+    std::atomic<int64_t> pose_time{0};
 };
 
 inline Mailbox g_mailbox;
@@ -187,6 +211,30 @@ inline void Publish(const VRData& data) {
     g_mailbox.Publish(data);
 }
 
+/// AzaharFrame doubling: emulation thread only. `applied`: the head pose the rasterizer draws
+/// with now (the last snapshot ApplyPending handed over); `drawn`: the one the game frame that
+/// ended at the last latch was drawn with, which is the picture the screens show until the next
+/// one (RendererVulkan::RenderToXr tags the XR images with it).
+class ContentTrack {
+public:
+    /// A snapshot was handed to the rasterizer: the draws from now on use its pose.
+    void Applied(const XrContentPose& pose) noexcept {
+        applied_ = pose;
+    }
+    /// A game frame ended (FrameLatch): its draws used the pose applied so far.
+    void Latch() noexcept {
+        drawn_ = applied_;
+    }
+    const XrContentPose& Drawn() const noexcept {
+        return drawn_;
+    }
+
+private:
+    XrContentPose applied_{};
+    XrContentPose drawn_{};
+};
+inline ContentTrack g_content;
+
 /// Emulation thread, once per game frame (FrameLatch): hands the newest snapshot to the
 /// rasterizer (again for a new rasterizer, as every game boot makes one).
 inline void ApplyPending(RasterizerInterface* rasterizer) {
@@ -207,6 +255,19 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
     last_rasterizer = rasterizer;
     rasterizer->SetVRData(d.mode, d.factor, d.uoffset, d.game_pos_scaler, d.inv_view.data());
     rasterizer->SetVRFactorY(d.factor_y);
+    g_content.Applied(d.pose);
+}
+
+/// AzaharFrame doubling: a game frame ended (a latch): its draws used the pose applied so far.
+inline void LatchFrame(RasterizerInterface* rasterizer) {
+    g_content.Latch();
+    ApplyPending(rasterizer);
+}
+
+/// AzaharFrame doubling: the head pose the picture on the screens now was drawn with
+/// (emulation thread, when the renderer presents). Invalid outside immersive modes 2 and 3.
+inline XrContentPose DrawnContentPose() {
+    return g_content.Drawn();
 }
 
 /// AzaharFrame immersive: when the emulation thread may give the rasterizer a new head pose.
@@ -246,14 +307,14 @@ inline FrameLatch g_frame_latch;
 /// GPU::SetBufferSwap for the top screen (emulation thread): a game frame ended.
 inline void OnTopScreenSwap(RasterizerInterface* rasterizer) {
     if (g_frame_latch.OnTopSwap()) {
-        ApplyPending(rasterizer);
+        LatchFrame(rasterizer);
     }
 }
 
 /// GPU::VBlankCallback (emulation thread).
 inline void OnVBlank(RasterizerInterface* rasterizer) {
     if (g_frame_latch.OnVBlank()) {
-        ApplyPending(rasterizer);
+        LatchFrame(rasterizer);
     }
 }
 
