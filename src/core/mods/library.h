@@ -264,7 +264,7 @@ private:
     bool DownloadParts(const CatalogEntry& entry, u64 title_id, std::string& root, std::string& version,
                        std::string& error);
     bool FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
-                     std::string& error);
+                     std::string& error, const std::vector<std::string>& extra_hosts = {});
     bool DownloadBig(const CatalogEntry& entry, u64 title_id, std::string& version, std::string& error);
     std::string WorkDir(const std::string& mod_id) const;
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,

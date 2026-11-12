@@ -77,6 +77,7 @@ struct FileReply {
     std::string location;
     std::string error;
     u64 total = 0; // Content-Length, 0 unknown
+    std::string html; // a 200 text/html body (capped at 2 MB, nothing written to the file): Drive's confirm page
 };
 using Progress = std::function<void(u64 done, u64 total)>;
 /// One GET of `https://host` + `path` into the file `dest` (no redirects followed: a 3xx comes back

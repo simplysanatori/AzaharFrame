@@ -361,12 +361,18 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
         const httplib::Headers headers{{"Accept-Encoding", "identity"}};
         u64 done = 0;
         bool stopped = false;
+        bool capture_html = false;
         const auto res = client.Get(
             Common::RequestPath(path), headers,
             [&](const httplib::Response& r) {
                 reply.status = r.status;
                 reply.location = r.get_header_value("Location");
-                if (r.status == 200) {
+                std::string ctype = r.get_header_value("Content-Type");
+                for (char& ch : ctype) {
+                    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                }
+                capture_html = r.status == 200 && ctype.rfind("text/html", 0) == 0;
+                if (r.status == 200 && !capture_html) {
                     const std::string cl = r.get_header_value("Content-Length");
                     reply.total = cl.empty() ? 0 : std::strtoull(cl.c_str(), nullptr, 10);
                     file = std::fopen(dest.c_str(), "wb");
@@ -381,6 +387,12 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
                 if (cancel != nullptr && cancel->load()) {
                     stopped = true;
                     return false;
+                }
+                if (capture_html) {
+                    if (reply.html.size() + len > 2u * 1024 * 1024) {
+                        return false;
+                    }
+                    reply.html.append(data, len);
                 }
                 if (file != nullptr) {
                     if (std::fwrite(data, 1, len, file) != len) {

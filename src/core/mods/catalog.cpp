@@ -7,6 +7,7 @@
 #include <json.hpp>
 #include <boost/crc.hpp>
 #include <fmt/format.h>
+#include "core/custom_tex/download.h" // AzaharFrame catalog3: Drive ids and https links
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
 #include "core/mods/mega.h" // AzaharFrame mega
@@ -25,6 +26,13 @@ bool IdOk(std::string_view id) {
         }
     }
     return id.front() != '.';
+}
+
+bool HostNameOk(std::string_view h) {
+    return !h.empty() && h.find('.') != std::string_view::npos && h.front() != '.' && h.front() != '-' &&
+           std::all_of(h.begin(), h.end(), [](char c) {
+               return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.';
+           });
 }
 
 bool RepoOk(std::string_view repo) {
@@ -161,11 +169,55 @@ Source ParseSource(const nlohmann::json& src_json) {
         if (link->folder && link->node.empty() && s.asset_pattern.empty()) {
             throw std::string("bad file_pattern");
         }
+    } else if (type == "https") { // AzaharFrame catalog3: the texture list's source types
+        s.type = Source::Type::Https;
+        s.url = Str(*src, "url");
+        std::string host, path;
+        if (!CustomTex::Download::SplitUrl(s.url, host, path) || path.find("..") != std::string::npos ||
+            !HostNameOk(host.substr(8))) {
+            throw std::string("bad https source");
+        }
+        s.hosts.push_back(host.substr(8));
+    } else if (type == "gdrive") {
+        s.type = Source::Type::Gdrive;
+        s.file_id = Str(*src, "file_id");
+        if (!CustomTex::Download::DriveIdOk(s.file_id)) {
+            throw std::string("bad Google Drive file id");
+        }
+    } else if (type == "gdrive_folder") {
+        s.type = Source::Type::GdriveFolder;
+        s.folder_id = Str(*src, "folder_id");
+        s.asset_pattern = Str(*src, "file_pattern");
+        if (!CustomTex::Download::DriveIdOk(s.folder_id) || s.asset_pattern.empty() ||
+            s.asset_pattern.size() > 100 || s.asset_pattern.find('/') != std::string::npos) {
+            throw std::string("bad gdrive_folder source");
+        }
     } else {
         throw std::string("unknown source type");
     }
-    if (s.type != Source::Type::Gamebanana && s.type != Source::Type::Mega && !RepoOk(s.repo)) {
-        throw std::string("bad repo");
+    if (const auto hosts = src->find("hosts"); hosts != src->end() && s.type == Source::Type::Https) {
+        if (!hosts->is_array() || hosts->size() > 8) {
+            throw std::string("bad hosts");
+        }
+        for (const auto& h : *hosts) {
+            if (!h.is_string() || !HostNameOk(h.get<std::string>())) {
+                throw std::string("bad hosts (exact names only)");
+            }
+            s.hosts.push_back(h.get<std::string>());
+        }
+    }
+    if (const auto name = Str(*src, "name"); !name.empty()) {
+        if (name.size() > 120 || name.find('/') != std::string::npos || name.find('\\') != std::string::npos ||
+            name == "." || name == "..") {
+            throw std::string("bad name");
+        }
+        s.name = name;
+    }
+    if (s.type == Source::Type::OwnerRepoPath || s.type == Source::Type::GithubRelease ||
+        s.type == Source::Type::GithubRepoPath) {
+        if (!RepoOk(s.repo)) {
+            throw std::string("bad repo");
+        }
     }
     if (s.type == Source::Type::GithubRepoPath || s.type == Source::Type::OwnerRepoPath) {
         const auto safe = SafeRelativePath(s.path);
@@ -303,7 +355,7 @@ bool CatalogEntry::ServesTitle(u64 title_id) const {
 
 bool CatalogEntry::Installable() const {
     if (!parts.empty()) {
-        return !FindBsdtar().empty(); // AzaharFrame catalog3: parts are joined and unpacked by bsdtar
+        return !FindBsdtar().empty() || !FindSevenZip().empty(); // AzaharFrame catalog3: parts are joined and unpacked by bsdtar or 7zz
     }
     if (source.type != Source::Type::GithubRelease && source.type != Source::Type::Gamebanana) {
         return true;
@@ -315,7 +367,7 @@ bool CatalogEntry::Installable() const {
     const auto ends = [&](std::string_view suffix) {
         return p.size() >= suffix.size() && p.compare(p.size() - suffix.size(), suffix.size(), suffix) == 0;
     };
-    return !(ends(".7z") || ends(".rar")) || !FindBsdtar().empty(); // those need the system's bsdtar
+    return !(ends(".7z") || ends(".rar")) || !FindBsdtar().empty() || !FindSevenZip().empty(); // those need bsdtar or 7zz
 }
 
 const CatalogEntry* Catalog::Find(std::string_view id) const {

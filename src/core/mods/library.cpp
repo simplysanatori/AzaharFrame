@@ -15,6 +15,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/cheats/online.h"
+#include "core/custom_tex/download.h" // AzaharFrame catalog3 round 2: Drive pages, ids
 #include "core/mods/library.h"
 
 namespace fs = std::filesystem;
@@ -146,8 +147,13 @@ bool SplitUrl(const std::string& url, std::string& host, std::string& path) {
     return host.size() > scheme.size();
 }
 
-bool HostAllowed(const std::string& host) {
-    static const char* allowed[] = {"https://api.github.com",
+bool HostAllowed(const std::string& host, const std::vector<std::string>& extra = {}) {
+    for (const auto& e : extra) { // an https source's own host (exact names, no wildcards)
+        if (host == "https://" + e) {
+            return true;
+        }
+    }
+    static const char* allowed[] = {"https://drive.google.com", "https://drive.usercontent.google.com","https://api.github.com",
                                     "https://github.com",
                                     "https://raw.githubusercontent.com",
                                     "https://codeload.github.com",
@@ -706,11 +712,12 @@ std::string Library::WorkDir(const std::string& mod_id) const {
 
 // One GET into a file with redirects followed to the allowed hosts only.
 bool Library::FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
-                          std::string& error) {
+                          std::string& error, const std::vector<std::string>& extra_hosts) {
     std::string current = url;
-    for (int hop = 0; hop < 6; ++hop) {
+    int confirms = 0;
+    for (int hop = 0; hop < 12; ++hop) {
         std::string host, path;
-        if (!SplitUrl(current, host, path) || !HostAllowed(host)) {
+        if (!SplitUrl(current, host, path) || !HostAllowed(host, extra_hosts)) {
             error = "Download refused: not an allowed address";
             return false;
         }
@@ -727,6 +734,21 @@ bool Library::FetchToFile(const std::string& url, const std::string& dest, const
         }
         if (reply.status == 0 || !reply.error.empty()) {
             error = reply.error.empty() ? "No reply" : reply.error;
+            return false;
+        }
+        if (!reply.html.empty()) { // a page, not the file: Drive's "can't scan for viruses" form, or a wall
+            const bool drive = host == "https://drive.google.com" || host == "https://drive.usercontent.google.com";
+            if (drive) {
+                const auto page = CustomTex::Download::ParseDrivePage(reply.html);
+                if (page.kind == CustomTex::Download::DrivePage::Kind::Confirm && confirms < 2) {
+                    ++confirms;
+                    current = page.url;
+                    continue;
+                }
+                error = page.error.empty() ? "Google Drive did not give the file" : page.error;
+                return false;
+            }
+            error = "The link leads to a web page, not a file";
             return false;
         }
         if (reply.status != 200) {
@@ -746,6 +768,7 @@ struct PartRef {
     u64 size = 0;     // 0 unknown
     bool mega = false;
     Mega::Resolved mega_file;
+    std::vector<std::string> hosts; // extra hosts of an https part
 };
 } // namespace
 
@@ -880,6 +903,36 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
             ref.mega_file = *resolved;
             ref.name = resolved->name;
             ref.size = resolved->size;
+        } else if (s.type == Source::Type::Https) { // AzaharFrame catalog3 round 2
+            ref.url = s.url;
+            ref.hosts = s.hosts;
+            std::string uh, up;
+            SplitUrl(s.url, uh, up);
+            ref.name = !s.name.empty() ? s.name : BaseName(up.substr(0, up.find('?')));
+        } else if (s.type == Source::Type::Gdrive) {
+            ref.url = CustomTex::Download::DriveUrl(s.file_id);
+            ref.name = s.name;
+        } else if (s.type == Source::Type::GdriveFolder) {
+            const CustomTex::Download::DriveLister lister =
+                [this](const std::string& id) -> std::optional<std::vector<CustomTex::Download::DriveItem>> {
+                HttpReply r;
+                std::string err;
+                if (!Fetch("https://drive.google.com/embeddedfolderview?id=" + id, 2 * 1024 * 1024, r, err) ||
+                    r.status != 200) {
+                    return std::nullopt;
+                }
+                return CustomTex::Download::ParseDriveFolder(r.body);
+            };
+            const auto item = CustomTex::Download::PickDriveFile(lister, s.folder_id, s.asset_pattern, &error);
+            if (cancel_) {
+                error = "Cancelled";
+                return false;
+            }
+            if (!item) {
+                return false;
+            }
+            ref.url = CustomTex::Download::DriveUrl(item->id);
+            ref.name = s.name.empty() ? item->name : s.name;
         } else { // a file of a repository
             if (s.path.empty() || s.path.back() == '/') {
                 error = "A part must be one file";
@@ -896,6 +949,9 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
     for (const auto& r : refs) {
         parts_total += r.size;
     }
+    if (parts_total == 0) {
+        parts_total = entry.size; // Drive and https files carry no size: the catalog's
+    }
     u64 free_bytes = 0;
     if (free_space_(work, &free_bytes)) {
         if (const auto problem = Multipart::SpaceError(parts_total, parts_total, free_bytes); !problem.empty()) {
@@ -908,6 +964,7 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
     SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
     SetProgress(0, parts_total);
     std::vector<std::string> files;
+    std::vector<std::string> names;
     u64 base = 0;
     for (std::size_t i = 0; i < refs.size(); ++i) {
         const PartRef& ref = refs[i];
@@ -939,7 +996,7 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
                     }
                 }
             } else {
-                ok = FetchToFile(ref.url, dest, progress, why);
+                ok = FetchToFile(ref.url, dest, progress, why, ref.hosts);
             }
             if (!ok && why == "Cancelled") {
                 error = why;
@@ -960,9 +1017,36 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
         }
         base += ref.size != 0 ? ref.size : static_cast<u64>(fs::file_size(dest, ec));
         files.push_back(dest);
+        names.push_back(ref.name);
     }
 
-    // 4. One archive, then unpacked
+    // 4. Loose files (parts that are no archive: each is one file, placed by the install rules), or
+    // one archive, joined and unpacked
+    {
+        std::string first(16, '\0');
+        std::ifstream in(files.front(), std::ios::binary);
+        in.read(first.data(), static_cast<std::streamsize>(first.size()));
+        first.resize(static_cast<std::size_t>(in.gcount()));
+        if (DetectArchive(first) == ArchiveKind::Unknown) {
+            const std::string out_dir = work + "out";
+            fs::create_directories(out_dir, ec);
+            std::set<std::string> used;
+            for (std::size_t i = 0; i < files.size(); ++i) {
+                std::string name = names[i].empty() ? fmt::format("part{:03}", i + 1) : names[i];
+                if (!used.insert(name).second || name.find('/') != std::string::npos) {
+                    error = "Two parts have the same file name";
+                    return false;
+                }
+                fs::rename(files[i], out_dir + "/" + name, ec);
+                if (ec) {
+                    error = "Cannot write the download folder";
+                    return false;
+                }
+            }
+            root = out_dir;
+            return true;
+        }
+    }
     SetState(State::Phase::Extracting, entry.id, fmt::format("Unpacking {}", entry.name));
     const std::string joined = work + "joined.bin";
     if (const auto problem = Multipart::JoinParts(files, joined, &cancel_); !problem.empty()) {
@@ -1063,6 +1147,12 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
 
     if (s.type == Source::Type::Mega) { // AzaharFrame mega
         return DownloadMega(entry, title_id, files, error);
+    }
+
+    // AzaharFrame catalog3 round 2: https and Google Drive files, any size, always to disk
+    if (s.type == Source::Type::Https || s.type == Source::Type::Gdrive || s.type == Source::Type::GdriveFolder) {
+        std::string v;
+        return DownloadBig(entry, title_id, v, error);
     }
 
     if (s.type == Source::Type::Gamebanana) { // AzaharFrame modcat
@@ -1215,7 +1305,8 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
     const Source& s = entry.source;
     HttpReply reply;
     std::string error;
-    if (s.type == Source::Type::Mega) { // AzaharFrame mega: no date without a download
+    if (s.type == Source::Type::Mega || s.type == Source::Type::Https || s.type == Source::Type::Gdrive ||
+        s.type == Source::Type::GdriveFolder) { // no date without a download
         return {};
     }
     try {
@@ -1694,7 +1785,11 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
         manifest.source = entry.source.type == Source::Type::Gamebanana
                               ? fmt::format("gamebanana.com/mods/{}", entry.source.gb_mod)
                           : entry.source.type == Source::Type::Mega ? std::string("mega.nz") // AzaharFrame mega
-                                                                    : "github.com/" + entry.source.repo;
+                          : entry.source.type == Source::Type::Gdrive || entry.source.type == Source::Type::GdriveFolder
+                              ? std::string("drive.google.com")
+                          : entry.source.type == Source::Type::Https
+                              ? (entry.source.hosts.empty() ? std::string("https") : entry.source.hosts.front())
+                              : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
         manifest.active = false;
         // one file into the library: from memory, or moved from the folder (copied when both parts

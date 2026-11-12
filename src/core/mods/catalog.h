@@ -83,7 +83,7 @@
 namespace Mods {
 
 struct Source {
-    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath, Gamebanana, Mega };
+    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath, Gamebanana, Mega, Https, Gdrive, GdriveFolder };
     Type type = Type::OwnerRepoPath;
     std::string repo;          // "owner/name" (OwnerRepoPath: always the maintainer's repository)
     std::string tag = "latest"; // GithubRelease
@@ -92,6 +92,12 @@ struct Source {
     u64 gb_mod = 0;            // Gamebanana: the mod's id (gamebanana.com/mods/<id>)
     std::string ref = "main";  // repo paths
     std::string path;          // repo paths
+    // AzaharFrame catalog3 round 2: sources shared with the texture list
+    std::string url;                // Https: the direct link
+    std::string file_id;            // Gdrive: a public file's id
+    std::string folder_id;          // GdriveFolder: a public folder (file_pattern picks the file)
+    std::vector<std::string> hosts; // Https: extra exact host names a redirect may go to
+    std::string name;               // optional file name for a part that is a loose file (not an archive)
 };
 
 struct Rule {

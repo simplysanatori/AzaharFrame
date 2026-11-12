@@ -44,6 +44,11 @@ ExtractResult ExtractZip(std::string_view zip, std::size_t max_total = 256u * 10
 /// PATH; the result is cached.
 std::string FindBsdtar();
 
+/// AzaharFrame catalog3: path of Igor Pavlov's official 7-Zip (7zz), "" when there is none: $AZAHAR_7ZZ,
+/// tools/7zz beside the program, then PATH. Fallback for archives bsdtar or the zip reader cannot read
+/// (Deflate64, solid RAR4, RAR5 with a huge dictionary), under the same path, link and size guards.
+std::string FindSevenZip();
+
 /// For a non-zip archive: lists it (`bsdtar -tf`, `-tvf`), refuses unsafe paths, links, special files
 /// and a total over `max_total`, extracts to a private temporary folder with the system's library
 /// path (never the app bundle's), reads the files back and removes the folder. Error text names the
