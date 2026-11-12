@@ -331,6 +331,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     endif()
     # AzaharFrame cheatstab: the in-game menu's Cheats tab, the Qt side.
     target_sources(citra_qt PRIVATE frame_cheats.cpp frame_cheats.h)
+    # AzaharFrame cpphelpers: the --frame-... command-line modes (no Python helpers).
+    target_sources(citra_qt PRIVATE frame_tools.cpp frame_tools.h)
     # AzaharFrame emerald: the Homebrew menu and the Mods tab's Homebrew segment, the Qt side.
     target_sources(citra_qt PRIVATE frame_homebrew.cpp frame_homebrew.h frame_emerald.cpp
                                     frame_emerald.h)

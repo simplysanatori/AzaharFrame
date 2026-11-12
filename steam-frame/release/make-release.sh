@@ -5,7 +5,7 @@
 #   azaharframe.framedrop.json                          FrameDrop's manifest: the zip's release url and sha256
 #   SHA256SUMS                                          of the three
 # The tarball holds the stripped emulator (azahar), the launch wrapper, and at the top
-# level install.sh, uninstall.sh, steam-cef.py and dock-icon.py, plus the art in art/ (Steam library art, the
+# level install.sh and uninstall.sh, plus the art in art/ (Steam library art, the
 # icon in four sizes, and logo.png and icon.png, which the program itself shows in VR and in its window), and the
 # texture pack converter in tools/ (its encoder is built on the Frame on first use), so the unpacked archive installs itself
 # (this is how Frametanium runs it).  Files are packed by name, so settings, saves, keys,
@@ -28,7 +28,7 @@ OUT=$(readlink -m "$OUT")
 case "$OUT/" in "$REPO"/*) echo "the output folder $OUT is inside the repository; name one outside it" >&2; exit 1 ;; esac
 mkdir -p "$OUT"
 [ -x "$BUILD/azahar" ] || { echo "no azahar program in $BUILD (run steam-frame/build.sh first)" >&2; exit 1; }
-for f in "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$SF/dock-icon.py" "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/framedrop-run.sh" "$SF/release/make-framedrop-zip.py" "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt"; do
+for f in "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/framedrop-run.sh" "$SF/release/make-framedrop-zip.py" "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr/menu/licenses/MaterialSymbols-LICENSE.txt"; do
   [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
 done
 
@@ -47,7 +47,7 @@ fi
 if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
   "$HERE/upload-symbols.sh" "$BUILD/azahar" || echo "warning: the symbols were not uploaded to Sentry" >&2
 fi
-cp "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/dock-icon.py" "$STAGE/"
+cp "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$STAGE/"
 cp "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$STAGE/"
 # the in-game menu's font (OFL) and icons (Apache 2.0), embedded in the program
 mkdir -p "$STAGE/licenses"
@@ -55,7 +55,7 @@ cp "$REPO/src/frame_xr/menu/licenses/GoogleSansFlex-OFL.txt" "$REPO/src/frame_xr
 mkdir -p "$STAGE/art"
 cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$STAGE/art/"
 mkdir -p "$STAGE/tools"
-cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$STAGE/tools/"
+cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$STAGE/tools/"
 # AzaharFrame harden: the prebuilt texture pack encoder (steam-frame/portable/container-build.sh builds it beside
 # the program, with astcenc's licence), or AZAHARFRAME_KTXENC=FILE.  The headset has no compiler to build one.
 KTXENC=${AZAHARFRAME_KTXENC:-$BUILD/af-ktxenc}
@@ -70,9 +70,9 @@ else
   echo "make-release: WARNING: no af-ktxenc in $BUILD: Optimize Texture Pack will build it on the headset" >&2
 fi
 "$SF/tools/fetch-7zip.sh" "$STAGE/tools" "$STAGE/licenses" # 7zz: the fallback extractor (pinned, sha256 checked)
-chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh" "$STAGE/tools/emerald3ds-build.py"
+chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh"
 echo "$VERSION" > "$STAGE/VERSION"
-FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md licenses art tools"
+FILES="azahar azaharframe.sh install.sh uninstall.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md licenses art tools"
 # the program's own Qt and libraries (portable.sh; steam-frame/build-portable.sh)
 . "$HERE/portable.sh"
 portable_stage "$STAGE"

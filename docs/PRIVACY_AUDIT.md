@@ -29,7 +29,7 @@ Run on 2026-11-06 over the tracked tree of the release branch and the whole hist
 | Absolute `/home/steamos` paths in shipped files | None. `~` is used throughout. The only `/home/` strings are this document's own check commands and upstream's `tools/*-kotlin-formatting.sh` (`/home/linuxbrew`) |
 | Commit identities of this fork's own commits | All `simplysanatori <149214925+simplysanatori@users.noreply.github.com>`, as author and committer. No tags of this fork |
 | Commit messages | Every one of this fork's commits ends with a `Co-Authored-By` trailer naming the assistant. Nine messages name internal branches (`Merge lane/...`) or say a commit is unbuilt or WIP: reword or squash them before the repository is made public. They hold no names or addresses |
-| The release tarball | Holds only `azahar`, `azaharframe.sh`, `install.sh`, `uninstall.sh`, `steam-cef.py`, `dock-icon.py`, `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and `art/` (eight PNG files). `make-release.sh` packs those by name, so settings, saves, logs and keys cannot end up in it. A test tarball made from a stand-in program was listed to confirm this. The binary string check below runs on the real program at release time |
+| The release tarball | Holds only `azahar`, `azaharframe.sh`, `install.sh`, `uninstall.sh`, `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and `art/` (eight PNG files). `make-release.sh` packs those by name, so settings, saves, logs and keys cannot end up in it. A test tarball made from a stand-in program was listed to confirm this. The binary string check below runs on the real program at release time |
 
 Note on the history: `steam-frame` is pushed to the private repository up to `004790172`, which includes `e0d831665`, the commit that added the ROM file name to `IMMERSIVE.md` (the name of a retail game's standard dump, with no path or product code). The repository is not public. Before it is made public, rewrite the history of this fork's own commits (24 of them, and nothing of Azahar's or CitraVR's) to drop that name and to reword the nine messages above, and push the rewritten branch; a rewrite limited to commits not reachable from the Azahar tag and CitraVR's master leaves upstream's commit ids alone.
 
@@ -70,12 +70,15 @@ The requests carry the open game's 16-digit title ID in the path and the usual H
 
 ### Homebrew (Homebrew tab)
 
-Pokémon Emerald 3DS is built on the Frame from the player's own ROM (`src/core/homebrew/*`, `steam-frame/tools/emerald3ds-build.py`). The program asks GitHub for the project's latest release when the player taps **Install**, **Update** or **Check for Updates** (at most once in 30 seconds), and once a day when the game list loads, only while the game is installed:
+Pokémon Emerald 3DS is built on the Frame from the player's own ROM (`src/core/homebrew/*`, in the program itself: no Python and no downloaded code runs). The program asks GitHub for the project's latest release when the player taps **Install**, **Update** or **Check for Updates** (at most once in 30 seconds), and once a day when the game list loads, only while the game is installed:
 
 | Host | Request | Why |
 |---|---|---|
 | `api.github.com` | `GET /repos/ZallaxDev/emerald-3ds/releases/latest` | The latest release's tag and files |
 | `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | `GET` of the release's build files (redirects between these only) | Only on **Install** or **Update** |
+| `raw.githubusercontent.com`, `cdn.jsdelivr.net` | `GET /<repo>/<commit>/<path>` and `/gh/<repo>@<commit>/<path>` of the optional follower sprites and text corpus named in the release's recipe | Only while the pack is built; each file is pinned by commit, size and SHA-256 (a file that does not match is dropped), cached by its SHA-256, and these two hosts are allowed for that request only |
+
+The release's own files (`SHA256SUMS.txt` is checked first) are data: the program reads the recipe and the programs in it as data and never runs them or any other downloaded code. The Add or Update prompt shows the version and "From ZallaxDev/emerald-3ds on GitHub".
 
 The ROM never leaves the Frame. The requests carry no title ID, account or cookie.
 

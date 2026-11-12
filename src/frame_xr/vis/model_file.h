@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame
-// The Steam Frame controller models: the files steam-frame/tools/frame-controller-models.py makes
+// The Steam Frame controller models: the files `azahar --frame-controller-models` makes
 // at install time from SteamVR's own render models (never shipped: Valve's), and the moving parts
 // posed from the controls. The format is Moonlight XR Native's MXFM (same author; the reader and
 // the posing follow its rooms/room_gpu.c), version 2, with flags 1: the vertices are in the

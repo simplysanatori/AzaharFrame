@@ -149,7 +149,7 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) 
     m.flags = U32(head + 28);
     if (m.version != 2 || m.flags != kModelFlagAimSpace) {
         error = "version " + std::to_string(m.version) + " flags " + std::to_string(m.flags) +
-                ": not an aim space model (frame-controller-models.py --space aim)";
+                ": not an aim space model (azahar --frame-controller-models)";
         return false;
     }
     if (vertex_count == 0 || vertex_count >= (1u << 22) || index_count == 0 ||

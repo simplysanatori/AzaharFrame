@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AzaharFrame flatfix: a stand-in for steam-cef.py in mock runs (AZAHARFRAME_TEST_CEF). Steam and
+# AzaharFrame flatfix: a stand-in for the program's --frame-cef mode in mock runs (AZAHARFRAME_TEST_CEF). Steam and
 # SteamVR are never asked. Every move of the window's frame answers at once ("docked"), except the
 # dashboard moves numbered in AZ_FAKE_CEF_HANG_DASHBOARD (comma-separated, counting from 1), which
 # never answer, as when vrcmd never sees the window's overlay. AZ_FAKE_CEF_COUNT names the file

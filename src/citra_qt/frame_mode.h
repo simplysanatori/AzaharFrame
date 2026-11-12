@@ -17,7 +17,7 @@
 //   SteamVR closes the game's flat screen when a session starts and does not open it again when
 //   the session ends, and the dashboard only docks a window in the theater by itself when its
 //   frame first comes alive (dashboard.autoShowGameTheater; the frame stays alive across
-//   sessions). So after VR the window's frame is moved to the theater (steam-cef.py --screen
+//   sessions). So after VR the window's frame is moved to the theater (--frame-cef --screen
 //   theater --after-vr, which runs vrcmd --dock-overlay), where it stays when the dashboard closes;
 //   a flat start does the same. AzaharFrame flat: the dashboard is not opened for that (no
 //   ShowDashboard): while it is open Steam Input gives the controller to Steam's UI, and a theater

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A stand-in for Steam's CEF debugging port, for steam-frame/test-release.sh: it answers the few Runtime.evaluate
-expressions install.sh / uninstall.sh / steam-cef.py send (shortcut lookup, AddShortcut, SetShortcutExe/StartDir,
+expressions install.sh / uninstall.sh (through azahar --frame-steam-shortcut, --frame-steam-art) send (shortcut lookup, AddShortcut, SetShortcutExe/StartDir,
 SetCustomArtworkForApp, SetShortcutIcon, RemoveShortcut), keeps the shortcut list in a JSON file and logs every call
 (long arguments cut).  PORT 0 picks a free port; the port in use is written to STATE.json.port.
    mock-steam-cef.py PORT STATE.json LOG.txt"""
@@ -19,25 +19,30 @@ def save(st):
 def log(s):
     open(LOG, "a").write(s + "\n")
 
+Q = r"(\"(?:[^\"\\]|\\.)*\"|'[^']*')"   # a JSON string or a single-quoted one
+
+def unq(t):
+    return json.loads(t) if t[0] == '"' else t[1:-1]
+
 def handle_js(expr):
     st = load()
     log(expr if len(expr) < 300 else expr[:90] + "...(%d bytes)" % len(expr))
     if "allApps" in expr:
-        m = re.search(r"display_name === '([^']*)'", expr)
+        m = re.search(r"display_name === " + Q, expr)
         for appid, sc in st["shortcuts"].items():
-            if m and sc["name"] == m.group(1): return int(appid)
+            if m and sc["name"] == unq(m.group(1)): return int(appid)
         return 0
-    m = re.search(r"AddShortcut\('([^']*)', '([^']*)', '([^']*)', '([^']*)'\)", expr)
+    m = re.search(r"AddShortcut\(" + ", ".join([Q] * 4) + r"\)", expr)
     if m:
-        name, exe, start, opts = m.groups()
+        name, exe, start, opts = [unq(g) for g in m.groups()]
         appid = (zlib.crc32(('"%s"' % exe + name).encode()) & 0xffffffff) | 0x80000000
         st["shortcuts"][str(appid)] = {"name": name, "exe": '"%s"' % exe, "start": '"%s"' % start, "opts": opts, "art": {}}
         save(st)
         return appid
-    m = re.search(r"SetShortcutExe\((\d+), '([^']*)'\)", expr)
-    if m: st["shortcuts"][m.group(1)]["exe"] = m.group(2)
-    m = re.search(r"SetShortcutStartDir\((\d+), '([^']*)'\)", expr)
-    if m: st["shortcuts"][m.group(1)]["start"] = m.group(2)
+    m = re.search(r"SetShortcutExe\((\d+), " + Q + r"\)", expr)
+    if m: st["shortcuts"][m.group(1)]["exe"] = unq(m.group(2))
+    m = re.search(r"SetShortcutStartDir\((\d+), " + Q + r"\)", expr)
+    if m: st["shortcuts"][m.group(1)]["start"] = unq(m.group(2))
     m = re.search(r"SetCustomArtworkForApp\((\d+), '([^']*)', 'png', (\d)\)", expr)
     if m: st["shortcuts"][m.group(1)]["art"][m.group(3)] = len(base64.b64decode(m.group(2)))
     # steam-cef.py sends the icon path as JSON, so with double quotes

@@ -14,6 +14,9 @@
 
 #ifdef ENABLE_QT
 #include "citra_qt/citra_qt.h"
+#ifdef ENABLE_FRAME_XR
+#include "citra_qt/frame_tools.h"
+#endif
 #endif
 #ifdef ENABLE_ROOM
 #include "citra_room/citra_room.h"
@@ -57,6 +60,13 @@ int main(int argc, char* argv[]) {
 #if CITRA_HAS_SSE42
     if (!CheckAndReportSSE42()) {
         return 1;
+    }
+#endif
+
+#if defined(ENABLE_QT) && defined(ENABLE_FRAME_XR)
+    // AzaharFrame cpphelpers: the helper modes (--frame-...) that replace the package's Python scripts
+    if (const auto code = FrameTools::Run(argc, argv)) {
+        return *code;
     }
 #endif
 
