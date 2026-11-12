@@ -12,7 +12,9 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
+#include "frame_xr/input/phys_keyboard.h" // AzaharFrame integ3
 #include "frame_xr/keyboard/keyboard.h"
 
 namespace FrameXr::Keyboard {
@@ -113,5 +115,11 @@ constexpr int64_t kDefaultHoldNs = 500'000'000;
 /// The key event a typing code makes with these modifiers lit (ApplyPress's code and
 /// code_mods). False for a code that types nothing.
 bool MakeEvent(int code, int mods, KeyboardEvent& out);
+
+/// AzaharFrame integ3: a physical keyboard's key (input/phys_keyboard.h) as the headset keyboard's
+/// event, so it types into the focused text field the same way: text by its characters (one
+/// event each), the editing keys, Enter, Shift+Enter (Enter with Shift: a new line in a
+/// multi-line field) and Esc. Empty for nothing to type.
+std::vector<KeyboardEvent> PhysicalKeyEvents(const Input::KeyAction& action);
 
 } // namespace FrameXr::Keyboard

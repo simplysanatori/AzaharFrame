@@ -10,12 +10,14 @@
 #include "frame_xr/keyboard/keyboard_panel.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <functional>
 #include <mutex>
 
 #include "common/logging/log.h"
 #include "frame_xr/keyboard/keyboard.h"
+#include "frame_xr/swkbd.h" // AzaharFrame integ3: GameKeyboardOpen
 
 namespace FrameXr {
 
@@ -149,6 +151,7 @@ void KeyboardPanel::Close(const char* why) {
     }
     open = false;
     opened_by_text_field = false;
+    physical.Close(); // AzaharFrame integ3
     mods = 0;
     sticky.Reset();
     sticky_source = -1;
@@ -205,6 +208,30 @@ void KeyboardPanel::PressKey(int key, int source, int64_t now) {
     mods = p.mods;
     if (p.hide) {
         Close("Hide");
+    }
+}
+
+// AzaharFrame integ3: the physical keyboards' keys, on the headset keyboard's own path.
+void KeyboardPanel::TypePhysical() {
+    if (GameKeyboardOpen() || GameKeyboardReadsKeyboards()) {
+        physical.Close(); // the game's keyboard has them (it is the one in front)
+        return;
+    }
+    std::function<void(const KeyboardEvent&)> handler;
+    {
+        Inbox& inbox = TheInbox();
+        std::scoped_lock lock{inbox.mutex};
+        handler = inbox.handler;
+    }
+    const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    for (const Input::KeyAction& a : physical.Poll(now)) {
+        for (const KeyboardEvent& e : Kb::PhysicalKeyEvents(a)) {
+            if (handler) {
+                handler(e);
+            }
+        }
     }
 }
 
@@ -290,6 +317,7 @@ void KeyboardPanel::Frame(XrSession session, VkFormat format, OverlayUploader& u
     if (!open) {
         return;
     }
+    TypePhysical(); // AzaharFrame integ3
 
     // Where it hangs this frame: under the window, unless its bar is being held.
     if (drag_hand < 0) {

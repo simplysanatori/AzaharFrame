@@ -335,4 +335,57 @@ bool MakeEvent(int code, int mods, KeyboardEvent& out) {
     }
 }
 
+// AzaharFrame integ3: physical keys on the headset keyboard's path (Qt's focused widget).
+std::vector<KeyboardEvent> PhysicalKeyEvents(const Input::KeyAction& action) {
+    using K = Input::KeyActionKind;
+    std::vector<KeyboardEvent> out;
+    const auto vk = [&out](int code, uint8_t extra_mods = 0) {
+        KeyboardEvent e;
+        if (MakeEvent(code, 0, e)) {
+            e.modifiers |= extra_mods;
+            out.push_back(e);
+        }
+    };
+    switch (action.kind) {
+    case K::Text:
+        for (const char c : action.text) {
+            const auto u = static_cast<unsigned char>(c);
+            if (u >= 32 && u <= 126) { // the US layout types ASCII only
+                vk(u);
+            }
+        }
+        break;
+    case K::Backspace:
+        vk(8);
+        break;
+    case K::Delete:
+        vk(kCodeVk + 0x2E);
+        break;
+    case K::Left:
+        vk(kCodeVk + 0x25);
+        break;
+    case K::Right:
+        vk(kCodeVk + 0x27);
+        break;
+    case K::Home:
+        vk(kCodeVk + 0x24);
+        break;
+    case K::End:
+        vk(kCodeVk + 0x23);
+        break;
+    case K::Enter:
+        vk(13);
+        break;
+    case K::NewLine:
+        vk(13, KeyboardEvent::kShift);
+        break;
+    case K::Escape:
+        vk(kCodeVk + 0x1B);
+        break;
+    case K::None:
+        break;
+    }
+    return out;
+}
+
 } // namespace FrameXr::Keyboard

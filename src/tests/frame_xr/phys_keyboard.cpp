@@ -6,10 +6,12 @@
 // (frame_xr/input/phys_keyboard.h): the US layout, Shift and the locks, the editing keys, and
 // which input devices are keyboards.
 
+#include <optional>
 #include <string>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/input/phys_keyboard.h"
+#include "frame_xr/menu/swkbd_model.h" // AzaharFrame integ3
 
 using namespace FrameXr::Input;
 
@@ -191,4 +193,53 @@ TEST_CASE("Physical keyboard: which input devices are keyboards", "[frame_xr]") 
     CHECK(k[0].event == "event5");
     CHECK(k[1].event == "event7");
     CHECK(ParseKeyboards("").empty());
+}
+
+// AzaharFrame integ3: the menu's own text boxes (ui2's Cheat Name and Code, Spec::over_menu) are
+// the game's keyboard too, so a physical keyboard types into them; Shift+Enter is a new line in the
+// multi-line Code box and Enter its confirm button (Add).
+TEST_CASE("Physical keyboard: the in-game menu's multi-line Code box", "[frame_xr]") {
+    using namespace FrameXr::Swkbd;
+    Spec spec;
+    spec.hint = "Code (XXXXXXXX YYYYYYYY)";
+    spec.max_length = 4000;
+    spec.multiline = true;
+    spec.buttons = {{"Cancel", 0, false}, {"Add", 1, true}};
+    spec.over_menu = true;
+    Model m(spec);
+    KeyTranslator t;
+    // As the keyboard panel applies them (swkbd_panel.cpp, FromKeyAction).
+    const auto apply = [&m](const KeyAction& a) -> std::optional<Result> {
+        switch (a.kind) {
+        case KeyActionKind::Text:
+            m.InsertText(a.text);
+            return std::nullopt;
+        case KeyActionKind::NewLine:
+            m.NewLine();
+            return std::nullopt;
+        case KeyActionKind::Backspace:
+            m.Backspace();
+            return std::nullopt;
+        case KeyActionKind::Enter:
+            return m.Enter();
+        case KeyActionKind::Escape:
+            return m.Escape();
+        default:
+            return std::nullopt;
+        }
+    };
+    for (const int c : {k1, k2, kSpace, k2, k1}) {
+        CHECK_FALSE(apply(Tap(t, c)));
+    }
+    t.Key(kLeftShift, 1);
+    const KeyAction shift_enter = t.Key(kEnter, 1);
+    CHECK(shift_enter.kind == KeyActionKind::NewLine);
+    CHECK_FALSE(apply(shift_enter));
+    t.Key(kEnter, 0);
+    t.Key(kLeftShift, 0);
+    CHECK_FALSE(apply(Tap(t, kA)));
+    const std::optional<Result> r = apply(Tap(t, kEnter));
+    REQUIRE(r);
+    CHECK(r->button == 1);
+    CHECK(r->text == "12 21\na");
 }

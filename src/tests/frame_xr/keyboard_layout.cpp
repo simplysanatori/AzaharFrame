@@ -247,3 +247,39 @@ TEST_CASE("FrameXr keyboard: key events", "[frame_xr]") {
     REQUIRE_FALSE(MakeEvent(kCodeShift, 0, e));
     REQUIRE_FALSE(MakeEvent(0, 0, e));
 }
+
+// AzaharFrame integ3: a physical keyboard's keys on the headset keyboard's path (the focused text
+// field of Azahar's window): one event a character, Shift for capitals and shifted symbols,
+// Shift+Enter as Enter with Shift, the editing keys and Esc.
+TEST_CASE("FrameXr keyboard: physical keys as headset keyboard events", "[frame_xr]") {
+    using FrameXr::KeyboardEvent;
+    using FrameXr::Input::KeyAction;
+    using FrameXr::Input::KeyActionKind;
+    using FrameXr::Keyboard::PhysicalKeyEvents;
+    const auto text = PhysicalKeyEvents({KeyActionKind::Text, "aB!"});
+    REQUIRE(text.size() == 3);
+    CHECK(text[0].key == KeyboardEvent::Key::Character);
+    CHECK(text[0].text == "a");
+    CHECK(text[0].modifiers == 0);
+    CHECK(text[1].text == "B");
+    CHECK(text[1].modifiers == KeyboardEvent::kShift);
+    CHECK(text[2].character == U'!');
+    CHECK(text[2].modifiers == KeyboardEvent::kShift);
+    const auto one = [](KeyActionKind k) {
+        const auto e = PhysicalKeyEvents({k, ""});
+        REQUIRE(e.size() == 1);
+        return e[0];
+    };
+    CHECK(one(KeyActionKind::Enter).key == KeyboardEvent::Key::Enter);
+    CHECK(one(KeyActionKind::Enter).modifiers == 0);
+    CHECK(one(KeyActionKind::NewLine).key == KeyboardEvent::Key::Enter);
+    CHECK(one(KeyActionKind::NewLine).modifiers == KeyboardEvent::kShift);
+    CHECK(one(KeyActionKind::Backspace).key == KeyboardEvent::Key::Backspace);
+    CHECK(one(KeyActionKind::Delete).key == KeyboardEvent::Key::Delete);
+    CHECK(one(KeyActionKind::Left).key == KeyboardEvent::Key::Left);
+    CHECK(one(KeyActionKind::Right).key == KeyboardEvent::Key::Right);
+    CHECK(one(KeyActionKind::Home).key == KeyboardEvent::Key::Home);
+    CHECK(one(KeyActionKind::End).key == KeyboardEvent::Key::End);
+    CHECK(one(KeyActionKind::Escape).key == KeyboardEvent::Key::Escape);
+    CHECK(PhysicalKeyEvents({KeyActionKind::None, ""}).empty());
+}

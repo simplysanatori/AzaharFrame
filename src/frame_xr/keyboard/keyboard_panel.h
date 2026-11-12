@@ -16,6 +16,11 @@
 // It hangs under the window, as Moonlight XR's under its screen, and goes where the window goes:
 // its place is kept relative to the window's bottom edge, in window widths, so it also sits right
 // under the in-game menu's nearer, smaller window.
+//
+// AzaharFrame integ3: while it is open a physical keyboard (USB or Bluetooth) types into the same
+// text field (input/phys_keyboard.h; the keyboards are looked for again each time it opens and
+// every 2 s while open, so one that connects later is found). Not while the game's keyboard reads
+// them (swkbd_panel.h), or each key would type twice.
 
 #pragma once
 
@@ -25,6 +30,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/phys_keyboard.h" // AzaharFrame integ3
 #include "frame_xr/keyboard/art.h"
 #include "frame_xr/keyboard/layout.h"
 #include "frame_xr/overlays.h"
@@ -101,6 +107,11 @@ private:
     float drag_t = 0.0f;
     Input::Vec3f drag_offset;
     XrTime last_time = 0;
+
+    /// AzaharFrame integ3: the physical keyboards type into the focused text field while this
+    /// keyboard is open, as its own keys do (in VR no window of the app has the keyboard focus).
+    Input::PhysicalKeyboards physical;
+    void TypePhysical();
 };
 
 } // namespace FrameXr
