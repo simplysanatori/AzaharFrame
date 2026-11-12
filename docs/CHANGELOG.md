@@ -58,6 +58,12 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - "Autosaved" shows for a moment above the top screen's corner, or as a short message when that corner is out of view.
 - The game is held only while its state is copied; compressing and writing it happen in the background, so an autosave barely shows in play.
 
+### Running low on memory
+
+- When Azahar gets close to its memory limit, a message tells you how much it is using, for example **Running Low on Memory: 7.1 of 8.2 GB**.
+- Closer still, I pause the game before the system can close it, so your progress is safe. **Turn Off Custom Textures** frees their memory at once for that game and resumes; **Resume** and **Stop Game** are there too.
+- Autosaves wait while memory is that full, because writing a save state needs about 0.9 GB more for a moment.
+
 ### Settings in sections
 
 - The VR menu's **Settings** tab has three sections: **General**, **Graphics** and **Immersive**. **Global** or **Per-Game** is a menu button at the end of the section row, and the menu opens on **Per-Game** while a game runs.

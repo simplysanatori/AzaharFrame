@@ -655,6 +655,11 @@ struct Values {
 
     SwitchableSetting<bool> dump_textures{false, Keys::dump_textures};
     SwitchableSetting<bool> custom_textures{false, Keys::custom_textures};
+    /// AzaharFrame memwarn: the memory dialog's Turn Off Custom Textures turned custom_textures
+    /// off for the running game only (citra_qt/frame_memwarn.cpp): 1 its global value, 2 the
+    /// game's own; 0 not. The config files keep it on (QtConfig::SaveUtilityValues); it is put
+    /// back when the game stops.
+    int custom_textures_off_for_memory = 0;
     SwitchableSetting<bool> preload_textures{false, Keys::preload_textures};
     SwitchableSetting<bool> async_custom_loading{true, Keys::async_custom_loading};
     SwitchableSetting<bool> disable_right_eye_render{false, Keys::disable_right_eye_render};

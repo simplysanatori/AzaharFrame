@@ -204,11 +204,12 @@ enum class MenuCommand {
     LoadPackDownloads, ///< Download Packs opened: the packs for the title
     DownloadPack,      ///< `text`: the catalog pack's id (a large one asks first)
     CancelPackDownload,
-    CancelModInstall, ///< AzaharFrame integ3: the catalog mod downloading now (Mods::Library::Cancel)
-    DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
-    TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
-    AskPreload,        ///< AzaharFrame memguard: Preload switched on: ask first, with the numbers
-    TurnBackOn,        ///< AzaharFrame compat: the "Turned Off" snackbar's action
+    CancelModInstall, ///< AzaharFrame integ3: the catalog mod downloading now
+                      ///< (Mods::Library::Cancel)
+    DeletePack,       ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
+    TexturesDialog,   ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
+    AskPreload,       ///< AzaharFrame memguard: Preload switched on: ask first, with the numbers
+    TurnBackOn,       ///< AzaharFrame compat: the "Turned Off" snackbar's action
     // AzaharFrame compat: InstallMod and DownloadPack with `value` 1: after "This May Not Work"
     // (Install Anyway, Download Anyway), for an entry made for another version
     // AzaharFrame zipinstall: Install from Zip (Menu::ZipModel, citra_qt/frame_mods.cpp)
@@ -218,22 +219,26 @@ enum class MenuCommand {
     ZipChoose,      ///< `value`: the index of the game in ZipModel::choices
     ZipDialog,      ///< the page's dialog: `value` 1 Replace, 0 Cancel / OK
     ZipClose,       ///< the page's back button
-    // AzaharFrame emerald: the Mods tab's Homebrew segment (citra_qt/frame_homebrew.cpp), `text`: the package's id
+    // AzaharFrame emerald: the Mods tab's Homebrew segment (citra_qt/frame_homebrew.cpp), `text`:
+    // the package's id
     HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
     HomebrewUpdate,  ///< the same for an update
     HomebrewPlay,    ///< close the menu and start the installed package
     HomebrewCheck,   ///< AzaharFrame ui3: Check for Updates now (a toast says what it found)
     // AzaharFrame texparts: a pack's Customize page (Menu::TexturePartsModel, frame_mods.cpp)
-    OpenTextureParts,  ///< `text`: the pack's id (CustomTex::Pack::id)
-    TexturePart,       ///< `value`: the row clicked (a checkbox or a radio button)
-    MoveTexturePart,   ///< `value`: the row; `text` "up" or "down"
-    TexturePartsAll,   ///< `value` 1 All On, 0 All Off
-    // AzaharFrame ui3: Optimize for Frame on a pack's page (frame_mods.cpp), `text`: the page's pack
-    OptimizePack,    ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)
-    OptimizeStop,    ///< stops the conversion (carried on by the next Optimize)
-    UseOriginalPack, ///< the PNG pack again, from the next start
-    RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes it
-    NoticeAnswer, ///< AzaharFrame savestate: SetInGameMenuNotice's dialog: `value` 1 its confirm, 0 cancel
+    OpenTextureParts, ///< `text`: the pack's id (CustomTex::Pack::id)
+    TexturePart,      ///< `value`: the row clicked (a checkbox or a radio button)
+    MoveTexturePart,  ///< `value`: the row; `text` "up" or "down"
+    TexturePartsAll,  ///< `value` 1 All On, 0 All Off
+    // AzaharFrame ui3: Optimize for Frame on a pack's page (frame_mods.cpp), `text`: the page's
+    // pack
+    OptimizePack,       ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)
+    OptimizeStop,       ///< stops the conversion (carried on by the next Optimize)
+    UseOriginalPack,    ///< the PNG pack again, from the next start
+    RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes
+                        ///< it
+    NoticeAnswer, ///< AzaharFrame savestate: SetInGameMenuNotice's dialog: `value` 1 its confirm, 0
+                  ///< cancel, 2 extra (memwarn)
     // AzaharFrame autosave
     LoadAutosave, ///< `value`: the index in SetInGameMenuAutosaves' list (newest first)
     UndoLoad,     ///< back to the moment before the autosave was loaded
@@ -408,9 +413,11 @@ struct MenuSaveSlot {
 };
 /// AzaharFrame savestate: a dialog over the in-game menu ("About Save States", "This Save State Is
 /// From an Older Version"), answered with MenuCommand::NoticeAnswer; `title` "" takes it away;
-/// `cancel` "" is a dialog of one button. Any thread.
+/// `cancel` "" is a dialog of one button. AzaharFrame memwarn: `extra` a third button before
+/// them (NoticeAnswer 2). Any thread.
 void SetInGameMenuNotice(const std::string& title, const std::string& body,
-                         const std::string& confirm, const std::string& cancel);
+                         const std::string& confirm, const std::string& cancel,
+                         const std::string& extra = {});
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
 /// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,

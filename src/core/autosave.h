@@ -96,6 +96,9 @@ struct Gates {
     bool frames_recent = false; ///< it made an emulated frame in the last second
     bool loading_state = false; ///< a state is being saved or loaded
     bool shaders_busy = false;  ///< shaders are being prepared (the game stands for them)
+    /// AzaharFrame memwarn: Azahar is almost at its memory limit (frame_xr/mem_watch.h Critical):
+    /// writing a save state needs about 0.9 GB more for a moment and could get it closed
+    bool memory_low = false;
 };
 
 /// Why an autosave may not happen now ("" it may), for the log and the tests.

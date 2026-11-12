@@ -76,32 +76,32 @@ enum class Id : int {
     StatsPosition, ///< AzaharFrame statspos
     // Controls
     ControlsPage,
-    TouchpadTouch, ///< AzaharFrame menu: the Touchpad row (Tap for Input, Click for Input)
-    EditControls,  ///< AzaharFrame menu
-    RemapChip,     ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
-    RemapCancel,   ///< AzaharFrame remap: stop listening
-    RemapReset,    ///< AzaharFrame remap: Reset to Default
-    RemapDone,     ///< AzaharFrame remap: Done
-    EditDevice,    ///< AzaharFrame padsui, index: the device in MenuModel::devices
-    MouseMode,     ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
-    RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
-    UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
-    CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
+    TouchpadTouch,       ///< AzaharFrame menu: the Touchpad row (Tap for Input, Click for Input)
+    EditControls,        ///< AzaharFrame menu
+    RemapChip,           ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
+    RemapCancel,         ///< AzaharFrame remap: stop listening
+    RemapReset,          ///< AzaharFrame remap: Reset to Default
+    RemapDone,           ///< AzaharFrame remap: Done
+    EditDevice,          ///< AzaharFrame padsui, index: the device in MenuModel::devices
+    MouseMode,           ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
+    RecentreAtEdge,      ///< AzaharFrame padsui: the selected device's Recentre at Edge
+    UseDevice,           ///< AzaharFrame padsui: the selected device's Use This Device
+    CursorSpeed,         ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right, 3 Headset
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     // Settings
     Scope, ///< AzaharFrame autosave: the "Global" / "Per-Game" menu button (index: a menu item)
     SettingsSection, ///< AzaharFrame autosave: General, Graphics, Immersive (index)
-    SavesHeader,   ///< AzaharFrame autosave: the "Saves" subheader (no action)
-    Autosave,      ///< AzaharFrame autosave: autosave_enabled, per game
-    AutosaveEvery, ///< a slider of kAutosaveEvery's stops (index 0 to 4), per game
-    AutosaveKeep,  ///< a slider, 1 to 10, per game
+    SavesHeader,     ///< AzaharFrame autosave: the "Saves" subheader (no action)
+    Autosave,        ///< AzaharFrame autosave: autosave_enabled, per game
+    AutosaveEvery,   ///< a slider of kAutosaveEvery's stops (index 0 to 4), per game
+    AutosaveKeep,    ///< a slider, 1 to 10, per game
     Background,
     FaceButtons,
     MotionControls,
     ShowControllers,
     WindowScale,
-    Depth3d, ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
+    Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
     InternalResolution, ///< AzaharFrame menuux: resolution_factor, per game (a menu, 1x to 8x)
     DynamicResolution,  ///< AzaharFrame menuux: vr_dynamic_resolution, global
     TextureFilter,      ///< AzaharFrame menuux: texture_filter, per game
@@ -120,27 +120,30 @@ enum class Id : int {
     CheatsWindow,   ///< Azahar's cheat editor
     Cheat,          ///< index: MenuModel::mods.cheats.cheats (Cheats::Online::SetCheatEnabled's)
     // The Mods tab's Mods and Textures segments (AzaharFrame texui): mods_segments.h
-    InstallMods,    ///< opens Install Mods
-    ModsBack,       ///< Install Mods' back button
-    Mod,            ///< index: mods.mods.loaded (the row: a managed mod on or off)
-    ModRemove,      ///< index: mods.mods.loaded
-    ModInstall,     ///< index: mods.mods.available
-    DialogConfirm,  ///< the dialog's Replace / Remove
-    DialogCancel,   ///< and its Cancel / OK
+    InstallMods,   ///< opens Install Mods
+    ModsBack,      ///< Install Mods' back button
+    Mod,           ///< index: mods.mods.loaded (the row: a managed mod on or off)
+    ModRemove,     ///< index: mods.mods.loaded
+    ModInstall,    ///< index: mods.mods.available
+    DialogConfirm, ///< the dialog's Replace / Remove
+    DialogCancel,  ///< and its Cancel / OK
     CustomTextures,
-    TexturePack,    ///< index: 0 Off, i + 1 mods.textures.packs[i]
+    TexturePack, ///< index: 0 Off, i + 1 mods.textures.packs[i]
     TexturePreload,
-    RestartGame,    ///< the snackbar's Restart
-    ModNote,        ///< AzaharFrame modcat2: an Install Mods row's name (tooltip: the entry's notes); index: mods.mods.available
-    PackNote,       ///< AzaharFrame modcat2: a Download Packs row's name (tooltip: the notes); index: mods.textures.downloads
-    ModVersion,     ///< AzaharFrame modcat: a mod's version chip (the tooltip's anchor); index: mods.mods.available
-    ModLink,        ///< "Created by <author>": index into the page's list (loaded or available)
-    DownloadPacks,  ///< the Textures segment: opens Download Packs
-    TexturesBack,   ///< Download Packs' back button
-    PackDownload,   ///< index: mods.textures.downloads (Download / Try Again)
-    PackCancel,     ///< index: mods.textures.downloads
-    PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
-    PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
+    RestartGame, ///< the snackbar's Restart
+    ModNote,     ///< AzaharFrame modcat2: an Install Mods row's name (tooltip: the entry's notes);
+                 ///< index: mods.mods.available
+    PackNote,    ///< AzaharFrame modcat2: a Download Packs row's name (tooltip: the notes); index:
+                 ///< mods.textures.downloads
+    ModVersion,  ///< AzaharFrame modcat: a mod's version chip (the tooltip's anchor); index:
+                 ///< mods.mods.available
+    ModLink,     ///< "Created by <author>": index into the page's list (loaded or available)
+    DownloadPacks, ///< the Textures segment: opens Download Packs
+    TexturesBack,  ///< Download Packs' back button
+    PackDownload,  ///< index: mods.textures.downloads (Download / Try Again)
+    PackCancel,    ///< index: mods.textures.downloads
+    PackLink,      ///< index: mods.textures.downloads ("Created by <author>")
+    PackDelete,    ///< index: mods.textures.packs (a downloaded pack)
     // AzaharFrame zipinstall: Install from Zip (mods_segments.h ZipModel)
     InstallFromZip, ///< index: ZipTarget (on Download Packs and Install Mods)
     ZipBack,        ///< the page's back button
@@ -148,16 +151,19 @@ enum class Id : int {
     ZipUp,          ///< the ".." row
     ZipEntry,       ///< index: mods.zip.entries
     ZipChoice,      ///< index: mods.zip.choices
-    // The Homebrew tab (AzaharFrame emerald; ui3: its own tab): homebrew_tab.h, index: homebrew.items
+    // The Homebrew tab (AzaharFrame emerald; ui3: its own tab): homebrew_tab.h, index:
+    // homebrew.items
     HomebrewInstall,
     HomebrewUpdate,
     HomebrewPlay,
     // AzaharFrame ui2: the Cheats segment's own cheats (cheat_entry.h)
     AddCheat,         ///< a name and a code on the game's keyboard
     InstallCheatFile, ///< Install from Zip's browser, for a cheat file (.txt or a zip of one)
-    ModCancel, ///< AzaharFrame integ3: Cancel while a catalog mod downloads; index: mods.mods.available
+    ModCancel,        ///< AzaharFrame integ3: Cancel while a catalog mod downloads; index:
+                      ///< mods.mods.available
     // AzaharFrame compat: entries for another version (mods_segments.h ModOffer::mismatch)
-    ModCompat,  ///< a mod's "Not for Your Version" and region chips (the tooltip's anchor); index: mods.mods.available
+    ModCompat,  ///< a mod's "Not for Your Version" and region chips (the tooltip's anchor); index:
+                ///< mods.mods.available
     PackCompat, ///< the same on Download Packs; index: mods.textures.downloads
     TurnBackOn, ///< the "Turned Off" snackbar's action
     // AzaharFrame texparts: a pack's Customize page (mods_segments.h TexturePartsModel)
@@ -165,17 +171,19 @@ enum class Id : int {
     PartsBack,     ///< the page's back button
     PartsAllOn,
     PartsAllOff,
-    TexturePart, ///< index: mods.textures.parts.rows (a checkbox or a radio button)
-    PartUp,      ///< index: mods.textures.parts.rows
-    PartDown,    ///< index: mods.textures.parts.rows
-    HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index: homebrew.items
+    TexturePart,       ///< index: mods.textures.parts.rows (a checkbox or a radio button)
+    PartUp,            ///< index: mods.textures.parts.rows
+    PartDown,          ///< index: mods.textures.parts.rows
+    HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index:
+                       ///< homebrew.items
     HomebrewCheck,     ///< AzaharFrame ui3: Check for Updates; index: homebrew.items
     // AzaharFrame ui3: Optimize for Frame on a pack's page (mods_segments.h PackOptimize)
-    OptimizePack,  ///< Optimize for Frame (the estimate, then the dialog)
-    OptimizeStop,  ///< Stop while it converts
-    UseOriginal,   ///< back to the PNG pack (from the next start)
-    OptimizeNudge, ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
+    OptimizePack,   ///< Optimize for Frame (the estimate, then the dialog)
+    OptimizeStop,   ///< Stop while it converts
+    UseOriginal,    ///< back to the PNG pack (from the next start)
+    OptimizeNudge,  ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
     RemoveOriginal, ///< AzaharFrame ui3: the optimized pack's original, deleted after a dialog
+    DialogExtra,    ///< AzaharFrame memwarn: a notice's third button (ModsDialog::extra), first
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);

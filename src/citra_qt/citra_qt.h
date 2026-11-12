@@ -39,6 +39,8 @@ struct MenuRequest; // AzaharFrame tabmenu
 #include <filesystem>
 
 class AboutDialog;
+class FrameMemWarn; // AzaharFrame memwarn
+class QDialog;
 class QtConfig;
 class ClickableLabel;
 class EmuThread;
@@ -243,7 +245,12 @@ private:
     void FrameLoadAnyway(u32 slot);
     void FrameAsk(const QString& title, const QString& body, const QString& confirm,
                   const QString& cancel, std::function<void(bool)> answer);
-    void FrameNoticeAnswer(bool yes);
+    void FrameNoticeAnswer(int choice); // AzaharFrame memwarn: 1 confirm, 0 cancel, 2 extra
+    // AzaharFrame memwarn (citra_qt.cpp): the memory watch's toast and its pause and dialog
+    void FrameMemoryEvent(int action, u64 used, u64 max);
+    void FrameMemoryAnswer(int choice); ///< kMemoryTextures, kMemoryResume, kMemoryStop
+    void FrameMemoryTexturesOff();
+    void FrameMemoryRestoreTextures();
     void FrameSaveStateHalfLoaded();
     void FrameOfferSaveRescue(u64 title_id);
     void FrameRefreshSlotsAfterSave(u32 slot);
@@ -526,8 +533,15 @@ private:
     u64 newest_slot_time;
 
     // AzaharFrame savestate
-    std::function<void(bool)> frame_notice_answer; ///< the in-game menu's notice, unanswered
+    std::function<void(int)> frame_notice_answer;  ///< the in-game menu's notice, unanswered
     bool frame_notice_opened_menu = false;         ///< the notice opened the menu (Cancel closes it)
+    // AzaharFrame memwarn
+    std::unique_ptr<FrameMemWarn> frame_memwarn;
+    bool frame_memwarn_asking = false;       ///< its dialog shows (VR menu or Qt)
+    QDialog* frame_memwarn_dialog = nullptr; ///< the Qt one, while it shows
+    bool frame_memwarn_resume = false;       ///< the Qt one paused the game: its answer resumes
+    QString frame_memwarn_answer_test;       ///< AZAHARFRAME_TEST_MEMWARN_ANSWER's choice
+    int frame_memwarn_answer_test_ms = 0;
     std::string frame_rescue_root;  ///< Load Anyway armed Restore Save Data in this session
     bool frame_rescue_keep = false; ///< an error since: the marker stays for the next start
     bool frame_load_anyway_pending = false; ///< a Load Anyway in flight (its error is ours)

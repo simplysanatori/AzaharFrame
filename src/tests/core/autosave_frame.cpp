@@ -281,6 +281,16 @@ TEST_CASE("Autosave: what keeps one from being made", "[autosave][frame_xr]") {
     g = Running();
     g.game = false;
     CHECK(s.Blocked(A::Reason::Quit, now, g) == "no game");
+    // AzaharFrame memwarn: almost at the memory limit, none of them (a save state needs ~0.9 GB)
+    g = Running();
+    g.memory_low = true;
+    CHECK(s.Blocked(A::Reason::Timer, now, g) == "memory is almost full");
+    CHECK(s.Blocked(A::Reason::MenuOpen, now, g) == "memory is almost full");
+    g.playing = false;
+    g.paused = true; // paused by the memory dialog, then Stop Game
+    CHECK(s.Blocked(A::Reason::Quit, now, g) == "memory is almost full");
+    g.memory_low = false;
+    CHECK(s.Blocked(A::Reason::Quit, now, g).empty());
 }
 
 TEST_CASE("Autosave: the texts", "[autosave][frame_xr]") {

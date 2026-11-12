@@ -134,6 +134,9 @@ void RasterizerCache<T>::TickFrame() {
             custom_tex_manager.FindCustomTextures();
         }
         UnregisterAll();
+        if (use_custom_texture_changed && !use_custom_textures) {
+            custom_tex_manager.Unload(); // AzaharFrame memwarn: their memory back at once
+        }
     }
 }
 

@@ -69,6 +69,12 @@ public:
     /// read DDS/KTX files), for the log when a game stops
     u64 HeldBytes() const;
 
+    /// AzaharFrame memwarn: custom textures were turned off while the game runs (the memory
+    /// dialog): every texture's pixel data and the queued uploads go, and the heap is given back.
+    /// The materials stay (surfaces point at them); turned on again, they load as needed. Returns
+    /// the pixel data freed, in bytes. Emulation thread (RasterizerCache::TickFrame).
+    u64 Unload();
+
     /// Saves the provided pixel data described by params to disk as png
     void DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data, u64 data_hash);
 
