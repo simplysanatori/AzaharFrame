@@ -351,7 +351,8 @@ int main(int argc, char** argv) {
         const std::vector<std::string> toasts{
             Input::kReticleHint, Input::kMouseHint,
             "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
-            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle"};
+            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
+            "Preparing Shaders 3 / 9"}; // AzaharFrame integ3: the stall lane's shader notice
         ui::Canvas cv;
         cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
         cv.Clear(Rgb(kBackdrop));
@@ -667,6 +668,15 @@ int main(int argc, char** argv) {
         v.mods_page = ModsPage::Install;
         v.hover = {Id::ModInstall, 0};
         ok &= shot("mods-install", mi, v);
+        { // AzaharFrame integ3: a homebrew game (no title id): No Mods for This Game at once
+            MenuModel mh = m;
+            mh.game_title = "Emerald 3DS";
+            mh.mods.mods = {};
+            mh.mods.mods.catalog = CatalogState::Ready;
+            MenuView hv = v;
+            hv.hover = {};
+            ok &= shot("mods-install-homebrew", mh, hv);
+        }
         v.hover = {Id::InstallFromZip, 1}; // AzaharFrame zipinstall
         ok &= shot("zip-mods-button", mi, v);
         MenuModel mz = mi;
