@@ -125,7 +125,7 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 **Mods**
 
 - The list shows what is installed for the game. Mods installed from here have a switch and **Remove**. Files you put in the mods folder yourself have **Remove** only, which asks first.
-- **Install Mods** lists the mods known for the game, with their author and the date they were last updated, and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
+- **Install Mods** lists the mods known for the game, with their author, their version and the date they were last updated (when the source says), and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
 - When two mods change the same files, installing the second asks before it replaces the first, or tells you which one to remove first.
 - **Created by** and the author's name open the author's page in Steam's browser, after **Open GitHub?**.
 
@@ -139,6 +139,10 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 A change to mods or textures shows **Restart the Game to Apply**. **Restart** restarts the game.
 
 Downloaded packs go to `load/texture-packs/<TitleID>/`, and `load/textures/<TitleID>` points at the one you picked. Installed mods are kept in `load/mod-library/<TitleID>/` and copied into `load/mods/<TitleID>/`.
+
+#### The Homebrew tab
+
+The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built from a game you own. For now that is [Pokémon Emerald 3DS](https://github.com/ZallaxDev/emerald-3ds). **Install** continues in Azahar's window: it asks for your Pokémon Emerald ROM, the language and the game folder, then downloads the release and builds the game, with the progress on the row. Once it is installed, **Play** starts it. Once a day, when the game list loads, Azahar for Frame asks GitHub for the latest release; **Update** then shows next to **Play**, and **Reinstall** shows when you already have the latest. Azahar's own **Homebrew** menu has the same entries.
 
 #### Optimize Texture Pack for Frame
 

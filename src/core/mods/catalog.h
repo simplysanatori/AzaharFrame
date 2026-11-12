@@ -55,6 +55,9 @@
 // Optional entry fields (AzaharFrame modcat):
 //   "author_url": "https://gamebanana.com/members/1544353"   what the author's name opens
 //   "updated": "2026-11-12" or "2026-11"                     shown until the source's own date is known
+//   "version": "v172"                                         AzaharFrame ui3: the mod's own version,
+//     shown after the author until the source's own is known (a GitHub release's tag, GameBanana's
+//     version); at most 24 characters, else dropped. Older builds ignore it (unknown keys are).
 //   "downloads": 12345                                        AzaharFrame compat: lifetime downloads
 //     (the order of Install Mods, and "10K+ Downloads" on the row)
 //   "version_chip": {"label": "1.0", "tip": "For the original 1.0 game.", "code_crc32": ["c75021d9"]}
@@ -117,6 +120,7 @@ struct CatalogEntry {
     std::string homepage;
     std::string author_url; // AzaharFrame modcat
     std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD" or ""; catalog3: also "YYYY-MM"
+    std::string version;    // AzaharFrame ui3: the mod's own version ("v172"), "" none
     u64 size = 0;           // AzaharFrame catalog3: bytes to download (all parts), 0 unknown; over 1 GB the menu asks first
     u64 downloads = 0;      // AzaharFrame catalog3: the source's lifetime download count, 0 unknown
     bool verified = false;

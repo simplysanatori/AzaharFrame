@@ -608,6 +608,7 @@ void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
         o.verified = a.verified;
         o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = a.unscanned;
+        o.mod_version = a.version; // AzaharFrame ui3
         if (!a.compat.Fits()) { // AzaharFrame compat
             o.mismatch = true;
             o.region_chip = a.compat.RegionChip();

@@ -678,6 +678,34 @@ int main(int argc, char** argv) {
             hv.hover = {};
             ok &= shot("mods-install-homebrew", mh, hv);
         }
+        { // AzaharFrame ui3: Kid Icarus: Uprising's MEGA patches, the version by the author, the date
+            MenuModel mk = m;
+            mk.game_title = "Kid Icarus: Uprising";
+            mk.mods.mods.catalog = CatalogState::Ready;
+            const char* kUrl = "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/";
+            for (const char* name : {"C-Stick & Gyro", "Widescreen 16:9", "Ultrawide 21:9"}) {
+                ModOffer o;
+                o.id = name;
+                o.name = name;
+                o.author = "Darkshade";
+                o.url = kUrl;
+                o.mod_version = "v172";
+                o.updated = "Updated Oct 2026";
+                mk.mods.mods.available.push_back(o);
+            }
+            ModOffer cd;
+            cd.id = "kiu-cd-quality-soundtrack";
+            cd.name = "CD Quality Soundtrack";
+            cd.author = "Zara Nerd";
+            cd.url = "https://gamebanana.com/members/6074804";
+            cd.mod_version = "v1.0.0";
+            cd.downloads = "Under 100 Downloads";
+            cd.updated = "Updated Oct 2026";
+            mk.mods.mods.available.push_back(cd);
+            MenuView kv = v;
+            kv.hover = {Id::ModInstall, 0};
+            ok &= shot("mods-install-kiu", mk, kv);
+        }
         v.hover = {Id::InstallFromZip, 1}; // AzaharFrame zipinstall
         ok &= shot("zip-mods-button", mi, v);
         MenuModel mz = mi;

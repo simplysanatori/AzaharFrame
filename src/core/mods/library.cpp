@@ -1352,7 +1352,7 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
     return true;
 }
 
-std::string Library::LookupDate(const CatalogEntry& entry) {
+Library::SourceFacts Library::LookupDate(const CatalogEntry& entry) {
     const Source& s = entry.source;
     HttpReply reply;
     std::string error;
@@ -1368,7 +1368,10 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
                 return {};
             }
             const auto j = nlohmann::json::parse(reply.body);
-            return DayOfUnix(j.value("_tsDateUpdated", j.value("_tsDateAdded", 0LL)));
+            // AzaharFrame ui3: and the mod's version ("1.0.0", often "")
+            const auto v = j.find("_sVersion");
+            return {DayOfUnix(j.value("_tsDateUpdated", j.value("_tsDateAdded", 0LL))),
+                    v != j.end() && v->is_string() ? v->get<std::string>() : std::string{}};
         }
         if (s.type == Source::Type::GithubRelease) {
             if (!Fetch(fmt::format("https://api.github.com/repos/{}/releases/{}", s.repo,
@@ -1377,7 +1380,8 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
                 reply.status != 200) {
                 return {};
             }
-            return IsoDay(nlohmann::json::parse(reply.body).value("published_at", ""));
+            const auto j = nlohmann::json::parse(reply.body);
+            return {IsoDay(j.value("published_at", "")), j.value("tag_name", "")}; // ui3: the tag
         }
         // a repository file or folder: the date of its last commit
         if (!Fetch(fmt::format("https://api.github.com/repos/{}/commits?sha={}&path={}&per_page=1",
@@ -1390,7 +1394,7 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
         if (!j.is_array() || j.empty()) {
             return {};
         }
-        return IsoDay(j[0].at("commit").at("committer").value("date", ""));
+        return {IsoDay(j[0].at("commit").at("committer").value("date", "")), {}};
     } catch (const std::exception&) {
         return {};
     }
@@ -1406,7 +1410,7 @@ std::size_t Library::RefreshDates(u64 title_id, std::chrono::steady_clock::time_
             }
         }
     }
-    std::map<std::string, std::string> by_source; // one request for entries sharing a release
+    std::map<std::string, SourceFacts> by_source; // one request for entries sharing a release
     std::size_t asked = 0;
     for (const auto& e : todo) {
         const Source& s = e.source;
@@ -1425,7 +1429,8 @@ std::size_t Library::RefreshDates(u64 title_id, std::chrono::steady_clock::time_
             asked++;
         }
         std::lock_guard lock{mutex_};
-        dates_[e.id] = it->second; // "" too: not asked again this run
+        dates_[e.id] = it->second.date; // "" too: not asked again this run
+        versions_[e.id] = it->second.version; // AzaharFrame ui3
     }
     return asked;
 }
@@ -1567,6 +1572,10 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
                                                      *game_code_crc) != e.code_crc32.end();
         const auto date = dates_.find(e.id);
         a.updated = date != dates_.end() && !date->second.empty() ? date->second : e.updated;
+        const auto version = versions_.find(e.id); // AzaharFrame ui3
+        a.version = version != versions_.end() && version->second.size() <= 24 && !version->second.empty()
+                        ? version->second
+                        : e.version;
         a.verified = e.verified;
         a.downloads = e.downloads;                  // AzaharFrame catalog3
         a.size = e.size;

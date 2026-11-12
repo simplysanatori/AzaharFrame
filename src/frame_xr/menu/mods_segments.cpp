@@ -325,13 +325,14 @@ Rect LinkTarget(const Rect& link, const Rect& row) {
 /// error colour (a failure).
 Rect CatalogRowText(Kit& kit, float x, float right, const Rect& row, const std::string& name,
                     bool verified, const std::string& author, bool link, State link_state,
-                    const std::vector<std::string>& bullets, bool error) {
+                    const std::vector<std::string>& bullets, bool error,
+                    const std::string& byline = {}) { // AzaharFrame ui3: after the author
     RowText(kit, x, right, row.y0 + kCatalogNameY, name, verified, "", false, 1.0f);
     Rect target{};
     if (!author.empty()) {
         // CreatedBy draws 13 dp under its `cy` (the old second line's place)
         const Rect l = CreatedBy(kit, x, right, row.y0 + kCatalogByY - 13.0f, author, link,
-                                 link_state, "", false, 1.0f, true);
+                                 link_state, byline, false, 1.0f, true);
         if (link && l.W() > 0.0f) {
             const float pad = std::max(8.0f, (48.0f - l.W()) * 0.5f);
             target = {l.x0 - pad, row.y0 + kCatalogByY - 24.0f, l.x1 + pad, row.y0 + kCatalogByY + 24.0f};
@@ -578,6 +579,24 @@ std::string BulletLine(const std::vector<std::string>& parts) {
         }
     }
     return out;
+}
+
+std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
+    if (!version.empty() && version.front() >= '0' && version.front() <= '9') {
+        return "v" + version;
+    }
+    return version;
+}
+
+std::string OfferByline(const ModOffer& offer) {
+    return ModVersionText(offer.mod_version);
+}
+
+std::vector<std::string> OfferBullets(const ModOffer& offer) {
+    if (!offer.note.empty()) {
+        return {offer.note};
+    }
+    return {offer.version_match ? "Matches Your Game" : "", offer.downloads, offer.updated};
 }
 
 std::string JoinDetail(const std::vector<std::string>& parts) {
@@ -914,17 +933,14 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     tip_row = &o;
                     tip_rect = row;
                 }
-                // AzaharFrame compat: "Created by <author>" (any https page), then "• Matches Your
-                // Game • 10K+ Downloads • Updated Sep 2026" (the phase or the failure while it
-                // installs or when it failed)
+                // AzaharFrame compat: "Created by <author>" (any https page; AzaharFrame ui3: then
+                // " · v172"), then "• Matches Your Game • 10K+ Downloads • Updated Sep 2026" (the
+                // phase or the failure while it installs or when it failed): OfferBullets
                 const bool link = !LinkText(o.url).empty();
-                const std::vector<std::string> bullets =
-                    !o.note.empty() ? std::vector<std::string>{o.note}
-                                    : std::vector<std::string>{o.version_match ? "Matches Your Game" : "",
-                                                               o.downloads, o.updated};
                 const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.verified, o.author,
-                                              link, StateOf(view, {Id::ModLink, idx}), bullets,
-                                              !o.note.empty() && o.error);
+                                              link, StateOf(view, {Id::ModLink, idx}),
+                                              OfferBullets(o), !o.note.empty() && o.error,
+                                              OfferByline(o));
                 if (l.W() > 0.0f) {
                     AddHit(l, {Id::ModLink, idx}, list);
                 }

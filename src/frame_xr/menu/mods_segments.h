@@ -79,6 +79,9 @@ struct ModOffer {
     /// AzaharFrame compat: GameBanana has not scanned its file yet (AvailableMod::unscanned, known
     /// after an install was refused for it): Install asks first
     bool unscanned = false;
+    /// AzaharFrame ui3: the mod's own version ("v172", "v1.5.9"; the catalog's "version", a GitHub
+    /// release tag or GameBanana's), after "Created by <author>"; "" unknown
+    std::string mod_version;
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -291,6 +294,16 @@ std::string BulletLine(const std::vector<std::string>& parts);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);
+
+/// AzaharFrame ui3: a mod's version as its rows show it: "v172", "v1.5.9", "Beta 2"; a bare number
+/// gets the "v" ("172" -> "v172"); "" stays "".
+std::string ModVersionText(const std::string& version);
+/// AzaharFrame ui3: what follows "Created by <author> · " on an Install Mods row (the version), "".
+std::string OfferByline(const ModOffer& offer);
+/// AzaharFrame ui3: the parts of an Install Mods row's last line (BulletLine): its note (the phase,
+/// a failure) when it has one, else Matches Your Game, "10K+ Downloads", "Updated Oct 2026" ("" the
+/// ones not known).
+std::vector<std::string> OfferBullets(const ModOffer& offer);
 
 /// "2.1 GB", "640 MB", "12 KB": a size the way Android's file manager shows it (1000s).
 std::string SizeText(uint64_t bytes);

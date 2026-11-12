@@ -867,6 +867,64 @@ TEST_CASE("Mods segments: links", "[frame_xr][tabmenu]") {
     }
 }
 
+// AzaharFrame ui3: an Install Mods row's version after the author, and its date, whenever known.
+TEST_CASE("Mods segments: a catalog row's version and date", "[frame_xr][tabmenu]") {
+    CHECK(ModVersionText("") == "");
+    CHECK(ModVersionText("172") == "v172");
+    CHECK(ModVersionText("1.0.0") == "v1.0.0");
+    CHECK(ModVersionText("v1.5.9") == "v1.5.9");
+    CHECK(ModVersionText("Beta 2") == "Beta 2");
+
+    // Kid Icarus: Uprising's C-Stick & Gyro patch (MEGA, no date or version from the source): the
+    // catalog's "version" and "updated".
+    ModOffer kiu;
+    kiu.id = "kiu-cstick-gyro";
+    kiu.name = "C-Stick & Gyro";
+    kiu.author = "Darkshade";
+    kiu.mod_version = "v172";
+    kiu.updated = "Updated Oct 2026";
+    CHECK(OfferByline(kiu) == "v172");
+    CHECK(BulletLine(OfferBullets(kiu)) == "\u2022 Updated Oct 2026");
+    // With the rest known, the date stays last.
+    kiu.downloads = "1K+ Downloads";
+    kiu.version_match = true;
+    CHECK(BulletLine(OfferBullets(kiu)) ==
+          "\u2022 Matches Your Game \u2022 1K+ Downloads \u2022 Updated Oct 2026");
+    // Installing or failed: the note alone; the version stays by the author.
+    kiu.note = "Downloading 42%";
+    CHECK(BulletLine(OfferBullets(kiu)) == "\u2022 Downloading 42%");
+    CHECK(OfferByline(kiu) == "v172");
+    // Nothing known: no version, no line.
+    ModOffer bare;
+    bare.author = "Someone";
+    CHECK(OfferByline(bare).empty());
+    CHECK(BulletLine(OfferBullets(bare)).empty());
+
+    // The row draws in the Install Mods list with its link and button, the version beside the
+    // author (the hit target stays the author's name alone).
+    Drawn d;
+    MenuModel m = Sample();
+    m.mods.mods.catalog = CatalogState::Ready;
+    kiu.note.clear();
+    kiu.url = "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/";
+    m.mods.mods.available = {kiu};
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    d.Draw(m, v);
+    bool install = false, link = false;
+    for (const auto& h : d.menu.Hits()) {
+        install |= h.t.id == Id::ModInstall && h.t.index == 0;
+        if (h.t.id == Id::ModLink && h.t.index == 0) {
+            link = true;
+            CHECK(h.r.W() < 200.0f);
+        }
+    }
+    CHECK(install);
+    CHECK(link);
+}
+
 TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(GithubLinkText("https://github.com/OTPR26/OOT3DHud") == "github.com/OTPR26/OOT3DHud");
     CHECK(GithubLinkText("https://github.com/simplysanatori/3ds-game-fixes/") ==

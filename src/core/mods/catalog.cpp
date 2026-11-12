@@ -255,6 +255,10 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     if (!e.updated.empty() && !DateOk(e.updated)) {
         e.updated.clear();
     }
+    e.version = Str(j, "version"); // AzaharFrame ui3
+    if (e.version.size() > 24) {
+        e.version.clear();
+    }
     const auto ids = j.find("title_ids");
     if (ids == j.end() || !ids->is_array() || ids->empty()) {
         throw std::string("no title_ids");
