@@ -125,7 +125,7 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 **Mods**
 
 - The list shows what is installed for the game. Mods installed from here have a switch and **Remove**. Files you put in the mods folder yourself have **Remove** only, which asks first.
-- **Install Mods** lists the mods known for the game, with their author, and installs one with **Install**. The files come straight from the author's GitHub repository; nothing is re-hosted. The list holds my own fixes and community mods such as Ocarina ReFramed and Project Restoration.
+- **Install Mods** lists the mods known for the game, with their author and the date they were last updated, and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
 - When two mods change the same files, installing the second asks before it replaces the first, or tells you which one to remove first.
 - **Created by** and the author's name open the author's page in Steam's browser, after **Open GitHub?**.
 
@@ -380,7 +380,7 @@ If you find a bug that also happens in Azahar on a PC, report it to [Azahar](htt
 - [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder, built on first use
 - [Frametop](https://github.com/Frametop/frametop) by DeeJanuz (MIT): the 3D mouse pointer is adapted from its pointer helper
 - [Sharkive](https://github.com/FlagBrew/Sharkive) by FlagBrew (GPL-3.0), with the 3DS codes kept by JourneyOver and its contributors, and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) (MIT): the cheats
-- Mods and texture packs come from their authors' own pages, under their own licences: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name
+- Mods and texture packs come from their authors' own pages, under their own licences: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, Single Screen Experience by M-1, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name
 - Valve: SteamVR and the Frame
 
 Full list: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Artwork sources: [steam-frame/art/CREDITS.md](../steam-frame/art/CREDITS.md). CitraVR's README: [README.upstream.md](../README.upstream.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Nintendo 3DS is a trademark of Nintendo.

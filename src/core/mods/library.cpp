@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <ctime>
 #include <set>
 #include <json.hpp>
 #include <fmt/format.h>
@@ -146,11 +147,22 @@ bool HostAllowed(const std::string& host) {
                                     "https://raw.githubusercontent.com",
                                     "https://codeload.github.com",
                                     "https://objects.githubusercontent.com",
-                                    "https://release-assets.githubusercontent.com"};
+                                    "https://release-assets.githubusercontent.com",
+                                    // AzaharFrame modcat: GameBanana's API, its download redirect and
+                                    // its file hosts (files, filecache<N>)
+                                    "https://gamebanana.com", "https://files.gamebanana.com"};
     for (const char* a : allowed) {
         if (host == a) {
             return true;
         }
+    }
+    constexpr std::string_view cache = "https://filecache";
+    constexpr std::string_view tail = ".gamebanana.com";
+    if (host.size() > cache.size() + tail.size() && host.compare(0, cache.size(), cache) == 0 &&
+        host.compare(host.size() - tail.size(), tail.size(), tail) == 0) {
+        const std::string_view n = std::string_view(host).substr(
+            cache.size(), host.size() - cache.size() - tail.size());
+        return n.size() <= 4 && std::all_of(n.begin(), n.end(), [](char c) { return c >= '0' && c <= '9'; });
     }
     return false;
 }
@@ -158,6 +170,30 @@ bool HostAllowed(const std::string& host) {
 std::string BaseName(std::string_view path) {
     const auto slash = path.rfind('/');
     return std::string(slash == std::string_view::npos ? path : path.substr(slash + 1));
+}
+
+/// AzaharFrame modcat: "2022-01-02T17:52:18Z" -> "2022-01-02" ("" when it is not a date).
+std::string IsoDay(std::string_view stamp) {
+    if (stamp.size() < 10 || stamp[4] != '-' || stamp[7] != '-') {
+        return {};
+    }
+    for (const std::size_t i : {0, 1, 2, 3, 5, 6, 8, 9}) {
+        if (!std::isdigit(static_cast<unsigned char>(stamp[i]))) {
+            return {};
+        }
+    }
+    return std::string(stamp.substr(0, 10));
+}
+
+/// AzaharFrame modcat: a Unix time as "YYYY-MM-DD" (UTC).
+std::string DayOfUnix(long long t) {
+    if (t <= 0) {
+        return {};
+    }
+    const std::time_t tt = static_cast<std::time_t>(t);
+    std::tm tm{};
+    gmtime_r(&tt, &tm);
+    return fmt::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
 }
 
 bool ReadFile(const fs::path& p, std::string& out) {
@@ -494,7 +530,7 @@ bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& ou
     for (int hop = 0; hop < 6; ++hop) {
         std::string host, path;
         if (!SplitUrl(current, host, path) || !HostAllowed(host)) {
-            error = "Download refused: not a GitHub address";
+            error = "Download refused: not an allowed address";
             return false;
         }
         out = transport_(host, path, max_bytes);
@@ -587,6 +623,79 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
         return false;
     }
 
+    if (s.type == Source::Type::Gamebanana) { // AzaharFrame modcat
+        if (!Fetch(fmt::format("https://gamebanana.com/apiv11/Mod/{}/ProfilePage", s.gb_mod), kMaxApi,
+                   reply, error)) {
+            return false;
+        }
+        if (reply.status != 200) {
+            error = reply.status == 404 ? "Mod not found" : fmt::format("Server returned {}", reply.status);
+            return false;
+        }
+        std::string url, asset_name;
+        std::size_t size = 0;
+        try {
+            const auto j = nlohmann::json::parse(reply.body);
+            if (j.value("_bIsTrashed", false) || j.value("_bIsWithheld", false) ||
+                j.value("_bIsPrivate", false)) {
+                error = "Mod not found";
+                return false;
+            }
+            version = j.value("_sVersion", "");
+            long long newest = -1;
+            for (const auto& f : j.at("_aFiles")) {
+                const auto name = f.value("_sFile", "");
+                // The newest file of the mod that matches, that GameBanana's scan found clean
+                if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name) ||
+                    f.value("_sAvResult", "") != "clean") {
+                    continue;
+                }
+                const long long added = f.value("_tsDateAdded", 0LL);
+                if (added > newest) {
+                    newest = added;
+                    asset_name = name;
+                    url = f.value("_sDownloadUrl", "");
+                    size = f.value("_nFilesize", static_cast<std::size_t>(0));
+                    if (!f.value("_sVersion", "").empty()) {
+                        version = f.value("_sVersion", "");
+                    }
+                }
+            }
+        } catch (const std::exception&) {
+            error = "Mod information not readable";
+            return false;
+        }
+        if (url.empty()) {
+            error = "No matching file in the mod";
+            return false;
+        }
+        SetState(State::Phase::Downloading, entry.id, fmt::format("Downloading {}", entry.name));
+        if (!Fetch(url, kMaxAsset, reply, error)) {
+            return false;
+        }
+        if (reply.status != 200) {
+            error = fmt::format("Server returned {}", reply.status);
+            return false;
+        }
+        if (size != 0 && reply.body.size() != size) {
+            error = "Download incomplete (the size is not the one listed)";
+            return false;
+        }
+        SetState(State::Phase::Extracting, entry.id, fmt::format("Unpacking {}", entry.name));
+        const ArchiveKind kind = DetectArchive(reply.body);
+        if (kind == ArchiveKind::Unknown) {
+            files.push_back({asset_name, std::move(reply.body)});
+            return true;
+        }
+        auto result = ExtractArchive(reply.body, kind);
+        if (!result.error.empty()) {
+            error = result.error;
+            return false;
+        }
+        files = std::move(result.files);
+        return true;
+    }
+
     // Repository files
     const bool dir = s.path.back() == '/';
     if (!dir) {
@@ -648,6 +757,72 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
         files.push_back({p.substr(s.path.size()), std::move(reply.body)});
     }
     return true;
+}
+
+std::string Library::LookupDate(const CatalogEntry& entry) {
+    const Source& s = entry.source;
+    HttpReply reply;
+    std::string error;
+    try {
+        if (s.type == Source::Type::Gamebanana) {
+            if (!Fetch(fmt::format("https://gamebanana.com/apiv11/Mod/{}/ProfilePage", s.gb_mod), kMaxApi,
+                       reply, error) ||
+                reply.status != 200) {
+                return {};
+            }
+            const auto j = nlohmann::json::parse(reply.body);
+            return DayOfUnix(j.value("_tsDateUpdated", j.value("_tsDateAdded", 0LL)));
+        }
+        if (s.type == Source::Type::GithubRelease) {
+            if (!Fetch(fmt::format("https://api.github.com/repos/{}/releases/{}", s.repo,
+                                   s.tag == "latest" ? "latest" : "tags/" + UrlEncodePath(s.tag)),
+                       kMaxApi, reply, error) ||
+                reply.status != 200) {
+                return {};
+            }
+            return IsoDay(nlohmann::json::parse(reply.body).value("published_at", ""));
+        }
+        // a repository file or folder: the date of its last commit
+        if (!Fetch(fmt::format("https://api.github.com/repos/{}/commits?sha={}&path={}&per_page=1",
+                               s.repo, UrlEncodePath(s.ref), UrlEncodePath(s.path)),
+                   kMaxApi, reply, error) ||
+            reply.status != 200) {
+            return {};
+        }
+        const auto j = nlohmann::json::parse(reply.body);
+        if (!j.is_array() || j.empty()) {
+            return {};
+        }
+        return IsoDay(j[0].at("commit").at("committer").value("date", ""));
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
+void Library::RefreshDates(u64 title_id) {
+    std::vector<CatalogEntry> todo;
+    {
+        std::lock_guard lock{mutex_};
+        for (const auto& e : catalog_.mods) {
+            if (e.ServesTitle(title_id) && !dates_.count(e.id)) {
+                todo.push_back(e);
+            }
+        }
+    }
+    std::map<std::string, std::string> by_source; // one request for entries sharing a release
+    for (const auto& e : todo) {
+        const Source& s = e.source;
+        const std::string key = fmt::format("{}|{}|{}|{}|{}|{}", static_cast<int>(s.type), s.repo,
+                                            s.type == Source::Type::GithubRelease ? s.tag : s.ref,
+                                            s.type == Source::Type::GithubRelease ? "" : s.path,
+                                            s.gb_mod, "");
+        auto it = by_source.find(key);
+        if (it == by_source.end()) {
+            it = by_source.emplace(key, LookupDate(e)).first;
+        }
+        std::lock_guard lock{mutex_};
+        dates_[e.id] = it->second; // "" too: not asked again this run
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -739,7 +914,7 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
     return out;
 }
 
-std::vector<AvailableMod> Library::ListAvailable(u64 title_id) const {
+std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32> game_code_crc) const {
     std::lock_guard lock{mutex_};
     std::vector<AvailableMod> out;
     for (const auto& e : catalog_.mods) {
@@ -754,6 +929,13 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id) const {
         a.licence = e.licence;
         a.homepage = e.homepage;
         a.notes = e.notes;
+        a.author_url = e.author_url;
+        a.chip = e.chip;
+        a.chip_tip = e.chip_tip;
+        a.matches_game = game_code_crc && std::find(e.code_crc32.begin(), e.code_crc32.end(),
+                                                     *game_code_crc) != e.code_crc32.end();
+        const auto date = dates_.find(e.id);
+        a.updated = date != dates_.end() && !date->second.empty() ? date->second : e.updated;
         a.verified = e.verified;
         a.installable = e.Installable();
         Manifest m;
@@ -763,8 +945,11 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id) const {
         }
         out.push_back(std::move(a));
     }
-    // The maintainer's first, then by name
+    // Made for the game's own build first, the maintainer's next, then by name
     std::stable_sort(out.begin(), out.end(), [](const AvailableMod& a, const AvailableMod& b) {
+        if (a.matches_game != b.matches_game) {
+            return a.matches_game;
+        }
         return a.verified != b.verified ? a.verified : a.name < b.name;
     });
     return out;
@@ -929,7 +1114,9 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         manifest.version = version;
         manifest.author = entry.author;
         manifest.licence = entry.licence;
-        manifest.source = "github.com/" + entry.source.repo;
+        manifest.source = entry.source.type == Source::Type::Gamebanana
+                              ? fmt::format("gamebanana.com/mods/{}", entry.source.gb_mod)
+                              : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
         manifest.active = false;
         bool ok = true;

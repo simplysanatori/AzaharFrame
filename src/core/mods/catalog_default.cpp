@@ -39,6 +39,35 @@ const char* DefaultCatalogJson() {
       "notes": "Removes the glow and doubled outlines around characters at higher internal resolutions."
     },
     {
+      "id": "ocarina-single-screen-experience",
+      "name": "Single Screen Experience",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "M-1",
+      "author_url": "https://gamebanana.com/members/1544353",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/695893",
+      "verified": true,
+      "source": {
+        "type": "gamebanana",
+        "mod": 695893,
+        "file_pattern": "singlescreen_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "*/*/Emulator/load/mods/{tid}/",
+            "to": ""
+          }
+        ]
+      },
+      "notes": "A single screen layout with no touch screen needed (North America, Europe, Japan). Replaces any other code patch for the game, such as Ocarina ReFramed. Its optional HD UI textures are not installed."
+    },
+    {
       "id": "ocarina-reframed-single-screen",
       "name": "Ocarina ReFramed (Single Screen)",
       "title": "The Legend of Zelda: Ocarina of Time 3D",
@@ -131,11 +160,18 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "MM3D 1.0, or 1.1 with the update. The Korean release is not supported."
+      "notes": "The Korean release is not supported. Conflicts with the other Project Restoration builds.",
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the original 1.0 game, or 1.0 with the 1.1 update.",
+        "code_crc32": [
+          "c75021d9"
+        ]
+      }
     },
     {
       "id": "mm3d-project-restoration-v110",
-      "name": "Project Restoration (Card 1.1)",
+      "name": "Project Restoration",
       "title": "The Legend of Zelda: Majora's Mask 3D",
       "title_ids": [
         "0004000000125500",
@@ -164,11 +200,18 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "MM3D 1.1 game card (1.1 preinstalled). The Korean release is not supported."
+      "notes": "The Korean release is not supported. Conflicts with the other Project Restoration builds.",
+      "version_chip": {
+        "label": "Card 1.1",
+        "tip": "For game cards with 1.1 built in.",
+        "code_crc32": [
+          "ffdf1ee8"
+        ]
+      }
     },
     {
       "id": "mm3d-project-restoration-v101",
-      "name": "Project Restoration (v101)",
+      "name": "Project Restoration",
       "title": "The Legend of Zelda: Majora's Mask 3D",
       "title_ids": [
         "0004000000125500",
@@ -197,11 +240,17 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Only if the first one does not work. The Korean release is not supported."
+      "notes": "The Korean release is not supported. Conflicts with the other Project Restoration builds.",
+      "version_chip": {
+        "label": "Fallback",
+        "tip": "Try this if the first one doesn't work.",
+        "code_crc32": [
+          "e972fd45"
+        ]
+      }
     }
   ]
-}
-)AZCAT";
+})AZCAT";
 }
 
 } // namespace Mods

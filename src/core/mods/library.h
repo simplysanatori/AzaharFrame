@@ -26,15 +26,18 @@
 //     player removes that item first.
 //
 // Network (Install for a mod not yet in the library, RefreshCatalog): blocking, up to a minute per
-// request, run off the GUI thread. Only api.github.com, github.com, raw.githubusercontent.com and
-// GitHub's own download hosts are contacted (redirects are followed to that list only, HTTPS only).
+// request, run off the GUI thread. Only api.github.com, github.com, raw.githubusercontent.com,
+// GitHub's own download hosts and (AzaharFrame modcat, for the catalog's GameBanana mods)
+// gamebanana.com with its file hosts are contacted (redirects are followed to that list only, HTTPS only).
 // Every function is safe to call from any thread; one Install runs at a time (a second returns
 // Error "Another install is running"); GetState can be polled from the GUI thread.
 
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
+#include <optional>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -101,6 +104,11 @@ struct AvailableMod {
     std::string licence;
     std::string homepage;
     std::string notes;
+    std::string author_url; // AzaharFrame modcat: what the author's name opens ("" none)
+    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD", the source's own date, "" unknown
+    std::string chip;       // AzaharFrame modcat: the version chip ("1.0"), "" none
+    std::string chip_tip;   // its tooltip
+    bool matches_game = false; // made for the game's own code
     bool verified = false;
     bool installable = true; // false: a 7z or rar download and no bsdtar
     bool active = false;     // installed and in the mods folder
@@ -163,8 +171,11 @@ public:
 
     /// Everything in mods/<TID>/: managed (active), the library's inactive ones, then unmanaged.
     std::vector<ModInfo> ListLoaded(u64 title_id) const;
-    /// Catalog mods for the title, with their state.
-    std::vector<AvailableMod> ListAvailable(u64 title_id) const;
+    /// Catalog mods for the title, with their state. AzaharFrame modcat: `game_code_crc` is the
+    /// CRC32 of the game's .code as Azahar reads it (Crc32 of the loader's ReadCode); the mods
+    /// made for it are marked and come first.
+    std::vector<AvailableMod> ListAvailable(u64 title_id,
+                                            std::optional<u32> game_code_crc = std::nullopt) const;
 
     InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false);
     /// AzaharFrame zipinstall: a mod from a local archive, kept in the library like a downloaded one
@@ -188,6 +199,11 @@ public:
     bool RefreshCatalog(std::string* error = nullptr);
     /// RefreshCatalog once per run (later calls do nothing).
     void RefreshCatalogOnce();
+    /// AzaharFrame modcat: looks up the source's own date (a release's published_at, a repository
+    /// file's last commit, a GameBanana mod's update) for the catalog mods of the title that have
+    /// none yet this run, so ListAvailable can say "updated". Blocking, a request per source;
+    /// failures are ignored (the catalog's "updated" stays).
+    void RefreshDates(u64 title_id);
 
     std::string ModsDir(u64 title_id) const;
     std::string LibraryDir(u64 title_id) const;
@@ -199,6 +215,7 @@ private:
     bool Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error);
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                         std::string& version, std::string& error);
+    std::string LookupDate(const CatalogEntry& entry); // AzaharFrame modcat
     void SetState(State::Phase phase, const std::string& mod_id, const std::string& text);
     std::vector<ModInfo> ListLoadedLocked(u64 title_id) const;
     RemoveOutcome RemoveFilesOf(u64 title_id, const std::vector<std::string>& files);
@@ -214,6 +231,7 @@ private:
     mutable std::mutex mutex_; // disk and catalog
     Catalog catalog_;
     bool catalog_refreshed_ = false;
+    std::map<std::string, std::string> dates_; // catalog id -> "YYYY-MM-DD" (AzaharFrame modcat)
     mutable std::mutex state_mutex_;
     State state_;
     bool busy_ = false;

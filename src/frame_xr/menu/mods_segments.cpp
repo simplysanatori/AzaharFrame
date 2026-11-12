@@ -545,6 +545,12 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             layout.max_scroll = s.max_scroll;
             layout.scroll_step = s.step;
             kit.Clip(list);
+            // AzaharFrame modcat: the version chip's tooltip, drawn after the list
+            struct ChipTip {
+                float cx = 0.0f, y = 0.0f;
+                bool above = true;
+                std::string text;
+            } chip_tip;
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
                 if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
@@ -588,17 +594,55 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     break;
                 }
                 }
-                RowText(kit, c.x0, right - kNameGap, cy + kLinkNameDy, o.name, o.verified, "", false,
+                // AzaharFrame modcat: the version chip, left of the button (the Cheats rows' chip:
+                // outlined; filled for the build that matches the game); hover shows its tooltip
+                float name_right = right - kNameGap;
+                if (!o.version.empty()) {
+                    constexpr float kChipH = 32.0f, kChipPad = 12.0f;
+                    const float cw = kit.TextWidth(Type::Label, o.version) + kChipPad * 2.0f;
+                    const Rect chip{right - 16.0f - cw, cy - kChipH * 0.5f, right - 16.0f,
+                                    cy + kChipH * 0.5f};
+                    if (o.version_match) {
+                        kit.Fill(chip, 8.0f, Tok::kSecondaryContainer);
+                        kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSecondaryContainer, o.version, 1);
+                    } else {
+                        kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
+                        kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSurfaceVariant, o.version, 1);
+                    }
+                    AddHit(chip, {Id::ModVersion, idx}, list);
+                    if (view.tooltip == Id::ModVersion && view.tooltip_index == idx &&
+                        !o.version_tip.empty()) {
+                        const float half = kit.TextWidth(Type::Tooltip, o.version_tip) * 0.5f + 10.0f;
+                        chip_tip.cx = std::clamp(chip.Cx(), area.x0 + half + 4.0f, area.x1 - half - 4.0f);
+                        // above the chip; under it for the first row shown
+                        chip_tip.above = chip.y0 - 40.0f > list.y0;
+                        chip_tip.y = chip_tip.above ? chip.y0 : chip.y1;
+                        chip_tip.text = o.version_tip;
+                    }
+                    name_right = chip.x0 - kNameGap;
+                }
+                RowText(kit, c.x0, name_right, cy + kLinkNameDy, o.name, o.verified, "", false,
                         1.0f, true);
-                const bool link = !GithubLinkText(o.url).empty();
-                const Rect l = CreatedBy(kit, c.x0, right - kNameGap, cy + kLinkLineDy, o.author, link,
-                                         StateOf(view, {Id::ModLink, idx}), o.note, o.error, 1.0f);
+                // AzaharFrame modcat: as Download Packs: the author alone, then "Updated Sep 2026"
+                // (the phase or the failure while it installs or when it failed); any https page
+                const bool link = !LinkText(o.url).empty();
+                std::string rest = o.note;
+                if (rest.empty()) {
+                    rest = o.version_match ? (o.updated.empty() ? std::string("Matches Your Game")
+                                                                : "Matches Your Game \u00b7 " + o.updated)
+                                           : o.updated;
+                }
+                const Rect l = CreatedBy(kit, c.x0, name_right, cy + kLinkLineDy, o.author, link,
+                                         StateOf(view, {Id::ModLink, idx}), rest, o.error, 1.0f, false);
                 if (link && l.W() > 0.0f) {
                     AddHit(LinkTarget(l, row), {Id::ModLink, idx}, list);
                 }
             }
             kit.ClearClip();
             ScrollIndicator(kit, list, area.x1, s);
+            if (!chip_tip.text.empty()) {
+                kit.Tooltip(chip_tip.cx, chip_tip.y, chip_tip.text, chip_tip.above);
+            }
         }
         DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
@@ -673,7 +717,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
         } else {
             RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
-            const bool link = !GithubLinkText(r.url).empty();
+            const bool link = !LinkText(r.url).empty(); // AzaharFrame modcat: GameBanana pages too
             const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, r.author, link,
                                      StateOf(view, {Id::ModLink, idx}, enabled), r.detail, false, op);
             if (link && enabled && l.W() > 0.0f) {

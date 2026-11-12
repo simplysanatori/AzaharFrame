@@ -29,6 +29,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -56,6 +57,10 @@ public:
     FrameMods(QObject* parent);
     ~FrameMods() override;
 
+    /// AzaharFrame modcat: how to read the CRC32 of the running game's .code (GUI thread), for mods
+    /// made for one build of a game (Project Restoration); nullopt when it cannot be read.
+    void SetCodeCrcSource(std::function<std::optional<u32>()> source);
+
     /// The in-game menu opened on this game (`run` counts the games started, so a restart of the
     /// same game clears the snackbar): read its mods and packs and publish them.
     void Open(u64 title_id, int run);
@@ -67,6 +72,9 @@ public:
     void TextureSettingChanged();
 
 private:
+    std::function<std::optional<u32>()> code_crc_source; // AzaharFrame modcat
+    std::optional<u32> game_crc;
+    bool game_crc_read = false;
     struct Pending {
         enum class Kind { None, Install, Remove, Download, Delete } kind = Kind::None;
         std::string id;

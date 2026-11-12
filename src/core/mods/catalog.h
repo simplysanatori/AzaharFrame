@@ -30,6 +30,18 @@
 //    "asset_pattern": "Name-*-Mods.zip"}                                       a release asset ('*' = any text)
 //   {"type": "github_repo_path", "repo": "owner/name", "ref": "main", "path": "dir/" or "file"}
 //   path ending in '/' = every file under that folder (names relative to it); else one file.
+//   {"type": "gamebanana", "mod": 695893, "file_pattern": "*.zip"}            AzaharFrame modcat: a
+//   GameBanana mod; its newest clean file matching the pattern is found through GameBanana's public
+//   API at install time (nothing re-hosted, nothing pinned to one file id).
+//
+// Optional entry fields (AzaharFrame modcat):
+//   "author_url": "https://gamebanana.com/members/1544353"   what the author's name opens
+//   "updated": "2026-11-12"                                   shown until the source's own date is known
+//   "version_chip": {"label": "1.0", "tip": "For the original 1.0 game.", "code_crc32": ["c75021d9"]}
+//     A mod made for one build of a game, shown as a chip on its row ("label", with "tip" as its
+//     tooltip). "code_crc32": the CRC32 of the game's .code this mod's code patch was made for (a
+//     BPS patch's own source checksum); the row whose list holds the running game's CRC32 is
+//     marked "Matches Your Game" and listed first. Nothing is hidden: the others stay.
 //
 // install.rules map an archive's (or folder's) file paths to the game's mods folder
 // (<LoadDir>/mods/<TID>/). The first rule whose "from" matches wins; files no rule matches are
@@ -53,11 +65,12 @@
 namespace Mods {
 
 struct Source {
-    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath };
+    enum class Type { OwnerRepoPath, GithubRelease, GithubRepoPath, Gamebanana };
     Type type = Type::OwnerRepoPath;
     std::string repo;          // "owner/name" (OwnerRepoPath: always the maintainer's repository)
     std::string tag = "latest"; // GithubRelease
-    std::string asset_pattern; // GithubRelease
+    std::string asset_pattern; // GithubRelease, Gamebanana (file name pattern)
+    u64 gb_mod = 0;            // Gamebanana: the mod's id (gamebanana.com/mods/<id>)
     std::string ref = "main";  // repo paths
     std::string path;          // repo paths
 };
@@ -75,9 +88,14 @@ struct CatalogEntry {
     std::string author;
     std::string licence;
     std::string homepage;
+    std::string author_url; // AzaharFrame modcat
+    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD" or ""
     bool verified = false;
     Source source;
     std::vector<Rule> rules;
+    std::string chip;     // AzaharFrame modcat: "1.0", "Card 1.1", "Fallback" ("" none)
+    std::string chip_tip; // its tooltip
+    std::vector<u32> code_crc32; // the game code CRC32s it was made for
     std::string notes;
 
     bool ServesTitle(u64 title_id) const;
@@ -106,6 +124,9 @@ Catalog DefaultCatalog();
 
 /// "*" glob (any run of characters) match of a whole string, case-sensitive.
 bool GlobMatch(std::string_view pattern, std::string_view text);
+
+/// AzaharFrame modcat: CRC32 (the one BPS patches use) of a buffer.
+u32 Crc32(const u8* data, std::size_t size);
 
 /// "0004000000173700" for the title ID.
 std::string TitleIdText(u64 title_id);

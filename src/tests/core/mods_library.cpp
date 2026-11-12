@@ -12,6 +12,8 @@
 #include <fstream>
 #include <cstdlib>
 #include <map>
+#include <optional>
+#include <tuple>
 #include <catch2/catch_test_macros.hpp>
 #include "core/mods/library.h"
 
@@ -236,6 +238,8 @@ const char* kCatalog = R"({"schema":1,"mods":[
   "install":{"rules":[{"from":"v100/citra/code.bps","to":"code.bps"}]}}
 ]})";
 
+constexpr const char* kGbOot = "ocarina-single-screen-experience"; // AzaharFrame modcat
+
 // A fake network: path -> reply, with a log of the requests.
 struct FakeNet {
     std::map<std::string, HttpReply> replies; // key: host + path
@@ -428,6 +432,7 @@ TEST_CASE("Mods: catalog parsing", "[mods]") {
         REQUIRE(oot->source.repo == "OTPR26/OOT3DHud");
         const auto* mm = c->Find("mm3d-project-restoration-v100");
         REQUIRE(mm != nullptr);
+        REQUIRE(mm->chip == "1.0");
         REQUIRE(mm->Installable() == !FindBsdtar().empty()); // a 7z asset: needs the system's bsdtar
         REQUIRE(nb->Installable());
         REQUIRE(oot->Installable());
@@ -898,6 +903,46 @@ TEST_CASE("Mods: real install of Ocarina ReFramed", "[.network]") {
     REQUIRE(Tree(dir).empty());
 }
 
+// AzaharFrame modcat: the owner's GameBanana pick, end to end through the catalog, GameBanana's API,
+// its download hosts, then ReFramed from GitHub (conflict and replace), and the dates.
+TEST_CASE("Mods: real install of Single Screen Experience", "[.network]") {
+    const std::string dir = TempDir("real_gb");
+    Library library(dir);
+    const std::string mods = dir + "mods/" + kTidText + "/";
+    library.RefreshDates(kTid);
+    const auto available = library.ListAvailable(kTid);
+    const auto it = std::find_if(available.begin(), available.end(),
+                                 [](const auto& a) { return a.id == kGbOot; });
+    REQUIRE(it != available.end());
+    REQUIRE(it->verified);
+    INFO("updated: " << it->updated);
+    REQUIRE(it->updated.size() == 10);
+    const auto out = library.Install(kTid, kGbOot);
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    const auto tree = Tree(mods);
+    REQUIRE(std::find(tree.begin(), tree.end(), "exefs/code.ips") != tree.end());
+    REQUIRE(std::find(tree.begin(), tree.end(), "exheader.bin") != tree.end());
+    REQUIRE(std::find(tree.begin(), tree.end(), "romfs/stage_grid.bin") != tree.end());
+    for (const auto& f : tree) { // no other region, no textures, no 3DS hardware files
+        REQUIRE((f == "exheader.bin" || f.rfind("exefs/", 0) == 0 || f.rfind("romfs/", 0) == 0));
+    }
+    REQUIRE(Read(mods + "exefs/code.ips").substr(0, 5) == "PATCH");
+    const auto loaded = library.ListLoaded(kTid);
+    REQUIRE(loaded.size() == 1);
+    REQUIRE(loaded[0].verified);
+    REQUIRE(loaded[0].version == "3.2.2");
+    // Ocarina ReFramed (single screen) conflicts, and Replace swaps them
+    const auto conflict = library.Install(kTid, "ocarina-reframed-single-screen");
+    REQUIRE(conflict.result == InstallResult::Conflict);
+    REQUIRE(conflict.conflict_id == kGbOot);
+    REQUIRE(library.Install(kTid, "ocarina-reframed-single-screen", true).result == InstallResult::Ok);
+    REQUIRE(Read(mods + "code.ips").substr(0, 5) == "PATCH");
+    REQUIRE(library.Remove(kTid, "ocarina-reframed-single-screen").ok);
+    REQUIRE(library.Remove(kTid, kGbOot).ok);
+    REQUIRE(Tree(dir + "mods/").empty());
+}
+
 // Project Restoration is a 7z (needs the system's bsdtar): v1.5.9 for the USA Majora's Mask 3D.
 TEST_CASE("Mods: real install of Project Restoration", "[.network]") {
     REQUIRE_FALSE(FindBsdtar().empty());
@@ -917,6 +962,286 @@ TEST_CASE("Mods: real install of Project Restoration", "[.network]") {
     REQUIRE(Read(mods + "code.bps").substr(0, 4) == "BPS1");
     REQUIRE(library.Remove(tid, "mm3d-project-restoration-v100").ok);
     REQUIRE(Tree(dir).empty());
+}
+
+// ---------------------------------------------------------------------------------------------
+// AzaharFrame modcat: GameBanana mods, version chips, dates
+
+namespace {
+
+
+// What GameBanana's ProfilePage answers (the fields the installer reads).
+std::string GbProfile(const std::string& files_json, const std::string& extra = "") {
+    return "{\"_sName\":\"OoT3D: Single Screen Experience\",\"_sVersion\":\"3.2.2\","
+           "\"_tsDateUpdated\":1794038618,\"_tsDateAdded\":1784557623" + extra +
+           ",\"_aFiles\":[" + files_json + "]}";
+}
+
+std::string GbFile(int id, const std::string& name, std::size_t size, long long added,
+                   const std::string& av = "clean", bool archived = false) {
+    return "{\"_idRow\":" + std::to_string(id) + ",\"_sFile\":\"" + name + "\",\"_nFilesize\":" +
+           std::to_string(size) + ",\"_tsDateAdded\":" + std::to_string(added) +
+           ",\"_sDownloadUrl\":\"https://gamebanana.com/dl/" + std::to_string(id) +
+           "\",\"_sAvResult\":\"" + av + "\",\"_bIsArchived\":" + (archived ? "true" : "false") +
+           ",\"_sVersion\":\"3.2." + std::to_string(id % 10) + "\"}";
+}
+
+// The layout of the real archive: <root>/<REGION>/Emulator/load/mods/<TID>/ and 3DS Hardware/luma.
+std::string SingleScreenZip() {
+    return MakeZip({{"SingleScreen_3.2.2/USA/Emulator/load/mods/0004000000033500/exefs/code.ips", "PATCH-SS-US"},
+                    {"SingleScreen_3.2.2/USA/Emulator/load/mods/0004000000033500/exheader.bin", "hdr-us"},
+                    {"SingleScreen_3.2.2/USA/Emulator/load/mods/0004000000033500/romfs/menu/custom_ui01.ctxb", "ui"},
+                    {"SingleScreen_3.2.2/USA/Emulator/load/textures/0004000000033500/UI/t.png", "png"},
+                    {"SingleScreen_3.2.2/USA/3DS Hardware/luma/titles/0004000000033500/exefs/code.ips", "PATCH-HW"},
+                    {"SingleScreen_3.2.2/EUR/Emulator/load/mods/0004000000033600/exefs/code.ips", "PATCH-SS-EU"},
+                    {"SingleScreen_3.2.2/JPN/Emulator/load/mods/0004000000033400/exefs/code.ips", "PATCH-SS-JP"}});
+}
+
+} // namespace
+
+TEST_CASE("Mods: GameBanana mod in the compiled-in catalog", "[mods]") {
+    const auto c = DefaultCatalog();
+    const auto* gb = c.Find(kGbOot);
+    REQUIRE(gb != nullptr);
+    REQUIRE(gb->verified); // the owner's pick, honoured for a GameBanana source
+    REQUIRE(gb->source.type == Source::Type::Gamebanana);
+    REQUIRE(gb->source.gb_mod == 695893);
+    REQUIRE(gb->author == "M-1");
+    REQUIRE(gb->author_url == "https://gamebanana.com/members/1544353");
+    REQUIRE(gb->title_ids.size() == 3);
+    const auto* re = c.Find("ocarina-reframed-single-screen");
+    REQUIRE(re != nullptr);
+    REQUIRE_FALSE(re->verified); // stays, unverified
+    // listed first for the game: verified before unverified
+    FakeNet net;
+    Library library(TempDir("gbcat"), c, net.Get());
+    const auto list = library.ListAvailable(kTid);
+    REQUIRE(list.size() >= 3);
+    REQUIRE(list[0].id == kGbOot);
+    REQUIRE(list[0].verified);
+    REQUIRE(list[0].author_url == "https://gamebanana.com/members/1544353");
+}
+
+TEST_CASE("Mods: GameBanana install", "[mods]") {
+    const std::string dir = TempDir("gb");
+    const std::string mods = dir + "mods/" + kTidText + "/";
+    FakeNet net;
+    Library library(dir, DefaultCatalog(), net.Get());
+    const std::string zip = SingleScreenZip();
+    const std::string files =
+        GbFile(1111, "singlescreen_300.zip", 10, 1700000000) + "," +
+        GbFile(1879915, "singlescreen_322.zip", zip.size(), 1794037831) + "," +
+        GbFile(2222, "singlescreen_999.zip", 10, 1800000000, "infected") + "," +   // not clean
+        GbFile(3333, "singlescreen_998.zip", 10, 1800000001, "clean", true) + "," + // archived
+        GbFile(4444, "readme.txt", 10, 1800000002);                                  // not the pattern
+    net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage", GbProfile(files));
+    net.Redirect("https://gamebanana.com/dl/1879915", "https://files.gamebanana.com/mods/singlescreen_322.zip");
+    net.Redirect("https://files.gamebanana.com/mods/singlescreen_322.zip",
+                 "https://filecache40.gamebanana.com/mods/singlescreen_322.zip");
+    net.Ok("https://filecache40.gamebanana.com/mods/singlescreen_322.zip", zip);
+
+    SECTION("the newest clean file, laid out for the region, textures and hardware files left out") {
+        const auto out = library.Install(kTid, kGbOot);
+        INFO(out.error);
+        REQUIRE(out.result == InstallResult::Ok);
+        REQUIRE(Tree(mods) == V{"exefs/code.ips", "exheader.bin", "romfs/menu/custom_ui01.ctxb"});
+        REQUIRE(Read(mods + "exefs/code.ips") == "PATCH-SS-US");
+        for (const auto& r : net.log) {
+            REQUIRE(r.find("/dl/1111") == std::string::npos);
+            REQUIRE(r.find("/dl/2222") == std::string::npos);
+        }
+        const auto loaded = library.ListLoaded(kTid);
+        REQUIRE(loaded.size() == 1);
+        REQUIRE(loaded[0].version == "3.2.5"); // the file's own version
+        REQUIRE(loaded[0].verified);
+        REQUIRE(loaded[0].source == "gamebanana.com/mods/695893");
+        REQUIRE(loaded[0].author == "M-1");
+        REQUIRE(library.Install(0x0004000000033600ULL, kGbOot).result == InstallResult::Ok);
+        REQUIRE(Read(dir + "mods/0004000000033600/exefs/code.ips") == "PATCH-SS-EU");
+        REQUIRE(library.Remove(kTid, kGbOot).ok);
+        REQUIRE(Tree(mods).empty());
+    }
+    SECTION("conflicts with Ocarina ReFramed, replaces it when asked") {
+        net.Ok("https://api.github.com/repos/OTPR26/OOT3DHud/releases/latest",
+               ReleaseJson("v9", "Ocarina-ReFramed-9-Single-Screen-Mods.zip",
+                           "https://github.com/OTPR26/OOT3DHud/releases/download/v9/r.zip"));
+        net.Redirect("https://github.com/OTPR26/OOT3DHud/releases/download/v9/r.zip",
+                     "https://release-assets.githubusercontent.com/r.zip");
+        net.Ok("https://release-assets.githubusercontent.com/r.zip",
+               MakeZip({{"X/load/mods/0004000000033500/code.ips", "PATCH-REFRAMED"},
+                        {"X/load/mods/0004000000033500/exheader.bin", "hdr-re"}}));
+        REQUIRE(library.Install(kTid, "ocarina-reframed-single-screen").result == InstallResult::Ok);
+        auto out = library.Install(kTid, kGbOot);
+        REQUIRE(out.result == InstallResult::Conflict);
+        REQUIRE(out.conflict_id == "ocarina-reframed-single-screen");
+        REQUIRE_FALSE(out.conflict_unmanaged);
+        REQUIRE(Read(mods + "code.ips") == "PATCH-REFRAMED"); // nothing changed
+        out = library.Install(kTid, kGbOot, true);
+        REQUIRE(out.result == InstallResult::Ok);
+        REQUIRE(Read(mods + "exefs/code.ips") == "PATCH-SS-US");
+        REQUIRE(Tree(mods).size() == 3);
+        // and back: ReFramed replaces it
+        REQUIRE(library.Install(kTid, "ocarina-reframed-single-screen").result == InstallResult::Conflict);
+    }
+    SECTION("a download of the wrong size, an unknown host, a missing mod, nothing clean") {
+        net.Ok("https://filecache40.gamebanana.com/mods/singlescreen_322.zip", zip + "x");
+        auto out = library.Install(kTid, kGbOot);
+        REQUIRE(out.result == InstallResult::Error);
+        REQUIRE(Tree(mods).empty());
+
+        net.Ok("https://filecache40.gamebanana.com/mods/singlescreen_322.zip", zip);
+        net.Redirect("https://files.gamebanana.com/mods/singlescreen_322.zip",
+                     "https://filecache40.gamebanana.com.evil.example/mods/singlescreen_322.zip");
+        out = library.Install(kTid, kGbOot);
+        REQUIRE(out.result == InstallResult::Error);
+        net.Redirect("https://files.gamebanana.com/mods/singlescreen_322.zip",
+                     "https://filecachex.gamebanana.com/mods/singlescreen_322.zip");
+        REQUIRE(library.Install(kTid, kGbOot).result == InstallResult::Error);
+        for (const auto& r : net.log) {
+            REQUIRE(r.find("evil.example") == std::string::npos);
+            REQUIRE(r.find("filecachex") == std::string::npos);
+        }
+
+        net.replies.erase("https://gamebanana.com/apiv11/Mod/695893/ProfilePage");
+        out = library.Install(kTid, kGbOot);
+        REQUIRE(out.result == InstallResult::Error);
+        REQUIRE(ShortFailure(out.error) == "Not Found");
+
+        net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage",
+               GbProfile(GbFile(2222, "singlescreen_999.zip", 10, 1800000000, "infected")));
+        out = library.Install(kTid, kGbOot);
+        REQUIRE(out.result == InstallResult::Error);
+        net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage",
+               GbProfile(GbFile(1, "singlescreen_1.zip", 10, 1), ",\"_bIsTrashed\":true"));
+        REQUIRE(library.Install(kTid, kGbOot).result == InstallResult::Error);
+        REQUIRE(Tree(dir + "mods/").empty());
+    }
+}
+
+TEST_CASE("Mods: Project Restoration builds are chips, the one for the game comes first", "[mods]") {
+    const auto c = DefaultCatalog();
+    constexpr u64 tid = 0x0004000000125500ULL;
+    FakeNet net;
+    Library library(TempDir("chips"), c, net.Get());
+    // all three stay listed, in the catalog's order without a game code
+    auto list = library.ListAvailable(tid);
+    REQUIRE(list.size() == 3);
+    REQUIRE(list[0].id == "mm3d-project-restoration-v100");
+    REQUIRE(list[1].id == "mm3d-project-restoration-v110");
+    REQUIRE(list[2].id == "mm3d-project-restoration-v101");
+    REQUIRE(list[0].chip == "1.0");
+    REQUIRE(list[1].chip == "Card 1.1");
+    REQUIRE(list[2].chip == "Fallback");
+    REQUIRE(list[0].chip_tip == "For the original 1.0 game, or 1.0 with the 1.1 update.");
+    REQUIRE(list[1].chip_tip == "For game cards with 1.1 built in.");
+    REQUIRE(list[2].chip_tip == "Try this if the first one doesn't work.");
+    for (const auto& a : list) {
+        REQUIRE_FALSE(a.matches_game);
+        REQUIRE(a.name == "Project Restoration");
+    }
+    // the build whose patch was made for the game's code: marked, first; the others stay
+    list = library.ListAvailable(tid, 0xffdf1ee8);
+    REQUIRE(list.size() == 3);
+    REQUIRE(list[0].id == "mm3d-project-restoration-v110");
+    REQUIRE(list[0].matches_game);
+    REQUIRE_FALSE(list[1].matches_game);
+    REQUIRE_FALSE(list[2].matches_game);
+    REQUIRE(library.ListAvailable(tid, 0xc75021d9)[0].id == "mm3d-project-restoration-v100");
+    REQUIRE(library.ListAvailable(tid, 0xe972fd45)[0].id == "mm3d-project-restoration-v101");
+    list = library.ListAvailable(tid, 0x12345678); // a game none was made for: nothing marked
+    REQUIRE(list.size() == 3);
+    REQUIRE_FALSE(list[0].matches_game);
+    // the CRC32 helper is the BPS one
+    REQUIRE(Crc32(reinterpret_cast<const u8*>("123456789"), 9) == 0xCBF43926);
+}
+
+TEST_CASE("Mods: the three Project Restoration builds conflict with each other", "[mods]") {
+    const std::string dir = TempDir("prconf");
+    constexpr u64 tid = 0x0004000000125500ULL;
+    FakeNet net;
+    Library library(dir, DefaultCatalog(), net.Get());
+    REQUIRE(library.GetCatalog().Find("mm3d-project-restoration-v110")->rules.size() == 2);
+    // a stand-in for the 7z (the catalog asks for *.7z): a catalog of the same shape with a zip
+    const auto catalog = ParseCatalog(R"({"mods":[
+     {"id":"a","name":"Project Restoration","title_ids":["0004000000125500"],"author":"L",
+      "source":{"type":"github_release","repo":"l/pr","tag":"v1","asset_pattern":"pr_*.zip"},
+      "install":{"rules":[{"from":"v100/citra/code.bps","to":"code.bps"}]}},
+     {"id":"b","name":"Project Restoration","title_ids":["0004000000125500"],"author":"L",
+      "version_chip":{"label":"Card 1.1","tip":"t","code_crc32":["ffdf1ee8"]},
+      "source":{"type":"github_release","repo":"l/pr","tag":"v1","asset_pattern":"pr_*.zip"},
+      "install":{"rules":[{"from":"v110/citra/code.bps","to":"code.bps"}]}}]})");
+    REQUIRE(catalog.has_value());
+    Library lib(dir, *catalog, net.Get());
+    net.Ok("https://api.github.com/repos/l/pr/releases/tags/v1",
+           ReleaseJson("v1", "pr_1.zip", "https://github.com/l/pr/releases/download/v1/pr_1.zip"));
+    net.Ok("https://github.com/l/pr/releases/download/v1/pr_1.zip",
+           MakeZip({{"v100/citra/code.bps", "BPS1-100"}, {"v110/citra/code.bps", "BPS1-110"}}));
+    REQUIRE(lib.Install(tid, "a").result == InstallResult::Ok);
+    const auto out = lib.Install(tid, "b");
+    REQUIRE(out.result == InstallResult::Conflict);
+    REQUIRE(out.conflict_id == "a");
+    REQUIRE(lib.Install(tid, "b", true).result == InstallResult::Ok);
+    REQUIRE(Read(dir + "mods/0004000000125500/code.bps") == "BPS1-110");
+    REQUIRE(lib.ListAvailable(tid, 0xffdf1ee8)[0].id == "b");
+}
+
+TEST_CASE("Mods: version chip catalog fields are checked", "[mods]") {
+    std::vector<std::string> warnings;
+    const auto c = ParseCatalog(R"({"mods":[
+      {"id":"ok","name":"x","title_ids":["0004000000033500"],"source":{"type":"owner_repo_path","path":"a"},
+       "version_chip":{"label":"1.0","tip":"For 1.0.","code_crc32":["C75021D9"]}},
+      {"id":"crc","name":"x","title_ids":["0004000000033500"],"source":{"type":"owner_repo_path","path":"a"},
+       "version_chip":{"label":"1.0","code_crc32":["xyz"]}},
+      {"id":"long","name":"x","title_ids":["0004000000033500"],"source":{"type":"owner_repo_path","path":"a"},
+       "version_chip":{"label":"a label that is far too long"}},
+      {"id":"url","name":"x","title_ids":["0004000000033500"],"source":{"type":"owner_repo_path","path":"a"},
+       "author_url":"http://example.com"}]})", nullptr, &warnings);
+    REQUIRE(c.has_value());
+    REQUIRE(c->mods.size() == 1);
+    REQUIRE(c->mods[0].code_crc32 == std::vector<u32>{0xC75021D9});
+    REQUIRE(warnings.size() == 3);
+}
+
+TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
+    const std::string dir = TempDir("dates");
+    FakeNet net;
+    Library library(dir, DefaultCatalog(), net.Get());
+    net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage", GbProfile(""));
+    net.Ok("https://api.github.com/repos/OTPR26/OOT3DHud/releases/latest",
+           "{\"tag_name\":\"v9\",\"published_at\":\"2026-08-03T10:11:12Z\",\"assets\":[]}");
+    const auto date_of = [&](const std::string& id) {
+        for (const auto& a : library.ListAvailable(kTid)) {
+            if (a.id == id) {
+                return a.updated;
+            }
+        }
+        return std::string("missing");
+    };
+    REQUIRE(date_of(kGbOot).empty()); // nothing looked up, no catalog date
+    library.RefreshDates(kTid);
+    REQUIRE(date_of(kGbOot) == "2026-11-07"); // _tsDateUpdated 1794038618, UTC
+    REQUIRE(date_of("ocarina-reframed-single-screen") == "2026-08-03");
+    REQUIRE(date_of("ocarina-reframed-dual-screen") == "2026-08-03"); // the same release, one request
+    int release_requests = 0;
+    for (const auto& r : net.log) {
+        release_requests += r.find("OTPR26/OOT3DHud/releases/latest") != std::string::npos;
+    }
+    REQUIRE(release_requests == 1);
+    library.RefreshDates(kTid); // once a run
+    REQUIRE(net.log.size() == 2);
+    // a failed lookup falls back to the catalog's date, else nothing
+    FakeNet dead;
+    const auto cat = ParseCatalog(R"({"mods":[
+      {"id":"a","name":"A","title_ids":["0004000000033500"],"updated":"2025-03-10",
+       "source":{"type":"github_release","repo":"a/a","asset_pattern":"*"}},
+      {"id":"b","name":"B","title_ids":["0004000000033500"],"updated":"soon",
+       "source":{"type":"github_release","repo":"b/b","asset_pattern":"*"}}]})");
+    Library offline(TempDir("dates2"), *cat, dead.Get());
+    offline.RefreshDates(kTid);
+    const auto list = offline.ListAvailable(kTid);
+    REQUIRE(list.size() == 2);
+    REQUIRE(list[0].updated == "2025-03-10");
+    REQUIRE(list[1].updated.empty());
 }
 
 // AzaharFrame modfix: the short reason shown after "Install Failed".

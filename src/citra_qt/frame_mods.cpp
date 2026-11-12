@@ -101,10 +101,15 @@ std::string RepoUrl(const Mods::Catalog& catalog, const std::string& id,
                     const std::string& source = {}) {
     std::string url;
     if (const Mods::CatalogEntry* e = catalog.Find(id)) {
+        if (!e->author_url.empty()) { // AzaharFrame modcat: a GameBanana author's page
+            return Menu::LinkText(e->author_url).empty() ? std::string{} : e->author_url;
+        }
         const bool owner = e->source.type == Mods::Source::Type::OwnerRepoPath || e->source.repo.empty();
         url = std::string("https://github.com/") + (owner ? Mods::kOwnerRepo : e->source.repo);
     } else if (source.rfind("github.com/", 0) == 0) {
         url = "https://" + source;
+    } else if (source.rfind("gamebanana.com/mods/", 0) == 0) {
+        return "https://" + source; // AzaharFrame modcat: the mod's page
     }
     return Menu::GithubLinkText(url).empty() ? std::string{} : url;
 }
@@ -142,11 +147,17 @@ FrameMods::FrameMods(QObject* parent) : QObject(parent) {
 
 FrameMods::~FrameMods() = default;
 
+void FrameMods::SetCodeCrcSource(std::function<std::optional<u32>()> source) {
+    code_crc_source = std::move(source);
+}
+
 void FrameMods::Open(u64 title_id_, int run_) {
     if (title_id_ != title_id || run_ != run) {
         // Another game, or the same one started again: what waited for a restart has applied.
         title_id = title_id_;
         run = run_;
+        game_crc_read = false; // AzaharFrame modcat
+        game_crc.reset();
         mods = {};
         textures = {};
         packs.clear();
@@ -343,6 +354,12 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         for (const Menu::PackOffer& o : textures.downloads) {
             known |= o.url == r.text;
         }
+        for (const Menu::ModOffer& o : mods.available) { // AzaharFrame modcat: GameBanana authors
+            known |= !o.url.empty() && o.url == r.text;
+        }
+        for (const Menu::ModRow& row : mods.loaded) {
+            known |= !row.url.empty() && row.url == r.text;
+        }
         if (known && !Menu::LinkText(r.text).empty()) {
             // Steam's own browser, as other apps on the Frame show pages in the headset; the
             // desktop's browser only when Steam is not running.
@@ -396,12 +413,20 @@ void FrameMods::RefreshLoaded() {
 
 void FrameMods::RefreshAvailable() {
     const u64 tid = title_id;
+    // AzaharFrame modcat: the game's code CRC32, read here on the GUI thread (once per game), marks
+    // the mods made for this build
+    if (!game_crc_read && code_crc_source) {
+        game_crc = code_crc_source();
+        game_crc_read = true;
+    }
+    const std::optional<u32> crc = game_crc;
     OffThread(
         this,
-        [tid] {
+        [tid, crc] {
             Mods::Library& lib = Mods::Default();
             lib.RefreshCatalogOnce(); // one request a run; the built-in catalog without it
-            return lib.ListAvailable(tid);
+            lib.RefreshDates(tid);    // AzaharFrame modcat: the sources' own dates, once a run
+            return lib.ListAvailable(tid, crc);
         },
         [this, tid](const std::vector<Mods::AvailableMod>& list) {
             if (tid != title_id) {
@@ -415,6 +440,10 @@ void FrameMods::RefreshAvailable() {
                 o.name = a.name;
                 o.author = a.author;
                 o.url = RepoUrl(catalog, a.id);
+                o.updated = CustomTex::Download::UpdatedText(a.updated); // AzaharFrame modcat
+                o.version = a.chip;
+                o.version_tip = a.chip_tip;
+                o.version_match = a.matches_game;
                 o.verified = a.verified;
                 if (a.id == installing) {
                     o.state = Menu::OfferState::Installing;
