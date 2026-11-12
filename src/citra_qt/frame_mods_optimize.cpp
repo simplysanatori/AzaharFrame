@@ -3,21 +3,21 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame ui3: Optimize for Frame on the VR menu's pack page, FrameMods' part (frame_mods.h).
-// The converter is the Flat game list's (frame_texture_pack.h, tools/convert-texture-pack.sh): it
-// runs at the lowest CPU and disk priority (nice 19, ionice idle), with two encoder jobs while a game
-// runs, and only reads the pack and writes its copy "<pack>-astc4x4" (never the folder the game
-// reads). It goes on when the menu closes; Stop ends it, and Optimize carries on from there. When
+// The converter is the one the Flat game list runs (frame_texture_pack.h; core/custom_tex/convert.h,
+// in the app: astcenc is linked in): worker threads of its own at the lowest CPU and disk priority
+// (nice 19, idle I/O), two while a game runs, that only read the pack and write its copy
+// "<pack>-astc4x4" (never the folder the game reads). It goes on when the menu closes; Stop ends it, and Optimize carries on from there. When
 // it is done, the copy becomes the game's pack at the next start (ApplyPendingPack, from the
 // emulator's shutdown and boot), with the Customize choices carried over; Use Original does the
 // same the other way.
 
 #include <algorithm>
 #include <filesystem>
+#include <mutex>
 #include <thread>
 
 #include <QApplication>
 #include <QPointer>
-#include <QProcess>
 #include <QTimer>
 #include <fmt/format.h>
 
@@ -25,12 +25,14 @@
 #include "citra_qt/frame_texture_pack.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "core/custom_tex/convert.h"
 #include "core/custom_tex/optimize.h"
 #include "core/custom_tex/packs.h"
 #include "frame_xr/frame_xr.h"
 
 namespace Menu = FrameXr::Menu;
 namespace Opt = CustomTex::Optimize;
+namespace Conv = CustomTex::Convert;
 
 namespace {
 
@@ -72,11 +74,13 @@ std::string LoadDir() {
 } // namespace
 
 FrameMods::~FrameMods() {
-    if (optimize_process && optimize_process->state() != QProcess::NotRunning) {
-        // A KTX cut off by a kill could look done to the next run: let the converter stop itself.
-        optimize_process->disconnect();
-        optimize_process->terminate();
-        optimize_process->waitForFinished(5000);
+    if (optimize_converter) {
+        // A KTX cut off by a kill could look done to the next run: the converter stops itself
+        // (the texture in hand is abandoned, the done ones stay).
+        optimize_converter->Stop();
+    }
+    if (optimize_thread.joinable()) {
+        optimize_thread.join();
     }
 }
 
@@ -97,16 +101,13 @@ const CustomTex::Pack* FrameMods::PackByPath(const std::string& path) const {
 void FrameMods::OptimizeAsk(const std::string& pack_id) {
     const auto it = std::find_if(packs.begin(), packs.end(),
                                  [&](const CustomTex::Pack& p) { return p.id == pack_id; });
-    if (it == packs.end() || optimize_process || !optimize_checking.empty()) {
+    if (it == packs.end() || optimize_converter || !optimize_checking.empty()) {
         return;
     }
     const Opt::Pair pair = Opt::PairOf(it->path, it->format == CustomTex::Format::Png);
-    const QString script = FrameTexturePack::ToolPath(QStringLiteral("convert-texture-pack.sh"));
-    if (pair.png.empty() || script.isEmpty()) {
-        LOG_WARNING(Frontend, "xr: optimize: {} cannot be converted ({})", it->path,
-                    script.isEmpty() ? "no converter" : "not a PNG pack");
-        optimize_states[Canon(it->path)] = {Menu::OptimizeState::Failed, {}, 0, 0, -1, {},
-                                            script.isEmpty() ? "Converter Missing" : "Not a PNG Pack"};
+    if (pair.png.empty()) {
+        LOG_WARNING(Frontend, "xr: optimize: {} cannot be converted (not a PNG pack)", it->path);
+        optimize_states[Canon(it->path)] = {Menu::OptimizeState::Failed, {}, 0, 0, -1, {}, "Not a PNG Pack"};
         UpdateOptimizeRow();
         PublishTextures();
         return;
@@ -116,44 +117,38 @@ void FrameMods::OptimizeAsk(const std::string& pack_id) {
     UpdateOptimizeRow();
     PublishTextures();
     // How much there is, from the PNG headers (a second or two for a big pack), off this thread.
-    auto* p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p, png](int code, QProcess::ExitStatus) {
-        const QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
-        p->deleteLater();
-        optimize_checking.clear();
-        const auto est = Opt::ParseEstimate(out.toStdString());
-        if (code != 0 || !est) {
-            LOG_WARNING(Frontend, "xr: optimize: the estimate of {} failed (exit {})", png, code);
-            optimize_states[png] = {Menu::OptimizeState::Failed, {}, 0, 0, -1, {}, "Pack Not Readable"};
-        } else {
-            LOG_INFO(Frontend, "xr: optimize: {} has {} textures, about {} bytes as ASTC", png,
-                     est->textures, est->total_bytes);
-            pack_pending = {Pending::Kind::Optimize, png};
-            textures.dialog = {Menu::ModsDialogKind::Optimize, Menu::CountWithCommas(est->textures),
-                               "About " + Menu::SizeText(est->total_bytes)};
-        }
-        UpdateOptimizeRow();
-        PublishTextures();
-    });
-    connect(p, &QProcess::errorOccurred, this, [this, p, png](QProcess::ProcessError e) {
-        if (e != QProcess::FailedToStart) {
-            return;
-        }
-        p->deleteLater();
-        optimize_checking.clear();
-        optimize_states[png] = {Menu::OptimizeState::Failed, {}, 0, 0, -1, {}, "Converter Missing"};
-        UpdateOptimizeRow();
-        PublishTextures();
-    });
-    p->start(script, {QStringLiteral("--estimate"), QString::fromStdString(png)});
+    struct Estimated {
+        std::optional<Conv::Estimate> estimate;
+        std::string error;
+    };
+    OffThread(
+        this,
+        [png] {
+            Estimated e;
+            Conv::Request request;
+            request.pack = png;
+            e.estimate = Conv::EstimatePack(request, &e.error);
+            return e;
+        },
+        [this, png](const Estimated& e) {
+            optimize_checking.clear();
+            if (!e.estimate) {
+                LOG_WARNING(Frontend, "xr: optimize: the estimate of {} failed: {}", png, e.error);
+                optimize_states[png] = {Menu::OptimizeState::Failed, {}, 0, 0, -1, {}, "Pack Not Readable"};
+            } else {
+                LOG_INFO(Frontend, "xr: optimize: {} has {} textures, about {} bytes as ASTC", png,
+                         e.estimate->textures, e.estimate->total_bytes);
+                pack_pending = {Pending::Kind::Optimize, png};
+                textures.dialog = {Menu::ModsDialogKind::Optimize, Menu::CountWithCommas(e.estimate->textures),
+                                   "About " + Menu::SizeText(e.estimate->total_bytes)};
+            }
+            UpdateOptimizeRow();
+            PublishTextures();
+        });
 }
 
 void FrameMods::OptimizeStart(const std::string& png) {
-    if (optimize_process) {
-        return;
-    }
-    const QString script = FrameTexturePack::ToolPath(QStringLiteral("convert-texture-pack.sh"));
-    if (script.isEmpty()) {
+    if (optimize_converter) {
         return;
     }
     optimize_png = png;
@@ -164,87 +159,82 @@ void FrameMods::OptimizeStart(const std::string& png) {
     optimize_progress = {Menu::OptimizeState::Converting};
     UpdateOptimizeRow();
     PublishTextures();
-    // The encoder is built once (build-astcenc.sh, under a minute) before the first conversion.
-    if (QProcess::execute(script, {QStringLiteral("--check")}) != Opt::kExitNoEncoder) {
-        OptimizeConvert(png);
-        return;
-    }
-    const QString build = FrameTexturePack::ToolPath(QStringLiteral("build-astcenc.sh"));
-    if (build.isEmpty()) {
-        OptimizeDone(Opt::kExitNoEncoder, false);
-        return;
-    }
-    LOG_INFO(Frontend, "xr: optimize: building the encoder first");
-    optimize_progress.phase = "Preparing the Encoder";
-    UpdateOptimizeRow();
-    PublishTextures();
-    optimize_process = new QProcess(this);
-    optimize_process->setProcessChannelMode(QProcess::MergedChannels);
-    connect(optimize_process, &QProcess::finished, this, [this, png](int code, QProcess::ExitStatus) {
-        optimize_process->deleteLater();
-        optimize_process = nullptr;
-        if (code != 0 || optimize_stopping) {
-            LOG_WARNING(Frontend, "xr: optimize: the encoder build ended with {}", code);
-            OptimizeDone(optimize_stopping ? Opt::kExitStopped : Opt::kExitNoEncoder, optimize_stopping);
-            return;
-        }
-        optimize_progress.phase.clear();
-        OptimizeConvert(png);
-    });
-    optimize_process->start(build, {});
-}
 
-void FrameMods::OptimizeConvert(const std::string& png) {
-    const QString script = FrameTexturePack::ToolPath(QStringLiteral("convert-texture-pack.sh"));
-    // While a game runs, two textures at a time (the converter's own default is one less than the
-    // cores): with nice 19 and idle I/O the game keeps its frame rate.
+    // While a game runs, two textures at a time (the default is one less than the cores): at
+    // nice 19 and idle I/O the game keeps its frame rate.
     const bool running = game_running_source && game_running_source();
     const int jobs = running ? 2 : std::max(1, static_cast<int>(std::thread::hardware_concurrency()) - 1);
     LOG_INFO(Frontend, "xr: optimize: converting {} ({} jobs)", png, jobs);
-    optimize_process = new QProcess(this);
-    connect(optimize_process, &QProcess::readyReadStandardOutput, this, [this] {
-        bool changed = false;
-        while (optimize_process && optimize_process->canReadLine()) {
-            const std::string line = QString::fromUtf8(optimize_process->readLine()).trimmed().toStdString();
-            if (const auto pr = Opt::ParseProgress(line)) {
-                changed |= pr->permille != optimize_progress.permille || pr->done != optimize_progress.done;
-                optimize_progress.done = pr->done;
-                optimize_progress.total = pr->total;
-                optimize_progress.permille = pr->permille;
-            } else if (!line.empty()) {
-                optimize_output = line; // the last line, for the log
+
+    // The worker's progress, handed to the GUI thread at most once per its turn
+    struct Latest {
+        std::mutex mutex;
+        Conv::Progress progress;
+        bool queued = false;
+    };
+    auto latest = std::make_shared<Latest>();
+    QPointer<FrameMods> guard(this);
+    Conv::Request request;
+    request.pack = png;
+    request.jobs = jobs;
+    auto converter = std::make_shared<Conv::Converter>(
+        request, [guard, latest](const Conv::Progress& progress) {
+            std::lock_guard lock(latest->mutex);
+            latest->progress = progress;
+            if (latest->queued) {
+                return;
             }
-        }
-        if (changed && !optimize_stopping) {
-            UpdateOptimizeRow();
-            PublishTextures();
-        }
+            latest->queued = true;
+            QMetaObject::invokeMethod(
+                qApp,
+                [guard, latest] {
+                    Conv::Progress p;
+                    {
+                        std::lock_guard lock(latest->mutex);
+                        p = latest->progress;
+                        latest->queued = false;
+                    }
+                    if (!guard || !guard->optimize_converter || guard->optimize_stopping) {
+                        return;
+                    }
+                    FrameXr::Menu::PackOptimize& row = guard->optimize_progress;
+                    if (p.permille == row.permille && p.done == row.done) {
+                        return;
+                    }
+                    row.done = p.done;
+                    row.total = p.total;
+                    row.permille = p.permille;
+                    guard->UpdateOptimizeRow();
+                    guard->PublishTextures();
+                },
+                Qt::QueuedConnection);
+        });
+    optimize_converter = converter;
+    if (optimize_thread.joinable()) {
+        optimize_thread.join(); // the last run's, already finished
+    }
+    optimize_thread = std::thread([guard, converter] {
+        Conv::LowerThreadPriority(); // the folders and links it makes too
+        Conv::Result result = converter->Run();
+        QMetaObject::invokeMethod(
+            qApp,
+            [guard, result = std::move(result)] {
+                if (!guard) {
+                    return;
+                }
+                guard->optimize_converter.reset();
+                for (const auto& [rel, why] : result.kept_as_png) {
+                    LOG_WARNING(Frontend, "xr: optimize: kept as PNG: {}: {}", rel, why);
+                }
+                guard->optimize_output = result.message;
+                guard->OptimizeDone(result.code, guard->optimize_stopping || result.code == Conv::kStopped);
+            },
+            Qt::QueuedConnection);
     });
-    connect(optimize_process, &QProcess::readyReadStandardError, this, [this] {
-        const QString err = QString::fromUtf8(optimize_process->readAllStandardError()).trimmed();
-        if (!err.isEmpty()) {
-            optimize_output = err.toStdString();
-        }
-    });
-    connect(optimize_process, &QProcess::finished, this, [this](int code, QProcess::ExitStatus) {
-        optimize_process->deleteLater();
-        optimize_process = nullptr;
-        OptimizeDone(code, optimize_stopping || code == Opt::kExitStopped);
-    });
-    connect(optimize_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
-        if (e != QProcess::FailedToStart || !optimize_process) {
-            return;
-        }
-        optimize_process->deleteLater();
-        optimize_process = nullptr;
-        OptimizeDone(-1, false);
-    });
-    optimize_process->start(script, {QStringLiteral("--machine"), QStringLiteral("--jobs"),
-                                      QString::number(jobs), QString::fromStdString(png)});
 }
 
 void FrameMods::OptimizeStop() {
-    if (!optimize_process || optimize_stopping) {
+    if (!optimize_converter || optimize_stopping) {
         return;
     }
     LOG_INFO(Frontend, "xr: optimize: Stop");
@@ -253,7 +243,7 @@ void FrameMods::OptimizeStop() {
     optimize_progress.permille = -1;
     UpdateOptimizeRow();
     PublishTextures();
-    optimize_process->terminate(); // the converter removes its half-written file and exits 4
+    optimize_converter->Stop(); // removes its half-written files and ends with kStopped
 }
 
 void FrameMods::OptimizeDone(int code, bool stopped) {

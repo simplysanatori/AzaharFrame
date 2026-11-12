@@ -130,16 +130,14 @@ else
   act mkdir -p "$DEST/art"
   for f in $ARTFILES; do if [ -f "$ART_SRC/$f" ]; then put "$ART_SRC/$f" "$DEST/art/$f"; else echo "warning: art/$f is missing"; fi; done
 fi
-# The texture pack converter (Optimize Texture Pack for Frame in the game list menu).  Its encoder,
-# tools/af-ktxenc, ships in the release (AzaharFrame harden); only a release without it builds one
-# on first use into $DATA/tools, which stays across updates.
-TOOLFILES="convert-texture-pack.sh convert_texture_pack.py build-astcenc.sh af-ktxenc.cpp af-ktxenc frame-controller-models.py emerald3ds-build.py 7zz"
+# Tools of the release (the texture pack converter is part of the program since AzaharFrame cppconv).
+TOOLFILES="frame-controller-models.py emerald3ds-build.py 7zz"
 TOOLS_SRC=$SRC_DIR/tools
 if [ "$(readlink -f "$TOOLS_SRC")" != "$(readlink -f "$DEST/tools")" ]; then
   act mkdir -p "$DEST/tools"
   for f in $TOOLFILES; do if [ -f "$TOOLS_SRC/$f" ]; then put "$TOOLS_SRC/$f" "$DEST/tools/$f"; fi; done
 fi
-for f in convert-texture-pack.sh build-astcenc.sh emerald3ds-build.py 7zz af-ktxenc; do  # AzaharFrame integ3: emerald3ds-build.py too
+for f in emerald3ds-build.py 7zz; do  # AzaharFrame integ3: emerald3ds-build.py too
   if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
 done
 # The licences of the in-game menu's font and icons (THIRD_PARTY_NOTICES.md).

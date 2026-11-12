@@ -109,3 +109,6 @@
 [submodule "microtar"]
 	path = externals/microtar
 	url = https://github.com/azahar-emu/microtar
+[submodule "externals/astcenc"]
+	path = externals/astcenc
+	url = https://github.com/ARM-software/astc-encoder

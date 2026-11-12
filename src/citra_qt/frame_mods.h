@@ -32,6 +32,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <QObject>
@@ -55,7 +56,9 @@ struct PackInfo;
 namespace FrameXr {
 struct MenuRequest;
 }
-class QProcess;
+namespace CustomTex::Convert {
+class Converter;
+}
 class QTimer;
 
 class FrameMods : public QObject {
@@ -184,7 +187,6 @@ private:
     // AzaharFrame ui3: Optimize for Frame (frame_mods_optimize.cpp; core/custom_tex/optimize.h)
     void OptimizeAsk(const std::string& pack_id);   ///< the estimate, then the dialog
     void OptimizeStart(const std::string& png);     ///< the dialog's Optimize
-    void OptimizeConvert(const std::string& png);   ///< after the encoder is there
     void OptimizeStop();
     void OptimizeDone(int code, bool stopped);
     void UseOriginal(const std::string& pack_id);
@@ -203,7 +205,9 @@ private:
     void CheckNudge();        ///< "Optimize <Pack> for Frame?" for a candidate, once a pack
     const CustomTex::Pack* PackByPath(const std::string& path) const;
     std::function<bool()> game_running_source;
-    QProcess* optimize_process = nullptr;
+    /// The conversion running now, on `optimize_thread` (core/custom_tex/convert.h)
+    std::shared_ptr<CustomTex::Convert::Converter> optimize_converter;
+    std::thread optimize_thread;
     std::string optimize_png;   ///< the pack converting now (canonical path)
     u64 optimize_title = 0;
     FrameXr::Menu::PackOptimize optimize_progress; ///< its Converting state

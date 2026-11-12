@@ -35,33 +35,6 @@ std::string ReadFile(const fs::path& path) {
     return out.str();
 }
 
-/// The numbers of "<word> A B C" (exactly three), nullopt otherwise.
-std::optional<std::vector<u64>> Numbers(std::string_view line, std::string_view word) {
-    while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' ')) {
-        line.remove_suffix(1);
-    }
-    if (line.substr(0, word.size()) != word || line.size() <= word.size() ||
-        line[word.size()] != ' ') {
-        return std::nullopt;
-    }
-    line.remove_prefix(word.size() + 1);
-    std::vector<u64> out;
-    while (!line.empty()) {
-        const std::size_t end = std::min(line.find(' '), line.size());
-        u64 v = 0;
-        const auto [p, ec] = std::from_chars(line.data(), line.data() + end, v);
-        if (ec != std::errc{} || p != line.data() + end) {
-            return std::nullopt;
-        }
-        out.push_back(v);
-        line.remove_prefix(std::min(end + 1, line.size()));
-    }
-    if (out.size() != 3) {
-        return std::nullopt;
-    }
-    return out;
-}
-
 fs::path AskedFile(const std::string& load_dir) {
     return fs::path(load_dir) / "texture-packs" / "optimize-asked.txt";
 }
@@ -121,28 +94,10 @@ Pair PairOf(const std::string& pack, bool is_png) {
     return p;
 }
 
-std::optional<Estimate> ParseEstimate(std::string_view line) {
-    const auto n = Numbers(line, "estimate");
-    if (!n) {
-        return std::nullopt;
-    }
-    return Estimate{(*n)[0], (*n)[1], (*n)[2]};
-}
-
-std::optional<Progress> ParseProgress(std::string_view line) {
-    const auto n = Numbers(line, "progress");
-    if (!n || (*n)[0] > (*n)[1] || (*n)[2] > 1000 || (*n)[1] > 100'000'000) {
-        return std::nullopt;
-    }
-    return Progress{static_cast<int>((*n)[0]), static_cast<int>((*n)[1]), static_cast<int>((*n)[2])};
-}
-
 std::string FailureText(int exit_code) {
     switch (exit_code) {
     case kExitNoSpace:
         return "Not Enough Space";
-    case kExitNoEncoder:
-        return "Encoder Not Built";
     case 2:
         return "Pack Not Readable";
     default:

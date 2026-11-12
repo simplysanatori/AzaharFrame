@@ -3,10 +3,10 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 // AzaharFrame ui3: Optimize for Frame on the VR menu's pack page. The work is done by the texture
-// pack converter (steam-frame/tools/convert-texture-pack.sh, the Flat game list's "Optimize Texture
-// Pack for Frame"): a PNG pack is copied as ASTC 4x4 KTX files into a sibling folder
+// pack converter (convert.h, in the app; the Flat game list's "Optimize Texture
+// Pack for Frame" runs it too): a PNG pack is copied as ASTC 4x4 KTX files into a sibling folder
 // "<pack>-astc4x4" with the marker kMarker (written last), the original untouched. This module is
-// the part with no Qt: which folders make a pair, what the converter prints, the parts choices
+// the part with no Qt: which folders make a pair, the parts choices
 // carried across, and the packs already asked about. citra_qt/frame_mods.cpp runs the converter.
 //
 // A pair: the PNG pack and its optimized copy. The copy's marker names its source (relative). Both
@@ -25,8 +25,7 @@
 namespace CustomTex::Optimize {
 
 inline constexpr const char* kMarker = ".azaharframe-ktx.json";
-/// The converter's exit codes (convert_texture_pack.py).
-inline constexpr int kExitNoEncoder = 3;
+/// The converter's exit codes (convert.h's).
 inline constexpr int kExitStopped = 4;
 inline constexpr int kExitNoSpace = 5;
 /// A PNG pack this big becomes active or finishes downloading: "Optimize <Pack> for Frame?" once.
@@ -48,19 +47,7 @@ struct Pair {
 /// copy when one is complete. Neither: both empty.
 Pair PairOf(const std::string& pack, bool is_png);
 
-/// "estimate FILES TOTAL_BYTES BYTES_STILL_TO_WRITE".
-struct Estimate {
-    u64 textures = 0, total_bytes = 0, need_bytes = 0;
-};
-std::optional<Estimate> ParseEstimate(std::string_view line);
-/// "progress DONE TOTAL PERMILLE" (--machine).
-struct Progress {
-    int done = 0, total = 0, permille = 0;
-};
-std::optional<Progress> ParseProgress(std::string_view line);
-
-/// A failed run in a few words, from its exit code: "Not Enough Space", "Encoder Not Built",
-/// "Pack Not Readable" (2: usage, the folder), else "Conversion Failed".
+/// A failed run in a few words, from its exit code: "Not Enough Space", /// "Pack Not Readable" (2: usage, the folder), else "Conversion Failed".
 std::string FailureText(int exit_code);
 
 /// Copies the Customize choices (Parts::kStateFile) from one pack of the pair to the other, or
