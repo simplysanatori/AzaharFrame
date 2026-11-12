@@ -609,7 +609,10 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                         kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
                         kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSurfaceVariant, o.version, 1);
                     }
-                    AddHit(chip, {Id::ModVersion, idx}, list);
+                    // The touch target 48 dp round the 32 dp chip, as the Install button's.
+                    const float hw = std::max(chip.W(), 48.0f) * 0.5f;
+                    AddHit({chip.Cx() - hw, cy - 24.0f, chip.Cx() + hw, cy + 24.0f},
+                           {Id::ModVersion, idx}, list);
                     if (view.tooltip == Id::ModVersion && view.tooltip_index == idx &&
                         !o.version_tip.empty()) {
                         const float half = kit.TextWidth(Type::Tooltip, o.version_tip) * 0.5f + 10.0f;
