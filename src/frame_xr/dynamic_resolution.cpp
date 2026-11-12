@@ -74,31 +74,68 @@ void Controller::Reset() {
     *this = Controller{};
 }
 
+void Controller::Resume() { // AzaharFrame ui2
+    bad = good = 0;
+    settle = drop > 0 ? kSettle : 0; // the step back down is a hitch of its own
+}
+
 namespace {
 
 std::mutex g_mutex;
 Controller g_controller;
 bool g_installed = false;
+// AzaharFrame ui2: the controller as it was when the setting went off in this game, and the
+// setting as NoteSecond last saw it (a change from elsewhere, Azahar's window, counts too).
+Controller g_saved;
+bool g_have_saved = false;
+bool g_was_on = false;
 
 void Publish(int drop) {
     VideoCore::DynamicResolution::g_drop.store(static_cast<u32>(std::max(0, drop)),
                                               std::memory_order_relaxed);
 }
 
+// AzaharFrame ui2: the setting's change, under g_mutex.
+void TurnOff() {
+    g_saved = g_controller;
+    g_have_saved = true;
+    g_controller.Reset();
+    Publish(0);
+}
+
+void TurnOn() {
+    if (g_have_saved) {
+        const int before = g_controller.Drop();
+        g_controller = g_saved;
+        g_controller.Resume();
+        g_have_saved = false;
+        Publish(g_controller.Drop());
+        if (g_controller.Drop() != before) {
+            LOG_INFO(Frontend, "xr: Dynamic Resolution: on again, {} steps under the setting as before",
+                     g_controller.Drop());
+        }
+    }
+}
+
+void ResetLocked() {
+    g_controller.Reset();
+    g_have_saved = false;
+    Publish(0);
+}
+
 } // namespace
 
 void Install() {
     std::scoped_lock lock{g_mutex};
-    g_controller.Reset();
+    ResetLocked();
     g_installed = true;
-    Publish(0);
+    g_was_on = Settings::values.vr_dynamic_resolution.GetValue();
 }
 
 void Uninstall() {
     std::scoped_lock lock{g_mutex};
-    g_controller.Reset();
+    ResetLocked();
     g_installed = false;
-    Publish(0);
 }
 
 void NoteSecond(const Second& s) {
@@ -106,11 +143,16 @@ void NoteSecond(const Second& s) {
     if (!g_installed) {
         return;
     }
-    if (!Settings::values.vr_dynamic_resolution.GetValue()) {
-        if (g_controller.Drop() != 0) {
-            g_controller.Reset();
-            Publish(0);
+    const bool on = Settings::values.vr_dynamic_resolution.GetValue();
+    if (on != g_was_on) { // AzaharFrame ui2: changed where SetEnabled did not see it
+        g_was_on = on;
+        if (on) {
+            TurnOn();
+        } else if (!g_have_saved) {
+            TurnOff();
         }
+    }
+    if (!on) {
         return;
     }
     // The factor the renderer works out (Internal Resolution, with the immersive modes' own
@@ -138,8 +180,20 @@ int Drop() {
 
 void Reset() {
     std::scoped_lock lock{g_mutex};
-    g_controller.Reset();
-    Publish(0);
+    ResetLocked();
+}
+
+void SetEnabled(bool on) {
+    std::scoped_lock lock{g_mutex};
+    if (on == g_was_on) {
+        return;
+    }
+    g_was_on = on;
+    if (on) {
+        TurnOn();
+    } else {
+        TurnOff();
+    }
 }
 
 } // namespace FrameXr::DynamicResolution

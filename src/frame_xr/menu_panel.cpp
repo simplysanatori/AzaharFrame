@@ -911,9 +911,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::DynamicResolution:
         Apply(v.vr_dynamic_resolution, value != 0, false);
         r.setting = MenuSetting::DynamicResolution;
-        if (value == 0) {
-            DynamicResolution::Reset();
-        }
+        // AzaharFrame ui2: off is the full factor at once; on again carries on where it was.
+        DynamicResolution::SetEnabled(value != 0);
         break;
     case Id::TextureFilter:
         r.value = Menu::kTextureFilters[std::min<std::size_t>(u, Menu::kTextureFilters.size() - 1)];

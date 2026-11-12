@@ -17,7 +17,8 @@
 // (video_core/vr_dynamic_resolution.h). A GPU that keeps up finishes it in a few ms; one that
 // cannot is still on earlier work, close to or past a whole display period. Whether the game
 // runs at 30 or 60 fps does not count; seconds without game frames (paused, the menu open) are
-// not judged, and a stopped game starts it again from the setting.
+// not judged, and a started or stopped game starts it again from the setting (AzaharFrame ui2:
+// Restart too). Turned off and on again in a game, it carries on at the level it had.
 //
 // Not jarring: a step needs kDownAfter bad (or kUpAfter good) seconds in a row, one step at a
 // time; the seconds after a step are not judged (the step's own hitch: the rasterizer cache
@@ -65,9 +66,11 @@ public:
     int Drop() const {
         return drop;
     }
-    /// From the factor itself again (the setting changed, Dynamic Resolution went off, the game
-    /// stopped).
+    /// From the factor itself again (the setting changed, a game started or stopped).
     void Reset();
+    /// AzaharFrame ui2: carries on from a copy taken when it was turned off (the same game):
+    /// the streaks start again and, at a lower level, the seconds after are not judged.
+    void Resume();
 
     /// Whether a second is bad (the GPU is the limit) or good (it has room); neither: neutral.
     static bool Bad(const Second& s);
@@ -94,6 +97,11 @@ void NoteSecond(const Second& s);
 int Drop();
 /// Any thread: from the factor itself again.
 void Reset();
+/// AzaharFrame ui2: the setting was turned off or on in this game. Off: the full factor at once,
+/// and the controller is kept aside; on again: it carries on where it was (its level and what it
+/// learnt), so turning it off and on is not a start from the full factor that needs bad seconds
+/// all over again. A new game or a new Internal Resolution drops the copy (Reset).
+void SetEnabled(bool on);
 
 } // namespace DynamicResolution
 

@@ -6,7 +6,9 @@
 // the GPU is the limit, one step at a time, only after seconds in a row, never up and down.
 
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h"
+#include "video_core/vr_dynamic_resolution.h" // AzaharFrame ui2
 
 using namespace FrameXr::DynamicResolution;
 
@@ -151,4 +153,73 @@ TEST_CASE("Dynamic Resolution: paused seconds are not judged", "[frame_xr]") {
     CHECK(c.Judge(paused, 1) == 1);
     c.Reset();
     CHECK(c.Drop() == 0);
+}
+
+// AzaharFrame ui2: the owner's report 14: on at the start it worked; turned off in the game and
+// on again it did not seem to. Off is the full factor at once; on again carries on at the level
+// it had, and it still steps from there. The frame loop's side, with the setting.
+TEST_CASE("Dynamic Resolution: off and on again in a game", "[frame_xr]") {
+    namespace V = VideoCore::DynamicResolution;
+    auto& setting = Settings::values.vr_dynamic_resolution;
+    const bool was = setting.GetValue();
+    setting.SetValue(true);
+    V::Apply(6); // the renderer's factor: up to 5 steps
+    Install();
+    const auto run = [](const Second& s, int n) {
+        for (int i = 0; i < n; i++) {
+            NoteSecond(s);
+        }
+    };
+    const auto drawn = [] { return V::Apply(6); };
+    run(GpuBehind(), Controller::kDownAfter + Controller::kSettle + Controller::kDownAfter);
+    REQUIRE(Drop() == 2);
+    REQUIRE(drawn() == 4);
+
+    // Off in the menu: the full factor at once.
+    setting.SetValue(false);
+    SetEnabled(false);
+    CHECK(Drop() == 0);
+    CHECK(drawn() == 6);
+    run(GpuBehind(), 20); // nothing judged while it is off
+    CHECK(drawn() == 6);
+
+    // On again: where it was, and it carries on from there.
+    setting.SetValue(true);
+    SetEnabled(true);
+    CHECK(Drop() == 2);
+    CHECK(drawn() == 4);
+    run(GpuBehind(), Controller::kSettle); // the step's own hitch is not judged
+    CHECK(Drop() == 2);
+    run(GpuBehind(), Controller::kDownAfter);
+    CHECK(Drop() == 3);
+    CHECK(drawn() == 3);
+
+    // Changed elsewhere (Azahar's window): NoteSecond sees it the same way.
+    setting.SetValue(false);
+    run(Fine(), 1);
+    CHECK(drawn() == 6);
+    setting.SetValue(true);
+    run(GpuBehind(), 1);
+    CHECK(Drop() == 3);
+
+    // Without anything learnt (a new game) it starts from the setting and still steps down.
+    Reset();
+    setting.SetValue(false);
+    SetEnabled(false);
+    setting.SetValue(true);
+    SetEnabled(true);
+    CHECK(Drop() == 0);
+    run(GpuBehind(), Controller::kDownAfter);
+    CHECK(Drop() == 1);
+    // A game started after it was turned off forgets the old level.
+    setting.SetValue(false);
+    SetEnabled(false);
+    Reset();
+    setting.SetValue(true);
+    SetEnabled(true);
+    CHECK(Drop() == 0);
+
+    Uninstall();
+    setting.SetValue(was);
+    V::g_base = 0;
 }
