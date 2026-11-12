@@ -294,6 +294,69 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
     return out;
 }
 
+// AzaharFrame mega
+RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const RawRequest& request,
+                         std::size_t max_body) {
+    RawReply out;
+    const char* ca = CaBundle();
+    if (ca == nullptr) {
+        out.error = "No certificate store found";
+        return out;
+    }
+    try {
+        httplib::Client client(host);
+        client.set_connection_timeout(10);
+        client.set_read_timeout(60);
+        client.set_write_timeout(60);
+        client.set_follow_location(false);
+        client.set_ca_cert_path(ca);
+        client.enable_server_certificate_verification(true);
+        client.set_url_encode(false);
+        httplib::Headers headers;
+        for (const auto& [k, v] : request.headers) {
+            headers.emplace(k, v);
+        }
+        bool too_large = false;
+        std::string body;
+        httplib::Result res;
+        if (request.method == "POST") {
+            res = client.Post(Common::RequestPath(path), headers, request.body, request.content_type);
+            if (res && res->body.size() > max_body) {
+                too_large = true;
+            } else if (res) {
+                body = res->body;
+            }
+        } else {
+            res = client.Get(
+                Common::RequestPath(path), headers, [](const httplib::Response&) { return true; },
+                [&](const char* data, std::size_t len) {
+                    if (body.size() + len > max_body) {
+                        too_large = true;
+                        return false;
+                    }
+                    body.append(data, len);
+                    return true;
+                });
+        }
+        if (too_large) {
+            out.error = "Download too large";
+            return out;
+        }
+        if (!res) {
+            out.error = httplib::to_string(res.error());
+            return out;
+        }
+        out.status = res->status;
+        out.body = std::move(body);
+        if (res->status >= 300 && res->status < 400) {
+            out.location = res->get_header_value("Location");
+        }
+    } catch (const std::exception& e) {
+        out.error = e.what();
+    }
+    return out;
+}
+
 std::string StatusText(const DownloadResult& r) {
     if (!r.error.empty()) {
         return fmt::format("Download failed: {}", r.error);

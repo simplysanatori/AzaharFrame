@@ -34,6 +34,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <map>
 #include <memory>
@@ -44,6 +45,7 @@
 #include "common/common_types.h"
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
+#include "core/mods/mega.h" // AzaharFrame mega
 
 namespace Mods {
 
@@ -137,6 +139,8 @@ struct State {
     Phase phase = Phase::Idle;
     std::string mod_id;
     std::string text; // "Downloading Ocarina ReFramed", "Install failed: ...", "" when idle
+    u64 done = 0;     // AzaharFrame mega: bytes fetched so far while Downloading (0 when unknown)
+    u64 total = 0;    // and the bytes to fetch (0 when unknown)
 };
 
 /// The id of the mods an earlier version of the Cheats tab installed (code.ips + code.ips.developer).
@@ -191,6 +195,11 @@ public:
     RemoveOutcome Remove(u64 title_id, const std::string& mod_id);
 
     State GetState() const;
+    /// AzaharFrame mega: stops the running download soon (the install fails with "Cancelled"; nothing
+    /// is installed). Does nothing when idle.
+    void Cancel() { cancel_ = true; }
+    /// AzaharFrame mega: the network MEGA downloads go through (tests replace it).
+    void SetMegaNet(Mega::Net net) { mega_net_ = std::move(net); }
 
     Catalog GetCatalog() const;
     void SetCatalog(Catalog catalog);
@@ -213,9 +222,12 @@ private:
     bool ReadManifest(const std::string& dir, Manifest& out) const;
     bool WriteManifest(const std::string& dir, const Manifest& m) const;
     bool Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error);
+    bool DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
+                      std::string& error); // AzaharFrame mega
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                         std::string& version, std::string& error);
     std::string LookupDate(const CatalogEntry& entry); // AzaharFrame modcat
+    void SetProgress(u64 done, u64 total); // AzaharFrame mega
     void SetState(State::Phase phase, const std::string& mod_id, const std::string& text);
     std::vector<ModInfo> ListLoadedLocked(u64 title_id) const;
     RemoveOutcome RemoveFilesOf(u64 title_id, const std::vector<std::string>& files);
@@ -235,6 +247,8 @@ private:
     mutable std::mutex state_mutex_;
     State state_;
     bool busy_ = false;
+    std::atomic_bool cancel_{false}; // AzaharFrame mega
+    Mega::Net mega_net_ = Mega::DefaultNet();
 };
 
 /// The program's library (LoadDir of the user directory, the compiled-in catalog until refreshed).
