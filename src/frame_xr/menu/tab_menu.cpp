@@ -1499,6 +1499,8 @@ constexpr float kScopeMoreW = 32.0f;    ///< the ⋮ button
 constexpr float kScopeGapMore = 2.0f;   ///< between the toggle and ⋮
 constexpr float kScopeGapX = 6.0f;      ///< between the tab's own controls and the toggle
 constexpr float kScopeRowsGap = 16.0f;  ///< under the toggle's line, before the rows
+/// Controls: Edit Controls' top under the toggle, clear of Per-Game's count tooltip (34 dp).
+constexpr float kScopeEditGap = 40.0f;
 
 /// The room a row's label takes.
 float LabelRoom(const Kit& kit, const MenuModel& model, Id id) {
@@ -1531,8 +1533,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     const float edit_w =
         std::min(200.0f, kit.TextWidth(Type::Label, LabelFor(Id::EditControls)) + 82.0f);
-    const Rect edit{c.x1 - edit_w, seg.y1 + kScopeRowsGap + 8.0f, c.x1,
-                    seg.y1 + kScopeRowsGap + 8.0f + kControlH};
+    const Rect edit{c.x1 - edit_w, seg.y1 + kScopeEditGap, c.x1,
+                    seg.y1 + kScopeEditGap + kControlH};
     kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
     AddHit(edit, {Id::EditControls}, pane);

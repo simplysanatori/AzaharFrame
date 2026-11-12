@@ -303,19 +303,27 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         MenuView v;
         v.tab = Tab::Controls;
         d.Draw(m, v);
-        REQUIRE(picture.H() > 200.0f); // most of the pane
-        float edit_y1 = 0.0f, rows_y0 = 1e9f, rows_y1 = 0.0f;
+        // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on
+        REQUIRE(picture.H() > (reticle != 0 ? 180.0f : 200.0f));
+        Rect edit{}, pages{};
+        float rows_y0 = 1e9f, rows_y1 = 0.0f;
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == Id::EditControls) {
-                edit_y1 = h.r.y1;
+                edit = h.r;
+            }
+            if (h.t.id == Id::ControlsPage) {
+                pages.y1 = std::max(pages.y1, h.r.y1);
             }
             if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
-                h.t.id == Id::ReticleAtEdge) {
+                h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge) {
                 rows_y0 = std::min(rows_y0, h.r.y0);
                 rows_y1 = std::max(rows_y1, h.r.y1);
             }
         }
-        CHECK(picture.y0 >= edit_y1);   // under the pages and Edit Controls
+        // AzaharFrame reticle: under the pages; Edit Controls in a column at its right
+        CHECK(picture.y0 >= pages.y1);
+        CHECK(picture.x1 <= edit.x0);
+        CHECK(edit.y1 <= rows_y0);
         CHECK(rows_y0 >= picture.y1);   // the rows under the picture
         CHECK(rows_y1 <= kPanelH);      // and inside the panel
         CHECK(rows_y1 > kPanelH - 80.0f); // at its bottom
@@ -2532,6 +2540,21 @@ TEST_CASE("Tab menu: the scope control is the same on Settings, Controls and Pos
         CHECK(global->r.x1 <= per_game->r.x0 + 0.01f);
         CHECK(per_game->r.x1 <= more->r.x0 + 0.01f);
         CHECK(d.menu.HitTest(per_game->r.Cx(), per_game->r.Cy()) == Target{Id::Scope, 1});
+        if (t == Tab::Controls) {
+            // Edit Controls under Per-Game's count tooltip (34 dp under the toggle), not under it
+            for (const int reticle : {0, 3}) {
+                MenuModel rm = m;
+                rm.bottom_screen_reticle = reticle;
+                Drawn dc;
+                dc.Draw(rm, v);
+                const MenuLayout::Hit* edit = FindHit(dc, Id::EditControls, -1);
+                const MenuLayout::Hit* tp = FindHit(dc, Id::TouchpadTouch, kLabelIndex);
+                REQUIRE(edit != nullptr);
+                REQUIRE(tp != nullptr);
+                CHECK(edit->r.y0 >= per_game->r.y1 + 34.0f + 4.0f);
+                CHECK(edit->r.y1 + 8.0f <= tp->r.y0); // above the rows
+            }
+        }
         CheckTargets(d);
         // no tab's own control under it
         for (const auto& h : d.menu.Hits()) {
