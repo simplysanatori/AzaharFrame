@@ -269,7 +269,7 @@ ARGS=(--vr)
 # under AZAHARFRAME_MEMORY_FLOOR_MB (default 4096: a game with its GPU memory takes about 2.2 GB
 # here, and a save state about 0.9 GB more while it is written).
 # MemoryHigh (reclaim and slow down first) is 1/12 under it, and at most
-# AZAHARFRAME_MEMORY_SWAP_MB of swap (default 1024). GPU memory counts too: msm's buffers are
+# AZAHARFRAME_MEMORY_SWAP_MB of swap (default 2048). GPU memory counts too: msm's buffers are
 # shmem, charged to the scope (its memory.stat shmem matches drm-total-memory in fdinfo).
 # systemd-run --scope executes the emulator itself: the same process, environment, folder and
 # parent (Steam's reaper tracks it as before), only its cgroup changes. When systemd-run is
@@ -289,7 +289,7 @@ PCT=$(num "$AZAHARFRAME_MEMORY_MAX_PCT" 65)
 [ "$PCT" -gt 90 ] && PCT=90
 RESERVE_MB=$(num "$AZAHARFRAME_MEMORY_RESERVE_MB" 2048)
 FLOOR_MB=$(num "$AZAHARFRAME_MEMORY_FLOOR_MB" 4096)
-SWAP_MB=$(num "$AZAHARFRAME_MEMORY_SWAP_MB" 1024)
+SWAP_MB=$(num "$AZAHARFRAME_MEMORY_SWAP_MB" 2048)
 if [ "${AZAHARFRAME_MEMORY_SCOPE:-1}" = 0 ]; then
   echo "memory: no scope (AZAHARFRAME_MEMORY_SCOPE=0), no memory limit"
 elif ! command -v "$SYSTEMD_RUN" > /dev/null 2>&1; then

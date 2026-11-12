@@ -52,6 +52,7 @@ cat > "$T/app/azahar" << SH
 cg=\$(sed -n 's/^0:://p' /proc/self/cgroup)
 echo "\$cg" > "$T/cg"
 cat "/sys/fs/cgroup\$cg/memory.max" > "$T/max" 2> /dev/null || echo none > "$T/max"
+cat "/sys/fs/cgroup\$cg/memory.swap.max" > "$T/swap" 2> /dev/null || echo none > "$T/swap"
 pwd > "$T/cwd"
 echo "\$AZAHARFRAME_MODE" > "$T/env"
 [ -e "\$AZAHARFRAME_MARK" ] && echo yes > "$T/seen" || echo no > "$T/seen"
@@ -59,7 +60,7 @@ exit 7
 SH
 chmod +x "$T/app/azahar"
 launch() { # [VAR=value...]: one launch with the stand-in, Flat
-  rm -f "$T/cg" "$T/max" "$T/cwd" "$T/env" "$T/seen"
+  rm -f "$T/cg" "$T/max" "$T/swap" "$T/cwd" "$T/env" "$T/seen"
   env -u AZAHARFRAME_FLAT -u AZAHARFRAME_TEST_MODE_ONLY -u SteamAppId -u AZAHARFRAME_MEMORY_SCOPE \
     -u AZAHARFRAME_MEMORY_MAX_PCT -u AZAHARFRAME_MEMORY_RESERVE_MB -u AZAHARFRAME_MEMORY_FLOOR_MB \
     -u AZAHARFRAME_MEMORY_MAX_MB -u AZAHARFRAME_MEMORY_SWAP_MB \
@@ -74,6 +75,7 @@ if command -v systemd-run > /dev/null && systemd-run --user --scope --quiet --co
   check "scope: the emulator runs in an azaharframe scope" yes "$(grep -q '/azaharframe-[0-9]*\.scope$' "$T/cg" && echo yes || echo "no ($(cat "$T/cg"))")"
   check "  MemoryMax is 65 % of RAM when most is free" "$((10156 * MiB))" "$(cat "$T/max")"
   check "  launch.log says so" 1 "$(grep -c '^memory: scope azaharframe-' "$T/launch.log")"
+  check "  2048 MiB of swap" "$((2048 * MiB))" "$(cat "$T/swap")"
   check "  the folder is the data folder" "$T" "$(cat "$T/cwd")"
   check "  the environment is kept" flat "$(cat "$T/env")"
   check "  the test marker was there" yes "$(cat "$T/seen")"
