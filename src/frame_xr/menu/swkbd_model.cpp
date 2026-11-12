@@ -225,6 +225,14 @@ Model::Model(Spec s) : spec(std::move(s)) {
         page = Page::Digits;
         shift = Shift::Off;
     }
+    if (!spec.initial.empty()) { // AzaharFrame crashreport
+        text = FromUtf8(spec.initial);
+        while (spec.max_length > 0 && Utf16Length(text) > spec.max_length) {
+            text.pop_back();
+        }
+        caret = static_cast<int>(text.size());
+        shift = Shift::Off;
+    }
     Relayout();
 }
 
@@ -368,6 +376,13 @@ std::optional<Result> Model::PressButton(int index) {
         return std::nullopt;
     }
     const Button& b = spec.buttons[static_cast<std::size_t>(index)];
+    if (b.clears) { // AzaharFrame crashreport
+        text.clear();
+        caret = 0;
+        error.clear();
+        Changed();
+        return std::nullopt;
+    }
     if (!b.confirm) {
         return Result{{}, b.id}; // as Azahar's dialog: no text with Cancel or I Forgot
     }

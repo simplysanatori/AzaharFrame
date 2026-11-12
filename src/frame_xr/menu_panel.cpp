@@ -1280,6 +1280,12 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoreSettings:
         ask(MenuCommand::MoreSettings);
         break;
+    case Id::ReportProblem: // AzaharFrame crashreport
+        ask(MenuCommand::ReportProblem);
+        break;
+    case Id::AboutApp:
+        ask(MenuCommand::About);
+        break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
         if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&

@@ -1,0 +1,7 @@
+// AzaharFrame crashreport: made by CMake (src/core/CMakeLists.txt). Never commit the made file.
+#pragma once
+
+// The Sentry DSN Send Report sends to; "" hides Send Report (Save Report stays).
+#define AZAHARFRAME_SENTRY_DSN_VALUE "@FRAME_CRASH_DSN@"
+// "production" for release builds (AZAHARFRAME_RELEASE), else "development".
+#define AZAHARFRAME_SENTRY_ENVIRONMENT "@FRAME_CRASH_ENVIRONMENT@"

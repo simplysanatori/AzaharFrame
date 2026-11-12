@@ -48,8 +48,10 @@ if [ -z "$AZAHARFRAME_NO_BUILD" ]; then
 
   # Vulkan only (the Frame's SteamVR is Vulkan), no FFmpeg (no video recording), no Android audio.
   # The OpenXR code (ENABLE_FRAME_XR) is on by default on Linux aarch64.
+  . "$HERE/release/sentry-dsn.sh" # AzaharFrame crashreport: AZAHARFRAME_SENTRY_DSN
   nice -n 19 cmake -S "$REPO" -B "$BLD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
+    -DAZAHARFRAME_SENTRY_DSN="$AZAHARFRAME_SENTRY_DSN" \
     "${LAUNCHER[@]}" \
     -DCMAKE_C_FLAGS="$PREFIX_MAP" -DCMAKE_CXX_FLAGS="$PREFIX_MAP" -DAZAHARFRAME_RELEASE=ON \
     -DGIT_TAG="$VERSION" \

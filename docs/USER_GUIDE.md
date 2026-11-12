@@ -364,6 +364,8 @@ Keep other heavy work off the Frame while you play.
 | Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
+| Saved crash reports | `~/Documents/AzaharFrame Reports` |
+| What a run that ended badly left (read and removed at the next start) | `~/.local/share/AzaharFrame/user/crash-reports` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
 | Mode it starts in (`vr` or `flat`) | `~/.local/share/AzaharFrame/mode` |
 | Texture pack encoder (built on first use) | `~/.local/share/AzaharFrame/tools` |
@@ -387,9 +389,26 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **A downloaded mod or texture pack does not show.** Restart the game.
 - **One edge of the immersive screen is cut off by the lenses.** Squeeze a grip and press the D-pad away from that edge until it shows: right when the left edge is cut off.
 
+## Crash reports
+
+If Azahar closed badly last time, the next start tells you why: **Ran Out of Memory**, **Graphics Driver Stopped Responding**, **The Game Hit a Fatal Error**, **Azahar Crashed**, or **Closed Unexpectedly** when I can't tell (the headset froze, or Azahar was killed). It also names the game that was running. It shows once per crash.
+
+You can type what you were doing in **What Were You Doing?** In VR, tapping the box opens the keyboard; **Done** puts the text in the box. Then:
+
+- **See What's Sent** shows the whole report, word for word.
+- **Save Report** saves it as a zip in `~/Documents/AzaharFrame Reports`, so you can attach it to an issue.
+- **Send Report** sends it to me through [Sentry](https://sentry.io), a crash reporting service. It only sends when you tap it, and only that one report.
+- **Don't Send** closes it. Nothing is kept.
+
+A report holds the reason, the game's name and title ID, Azahar for Frame's version, SteamOS's version, your graphics chip and driver, the main graphics and VR settings, the last 2,000 lines of the emulator log, what you typed, and for a crash the signal, the stack (memory addresses and the names of the program's own files) and the build IDs of those files. The log names the games you started and the folders they are in, so a report can too. Your home folder is shown as `~`, your user name as `<user>`, and IP and MAC addresses in the log as `<ip>` and `<mac>`. The report holds no account. Sentry sees the address a report comes from, like any website does; I've set it not to store IP addresses. Azahar for Frame doesn't send anything in the background.
+
+### Report a Problem
+
+For anything that isn't a crash, use **Report a Problem**: in VR it's in the menu under **Settings**, **General**, **Help**; in Flat it's under **Help**. Type what happened in **What Happened?** (Send Report needs it). Tick **Include a Screenshot** to add the game's top and bottom screens as they are now (never the VR view or the room). If the game is paused, it runs for one frame to take it. Then **See What's Sent**, **Save Report** or **Send Report**, as above; **Cancel** closes it. **About Azahar for Frame** is next to it in VR: the version, the GitHub and Ko-fi links, and the credits.
+
 ## Reporting a problem
 
-Attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues).
+**Report a Problem** (above) is the quickest way. You can also attach `launch.log` and `user/log/azahar_log.txt` from `~/.local/share/AzaharFrame` to an [issue](https://github.com/simplysanatori/AzaharFrame/issues).
 They hold the paths of your games, which include your user name, the names of the games you started, your computer's processor, graphics card and system version, your headset's name, and the settings you use. They hold no network addresses. Read them before sharing and replace anything you want to keep private.
 If the same thing happens in Azahar on a PC, report it to [Azahar](https://github.com/azahar-emu/azahar/issues) instead.
 

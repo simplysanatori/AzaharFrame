@@ -218,8 +218,11 @@ private:
     bool swkbd_shown = false;
     void EnterSwkbd();
     void LeaveSwkbd(const Input::InputFrame& in);
-    void SwkbdFrame(const FrameInfo& info, const Input::InputFrame& in, bool have_input,
-                    std::vector<Quad>& layers);
+    void SwkbdFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,
+                    bool have_input, std::vector<Quad>& layers);
+    /// AzaharFrame crashreport: no game, Azahar's window shows: the keyboard (a dialog's text
+    /// box) goes under the window, which stays in view.
+    bool SwkbdUnderWindow() const;
     MirrorPanel::Placement home_place{};
     OverlayChain dim_chain; ///< a dark see-through quad between the game screens and the panel
     // AzaharFrame padsui: the mouse (input/mouse.h): this frame's, its Pointer mode ray, the

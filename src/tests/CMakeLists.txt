@@ -38,6 +38,7 @@ add_executable(tests
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
     frame_xr/flat_fit.cpp # AzaharFrame flatdialog
     frame_xr/mem_guard.cpp # AzaharFrame modfix
+    frame_xr/crash_report.cpp # AzaharFrame crashreport
     frame_xr/preload_budget.cpp # AzaharFrame memguard
     frame_xr/startup_escape.cpp # AzaharFrame memguard
     frame_xr/list_nav.cpp # AzaharFrame gamelist
@@ -105,6 +106,7 @@ endif()
 
 target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core)
 target_link_libraries(tests PRIVATE input_common) # AzaharFrame
+target_link_libraries(tests PRIVATE httplib) # AzaharFrame crashreport: Send Report to 127.0.0.1
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)

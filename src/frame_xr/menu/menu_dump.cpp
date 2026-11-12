@@ -735,6 +735,11 @@ int main(int argc, char** argv) {
         v.open_menu = Id::Scope;
         v.hover = {Id::Scope, 0};
         ok &= shot("5a5-settings-general-scope-menu", pg, v);
+        // AzaharFrame crashreport: the Help group at General's end
+        v = settings(SettingsSection::General);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v.hover = {Id::ReportProblem};
+        ok &= shot("5a6-settings-general-help", pg, v);
     }
     v = settings(SettingsSection::Immersive);
     v.hover = {Id::GameFov};

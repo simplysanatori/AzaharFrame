@@ -323,6 +323,10 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     # AzaharFrame texparts: Customize Texture Pack in Flat (game list menu, Emulation menu).
     target_sources(citra_qt PRIVATE frame_texture_parts.cpp frame_texture_parts.h)
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat
+    target_sources(citra_qt PRIVATE frame_crash_dialog.cpp frame_crash_dialog.h) # AzaharFrame crashreport
+    if (AZAHARFRAME_RELEASE) # AzaharFrame crashreport: no test drivers or test crash in a release
+        target_compile_definitions(citra_qt PRIVATE AZAHARFRAME_RELEASE_BUILD=1)
+    endif()
     # AzaharFrame cheatstab: the in-game menu's Cheats tab, the Qt side.
     target_sources(citra_qt PRIVATE frame_cheats.cpp frame_cheats.h)
     # AzaharFrame emerald: the Homebrew menu and the Mods tab's Homebrew segment, the Qt side.

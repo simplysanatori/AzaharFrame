@@ -42,6 +42,11 @@ if HOMES=$(strings -a "$STAGE/azahar" | grep -F '/home/' | sort -u | head -n 5) 
   echo "Build it with steam-frame/build.sh, which maps the checkout and build folders out of the paths (-ffile-prefix-map)." >&2
   exit 1
 fi
+# AzaharFrame crashreport: the unstripped program's symbols to Sentry, only when SENTRY_AUTH_TOKEN is set
+# (with SENTRY_ORG and SENTRY_PROJECT, or the CLI's defaults); a failed upload does not stop the release.
+if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
+  "$HERE/upload-symbols.sh" "$BUILD/azahar" || echo "warning: the symbols were not uploaded to Sentry" >&2
+fi
 cp "$SF/azaharframe.sh" "$SF/install.sh" "$SF/uninstall.sh" "$SF/steam-cef.py" "$SF/dock-icon.py" "$STAGE/"
 cp "$REPO/LICENSE.txt" "$REPO/THIRD_PARTY_NOTICES.md" "$STAGE/"
 # the in-game menu's font (OFL) and icons (Apache 2.0), embedded in the program

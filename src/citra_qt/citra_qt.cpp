@@ -14,6 +14,7 @@
 #include <optional>
 #include <thread>
 #include <unordered_map>
+#include <QBuffer>
 #include <QFileDialog>
 #include <QFutureWatcher>
 #include <QIcon>
@@ -161,6 +162,9 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_texture_parts.h" // AzaharFrame texparts
 #include "core/custom_tex/packs.h" // AzaharFrame catalog3
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
+#include "citra_qt/frame_crash_dialog.h" // AzaharFrame crashreport
+#include "common/frame_crash.h"          // AzaharFrame crashreport
+#include "core/frame_crash_report.h"     // AzaharFrame crashreport
 #include "core/cheats/online.h"         // AzaharFrame compat: the game's version
 #include "core/loader/smdh.h"           // AzaharFrame compat: its region
 #include "core/mods/compat.h"           // AzaharFrame compat
@@ -188,6 +192,9 @@ constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 // g_frame_xr_switch is the one way to switch, GUI thread: the chord (FrontendHooks::toggle_vr),
 // the in-game menu's buttons (FrameMenuRequest), the status bar's VR button and the tests.
 std::function<void(bool vr)> g_frame_xr_switch;
+// AzaharFrame crashreport: Report a Problem with the game running now (Help, the VR menu's
+// Settings, General, Help); set in ConnectMenuEvents, GUI thread.
+std::function<void()> g_frame_report_problem;
 // AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
 QPushButton* g_frame_vr_button = nullptr;
 // AzaharFrame polish: its partner in VR, "FLAT", in the same place (right of Volume) while
@@ -675,6 +682,9 @@ GMainWindow::GMainWindow(Core::System& system_)
       user_data_migrator{this}, config{std::make_unique<QtConfig>()}, emu_thread{nullptr} {
     Common::Log::Initialize();
     Common::Log::Start();
+#ifdef ENABLE_FRAME_XR // AzaharFrame crashreport: what the last run left, then this run's marker
+    FrameCrashDialog::Detect();
+#endif
 
     Debugger::ToggleConsole();
 
@@ -1658,19 +1668,31 @@ GMainWindow::GMainWindow(Core::System& system_)
             UpdateFrameVrButton(); // AzaharFrame flat
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
-            // AzaharFrame memguard: the last run was killed at its memory limit; say so once
-            if (const unsigned limit = FrameMode::TakeOutOfMemory()) {
-                QTimer::singleShot(1500, this, [this, limit] {
-                    const auto text =
-                        VideoCore::PreloadBudget::MakeOutOfMemoryText(limit > 1 ? limit : 0);
-                    auto* box =
-                        new QMessageBox(QMessageBox::Warning, QString::fromStdString(text.title),
-                                        QString::fromStdString(text.body), QMessageBox::Ok, this);
-                    box->setAttribute(Qt::WA_DeleteOnClose);
-                    box->open();
-                    LOG_INFO(Frontend, "xr: {} shown", text.title);
+            // AzaharFrame crashreport: the last run ended badly (memguard's out of memory
+            // included): say so once, with Send Report and Save Report
+            QTimer::singleShot(1500, this, [this] { FrameCrashDialog::ShowPending(this); });
+#ifndef AZAHARFRAME_RELEASE_BUILD
+            if (!qEnvironmentVariable("AZAHARFRAME_TEST_CRASH_SHOTS").isEmpty()) {
+                QTimer::singleShot(3000, this, [this] { FrameCrashDialog::TestShots(this); });
+            }
+            // Test only: Report a Problem opens by itself N s in (AZAHARFRAME_TEST_CRASH_ANSWER
+            // answers it)
+            if (const int at = qEnvironmentVariableIntValue("AZAHARFRAME_TEST_REPORT_PROBLEM");
+                at > 0) {
+                QTimer::singleShot(at * 1000, this, [] { g_frame_report_problem(); });
+            }
+            // Test only: a deliberate crash, for the report's way to Sentry
+            if (qEnvironmentVariable("AZAHARFRAME_SENTRY_TEST_CRASH") == QStringLiteral("1")) {
+                QTimer::singleShot(5000, this, [] {
+                    const std::string message =
+                        "Sentry test error " +
+                        QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString();
+                    LOG_CRITICAL(Frontend, "xr test: crashing on purpose: {}", message);
+                    Common::Log::Stop();
+                    Common::FrameCrash::TestCrash(message);
                 });
             }
+#endif
 
             std::signal(SIGTERM, FrameXrOnSignal);
             std::signal(SIGINT, FrameXrOnSignal);
@@ -2795,6 +2817,57 @@ void GMainWindow::ConnectMenuEvents() {
         QDesktopServices::openUrl(QUrl(QStringLiteral("https://azahar-emu.org/pages/faq/")));
     });
     connect_menu(ui->action_About, &GMainWindow::OnMenuAboutCitra, QAction::AboutRole);
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame crashreport: Report a Problem... over About (the VR menu's About Azahar for
+    // Frame is FrameCrashDialog::ShowAbout). The screenshot is the game's top and bottom screens (Tools > Capture Screenshot's
+    // way, at 1x): a paused game runs for that one frame, as there.
+    g_frame_report_problem = [this] {
+        FrameCrashDialog::ProblemContext context;
+        if (emulation_running) {
+            system.GetAppLoader().ReadProgramId(context.title_id);
+            context.title = game_title.toStdString();
+            context.screenshot = [this](std::function<void(QByteArray)> done) {
+                if (!emu_thread || !emulation_running) {
+                    done({});
+                    return;
+                }
+                const auto layout = Layout::FrameLayoutFromResolutionScale(1);
+                auto image = std::make_shared<QImage>(QSize(layout.width, layout.height),
+                                                      QImage::Format_RGB32);
+                auto finished = std::make_shared<std::atomic<bool>>(false);
+                const bool was_running = emu_thread->IsRunning();
+                QPointer<GMainWindow> self = this;
+                auto finish = [self, done, finished, was_running](const QByteArray& png) {
+                    if (finished->exchange(true)) {
+                        return;
+                    }
+                    if (self && !was_running && self->emu_thread && self->emulation_running) {
+                        self->emu_thread->SetRunning(false);
+                    }
+                    done(png);
+                };
+                system.GPU().Renderer().RequestScreenshot(
+                    image->bits(),
+                    [image, finish](bool invert_y) {
+                        QByteArray png;
+                        QBuffer buffer(&png);
+                        buffer.open(QIODevice::WriteOnly);
+                        GetMirroredImage(*image, false, invert_y).save(&buffer, "PNG");
+                        QMetaObject::invokeMethod(qApp, [finish, png] { finish(png); });
+                    },
+                    layout);
+                if (!was_running) {
+                    emu_thread->SetRunning(true);
+                }
+                QTimer::singleShot(3000, this, [finish] { finish({}); });
+            };
+        }
+        FrameCrashDialog::ShowReportProblem(this, context);
+    };
+    auto* report_problem = new QAction(tr("Report a Problem..."), this);
+    ui->menu_Help->insertAction(ui->action_About, report_problem);
+    connect(report_problem, &QAction::triggered, this, [] { g_frame_report_problem(); });
+#endif
 }
 
 void GMainWindow::UpdateMenuState() {
@@ -3276,6 +3349,13 @@ void GMainWindow::BootGame(const QString& filename) {
     emu_thread->start();
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: the new mods are watched until a clean run
     FrameCrashGuard::Get().Started(frame_guard_title);
+    { // AzaharFrame crashreport: the game and its settings, for a report if this run ends badly
+        u64 crash_title = 0;
+        system.GetAppLoader().ReadProgramId(crash_title);
+        Common::FrameCrash::NoteGame(crash_title, game_title.toStdString(),
+                                     Core::CrashReport::SettingsSummary(),
+                                     FrameXr::IsStarted() && FrameXr::VrShowing());
+    }
     if (frame_guard_title != 0) { // AzaharFrame savestate: Restore Save Data, once
         FrameOfferSaveRescue(frame_guard_title);
     }
@@ -3388,6 +3468,7 @@ void GMainWindow::ShutdownGame() {
     FrameAutosaveStop();
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: a normal stop is a clean run (not after an error)
     FrameCrashGuard::Get().Stopped();
+    Common::FrameCrash::NoteGame(0, "", "", FrameXr::IsStarted() && FrameXr::VrShowing()); // crashreport
 #endif
     // AzaharFrame savestate: Load Anyway's session ended cleanly: no Restore Save Data next time
     if (!frame_rescue_root.empty() && !frame_rescue_keep) {
@@ -4672,6 +4753,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     case C::ShowWindow:
         g_frame_mirror->SetMenuWindow(true);
+        return;
+    case C::ReportProblem: // AzaharFrame crashreport: its dialog in the window
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [] {
+            if (g_frame_report_problem) {
+                g_frame_report_problem();
+            }
+        });
+        return;
+    case C::About:
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [this] { FrameCrashDialog::ShowAbout(this); });
         return;
     case C::MoreSettings:
         g_frame_mirror->SetMenuWindow(true);
@@ -6538,6 +6631,12 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
     QString status_message;
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: the stop that follows is not a clean run
     FrameCrashGuard::Get().CoreError();
+    // AzaharFrame crashreport: if this run then ends badly, the report says the game failed
+    if (result == Core::System::ResultStatus::ErrorCoreExceptionRaised) {
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::ArmException, details);
+    } else if (result == Core::System::ResultStatus::ErrorUnknown) {
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::CoreFatal, details);
+    }
 #endif
     // AzaharFrame autosave: the stop that follows is no clean one
     frame_autosave_quit_blocked = true;
@@ -7402,6 +7501,7 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     InputCommon::FrameXr::SetTouchSink(nullptr);
     g_frame_xr_touch_sink.reset();
     FrameXr::Shutdown();
+    Common::FrameCrash::CleanExit(); // AzaharFrame crashreport: a clean quit
 #endif
     return result;
 }

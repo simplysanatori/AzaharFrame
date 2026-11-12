@@ -159,6 +159,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aar
     set(DEFAULT_ENABLE_FRAME_XR ON)
 endif()
 CMAKE_DEPENDENT_OPTION(ENABLE_FRAME_XR "Enables the OpenXR frontend (Azahar for Frame)" ${DEFAULT_ENABLE_FRAME_XR} "ENABLE_VULKAN;ENABLE_QT;NOT ANDROID;NOT ENABLE_LIBRETRO" OFF)
+# AzaharFrame crashreport: Send Report sends a crash report to Sentry (externals/sentry-native) when
+# the player taps it. The DSN comes from -DAZAHARFRAME_SENTRY_DSN=..., else the environment variable
+# of that name; with none, Send Report is hidden and Save Report stays. Never commit a DSN.
+CMAKE_DEPENDENT_OPTION(AZAHARFRAME_SENTRY "Crash reports can be sent to Sentry (sentry-native)" ON "ENABLE_FRAME_XR" OFF)
+set(AZAHARFRAME_SENTRY_DSN "" CACHE STRING "The Sentry DSN Send Report sends to (empty: no Send Report)")
 
 option(ENABLE_DISCORD_RPC "Enables Discord Rich Presence" OFF)
 

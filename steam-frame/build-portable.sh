@@ -105,6 +105,7 @@ if [ -z "$EXT" ] && [ -z "$(ls -A "$REPO/externals/boost" 2> /dev/null)" ]; then
   [ "$(basename "${COMMON:-x}")" = .git ] && EXT=$(dirname "$COMMON")
 fi
 [ -n "$EXT" ] && EXT_ARGS=(-v "$EXT:/ext-ro:ro")
+. "$HERE/release/sentry-dsn.sh" # AzaharFrame crashreport: AZAHARFRAME_SENTRY_DSN, into the container
 GIT_COMMIT=$(git -C "$REPO" rev-parse HEAD 2> /dev/null || echo unknown)
 GIT_TAG=$(git -C "$REPO" describe --tags --always 2> /dev/null || echo unknown)
 
@@ -119,6 +120,7 @@ while true; do
       -v "$REPO:/src-ro:ro" "${EXT_ARGS[@]}" \
       -v "$CACHE/work:/work" -v "$CACHE/ccache:/ccache" -v "$CACHE/out:/out" \
       -e JOBS="$JOBS" -e GIT_COMMIT="$GIT_COMMIT" -e GIT_TAG="$GIT_TAG" -e AZAHARFRAME_VERSION="$VERSION" -e CF_EXTRA_CMAKE_FLAGS="${CF_EXTRA_CMAKE_FLAGS:-}" \
+      -e AZAHARFRAME_SENTRY_DSN \
       "$IMAGE" /src-ro/steam-frame/portable/container-build.sh &
   RUN_PID=$!
   STOP=

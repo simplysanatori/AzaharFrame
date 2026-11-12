@@ -139,6 +139,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             saves(Id::AutosaveKeep, static_cast<float>(keep - 1) / 9.0f, 9, keep);
             rows.push_back(row(Id::MoreSettings, RowKind::Link));
             rows.push_back(row(Id::SwitchToFlat, RowKind::Button)); // AzaharFrame menuux
+            rows.push_back(row(Id::HelpHeader, RowKind::Header)); // AzaharFrame crashreport
+            rows.push_back(row(Id::ReportProblem, RowKind::Link));
+            rows.push_back(row(Id::AboutApp, RowKind::Link));
             return rows;
         }
         if (section == SettingsSection::Graphics) {
@@ -399,6 +402,12 @@ std::string LabelFor(Id id) {
         return "More Settings";
     case Id::SavesHeader: // AzaharFrame autosave
         return "Saves";
+    case Id::HelpHeader: // AzaharFrame crashreport
+        return "Help";
+    case Id::ReportProblem:
+        return "Report a Problem";
+    case Id::AboutApp:
+        return "About Azahar for Frame";
     case Id::Autosave:
     case Id::AutosaveCard:
         return "Autosave";

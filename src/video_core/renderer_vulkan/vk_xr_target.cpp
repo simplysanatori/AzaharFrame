@@ -17,6 +17,7 @@
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_xr_target.h"
 #include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
+#include "common/frame_crash.h" // AzaharFrame crashreport
 
 #include <vk_mem_alloc.h>
 
@@ -654,6 +655,8 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
                    vk::Result::eSuccess;
         device.resetFences(copy_fence);
     } catch (vk::DeviceLostError& err) {
+        // AzaharFrame crashreport: the next start says the graphics driver stopped responding
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::DeviceLost, err.what());
         UNREACHABLE_MSG("Device lost during the XR spill copy: {}", err.what());
     }
     copy_cmdbuf.reset();

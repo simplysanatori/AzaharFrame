@@ -182,6 +182,8 @@ enum class MenuCommand {
     SwitchToFlat, ///< as the four-button chord
     ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
     MoreSettings, ///< the same, with Emulation > Configure... open
+    ReportProblem, ///< AzaharFrame crashreport: the same, with Report a Problem open
+    About,         ///< AzaharFrame crashreport: the same, with About Azahar for Frame open
     Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
                   ///< (the Cheats tab's Azahar's Window)
     EditControls, ///< AzaharFrame menu: Edit Controls started (nothing for the Qt side to do)

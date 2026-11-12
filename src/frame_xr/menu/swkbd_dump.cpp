@@ -16,6 +16,7 @@
 
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
+#include "frame_xr/menu/crash_note.h" // AzaharFrame crashreport
 #include "frame_xr/menu/swkbd_view.h"
 
 using namespace FrameXr;
@@ -227,6 +228,16 @@ int main(int argc, char** argv) {
         m.InsertText("D3000000 00000000\n2058AF4C 000003E7\n2058AF4");
         m.PressButton(1);
         ok &= shot("11-cheat-code-error", m, KindIndex(m, KeyKind::Button, 1), -1);
+    }
+    // AzaharFrame crashreport: the crash report's "What Were You Doing?" box, empty and typed
+    {
+        Model m(Menu::CrashNoteSpec(""));
+        ok &= shot("12-crash-note-empty", m, KeyIndex(m, U'I'), -1);
+    }
+    {
+        Model m(Menu::CrashNoteSpec("I opened the Mods tab and turned on the 4K pack,"));
+        m.InsertText(" then pressed Continue.\nIt froze after a few seconds");
+        ok &= shot("13-crash-note-typed", m, KindIndex(m, KeyKind::Button, 2), -1);
     }
     return ok ? 0 : 1;
 }

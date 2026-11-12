@@ -185,6 +185,7 @@ in the file named.
 | [inih](https://github.com/benhoyt/inih) | ini files | BSD-3-Clause | `externals/inih/inih/LICENSE.txt` |
 | [nlohmann/json](https://github.com/nlohmann/json) | JSON | MIT | `externals/json/json.hpp` |
 | [cpp-httplib](https://github.com/yhirose/cpp-httplib) | HTTP | MIT | `externals/httplib/README.md` |
+| [sentry-native](https://github.com/getsentry/sentry-native) 0.17.6 (src, include and vendor, in the tree; with mpack, jsmn, stb_sprintf and libunwind from its `vendor/`) | Send Report on the crash report | MIT (sentry-native, mpack, jsmn, libunwind), public domain or MIT (stb_sprintf) | `externals/sentry-native/LICENSE`, `externals/sentry-native/vendor/libunwind/COPYING` |
 | [Zstandard](https://github.com/facebook/zstd) | compression | BSD-3-Clause (dual with GPLv2) | `externals/zstd/LICENSE` |
 | [xxHash](https://github.com/Cyan4973/xxHash) | hashing | BSD-2-Clause | `externals/xxHash/LICENSE` |
 | [libyuv](https://github.com/lemenkov/libyuv) | colour conversion | BSD-3-Clause | `externals/libyuv/LICENSE` |
