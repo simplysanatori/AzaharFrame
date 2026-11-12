@@ -167,5 +167,40 @@ check "queue: the second line (no switches: the defaults)" "unset unset unset" "
 check "  nothing left" 0 "$(grep -c -v -E '^[[:space:]]*(#|$)' "$T/session.queue")"
 launch AZAHARFRAME_MEMORY_SCOPE=0
 check "an empty queue changes nothing" 0 "$(grep -c '^session.queue' "$T/launch.log")"
+# AzaharFrame integ4: session.env and session.queue go through one allow-list, as data (harden2 + doubling).
+cat > "$T/app/azahar" << SH
+#!/bin/bash
+echo "\${AZAHARFRAME_XR_PACKED:-unset} \${AZAHARFRAME_IMMERSIVE_ANCHOR:-unset} \${AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS:-unset} \${AZAHARFRAME_XR_SET_RELEASE:-unset} \${AZAHARFRAME_XR_NO_GPU_WAIT:-unset} \${EVIL:-unset}" > "$T/ab"
+SH
+chmod +x "$T/app/azahar"
+cat > "$T/session.env" << 'ENV'
+# the doubling switches, a quoted value, a name not allowed and a command that must not run
+AZAHARFRAME_XR_PACKED=0
+export AZAHARFRAME_IMMERSIVE_ANCHOR="0"
+AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS='$(touch pwned-env)'
+AZAHARFRAME_XR_SET_RELEASE=0
+EVIL=1
+AZAHARFRAME_XR_NO_GPU_WAIT=1
+$(touch pwned-env2)
+ENV
+launch AZAHARFRAME_MEMORY_SCOPE=0
+check "session.env: doubling switches set, other names left out" '0 0 $(touch pwned-env) 0 unset unset' "$(cat "$T/ab")"
+check "  nothing in it ran" 0 "$(ls "$T" "$T/app" | grep -c pwned)"
+check "  EVIL left out" 1 "$(grep -c "session.env: 'EVIL=1' left out" "$T/launch.log")"
+check "  a test hook switch left out" 1 "$(grep -c "session.env: 'AZAHARFRAME_XR_NO_GPU_WAIT=1' left out" "$T/launch.log")"
+rm -f "$T/session.env"
+printf 'AB3 per-eye: AZAHARFRAME_XR_SET_RELEASE=1 AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS=$(id>pwned-q) * AZAHARFRAME_XR_NO_GPU_WAIT=1 EVIL=2\n' > "$T/session.queue"
+(cd "$T/app" && launch AZAHARFRAME_MEMORY_SCOPE=0)
+check "queue: allow-listed names only, values as data" 'unset unset $(id>pwned-q) 1 unset unset' "$(cat "$T/ab")"
+check "  nothing in it ran" 0 "$(ls "$T" "$T/app" | grep -c pwned)"
+check "  a glob is a word, not files" 1 "$(grep -c "session.queue: '\*' left out (not KEY=VALUE)" "$T/launch.log")"
+check "  a test hook switch left out" 1 "$(grep -c "session.queue: 'AZAHARFRAME_XR_NO_GPU_WAIT=1' left out" "$T/launch.log")"
+check "  EVIL left out" 1 "$(grep -c "session.queue: 'EVIL=2' left out" "$T/launch.log")"
+check "  the log is kept" 1 "$(ls "$T/ab-logs/"*-AB3-per-eye.txt 2> /dev/null | wc -l)"
+printf 'AB4: AZAHARFRAME_XR_PACKED=1\n' > "$T/session.queue"
+printf 'AZAHARFRAME_XR_PACKED=0\nAZAHARFRAME_IMMERSIVE_ANCHOR=0\n' > "$T/session.env"
+launch AZAHARFRAME_MEMORY_SCOPE=0
+check "queue over session.env: the queue's value wins, session.env's others stay" "1 0 unset unset unset unset" "$(cat "$T/ab")"
+rm -f "$T/session.env"
 check "the real headset marker is still untouched" "$MARK_BEFORE" "$(mark_state)"
 [ "$FAILS" = 0 ] && echo "all passed" || { echo "$FAILS failed"; exit 1; }

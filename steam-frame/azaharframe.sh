@@ -23,8 +23,8 @@
 #   QT_SCALE_FACTOR=1.25    scale Azahar's window, if it is too small
 #   AZAHARFRAME_VR_PICKER=1  the old VR game picker instead of Azahar's window in VR
 # Headset A/B runs (several launches, each with its own settings): session.queue in the data
-# folder, one launch per line, "label: AZAHARFRAME_X=1 AZAHARFRAME_Y=0" (only AZAHARFRAME_
-# variables; # comments and empty lines are skipped). Each launch takes the first line, sets its
+# folder, one launch per line, "label: AZAHARFRAME_X=1 AZAHARFRAME_Y=0" (only the names
+# session.env allows, read the same way; # comments and empty lines are skipped). Each launch takes the first line, sets its
 # variables for that launch only and removes it; the emulator's log of that launch is kept as
 # ab-logs/<time>-<label>.txt in the data folder. launch.log says which line ran.
 HERE=$(dirname "$(readlink -f "$0")")
@@ -51,33 +51,45 @@ cd "$DATA" || exit 1
 exec > launch.log 2>&1
 echo "== $(date -Is) Azahar for Frame (SteamAppId=${SteamAppId:-none})"
 
+# AzaharFrame harden2 + doubling: session.env and session.queue are read as data, never run: only
+# KEY=VALUE, only the names below, no expansion of the value (quotes around it are dropped).
+af_allowed() {
+  case "$1" in
+    AZAHARFRAME_FLAT|AZAHARFRAME_FLAT_SCREEN|AZAHARFRAME_REFRESH_HZ|AZAHARFRAME_FDM|AZAHARFRAME_PADS| \
+    AZAHARFRAME_MEMORY_SCOPE|AZAHARFRAME_MEMORY_MAX_PCT|AZAHARFRAME_MEMORY_RESERVE_MB| \
+    AZAHARFRAME_MEMORY_FLOOR_MB|AZAHARFRAME_MEMORY_MAX_MB|AZAHARFRAME_MEMORY_SWAP_MB| \
+    AZAHARFRAME_PRELOAD_RESERVE_MB|AZAHARFRAME_IMMERSIVE_FOV|AZAHARFRAME_IMMERSIVE_DISTANCE| \
+    AZAHARFRAME_IMMERSIVE_LOCAL|AZAHARFRAME_IMMERSIVE_WIDER|AZAHARFRAME_IMMERSIVE_MEASURE| \
+    AZAHARFRAME_IMMERSIVE_ANCHOR|AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS|AZAHARFRAME_XR_PACKED| \
+    AZAHARFRAME_XR_SET_RELEASE| \
+    AZAHARFRAME_MODELS|AZAHARFRAME_MODEL_EYE_PX|AZAHARFRAME_MIRROR_SIZE|AZAHARFRAME_MIRROR_SCALE| \
+    AZAHARFRAME_FADE_WINDOW|AZAHARFRAME_KEYBOARD_FONT|AZAHARFRAME_VMA_BLOCK_MIB|AZAHARFRAME_XR_WATCHDOG| \
+    AZAHARFRAME_XR_INSTANCE|AZAHARFRAME_XR_WINDOW_EVERY_FRAME|AZAHARFRAME_VR_PICKER| \
+    QT_SCALE_FACTOR|XR_RUNTIME_JSON)
+      return 0 ;;
+  esac
+  return 1
+}
+# af_set WHERE KEY=VALUE: exports it when the name is allowed, else says why it was left out.
+af_set() {
+  local where=$1 line=$2 key val
+  key=${line%%=*}
+  [ "$key" != "$line" ] || { echo "$where: '${line:0:40}' left out (not KEY=VALUE)"; return 1; }
+  val=${line#*=}
+  case "$val" in
+    \"*\") val=${val#\"}; val=${val%\"} ;;
+    \'*\') val=${val#\'}; val=${val%\'} ;;
+  esac
+  af_allowed "$key" || { echo "$where: '${line:0:40}' left out (name not allowed)"; return 1; }
+  export "$key=$val"
+}
+
 if [ -f "$DATA/session.env" ]; then
   echo "session.env:"; cat "$DATA/session.env"
-  # Read as data, never run: only KEY=VALUE lines, only these names, no expansion of the value.
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     case "$line" in ''|'#'*) continue ;; esac
-    line=${line#export }
-    key=${line%%=*}
-    [ "$key" != "$line" ] || { echo "  (ignored, not KEY=VALUE: ${line:0:40})"; continue; }
-    val=${line#*=}
-    case "$val" in
-      \"*\") val=${val#\"}; val=${val%\"} ;;
-      \'*\') val=${val#\'}; val=${val%\'} ;;
-    esac
-    case "$key" in
-      AZAHARFRAME_FLAT|AZAHARFRAME_FLAT_SCREEN|AZAHARFRAME_REFRESH_HZ|AZAHARFRAME_FDM|AZAHARFRAME_PADS| \
-      AZAHARFRAME_MEMORY_SCOPE|AZAHARFRAME_MEMORY_MAX_PCT|AZAHARFRAME_MEMORY_RESERVE_MB| \
-      AZAHARFRAME_MEMORY_FLOOR_MB|AZAHARFRAME_MEMORY_MAX_MB|AZAHARFRAME_MEMORY_SWAP_MB| \
-      AZAHARFRAME_PRELOAD_RESERVE_MB|AZAHARFRAME_IMMERSIVE_FOV|AZAHARFRAME_IMMERSIVE_DISTANCE| \
-      AZAHARFRAME_IMMERSIVE_LOCAL|AZAHARFRAME_IMMERSIVE_WIDER|AZAHARFRAME_IMMERSIVE_MEASURE| \
-      AZAHARFRAME_MODELS|AZAHARFRAME_MODEL_EYE_PX|AZAHARFRAME_MIRROR_SIZE|AZAHARFRAME_MIRROR_SCALE| \
-      AZAHARFRAME_FADE_WINDOW|AZAHARFRAME_KEYBOARD_FONT|AZAHARFRAME_VMA_BLOCK_MIB|AZAHARFRAME_XR_WATCHDOG| \
-      AZAHARFRAME_XR_INSTANCE|AZAHARFRAME_XR_WINDOW_EVERY_FRAME|AZAHARFRAME_VR_PICKER| \
-      QT_SCALE_FACTOR|XR_RUNTIME_JSON)
-        export "$key=$val" ;;
-      *) echo "  (ignored, name not allowed: $key)" ;;
-    esac
+    af_set session.env "${line#export }"
   done < "$DATA/session.env"
 fi
 
@@ -89,16 +101,16 @@ if [ -f "$QUEUE" ]; then
   if [ -n "$AB_LINE" ]; then
     awk '!taken && $0 !~ /^[[:space:]]*(#|$)/ {taken = 1; next} {print}' "$QUEUE" > "$QUEUE.new" &&
       mv -f "$QUEUE.new" "$QUEUE"
+    AB_LINE=${AB_LINE%$'\r'}
     AB_VARS=${AB_LINE#*:}
     AB_LABEL=${AB_LINE%%:*}
     [ "$AB_LABEL" = "$AB_LINE" ] && { AB_LABEL=ab; AB_VARS=$AB_LINE; }
     AB_LABEL=$(printf '%s' "$AB_LABEL" | tr -c 'A-Za-z0-9_.-' '-' | head -c 40)
     echo "session.queue: $AB_LABEL:$AB_VARS"
-    for kv in $AB_VARS; do
-      case "$kv" in
-        AZAHARFRAME_[A-Z0-9_]*=*) export "$kv" ;;
-        *) echo "session.queue: '$kv' left out (only AZAHARFRAME_ variables)" ;;
-      esac
+    # Words of the line, as data (read -a: no globbing, no expansion), through the same allow-list.
+    read -r -a AB_KV <<< "$AB_VARS"
+    for kv in "${AB_KV[@]}"; do
+      af_set session.queue "$kv"
     done
     echo "session.queue: $(grep -c -v -E '^[[:space:]]*(#|$)' "$QUEUE") more launches queued"
   fi
