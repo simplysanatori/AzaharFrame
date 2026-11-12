@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -49,6 +51,14 @@ std::string FindBsdtar();
 ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind,
                                 std::size_t max_total = 256u * 1024 * 1024, int timeout_seconds = 120,
                                 const std::string& tool_override = {});
+
+/// AzaharFrame texdl: any archive bsdtar reads (zip, 7z, rar), listed and checked as above, then
+/// extracted straight into `out_dir` on disk (for packs too big for memory). "" on success, else the
+/// error; "Cancelled" when `cancel` became true (the partly written folder is left for the caller to
+/// remove). Blocking: worker thread only.
+std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, const std::string& out_dir,
+                             std::uint64_t max_total, int timeout_seconds = 3600,
+                             const std::atomic_bool* cancel = nullptr, const std::string& tool_override = {});
 
 /// Zip by the built-in reader, everything else by bsdtar. `kind` from DetectArchive.
 ExtractResult ExtractArchive(std::string_view bytes, ArchiveKind kind);
