@@ -114,6 +114,9 @@ enum class Id : int {
     NarrowScreen,
     DepthFactor,
     MoreSettings,
+    HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
+    ReportProblem, ///< AzaharFrame crashreport: Report a Problem (a dialog in Azahar's window)
+    AboutApp,      ///< AzaharFrame crashreport: About Azahar for Frame (the same)
     // Mods (AzaharFrame cheatstab): mods_tab.h
     ModsSegment,    ///< index: ModsSegment
     DownloadCheats, ///< the Cheats segment's

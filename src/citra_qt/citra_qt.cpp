@@ -4754,6 +4754,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::ShowWindow:
         g_frame_mirror->SetMenuWindow(true);
         return;
+    case C::ReportProblem: // AzaharFrame crashreport: its dialog in the window
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [] {
+            if (g_frame_report_problem) {
+                g_frame_report_problem();
+            }
+        });
+        return;
+    case C::About:
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [this] { FrameCrashDialog::ShowAbout(this); });
+        return;
     case C::MoreSettings:
         g_frame_mirror->SetMenuWindow(true);
         QTimer::singleShot(0, this, [this] {
