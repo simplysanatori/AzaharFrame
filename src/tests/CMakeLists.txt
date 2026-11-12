@@ -10,6 +10,7 @@ add_executable(tests
     frame_xr/reticle.cpp # AzaharFrame mouse
     frame_xr/keyboard_layout.cpp # AzaharFrame
     frame_xr/presets.cpp # AzaharFrame vrqol
+    frame_xr/shader_notice.cpp # AzaharFrame stall
     ../frame_xr/presets.cpp # AzaharFrame vrqol
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame

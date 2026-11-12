@@ -196,6 +196,7 @@ private:
     u64 frame_begin_custom_upload_us = 0; // AzaharFrame
     u64 frame_begin_staging_wait_us = 0;  // AzaharFrame
     u64 frame_begin_surface_gc_us = 0;    // AzaharFrame
+    u64 frame_begin_shader_builds = 0;    // AzaharFrame stall
     /// Peak frame walltime since the last stats reset
     Clock::duration interval_peak_frametime = Clock::duration::zero();
     u32 interval_slow_frames = 0;

@@ -539,18 +539,26 @@ bool Library::RefreshCatalog(std::string* error) {
     return true;
 }
 
-void Library::RefreshCatalogOnce() {
+bool Library::RefreshCatalogOnce() {
     {
         std::lock_guard lock{mutex_};
         if (catalog_refreshed_) {
-            return;
+            return false;
         }
         catalog_refreshed_ = true;
     }
     std::string error;
-    if (!RefreshCatalog(&error)) {
-        LOG_WARNING(Frontend, "Mods: catalog not refreshed: {}", error);
+    const auto t0 = std::chrono::steady_clock::now(); // AzaharFrame stall
+    const bool ok = RefreshCatalog(&error);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - t0)
+                        .count();
+    if (!ok) {
+        LOG_WARNING(Frontend, "Mods: catalog not refreshed in {} ms: {}", ms, error);
+        return false;
     }
+    LOG_INFO(Frontend, "Mods: catalog refreshed in {} ms", ms);
+    return true;
 }
 
 // One GET with redirects followed to GitHub's own hosts only.
@@ -1388,7 +1396,7 @@ std::string Library::LookupDate(const CatalogEntry& entry) {
     }
 }
 
-void Library::RefreshDates(u64 title_id) {
+std::size_t Library::RefreshDates(u64 title_id, std::chrono::steady_clock::time_point deadline) {
     std::vector<CatalogEntry> todo;
     {
         std::lock_guard lock{mutex_};
@@ -1399,6 +1407,7 @@ void Library::RefreshDates(u64 title_id) {
         }
     }
     std::map<std::string, std::string> by_source; // one request for entries sharing a release
+    std::size_t asked = 0;
     for (const auto& e : todo) {
         const Source& s = e.source;
         const std::string key = fmt::format("{}|{}|{}|{}|{}|{}", static_cast<int>(s.type), s.repo,
@@ -1407,11 +1416,18 @@ void Library::RefreshDates(u64 title_id) {
                                             s.gb_mod, s.mega_link);
         auto it = by_source.find(key);
         if (it == by_source.end()) {
+            if (std::chrono::steady_clock::now() >= deadline) { // AzaharFrame stall
+                LOG_INFO(Frontend, "Mods: dates: {} of {} entries left for a later call",
+                         todo.size() - static_cast<std::size_t>(&e - todo.data()), todo.size());
+                break;
+            }
             it = by_source.emplace(key, LookupDate(e)).first;
+            asked++;
         }
         std::lock_guard lock{mutex_};
         dates_[e.id] = it->second; // "" too: not asked again this run
     }
+    return asked;
 }
 
 // ---------------------------------------------------------------------------------------------

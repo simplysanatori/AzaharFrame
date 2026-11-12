@@ -351,6 +351,11 @@ private slots:
 #endif
     void OnSwitchDiskResources(VideoCore::LoadCallbackStage stage, std::size_t value,
                                std::size_t total, const std::string& object);
+#ifdef ENABLE_FRAME_XR // AzaharFrame stall
+    void FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total,
+                        const std::string& object);
+    void StartFrameShaderNotice();
+#endif
 #ifdef ENABLE_DEVELOPER_OPTIONS
     void StartLaunchStressTest(const QString& game_path);
 #endif

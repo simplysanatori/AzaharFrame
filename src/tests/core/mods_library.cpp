@@ -1412,6 +1412,25 @@ TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
     REQUIRE(list[1].updated.empty());
 }
 
+// AzaharFrame stall: Install Mods' list comes from the catalog in hand with no request; the
+// date requests stop at their deadline and the rest are asked on a later call.
+TEST_CASE("Mods: the list needs no request; dates stop at the deadline", "[mods]") {
+    const std::string dir = TempDir("dates-deadline");
+    FakeNet net;
+    Library library(dir, DefaultCatalog(), net.Get());
+    net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage", GbProfile(""));
+    net.Ok("https://api.github.com/repos/OTPR26/OOT3DHud/releases/latest",
+           "{\"tag_name\":\"v9\",\"published_at\":\"2026-08-03T10:11:12Z\",\"assets\":[]}");
+    REQUIRE_FALSE(library.ListAvailable(kTid).empty());
+    REQUIRE(net.log.empty()); // the list alone asks nothing
+    REQUIRE(library.RefreshDates(kTid, std::chrono::steady_clock::now()) == 0); // past: none
+    REQUIRE(net.log.empty());
+    REQUIRE(library.RefreshDates(kTid) > 0); // asked now
+    const auto requests = net.log.size();
+    REQUIRE(library.RefreshDates(kTid) == 0); // once a run
+    REQUIRE(net.log.size() == requests);
+}
+
 // AzaharFrame modfix: the short reason shown after "Install Failed".
 TEST_CASE("Mods: short failure reasons", "[mods]") {
     REQUIRE(ShortFailure("Connection") == "No Connection");

@@ -37,6 +37,7 @@
 
 #include "citra_qt/frame_flat_dialog.h" // AzaharFrame flatdialog
 #include "citra_qt/frame_mirror.h"
+#include "citra_qt/frame_offscreen.h" // AzaharFrame stall
 #include "citra_qt/game_list.h" // AzaharFrame gamelist
 #include "citra_qt/uisettings.h"
 #include "common/logging/log.h"
@@ -425,16 +426,11 @@ QWidget* FrameMirror::WindowAt(const QPoint& global) const {
 }
 
 bool FrameMirror::Transient(const QWidget* w) const {
-    return w && w != main && w->isWindow() && w->windowType() != Qt::Desktop &&
-           !w->inherits("GRenderWindow");
+    return FrameOffscreen::Transient(w, main); // AzaharFrame stall
 }
 
 bool FrameMirror::KeepOffscreen(QWidget* w) {
-    if (!Transient(w) || w->isVisible()) {
-        return false; // (a window already on the screen cannot be taken off before it shows)
-    }
-    w->setAttribute(Qt::WA_DontShowOnScreen, true);
-    return true;
+    return FrameOffscreen::Keep(w, main);
 }
 
 void FrameMirror::RefocusMain() {
@@ -483,24 +479,7 @@ bool FrameMirror::FilterVr(QObject* object, QEvent* event) {
 }
 
 void FrameMirror::ReleaseOffscreen() {
-    for (QWidget* w : QApplication::topLevelWidgets()) {
-        if (!w->testAttribute(Qt::WA_DontShowOnScreen) || !Transient(w)) {
-            continue;
-        }
-        w->setAttribute(Qt::WA_DontShowOnScreen, false);
-        if (w->isVisible()) {
-            // Open while VR ended: it never had an X window on the screen, and mapping one under
-            // a running exec() is not safe. Closing it (a dialog is rejected) is.
-            LOG_INFO(Frontend, "xr: closing {} (it was open when VR ended)",
-                     w->metaObject()->className());
-            QPointer<QWidget> window = w;
-            QTimer::singleShot(0, this, [window] {
-                if (window) {
-                    window->close();
-                }
-            });
-        }
-    }
+    FrameOffscreen::Release(main, this); // AzaharFrame stall: closed before it may map
     if (main) {
         main->raise();
         main->activateWindow();
@@ -508,6 +487,13 @@ void FrameMirror::ReleaseOffscreen() {
 }
 
 bool FrameMirror::eventFilter(QObject* object, QEvent* event) {
+    // AzaharFrame stall: a window kept off the screen that hid without the attribute (a message
+    // box) leaves Qt's modal list here, in VR and in flat (frame_offscreen.h).
+    if (event->type() == QEvent::Hide) {
+        if (auto* w = qobject_cast<QWidget*>(object); w && w != main && w->isWindow()) {
+            FrameOffscreen::DropStaleModal(w);
+        }
+    }
     if (vr_showing && FilterVr(object, event)) {
         return true;
     }

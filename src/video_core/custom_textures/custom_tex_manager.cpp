@@ -362,7 +362,16 @@ void CustomTexManager::DumpTexture(const SurfaceParams& params, u32 level, std::
 Material* CustomTexManager::GetMaterial(u64 data_hash) {
     const auto it = material_map.find(data_hash);
     if (it == material_map.end()) {
-        LOG_WARNING(Render, "Unable to find replacement for surface with hash {:016X}", data_hash);
+        // AzaharFrame stall: a count every 10 s at most, not a line per surface.
+        missing_count++;
+        const s64 now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+        if (missing_logged_at == 0 || now - missing_logged_at >= 10'000) {
+            LOG_INFO(Render, "No replacement for {} surface(s) so far (latest hash {:016X})",
+                     missing_count, data_hash);
+            missing_logged_at = now;
+        }
         return nullptr;
     }
     return it->second.get();

@@ -35,6 +35,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <map>
 #include <memory>
@@ -263,13 +264,16 @@ public:
     /// Fetches catalog/mods.json from the maintainer's repository. A catalog that does not parse
     /// leaves the current one. One request.
     bool RefreshCatalog(std::string* error = nullptr);
-    /// RefreshCatalog once per run (later calls do nothing).
-    void RefreshCatalogOnce();
+    /// RefreshCatalog once per run (later calls do nothing). True when this call replaced the
+    /// catalog (AzaharFrame stall: the list is made again only then).
+    bool RefreshCatalogOnce();
     /// AzaharFrame modcat: looks up the source's own date (a release's published_at, a repository
     /// file's last commit, a GameBanana mod's update) for the catalog mods of the title that have
     /// none yet this run, so ListAvailable can say "updated". Blocking, a request per source;
-    /// failures are ignored (the catalog's "updated" stays).
-    void RefreshDates(u64 title_id);
+    /// failures are ignored (the catalog's "updated" stays). AzaharFrame stall: no request starts
+    /// after `deadline` (those sources are asked on a later call); returns the sources asked.
+    std::size_t RefreshDates(u64 title_id, std::chrono::steady_clock::time_point deadline =
+                                               std::chrono::steady_clock::time_point::max());
 
     std::string ModsDir(u64 title_id) const;
     std::string LibraryDir(u64 title_id) const;

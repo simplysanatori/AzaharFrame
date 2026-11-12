@@ -308,6 +308,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_link_libraries(citra_qt PRIVATE frame_xr)
     # The Qt window mirrored as the VR home panel.
     target_sources(citra_qt PRIVATE frame_mirror.cpp frame_mirror.h)
+    # AzaharFrame stall: windows kept off the screen in VR, and the modal list they leave.
+    target_sources(citra_qt PRIVATE frame_offscreen.cpp frame_offscreen.h)
     # AzaharFrame flatdialog: dialogs in Flat sized for the theater screen.
     target_sources(citra_qt PRIVATE frame_flat_dialog.cpp frame_flat_dialog.h)
     # VR and flat in one run: the gamepad for flat, the mode file, the window in Game Mode.
@@ -348,6 +350,20 @@ if (NOT WIN32)
     else()
         target_include_directories(citra_qt PRIVATE ${Qt6Gui_PRIVATE_INCLUDE_DIRS})
     endif()
+endif()
+
+# AzaharFrame stall: the windows kept off the screen and Qt's modal list, on Qt's offscreen
+# platform (tests/frame_xr/offscreen_modal.cpp).
+if (ENABLE_FRAME_XR AND ENABLE_TESTS AND NOT WIN32)
+    add_executable(frame_qt_tests ../tests/frame_xr/offscreen_modal.cpp frame_offscreen.cpp
+                                  frame_offscreen.h)
+    target_link_libraries(frame_qt_tests PRIVATE citra_common catch2 Qt6::Widgets)
+    if (TARGET Qt6::GuiPrivate)
+        target_link_libraries(frame_qt_tests PRIVATE Qt6::GuiPrivate)
+    else()
+        target_include_directories(frame_qt_tests PRIVATE ${Qt6Gui_PRIVATE_INCLUDE_DIRS})
+    endif()
+    add_test(NAME frame_qt_tests COMMAND frame_qt_tests)
 endif()
 
 if (APPLE)

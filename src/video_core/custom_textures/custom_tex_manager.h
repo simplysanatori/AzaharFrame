@@ -89,6 +89,10 @@ private:
     Core::System& system;
     Frontend::ImageInterface& image_interface;
     std::unordered_set<u64> dumped_textures;
+    // AzaharFrame stall: surfaces the pack has no replacement for, logged as a count at most every
+    // 10 s (a line per surface was 147k lines in a 20-minute session, most of them each frame).
+    u64 missing_count = 0;
+    s64 missing_logged_at = 0; ///< steady clock, ms
     std::unordered_map<u64, std::unique_ptr<Material>> material_map;
     std::unordered_map<std::string, std::vector<u64>> path_to_hash_map;
     std::vector<std::unique_ptr<CustomTexture>> custom_textures;
