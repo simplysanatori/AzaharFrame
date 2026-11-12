@@ -268,6 +268,8 @@ PickerResult Picker::Update(const PickerInput& in) {
 // AzaharFrame emerald: the canvas's 40 and 28 px faces, as sizes of the menu's font.
 constexpr float kLargePx = 40.0f;
 constexpr float kSmallPx = 28.0f;
+// Button labels: a little larger than the titles, centred on the button (not the 40 px header).
+constexpr float kButtonPx = 30.0f;
 
 void Picker::Text(float x, float baseline, bool large, const std::string& s, const ui::Color& c,
                   int align) {
@@ -284,8 +286,9 @@ void Picker::DrawButton(const layout::Rect& r, const char* label, bool enabled, 
     if (enabled && hovered) {
         canvas.StrokeRoundRect(r.x0, r.y0, r.x1, r.y1, 16.0f, 4.0f, kAccent);
     }
-    Text((r.x0 + r.x1) * 0.5f, r.y0 + 44.0f, true, label,
-                enabled ? kText : ui::rgb(90, 98, 118), 1);
+    const float baseline = (r.y0 + r.y1) * 0.5f + font.CapHeight(kButtonPx) * 0.5f;
+    font.Draw(canvas, (r.x0 + r.x1) * 0.5f, baseline, kButtonPx,
+              enabled ? kText : ui::rgb(90, 98, 118), label, 1);
 }
 
 void Picker::DrawTile(int slot, int index, bool hovered) {
@@ -327,7 +330,10 @@ void Picker::Draw() {
     }
     const std::string count = scanning ? std::string("Scanning") : Plural(static_cast<int>(entries.size()));
     if (scanning || !entries.empty()) {
-        Text(RescanButton().x0 - 28.0f, 66.0f, false, count, kTextDim, 2);
+        // On the Rescan label's baseline.
+        const Rect b = RescanButton();
+        Text(b.x0 - 28.0f, (b.y0 + b.y1) * 0.5f + font.CapHeight(kButtonPx) * 0.5f, false, count,
+             kTextDim, 2);
     }
     DrawButton(RescanButton(), "Rescan", true, hover_hit.kind == HitKind::Rescan);
 
