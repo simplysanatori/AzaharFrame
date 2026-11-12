@@ -5,6 +5,7 @@ add_executable(tests
     frame_xr/screen_rig.cpp # AzaharFrame vrsize
     frame_xr/screen_view.cpp # AzaharFrame screenswap
     frame_xr/touchpad_touch.cpp # AzaharFrame touchpad
+    frame_xr/gamepads.cpp # AzaharFrame pads
     frame_xr/keyboard_layout.cpp # AzaharFrame
     frame_xr/presets.cpp # AzaharFrame vrqol
     ../frame_xr/presets.cpp # AzaharFrame vrqol
@@ -13,6 +14,7 @@ add_executable(tests
     ../frame_xr/input/screen_rig.cpp # AzaharFrame vrsize
     ../frame_xr/input/screen_view.cpp # AzaharFrame screenswap
     ../frame_xr/input/touchpad_touch.cpp # AzaharFrame touchpad
+    ../frame_xr/input/gamepads.cpp # AzaharFrame pads
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/immersive_layout.cpp # AzaharFrame

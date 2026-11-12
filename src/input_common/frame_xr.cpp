@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include "frame_xr/input/default_bindings.h"
 #include "input_common/frame_xr.h"
 
@@ -346,6 +347,46 @@ bool ProfileUsesFrameXr(const Settings::InputProfile& profile) {
         }
     }
     return false;
+}
+
+namespace {
+std::mutex routes_mutex; // AzaharFrame pads
+std::optional<ProfileRoutes> routes_set;
+} // namespace
+
+ProfileRoutes RoutesOf(const std::array<std::string, Settings::NativeButton::NumButtons>& buttons,
+                       const std::array<std::string, Settings::NativeAnalog::NumAnalogs>& analogs) {
+    ProfileRoutes routes;
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        const Common::ParamPackage param{buttons[i]};
+        const int c = param.Get("engine", "") == "frame_xr" ? param.Get("button", -1) : -1;
+        routes.buttons[i] = static_cast<std::int8_t>(c >= 0 && c < kNumControls ? c : -1);
+    }
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        const Common::ParamPackage param{analogs[i]};
+        const int a = param.Get("engine", "") == "frame_xr" ? param.Get("analog", -1) : -1;
+        routes.analogs[i] = static_cast<std::int8_t>(a >= 0 && a < kNumAnalogControls ? a : -1);
+    }
+    return routes;
+}
+
+void SetProfileRoutes(const ProfileRoutes& routes) {
+    std::lock_guard lock{routes_mutex};
+    routes_set = routes;
+}
+
+ProfileRoutes GetProfileRoutes() {
+    {
+        std::lock_guard lock{routes_mutex};
+        if (routes_set) {
+            return *routes_set;
+        }
+    }
+    static const ProfileRoutes defaults = [] {
+        const DefaultProfile profile = GetDefaultProfile();
+        return RoutesOf(profile.buttons, profile.analogs);
+    }();
+    return defaults;
 }
 
 std::string ButtonToText(const Common::ParamPackage& param) {

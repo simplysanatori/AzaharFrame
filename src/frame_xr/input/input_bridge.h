@@ -19,8 +19,11 @@ public:
     explicit InputBridge(const MapperConfig& config = {});
 
     /// One display frame. `panels` is where the screens are now. The returned reference is valid
-    /// until the next call.
-    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels);
+    /// until the next call. AzaharFrame pads: with `gamepads` (VR, a game running, the menu
+    /// closed: the controllers' raw input of this frame) the other gamepads join the Frame's
+    /// virtual pad (frame_xr/input/devices.h).
+    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels,
+                                const InputFrame* gamepads = nullptr);
 
     /// Releases every button, centres the sticks and lifts a touch in progress. Call when the
     /// game ends, the session loses focus, or the picker takes over.

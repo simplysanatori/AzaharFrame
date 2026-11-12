@@ -17,6 +17,7 @@
 #include "common/vector_math.h"
 #include "core/frontend/input.h"
 #include "frame_xr/input/controls.h"
+#include "frame_xr/input/profile_routes.h" // AzaharFrame pads
 #include "input_common/main.h"
 
 // AzaharFrame
@@ -134,6 +135,19 @@ bool UseFrameMotionDevice(Settings::InputProfile& profile);
 /// True when the profile already binds frame_xr to at least one button (a user profile saved
 /// earlier), so VR start-up can leave their bindings alone.
 bool ProfileUsesFrameXr(const Settings::InputProfile& profile);
+
+/// AzaharFrame pads: which Frame control (Input::Control, -1 none) drives each 3DS button and
+/// which stick (Input::AnalogControl, -1 none) each 3DS analog, in the controls profile in use:
+/// the bindings of the "frame_xr" engine. A gamepad's 3DS buttons reach the game through them
+/// (frame_xr/input/gamepads.h), so it drives every 3DS button the Frame controllers drive.
+using ::FrameXr::Input::ProfileRoutes;
+/// The routes of a profile's button and analog strings.
+ProfileRoutes RoutesOf(const std::array<std::string, Settings::NativeButton::NumButtons>& buttons,
+                       const std::array<std::string, Settings::NativeAnalog::NumAnalogs>& analogs);
+/// Called by the Qt side whenever the profile in use changes (any thread).
+void SetProfileRoutes(const ProfileRoutes& routes);
+/// The routes last set; the default profile's until then. Any thread.
+ProfileRoutes GetProfileRoutes();
 
 /// Display text for the Controls dialog (used by InputCommon::ButtonToText / AnalogToText).
 std::string ButtonToText(const Common::ParamPackage& param);

@@ -355,6 +355,10 @@ void FrameXrPushControls() {
     FrameXr::SetControlBindings(
         std::vector<std::string>(profile.buttons.begin(), profile.buttons.end()),
         std::vector<std::string>(profile.analogs.begin(), profile.analogs.end()), profile.name);
+    // AzaharFrame pads: the Frame controls the profile binds to each 3DS button, which the other
+    // gamepads press in VR.
+    InputCommon::FrameXr::SetProfileRoutes(
+        InputCommon::FrameXr::RoutesOf(profile.buttons, profile.analogs));
 }
 
 Frontend::WindowSystemType FrameXrWindowSystemType() {

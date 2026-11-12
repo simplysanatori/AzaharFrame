@@ -1118,7 +1118,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         game_in.head_active = view.valid;
         game_in.head = ToInput(view.head);
     }
-    const Input::MapperOutput& out = bridge.Process(game_in, panels);
+    // AzaharFrame pads: the other gamepads play too (the raw `in` tells Steam's echo of the Frame).
+    const Input::MapperOutput& out = bridge.Process(game_in, panels, &in);
     bridge_live = true;
 
     const auto& cmd = out.commands;
