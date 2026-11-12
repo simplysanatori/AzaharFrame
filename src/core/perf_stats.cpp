@@ -107,6 +107,11 @@ void PerfStats::EndSystemFrame() {
 
     auto frame_end = Clock::now();
     const auto frame_time = frame_end - frame_begin;
+    Common::StallTelemetry::Get().emu_frame_end_steady_us.store( // AzaharFrame stall
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count(),
+        std::memory_order_relaxed);
     if (current_index < perf_history.size()) {
         perf_history[current_index++] =
             std::chrono::duration<double, std::milli>(frame_time).count();

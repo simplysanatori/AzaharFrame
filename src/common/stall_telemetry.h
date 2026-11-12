@@ -67,11 +67,26 @@ struct StallTelemetry {
     std::atomic<std::uint64_t> device_alloc_max_us{0};
     std::atomic<std::uint64_t> device_alloc_max_bytes{0};
 
+    // AzaharFrame stall: shaders and pipelines built while a game runs (Vulkan: the shader and
+    // pipeline workers), queued and finished, cumulative; the difference is the backlog. And the
+    // steady-clock time (us) the last emulated frame ended, so a reader can tell the game stands.
+    std::atomic<std::uint64_t> shader_builds_queued{0};
+    std::atomic<std::uint64_t> shader_builds_done{0};
+    std::atomic<std::int64_t> emu_frame_end_steady_us{0};
+
     static StallTelemetry& Get() {
         static StallTelemetry instance;
         return instance;
     }
 };
+
+/// AzaharFrame stall: a shader or pipeline build queued at run time, and one finished.
+inline void NoteShaderBuildQueued() {
+    StallTelemetry::Get().shader_builds_queued.fetch_add(1, std::memory_order_relaxed);
+}
+inline void NoteShaderBuildDone() {
+    StallTelemetry::Get().shader_builds_done.fetch_add(1, std::memory_order_relaxed);
+}
 
 inline void UpdateMax(std::atomic<std::uint64_t>& target, std::uint64_t value) {
     std::uint64_t current = target.load(std::memory_order_relaxed);

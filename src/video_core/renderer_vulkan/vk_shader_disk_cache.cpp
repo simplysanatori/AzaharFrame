@@ -3,6 +3,7 @@
 // Refer to the LICENSE.txt file included.
 
 #include "common/common_paths.h"
+#include "common/stall_telemetry.h" // AzaharFrame stall
 #include "common/file_util.h"
 #include "common/scm_rev.h"
 #include "common/settings.h"
@@ -123,12 +124,14 @@ std::optional<std::pair<u64, Shader* const>> ShaderDiskCache::UseProgrammableVer
 
             shader.program = std::move(program);
             const vk::Device device = parent.instance.GetDevice();
+            Common::NoteShaderBuildQueued(); // AzaharFrame stall
             parent.shader_workers.QueueWork([device, &shader, this, spirv_id] {
                 auto spirv = CompileGLSL(shader.program, vk::ShaderStageFlagBits::eVertex);
                 AppendVSSPIRV(vs_cache, spirv, spirv_id);
                 shader.program.clear();
                 shader.module = CompileSPV(spirv, device);
                 shader.MarkDone();
+                Common::NoteShaderBuildDone();
             });
         }
 
@@ -157,6 +160,7 @@ std::optional<std::pair<u64, Shader* const>> ShaderDiskCache::UseFragmentShader(
     if (new_shader) {
         LOG_NEW_OBJECT(Render_Vulkan, "New FS config {:016X}", fs_config_hash);
 
+        Common::NoteShaderBuildQueued(); // AzaharFrame stall
         parent.shader_workers.QueueWork([fs_config, user, this, &shader, fs_config_hash]() {
             std::vector<u32> spirv;
             const bool use_spirv = parent.profile.vk_use_spirv_generator;
@@ -170,6 +174,7 @@ std::optional<std::pair<u64, Shader* const>> ShaderDiskCache::UseFragmentShader(
                 shader.module = CompileSPV(spirv, parent.instance.GetDevice());
             }
             shader.MarkDone();
+            Common::NoteShaderBuildDone();
 
             if (user.IsCacheable()) {
                 // Only cache to disk if the user config is cacheable
@@ -212,6 +217,7 @@ std::optional<std::pair<u64, Shader* const>> ShaderDiskCache::UseFixedGeometrySh
         if (new_shader) {
             LOG_NEW_OBJECT(Render_Vulkan, "New GS config {:016X}", gs_config_hash);
 
+            Common::NoteShaderBuildQueued(); // AzaharFrame stall
             parent.shader_workers.QueueWork([gs_config, this, &shader, gs_config_hash]() {
                 ExtraFixedGSConfig extra;
                 extra.use_clip_planes = parent.profile.has_clip_planes;
@@ -221,6 +227,7 @@ std::optional<std::pair<u64, Shader* const>> ShaderDiskCache::UseFixedGeometrySh
                 const auto spirv = CompileGLSL(code, vk::ShaderStageFlagBits::eGeometry);
                 shader.module = CompileSPV(spirv, parent.instance.GetDevice());
                 shader.MarkDone();
+                Common::NoteShaderBuildDone();
 
                 AppendGSSPIRV(gs_cache, spirv, gs_config_hash);
                 GSConfigEntry entry{
