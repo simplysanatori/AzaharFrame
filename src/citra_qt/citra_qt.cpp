@@ -6999,8 +6999,14 @@ bool GMainWindow::ShowExceptionDialog(Core::System::ResultStatus result,
 
 void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string details) {
     QString status_message;
+    // AzaharFrame integ3: a save state that could not be saved or loaded (the game goes on, below)
+    // is not a core error: the run can still end cleanly, and its quit still autosaves
+    const bool state_kept_running = result == Core::System::ResultStatus::ErrorSavestate ||
+                                    result == Core::System::ResultStatus::ErrorSavestateBuildMismatch;
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: the stop that follows is not a clean run
-    FrameCrashGuard::Get().CoreError();
+    if (!state_kept_running) {
+        FrameCrashGuard::Get().CoreError();
+    }
     // AzaharFrame crashreport: if this run then ends badly, the report says the game failed
     if (result == Core::System::ResultStatus::ErrorCoreExceptionRaised) {
         Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::ArmException, details);
@@ -7009,7 +7015,9 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
     }
 #endif
     // AzaharFrame autosave: the stop that follows is no clean one
-    frame_autosave_quit_blocked = true;
+    if (!state_kept_running) {
+        frame_autosave_quit_blocked = true;
+    }
 
     // Handle exception dialogs separately
     if (result == Core::System::ResultStatus::ErrorCoreExceptionRaised) {
