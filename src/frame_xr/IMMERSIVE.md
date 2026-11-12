@@ -362,6 +362,16 @@ for a game whose properties have no value of their own.
 | Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes, 30 to 55 measured in play (the owner's headset log; the real camera stays at 55), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera; Match Game Camera off in its preset |
 | Asphalt 3D | 3, view 8 | not measured | | 1x | CitraVR's notes only |
 
+AzaharFrame presets: the table above is what was measured. The values the presets ship are the
+owner's own tuned per-game settings of 2026-11-12 (`frame_xr/presets.cpp`; each applies only
+where a game has no value of its own and the global one is still the default): Mario Kart 7 FOV
+40, Wider View 1.3x, Narrow Screen 30 % and Height 15 %, Internal Resolution 3x, ScaleForce, the
+screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
+4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view) view
+register 90, eye 87,2, 4x, Bicubic, Narrow Height 15 %, screen 15.19 degrees below the middle,
+1.22 m, size 0.8; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
+Game Camera off, Narrow Screen 1 %, 3D Depth 30, screen 9.21 degrees below the middle, 3 m.
+
 ### The immersive screen per game
 
 AzaharFrame immersive2, on the Frame (its view from the headset log), at the defaults and presets
