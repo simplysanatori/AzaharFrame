@@ -529,7 +529,11 @@ void QtConfig::ReadVrValues() {
         const QString key = QString::fromStdString(level.GetLabel());
         if (!qt_config->contains(key) && !qt_config->contains(key + QStringLiteral("/use_global"))) {
             if (global) {
-                level.SetValue(old_switch.GetValue(true) ? 4 : 0);
+                // AzaharFrame immersive2: a switch never set keeps the new default (1.4x).
+                const QString old_key = QString::fromStdString(old_switch.GetLabel());
+                if (!qt_config->value(old_key + QStringLiteral("/default"), true).toBool()) {
+                    level.SetValue(old_switch.GetValue(true) ? 4 : 0);
+                }
             } else if (!old_switch.UsingGlobal()) {
                 u32 converted = 0;
                 if (old_switch.GetValue()) {
@@ -555,6 +559,7 @@ void QtConfig::ReadVrValues() {
         }
     }
     ReadGlobalSetting(Settings::values.vr_immersive_squeeze);
+    ReadGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
@@ -1209,6 +1214,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_match_camera); // AzaharFrame depth
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze);
+    WriteGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);

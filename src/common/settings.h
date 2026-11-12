@@ -740,13 +740,19 @@ struct Values {
     // AzaharFrame widerview: what replaces that switch: the periphery factor of the Full modes,
     // 0 = Off (1.0x), 1 to 4 = 1.1x to 1.4x (frame_xr/immersive_layout.h). A config that has only
     // the old switch is converted when read (QtConfig::ReadVrValues). Grip + D-pad up or down on
-    // the immersive screen sets it for the game on view. Read every frame.
-    SwitchableSetting<u32, true> vr_immersive_wider_view_level{0, 0, 4,
+    // the immersive screen sets it for the game on view. Read every frame. AzaharFrame
+    // immersive2: 1.4x by default (the owner's Majora's Mask 3D settings).
+    SwitchableSetting<u32, true> vr_immersive_wider_view_level{4, 0, 4,
                                                                "vr_immersive_wider_view_level"};
-    // AzaharFrame: Full (6DoF) only. Squeeze Width: 0 = off, 1 = 10 %, 2 = 20 %, 3 = 30 % narrower
-    // immersive screen at the same height, so the HUD at the sides moves in
-    // (frame_xr/immersive_layout.h). Read when a game starts.
-    SwitchableSetting<u32, true> vr_immersive_squeeze{0, 0, 3, "vr_immersive_squeeze"};
+    // AzaharFrame: Full (6DoF) only. Narrow Screen: the immersive screen this many percent
+    // narrower at the same height, so the HUD at the sides moves in (frame_xr/immersive_layout.h).
+    // AzaharFrame immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame;
+    // 1, 2 and 3 are the 10 % steps of earlier builds (Layout::NarrowPercent). Both grips + D-pad
+    // left or right set it for the game on view.
+    SwitchableSetting<u32, true> vr_immersive_squeeze{10, 0, 30, "vr_immersive_squeeze"};
+    // AzaharFrame immersive2: Narrow Height, the same up and down (percent, 0 to 30, read every
+    // frame). Both grips + D-pad up or down set it for the game on view.
+    SwitchableSetting<u32, true> vr_immersive_squeeze_y{0, 0, 30, "vr_immersive_squeeze_y"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).

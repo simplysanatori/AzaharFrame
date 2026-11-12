@@ -119,8 +119,36 @@ float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float marg
     return lo;
 }
 
+uint32_t NarrowPercent(uint32_t setting) {
+    // AzaharFrame immersive2: percent on the 5 % grid. 1 to 3 are the 10 % steps of the builds
+    // before 1.2.0; the grid never holds them, so they cannot be mistaken for a percentage.
+    if (setting >= 1 && setting <= 3) {
+        return setting * 10;
+    }
+    const uint32_t clamped = std::min(setting, kMaxNarrowPercent);
+    return (clamped + kNarrowStepPercent / 2) / kNarrowStepPercent * kNarrowStepPercent;
+}
+
 float SqueezeFor(uint32_t setting) {
-    return setting < std::size(kSqueezeSteps) ? kSqueezeSteps[setting] : 0.0f;
+    return static_cast<float>(NarrowPercent(setting)) / 100.0f;
+}
+
+uint32_t SteppedNarrow(uint32_t setting, int steps) {
+    const int now = static_cast<int>(NarrowPercent(setting));
+    const int next = now + steps * static_cast<int>(kNarrowStepPercent);
+    return static_cast<uint32_t>(std::clamp(next, 0, static_cast<int>(kMaxNarrowPercent)));
+}
+
+std::string NarrowToast(uint32_t percent, bool height) {
+    const char* what = height ? "Narrow Height" : "Narrow Screen";
+    percent = NarrowPercent(percent);
+    char buf[40];
+    if (percent == 0) {
+        std::snprintf(buf, sizeof(buf), "%s: Off", what);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%s: %u%%", what, percent);
+    }
+    return buf;
 }
 
 namespace {
@@ -201,13 +229,6 @@ std::string WiderToast(uint32_t level) {
     return buf;
 }
 
-float SizeForWider(float size, float from, float to) {
-    if (!(from > 0.0f) || !(to > 0.0f) || !std::isfinite(size)) {
-        return std::clamp(std::isfinite(size) ? size : 1.0f, kMinSize, kMaxSize);
-    }
-    return std::clamp(size * to / from, kMinSize, kMaxSize);
-}
-
 uint32_t LevelForOldWiderView(std::optional<float> size) {
     if (!size || !std::isfinite(*size)) {
         return kMaxWiderLevel;
@@ -251,48 +272,48 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const ViewFov& view, float eye_shift, const Options& options,
                            const LensOffset& offset_in) {
     const Placement p = Clamped(placement);
-    const float squeeze = std::clamp(options.squeeze, 0.0f, 0.5f);
+    const float squeeze =
+        std::isfinite(options.squeeze) ? std::clamp(options.squeeze, 0.0f, 0.5f) : 0.0f;
+    const float squeeze_y =
+        std::isfinite(options.squeeze_y) ? std::clamp(options.squeeze_y, 0.0f, 0.5f) : 0.0f;
     HeadLocked s;
-    s.aspect = aspect * (1.0f - squeeze);
     s.distance = p.distance;
     s.pitch_rad = PlacementPitch(p, view);
-    // The game draws its own frame times the Wider View factor across, whatever the size: a
-    // bigger screen magnifies it (gain below 1). A Wider View step scales the size with the
-    // factor (SizeForWider). Up and down it draws as much more as the screen's shape needs
-    // (factor_y below).
+    // The game draws its own frame times the Wider View factor across. Up and down it draws as
+    // much more as the screen's shape needs (factor_y below).
     s.factor = std::isfinite(options.wider) ? std::clamp(options.wider, kFactorMin, kFactorMax)
                                             : kFactorMin;
-    // AzaharFrame immersive: the screen is sized with the settled camera (`game_fov_y_deg`):
-    // filling the view both ways, no bigger than a gain of kMinGain allows.
+    // AzaharFrame immersive2: the screen is sized with the settled camera (`game_fov_y_deg`) at
+    // the world's own scale: as wide as the game draws (gain 1).
     const float t = GameTan(game_fov_y_deg);
     const float a = std::isfinite(aspect) && aspect > 0.1f ? aspect : 5.0f / 3.0f;
-    // Fitted at the middle of the view, so moving the screen up or down never resizes it.
+    // What fills the view, fitted at its middle, so moving the screen up or down never resizes it.
     const Cover cover = DefaultCover(view, ViewMiddlePitch(view), eye_shift);
-    float qx = cover.tan_x, qy = cover.tan_y;
-    // Never shorter than the picture's own shape (the game would be cut off at the top and
-    // bottom), and the game draws at most kMaxFactorY times its own height.
+    float qx = s.factor * a * t;
+    // The view's shape (the Frame's is taller than 5:3), never shorter than the picture's own
+    // (the game would be cut off at the top and bottom); the game draws at most kMaxFactorY times
+    // its own height.
+    float qy = qx * cover.tan_y / cover.tan_x;
     qy = std::clamp(qy, qx / a, kMaxFactorY * qx / (s.factor * a));
-    // The gain across is factor x the game's half width over the screen's (tangents).
-    const float cap = s.factor * a * t / kMinGain;
-    if (qx > cap) {
-        qy *= cap / qx;
-        qx = cap;
-    }
-    qx *= p.size;
-    qy *= p.size;
+    // Never bigger than filling the view (a very wide game camera): smaller, gain above 1.
+    const float fit = std::min({1.0f, cover.tan_x / qx, cover.tan_y / qy});
+    qx *= fit * p.size;
+    qy *= fit * p.size;
     // The game draws factor_y times its own height into the screen's height, so the picture
     // has the same scale both ways: factor x a / qx = factor_y / qy.
     s.factor_y = s.factor * a * qy / qx;
-    s.tan_half_y = qy;
-    s.aspect = qx / qy * (1.0f - squeeze);
+    // Narrow Screen and Narrow Height: the quad is that much narrower (lower) than the picture.
+    s.tan_half_y = qy * (1.0f - squeeze_y);
+    s.aspect = qx * (1.0f - squeeze) / s.tan_half_y;
     // The gain follows the camera right now (a zoom): the game's half height (tan) at that
-    // factor over the screen's, 1 = the same angle. The screen keeps its size when the gain hits
-    // a limit (the world then drifts a little).
+    // factor over the screen's, 1 = the same angle; each axis over its own narrowing. The screen
+    // keeps its size when a gain hits a limit (the world then drifts a little).
     const float live = std::isfinite(options.live_fov_y_deg) && options.live_fov_y_deg > 0.0f
                            ? GameTan(options.live_fov_y_deg)
                            : t;
-    s.gain = std::clamp(s.factor_y * live / qy, kMinGain, kMaxGain);
-    s.gain_x = std::clamp(s.gain / (1.0f - squeeze), kMinGain, kMaxGain);
+    const float base = s.factor_y * live / qy;
+    s.gain = std::clamp(base / (1.0f - squeeze_y), kMinGain, kMaxGain);
+    s.gain_x = std::clamp(base / (1.0f - squeeze), kMinGain, kMaxGain);
     // The Immersive Offset last: it turns the screen fitted above, never resizes it.
     const LensOffset offset = ClampedOffset(offset_in);
     s.pitch_rad += offset.up_deg * kDegToRad;
@@ -496,14 +517,17 @@ void Store::Parse(const std::string& text) {
         if (!(words >> id >> kind >> p.pitch_deg >> p.distance >> p.size)) {
             continue;
         }
-        if (id.size() != 16 || id.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos ||
-            (kind != "screen" && kind != "view" && kind != "head" && kind != "wide")) {
+        if (id.size() != 16 ||
+            id.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos ||
+            (kind != "world" && kind != "screen" && kind != "view" && kind != "head" &&
+             kind != "wide")) {
             continue;
         }
         const uint64_t title = std::strtoull(id.c_str(), nullptr, 16);
         // AzaharFrame immersive: "view" (1.2.0 test builds) and "head" (1.0, 1.1) sizes were
-        // relative to smaller defaults.
-        const bool old_size = kind == "head" || kind == "view";
+        // relative to smaller defaults; AzaharFrame immersive2: "screen" (1.2.0 test builds) to
+        // the view-filling one.
+        const bool old_size = kind == "head" || kind == "view" || kind == "screen";
         const std::string key = Key(title, kind == "wide");
         // A line of this build wins over an old one for the same game, whatever the order.
         if (const auto it = entries_.find(key);
@@ -517,14 +541,14 @@ void Store::Parse(const std::string& text) {
 
 std::string Store::Format() const {
     std::string out = "# Azahar for Frame: immersive screen placement per game\n"
-                      "# title id, screen (modes 2 and 3) or wide (mode 1), pitch in degrees, "
+                      "# title id, world (modes 2 and 3) or wide (mode 1), pitch in degrees, "
                       "distance in metres, size\n";
     for (const auto& [key, e] : entries_) {
         std::string line = key;
         if (line.size() > 5 && line.compare(line.size() - 5, 5, " head") == 0) {
             // An old line not yet replaced keeps its kind ("view" for both: its size is not
             // used, so the older kind no longer matters).
-            line.replace(line.size() - 4, 4, e.old_size ? "view" : "screen");
+            line.replace(line.size() - 4, 4, e.old_size ? "view" : "world");
         }
         char buf[96];
         std::snprintf(buf, sizeof(buf), "%s %.2f %.3f %.3f\n", line.c_str(),

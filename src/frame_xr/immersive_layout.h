@@ -20,25 +20,30 @@
 //     little against the head. The game's own view never widens with the size, only with the
 //     periphery factors: past them a game's scenery can run out (black below the floor of a
 //     Super Mario 3D Land level).
-//   - Wider View (per game, Off by default; AzaharFrame widerview): the game's periphery factor
-//     across (CitraVR's 1.4 at most, `gl_Position.y /= factor`) is the level the player chose, 1.0x to
-//     1.4x, whatever the size. A step on the D-pad also scales the size by the same ratio
-//     (SizeForWider), so the picture keeps its scale and gain and only shows more or less around
-//     it; at the size limit the factor still changes (and the gain with it).
-//   - Narrow Screen (per game, off by default): the quad is narrower than the game's picture
-//     by 10, 20 or 30 %, at the same height, and the yaw gain is the pitch gain / (1 - squeeze), so
-//     the HUD at the sides moves in while the middle stays locked. The world looks that much
-//     thinner.
+//   - Wider View (per game, 1.4x by default; AzaharFrame widerview): the game's periphery factor
+//     across (CitraVR's 1.4 at most, `gl_Position.y /= factor`) is the level the player chose, 1.0x
+//     to 1.4x. The default size grows with the factor, so a step keeps the picture's scale and gain
+//     and only shows more or less around it (AzaharFrame immersive2).
+//   - Narrow Screen (per game, 10 % by default, live; AzaharFrame immersive2): the quad is
+//     narrower than the game's picture by 0 to 30 % (5 % steps) at the same height, and the yaw
+//     gain is the base gain / (1 - narrow), so the HUD at the sides moves in while the middle
+//     stays locked. The world looks that much thinner. Narrow Height does the same up and down
+//     (the pitch gain / (1 - narrow height)): the world looks that much flatter.
 //
-// AzaharFrame immersive: the default size fills the view, across and up and down. Its edges are
-// kFillMarginDeg past the farthest either eye sees (the runtime's per-eye FOV, ViewFov::outer_*),
-// so no edge of the screen shows from any angle the eyes turn to. The screen takes the view's
-// shape, not the picture's: the Frame's view is taller than 5:3, so the game draws further up and
-// down than across (`factor_y` over `factor`, `gl_Position.x` and `.y` divided separately), and
-// the picture is not stretched (the gain is the same both ways). The picture is magnified to do
-// that (gain below 1), except where the game's own frame is already that big; it stops at the
-// size where the gain would go under kMinGain (a narrow telephoto camera). A zoom of the game
-// camera does not resize it: only the gain follows the live angle (CameraFilter).
+// AzaharFrame immersive2: the default size is the world at its own scale (gain 1): the screen is
+// as many degrees across as the game draws (its camera times the Wider View factor), so nothing is
+// magnified and a head turn moves the picture exactly with the head everywhere on it. The owner's
+// headset test of the view-filling default (gain 0.4 to 0.6) found it far too close, and Mario
+// Kart 7 stretched: a perspective picture magnified 2x is only right at its middle; 35 degrees to
+// the side it is drawn 1.4 to 1.6 times taller than wide. Majora's Mask 3D with the owner's own
+// settings (gain 1.03, Wider View 1.4x, Narrow Screen 10 %, 3 m) was "perfect", so that is the
+// default. The screen takes the view's shape, not the picture's: the Frame's view is taller than
+// 5:3, so the game draws further up and down than across (`factor_y` over `factor`,
+// `gl_Position.x` and `.y` divided separately), at the same scale both ways (not stretched).
+// It is never bigger than
+// filling what either eye sees (kFillMarginDeg past it, DefaultCover): a very wide game camera is
+// shrunk to that (gain above 1). A zoom of the game camera does not resize it: only the gain
+// follows the live angle (CameraFilter).
 
 #pragma once
 
@@ -56,7 +61,10 @@ namespace FrameXr::Immersive::Layout {
 inline constexpr float kFactorMax = 1.4f; ///< CitraVR's periphery factor for modes 2 and 3
 inline constexpr float kFactorMin = 1.0f; ///< the game's own frame, no periphery
 inline constexpr float kWideFactor = 3.0f; ///< mode 1
-inline constexpr float kDefaultDistance = 0.75f; ///< metres (CitraVR 0.5)
+inline constexpr float kDefaultDistance = 0.75f; ///< metres (CitraVR 0.5); mode 1
+/// AzaharFrame immersive2: modes 2 and 3 (the owner's Majora's Mask 3D: 3 m; in mode 2 it is only
+/// the flat picture's stereo depth, in mode 3 nothing visible changes).
+inline constexpr float kDefaultHeadDistance = 3.0f;
 inline constexpr float kMinDistance = 0.3f;
 inline constexpr float kMaxDistance = 3.0f;
 /// The screen's centre this far above the middle of the view (negative = down), degrees. 0: the
@@ -64,7 +72,7 @@ inline constexpr float kMaxDistance = 3.0f;
 inline constexpr float kDefaultPitchDeg = 0.0f;
 inline constexpr float kMinPitchDeg = -40.0f;
 inline constexpr float kMaxPitchDeg = 25.0f;
-/// Size, times the default (fitted) size.
+/// Size, times the default size (the world at its own scale, AzaharFrame immersive2).
 inline constexpr float kMinSize = 0.6f;
 inline constexpr float kMaxSize = 2.5f;
 /// AzaharFrame immersive: the default screen's edges this far past the farthest either eye sees,
@@ -79,10 +87,12 @@ inline constexpr float kMaxFactorY = 2.0f;
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
 inline constexpr float kMinGain = 0.4f;
 inline constexpr float kMaxGain = 2.0f;
-/// Narrow Screen (vr_immersive_squeeze 0 to 3): the screen this much narrower than the picture.
-/// At 30 % the yaw gain (gain / 0.7) reaches kMaxGain from a pitch gain of 1.4 up; past that the
-/// world drifts a little sideways with the head.
-inline constexpr float kSqueezeSteps[] = {0.0f, 0.10f, 0.20f, 0.30f};
+/// Narrow Screen and Narrow Height (vr_immersive_squeeze, vr_immersive_squeeze_y): the screen
+/// this many percent narrower (lower) than the picture, in kNarrowStepPercent steps up to
+/// kMaxNarrowPercent. At 30 % the gain of that axis (gain / 0.7) reaches kMaxGain from a base gain
+/// of 1.4 up; past that the world drifts a little with the head on that axis.
+inline constexpr uint32_t kNarrowStepPercent = 5;
+inline constexpr uint32_t kMaxNarrowPercent = 30;
 /// Kept clear inside the view on every side when fitting, degrees.
 inline constexpr float kFitMarginDeg = 2.5f;
 /// The view assumed before the runtime reports one, half angles in degrees.
@@ -150,7 +160,7 @@ ViewFov BothEyes(const EyeFov& left, const EyeFov& right);
 /// What the player chose (saved per game). Defaults: kDefault*.
 struct Placement {
     float pitch_deg = kDefaultPitchDeg; ///< relative to the middle of the view
-    float distance = kDefaultDistance;
+    float distance = kDefaultHeadDistance; ///< mode 1 uses kDefaultDistance (immersive.cpp)
     float size = 1.0f; ///< times the default size
     bool operator==(const Placement&) const = default;
 };
@@ -160,13 +170,21 @@ Placement Clamped(Placement p);
 struct Options {
     float wider = kFactorMin; ///< Wider View: the periphery factor (kFactorMin to kFactorMax)
     float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.3)
+    float squeeze_y = 0.0f;  ///< AzaharFrame immersive2: and this much lower (0 to 0.3)
     /// AzaharFrame immersive: the game camera's vertical angle right now (Match Game Camera: a
     /// zoom), degrees; 0 = the angle the screen is sized with. Only the gain follows it.
     float live_fov_y_deg = 0.0f;
 };
 
-/// Narrow Screen's setting (0 to 3) as a fraction; other values are 0.
+/// AzaharFrame immersive2: Narrow Screen's or Narrow Height's setting in percent (0 to 30, on the
+/// 5 % grid). 1, 2 and 3 are the steps of builds before 1.2.0 (10, 20, 30 %), never written now.
+uint32_t NarrowPercent(uint32_t setting);
+/// The setting as a fraction (NarrowPercent / 100).
 float SqueezeFor(uint32_t setting);
+/// The setting after `steps` presses (positive = narrower), clamped to 0 to kMaxNarrowPercent.
+uint32_t SteppedNarrow(uint32_t setting, int steps);
+/// "Narrow Screen: 15%", "Narrow Screen: Off"; `height`: "Narrow Height: 5%".
+std::string NarrowToast(uint32_t percent, bool height);
 
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
@@ -176,12 +194,13 @@ struct HeadLocked {
     /// than the picture's shape.
     float factor_y = kFactorMax;
     float tan_half_y = 0.0f;   ///< the quad's half height over its distance
-    float aspect = 5.0f / 3.0f; ///< the quad's width over its height (the picture's x (1 - squeeze))
+    float aspect = 5.0f / 3.0f; ///< the quad's width over its height (with both narrowings)
     float pitch_rad = 0.0f; ///< the quad and the game camera turn by this about the eye
     float distance = kDefaultDistance;
-    /// The head's pitch x gain is given to the game. 1 when the quad has the game's angle.
+    /// The head's pitch x gain is given to the game. 1 when the quad has the game's angle:
+    /// the base gain / (1 - squeeze_y).
     float gain = 1.0f;
-    /// The head's yaw x gain_x is given to the game: gain / (1 - squeeze).
+    /// The head's yaw x gain_x is given to the game: the base gain / (1 - squeeze).
     float gain_x = 1.0f;
     /// The Immersive Offset's yaw (positive = left, about +Y). Its pitch is in pitch_rad; the
     /// size is fitted without either.
@@ -203,8 +222,8 @@ float ViewMiddlePitch(const ViewFov& view);
 float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float margin_rad,
                   float eye_shift = 0.0f);
 
-/// AzaharFrame immersive: the default screen (size 1), filling the view: half its width and
-/// height over its distance.
+/// AzaharFrame immersive: the screen that fills the view (the largest default): half its width
+/// and height over its distance.
 struct Cover {
     float tan_x = 1.0f;
     float tan_y = 1.0f;
@@ -221,9 +240,6 @@ inline constexpr uint32_t kMaxWiderLevel = 4;
 float WiderFactor(uint32_t level);
 /// "Wider View: Off", "Wider View: 1.2x".
 std::string WiderToast(uint32_t level);
-/// The size that keeps the picture's scale (and the gain) when the factor goes from `from` to
-/// `to`: the screen grows with the view the game draws. Clamped to the size limits.
-float SizeForWider(float size, float from, float to);
 /// The level for a game that had the old Wider View switch on, which let the factor follow the
 /// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.
 uint32_t LevelForOldWiderView(std::optional<float> size);
@@ -316,7 +332,9 @@ CameraShape CameraInUse(bool match_camera, float measured_fov_deg, float measure
                         float setting_fov_deg, float setting_aspect);
 
 /// `aspect` is the game picture's width over its height (the Screen Shape), `game_fov_y_deg`
-/// the camera angle the screen is sized with (options.live_fov_y_deg the one right now).
+/// the camera angle the screen is sized with (options.live_fov_y_deg the one right now). At size
+/// 1 the screen is as wide as the game draws (gain 1), in the view's shape, never bigger than
+/// filling the view.
 /// `offset` turns the solved screen (yaw_rad, and pitch_rad on top of the placement's pitch);
 /// the size is fitted for the placement alone, so nudging never resizes the screen.
 HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, float aspect,
@@ -422,10 +440,11 @@ float AimElevation(const Input::Posef& head, const Input::Posef& aim, float radi
 // ---- The per-game file ----
 
 /// Lines "<title id, 16 hex digits> <kind> <pitch degrees> <distance m> <size>"; '#' starts a
-/// comment. Kinds: "screen" (modes 2 and 3), "wide" (mode 1), and "view" and "head" (modes 2
-/// and 3, saved by earlier builds: their sizes are relative to the earlier, smaller defaults, so
-/// OldSize() and the game's default size is used; the pitch and distance are kept). Unknown or
-/// broken lines are kept out (and dropped when saving).
+/// comment. Kinds: "world" (modes 2 and 3; AzaharFrame immersive2: sizes against the true-scale
+/// default), "wide" (mode 1), and "screen", "view" and "head" (modes 2 and 3, saved by earlier
+/// builds: their sizes are relative to other defaults (the view-filling one of the 1.2.0 test
+/// builds, smaller ones before), so OldSize() and the game's default size is used; the pitch and
+/// distance are kept). Unknown or broken lines are kept out (and dropped when saving).
 class Store {
 public:
     void Parse(const std::string& text);

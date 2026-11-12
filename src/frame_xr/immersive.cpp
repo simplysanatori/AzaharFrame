@@ -74,7 +74,9 @@ float AspectFor(u32 shape) {
 }
 
 struct Tuning {
-    float distance = kDefaultDistance; ///< the default distance (a saved placement wins)
+    float distance = kDefaultDistance; ///< the default distance (a saved placement wins), mode 1
+    /// AzaharFrame immersive2: modes 2 and 3 (L::kDefaultHeadDistance; the variable sets both).
+    float head_distance = L::kDefaultHeadDistance;
     float game_fov_y_deg = kDefaultGameFovY;
     bool fov_from_env = false; ///< AZAHARFRAME_IMMERSIVE_FOV is set: it wins over the setting
     bool local_space = false; ///< head-locked screen placed in LOCAL from the head pose
@@ -106,6 +108,8 @@ Tuning ReadTuning() {
     Tuning t;
     t.distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", kDefaultDistance, L::kMinDistance,
                           L::kMaxDistance);
+    t.head_distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", L::kDefaultHeadDistance,
+                               L::kMinDistance, L::kMaxDistance);
     const char* fov_env = std::getenv("AZAHARFRAME_IMMERSIVE_FOV");
     t.fov_from_env = fov_env && *fov_env;
     t.game_fov_y_deg = EnvFloat("AZAHARFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
@@ -248,8 +252,12 @@ struct State {
     int64_t camera_stamp = 0; ///< when the last measurement read was made
     int64_t game_start_ms = 0;
     bool shape_logged = false; ///< both logged for this game
-    L::Options options; ///< "Wider View" (every frame) and "Narrow Screen" (at start), per game
+    /// "Wider View", "Narrow Screen" and "Narrow Height", per game, every frame (AzaharFrame
+    /// immersive2: Narrow Screen was read only when the game started).
+    L::Options options;
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
+    u32 narrow_x = 0;    ///< AzaharFrame immersive2: the percentages options.squeeze(_y) are
+    u32 narrow_y = 0;
     bool screens_were_live = false;
     /// AzaharFrame immersive: when `ref` is taken (Layout::RestPose; SteamVR's recenter moves the
     /// LOCAL space at its change time, and a head pose located before it is still in the old
@@ -354,11 +362,12 @@ L::Placement DefaultPlacement() {
     return p;
 }
 
-// AzaharFrame immersive: the head-locked default already fills the view, whatever Wider View
-// is (Wider View then shows more of the game around the middle and magnifies less); a preset
-// can make a game's screen a little bigger (presets.h screen_size).
+// AzaharFrame immersive2: the head-locked default is the world at its own scale (gain 1), 3 m
+// ahead, and grows with Wider View; a preset can make a game's screen a little bigger or smaller
+// (presets.h screen_size).
 L::Placement DefaultHeadPlacement() {
-    L::Placement p = DefaultPlacement();
+    L::Placement p;
+    p.distance = g.tuning.head_distance;
     if (const ImmersivePreset* preset = FindImmersivePreset(g.title_id);
         preset && preset->screen_size > 0.0f) {
         p.size = preset->screen_size;
@@ -436,9 +445,13 @@ void OnFrame(const FrameInfo& info) {
         g.shape_logged = false;
         g.wider_level = WiderLevel();
         g.options.wider = L::WiderFactor(g.wider_level);
-        g.options.squeeze = L::SqueezeFor(Settings::values.vr_immersive_squeeze.GetValue());
-        LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x, Narrow Screen {:.0f}%",
-                 g.options.wider, g.options.squeeze * 100.0f);
+        g.narrow_x = L::NarrowPercent(Settings::values.vr_immersive_squeeze.GetValue());
+        g.narrow_y = L::NarrowPercent(Settings::values.vr_immersive_squeeze_y.GetValue());
+        g.options.squeeze = L::SqueezeFor(g.narrow_x);
+        g.options.squeeze_y = L::SqueezeFor(g.narrow_y);
+        LOG_INFO(Frontend,
+                 "xr: immersive: Wider View {:.1f}x, Narrow Screen {}%, Narrow Height {}%",
+                 g.options.wider, g.narrow_x, g.narrow_y);
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
@@ -447,8 +460,8 @@ void OnFrame(const FrameInfo& info) {
         g.head_place = head.value_or(DefaultHeadPlacement());
         g.wide_place = wide.value_or(DefaultPlacement());
         if (head && g.store.OldSize(g.title_id)) {
-            // AzaharFrame immersive: saved by an earlier build, against a smaller default: the
-            // pitch and distance stay, the size is this build's default (it fills the view).
+            // AzaharFrame immersive: saved by an earlier build, against another default: the
+            // pitch and distance stay, the size is this build's default (true scale).
             g.head_place.size = DefaultHeadPlacement().size;
             g.store.Set(g.title_id, false, g.head_place);
             SaveStore();
@@ -484,6 +497,19 @@ void OnFrame(const FrameInfo& info) {
             g.wider_level = wider;
             g.options.wider = L::WiderFactor(wider);
             LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x (changed)", g.options.wider);
+        }
+        // AzaharFrame immersive2: Narrow Screen and Narrow Height are live too (the menu, the
+        // game's Properties, or both grips and the D-pad in StepNarrow): only the quad's shape
+        // and the gains change, nothing in the game.
+        const u32 narrow_x = L::NarrowPercent(Settings::values.vr_immersive_squeeze.GetValue());
+        const u32 narrow_y = L::NarrowPercent(Settings::values.vr_immersive_squeeze_y.GetValue());
+        if (narrow_x != g.narrow_x || narrow_y != g.narrow_y) {
+            g.narrow_x = narrow_x;
+            g.narrow_y = narrow_y;
+            g.options.squeeze = L::SqueezeFor(narrow_x);
+            g.options.squeeze_y = L::SqueezeFor(narrow_y);
+            LOG_INFO(Frontend, "xr: immersive: Narrow Screen {}%, Narrow Height {}% (changed)",
+                     narrow_x, narrow_y);
         }
     }
     if (info.screens_live) {
@@ -559,8 +585,14 @@ void OnFrame(const FrameInfo& info) {
         options.live_fov_y_deg = MatchCamera() && g.camera.LiveFovDeg() > 0.0f
                                      ? g.camera.LiveFovDeg()
                                      : cam.fov_y_deg;
-        g.solved = L::SolveHeadLocked(g.head_place, cam.fov_y_deg, cam.aspect, g.view_fov,
-                                      eye_shift, options, g.offset);
+        // AzaharFrame immersive2: the screen's size follows the camera angle at true scale, so a
+        // game with its own Immersive Game FOV (a preset's measured play camera, or the player's)
+        // is sized with that: the screen keeps one size through cutscenes and menus, and the
+        // gain follows the measured angle. Otherwise the settled measurement (or the setting).
+        const bool own_fov =
+            g.tuning.fov_from_env || !Settings::values.vr_immersive_game_fov.UsingGlobal();
+        g.solved = L::SolveHeadLocked(g.head_place, own_fov ? g.game_fov_y_deg : cam.fov_y_deg,
+                                      cam.aspect, g.view_fov, eye_shift, options, g.offset);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -639,15 +671,17 @@ void Install() {
     g_top_aspect = kAspect3ds;
     g.tuning = ReadTuning();
     g.game_fov_y_deg = g.tuning.game_fov_y_deg;
-    g.head_place = g.wide_place = DefaultPlacement();
+    g.wide_place = DefaultPlacement();
+    g.head_place = DefaultHeadPlacement();
     VideoCore::Immersive::g_xr_active = true;
     g.callback_id = AddFrameCallback(OnFrame);
     LOG_INFO(Frontend,
-             "xr: immersive: screen {:.2f} m ahead by default, game camera {}, {} space",
-             g.tuning.distance,
-             g.tuning.fov_from_env ? fmt::format("{:.0f} degrees high (environment)",
-                                                 g.tuning.game_fov_y_deg)
-                                   : std::string{"angle from the game's setting"},
+             "xr: immersive: screen {:.2f} m ahead by default ({:.2f} m in mode 1), game "
+             "camera {}, {} space",
+             g.tuning.head_distance, g.tuning.distance,
+             g.tuning.fov_from_env
+                 ? fmt::format("{:.0f} degrees high (environment)", g.tuning.game_fov_y_deg)
+                 : std::string{"angle from the game's setting"},
              g.tuning.local_space ? "LOCAL" : "VIEW");
 }
 
@@ -783,10 +817,9 @@ WiderStep StepWiderView(int dir) {
     if (after == before) {
         return WiderStep::None;
     }
-    // The screen grows or shrinks with the view the game draws: the picture keeps its scale.
-    const float from = L::WiderFactor(before);
+    // AzaharFrame immersive2: the default size grows and shrinks with the view the game draws,
+    // so the size stays: the picture keeps its scale.
     const float to = L::WiderFactor(after);
-    g.head_place.size = L::SizeForWider(g.head_place.size, from, to);
     g.wider_level = after;
     g.options.wider = to;
     auto& level = Settings::values.vr_immersive_wider_view_level;
@@ -794,12 +827,37 @@ WiderStep StepWiderView(int dir) {
         level.SetGlobal(false); // per game, as in the game's Properties
     }
     level.SetValue(after);
-    if (g.title_id) {
-        g.store.Set(g.title_id, false, g.head_place);
-        SaveStore();
-    }
     LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x by the D-pad, size {:.2f}", to,
              g.head_place.size);
+    return WiderStep::Changed;
+}
+
+WiderStep StepNarrow(int narrower_steps, int taller_steps) {
+    if (!g.adjuster.Active() || !g.engaged || (narrower_steps == 0 && taller_steps == 0)) {
+        return WiderStep::None;
+    }
+    if (!IsViewMode(g.mode)) {
+        ShowToastText("Narrow Screen: Full Modes Only");
+        return WiderStep::None;
+    }
+    // AzaharFrame immersive2: both grips + D-pad. Right narrower, left wider; up taller (less
+    // Narrow Height), down lower. Per game, live (OnFrame reads them every frame).
+    const bool height = narrower_steps == 0;
+    auto& setting =
+        height ? Settings::values.vr_immersive_squeeze_y : Settings::values.vr_immersive_squeeze;
+    const u32 before = L::NarrowPercent(setting.GetValue());
+    const u32 after = L::SteppedNarrow(before, height ? -taller_steps : narrower_steps);
+    ShowToastText(L::NarrowToast(after, height)); // also at the ends, so the press shows
+    if (after == before && setting.GetValue() == after) {
+        return WiderStep::None;
+    }
+    if (setting.UsingGlobal()) {
+        setting.SetGlobal(false); // per game, as in the game's Properties
+    }
+    setting.SetValue(after);
+    (height ? g.narrow_y : g.narrow_x) = after;
+    (height ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeFor(after);
+    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::NarrowToast(after, height));
     return WiderStep::Changed;
 }
 

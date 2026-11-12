@@ -153,7 +153,7 @@ Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the 
 - **Mods**: **Cheats**, **Mods** and **Textures** for the running game (see Cheats, mods and textures).
 - **Settings**: the VR settings. **Global** changes them for every game, **Per-Game** for this game only. Settings that are the same in every game, such as **Background**, always change for every game. A greyed-out row tells you why when you point at it. **More Settings** opens **Emulation > Configure...**.
 
-Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** and **Narrow Screen** apply the next time the game starts; the rest apply at once.
+Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.
 
 **Azahar's Window** shows the window itself, with the same controls as above, for everything else: the game's **Properties**, the **Emulation** menu and any dialog, which also brings the window up by itself. Press **B** with nothing open there to go back to the menu.
 
@@ -280,13 +280,15 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Wider View, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Wider View: 1.2x**. Kept for this game |
+| Both grips, then D-pad right or left | Full modes: makes the screen narrower or wider, 5% per press, Off to 30% (**Narrow Screen**). A label shows the value, for example **Narrow Screen: 15%**. Kept for this game, at once |
+| Both grips, then D-pad down or up | Full modes: makes the screen lower or taller in the same way (**Narrow Height**), for example **Narrow Height: 5%** |
 | Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, re-centres the view and resets the normal screens. Without a grip it only re-centres, and the screen keeps its size. A tap does nothing while you hold the screen |
 
 Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 
 The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. **Reset Position** in the menu puts it back to the middle. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
-The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. It can grow to 2.5 times that size. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
+The screen starts 3 m ahead in the middle of your view, showing the game at its own scale: nothing is magnified, so the world keeps its shape and stays put wherever you look on it. It is 10% narrower than the picture (**Narrow Screen**), with **Wider View** at 1.4x. With both grips down, D-pad left and right always narrow the screen; with one grip they nudge it. It can grow to 2.5 times its size or shrink to 0.6 times. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
 ## Ocarina of Time 3D with Ocarina ReFramed
 
