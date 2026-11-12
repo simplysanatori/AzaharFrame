@@ -39,6 +39,7 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `CMakeLists.txt`, `src/CMakeLists.txt` | `ENABLE_FRAME_XR` (on by default on Linux aarch64) and its compile definition, the `frame_xr` subdirectory |
 | `src/citra_qt/CMakeLists.txt`, `src/video_core/CMakeLists.txt`, `src/input_common/CMakeLists.txt`, `src/tests/CMakeLists.txt` | the new source files and tests |
 | `src/citra_qt/citra_qt.cpp` | `--vr` option, starts and stops `frame_xr`, hands it the boot and shutdown calls, the touch sink, the game folders for the picker, the Frame controls profile, the 3D depth default, the name and icon, the controls and stats it sends the VR panels, the **Show Stats** switch from VR |
+| `src/citra_qt/applets/swkbd.{h,cpp}`, `mii_selector.cpp` | in VR the game keyboard in the headset (`frame_xr/swkbd.h`) instead of the dialog, and the first Mii instead of the Mii Selector dialog; the game keyboard closes when the game stops (`citra_qt.cpp`) |
 | `src/citra_qt/aboutdialog.cpp` | the Azahar for Frame icon |
 | `src/citra_qt/configuration/config.{h,cpp}` | reads and saves the `[VR]` section (CitraVR's keys) |
 | `src/citra_qt/configuration/configure_graphics.{h,cpp}` | the **VR** group |
