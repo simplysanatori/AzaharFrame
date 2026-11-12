@@ -121,7 +121,7 @@ float FitTanHalfY(const ViewFov& view, float aspect, float pitch_rad, float marg
 
 uint32_t NarrowPercent(uint32_t setting) {
     // AzaharFrame immersive2: percent on the 5 % grid. 1 to 3 are the 10 % steps of the builds
-    // before 1.2.0; the grid never holds them, so they cannot be mistaken for a percentage.
+    // before 2.0.0; the grid never holds them, so they cannot be mistaken for a percentage.
     if (setting >= 1 && setting <= 3) {
         return setting * 10;
     }
@@ -524,8 +524,8 @@ void Store::Parse(const std::string& text) {
             continue;
         }
         const uint64_t title = std::strtoull(id.c_str(), nullptr, 16);
-        // AzaharFrame immersive: "view" (1.2.0 test builds) and "head" (1.0, 1.1) sizes were
-        // relative to smaller defaults; AzaharFrame immersive2: "screen" (1.2.0 test builds) to
+        // AzaharFrame immersive: "view" (2.0.0 test builds) and "head" (1.0, 1.1) sizes were
+        // relative to smaller defaults; AzaharFrame immersive2: "screen" (2.0.0 test builds) to
         // the view-filling one.
         const bool old_size = kind == "head" || kind == "view" || kind == "screen";
         const std::string key = Key(title, kind == "wide");

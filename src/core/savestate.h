@@ -47,7 +47,7 @@ std::string StatePathIn(const std::string& states_dir, u64 program_id, u64 movie
 // chooses Load Anyway (System::LoadState with allow_mismatch, after a warning, a backup of the
 // game's save data and a state of the moment before). What the player is told, in VR and Flat.
 
-/// Written to a new state's header build_version: "AZF " and the build's version ("AZF 1.2.0").
+/// Written to a new state's header build_version: "AZF " and the build's version ("AZF 2.0.0").
 inline constexpr std::string_view kFrameBuildTag = "AZF ";
 /// Load Anyway first saves the moment before here (a file of its own, not one of the slots).
 inline constexpr u32 kBeforeLoadAnywaySlot = 99;
@@ -64,8 +64,8 @@ inline constexpr const char* kLoadAnywayButton = "Load Anyway";
 /// A load that failed: the state was not read, or (SaveStateHalfLoaded) the game stops.
 inline constexpr const char* kSaveStateNotLoaded = "This Save State Couldn't Be Loaded";
 
-/// The Azahar for Frame version that made a state, from its header: build_version "AZF 1.2.0"
-/// (states from 1.2.0 on), else a build_name that is one of our releases ("1.1.1": every release
+/// The Azahar for Frame version that made a state, from its header: build_version "AZF 2.0.0"
+/// (states from 2.0.0 on), else a build_name that is one of our releases ("1.1.1": every release
 /// so far is 1.x; upstream Azahar's are "2122.1"); "" for anything else (upstream Azahar, a
 /// development build named by its commit, nothing written).
 std::string FrameVersionOf(std::string_view build_name, std::string_view build_version);
@@ -84,7 +84,7 @@ std::string SaveStateFromText(std::string_view version);
 std::array<u8, 256> MakeStateHeader(u64 program_id, std::string_view revision_hex,
                                     std::string_view build_name, std::string_view build_version,
                                     u64 time);
-/// The header System::SaveState writes now: this build's revision and version ("AZF 1.2.0").
+/// The header System::SaveState writes now: this build's revision and version ("AZF 2.0.0").
 std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time);
 /// Writes (replacing) a state file: header, then the compressed state. Throws on failure.
 void WriteStateFile(const std::string& path, std::span<const u8> header, std::span<const u8> body);

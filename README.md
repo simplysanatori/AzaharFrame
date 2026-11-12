@@ -38,10 +38,10 @@ Cheats, mods and texture packs download only when you ask for them.
    cd AzaharFrame
    ```
 
-2. Download `azaharframe-1.2.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
+2. Download `azaharframe-2.0.0-linux-arm64.tar.gz` from [Releases](https://github.com/simplysanatori/AzaharFrame/releases) and install it:
 
    ```sh
-   steam-frame/install.sh ~/Downloads/azaharframe-1.2.0-linux-arm64.tar.gz
+   steam-frame/install.sh ~/Downloads/azaharframe-2.0.0-linux-arm64.tar.gz
    ```
 
 3. Launch **Azahar for Frame** from your Steam library.

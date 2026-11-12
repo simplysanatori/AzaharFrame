@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (November 2026)
+## 2.0.0 (November 2026)
 
 A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, and a keyboard in the headset.
 

@@ -751,7 +751,7 @@ TEST_CASE("FrameXr immersive: the per-game file", "[frame_xr]") {
 }
 
 TEST_CASE("FrameXr immersive: files of earlier builds", "[frame_xr]") {
-    // AzaharFrame immersive: "head" lines (1.0, 1.1) and "view" lines (1.2.0 test builds, the
+    // AzaharFrame immersive: "head" lines (1.0, 1.1) and "view" lines (2.0.0 test builds, the
     // owner's Mario Kart 7) had sizes against smaller defaults: their size is not used (the game's
     // default is), the pitch and distance are.
     const std::string old_file = "# Azahar for Frame: immersive screen placement per game\n"
@@ -777,7 +777,7 @@ TEST_CASE("FrameXr immersive: files of earlier builds", "[frame_xr]") {
     REQUIRE(s.Format().find("0004000000030800 world 1.12 0.750 1.100") != std::string::npos);
 
     SECTION("the view-filling build's screen lines: pitch and distance kept, size not") {
-        // AzaharFrame immersive2: the owner's Majora's Mask 3D, saved by the 1.2.0 test build.
+        // AzaharFrame immersive2: the owner's Majora's Mask 3D, saved by the 2.0.0 test build.
         Store m;
         m.Parse("0004000000125600 screen -9.21 3.000 0.600\n");
         REQUIRE(m.OldSize(0x0004000000125600ULL));

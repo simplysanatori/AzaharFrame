@@ -1,4 +1,4 @@
-# Azahar for Frame 1.2.0
+# Azahar for Frame 2.0.0
 
 A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, and a keyboard in the headset.
 
@@ -53,8 +53,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ## Download
 
-- `azaharframe-1.2.0-linux-arm64.tar.gz`: the release, for `install.sh` and Frametanium
-- `azaharframe-1.2.0-framedrop-linux-arm64.zip` and `azaharframe.framedrop.json`: the same release, for FrameDrop
+- `azaharframe-2.0.0-linux-arm64.tar.gz`: the release, for `install.sh` and Frametanium
+- `azaharframe-2.0.0-framedrop-linux-arm64.zip` and `azaharframe.framedrop.json`: the same release, for FrameDrop
 
 ## Install
 
