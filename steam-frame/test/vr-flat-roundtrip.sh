@@ -98,10 +98,12 @@ flat_input() { # T RECONNECT
 
 # The window's frame (steam-cef.py): a fake that answers at once, but never for the second move
 # back into the dashboard (Flat 2's way back).
+# AzaharFrame integ3: 88 s, not 82: the mock's xrEndSession writes each swapchain's last image
+# (seconds under load), and the last VR -> Flat must reach its XR instance destroyed before the stop.
 MOCK_XR_FOCUS_ONCE=1 AZAHARFRAME_TEST_FLAT_PAD=$T/pad.txt AZAHARFRAME_TEST_FLAT_PAD_SDL=1 \
     AZAHARFRAME_TEST_CEF=$HERE/fake-steam-cef.py AZ_FAKE_CEF_COUNT=$T/cef-count \
     AZ_FAKE_CEF_HANG_DASHBOARD=2 \
-    "$MOCKRUN" --bin "$BIN" --seconds 82 --script "$T/vr.script" --out "$OUT" > "$OUT.out" 2>&1
+    "$MOCKRUN" --bin "$BIN" --seconds 88 --script "$T/vr.script" --out "$OUT" > "$OUT.out" 2>&1
 RC=$?
 LOG=$OUT/app_azahar_log.txt
 # A second, short-lived process may rotate the log at the end: the run's own one says "xr: started".
