@@ -413,6 +413,14 @@ ExtractResult ExtractZip(std::string_view zip, std::size_t max_total) {
         if (pos + 46 + name_len + extra_len + comment_len > n) {
             return fail("Damaged zip file");
         }
+        // AzaharFrame zipinstall: a Unix link or special file (made by Unix, mode in the high half
+        // of the external attributes) is refused, as bsdtar's listing refuses it.
+        const u32 made_by_host = Le16(d + pos + 4) >> 8;
+        const u32 unix_mode = Le32(d + pos + 38) >> 16;
+        if (made_by_host == 3 && (unix_mode & 0170000u) != 0 && (unix_mode & 0170000u) != 0100000u &&
+            (unix_mode & 0170000u) != 0040000u) {
+            return fail("The archive holds links or special files");
+        }
         const std::string name(zip.substr(pos + 46, name_len));
         pos += 46 + name_len + extra_len + comment_len;
         if (!name.empty() && (name.back() == '/' || name.back() == '\\')) {

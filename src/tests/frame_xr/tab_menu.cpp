@@ -1062,3 +1062,123 @@ TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr]
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kReticleHint) <= kOneLine);
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }
+
+// AzaharFrame zipinstall: Install from Zip on the Textures page and Install Mods, and its page.
+TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    CHECK(LabelFor(Id::InstallFromZip) == "Install from Zip");
+
+    // the Textures page, with and without packs
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    m.mods.textures = Packs(2);
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(FindHit(d, Id::InstallFromZip, 0)->r.x0 > FindHit(d, Id::DownloadPacks, -1)->r.x1);
+    CheckTargets(d);
+
+    // the browser over the Textures page
+    ZipModel& z = m.mods.zip;
+    z.open = true;
+    z.target = ZipTarget::Textures;
+    z.browse = true;
+    z.folder = "/home/u/Downloads";
+    z.can_go_up = true;
+    z.chips = {{"Downloads", "/home/u/Downloads"}, {"Documents", "/home/u/Documents"}, {"Home", "/home/u"}};
+    for (int i = 0; i < 20; i++) {
+        z.entries.push_back({"Pack " + std::to_string(i) + ".zip", false, "12 MB"});
+    }
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TexturePack, 0));
+    CHECK(HasHit(d, Id::ZipBack, -1));
+    CHECK(HasHit(d, Id::ZipChip, 0));
+    CHECK(HasHit(d, Id::ZipChip, 2));
+    CHECK(HasHit(d, Id::ZipUp, -1));
+    CHECK(HasHit(d, Id::ZipEntry, 0));
+    CHECK(!HasHit(d, Id::ZipEntry, 19)); // scrolled away
+    CHECK(d.menu.MaxScroll() > 0.0f);
+    CheckTargets(d);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipEntry, 19));
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+
+    // only on its own segment
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    v.mods_segment = ModsSegment::Textures;
+
+    // working: no way back, no list
+    z.working = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.working = false;
+
+    // several games: choose one
+    z.choices = {"0004000000033500", "0004000000033600"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipChoice, 0));
+    CHECK(HasHit(d, Id::ZipChoice, 1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.choices.clear();
+
+    // a question is modal
+    z.dialog = {ModsDialogKind::Replace, "Pack 1", "Pack 1"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    CHECK(d.menu.HitTest(kPanelW * 0.5f, 140.0f).id != Id::ZipEntry);
+    z = {};
+
+    // Install Mods' bar
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    m.mods.mods.catalog = CatalogState::Ready;
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Mods)));
+    CHECK(FindHit(d, Id::InstallFromZip, 1)->r.H() >= 48.0f);
+    m.mods.mods.busy = true; // not while an install runs
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::InstallFromZip, 1));
+}
+
+// AzaharFrame zipinstall: Download Packs rows: the verified badge and "<author> · Updated <Mon YYYY>",
+// which fits beside the row's button for the catalog's longest author.
+TEST_CASE("Tab menu: Download Packs dates fit", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Download;
+    const std::string author = "Henriko Magnifico"; // the longest in catalog/textures.json
+    m.mods.textures.downloads = {
+        {"a", "Ocarina of Time 3D 4K", author, "", "", PackOfferState::Download, -1, "", "Updated Sep 2026", true},
+        {"b", "Ocarina of Time 3D 1080p", author, "", "", PackOfferState::Downloading, 42, "Downloading",
+         "Updated Sep 2026", true}};
+    m.mods.textures.downloading = true;
+    d.Draw(m, v);
+    const auto* row = FindHit(d, Id::PackDownload, kLabelIndex);
+    REQUIRE(row);
+    const float x0 = row->r.x0 + 12.0f;
+    constexpr float kNameGap = 24.0f;
+    const auto line = [&](const std::string& rest) {
+        return d.kit.TextWidthSized(14.0f, false, author + " · " + rest);
+    };
+    // Download: the button (disabled while another downloads, so measured by its label)
+    const float button = d.kit.TextWidth(Type::Label, "Download") + 48.0f;
+    CHECK(line("Updated Sep 2026") <= (row->r.x1 - 12.0f - button - kNameGap) - x0);
+    // Downloading: Cancel, the percent and the ring
+    const auto* cancel = FindHit(d, Id::PackCancel, 1);
+    REQUIRE(cancel);
+    const float right = cancel->r.x0 - 4.0f - d.kit.TextWidth(Type::Label, "100%") - 12.0f - 24.0f - kNameGap;
+    CHECK(line("Downloading") <= right - x0);
+    CHECK(line("Updated Sep 2026") <= right - x0); // even the longer text would fit
+}

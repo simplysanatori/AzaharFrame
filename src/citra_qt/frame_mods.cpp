@@ -15,6 +15,11 @@
 
 #include <QApplication>
 #include <QDesktopServices>
+#include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QWidget>
 #include <QPointer>
 #include <QProcess>
 #include <QTimer>
@@ -25,6 +30,7 @@
 #include "core/cheats/online.h"
 #include "core/custom_tex/download.h"
 #include "core/mods/library.h"
+#include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
 
@@ -149,8 +155,13 @@ void FrameMods::Open(u64 title_id_, int run_) {
         pack_pending = {};
         pack_failed.clear();
         pack_error.clear();
+        ZipCloseJob(); // AzaharFrame zipinstall: a question of another game's goes
+        zip = {};
+        zip_question = ZipQuestion::None;
+        zip_packs.clear();
         PublishMods();
         PublishTextures();
+        PublishZip();
     }
     if (title_id == 0) {
         return;
@@ -267,7 +278,10 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         }
         pack_pending = {Pending::Kind::Delete,
                         std::filesystem::path(it->path).filename().string()};
-        textures.dialog = {Menu::ModsDialogKind::DeletePack, it->name, {}};
+        // AzaharFrame zipinstall: a zip's pack comes again from the zip, not a download
+        textures.dialog = {Menu::ModsDialogKind::DeletePack, it->name,
+                           zip_packs.count(pack_pending.id) ? "You can install it again from its zip."
+                                                            : ""};
         PublishTextures();
         return;
     }
@@ -285,6 +299,43 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         }
         return;
     }
+    // AzaharFrame zipinstall: Install from Zip
+    case C::InstallFromZip:
+        ZipStart(r.value);
+        return;
+    case C::ZipBrowse:
+        if (zip.open && zip.browse && !zip.working) {
+            ZipBrowse(r.text);
+        }
+        return;
+    case C::ZipPick:
+        if (zip.open && zip.browse) {
+            ZipPick(r.text);
+        }
+        return;
+    case C::ZipChoose:
+        if (zip_job && r.value >= 0 && r.value < static_cast<int>(zip_choices.size()) && !zip.working) {
+            const u64 tid = zip_choices[static_cast<std::size_t>(r.value)];
+            zip.choices.clear();
+            zip_choices.clear();
+            ZipInstall(zip_job, tid, false);
+        }
+        return;
+    case C::ZipDialog:
+        ZipAnswer(r.value != 0);
+        return;
+    case C::ZipClose:
+        if (!zip.working) {
+            ZipCloseJob();
+            zip.open = false;
+            zip.dialog = {};
+            zip.choices.clear();
+            zip.error.clear();
+            zip_choices.clear();
+            zip_question = ZipQuestion::None;
+            PublishZip();
+        }
+        return;
     case C::OpenUrl: {
         // Only a page the menu showed: a mod's GitHub repository or a pack author's page from
         // the catalog (the menu asked "Open <host>?" first).
@@ -536,17 +587,31 @@ void FrameMods::PublishMods() {
 void FrameMods::RefreshPacks() {
     const u64 tid = title_id;
     OffThread(
-        this, [tid] { return CustomTex::ListPacks(CustomTex::DefaultPaths(), tid); },
-        [this, tid](const std::vector<CustomTex::Pack>& list) {
+        this,
+        [tid] {
+            auto list = CustomTex::ListPacks(CustomTex::DefaultPaths(), tid);
+            // AzaharFrame zipinstall: the packs Install from Zip made can be deleted too
+            std::set<std::string> zipped;
+            for (const CustomTex::Pack& p : list) {
+                const auto id = p.managed ? CustomTex::Download::MarkerId(p.path) : std::nullopt;
+                if (id && id->rfind("zip:", 0) == 0) {
+                    zipped.insert(std::filesystem::path(p.path).filename().string());
+                }
+            }
+            return std::make_pair(std::move(list), std::move(zipped));
+        },
+        [this, tid](const std::pair<std::vector<CustomTex::Pack>, std::set<std::string>>& result) {
             if (tid != title_id) {
                 return;
             }
+            const std::vector<CustomTex::Pack>& list = result.first;
+            zip_packs = result.second;
             packs = list;
             textures.packs.clear();
             for (const CustomTex::Pack& p : packs) {
+                const std::string folder = std::filesystem::path(p.path).filename().string();
                 const bool mine =
-                    p.managed &&
-                    downloaded.count(std::filesystem::path(p.path).filename().string()) != 0;
+                    p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
                 textures.packs.push_back({p.id, p.name, PackDetail(p), p.active, mine});
             }
             PublishTextures();
@@ -700,6 +765,8 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.author = p.author;
         o.url = Menu::LinkText(p.author_url).empty() ? std::string{} : p.author_url;
         o.size_text = p.size_text;
+        o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
+        o.verified = p.verified;
         if (running && st.pack_id == p.id) {
             o.state = Menu::PackOfferState::Downloading;
         } else if (p.installed) {
@@ -832,4 +899,380 @@ void FrameMods::DeletePack(const std::string& folder) {
             RefreshPacks();
             ListPackDownloads();
         });
+}
+
+// ---- Install from Zip (AzaharFrame zipinstall) ----
+
+namespace {
+
+namespace Zip = Mods::Zip;
+
+std::string LoadDirPath() {
+    return CustomTex::DefaultPaths().load_dir;
+}
+
+std::string HomeDir() {
+    return QDir::homePath().toStdString();
+}
+
+/// Downloads, Documents and Home, those that exist.
+std::vector<Menu::ZipChip> QuickFolders() {
+    std::vector<Menu::ZipChip> chips;
+    const auto add = [&chips](const char* label, const QString& path) {
+        if (!path.isEmpty() && QFileInfo(path).isDir()) {
+            chips.push_back({label, QDir::cleanPath(path).toStdString()});
+        }
+    };
+    add("Downloads", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    add("Documents", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    add("Home", QDir::homePath());
+    return chips;
+}
+
+/// "~/Downloads/Packs" for a folder under the home folder.
+std::string FolderText(const std::string& folder) {
+    const std::string home = HomeDir();
+    if (folder == home) {
+        return "~";
+    }
+    if (!home.empty() && folder.rfind(home + "/", 0) == 0) {
+        return "~" + folder.substr(home.size());
+    }
+    return folder;
+}
+
+bool IsArchiveName(const std::string& name) {
+    std::string l = name;
+    std::transform(l.begin(), l.end(), l.begin(), [](unsigned char c) { return std::tolower(c); });
+    const auto ends = [&l](std::string_view e) {
+        return l.size() > e.size() && l.compare(l.size() - e.size(), e.size(), e) == 0;
+    };
+    return ends(".zip") || ends(".7z");
+}
+
+struct Listing {
+    bool ok = false;
+    std::vector<Menu::ZipEntry> entries;
+};
+
+/// The folder's subfolders and archives (hidden ones left out), folders first, by name.
+Listing ListFolder(const std::string& folder) {
+    namespace fs = std::filesystem;
+    constexpr std::size_t kMax = 1000;
+    Listing out;
+    std::error_code ec;
+    fs::directory_iterator it(folder, fs::directory_options::skip_permission_denied, ec);
+    if (ec) {
+        return out;
+    }
+    out.ok = true;
+    std::vector<Menu::ZipEntry> folders, files;
+    for (fs::directory_iterator end; !ec && it != end && folders.size() + files.size() < kMax;
+         it.increment(ec)) {
+        const std::string name = it->path().filename().string();
+        if (name.empty() || name[0] == '.') {
+            continue;
+        }
+        std::error_code e2;
+        if (it->is_directory(e2)) {
+            folders.push_back({name, true, {}});
+        } else if (it->is_regular_file(e2) && IsArchiveName(name)) {
+            const auto size = it->file_size(e2);
+            files.push_back({name, false, e2 ? std::string{} : Menu::SizeText(size)});
+        }
+    }
+    const auto by_name = [](const Menu::ZipEntry& a, const Menu::ZipEntry& b) {
+        return QString::fromStdString(a.name).compare(QString::fromStdString(b.name),
+                                                      Qt::CaseInsensitive) < 0;
+    };
+    std::sort(folders.begin(), folders.end(), by_name);
+    std::sort(files.begin(), files.end(), by_name);
+    out.entries = std::move(folders);
+    out.entries.insert(out.entries.end(), files.begin(), files.end());
+    return out;
+}
+
+struct Opened {
+    std::shared_ptr<Zip::Job> job;
+    std::string error;
+};
+
+} // namespace
+
+void FrameMods::PublishZip() {
+    FrameXr::SetInGameMenuZip(zip);
+}
+
+void FrameMods::ZipCloseJob() {
+    if (auto job = std::exchange(zip_job, nullptr)) {
+        std::thread([job] { Zip::Close(*job); }).detach(); // a big pack's folder takes a while
+    }
+}
+
+void FrameMods::ZipStart(int target) {
+    if (zip.working || (target != 0 && target != 1)) {
+        return;
+    }
+    ZipCloseJob();
+    zip.target = static_cast<Menu::ZipTarget>(target);
+    zip.error.clear();
+    zip.file.clear();
+    zip.choices.clear();
+    zip.dialog = {};
+    zip_choices.clear();
+    zip_question = ZipQuestion::None;
+    zip.chips = QuickFolders();
+    std::string start = zip_folder;
+    if (start.empty() || !std::filesystem::is_directory(start)) {
+        start = zip.chips.empty() ? HomeDir() : zip.chips.front().path; // Downloads
+    }
+    if (FrameXr::VrShowing()) {
+        // The menu's own browser: the portal's chooser would open on Steam's display, out of sight.
+        LOG_INFO(Frontend, "xr: zip: browser opened");
+        zip.open = true;
+        zip.browse = true;
+        ZipBrowse(start);
+        return;
+    }
+    // Flat: Qt's file dialog, a window of the app (FrameMirror fits it to the theater). After the
+    // menu's request has returned.
+    zip.browse = false;
+    zip.open = false;
+    PublishZip();
+    QPointer<FrameMods> guard(this);
+    const u64 tid = title_id;
+    QTimer::singleShot(0, this, [guard, tid, start] {
+        if (!guard || guard->title_id != tid) {
+            return;
+        }
+        QWidget* owner = qobject_cast<QWidget*>(guard->parent());
+        const QString path = QFileDialog::getOpenFileName(
+            owner, QStringLiteral("Install from Zip"), QString::fromStdString(start),
+            QStringLiteral("Zip or 7z (*.zip *.7z *.ZIP *.7Z)"), nullptr,
+            QFileDialog::DontUseNativeDialog);
+        if (!guard || guard->title_id != tid || path.isEmpty()) {
+            return;
+        }
+        guard->zip_folder = QFileInfo(path).absolutePath().toStdString();
+        guard->zip.open = true;
+        guard->ZipPick(path.toStdString());
+    });
+}
+
+void FrameMods::ZipBrowse(const std::string& folder_in) {
+    std::string folder = QDir::cleanPath(QString::fromStdString(folder_in)).toStdString();
+    if (folder.empty() || folder[0] != '/') {
+        return;
+    }
+    zip.folder = folder;
+    zip.folder_text = FolderText(folder);
+    zip.can_go_up = folder != "/";
+    zip.loading = true;
+    zip.entries.clear();
+    zip.error.clear();
+    PublishZip();
+    OffThread(
+        this, [folder] { return ListFolder(folder); },
+        [this, folder](const Listing& listing) {
+            if (zip.folder != folder) {
+                return; // another folder was asked for meanwhile
+            }
+            zip.loading = false;
+            zip.entries = listing.entries;
+            if (listing.ok) {
+                zip_folder = folder;
+            } else {
+                zip.error = "Can't Open the Folder";
+            }
+            PublishZip();
+        });
+}
+
+void FrameMods::ZipPick(const std::string& path) {
+    if (zip.working || path.empty()) {
+        return;
+    }
+    ZipCloseJob();
+    zip.working = true;
+    zip.phase = "Unpacking";
+    zip.file = std::filesystem::path(path).filename().string();
+    zip.error.clear();
+    zip.choices.clear();
+    zip_choices.clear();
+    PublishZip();
+    LOG_INFO(Frontend, "xr: zip: unpacking {}", zip.file);
+    const u64 tid = title_id;
+    OffThread(
+        this,
+        [path] {
+            Opened o;
+            o.job = std::make_shared<Zip::Job>();
+            o.error = Zip::Open(path, LoadDirPath(), *o.job);
+            return o;
+        },
+        [this, tid](const Opened& o) {
+            if (tid != title_id) {
+                Zip::Close(*o.job);
+                return;
+            }
+            if (!o.error.empty()) {
+                LOG_WARNING(Frontend, "xr: zip: {} not unpacked: {}", zip.file, o.error);
+                Zip::Close(*o.job);
+                return ZipFail(Zip::ShortError(o.error));
+            }
+            const Zip::Detected& d = o.job->detected;
+            if (d.kind == Zip::Kind::Unknown) {
+                LOG_INFO(Frontend, "xr: zip: {}: {}", zip.file, d.reason);
+                zip_job = o.job;
+                ZipCloseJob();
+                return ZipFail(d.reason);
+            }
+            const Zip::TitleChoice choice = Zip::ResolveTitle(d.title_ids, title_id);
+            LOG_INFO(Frontend, "xr: zip: {} is a {} for {} title(s)", zip.file,
+                     d.kind == Zip::Kind::Mod ? "mod" : "texture pack", d.title_ids.size());
+            if (choice.title_id == 0 && choice.candidates.empty()) {
+                // No title ID in the archive and no game (the menu always has one; kept safe)
+                zip_job = o.job;
+                ZipCloseJob();
+                return ZipFail(Zip::kNoGame);
+            }
+            if (choice.title_id == 0) {
+                // Several games, none of them this one: the player chooses.
+                zip_job = o.job;
+                zip.working = false;
+                zip_choices = choice.candidates;
+                for (const u64 c : choice.candidates) {
+                    zip.choices.push_back(Mods::TitleIdText(c));
+                }
+                PublishZip();
+                return;
+            }
+            ZipInstall(o.job, choice.title_id, false);
+        });
+}
+
+void FrameMods::ZipInstall(std::shared_ptr<Zip::Job> job, u64 tid, bool replace) {
+    zip_job = job;
+    zip_title = tid;
+    zip.working = true;
+    zip.phase = "Installing";
+    PublishZip();
+    const bool texture = job->detected.kind == Zip::Kind::TexturePack;
+    const u64 game = title_id;
+    OffThread(
+        this,
+        [job, tid, replace, texture] {
+            return texture ? Zip::InstallTextures(*job, tid, LoadDirPath(), replace)
+                           : Zip::InstallMod(*job, tid, Mods::Default(), replace);
+        },
+        [this, game, tid, texture, job](const Zip::Outcome& out) {
+            if (game != title_id) {
+                return;
+            }
+            using R = Zip::Outcome::Result;
+            switch (out.result) {
+            case R::Ok:
+                LOG_INFO(Frontend, "xr: zip: installed {} for {:016X}", out.installed, tid);
+                return ZipDone(texture, tid);
+            case R::Conflict:
+            case R::Blocked: {
+                // Never replaced silently: ask, or say what has to go first.
+                LOG_INFO(Frontend, "xr: zip: {} conflicts with {}", job->name, out.conflict_name);
+                zip.working = false;
+                const bool same = texture || out.conflict_id == out.installed;
+                if (out.result == R::Blocked) {
+                    zip_question = ZipQuestion::Blocked;
+                    zip_mod_id = out.installed;
+                    ZipCloseJob();
+                    zip.dialog = {Menu::ModsDialogKind::Blocked, job->name, out.conflict_name};
+                } else if (same) {
+                    zip_question = ZipQuestion::ReplaceSame; // the job is kept for the yes
+                    zip.dialog = {Menu::ModsDialogKind::Replace, job->name, out.conflict_name};
+                } else {
+                    zip_question = ZipQuestion::ReplaceOther; // the library has it now
+                    zip_mod_id = out.installed;
+                    ZipCloseJob();
+                    zip.dialog = {Menu::ModsDialogKind::Replace, job->name, out.conflict_name};
+                }
+                PublishZip();
+                return;
+            }
+            case R::Error:
+                LOG_WARNING(Frontend, "xr: zip: {} not installed: {}", job->name, out.error);
+                return ZipFail(Zip::ShortError(out.error));
+            }
+        });
+}
+
+void FrameMods::ZipAnswer(bool yes) {
+    const ZipQuestion q = std::exchange(zip_question, ZipQuestion::None);
+    zip.dialog = {};
+    const u64 tid = zip_title;
+    if (q == ZipQuestion::ReplaceSame && yes && zip_job) {
+        ZipInstall(zip_job, tid, true);
+        return;
+    }
+    if (q == ZipQuestion::ReplaceOther && yes) {
+        zip.working = true;
+        zip.phase = "Installing";
+        PublishZip();
+        const std::string id = zip_mod_id;
+        const u64 game = title_id;
+        OffThread(
+            this, [tid, id] { return Mods::Default().Install(tid, id, true); },
+            [this, game, tid, id](const Mods::InstallOutcome& out) {
+                if (game != title_id) {
+                    return;
+                }
+                if (out.result == Mods::InstallResult::Ok ||
+                    out.result == Mods::InstallResult::AlreadyInstalled) {
+                    return ZipDone(false, tid);
+                }
+                LOG_WARNING(Frontend, "xr: zip: {} not installed: {}", id, out.error);
+                ZipFail(Zip::ShortError(out.error));
+            });
+        return;
+    }
+    // Cancel or OK: nothing changes; a mod the library took for the question goes again.
+    ZipCloseJob();
+    if (q == ZipQuestion::ReplaceOther || q == ZipQuestion::Blocked) {
+        const std::string id = zip_mod_id;
+        OffThread(
+            this, [tid, id] { return Mods::Default().Remove(tid, id); },
+            [this](const Mods::RemoveOutcome&) { RefreshLoaded(); });
+    }
+    if (!zip.browse) {
+        zip.open = false; // Flat: back to the page it came from
+    }
+    PublishZip();
+}
+
+void FrameMods::ZipDone(bool texture, u64 tid) {
+    ZipCloseJob();
+    zip.working = false;
+    zip.open = false;
+    zip.error.clear();
+    zip.file.clear();
+    PublishZip();
+    const bool here = tid == title_id;
+    FrameXr::ShowToastText(!here      ? "Installed for Another Game"
+                           : texture ? "Texture Pack Installed"
+                                     : "Mod Installed");
+    if (texture) {
+        RefreshPacks();
+    } else {
+        mods.needs_restart |= here;
+        RefreshLoaded();
+        if (mods.catalog == Menu::CatalogState::Ready) {
+            RefreshAvailable();
+        }
+        PublishMods();
+    }
+}
+
+void FrameMods::ZipFail(const std::string& error) {
+    ZipCloseJob();
+    zip.working = false;
+    zip.error = error;
+    PublishZip();
 }

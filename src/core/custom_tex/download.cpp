@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -345,6 +346,15 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             }
             e.licence = str(p, "licence");
             e.notes = str(p, "notes");
+            // AzaharFrame zipinstall: the pack's last update and the verified badge
+            if (const std::string updated = str(p, "updated"); !updated.empty()) {
+                if (const auto date = ParseIsoDate(updated); date && date->size() == updated.size()) {
+                    e.updated = *date;
+                } else {
+                    warn(e.id, "bad updated date (ignored)");
+                }
+            }
+            e.verified = p.contains("verified") && p["verified"].is_boolean() && p["verified"].get<bool>();
             bool ids_ok = p.contains("title_ids") && p["title_ids"].is_array() && !p["title_ids"].empty();
             if (ids_ok) {
                 for (const auto& t : p["title_ids"]) {
@@ -555,6 +565,14 @@ std::vector<DriveItem> ParseDriveFolder(std::string_view html) {
         }
         const auto t_end = chunk.find("</div>", t);
         item.name = HtmlUnescape(std::string(chunk.substr(t + title.size(), t_end == std::string_view::npos ? 0 : t_end - t - title.size())));
+        // AzaharFrame zipinstall: <div class="flip-entry-last-modified"><div>Sep 4</div></div>
+        constexpr std::string_view modified = "class=\"flip-entry-last-modified\"><div>";
+        if (const auto m = chunk.find(modified); m != std::string_view::npos) {
+            const auto m_end = chunk.find("</div>", m + modified.size());
+            if (m_end != std::string_view::npos && m_end - m - modified.size() <= 32) {
+                item.modified = HtmlUnescape(std::string(chunk.substr(m + modified.size(), m_end - m - modified.size())));
+            }
+        }
         if (DriveIdOk(item.id) && !item.name.empty()) {
             out.push_back(std::move(item));
         }
@@ -670,6 +688,142 @@ u64 RequiredSpace(u64 archive_size, u64 already_downloaded) {
     return left + archive_size + margin; // the rest of the download, plus the unpacked copy, plus room
 }
 
+// AzaharFrame zipinstall: dates
+
+namespace {
+
+constexpr std::array<const char*, 12> kMonths{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+bool ValidDate(int y, int m, int d) {
+    if (y < 2000 || y > 2099 || m < 1 || m > 12 || d < 1) {
+        return false;
+    }
+    static constexpr std::array<int, 12> days{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    const bool leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    return d <= (m == 2 && !leap ? 28 : days[static_cast<std::size_t>(m - 1)]);
+}
+
+std::optional<std::string> MakeDate(int y, int m, int d) {
+    if (!ValidDate(y, m, d)) {
+        return std::nullopt;
+    }
+    return fmt::format("{:04}-{:02}-{:02}", y, m, d);
+}
+
+/// Digits of `s` from `at` (at most `max`); -1 when there are none.
+int Digits(std::string_view s, std::size_t& at, std::size_t max) {
+    int v = 0;
+    std::size_t n = 0;
+    while (at < s.size() && n < max && std::isdigit(static_cast<unsigned char>(s[at]))) {
+        v = v * 10 + (s[at] - '0');
+        ++at;
+        ++n;
+    }
+    return n == 0 ? -1 : v;
+}
+
+} // namespace
+
+std::optional<std::string> ParseIsoDate(std::string_view t) {
+    if (t.size() < 10 || t[4] != '-' || t[7] != '-' || (t.size() > 10 && t[10] != 'T' && t[10] != ' ')) {
+        return std::nullopt;
+    }
+    std::size_t at = 0;
+    const int y = Digits(t, at, 4);
+    if (at != 4) {
+        return std::nullopt;
+    }
+    at = 5;
+    const int m = Digits(t, at, 2);
+    if (at != 7) {
+        return std::nullopt;
+    }
+    at = 8;
+    const int d = Digits(t, at, 2);
+    if (at != 10) {
+        return std::nullopt;
+    }
+    return MakeDate(y, m, d);
+}
+
+std::optional<std::string> ParseDriveDate(std::string_view raw, const std::string& today) {
+    const auto now = ParseIsoDate(today);
+    if (!now) {
+        return std::nullopt;
+    }
+    std::string_view t = raw;
+    while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) {
+        t.remove_prefix(1);
+    }
+    while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) {
+        t.remove_suffix(1);
+    }
+    if (t.empty()) {
+        return std::nullopt;
+    }
+    const int year = std::stoi(now->substr(0, 4));
+    // "Sep 4": this year
+    for (std::size_t i = 0; i < kMonths.size(); i++) {
+        if (t.size() > 4 && t.compare(0, 3, kMonths[i]) == 0 && t[3] == ' ') {
+            std::size_t at = 4;
+            const int d = Digits(t, at, 2);
+            if (at != t.size()) {
+                return std::nullopt;
+            }
+            return MakeDate(year, static_cast<int>(i) + 1, d);
+        }
+    }
+    // "3/10/25", "3/10/2025": month first
+    if (t.find('/') != std::string_view::npos) {
+        std::size_t at = 0;
+        const int m = Digits(t, at, 2);
+        if (m < 0 || at >= t.size() || t[at] != '/') {
+            return std::nullopt;
+        }
+        ++at;
+        const int d = Digits(t, at, 2);
+        if (d < 0 || at >= t.size() || t[at] != '/') {
+            return std::nullopt;
+        }
+        ++at;
+        const std::size_t y0 = at;
+        int y = Digits(t, at, 4);
+        if (y < 0 || at != t.size() || (at - y0 != 2 && at - y0 != 4)) {
+            return std::nullopt;
+        }
+        if (at - y0 == 2) {
+            y += 2000;
+        }
+        return MakeDate(y, m, d);
+    }
+    // "3:14 PM": today
+    if (t.find(':') != std::string_view::npos) {
+        std::size_t at = 0;
+        const int h = Digits(t, at, 2);
+        if (h >= 0 && at < t.size() && t[at] == ':') {
+            return now;
+        }
+    }
+    return std::nullopt;
+}
+
+std::string UpdatedText(const std::string& iso) {
+    const auto d = ParseIsoDate(iso);
+    if (!d) {
+        return {};
+    }
+    const int m = std::stoi(d->substr(5, 2));
+    return fmt::format("Updated {} {}", kMonths[static_cast<std::size_t>(m - 1)], d->substr(0, 4));
+}
+
+std::string TodayIso() {
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+    localtime_r(&now, &local);
+    return fmt::format("{:04}-{:02}-{:02}", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
+}
+
 std::string SizeText(u64 bytes) {
     if (bytes == 0) {
         return {};
@@ -730,11 +884,25 @@ bool HasMarker(const fs::path& folder, std::string* id = nullptr) {
     }
 }
 
+/// AzaharFrame zipinstall: the "updated" date in a pack folder's marker ("" none).
+std::string MarkerUpdated(const fs::path& folder) {
+    std::ifstream in(folder / kMarker);
+    if (!in) {
+        return {};
+    }
+    try {
+        const auto j = nlohmann::json::parse(in);
+        return ParseIsoDate(j.value("updated", "")).value_or("");
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
 } // namespace
 
-std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
-                           const std::string& load_dir, const std::atomic_bool* cancel,
-                           std::vector<std::string>* installed, const std::string& tool_override) {
+std::string UnpackArchive(const std::string& archive_path, const std::string& work_dir,
+                          const std::atomic_bool* cancel, std::string* root_out,
+                          const std::string& tool_override, std::uint64_t max_total) {
     std::string head(16, '\0');
     {
         std::ifstream in(archive_path, std::ios::binary);
@@ -748,22 +916,14 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
     if (kind == Mods::ArchiveKind::Unknown) {
         return "The download is not a zip, 7z or rar archive";
     }
-    const fs::path work = fs::path(load_dir) / "texture-downloads" / (entry.id + ".x");
+    const fs::path work = work_dir;
     std::error_code ec;
     fs::remove_all(work, ec);
     fs::create_directories(work, ec);
     if (ec) {
         return "Cannot make a work folder";
     }
-    struct Cleanup {
-        fs::path p;
-        ~Cleanup() {
-            std::error_code e;
-            fs::remove_all(p, e);
-        }
-    } cleanup{work};
 
-    const std::uint64_t max_total = 64ull << 30;
     std::string error;
     const std::string tool = tool_override.empty() ? Mods::FindBsdtar() : tool_override;
     const auto archive_size = fs::file_size(archive_path, ec);
@@ -771,7 +931,8 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
         // No bsdtar: the built-in reader takes a small zip.
         std::ifstream in(archive_path, std::ios::binary);
         const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        const auto r = Mods::ExtractZip(bytes);
+        const auto r = Mods::ExtractZip(
+            bytes, static_cast<std::size_t>(std::min<std::uint64_t>(max_total, 256ull * 1024 * 1024)));
         if (!r.error.empty()) {
             return r.error;
         }
@@ -791,14 +952,69 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
             return error;
         }
     }
-    const fs::path out_root = fs::exists(work / "out") ? work / "out" : work;
+    if (root_out != nullptr) {
+        *root_out = (fs::exists(work / "out") ? work / "out" : work).string();
+    }
+    return {};
+}
 
+std::vector<std::string> ListFiles(const std::string& root) {
     std::vector<std::string> files;
-    for (fs::recursive_directory_iterator it(out_root, ec), end; !ec && it != end; it.increment(ec)) {
-        if (it->is_regular_file(ec)) {
-            files.push_back(it->path().lexically_relative(out_root).generic_string());
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
+        if (it->is_regular_file(ec) && !it->is_symlink(ec)) {
+            files.push_back(it->path().lexically_relative(root).generic_string());
         }
     }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+bool IsTextureFileName(std::string_view base) {
+    return IsTextureFile(std::string(base));
+}
+
+std::optional<std::string> MarkerId(const std::string& folder) {
+    std::string id;
+    if (!HasMarker(folder, &id)) {
+        return std::nullopt;
+    }
+    return id;
+}
+
+bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source,
+                 const std::string& updated) {
+    nlohmann::json m;
+    m["id"] = id;
+    m["source"] = source;
+    if (!updated.empty()) {
+        m["updated"] = updated;
+    }
+    std::ofstream out(fs::path(folder) / kMarker, std::ios::trunc);
+    out << m.dump();
+    return static_cast<bool>(out);
+}
+
+std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
+                           const std::string& load_dir, const std::atomic_bool* cancel,
+                           std::vector<std::string>* installed, const std::string& tool_override) {
+    // AzaharFrame zipinstall: the unpack step is UnpackArchive (Install from Zip shares it).
+    const fs::path work = fs::path(load_dir) / "texture-downloads" / (entry.id + ".x");
+    struct Cleanup {
+        fs::path p;
+        ~Cleanup() {
+            std::error_code e;
+            fs::remove_all(p, e);
+        }
+    } cleanup{work};
+    std::string unpacked;
+    if (std::string error = UnpackArchive(archive_path, work.string(), cancel, &unpacked, tool_override);
+        !error.empty()) {
+        return error;
+    }
+    const fs::path out_root = unpacked;
+    std::error_code ec;
+    const std::vector<std::string> files = ListFiles(unpacked);
     const auto folders = FindPackFolders(files, entry.layout);
     if (folders.empty()) {
         return "No textures found in the download";
@@ -828,14 +1044,11 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
         if (ec) {
             return "Cannot move the pack into the library";
         }
-        {
-            nlohmann::json m;
-            m["id"] = entry.id;
-            m["source"] = entry.source.type == Source::Type::GithubRelease ? "github"
-                          : entry.source.type == Source::Type::Gdrive      ? "gdrive"
-                                                                           : "https";
-            std::ofstream(dst / kMarker) << m.dump();
-        }
+        WriteMarker(dst.string(), entry.id,
+                    entry.source.type == Source::Type::GithubRelease ? "github"
+                    : entry.source.type == Source::Type::Gdrive      ? "gdrive"
+                                                                     : "https",
+                    entry.updated);
         if (!fs::exists(dst / "pack.json", ec)) {
             nlohmann::json pj;
             pj["name"] = pf.name.empty() ? entry.name : entry.name + " - " + pf.name;
@@ -1085,12 +1298,20 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
         info.size = e.size;
         info.size_text = SizeText(e.size);
         info.partial = fs::exists(fs::path(load_dir_) / "texture-downloads" / (e.id + ".part"), ec);
+        info.verified = e.verified;
+        info.updated = e.updated;
+        std::string installed_date; // AzaharFrame zipinstall: the date the source had at download
         for (fs::directory_iterator it(PacksRoot(load_dir_, title_id), ec), end; !ec && it != end; it.increment(ec)) {
             std::string id;
             if (it->is_directory(ec) && HasMarker(it->path(), &id) && id == e.id) {
                 info.installed = true;
                 info.folders.push_back(it->path().filename().string());
+                const std::string date = MarkerUpdated(it->path());
+                installed_date = std::max(installed_date, date);
             }
+        }
+        if (!installed_date.empty()) {
+            info.updated = installed_date;
         }
         std::sort(info.folders.begin(), info.folders.end());
         out.push_back(std::move(info));
@@ -1223,6 +1444,9 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         }
         try {
             const auto j = nlohmann::json::parse(r.body);
+            if (j.contains("published_at") && j["published_at"].is_string()) { // AzaharFrame zipinstall
+                live_updated_ = ParseIsoDate(j["published_at"].get<std::string>()).value_or("");
+            }
             for (const auto& a : j.at("assets")) {
                 if (Mods::GlobMatch(source.asset_pattern, a.value("name", ""))) {
                     url = a.value("browser_download_url", "");
@@ -1259,6 +1483,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         if (!item) {
             return error;
         }
+        live_updated_ = ParseDriveDate(item->modified, TodayIso()).value_or(""); // zipinstall
         url = DriveUrl(item->id);
         break;
     }
@@ -1336,6 +1561,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
 
 void Downloader::Run(Entry entry, u64 title_id) {
     std::error_code ec;
+    live_updated_.clear();
     const fs::path dl_dir = fs::path(load_dir_) / "texture-downloads";
     fs::create_directories(dl_dir, ec);
     if (ec) {
@@ -1375,6 +1601,9 @@ void Downloader::Run(Entry entry, u64 title_id) {
         }
     }
     SetState(State::Phase::Extracting, "Unpacking");
+    if (!live_updated_.empty()) {
+        entry.updated = live_updated_; // AzaharFrame zipinstall: the source's own date, in the marker
+    }
     std::vector<std::string> installed;
     error = InstallArchive(part, entry, title_id, load_dir_, &cancel_, &installed);
     if (!error.empty()) {

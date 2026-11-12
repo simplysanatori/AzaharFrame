@@ -261,6 +261,19 @@ bool UsesGlobal(Id id) {
     }
 }
 
+/// AzaharFrame zipinstall: Install from Zip's page shows (over the segment and page it came from).
+bool ZipShown(const Menu::MenuModel& model, const Menu::MenuView& view) {
+    const auto& zip = model.mods.zip;
+    if (!zip.open || view.tab != Menu::Tab::Mods) {
+        return false;
+    }
+    if (zip.target == Menu::ZipTarget::Textures) {
+        return view.mods_segment == Menu::ModsSegment::Textures &&
+               view.textures_page == Menu::TexturesPage::Packs;
+    }
+    return view.mods_segment == Menu::ModsSegment::Mods && view.mods_page == Menu::ModsPage::Install;
+}
+
 // AzaharFrame cheatstab: the Mods tab's values from the Qt side (SetInGameMenuCheats and so on).
 std::mutex g_mods_mutex;
 Menu::ModsTabModel g_mods;
@@ -281,6 +294,11 @@ void SetInGameMenuModsList(const Menu::ModsListModel& mods) {
 void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
     std::scoped_lock lock{g_mods_mutex};
     g_mods.textures = textures;
+}
+
+void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.zip = zip;
 }
 
 struct MenuPanel::Shared {
@@ -793,6 +811,13 @@ void MenuPanel::BuildModel(const Host& host) {
                                                 .count() /
                                             66);
     }
+    if ((m.mods.zip.working || m.mods.zip.loading) && view.tab == Menu::Tab::Mods) {
+        // AzaharFrame zipinstall: Install from Zip's ring
+        m.mods.zip.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                               std::chrono::steady_clock::now().time_since_epoch())
+                                               .count() /
+                                           66);
+    }
     if (m.mods.textures.downloading && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Textures &&
         view.textures_page == Menu::TexturesPage::Download) {
@@ -1160,6 +1185,52 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::RestartGame:
         ask(MenuCommand::Restart);
         break;
+    // AzaharFrame zipinstall: Install from Zip (citra_qt/frame_mods.cpp)
+    case Id::InstallFromZip:
+        if (t.index == static_cast<int>(Menu::ZipTarget::Textures) ||
+            t.index == static_cast<int>(Menu::ZipTarget::Mods)) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask(MenuCommand::InstallFromZip, t.index);
+        }
+        break;
+    case Id::ZipBack:
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::ZipClose);
+        break;
+    case Id::ZipChip:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.chips.size())) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask_text(MenuCommand::ZipBrowse,
+                     model.mods.zip.chips[static_cast<std::size_t>(t.index)].path);
+        }
+        break;
+    case Id::ZipUp:
+        if (model.mods.zip.can_go_up) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            const std::string& folder = model.mods.zip.folder;
+            const std::size_t slash = folder.find_last_of('/');
+            ask_text(MenuCommand::ZipBrowse,
+                     slash == std::string::npos || slash == 0 ? std::string("/") : folder.substr(0, slash));
+        }
+        break;
+    case Id::ZipEntry:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.entries.size())) {
+            const Menu::ZipEntry& e = model.mods.zip.entries[static_cast<std::size_t>(t.index)];
+            const std::string& folder = model.mods.zip.folder;
+            const std::string path = (folder == "/" ? folder : folder + "/") + e.name;
+            if (e.folder) {
+                view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+                ask_text(MenuCommand::ZipBrowse, path);
+            } else {
+                ask_text(MenuCommand::ZipPick, path);
+            }
+        }
+        break;
+    case Id::ZipChoice:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.choices.size())) {
+            ask(MenuCommand::ZipChoose, t.index);
+        }
+        break;
     case Id::InstallMods:
         view.mods_page = Menu::ModsPage::Install;
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
@@ -1202,6 +1273,10 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     case Id::DialogConfirm:
     case Id::DialogCancel: {
+        if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
+            ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
+            break;
+        }
         // The segment's own dialog (the Qt side's), else the link's (the view's).
         const bool textures = view.mods_segment == Menu::ModsSegment::Textures;
         const auto& dialog = textures ? model.mods.textures.dialog : model.mods.mods.dialog;
@@ -1471,8 +1546,17 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                 view.mods_segment == Menu::ModsSegment::Mods;
         const bool textures_shown = view.tab == Menu::Tab::Mods &&
                                     view.mods_segment == Menu::ModsSegment::Textures;
+        // AzaharFrame zipinstall: Install from Zip's page over the segment it came from
+        const auto& zip = model.mods.zip;
+        const bool zip_shown = ZipShown(model, view);
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
+        } else if (zip_shown && zip.dialog.kind != Menu::ModsDialogKind::None) {
+            Click({Id::DialogCancel}, host);
+        } else if (zip_shown) {
+            if (!zip.working) {
+                Click({Id::ZipBack}, host);
+            }
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);

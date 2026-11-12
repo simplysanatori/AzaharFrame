@@ -16,6 +16,13 @@
 // Download Packs (core/custom_tex/download.h): one Downloader for the session; a download over
 // 1 GB asks "Download 2.1 GB?" first, and Delete (downloaded packs only) asks too. Finished packs
 // show up in the pack list.
+//
+// Install from Zip (core/mods/zip_install.h; AzaharFrame zipinstall): in VR the menu's own file
+// browser (the system's file chooser portal opens its window on Steam's display, outside the game's
+// VR layers, so it cannot be seen or used in the headset), in Flat Qt's file dialog (a window of the
+// app, which gamescope shows in the theater). The archive is unpacked and installed off the GUI
+// thread; the page shows the progress, asks before anything is replaced, and a toast says when it is
+// done.
 
 #pragma once
 
@@ -32,6 +39,9 @@
 #include "core/custom_tex/packs.h"
 #include "frame_xr/menu/mods_segments.h"
 
+namespace Mods::Zip {
+struct Job;
+}
 namespace CustomTex::Download {
 class Downloader;
 struct PackInfo;
@@ -81,6 +91,16 @@ private:
     void SetOffers(const std::vector<CustomTex::Download::PackInfo>& list);
     FrameXr::Menu::PackOffer* PackOffer(const std::string& id);
     FrameXr::Menu::ModOffer* Offer(const std::string& id);
+    // AzaharFrame zipinstall: Install from Zip
+    void ZipStart(int target);
+    void ZipBrowse(const std::string& folder);
+    void ZipPick(const std::string& path);
+    void ZipInstall(std::shared_ptr<Mods::Zip::Job> job, u64 tid, bool replace);
+    void ZipAnswer(bool yes);
+    void ZipDone(bool texture, u64 tid);
+    void ZipFail(const std::string& error);
+    void ZipCloseJob();
+    void PublishZip();
 
     u64 title_id = 0;
     int run = -1;
@@ -101,4 +121,14 @@ private:
     QTimer* download_poll = nullptr;
     bool sizing = false;
     QTimer* progress = nullptr;
+    // AzaharFrame zipinstall
+    enum class ZipQuestion { None, ReplaceSame, ReplaceOther, Blocked };
+    FrameXr::Menu::ZipModel zip;
+    std::shared_ptr<Mods::Zip::Job> zip_job; ///< unpacked, waiting for a choice or an answer
+    std::vector<u64> zip_choices;            ///< the games ZipModel::choices names
+    u64 zip_title = 0;                       ///< the title the install is for
+    ZipQuestion zip_question = ZipQuestion::None;
+    std::string zip_mod_id;                  ///< ReplaceOther, Blocked: the mod in the library
+    std::string zip_folder;                  ///< the folder browsed last (this session)
+    std::set<std::string> zip_packs;         ///< pack folders Install from Zip made (for Delete)
 };
