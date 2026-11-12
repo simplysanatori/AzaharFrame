@@ -120,6 +120,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
+- Immersive view no longer bobs up and down when the headset reports a slightly different lens view from frame to frame; I fit the screen to a steady view and only refit when it really changes.
 
 ### Smaller changes
 
