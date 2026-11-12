@@ -124,6 +124,8 @@ struct PackOffer {
     PackOfferState state = PackOfferState::Download;
     int percent = -1;      ///< Downloading: 0 to 100, -1 unknown
     std::string note;      ///< Downloading: the phase ("Unpacking"); Failed: why
+    std::string updated;   ///< AzaharFrame zipinstall: "Updated Sep 2026" ("" unknown)
+    bool verified = false; ///< AzaharFrame zipinstall: known to work: the verified badge
     bool operator==(const PackOffer&) const = default;
 };
 

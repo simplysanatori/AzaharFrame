@@ -765,6 +765,8 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.author = p.author;
         o.url = Menu::LinkText(p.author_url).empty() ? std::string{} : p.author_url;
         o.size_text = p.size_text;
+        o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
+        o.verified = p.verified;
         if (running && st.pack_id == p.id) {
             o.state = Menu::PackOfferState::Downloading;
         } else if (p.installed) {

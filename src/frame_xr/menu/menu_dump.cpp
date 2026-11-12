@@ -125,7 +125,24 @@ TexturesModel SamplePokemonDownloads() {
     t.custom_textures = true;
     t.downloads = {{"pokemon-xy-hd", "Pokemon X and Y HD", "Ullr8, Gray-Rice",
                     "https://github.com/Gray-Rice/PokeTex-3DS", "1.8 GB", PackOfferState::Download,
-                    -1, ""}};
+                    -1, "", "Updated Feb 2025", false}};
+    return t;
+}
+
+/// AzaharFrame zipinstall: Henriko Magnifico's verified packs, the longest author line.
+TexturesModel SampleOot3dDownloads() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.downloads = {{"oot3d-4k-henriko", "Ocarina of Time 3D 4K", "Henriko Magnifico",
+                    "", "", PackOfferState::Download, -1, "",
+                    "Updated Sep 2026", true},
+                   {"oot3d-1080p-henriko", "Ocarina of Time 3D 1080p", "Henriko Magnifico",
+                    "", "", PackOfferState::Downloading, 42,
+                    "Downloading", "Updated Sep 2026", true},
+                   {"mm3d-hd-deathwrench", "Majora's Mask 3D HD", "DeathWrench",
+                    "https://github.com/DeathWrench/MM3DHD", "", PackOfferState::Installed, -1, "",
+                    "Updated May 2021", false}};
+    t.downloading = true;
     return t;
 }
 
@@ -614,6 +631,10 @@ int main(int argc, char** argv) {
         v.textures_page = TexturesPage::Download;
         v.hover = {Id::PackDownload, 0};
         ok &= shot("download-list", dm, v);
+        MenuModel dh = dm; // AzaharFrame zipinstall: dates and the verified badge
+        dh.mods.textures = SampleOot3dDownloads();
+        v.hover = {Id::PackLink, 0};
+        ok &= shot("download-list-dates", dh, v);
         MenuModel db = dm;
         db.mods.textures.dialog = {ModsDialogKind::BigDownload, "Pokemon X and Y HD", "1.8 GB"};
         v.hover = {Id::DialogConfirm};

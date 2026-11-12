@@ -556,3 +556,99 @@ TEST_CASE("zipinstall: wrong layouts are refused, nothing left behind", "[frame_
         }
     }
 }
+
+// ---- Download Packs: when a pack was updated, and the verified badge (AzaharFrame zipinstall) ----
+
+TEST_CASE("texdl: update dates are parsed and shown", "[frame_xr][texdl]") {
+    using namespace CustomTex::Download;
+    CHECK(ParseIsoDate("2026-09-04") == std::optional<std::string>("2026-09-04"));
+    CHECK(ParseIsoDate("2025-02-28T12:34:56Z") == std::optional<std::string>("2025-02-28")); // published_at
+    CHECK(ParseIsoDate("2024-02-29") == std::optional<std::string>("2024-02-29"));
+    CHECK_FALSE(ParseIsoDate("2025-02-29"));
+    CHECK_FALSE(ParseIsoDate("2026-13-01"));
+    CHECK_FALSE(ParseIsoDate("2026-09-31"));
+    CHECK_FALSE(ParseIsoDate("26-09-04"));
+    CHECK_FALSE(ParseIsoDate("2026/09/04"));
+    CHECK_FALSE(ParseIsoDate("2026-09-04x"));
+    CHECK_FALSE(ParseIsoDate(""));
+
+    // Drive's folder listing: this year's dates without the year, older ones month first
+    const std::string today = "2026-11-11";
+    CHECK(ParseDriveDate("Sep 4", today) == std::optional<std::string>("2026-09-04"));
+    CHECK(ParseDriveDate(" Jan 15 ", today) == std::optional<std::string>("2026-01-15"));
+    CHECK(ParseDriveDate("3/10/25", today) == std::optional<std::string>("2025-03-10"));
+    CHECK(ParseDriveDate("12/31/2024", today) == std::optional<std::string>("2024-12-31"));
+    CHECK(ParseDriveDate("3:14 PM", today) == std::optional<std::string>("2026-11-11"));
+    CHECK_FALSE(ParseDriveDate("13/1/25", today));
+    CHECK_FALSE(ParseDriveDate("Sept 4", today));
+    CHECK_FALSE(ParseDriveDate("Sep 31", today));
+    CHECK_FALSE(ParseDriveDate("3/10/225", today));
+    CHECK_FALSE(ParseDriveDate("", today));
+    CHECK_FALSE(ParseDriveDate("Sep 4", "today"));
+
+    CHECK(UpdatedText("2026-09-04") == "Updated Sep 2026");
+    CHECK(UpdatedText("2021-05-06") == "Updated May 2021");
+    CHECK(UpdatedText("2025-12-01") == "Updated Dec 2025");
+    CHECK(UpdatedText("").empty());
+    CHECK(UpdatedText("soon").empty());
+    CHECK(ParseIsoDate(TodayIso()));
+
+    // the listing's "last modified" column
+    const auto items = ParseDriveFolder(
+        R"(<div class="flip-entry" id="entry-1w1Ez_V2ky56Kc-Gz18cH3VnpraxiOD0Q"><a href="https://drive.google.com/file/d/x/view"><div class="flip-entry-title">OOT3D 4K.zip</div></a><div class="flip-entry-last-modified"><div>Sep 4</div></div></div>)"
+        R"(<div class="flip-entry" id="entry-1wwEdr86qgwV4Erp2W_phcDu73QlBWgzo"><a href="https://drive.google.com/file/d/y/view"><div class="flip-entry-title">Old.zip</div></a><div class="flip-entry-last-modified"><div>3/10/25</div></div></div>)");
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].modified == "Sep 4");
+    CHECK(items[1].modified == "3/10/25");
+}
+
+TEST_CASE("texdl: the catalog's updated and verified fields", "[frame_xr][texdl]") {
+    using namespace CustomTex::Download;
+    const Catalog cat = DefaultCatalog();
+    const Entry* henriko = cat.Find("oot3d-4k-henriko");
+    REQUIRE(henriko);
+    CHECK(henriko->verified);
+    CHECK(henriko->updated == "2026-09-04");
+    const Entry* dw = cat.Find("mm3d-hd-deathwrench");
+    REQUIRE(dw);
+    CHECK_FALSE(dw->verified);
+    CHECK(dw->updated == "2021-05-06");
+    int verified = 0;
+    for (const Entry& e : cat.packs) {
+        CHECK(ParseIsoDate(e.updated)); // every entry has a date
+        verified += e.verified ? 1 : 0;
+        CHECK(e.verified == (e.author == "Henriko Magnifico"));
+    }
+    CHECK(verified == 8);
+
+    std::vector<std::string> warnings;
+    const auto parsed = ParseCatalog(R"({"schema": 1, "packs": [
+        {"id": "a", "name": "A", "title_ids": ["0004000000033500"], "updated": "2026-02-30",
+         "verified": "yes", "source": {"type": "https", "url": "https://example.com/a.zip"}},
+        {"id": "b", "name": "B", "title_ids": ["0004000000033500"], "updated": "2025-03-10",
+         "verified": true, "source": {"type": "https", "url": "https://example.com/b.zip"}}]})",
+                                     nullptr, &warnings);
+    REQUIRE(parsed);
+    REQUIRE(parsed->packs.size() == 2); // a bad date is dropped, not the entry
+    CHECK(parsed->packs[0].updated.empty());
+    CHECK_FALSE(parsed->packs[0].verified);
+    CHECK(parsed->packs[1].updated == "2025-03-10");
+    CHECK(parsed->packs[1].verified);
+    CHECK(warnings.size() == 1);
+
+    // an installed copy shows the date its source had when it was downloaded
+    Temp t;
+    Catalog mine;
+    mine.packs.push_back(parsed->packs[1]);
+    Downloader dl(t.load(), mine);
+    auto list = dl.ListForTitle(kOot);
+    REQUIRE(list.size() == 1);
+    CHECK(list[0].updated == "2025-03-10");
+    CHECK(list[0].verified);
+    const fs::path folder = fs::path(t.load()) / "texture-packs" / kOotText / "B";
+    fs::create_directories(folder);
+    REQUIRE(WriteMarker(folder.string(), "b", "https", "2024-01-02"));
+    list = dl.ListForTitle(kOot);
+    CHECK(list[0].installed);
+    CHECK(list[0].updated == "2024-01-02");
+}

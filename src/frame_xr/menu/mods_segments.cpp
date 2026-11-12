@@ -196,13 +196,15 @@ void RowText(Kit& kit, float x, float right, float cy, const std::string& name, 
 /// underlined while the beam is on it), then " · <rest>". Returns the link's rectangle (empty
 /// when there is no link).
 Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& author, bool link,
-               State link_state, const std::string& rest, bool rest_error, float op) {
+               State link_state, const std::string& rest, bool rest_error, float op,
+               bool created_by = true) {
     const float base = cy + 13.0f + kit.CapHeightSized(kSmall, false) * 0.5f;
     float at = x;
     Rect r{};
     if (!author.empty()) {
-        const std::string by = "Created by ";
-        at += kit.TextSized(at, base, kSmall, false, Tok::kOnSurfaceVariant, by, 0, op);
+        if (created_by) { // AzaharFrame zipinstall: Download Packs shows the author alone
+            at += kit.TextSized(at, base, kSmall, false, Tok::kOnSurfaceVariant, "Created by ", 0, op);
+        }
         const std::string name = kit.Fit(Type::Tooltip, author, std::max(24.0f, right - at));
         const float w = kit.TextSized(at, base, kSmall, false,
                                       link ? Tok::kPrimary : Tok::kOnSurfaceVariant, name, 0, op);
@@ -913,12 +915,15 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         }
         }
         const float text_right = right - kNameGap;
-        RowText(kit, c.x0, text_right, cy + kLinkNameDy, o.name, false, "", false, 1.0f, true);
+        // AzaharFrame zipinstall: the verified badge; "<author> · Updated Sep 2026" (the phase
+        // while it downloads, the error when it failed)
+        RowText(kit, c.x0, text_right, cy + kLinkNameDy, o.name, o.verified, "", false, 1.0f, true);
         const bool failed = o.state == PackOfferState::Failed;
-        const std::string rest = failed ? o.note : JoinDetail({o.size_text, o.note});
+        const bool busy = o.state == PackOfferState::Downloading;
+        const std::string rest = failed || busy ? o.note : o.updated;
         const bool link = !LinkText(o.url).empty();
         const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, o.author, link,
-                                 StateOf(view, {Id::PackLink, idx}), rest, failed, 1.0f);
+                                 StateOf(view, {Id::PackLink, idx}), rest, failed, 1.0f, false);
         if (link && l.W() > 0.0f) {
             AddHit(LinkTarget(l, row), {Id::PackLink, idx}, list);
         }

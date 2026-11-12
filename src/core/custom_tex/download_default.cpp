@@ -35,7 +35,9 @@ const char* DefaultCatalogJson() {
       "layout": "variants",
       "folder": "MM3D HD",
       "licence": "Not stated; fan-made, credit the author",
-      "notes": "Several variants (fonts, Link styles); each shows up as its own pack. Partial pack."
+      "notes": "Several variants (fonts, Link styles); each shows up as its own pack. Partial pack.",
+      "updated": "2021-05-06",
+      "verified": false
     },
     {
       "id": "pokemon-xy-hd",
@@ -58,7 +60,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "XY HD",
       "licence": "Not stated; fan-made, credit the authors",
-      "notes": "Work in progress. Based on Pokemon Y Resurrection."
+      "notes": "Work in progress. Based on Pokemon Y Resurrection.",
+      "updated": "2025-02-28",
+      "verified": false
     },
     {
       "id": "pokemon-usum-hd",
@@ -82,7 +86,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "USUM HD",
       "licence": "Not stated; fan-made, credit the authors",
-      "notes": "Textures from the Citra forum archive."
+      "notes": "Textures from the Citra forum archive.",
+      "updated": "2025-02-28",
+      "verified": false
     },
     {
       "id": "oot3d-4k-henriko",
@@ -112,7 +118,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "OoT3D 4K",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a. Size not confirmed (Google Drive was over its download limit when checked)."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a. Size not confirmed (Google Drive was over its download limit when checked).",
+      "updated": "2026-09-04",
+      "verified": true
     },
     {
       "id": "oot3d-1080p-henriko",
@@ -142,7 +150,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "OoT3D 1080p",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a, for 1080p screens."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a, for 1080p screens.",
+      "updated": "2026-09-04",
+      "verified": true
     },
     {
       "id": "mm3d-4k-henriko",
@@ -164,7 +174,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "MM3D 4K",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 3.0b. USA and Europe only."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 3.0b. USA and Europe only.",
+      "updated": "2026-01-05",
+      "verified": true
     },
     {
       "id": "mm3d-1080p-henriko",
@@ -186,7 +198,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "MM3D 1080p",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 3.0b, for 1080p screens. USA and Europe only."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 3.0b, for 1080p screens. USA and Europe only.",
+      "updated": "2026-01-05",
+      "verified": true
     },
     {
       "id": "sm3dl-4k-henriko",
@@ -208,7 +222,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "SM3DL 4K",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 1.2.0b."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 1.2.0b.",
+      "updated": "2025-03-10",
+      "verified": true
     },
     {
       "id": "sm3dl-1080p-henriko",
@@ -230,7 +246,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "SM3DL 1080p",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 1.2.0b, for 1080p screens."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 1.2.0b, for 1080p screens.",
+      "updated": "2025-03-10",
+      "verified": true
     },
     {
       "id": "albw-4k-henriko",
@@ -251,7 +269,9 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "ALBW 4K",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 2.0b. USA only (the pack is made for the USA game)."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 2.0b. USA only (the pack is made for the USA game).",
+      "updated": "2026-01-05",
+      "verified": true
     },
     {
       "id": "albw-1080p-henriko",
@@ -272,11 +292,12 @@ const char* DefaultCatalogJson() {
       "layout": "single",
       "folder": "ALBW 1080p",
       "licence": "Not stated; free for emulators, credit the author",
-      "notes": "Textures only; the pack's ReShade files are not used. Version 2.0b, for 1080p screens. USA only."
+      "notes": "Textures only; the pack's ReShade files are not used. Version 2.0b, for 1080p screens. USA only.",
+      "updated": "2026-01-05",
+      "verified": true
     }
   ]
-}
-)JSON";
+})JSON";
 }
 
 } // namespace CustomTex::Download

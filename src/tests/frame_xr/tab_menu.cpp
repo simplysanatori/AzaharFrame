@@ -808,3 +808,37 @@ TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::InstallFromZip, 1));
 }
+
+// AzaharFrame zipinstall: Download Packs rows: the verified badge and "<author> · Updated <Mon YYYY>",
+// which fits beside the row's button for the catalog's longest author.
+TEST_CASE("Tab menu: Download Packs dates fit", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Download;
+    const std::string author = "Henriko Magnifico"; // the longest in catalog/textures.json
+    m.mods.textures.downloads = {
+        {"a", "Ocarina of Time 3D 4K", author, "", "", PackOfferState::Download, -1, "", "Updated Sep 2026", true},
+        {"b", "Ocarina of Time 3D 1080p", author, "", "", PackOfferState::Downloading, 42, "Downloading",
+         "Updated Sep 2026", true}};
+    m.mods.textures.downloading = true;
+    d.Draw(m, v);
+    const auto* row = FindHit(d, Id::PackDownload, kLabelIndex);
+    REQUIRE(row);
+    const float x0 = row->r.x0 + 12.0f;
+    constexpr float kNameGap = 24.0f;
+    const auto line = [&](const std::string& rest) {
+        return d.kit.TextWidthSized(14.0f, false, author + " · " + rest);
+    };
+    // Download: the button (disabled while another downloads, so measured by its label)
+    const float button = d.kit.TextWidth(Type::Label, "Download") + 48.0f;
+    CHECK(line("Updated Sep 2026") <= (row->r.x1 - 12.0f - button - kNameGap) - x0);
+    // Downloading: Cancel, the percent and the ring
+    const auto* cancel = FindHit(d, Id::PackCancel, 1);
+    REQUIRE(cancel);
+    const float right = cancel->r.x0 - 4.0f - d.kit.TextWidth(Type::Label, "100%") - 12.0f - 24.0f - kNameGap;
+    CHECK(line("Downloading") <= right - x0);
+    CHECK(line("Updated Sep 2026") <= right - x0); // even the longer text would fit
+}
