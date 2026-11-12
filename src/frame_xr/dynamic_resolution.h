@@ -24,7 +24,8 @@
 // time; the seconds after a step are not judged (the step's own hitch: the rasterizer cache
 // starts again at the new factor); and a step up the GPU cannot hold blocks that level for
 // kRetryWait, and for the rest of the game the second time, so it settles instead of going up
-// and down.
+// and down. AzaharFrame ui2: a step up needs the GPU under a quarter of the budget, and good
+// seconds count only kHoldAfterDown seconds after the last step down's settle.
 
 #pragma once
 
@@ -51,11 +52,17 @@ public:
     /// The GPU's time as a share of the display period: from kBadBudget on it is the limit,
     /// under kGoodBudget it has room for a step up.
     static constexpr double kBadBudget = 0.9;
-    static constexpr double kGoodBudget = 0.5;
+    /// AzaharFrame ui2: 0.5 was too eager: in report 14's logs 3 of 4 steps up from 2.2-2.9 ms
+    /// at 120 Hz (a third of the budget) failed within 8 s; the GPU's time jumps from a few ms
+    /// to over a frame at the next level.
+    static constexpr double kGoodBudget = 0.25;
     static constexpr uint32_t kMinGpuFrames = 5; ///< fewer timed frames say nothing
     static constexpr int kDownAfter = 3;        ///< bad seconds in a row for a step down
     static constexpr int kUpAfter = 10;         ///< good seconds in a row for a step up
     static constexpr int kSettle = 5;           ///< seconds not judged after a step
+    /// AzaharFrame ui2: after a step down (and kSettle), seconds whose good ones do not count
+    /// yet, so it does not bounce straight back up; bad ones still do.
+    static constexpr int kHoldAfterDown = 5;
     static constexpr int kFailWindow = 20;      ///< a step down this soon after a step up fails
     static constexpr int kRetryWait = 120;      ///< seconds before that level is tried again
     static constexpr int kMaxSteps = 32;
@@ -81,6 +88,7 @@ private:
     int bad = 0;
     int good = 0;
     int settle = 0;
+    int hold = 0; ///< AzaharFrame ui2: kHoldAfterDown left
     double now = 0.0; ///< seconds since the start
     double last_up = -1e9;
     /// Per drop level (the level a step up went to): failed step ups and until when it waits.

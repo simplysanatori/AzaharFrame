@@ -41,5 +41,8 @@ void GameKeyboardPress(GameKeyboardKey key);
 /// Closes the keyboard from outside: with the game's cancel button and no text (the game is
 /// stopping), or, with `fallback`, as not shown (VR ended: Azahar's dialog takes over). Any thread.
 void CancelGameKeyboard(bool fallback = false);
+/// AzaharFrame ui2: the menu closed: a keyboard it asked for (Spec::over_menu) closes too, as with
+/// its Cancel button. False: none was open. Any thread.
+bool CancelMenuKeyboard();
 
 } // namespace FrameXr

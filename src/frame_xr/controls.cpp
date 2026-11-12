@@ -799,6 +799,7 @@ void VrUi::EnterMenu() {
 }
 
 void VrUi::LeaveMenu(const Input::InputFrame& in) {
+    CancelMenuKeyboard(); // AzaharFrame ui2: a keyboard over the menu (a cheat's) goes with it
     tab_menu.Close(); // AzaharFrame tabmenu
     mirror.Hide();
     keyboard.Hide(); // AzaharFrame keyboard

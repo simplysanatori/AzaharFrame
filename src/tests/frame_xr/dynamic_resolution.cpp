@@ -48,6 +48,11 @@ TEST_CASE("Dynamic Resolution: what a bad and a good second are", "[frame_xr]") 
     CHECK_FALSE(Controller::Bad(Fine()));
     CHECK(Controller::Good(Fine()));
     CHECK_FALSE(Controller::Good(Neutral()));
+    // AzaharFrame ui2: room means a quarter of the budget (2.08 ms at 120 Hz): the 2.2-2.9 ms
+    // seconds the failed steps up of report 14 came from are not good any more.
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 2.2, true}));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 2.9, true}));
+    CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 60, 2.9, true}));
     CHECK_FALSE(Controller::Bad(Neutral()));
     // The game's own rate does not count: a 30 fps game with the headset at full rate is fine.
     Second thirty = Fine();
@@ -95,7 +100,7 @@ TEST_CASE("Dynamic Resolution: up one step after many good seconds", "[frame_xr]
     Controller c;
     Run(c, GpuBehind(), Controller::kDownAfter + Controller::kSettle + Controller::kDownAfter);
     REQUIRE(c.Drop() == 2);
-    Run(c, Fine(), Controller::kSettle);
+    Run(c, Fine(), Controller::kSettle + Controller::kHoldAfterDown);
     CHECK(Run(c, Fine(), Controller::kUpAfter - 1) == 2);
     CHECK(c.Judge(Fine(), 3) == 1);
     // A neutral second breaks the run.
@@ -110,7 +115,7 @@ TEST_CASE("Dynamic Resolution: a step up that cannot be held is not tried again 
           "[frame_xr]") {
     Controller c;
     Run(c, GpuBehind(), Controller::kDownAfter); // 1
-    Run(c, Fine(), Controller::kSettle + Controller::kUpAfter); // back to 0
+    Run(c, Fine(), Controller::kSettle + Controller::kHoldAfterDown + Controller::kUpAfter); // 0
     REQUIRE(c.Drop() == 0);
     // Behind again at once: down, and the level is blocked.
     Run(c, Fine(), Controller::kSettle);
@@ -134,6 +139,41 @@ TEST_CASE("Dynamic Resolution: a step up that cannot be held is not tried again 
     Second none = Fine();
     none.live = false;
     CHECK(c.Judge(none, 3) == 0);
+}
+
+// AzaharFrame ui2: after a step down it holds a few seconds before good seconds count, so it
+// does not bounce straight back up; it can still go further down while it holds.
+TEST_CASE("Dynamic Resolution: it holds after a step down", "[frame_xr]") {
+    constexpr int kEarliestUp =
+        Controller::kSettle + Controller::kHoldAfterDown + Controller::kUpAfter;
+    Controller c;
+    Run(c, GpuBehind(), Controller::kDownAfter);
+    REQUIRE(c.Drop() == 1);
+    CHECK(Run(c, Fine(), kEarliestUp - 1) == 1);
+    CHECK(c.Judge(Fine(), 3) == 0);
+
+    // Bad seconds while it holds still step it down.
+    Controller d;
+    Run(d, GpuBehind(), Controller::kDownAfter);
+    Run(d, GpuBehind(), Controller::kSettle);
+    REQUIRE(d.Drop() == 1);
+    CHECK(Run(d, GpuBehind(), Controller::kDownAfter) == 2);
+
+    // Neutral seconds in the hold do not shorten it: still the full run of good ones after.
+    Controller e;
+    Run(e, GpuBehind(), Controller::kDownAfter);
+    Run(e, Neutral(), Controller::kSettle + Controller::kHoldAfterDown);
+    CHECK(Run(e, Fine(), Controller::kUpAfter - 1) == 1);
+    CHECK(e.Judge(Fine(), 3) == 0);
+
+    // A pause does not use the hold up: only judged seconds count.
+    Controller f;
+    Run(f, GpuBehind(), Controller::kDownAfter);
+    Second paused = Fine();
+    paused.emu_frames = paused.gpu_frames = 0;
+    Run(f, paused, 100);
+    CHECK(Run(f, Fine(), kEarliestUp - 1) == 1);
+    CHECK(f.Judge(Fine(), 3) == 0);
 }
 
 TEST_CASE("Dynamic Resolution: paused seconds are not judged", "[frame_xr]") {
