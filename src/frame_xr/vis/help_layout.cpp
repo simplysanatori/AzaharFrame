@@ -308,3 +308,4 @@ std::vector<DiagramPlaced> LayoutHelpDiagram(const DiagramPage& page, const Diag
 }
 
 } // namespace FrameXr::Vis
+

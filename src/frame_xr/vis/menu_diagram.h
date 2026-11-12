@@ -13,6 +13,7 @@
 #include <array>
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/model_file.h"

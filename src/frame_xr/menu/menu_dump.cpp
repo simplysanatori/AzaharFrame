@@ -18,6 +18,8 @@
 
 #include <lodepng.h>
 
+#include "frame_xr/input/controls.h"
+#include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/help_content.h"
@@ -51,6 +53,7 @@ Menu::MenuModel SampleModel() {
     m.stats_system = {{"CPU", "38%"}, {"GPU Clock", "587 MHz"}};
     m.version = "1.1.0";
     m.controls_page = 0;
+    m.move_screens = 1;
     m.scope = 0;
     m.background = 0;
     m.face_buttons = 0;
@@ -226,6 +229,63 @@ int main(int argc, char** argv) {
     mw.controls_page = 1;
     v.hover = {};
     ok &= shot("4b-controls-window", mw, v);
+
+    // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
+    // DualShock 4 (a touchpad), a mouse.
+    {
+        using Input::Control;
+        MenuModel me = m;
+        EditDevice frame;
+        frame.key = "frame";
+        frame.name = "Frame Controllers";
+        RemapTable ft;
+        ft.fill(-1);
+        const std::array<Control, 12> fc{Control::A,      Control::B,        Control::X,
+                                         Control::Y,      Control::DpadUp,   Control::DpadDown,
+                                         Control::DpadLeft, Control::DpadRight, Control::BumperL,
+                                         Control::BumperR, Control::Menu,     Control::View};
+        for (std::size_t i = 0; i < fc.size(); i++) {
+            ft[i] = static_cast<int8_t>(fc[i]);
+        }
+        ft[DsButton::ZL] = static_cast<int8_t>(Control::TriggerL);
+        ft[DsButton::ZR] = static_cast<int8_t>(Control::TriggerR);
+        frame.mapping = ft;
+        EditDevice ds4;
+        ds4.key = "050000004c050000cc09000000810000";
+        ds4.name = "DualShock 4";
+        ds4.kind = DeviceKind::Gamepad;
+        ds4.names = NamesFor(4, false);
+        ds4.has_touchpad = true;
+        ds4.mapping = PositionalPadTable();
+        EditDevice mouse;
+        mouse.key = "mouse";
+        mouse.name = "Mouse";
+        mouse.kind = DeviceKind::Mouse;
+        mouse.sticks = {-1, -1};
+        me.devices.list = {frame, ds4, mouse};
+
+        v = {};
+        v.tab = Tab::Controls;
+        v.remap.editing = true;
+        v.hover = {Id::RemapChip, DsButton::R};
+        ok &= shot("edit-3ds-frame", me, v);
+        v.remap.listening = DsButton::X;
+        v.hover = {Id::RemapCancel};
+        ok &= shot("edit-3ds-listening", me, v);
+
+        v.remap.listening = -1;
+        v.hover = {Id::EditDevice, 2};
+        me.devices.selected = 1;
+        me.touchpad_touch = 1;
+        me.devices.pointer = {.shown = true, .down = true, .x = 0.64f, .y = 0.38f};
+        ok &= shot("edit-3ds-gamepad", me, v);
+
+        v.hover = {};
+        me.devices.selected = 2;
+        me.touchpad_touch = 2;
+        me.devices.pointer = {.shown = true, .down = false, .x = 0.3f, .y = 0.62f};
+        ok &= shot("edit-3ds-mouse", me, v);
+    }
 
     v = {};
     v.tab = Tab::Settings;

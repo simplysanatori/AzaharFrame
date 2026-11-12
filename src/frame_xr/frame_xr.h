@@ -180,7 +180,8 @@ enum class MenuCommand {
     ShowWindow,   ///< Azahar's window over the paused game (the mirrored window)
     MoreSettings, ///< the same, with Emulation > Configure... open
     Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
-    EditControls, ///< AzaharFrame menu: the controls remap (the remap lane's)
+    EditControls, ///< AzaharFrame menu: Edit Controls started (nothing for the Qt side to do)
+    SetButtons,   ///< AzaharFrame remap: `buttons` are the controls profile's 3DS buttons (18)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
 };
 enum class MenuSetting {
@@ -210,6 +211,7 @@ struct MenuRequest {
     MenuSetting setting = MenuSetting::HideBottomScreen;
     int value = 0;
     bool per_game = false;
+    std::vector<std::string> buttons; ///< AzaharFrame remap: SetButtons, Settings::InputProfile::buttons
 };
 
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
