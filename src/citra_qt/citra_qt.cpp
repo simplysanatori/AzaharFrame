@@ -388,9 +388,17 @@ Mods::Compat::Game FrameGameInfoOf(Core::System& system, const std::string& game
             }
             return Mods::Compat::Version{x->major, x->minor};
         };
-        g.version = Mods::Compat::GameVersion(v.source == S::UpdateTmd ? as(v.version) : std::nullopt,
-                                              v.source == S::BaseTmd ? as(v.version) : std::nullopt,
-                                              v.revision, &g.version_source);
+        if ((v.source == S::UpdateTmd || v.source == S::BaseTmd) && v.tmd) {
+            // AzaharFrame echoes: the version the game shows (Sharkive::GameVersionOf), the
+            // raw TMD only in the log
+            g.version = as(v.version);
+            g.updates = v.updates;
+            g.version_source = fmt::format("{}, TMD v{}",
+                                           v.source == S::UpdateTmd ? "update" : "installed title", *v.tmd);
+        } else {
+            g.version = Mods::Compat::GameVersion(std::nullopt, std::nullopt, v.revision,
+                                                  &g.version_source);
+        }
     }
     return g;
 }

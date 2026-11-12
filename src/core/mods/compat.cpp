@@ -298,8 +298,10 @@ std::string Verdict::Reason() const {
     case Mismatch::Build:
         return "Made for another build of the game. Yours matches " + your_build + ". " + kMayNotWork;
     case Mismatch::Version:
-        return "Made for game version " + VersionText(*made_for) + ". Yours is " +
-               VersionText(*your_version) + ". " + kMayNotWork;
+        return "Made for game version " + VersionText(*made_for) + ". " +
+               (your_version ? "Yours is " + VersionText(*your_version) + "."
+                             : std::string("Yours has an update installed.")) +
+               " " + kMayNotWork;
     case Mismatch::Region:
         return "Made for " + VersionsOf(regions) + "." +
                (yours != Region::Unknown ? " Yours is the " + RegionAdjective(yours) + " version."
@@ -320,8 +322,10 @@ std::string Verdict::Body(std::string_view what) const {
         return start + "another build of the game, and yours matches " + your_build + ". " +
                kMayNotStart;
     case Mismatch::Version:
-        return start + "game version " + VersionText(*made_for) + ", and yours is version " +
-               VersionText(*your_version) + ". " + kMayNotStart;
+        return start + "game version " + VersionText(*made_for) + ", and yours " +
+               (your_version ? "is version " + VersionText(*your_version)
+                             : std::string("has an update installed")) +
+               ". " + kMayNotStart;
     case Mismatch::Region:
         return start + VersionsOf(regions) + " of the game" +
                (yours != Region::Unknown ? ", and yours is the " + RegionAdjective(yours) + " version"
@@ -354,17 +358,25 @@ Verdict Judge(const EntryFacts& entry, const Game& game, const Families& familie
             const bool mine = game.code_crc &&
                               std::find(entry.code_crc32.begin(), entry.code_crc32.end(),
                                         *game.code_crc) != entry.code_crc32.end();
-            if (!mine && game.code_crc && !matched_build.empty()) {
+            if (mine) {
+                return v;
+            }
+            if (game.code_crc && !matched_build.empty()) {
                 v.kind = Mismatch::Build;
                 v.your_build = matched_build;
+                return v;
             }
-            return v;
+            // AzaharFrame echoes: no build of the game is known, so the version decides
         }
         const auto made_for = ParseVersion(entry.chip);
         if (made_for && game.version && CompareVersions(*made_for, *game.version) != 0) {
             v.kind = Mismatch::Version;
             v.made_for = made_for;
             v.your_version = game.version;
+        } else if (made_for && !game.version && game.updates > 0 && *made_for == Version{1, 0}) {
+            // AzaharFrame echoes: an update whose version is not known is still not 1.0
+            v.kind = Mismatch::Version;
+            v.made_for = made_for;
         }
         return v;
     }

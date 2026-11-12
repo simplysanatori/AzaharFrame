@@ -14,10 +14,13 @@
 //
 // Why it may not fit, first that applies:
 //   Build    the entry lists code CRC32s (Project Restoration), the running game's code matches
-//            another entry of the game, and not this one ("Matches Your Game" on that one)
+//            another entry of the game, and not this one ("Matches Your Game" on that one); when
+//            no entry matches the game's code, the version below decides
 //   Version  the entry's version chip is a plain version ("1.1") and the game's differs; the
-//            game's version comes from its installed update title (or its own installed title),
-//            else 1.0 when the game runs from a cartridge or file with no update installed
+//            game's version is the one it shows (Cheats::Sharkive::GameVersionOf, from its
+//            installed update title or its own installed title), else 1.0 when the game runs from
+//            a cartridge or file with no update installed. An update whose version is not known
+//            is still not 1.0: a "1.0" entry does not fit it
 //   Region   the entry does not list the game's title ID and serves other regions only
 //   Release  the entry does not list the game's title ID and the regions do not tell why (another
 //            edition, such as Fire Emblem Fates' Special Edition and Birthright)
@@ -60,7 +63,9 @@ struct Game {
     u64 title_id = 0;
     Region region = Region::Unknown;   ///< RegionOfTitle, else from the game's own region lock
     std::optional<Version> version;    ///< see the top of this file
-    std::string version_source;        ///< "update", "installed title", "assumed": for the log
+    std::string version_source;        ///< "update, TMD v3072", "installed title, TMD v0", "assumed": for the log
+    int updates = 0; ///< AzaharFrame echoes: an installed update's TMD bits 10-15 (above 0: an
+                     ///< update's code); with `version` unknown, a 1.0 entry does not fit
     std::optional<u32> code_crc;       ///< the CRC32 of the game's .code
 };
 
@@ -101,7 +106,8 @@ struct Verdict {
     Mismatch kind = Mismatch::None;
     std::vector<Region> regions; ///< Region: the ones it was made for (known ones, in order)
     Region yours = Region::Unknown;
-    std::optional<Version> made_for, your_version; ///< Version
+    std::optional<Version> made_for, your_version; ///< Version (your_version unset: an update of
+                                                   ///< a version not known)
     std::string your_build;                        ///< Build: the label that matches the game
 
     bool Fits() const {

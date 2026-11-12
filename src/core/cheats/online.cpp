@@ -173,7 +173,7 @@ MergeResult Merge(const std::vector<Fetched>& fetched, const std::vector<std::st
             out.by_revision = true;
             out.mismatched += Sharkive::MarkOtherRevisions(fresh, *installed.revision);
         } else {
-            out.mismatched += Sharkive::MarkOtherVersions(fresh, installed.version);
+            out.mismatched += Sharkive::MarkOtherVersions(fresh, installed);
         }
         (source.source == Source::Developer ? out.developer : out.sharkive) +=
             static_cast<int>(fresh.size());
@@ -433,7 +433,7 @@ Sharkive::InstalledVersion QueryInstalledVersion(u64 title_id, const std::string
             remaster = static_cast<u16>(r[0] | (r[1] << 8));
         }
     }
-    return Sharkive::SelectInstalledVersion(update, base, remaster);
+    return Sharkive::SelectInstalledVersion(title_id, update, base, remaster);
 }
 
 // AzaharFrame integ: the network part, tagged with its title; no CheatEngine is touched here.
