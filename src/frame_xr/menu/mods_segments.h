@@ -97,6 +97,7 @@ struct ModsListModel {
     bool busy = false; ///< an install or remove runs: the other actions wait
     ModsDialog dialog;
     bool needs_restart = false; ///< the snackbar
+    std::string notice; ///< AzaharFrame catalog3: the snackbar's text instead of "Restart the Game to Apply"
     int spin = 0;               ///< the progress ring's step (15 a second) while anything runs
     bool operator==(const ModsListModel&) const = default;
 };

@@ -261,6 +261,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         }
         if (p.kind == Pending::Kind::Install) {
             Install(p.id, true);
+        } else if (p.kind == Pending::Kind::BigInstall) { // AzaharFrame catalog3
+            Install(p.id, false, true);
         } else if (p.kind == Pending::Kind::Remove) {
             Remove(p.id);
         }
@@ -442,8 +444,10 @@ void FrameMods::RefreshAvailable() {
                 return;
             }
             mods.available.clear();
+            mod_sizes.clear();
             const Mods::Catalog catalog = Mods::Default().GetCatalog();
             for (const Mods::AvailableMod& a : list) {
+                mod_sizes[a.id] = a.active || a.in_library ? 0 : a.size; // AzaharFrame catalog3
                 Menu::ModOffer o;
                 o.id = a.id;
                 o.name = a.name;
@@ -484,10 +488,31 @@ Menu::ModOffer* FrameMods::Offer(const std::string& id) {
     return nullptr;
 }
 
-void FrameMods::Install(const std::string& id, bool replace) {
+void FrameMods::SetTexturesEnabler(std::function<bool()> enabler) {
+    textures_enabler = std::move(enabler);
+}
+
+void FrameMods::SetNotifier(std::function<void(const std::string&)> n) {
+    notifier = std::move(n);
+}
+
+void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
     if (mods.busy || id.empty()) {
         return;
     }
+    // AzaharFrame catalog3: a download over 1 GB says how big first
+    if (!confirmed && !replace) {
+        const auto big = mod_sizes.find(id);
+        const Menu::ModOffer* offer = Offer(id);
+        if (big != mod_sizes.end() && big->second > 1'000'000'000 && offer != nullptr) {
+            pending = {Pending::Kind::BigInstall, id};
+            mods.dialog = {Menu::ModsDialogKind::BigDownload, offer->name,
+                           CustomTex::Download::SizeText(big->second)};
+            PublishMods();
+            return;
+        }
+    }
+    mods.notice.clear();
     mods.busy = true;
     installing = id;
     failed.clear();
@@ -523,6 +548,14 @@ void FrameMods::Install(const std::string& id, bool replace) {
             switch (out.result) {
             case Mods::InstallResult::Ok:
                 mods.needs_restart = true;
+                // AzaharFrame catalog3: a textures part needs Custom Textures on for this game
+                if (out.textures_installed && textures_enabler && textures_enabler()) {
+                    mods.notice = "Installed. Custom Textures turned on for this game.";
+                }
+                // the running game's folders are not touched: it is downloaded and goes in at the next start
+                if (out.staged && notifier) {
+                    notifier(name + " Downloaded. Restart to Enable.");
+                }
                 break;
             case Mods::InstallResult::AlreadyInstalled:
                 break;

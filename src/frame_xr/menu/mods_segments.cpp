@@ -427,7 +427,7 @@ std::string SizeText(uint64_t bytes) {
 // ---------------------------------------------------------------------------------------------
 // Shared: the snackbar and the dialog
 
-float TabMenu::DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area) {
+float TabMenu::DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area, const std::string& text) {
     const Rect c{area.x0 + kPad, area.y0, area.x1 - kPad, area.y1};
     const Rect bar{c.x0, area.y1 - kSnackGap - kSnackH, c.x1, area.y1 - kSnackGap};
     kit.Fill(bar, 4.0f, Tok::kInverseSurface); // Material: extra-small corners
@@ -438,7 +438,7 @@ float TabMenu::DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& a
     kit.TextMid(a.Cx(), bar.Cy(), Type::Label, kInversePrimary, action, 1);
     AddHit({a.x0, bar.y0, a.x1, bar.y1}, {Id::RestartGame}, area);
     kit.TextSized(bar.x0 + 16.0f, bar.Cy() + kit.CapHeightSized(16.0f, false) * 0.5f, 16.0f,
-                  false, Tok::kInverseOnSurface, kRestartText);
+                  false, Tok::kInverseOnSurface, text.empty() ? std::string(kRestartText) : text);
     return bar.y0 - 8.0f;
 }
 
@@ -535,7 +535,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     layout.max_scroll = 0.0f;
     float bottom = area.y1 - 8.0f;
     if (m.needs_restart) {
-        bottom = DrawRestartSnackbar(kit, view, area);
+        bottom = DrawRestartSnackbar(kit, view, area, m.notice); // AzaharFrame catalog3
     }
 
     if (view.mods_page == ModsPage::Install && model.mods.zip.open &&

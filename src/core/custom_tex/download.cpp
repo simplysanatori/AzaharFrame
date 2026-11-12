@@ -28,6 +28,7 @@
 #include "core/custom_tex/packs.h"
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
+#include "core/mods/multipart.h" // AzaharFrame catalog3
 
 namespace CustomTex::Download {
 
@@ -361,8 +362,10 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             e.notes = str(p, "notes");
             // AzaharFrame zipinstall: the pack's last update and the verified badge
             if (const std::string updated = str(p, "updated"); !updated.empty()) {
-                if (const auto date = ParseIsoDate(updated); date && date->size() == updated.size()) {
-                    e.updated = *date;
+                // AzaharFrame catalog3: "YYYY-MM" as well
+                const auto date = ParseIsoDate(updated.size() == 7 ? updated + "-01" : updated);
+                if (date && (date->size() == updated.size() || (updated.size() == 7 && date->compare(0, 7, updated) == 0))) {
+                    e.updated = updated.size() == 7 ? updated : *date;
                 } else {
                     warn(e.id, "bad updated date (ignored)");
                 }
@@ -384,6 +387,9 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
                 continue;
             }
             e.size = p.value("size", 0ull);
+            e.downloads = p.contains("downloads") && p["downloads"].is_number_unsigned()
+                              ? p["downloads"].get<u64>()
+                              : 0; // AzaharFrame catalog3
             e.sha256 = Lower(str(p, "sha256"));
             if (!e.sha256.empty() &&
                 (e.sha256.size() != 64 || !std::all_of(e.sha256.begin(), e.sha256.end(),
@@ -404,17 +410,34 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             e.layout = layout == "variants" ? Layout::Variants : Layout::Single;
             e.folder = SanitizeFolderName(str(p, "folder").empty() ? e.name : str(p, "folder"));
 
-            if (!p.contains("source") || !p["source"].is_object()) {
+            const bool parts_only = !p.contains("source") && p.contains("parts") && p["parts"].is_array() &&
+                                    !p["parts"].empty() && p["parts"][0].is_object();
+            if (!parts_only && (!p.contains("source") || !p["source"].is_object())) {
                 warn(e.id, "no source");
                 continue;
             }
             std::string why;
-            auto primary = ParseSource(p["source"], &why);
+            auto primary = ParseSource(parts_only ? p["parts"][0] : p["source"], &why);
             if (!primary) {
                 warn(e.id, why);
                 continue;
             }
             e.source = std::move(*primary);
+            if (p.contains("parts")) { // AzaharFrame catalog3: downloaded in order, joined, unpacked as one
+                bool parts_ok = p["parts"].is_array() && !p["parts"].empty() && p["parts"].size() <= 40;
+                for (const auto& part : parts_ok ? p["parts"] : nlohmann::json::array()) {
+                    auto parsed = part.is_object() ? ParseSource(part, &why) : std::nullopt;
+                    if (!parsed) {
+                        parts_ok = false;
+                        break;
+                    }
+                    e.parts.push_back(std::move(*parsed));
+                }
+                if (!parts_ok) {
+                    warn(e.id, "bad parts: " + why);
+                    continue;
+                }
+            }
             bool alternates_ok = true;
             if (p.contains("alternates")) {
                 alternates_ok = p["alternates"].is_array() && p["alternates"].size() <= 4;
@@ -461,6 +484,7 @@ bool SplitUrl(const std::string& url, std::string& host, std::string& path) {
 
 bool HostAllowed(const std::string& host, const std::vector<std::string>& extra) {
     static const char* allowed[] = {"https://github.com",
+                                    "https://raw.githubusercontent.com", // AzaharFrame catalog3: raw files of a repository
                                     "https://objects.githubusercontent.com",
                                     "https://release-assets.githubusercontent.com",
                                     "https://codeload.github.com",
@@ -832,7 +856,11 @@ std::optional<std::string> ParseDriveDate(std::string_view raw, const std::strin
     return std::nullopt;
 }
 
-std::string UpdatedText(const std::string& iso) {
+std::string UpdatedText(const std::string& iso_in) {
+    std::string iso = iso_in;
+    if (iso.size() == 7) { // AzaharFrame catalog3: "YYYY-MM"
+        iso += "-01";
+    }
     const auto d = ParseIsoDate(iso);
     if (!d) {
         return {};
@@ -1326,6 +1354,11 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
         info.partial = fs::exists(fs::path(load_dir_) / "texture-downloads" / (e.id + ".part"), ec);
         info.verified = e.verified;
         info.updated = e.updated;
+        info.downloads = e.downloads; // AzaharFrame catalog3
+        {
+            std::lock_guard lock{mutex_};
+            info.unscanned = unscanned_ids_.count(e.id) != 0;
+        }
         std::string installed_date; // AzaharFrame zipinstall: the date the source had at download
         for (fs::directory_iterator it(PacksRoot(load_dir_, title_id), ec), end; !ec && it != end; it.increment(ec)) {
             std::string id;
@@ -1348,9 +1381,10 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
 State Downloader::GetState() const {
     std::lock_guard lock{mutex_};
     State s = state_;
+    s.unscanned = hit_unscanned_.load();
     if (s.Busy()) {
-        s.bytes_done = done_.load();
-        s.bytes_total = total_.load();
+        s.bytes_done = parts_base_.load() + done_.load();
+        s.bytes_total = parts_total_.load() != 0 ? parts_total_.load() : total_.load();
     }
     return s;
 }
@@ -1386,7 +1420,7 @@ void Downloader::DiscardPartial(const std::string& pack_id) {
     fs::remove(fs::path(load_dir_) / "texture-downloads" / (pack_id + ".part"), ec);
 }
 
-bool Downloader::Start(const std::string& pack_id, u64 title_id) {
+bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unscanned) {
     Entry entry;
     {
         std::lock_guard lock{mutex_};
@@ -1408,6 +1442,8 @@ bool Downloader::Start(const std::string& pack_id, u64 title_id) {
         worker_.join();
     }
     cancel_ = false;
+    allow_unscanned_ = allow_unscanned;
+    hit_unscanned_ = false;
     done_ = 0;
     total_ = entry.size;
     worker_ = std::thread([this, entry = std::move(entry), title_id] { Run(entry, title_id); });
@@ -1509,6 +1545,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         if (r.status != 200) {
             return r.status == 404 ? "Mod not found" : fmt::format("Server returned {}", r.status);
         }
+        bool unscanned = false;
         try {
             const auto j = nlohmann::json::parse(r.body);
             if (j.value("_bIsTrashed", false) || j.value("_bIsWithheld", false) ||
@@ -1522,24 +1559,50 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
                 gmtime_r(&tt, &tm);
                 live_updated_ = fmt::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
             }
-            long long newest = -1;
+            long long newest = -1, newest_unknown = -1;
+            std::string unk_url;
+            u64 unk_size = expected;
             for (const auto& f : j.at("_aFiles")) {
-                if (f.value("_bIsArchived", false) || f.value("_sAvResult", "") != "clean" ||
-                    !Mods::GlobMatch(source.file_pattern, f.value("_sFile", ""))) {
+                const std::string av = f.value("_sAvResult", "");
+                if (f.value("_bIsArchived", false) || !Mods::GlobMatch(source.file_pattern, f.value("_sFile", ""))) {
                     continue;
                 }
                 const long long added = f.value("_tsDateAdded", 0LL);
+                if (av == "unknown") { // AzaharFrame catalog3: only when the player allowed it
+                    if (added > newest_unknown) {
+                        newest_unknown = added;
+                        unk_url = f.value("_sDownloadUrl", "");
+                        unk_size = f.value("_nFilesize", expected);
+                    }
+                    continue;
+                }
+                if (av != "clean") {
+                    continue;
+                }
                 if (added > newest) {
                     newest = added;
                     url = f.value("_sDownloadUrl", "");
                     expected = f.value("_nFilesize", expected);
                 }
             }
+            if (url.empty() && !unk_url.empty()) { // a clean file is always preferred
+                hit_unscanned_ = true;
+                {
+                    std::lock_guard lock{mutex_};
+                    unscanned_ids_.insert(entry.id);
+                }
+                if (allow_unscanned_) {
+                    url = unk_url;
+                    expected = unk_size;
+                } else {
+                    unscanned = true;
+                }
+            }
         } catch (const std::exception&) {
             return "Mod information not readable";
         }
         if (url.empty()) {
-            return "The mod has no matching file";
+            return unscanned ? "GameBanana Hasn't Scanned This File Yet" : "The mod has no matching file";
         }
         break;
     }
@@ -1563,8 +1626,13 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
     }
 
     const u64 existing = fs::exists(part, ec) ? static_cast<u64>(fs::file_size(part, ec)) : 0;
-    const auto check_space = [this](u64 total, u64 resume) {
+    const bool in_parts = !entry.parts.empty();
+    const auto check_space = [this, in_parts](u64 total, u64 resume) {
         const auto free = FreeSpace(load_dir_);
+        if (in_parts) { // AzaharFrame catalog3: "Not Enough Space: Needs 4.6 GB Free"
+            return free ? Mods::Multipart::SpaceError(total > resume ? total - resume : 0, total, *free)
+                        : std::string{};
+        }
         return free ? FreeSpaceError(RequiredSpace(total, resume), *free) : std::string{};
     };
     if (expected > 0) {
@@ -1633,6 +1701,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
 }
 
 void Downloader::Run(Entry entry, u64 title_id) {
+    Mods::Multipart::LowerThisThreadPriority(); // AzaharFrame catalog3: nice 19, idle I/O; bsdtar inherits
     std::error_code ec;
     live_updated_.clear();
     const fs::path dl_dir = fs::path(load_dir_) / "texture-downloads";
@@ -1643,17 +1712,74 @@ void Downloader::Run(Entry entry, u64 title_id) {
     const std::string part = (dl_dir / (entry.id + ".part")).string();
 
     // 1. The file, from the first source that gives it.
-    std::vector<Source> sources{entry.source};
-    sources.insert(sources.end(), entry.alternates.begin(), entry.alternates.end());
     std::string error;
-    for (std::size_t i = 0; i < sources.size(); ++i) {
-        error = FetchSource(entry, sources[i], part);
-        if (error.empty() || cancel_ || !Retryable(error)) {
-            break;
+    parts_base_ = 0;
+    parts_total_ = 0;
+    if (!entry.parts.empty()) {
+        // AzaharFrame catalog3: several downloads, in order, joined and unpacked as one archive. The
+        // catalog's size (all the parts) gives the space check up front; each part is tried twice.
+        if (entry.size > 0) {
+            if (const auto free = FreeSpace(load_dir_)) {
+                if (const auto problem = Mods::Multipart::SpaceError(entry.size, entry.size, *free); !problem.empty()) {
+                    return Fail(problem);
+                }
+            }
         }
-        if (i + 1 < sources.size()) {
-            LOG_WARNING(Frontend, "Textures: {} failed ({}), trying the next source", entry.id, error);
-            fs::remove(part, ec); // a partial file belongs to the source that wrote it
+        parts_total_ = entry.size;
+        std::vector<std::string> files;
+        u64 fetched = 0;
+        for (std::size_t i = 0; i < entry.parts.size(); ++i) {
+            const std::string file = (dl_dir / fmt::format("{}.part{:03}", entry.id, i + 1)).string();
+            for (int attempt = 0; attempt < 2; ++attempt) {
+                error = FetchSource(entry, entry.parts[i], file);
+                if (error.empty() || cancel_ || error == "Cancelled" || error.rfind("Not Enough Space", 0) == 0) {
+                    break;
+                }
+                LOG_WARNING(Frontend, "Textures: {} part {} failed ({}){}", entry.id, i + 1, error,
+                            attempt == 0 ? ", retrying" : "");
+                fs::remove(file, ec);
+            }
+            if (!error.empty()) {
+                if (error != "Cancelled" && !cancel_) {
+                    for (const auto& f : files) {
+                        fs::remove(f, ec);
+                    }
+                    fs::remove(file, ec);
+                }
+                return Fail(error);
+            }
+            files.push_back(file);
+            fetched += static_cast<u64>(fs::file_size(file, ec));
+            parts_base_ = fetched;
+            done_ = 0;
+            if (parts_total_ == 0 || parts_total_ < fetched) {
+                parts_total_ = 0; // unknown: the line shows this part's own total
+            }
+        }
+        SetState(State::Phase::Extracting, "Unpacking");
+        if (const auto problem = Mods::Multipart::JoinParts(files, part, &cancel_); !problem.empty()) {
+            for (const auto& f : files) {
+                fs::remove(f, ec);
+            }
+            return Fail(problem);
+        }
+        for (const auto& f : files) {
+            fs::remove(f, ec);
+        }
+        parts_base_ = 0;
+        parts_total_ = 0;
+    } else {
+        std::vector<Source> sources{entry.source};
+        sources.insert(sources.end(), entry.alternates.begin(), entry.alternates.end());
+        for (std::size_t i = 0; i < sources.size(); ++i) {
+            error = FetchSource(entry, sources[i], part);
+            if (error.empty() || cancel_ || !Retryable(error)) {
+                break;
+            }
+            if (i + 1 < sources.size()) {
+                LOG_WARNING(Frontend, "Textures: {} failed ({}), trying the next source", entry.id, error);
+                fs::remove(part, ec); // a partial file belongs to the source that wrote it
+            }
         }
     }
     if (!error.empty()) {

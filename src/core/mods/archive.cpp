@@ -635,7 +635,7 @@ struct TempDir {
 std::string CheckListing(const std::string& tool, const std::string& archive, ArchiveKind kind,
                          std::size_t max_total, int timeout_seconds,
                          const std::atomic_bool* cancel = nullptr) {
-    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 16u * 1024 * 1024, cancel);
+    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 64u * 1024 * 1024, cancel);
     if (!names.started) {
         return (std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
     }
@@ -651,7 +651,7 @@ std::string CheckListing(const std::string& tool, const std::string& archive, Ar
     if (names.status != 0) {
         return ("The archive is damaged or not readable");
     }
-    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 32u * 1024 * 1024, cancel);
+    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 128u * 1024 * 1024, cancel);
     if (verbose.cancelled) {
         return "Cancelled";
     }
@@ -665,7 +665,10 @@ std::string CheckListing(const std::string& tool, const std::string& archive, Ar
         if (line.empty()) {
             continue;
         }
-        ++count;
+        // AzaharFrame catalog3: big translations hold 17,000 files; only a sane cap
+        if (++count > 200000) {
+            return ("The archive holds too many files");
+        }
         const auto safe = SafeRelativePath(line);
         if (!safe || (safe->empty() && line != "./")) {
             return ("The archive holds an unsafe file path");
@@ -733,6 +736,51 @@ std::string FindBsdtar() {
 #endif
     });
     return found;
+}
+
+// AzaharFrame catalog3: Igor Pavlov's official 7-Zip (7zz, a static arm64 build) is the fallback for
+// what bsdtar cannot read: Deflate64 zips, solid RAR4, RAR with odd streams, RAR5 with a 1 GB
+// dictionary. Looked up as $AZAHAR_7ZZ, tools/7zz beside the program, then PATH (7zz, 7zzs).
+std::string FindSevenZip() {
+#ifdef _WIN32
+    return {};
+#else
+    const auto usable = [](const std::string& c) {
+        std::error_code e;
+        return !c.empty() && access(c.c_str(), X_OK) == 0 && fs::is_regular_file(c, e);
+    };
+    if (const char* env = std::getenv("AZAHAR_7ZZ"); env != nullptr && usable(env)) {
+        return env;
+    }
+    std::error_code ec;
+    const fs::path self = fs::read_symlink("/proc/self/exe", ec);
+    if (!ec) {
+        const std::string c = (self.parent_path() / "tools" / "7zz").string();
+        if (usable(c)) {
+            return c;
+        }
+    }
+    if (const char* path = std::getenv("PATH")) {
+        std::string p(path);
+        std::size_t start = 0;
+        while (start <= p.size()) {
+            const auto colon = p.find(':', start);
+            const std::string d = p.substr(start, colon == std::string::npos ? colon : colon - start);
+            if (!d.empty() && d.front() == '/') {
+                for (const char* n : {"7zz", "7zzs"}) {
+                    if (usable(d + "/" + n)) {
+                        return d + "/" + n;
+                    }
+                }
+            }
+            if (colon == std::string::npos) {
+                break;
+            }
+            start = colon + 1;
+        }
+    }
+    return {};
+#endif
 }
 
 ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::size_t max_total,
@@ -824,6 +872,138 @@ ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::s
 #endif
 }
 
+#ifndef _WIN32
+// AzaharFrame catalog3: the same guards as bsdtar's path, over 7zz's technical listing
+// (`l -slt`): safe paths, no links or special files, file count and total size capped. "" = fine.
+static std::string CheckListing7z(const std::string& tool, const std::string& archive, std::uint64_t max_total,
+                                  int timeout_seconds, const std::atomic_bool* cancel) {
+    const auto ls = Run(tool, {"l", "-slt", "-ba", "-sccUTF-8", "-y", archive}, timeout_seconds,
+                        256u * 1024 * 1024, cancel);
+    if (!ls.started || ls.status != 0 || ls.timed_out) {
+        return ls.cancelled ? "Cancelled" : "The archive is damaged or not readable";
+    }
+    if (ls.too_much_output) {
+        return "The archive holds too many files";
+    }
+    std::istringstream in(ls.output);
+    std::string line, path, attr;
+    std::uint64_t size = 0, total = 0;
+    std::size_t count = 0;
+    bool have = false, link = false, folder = false;
+    const auto flush = [&]() -> std::string {
+        if (!have) {
+            return {};
+        }
+        have = false;
+        if (++count > 200000) {
+            return "The archive holds too many files";
+        }
+        const auto safe = SafeRelativePath(path);
+        if (!safe || (safe->empty() && path != "./")) {
+            return "The archive holds an unsafe file path";
+        }
+        const auto mode = attr.find_last_of(' ');
+        const char kindc = (mode != std::string::npos && mode + 1 < attr.size()) ? attr[mode + 1] : '-';
+        if (link || (kindc != '-' && kindc != 'd' && kindc != 'D' && kindc != 'A' && kindc != 'R')) {
+            return "The archive holds links or special files";
+        }
+        if (!folder) {
+            total += size;
+            if (total > max_total) {
+                return "The archive is too large";
+            }
+        }
+        path.clear();
+        attr.clear();
+        size = 0;
+        link = folder = false;
+        return {};
+    };
+    while (std::getline(in, line)) {
+        if (line.empty()) {
+            if (auto e = flush(); !e.empty()) {
+                return e;
+            }
+            continue;
+        }
+        const auto eq = line.find(" = ");
+        if (eq == std::string::npos) {
+            continue;
+        }
+        const std::string key = line.substr(0, eq), val = line.substr(eq + 3);
+        if (key == "Path") {
+            if (have) {
+                if (auto e = flush(); !e.empty()) {
+                    return e;
+                }
+            }
+            have = true;
+            path = val;
+        } else if (key == "Size") {
+            size = val.empty() ? 0 : std::strtoull(val.c_str(), nullptr, 10);
+        } else if (key == "Folder") {
+            folder = val == "+";
+        } else if (key == "Attributes") {
+            attr = val;
+        } else if (key == "Symbolic Link" || key == "Hard Link") {
+            link = !val.empty();
+        }
+    }
+    if (auto e = flush(); !e.empty()) {
+        return e;
+    }
+    return count == 0 ? "The archive is empty" : std::string{};
+}
+
+static std::string CheckExtracted(const std::string& out_dir, std::uint64_t max_total) {
+    std::error_code ec;
+    std::uint64_t total = 0;
+    for (fs::recursive_directory_iterator it(out_dir, fs::directory_options::none, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        const auto st = it->symlink_status(ec);
+        if (ec) {
+            break;
+        }
+        if (fs::is_symlink(st) || (!fs::is_directory(st) && !fs::is_regular_file(st))) {
+            return "The archive holds links or special files";
+        }
+        if (fs::is_regular_file(st)) {
+            total += fs::file_size(it->path(), ec);
+            if (ec || total > max_total) {
+                return "The archive is too large";
+            }
+        }
+    }
+    return ec ? "The archive could not be unpacked" : std::string{};
+}
+
+static std::string ExtractFileToDirSevenZip(const std::string& tool, const std::string& archive_path,
+                                            const std::string& out_dir, std::uint64_t max_total,
+                                            int timeout_seconds, const std::atomic_bool* cancel) {
+    if (auto problem = CheckListing7z(tool, archive_path, max_total, timeout_seconds, cancel); !problem.empty()) {
+        return problem;
+    }
+    std::error_code ec;
+    fs::create_directories(out_dir, ec);
+    if (ec) {
+        return "Cannot make the folder for the pack";
+    }
+    const auto ex = Run(tool, {"x", "-y", "-aoa", "-bso0", "-bsp0", "-sccUTF-8", "-o" + out_dir, archive_path},
+                        timeout_seconds, 1024 * 1024, cancel);
+    OwnerWritable(out_dir);
+    if (ex.cancelled) {
+        return "Cancelled";
+    }
+    if (ex.timed_out) {
+        return "Unpacking took too long";
+    }
+    if (ex.status != 0) {
+        return "The archive could not be unpacked";
+    }
+    return CheckExtracted(out_dir, max_total);
+}
+#endif
+
 // AzaharFrame texdl: extraction to disk for big archives (texture packs, 0.5 to 6 GB). Same listing
 // checks as ExtractWithBsdtar, then bsdtar writes straight into `out_dir`, which is checked again
 // afterwards (no links, no special files, nothing outside, total under max_total).
@@ -834,14 +1014,28 @@ std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, 
     (void)archive_path, (void)out_dir, (void)max_total, (void)timeout_seconds, (void)cancel, (void)tool_override;
     return std::string(KindName(kind)) + " archives are not supported here";
 #else
+    // AzaharFrame catalog3: 7zz takes over where bsdtar is missing or cannot read the archive
+    // (never for a refusal by the guards: links, unsafe paths, size).
     const std::string tool = tool_override.empty() ? FindBsdtar() : tool_override;
+    const std::string seven = tool_override.empty() ? FindSevenZip() : std::string{};
+    const auto via_seven = [&](const std::string& first_error) -> std::string {
+        if (seven.empty()) {
+            return first_error;
+        }
+        std::error_code rec;
+        fs::remove_all(out_dir, rec); // whatever the first tool wrote
+        return ExtractFileToDirSevenZip(seven, archive_path, out_dir, max_total, timeout_seconds, cancel);
+    };
+    const auto retryable = [](const std::string& e) {
+        return e == "The archive is damaged or not readable" || e == "The archive could not be unpacked";
+    };
     if (tool.empty() || access(tool.c_str(), X_OK) != 0) {
-        return std::string(KindName(kind)) + " needs bsdtar, which wasn't found";
+        return via_seven(std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
     }
     if (const auto problem = CheckListing(tool, archive_path, kind, static_cast<std::size_t>(max_total),
                                           timeout_seconds, cancel);
         !problem.empty()) {
-        return problem;
+        return retryable(problem) ? via_seven(problem) : problem;
     }
     std::error_code ec;
     fs::create_directories(out_dir, ec);
@@ -858,7 +1052,7 @@ std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, 
         return "Unpacking took too long";
     }
     if (ex.status != 0) {
-        return "The archive could not be unpacked";
+        return via_seven("The archive could not be unpacked");
     }
     std::uint64_t total = 0;
     for (fs::recursive_directory_iterator it(out_dir, fs::directory_options::none, ec), end; !ec && it != end;
@@ -882,10 +1076,59 @@ std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, 
 }
 
 ExtractResult ExtractArchive(std::string_view bytes, ArchiveKind kind) {
-    if (kind == ArchiveKind::Zip) {
-        return ExtractZip(bytes);
+    ExtractResult r = kind == ArchiveKind::Zip ? ExtractZip(bytes) : ExtractWithBsdtar(bytes, kind);
+#ifndef _WIN32
+    // AzaharFrame catalog3: what the built-in zip reader or bsdtar cannot read (Deflate64, solid
+    // RAR4, odd RAR streams) goes to 7zz, through the on-disk path and its guards.
+    constexpr std::size_t kMax = 256u * 1024 * 1024;
+    const bool zip_unsupported = kind == ArchiveKind::Zip && !r.error.empty() &&
+                                 r.error.find("zip") != std::string::npos;
+    const bool tool_failed = r.error == "The archive is damaged or not readable" ||
+                             r.error == "The archive could not be unpacked" ||
+                             r.error.find("needs bsdtar") != std::string::npos;
+    if (r.error.empty() || !(zip_unsupported || tool_failed || kind == ArchiveKind::Zip) ||
+        FindSevenZip().empty()) {
+        return r;
     }
-    return ExtractWithBsdtar(bytes, kind);
+    std::string templ = (fs::temp_directory_path() / "azahar-mod7z-XXXXXX").string();
+    if (mkdtemp(templ.data()) == nullptr) {
+        return r;
+    }
+    TempDir temp{templ};
+    const std::string archive = temp.path + "/archive.bin";
+    {
+        std::ofstream f(archive, std::ios::binary);
+        f.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        if (!f) {
+            return r;
+        }
+    }
+    const std::string out_dir = temp.path + "/out";
+    if (!ExtractFileToDirSevenZip(FindSevenZip(), archive, out_dir, kMax, 120, nullptr).empty()) {
+        return r; // keep the first error
+    }
+    ExtractResult alt;
+    std::error_code ec;
+    const fs::path root = fs::weakly_canonical(out_dir, ec);
+    for (fs::recursive_directory_iterator it(out_dir, fs::directory_options::none, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        if (!it->is_regular_file(ec)) {
+            continue;
+        }
+        const auto safe = SafeRelativePath(it->path().lexically_relative(root).generic_string());
+        if (!safe || safe->empty()) {
+            return r;
+        }
+        std::ifstream f(it->path(), std::ios::binary);
+        alt.files.push_back({*safe, std::string(std::istreambuf_iterator<char>(f), {})});
+    }
+    if (ec || alt.files.empty()) {
+        return r;
+    }
+    return alt;
+#else
+    return r;
+#endif
 }
 
 } // namespace Mods

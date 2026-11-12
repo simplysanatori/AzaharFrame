@@ -1378,7 +1378,7 @@ TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
         }
         return std::string("missing");
     };
-    REQUIRE(date_of(kGbOot).empty()); // nothing looked up, no catalog date
+    REQUIRE(date_of(kGbOot) == DefaultCatalog().Find(kGbOot)->updated); // nothing looked up: the catalog's month
     library.RefreshDates(kTid);
     REQUIRE(date_of(kGbOot) == "2026-11-07"); // _tsDateUpdated 1794038618, UTC
     REQUIRE(date_of("ocarina-reframed-single-screen") == "2026-08-03");

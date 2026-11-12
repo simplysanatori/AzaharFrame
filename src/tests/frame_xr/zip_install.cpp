@@ -612,10 +612,10 @@ TEST_CASE("texdl: the catalog's updated and verified fields", "[frame_xr][texdl]
     const Entry* dw = cat.Find("mm3d-hd-deathwrench");
     REQUIRE(dw);
     CHECK_FALSE(dw->verified);
-    CHECK(dw->updated == "2021-05-06");
+    CHECK(dw->updated == "2021-05"); // catalog-refresh keeps months
     int verified = 0;
     for (const Entry& e : cat.packs) {
-        CHECK(ParseIsoDate(e.updated)); // every entry has a date
+        CHECK(ParseIsoDate(e.updated.size() == 7 ? e.updated + "-01" : e.updated)); // every entry has a date (a month too)
         verified += e.verified ? 1 : 0;
         CHECK(e.verified == (e.author == "Henriko Magnifico"));
     }

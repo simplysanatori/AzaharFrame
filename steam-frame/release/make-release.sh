@@ -51,6 +51,7 @@ mkdir -p "$STAGE/art"
 cp "$SF/art/portrait.png" "$SF/art/wide.png" "$SF/art/hero.png" "$SF/art/logo.png" "$SF/art/icon.png" "$SF/art/icon-64.png" "$SF/art/icon-128.png" "$SF/art/icon-256.png" "$STAGE/art/"
 mkdir -p "$STAGE/tools"
 cp "$SF/tools/convert-texture-pack.sh" "$SF/tools/convert_texture_pack.py" "$SF/tools/build-astcenc.sh" "$SF/tools/af-ktxenc.cpp" "$SF/tools/frame-controller-models.py" "$SF/tools/emerald3ds-build.py" "$STAGE/tools/"
+"$SF/tools/fetch-7zip.sh" "$STAGE/tools" "$STAGE/licenses" # 7zz: the fallback extractor (pinned, sha256 checked)
 chmod +x "$STAGE/azahar" "$STAGE/azaharframe.sh" "$STAGE/install.sh" "$STAGE/uninstall.sh" "$STAGE/dock-icon.py" "$STAGE/tools/convert-texture-pack.sh" "$STAGE/tools/build-astcenc.sh" "$STAGE/tools/emerald3ds-build.py"
 echo "$VERSION" > "$STAGE/VERSION"
 FILES="azahar azaharframe.sh install.sh uninstall.sh steam-cef.py dock-icon.py VERSION LICENSE.txt THIRD_PARTY_NOTICES.md licenses art tools"

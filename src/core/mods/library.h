@@ -40,12 +40,14 @@
 #include <memory>
 #include <optional>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 #include "common/common_types.h"
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
 #include "core/mods/mega.h" // AzaharFrame mega
+#include "core/mods/multipart.h" // AzaharFrame catalog3
 
 namespace Mods {
 
@@ -68,6 +70,10 @@ bool IsModPath(std::string_view rel);
 /// "exefs:<name>" for exefs sections, "romfs:<path>" for romfs/<path> and romfs_ext/<path>.ips|.bps|
 /// .stub, else the path itself.
 std::string ConflictKey(std::string_view rel);
+
+/// AzaharFrame catalog3: where an archive file goes in <LoadDir>/textures/<TID>/<mod id>/ ("" = not
+/// a texture of the mod). `rules` are the entry's "textures" rules (no rules, no textures).
+std::string MapTexturePath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id);
 
 struct MappedFile {
     std::string path; // relative to the mods folder
@@ -96,6 +102,13 @@ struct ModInfo {
     bool managed = false;
     ModState state = ModState::Active;
     std::vector<std::string> files; // paths relative to the mods folder
+    /// AzaharFrame catalog3: the textures part, relative to load/textures/<TID>/<id>/
+    std::vector<std::string> texture_files;
+    /// AzaharFrame catalog3: "activate" (downloaded, goes in when the running game stops), "deactivate"
+    /// or "remove" (the same), "" none. `state` already shows the outcome.
+    std::string pending;
+    /// AzaharFrame catalog3: installed from a GameBanana file whose scan was "unknown" (the player allowed it)
+    bool unscanned = false;
 };
 
 struct AvailableMod {
@@ -107,7 +120,17 @@ struct AvailableMod {
     std::string homepage;
     std::string notes;
     std::string author_url; // AzaharFrame modcat: what the author's name opens ("" none)
-    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD", the source's own date, "" unknown
+    std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD", the source's own date, "" unknown;
+                            // catalog3: the catalog's own value may be "YYYY-MM"
+    u64 downloads = 0;      // AzaharFrame catalog3: lifetime downloads (CatalogEntry::downloads), 0 unknown
+    u64 size = 0;           // AzaharFrame catalog3: bytes to download (CatalogEntry::size), 0 unknown
+    /// AzaharFrame catalog3: a file of this mod (any part) has no GameBanana scan result yet. Known after
+    /// an install was refused for it (Install without allow_unscanned) or went ahead with it, or from the
+    /// installed copy. The menu asks before calling Install(..., allow_unscanned = true).
+    bool unscanned = false;
+    bool pending = false;   // AzaharFrame catalog3: downloaded for the running game; `active` is true, the files go in when it stops
+    bool has_textures = false; // AzaharFrame catalog3: the mod also carries textures
+    bool multipart = false;    // AzaharFrame catalog3: several downloads, joined
     std::string chip;       // AzaharFrame modcat: the version chip ("1.0"), "" none
     std::string chip_tip;   // its tooltip
     bool matches_game = false; // made for the game's own code
@@ -127,6 +150,13 @@ struct InstallOutcome {
     std::string conflict_name;
     std::string conflict_path;
     bool conflict_unmanaged = false; // replace cannot help: Remove it first
+    /// AzaharFrame catalog3: the install put textures in load/textures/<TID>/<id>/ (the menu turns
+    /// Custom Textures on for the game when it is off and says so)
+    bool textures_installed = false;
+    /// AzaharFrame catalog3: the target is the running game, so the mod is downloaded and waits in the
+    /// library: "<Mod> Downloaded. Restart to Enable."
+    bool staged = false;
+    bool unscanned = false; // AzaharFrame catalog3: an unscanned GameBanana file was refused, or used (allowed)
 };
 
 struct RemoveOutcome {
@@ -181,7 +211,12 @@ public:
     std::vector<AvailableMod> ListAvailable(u64 title_id,
                                             std::optional<u32> game_code_crc = std::nullopt) const;
 
-    InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false);
+    /// AzaharFrame catalog3: a GameBanana file with scan result "unknown" is used only with
+    /// `allow_unscanned` (a clean file that matches is always preferred); without it the install fails
+    /// with "GameBanana Hasn't Scanned This File Yet" and `outcome.unscanned` is true. Every other
+    /// non-clean result is refused either way.
+    InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false,
+                           bool allow_unscanned = false);
     /// AzaharFrame zipinstall: a mod from a local archive, kept in the library like a downloaded one
     /// (source kZipSource, no catalog entry), then put in the mods folder as Install does. `id` starts
     /// with kZipPrefix. A mod with that id already in the library is a Conflict naming itself
@@ -195,9 +230,21 @@ public:
     RemoveOutcome Remove(u64 title_id, const std::string& mod_id);
 
     State GetState() const;
+    /// AzaharFrame catalog3: the title that is running (0 none). Its mods/<TID>/ and load/textures/<TID>/
+    /// are never touched: installs there are staged in the library, removals wait. Set 0 when it stops.
+    void SetRunningTitle(u64 title_id);
+    u64 RunningTitle() const { return running_title_.load(); }
+    /// Applies what waited (staged installs, deactivations, removals) for every title but the running
+    /// one. Call when a game has stopped and before the next one loads. Returns how many were applied.
+    int ApplyPending();
     /// AzaharFrame mega: stops the running download soon (the install fails with "Cancelled"; nothing
     /// is installed). Does nothing when idle.
     void Cancel() { cancel_ = true; }
+    /// AzaharFrame catalog3: where multipart downloads are written (tests replace it).
+    void SetFileTransport(Multipart::FileTransport transport) { file_transport_ = std::move(transport); }
+    /// AzaharFrame catalog3: free bytes of the file system holding a folder (tests replace it).
+    using FreeSpaceFn = std::function<bool(const std::string& dir, u64* out)>;
+    void SetFreeSpace(FreeSpaceFn fn) { free_space_ = std::move(fn); }
     /// AzaharFrame mega: the network MEGA downloads go through (tests replace it).
     void SetMegaNet(Mega::Net net) { mega_net_ = std::move(net); }
 
@@ -219,17 +266,33 @@ public:
 
 private:
     struct Manifest;
+    InstallOutcome InstallImpl(u64 title_id, const std::string& mod_id, bool replace);
+    // AzaharFrame catalog3: unscanned GameBanana files (install thread; the set under mutex_)
+    bool allow_unscanned_ = false;
+    bool hit_unscanned_ = false; // this install met or used an unscanned file
+    std::set<std::string> unscanned_ids_;
     bool ReadManifest(const std::string& dir, Manifest& out) const;
     bool WriteManifest(const std::string& dir, const Manifest& m) const;
     bool Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error);
     bool DownloadMega(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                       std::string& error); // AzaharFrame mega
+    /// AzaharFrame catalog3: a multipart entry: the parts to disk, joined, unpacked; `root` is the
+    /// folder holding the files. The work folder is the caller's to remove (WorkDir).
+    bool DownloadParts(const CatalogEntry& entry, u64 title_id, std::string& root, std::string& version,
+                       std::string& error);
+    bool FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
+                     std::string& error, const std::vector<std::string>& extra_hosts = {});
+    bool DownloadBig(const CatalogEntry& entry, u64 title_id, std::string& version, std::string& error);
+    std::string WorkDir(const std::string& mod_id) const;
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                         std::string& version, std::string& error);
     std::string LookupDate(const CatalogEntry& entry); // AzaharFrame modcat
     void SetProgress(u64 done, u64 total); // AzaharFrame mega
     void SetState(State::Phase phase, const std::string& mod_id, const std::string& text);
     std::vector<ModInfo> ListLoadedLocked(u64 title_id) const;
+    std::string TexturesDir(u64 title_id, const std::string& mod_id) const; // AzaharFrame catalog3
+    RemoveOutcome RemoveTextureFiles(u64 title_id, const std::string& mod_id,
+                                     const std::vector<std::string>& files);
     RemoveOutcome RemoveFilesOf(u64 title_id, const std::vector<std::string>& files);
     RemoveOutcome DeactivateLocked(u64 title_id, const std::string& mod_id);
     /// The conflict check and the copy into the mods folder (mutex_ held). AzaharFrame zipinstall
@@ -249,6 +312,10 @@ private:
     bool busy_ = false;
     std::atomic_bool cancel_{false}; // AzaharFrame mega
     Mega::Net mega_net_ = Mega::DefaultNet();
+    Multipart::FileTransport file_transport_ = Multipart::StreamGet; // AzaharFrame catalog3
+    FreeSpaceFn free_space_ = Multipart::FreeBytes;
+    std::atomic<u64> running_title_{0}; // AzaharFrame catalog3
+    std::string big_root_; // AzaharFrame catalog3: where DownloadBig unpacked (install thread only)
 };
 
 /// The program's library (LoadDir of the user directory, the compiled-in catalog until refreshed).

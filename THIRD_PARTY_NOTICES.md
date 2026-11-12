@@ -42,6 +42,10 @@ The same button then fetches a game's cheat codes from Sharkive (https://github.
 
 The Download Cheats button, the Mods tab's downloads and the Homebrew downloads talk HTTPS with cpp-httplib (MIT) and LibreSSL (https://www.libressl.org/, ISC licence with OpenSSL and SSLeay terms for its older parts), both from `externals/` and linked into the program. LibreSSL's licence text is in `externals/libressl/COPYING`.
 
+## 7-Zip
+
+The release ships Igor Pavlov's official 7-Zip command line program, version 25.01 (the statically linked linux-arm64 build `7zz`, https://www.7-zip.org, in `tools/`), unmodified. It is used only as a fallback to unpack mod and texture pack downloads that the system's bsdtar cannot read (zips with Deflate64, solid RAR4 archives, RAR5 archives with a very large dictionary). 7-Zip is licensed under the GNU LGPL; the code of the RAR decoder carries the "unRAR restriction" (it may not be used to re-create the RAR compression algorithm), and some files are BSD-licensed. The full terms are in `licenses/7zip-License.txt`, and the source is available from https://www.7-zip.org. It is run as a separate program (no linking), with a fixed argument list and no shell.
+
 ## Texture packs from their authors' pages
 
 The Textures list of the VR menu's Mods tab downloads texture packs for a game from a list (catalog/textures.json in https://github.com/simplysanatori/3ds-game-fixes, with a copy compiled into the program). Nothing is shipped or re-hosted: when the player downloads a pack, it comes from the place its author shares it (a GitHub release, a public Google Drive file or folder, or an https link) and is unpacked into the player's load folder. The packs stay their authors' work, under the terms each author states; the list names the author and links their page (among them Henriko Magnifico, https://www.henrikomagnifico.com; DeathWrench, https://github.com/DeathWrench/MM3DHD; Gray-Rice, Ullr8 and Volya, https://github.com/Gray-Rice/PokeTex-3DS).
