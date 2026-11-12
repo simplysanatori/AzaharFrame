@@ -152,7 +152,7 @@ camera turned. Each of the three things a grip changes keeps that:
   default.
 
 **The default is the world at its own scale** (AzaharFrame immersive2, after the owner's headset
-test of the view-filling default of the 2.0.0 test builds: "way too close", and Mario Kart 7
+test of the view-filling default of the 1.2.0 test builds: "way too close", and Mario Kart 7
 "stretched"). At size 1 the screen is as many degrees across as the game draws: its camera's
 width times the Wider View factor, so the gain is 1, nothing is magnified, and a head turn moves
 the picture exactly with the head everywhere on it, not only at its middle. The view-filling
@@ -192,7 +192,7 @@ Two per-game settings change this (**VR** group, logged as
   more or less of the game shows around it. The old switch (`vr_immersive_wider_view`) is
   converted when a config is read: on becomes the level nearest to what it gave at the saved size
   (0.78 x size, 1.4x when no size is saved), off becomes Off; a global switch never set keeps the
-  default. Mock runs of 2.0.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
+  default. Mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
   Land draw correctly, but Super Mario 3D Land's levels are black below the floor.
 - **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0; AzaharFrame
   immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame; 1, 2 and 3 are the
@@ -213,7 +213,7 @@ Two per-game settings change this (**VR** group, logged as
   that much flatter.
 
 Saved sizes are relative to that default. The file's `world` lines are written by this build;
-`screen` and `view` lines (2.0.0 test builds) and `head` lines (1.0, 1.1) had sizes against other
+`screen` and `view` lines (1.2.0 test builds) and `head` lines (1.0, 1.1) had sizes against other
 defaults:
 their pitch and distance are kept and the size becomes the game's default, logged as `placement
 (earlier build's size replaced by the default)` and saved as a `world` line. The owner's
@@ -345,7 +345,7 @@ fields; that race is gone.
 
 ## Tuned games
 
-Measured in mock runs of each game's play (AzaharFrame depth, 2.0.0) with the uniform registers
+Measured in mock runs of each game's play (AzaharFrame depth, 1.2.0) with the uniform registers
 dumped: the camera's angle and shape from its projection, and the 3DS's own eye distance at full
 3D (the difference between the two eyes' view matrices, in the game's units). In mode 3 the eye
 distance here is 6.5 cm x 3D Depth / 10 x 10^multiplier game units, and the head moves the camera

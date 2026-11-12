@@ -234,6 +234,9 @@ enum class MenuCommand {
     UseOriginalPack, ///< the PNG pack again, from the next start
     RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes it
     NoticeAnswer, ///< AzaharFrame savestate: SetInGameMenuNotice's dialog: `value` 1 its confirm, 0 cancel
+    // AzaharFrame autosave
+    LoadAutosave, ///< `value`: the index in SetInGameMenuAutosaves' list (newest first)
+    UndoLoad,     ///< back to the moment before the autosave was loaded
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -266,6 +269,9 @@ enum class MenuSetting {
     TextureFilter,      ///< AzaharFrame menuux: `value` a Settings::TextureFilter
     AsyncShaders,       ///< AzaharFrame menuux: `value` 0 or 1 (async_shader_compilation)
     FastForwardSpeed,   ///< AzaharFrame menuux: `value` percent (turbo_limit)
+    Autosave,      ///< AzaharFrame autosave: `value` 0 or 1 (autosave_enabled), may be per game
+    AutosaveEvery, ///< `value` minutes (autosave_every)
+    AutosaveKeep,  ///< `value` 1 to 10 (autosave_keep)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;
@@ -415,6 +421,7 @@ struct ModsListModel;
 struct TexturesModel;
 struct ZipModel;
 struct HomebrewTabModel; // AzaharFrame emerald
+struct AutosaveCard;     // AzaharFrame autosave
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
@@ -422,6 +429,10 @@ void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
+/// AzaharFrame autosave: the running game's autosaves for Load State's card (newest first), and
+/// the Undo Load snackbar's text ("" none). Any thread.
+void SetInGameMenuAutosaves(const std::vector<Menu::AutosaveCard>& autosaves,
+                            const std::string& undo_load);
 
 /// A short message on a small panel in front of you (any thread; VR only): Quick Saved, Quick
 /// Loaded and No Quick Save for five seconds, Fast Forward and Normal Speed for two (ToastTimeOf).
@@ -431,11 +442,18 @@ enum class Toast {
     NoQuickSave = 2,
     FastForward = 3,
     NormalSpeed = 4,
+    Autosaved = 5, ///< AzaharFrame autosave: where ShowAutosaved's label would not be seen
 };
 void ShowToast(Toast kind);
+/// AzaharFrame autosave: "Autosaved" for 1.5 s, world-locked 3 cm over the top screen's top-right
+/// corner; the Autosaved toast when that corner is not well in view (or in the immersive modes).
+/// Any thread.
+void ShowAutosaved();
 /// AzaharFrame ui3: how long each of those stays.
 constexpr ToastTime ToastTimeOf(Toast kind) {
-    return kind == Toast::FastForward || kind == Toast::NormalSpeed ? ToastTime::Short
+    return kind == Toast::FastForward || kind == Toast::NormalSpeed ||
+                   kind == Toast::Autosaved // AzaharFrame autosave
+               ? ToastTime::Short
                                                                     : ToastTime::Long;
 }
 /// AzaharFrame vrsize: a short message of any text (UTF-8, one line; a degree sign is drawn

@@ -56,10 +56,10 @@ std::string ReadText(const fs::path& p) {
 } // namespace
 
 TEST_CASE("Save states: the version a header names", "[savestate_frame]") {
-    // 2.0.0 on: build_version "AZF 2.0.0"
-    CHECK(FrameVersionOf("2.0.0", "AZF 2.0.0") == "2.0.0");
+    // 1.2.0 on: build_version "AZF 1.2.0"
+    CHECK(FrameVersionOf("1.2.0", "AZF 1.2.0") == "1.2.0");
     CHECK(FrameVersionOf("a1b2c3d", "AZF a1b2c3d") == "a1b2c3d");
-    // Before 2.0.0 the file had only build_name ("1.1.1")
+    // Before 1.2.0 the file had only build_name ("1.1.1")
     CHECK(FrameVersionOf("1.1.1", "") == "1.1.1");
     // Upstream Azahar ("2124.1") and nothing at all: another version of Azahar
     CHECK(FrameVersionOf("2124.1", "2124.1") == "");
@@ -67,17 +67,12 @@ TEST_CASE("Save states: the version a header names", "[savestate_frame]") {
 }
 
 TEST_CASE("Save states: the mismatch dialog's words", "[savestate_frame]") {
-    CHECK(SaveStateMismatchTitle("1.1.1", "2.0.0") == "This Save State Is From an Older Version");
+    CHECK(SaveStateMismatchTitle("1.1.1", "1.2.0") == "This Save State Is From an Older Version");
     CHECK(SaveStateMismatchTitle("1.1.10", "1.1.9") == "This Save State Is From a Newer Version");
-    // 2.0.0 is newer than every 1.x release
-    for (const char* old : {"1.0.0", "1.1.0", "1.1.1", "1.9.99", "1.99.0"}) {
-        CHECK(SaveStateMismatchTitle(old, "2.0.0") == "This Save State Is From an Older Version");
-        CHECK(SaveStateMismatchTitle("2.0.0", old) == "This Save State Is From a Newer Version");
-    }
-    CHECK(SaveStateMismatchTitle("2.1.0-rc1", "2.0.0") == "This Save State Is From a Newer Version");
-    CHECK(SaveStateMismatchTitle("", "2.0.0") == "This Save State Is From Another Version");
-    CHECK(SaveStateMismatchTitle("2.0.0", "a1b2c3d") == "This Save State Is From Another Version");
-    CHECK(SaveStateMismatchTitle("2.0.0", "2.0.0") == "This Save State Is From Another Version");
+    CHECK(SaveStateMismatchTitle("1.3.0-rc1", "1.2.0") == "This Save State Is From a Newer Version");
+    CHECK(SaveStateMismatchTitle("", "1.2.0") == "This Save State Is From Another Version");
+    CHECK(SaveStateMismatchTitle("1.2.0", "a1b2c3d") == "This Save State Is From Another Version");
+    CHECK(SaveStateMismatchTitle("1.2.0", "1.2.0") == "This Save State Is From Another Version");
 
     CHECK(SaveStateMismatchBody("1.1.1") ==
           "It was made with Azahar for Frame 1.1.1. It may not load, and it could corrupt this "
@@ -93,7 +88,7 @@ TEST_CASE("Save states: the mismatch dialog's words", "[savestate_frame]") {
 
 TEST_CASE("Save states: the build check and Load Anyway's flag", "[savestate_frame]") {
     const std::string ours = Common::g_scm_rev;
-    const auto mine = MakeStateHeader(kTitle, ours, "2.0.0", "AZF 2.0.0", 1);
+    const auto mine = MakeStateHeader(kTitle, ours, "1.2.0", "AZF 1.2.0", 1);
     const auto older = MakeStateHeader(kTitle, kOtherRev, "1.1.1", "", 1);
     const auto other_game = MakeStateHeader(kTitle + 1, kOtherRev, "1.1.1", "", 1);
 

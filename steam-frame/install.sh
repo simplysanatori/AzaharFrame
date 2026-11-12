@@ -112,6 +112,19 @@ else
     strip --strip-unneeded -o "$DEST/azahar.new" "$BUILD/azahar" && mv "$DEST/azahar.new" "$DEST/azahar"
   fi
   for f in azaharframe.sh steam-cef.py dock-icon.py uninstall.sh install.sh; do put "$HERE/$f" "$DEST/$f"; done
+  # AzaharFrame fixes11: write VERSION from the build itself (an old release's VERSION used to stay
+  # and the install said "1.1.1 installed"): AZAHARFRAME_VERSION, else GIT_TAG in the build's
+  # CMakeCache.txt, else the checkout's GIT-TAG file, else git describe, else "dev".
+  BVER=${AZAHARFRAME_VERSION:-}
+  BLDROOT=$(cd "$BUILD/../.." 2> /dev/null && pwd)
+  if [ -z "$BVER" ] && [ -f "$BLDROOT/CMakeCache.txt" ]; then
+    BVER=$(sed -n 's/^GIT_TAG:[A-Z]*=//p' "$BLDROOT/CMakeCache.txt" | head -n 1)
+  fi
+  if [ -z "$BVER" ] && [ -f "$HERE/../GIT-TAG" ]; then BVER=$(head -n 1 "$HERE/../GIT-TAG"); fi
+  if [ -z "$BVER" ]; then BVER=$(git -C "$HERE" describe --tags --always --dirty 2> /dev/null); fi
+  BVER=${BVER#v}
+  [ -n "$BVER" ] && [ "$BVER" != "unknown" ] || BVER=dev
+  if [ -n "$DRY" ]; then echo "[dry run] would write VERSION $BVER"; else echo "$BVER" > "$DEST/VERSION"; fi
   if [ -f "$HERE/../LICENSE.txt" ]; then put "$HERE/../LICENSE.txt" "$DEST/LICENSE.txt"; fi
   if [ -f "$HERE/../THIRD_PARTY_NOTICES.md" ]; then put "$HERE/../THIRD_PARTY_NOTICES.md" "$DEST/THIRD_PARTY_NOTICES.md"; fi
   act mkdir -p "$DEST/art"

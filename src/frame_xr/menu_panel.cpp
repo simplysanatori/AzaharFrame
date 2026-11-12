@@ -224,6 +224,9 @@ bool PerGameSetting(Id id) {
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
     case Id::TextureFilter:
     case Id::AsyncShaders:
+    case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
+    case Id::AutosaveEvery:
+    case Id::AutosaveKeep:
         return true;
     default:
         return false;
@@ -257,6 +260,12 @@ bool UsesGlobal(Id id) {
         return v.texture_filter.UsingGlobal();
     case Id::AsyncShaders:
         return v.async_shader_compilation.UsingGlobal();
+    case Id::Autosave: // AzaharFrame autosave
+        return v.autosave_enabled.UsingGlobal();
+    case Id::AutosaveEvery:
+        return v.autosave_every.UsingGlobal();
+    case Id::AutosaveKeep:
+        return v.autosave_keep.UsingGlobal();
     default:
         return true;
     }
@@ -307,6 +316,16 @@ void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
 }
 
 Menu::ModsDialog g_notice; // AzaharFrame savestate, under g_mods_mutex
+// AzaharFrame autosave: Load State's card and its list, and the Undo Load snackbar's text
+std::vector<Menu::AutosaveCard> g_autosaves; // under g_mods_mutex
+std::string g_undo_load;
+
+void SetInGameMenuAutosaves(const std::vector<Menu::AutosaveCard>& autosaves,
+                            const std::string& undo_load) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_autosaves = autosaves;
+    g_undo_load = undo_load;
+}
 
 void SetInGameMenuNotice(const std::string& title, const std::string& body,
                          const std::string& confirm, const std::string& cancel) {
@@ -398,6 +417,10 @@ void MenuPanel::Open(const XrPosef& at, float width, std::vector<std::pair<std::
     open = true;
     view.tab = Menu::Tab::Main;
     view.page = Menu::Page::Tabs;
+    // AzaharFrame autosave: Per-Game every time the menu opens (owner rule): a change to a
+    // per-game row is for the game being played, unless Global is picked from the scope's menu.
+    // BuildModel makes it Global when the game cannot have settings of its own.
+    scope = Menu::OpeningScope(true);
     view.hover = view.pressed = {};
     view.open_menu = view.tooltip = view.dragging = Id::None;
     view.tooltip_index = -1;
@@ -693,6 +716,8 @@ void MenuPanel::BuildModel(const Host& host) {
         m.mods = g_mods;
         m.homebrew = g_homebrew; // AzaharFrame emerald
         m.notice = g_notice;     // AzaharFrame savestate
+        m.autosaves = g_autosaves; // AzaharFrame autosave
+        m.undo_load = g_undo_load;
     }
     if (view.tab == Menu::Tab::Homebrew && // AzaharFrame ui3: its own tab
         // AzaharFrame emerald: the progress ring turns
@@ -909,6 +934,15 @@ void MenuPanel::BuildModel(const Host& host) {
         FrameXr::Immersive::Layout::NarrowPercent(v.vr_immersive_squeeze.GetValue()) / 10);
     m.depth_factor =
         static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2));
+    // AzaharFrame autosave: the running game's values (its own, else the global ones)
+    m.autosave = v.autosave_enabled.GetValue();
+    m.autosave_every = 0;
+    for (std::size_t i = 0; i < Menu::kAutosaveEvery.size(); i++) {
+        if (static_cast<u32>(Menu::kAutosaveEvery[i]) <= v.autosave_every.GetValue()) {
+            m.autosave_every = static_cast<int>(i);
+        }
+    }
+    m.autosave_keep = static_cast<int>(std::clamp<u32>(v.autosave_keep.GetValue(), 1, 10));
 
     const auto lock = [&m](Id id, Lock l) { m.locked[static_cast<std::size_t>(id)] = l; };
     for (int i = 0; i < Menu::kIdCount; i++) {
@@ -1002,6 +1036,21 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
             Menu::kFastForwardSpeeds[std::min<std::size_t>(u, Menu::kFastForwardSpeeds.size() - 1)];
         Apply(v.turbo_limit, static_cast<double>(r.value), false);
         r.setting = MenuSetting::FastForwardSpeed;
+        break;
+    // AzaharFrame autosave: per game in Per-Game (the game's file gets them), else global
+    case Id::Autosave:
+        Apply(v.autosave_enabled, value != 0, per_game);
+        r.setting = MenuSetting::Autosave;
+        break;
+    case Id::AutosaveEvery:
+        r.value = Menu::kAutosaveEvery[std::min<std::size_t>(u, Menu::kAutosaveEvery.size() - 1)];
+        Apply(v.autosave_every, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::AutosaveEvery;
+        break;
+    case Id::AutosaveKeep:
+        r.value = std::clamp(value, 1, 10);
+        Apply(v.autosave_keep, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::AutosaveKeep;
         break;
     case Id::ReticleAtEdge: // AzaharFrame mouse, global
         Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), false);
@@ -1131,7 +1180,16 @@ void MenuPanel::Click(Target t, Host& host) {
         const Id menu = view.open_menu;
         view.open_menu = Id::None;
         if (t.id == menu && t.index >= 0) {
-            SetSetting(menu, t.index, host);
+            if (menu == Id::Scope) { // AzaharFrame autosave: the scope's menu button
+                scope = std::clamp(t.index, 0, 1);
+                LOG_INFO(Frontend, "xr: in-game menu: Settings: {}", scope ? "Per-Game" : "Global");
+            } else if (menu == Id::AutosaveCard) { // AzaharFrame autosave: the card's list
+                LOG_INFO(Frontend, "xr: in-game menu: Load Autosave {}", t.index + 1);
+                ask(MenuCommand::LoadAutosave, t.index);
+                view.page = Menu::Page::Tabs;
+            } else {
+                SetSetting(menu, t.index, host);
+            }
         }
         return;
     }
@@ -1181,6 +1239,28 @@ void MenuPanel::Click(Target t, Host& host) {
         ask(view.page == Menu::Page::SaveSlots ? MenuCommand::SaveSlot : MenuCommand::LoadSlot,
             t.index);
         view.page = Menu::Page::Tabs;
+        break;
+    // AzaharFrame autosave: Load State's card (owner's Option B)
+    case Id::AutosaveCard:
+        if (model.autosaves.size() == 1) {
+            ask(MenuCommand::LoadAutosave, 0); // Keep 1 (or the only one so far): loads it
+            view.page = Menu::Page::Tabs;
+        } else if (model.autosaves.size() > 1) {
+            view.open_menu = Id::AutosaveCard;
+        }
+        break;
+    case Id::AutosaveSettings: // "Autosave: Off": the Saves rows
+        view.tab = Menu::Tab::Settings;
+        view.page = Menu::Page::Tabs;
+        view.section = Menu::SettingsSection::General;
+        view.scroll[static_cast<std::size_t>(Menu::Tab::Settings)] = 6.0f * Menu::kRowH;
+        break;
+    case Id::UndoLoad:
+        ask(MenuCommand::UndoLoad);
+        view.page = Menu::Page::Tabs;
+        break;
+    case Id::Autosave:
+        SetSetting(t.id, model.autosave ? 0 : 1, host);
         break;
     case Id::Screenshot:
         ask(MenuCommand::Screenshot);
@@ -1616,8 +1696,15 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ControlsPage:
         controls_page = t.index;
         break;
-    case Id::Scope:
-        scope = t.index;
+    case Id::Scope: // AzaharFrame autosave: a menu button now (Global, Per-Game)
+        view.open_menu = Id::Scope;
+        break;
+    case Id::SettingsSection: // AzaharFrame autosave: kept for the rest of the run
+        if (t.index >= 0 && t.index < static_cast<int>(Menu::SettingsSection::Count) &&
+            static_cast<Menu::SettingsSection>(t.index) != view.section) {
+            view.section = static_cast<Menu::SettingsSection>(t.index);
+            view.scroll[static_cast<std::size_t>(Menu::Tab::Settings)] = 0.0f;
+        }
         break;
     case Id::ScreenLayout:
     case Id::MoveScreens:

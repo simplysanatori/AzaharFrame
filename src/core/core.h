@@ -21,6 +21,11 @@
 #include "core/movie.h"
 #include "core/perf_stats.h"
 
+namespace Core::Autosave { // AzaharFrame autosave: core/autosave.h
+class Writer;
+enum class Reason : u8;
+} // namespace Core::Autosave
+
 namespace Frontend {
 class EmuWindow;
 class ImageInterface;
@@ -164,9 +169,42 @@ public:
 
     /// AzaharFrame savestate: LoadAnyway: a state from another build, after the moment before is
     /// saved to kBeforeLoadAnywaySlot.
-    enum class Signal : u32 { None, Shutdown, Reset, Save, Load, LoadAnyway };
+    /// AzaharFrame autosave: Autosave (`param` an Autosave::Reason), LoadAutosave and
+    /// LoadAutosaveAnyway (RequestLoadAutosave's file).
+    enum class Signal : u32 {
+        None,
+        Shutdown,
+        Reset,
+        Save,
+        Load,
+        LoadAnyway,
+        Autosave,
+        LoadAutosave,
+        LoadAutosaveAnyway
+    };
 
     bool SendSignal(Signal signal, u32 param = 0);
+
+    /// AzaharFrame autosave: an autosave at the emulation thread's next pass (when no state is
+    /// being saved or loaded): it serializes the system there, then the writer
+    /// (AutosaveWriter) compresses and writes it on its own thread, with the top screen's picture.
+    bool RequestAutosave(Autosave::Reason reason);
+    /// Loads the state at `path` (an autosave), first saving the moment before to
+    /// Autosave::kUndoLoadSlot. `anyway`: from another build (Load Anyway).
+    bool RequestLoadAutosave(const std::string& path, bool anyway);
+    /// A state is being saved or loaded, or an autosave is waiting (any thread; a hint).
+    bool StateOperationPending() const {
+        return save_state_request_status != SaveStateStatus::NONE || autosave_pending;
+    }
+    /// The autosaves' writer (made on first use; it outlives the games).
+    Autosave::Writer& AutosaveWriter();
+    /// Called on the emulation thread once an asked-for autosave was serialized (`ok`) or could
+    /// not be (`path` "" then), with the time the game was held for it.
+    void SetAutosaveCallback(
+        std::function<void(bool ok, Autosave::Reason reason, const std::string& path, s64 held_ms)>
+            callback) {
+        autosave_callback = std::move(callback);
+    }
 
     /// Request reset of the system
     void RequestReset(const std::string& chainload = "", std::optional<u8> mem_mode = {}) {
@@ -399,6 +437,10 @@ public:
     /// AzaharFrame savestate: `allow_mismatch` (Load Anyway) skips only the build check. A failure
     /// reading the archive into the system throws SaveStateHalfLoaded (savestate.h).
     void LoadState(u32 slot, bool allow_mismatch = false);
+    /// AzaharFrame autosave: the same from any state file.
+    void LoadStateAt(const std::string& path, bool allow_mismatch = false);
+    /// AzaharFrame autosave: the system serialized (not compressed).
+    std::string SerializeState() const;
 
     std::vector<u8> SaveStateBuffer() const;
 
@@ -557,6 +599,15 @@ private:
     SaveStateStatus save_state_request_status = SaveStateStatus::NONE;
     u32 save_state_slot = 0;
     bool save_state_allow_mismatch = false; ///< AzaharFrame savestate: Signal::LoadAnyway
+    // AzaharFrame autosave
+    void MakeAutosave();
+    std::unique_ptr<Autosave::Writer> autosave_writer;
+    bool autosave_pending = false;
+    u32 autosave_reason = 0;
+    std::chrono::steady_clock::time_point autosave_request_time{};
+    std::string autosave_load_path;    ///< RequestLoadAutosave's, under signal_mutex
+    std::string autosave_loading_path; ///< the one being loaded ("" a slot)
+    std::function<void(bool, Autosave::Reason, const std::string&, s64)> autosave_callback;
     std::chrono::steady_clock::time_point save_state_request_time{};
 
     ResultStatus status = ResultStatus::Success;

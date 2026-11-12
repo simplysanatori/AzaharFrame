@@ -9,6 +9,11 @@
 
 class HotkeyRegistry;
 
+class QCheckBox; // AzaharFrame autosave
+class QComboBox;
+class QGroupBox;
+class QSpinBox;
+
 namespace Ui {
 class ConfigureGeneral;
 }
@@ -28,5 +33,15 @@ public:
     void SetupPerGameUI();
 
 private:
+    /// AzaharFrame autosave: the Autosave group (between Emulation and Screenshots). Global: a
+    /// checkable group; a game's Properties: the "Use global autosave" choice, then its own values.
+    void SetupAutosave();
+    void SetAutosaveEnabledState();
+
     std::unique_ptr<Ui::ConfigureGeneral> ui;
+    QGroupBox* autosave_group = nullptr;
+    QComboBox* autosave_combo = nullptr; ///< Properties only
+    QCheckBox* autosave_check = nullptr; ///< Properties only (the group's own box in global)
+    QComboBox* autosave_every = nullptr;
+    QSpinBox* autosave_keep = nullptr;
 };

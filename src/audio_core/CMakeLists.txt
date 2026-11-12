@@ -27,6 +27,7 @@ add_library(audio_core STATIC EXCLUDE_FROM_ALL
     input.h
     input_details.cpp
     input_details.h
+    mic_sample_buffer.h # AzaharFrame fixes11
     interpolate.cpp
     interpolate.h
     null_input.h

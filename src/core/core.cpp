@@ -37,11 +37,13 @@
 #ifdef HAVE_FASTINTERP
 #include "core/arm/fastinterp/fastinterp.h"
 #endif
+#include "core/autosave.h" // AzaharFrame autosave
 #include "core/cheats/cheats.h"
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/dumping/backend.h"
 #include "core/file_sys/ncch_container.h"
+#include "core/frontend/framebuffer_layout.h" // AzaharFrame autosave
 #include "core/frontend/image_interface.h"
 #ifdef ENABLE_GDBSTUB
 #include "core/gdbstub/gdbstub.h"
@@ -200,12 +202,14 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
 
     Signal signal{Signal::None};
     u32 param{};
+    std::string autosave_path; // AzaharFrame autosave: LoadAutosave's
     {
         std::scoped_lock lock{signal_mutex};
         if (current_signal != Signal::None) {
             signal = current_signal;
             param = signal_param;
             current_signal = Signal::None;
+            autosave_path = std::exchange(autosave_load_path, {});
         }
     }
     switch (signal) {
@@ -245,10 +249,44 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         }
         save_state_allow_mismatch = signal == Signal::LoadAnyway;
         save_state_slot = param;
+        autosave_loading_path.clear();
         save_state_request_time = std::chrono::steady_clock::now();
         save_state_request_status = SaveStateStatus::LOADING;
         break;
     }
+    // AzaharFrame autosave: an autosave's file; the moment before goes to kUndoLoadSlot
+    case Signal::LoadAutosave:
+    case Signal::LoadAutosaveAnyway: {
+        if (save_state_request_status != SaveStateStatus::NONE) {
+            status_details = "A pending save state operation has not finished yet";
+            return ResultStatus::ErrorSavestate;
+        }
+        if (autosave_writer) {
+            autosave_writer->WaitIdle(); // the newest may still be on its way to the disk
+        }
+        const auto info = GetSaveStateInfoAt(autosave_path, title_id);
+        if (info.slot != 0) {
+            status_details = kSaveStateNotLoaded;
+            return ResultStatus::ErrorSavestate;
+        }
+        if (info.status != Core::SaveStateInfo::ValidationStatus::OK &&
+            signal != Signal::LoadAutosaveAnyway) {
+            status_details = FrameVersionOf(info.build_name, info.build_version);
+            return ResultStatus::ErrorSavestateBuildMismatch;
+        }
+        save_state_allow_mismatch = signal == Signal::LoadAutosaveAnyway;
+        autosave_loading_path = autosave_path;
+        save_state_request_time = std::chrono::steady_clock::now();
+        save_state_request_status = SaveStateStatus::LOADING;
+        break;
+    }
+    case Signal::Autosave:
+        if (!autosave_pending) {
+            autosave_pending = true;
+            autosave_reason = param;
+            autosave_request_time = std::chrono::steady_clock::now();
+        }
+        break;
     case Signal::Save: {
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
@@ -269,6 +307,36 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         const u32 slot = save_state_slot;
         save_state_request_status = SaveStateStatus::NONE;
         const bool anyway = std::exchange(save_state_allow_mismatch, false);
+        if (autosave_writer) {
+            autosave_writer->WaitIdle(); // AzaharFrame autosave: an undo file still being written
+        }
+        if (const std::string path = std::exchange(autosave_loading_path, {}); !path.empty()) {
+            // AzaharFrame autosave: the moment before to its own file (Undo Load), then the
+            // autosave
+            LOG_INFO(Core, "Begin load of autosave {}{}", path,
+                     anyway ? " (from another build)" : "");
+            try {
+                System::SaveState(Autosave::kUndoLoadSlot);
+            } catch (const std::exception& e) {
+                LOG_ERROR(Core, "Error saving the moment before: {}", e.what());
+                status_details = kSaveStateNotLoaded;
+                return ResultStatus::ErrorSavestate;
+            }
+            try {
+                System::LoadStateAt(path, anyway);
+                LOG_INFO(Core, "Load completed");
+            } catch (const SaveStateHalfLoaded& e) {
+                LOG_ERROR(Core, "Error loading: the system may be half-restored");
+                status_details = e.what();
+                return ResultStatus::ErrorSavestateHalfLoaded;
+            } catch (const std::exception& e) {
+                LOG_ERROR(Core, "Error loading: {}", e.what());
+                status_details = e.what();
+                return ResultStatus::ErrorSavestate;
+            }
+            frame_limiter.WaitOnce();
+            return ResultStatus::Success;
+        }
         LOG_INFO(Core, "Begin load of slot {}{}", slot, anyway ? " (from another build)" : "");
         if (anyway) { // AzaharFrame savestate: the moment before, in a file of its own
             try {
@@ -299,8 +367,14 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         const u32 slot = save_state_slot;
         LOG_INFO(Core, "Begin save to slot {}", slot);
         try {
+            const auto t0 = std::chrono::steady_clock::now();
             System::SaveState(slot);
-            LOG_INFO(Core, "Save completed");
+            // AzaharFrame autosave: the time the game's picture stood still for it (serialize,
+            // compress and write, all on this thread)
+            LOG_INFO(Core, "Save completed: the emulation thread was held for {} ms",
+                     std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::steady_clock::now() - t0)
+                         .count());
         } catch (const std::exception& e) {
             LOG_ERROR(Core, "Error saving: {}", e.what());
             status_details = e.what();
@@ -308,6 +382,19 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         }
         frame_limiter.WaitOnce();
         return ResultStatus::Success;
+    } else if (autosave_pending && save_state_request_status == SaveStateStatus::NONE &&
+               kernel.get() && !kernel->AreAsyncOperationsPending()) {
+        autosave_pending = false; // AzaharFrame autosave
+        MakeAutosave();
+        frame_limiter.WaitOnce();
+        return ResultStatus::Success;
+    } else if (autosave_pending && (std::chrono::steady_clock::now() - autosave_request_time) >
+                                       std::chrono::seconds(5)) {
+        autosave_pending = false;
+        LOG_WARNING(Core, "autosave: not made: the system was busy for 5 s");
+        if (autosave_callback) {
+            autosave_callback(false, static_cast<Autosave::Reason>(autosave_reason), {}, 0);
+        }
     } else if (save_state_request_status != SaveStateStatus::NONE &&
                (std::chrono::steady_clock::now() - save_state_request_time) >
                    std::chrono::seconds(5)) {
@@ -427,6 +514,89 @@ void System::ProcessPendingWorkUntil(std::chrono::steady_clock::time_point deadl
 
 void System::NotifyPendingWork() {
     pending_work_event.Set();
+}
+
+// AzaharFrame autosave
+bool System::RequestAutosave(Autosave::Reason reason) {
+    return SendSignal(Signal::Autosave, static_cast<u32>(reason));
+}
+
+bool System::RequestLoadAutosave(const std::string& path, bool anyway) {
+    std::scoped_lock lock{signal_mutex};
+    if (current_signal != Signal::None) {
+        LOG_ERROR(Core, "Unable to load an autosave as {} is ongoing", current_signal);
+        return false;
+    }
+    current_signal = anyway ? Signal::LoadAutosaveAnyway : Signal::LoadAutosave;
+    signal_param = 0;
+    autosave_load_path = path;
+    return true;
+}
+
+Autosave::Writer& System::AutosaveWriter() {
+    if (!autosave_writer) {
+        autosave_writer = std::make_unique<Autosave::Writer>();
+    }
+    return *autosave_writer;
+}
+
+// The emulation thread's part: serialize, hand the rest to the writer, ask for the picture.
+void System::MakeAutosave() {
+    const auto reason = static_cast<Autosave::Reason>(autosave_reason);
+    const auto t0 = std::chrono::steady_clock::now();
+    std::string raw;
+    try {
+        raw = SerializeState();
+    } catch (const std::exception& e) {
+        LOG_ERROR(Core, "autosave: not made: {}", e.what());
+        if (autosave_callback) {
+            autosave_callback(false, reason, {}, 0);
+        }
+        return;
+    }
+    const s64 held_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count();
+    const u64 now_s = static_cast<u64>(std::chrono::duration_cast<std::chrono::seconds>(
+                                           std::chrono::system_clock::now().time_since_epoch())
+                                           .count());
+    const u64 movie_id = movie.GetCurrentMovieID();
+    Autosave::Writer::Job job;
+    job.dir = Autosave::Dir(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir));
+    job.path = Autosave::PathFor(job.dir, title_id, movie_id, static_cast<s64>(now_s));
+    job.header = CurrentStateHeader(title_id, now_s);
+    job.raw = std::move(raw);
+    job.reason = reason;
+    job.program_id = title_id;
+    job.movie_id = movie_id;
+    job.keep = Autosave::ClampKeep(Settings::values.autosave_keep.GetValue());
+    job.serialize_ms = held_ms;
+    const std::string path = job.path;
+    LOG_INFO(Core, "autosave: {}: the emulation thread was held for {} ms",
+             Autosave::ReasonName(reason), held_ms);
+    Autosave::Writer& writer = AutosaveWriter();
+    writer.Submit(std::move(job));
+    // The top screen's picture, 400x240, at the next frame (BGRA rows; the writer makes the PNG).
+    if (gpu) {
+        auto pixels = std::make_shared<std::vector<u8>>(400 * 240 * 4);
+        const std::string thumb = Autosave::ThumbPathFor(path);
+        gpu->Renderer().RequestScreenshot(
+            pixels->data(),
+            [&writer, pixels, thumb](bool invert_y) {
+                if (invert_y) {
+                    for (u32 y = 0; y < 120; y++) {
+                        std::swap_ranges(pixels->begin() + y * 1600,
+                                         pixels->begin() + (y + 1) * 1600,
+                                         pixels->begin() + (239 - y) * 1600);
+                    }
+                }
+                writer.SubmitThumb(thumb, std::move(*pixels), 400, 240);
+            },
+            Layout::SingleFrameLayout(400, 240, false, false));
+    }
+    if (autosave_callback) {
+        autosave_callback(true, reason, path, held_ms);
+    }
 }
 
 bool System::SendSignal(System::Signal signal, u32 param) {

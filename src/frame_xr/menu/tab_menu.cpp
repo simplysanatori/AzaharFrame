@@ -43,7 +43,9 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
 }};
 
 // AzaharFrame menuux: Button, a full-width tonal button (Switch to Flat at the end of Settings).
-enum class RowKind { Switch, Segmented, Slider, MenuButton, Offset, Link, Button };
+// AzaharFrame autosave: Header, a group's subheader ("Saves") as tall as a row (the list scrolls
+// in whole rows).
+enum class RowKind { Switch, Segmented, Slider, MenuButton, Offset, Link, Button, Header };
 
 struct Row {
     Id id;
@@ -72,10 +74,16 @@ std::string SliderText(Id id, float value) {
     if (id == Id::Depth3d) {
         return Format("%.0f%%", value);
     }
+    if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
+        const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
+                                 static_cast<int>(kAutosaveEvery.size()) - 1);
+        return std::to_string(kAutosaveEvery[static_cast<std::size_t>(i)]) + " Min";
+    }
     return Format("%.0f", value);
 }
 
-std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
+std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
+                         SettingsSection section = SettingsSection::General) {
     const auto lock = [&m](Id id) { return m.locked[static_cast<std::size_t>(id)]; };
     const auto row = [&](Id id, RowKind kind, int selected = 0, bool on = false) {
         Row r{id, kind, lock(id)};
@@ -102,33 +110,62 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
             }
             return r;
         };
-        rows.push_back(row(Id::Background, RowKind::Segmented, m.background));
-        rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
-        rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
-        rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
-        rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
-        // AzaharFrame depth3d
-        Row depth = row(Id::Depth3d, RowKind::Slider);
-        const SliderRange dr = SliderFor(Id::Depth3d);
-        depth.t = (static_cast<float>(m.depth_3d) - dr.min) / (dr.max - dr.min);
-        depth.value = SliderText(Id::Depth3d, static_cast<float>(m.depth_3d));
-        rows.push_back(depth);
-        // AzaharFrame menuux: the renderer's settings people change most, for VR.
-        Row res = row(Id::InternalResolution, RowKind::MenuButton, m.internal_resolution - 1);
-        if (m.internal_resolution < 1 || m.internal_resolution > kMaxResolution) {
-            res.value = m.internal_resolution < 1 ? "Auto" : std::to_string(m.internal_resolution) + "x";
-            res.selected = -1;
+        // AzaharFrame autosave: in three sections (owner decision, round 2). General: the
+        // settings that are the same in every game, and the list's end.
+        if (section == SettingsSection::General) {
+            rows.push_back(row(Id::Background, RowKind::Segmented, m.background));
+            rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
+            rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
+            rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
+            rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
+            rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
+            // AzaharFrame autosave: the Saves group (the game's values in Per-Game); Every and
+            // Keep greyed while Autosave is off.
+            rows.push_back(row(Id::SavesHeader, RowKind::Header));
+            rows.push_back(row(Id::Autosave, RowKind::Switch, 0, m.autosave));
+            const auto saves = [&](Id id, float t, int stops, int value) {
+                Row r = row(id, RowKind::Slider);
+                if (r.lock == Lock::None && !m.autosave) {
+                    r.lock = Lock::AutosaveOff;
+                }
+                r.t = t;
+                r.stops = stops;
+                r.value = SliderText(id, static_cast<float>(value));
+                rows.push_back(r);
+            };
+            const int every = std::clamp(m.autosave_every, 0, 4);
+            const int keep = std::clamp(m.autosave_keep, 1, 10);
+            saves(Id::AutosaveEvery, static_cast<float>(every) / 4.0f, 4, every);
+            saves(Id::AutosaveKeep, static_cast<float>(keep - 1) / 9.0f, 9, keep);
+            rows.push_back(row(Id::MoreSettings, RowKind::Link));
+            rows.push_back(row(Id::SwitchToFlat, RowKind::Button)); // AzaharFrame menuux
+            return rows;
         }
-        rows.push_back(res);
-        // Internal Resolution is its ceiling and 1x its floor: at 1x it has nothing to do.
-        Row dynamic = row(Id::DynamicResolution, RowKind::Switch, 0, m.dynamic_resolution);
-        if (dynamic.lock == Lock::None && m.internal_resolution == 1) {
-            dynamic.lock = Lock::AtLowest;
+        if (section == SettingsSection::Graphics) {
+            // AzaharFrame depth3d
+            Row depth = row(Id::Depth3d, RowKind::Slider);
+            const SliderRange dr = SliderFor(Id::Depth3d);
+            depth.t = (static_cast<float>(m.depth_3d) - dr.min) / (dr.max - dr.min);
+            depth.value = SliderText(Id::Depth3d, static_cast<float>(m.depth_3d));
+            rows.push_back(depth);
+            // AzaharFrame menuux: the renderer's settings people change most, for VR.
+            Row res = row(Id::InternalResolution, RowKind::MenuButton, m.internal_resolution - 1);
+            if (m.internal_resolution < 1 || m.internal_resolution > kMaxResolution) {
+                res.value = m.internal_resolution < 1 ? "Auto"
+                                                      : std::to_string(m.internal_resolution) + "x";
+                res.selected = -1;
+            }
+            rows.push_back(res);
+            // Internal Resolution is its ceiling and 1x its floor: at 1x it has nothing to do.
+            Row dynamic = row(Id::DynamicResolution, RowKind::Switch, 0, m.dynamic_resolution);
+            if (dynamic.lock == Lock::None && m.internal_resolution == 1) {
+                dynamic.lock = Lock::AtLowest;
+            }
+            rows.push_back(dynamic);
+            rows.push_back(row(Id::TextureFilter, RowKind::Segmented, m.texture_filter));
+            rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
+            return rows;
         }
-        rows.push_back(dynamic);
-        rows.push_back(row(Id::TextureFilter, RowKind::Segmented, m.texture_filter));
-        rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
-        rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
         rows.push_back(full(row(Id::WiderView, RowKind::Segmented, m.wider_view)));
         Row fov = full(row(Id::GameFov, RowKind::Slider));
@@ -139,13 +176,32 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         rows.push_back(full(row(Id::MatchCamera, RowKind::Switch, 0, m.match_camera))); // depth
         rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
-        rows.push_back(row(Id::MoreSettings, RowKind::Link));
-        rows.push_back(row(Id::SwitchToFlat, RowKind::Button)); // AzaharFrame menuux
     }
     return rows;
 }
 
 } // namespace
+
+// AzaharFrame autosave
+SettingsSection SectionOf(Id id) {
+    switch (id) {
+    case Id::Depth3d:
+    case Id::InternalResolution:
+    case Id::DynamicResolution:
+    case Id::TextureFilter:
+    case Id::AsyncShaders:
+        return SettingsSection::Graphics;
+    case Id::ImmersiveMode:
+    case Id::WiderView:
+    case Id::GameFov:
+    case Id::MatchCamera:
+    case Id::NarrowScreen:
+    case Id::DepthFactor:
+        return SettingsSection::Immersive;
+    default:
+        return SettingsSection::General;
+    }
+}
 
 const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kNone;
@@ -165,6 +221,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
+    static const std::vector<std::string> kSections{"General", "Graphics", "Immersive"}; // autosave
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
     static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
@@ -215,6 +272,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kModsSegments;
     case Id::Scope:
         return kScope;
+    case Id::SettingsSection: // AzaharFrame autosave
+        return kSections;
     case Id::Background:
         return kBackground;
     case Id::FaceButtons:
@@ -338,6 +397,21 @@ std::string LabelFor(Id id) {
         return "Depth Factor Multiplier";
     case Id::MoreSettings:
         return "More Settings";
+    case Id::SavesHeader: // AzaharFrame autosave
+        return "Saves";
+    case Id::Autosave:
+    case Id::AutosaveCard:
+        return "Autosave";
+    case Id::AutosaveEvery:
+        return "Every";
+    case Id::AutosaveKeep:
+        return "Keep";
+    case Id::AutosaveEntry:
+        return "Autosave";
+    case Id::AutosaveSettings:
+        return "Settings";
+    case Id::UndoLoad:
+        return "Undo Load";
     case Id::DownloadCheats: // AzaharFrame cheatstab
         return "Download";
     case Id::CheatsWindow:
@@ -456,6 +530,12 @@ std::string ExplainFor(Id id) {
         return "Narrows the screen so the side HUD moves into view.";
     case Id::DepthFactor:
         return "How far the game camera moves with your head.";
+    case Id::Autosave: // AzaharFrame autosave
+        return "Saves on its own as you play, when this menu opens and when the game closes.";
+    case Id::AutosaveEvery:
+        return "Minutes of play between autosaves.";
+    case Id::AutosaveKeep:
+        return "How many autosaves the game keeps. The oldest go.";
     default:
         return {};
     }
@@ -473,9 +553,25 @@ std::string ExplainLock(Lock lock) {
         return "Internal Resolution is already 1x, the lowest.";
     case Lock::InPassthrough: // AzaharFrame vis
         return "Off while the Background is Passthrough.";
+    case Lock::AutosaveOff: // AzaharFrame autosave
+        return "Turn on Autosave to change it.";
     default:
         return {};
     }
+}
+
+// AzaharFrame autosave
+void DrawAutosavedLabel(Kit& kit, const Rect& r) {
+    const float h = r.H();
+    kit.Fill(r, h * 0.5f, 0x1C1C22, 0.92f);
+    const float icon = h * 0.42f, size = h * 0.34f;
+    const std::string text = "Autosaved";
+    const float tw = kit.TextWidthSized(size, true, text);
+    const float gap = h * 0.12f;
+    const float x = r.Cx() - (icon + gap + tw) * 0.5f;
+    kit.Icon(x + icon * 0.5f, r.Cy(), icon, Sym::kSave, false, Tok::kOnSurfaceVariant);
+    kit.TextSized(x + icon + gap, r.Cy() + kit.CapHeightSized(size, true) * 0.5f, size, true,
+                  0xF0F0F5, text);
 }
 
 // AzaharFrame menuux
@@ -493,6 +589,12 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::CursorSpeed) { // AzaharFrame padsui: five steps, Normal in the middle
         return {0.0f, 4.0f, 1.0f};
+    }
+    if (id == Id::AutosaveEvery) { // AzaharFrame autosave: kAutosaveEvery's stops
+        return {0.0f, 4.0f, 1.0f};
+    }
+    if (id == Id::AutosaveKeep) {
+        return {1.0f, 10.0f, 1.0f};
     }
     return {};
 }
@@ -653,10 +755,24 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
     AddHit(back, {Id::SlotsBack}, pane);
     kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Headline, Tok::kOnSurface,
                 LabelFor(saving ? Id::SaveState : Id::LoadState));
-    const float top = back.y1 + 16.0f;
+    float top = back.y1 + 16.0f;
     const float gap = 12.0f;
+    float bottom = c.y1;
+    Rect card{};
+    if (!saving) {
+        // AzaharFrame autosave: the Autosave card over the slots (owner's Option B), and after an
+        // autosave was loaded the Undo Load snackbar under them.
+        card = {c.x0, top, c.x1, top + kAutosaveCardH};
+        DrawAutosaveCard(kit, model, view, card, pane);
+        top = card.y1 + gap;
+        if (!model.undo_load.empty()) {
+            bottom = DrawActionSnackbar(kit, view, pane, model.undo_load, Id::UndoLoad, c.y1);
+        }
+    }
+    // With the snackbar too the rows keep 48 dp: 10 dp between them then.
+    const float row_gap = !saving && !model.undo_load.empty() ? 10.0f : gap;
     const float cw = (c.W() - gap) * 0.5f;
-    const float rh = (c.y1 - top - gap * 4.0f) / 5.0f;
+    const float rh = (bottom - top - row_gap * 4.0f) / 5.0f;
     for (int i = 0; i < kSlots; i++) {
         const int slot = i + 1;
         std::string time;
@@ -670,7 +786,7 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
         const bool empty = time.empty();
         const bool enabled = saving || !empty;
         const float x = c.x0 + static_cast<float>(i / 5) * (cw + gap);
-        const float y = top + static_cast<float>(i % 5) * (rh + gap);
+        const float y = top + static_cast<float>(i % 5) * (rh + row_gap);
         const Rect r{x, y, x + cw, y + rh};
         const Target t{Id::Slot, slot};
         const State st = StateOf(view, t, enabled);
@@ -686,6 +802,108 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
         if (enabled) {
             AddHit(r, t, pane);
         }
+    }
+    if (!saving && view.open_menu == Id::AutosaveCard) {
+        DrawAutosaveList(kit, model, view, card);
+    }
+}
+
+// AzaharFrame autosave: an autosave's picture (an icon when it has none), 5:3.
+static void AutosavePictureIn(Kit& kit, const Rect& r, const AutosaveCard* a, uint32_t icon_rgb) {
+    if (a && a->picture && a->picture->w > 0 &&
+        a->picture->rgba.size() >= static_cast<std::size_t>(a->picture->w * a->picture->h * 4)) {
+        kit.Image(a->picture->rgba.data(), a->picture->w, a->picture->h, r);
+        return;
+    }
+    kit.Fill(r, 8.0f, Tok::kSurfaceContainerHighest);
+    kit.Icon(r.Cx(), r.Cy(), 28.0f, Sym::kHistory, false, icon_rgb);
+}
+
+// AzaharFrame autosave: Load State's card. On: the newest autosave ("Autosave · 3 Minutes Ago",
+// its time at the right); Keep 1 loads it, more opens the list (a drop-down arrow). Off: "Autosave:
+// Off" and a Settings button to the Saves rows.
+void TabMenu::DrawAutosaveCard(Kit& kit, const MenuModel& model, const MenuView& view,
+                               const Rect& r, const Rect& pane) {
+    const uint32_t on_rgb = Tok::kOnSecondaryContainer;
+    const bool open = view.open_menu == Id::AutosaveCard;
+    const AutosaveCard* newest = model.autosaves.empty() ? nullptr : &model.autosaves.front();
+    const bool tappable = model.autosave && newest != nullptr;
+    kit.Fill(r, 16.0f, Tok::kSecondaryContainer, model.autosave && !newest ? 0.5f : 1.0f);
+    if (tappable) {
+        kit.StateLayer(r, 16.0f, on_rgb, open ? State::Pressed : StateOf(view, {Id::AutosaveCard}));
+        AddHit(r, {Id::AutosaveCard}, pane);
+    }
+    const Rect pic{r.x0 + 12.0f, r.y0 + 8.0f, r.x0 + 12.0f + (r.H() - 16.0f) * 5.0f / 3.0f,
+                   r.y1 - 8.0f};
+    if (!model.autosave) {
+        kit.Icon(pic.Cx(), pic.Cy(), 32.0f, Sym::kHistory, false, on_rgb);
+        kit.TextMid(pic.x1 + 16.0f, r.Cy(), Type::Label, on_rgb, "Autosave: Off");
+        const std::string& label = LabelFor(Id::AutosaveSettings);
+        const float bw = std::max(64.0f, kit.TextWidth(Type::Label, label) + 24.0f);
+        const Rect b{r.x1 - 12.0f - bw, r.Cy() - 24.0f, r.x1 - 12.0f, r.Cy() + 24.0f};
+        kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::AutosaveSettings}));
+        AddHit(b, {Id::AutosaveSettings}, pane);
+        return;
+    }
+    if (!newest) {
+        // On, and none made yet (the first comes after a minute of play).
+        kit.Icon(pic.Cx(), pic.Cy(), 32.0f, Sym::kHistory, false, on_rgb, kDisabledContent);
+        kit.TextMid(pic.x1 + 16.0f, r.Cy(), Type::Label, on_rgb, "Autosave · None Yet", 0,
+                    kDisabledContent);
+        return;
+    }
+    AutosavePictureIn(kit, pic, newest, on_rgb);
+    const float op = newest->other ? 0.62f : 1.0f;
+    float right = r.x1 - 20.0f;
+    if (model.autosaves.size() > 1) {
+        kit.Icon(r.x1 - 28.0f, r.Cy(), 24.0f, Sym::kArrowDropDown, false, on_rgb);
+        right = r.x1 - 52.0f;
+    }
+    const float time_w = kit.TextWidth(Type::Body, newest->time);
+    kit.TextMid(right, r.Cy(), Type::Body, on_rgb, newest->time, 2, 0.8f * op);
+    kit.TextMid(pic.x1 + 16.0f, r.Cy(), Type::Label, on_rgb,
+                kit.Fit(Type::Label, "Autosave \u00b7 " + newest->ago,
+                        right - time_w - 16.0f - pic.x1 - 16.0f),
+                0, op);
+}
+
+// AzaharFrame autosave: the card's list, over the slots: picture, how long ago, the time. Up to
+// six in one column at the card's right; more in two columns as wide as the card.
+void TabMenu::DrawAutosaveList(Kit& kit, const MenuModel& model, const MenuView& view,
+                               const Rect& card) {
+    const int n = static_cast<int>(model.autosaves.size());
+    if (n == 0) {
+        return;
+    }
+    const int columns = n > 6 ? 2 : 1;
+    const int per_column = (n + columns - 1) / columns;
+    const float item = kAutosaveItemH, pad = 8.0f;
+    const float w = columns == 1 ? std::min(card.W(), 420.0f) : card.W();
+    const Rect box{card.x1 - w, card.y1 + 4.0f, card.x1,
+                   card.y1 + 4.0f + pad * 2.0f + item * static_cast<float>(per_column)};
+    kit.Fill(box, 16.0f, Tok::kSurfaceContainerHigh);
+    kit.Stroke(box, 16.0f, 1.0f, Tok::kOutlineVariant);
+    const Rect everything{0, 0, kPanelW, kPanelH};
+    AddHit(box, {Id::None, kMenuAreaIndex}, everything); // the list's own area eats clicks
+    const float cw = (box.W() - 8.0f) / static_cast<float>(columns);
+    for (int i = 0; i < n; i++) {
+        const AutosaveCard& a = model.autosaves[static_cast<std::size_t>(i)];
+        const float x = box.x0 + 4.0f + cw * static_cast<float>(i / per_column);
+        const float y = box.y0 + pad + item * static_cast<float>(i % per_column);
+        const Rect ir{x, y, x + cw, y + item};
+        const Target t{Id::AutosaveEntry, i};
+        kit.StateLayer(ir, 12.0f, Tok::kOnSurface, StateOf(view, t));
+        const float op = a.other ? 0.62f : 1.0f;
+        const float ph = ir.H() - 12.0f;
+        const Rect pic{ir.x0 + 12.0f, ir.Cy() - ph * 0.5f, ir.x0 + 12.0f + ph * 5.0f / 3.0f,
+                       ir.Cy() + ph * 0.5f};
+        AutosavePictureIn(kit, pic, &a, Tok::kOnSurfaceVariant);
+        const float clock_w = kit.TextWidth(Type::Body, a.clock);
+        kit.TextMid(ir.x1 - 16.0f, ir.Cy(), Type::Body, Tok::kOnSurfaceVariant, a.clock, 2, op);
+        kit.TextMid(pic.x1 + 16.0f, ir.Cy(), Type::Label, Tok::kOnSurface,
+                    kit.Fit(Type::Label, a.ago, ir.x1 - 16.0f - clock_w - 12.0f - pic.x1 - 16.0f),
+                    0, op);
+        AddHit(ir, t, everything);
     }
 }
 
@@ -1262,6 +1480,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
 void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane) {
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
     float top = c.y0;
+    Rect scope_anchor{}; // AzaharFrame autosave: the scope menu button, when its menu is open
     if (view.tab == Tab::Position) {
         // The two actions of CitraVR's Position tab (Reset) and of the right stick (Swap).
         const float bw = (c.W() - 12.0f) * 0.5f;
@@ -1275,30 +1494,42 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         AddHit(b, {Id::SwapScreens}, pane);
         top = a.y1 + 12.0f;
     } else if (view.tab == Tab::Settings) {
-        // Owner decision: CitraVR's Global / Per-game choice at the top of its settings.
-        const auto& scopes = OptionsFor(Id::Scope);
-        const float w = kit.SegmentedWidth(scopes);
-        const Rect seg{c.x0, top, c.x0 + w, top + kControlH};
-        const int hover = view.hover.id == Id::Scope ? view.hover.index : -1;
-        const int pressed = view.pressed.id == Id::Scope ? view.pressed.index : -1;
-        const bool enabled = model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
-        kit.Segmented(seg, scopes, model.scope, hover, pressed, !enabled);
-        if (enabled) {
-            const auto se = kit.SegmentEdges(seg, scopes);
-            for (int i = 0; i < static_cast<int>(scopes.size()); i++) {
-                AddHit({se[static_cast<std::size_t>(i)], seg.y0,
-                        se[static_cast<std::size_t>(i + 1)], seg.y1},
-                       {Id::Scope, i}, pane);
-            }
+        // AzaharFrame autosave: the section (General, Graphics, Immersive), and on the sections
+        // with per-game rows CitraVR's Global / Per-Game choice as a menu button at the row's end.
+        const auto& sections = OptionsFor(Id::SettingsSection);
+        const Rect seg{c.x0, top, c.x0 + kit.SegmentedWidth(sections), top + kControlH};
+        const int hover = view.hover.id == Id::SettingsSection ? view.hover.index : -1;
+        const int pressed = view.pressed.id == Id::SettingsSection ? view.pressed.index : -1;
+        kit.Segmented(seg, sections, static_cast<int>(view.section), hover, pressed);
+        const auto se = kit.SegmentEdges(seg, sections);
+        for (int i = 0; i < static_cast<int>(sections.size()); i++) {
+            AddHit({se[static_cast<std::size_t>(i)], seg.y0, se[static_cast<std::size_t>(i + 1)],
+                    seg.y1},
+                   {Id::SettingsSection, i}, pane);
         }
-        if (!model.game_title.empty() && model.scope == 1) {
-            kit.TextMid(seg.x1 + 16.0f, seg.Cy(), Type::Body, Tok::kOnSurfaceVariant,
-                        kit.Fit(Type::Body, model.game_title, c.x1 - seg.x1 - 16.0f));
+        if (SectionHasScope(view.section)) {
+            const auto& scopes = OptionsFor(Id::Scope);
+            const bool enabled = model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
+            const float w = std::max(150.0f, kit.TextWidth(Type::Label, scopes[1]) + 72.0f);
+            const Rect mb{c.x1 - w, top, c.x1, top + kControlH};
+            const int sel = std::clamp(model.scope, 0, 1);
+            kit.MenuButton(mb, scopes[static_cast<std::size_t>(sel)], view.open_menu == Id::Scope,
+                           StateOf(view, {Id::Scope}, enabled));
+            if (enabled) {
+                AddHit(mb, {Id::Scope}, pane);
+            } else {
+                AddHit(mb, {Id::Scope, kLabelIndex}, pane);
+            }
+            anchors.push_back(
+                {Id::Scope, mb.x0, mb.y0 + 6.0f, enabled ? Lock::None : Lock::Unavailable});
+            if (view.open_menu == Id::Scope) {
+                scope_anchor = {mb.x0 - 40.0f, mb.y0, mb.x1, mb.y1};
+            }
         }
         top = seg.y1 + 12.0f;
     }
 
-    const std::vector<Row> rows = RowsFor(view.tab, model);
+    const std::vector<Row> rows = RowsFor(view.tab, model, view.section);
     // The labels' column: as wide as the widest label of a row whose control starts at it (a
     // slider, a menu button, the offset). AzaharFrame menuux: a segmented button or a switch
     // starts after its own label, so a long label elsewhere does not squeeze it.
@@ -1320,12 +1551,24 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     kit.Clip(list);
     Rect open_anchor{};
     int open_selected = -1;
+    if (view.open_menu == Id::Scope && scope_anchor.W() > 0.0f) { // AzaharFrame autosave
+        open_anchor = scope_anchor;
+        open_selected = std::clamp(model.scope, 0, 1);
+    }
     float y = top - scroll;
     for (const Row& r : rows) {
         const Rect row{c.x0 - 12.0f, y + 4.0f, c.x1 + 12.0f, y + kRowH - 4.0f};
         const float cy = row.Cy();
         const Target whole{r.id};
         const bool enabled = r.Enabled();
+        if (r.kind == RowKind::Header) {
+            // AzaharFrame autosave: a divider and the group's name in the primary colour, at the
+            // bottom of the row so it reads with the rows under it.
+            kit.Line(c.x0, y + 20.0f, c.x1, y + 20.0f, 1.0f, Tok::kOutlineVariant);
+            kit.TextSized(c.x0, y + 58.0f, 14.0f, true, Tok::kPrimary, LabelFor(r.id));
+            y += kRowH;
+            continue;
+        }
         if (r.kind == RowKind::Button) {
             // AzaharFrame menuux: a full-width tonal button (Switch to Flat), no label.
             const Rect b{c.x0, cy - 28.0f, c.x1, cy + 28.0f};
@@ -1393,6 +1636,16 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             if (enabled) {
                 AddHit(sl, whole, list);
             }
+            if (r.id == Id::AutosaveEvery) {
+                // AzaharFrame autosave: the stops' minutes under the track (they are uneven).
+                const float x0 = sl.x0 + 2.0f, x1 = sl.x1 - 80.0f - 2.0f;
+                for (std::size_t i = 0; i < kAutosaveEvery.size(); i++) {
+                    const float sx = x0 + (x1 - x0) * static_cast<float>(i) / 4.0f;
+                    kit.TextSized(sx, cy + 31.0f, 12.0f, false, Tok::kOnSurfaceVariant,
+                                  std::to_string(kAutosaveEvery[i]), 1,
+                                  enabled ? 1.0f : kDisabledContent);
+                }
+            }
             break;
         }
         case RowKind::MenuButton: {
@@ -1434,6 +1687,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             kit.Icon(c.x1 - 12.0f, cy, 24.0f, Sym::kOpenInNew, false, Tok::kOnSurfaceVariant);
             break;
         case RowKind::Button:
+        case RowKind::Header:
             break;
         }
         y += kRowH;

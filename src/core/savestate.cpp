@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <optional>
@@ -91,7 +92,7 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
 
 namespace {
 
-/// "2.0.0" as numbers ({2, 0, 0}); a "-rc1" style suffix is left out; nullopt when not x.y.z.
+/// "1.2.0" as numbers ({1, 2, 0}); a "-rc1" style suffix is left out; nullopt when not x.y.z.
 std::optional<std::array<u32, 3>> ParseVersion(std::string_view v) {
     std::array<u32, 3> out{};
     std::size_t at = 0;
@@ -126,7 +127,7 @@ std::string FrameVersionOf(std::string_view build_name, std::string_view build_v
         build_version.substr(0, kFrameBuildTag.size()) == kFrameBuildTag) {
         return std::string(build_version.substr(kFrameBuildTag.size()));
     }
-    // Before 2.0.0 only build_name was written: one of our releases is "1.<minor>.<patch>".
+    // Before 1.2.0 only build_name was written: one of our releases is "1.<minor>.<patch>".
     const auto v = ParseVersion(build_name);
     if (v && (*v)[0] == 1) {
         return std::string(build_name);
@@ -178,7 +179,7 @@ std::array<u8, 256> MakeStateHeader(u64 program_id, std::string_view revision_he
 }
 
 std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time) {
-    // build_version "AZF 2.0.0", so a later build can name the version
+    // build_version "AZF 1.2.0", so a later build can name the version
     const std::string build_fullname = Common::g_build_fullname;
     return MakeStateHeader(program_id, Common::g_scm_rev, build_fullname,
                            std::string(kFrameBuildTag) + build_fullname, time);
@@ -278,10 +279,19 @@ SaveStateInfo GetSaveStateInfo(u64 program_id, u64 movie_id, u32 slot) {
 
 SaveStateInfo GetSaveStateInfoIn(const std::string& states_dir, u64 program_id, u64 movie_id,
                                  u32 slot) {
+    SaveStateInfo info =
+        GetSaveStateInfoAt(StatePathIn(states_dir, program_id, movie_id, slot), program_id);
+    if (info.slot == 0) {
+        info.slot = slot;
+    }
+    return info;
+}
+
+// AzaharFrame autosave: any state file (an autosave's), slot 0 when it is one of this game
+SaveStateInfo GetSaveStateInfoAt(const std::string& path, u64 program_id) {
     SaveStateInfo info{};
     info.slot = std::numeric_limits<u32>::max();
 
-    const auto path = StatePathIn(states_dir, program_id, movie_id, slot);
     if (!FileUtil::Exists(path)) {
         return info;
     }
@@ -301,7 +311,7 @@ SaveStateInfo GetSaveStateInfoIn(const std::string& states_dir, u64 program_id, 
         return info;
     }
     if (ValidateSaveState(header, info, program_id, path)) {
-        info.slot = slot;
+        info.slot = 0;
     }
     return info;
 }
@@ -339,6 +349,43 @@ void System::SaveState(u32 slot) const {
 }
 
 void System::LoadState(u32 slot, bool allow_mismatch) {
+    LoadStateAt(GetSaveStatePath(title_id, movie.GetCurrentMovieID(), slot), allow_mismatch);
+}
+
+// AzaharFrame autosave: the system serialized, not compressed (the autosave's writer compresses
+// it on its own thread)
+std::string System::SerializeState() const {
+    if (app_loader && !app_loader->SupportsSaveStates()) {
+        throw std::runtime_error("Savestates are not supported by the current application "
+                                 "loader (Artic Base).");
+    }
+    // AzaharFrame autosave: into one string reserved at the last state's size (an ostringstream
+    // doubles its buffer and copies the state again each time, ~300 MB for a big game).
+    static std::atomic<std::size_t> last_size{0};
+    struct Sink : std::streambuf {
+        std::string out;
+        std::streamsize xsputn(const char* s, std::streamsize n) override {
+            out.append(s, static_cast<std::size_t>(n));
+            return n;
+        }
+        int_type overflow(int_type c) override {
+            if (!traits_type::eq_int_type(c, traits_type::eof())) {
+                out.push_back(traits_type::to_char_type(c));
+            }
+            return traits_type::not_eof(c);
+        }
+    } sink;
+    sink.out.reserve(last_size.load() + (8u << 20));
+    {
+        std::ostream stream{&sink};
+        oarchive oa{stream};
+        oa&* this;
+    }
+    last_size = sink.out.size();
+    return std::move(sink.out);
+}
+
+void System::LoadStateAt(const std::string& path, bool allow_mismatch) {
     if (app_loader) {
         if (!app_loader->SupportsSaveStates()) {
             throw std::runtime_error("Savestates are not supported by the current application "
@@ -349,9 +396,6 @@ void System::LoadState(u32 slot, bool allow_mismatch) {
     if (room_member && room_member->IsConnected()) {
         throw std::runtime_error("Unable to load while connected to multiplayer");
     }
-
-    const u64 movie_id = movie.GetCurrentMovieID();
-    const auto path = GetSaveStatePath(title_id, movie_id, slot);
 
     std::vector<u8> decompressed;
     {
@@ -367,7 +411,7 @@ void System::LoadState(u32 slot, bool allow_mismatch) {
 
         // validate header
         SaveStateInfo info;
-        info.slot = slot;
+        info.slot = 0;
         // AzaharFrame savestate: strict (this build's revision) unless Load Anyway; the file type
         // and the game are checked either way
         if (!ValidateSaveState(header, info, title_id, path) ||

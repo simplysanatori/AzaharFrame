@@ -23,8 +23,8 @@ public:
         write_ptr = read_ptr = new ElementPtr();
     }
     ~SPSCQueue() {
-        // this will empty out the whole queue
-        delete read_ptr;
+        // AzaharFrame fixes11: free the chain one link at a time (iteratively)
+        FreeChain(read_ptr);
     }
 
     [[nodiscard]] std::size_t Size() const {
@@ -109,7 +109,7 @@ public:
     // not thread-safe
     void Clear() {
         size.store(0);
-        delete read_ptr;
+        FreeChain(read_ptr);
         write_ptr = read_ptr = new ElementPtr();
     }
 
@@ -119,16 +119,22 @@ private:
     class ElementPtr {
     public:
         ElementPtr() = default;
-        ~ElementPtr() {
-            ElementPtr* next_ptr = next.load();
-
-            if (next_ptr)
-                delete next_ptr;
-        }
+        // AzaharFrame fixes11: no recursion here. Deleting a long chain through the destructor
+        // overflowed the stack (a mic queue of millions of elements); FreeChain walks it instead.
+        ~ElementPtr() = default;
 
         T current;
         std::atomic<ElementPtr*> next{nullptr};
     };
+
+    // AzaharFrame fixes11: frees every element from head to the end of the chain, without recursion.
+    static void FreeChain(ElementPtr* head) {
+        while (head) {
+            ElementPtr* next_ptr = head->next.load();
+            delete head;
+            head = next_ptr;
+        }
+    }
 
     ElementPtr* write_ptr;
     ElementPtr* read_ptr;
