@@ -802,6 +802,19 @@ void GameList::AddGamePopup(QMenu& context_menu, const QString& path, const QStr
         context_menu.insertAction(shader_menu->menuAction(), texture_pack);
         connect(texture_pack, &QAction::triggered, this,
                 [this, program_id, name] { FrameTexturePack::Run(this, program_id, name); });
+        // AzaharFrame ui3: optimized, the original can go (its own guard decides when)
+        if (!FrameTexturePack::RemovableOriginal(program_id).empty()) {
+            auto* remove = new QAction(tr("Remove Original Texture Pack..."), &context_menu);
+            context_menu.insertAction(shader_menu->menuAction(), remove);
+            connect(remove, &QAction::triggered, this, [this, program_id] {
+                u64 running = 0;
+                Core::System& system = Core::System::GetInstance();
+                if (system.IsPoweredOn()) {
+                    system.GetAppLoader().ReadProgramId(running);
+                }
+                FrameTexturePack::RemoveOriginal(this, program_id, running == program_id);
+            });
+        }
         // AzaharFrame texparts: the pack's parts (the Emulation menu has it for the running game)
         auto* customize = new QAction(tr("Customize Texture Pack..."), &context_menu);
         context_menu.insertAction(shader_menu->menuAction(), customize);

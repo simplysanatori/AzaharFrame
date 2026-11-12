@@ -231,6 +231,7 @@ enum class MenuCommand {
     OptimizePack,    ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)
     OptimizeStop,    ///< stops the conversion (carried on by the next Optimize)
     UseOriginalPack, ///< the PNG pack again, from the next start
+    RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes it
 };
 enum class MenuSetting {
     HideBottomScreen,

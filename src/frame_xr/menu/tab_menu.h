@@ -162,6 +162,7 @@ enum class Id : int {
     OptimizeStop,  ///< Stop while it converts
     UseOriginal,   ///< back to the PNG pack (from the next start)
     OptimizeNudge, ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
+    RemoveOriginal, ///< AzaharFrame ui3: the optimized pack's original, deleted after a dialog
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);

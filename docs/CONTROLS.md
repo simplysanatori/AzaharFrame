@@ -168,7 +168,7 @@ The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheat
 |---|---|
 | **Cheats** | **Download** fetches the game's cheats from Sharkive and my 3ds-game-fixes repository. A switch per cheat, applied at once and kept. A red chip such as **v1.0** marks a cheat made for another version of the game. **Azahar's Window** opens Azahar's **Cheats** window to add or edit your own |
 | **Mods** | What is installed for the game, with a switch and **Remove**. **Install Mods** lists the mods known for the game, with the version and the month it was last updated when they are known; **Install** downloads one from its author's page. Two mods that change the same files are never installed over each other without asking. **Created by** opens the author's page in Steam's browser |
-| **Textures** | **Custom Textures**, the game's packs (or **Off**), **Download Packs** and **Preload**. **Download Packs** lists packs for the game from GitHub and Google Drive; **Download**, **Cancel** and **Delete** act on one. **Customize** opens a pack's page, with **Optimize for Frame** for a PNG pack and **Use Original** once it is optimized |
+| **Textures** | **Custom Textures**, the game's packs (or **Off**), **Download Packs** and **Preload**. **Download Packs** lists packs for the game from GitHub and Google Drive; **Download**, **Cancel** and **Delete** act on one. **Customize** opens a pack's page, with **Optimize for Frame** for a PNG pack and **Use Original** and **Remove Original** once it is optimized |
 
 After a change to mods or textures, **Restart the Game to Apply** shows with a **Restart** button. More in the [user guide](USER_GUIDE.md#the-mods-tab).
 

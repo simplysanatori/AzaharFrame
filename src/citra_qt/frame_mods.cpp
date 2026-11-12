@@ -383,6 +383,9 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     case C::UseOriginalPack:
         UseOriginal(r.text);
         return;
+    case C::RemoveOriginalPack:
+        RemoveOriginalAsk(r.text);
+        return;
     case C::TexturePart:
         PartClicked(r.value);
         return;
@@ -445,6 +448,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             DeletePack(p.id);
         } else if (p.kind == Pending::Kind::Optimize) { // AzaharFrame ui3
             OptimizeStart(p.id);
+        } else if (p.kind == Pending::Kind::RemoveOriginal) {
+            RemoveOriginalDo(p.id);
         }
         return;
     }

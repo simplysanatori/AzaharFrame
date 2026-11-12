@@ -2005,8 +2005,33 @@ TEST_CASE("Tab menu: Optimize for Frame", "[frame_xr][tabmenu]") {
     o.size_text = "2.1 GB";
     t = OptimizeText(o);
     CHECK(t.title == "Optimized for Frame · ASTC · 2.1 GB");
-    CHECK(t.line.empty());
+    CHECK(t.line == "Original PNG Pack");
     CHECK(t.button == 3);
+    CHECK_FALSE(t.remove); // the game still reads the original
+    // AzaharFrame ui3: Remove Original next to Use Original, the original's size under the title.
+    o.original_size = "4.7 GB";
+    o.can_remove = true;
+    t = OptimizeText(o);
+    CHECK(t.line == "Original PNG Pack · 4.7 GB");
+    CHECK(t.remove);
+    CHECK(t.button == 3);
+    // Removed: no Use Original, no Remove Original.
+    o.original_removed = true;
+    t = OptimizeText(o);
+    CHECK(t.title == "Optimized for Frame · ASTC · 2.1 GB · Original Removed");
+    CHECK(t.button == 0);
+    CHECK_FALSE(t.remove);
+    CHECK(t.line.empty());
+    o.original_removed = false;
+    CHECK(RemoveOriginalBody("4.7 GB", true) ==
+          "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need "
+          "to download it again.");
+    CHECK(RemoveOriginalBody("4.7 GB", false) ==
+          "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need "
+          "to add it again.");
+    CHECK(RemoveOriginalBody("", true).rfind("The optimized pack", 0) == 0);
+    CHECK(std::string(kRemoveOriginalTitle) == "Remove the Original Pack?");
+    CHECK(LabelFor(Id::RemoveOriginal) == "Remove Original");
     CHECK(CountWithCommas(0) == "0");
     CHECK(CountWithCommas(999) == "999");
     CHECK(CountWithCommas(2308) == "2,308");

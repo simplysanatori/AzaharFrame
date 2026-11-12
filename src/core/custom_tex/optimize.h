@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 #include "common/common_types.h"
 
 namespace CustomTex::Optimize {
@@ -65,6 +66,32 @@ std::string FailureText(int exit_code);
 /// Copies the Customize choices (Parts::kStateFile) from one pack of the pair to the other, or
 /// removes the target's when the source has none. False on a write error.
 bool CarryParts(const std::string& from, const std::string& to);
+
+/// AzaharFrame ui3: Remove Original. The one folder it may delete: the source the optimized
+/// copy's marker names, resolved from the copy's real place, when it
+/// - is there, a folder and not a link itself;
+/// - is (after every link on the way is resolved) inside one of `roots` (the managed texture
+///   folders: <load>/textures and <load>/texture-packs) and not a root itself;
+/// - is not the copy, inside it or round it, nor an optimized copy itself;
+/// - is not the pack `active` points at (load/textures/<TID>: what a running game reads).
+/// `original` is that folder (canonical), or `error` why not.
+struct RemoveCheck {
+    std::string original;
+    std::string error; ///< "Original Not Found", "Not the Original", "Original Is in Use", ...
+    bool Ok() const {
+        return error.empty();
+    }
+};
+RemoveCheck CheckRemoveOriginal(const std::string& optimized, const std::vector<std::string>& roots,
+                                const std::string& active);
+/// Checks again and deletes it (no trash, as Delete does a downloaded pack). False with `error`.
+bool RemoveOriginal(const std::string& optimized, const std::vector<std::string>& roots,
+                    const std::string& active, std::string* error);
+/// The pack came from the catalog (Download Packs' marker, not an Install from Zip one): Remove
+/// Original's dialog says "download it again", else "add it again".
+bool FromCatalog(const std::string& pack);
+/// The managed texture folders of a load folder: <load>/textures, <load>/texture-packs.
+std::vector<std::string> ManagedRoots(const std::string& load_dir);
 
 /// The packs already asked about (by id), in <load>/texture-packs/optimize-asked.txt.
 bool AskedBefore(const std::string& load_dir, const std::string& pack_id);

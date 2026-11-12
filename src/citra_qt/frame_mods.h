@@ -108,7 +108,8 @@ private:
     struct Pending {
         enum class Kind { None, Install, Remove, Download, Delete, BigInstall,
                           Unscanned /* AzaharFrame compat */,
-                          Optimize /* AzaharFrame ui3: the PNG pack's path */ } kind = Kind::None;
+                          Optimize /* AzaharFrame ui3: the PNG pack's path */,
+                          RemoveOriginal /* AzaharFrame ui3: the optimized copy's path */ } kind = Kind::None;
         std::string id;
     };
 
@@ -181,6 +182,14 @@ private:
     void OptimizeStop();
     void OptimizeDone(int code, bool stopped);
     void UseOriginal(const std::string& pack_id);
+    /// AzaharFrame ui3: Remove Original: "Remove the Original Pack?" for the page's pair, then (the
+    /// dialog's Remove) the guarded delete off the GUI thread (CustomTex::Optimize::RemoveOriginal).
+    void RemoveOriginalAsk(const std::string& pack_id);
+    void RemoveOriginalDo(const std::string& optimized);
+    /// The folder the game reads its pack from (load/textures/<TID>).
+    std::string ActiveLink() const;
+    /// A pack's size as the page shows it ("4.7 GB"), "" unknown.
+    std::string PackSizeText(const std::string& path) const;
     /// Makes `path` (a pack of the game `tid`) the one used, now or (a game running) when it stops;
     /// `carry_from`: the pair's other pack, whose Customize choices go with it.
     void ChoosePack(u64 tid, const std::string& path, const std::string& carry_from);

@@ -901,8 +901,24 @@ int main(int argc, char** argv) {
             pp.optimize = {OptimizeState::Failed, "4.7 GB", 0, 0, -1, {}, "Not Enough Space"};
             ok &= shot("optimize-failed", om, ov);
             pp.optimize = {OptimizeState::Optimized, "2.1 GB"};
+            pp.optimize.original_size = "4.7 GB";
             om.mods.textures.needs_restart = true;
             ok &= shot("optimize-optimized", om, ov);
+            // AzaharFrame ui3: Remove Original (the copy in use), its dialog, and after
+            om.mods.textures.needs_restart = false;
+            pp.optimize.can_remove = true;
+            ov.hover = {Id::RemoveOriginal};
+            ok &= shot("optimize-remove", om, ov);
+            om.mods.textures.dialog = {ModsDialogKind::RemoveOriginal,
+                                       RemoveOriginalBody("4.7 GB", true), ""};
+            ov.hover = {Id::DialogConfirm};
+            ok &= shot("optimize-remove-confirm", om, ov);
+            om.mods.textures.dialog = {};
+            pp.optimize.original_removed = true;
+            pp.optimize.can_remove = false;
+            pp.title = "4K"; // the page is the copy's now
+            ov.hover = {};
+            ok &= shot("optimize-removed", om, ov);
             MenuModel nm = m;
             nm.mods.textures = SampleTextures();
             nm.mods.textures.packs[2].active = true;

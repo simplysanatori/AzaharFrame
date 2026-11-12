@@ -4473,6 +4473,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::OptimizePack: // AzaharFrame ui3
     case C::OptimizeStop:
     case C::UseOriginalPack:
+    case C::RemoveOriginalPack:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }

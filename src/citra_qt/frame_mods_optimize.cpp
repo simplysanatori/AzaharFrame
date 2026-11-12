@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <thread>
 
+#include <QApplication>
+#include <QPointer>
 #include <QProcess>
 #include <QTimer>
 #include <fmt/format.h>
@@ -24,6 +26,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/custom_tex/optimize.h"
+#include "core/custom_tex/packs.h"
 #include "frame_xr/frame_xr.h"
 
 namespace Menu = FrameXr::Menu;
@@ -39,6 +42,23 @@ std::string Canon(const std::string& path) {
     std::error_code ec;
     const auto c = std::filesystem::weakly_canonical(path, ec);
     return ec ? path : c.string();
+}
+
+/// As frame_mods.cpp's: `work` on a thread of its own, `done` on the GUI thread while `self` lives.
+template <typename Work, typename Done>
+void OffThread(FrameMods* self, Work work, Done done) {
+    QPointer<FrameMods> guard(self);
+    std::thread([guard, work = std::move(work), done = std::move(done)] {
+        auto result = work();
+        QMetaObject::invokeMethod(
+            qApp,
+            [guard, done, result = std::move(result)] {
+                if (guard) {
+                    done(result);
+                }
+            },
+            Qt::QueuedConnection);
+    }).detach();
 }
 
 std::string LoadDir() {
@@ -343,11 +363,7 @@ void FrameMods::UpdateOptimizeRow() {
             }
         }
     }
-    const auto size_of = [this](const std::string& path) {
-        const CustomTex::Pack* p = PackByPath(path);
-        const auto bytes = p && p->size_bytes ? p->size_bytes : CustomTex::CachedSize(path);
-        return bytes ? Menu::SizeText(*bytes) : std::string{};
-    };
+    const auto size_of = [this](const std::string& path) { return PackSizeText(path); };
     const bool page_is_copy = !copy.empty() && Canon(page->path) == copy;
     if (!png.empty() && optimize_png == png) {
         row = optimize_progress;
@@ -357,6 +373,14 @@ void FrameMods::UpdateOptimizeRow() {
     } else if (!copy.empty() && (chosen == copy || (page_is_copy && chosen != png))) {
         row.state = Menu::OptimizeState::Optimized;
         row.size_text = size_of(copy);
+        // AzaharFrame ui3: Remove Original, unless the game still reads it (a switch waits for
+        // the next start)
+        row.original_removed = png.empty();
+        if (!png.empty()) {
+            row.original_size = size_of(png);
+            const bool waiting = pending_switch && pending_switch->title == title_id;
+            row.can_remove = !waiting && Canon(ActiveLink()) != png;
+        }
         return;
     } else if (const auto it = optimize_states.find(png); !png.empty() && it != optimize_states.end()) {
         row = it->second;
@@ -366,6 +390,82 @@ void FrameMods::UpdateOptimizeRow() {
         return; // an optimized copy whose original is gone, not chosen: nothing to switch to
     }
     row.size_text = size_of(png);
+}
+
+std::string FrameMods::PackSizeText(const std::string& path) const {
+    const CustomTex::Pack* p = PackByPath(path);
+    const auto bytes = p && p->size_bytes ? p->size_bytes : CustomTex::CachedSize(path);
+    return bytes ? Menu::SizeText(*bytes) : std::string{};
+}
+
+std::string FrameMods::ActiveLink() const {
+    return (std::filesystem::path(LoadDir()) / "textures" / CustomTex::TitleFolder(title_id)).string();
+}
+
+void FrameMods::RemoveOriginalAsk(const std::string& pack_id) { // AzaharFrame ui3
+    const auto it = std::find_if(packs.begin(), packs.end(),
+                                 [&](const CustomTex::Pack& p) { return p.id == pack_id; });
+    if (it == packs.end() || textures.busy) {
+        return;
+    }
+    const Opt::Pair pair = Opt::PairOf(it->path, it->format == CustomTex::Format::Png);
+    if (pair.png.empty() || pair.optimized.empty()) {
+        return;
+    }
+    const Opt::RemoveCheck check =
+        Opt::CheckRemoveOriginal(pair.optimized, Opt::ManagedRoots(LoadDir()), ActiveLink());
+    if (!check.Ok()) {
+        LOG_WARNING(Frontend, "xr: optimize: Remove Original refused for {}: {}", pair.png, check.error);
+        FrameXr::ShowToastText(check.error, FrameXr::ToastTime::Long);
+        return;
+    }
+    pack_pending = {Pending::Kind::RemoveOriginal, Canon(pair.optimized)};
+    textures.dialog = {Menu::ModsDialogKind::RemoveOriginal,
+                       Menu::RemoveOriginalBody(PackSizeText(pair.png), Opt::FromCatalog(check.original)),
+                       ""};
+    PublishTextures();
+}
+
+void FrameMods::RemoveOriginalDo(const std::string& optimized) {
+    if (textures.busy) {
+        return;
+    }
+    // The game reads the original until the waiting switch happens: never then.
+    if (pending_switch && pending_switch->title == title_id) {
+        FrameXr::ShowToastText("Original Is in Use", FrameXr::ToastTime::Long);
+        return;
+    }
+    const std::string png = Canon(Opt::PairOf(optimized, false).png);
+    textures.busy = true;
+    PublishTextures();
+    const std::vector<std::string> roots = Opt::ManagedRoots(LoadDir());
+    const std::string active = ActiveLink();
+    const u64 tid = title_id;
+    LOG_INFO(Frontend, "xr: optimize: Remove Original of {}", optimized);
+    OffThread(
+        this,
+        [optimized, roots, active] {
+            std::string error;
+            return Opt::RemoveOriginal(optimized, roots, active, &error) ? std::string{} : error;
+        },
+        [this, tid, optimized, png](const std::string& error) {
+            textures.busy = false;
+            if (!error.empty()) {
+                LOG_WARNING(Frontend, "xr: optimize: Remove Original failed: {}", error);
+                FrameXr::ShowToastText(error, FrameXr::ToastTime::Long);
+            }
+            if (tid != title_id) {
+                return;
+            }
+            RefreshPacks();
+            ListPackDownloads(); // a catalog pack shows Download again
+            if (error.empty() && textures.parts.pack_id == png) {
+                OpenParts(optimized); // the page was the original's: the copy's now
+            } else {
+                UpdateOptimizeRow();
+                PublishTextures();
+            }
+        });
 }
 
 void FrameMods::CheckNudge() {

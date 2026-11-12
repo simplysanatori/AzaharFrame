@@ -134,3 +134,99 @@ TEST_CASE("optimize: each pack is asked about once", "[texparts][optimize]") {
     CHECK(kNudgeBytes == 1'000'000'000ULL);
     fs::remove_all(load);
 }
+
+// AzaharFrame ui3: Remove Original deletes only the folder the copy's marker names, inside the
+// managed texture folders, never a link, the copy, a folder round it, or what the game reads.
+TEST_CASE("optimize: Remove Original's guard", "[texparts][optimize][remove]") {
+    const fs::path root = TempDir("remove");
+    const fs::path load = root / "load";
+    const fs::path packs = load / "texture-packs" / "0004000000033500";
+    const fs::path outside = root / "outside";
+    fs::create_directories(load / "textures");
+    fs::create_directories(outside);
+    Write(outside / "keep.txt", "mine");
+    const fs::path png = packs / "4K";
+    const fs::path copy = packs / "4K-astc4x4";
+    Write(png / "tex1_64x64_0123456789ABCDEF_14.png", "x");
+    Write(png / ".azaharframe-download.json", R"({"id":"oot3d-4k","source":"github"})");
+    fs::create_symlink(outside / "keep.txt", png / "a-link-out.txt"); // removed, never followed
+    const auto marker = [&](const std::string& source) {
+        Write(copy / kMarker, source.empty() ? std::string(R"({"format":"ASTC 4x4"})")
+                                             : R"({"format":"ASTC 4x4","source":")" + source + "\"}");
+    };
+    marker("../4K");
+    Write(copy / "tex1_64x64_0123456789ABCDEF_14.ktx", "k");
+    const fs::path active = load / "textures" / "0004000000033500";
+    fs::create_symlink(copy, active);
+    const auto roots = ManagedRoots(load.string());
+
+    // The right one, the copy in use: allowed, and it is a catalog pack ("download it again").
+    RemoveCheck c = CheckRemoveOriginal(copy.string(), roots, active.string());
+    REQUIRE(c.Ok());
+    CHECK(c.original == fs::canonical(png).string());
+    CHECK(FromCatalog(c.original));
+    // Through the game's link to the copy (as Flat names it): the same folder.
+    CHECK(CheckRemoveOriginal(active.string(), roots, active.string()).original == c.original);
+
+    // What the game reads now: never.
+    fs::remove(active);
+    fs::create_symlink(png, active);
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Original Is in Use");
+    fs::remove(active);
+    fs::create_symlink(copy, active);
+
+    // A wrong source: the copy itself, the folder holding both (a root's child) and a root, another
+    // optimized copy, outside the texture folders.
+    marker(".");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Not the Original");
+    marker("..");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Not the Original");
+    marker("../..");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error ==
+          "Original Outside the Texture Folders");
+    Write(packs / "Other-astc4x4" / kMarker, "{}");
+    marker("../Other-astc4x4");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Not the Original");
+    marker(outside.string());
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error ==
+          "Original Outside the Texture Folders");
+    marker("../../../../outside");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error ==
+          "Original Outside the Texture Folders");
+
+    // A link: never followed, as the source or on the way to it.
+    fs::create_symlink(outside, packs / "escape");
+    marker("../escape");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Original Is a Link");
+    fs::create_directories(outside / "pack");
+    marker("../escape/pack");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error ==
+          "Original Outside the Texture Folders");
+    std::string error;
+    CHECK_FALSE(RemoveOriginal(copy.string(), roots, active.string(), &error));
+    CHECK(fs::is_directory(outside / "pack"));
+
+    // Missing: no source in the marker, or the folder is gone.
+    marker("");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Original Not Found");
+    marker("../Gone");
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Original Not Found");
+    CHECK(CheckRemoveOriginal(png.string(), roots, active.string()).error == "Not Optimized");
+
+    // Removed: the original only; the copy, its choices and the file a link inside pointed at stay.
+    marker("../4K");
+    Write(copy / CustomTex::Parts::kStateFile, R"({"off":["UI"]})");
+    REQUIRE(RemoveOriginal(copy.string(), roots, active.string(), &error));
+    CHECK_FALSE(fs::exists(png));
+    CHECK(fs::is_regular_file(copy / "tex1_64x64_0123456789ABCDEF_14.ktx"));
+    CHECK(fs::is_regular_file(copy / CustomTex::Parts::kStateFile));
+    CHECK(Read(outside / "keep.txt") == "mine");
+    CHECK(PairOf(copy.string(), false).png.empty()); // Original Removed
+    CHECK(CheckRemoveOriginal(copy.string(), roots, active.string()).error == "Original Not Found");
+
+    // Install from Zip or your own: "add it again".
+    Write(packs / "Mine" / ".azaharframe-download.json", R"({"id":"zip:Mine","source":"zip"})");
+    CHECK_FALSE(FromCatalog((packs / "Mine").string()));
+    CHECK_FALSE(FromCatalog((packs / "Gone").string()));
+    fs::remove_all(root);
+}

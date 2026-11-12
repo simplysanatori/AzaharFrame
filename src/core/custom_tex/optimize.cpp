@@ -170,6 +170,128 @@ bool CarryParts(const std::string& from, const std::string& to) {
     return !ec;
 }
 
+namespace {
+
+/// `inner` is `outer` or inside it (both canonical).
+bool Within(const fs::path& inner, const fs::path& outer) {
+    auto i = inner.begin(), o = outer.begin();
+    for (; o != outer.end(); ++i, ++o) {
+        if (i == inner.end() || *i != *o) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+bool FromCatalog(const std::string& pack) {
+    try {
+        const auto j = nlohmann::json::parse(ReadFile(fs::path(pack) / ".azaharframe-download.json"));
+        const std::string id = j.value("id", "");
+        return !id.empty() && id.rfind("zip:", 0) != 0;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+std::vector<std::string> ManagedRoots(const std::string& load_dir) {
+    return {(fs::path(load_dir) / "textures").string(), (fs::path(load_dir) / "texture-packs").string()};
+}
+
+RemoveCheck CheckRemoveOriginal(const std::string& optimized, const std::vector<std::string>& roots,
+                                const std::string& active) {
+    RemoveCheck r;
+    std::error_code ec;
+    if (!IsOptimized(optimized)) {
+        r.error = "Not Optimized";
+        return r;
+    }
+    std::string source;
+    try {
+        const auto j = nlohmann::json::parse(ReadFile(fs::path(optimized) / kMarker));
+        const auto it = j.find("source");
+        if (it != j.end() && it->is_string()) {
+            source = it->get<std::string>();
+        }
+    } catch (const std::exception&) {
+    }
+    if (source.empty()) {
+        r.error = "Original Not Found";
+        return r;
+    }
+    const fs::path copy = fs::canonical(optimized, ec);
+    if (ec) {
+        r.error = "Original Not Found";
+        return r;
+    }
+    // The marker's source is relative to the copy's real folder (absolute ones as they are).
+    const fs::path named = fs::path(source).is_absolute() ? fs::path(source).lexically_normal()
+                                                          : (copy / source).lexically_normal();
+    const fs::file_status st = fs::symlink_status(named, ec);
+    if (ec || !fs::exists(st)) {
+        r.error = "Original Not Found";
+        return r;
+    }
+    if (fs::is_symlink(st)) {
+        r.error = "Original Is a Link"; // never followed out of the texture folders
+        return r;
+    }
+    if (!fs::is_directory(st)) {
+        r.error = "Original Not Found";
+        return r;
+    }
+    const fs::path real = fs::canonical(named, ec);
+    if (ec) {
+        r.error = "Original Not Found";
+        return r;
+    }
+    bool inside = false;
+    for (const std::string& root : roots) {
+        const fs::path c = fs::canonical(root, ec);
+        if (!ec && real != c && Within(real, c)) {
+            inside = true;
+        }
+    }
+    if (!inside) {
+        r.error = "Original Outside the Texture Folders";
+        return r;
+    }
+    if (Within(real, copy) || Within(copy, real) || IsOptimized(real.string())) {
+        r.error = "Not the Original";
+        return r;
+    }
+    if (!active.empty()) {
+        const fs::path a = fs::canonical(active, ec);
+        if (!ec && (Within(a, real) || Within(real, a))) {
+            r.error = "Original Is in Use";
+            return r;
+        }
+    }
+    r.original = real.string();
+    return r;
+}
+
+bool RemoveOriginal(const std::string& optimized, const std::vector<std::string>& roots,
+                    const std::string& active, std::string* error) {
+    const RemoveCheck c = CheckRemoveOriginal(optimized, roots, active);
+    if (!c.Ok()) {
+        if (error) {
+            *error = c.error;
+        }
+        return false;
+    }
+    std::error_code ec;
+    fs::remove_all(c.original, ec); // links inside are removed, never followed
+    if (ec) {
+        if (error) {
+            *error = "Original Not Removed";
+        }
+        return false;
+    }
+    return true;
+}
+
 bool AskedBefore(const std::string& load_dir, const std::string& pack_id) {
     std::istringstream in(ReadFile(AskedFile(load_dir)));
     for (std::string line; std::getline(in, line);) {

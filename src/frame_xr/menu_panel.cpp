@@ -1285,6 +1285,9 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::UseOriginal:
         ask_text(MenuCommand::UseOriginalPack, model.mods.textures.parts.pack_id);
         break;
+    case Id::RemoveOriginal:
+        ask_text(MenuCommand::RemoveOriginalPack, model.mods.textures.parts.pack_id);
+        break;
     case Id::OptimizeNudge:
         if (!model.mods.textures.nudge_pack.empty()) {
             view.textures_page = Menu::TexturesPage::Parts;

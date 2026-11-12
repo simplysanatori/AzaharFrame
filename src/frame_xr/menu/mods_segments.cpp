@@ -724,10 +724,23 @@ OptimizeRowText OptimizeText(const PackOptimize& o) {
         break;
     case OptimizeState::Optimized:
         t.title = "Optimized for Frame \u00b7 ASTC" + size;
+        if (o.original_removed) { // AzaharFrame ui3: nothing to go back to
+            t.title += " \u00b7 Original Removed";
+            break;
+        }
         t.button = 3;
+        t.remove = o.can_remove;
+        t.line = "Original PNG Pack" +
+                 (o.original_size.empty() ? std::string{} : " \u00b7 " + o.original_size);
         break;
     }
     return t;
+}
+
+std::string RemoveOriginalBody(const std::string& size, bool catalog) {
+    return (size.empty() ? std::string{} : "Frees " + size + ". ") +
+           "The optimized pack keeps working. To go back to the original, you'd need to " +
+           (catalog ? "download" : "add") + " it again.";
 }
 
 std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
@@ -969,6 +982,14 @@ float TabMenu::DrawOptimizeRow(Kit& kit, const PackOptimize& o, const MenuView& 
         kit.Button(b, tonal ? ButtonStyle::Tonal : ButtonStyle::Text, 0, label, StateOf(view, {id}));
         AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id}, area);
         right = b.x0 - kNameGap;
+        if (t.remove) { // AzaharFrame ui3: Remove Original, left of Use Original
+            const std::string rl = LabelFor(Id::RemoveOriginal);
+            const float rw = ButtonWidth(kit, rl, false, 12.0f);
+            const Rect rb{b.x0 - 8.0f - rw, b.y0, b.x0 - 8.0f, b.y1};
+            kit.Button(rb, ButtonStyle::Text, 0, rl, StateOf(view, {Id::RemoveOriginal}));
+            AddHit({rb.x0, cy - 24.0f, rb.x1, cy + 24.0f}, {Id::RemoveOriginal}, area);
+            right = rb.x0 - kNameGap;
+        }
     } else if (t.ring) {
         Ring(kit, x1 - 12.0f, cy, 24.0f, o.spin);
         right = x1 - 24.0f - kNameGap;
@@ -1057,6 +1078,11 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         headline = "Optimize Texture Pack?";
         body = kOptimizeBody;
         confirm = "Optimize";
+        break;
+    case ModsDialogKind::RemoveOriginal: // AzaharFrame ui3
+        headline = kRemoveOriginalTitle;
+        body = d.mod;
+        confirm = "Remove";
         break;
     case ModsDialogKind::None:
         break;

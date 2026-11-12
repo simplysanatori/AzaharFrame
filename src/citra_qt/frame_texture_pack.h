@@ -24,6 +24,9 @@
 #include <fmt/format.h>
 #include "common/common_types.h"
 #include "common/file_util.h"
+#include "core/custom_tex/optimize.h"      // AzaharFrame ui3: Remove Original
+#include "core/custom_tex/packs.h"
+#include "frame_xr/menu/mods_segments.h" // AzaharFrame ui3: its dialog's text, as in VR
 
 namespace FrameTexturePack {
 
@@ -256,6 +259,51 @@ inline void Run(QWidget* parent, u64 program_id, const QString& name) {
                         }
                         Convert(parent, program_id, name, script);
                     });
+}
+
+/// AzaharFrame ui3: the optimized pack's original, when Remove Original may delete it (the guard
+/// of CustomTex::Optimize::CheckRemoveOriginal), else "".
+inline std::string RemovableOriginal(u64 program_id) {
+    if (!IsOptimized(program_id)) {
+        return {};
+    }
+    const std::string load = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
+    const auto check = CustomTex::Optimize::CheckRemoveOriginal(
+        PackPath(program_id).toStdString(), CustomTex::Optimize::ManagedRoots(load),
+        PackPath(program_id).toStdString());
+    return check.Ok() ? check.original : std::string{};
+}
+
+/// AzaharFrame ui3: "Remove Original Texture Pack...": "Remove the Original Pack?" (as the VR
+/// menu's), then the guarded delete. `running`: the game runs now (never while it may read it).
+inline void RemoveOriginal(QWidget* parent, u64 program_id, bool running) {
+    namespace Opt = CustomTex::Optimize;
+    const QString title = QString::fromUtf8(FrameXr::Menu::kRemoveOriginalTitle);
+    const std::string original = RemovableOriginal(program_id);
+    if (original.empty()) {
+        return;
+    }
+    if (running) {
+        QMessageBox::warning(parent, title, Tr("Close the game first. It may still read the original."));
+        return;
+    }
+    const auto bytes = CustomTex::ComputeSize(original);
+    const std::string size = bytes ? FrameXr::Menu::SizeText(*bytes) : std::string{};
+    QMessageBox box(QMessageBox::Question, title,
+                    QString::fromStdString(FrameXr::Menu::RemoveOriginalBody(size, Opt::FromCatalog(original))),
+                    QMessageBox::Cancel, parent);
+    QPushButton* remove = box.addButton(Tr("Remove"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(QMessageBox::Cancel);
+    box.exec();
+    if (box.clickedButton() != remove) {
+        return;
+    }
+    const std::string load = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
+    std::string error;
+    if (!Opt::RemoveOriginal(PackPath(program_id).toStdString(), Opt::ManagedRoots(load),
+                             PackPath(program_id).toStdString(), &error)) {
+        QMessageBox::warning(parent, title, QString::fromStdString(error));
+    }
 }
 
 } // namespace FrameTexturePack

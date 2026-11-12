@@ -393,6 +393,8 @@ std::string LabelFor(Id id) {
         return "Stop";
     case Id::UseOriginal:
         return "Use Original";
+    case Id::RemoveOriginal: // AzaharFrame ui3
+        return "Remove Original";
     case Id::OptimizeNudge:
         return "Optimize";
     case Id::AddCheat: // AzaharFrame ui2

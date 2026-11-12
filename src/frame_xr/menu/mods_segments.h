@@ -103,6 +103,7 @@ enum class ModsDialogKind : uint8_t {
                  ///< Cancel, Download Anyway
     Optimize,    ///< AzaharFrame ui3: "Optimize Texture Pack?", kOptimizeBody, the rows Textures
                  ///< (`mod`, "2,308") and Size (`other`, "About 4.7 GB"): Cancel, Optimize
+    RemoveOriginal, ///< AzaharFrame ui3: kRemoveOriginalTitle, `mod` = RemoveOriginalBody: Cancel, Remove
 };
 
 struct ModsDialog {
@@ -186,6 +187,10 @@ struct PackOptimize {
     std::string phase;       ///< Converting before the first texture ("Preparing the Encoder")
     std::string error;       ///< Failed: why ("Not Enough Space")
     int spin = 0;            ///< Checking: the ring's step (menu_panel.cpp)
+    // Optimized (AzaharFrame ui3): the original PNG pack
+    std::string original_size; ///< its size ("4.7 GB"), "" unknown
+    bool original_removed = false; ///< it is gone: no Use Original
+    bool can_remove = false;       ///< Remove Original (not what the game reads now)
     bool operator==(const PackOptimize&) const = default;
 };
 
@@ -195,6 +200,7 @@ struct OptimizeRowText {
     std::string line;    ///< under it ("" none)
     bool line_error = false;
     int button = 0;      ///< 0 none, 1 Optimize for Frame (tonal), 2 Stop (text), 3 Use Original (text)
+    bool remove = false; ///< Remove Original (text), left of Use Original
     bool ring = false;   ///< a progress ring in the button's place (Checking)
     bool bar = false;    ///< a linear progress bar under the title (Converting)
 };
@@ -352,6 +358,11 @@ inline constexpr const char* kOptimizeBody =
     "Converts the pack to a format the GPU reads directly, so HD textures show sooner and use "
     "less memory. The original is kept.";
 inline constexpr const char* kOptimizeStopped = "Stopped. Optimize Again to Carry On.";
+/// AzaharFrame ui3: Remove Original's dialog.
+inline constexpr const char* kRemoveOriginalTitle = "Remove the Original Pack?";
+/// "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need to
+/// download it again." (`catalog`; else "add it again"); no size known: no first sentence.
+std::string RemoveOriginalBody(const std::string& size, bool catalog);
 /// "Optimize 4K (PNG) for Frame?"
 std::string OptimizeNudgeText(const std::string& pack);
 /// "2,308"
