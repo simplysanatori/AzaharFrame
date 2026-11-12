@@ -40,10 +40,35 @@ struct ImmersivePreset {
     float screen_size = 0.0f;
     /// AzaharFrame immersive2: Settings::values.vr_immersive_match_camera (-1 = the default, on).
     int32_t match_camera = -1;
+    /// AzaharFrame presets: Settings::values.factor_3d (3D Depth, 0 to 100; -1 = keep).
+    int32_t factor_3d = -1;
+    /// AzaharFrame presets: Settings::values.resolution_factor (Internal Resolution; 0 = Auto is
+    /// the default, -1 = keep).
+    int32_t resolution = -1;
+    /// AzaharFrame presets: Settings::values.texture_filter (Settings::TextureFilter; -1 = keep).
+    int32_t texture_filter = -1;
+    /// AzaharFrame presets: Settings::values.vr_immersive_squeeze_y, Narrow Height in percent
+    /// (-1 = keep).
+    int32_t narrow_y = -1;
+    /// AzaharFrame presets: Settings::values.vr_hide_bottom_screen (-1 = keep).
+    int32_t hide_bottom = -1;
+    /// AzaharFrame presets: Settings::values.vr_top_aspect (-1 = keep).
+    int32_t top_aspect = -1;
+    /// AzaharFrame presets: the head-locked screen's default pitch (degrees from the view's
+    /// middle) and distance (metres), when `own_placement`. A placement the player saved wins.
+    bool own_placement = false;
+    float place_pitch_deg = 0.0f;
+    float place_distance = 0.0f;
 };
 
 /// The preset for the game with this title id (any region), or null.
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id);
+
+/// Applies a preset to Settings::values for the game that is starting: each value only where
+/// this game's config has no value of its own and the global one is still the default (a value
+/// the player set, even Off, is left alone). Called by citra_qt BootGame after the per-game
+/// config is loaded.
+void ApplyPresetSettings(const ImmersivePreset& preset);
 
 /// Every title id with a preset, for tests and documentation.
 struct ImmersivePresetTitle {

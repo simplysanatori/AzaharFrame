@@ -368,9 +368,14 @@ L::Placement DefaultPlacement() {
 L::Placement DefaultHeadPlacement() {
     L::Placement p;
     p.distance = g.tuning.head_distance;
-    if (const ImmersivePreset* preset = FindImmersivePreset(g.title_id);
-        preset && preset->screen_size > 0.0f) {
-        p.size = preset->screen_size;
+    if (const ImmersivePreset* preset = FindImmersivePreset(g.title_id)) {
+        if (preset->screen_size > 0.0f) {
+            p.size = preset->screen_size;
+        }
+        if (preset->own_placement) { // AzaharFrame presets: the owner's tuned pitch and distance
+            p.pitch_deg = preset->place_pitch_deg;
+            p.distance = preset->place_distance;
+        }
     }
     return L::Clamped(p);
 }
