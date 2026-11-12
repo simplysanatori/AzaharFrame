@@ -573,6 +573,11 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.autosave_enabled);
     ReadGlobalSetting(Settings::values.autosave_every);
     ReadGlobalSetting(Settings::values.autosave_keep);
+    // AzaharFrame reticle: the Controls tab's rows, a global value and a game's own (Per-Game)
+    ReadGlobalSetting(Settings::values.vr_touchpad_touch);
+    ReadGlobalSetting(Settings::values.vr_bottom_screen_reticle);
+    ReadGlobalSetting(Settings::values.vr_reticle_at_edge);
+    ReadGlobalSetting(Settings::values.vr_reticle_speed);
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
@@ -587,10 +592,7 @@ void QtConfig::ReadVrValues() {
         ReadGlobalSetting(Settings::values.vr_screen_curve); // AzaharFrame curve
         ReadGlobalSetting(Settings::values.vr_screen_layout); // AzaharFrame layout
         ReadGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
-        ReadGlobalSetting(Settings::values.vr_touchpad_touch); // AzaharFrame menu
         ReadGlobalSetting(Settings::values.vr_dynamic_resolution); // AzaharFrame menuux
-        ReadGlobalSetting(Settings::values.vr_bottom_screen_reticle); // AzaharFrame mouse
-        ReadGlobalSetting(Settings::values.vr_reticle_at_edge);       // AzaharFrame mouse
         ReadGlobalSetting(Settings::values.vr_hint_reticle_shown);
         ReadGlobalSetting(Settings::values.vr_hint_mouse_shown);
     }
@@ -1243,6 +1245,11 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.autosave_enabled);
     WriteGlobalSetting(Settings::values.autosave_every);
     WriteGlobalSetting(Settings::values.autosave_keep);
+    // AzaharFrame reticle: the Controls tab's rows, a global value and a game's own (Per-Game)
+    WriteGlobalSetting(Settings::values.vr_touchpad_touch);
+    WriteGlobalSetting(Settings::values.vr_bottom_screen_reticle);
+    WriteGlobalSetting(Settings::values.vr_reticle_at_edge);
+    WriteGlobalSetting(Settings::values.vr_reticle_speed);
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);
@@ -1257,10 +1264,7 @@ void QtConfig::SaveVrValues() {
         WriteGlobalSetting(Settings::values.vr_screen_curve); // AzaharFrame curve
         WriteGlobalSetting(Settings::values.vr_screen_layout); // AzaharFrame layout
         WriteGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
-        WriteGlobalSetting(Settings::values.vr_touchpad_touch); // AzaharFrame menu
         WriteGlobalSetting(Settings::values.vr_dynamic_resolution); // AzaharFrame menuux
-        WriteGlobalSetting(Settings::values.vr_bottom_screen_reticle); // AzaharFrame mouse
-        WriteGlobalSetting(Settings::values.vr_reticle_at_edge);       // AzaharFrame mouse
         WriteGlobalSetting(Settings::values.vr_hint_reticle_shown);
         WriteGlobalSetting(Settings::values.vr_hint_mouse_shown);
     }

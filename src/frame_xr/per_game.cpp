@@ -63,6 +63,18 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::AutosaveKeep:
         f(v.autosave_keep);
         return true;
+    case Id::TouchpadTouch: // AzaharFrame reticle: the Controls tab's rows
+        f(v.vr_touchpad_touch);
+        return true;
+    case Id::BottomScreenReticle:
+        f(v.vr_bottom_screen_reticle);
+        return true;
+    case Id::ReticleSpeed:
+        f(v.vr_reticle_speed);
+        return true;
+    case Id::ReticleAtEdge:
+        f(v.vr_reticle_at_edge);
+        return true;
     default:
         return false;
     }

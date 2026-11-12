@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <vector>
@@ -471,4 +472,96 @@ TEST_CASE("Reticle: the controller that drives it", "[frame_xr]") {
         CHECK(ReticleDrivingHand(ReticleHandFrom(3), true, in) == -1);
         CHECK(ReticleDrivingHand(ReticleHandFrom(0), true, in) == -1);
     }
+}
+
+// AzaharFrame reticle: Reticle Speed scales the turn from where aiming started (the cone is the
+// 1x cone over the speed), one value for the head and the controllers.
+TEST_CASE("Reticle: Reticle Speed", "[frame_xr][reticle]") {
+    CHECK(kReticleSpeedDefault == 2.0f);
+    CHECK(ClampReticleSpeed(0.1f) == Approx(0.5f));
+    CHECK(ClampReticleSpeed(9.0f) == Approx(4.0f));
+    CHECK(ClampReticleSpeed(2.5f) == Approx(2.5f));
+    CHECK(ClampReticleSpeed(std::nanf("")) == Approx(kReticleSpeedDefault));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Headset, 1.0f) == Approx(15.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Headset, 2.0f) == Approx(7.5f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f) == Approx(10.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Left, 0.5f) == Approx(40.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Off, 2.0f) == Approx(0.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Headset, 99.0f) == Approx(15.0f / 4.0f)); // clamped
+
+    // The same 5 degree head turn right: a sixth of the width at 1x, a third at 2x.
+    for (const float speed : {1.0f, 2.0f, 3.0f}) {
+        INFO("speed " << speed);
+        BottomScreenReticle r;
+        int64_t now = 1'000 * kMs;
+        const float hw = ReticleHalfWidthDeg(ReticleHand::Headset, speed);
+        const auto head = [&](float yaw, float pitch, int frames) {
+            ReticleFrame f;
+            for (int i = 0; i < frames; i++) {
+                now += 11 * kMs;
+                ReticleAim h{true, AimOrientation(DirectionOf(yaw, pitch)), 0.0f, 0.0f};
+                f = r.Update(h, true, hw, now);
+            }
+            return f;
+        };
+        // The dead zone (kDeadzoneDeg of turn) moves the point that much less, at the speed.
+        const float dx = BottomScreenReticle::kDeadzoneDeg * speed / 30.0f + 0.002f;
+        const float dy = BottomScreenReticle::kDeadzoneDeg * speed / 22.5f + 0.002f;
+        head(0.0f, 0.0f, 1);
+        ReticleFrame f = head(-5.0f, 0.0f, 120);
+        CHECK(f.point.x == Approx(std::min(1.0f, 0.5f + 5.0f * speed / 30.0f)).margin(dx));
+        f = head(0.0f, 3.0f, 120); // 3 degrees up
+        CHECK(f.point.y == Approx(0.5f - 3.0f * speed / 22.5f).margin(dy));
+        // Clamped to the edges, and back at once (the edge drift): 20 degrees right is past
+        // the edge at any speed here.
+        f = head(-20.0f, 0.0f, 120);
+        CHECK(f.point.x == Approx(1.0f).margin(dx));
+        f = head(-20.0f + 15.0f / speed, 0.0f, 120); // turned back half the screen
+        CHECK(f.point.x == Approx(0.5f).margin(dx));
+        // Recentrable: Recenter puts the middle where the head points
+        r.Rezero();
+        f = head(-30.0f, 10.0f, 1);
+        CHECK(f.rezeroed);
+        CHECK(f.point.x == Approx(0.5f));
+        CHECK(f.point.y == Approx(0.5f));
+    }
+}
+
+// AzaharFrame reticle: the turn that covers the whole bottom screen, edge to edge, measured by a
+// slow sweep from the middle: at the default half as much as at 1x, for the head (30 x 22.5
+// degrees to 15 x 11.25) and a controller (40 x 30 to 20 x 15).
+TEST_CASE("Reticle: the default speed halves the turn across the screen", "[frame_xr][reticle]") {
+    // The turn from the middle at which the point reaches the right (or top) edge: where the
+    // edge drift starts to move the reference along.
+    const auto to_edge = [](ReticleHand source, float speed, bool vertical) {
+        BottomScreenReticle r;
+        int64_t now = 1'000 * kMs;
+        const float hw = ReticleHalfWidthDeg(source, speed);
+        for (int step = 0; step <= 2000; step++) {
+            const float a = 0.02f * static_cast<float>(step); // 0.02 degrees each 22 ms
+            ReticleFrame f;
+            for (int i = 0; i < 2; i++) {
+                now += 11 * kMs;
+                ReticleAim h{true,
+                             AimOrientation(vertical ? DirectionOf(0.0f, a) : DirectionOf(-a, 0.0f)),
+                             0.0f, 0.0f};
+                f = r.Update(h, true, hw, now);
+            }
+            (void)f;
+            if (std::fabs(vertical ? r.ref_pitch_deg() : r.ref_yaw_deg()) > 0.001f) {
+                return a;
+            }
+        }
+        return -1.0f;
+    };
+    // Edge to edge is twice the turn from the middle (the cone is symmetric).
+    CHECK(2.0f * to_edge(ReticleHand::Headset, 1.0f, false) == Approx(30.0f).margin(0.4));
+    CHECK(2.0f * to_edge(ReticleHand::Headset, kReticleSpeedDefault, false) ==
+          Approx(15.0f).margin(0.4));
+    CHECK(2.0f * to_edge(ReticleHand::Headset, 1.0f, true) == Approx(22.5f).margin(0.4));
+    CHECK(2.0f * to_edge(ReticleHand::Headset, kReticleSpeedDefault, true) ==
+          Approx(11.25f).margin(0.4));
+    CHECK(2.0f * to_edge(ReticleHand::Right, 1.0f, false) == Approx(40.0f).margin(0.4));
+    CHECK(2.0f * to_edge(ReticleHand::Right, kReticleSpeedDefault, false) ==
+          Approx(20.0f).margin(0.4));
 }

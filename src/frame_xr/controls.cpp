@@ -1575,7 +1575,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                         : Input::ReticleHeadAim(head_view.valid, head, game_in.hand[0],
                                                 game_in.hand[1]);
             const Input::ReticleFrame rf = reticle.Update(
-                aim, true, Input::ReticleHalfWidthDeg(source), in.time_ns,
+                aim, true,
+                Input::ReticleHalfWidthDeg(source,
+                                           Settings::values.vr_reticle_speed.GetValue()), // reticle
+                in.time_ns,
                 Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()));
             if (rf.rezeroed) {
                 LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");

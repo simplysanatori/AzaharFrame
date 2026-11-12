@@ -75,13 +75,22 @@ int ReticleDrivingHand(ReticleHand source, bool game_frame, const InputFrame& in
     return h;
 }
 
-float ReticleHalfWidthDeg(ReticleHand source) {
+// AzaharFrame reticle: Reticle Speed
+float ClampReticleSpeed(float speed) {
+    if (!(speed == speed)) { // NaN (a hand-edited config)
+        return kReticleSpeedDefault;
+    }
+    return std::clamp(speed, kReticleSpeedMin, kReticleSpeedMax);
+}
+
+float ReticleHalfWidthDeg(ReticleHand source, float speed) {
+    const float s = ClampReticleSpeed(speed);
     switch (source) {
     case ReticleHand::Left:
     case ReticleHand::Right:
-        return kReticleControllerHalfWidthDeg;
+        return kReticleControllerHalfWidthDeg / s;
     case ReticleHand::Headset:
-        return kReticleHeadHalfWidthDeg;
+        return kReticleHeadHalfWidthDeg / s;
     default:
         return 0.0f;
     }

@@ -181,6 +181,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
+#include "frame_xr/controls_presets.h" // AzaharFrame reticle
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
@@ -487,6 +488,24 @@ struct FrameKeepSetting {
     Settings::SwitchableSetting<T, R>& setting;
     bool global;
     T value;
+};
+// AzaharFrame reticle: the Controls tab's per-game values (and Kid Icarus: Uprising's reticle
+// preset, FrameXr::FindControlsPreset), kept across a read of the game's file like the rest.
+struct FrameKeepControls {
+    FrameKeepControls()
+        : touchpad{Settings::values.vr_touchpad_touch},
+          reticle{Settings::values.vr_bottom_screen_reticle},
+          edge{Settings::values.vr_reticle_at_edge}, speed{Settings::values.vr_reticle_speed} {}
+    void Restore() {
+        touchpad.Restore();
+        reticle.Restore();
+        edge.Restore();
+        speed.Restore();
+    }
+    FrameKeepSetting<u32, true> touchpad;
+    FrameKeepSetting<u32, true> reticle;
+    FrameKeepSetting<u32, true> edge;
+    FrameKeepSetting<float, true> speed;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
 // "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
@@ -1269,8 +1288,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                             FrameKeepSetting keep_squeeze{Settings::values.vr_immersive_squeeze};
                             FrameKeepSetting keep_squeeze_y{
                                 Settings::values.vr_immersive_squeeze_y};
+                            FrameKeepControls keep_controls; // AzaharFrame reticle
                             QtConfig game_config(g_frame_game_config_name,
                                                  QtConfig::ConfigType::PerGameConfig);
+                            keep_controls.Restore();
                             keep_wider.Restore();
                             keep_squeeze.Restore();
                             keep_squeeze_y.Restore();
@@ -3304,6 +3325,18 @@ void GMainWindow::BootGame(const QString& filename) {
             FrameXr::ApplyPresetSettings(*preset); // AzaharFrame presets
         }
 #endif
+#ifdef ENABLE_FRAME_XR // AzaharFrame reticle: Controls presets (controls_presets.h)
+        if (const FrameXr::ControlsPreset* cp = FrameXr::FindControlsPreset(title_id)) {
+            auto& reticle = Settings::values.vr_bottom_screen_reticle;
+            if (cp->bottom_screen_reticle != 0 && reticle.UsingGlobal() &&
+                reticle.GetValue() == reticle.GetDefault()) {
+                reticle.SetGlobal(false);
+                reticle.SetValue(cp->bottom_screen_reticle);
+                LOG_INFO(Frontend, "xr: {}: Bottom Screen Reticle preset {}", cp->name,
+                         cp->bottom_screen_reticle);
+            }
+        }
+#endif
     }
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: the immersive screen's placement is saved per title id.
@@ -5045,6 +5078,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ReticleAtEdge: // AzaharFrame mouse
         set(v.vr_reticle_at_edge, std::min<u32>(u, 1));
         break;
+    case S::ReticleSpeed: // AzaharFrame reticle: tenths of 1x
+        set(v.vr_reticle_speed, static_cast<float>(std::clamp<u32>(u, 5, 40)) / 10.0f);
+        break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
         if (g_frame_mods) {
@@ -5107,6 +5143,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
     FrameKeepSetting keep_autosave_every{v.autosave_every};
     FrameKeepSetting keep_autosave_keep{v.autosave_keep};
+    FrameKeepControls keep_controls; // AzaharFrame reticle
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -5126,6 +5163,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_autosave.Restore();
     keep_autosave_every.Restore();
     keep_autosave_keep.Restore();
+    keep_controls.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }
@@ -8360,7 +8398,9 @@ void GMainWindow::FrameSetAutosaveSetting(int which, u32 value) {
         FrameKeepSetting keep_on{v.autosave_enabled};
         FrameKeepSetting keep_every{v.autosave_every};
         FrameKeepSetting keep_keep{v.autosave_keep};
+        FrameKeepControls keep_controls; // AzaharFrame reticle
         QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
+        keep_controls.Restore();
         keep_on.Restore();
         keep_every.Restore();
         keep_keep.Restore();

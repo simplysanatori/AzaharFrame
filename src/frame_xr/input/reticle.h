@@ -21,7 +21,8 @@
 // Absolute, with edge drift: the controller's yaw and pitch from a reference direction map
 // straight onto the screen, the screen filling a cone (AzaharFrame input2: 40 degrees wide for a
 // controller, 30 for the head, 4:3 like the screen; no longer the mouse's Cursor Speed, which
-// made it 21 degrees at Fast). The yaw is measured across the cone at the reference's pitch
+// made it 21 degrees at Fast). AzaharFrame reticle: divided by Reticle Speed (2x by default:
+// 20 and 15 degrees). The yaw is measured across the cone at the reference's pitch
 // (a turn times its cosine), so a controller held pointing down is as fast sideways as up and
 // down. Pointing past an edge drags the
 // reference along, so the point stays on the edge and comes back in the moment you turn back:
@@ -64,11 +65,27 @@ constexpr ReticleEdge ReticleEdgeFrom(uint32_t value) {
 /// The hand index (HandIndex) of a choice, -1 for Off and Headset.
 int ReticleHandIndex(ReticleHand hand);
 
-/// AzaharFrame input2: the cone's half width in degrees: 20 for a controller, 15 for the head
-/// (0 for Off). The half height is three quarters of it.
+/// AzaharFrame input2: the cone's half width in degrees at Reticle Speed 1x: 20 for a
+/// controller, 15 for the head (0 for Off). The half height is three quarters of it.
 inline constexpr float kReticleControllerHalfWidthDeg = 20.0f;
 inline constexpr float kReticleHeadHalfWidthDeg = 15.0f;
-float ReticleHalfWidthDeg(ReticleHand source);
+
+/// AzaharFrame reticle: Reticle Speed (Settings::values.vr_reticle_speed), one value for the
+/// head and the controllers: the point moves `speed` times as far for the same turn from where
+/// aiming started or was re-centred, so the cone is the 1x cone divided by it (the screen's
+/// edges clamp the point and drift as before; Recenter and a grip still re-centre).
+/// Why 2x by default: the normal bottom screen (0.75 x 0.56 m, 1.5 m ahead and 0.75 m below the
+/// eyes, tilted back) looks about 25 x 18 degrees. At 1x the head had to sweep 30 x 22.5 degrees
+/// to cross it, more than the screen itself looks, its bottom edge 38 degrees down: the owner
+/// found that too much. At 2x it is 15 x 11 degrees (7.5 either side), well inside the turns
+/// people make without effort, and a controller's 20 x 15 is about what pointing straight at the
+/// screen takes.
+inline constexpr float kReticleSpeedMin = 0.5f;
+inline constexpr float kReticleSpeedMax = 4.0f;
+inline constexpr float kReticleSpeedDefault = 2.0f;
+float ClampReticleSpeed(float speed);
+/// The cone's half width for a source at a Reticle Speed (1x: the values above).
+float ReticleHalfWidthDeg(ReticleHand source, float speed = 1.0f);
 
 /// AzaharFrame input2: what aims and touches this frame: a controller (its aim pose, trigger and
 /// grip) or the head (its orientation, either trigger, no grip).

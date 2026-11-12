@@ -149,8 +149,14 @@ static int gSessionsBegun = 0, gResync = 0;
 // one gets no controller input (every action inactive) and an ERROR says so.
 static int gInstances = 0, gSessionsOnInstance = 0, gFocusOnce = 0, gNoFocus = 0, gNoFocusSaid = 0;
 
+// AzaharFrame reticle: a scripted head (input script path /user/head/pose): it replaces the sway
+// from its first event on.
+static int gHeadScripted = 0;
+static XrPosef gHeadPose;
+
 // The head: 1.6 m up, turning about the vertical axis.
 static XrPosef headAt(XrTime t) {
+    if (gHeadScripted) return gHeadPose;
     float yaw = 0;
     if (gSway) yaw = (float)(0.3 * sin((double)(t - gT0) / 1e9 * 2.0 * 3.14159265 * 0.5));
     return (XrPosef){{0, sinf(yaw * 0.5f), 0, cosf(yaw * 0.5f)}, {0, 1.6f, 0}};
@@ -462,6 +468,14 @@ static void applyScript(void) {
             if (e->n == 5) in->pose.orientation = qyawpitch((float)e->v[3], (float)e->v[4]);
             if (e->n == 7) in->pose.orientation = (XrQuaternionf){(float)e->v[3], (float)e->v[4], (float)e->v[5], (float)e->v[6]};
             trace("input %s pose %.2f %.2f %.2f", e->path, in->pose.position.x, in->pose.position.y, in->pose.position.z);
+            if (!strcmp(e->path, "/user/head/pose")) {
+                // AzaharFrame reticle: LOCAL begins at the head, 1.6 m up
+                gHeadPose = in->pose;
+                gHeadPose.position.y += 1.6f;
+                gHeadScripted = 1;
+                if (e->n == 5) trace("head yaw=%.2f pitch=%.2f", e->v[3], e->v[4]);
+                continue;
+            }
         } else {
             in->v[0] = e->n > 0 ? e->v[0] : 0;
             in->v[1] = e->n > 1 ? e->v[1] : 0;

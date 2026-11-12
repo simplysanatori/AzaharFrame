@@ -280,6 +280,7 @@ enum class MenuSetting {
     Autosave,      ///< AzaharFrame autosave: `value` 0 or 1 (autosave_enabled), may be per game
     AutosaveEvery, ///< `value` minutes (autosave_every)
     AutosaveKeep,  ///< `value` 1 to 10 (autosave_keep)
+    ReticleSpeed,  ///< AzaharFrame reticle: `value` tenths of 1x, 5 to 40 (vr_reticle_speed)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

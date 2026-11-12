@@ -104,7 +104,8 @@ on a float input is true above 0.5. Poses are `x y z` (metres, in LOCAL space,
 whose origin is where the head began), then nothing, or `yaw pitch` in degrees
 (yaw positive to the left, looking down -Z), or a quaternion `x y z w`. Without
 a scripted pose a controller rests 0.25 m to its side, 0.4 m below the head
-and 0.35 m ahead, pointing straight ahead. The `frame_controller` paths the
+and 0.35 m ahead, pointing straight ahead. `/user/head/pose` (same values) moves the head
+instead: from its first event on the head holds the scripted pose (no sway). The `frame_controller` paths the
 GalaxyFrame app uses: `/user/hand/{left,right}/input/` with `thumbstick`,
 `thumbstick/click`, `trigger/value`, `squeeze/value`, `bumper/click`, `a`, `b`,
 `x`, `y`, `menu`, `view`, `dpad_up|down|left|right` (all `/click`), `aim/pose`.
