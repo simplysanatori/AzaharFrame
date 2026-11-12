@@ -238,6 +238,14 @@ fi
 # tests never make or remove the real one (steam-frame/test/*.sh set it to a throwaway file).
 MARK=${AZAHARFRAME_MARK:-$HOME/.cache/headset-in-use}
 MADE_MARK=
+# AzaharFrame memguard: a marker older than this boot was left by a launch that never got to
+# remove it (the headset froze and rebooted): nothing holds it now, so it is taken over (and
+# removed at the end like one made here). A marker from this boot is someone else's: left alone.
+BOOT=$(awk '/^btime / {print $2}' /proc/stat 2> /dev/null)
+if [ -e "$MARK" ] && [ -n "$BOOT" ] && [ "$(stat -c %Y "$MARK" 2> /dev/null || echo "$BOOT")" -lt "$BOOT" ]; then
+  echo "headset marker: left from before this boot, taken over"
+  rm -f "$MARK"
+fi
 if [ ! -e "$MARK" ] && mkdir -p "$(dirname "$MARK")" && : > "$MARK"; then MADE_MARK=1; fi
 
 # The Steam Frame controllers drawn in VR: made from SteamVR's own models once (install.sh does it
@@ -251,9 +259,50 @@ fi
 
 ARGS=(--vr)
 [ "$MODE" = flat ] && ARGS=(--flat)
+
+# AzaharFrame memguard: the emulator runs in a user systemd scope with a memory limit, so one
+# that runs away (a texture pack far too large) is killed by the kernel instead of pushing the
+# whole headset into swap until it freezes and reboots (seen twice, no OOM kill: the Frame's
+# memory is shared with SteamVR, passthrough and the GPU). MemoryMax is
+# AZAHARFRAME_MEMORY_MAX_PCT % of RAM (default 65, 30 to 90), MemoryHigh (reclaim and slow down
+# first) 5 points under it, and at most AZAHARFRAME_MEMORY_SWAP_MB of swap (default 1024).
+# systemd-run --scope executes the emulator itself: the same process, environment, folder and
+# parent (Steam's reaper tracks it as before), only its cgroup changes. When systemd-run is
+# missing or the user manager says no, the emulator runs as before. AZAHARFRAME_MEMORY_SCOPE=0:
+# no scope. The emulator reads the limit for its texture preload (preload_budget.h).
+SCOPE=()
+SYSTEMD_RUN=${AZAHARFRAME_SYSTEMD_RUN:-systemd-run}
+MEM_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2> /dev/null)
+PCT=${AZAHARFRAME_MEMORY_MAX_PCT:-65}
+case "$PCT" in '' | *[!0-9]*) PCT=65 ;; esac
+[ "$PCT" -lt 30 ] && PCT=30
+[ "$PCT" -gt 90 ] && PCT=90
+SWAP_MB=${AZAHARFRAME_MEMORY_SWAP_MB:-1024}
+case "$SWAP_MB" in '' | *[!0-9]*) SWAP_MB=1024 ;; esac
+if [ "${AZAHARFRAME_MEMORY_SCOPE:-1}" = 0 ]; then
+  echo "memory: no scope (AZAHARFRAME_MEMORY_SCOPE=0), no memory limit"
+elif ! command -v "$SYSTEMD_RUN" > /dev/null 2>&1; then
+  echo "memory: $SYSTEMD_RUN not found, running without a memory limit"
+elif [ -z "$MEM_KB" ]; then
+  echo "memory: no MemTotal in /proc/meminfo, running without a memory limit"
+else
+  MAX_MB=$((MEM_KB * PCT / 100 / 1024))
+  HIGH_MB=$((MEM_KB * (PCT - 5) / 100 / 1024))
+  UNIT=azaharframe-$$
+  # A trial scope first: systemd-run's own failure and the emulator's exit status look alike.
+  if PROBE=$("$SYSTEMD_RUN" --user --scope --quiet --collect -p MemoryMax=256M true 2>&1); then
+    SCOPE=("$SYSTEMD_RUN" --user --scope --quiet --collect --unit="$UNIT"
+           --description="Azahar for Frame" -p MemoryHigh="${HIGH_MB}M" -p MemoryMax="${MAX_MB}M"
+           -p MemorySwapMax="${SWAP_MB}M" --)
+    echo "memory: scope $UNIT.scope, MemoryMax ${MAX_MB} MiB (${PCT} % of $((MEM_KB / 1024)) MiB), MemoryHigh ${HIGH_MB} MiB, swap ${SWAP_MB} MiB"
+  else
+    echo "memory: systemd-run --user failed ($(echo "$PROBE" | head -n 1)), running without a memory limit"
+  fi
+fi
+
 # Not exec: the wrapper stays to remove the marker.  A signal for the wrapper
 # (Steam stopping the app) goes on to the emulator.
-"$HERE/azahar" "${ARGS[@]}" "${FWD[@]}" &
+"${SCOPE[@]}" "$HERE/azahar" "${ARGS[@]}" "${FWD[@]}" &
 PID=$!
 trap 'kill -TERM "$PID" 2> /dev/null' TERM INT HUP
 rc=0
@@ -264,4 +313,8 @@ done
 trap - TERM INT HUP
 [ -n "$MADE_MARK" ] && rm -f "$MARK"
 echo "exit status $rc"
+# AzaharFrame memguard: 137 is SIGKILL, from the memory limit (or Steam's Stop after its timeout)
+if [ "$rc" = 137 ] && [ ${#SCOPE[@]} -gt 0 ]; then
+  echo "the emulator was killed: if the log stops mid-game it ran into its memory limit (${MAX_MB} MiB); see the journal for 'oom-kill'"
+fi
 exit $rc
