@@ -22,6 +22,7 @@
 #include <QGuiApplication>
 #include <QPointer>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QPushButton>
 #include <QSaveFile>
 #include <QTimer>
@@ -483,36 +484,32 @@ QString FlatScreenMode() {
 }
 
 QString SteamAppId() {
-    return qEnvironmentVariable("SteamAppId").trimmed();
+    // AzaharFrame cpphelpers: digits only (it goes into JavaScript sent to Steam)
+    const QString id = qEnvironmentVariable("SteamAppId").trimmed();
+    static const QRegularExpression digits(QStringLiteral("^[0-9]{1,10}$"));
+    return digits.match(id).hasMatch() ? id : QString{};
 }
 
-// AzaharFrame flatfix: test driver. AZAHARFRAME_TEST_CEF=FILE runs FILE in place of steam-cef.py,
+// AzaharFrame flatfix: test driver. AZAHARFRAME_TEST_CEF=FILE runs FILE (a dev test script, run with
+// python3) in place of this program's own `--frame-cef` mode (SteamCef, core/steam_cef.h),
 // outside Game Mode and Steam too (a mock run's fake: Steam itself is never asked).
 QString TestCefScript() {
     return FrameTestEnv("AZAHARFRAME_TEST_CEF");
 }
 
-QString CefScript() {
-    if (const QString test = TestCefScript(); !test.isEmpty()) {
-        return test;
-    }
-    return QCoreApplication::applicationDirPath() + QStringLiteral("/steam-cef.py");
-}
-
-/// Under gamescope, started by Steam, with steam-cef.py next to the program.
+/// Under gamescope, started by Steam (this program asks Steam itself: --frame-cef).
 bool CanAskSteam() {
     if (!TestCefScript().isEmpty()) {
-        return QFileInfo::exists(CefScript()) && FlatScreenMode() != QStringLiteral("off");
+        return QFileInfo::exists(TestCefScript()) && FlatScreenMode() != QStringLiteral("off");
     }
-    return InGameMode() && !SteamAppId().isEmpty() && QFileInfo::exists(CefScript()) &&
-           FlatScreenMode() != QStringLiteral("off");
+    return InGameMode() && !SteamAppId().isEmpty() && FlatScreenMode() != QStringLiteral("off");
 }
 
-// steam-cef.py ARGS in the background; `done` gets the exit code and the output (GUI thread).
+// `--frame-cef ARGS` in the background (this program, no window); `done` gets the exit code and the
+// output (GUI thread).
 QProcess* RunCef(const QStringList& args, std::function<void(int, const QString&)> done) {
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.remove(QStringLiteral("LD_LIBRARY_PATH"));
-    env.remove(QStringLiteral("LD_PRELOAD")); // Steam's overlay library: only noise in Python
+    env.remove(QStringLiteral("LD_PRELOAD")); // Steam's overlay library, not for a helper
     auto* process = new QProcess(qApp);
     process->setProcessEnvironment(env);
     process->setProcessChannelMode(QProcess::MergedChannels);
@@ -522,9 +519,15 @@ QProcess* RunCef(const QStringList& args, std::function<void(int, const QString&
                          done(status == QProcess::NormalExit ? code : -1, out);
                          process->deleteLater();
                      });
-    QStringList argv{QStringLiteral("-I"), CefScript()};
-    argv << args;
-    process->start(QStringLiteral("python3"), argv);
+    if (const QString test = TestCefScript(); !test.isEmpty()) {
+        QStringList argv{QStringLiteral("-I"), test};
+        argv << args;
+        process->start(QStringLiteral("python3"), argv);
+    } else {
+        QStringList argv{QStringLiteral("--frame-cef")};
+        argv << args;
+        process->start(QCoreApplication::applicationFilePath(), argv);
+    }
     return process;
 }
 
@@ -546,7 +549,7 @@ void AskSteamForFlatScreen(const QString& when) {
 }
 
 // The window's frame: in the theater (the big screen, stays when the dashboard closes) or back
-// in the dashboard. vrcmd --dock-overlay through steam-cef.py --screen; a few seconds (each
+// in the dashboard. vrcmd --dock-overlay through --frame-cef --screen; a few seconds (each
 // vrcmd call takes about 2 s). One at a time; a new request ends the one before.
 QPointer<QProcess> g_screen_helper;
 bool g_in_theater = false; ///< this run docked the window's frame in the theater
@@ -562,7 +565,7 @@ void StopScreenHelper() {
     }
 }
 
-// after_vr: steam-cef.py docks the window again (through the world) when it does not show once
+// after_vr: --frame-cef docks the window again (through the world) when it does not show once
 // docked (--after-vr); with nothing moved (the window never became
 // showable) it is asked again twice, 2 s apart, while flat.
 void DockWindow(bool theater, int wait_s, std::function<void()> then = {}, bool after_vr = false,
@@ -756,7 +759,7 @@ void ReturnToFlat(QWidget* window) {
         watch->StartReturn();
     }
     // SteamVR does not bring the window back by itself after a session. In the theater (the
-    // default) steam-cef.py --after-vr moves its frame to the theater once SteamVR can show the
+    // default) --frame-cef --after-vr moves its frame to the theater once SteamVR can show the
     // window (asked any earlier, the dock moves the active frame, Steam's library), without
     // opening the dashboard, so Steam Input leaves the controller with the app (AzaharFrame flat).
     // Kept in the dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.

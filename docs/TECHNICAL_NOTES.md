@@ -120,10 +120,9 @@ The release tarball holds, at its top level and without a folder around them:
 | `azahar` | the emulator, stripped |
 | `azaharframe.sh` | the Steam shortcut's target |
 | `install.sh`, `uninstall.sh` | install and remove (see below) |
-| `steam-cef.py`, `dock-icon.py` | the Steam library entry and the SteamVR dock icon |
 | `VERSION`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` | |
 | `art/` | the library art (`portrait`, `wide`, `hero`, `logo`) and the icon in four sizes; the program itself reads `logo.png` and `icon.png` |
-| `tools/` | the texture pack converter (see [Texture packs in ASTC](#texture-packs-in-astc)) and `frame-controller-models.py` |
+| `tools/` | the texture pack converter (see [Texture packs in ASTC](#texture-packs-in-astc)) (the controller models, the Steam library entry, the dock icon and Emerald 3DS's pack are made by the program itself: `azahar --frame-controller-models`, `--frame-steam-shortcut`, `--frame-steam-art`, `--frame-dock-icon`, `--frame-emerald-build`) |
 | `framedrop-run.sh`, `make-framedrop-zip.py` | FrameDrop's start script and the zip builder (see [FrameDrop](#framedrop)) |
 | `lib/`, `plugins/`, `qt.conf` | the portable build's own Qt, ICU and plugins |
 
@@ -131,7 +130,7 @@ Files are packed by name, so settings, saves, keys, logs and game files cannot e
 
 ## Install and uninstall
 
-`install.sh [--dry-run] [tarball]` copies the program and the helper scripts to `~/Games/AzaharFrame/app`, adds or updates the library entry "Azahar for Frame" through Steam's debugging port (`steam-cef.py`), sets its art and icon, writes the SteamVR dock icon files (`dock-icon.py install`), and sets SteamVR's per-app settings for the entry. Without an argument it installs the folder it is in when that is an unpacked release, else the newest tarball in `steam-frame/release/`, else the build in `build/bin/Release`. It never asks a question and exits 0 when Steam cannot be reached, after installing the files. Running it again updates the same entry, and your games, saves, keys and settings in `~/.local/share/AzaharFrame` are never touched. It refuses to run while the emulator is running.
+`install.sh [--dry-run] [tarball]` copies the program and the helper scripts to `~/Games/AzaharFrame/app`, adds or updates the library entry "Azahar for Frame" through Steam's debugging port (`azahar --frame-steam-shortcut`), sets its art and icon, writes the SteamVR dock icon files (`azahar --frame-dock-icon install`), and sets SteamVR's per-app settings for the entry. Without an argument it installs the folder it is in when that is an unpacked release, else the newest tarball in `steam-frame/release/`, else the build in `build/bin/Release`. It never asks a question and exits 0 when Steam cannot be reached, after installing the files. Running it again updates the same entry, and your games, saves, keys and settings in `~/.local/share/AzaharFrame` are never touched. It refuses to run while the emulator is running.
 
 `--dry-run` (or `AZAHARFRAME_DRY_RUN=1`) prints every file it would copy and every Steam and SteamVR call (with the JavaScript for Steam), contacts nothing and changes nothing.
 
@@ -146,7 +145,7 @@ steam-frame/install.sh TARBALL
 steam-frame/uninstall.sh --purge
 ```
 
-With `AZAHARFRAME_SKIP_STEAM=1` the dock icon steps are skipped too (installing needs the entry's appid). To try them alone, with `HOME` at a scratch folder and `AZAHARFRAME_VRSERVER_RUNNING=0`, run `dock-icon.py install DEST --appid N` and `dock-icon.py remove DEST`.
+With `AZAHARFRAME_SKIP_STEAM=1` the dock icon steps are skipped too (installing needs the entry's appid). To try them alone, with `HOME` at a scratch folder and `AZAHARFRAME_VRSERVER_RUNNING=0`, run `azahar --frame-dock-icon install DEST --appid N` and `azahar --frame-dock-icon remove DEST`.
 
 ## Texture packs in ASTC
 
@@ -211,11 +210,11 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_TOOLS` | Emerald homebrew build | folder with `emerald3ds-build.py` (default: `tools/` next to the program) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
 | `QT_SCALE_FACTOR` | Qt | scales the settings window |
-| `AZAHARFRAME_FLAT_SCREEN` | `citra_qt/frame_mode.cpp` | where SteamVR shows the window in Flat (Game Mode only): `theater` (default; the big screen, through `steam-cef.py --screen`, which runs `vrcmd --dock-overlay`), `dashboard` (only inside the dashboard, as before) or `off` (Steam is not asked) |
+| `AZAHARFRAME_FLAT_SCREEN` | `citra_qt/frame_mode.cpp` | where SteamVR shows the window in Flat (Game Mode only): `theater` (default; the big screen, through `azahar --frame-cef --screen`, which runs `vrcmd --dock-overlay`), `dashboard` (only inside the dashboard, as before) or `off` (Steam is not asked) |
 | `AZAHARFRAME_XR_INSTANCE=keep` | `frame_xr/instance_policy.h` | one XrInstance for the whole run, as in 1.1 (by default each VR session gets a new one: SteamVR gives the controllers only to the first session of an instance) |
 | `AZAHARFRAME_MODELS` | `frame_xr/vis/controller_models.cpp` | folder with `frame_controller_left.model` and `frame_controller_right.model` (default: `user/frame-models` in the data folder) |
 | `AZAHARFRAME_MODEL_EYE_PX` | `frame_xr/vis/controller_models.cpp` | the most pixels one eye of the controller layer may be high, 200 or more (default 1000). Below it the layer is about half the recommended size |
-| `AZAHARFRAME_MODEL_TEXTURE`, `AZAHARFRAME_MODEL_TRIANGLES` | `frame-controller-models.py` | the models' texture size (default 1024) and a triangle budget |
+| `AZAHARFRAME_MODEL_TEXTURE` | `core/frame_controller_models.cpp` | the models' texture size (default 1024) |
 | `AZAHARFRAME_XR_NO_GPU_WAIT=1` | `vk_xr_target.cpp` | releases images before the GPU is done. A negative test, never for playing |
 | `AZAHARFRAME_XR_WATCHDOG=1` | `frame_xr/watchdog.cpp` | logs a frame loop phase that lasts over 50 ms, with the kernel state, wait channel and system call of the frame loop's thread and of the emulator's busy threads. For finding display stalls |
 | `AZAHARFRAME_DEBUG_STALL=<where>:<ms>[:<s>]` | `common/debug_stall.h` | sleeps `ms` every `s` seconds (default 5) at `tick` (emu thread after a frame, no lock), `submit` (inside the queue lock), `acquire` (XR frame drawn, not yet handed off) or `release` (the handoff thread, before a release). A test, never for playing |
@@ -225,13 +224,13 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_TEST_FLAT_PAD` | `citra_qt/frame_mode.cpp`, `frame_xr/controls.cpp` | a file of gamepad events (`<seconds since start> <control> <value>`; controls a b x y menu view lb rb ls rs up down left right lt rt lx ly rx ry) read instead of SDL's gamepad in flat, and a log line ("xr test: flat: the game sees ...") for each change of what the game is sent. For mock runs |
 | `AZAHARFRAME_TEST_BOOTS`, `AZAHARFRAME_TEST_SECONDS` | `citra_qt.cpp` | boot the listed games (`a.3ds\|b.cci`) in turn, each for that many seconds. For the headless runs |
 
-For scripts: `AZAHARFRAME_APP`, `AZAHARFRAME_HOME`, `AZAHARFRAME_SKIP_STEAM`, `AZAHARFRAME_DRY_RUN` (`install.sh`, `uninstall.sh`), `AZAHARFRAME_BUILD` (`install.sh`, `make-release.sh`), `AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD` (`build.sh`), `AZAHARFRAME_VRCMD` and `AZAHARFRAME_VRSERVER_RUNNING` (`dock-icon.py`).
+For scripts: `AZAHARFRAME_APP`, `AZAHARFRAME_HOME`, `AZAHARFRAME_SKIP_STEAM`, `AZAHARFRAME_DRY_RUN` (`install.sh`, `uninstall.sh`), `AZAHARFRAME_BUILD` (`install.sh`, `make-release.sh`), `AZAHARFRAME_BUILD_DIR`, `AZAHARFRAME_JOBS`, `AZAHARFRAME_NO_WAIT`, `AZAHARFRAME_NO_BUILD` (`build.sh`), `AZAHARFRAME_VRCMD` and `AZAHARFRAME_VRSERVER_RUNNING` (`--frame-dock-icon`).
 
 ## Frametanium
 
 [Frametanium](https://github.com/Cogential/frametanium) installs a port from a GitHub release. For an "installer" entry it downloads the asset whose name matches, unpacks it into `~/.local/share/frametanium/apps/<id>`, and runs the `install.sh` at the top of the archive from that folder with no input and a 15 minute limit. On an update the old folder is kept as `.previous`, the new one is unpacked beside it, and `install.sh` runs again; if it fails the old folder comes back. On removal it runs `uninstall.sh` from the same folder, then deletes the folder. It refuses to update or remove while the program in that folder runs, and `install.sh` and `uninstall.sh` also refuse while `azahar` runs.
 
-The tarball fits that: the files are at its top level, the name has `linux-arm64` and ends in `.tar.gz`, `SHA256SUMS` is not mistaken for a download, `install.sh` recognises an unpacked release by `azahar` and `azaharframe.sh` next to it and installs it in place of a tarball, `uninstall.sh` finds `dock-icon.py` and `steam-cef.py` next to itself, and the data folder is outside everything Frametanium replaces. Frametanium's `--purge` is not reachable; its remove keeps `~/.local/share/AzaharFrame`. The program folder is kept twice on disk (the unpacked release in Frametanium's folder, and the installed copy), plus `.previous`.
+The tarball fits that: the files are at its top level, the name has `linux-arm64` and ends in `.tar.gz`, `SHA256SUMS` is not mistaken for a download, `install.sh` recognises an unpacked release by `azahar` and `azaharframe.sh` next to it and installs it in place of a tarball, `uninstall.sh` finds `azahar` next to itself, and the data folder is outside everything Frametanium replaces. Frametanium's `--purge` is not reachable; its remove keeps `~/.local/share/AzaharFrame`. The program folder is kept twice on disk (the unpacked release in Frametanium's folder, and the installed copy), plus `.previous`.
 
 What the owner adds so that Frametanium offers it:
 

@@ -339,7 +339,7 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
     std::string error;
     if (!ReadControllerModels(files, error)) {
         LOG_WARNING(Frontend, "xr: controller models: {} (only the beams are drawn; "
-                              "steam-frame/tools/frame-controller-models.py makes them)",
+                              "azahar --frame-controller-models makes them)",
                     error);
         return false;
     }

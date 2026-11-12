@@ -38,14 +38,15 @@ act() { if [ -n "$DRY" ]; then echo "[dry run] would run: $*"; else "$@"; fi; }
 put() {
   if [ -n "$DRY" ]; then echo "[dry run] would copy $1 -> $2"; else cp "$1" "$2.new" && mv "$2.new" "$2"; fi
 }
-# cef_art APPID ARTDIR: the art step of steam-cef.py (portrait, hero, logo, wide, icon).  A dry run
-# runs steam-cef.py's own --dry-run from the release, which lists each Steam call and does not connect.
+# cef_art APPID ARTDIR: the art step (portrait, hero, logo, wide, icon), done by the program itself
+# (azahar --frame-steam-art).  A dry run runs the release's program with --dry-run, which lists each
+# Steam call and does not connect.
 cef_art() {
   if [ -n "$DRY" ]; then
-    python3 -I "$SRC_DIR/steam-cef.py" --art "$1" "$ART_SRC" --dry-run
+    "$AZ" --frame-steam-art "$1" "$ART_SRC" --dry-run
     echo "[dry run]   (the icon would be read from $DEST/art/icon.png once the art is copied there)"
   else
-    python3 "$DEST/steam-cef.py" --art "$1" "$2"
+    "$AZ" --frame-steam-art "$1" "$2"
   fi
 }
 
@@ -73,7 +74,7 @@ fi
 [ -z "$DRY" ] || echo "[dry run] nothing below is done; HOME=$HOME DEST=$DEST DATA=$DATA"
 act mkdir -p "$DEST" "$DATA/user"
 
-FILES="azahar azaharframe.sh steam-cef.py dock-icon.py uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md"
+FILES="azahar azaharframe.sh uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md"
 # The Steam library art (portrait, wide, hero, logo) and the icon in the sizes the dock and the
 # window need; the program also reads art/logo.png (in-VR picker) and art/icon.png (window icon).
 ARTFILES="portrait.png wide.png hero.png logo.png icon.png icon-64.png icon-128.png icon-256.png"
@@ -111,7 +112,7 @@ else
   else
     strip --strip-unneeded -o "$DEST/azahar.new" "$BUILD/azahar" && mv "$DEST/azahar.new" "$DEST/azahar"
   fi
-  for f in azaharframe.sh steam-cef.py dock-icon.py uninstall.sh install.sh; do put "$HERE/$f" "$DEST/$f"; done
+  for f in azaharframe.sh uninstall.sh install.sh; do put "$HERE/$f" "$DEST/$f"; done
   # AzaharFrame fixes11: write VERSION from the build itself (an old release's VERSION used to stay
   # and the install said "1.1.1 installed"): AZAHARFRAME_VERSION, else GIT_TAG in the build's
   # CMakeCache.txt, else the checkout's GIT-TAG file, else git describe, else "dev".
@@ -130,14 +131,37 @@ else
   act mkdir -p "$DEST/art"
   for f in $ARTFILES; do if [ -f "$ART_SRC/$f" ]; then put "$ART_SRC/$f" "$DEST/art/$f"; else echo "warning: art/$f is missing"; fi; done
 fi
-# Tools of the release (the texture pack converter is part of the program since AzaharFrame cppconv).
-TOOLFILES="frame-controller-models.py emerald3ds-build.py 7zz"
+# The program that does the helper jobs below (Steam library entry and art, dock icon, controller
+# models): the one being installed in a dry run, else the installed one.
+if [ -n "$DRY" ]; then
+  if [ -n "$UNPACKED" ]; then AZ=$UNPACKED/azahar; elif [ -n "$TARBALL" ]; then AZ=$STAGE/azahar; else AZ=$BUILD/azahar; fi
+else
+  AZ=$DEST/azahar
+fi
+# Files older releases installed and this one does not ship: removed (never one this release ships).
+# $DATA/tools/af-ktxenc and $DATA/tools/src are the old on-device texture encoder build.
+for f in steam-cef.py dock-icon.py tools/emerald3ds-build.py tools/frame-controller-models.py \
+         tools/convert-texture-pack.sh tools/convert_texture_pack.py tools/build-astcenc.sh \
+         tools/af-ktxenc.cpp tools/af-ktxenc; do
+  if [ -e "$DEST/$f" ] && [ ! -e "$SRC_DIR/$f" ]; then act rm -f "$DEST/$f"; fi
+done
+case "$DATA" in
+  "" | / | "$HOME" | "$HOME/") ;;
+  *) if [ -d "$DATA/user" ]; then
+       for f in tools/af-ktxenc tools/src; do
+         if [ -e "$DATA/$f" ]; then act rm -rf "${DATA:?}/$f"; fi
+       done
+     fi ;;
+esac
+# Tools of the release: only 7zz, the fallback extractor (the texture pack converter is part of the
+# program since AzaharFrame cppconv; the other helpers are azahar --frame-* modes).
+TOOLFILES="7zz"
 TOOLS_SRC=$SRC_DIR/tools
 if [ "$(readlink -f "$TOOLS_SRC")" != "$(readlink -f "$DEST/tools")" ]; then
   act mkdir -p "$DEST/tools"
   for f in $TOOLFILES; do if [ -f "$TOOLS_SRC/$f" ]; then put "$TOOLS_SRC/$f" "$DEST/tools/$f"; fi; done
 fi
-for f in emerald3ds-build.py 7zz; do  # AzaharFrame integ3: emerald3ds-build.py too
+for f in 7zz; do
   if [ -n "$DRY" ] || [ -f "$DEST/tools/$f" ]; then act chmod +x "$DEST/tools/$f"; fi
 done
 # The licences of the in-game menu's font and icons (THIRD_PARTY_NOTICES.md).
@@ -165,18 +189,16 @@ if [ "$(readlink -f "$SRC_DIR")" != "$(readlink -f "$DEST")" ]; then
     act rm -rf "$DEST/lib" "$DEST/plugins" "$DEST/qt.conf"
   fi
 fi
-act chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh" "$DEST/dock-icon.py"
-DOCK_PY=$DEST/dock-icon.py
-[ -z "$DRY" ] || DOCK_PY=$SRC_DIR/dock-icon.py   # nothing is in $DEST in a dry run
+act chmod +x "$DEST/azahar" "$DEST/azaharframe.sh" "$DEST/install.sh" "$DEST/uninstall.sh"
 
 # The Steam Frame controllers drawn in VR (Show Controllers): converted from SteamVR's own models on
-# this Frame (Valve's, so never shipped) into $DATA/user/frame-models.  Without SteamVR or GdkPixbuf
-# the beams still show; azaharframe.sh tries again in the background on a later start.
+# this Frame (Valve's, so never shipped) into $DATA/user/frame-models (azahar --frame-controller-models).
+# Without SteamVR the beams still show; azaharframe.sh tries again in the background on a later start.
 MODELS=$DATA/user/frame-models
 if [ -f "$MODELS/frame_controller_left.model" ] && [ -f "$MODELS/frame_controller_right.model" ]; then
   echo "controller models: already in $MODELS"
 elif [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
-  act python3 -I "$TOOLS_SRC/frame-controller-models.py" "$MODELS" || echo "warning: the controller models could not be made (the beams still show)"
+  act "$AZ" --frame-controller-models "$MODELS" || echo "warning: the controller models could not be made (the beams still show)"
 else
   echo "note: SteamVR's Frame controller models are not here; the controllers are not drawn in VR"
 fi
@@ -192,29 +214,30 @@ STEAM_NOTE=
 # (that is only what Steam computes for an entry read from shortcuts.vdf), so a dry run cannot
 # know it.  It shows this placeholder (the smallest id a shortcut can have) in its place.
 DRY_APPID=2147483648
-CEF="python3 $DEST/steam-cef.py"
-FIND_JS="(() => { for (const a of (appStore.allApps || [])) { if (a.display_name === '$NAME' && a.app_type === 1073741824) return a.appid; } return 0; })()"
-UPDATE_JS="(appid) => { SteamClient.Apps.SetShortcutExe(appid, '\"$DEST/azaharframe.sh\"'); SteamClient.Apps.SetShortcutStartDir(appid, '\"$DEST\"'); return 1; }"
-# AddShortcut puts the quotes around the program and folder itself; SetShortcutExe and
-# SetShortcutStartDir store the text as given, so those two get them.
-ADD_JS="(async () => { const id = await SteamClient.Apps.AddShortcut('$NAME', '$DEST/azaharframe.sh', '$DEST', ''); SteamClient.Apps.SetShortcutName(id, '$NAME'); return id; })()"
+# The shortcut calls are made by the program (azahar --frame-steam-shortcut), which JSON-encodes every
+# name and path it puts into the JavaScript for Steam.  AddShortcut puts the quotes around the program
+# and folder itself; the update call gives them to SetShortcutExe and SetShortcutStartDir.
+SC=("$AZ" --frame-steam-shortcut)
 if [ -n "$SKIP_STEAM" ]; then
   STEAM_NOTE="AZAHARFRAME_SKIP_STEAM is set: Steam and SteamVR were left alone."
 elif [ -n "$DRY" ]; then
   echo "[dry run] Steam is not contacted; its debugging port (127.0.0.1:8080) is assumed reachable"
-  echo "[dry run] would call Steam (CEF) to look for an existing entry: $FIND_JS"
-  echo "[dry run] if '$NAME' exists it would be updated: $UPDATE_JS applied to its appid"
-  echo "[dry run] otherwise it would be added: $ADD_JS"
+  echo "[dry run] would call Steam (CEF) to look for an existing entry:"
+  "${SC[@]}" find "$NAME" --dry-run
+  echo "[dry run] if '$NAME' exists it would be updated (applied to its appid):"
+  "${SC[@]}" update "$DRY_APPID" "$DEST/azaharframe.sh" "$DEST" --dry-run
+  echo "[dry run] otherwise it would be added:"
+  "${SC[@]}" add "$NAME" "$DEST/azaharframe.sh" "$DEST" --dry-run
   APPID=$DRY_APPID
   echo "[dry run] the entry's appid would be whatever Steam assigns when it adds the entry (shown below as the placeholder $APPID)"
 else
-  EXISTING=$($CEF "$FIND_JS" 2> /dev/null || echo 0)
+  EXISTING=$("${SC[@]}" find "$NAME" 2> /dev/null || echo 0)
   if [ -n "$EXISTING" ] && [ "$EXISTING" != "0" ]; then
     APPID=$EXISTING
     echo "Steam already has a '$NAME' entry (appid $APPID), updating it"
-    $CEF "(() => { SteamClient.Apps.SetShortcutExe($APPID, '\"$DEST/azaharframe.sh\"'); SteamClient.Apps.SetShortcutStartDir($APPID, '\"$DEST\"'); return 1; })()" > /dev/null
+    "${SC[@]}" update "$APPID" "$DEST/azaharframe.sh" "$DEST" > /dev/null
   else
-    APPID=$($CEF "$ADD_JS" 2> /dev/null || echo 0)
+    APPID=$("${SC[@]}" add "$NAME" "$DEST/azaharframe.sh" "$DEST" 2> /dev/null || echo 0)
   fi
   case "$APPID" in '' | 0 | *[!0-9]*)
     echo "note: Steam did not return an appid for the entry, so the library entry, its art and the dock icon were skipped; run install.sh again with Steam up"
@@ -234,13 +257,9 @@ if [ "$APPID" != none ]; then
     echo "warning: no art in the release ($ART_SRC/portrait.png), the library entry has no artwork"
   fi
   # SteamVR's dock and dashboard: the VR app's name and icon (an app manifest for steam.app.<appid>)
-  # and the flat window's icon-theme PNGs and desktop file; see dock-icon.py.
-  if [ -f "$DOCK_PY" ]; then
-    python3 -I "$DOCK_PY" install "$DEST" --appid "$APPID" --art "$ART_SRC" ${DRY:+--dry-run} ||
-      echo "note: the dock icon was not set up (see above); run install.sh again"
-  else
-    echo "warning: $DOCK_PY is missing, so the SteamVR dock icon was not set up"
-  fi
+  # and the flat window's icon-theme PNGs and desktop file (azahar --frame-dock-icon).
+  "$AZ" --frame-dock-icon install "$DEST" --appid "$APPID" --art "$ART_SRC" ${DRY:+--dry-run} ||
+    echo "note: the dock icon was not set up (see above); run install.sh again"
   # 120 Hz, no throttling, no motion smoothing: the 3DS's 60 frames a second are
   # shown on every other refresh.  azaharframe.sh sets these again at every launch.
   if [ -n "$DRY" ]; then

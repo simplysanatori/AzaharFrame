@@ -27,7 +27,8 @@ jq() { python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eva
 
 if [ "$1" = --dummy ]; then
     mkdir -p "$T/build" "$T/out"
-    cp "$(type -P true || echo /bin/true)" "$T/build/azahar"
+    # AZAHARFRAME_TEST_PROGRAM: a real azahar build, for the steps the program itself does (Steam entry, dock icon)
+    cp "${AZAHARFRAME_TEST_PROGRAM:-$(type -P true || echo /bin/true)}" "$T/build/azahar"
     bash "$HERE/release/make-release.sh" 0.0.0-test "$T/build" "$T/out" > "$T/make.log" 2>&1 || { cat "$T/make.log"; echo "FAIL make-release.sh"; exit 1; }
     ARCHIVE=$T/out/azaharframe-0.0.0-test-linux-arm64.tar.gz
 else
@@ -60,7 +61,7 @@ mkdir -p "$U" && tar -xzf "$ARCHIVE" -C "$U"
 VER=$(head -n 1 "$U/VERSION" 2> /dev/null)
 check "archive: install.sh, uninstall.sh and VERSION at the top" test -x "$U/install.sh" -a -x "$U/uninstall.sh" -a -n "$VER"
 check "archive: name carries the VERSION" test "$(basename "$ARCHIVE")" = "azaharframe-$VER-linux-arm64.tar.gz"
-for f in azahar azaharframe.sh steam-cef.py dock-icon.py LICENSE.txt THIRD_PARTY_NOTICES.md art/portrait.png art/icon.png art/icon-64.png tools/frame-controller-models.py; do
+for f in azahar azaharframe.sh LICENSE.txt THIRD_PARTY_NOTICES.md art/portrait.png art/icon.png art/icon-64.png licenses/astcenc-LICENSE.txt; do
     check "archive has $f" test -e "$U/$f"
 done
 check "archive: no keys, saves, settings or game files" test -z "$(cd "$U" && find . \( -iname '*.3ds' -o -iname '*.cci' -o -iname '*.cia' -o -iname '*.cxi' -o -iname 'aes_keys*' -o -iname 'seeddb*' -o -iname 'boot9*' -o -iname '*.sav' -o -iname 'qt-config.ini' -o -iname '*.log' -o -iname user \) | head -1)"
@@ -85,7 +86,7 @@ check "privacy-check: the release archive and its unpacked folder are clean" tes
 # ---- 1. a fresh install from the unpacked folder: no terminal, no questions
 (cd "$U" && bash ./install.sh < /dev/null > "$T/i1.log" 2>&1); rc=$?
 check "fresh install: exit 0" test $rc -eq 0
-for f in azahar azaharframe.sh steam-cef.py dock-icon.py uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art/portrait.png art/wide.png art/hero.png art/logo.png art/icon.png art/icon-64.png art/icon-128.png art/icon-256.png azaharframe.vrmanifest; do
+for f in azahar azaharframe.sh uninstall.sh install.sh VERSION LICENSE.txt THIRD_PARTY_NOTICES.md art/portrait.png art/wide.png art/hero.png art/logo.png art/icon.png art/icon-64.png art/icon-128.png art/icon-256.png azaharframe.vrmanifest; do
     check "installed $f" test -e "$APP/$f"
 done
 # AzaharFrame integ3: every file make-release.sh staged under tools/ is installed (a dry run into a

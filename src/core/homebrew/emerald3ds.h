@@ -7,9 +7,9 @@
 // own Pokémon Emerald ROM. No Qt here; the dialogs are in citra_qt/frame_emerald.cpp.
 //
 // Nothing of Emerald 3DS is in this repository: its release (CC BY-NC-SA 4.0 from 0.5.0) is
-// downloaded from GitHub when the player asks, and its own builder (Python, from the release's
-// Emerald3DS-WebPayload.zip) is run as a separate program by steam-frame/tools/emerald3ds-build.py
-// to make emerald3ds.pak from the ROM. No ROM is ever downloaded.
+// downloaded from GitHub when the player asks, and emerald3ds.pak is made from the ROM by this
+// program's own C++ builder (core/homebrew/emerald3ds_build.h) following the data recipe in the
+// release's Emerald3DS-WebPayload.zip. Nothing downloaded is run. No ROM is ever downloaded.
 //
 // What goes where (sdmc = Azahar's emulated SD card, user = Azahar's user folder):
 //   sdmc/3ds/emerald3ds/Emerald3DS.3dsx, Emerald3DS.smdh, emerald3ds.pak   the game

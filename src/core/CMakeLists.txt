@@ -74,6 +74,18 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/download_default.cpp # AzaharFrame texdl
     homebrew/emerald3ds.cpp # AzaharFrame emerald
     homebrew/emerald3ds.h # AzaharFrame emerald
+    frame_controller_models.cpp # AzaharFrame cpphelpers
+    frame_controller_models.h # AzaharFrame cpphelpers
+    frame_dock_icon.cpp # AzaharFrame cpphelpers
+    frame_dock_icon.h # AzaharFrame cpphelpers
+    steam_cef.cpp # AzaharFrame cpphelpers
+    steam_cef.h # AzaharFrame cpphelpers
+    homebrew/emerald3ds_build.cpp # AzaharFrame cpphelpers
+    homebrew/emerald3ds_build.h # AzaharFrame cpphelpers
+    homebrew/xz/xz_crc32.c # AzaharFrame cpphelpers: XZ Embedded (0BSD), reads the recipes
+    homebrew/xz/xz_crc64.c
+    homebrew/xz/xz_dec_lzma2.c
+    homebrew/xz/xz_dec_stream.c
     homebrew/net.cpp # AzaharFrame emerald
     homebrew/net.h # AzaharFrame emerald
     homebrew/packages.cpp # AzaharFrame emerald
@@ -545,6 +557,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     tracer/recorder.cpp
     tracer/recorder.h
 )
+set_source_files_properties(homebrew/xz/xz_crc32.c homebrew/xz/xz_crc64.c homebrew/xz/xz_dec_lzma2.c
+                            homebrew/xz/xz_dec_stream.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON) # C files (AzaharFrame cpphelpers)
 
 if (ENABLE_BUILTIN_KEYBLOB)
     target_sources(citra_core PRIVATE hw/default_keys.h)

@@ -19,17 +19,29 @@ PURGE=0
 case "$1" in --purge) PURGE=1 ;; "") ;; *) echo "usage: $0 [--purge]" >&2; exit 2 ;; esac
 if pgrep -f "^$DEST/azahar" > /dev/null 2>&1; then echo "Azahar for Frame is running; quit it first" >&2; exit 1; fi
 
-# steam-cef.py is next to this script, or in the program folder when this copy is the installed one.
-CEFPY=$HERE/steam-cef.py
-[ -f "$CEFPY" ] || CEFPY=$DEST/steam-cef.py
+# Never remove anything from a folder that is not plainly this program's: an empty or system path
+# (a mistyped AZAHARFRAME_APP or AZAHARFRAME_HOME) stops here before anything is touched.
+safe_dir() {
+  case "$1" in
+    "" | / | /home | /usr | /etc | /var | /opt | "$HOME" | "$HOME/" | "$HOME/.local" | "$HOME/.local/share" | "$HOME/Games") return 1 ;;
+  esac
+  case "$1" in /*) return 0 ;; *) return 1 ;; esac
+}
+safe_dir "$DEST" || { echo "refusing to remove '$DEST': set AZAHARFRAME_APP to the program folder" >&2; exit 1; }
+safe_dir "$DATA" || { echo "refusing to remove '$DATA': set AZAHARFRAME_HOME to the data folder" >&2; exit 1; }
+
+# The program does the Steam and dock icon work (azahar --frame-steam-shortcut, --frame-dock-icon):
+# the one next to this script (an unpacked release), or the installed one.
+AZ=$HERE/azahar
+[ -x "$AZ" ] || AZ=$DEST/azahar
 
 if [ -n "$AZAHARFRAME_SKIP_STEAM" ]; then
   echo "AZAHARFRAME_SKIP_STEAM set: Steam left alone"
 elif curl -s --max-time 3 "127.0.0.1:${AZAHARFRAME_CEF_PORT:-8080}/json" > /dev/null; then
-  CEF="python3 $CEFPY"
-  ID=$($CEF "(() => { for (const a of (appStore.allApps || [])) { if (a.display_name === '$NAME' && a.app_type === 1073741824) return a.appid; } return 0; })()" 2> /dev/null || echo 0)
+  ID=
+  if [ -x "$AZ" ]; then ID=$("$AZ" --frame-steam-shortcut find "$NAME" 2> /dev/null || echo 0); fi
   if [ -n "$ID" ] && [ "$ID" != 0 ]; then
-    $CEF "(() => { SteamClient.Apps.RemoveShortcut($ID); return 1; })()" > /dev/null
+    "$AZ" --frame-steam-shortcut remove "$ID" > /dev/null
     echo "removed the '$NAME' entry (appid $ID)"
   else
     echo "Steam has no '$NAME' entry"
@@ -38,14 +50,11 @@ else
   echo "Steam is not reachable, so the '$NAME' entry stays; remove it in Steam, or run this again with Steam up."
 fi
 
-# The dock icon files (icon-theme PNGs, azaharframe.desktop, SteamVR's app manifest); dock-icon.py
-# is next to this script, or in the program folder when this copy is the installed one.
-DOCKPY=$HERE/dock-icon.py
-[ -f "$DOCKPY" ] || DOCKPY=$DEST/dock-icon.py
+# The dock icon files (icon-theme PNGs, azaharframe.desktop, SteamVR's app manifest).
 if [ -n "$AZAHARFRAME_SKIP_STEAM" ]; then
   echo "AZAHARFRAME_SKIP_STEAM set: the dock icon files and SteamVR's manifest left alone"
-elif [ -f "$DOCKPY" ]; then
-  python3 -I "$DOCKPY" remove "$DEST" || echo "note: could not remove the dock icon files (see above)"
+elif [ -x "$AZ" ]; then
+  "$AZ" --frame-dock-icon remove "$DEST" || echo "note: could not remove the dock icon files (see above)"
 fi
 
 # Remove the program folder last: this script may be running from it.

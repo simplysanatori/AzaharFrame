@@ -237,7 +237,7 @@ unset MESA_GL_VERSION_OVERRIDE MESA_GLSL_VERSION_OVERRIDE
 # Steam points LD_LIBRARY_PATH at its own runtime; the emulator wants the system's libraries.
 unset LD_LIBRARY_PATH QT_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH QT_QPA_PLATFORMTHEME
 # The window class of the flat Qt window (settings): azaharframe, so the SteamVR dock finds the
-# Azahar for Frame icon and name (dock-icon.py installs the matching icon and desktop file).
+# Azahar for Frame icon and name (azahar --frame-dock-icon installs the matching icon and desktop file).
 export RESOURCE_NAME=azaharframe
 # The OpenXR runtime: SteamVR's.  Only when the default lookup would find none.
 if [ -z "$XR_RUNTIME_JSON" ] && [ ! -e "$HOME/.config/openxr/1/active_runtime.json" ] &&
@@ -276,10 +276,10 @@ if [ ! -e "$MARK" ] && mkdir -p "$(dirname "$MARK")" && : > "$MARK"; then MADE_M
 # The Steam Frame controllers drawn in VR: made from SteamVR's own models once (install.sh does it
 # too), in the background so this start does not wait; the next start draws them.
 MODELS=$DATA/user/frame-models
-if [ ! -f "$MODELS/frame_controller_right.model" ] && [ -f "$HERE/tools/frame-controller-models.py" ] &&
+if [ ! -f "$MODELS/frame_controller_right.model" ] && [ -x "$HERE/azahar" ] &&
    [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
   echo "controller models: making them in the background"
-  nice -n 19 python3 -I "$HERE/tools/frame-controller-models.py" "$MODELS" > "$DATA/frame-models.log" 2>&1 &
+  nice -n 19 "$HERE/azahar" --frame-controller-models "$MODELS" > "$DATA/frame-models.log" 2>&1 &
 fi
 
 ARGS=(--vr)
