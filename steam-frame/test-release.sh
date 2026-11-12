@@ -82,10 +82,10 @@ check "privacy-check: lets the maintainer's no-reply address and bare file types
 # in a binary: a region tag alone (the built-in mod catalog) passes, a game file name does not
 mkdir -p "$T/planted-bin"
 printf 'ELF\0\0Stella Glow (USA)\0(Europe)\0(En,Fr)\0' > "$T/planted-bin/catalog.bin"
-bash "$HERE/privacy-check.sh" "$T/planted-bin" > "$T/pc1b.log" 2>&1
+AZAHARFRAME_PRIVACY_PATTERNS=$T/patterns bash "$HERE/privacy-check.sh" "$T/planted-bin" > "$T/pc1b.log" 2>&1
 check "privacy-check: region tags alone in a binary are let through" test $? -eq 0
 printf 'ELF\0\0Some Game (USA).cci\0' > "$T/planted-bin/rom.bin"
-bash "$HERE/privacy-check.sh" "$T/planted-bin" > "$T/pc1c.log" 2>&1
+AZAHARFRAME_PRIVACY_PATTERNS=$T/patterns bash "$HERE/privacy-check.sh" "$T/planted-bin" > "$T/pc1c.log" 2>&1
 check "privacy-check: a game file name in a binary fails" sh -c "grep -q 'rom.bin:1: 3DS game file name' '$T/pc1c.log'"
 check "privacy-check: does not print the personal pattern's match" sh -c "! grep 'personal pattern' '$T/pc1.log' | grep -q zzdummyname"
 AZAHARFRAME_PRIVACY_PATTERNS=$T/patterns bash "$HERE/privacy-check.sh" "$ARCHIVE" "$U" > "$T/pc2.log" 2>&1; rc=$?
