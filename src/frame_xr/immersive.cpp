@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 
@@ -250,11 +251,10 @@ struct State {
     L::Options options; ///< "Wider View" (every frame) and "Narrow Screen" (at start), per game
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     bool screens_were_live = false;
-    bool recentre = false;
-    /// AzaharFrame immersive: SteamVR's recenter moves the LOCAL space at this time; a head pose
-    /// located before it is still in the old space and must not become the rest pose.
-    XrTime recentre_after = 0;
-    bool have_ref = false;
+    /// AzaharFrame immersive: when `ref` is taken (Layout::RestPose; SteamVR's recenter moves the
+    /// LOCAL space at its change time, and a head pose located before it is still in the old
+    /// space).
+    L::RestPose rest;
     XrPosef ref{{0, 0, 0, 1}, {0, 0, 0}}; ///< head position and heading when immersive began
     ViewPose view;
     float half_ipd = kDefaultHalfIpd;
@@ -393,15 +393,38 @@ void LogPlacement(const char* what, const L::Placement& p, bool wide) {
              wide ? "wide" : "head-locked", what, p.pitch_deg, p.distance, p.size);
 }
 
+// AzaharFrame immersive: AZAHARFRAME_TEST_RESOLUTION="<seconds>:<factor>" sets Internal
+// Resolution that long after the game started, once, as the menu does (mock runs that check a
+// resolution change mid-game).
+void TestResolutionHook() {
+    static const char* env = std::getenv("AZAHARFRAME_TEST_RESOLUTION");
+    static bool done = false;
+    if (!env || done || g.game_start_ms == 0) {
+        return;
+    }
+    float at = 0.0f;
+    unsigned factor = 0;
+    if (std::sscanf(env, "%f:%u", &at, &factor) != 2 || factor < 1 || factor > 10) {
+        done = true;
+        return;
+    }
+    if (VideoCore::Immersive::SteadyMs() - g.game_start_ms >= static_cast<int64_t>(at * 1000)) {
+        done = true;
+        Settings::values.resolution_factor.SetValue(factor);
+        LOG_INFO(Frontend, "xr: immersive: test: Internal Resolution {}x", factor);
+    }
+}
+
 void OnFrame(const FrameInfo& info) {
     const u32 mode = ModeInUse(); // AzaharFrame immersive
+    TestResolutionHook();
     const bool visible =
         info.state == XR_SESSION_STATE_VISIBLE || info.state == XR_SESSION_STATE_FOCUSED;
     if (!info.screens_live) {
         // No game: the next one starts with the bottom screen hidden, as in CitraVR.
         g.bottom_toggled = false;
         g.focus_bottom = false;
-        g.have_ref = false;
+        g.rest.Forget();
         g.adjuster.Cancel();
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
@@ -491,14 +514,13 @@ void OnFrame(const FrameInfo& info) {
     const bool was_engaged = g.engaged;
     g.engaged = Decision().immersive;
 
-    // AzaharFrame immersive: a re-centre waits for a head pose located in the re-centred space
-    // (SteamVR's recenter moves the LOCAL space at recentre_after), and for immersive mode, so
-    // the rest pose is never taken from a pose in the old space.
-    if (g.engaged && g.view.valid &&
-        (!g.have_ref || (g.recentre && g.view.time >= g.recentre_after))) {
+    // AzaharFrame immersive: the rest pose at the start, after each pause and after a re-centre
+    // (from a head pose located in the re-centred space), never from the render size.
+    if (g.rest.Update(g.engaged, g.view.valid, g.view.time)) {
         g.ref = {YawOnly(g.view.head.orientation), g.view.head.position};
-        g.have_ref = true;
-        g.recentre = false;
+        if (was_engaged) {
+            LOG_INFO(Frontend, "xr: immersive: view re-centred");
+        }
     }
 
     if (g.view.valid) {
@@ -800,19 +822,26 @@ void OnRecentred(XrTime change_time) {
     // distance and pitch (the owner's report: each recenter after a resize put the screen back
     // to the default size, "farther away"); the rest pose is taken from the first head pose
     // located at or after the change.
-    g.recentre = true;
-    g.recentre_after = change_time;
+    g.rest.Recentre(change_time);
 }
 
-void OnResetPanels(bool stick_hold) {
+bool OnResetPanels(bool stick_hold) {
     // AzaharFrame controls: the view is re-centred. AzaharFrame immersive: the immersive screen
     // of this mode goes back to its default placement for Reset Position, and for the stick hold
     // only while a grip holds the screen; a plain stick hold keeps its size, distance and pitch,
-    // as SteamVR's recenter does (the owner: a hold after a resize lost the size).
-    g.recentre = true;
-    g.recentre_after = 0;
+    // as SteamVR's recenter does (the owner: a hold after a resize lost the size). Reset
+    // Position also puts the Immersive Offset back to the middle: everything to the defaults.
+    g.rest.Recentre(0);
+    bool offset_changed = false;
+    if (!stick_hold && !(g.offset == L::LensOffset{})) {
+        g.offset = {};
+        Settings::values.vr_immersive_offset_x.SetValue(0.0f);
+        Settings::values.vr_immersive_offset_y.SetValue(0.0f);
+        LOG_INFO(Frontend, "xr: immersive offset reset (Reset Position)");
+        offset_changed = true;
+    }
     if (g.mode == 0 || !g.live || (stick_hold && !g.adjuster.Active())) {
-        return;
+        return offset_changed;
     }
     g.adjuster.Cancel();
     const bool wide = !IsViewMode(g.mode);
@@ -823,6 +852,7 @@ void OnResetPanels(bool stick_hold) {
         SaveStore();
     }
     LogPlacement("reset", p, wide);
+    return offset_changed;
 }
 
 void OnGameInput(Input::InputFrame& in) {

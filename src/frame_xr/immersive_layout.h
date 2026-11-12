@@ -247,6 +247,35 @@ struct CameraShape {
 ///     screen's shape never changes while the game zooms.
 /// Angles are clamped to 30 to 110 degrees (a 10 degree close-up would shrink the screen to a
 /// stamp and push the gain past its limit).
+/// AzaharFrame immersive: when the game camera's rest pose (where the head faced and was, which
+/// the game sees as straight ahead) is taken. Nothing about the render size goes into it: an
+/// Internal Resolution change, a Dynamic Resolution step or a game's own resolution option keeps
+/// it. It is taken again when immersive mode resumes after a pause (the in-game menu, where those
+/// changes are made, the bottom screen, the SteamVR dashboard): the old one belonged to where the
+/// player faced and sat before, so after turning or leaning in the pause the character was off
+/// to one side and, with the head's offset magnified by the game's world scale, the camera swung
+/// round it. A recenter (SteamVR's or the right stick hold) takes it at the next head pose at or
+/// after its time. XR thread only.
+class RestPose {
+public:
+    /// One XR frame: immersive mode `engaged` now, the head pose `valid` and located at
+    /// `pose_time`. True: take the rest pose from this frame's head pose.
+    bool Update(bool engaged, bool valid, int64_t pose_time);
+    /// A recenter: the rest pose again from the first head pose at or after `after_time`.
+    void Recentre(int64_t after_time);
+    /// No game: the next one takes a new rest pose.
+    void Forget();
+    bool Have() const {
+        return have_;
+    }
+
+private:
+    bool have_ = false;
+    bool recentre_ = false;
+    bool was_engaged_ = false;
+    int64_t after_ = 0;
+};
+
 class CameraFilter {
 public:
     static constexpr int kSettleCount = 8;

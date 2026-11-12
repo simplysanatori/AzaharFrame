@@ -1097,3 +1097,59 @@ TEST_CASE("FrameXr immersive: the head pose changes only between game frames", "
     }
     REQUIRE(applied == 4);
 }
+
+// AzaharFrame immersive: the owner's report: after a resolution change (Internal Resolution,
+// Dynamic Resolution, a game's own option) the character was off to one side and the camera
+// swung round it. Nothing about the render size goes into the rest pose, the screen or the
+// camera; the rest pose is taken again only at the start, on resuming after a pause (where such
+// changes are made) and on a recenter.
+TEST_CASE("FrameXr immersive: a resolution change keeps the centre", "[frame_xr]") {
+    RestPose rest;
+    REQUIRE_FALSE(rest.Update(true, false, 1)); // no head pose yet
+    REQUIRE(rest.Update(true, true, 2));
+    REQUIRE(rest.Have());
+    // Resolution changes while immersive mode stays on: the rest pose stays.
+    for (int64_t t = 3; t < 300; ++t) {
+        REQUIRE_FALSE(rest.Update(true, true, t));
+    }
+    // The screen, its pose and the game camera for one head pose at every render scale: the
+    // same inputs (no render size among them) give the same centre, offset and turn.
+    const ViewFov view = Symmetric(50);
+    const LensOffset offset{6.0f, 0.0f};
+    const HeadLocked base = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, view, 0.0f, {}, offset);
+    const Quatf head = YawRotation(Rad(10.0f));
+    const Vec3f cam = Forward(GameCameraRotation(head, base));
+    const Vec3f centre = HeadLockedQuadPose(base, 0.0f).position;
+    for (uint32_t scale = 1; scale <= 10; ++scale) {
+        const HeadLocked s =
+            SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, view, 0.0f, {}, offset);
+        REQUIRE(s.yaw_rad == base.yaw_rad);
+        REQUIRE(s.tan_half_y == base.tan_half_y);
+        REQUIRE(s.gain_x == base.gain_x);
+        REQUIRE(In::Dot(Forward(GameCameraRotation(head, s)), cam) == Approx(1.0f));
+        REQUIRE(In::Length(HeadLockedQuadPose(s, 0.0f).position - centre) == Approx(0.0f));
+    }
+    SECTION("resuming after a pause re-centres on where the head is now") {
+        REQUIRE_FALSE(rest.Update(false, true, 300)); // in-game menu, bottom screen
+        REQUIRE_FALSE(rest.Update(false, true, 301));
+        REQUIRE(rest.Update(true, true, 302));
+        REQUIRE_FALSE(rest.Update(true, true, 303));
+    }
+    SECTION("a recenter takes the first head pose at or after its time") {
+        rest.Recentre(400);
+        REQUIRE_FALSE(rest.Update(true, true, 399));
+        REQUIRE(rest.Update(true, true, 400));
+        REQUIRE_FALSE(rest.Update(true, true, 401));
+    }
+    SECTION("a recenter in a pause is taken once immersive mode is on again") {
+        REQUIRE_FALSE(rest.Update(false, true, 300));
+        rest.Recentre(0);
+        REQUIRE_FALSE(rest.Update(false, true, 301));
+        REQUIRE(rest.Update(true, true, 302));
+    }
+    SECTION("the next game takes its own") {
+        rest.Forget();
+        REQUIRE_FALSE(rest.Have());
+        REQUIRE(rest.Update(true, true, 500));
+    }
+}
