@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <map>
 #include <memory>
@@ -1069,6 +1070,12 @@ TEST_CASE("Catalog3: a GameBanana file that is not scanned yet is refused, and s
         CHECK(out.result == InstallResult::Error);
         CHECK(out.error == "GameBanana Hasn't Scanned This File Yet");
         CHECK(ShortFailure(out.error) == "GameBanana Hasn't Scanned This File Yet");
+        CHECK(out.unscanned);
+        bool flagged = false;
+        for (const auto& a : library.ListAvailable(kTid)) {
+            flagged = flagged || (a.id == "gb" && a.unscanned);
+        }
+        CHECK(flagged);
     }
     SECTION("a part") {
         auto parsed = ParseCatalog(R"({"schema":1,"mods":[{"id":"gb","name":"GB","title_ids":["0004000000033500"],
@@ -1331,4 +1338,115 @@ TEST_CASE("Catalog3 r2: the real archives bsdtar cannot read", "[.network]") {
         CHECK(problem.empty());
         CHECK_FALSE(Tree(out + "/").empty());
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Unscanned GameBanana files, allowed by the player
+
+namespace {
+constexpr const char* kGbSingle = R"({"schema":1,"mods":[{"id":"gb","name":"GB","title_ids":["0004000000033500"],
+  "author":"A","source":{"type":"gamebanana","mod":5,"file_pattern":"*.zip"},
+  "install":{"rules":[{"from":"load/mods/{tid}/","to":""}]}}]})";
+constexpr const char* kGbParts = R"({"schema":1,"mods":[{"id":"gb","name":"GB","title_ids":["0004000000033500"],
+  "author":"A","parts":[{"type":"gamebanana","mod":5,"file_pattern":"*.zip"}],
+  "install":{"rules":[{"from":"load/mods/{tid}/","to":""}]}}]})";
+std::string GbProfile(const std::string& files) {
+    return R"({"_sVersion":"1","_aFiles":[)" + files + "]}";
+}
+std::string GbFile(const char* name, const char* av, int added, const char* dl) {
+    return std::string(R"({"_sFile":")") + name + R"(","_nFilesize":0,"_sAvResult":")" + av +
+           R"(","_tsDateAdded":)" + std::to_string(added) + R"(,"_sDownloadUrl":")" + dl + "\"}";
+}
+std::function<HttpReply(const std::string&, const std::string&, std::size_t)> GbNet(const std::string& profile,
+                                                                                    const std::map<std::string, std::string>& dl) {
+    return [=](const std::string& host, const std::string& path, std::size_t) {
+        HttpReply r;
+        const std::string key = host + path;
+        if (key == "https://gamebanana.com/apiv11/Mod/5/ProfilePage") {
+            r.status = 200;
+            r.body = profile;
+        } else if (const auto it = dl.find(key); it != dl.end()) {
+            r.status = 200;
+            r.body = it->second;
+        } else {
+            r.status = 404;
+        }
+        return r;
+    };
+}
+} // namespace
+
+TEST_CASE("Catalog3: an unscanned GameBanana file installs only with allow_unscanned", "[mods][catalog3]") {
+    const std::string zip = StoredZip(PackMembers());
+    const auto net = GbNet(GbProfile(GbFile("a.zip", "unknown", 5, "https://gamebanana.com/dl/1")),
+                           {{"https://gamebanana.com/dl/1", zip}});
+    auto parsed = ParseCatalog(kGbSingle);
+    REQUIRE(parsed);
+    const std::string dir = TempDir("unscan_ok");
+    Library library(dir, *parsed, net);
+    auto out = library.Install(kTid, "gb");
+    CHECK(out.result == InstallResult::Error);
+    CHECK(out.unscanned);
+    CHECK_FALSE(fs::exists(dir + "mods/" + kTidText));
+    out = library.Install(kTid, "gb", false, true);
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    CHECK(out.unscanned);
+    CHECK(Read(dir + "mods/" + kTidText + "/romfs/a.bin") == kRomfs);
+    bool seen = false;
+    for (const auto& m : library.ListLoaded(kTid)) {
+        seen = seen || (m.id == "gb" && m.unscanned);
+    }
+    CHECK(seen);
+}
+
+TEST_CASE("Catalog3: a clean file is preferred over an unscanned one", "[mods][catalog3]") {
+    const std::string zip = StoredZip(PackMembers());
+    const auto net = GbNet(GbProfile(GbFile("new.zip", "unknown", 9, "https://gamebanana.com/dl/9") + "," +
+                                     GbFile("old.zip", "clean", 3, "https://gamebanana.com/dl/3")),
+                           {{"https://gamebanana.com/dl/3", zip}});
+    auto parsed = ParseCatalog(kGbSingle);
+    REQUIRE(parsed);
+    Library library(TempDir("unscan_clean"), *parsed, net);
+    const auto out = library.Install(kTid, "gb"); // no flag needed: the clean one is used
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    CHECK_FALSE(out.unscanned);
+}
+
+TEST_CASE("Catalog3: infected and suspicious files are refused even when unscanned ones are allowed",
+          "[mods][catalog3]") {
+    const auto net = GbNet(GbProfile(GbFile("a.zip", "infected", 5, "https://gamebanana.com/dl/1") + "," +
+                                     GbFile("b.zip", "suspicious", 6, "https://gamebanana.com/dl/2")),
+                           {});
+    auto parsed = ParseCatalog(kGbSingle);
+    REQUIRE(parsed);
+    Library library(TempDir("unscan_bad"), *parsed, net);
+    const auto out = library.Install(kTid, "gb", false, true);
+    CHECK(out.result == InstallResult::Error);
+    CHECK(out.error == "No matching file in the mod");
+    CHECK_FALSE(out.unscanned);
+}
+
+TEST_CASE("Catalog3: an unscanned part makes the entry unscanned", "[mods][catalog3]") {
+    const std::string dir = TempDir("unscan_part");
+    FakeFiles files;
+    files.files["https://gamebanana.com/dl/1"] = StoredZip(PackMembers());
+    auto parsed = ParseCatalog(kGbParts);
+    REQUIRE(parsed);
+    Library library(dir, *parsed,
+                    GbNet(GbProfile(GbFile("a.zip", "unknown", 5, "https://gamebanana.com/dl/1")), {}));
+    library.SetFileTransport(files.Get());
+    library.SetFreeSpace([](const std::string&, u64* out) {
+        *out = 1ull << 40;
+        return true;
+    });
+    auto out = library.Install(kTid, "gb");
+    CHECK(out.result == InstallResult::Error);
+    CHECK(out.unscanned);
+    CHECK(files.log.empty());
+    out = library.Install(kTid, "gb", false, true);
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    CHECK(out.unscanned);
 }

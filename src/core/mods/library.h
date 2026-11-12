@@ -40,6 +40,7 @@
 #include <memory>
 #include <optional>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 #include "common/common_types.h"
@@ -106,6 +107,8 @@ struct ModInfo {
     /// AzaharFrame catalog3: "activate" (downloaded, goes in when the running game stops), "deactivate"
     /// or "remove" (the same), "" none. `state` already shows the outcome.
     std::string pending;
+    /// AzaharFrame catalog3: installed from a GameBanana file whose scan was "unknown" (the player allowed it)
+    bool unscanned = false;
 };
 
 struct AvailableMod {
@@ -121,6 +124,10 @@ struct AvailableMod {
                             // catalog3: the catalog's own value may be "YYYY-MM"
     u64 downloads = 0;      // AzaharFrame catalog3: lifetime downloads (CatalogEntry::downloads), 0 unknown
     u64 size = 0;           // AzaharFrame catalog3: bytes to download (CatalogEntry::size), 0 unknown
+    /// AzaharFrame catalog3: a file of this mod (any part) has no GameBanana scan result yet. Known after
+    /// an install was refused for it (Install without allow_unscanned) or went ahead with it, or from the
+    /// installed copy. The menu asks before calling Install(..., allow_unscanned = true).
+    bool unscanned = false;
     bool pending = false;   // AzaharFrame catalog3: downloaded for the running game; `active` is true, the files go in when it stops
     bool has_textures = false; // AzaharFrame catalog3: the mod also carries textures
     bool multipart = false;    // AzaharFrame catalog3: several downloads, joined
@@ -149,6 +156,7 @@ struct InstallOutcome {
     /// AzaharFrame catalog3: the target is the running game, so the mod is downloaded and waits in the
     /// library: "<Mod> Downloaded. Restart to Enable."
     bool staged = false;
+    bool unscanned = false; // AzaharFrame catalog3: an unscanned GameBanana file was refused, or used (allowed)
 };
 
 struct RemoveOutcome {
@@ -203,7 +211,12 @@ public:
     std::vector<AvailableMod> ListAvailable(u64 title_id,
                                             std::optional<u32> game_code_crc = std::nullopt) const;
 
-    InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false);
+    /// AzaharFrame catalog3: a GameBanana file with scan result "unknown" is used only with
+    /// `allow_unscanned` (a clean file that matches is always preferred); without it the install fails
+    /// with "GameBanana Hasn't Scanned This File Yet" and `outcome.unscanned` is true. Every other
+    /// non-clean result is refused either way.
+    InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false,
+                           bool allow_unscanned = false);
     /// AzaharFrame zipinstall: a mod from a local archive, kept in the library like a downloaded one
     /// (source kZipSource, no catalog entry), then put in the mods folder as Install does. `id` starts
     /// with kZipPrefix. A mod with that id already in the library is a Conflict naming itself
@@ -254,6 +267,10 @@ public:
 private:
     struct Manifest;
     InstallOutcome InstallImpl(u64 title_id, const std::string& mod_id, bool replace);
+    // AzaharFrame catalog3: unscanned GameBanana files (install thread; the set under mutex_)
+    bool allow_unscanned_ = false;
+    bool hit_unscanned_ = false; // this install met or used an unscanned file
+    std::set<std::string> unscanned_ids_;
     bool ReadManifest(const std::string& dir, Manifest& out) const;
     bool WriteManifest(const std::string& dir, const Manifest& m) const;
     bool Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error);

@@ -1355,6 +1355,10 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
         info.verified = e.verified;
         info.updated = e.updated;
         info.downloads = e.downloads; // AzaharFrame catalog3
+        {
+            std::lock_guard lock{mutex_};
+            info.unscanned = unscanned_ids_.count(e.id) != 0;
+        }
         std::string installed_date; // AzaharFrame zipinstall: the date the source had at download
         for (fs::directory_iterator it(PacksRoot(load_dir_, title_id), ec), end; !ec && it != end; it.increment(ec)) {
             std::string id;
@@ -1377,6 +1381,7 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
 State Downloader::GetState() const {
     std::lock_guard lock{mutex_};
     State s = state_;
+    s.unscanned = hit_unscanned_.load();
     if (s.Busy()) {
         s.bytes_done = parts_base_.load() + done_.load();
         s.bytes_total = parts_total_.load() != 0 ? parts_total_.load() : total_.load();
@@ -1415,7 +1420,7 @@ void Downloader::DiscardPartial(const std::string& pack_id) {
     fs::remove(fs::path(load_dir_) / "texture-downloads" / (pack_id + ".part"), ec);
 }
 
-bool Downloader::Start(const std::string& pack_id, u64 title_id) {
+bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unscanned) {
     Entry entry;
     {
         std::lock_guard lock{mutex_};
@@ -1437,6 +1442,8 @@ bool Downloader::Start(const std::string& pack_id, u64 title_id) {
         worker_.join();
     }
     cancel_ = false;
+    allow_unscanned_ = allow_unscanned;
+    hit_unscanned_ = false;
     done_ = 0;
     total_ = entry.size;
     worker_ = std::thread([this, entry = std::move(entry), title_id] { Run(entry, title_id); });
@@ -1552,24 +1559,43 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
                 gmtime_r(&tt, &tm);
                 live_updated_ = fmt::format("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
             }
-            long long newest = -1;
+            long long newest = -1, newest_unknown = -1;
+            std::string unk_url;
+            u64 unk_size = expected;
             for (const auto& f : j.at("_aFiles")) {
                 const std::string av = f.value("_sAvResult", "");
                 if (f.value("_bIsArchived", false) || !Mods::GlobMatch(source.file_pattern, f.value("_sFile", ""))) {
                     continue;
                 }
-                if (av == "unknown") { // AzaharFrame catalog3: refused, and the error says why
-                    unscanned = true;
+                const long long added = f.value("_tsDateAdded", 0LL);
+                if (av == "unknown") { // AzaharFrame catalog3: only when the player allowed it
+                    if (added > newest_unknown) {
+                        newest_unknown = added;
+                        unk_url = f.value("_sDownloadUrl", "");
+                        unk_size = f.value("_nFilesize", expected);
+                    }
                     continue;
                 }
                 if (av != "clean") {
                     continue;
                 }
-                const long long added = f.value("_tsDateAdded", 0LL);
                 if (added > newest) {
                     newest = added;
                     url = f.value("_sDownloadUrl", "");
                     expected = f.value("_nFilesize", expected);
+                }
+            }
+            if (url.empty() && !unk_url.empty()) { // a clean file is always preferred
+                hit_unscanned_ = true;
+                {
+                    std::lock_guard lock{mutex_};
+                    unscanned_ids_.insert(entry.id);
+                }
+                if (allow_unscanned_) {
+                    url = unk_url;
+                    expected = unk_size;
+                } else {
+                    unscanned = true;
                 }
             }
         } catch (const std::exception&) {

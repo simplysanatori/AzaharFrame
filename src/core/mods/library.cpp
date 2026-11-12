@@ -395,6 +395,7 @@ struct Library::Manifest {
     // AzaharFrame catalog3: a change that waits for the running game to stop ("" none): "activate"
     // (downloaded, files not in the game's folders yet), "deactivate", "remove"
     std::string pending;
+    bool unscanned = false; // AzaharFrame catalog3
 };
 
 namespace {
@@ -441,6 +442,7 @@ bool Library::ReadManifest(const std::string& dir, Manifest& m) const {
         m.verified = j.value("verified", false);
         m.active = j.value("active", false);
         m.pending = j.value("pending", "");
+        m.unscanned = j.value("unscanned", false);
         m.files.clear();
         for (const auto& f : j.at("files")) {
             const auto rel = f.get<std::string>();
@@ -478,6 +480,9 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     j["active"] = m.active;
     if (!m.pending.empty()) {
         j["pending"] = m.pending;
+    }
+    if (m.unscanned) {
+        j["unscanned"] = true;
     }
     j["files"] = m.files;
     if (!m.texture_files.empty()) {
@@ -860,26 +865,43 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
                 if (version.empty()) {
                     version = j.value("_sVersion", "");
                 }
-                long long newest = -1;
+                long long newest = -1, newest_unknown = -1;
+                std::string unk_name, unk_url;
+                u64 unk_size = 0;
                 for (const auto& f : j.at("_aFiles")) {
                     const auto name = f.value("_sFile", "");
                     const std::string av = f.value("_sAvResult", "");
                     if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name)) {
                         continue;
                     }
-                    if (av == "unknown") {
-                        unscanned = true; // refused, and the error says why
+                    const long long added = f.value("_tsDateAdded", 0LL);
+                    if (av == "unknown") { // AzaharFrame catalog3: only when the player allowed it
+                        if (added > newest_unknown) {
+                            newest_unknown = added;
+                            unk_name = name;
+                            unk_url = f.value("_sDownloadUrl", "");
+                            unk_size = f.value("_nFilesize", static_cast<u64>(0));
+                        }
                         continue;
                     }
                     if (av != "clean") {
                         continue;
                     }
-                    const long long added = f.value("_tsDateAdded", 0LL);
                     if (added > newest) {
                         newest = added;
                         ref.name = name;
                         ref.url = f.value("_sDownloadUrl", "");
                         ref.size = f.value("_nFilesize", static_cast<u64>(0));
+                    }
+                }
+                if (ref.url.empty() && !unk_url.empty()) { // a clean file is always preferred
+                    hit_unscanned_ = true;
+                    if (allow_unscanned_) {
+                        ref.name = unk_name;
+                        ref.url = unk_url;
+                        ref.size = unk_size;
+                    } else {
+                        unscanned = true;
                     }
                 }
             } catch (const std::exception&) {
@@ -1175,21 +1197,29 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
                 return false;
             }
             version = j.value("_sVersion", "");
-            long long newest = -1;
+            long long newest = -1, newest_unknown = -1;
+            std::string unk_name, unk_url, unk_version;
+            std::size_t unk_size = 0;
             for (const auto& f : j.at("_aFiles")) {
                 const auto name = f.value("_sFile", "");
                 // The newest file of the mod that matches, that GameBanana's scan found clean
                 if (f.value("_bIsArchived", false) || !GlobMatch(s.asset_pattern, name)) {
                     continue;
                 }
-                if (f.value("_sAvResult", "") == "unknown") {
-                    unscanned = true; // AzaharFrame catalog3: refused, and the error says why
+                const long long added = f.value("_tsDateAdded", 0LL);
+                if (f.value("_sAvResult", "") == "unknown") { // AzaharFrame catalog3: only when allowed
+                    if (added > newest_unknown) {
+                        newest_unknown = added;
+                        unk_name = name;
+                        unk_url = f.value("_sDownloadUrl", "");
+                        unk_size = f.value("_nFilesize", static_cast<std::size_t>(0));
+                        unk_version = f.value("_sVersion", "");
+                    }
                     continue;
                 }
                 if (f.value("_sAvResult", "") != "clean") {
                     continue;
                 }
-                const long long added = f.value("_tsDateAdded", 0LL);
                 if (added > newest) {
                     newest = added;
                     asset_name = name;
@@ -1198,6 +1228,19 @@ bool Library::DownloadSource(const CatalogEntry& entry, u64 title_id, std::vecto
                     if (!f.value("_sVersion", "").empty()) {
                         version = f.value("_sVersion", "");
                     }
+                }
+            }
+            if (url.empty() && !unk_url.empty()) { // a clean file is always preferred
+                hit_unscanned_ = true;
+                if (allow_unscanned_) {
+                    asset_name = unk_name;
+                    url = unk_url;
+                    size = unk_size;
+                    if (!unk_version.empty()) {
+                        version = unk_version;
+                    }
+                } else {
+                    unscanned = true;
                 }
             }
         } catch (const std::exception&) {
@@ -1402,6 +1445,7 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
             const bool on = EffectiveActive(m.active, m.pending);
             info.state = on ? ModState::Active : ModState::Inactive;
             info.pending = m.pending; // AzaharFrame catalog3
+            info.unscanned = m.unscanned;
             info.files = m.files;
             info.texture_files = m.texture_files; // AzaharFrame catalog3
             if (m.active) {
@@ -1490,11 +1534,13 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         a.size = e.size;
         a.has_textures = !e.texture_rules.empty();
         a.multipart = !e.parts.empty();
+        a.unscanned = unscanned_ids_.count(e.id) != 0;
         a.installable = e.Installable();
         Manifest m;
         if (ReadManifest(LibraryDir(title_id) + e.id + "/", m)) {
             a.active = EffectiveActive(m.active, m.pending);
             a.in_library = !a.active && m.pending != "remove";
+            a.unscanned = a.unscanned || m.unscanned;
             a.pending = m.pending == "activate"; // AzaharFrame catalog3: downloaded, in when the game stops
         }
         out.push_back(std::move(a));
@@ -1634,11 +1680,19 @@ RemoveOutcome Library::Remove(u64 title_id, const std::string& mod_id) {
 
 // AzaharFrame catalog3: the whole install (download, joining, unpacking, MEGA decryption) runs on a thread
 // of its own at the lowest priority, so a game that is running is not slowed by it. bsdtar inherits it.
-InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool replace) {
+InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool replace, bool allow_unscanned) {
     InstallOutcome outcome;
     std::thread worker([&] {
         Multipart::LowerThisThreadPriority();
+        allow_unscanned_ = allow_unscanned;
+        hit_unscanned_ = false;
         outcome = InstallImpl(title_id, mod_id, replace);
+        outcome.unscanned = hit_unscanned_;
+        if (hit_unscanned_) {
+            std::lock_guard lock{mutex_};
+            unscanned_ids_.insert(mod_id);
+        }
+        allow_unscanned_ = false;
     });
     worker.join();
     return outcome;
@@ -1791,6 +1845,7 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
                               ? (entry.source.hosts.empty() ? std::string("https") : entry.source.hosts.front())
                               : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
+        manifest.unscanned = hit_unscanned_;
         manifest.active = false;
         // one file into the library: from memory, or moved from the folder (copied when both parts
         // want the same file)
