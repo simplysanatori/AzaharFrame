@@ -153,6 +153,10 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame
 #include <csignal>
+#ifdef __linux__
+#include <dlfcn.h>  // AzaharFrame integ3: the display server going away
+#include <unistd.h> // AzaharFrame integ3
+#endif
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
 #include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
@@ -218,6 +222,73 @@ volatile std::sig_atomic_t g_frame_xr_terminate = 0;
 void FrameXrOnSignal(int) {
     g_frame_xr_terminate = 1;
 }
+
+#ifdef __linux__
+// AzaharFrame integ3: the display server going away (gamescope or Xwayland ending, the session
+// logging out or shutting down, a mock run's X server stopped with it) is not a crash of ours.
+// Xlib's default handler calls exit() on whichever thread saw it (SDL's pump thread, in SDL3's
+// X11 code), and the static destructors then run under the other threads: ~SDLState joined
+// the pump thread from itself (std::system_error, SIGABRT), and the next start said "Azahar
+// Crashed". Qt's own xcb reader calls exit(1) instead, which left the run marker ("Closed
+// Unexpectedly"). Either way: log it, end the run cleanly and leave at once.
+std::atomic<bool> g_frame_display_lost{false};
+
+[[noreturn]] void FrameDisplayLost(const char* how) {
+    if (g_frame_display_lost.exchange(true)) {
+        for (;;) {
+            pause(); // the first thread to see it ends the process
+        }
+    }
+    LOG_WARNING(Frontend, "the display server went away ({}): quitting", how);
+    Common::Log::Stop();
+    FrameMode::MarkFlatRunning(false);
+    Common::FrameCrash::CleanExit();
+    std::_Exit(1);
+}
+
+int FrameXIoError(void*) {
+    FrameDisplayLost("X I/O error");
+}
+
+// Called by exit(): Qt's xcb reader exits when the X connection broke. A normal quit has no
+// QGuiApplication left by then (main's is gone), so this does nothing for it.
+void FrameExitCheck() {
+#if QT_CONFIG(xcb)
+    if (!qApp || g_frame_display_lost) {
+        return;
+    }
+    auto* x11 = qApp->nativeInterface<QNativeInterface::QX11Application>();
+    if (!x11 || !x11->connection()) {
+        return;
+    }
+    // libxcb came with Qt's xcb plugin (loaded locally): asked for by name, not globally
+    void* xcb = dlopen("libxcb.so.1", RTLD_LAZY | RTLD_NOLOAD);
+    if (!xcb) {
+        return;
+    }
+    using HasError = int (*)(void*);
+    const auto has_error = reinterpret_cast<HasError>(dlsym(xcb, "xcb_connection_has_error"));
+    const bool broke = has_error && has_error(x11->connection()) != 0;
+    dlclose(xcb);
+    if (broke) {
+        FrameDisplayLost("the X11 connection broke");
+    }
+#endif
+}
+
+// After Qt and SDL are up (each loads libX11 on X): Xlib's I/O error handler, and the exit() check.
+void FrameInstallDisplayLossExit() {
+    if (void* x11 = dlopen("libX11.so.6", RTLD_LAZY | RTLD_NOLOAD)) {
+        using Handler = int (*)(void*);
+        using SetHandler = Handler (*)(Handler);
+        if (const auto set = reinterpret_cast<SetHandler>(dlsym(x11, "XSetIOErrorHandler"))) {
+            set(&FrameXIoError);
+        }
+        dlclose(x11);
+    }
+    std::atexit(&FrameExitCheck);
+}
+#endif
 // Touches on the bottom screen panel (3DS pixels) into the render window's layout.
 class FrameXrTouchSink final : public InputCommon::FrameXr::TouchSink {
 public:
@@ -1696,6 +1767,7 @@ GMainWindow::GMainWindow(Core::System& system_)
 
             std::signal(SIGTERM, FrameXrOnSignal);
             std::signal(SIGINT, FrameXrOnSignal);
+            std::signal(SIGHUP, FrameXrOnSignal); // AzaharFrame integ3: a hangup quits cleanly too
             auto* signal_timer = new QTimer(this);
             connect(signal_timer, &QTimer::timeout, this, [this] {
                 if (g_frame_xr_terminate) {
@@ -7495,6 +7567,9 @@ int LaunchQtFrontend(int argc, char* argv[]) {
     // Process any pending events before executing the app (prevents freeze-on–boot on macOS)
     app.processEvents();
 
+#if defined(ENABLE_FRAME_XR) && defined(__linux__)
+    FrameInstallDisplayLossExit(); // AzaharFrame integ3
+#endif
     int result = app.exec();
 #ifdef ENABLE_FRAME_XR // AzaharFrame: no renderer exists any more.
     FrameMode::MarkFlatRunning(false); // AzaharFrame flat: a clean quit (the crash safety net)
