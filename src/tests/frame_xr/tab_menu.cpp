@@ -439,12 +439,18 @@ TEST_CASE("Tab menu: the Textures segment", "[frame_xr][tabmenu]") {
     CHECK(FindHit(d, Id::CustomTextures, -1)->r.y1 <= FindHit(d, Id::TexturePack, 0)->r.y0);
     CHECK(FindHit(d, Id::TexturePack, 0)->r.y1 <= FindHit(d, Id::TexturePack, 1)->r.y0 + 0.01f);
     CHECK(FindHit(d, Id::TexturePack, 3)->r.y1 <= FindHit(d, Id::TexturePreload, -1)->r.y0);
-    // With the snackbar too.
+    // Download Packs above them.
+    REQUIRE(FindHit(d, Id::DownloadPacks, -1));
+    CHECK(FindHit(d, Id::DownloadPacks, -1)->r.y1 <= FindHit(d, Id::CustomTextures, -1)->r.y0);
+    // With the snackbar too: Preload a short scroll away.
     m.mods.textures.needs_restart = true;
     d.Draw(m, v);
     CHECK(HasHit(d, Id::RestartGame, -1));
+    CHECK(d.menu.MaxScroll() <= 48.0f);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
     CHECK(HasHit(d, Id::TexturePreload, -1));
-    CHECK(d.menu.MaxScroll() == 0.0f);
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
 
     // Custom Textures off: the packs and Preload are labels only; busy: everything waits.
     m.mods.textures.custom_textures = false;
@@ -479,6 +485,92 @@ TEST_CASE("Tab menu: the Textures segment", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::CustomTextures) == "Custom Textures");
     CHECK(LabelFor(Id::TexturePreload) == "Preload");
     CHECK(LabelFor(Id::RestartGame) == "Restart");
+}
+
+TEST_CASE("Tab menu: Download Packs", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+
+    // No packs: the empty state's button opens Download Packs.
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+
+    // A downloaded pack has Delete; one added by hand has not.
+    m.mods.textures = Packs(2);
+    m.mods.textures.packs[1].downloaded = true;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    CHECK(!HasHit(d, Id::PackDelete, 0));
+    REQUIRE(FindHit(d, Id::PackDelete, 1));
+    CHECK(FindHit(d, Id::PackDelete, 1)->r.H() >= 48.0f);
+    m.mods.textures.downloading = true; // not while a download runs
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::PackDelete, 1));
+    m.mods.textures.downloading = false;
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::PackDelete, 1));
+    const auto del = FindHit(d, Id::PackDelete, 1)->r;
+    m.mods.textures.dialog = {ModsDialogKind::DeletePack, "4K", ""};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(d.menu.HitTest(del.Cx(), del.Cy()).id != Id::PackDelete); // the dialog is modal
+    m.mods.textures.dialog = {};
+
+    // The page: back, then one row per pack with its action.
+    v.textures_page = TexturesPage::Download;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TexturesBack, -1));
+    CHECK(!HasHit(d, Id::CustomTextures, -1));
+    m.mods.textures.downloads = {
+        {"a", "Pack A", "Author", "https://github.com/owner/a", "78 MB", PackOfferState::Download, -1, ""},
+        {"b", "Pack B", "Someone", "https://example.org/packs/b", "1.8 GB", PackOfferState::Installed, -1, ""},
+        {"c", "Pack C", "", "", "", PackOfferState::Failed, -1, "Download Failed"}};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::PackDownload, 0));
+    CHECK(!HasHit(d, Id::PackDownload, 1)); // Installed: no action
+    CHECK(HasHit(d, Id::PackDownload, 2));  // Try Again
+    CHECK(HasHit(d, Id::PackLink, 0));
+    CHECK(HasHit(d, Id::PackLink, 1));
+    CHECK(!HasHit(d, Id::PackLink, 2));
+    CheckTargets(d);
+    // The link's target stays off the name line.
+    REQUIRE(FindHit(d, Id::PackLink, 0));
+    REQUIRE(FindHit(d, Id::PackDownload, kLabelIndex));
+    CHECK(d.menu.HitTest(FindHit(d, Id::PackLink, 0)->r.x0 + 30.0f,
+                         FindHit(d, Id::PackLink, 0)->r.y0 - 20.0f)
+              .id != Id::PackLink);
+
+    // Downloading: Cancel; the other Download buttons wait.
+    m.mods.textures.downloading = true;
+    m.mods.textures.downloads[0].state = PackOfferState::Downloading;
+    m.mods.textures.downloads[0].percent = 42;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::PackCancel, 0));
+    CHECK(!HasHit(d, Id::PackDownload, 0));
+    CHECK(!HasHit(d, Id::PackDownload, 2));
+    CheckTargets(d);
+
+    // Many: the list scrolls, whole rows only.
+    m.mods.textures.downloading = false;
+    m.mods.textures.downloads.resize(12, m.mods.textures.downloads[2]);
+    d.Draw(m, v);
+    CHECK(d.menu.MaxScroll() > 0.0f);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::PackDownload, 11));
+    CheckTargets(d);
+
+    // Nothing for the title.
+    m.mods.textures.downloads.clear();
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TexturesBack, -1));
+    CHECK(!HasHit(d, Id::PackDownload, 0));
+    CHECK(LabelFor(Id::DownloadPacks) == "Download Packs");
+    CHECK(LabelFor(Id::PackCancel) == "Cancel");
+    CHECK(LabelFor(Id::PackDelete) == "Delete");
 }
 
 TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
@@ -598,6 +690,19 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::InstallMods) == "Install Mods");
     CHECK(LabelFor(Id::ModRemove) == "Remove");
     CHECK(LabelFor(Id::ModInstall) == "Install");
+}
+
+TEST_CASE("Mods segments: links", "[frame_xr][tabmenu]") {
+    CHECK(LinkText("https://github.com/Gray-Rice/PokeTex-3DS") == "github.com/Gray-Rice/PokeTex-3DS");
+    CHECK(LinkHost("https://github.com/Gray-Rice/PokeTex-3DS") == "github.com");
+    CHECK(LinkText("https://gamebanana.com/mods/12345/") == "gamebanana.com/mods/12345");
+    CHECK(LinkHost("https://gamebanana.com/mods/12345") == "gamebanana.com");
+    for (const char* bad : {"http://github.com/a/b", "https://user@host.com/x", "https://host.com:8080/x",
+                            "https://localhost/x", "https://Host.com/x", "javascript:alert(1)",
+                            "https://host.com/a b", "https://.host.com/x", ""}) {
+        CHECK(LinkText(bad).empty());
+        CHECK(LinkHost(bad).empty());
+    }
 }
 
 TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {

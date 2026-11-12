@@ -278,6 +278,14 @@ std::string LabelFor(Id id) {
         return "Preload";
     case Id::RestartGame:
         return "Restart";
+    case Id::DownloadPacks:
+        return "Download Packs";
+    case Id::PackDownload:
+        return "Download";
+    case Id::PackCancel:
+        return "Cancel";
+    case Id::PackDelete:
+        return "Delete";
     default:
         return {};
     }

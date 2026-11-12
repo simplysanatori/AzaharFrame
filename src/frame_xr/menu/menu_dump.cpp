@@ -115,6 +115,16 @@ TexturesModel SampleTextures() {
     return t;
 }
 
+// Download Packs for Pokemon X: the catalog's pack for it, 1.8 GB (so it asks first).
+TexturesModel SamplePokemonDownloads() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.downloads = {{"pokemon-xy-hd", "Pokemon X and Y HD", "Ullr8, Gray-Rice",
+                    "https://github.com/Gray-Rice/PokeTex-3DS", "1.8 GB", PackOfferState::Download,
+                    -1, ""}};
+    return t;
+}
+
 bool WritePng(const std::string& path, const frame_xr::ui::Canvas& cv,
               bool keep_alpha = false) {
     // The canvas is premultiplied, R in the low byte: over the opaque backdrop it is plain RGB.
@@ -413,6 +423,55 @@ int main(int argc, char** argv) {
         to.mods.textures.custom_textures = false;
         v.hover = {Id::CustomTextures};
         ok &= shot("textures-off", to, v);
+
+        // Download Packs
+        MenuModel dm = m;
+        dm.game_title = "Pokemon X";
+        dm.mods.textures = SamplePokemonDownloads();
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::DownloadPacks};
+        ok &= shot("textures-empty-download", dm, v);
+        v.textures_page = TexturesPage::Download;
+        v.hover = {Id::PackDownload, 0};
+        ok &= shot("download-list", dm, v);
+        MenuModel db = dm;
+        db.mods.textures.dialog = {ModsDialogKind::BigDownload, "Pokemon X and Y HD", "1.8 GB"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("download-confirm", db, v);
+        MenuModel dd = dm;
+        dd.mods.textures.downloading = true;
+        dd.mods.textures.downloads[0].state = PackOfferState::Downloading;
+        dd.mods.textures.downloads[0].percent = 42;
+        dd.mods.textures.downloads[0].note = "Downloading";
+        v.hover = {Id::PackCancel, 0};
+        ok &= shot("downloading", dd, v);
+        MenuModel df = dm;
+        df.mods.textures.downloads[0].state = PackOfferState::Failed;
+        df.mods.textures.downloads[0].note = "Not enough free space: 4.6 GB needed, 1.1 GB free";
+        v.hover = {Id::PackDownload, 0};
+        ok &= shot("failed", df, v);
+        v.open_link = "https://github.com/Gray-Rice/PokeTex-3DS";
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("download-open-link", dm, v);
+        v.open_link.clear();
+        MenuModel di = dm;
+        di.mods.textures.downloads[0].state = PackOfferState::Installed;
+        v.hover = {};
+        ok &= shot("download-installed", di, v);
+        MenuModel dp = di; // the downloaded pack in the list, with Delete
+        dp.mods.textures.packs = {{"/load/texture-packs/0004000000055D00/PokeTex-3DS",
+                                   "Pokemon X and Y HD", "Ullr8, Gray-Rice · PNG · 1.8 GB",
+                                   false, true}};
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::PackDelete, 0};
+        ok &= shot("textures-downloaded", dp, v);
+        dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("textures-delete", dp, v);
     }
     v = {};
     v.tab = Tab::Main;

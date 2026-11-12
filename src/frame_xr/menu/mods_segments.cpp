@@ -146,6 +146,16 @@ void Ring(Kit& kit, float cx, float cy, float d, int spin) {
         Tok::kSecondaryContainer);
 }
 
+/// Material 3 determinate circular progress: `frac` of the ring, the track after a gap.
+void RingValue(Kit& kit, float cx, float cy, float d, float frac) {
+    const float stroke = d >= 40.0f ? 4.0f : 3.0f, r = d * 0.5f - stroke * 0.5f;
+    const float gap = (stroke + 4.0f) / r;
+    const float len = 2.0f * kPi * std::clamp(frac, 0.0f, 1.0f);
+    Arc(kit, cx, cy, r, 0.0f, len, stroke, Tok::kPrimary);
+    Arc(kit, cx, cy, r, len + (len > 0.0f ? gap : 0.0f), 2.0f * kPi - (len > 0.0f ? gap : 0.0f),
+        stroke, Tok::kSecondaryContainer);
+}
+
 /// Material 3 radio button: a 20 dp ring, 2 dp, and a 10 dp dot when selected.
 void Radio(Kit& kit, float cx, float cy, bool selected, bool enabled) {
     const uint32_t ink =
@@ -279,14 +289,48 @@ std::vector<std::string> Wrap(const Kit& kit, const std::string& s, float size, 
 }
 
 /// The dialog to show: the model's (the Qt side's question), else "Open GitHub?" for a link.
-ModsDialog DialogFor(const ModsListModel& m, const MenuView& view) {
-    if (m.dialog.kind != ModsDialogKind::None || view.open_link.empty()) {
-        return m.dialog;
+ModsDialog DialogFor(const ModsDialog& dialog, const MenuView& view) {
+    if (dialog.kind != ModsDialogKind::None || view.open_link.empty()) {
+        return dialog;
     }
-    return {ModsDialogKind::OpenLink, "", GithubLinkText(view.open_link)};
+    return {ModsDialogKind::OpenLink, LinkHost(view.open_link), LinkText(view.open_link)};
 }
 
 } // namespace
+
+std::string LinkText(const std::string& url) {
+    static constexpr std::string_view kPrefix = "https://";
+    if (url.rfind(kPrefix, 0) != 0 || url.size() > 300) {
+        return {};
+    }
+    std::string_view rest = std::string_view(url).substr(kPrefix.size());
+    const std::size_t slash = rest.find('/');
+    const std::string_view host = rest.substr(0, slash);
+    if (host.empty() || host.front() == '.' || host.back() == '.' ||
+        host.find('.') == std::string_view::npos) {
+        return {};
+    }
+    for (const char ch : host) {
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '.')) {
+            return {}; // no user, port, upper case or other tricks in the host
+        }
+    }
+    for (const char ch : rest) {
+        if (ch <= ' ' || ch >= 0x7f || std::string_view("\"<>\\^`{|}").find(ch) !=
+                                            std::string_view::npos) {
+            return {};
+        }
+    }
+    while (!rest.empty() && rest.back() == '/') {
+        rest.remove_suffix(1);
+    }
+    return std::string(rest);
+}
+
+std::string LinkHost(const std::string& url) {
+    const std::string text = LinkText(url);
+    return text.substr(0, text.find('/'));
+}
 
 std::string GithubLinkText(const std::string& url) {
     static constexpr std::string_view kPrefix = "https://github.com/";
@@ -392,9 +436,19 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = "Remove " + d.other + " First";
         break;
     case ModsDialogKind::OpenLink:
-        headline = "Open GitHub?";
+        headline = d.mod == "github.com" ? std::string("Open GitHub?") : "Open " + d.mod + "?";
         body = "This opens " + d.other + " in Steam's browser.";
         confirm = "Open";
+        break;
+    case ModsDialogKind::BigDownload:
+        headline = "Download " + d.other + "?";
+        body = d.mod;
+        confirm = "Download";
+        break;
+    case ModsDialogKind::DeletePack:
+        headline = "Delete " + d.mod + "?";
+        body = "You can download it again.";
+        confirm = "Delete";
         break;
     case ModsDialogKind::None:
         break;
@@ -528,7 +582,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             kit.ClearClip();
             ScrollIndicator(kit, list, area.x1, s);
         }
-        DrawModsDialog(kit, DialogFor(m, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
 
@@ -547,7 +601,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.Button(b, ButtonStyle::Filled, Sym::kDownload, install,
                    StateOf(view, {Id::InstallMods}));
         AddHit(b, {Id::InstallMods}, area);
-        DrawModsDialog(kit, DialogFor(m, view), view);
+        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
     }
     {
@@ -611,7 +665,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
-    DrawModsDialog(kit, DialogFor(m, view), view);
+    DrawModsDialog(kit, DialogFor(m.dialog, view), view);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -626,10 +680,37 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     if (m.needs_restart) {
         bottom = DrawRestartSnackbar(kit, view, area);
     }
-    if (m.packs.empty()) {
-        EmptyState(kit, {c.x0, c.y0, c.x1, bottom}, Sym::kTexture, false, 0, "No Texture Packs",
-                   "Add packs in Azahar's Window");
+    if (view.textures_page == TexturesPage::Download) {
+        DrawPackDownloads(kit, m, view, area, bottom);
+        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
         return;
+    }
+    const std::string download = LabelFor(Id::DownloadPacks);
+    if (m.packs.empty()) {
+        // No Texture Packs, and where they come from: Download Packs, or Azahar's window.
+        const Rect a{c.x0, c.y0, c.x1, bottom};
+        const float h = 48.0f + 16.0f + 24.0f + 8.0f + 20.0f + 24.0f + kBarH;
+        float y = a.Cy() - h * 0.5f;
+        kit.Icon(a.Cx(), y + 24.0f, 48.0f, Sym::kTexture, false, Tok::kOnSurfaceVariant);
+        y += 48.0f + 16.0f;
+        kit.TextMid(a.Cx(), y + 12.0f, Type::Title, Tok::kOnSurface, "No Texture Packs", 1);
+        y += 24.0f + 8.0f;
+        kit.TextSized(a.Cx(), y + 15.0f, kSmall, false, Tok::kOnSurfaceVariant,
+                      "Download them here or add them in Azahar's Window", 1);
+        y += 20.0f + 24.0f;
+        const float w = ButtonWidth(kit, download, true, 24.0f);
+        const Rect b{a.Cx() - w * 0.5f, y, a.Cx() + w * 0.5f, y + kBarH};
+        kit.Button(b, ButtonStyle::Filled, Sym::kDownload, download,
+                   StateOf(view, {Id::DownloadPacks}));
+        AddHit(b, {Id::DownloadPacks}, area);
+        DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+        return;
+    }
+    {
+        const Rect b{c.x0, c.y0, c.x0 + ButtonWidth(kit, download, true, 24.0f), c.y0 + kBarH};
+        kit.Button(b, ButtonStyle::Tonal, Sym::kDownload, download,
+                   StateOf(view, {Id::DownloadPacks}));
+        AddHit(b, {Id::DownloadPacks}, area);
     }
 
     struct Item {
@@ -654,7 +735,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         }
     }
 
-    const float top = c.y0;
+    const float top = c.y0 + kBarH + 8.0f;
     const Rect list{area.x0, top, area.x1, bottom};
     std::vector<float> heights;
     for (const Item& it : items) {
@@ -696,7 +777,117 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
             kit.TextMid(tx, cy, Type::Body, Tok::kOnSurface, "Off", 0, op);
         } else {
             const TexturePackItem& p = m.packs[static_cast<std::size_t>(it.index - 1)];
-            RowText(kit, tx, c.x1, cy, p.name, false, p.detail, false, op);
+            float right = c.x1;
+            if (p.downloaded) {
+                // Delete, for the packs Download Packs brought (they can come again).
+                const std::string label = LabelFor(Id::PackDelete);
+                const float w = ButtonWidth(kit, label, false, 12.0f);
+                const Rect b{c.x1 + 12.0f - w, cy - kButtonH * 0.5f, c.x1 + 12.0f,
+                             cy + kButtonH * 0.5f};
+                const bool can = !m.busy && !m.downloading;
+                const Target dt{Id::PackDelete, it.index - 1};
+                kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, dt, can));
+                if (can) {
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, dt, list);
+                }
+                right = b.x0 + 12.0f - kNameGap;
+            }
+            RowText(kit, tx, right, cy, p.name, false, p.detail, false, op);
+        }
+    }
+    kit.ClearClip();
+    ScrollIndicator(kit, list, area.x1, s);
+    DrawModsDialog(kit, DialogFor(m.dialog, view), view);
+}
+
+void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
+                                const Rect& area, float bottom) {
+    // ---- Download Packs: the back button and the title, then the title's packs ----
+    const Rect c{area.x0 + kPad, area.y0 + kTop, area.x1 - kPad, area.y1 - kPad};
+    const Rect back{c.x0 - 12.0f, c.y0, c.x0 + 36.0f, c.y0 + kBarH};
+    kit.StateLayer(back, 24.0f, Tok::kOnSurfaceVariant, StateOf(view, {Id::TexturesBack}));
+    kit.Icon(back.Cx(), back.Cy(), 24.0f, Sym::kArrowBack, false, Tok::kOnSurface);
+    AddHit(back, {Id::TexturesBack}, area);
+    kit.TextMid(back.x1 + 12.0f, back.Cy(), Type::Title, Tok::kOnSurface,
+                LabelFor(Id::DownloadPacks));
+    const float top = c.y0 + kBarH + 8.0f;
+    const Rect list{area.x0, top, area.x1, bottom};
+    if (m.downloads.empty()) {
+        EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kTexture, false, 0,
+                   "No Packs for This Game", "");
+        return;
+    }
+    std::vector<float> heights(m.downloads.size(), kRowLink);
+    const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
+    layout.max_scroll = s.max_scroll;
+    layout.scroll_step = s.step;
+    kit.Clip(list);
+    for (std::size_t i = 0; i < m.downloads.size(); i++) {
+        const float y = top + s.tops[i] - s.scroll;
+        if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
+            continue; // whole rows only
+        }
+        const PackOffer& o = m.downloads[i];
+        const int idx = static_cast<int>(i);
+        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRowLink};
+        const float cy = row.Cy();
+        AddHit(row, {Id::PackDownload, kLabelIndex}, list);
+        float right = c.x1;
+        switch (o.state) {
+        case PackOfferState::Download:
+        case PackOfferState::Failed: {
+            const std::string label = o.state == PackOfferState::Failed ? std::string("Try Again")
+                                                                        : LabelFor(Id::PackDownload);
+            const float w = ButtonWidth(kit, label, false, 24.0f);
+            const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
+            const bool on = !m.downloading;
+            kit.Button(b, ButtonStyle::Tonal, 0, label, StateOf(view, {Id::PackDownload, idx}, on));
+            if (on) {
+                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::PackDownload, idx}, list);
+            }
+            right = b.x0;
+            break;
+        }
+        case PackOfferState::Downloading: {
+            // The ring, the percent, Cancel.
+            const std::string label = LabelFor(Id::PackCancel);
+            const float w = ButtonWidth(kit, label, false, 12.0f);
+            const Rect b{c.x1 + 12.0f - w, cy - kButtonH * 0.5f, c.x1 + 12.0f, cy + kButtonH * 0.5f};
+            kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::PackCancel, idx}));
+            AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::PackCancel, idx}, list);
+            float x = b.x0 - 4.0f;
+            if (o.percent >= 0) {
+                const std::string pct = std::to_string(std::min(o.percent, 100)) + "%";
+                const float pw = kit.TextWidth(Type::Label, "100%");
+                kit.TextMid(x, cy, Type::Label, Tok::kOnSurface, pct, 2);
+                x -= pw + 12.0f;
+            }
+            if (o.percent >= 0) {
+                RingValue(kit, x - 12.0f, cy, 24.0f, static_cast<float>(o.percent) / 100.0f);
+            } else {
+                Ring(kit, x - 12.0f, cy, 24.0f, m.spin); // connecting, checking, unpacking
+            }
+            right = x - 24.0f;
+            break;
+        }
+        case PackOfferState::Installed: {
+            const std::string label = "Installed";
+            const float w = ButtonWidth(kit, label, true, 12.0f);
+            const Rect b{c.x1 - w + 12.0f, cy - kButtonH * 0.5f, c.x1 + 12.0f, cy + kButtonH * 0.5f};
+            kit.Button(b, ButtonStyle::Text, Sym::kCheck, label, State::Disabled);
+            right = b.x0 + 12.0f;
+            break;
+        }
+        }
+        const float text_right = right - kNameGap;
+        RowText(kit, c.x0, text_right, cy + kLinkNameDy, o.name, false, "", false, 1.0f, true);
+        const bool failed = o.state == PackOfferState::Failed;
+        const std::string rest = failed ? o.note : JoinDetail({o.size_text, o.note});
+        const bool link = !LinkText(o.url).empty();
+        const Rect l = CreatedBy(kit, c.x0, text_right, cy + kLinkLineDy, o.author, link,
+                                 StateOf(view, {Id::PackLink, idx}), rest, failed, 1.0f);
+        if (link && l.W() > 0.0f) {
+            AddHit(LinkTarget(l, row), {Id::PackLink, idx}, list);
         }
     }
     kit.ClearClip();

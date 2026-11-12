@@ -98,6 +98,12 @@ enum class Id : int {
     TexturePreload,
     RestartGame,    ///< the snackbar's Restart
     ModLink,        ///< "Created by <author>": index into the page's list (loaded or available)
+    DownloadPacks,  ///< the Textures segment: opens Download Packs
+    TexturesBack,   ///< Download Packs' back button
+    PackDownload,   ///< index: mods.textures.downloads (Download / Try Again)
+    PackCancel,     ///< index: mods.textures.downloads
+    PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
+    PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -183,6 +189,7 @@ struct MenuView {
     float drag_t = 0.0f;
     ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab
     ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
+    TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
     std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
     bool operator==(const MenuView&) const = default;
 };
@@ -268,6 +275,9 @@ private:
     /// over it must end.
     float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area);
     void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
+    /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
+    void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
+                           const Rect& area, float bottom);
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;

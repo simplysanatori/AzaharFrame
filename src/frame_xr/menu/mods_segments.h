@@ -27,6 +27,8 @@ namespace FrameXr::Menu {
 
 /// The Mods segment's two pages.
 enum class ModsPage : uint8_t { Loaded, Install };
+/// The Textures segment's two pages.
+enum class TexturesPage : uint8_t { Packs, Download };
 
 /// One row of the loaded list (Mods::ModInfo).
 struct ModRow {
@@ -70,7 +72,10 @@ enum class ModsDialogKind : uint8_t {
     Replace, ///< "Install <mod>?", "Replaces <other>": Cancel, Replace
     Remove,  ///< your own files: "Remove <mod>?", "Its Files Are Deleted": Cancel, Remove
     Blocked, ///< a conflict with your own files: "Remove <other> First": OK
-    OpenLink, ///< "Open GitHub?", "This opens <other> in Steam's browser.": Cancel, Open
+    OpenLink, ///< "Open GitHub?" (or "Open <host>?", `mod` = the host), "This opens <other> in
+              ///< Steam's browser.": Cancel, Open
+    BigDownload, ///< "Download <other>?" (the size), `mod` = the pack: Cancel, Download
+    DeletePack,  ///< "Delete <mod>?", "You can download it again.": Cancel, Delete
 };
 
 struct ModsDialog {
@@ -97,7 +102,29 @@ struct TexturePackItem {
     std::string name;   ///< "4K", "1080p", "4K (PNG)" or the pack.json name
     std::string detail; ///< one line: "Henriko Magnifico · 6.0.0 · ASTC/KTX · 2.1 GB" ("" = none)
     bool active = false;
+    bool downloaded = false; ///< from Download Packs: it has Delete
     bool operator==(const TexturePackItem&) const = default;
+};
+
+/// What a downloadable pack's row ends with.
+enum class PackOfferState : uint8_t {
+    Download,    ///< the Download button
+    Downloading, ///< a progress ring, the percent and Cancel
+    Installed,   ///< in the pack list
+    Failed,      ///< `note` is the error, the button is Try Again
+};
+
+/// One pack of Download Packs (CustomTex::Download::PackInfo).
+struct PackOffer {
+    std::string id;
+    std::string name;
+    std::string author;
+    std::string url;       ///< the author's page (https; ModRow::url)
+    std::string size_text; ///< "2.1 GB", "" unknown
+    PackOfferState state = PackOfferState::Download;
+    int percent = -1;      ///< Downloading: 0 to 100, -1 unknown
+    std::string note;      ///< Downloading: the phase ("Unpacking"); Failed: why
+    bool operator==(const PackOffer&) const = default;
 };
 
 struct TexturesModel {
@@ -106,12 +133,22 @@ struct TexturesModel {
     bool preload = false;               ///< Settings::values.preload_textures
     bool busy = false;                  ///< a switch of packs runs
     bool needs_restart = false;         ///< the snackbar
+    std::vector<PackOffer> downloads;   ///< Download Packs, for the title
+    bool downloading = false;           ///< a download runs: the other Download buttons wait
+    ModsDialog dialog;                  ///< BigDownload, DeletePack
+    int spin = 0;                       ///< the progress ring's step while a download runs
     bool operator==(const TexturesModel&) const = default;
 };
 
 /// "github.com/owner/repo" for a link the menu may open: https://github.com/<owner>/<repo> only
 /// (letters, digits, '-', '_', '.'); "" for anything else.
 std::string GithubLinkText(const std::string& url);
+
+/// "host/path" for a link the menu may open: an https address with a plain host and path; "" for
+/// anything else. The Qt side opens only links it put in the model itself.
+std::string LinkText(const std::string& url);
+/// The host of such a link ("github.com"), "" when LinkText refuses it.
+std::string LinkHost(const std::string& url);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);

@@ -21,6 +21,8 @@
 #include <fmt/format.h>
 
 #include "common/logging/log.h"
+#include "core/cheats/online.h"
+#include "core/custom_tex/download.h"
 #include "core/mods/library.h"
 #include "frame_xr/frame_xr.h"
 
@@ -118,6 +120,8 @@ std::string PackDetail(const CustomTex::Pack& p) {
 FrameMods::FrameMods(QObject* parent) : QObject(parent) {
     progress = new QTimer(this);
     connect(progress, &QTimer::timeout, this, [this] { PollProgress(); });
+    download_poll = new QTimer(this);
+    connect(download_poll, &QTimer::timeout, this, [this] { PollDownload(); });
 }
 
 FrameMods::~FrameMods() = default;
@@ -132,6 +136,9 @@ void FrameMods::Open(u64 title_id_, int run_) {
         packs.clear();
         failed.clear();
         pending = {};
+        pack_pending = {};
+        pack_failed.clear();
+        pack_error.clear();
         PublishMods();
         PublishTextures();
     }
@@ -140,6 +147,10 @@ void FrameMods::Open(u64 title_id_, int run_) {
     }
     RefreshLoaded();
     RefreshPacks();
+    if (!downloader) {
+        downloader = std::make_shared<CustomTex::Download::Downloader>();
+    }
+    ListPackDownloads(); // which packs it brought (Delete), and a download that still runs
     if (mods.catalog == Menu::CatalogState::Ready) {
         RefreshAvailable();
     }
@@ -214,9 +225,64 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         }
         return;
     }
-    case C::OpenUrl:
-        // Only an author's GitHub page (the menu asked "Open GitHub?" first).
-        if (!Menu::GithubLinkText(r.text).empty()) {
+    case C::LoadPackDownloads:
+        LoadPackDownloads();
+        return;
+    case C::DownloadPack: {
+        const Menu::PackOffer* o = PackOffer(r.text);
+        if (!o || textures.downloading || !downloader) {
+            return;
+        }
+        const auto size = offer_sizes.find(r.text);
+        if (size != offer_sizes.end() && size->second > 1'000'000'000) { // a big one: say how big first
+            pack_pending = {Pending::Kind::Download, r.text};
+            textures.dialog = {Menu::ModsDialogKind::BigDownload, o->name, o->size_text};
+            PublishTextures();
+            return;
+        }
+        StartDownload(r.text);
+        return;
+    }
+    case C::CancelPackDownload:
+        if (downloader && textures.downloading) {
+            LOG_INFO(Frontend, "xr: texture packs: download cancelled");
+            downloader->Cancel();
+        }
+        return;
+    case C::DeletePack: {
+        const auto it = std::find_if(packs.begin(), packs.end(),
+                                     [&r](const CustomTex::Pack& p) { return p.id == r.text; });
+        if (it == packs.end() || textures.busy || textures.downloading) {
+            return;
+        }
+        pack_pending = {Pending::Kind::Delete,
+                        std::filesystem::path(it->path).filename().string()};
+        textures.dialog = {Menu::ModsDialogKind::DeletePack, it->name, {}};
+        PublishTextures();
+        return;
+    }
+    case C::TexturesDialog: {
+        const Pending p = std::exchange(pack_pending, {});
+        textures.dialog = {};
+        PublishTextures();
+        if (r.value == 0) {
+            return;
+        }
+        if (p.kind == Pending::Kind::Download) {
+            StartDownload(p.id);
+        } else if (p.kind == Pending::Kind::Delete) {
+            DeletePack(p.id);
+        }
+        return;
+    }
+    case C::OpenUrl: {
+        // Only a page the menu showed: a mod's GitHub repository or a pack author's page from
+        // the catalog (the menu asked "Open <host>?" first).
+        bool known = !Menu::GithubLinkText(r.text).empty();
+        for (const Menu::PackOffer& o : textures.downloads) {
+            known |= o.url == r.text;
+        }
+        if (known && !Menu::LinkText(r.text).empty()) {
             // Steam's own browser, as other apps on the Frame show pages in the headset; the
             // desktop's browser only when Steam is not running.
             const QString url = QString::fromStdString(r.text);
@@ -230,6 +296,7 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             }
         }
         return;
+    }
     default:
         return;
     }
@@ -457,7 +524,10 @@ void FrameMods::RefreshPacks() {
             packs = list;
             textures.packs.clear();
             for (const CustomTex::Pack& p : packs) {
-                textures.packs.push_back({p.id, p.name, PackDetail(p), p.active});
+                const bool mine =
+                    p.managed &&
+                    downloaded.count(std::filesystem::path(p.path).filename().string()) != 0;
+                textures.packs.push_back({p.id, p.name, PackDetail(p), p.active, mine});
             }
             PublishTextures();
             ComputeSizes();
@@ -539,4 +609,207 @@ void FrameMods::SelectPack(const std::string& id) {
 
 void FrameMods::PublishTextures() {
     FrameXr::SetInGameMenuTextures(textures);
+}
+
+// ---- Download Packs ----
+
+void FrameMods::LoadPackDownloads() {
+    if (!downloader) {
+        downloader = std::make_shared<CustomTex::Download::Downloader>();
+    }
+    ListPackDownloads();
+    if (catalog_fetched) {
+        return;
+    }
+    catalog_fetched = true;
+    // The catalog's latest copy: one request a run, the compiled-in copy without it.
+    const auto dl = downloader;
+    OffThread(
+        this,
+        [dl] {
+            namespace D = CustomTex::Download;
+            const auto r = Cheats::Online::HttpsGetRaw(
+                "https://raw.githubusercontent.com",
+                fmt::format("/{}/main/{}", D::kOwnerRepo, D::kCatalogPath), 1024 * 1024);
+            if (r.status != 200 || !r.error.empty()) {
+                return false;
+            }
+            auto parsed = D::ParseCatalog(r.body);
+            if (!parsed || parsed->packs.empty()) {
+                return false;
+            }
+            dl->SetCatalog(std::move(*parsed));
+            return true;
+        },
+        [this](bool updated) {
+            if (updated) {
+                ListPackDownloads();
+            }
+        });
+}
+
+void FrameMods::ListPackDownloads() {
+    if (!downloader) {
+        return;
+    }
+    const auto dl = downloader;
+    const u64 tid = title_id;
+    OffThread(
+        this, [dl, tid] { return dl->ListForTitle(tid); },
+        [this, tid](const std::vector<CustomTex::Download::PackInfo>& list) {
+            if (tid == title_id) {
+                SetOffers(list);
+            }
+        });
+}
+
+void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list) {
+    const CustomTex::Download::State st = downloader->GetState();
+    const bool running = st.Busy() && download_title == title_id;
+    std::vector<Menu::PackOffer> offers;
+    bool new_folders = false;
+    offer_sizes.clear();
+    for (const CustomTex::Download::PackInfo& p : list) {
+        offer_sizes[p.id] = p.size;
+        for (const std::string& f : p.folders) {
+            new_folders |= downloaded.insert(f).second;
+        }
+        Menu::PackOffer o;
+        o.id = p.id;
+        o.name = p.name;
+        o.author = p.author;
+        o.url = Menu::LinkText(p.author_url).empty() ? std::string{} : p.author_url;
+        o.size_text = p.size_text;
+        if (running && st.pack_id == p.id) {
+            o.state = Menu::PackOfferState::Downloading;
+        } else if (p.installed) {
+            o.state = Menu::PackOfferState::Installed;
+        } else if (p.id == pack_failed) {
+            o.state = Menu::PackOfferState::Failed;
+            o.note = pack_error;
+        }
+        offers.push_back(std::move(o));
+    }
+    textures.downloads = std::move(offers);
+    textures.downloading = running;
+    if (running) {
+        PollDownload(); // the percent at once
+    }
+    PublishTextures();
+    if (new_folders) {
+        RefreshPacks(); // Delete on the packs it brought
+    }
+}
+
+Menu::PackOffer* FrameMods::PackOffer(const std::string& id) {
+    for (Menu::PackOffer& o : textures.downloads) {
+        if (o.id == id) {
+            return &o;
+        }
+    }
+    return nullptr;
+}
+
+void FrameMods::StartDownload(const std::string& id) {
+    Menu::PackOffer* o = PackOffer(id);
+    if (!o || !downloader || textures.downloading) {
+        return;
+    }
+    if (!downloader->Start(id, title_id)) { // returns at once; the work runs on its thread
+        LOG_WARNING(Frontend, "xr: texture packs: download {} did not start", id);
+        return;
+    }
+    LOG_INFO(Frontend, "xr: texture packs: download {}", id);
+    download_title = title_id;
+    pack_failed.clear();
+    pack_error.clear();
+    o->state = Menu::PackOfferState::Downloading;
+    o->percent = -1;
+    o->note = "Connecting";
+    textures.downloading = true;
+    PublishTextures();
+    download_poll->start(250);
+}
+
+void FrameMods::PollDownload() {
+    if (!downloader) {
+        download_poll->stop();
+        return;
+    }
+    using Phase = CustomTex::Download::State::Phase;
+    const CustomTex::Download::State st = downloader->GetState();
+    if (st.Busy()) {
+        if (download_title != title_id) {
+            return; // another game's download: nothing of it shows
+        }
+        if (Menu::PackOffer* o = PackOffer(st.pack_id)) {
+            Menu::PackOffer next = *o;
+            next.state = Menu::PackOfferState::Downloading;
+            next.note = st.text;
+            next.percent = st.phase == Phase::Downloading && st.bytes_total > 0
+                               ? static_cast<int>(std::min<u64>(
+                                     st.bytes_done * 100 / st.bytes_total, 100))
+                               : -1;
+            if (!(next == *o)) {
+                *o = std::move(next);
+                PublishTextures();
+            }
+        }
+        return;
+    }
+    download_poll->stop();
+    textures.downloading = false;
+    if (download_title != title_id) {
+        return;
+    }
+    switch (st.phase) {
+    case Phase::Done:
+        LOG_INFO(Frontend, "xr: texture packs: {} downloaded", st.pack_id);
+        for (const std::string& f : st.installed) {
+            downloaded.insert(f);
+        }
+        RefreshPacks();
+        break;
+    case Phase::Failed:
+        LOG_WARNING(Frontend, "xr: texture packs: download {} failed: {}", st.pack_id, st.error);
+        pack_failed = st.pack_id;
+        pack_error = st.error.empty() ? std::string("Download Failed") : st.error;
+        break;
+    default: // Cancelled: the partial download is kept, Download goes on from there
+        break;
+    }
+    ListPackDownloads();
+}
+
+void FrameMods::DeletePack(const std::string& folder) {
+    if (!downloader || textures.busy || textures.downloading) {
+        return;
+    }
+    bool was_active = false;
+    for (const CustomTex::Pack& p : packs) {
+        was_active |= p.active && p.managed &&
+                      std::filesystem::path(p.path).filename().string() == folder;
+    }
+    textures.busy = true;
+    PublishTextures();
+    const auto dl = downloader;
+    const u64 tid = title_id;
+    LOG_INFO(Frontend, "xr: texture packs: delete {}", folder);
+    OffThread(
+        this, [dl, tid, folder] { return dl->Delete(tid, folder); },
+        [this, tid, folder, was_active](const CustomTex::Download::Result& out) {
+            textures.busy = false;
+            if (tid != title_id) {
+                return;
+            }
+            if (out.ok) {
+                downloaded.erase(folder);
+                textures.needs_restart |= was_active; // the game still has its textures
+            } else {
+                LOG_WARNING(Frontend, "xr: texture packs: delete {} failed: {}", folder, out.error);
+                FrameXr::ShowToastText("Texture Pack Not Deleted");
+            }
+            RefreshPacks();
+            ListPackDownloads();
+        });
 }

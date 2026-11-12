@@ -12,10 +12,17 @@
 // <name>" (Replace installs with replace = true, which keeps the other mod in the library); one
 // that conflicts with your own files says to remove them first. Removing your own files asks too.
 // Every change applies from the next start of the game (the snackbar's Restart).
+//
+// Download Packs (core/custom_tex/download.h): one Downloader for the session; a download over
+// 1 GB asks "Download 2.1 GB?" first, and Delete (downloaded packs only) asks too. Finished packs
+// show up in the pack list.
 
 #pragma once
 
 #include <functional>
+#include <map>
+#include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -25,6 +32,10 @@
 #include "core/custom_tex/packs.h"
 #include "frame_xr/menu/mods_segments.h"
 
+namespace CustomTex::Download {
+class Downloader;
+struct PackInfo;
+} // namespace CustomTex::Download
 namespace FrameXr {
 struct MenuRequest;
 }
@@ -39,14 +50,15 @@ public:
     /// same game clears the snackbar): read its mods and packs and publish them.
     void Open(u64 title_id, int run);
     /// One of the segments' commands (SelectTexturePack, LoadModCatalog, InstallMod,
-    /// SetModActive, RemoveMod, ModsDialog).
+    /// SetModActive, RemoveMod, ModsDialog, OpenUrl, LoadPackDownloads, DownloadPack,
+    /// CancelPackDownload, DeletePack, TexturesDialog).
     void Command(const FrameXr::MenuRequest& request);
     /// Custom Textures or Preload changed (the Qt side saved it): the snackbar.
     void TextureSettingChanged();
 
 private:
     struct Pending {
-        enum class Kind { None, Install, Remove } kind = Kind::None;
+        enum class Kind { None, Install, Remove, Download, Delete } kind = Kind::None;
         std::string id;
     };
 
@@ -61,6 +73,13 @@ private:
     void PollProgress();
     void PublishMods();
     void PublishTextures();
+    void LoadPackDownloads();
+    void ListPackDownloads();
+    void StartDownload(const std::string& id);
+    void DeletePack(const std::string& folder);
+    void PollDownload();
+    void SetOffers(const std::vector<CustomTex::Download::PackInfo>& list);
+    FrameXr::Menu::PackOffer* PackOffer(const std::string& id);
     FrameXr::Menu::ModOffer* Offer(const std::string& id);
 
     u64 title_id = 0;
@@ -71,6 +90,14 @@ private:
     std::string installing;             ///< the mod an install runs for
     std::string failed;                 ///< the mod whose last install failed
     Pending pending;                    ///< what the dialog's Replace / Remove does
+    Pending pack_pending;               ///< what the Textures dialog's Download / Delete does
+    std::shared_ptr<CustomTex::Download::Downloader> downloader; ///< one for the session
+    bool catalog_fetched = false;       ///< the texture catalog's one request a run
+    std::set<std::string> downloaded;   ///< folder names Download Packs installed (for Delete)
+    std::map<std::string, u64> offer_sizes; ///< the offers' sizes in bytes (0 unknown)
+    std::string pack_failed, pack_error; ///< the pack whose last download failed, and why
+    u64 download_title = 0;             ///< the title the running download is for
+    QTimer* download_poll = nullptr;
     bool sizing = false;
     QTimer* progress = nullptr;
 };

@@ -340,6 +340,15 @@ void MenuPanel::BuildModel(const Host& host) {
                                                 .count() /
                                             66);
     }
+    if (m.mods.textures.downloading && view.tab == Menu::Tab::Mods &&
+        view.mods_segment == Menu::ModsSegment::Textures &&
+        view.textures_page == Menu::TexturesPage::Download) {
+        m.mods.textures.spin = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count() /
+            66);
+    }
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
@@ -605,6 +614,39 @@ void MenuPanel::Click(Target t, Host& host) {
                                  : std::string{});
         }
         break;
+    case Id::PackDelete: // "Delete <name>?" first (the Qt side asks)
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.packs.size())) {
+            ask_text(MenuCommand::DeletePack,
+                     model.mods.textures.packs[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::DownloadPacks:
+        view.textures_page = Menu::TexturesPage::Download;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::LoadPackDownloads);
+        break;
+    case Id::TexturesBack:
+        view.textures_page = Menu::TexturesPage::Packs;
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    case Id::PackDownload:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
+            ask_text(MenuCommand::DownloadPack,
+                     model.mods.textures.downloads[static_cast<std::size_t>(t.index)].id);
+        }
+        break;
+    case Id::PackCancel:
+        ask(MenuCommand::CancelPackDownload);
+        break;
+    case Id::PackLink: // "Open <host>?" first
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.downloads.size())) {
+            const std::string& url =
+                model.mods.textures.downloads[static_cast<std::size_t>(t.index)].url;
+            if (!Menu::LinkText(url).empty()) {
+                view.open_link = url;
+            }
+        }
+        break;
     case Id::RestartGame:
         ask(MenuCommand::Restart);
         break;
@@ -649,19 +691,21 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     }
     case Id::DialogConfirm:
-        if (model.mods.mods.dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
-            ask_text(MenuCommand::OpenUrl, std::exchange(view.open_link, {}));
+    case Id::DialogCancel: {
+        // The segment's own dialog (the Qt side's), else the link's (the view's).
+        const bool textures = view.mods_segment == Menu::ModsSegment::Textures;
+        const auto& dialog = textures ? model.mods.textures.dialog : model.mods.mods.dialog;
+        const bool yes = t.id == Id::DialogConfirm;
+        if (dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
+            const std::string url = std::exchange(view.open_link, {});
+            if (yes) {
+                ask_text(MenuCommand::OpenUrl, url);
+            }
         } else {
-            ask(MenuCommand::ModsDialog, 1);
+            ask(textures ? MenuCommand::TexturesDialog : MenuCommand::ModsDialog, yes ? 1 : 0);
         }
         break;
-    case Id::DialogCancel:
-        if (model.mods.mods.dialog.kind == Menu::ModsDialogKind::None && !view.open_link.empty()) {
-            view.open_link.clear();
-        } else {
-            ask(MenuCommand::ModsDialog, 0);
-        }
-        break;
+    }
     case Id::EditControls: // AzaharFrame menu: the remap lane's
         ask(MenuCommand::EditControls);
         break;
@@ -830,15 +874,24 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     // ---- B: back ----
     if (b_edge) {
         // AzaharFrame texui: the Mods segment's dialog (Cancel), then Install Mods (back).
+        // The Textures segment's the same way: its dialog, then Download Packs.
         const bool mods_shown = view.tab == Menu::Tab::Mods &&
                                 view.mods_segment == Menu::ModsSegment::Mods;
+        const bool textures_shown = view.tab == Menu::Tab::Mods &&
+                                    view.mods_segment == Menu::ModsSegment::Textures;
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);
+        } else if (textures_shown &&
+                   (model.mods.textures.dialog.kind != Menu::ModsDialogKind::None ||
+                    !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
         } else if (mods_shown && view.mods_page == Menu::ModsPage::Install) {
             Click({Id::ModsBack}, host);
+        } else if (textures_shown && view.textures_page == Menu::TexturesPage::Download) {
+            Click({Id::TexturesBack}, host);
         } else if (view.page != Menu::Page::Tabs) {
             view.page = Menu::Page::Tabs;
         } else {
