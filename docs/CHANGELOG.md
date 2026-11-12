@@ -27,13 +27,14 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Texture packs
 
+- Several packs can be on at once, like Modern Pokemon Sprites on top of 5X Redrawn UI in Pokémon X and Y. I put the parts of every pack that's on in one list, **Enabled Textures**. When two change the same texture, the higher one wins, and **Move Up** and **Move Down** set the order. A pack made to go on top of another goes above it by itself.
 - **Customize** on a pack turns its parts on or off, such as characters or backgrounds. When two parts change the same texture, the one higher in the list wins. **Move Up** and **Move Down** set the order.
 - Packs that come in variants install as one pack. You pick the variant on its **Customize** page.
 - **Optimize for Frame** converts a PNG pack to ASTC, which the Frame's GPU reads as it is. It is now on a pack's **Customize** page in the headset too.
 - The converter is built in, so it needs no compiler. It uses Arm's astcenc.
 - **Remove Original** deletes the PNG pack once the optimized copy is in use.
 - A PNG pack over 1 GB suggests **Optimize for Frame** once.
-- In Flat, **Customize Texture Pack...** is in the game list's right-click menu.
+- In Flat, **Customize Texture Pack...** is in the game list's right-click menu, with the game's packs and their order at the top.
 
 ### Crash protection
 
