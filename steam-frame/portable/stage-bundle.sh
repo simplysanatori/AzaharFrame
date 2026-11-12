@@ -40,9 +40,17 @@ for d in platforms xcbglintegrations wayland-shell-integration wayland-graphics-
     [ -d "$QT/plugins/$d" ] && cp -a "$QT/plugins/$d" "$OUT/plugins/"
 done
 find "$OUT/plugins/platforms" -name '*.so' ! -name 'libqxcb.so' ! -name 'libqwayland*.so' \
-    ! -name 'libqoffscreen.so' ! -name 'libqminimal.so' -delete
+    ! -name 'libqoffscreen.so' -delete
 # the GTK theme needs GTK, which SteamOS may not have; the KDE and others would need their own libraries
 find "$OUT/plugins/platformthemes" -name '*.so' ! -name 'libqxdgdesktopportal.so' -delete 2> /dev/null || true
+# Plugins nothing here uses (the program is Vulkan-only and makes no Qt network or TLS connection; SteamOS has KDE's
+# xdg-shell, no IBus): the other platform and Wayland shell plugins, the GL integrations (the Wayland graphics ones and
+# the xcb GLX and EGL ones), TLS and network information, and the GIF and ICO readers.  Their libraries (libQt6OpenGL,
+# libQt6WlShellIntegration) then fall out of the scan below.  libqoffscreen stays: release/portable.sh starts with it.
+rm -rf "$OUT/plugins/wayland-graphics-integration-client" "$OUT/plugins/xcbglintegrations" "$OUT/plugins/tls" \
+       "$OUT/plugins/networkinformation"
+find "$OUT/plugins/wayland-shell-integration" -name '*.so' ! -name 'libxdg-shell.so' -delete 2> /dev/null || true
+find "$OUT/plugins/imageformats" -name 'libqgif.so' -delete -o -name 'libqico.so' -delete 2> /dev/null || true
 # No Qt Multimedia backend: Qt's FFmpeg backend needs FFmpeg 7's libraries and the GStreamer one needs GStreamer,
 # and both are what a SteamOS update moves (FFmpeg 8).  Azahar uses Multimedia only for the 3DS camera, which then
 # lists no cameras.
