@@ -33,6 +33,7 @@
 #include "frame_xr/swkbd_panel.h"           // AzaharFrame kbd
 #include "frame_xr/overlays.h"
 #include "frame_xr/qt_mirror/mirror_panel.h"
+#include "frame_xr/startup_escape.h" // AzaharFrame memguard
 #include "frame_xr/vis/visuals.h" // AzaharFrame vrvis
 
 namespace frame_xr::picker {
@@ -267,6 +268,9 @@ private:
     /// After a VR / flat switch the chord's buttons stay away from everything until all four
     /// were let go, at least 1 s into the new mode (see ChordLatch).
     Input::ChordLatch mode_latch;
+    /// AzaharFrame memguard: Menu or View held 3 s while a game starts
+    StartupEscape startup_escape;
+    void StartupEscapeTick(const FrameInfo& info, const Input::InputFrame& in, bool have_input);
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes

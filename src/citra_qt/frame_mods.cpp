@@ -39,6 +39,7 @@
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
+#include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
@@ -416,6 +417,20 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         textures.dialog = {Menu::ModsDialogKind::DeletePack, it->name,
                            zip_packs.count(pack_pending.id) ? "You can install it again from its zip."
                                                             : ""};
+        PublishTextures();
+        return;
+    }
+    case C::AskPreload: { // AzaharFrame memguard: this moment's numbers (frame_preload_confirm.h)
+        if (textures.dialog.kind != Menu::ModsDialogKind::None) {
+            return; // another question is open
+        }
+        const VideoCore::PreloadBudget::ConfirmText t = FramePreloadConfirmText();
+        pack_pending = {Pending::Kind::Preload, {}};
+        Menu::ModsDialog& d = textures.dialog;
+        d = {Menu::ModsDialogKind::Preload, t.body, t.status_text};
+        d.rows = t.rows;
+        d.status = static_cast<int>(t.status);
+        d.title = t.title;
         PublishTextures();
         return;
     }

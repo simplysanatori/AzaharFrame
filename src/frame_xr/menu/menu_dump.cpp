@@ -24,6 +24,7 @@
 #include <lodepng.h>
 
 #include "frame_xr/input/controls.h"
+#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
@@ -352,7 +353,10 @@ int main(int argc, char** argv) {
             Input::kReticleHint, Input::kMouseHint,
             "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
             "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
-            "Preparing Shaders 3 / 9"}; // AzaharFrame integ3: the stall lane's shader notice
+            "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
+            VideoCore::PreloadBudget::kTooLargeToast, // AzaharFrame memguard
+            VideoCore::PreloadBudget::kStoppedToast,
+            "Stopping..."};
         ui::Canvas cv;
         cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
         cv.Clear(Rgb(kBackdrop));
@@ -830,6 +834,32 @@ int main(int argc, char** argv) {
         dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
         v.hover = {Id::DialogConfirm};
         ok &= shot("textures-delete", dp, v);
+        // AzaharFrame memguard: Preload Textures? with this machine's memory now (run the dump
+        // inside the launcher's scope to see Azahar's Limit): OoT3D 4K as ASTC (6034295947
+        // bytes) and a 0.9 GB pack, or AZAHARFRAME_DUMP_PRELOAD_BIG / _SMALL bytes
+        {
+            namespace PB = VideoCore::PreloadBudget;
+            const auto bytes = [](const char* env, std::uint64_t fallback) {
+                const char* e = std::getenv(env);
+                return e && *e ? std::strtoull(e, nullptr, 10) : fallback;
+            };
+            const std::pair<const char*, std::uint64_t> cases[] = {
+                {"preload-too-large", bytes("AZAHARFRAME_DUMP_PRELOAD_BIG", 6034295947ULL)},
+                {"preload-fits", bytes("AZAHARFRAME_DUMP_PRELOAD_SMALL", 900'000'000ULL)},
+            };
+            for (const auto& [name, need] : cases) {
+                const PB::ConfirmText t =
+                    PB::MakeConfirmText(PB::Summarize(need, PB::ReadRoom(), PB::ReserveFromEnv()));
+                MenuModel pm = dp;
+                ModsDialog& d = pm.mods.textures.dialog;
+                d = {ModsDialogKind::Preload, t.body, t.status_text};
+                d.rows = t.rows;
+                d.status = static_cast<int>(t.status);
+                d.title = t.title;
+                v.hover = {Id::DialogConfirm};
+                ok &= shot(name, pm, v);
+            }
+        }
         // AzaharFrame zipinstall: Install from Zip; AzaharFrame ui2: on Download Packs
         v.textures_page = TexturesPage::Download;
         v.hover = {Id::InstallFromZip, 0};

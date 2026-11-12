@@ -5,6 +5,8 @@
 #pragma once
 
 #include <list>
+#include <mutex>    // AzaharFrame memguard
+#include <optional> // AzaharFrame memguard
 #include <span>
 #include <unordered_map>
 #include <unordered_set>
@@ -23,6 +25,14 @@ struct FSTEntry;
 namespace VideoCore {
 
 class SurfaceParams;
+
+/// AzaharFrame memguard: how a preload ended (EmuThread tells the player when it did not happen)
+enum class PreloadResult {
+    Done,      ///< every texture is in memory
+    Declined,  ///< the pack would not fit in the memory there is: loaded as needed instead
+    Stopped,   ///< memory ran low part way: what was read is dropped, loaded as needed instead
+    Cancelled, ///< the game was stopped meanwhile
+};
 
 struct AsyncUpload {
     Material* material;
@@ -46,9 +56,14 @@ public:
     /// Saves the pack configuration file template to the dump directory if it doesn't exist.
     void PrepareDumping(u64 title_id);
 
-    /// Preloads all registered custom textures
-    void PreloadTextures(const std::atomic_bool& stop_run,
-                         const VideoCore::DiskResourceLoadCallback& callback);
+    /// Preloads all registered custom textures. AzaharFrame memguard: only when they fit in the
+    /// memory there is (video_core/custom_textures/preload_budget.h)
+    PreloadResult PreloadTextures(const std::atomic_bool& stop_run,
+                                  const VideoCore::DiskResourceLoadCallback& callback);
+
+    /// AzaharFrame memguard: the memory a preload of the loaded pack would hold, in bytes (0 when
+    /// no pack is loaded). Worked out once; any thread once the game has booted
+    u64 PreloadEstimate();
 
     /// Saves the provided pixel data described by params to disk as png
     void DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data, u64 data_hash);
@@ -85,6 +100,12 @@ private:
     /// AzaharFrame: drops the CPU copy of an uploaded DDS/KTX material no queued upload needs
     void ReleaseUploaded(Material* material);
 
+    /// AzaharFrame memguard: the memory a preload of every material would hold, in bytes
+    u64 EstimatePreload() const;
+
+    /// AzaharFrame memguard: every material back to unloaded (a preload that stopped)
+    void DropPreloaded();
+
 private:
     Core::System& system;
     Frontend::ImageInterface& image_interface;
@@ -98,8 +119,13 @@ private:
     std::vector<std::unique_ptr<CustomTexture>> custom_textures;
     std::list<AsyncUpload> async_uploads;
     std::unique_ptr<Common::ThreadWorker> workers;
-    bool textures_loaded{false};
+    // AzaharFrame memguard: atomic, PreloadEstimate reads it on the GUI thread
+    std::atomic_bool textures_loaded{false};
     bool async_custom_loading{true};
+    /// AzaharFrame memguard: a preload finished; uploads drop the DDS/KTX copies
+    bool preloaded{false};
+    std::mutex estimate_mutex;   ///< AzaharFrame memguard
+    std::optional<u64> estimate; ///< AzaharFrame memguard: PreloadEstimate's
     bool skip_mipmap{false};
     bool flip_png_files{true};
     bool use_new_hash{true};

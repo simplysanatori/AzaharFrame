@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio> // AzaharFrame memguard
 #include <cstdlib>
 #include <utility>
 
@@ -1307,6 +1308,8 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         launch_pending = false; // the boot failed or was refused; allow another pick
     }
 
+    StartupEscapeTick(info, in, have_input); // AzaharFrame memguard
+
     const bool want_menu = game_running && menu_open && mirror.Enabled();
     if (want_menu && !menu_shown) {
         EnterMenu();
@@ -1404,6 +1407,44 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
                   cursor_chain.handle, dim_chain.handle);
     AddMouseRing(info, layers); // AzaharFrame padsui
     last_time = info.display_time;
+}
+
+// AzaharFrame memguard: until a game's screens are live GameFrame does nothing (no mapper), so a
+// long or stuck start (a big texture preload) had no way out. Menu or View held 3 s stops the
+// game; still running 10 s later (stuck), Azahar quits. frame_xr/startup_escape.h.
+void VrUi::StartupEscapeTick(const FrameInfo& info, const Input::InputFrame& in, bool have_input) {
+    const bool running = game_running;
+    const bool bumper = in.hand[0].bumper || in.hand[1].bumper;
+    const bool held = have_input && !menu_shown && (in.menu || in.view) && !bumper;
+    const bool starting = running && !info.screens_live;
+    switch (startup_escape.Update(starting, running, held, info.display_time)) {
+    case StartupEscape::Action::None:
+        break;
+    case StartupEscape::Action::ShowStopping:
+        LOG_INFO(Frontend, "xr: {} held while the game starts (it stops at 3 s)",
+                 in.menu ? "Menu" : "View");
+        ShowToastText(kStoppingText);
+        break;
+    case StartupEscape::Action::HideStopping:
+        HideToastText(kStoppingText);
+        break;
+    case StartupEscape::Action::Stop: {
+        LOG_WARNING(Frontend, "xr: {} held 3 s while the game starts: stopping the game",
+                    in.menu ? "Menu" : "View");
+        ShowToastText(kStoppingText);
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.stop_game) {
+            hooks.stop_game();
+        }
+        break;
+    }
+    case StartupEscape::Action::Quit:
+        LOG_CRITICAL(Frontend, "xr: the game did not stop within 10 s of the request: quitting");
+        std::fprintf(stderr, "azahar: the game did not stop within 10 s of the stop held in VR, "
+                             "quitting\n");
+        std::fflush(stderr);
+        std::_Exit(3);
+    }
 }
 
 void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,

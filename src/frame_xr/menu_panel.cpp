@@ -1225,7 +1225,13 @@ void MenuPanel::Click(Target t, Host& host) {
         SetSetting(t.id, model.mods.textures.custom_textures ? 0 : 1, host);
         break;
     case Id::TexturePreload:
-        SetSetting(t.id, model.mods.textures.preload ? 0 : 1, host);
+        if (model.mods.textures.preload) {
+            SetSetting(t.id, 0, host);
+        } else {
+            // AzaharFrame memguard: "Preload Custom Textures" with the memory numbers first (the Qt
+            // side fills the Textures dialog); Turn On sets it below
+            ask(MenuCommand::AskPreload, 1);
+        }
         break;
     case Id::TexturePack:
         if (t.index >= 0 && t.index <= static_cast<int>(model.mods.textures.packs.size())) {
@@ -1443,6 +1449,14 @@ void MenuPanel::Click(Target t, Host& host) {
             if (yes) {
                 ask_text(MenuCommand::OpenUrl, url);
             }
+        } else if (textures && dialog.kind == Menu::ModsDialogKind::Preload) {
+            // AzaharFrame memguard: Turn On is the setting's own change (per game or global as
+            // the switch is); the Qt side only closes its question
+            if (yes) {
+                LOG_INFO(Frontend, "xr: in-game menu: Preload Custom Textures: Turn On");
+                SetSetting(Id::TexturePreload, 1, host);
+            }
+            ask(MenuCommand::TexturesDialog, 0);
         } else {
             ask(textures ? MenuCommand::TexturesDialog : MenuCommand::ModsDialog, yes ? 1 : 0);
         }

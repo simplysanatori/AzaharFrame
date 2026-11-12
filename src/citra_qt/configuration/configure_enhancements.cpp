@@ -5,6 +5,9 @@
 #include <QColorDialog>
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_enhancements.h"
+#ifdef ENABLE_FRAME_XR
+#include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#endif
 #include "common/settings.h"
 #include "ui_configure_enhancements.h"
 #ifdef ENABLE_OPENGL
@@ -35,6 +38,27 @@ ConfigureEnhancements::ConfigureEnhancements(QWidget* parent)
         if (!ui->toggle_preload_textures->isEnabled())
             ui->toggle_preload_textures->setChecked(false);
     });
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame memguard: turning Preload on asks first, with the memory numbers
+    // (frame_preload_confirm.h). Connected after SetColoredTristate's own click handler, so a
+    // per-game box's state has moved on already; Cancel puts back the state before the click.
+    preload_was_checked = ui->toggle_preload_textures->isChecked();
+    preload_prev_tracker = preload_textures;
+    connect(ui->toggle_preload_textures, &QCheckBox::clicked, this, [this] {
+        QCheckBox* box = ui->toggle_preload_textures;
+        if (box->isChecked() && !preload_was_checked && !FrameAskPreload(this)) {
+            box->setChecked(false);
+            if (!Settings::IsConfiguringGlobal()) {
+                preload_textures = preload_prev_tracker;
+                box->setChecked(preload_was_checked);
+                ConfigurationShared::SetHighlight(box, preload_textures !=
+                                                           ConfigurationShared::CheckState::Global);
+            }
+        }
+        preload_was_checked = box->isChecked();
+        preload_prev_tracker = preload_textures;
+    });
+#endif
 }
 
 ConfigureEnhancements::~ConfigureEnhancements() = default;

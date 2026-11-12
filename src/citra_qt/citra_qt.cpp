@@ -51,6 +51,8 @@
 #include "citra_qt/applets/mii_selector.h"
 #include "citra_qt/applets/swkbd.h"
 #include "citra_qt/bootmanager.h"
+#include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
 #include "citra_qt/camera/qt_multimedia_camera.h"
 #include "citra_qt/camera/still_image_camera.h"
 #include "citra_qt/citra_qt.h"
@@ -408,6 +410,8 @@ std::function<void(FrameXr::FlatScreens what)> g_frame_xr_flat_screens;
 bool g_frame_fullscreen = false;
 // AzaharFrame flat4: the Flat menu left Fullscreen when it opened; it goes back when it closes.
 bool g_frame_flat_menu_fullscreen = false;
+// AzaharFrame memguard: when the "not preloaded" toast showed (loading toasts wait 4 s). GUI thread
+QElapsedTimer g_frame_preload_notice;
 // The layout a left stick click in flat goes back to from Single Screen.
 Settings::LayoutOption g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
 
@@ -1677,6 +1681,28 @@ GMainWindow::GMainWindow(Core::System& system_)
                         all.save(dir + QStringLiteral("/flat-vr-prompt-window.png"));
                         LOG_INFO(Frontend, "xr test: Switch to VR? saved");
                         FrameVrPrompt(this, FrameXr::FlatVrPrompt::No);
+                    });
+                });
+            }
+
+            // Test driver (AzaharFrame memguard): AZAHARFRAME_TEST_PRELOAD_SHOT="DIR:SECONDS" makes
+            // the Flat "Preload Textures?" dialog with the numbers of that moment (the running
+            // game's pack), saves it (flat-preload.png), and the VR one as the menu would get it
+            // (the Textures dialog, through AskPreload), then closes both.
+            if (const QString shot = qEnvironmentVariable("AZAHARFRAME_TEST_PRELOAD_SHOT");
+                shot.lastIndexOf(QLatin1Char(':')) > 0) {
+                const int colon = static_cast<int>(shot.lastIndexOf(QLatin1Char(':')));
+                const QString dir = shot.left(colon);
+                const int ms = static_cast<int>(shot.mid(colon + 1).toDouble() * 1000.0);
+                QTimer::singleShot(ms, this, [this, dir] {
+                    QDialog* d = FrameMakePreloadDialog(this, FramePreloadConfirmText());
+                    d->setAttribute(Qt::WA_DeleteOnClose);
+                    d->show();
+                    QTimer::singleShot(800, this, [d, dir] {
+                        d->grab().save(dir + QStringLiteral("/flat-preload.png"));
+                        LOG_INFO(Frontend, "xr test: Preload Textures? saved in {}",
+                                 dir.toStdString());
+                        d->close();
                     });
                 });
             }
@@ -3098,6 +3124,40 @@ void GMainWindow::BootGame(const QString& filename) {
             &GMainWindow::OnSwitchDiskResources, Qt::QueuedConnection);
     connect(emu_thread.get(), &EmuThread::HideLoadingScreen, loading_screen,
             &LoadingScreen::OnLoadComplete);
+    // AzaharFrame memguard: a texture pack too large to preload (or memory low part way) loads as
+    // needed; say so, in the headset as a toast, else on the status bar for 5 s
+    connect(
+        emu_thread.get(), &EmuThread::PreloadSkipped, this,
+        [this](bool stopped) {
+            // Both load as needed (preload_budget.h). To come with the pack page: an Optimize
+            // action that opens it.
+            const QString text =
+                QString::fromUtf8(stopped ? VideoCore::PreloadBudget::kStoppedToast
+                                          : VideoCore::PreloadBudget::kTooLargeToast);
+            LOG_WARNING(Frontend, "custom textures: told the player \"{}\"", text.toStdString());
+#ifdef ENABLE_FRAME_XR
+            if (FrameXr::VrShowing()) {
+                // Two toasts' time (4 s), with no loading toast over it meanwhile
+                g_frame_preload_notice.start();
+                FrameXr::ShowToastText(text.toStdString());
+                QTimer::singleShot(2000, this, [text] {
+                    if (FrameXr::VrShowing()) {
+                        FrameXr::ShowToastText(text.toStdString());
+                    }
+                });
+                return;
+            }
+#endif
+            if (!message_label_used_for_movie) {
+                message_label->setText(text);
+                QTimer::singleShot(5000, this, [this, text] {
+                    if (!message_label_used_for_movie && message_label->text() == text) {
+                        message_label->clear();
+                    }
+                });
+            }
+        },
+        Qt::QueuedConnection);
 #ifdef ENABLE_FRAME_XR
     // AzaharFrame stall: in VR the loading screen cannot be seen (the window is see-through), so
     // its line ("Loading Vertex Shader 12 / 40", "Preparing Shaders 3 / 9") shows as a toast.
@@ -4441,6 +4501,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::CancelModInstall: // AzaharFrame integ3
     case C::DeletePack:
     case C::TexturesDialog:
+    case C::AskPreload: // AzaharFrame memguard
     case C::TurnBackOn: // AzaharFrame compat
     // AzaharFrame ui2: Install from Zip's commands were never passed on (they fell through to the
     // setting below, as Hide Bottom Screen).
@@ -6423,6 +6484,10 @@ void GMainWindow::FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t
         return;
     }
     if (!FrameXr::VrShowing() || stage == VideoCore::LoadCallbackStage::Prepare) {
+        return;
+    }
+    // AzaharFrame memguard: the "not preloaded" notice stays on view for its 4 s
+    if (g_frame_preload_notice.isValid() && g_frame_preload_notice.elapsed() < 4000) {
         return;
     }
     const QString text = loading_screen->GetStageTranslation(stage, value, total, object);
