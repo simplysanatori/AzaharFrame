@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <fstream>
 #include <string>
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/input/controls.h"
@@ -14,6 +15,7 @@
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
+#include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/vis/model_file.h"
 #include "frame_xr/vis/stats_place.h"
 
@@ -677,4 +679,40 @@ TEST_CASE("FrameXr vis: the wrist stats face the eyes only when turned to them",
     REQUIRE_FALSE(WristShown(37.0f, false));
     REQUIRE(WristShown(37.0f, true));
     REQUIRE_FALSE(WristShown(41.0f, true));
+}
+
+// AzaharFrame vis: Background: Passthrough with the controller models shook the models, two
+// projection layers in one frame (vis/layer_plan.h).
+TEST_CASE("FrameXr vis: a frame never holds two projection layers", "[frame_xr]") {
+    const int passthrough = 0, models = 0;
+    const std::vector<int> quads(4);
+    const auto quad_at = [&](std::size_t i) { return &quads[i]; };
+    const auto projections = [&](const std::vector<const int*>& layers) {
+        return std::count(layers.begin(), layers.end(), &passthrough) +
+               std::count(layers.begin(), layers.end(), &models);
+    };
+    std::vector<const int*> out;
+
+    SECTION("passthrough with the models: the models' layer stands in for the square") {
+        AssembleLayers<const int*>(out, &passthrough, &models, 2, quads.size(), quad_at);
+        REQUIRE(projections(out) == 1);
+        REQUIRE(out == std::vector<const int*>{&quads[0], &quads[1], &models, &quads[2], &quads[3]});
+    }
+    SECTION("passthrough alone: the square, under everything") {
+        AssembleLayers<const int*>(out, &passthrough, nullptr, 2, quads.size(), quad_at);
+        REQUIRE(projections(out) == 1);
+        REQUIRE(out.front() == &passthrough);
+        REQUIRE(out.size() == quads.size() + 1);
+    }
+    SECTION("the models alone, after every quad") {
+        AssembleLayers<const int*>(out, nullptr, &models, quads.size(), quads.size(), quad_at);
+        REQUIRE(projections(out) == 1);
+        REQUIRE(out.back() == &models);
+        REQUIRE(out.size() == quads.size() + 1);
+    }
+    SECTION("neither: the quads in order") {
+        AssembleLayers<const int*>(out, nullptr, nullptr, 0, quads.size(), quad_at);
+        REQUIRE(projections(out) == 0);
+        REQUIRE(out == std::vector<const int*>{&quads[0], &quads[1], &quads[2], &quads[3]});
+    }
 }

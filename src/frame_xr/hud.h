@@ -6,6 +6,8 @@
 //  - Passthrough: the "Background" setting (Settings::values.vr_background). The runtime shows
 //    the room only when the frame is ended with XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND and holds
 //    a projection layer; this is a 16x16 fully transparent one, drawn behind every quad.
+//    AzaharFrame vis: only on frames without the controller models; their layer is transparent
+//    round them and is then the one projection layer (vis/layer_plan.h: SteamVR shakes a second).
 //    Both live in one swapchain (SteamVR allows 16 per session).
 //  - A toast: a short message ("Quick Saved") on a small quad in front of you for two seconds.
 //    The messages are drawn once into one swapchain when the session is made, so showing
