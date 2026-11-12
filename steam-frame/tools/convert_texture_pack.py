@@ -157,6 +157,18 @@ def link_or_copy(src, out):
     os.replace(tmp, out)
 
 
+def carry_parts(src, out):
+    """AzaharFrame ui3: the Customize choices go with a switch between the pair (both hold the same
+    part folders): copied over the other pack's, or removed there when `src` has none."""
+    state_src = os.path.join(src, PARTS_STATE)
+    state_out = os.path.join(out, PARTS_STATE)
+    if os.path.isfile(state_src):
+        shutil.copy2(state_src, state_out + ".part")
+        os.replace(state_out + ".part", state_out)
+    elif os.path.lexists(state_out):
+        os.remove(state_out)
+
+
 def swap_link(link, target):
     """Points the symlink `link` at `target` (relative) in one step."""
     tmp = link + ".af-new"
@@ -179,6 +191,7 @@ def activate(link, out_dir, marker):
         os.symlink(os.path.relpath(out_dir, os.path.dirname(link)), link)
     marker["source"] = os.path.relpath(source, out_dir)
     write_json(os.path.join(out_dir, MARKER), marker)
+    carry_parts(source, out_dir)
     say(f"{link} now uses {out_dir}")
     say(f"the original pack is in {source}")
     return True
@@ -198,6 +211,7 @@ def restore(link):
     if not os.path.islink(link):
         say(f"error: {link} is not a symlink; nothing was changed", file=sys.stderr)
         return EXIT_FAILED
+    carry_parts(real, source)
     if source == link + "-original":
         os.remove(link)
         os.rename(source, link)
