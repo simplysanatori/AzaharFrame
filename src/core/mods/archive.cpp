@@ -486,6 +486,7 @@ struct RunResult {
     bool started = false;
     bool timed_out = false;
     bool too_much_output = false;
+    bool cancelled = false; // AzaharFrame texdl
     int status = -1; // exit code
     std::string output; // stdout and stderr
 };
@@ -494,7 +495,7 @@ struct RunResult {
 // dynamic loader, so bsdtar resolves libarchive and friends from the system, never from the app
 // folder's lib/ (the launcher already unsets LD_LIBRARY_PATH; this covers other callers).
 RunResult Run(const std::string& tool, const std::vector<std::string>& args, int timeout_seconds,
-              std::size_t max_output) {
+              std::size_t max_output, const std::atomic_bool* cancel = nullptr) {
     RunResult r;
     int fds[2];
     if (pipe2(fds, O_CLOEXEC) != 0) {
@@ -544,8 +545,14 @@ RunResult Run(const std::string& tool, const std::vector<std::string>& args, int
             killed = true;
             break;
         }
+        if (cancel != nullptr && cancel->load()) { // AzaharFrame texdl
+            r.cancelled = true;
+            kill(pid, SIGKILL);
+            killed = true;
+            break;
+        }
         pollfd p{fds[0], POLLIN, 0};
-        const int pr = poll(&p, 1, static_cast<int>(std::min<long long>(left, 1000)));
+        const int pr = poll(&p, 1, static_cast<int>(std::min<long long>(left, cancel ? 250 : 1000)));
         if (pr < 0 && errno != EINTR) {
             break;
         }
@@ -583,6 +590,77 @@ struct TempDir {
         }
     }
 };
+
+
+#ifndef _WIN32
+// AzaharFrame texdl: the listing checks of ExtractWithBsdtar, shared with ExtractFileToDir. "" = fine.
+std::string CheckListing(const std::string& tool, const std::string& archive, ArchiveKind kind,
+                         std::size_t max_total, int timeout_seconds,
+                         const std::atomic_bool* cancel = nullptr) {
+    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 16u * 1024 * 1024, cancel);
+    if (!names.started) {
+        return (std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
+    }
+    if (names.cancelled) {
+        return "Cancelled";
+    }
+    if (names.timed_out) {
+        return ("Unpacking took too long");
+    }
+    if (names.too_much_output) {
+        return ("The archive holds too many files");
+    }
+    if (names.status != 0) {
+        return ("The archive is damaged or not readable");
+    }
+    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 32u * 1024 * 1024, cancel);
+    if (verbose.cancelled) {
+        return "Cancelled";
+    }
+    if (verbose.status != 0 || verbose.timed_out || verbose.too_much_output) {
+        return ("The archive is damaged or not readable");
+    }
+    std::istringstream ns(names.output);
+    std::string line;
+    std::size_t count = 0;
+    while (std::getline(ns, line)) {
+        if (line.empty()) {
+            continue;
+        }
+        ++count;
+        const auto safe = SafeRelativePath(line);
+        if (!safe || (safe->empty() && line != "./")) {
+            return ("The archive holds an unsafe file path");
+        }
+    }
+    std::istringstream vs(verbose.output);
+    std::size_t listed_total = 0;
+    while (std::getline(vs, line)) {
+        if (line.empty()) {
+            continue;
+        }
+        if (line[0] != '-' && line[0] != 'd') { // links, devices, fifos
+            return ("The archive holds links or special files");
+        }
+        // mode links owner group size ...
+        std::istringstream ls(line);
+        std::string mode, links, owner, group, size;
+        ls >> mode >> links >> owner >> group >> size;
+        if (!size.empty() && std::all_of(size.begin(), size.end(), [](char ch) { return ch >= '0' && ch <= '9'; }) &&
+            size.size() < 16) {
+            listed_total += static_cast<std::size_t>(std::stoull(size));
+            if (listed_total > max_total) {
+                return ("The archive is too large");
+            }
+        }
+    }
+    if (count == 0) {
+        return ("The archive is empty");
+    }
+
+    return {};
+}
+#endif
 
 } // namespace
 
@@ -652,60 +730,9 @@ ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::s
     std::error_code ec;
     fs::create_directory(out_dir, ec);
 
-    // 1. Names (one per line) and the long listing (type, size), checked before anything is written.
-    const auto names = Run(tool, {"-tf", archive}, timeout_seconds, 16u * 1024 * 1024);
-    if (!names.started) {
-        return fail(std::string(KindName(kind)) + " needs bsdtar, which wasn't found");
-    }
-    if (names.timed_out) {
-        return fail("Unpacking took too long");
-    }
-    if (names.too_much_output) {
-        return fail("The archive holds too many files");
-    }
-    if (names.status != 0) {
-        return fail("The archive is damaged or not readable");
-    }
-    const auto verbose = Run(tool, {"-tvf", archive}, timeout_seconds, 32u * 1024 * 1024);
-    if (verbose.status != 0 || verbose.timed_out || verbose.too_much_output) {
-        return fail("The archive is damaged or not readable");
-    }
-    std::istringstream ns(names.output);
-    std::string line;
-    std::size_t count = 0;
-    while (std::getline(ns, line)) {
-        if (line.empty()) {
-            continue;
-        }
-        ++count;
-        const auto safe = SafeRelativePath(line);
-        if (!safe || (safe->empty() && line != "./")) {
-            return fail("The archive holds an unsafe file path");
-        }
-    }
-    std::istringstream vs(verbose.output);
-    std::size_t listed_total = 0;
-    while (std::getline(vs, line)) {
-        if (line.empty()) {
-            continue;
-        }
-        if (line[0] != '-' && line[0] != 'd') { // links, devices, fifos
-            return fail("The archive holds links or special files");
-        }
-        // mode links owner group size ...
-        std::istringstream ls(line);
-        std::string mode, links, owner, group, size;
-        ls >> mode >> links >> owner >> group >> size;
-        if (!size.empty() && std::all_of(size.begin(), size.end(), [](char ch) { return ch >= '0' && ch <= '9'; }) &&
-            size.size() < 16) {
-            listed_total += static_cast<std::size_t>(std::stoull(size));
-            if (listed_total > max_total) {
-                return fail("The archive is too large");
-            }
-        }
-    }
-    if (count == 0) {
-        return fail("The archive is empty");
+    // 1. Names and the long listing, checked before anything is written.
+    if (const auto problem = CheckListing(tool, archive, kind, max_total, timeout_seconds); !problem.empty()) {
+        return fail(problem);
     }
 
     // 2. Extract with no owner or mode from the archive.
@@ -755,6 +782,62 @@ ExtractResult ExtractWithBsdtar(std::string_view bytes, ArchiveKind kind, std::s
         return fail("The archive could not be unpacked");
     }
     return result;
+#endif
+}
+
+// AzaharFrame texdl: extraction to disk for big archives (texture packs, 0.5 to 6 GB). Same listing
+// checks as ExtractWithBsdtar, then bsdtar writes straight into `out_dir`, which is checked again
+// afterwards (no links, no special files, nothing outside, total under max_total).
+std::string ExtractFileToDir(const std::string& archive_path, ArchiveKind kind, const std::string& out_dir,
+                             std::uint64_t max_total, int timeout_seconds, const std::atomic_bool* cancel,
+                             const std::string& tool_override) {
+#ifdef _WIN32
+    (void)archive_path, (void)out_dir, (void)max_total, (void)timeout_seconds, (void)cancel, (void)tool_override;
+    return std::string(KindName(kind)) + " archives are not supported here";
+#else
+    const std::string tool = tool_override.empty() ? FindBsdtar() : tool_override;
+    if (tool.empty() || access(tool.c_str(), X_OK) != 0) {
+        return std::string(KindName(kind)) + " needs bsdtar, which wasn't found";
+    }
+    if (const auto problem = CheckListing(tool, archive_path, kind, static_cast<std::size_t>(max_total),
+                                          timeout_seconds, cancel);
+        !problem.empty()) {
+        return problem;
+    }
+    std::error_code ec;
+    fs::create_directories(out_dir, ec);
+    if (ec) {
+        return "Cannot make the folder for the pack";
+    }
+    const auto ex = Run(tool, {"-xf", archive_path, "-C", out_dir, "--no-same-owner", "--no-same-permissions"},
+                        timeout_seconds, 1024 * 1024, cancel);
+    if (ex.cancelled) {
+        return "Cancelled";
+    }
+    if (ex.timed_out) {
+        return "Unpacking took too long";
+    }
+    if (ex.status != 0) {
+        return "The archive could not be unpacked";
+    }
+    std::uint64_t total = 0;
+    for (fs::recursive_directory_iterator it(out_dir, fs::directory_options::none, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        const auto st = it->symlink_status(ec);
+        if (ec) {
+            break;
+        }
+        if (fs::is_symlink(st) || (!fs::is_directory(st) && !fs::is_regular_file(st))) {
+            return "The archive holds links or special files";
+        }
+        if (fs::is_regular_file(st)) {
+            total += fs::file_size(it->path(), ec);
+            if (ec || total > max_total) {
+                return "The archive is too large";
+            }
+        }
+    }
+    return ec ? "The archive could not be unpacked" : std::string{};
 #endif
 }
 

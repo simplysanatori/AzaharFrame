@@ -37,6 +37,7 @@ add_executable(tests
     core/cheats_online.cpp # AzaharFrame cheats
     core/mods_library.cpp # AzaharFrame moddata
     core/custom_tex_packs.cpp # AzaharFrame texdata
+    core/custom_tex_download.cpp # AzaharFrame texdl
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp
