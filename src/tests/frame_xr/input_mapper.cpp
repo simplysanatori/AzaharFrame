@@ -200,6 +200,30 @@ TEST_CASE("FrameXr mapper: buttons, grips, sticks", "[frame_xr]") {
         out = runner.Step(frame);
         REQUIRE_FALSE(out.controls.Get(Control::Menu));
     }
+    SECTION("Menu held past 0.3 s and let go before 1 s sends nothing (AzaharFrame flat)") {
+        InputFrame frame = IdleFrame();
+        frame.menu = true;
+        for (int i = 0; i < 45; ++i) { // 0.5 s at 90 Hz
+            const MapperOutput out = runner.Step(frame);
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+            REQUIRE_FALSE(out.commands.menu_toggle);
+        }
+        frame.menu = false;
+        for (int i = 0; i < 20; ++i) {
+            const MapperOutput out = runner.Step(frame);
+            REQUIRE_FALSE(out.controls.Get(Control::Menu));
+            REQUIRE_FALSE(out.commands.menu_toggle);
+        }
+    }
+    SECTION("Menu let go just under 0.3 s is still Start (AzaharFrame flat)") {
+        InputFrame frame = IdleFrame();
+        frame.menu = true;
+        for (int i = 0; i < 25; ++i) { // about 0.28 s at 90 Hz
+            REQUIRE_FALSE(runner.Step(frame).controls.Get(Control::Menu));
+        }
+        frame.menu = false;
+        REQUIRE(runner.Step(frame).controls.Get(Control::Menu));
+    }
     SECTION("Menu held 1 s opens the in-game menu once and never reaches the game") {
         InputFrame frame = IdleFrame();
         frame.menu = true;

@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <utility>
 
 #include "common/file_util.h" // AzaharFrame move
 #include "common/logging/log.h"
@@ -190,7 +191,11 @@ void VrUi::Init() {
 bool VrUi::Create(Runtime& rt) {
     menu_shown = false;
     flat_menu_shown = false; // AzaharFrame flat4: a Flat menu open before VR closes with it
+    flat_vr_hold.Reset();    // AzaharFrame flat: back in Flat, Menu counts once it was let go
     picker_shown = false;
+    if (bridge_live) {
+        bridge.Release(); // AzaharFrame flat: nothing flat held stays held into VR
+    }
     bridge_live = false;
     chord_down = false;
     SwallowHeld(); // the buttons of the chord that made this session are still held
@@ -437,11 +442,73 @@ void VrUi::FlatFrame(int64_t now_ns) {
     }
     in.time_ns = now_ns;
     if (have) {
+        // AzaharFrame flat: counted before the latch, for the summary line (the input arrives).
+        const auto& p = flat_prev;
+        bool same = in.a == p.a && in.b == p.b && in.x == p.x && in.y == p.y &&
+                    in.menu == p.menu && in.view == p.view && in.dpad_up == p.dpad_up &&
+                    in.dpad_down == p.dpad_down && in.dpad_left == p.dpad_left &&
+                    in.dpad_right == p.dpad_right;
+        for (int h = 0; h < Input::kNumHands && same; h++) {
+            const auto& a = in.hand[h];
+            const auto& b = p.hand[h];
+            same = a.bumper == b.bumper && a.stick_click == b.stick_click &&
+                   a.stick.x == b.stick.x && a.stick.y == b.stick.y && a.trigger == b.trigger;
+        }
+        if (!same) {
+            flat_changes++;
+        }
+        flat_prev = in;
         mode_latch.Filter(in);
     }
     if (have != flat_had_input) {
         flat_had_input = have;
         LOG_INFO(Frontend, "xr: flat: {}", have ? "gamepad input" : "no gamepad");
+    }
+    // AzaharFrame flat: Menu held 3 s asks "Switch to VR?" (game list, game, Flat menu; in a
+    // game the mapper's 1 s hold opens the Flat menu first, which leaves Fullscreen). In the
+    // Flat menu a 1-3 s press closes it on release. Never a switch without the question.
+    if (have) {
+        const bool chord_part = in.hand[0].bumper || in.hand[1].bumper || in.view;
+        const bool in_flat_menu = game_running && menu_open;
+        switch (flat_vr_hold.Update(in.menu, chord_part, in_flat_menu, flat_prompt, now_ns)) {
+        case Input::FlatVrHold::Event::AskVr: {
+            flat_prompt = true;
+            prompt_a_down = in.a; // held from before: no answer
+            prompt_b_down = in.b;
+            std::scoped_lock lock{hooks_mutex};
+            if (hooks.flat_vr_prompt) {
+                const bool from_game = game_running && !flat_vr_hold.StartedInFlatMenu();
+                LOG_INFO(Frontend, "xr: flat: Menu held 3 s: asking Switch to VR?{}",
+                         from_game ? " (No: back to the game)" : "");
+                hooks.flat_vr_prompt(from_game ? FlatVrPrompt::OpenFromGame
+                                               : FlatVrPrompt::Open);
+            }
+            break;
+        }
+        case Input::FlatVrHold::Event::CloseFlatMenu: {
+            std::scoped_lock lock{hooks_mutex};
+            if (hooks.toggle_menu) {
+                LOG_INFO(Frontend, "xr: flat: Menu held 1 s in the Flat menu and let go: closing it");
+                hooks.toggle_menu();
+            }
+            break;
+        }
+        case Input::FlatVrHold::Event::None:
+            break;
+        }
+    }
+    if (flat_prompt) {
+        // AzaharFrame flat: the question takes the controller: the game and the game list see
+        // nothing (the Flat menu holds the game paused under it).
+        if (bridge_live) {
+            bridge.Release();
+            bridge_live = false;
+        }
+        flat_list_nav.Reset();
+        if (have) {
+            FlatPromptFrame(in);
+        }
+        return;
     }
     if (!have || !game_running) {
         if (bridge_live) {
@@ -554,8 +621,17 @@ void VrUi::FlatFrame(int64_t now_ns) {
     }
 }
 
-// AzaharFrame flat4: the Flat menu. The game sees no button; Menu held 1 s again closes the menu
-// (and the game continues), B goes back (closes a menu or dialog that is open, else the Flat
+std::string VrUi::TakeFlatInputSummary() { // AzaharFrame flat
+    const uint32_t changes = std::exchange(flat_changes, 0);
+    if (!flat_had_input) {
+        return "no gamepad";
+    }
+    return fmt::format("gamepad, {} changes{}", changes,
+                       mode_latch.latched() ? ", chord buttons held back" : "");
+}
+
+// AzaharFrame flat4: the Flat menu. The game sees no button; Menu held 1 s again and let go
+// closes the menu (and the game continues; held on to 3 s it asks "Switch to VR?" instead), B goes back (closes a menu or dialog that is open, else the Flat
 // menu), View held stops the game, the four-button chord switches to VR.
 void VrUi::FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns) {
     if (!flat_menu_shown) {
@@ -564,7 +640,6 @@ void VrUi::FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns) {
             bridge.Release(); // nothing stays held for the game while the menu shows
             bridge_live = false;
         }
-        menu_hold = {}; // Menu is still held from opening: a new hold closes the menu
         view_hold = {};
         flat_back_down = in.b; // a B held from before is no press
         LOG_INFO(Frontend, "xr: flat: Flat menu shown, the game gets no buttons");
@@ -573,21 +648,10 @@ void VrUi::FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns) {
         RequestToggleVr("Flat menu");
     }
     const bool bumper = in.hand[0].bumper || in.hand[1].bumper;
-    if (in.menu && (bumper || in.view)) {
-        // A chord being formed (VR / flat): no close; a new Menu press starts a new hold.
-        menu_hold.armed = false;
-        menu_hold.down = false;
-    }
+    // Menu here (closing on release after 1 s, or the 3 s question) is FlatFrame's flat_vr_hold.
     if (in.view && (bumper || in.menu)) {
         view_hold.armed = false;
         view_hold.down = false;
-    }
-    if (menu_hold.Update(in.menu, now_ns, kMenuHoldNs)) {
-        std::scoped_lock lock{hooks_mutex};
-        if (hooks.toggle_menu) {
-            LOG_INFO(Frontend, "xr: flat: Menu held, closing the Flat menu");
-            hooks.toggle_menu();
-        }
     }
     if (view_hold.Update(in.view, now_ns, kStopHoldNs)) {
         std::scoped_lock lock{hooks_mutex};
@@ -605,6 +669,27 @@ void VrUi::FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns) {
             hooks.menu_back();
         }
     }
+}
+
+// AzaharFrame flat: while "Switch to VR?" shows, A answers Yes and B No (the Qt side closes the
+// question and calls SetFlatVrPrompt(false)). A button held when it opened is no answer.
+void VrUi::FlatPromptFrame(const Input::InputFrame& in) {
+    const bool yes = in.a && !prompt_a_down;
+    const bool no = in.b && !prompt_b_down;
+    prompt_a_down = in.a;
+    prompt_b_down = in.b;
+    if (!yes && !no) {
+        return;
+    }
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.flat_vr_prompt) {
+        LOG_INFO(Frontend, "xr: flat: Switch to VR? {}", yes ? "A: Yes" : "B: No");
+        hooks.flat_vr_prompt(yes ? FlatVrPrompt::Yes : FlatVrPrompt::No);
+    }
+}
+
+void VrUi::SetFlatVrPrompt(bool open) {
+    flat_prompt = open;
 }
 
 // Test driver (with AZAHARFRAME_TEST_FLAT_PAD, citra_qt/frame_mode.cpp): what the game is sent

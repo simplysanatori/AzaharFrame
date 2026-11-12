@@ -289,6 +289,14 @@ void GetSDLPadInfos(std::vector<SDLPadInfo>& out) { // AzaharFrame pads
 #endif
 }
 
+std::uint64_t GetSDLPumpCount() { // AzaharFrame flat
+#ifdef HAVE_SDL2
+    return sdl ? sdl->GetPumpCount() : 0;
+#else
+    return 0;
+#endif
+}
+
 void GetSDLPadStates(std::vector<SDLPadState>& out) { // AzaharFrame pads
     out.clear();
 #ifdef HAVE_SDL2

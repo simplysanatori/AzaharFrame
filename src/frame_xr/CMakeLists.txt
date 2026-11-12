@@ -55,6 +55,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/input_frame.h
     input/list_nav.h
     input/chord_latch.h
+    input/flat_pads.h # AzaharFrame flat
+    input/flat_vr_hold.h # AzaharFrame flat
     input/mapper.cpp
     input/mapper.h
     input/motion.cpp

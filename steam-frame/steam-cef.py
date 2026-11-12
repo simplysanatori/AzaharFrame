@@ -144,6 +144,17 @@ def showable(line):
     picture, in_dashboard, _ = overlay_state(line)
     return picture and in_dashboard
 
+def hide_dashboard():
+    """Closes SteamVR's dashboard at once through Steam (CVRSteamPrivate::HideDashboard); vrcmd --hidedashboard,
+    the fallback, takes about 2 s more (each vrcmd call connects to SteamVR for about 2 s before it acts).
+    AzaharFrame flat: while the dashboard is open Steam Input gives the controller to Steam's own UI, so
+    it is closed right after a dock into the dashboard (the only dock that opens it)."""
+    try:
+        evaluate('SteamClient.OpenVR.VROverlay.HideDashboard()')
+    except Exception as e:
+        print('HideDashboard failed: %s' % e, file=sys.stderr)
+        vrcmd('--hidedashboard')
+
 def show_in_dashboard(key):
     try:
         evaluate("SteamClient.OpenVR.VROverlay.ShowDashboard('%s')" % key)
@@ -155,13 +166,14 @@ def show_in_dashboard(key):
 def screen(where, appid, seconds=8.0, after_vr=False):
     """Moves the frame of the app's flat window (gamescope's overlay valve.steam.desktopgame.APPID) to
     the theater screen or back into the dashboard, through vrcmd --dock-overlay (SteamVR's dashboard,
-    onVrCmdDockOverlayRequested), then hides the dashboard. The SteamVR dashboard docks a game window
+    onVrCmdDockOverlayRequested). The SteamVR dashboard docks a game window
     in the theater on its own only when the frame first comes alive and the app is not the scene app
     (dashboard.autoShowGameTheater, on by default); after an OpenXR session the frame already exists,
     so nothing moves it, and with that setting off a flat window only shows while the dashboard is open.
     The theater move waits until the dashboard can show the window (showable). after_vr (--after-vr):
-    the dashboard is first opened on the window (SteamVR does not bring it back after a session), and
-    when the window is not shown once docked, it is opened and docked once more."""
+    when the window is not shown once docked (SteamVR does not bring it back after a session by itself),
+    it is docked once more, through the world. Only the move back into the dashboard (before VR) opens
+    the dashboard, and hide_dashboard closes it again at once."""
     key = 'valve.steam.desktopgame.%d' % int(appid)
     deadline = time.monotonic() + seconds
     line = overlay_line(key)
@@ -170,7 +182,7 @@ def screen(where, appid, seconds=8.0, after_vr=False):
             print('dashboard: no overlay %s, nothing moved' % key)
             return 1
         vrcmd('--dock-overlay', 'dashboard', key)
-        vrcmd('--hidedashboard')
+        hide_dashboard()
         print('dashboard: docked %s, dashboard hidden' % key)
         return 0
     while not showable(line):
@@ -180,21 +192,21 @@ def screen(where, appid, seconds=8.0, after_vr=False):
         time.sleep(0.25)
         line = overlay_line(key)
     time.sleep(0.75)  # the dashboard makes the window's frame a moment after the overlay can show
-    if after_vr:
-        show_in_dashboard(key)
+    # AzaharFrame flat: the dashboard is never opened here. SteamVR's dashboard opens itself only for a
+    # dock TO the dashboard (SetDockLocation: ShowDashboardAndSwitchToFrame); a theater dock only moves
+    # the frame and makes it the active one, as the dashboard's own auto-theater does. While the
+    # dashboard is open Steam Input gives the controller to Steam's UI, so no ShowDashboard and no
+    # dashboard dock after VR: the controller stays with the app.
     vrcmd('--dock-overlay', 'theater', key)
-    vrcmd('--hidedashboard')
     line = overlay_line(key)
     if after_vr and not overlay_state(line)[2]:
-        # Not shown in the theater: open the dashboard on it again and dock it anew (a dock to the
-        # place it is already at is ignored, so through the dashboard).
+        # Not shown in the theater: dock it anew. A dock to the place it is already at is ignored, so
+        # through the world (not the dashboard, which would open it).
         print('theater: overlay %s %s after the move, once more' % (key, describe(line)), file=sys.stderr)
-        show_in_dashboard(key)
-        vrcmd('--dock-overlay', 'dashboard', key)
+        vrcmd('--dock-overlay', 'world', key)
         vrcmd('--dock-overlay', 'theater', key)
-        vrcmd('--hidedashboard')
         line = overlay_line(key)
-    print('theater: docked %s, dashboard hidden (overlay %s)' % (key, describe(line)))
+    print('theater: docked %s (overlay %s)' % (key, describe(line)))
     return 0 if line is None or overlay_state(line)[2] or not after_vr else 2
 
 if __name__ == '__main__':

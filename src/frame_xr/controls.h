@@ -22,6 +22,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
+#include "frame_xr/input/flat_vr_hold.h" // AzaharFrame flat
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/input/reticle.h"       // AzaharFrame mouse
@@ -64,6 +65,9 @@ public:
     /// SetFlatInput through the same mapper as in VR (no aim: no touch, no pointing).
     void FlatFrame(int64_t now_ns);
     void FlatMenuFrame(const Input::InputFrame& in, int64_t now_ns); // AzaharFrame flat4
+    /// AzaharFrame flat: for the flat summary line, the gamepad input since the last call
+    /// ("gamepad, 12 changes", "no gamepad"). XR thread.
+    std::string TakeFlatInputSummary();
     /// XR thread: a session was made (true) or ended (false). Tells the Qt side.
     void NotifyVr(bool vr);
 
@@ -117,6 +121,8 @@ public:
     void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                            bool per_game);
     void SetFlatInput(FlatInputSource source);
+    /// AzaharFrame flat: the "Switch to VR?" question opened (Qt) or closed. Any thread.
+    void SetFlatVrPrompt(bool open);
 
 private:
     void GameFrame(Runtime& runtime, const FrameInfo& info, const Input::InputFrame& in,
@@ -263,6 +269,13 @@ private:
     std::mutex flat_mutex;
     FlatInputSource flat_input;
     bool flat_had_input = false; ///< for the log line when the gamepad comes and goes
+    Input::InputFrame flat_prev;  ///< AzaharFrame flat: the last frame, to count changes
+    uint32_t flat_changes = 0;    ///< AzaharFrame flat: frames that differed, for the summary
+    Input::FlatVrHold flat_vr_hold; ///< AzaharFrame flat: Menu held 3 s: "Switch to VR?"
+    std::atomic<bool> flat_prompt{false}; ///< AzaharFrame flat: the question shows (Qt clears it)
+    bool prompt_a_down = false;   ///< A's and B's edges while it shows
+    bool prompt_b_down = false;
+    void FlatPromptFrame(const Input::InputFrame& in); // AzaharFrame flat
     bool flat_menu_shown = false; ///< AzaharFrame flat4: FlatFrame is in the Flat menu
     bool flat_back_down = false;  ///< B's edge in the Flat menu
     Input::ListNav flat_list_nav; ///< AzaharFrame gamelist: the game list in Flat

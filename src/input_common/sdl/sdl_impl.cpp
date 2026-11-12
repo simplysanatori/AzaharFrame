@@ -382,7 +382,16 @@ void SDLState::InitJoystick(int joystick_index) {
         return;
     }
     const std::string guid = GetGUID(sdl_joystick);
-    pad_generation++; // AzaharFrame pads
+    // AzaharFrame pads: counted once the map holds the new device (on return, after the lock is
+    // let go), so a reader that sees the new count also finds the device.
+    struct GenerationBump {
+        std::atomic<std::uint64_t>& generation;
+        std::atomic<int>& count;
+        ~GenerationBump() {
+            count++;
+            generation++;
+        }
+    } bump{pad_generation, pad_count};
 
     JoystickMapLock lock{joystick_map_mutex};
     if (joystick_map.find(guid) == joystick_map.end()) {
@@ -413,6 +422,7 @@ void SDLState::CloseJoystick(SDL_JoystickID instance_id) {
     if (joystick) {
         LOG_DEBUG(Input, "Closing joystick with instance ID {}", instance_id);
         joystick->SetSDLJoystick(nullptr, nullptr);
+        pad_count--;      // AzaharFrame flat
         pad_generation++; // AzaharFrame pads
     } else {
         LOG_DEBUG(Input, "Joystick with instance ID {} already closed or not found", instance_id);
@@ -473,6 +483,8 @@ void SDLState::CloseJoysticks() {
     JoystickMapLock lock{joystick_map_mutex};
     joystick_map.clear();
     joystick_vector->clear();
+    pad_count = 0;    // AzaharFrame flat
+    pad_generation++; // AzaharFrame pads
 }
 
 class SDLButton final : public Input::ButtonDevice {
@@ -833,20 +845,24 @@ SDLState::SDLState() {
     SDL_AddEventWatch(&SDLEventWatcher, this);
 
     initialized = true;
+    // Because the events for joystick connection happens before we have our event watcher
+    // added, we can just open all the joysticks right here
+    // AzaharFrame flat: before the poll thread starts. SDL's device index list is not safe to
+    // use from two threads at once (sdl2-compat rebuilds it in every SDL_NumJoysticks call).
+    for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+        InitJoystick(i);
+    }
     if (start_thread) {
         poll_thread = std::thread([this] {
             using namespace std::chrono_literals;
             while (initialized) {
                 SDL_PumpEvents();
+                pump_count++; // AzaharFrame flat: the flat summary shows that SDL is pumped
                 // Pump faster if there are controllers connected to reduce missed inputs per frame.
-                std::this_thread::sleep_for(SDL_NumJoysticks() > 0 ? 1ms : 10ms);
+                // AzaharFrame flat: our own count, not SDL_NumJoysticks (see above).
+                std::this_thread::sleep_for(pad_count.load() > 0 ? 1ms : 10ms);
             }
         });
-    }
-    // Because the events for joystick connection happens before we have our event watcher
-    // added, we can just open all the joysticks right here
-    for (int i = 0; i < SDL_NumJoysticks(); ++i) {
-        InitJoystick(i);
     }
 }
 
@@ -1262,7 +1278,9 @@ SDLState::Pollers SDLState::GetPollers(InputCommon::Polling::DeviceType type) {
 // right) the last one, the right pad. Needs SDL 2.0.14 for the touchpad calls.
 bool SDLState::GetTouchpad(TouchpadSample& sample) {
 #if SDL_VERSION_ATLEAST(2, 0, 14)
-    std::lock_guard lock{joystick_map_mutex};
+    // AzaharFrame flat: SDL's joystick lock first, as everywhere else in this file. The SDL
+    // calls below take it, and the event watcher holds it while it takes ours (AB-BA).
+    JoystickMapLock lock{joystick_map_mutex};
     for (const auto& joystick : *joystick_vector) {
         SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
         if (!controller) {
@@ -1292,9 +1310,15 @@ std::uint64_t SDLState::GetPadGeneration() {
     return pad_generation.load();
 }
 
+std::uint64_t SDLState::GetPumpCount() { // AzaharFrame flat
+    return pump_count.load();
+}
+
 void SDLState::GetPadInfos(std::vector<SDLPadInfo>& out) {
     out.clear();
-    std::lock_guard lock{joystick_map_mutex};
+    // AzaharFrame flat: SDL's joystick lock first, as everywhere else in this file. The SDL
+    // calls below take it, and the event watcher holds it while it takes ours (AB-BA).
+    JoystickMapLock lock{joystick_map_mutex};
     for (const auto& joystick : *joystick_vector) {
         SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
         SDL_Joystick* sdl_joystick = joystick ? joystick->GetSDLJoystick() : nullptr;
@@ -1333,7 +1357,9 @@ void SDLState::GetPadStates(std::vector<SDLPadState>& out) {
     static_assert(SDLPadState::kButtons == SDL_CONTROLLER_BUTTON_MAX);
     static_assert(SDLPadState::kAxes == SDL_CONTROLLER_AXIS_MAX);
     std::size_t count = 0;
-    std::lock_guard lock{joystick_map_mutex};
+    // AzaharFrame flat: SDL's joystick lock first, as everywhere else in this file. The SDL
+    // calls below take it, and the event watcher holds it while it takes ours (AB-BA).
+    JoystickMapLock lock{joystick_map_mutex};
     for (const auto& joystick : *joystick_vector) {
         SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
         SDL_Joystick* sdl_joystick = joystick ? joystick->GetSDLJoystick() : nullptr;

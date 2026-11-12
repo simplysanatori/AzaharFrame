@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -24,24 +25,16 @@
 #include <QWidget>
 #include <QWindow>
 
-#ifdef HAVE_SDL2
-#include <SDL.h>
-#endif
+#include <fmt/format.h>
 
 #include "citra_qt/frame_mode.h"
 #include "common/logging/log.h"
+#include "frame_xr/input/flat_pads.h"
+#include "input_common/main.h"
 
 namespace FrameMode {
 
 // ---- The gamepad ------------------------------------------------------------------------
-
-#ifdef HAVE_SDL2
-namespace {
-std::mutex g_pad_mutex;
-SDL_GameController* g_pad = nullptr;
-std::chrono::steady_clock::time_point g_next_scan{};
-} // namespace
-#endif
 
 namespace {
 
@@ -119,82 +112,178 @@ void ReadTestPad(const std::vector<TestPadEvent>& script, FrameXr::Input::InputF
 
 } // namespace
 
+// AzaharFrame flat: the controllers input_common's SDL thread already has open (Azahar's own
+// SDL input), read through its locked accessors. This thread used to open a handle of its own
+// with SDL's device index calls, which are not thread-safe against input_common's thread (with
+// sdl2-compat every SDL_NumJoysticks call frees and rebuilds the index list, and that thread
+// calls it every millisecond): a flat start aborted in malloc. And the one pad it opened was
+// kept for good. Now every controller is read and FlatPadPicker (frame_xr/input/flat_pads.h)
+// picks the one that drives; with none, everything is let go.
+namespace {
+
+struct FlatPads {
+    std::mutex mutex;
+    std::vector<InputCommon::SDLPadState> states;
+    std::vector<InputCommon::SDLPadInfo> infos;
+    std::uint64_t generation = 0;
+    FrameXr::Input::FlatPadPicker picker;
+    int logged = -2; ///< the pad last named in the log
+};
+
+FlatPads& Pads() {
+    static FlatPads pads;
+    return pads;
+}
+
+std::string PadName(const FlatPads& pads, int id) {
+    for (const auto& info : pads.infos) {
+        if (info.id == id) {
+            return fmt::format("{:04x}:{:04x} \"{}\"", info.vendor, info.product, info.name);
+        }
+    }
+    return fmt::format("id {}", id);
+}
+
+} // namespace
+
 bool ReadGamepad(FrameXr::Input::InputFrame& frame) {
     if (const auto* script = TestPadScript()) {
         ReadTestPad(*script, frame);
         return true;
     }
-#ifndef HAVE_SDL2
-    static_cast<void>(frame);
-    return false;
-#else
-    std::scoped_lock lock{g_pad_mutex};
-    if (g_pad && !SDL_GameControllerGetAttached(g_pad)) {
-        LOG_INFO(Frontend, "xr: flat: the gamepad went away");
-        SDL_GameControllerClose(g_pad);
-        g_pad = nullptr;
+    auto& pads = Pads();
+    std::scoped_lock lock{pads.mutex};
+    const std::uint64_t generation = InputCommon::GetSDLPadGeneration();
+    if (generation != pads.generation) {
+        pads.generation = generation;
+        InputCommon::GetSDLPadInfos(pads.infos);
+        std::string list;
+        for (const auto& info : pads.infos) {
+            list += (list.empty() ? "" : ", ") + PadName(pads, info.id);
+        }
+        LOG_INFO(Frontend, "xr: flat: gamepads: {}", list.empty() ? "none" : list);
     }
-    if (!g_pad) {
-        // input_common initialises SDL's game controller part and pumps its events.
-        const auto now = std::chrono::steady_clock::now();
-        if (now < g_next_scan || SDL_WasInit(SDL_INIT_GAMECONTROLLER) == 0) {
-            return false;
+    InputCommon::GetSDLPadStates(pads.states);
+    const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    const int active = pads.picker.Update(pads.states, now);
+    if (active != pads.logged) {
+        pads.logged = active;
+        if (active < 0) {
+            LOG_INFO(Frontend, "xr: flat: no gamepad");
+        } else {
+            LOG_INFO(Frontend, "xr: flat: gamepad {}", PadName(pads, active));
         }
-        g_next_scan = now + std::chrono::seconds(1);
-        for (int i = 0; i < SDL_NumJoysticks() && !g_pad; i++) {
-            if (SDL_IsGameController(i)) {
-                g_pad = SDL_GameControllerOpen(i);
-            }
-        }
-        if (!g_pad) {
-            return false;
-        }
-        const char* name = SDL_GameControllerName(g_pad);
-        LOG_INFO(Frontend, "xr: flat: gamepad \"{}\"", name ? name : "?");
     }
-    const auto button = [](SDL_GameControllerButton b) {
-        return SDL_GameControllerGetButton(g_pad, b) != 0;
+    const InputCommon::SDLPadState* use = nullptr;
+    for (const auto& st : pads.states) {
+        if (st.id == active) {
+            use = &st;
+        }
+    }
+    if (!use) {
+        return false;
+    }
+    // SDL_GameControllerButton and SDL_GameControllerAxis numbers (input_common/main.h).
+    enum Button : std::size_t {
+        kButton_A = 0,
+        kButton_B = 1,
+        kButton_X = 2,
+        kButton_Y = 3,
+        kButton_BACK = 4,
+        kButton_START = 6,
+        kButton_LEFTSTICK = 7,
+        kButton_RIGHTSTICK = 8,
+        kButton_LEFTSHOULDER = 9,
+        kButton_RIGHTSHOULDER = 10,
+        kButton_DPAD_UP = 11,
+        kButton_DPAD_DOWN = 12,
+        kButton_DPAD_LEFT = 13,
+        kButton_DPAD_RIGHT = 14,
     };
-    const auto axis = [](SDL_GameControllerAxis a) {
-        return std::clamp(SDL_GameControllerGetAxis(g_pad, a) / 32767.0f, -1.0f, 1.0f);
+    enum Axis : std::size_t {
+        kAxis_LEFTX = 0,
+        kAxis_LEFTY = 1,
+        kAxis_RIGHTX = 2,
+        kAxis_RIGHTY = 3,
+        kAxis_TRIGGERLEFT = 4,
+        kAxis_TRIGGERRIGHT = 5,
     };
+    const auto button = [use](Button b) { return use->buttons[b]; };
+    const auto axis = [use](Axis a) { return use->axes[a]; };
     // Steam Input's gamepad has the Frame's buttons where their names say (A is A, and so on),
     // so they mean the same as in VR. SDL's stick Y grows downwards, OpenXR's upwards.
-    frame.a = button(SDL_CONTROLLER_BUTTON_A);
-    frame.b = button(SDL_CONTROLLER_BUTTON_B);
-    frame.x = button(SDL_CONTROLLER_BUTTON_X);
-    frame.y = button(SDL_CONTROLLER_BUTTON_Y);
-    frame.menu = button(SDL_CONTROLLER_BUTTON_START);
-    frame.view = button(SDL_CONTROLLER_BUTTON_BACK);
-    frame.dpad_up = button(SDL_CONTROLLER_BUTTON_DPAD_UP);
-    frame.dpad_down = button(SDL_CONTROLLER_BUTTON_DPAD_DOWN);
-    frame.dpad_left = button(SDL_CONTROLLER_BUTTON_DPAD_LEFT);
-    frame.dpad_right = button(SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+    frame.a = button(kButton_A);
+    frame.b = button(kButton_B);
+    frame.x = button(kButton_X);
+    frame.y = button(kButton_Y);
+    frame.menu = button(kButton_START);
+    frame.view = button(kButton_BACK);
+    frame.dpad_up = button(kButton_DPAD_UP);
+    frame.dpad_down = button(kButton_DPAD_DOWN);
+    frame.dpad_left = button(kButton_DPAD_LEFT);
+    frame.dpad_right = button(kButton_DPAD_RIGHT);
     auto& left = frame.hand[0];
     auto& right = frame.hand[1];
-    left.bumper = button(SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
-    right.bumper = button(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
-    left.stick_click = button(SDL_CONTROLLER_BUTTON_LEFTSTICK);
-    right.stick_click = button(SDL_CONTROLLER_BUTTON_RIGHTSTICK);
-    left.stick = {axis(SDL_CONTROLLER_AXIS_LEFTX), -axis(SDL_CONTROLLER_AXIS_LEFTY)};
-    right.stick = {axis(SDL_CONTROLLER_AXIS_RIGHTX), -axis(SDL_CONTROLLER_AXIS_RIGHTY)};
-    left.trigger = std::max(0.0f, axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT));
-    right.trigger = std::max(0.0f, axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT));
+    left.bumper = button(kButton_LEFTSHOULDER);
+    right.bumper = button(kButton_RIGHTSHOULDER);
+    left.stick_click = button(kButton_LEFTSTICK);
+    right.stick_click = button(kButton_RIGHTSTICK);
+    left.stick = {axis(kAxis_LEFTX), -axis(kAxis_LEFTY)};
+    right.stick = {axis(kAxis_RIGHTX), -axis(kAxis_RIGHTY)};
+    left.trigger = std::max(0.0f, axis(kAxis_TRIGGERLEFT));
+    right.trigger = std::max(0.0f, axis(kAxis_TRIGGERRIGHT));
     left.grip = right.grip = 0.0f;
     left.active = right.active = false;
     return true;
-#endif
 }
 
 // ---- The mode file ----------------------------------------------------------------------
 
-void WriteModeFile(bool vr) {
+// The launcher's data folder (AZAHARFRAME_HOME), or empty when the launcher did not start this
+// run (a test or a terminal run): its files are left alone then.
+static QString LauncherDataDir() {
     if (qEnvironmentVariable("AZAHARFRAME_MODE").isEmpty()) {
-        return; // not started by the launcher (a test or a terminal run): leave it alone
+        return {};
     }
     QString home = qEnvironmentVariable("AZAHARFRAME_HOME");
     if (home.isEmpty()) {
         home = QDir::homePath() + QStringLiteral("/.local/share/AzaharFrame");
+    }
+    return home;
+}
+
+void MarkFlatRunning(bool flat) { // AzaharFrame flat
+    const QString home = LauncherDataDir();
+    if (home.isEmpty()) {
+        return;
+    }
+    const QString path = home + QStringLiteral("/flat-running");
+    static int marked = -1;
+    if (marked == static_cast<int>(flat)) {
+        return;
+    }
+    marked = static_cast<int>(flat);
+    if (flat) {
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QByteArray::number(QCoreApplication::applicationPid()) + '\n');
+            file.close();
+            LOG_INFO(Frontend, "xr: flat-running marked (gone on a clean quit)");
+        } else {
+            LOG_WARNING(Frontend, "xr: could not write {}", path.toStdString());
+        }
+    } else if (QFile::exists(path)) {
+        QFile::remove(path);
+        LOG_INFO(Frontend, "xr: flat-running cleared");
+    }
+}
+
+void WriteModeFile(bool vr) {
+    const QString home = LauncherDataDir();
+    if (home.isEmpty()) {
+        return; // not started by the launcher (a test or a terminal run): leave it alone
     }
     QSaveFile file(home + QStringLiteral("/mode"));
     const QByteArray word = vr ? QByteArrayLiteral("vr\n") : QByteArrayLiteral("flat\n");
@@ -291,8 +380,8 @@ void StopScreenHelper() {
     }
 }
 
-// after_vr: steam-cef.py first opens the dashboard on the window once SteamVR can show it, and
-// docks it again when it does not show (--after-vr); with nothing moved (the window never became
+// after_vr: steam-cef.py docks the window again (through the world) when it does not show once
+// docked (--after-vr); with nothing moved (the window never became
 // showable) it is asked again twice, 2 s apart, while flat.
 void DockWindow(bool theater, int wait_s, std::function<void()> then = {}, bool after_vr = false,
                 int tries_left = 0) {
@@ -485,10 +574,10 @@ void ReturnToFlat(QWidget* window) {
         watch->StartReturn();
     }
     // SteamVR does not bring the window back by itself after a session. In the theater (the
-    // default) steam-cef.py --after-vr shows it in the dashboard and moves its frame to the
-    // theater once SteamVR can show the window: asked any earlier, the dashboard opens Steam's
-    // library and the dock moves the library's frame (the theater stays empty). Kept in the
-    // dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.
+    // default) steam-cef.py --after-vr moves its frame to the theater once SteamVR can show the
+    // window (asked any earlier, the dock moves the active frame, Steam's library), without
+    // opening the dashboard, so Steam Input leaves the controller with the app (AzaharFrame flat).
+    // Kept in the dashboard (AZAHARFRAME_FLAT_SCREEN=dashboard): only shown there.
     if (FlatScreenMode() == QStringLiteral("theater")) {
         DockWindow(true, 15, {}, true, 2);
     } else {
