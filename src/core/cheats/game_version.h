@@ -5,11 +5,11 @@
 // AzaharFrame versions: which version a game is at. Two steps, kept apart:
 //
 //   1. The RAW version, a TMD-style u16 (6.6.4 bits), read from the first of these that exists:
-//        installed update title's TMD, installed base title's TMD, the cartridge's NCSD card info
-//        (0x310, the title version; 0x312 is its revision), or a CIA's own TMD. The cartridge or
-//        CIA value counts too and the HIGHER of it and the installed one wins (an update installed
-//        over a dump with an older one built in, or a dump with a newer one built in over an old
-//        installed update). The ExHeader "remaster" field is the last resort, when none of those
+//        installed update title's TMD (the loader runs an installed update whenever there is one,
+//        so it decides; its numbers are never compared with a cartridge's), else the file's own:
+//        a CIA's TMD or the cartridge's NCSD card info (0x310, the title version; 0x312 is its
+//        revision), else an installed base title's TMD. The ExHeader "remaster" field is the last
+//        resort, when none of those
 //        exists. A .3dsx or an unknown file has no raw version. The system-update partitions of
 //        a cartridge (6 and 7, the CVer firmware) are never read.
 //   2. The DISPLAYED version, from a table of {title, raw version -> what the game shows, source}.

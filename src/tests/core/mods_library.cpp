@@ -1369,6 +1369,22 @@ TEST_CASE("Mods: version chip catalog fields are checked", "[mods]") {
     REQUIRE(warnings.size() == 3);
 }
 
+TEST_CASE("Mods: code CRC32s per title ID", "[mods]") {
+    const auto c = ParseCatalog(R"({"mods":[
+      {"id":"t","name":"x","title_ids":["0004000000033500","0004000000033600"],
+       "source":{"type":"owner_repo_path","path":"a"},
+       "version_chip":{"label":"1.0","code_crc32":{"0004000000033500":["9d9683e5"]}}},
+      {"id":"bad","name":"x","title_ids":["0004000000033500"],
+       "source":{"type":"owner_repo_path","path":"a"},
+       "version_chip":{"label":"1.0","code_crc32":{"33500":["9d9683e5"]}}}]})");
+    REQUIRE(c.has_value());
+    REQUIRE(c->mods.size() == 1);
+    const auto& e = c->mods[0];
+    REQUIRE(e.CodeCrcsFor(0x0004000000033500ULL) == std::vector<u32>{0x9d9683e5u});
+    REQUIRE(e.CodeCrcsFor(0x0004000000033600ULL).empty()); // no CRC read from it: judged by version
+    REQUIRE(e.code_crc32.empty());
+}
+
 TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
     const std::string dir = TempDir("dates");
     FakeNet net;

@@ -295,14 +295,30 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
             throw std::string("bad version_chip");
         }
         const auto crcs = chip->find("code_crc32");
+        const auto parse_crc = [](const nlohmann::json& c) {
+            const std::string text = c.is_string() ? c.get<std::string>() : std::string{};
+            if (text.size() != 8 ||
+                !std::all_of(text.begin(), text.end(), [](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)); })) {
+                throw std::string("bad code_crc32");
+            }
+            return static_cast<u32>(std::stoul(text, nullptr, 16));
+        };
         if (crcs != chip->end() && crcs->is_array()) {
             for (const auto& c : *crcs) {
-                const std::string text = c.is_string() ? c.get<std::string>() : std::string{};
-                if (text.size() != 8 ||
-                    !std::all_of(text.begin(), text.end(), [](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)); })) {
+                e.code_crc32.push_back(parse_crc(c));
+            }
+        } else if (crcs != chip->end() && crcs->is_object()) {
+            // {"<title id>": ["<crc>", ...]}: the CRCs belong to the title IDs they were read from
+            // (a region's build has its own); another title ID of the entry has none, so it is
+            // judged by version alone. Builds before this one ignore the form.
+            for (const auto& [key, list] : crcs->items()) {
+                if (key.size() != 16 || !list.is_array()) {
                     throw std::string("bad code_crc32");
                 }
-                e.code_crc32.push_back(static_cast<u32>(std::stoul(text, nullptr, 16)));
+                const u64 tid = std::stoull(key, nullptr, 16);
+                for (const auto& c : list) {
+                    e.code_crc32_by_title[tid].push_back(parse_crc(c));
+                }
             }
         }
     }
@@ -348,6 +364,14 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
 }
 
 } // namespace
+
+std::vector<u32> CatalogEntry::CodeCrcsFor(u64 title_id) const {
+    if (!code_crc32_by_title.empty()) {
+        const auto it = code_crc32_by_title.find(title_id);
+        return it != code_crc32_by_title.end() ? it->second : std::vector<u32>{};
+    }
+    return code_crc32;
+}
 
 bool CatalogEntry::ServesTitle(u64 title_id) const {
     for (const u64 id : title_ids) {

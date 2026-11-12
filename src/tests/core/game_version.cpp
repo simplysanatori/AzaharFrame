@@ -137,7 +137,7 @@ TEST_CASE("Versions: TMD and CIA", "[versions]") {
     REQUIRE(ReadFileVersion("/nonexistent/none.3ds").card_version == std::nullopt);
 }
 
-TEST_CASE("Versions: raw order and the higher wins", "[versions]") {
+TEST_CASE("Versions: raw order, the installed update decides", "[versions]") {
     ClearOnlineVersions();
     const FileVersion none;
     auto r = SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, std::nullopt);
@@ -161,22 +161,34 @@ TEST_CASE("Versions: raw order and the higher wins", "[versions]") {
     REQUIRE(r.raw == 2112);
     REQUIRE(r.source == VersionSource::CardInfo);
     REQUIRE(r.revision == 1);
-    // the higher of the cartridge's and the installed one: an older installed update loses
+    // an installed update decides, whatever the cartridge says (its numbers are not the TMD's:
+    // Pokemon X reads 32 at revision 0), older, newer or equal
     r = SelectInstalledVersion(kMk7, 1040, std::nullopt, card, std::nullopt);
-    REQUIRE(r.raw == 2112);
-    REQUIRE(r.source == VersionSource::CardInfo);
-    // a newer installed update wins; a tie goes to the installed one
+    REQUIRE(r.raw == 1040);
+    REQUIRE(r.source == VersionSource::UpdateTmd);
     r = SelectInstalledVersion(kMk7, 3072, std::nullopt, card, std::nullopt);
     REQUIRE(r.raw == 3072);
     REQUIRE(r.source == VersionSource::UpdateTmd);
     r = SelectInstalledVersion(kMk7, 2112, std::nullopt, card, std::nullopt);
     REQUIRE(r.source == VersionSource::UpdateTmd);
-    // a CIA with a newer update built in beats an older installed update
+    FileVersion x;
+    x.card_version = 32;
+    x.card_revision = 0;
+    r = SelectInstalledVersion(kOther, 1040, std::nullopt, x, std::nullopt);
+    REQUIRE(r.raw == 1040);
+    REQUIRE(r.source == VersionSource::UpdateTmd);
+    // a CIA's own TMD beats an installed base title's, and a cartridge's too
     FileVersion cia;
     cia.cia_tmd = 3072;
-    r = SelectInstalledVersion(kMk7, 1040, std::nullopt, cia, std::nullopt);
+    r = SelectInstalledVersion(kMk7, std::nullopt, 1040, cia, std::nullopt);
     REQUIRE(r.raw == 3072);
     REQUIRE(r.source == VersionSource::CiaTmd);
+    r = SelectInstalledVersion(kMk7, std::nullopt, 4000, card, std::nullopt);
+    REQUIRE(r.raw == 2112);
+    REQUIRE(r.source == VersionSource::CardInfo);
+    // an update over a CIA: the update
+    r = SelectInstalledVersion(kMk7, 1040, std::nullopt, cia, std::nullopt);
+    REQUIRE(r.source == VersionSource::UpdateTmd);
 
     // the remaster: only with nothing else; a revision, never a version
     r = SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, 0x0002);
@@ -313,4 +325,49 @@ TEST_CASE("Versions: cheats match through the table only", "[versions]") {
     REQUIRE(entries[2].comments.empty());
     // nothing known at all: everything matches
     REQUIRE(VersionMatches(Version{1, 1}, SelectInstalledVersion(kOther, std::nullopt, std::nullopt, {}, std::nullopt)));
+}
+
+TEST_CASE("Versions: Display for every source", "[versions]") {
+    ClearOnlineVersions();
+    const FileVersion none;
+    // update TMD: a table entry, then none
+    REQUIRE(SelectInstalledVersion(kMk7, 3072, std::nullopt, none, std::nullopt).Display() ==
+            "1.2");
+    REQUIRE(SelectInstalledVersion(kOther, 5216, std::nullopt, none, std::nullopt).Display() ==
+            "Update Installed");
+    REQUIRE(SelectInstalledVersion(kOther, 0, std::nullopt, none, std::nullopt).Display() ==
+            "1.0");
+    // base TMD
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, 5216, none, std::nullopt).Display() ==
+            "Update Installed");
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, 0, none, std::nullopt).Display() ==
+            "1.0");
+    // CIA TMD
+    FileVersion cia;
+    cia.cia_tmd = 5216;
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, cia, std::nullopt)
+                .Display() == "Update Installed");
+    cia.cia_tmd = 3072;
+    REQUIRE(SelectInstalledVersion(kMk7, std::nullopt, std::nullopt, cia, std::nullopt)
+                .Display() == "1.2");
+    // card info: revision 0 is 1.0, a revision above 0 with no entry is "Rev N"
+    FileVersion card;
+    card.card_version = 32;
+    card.card_revision = 0;
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, card, std::nullopt)
+                .Display() == "1.0");
+    card.card_revision = 2;
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, card, std::nullopt)
+                .Display() == "Rev 2");
+    // the ExHeader remaster: a revision, shown
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, 2).Display() ==
+            "Rev 1");
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, 4).Display() ==
+            "Rev 2");
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, 0).Display().empty());
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, 3).Display().empty());
+    // nothing at all
+    REQUIRE(SelectInstalledVersion(kOther, std::nullopt, std::nullopt, none, std::nullopt)
+                .Display()
+                .empty());
 }

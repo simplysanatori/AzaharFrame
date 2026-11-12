@@ -379,10 +379,13 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 | Game | Screen Shape | Narrow Screen | Wider View | Up and down | Distance | Size |
 | --- | --- | --- | --- | --- | --- | --- |
 | Any game (default) | 3DS (5:3), or as measured | 10 % | 1.4x | 1.76x (1.26x Wider View) | 3 m | 1 (95 x 85 degrees at 55) |
-| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 10 % | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
-| Majora's Mask 3D | 3DS (5:3) | 10 % | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
+| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 1 % | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
+| Majora's Mask 3D | 3DS (5:3) | 1 % | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
 | Super Mario 3D Land | 3DS (5:3) | 10 % | 1.4x | 1.77x | 3 m | 1 (82 x 73) |
 | Mario Kart 7 | 3DS (5:3) | Off | 1.4x | 1.77x | 3 m | 0.9 (91 x 76, gain 1.11) |
+
+The two Zelda rows use their preset's Narrow Screen 1 %, so the screen is about a tenth wider than
+the widths in the Size column, which were worked out at 10 %.
 
 Mario Kart 7 looked stretched at the view-filling size (gain 0.40 to 0.53) and with Narrow
 Screen 20 %; the vertical extension itself is not a stretch (the same scale both ways). Its

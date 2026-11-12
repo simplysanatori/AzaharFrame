@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame useglobal: the in-game menu's per-game rows against the settings
-// (frame_xr/per_game.h): which ones show the "This Game" chip, and Use Global Value.
+// (frame_xr/per_game.h): which ones count as set for this game (the scope control shows it), and Use Global Value.
 
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
