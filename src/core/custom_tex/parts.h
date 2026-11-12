@@ -86,6 +86,7 @@ struct Layout {
     std::string root;          ///< the folder holding the parts ("" the pack folder)
     std::vector<Group> groups; ///< default order
     u64 loose_textures = 0;    ///< texture files outside every part (they always load)
+    u64 loose_bytes = 0;       ///< their size on disk
     std::size_t PartCount() const;
     const Group* FindGroup(std::string_view key) const;
     const Part* FindPart(std::string_view key) const;

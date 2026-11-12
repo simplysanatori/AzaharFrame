@@ -16,7 +16,7 @@
 #
 # Built-in checks: e-mail addresses other than the maintainer's GitHub no-reply address; LAN addresses (192.168.); home
 # folders (/home/steamos and any other); 3DS game file names (a name followed by .3ds / .cci / .cia, or a region tag such as
-# (USA), (Europe) or (En,); a bare ".3ds" in a list of file types is fine, AZAHARFRAME_PRIVACY_STRICT_ROM=1 flags those
+# (USA), (Europe) or (En,), not looked for inside binaries, where the built-in mod catalog names games; a bare ".3ds" in a list of file types is fine, AZAHARFRAME_PRIVACY_STRICT_ROM=1 flags those
 # too); access tokens and private keys; commit identities other than the no-reply address; and Co-Authored-By trailers.
 #
 # Personal values (the maintainer's real name, the home network's SSID, other host and user names) must not be written
@@ -59,7 +59,10 @@ text_checks = [
     ("private key", rx(r"-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----")),
 ]
 # in binaries: the checks that make sense on bytes
-bin_names = {"home folder", "LAN address", "token", "private key", "3DS game region tag"}
+# A region tag alone is left out here: the built-in mod catalog compiled into the program names
+# games, "(USA)" and the like, which is not the owner's file names; a ROM file name (a name then
+# .3ds / .cci / .cia) is still caught, in a binary as in text.
+bin_names = {"home folder", "LAN address", "token", "private key", "3DS game file name"}
 personal = []
 if os.path.isfile(patp):
     for l in open(patp, encoding="utf-8"):
