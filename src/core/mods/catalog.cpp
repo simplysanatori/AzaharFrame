@@ -2,8 +2,10 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
 #include <cctype>
 #include <json.hpp>
+#include <boost/crc.hpp>
 #include <fmt/format.h>
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
@@ -71,6 +73,18 @@ std::string Str(const nlohmann::json& j, const char* key) {
     return it != j.end() && it->is_string() ? it->get<std::string>() : std::string{};
 }
 
+bool DateOk(std::string_view d) {
+    if (d.size() != 10 || d[4] != '-' || d[7] != '-') {
+        return false;
+    }
+    for (std::size_t i = 0; i < d.size(); ++i) {
+        if (i != 4 && i != 7 && !std::isdigit(static_cast<unsigned char>(d[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Throws std::string with the reason.
 CatalogEntry ParseEntry(const nlohmann::json& j) {
     if (!j.is_object()) {
@@ -90,6 +104,14 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     e.licence = Str(j, "licence");
     e.homepage = Str(j, "homepage");
     e.notes = Str(j, "notes");
+    e.author_url = Str(j, "author_url"); // AzaharFrame modcat
+    if (!e.author_url.empty() && e.author_url.rfind("https://", 0) != 0) {
+        throw std::string("author_url is not https");
+    }
+    e.updated = Str(j, "updated");
+    if (!e.updated.empty() && !DateOk(e.updated)) {
+        e.updated.clear();
+    }
     const auto ids = j.find("title_ids");
     if (ids == j.end() || !ids->is_array() || ids->empty()) {
         throw std::string("no title_ids");
@@ -130,25 +152,60 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
         if (!RefOk(s.ref)) {
             throw std::string("bad ref");
         }
+    } else if (type == "gamebanana") { // AzaharFrame modcat
+        s.type = Source::Type::Gamebanana;
+        const auto mod = src->find("mod");
+        if (mod == src->end() || !mod->is_number_unsigned() || mod->get<u64>() == 0) {
+            throw std::string("bad GameBanana mod id");
+        }
+        s.gb_mod = mod->get<u64>();
+        s.asset_pattern = Str(*src, "file_pattern").empty() ? "*.zip" : Str(*src, "file_pattern");
+        if (s.asset_pattern.find('/') != std::string::npos) {
+            throw std::string("bad file_pattern");
+        }
     } else {
         throw std::string("unknown source type");
     }
-    if (!RepoOk(s.repo)) {
+    if (s.type != Source::Type::Gamebanana && !RepoOk(s.repo)) {
         throw std::string("bad repo");
     }
-    if (s.type != Source::Type::GithubRelease) {
+    if (s.type == Source::Type::GithubRepoPath || s.type == Source::Type::OwnerRepoPath) {
         const auto safe = SafeRelativePath(s.path);
         if (s.path.empty() || !safe || safe->empty()) {
             throw std::string("bad path");
         }
     }
-    // The maintainer's own mods only: a community entry is never marked verified.
-    e.verified = j.value("verified", false) && s.type == Source::Type::OwnerRepoPath;
+    // Verified: the maintainer's own mods and the GameBanana mods the maintainer has played through
+    // (AzaharFrame modcat); a GitHub release from a community author is never marked verified.
+    e.verified = j.value("verified", false) &&
+                 (s.type == Source::Type::OwnerRepoPath || s.type == Source::Type::Gamebanana);
+    const auto chip = j.find("version_chip"); // AzaharFrame modcat
+    if (chip != j.end() && chip->is_object()) {
+        e.chip = Str(*chip, "label");
+        e.chip_tip = Str(*chip, "tip");
+        if (e.chip.size() > 16 || e.chip_tip.size() > 120) {
+            throw std::string("bad version_chip");
+        }
+        const auto crcs = chip->find("code_crc32");
+        if (crcs != chip->end() && crcs->is_array()) {
+            for (const auto& c : *crcs) {
+                const std::string text = c.is_string() ? c.get<std::string>() : std::string{};
+                if (text.size() != 8 ||
+                    !std::all_of(text.begin(), text.end(), [](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)); })) {
+                    throw std::string("bad code_crc32");
+                }
+                e.code_crc32.push_back(static_cast<u32>(std::stoul(text, nullptr, 16)));
+            }
+        }
+    }
     const auto install = j.find("install");
     if (install != j.end() && install->is_object()) {
-        const auto rules = install->find("rules");
-        if (rules != install->end() && rules->is_array()) {
-            for (const auto& r : *rules) {
+        const auto parse_rules = [](const nlohmann::json& rules) {
+            std::vector<Rule> out;
+            if (!rules.is_array()) {
+                return out;
+            }
+            for (const auto& r : rules) {
                 Rule rule{Str(r, "from"), Str(r, "to")};
                 if (rule.from.empty() || !SafeRelativePath(rule.from)) {
                     throw std::string("bad install rule");
@@ -160,8 +217,13 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
                 // keep the folder marker (trailing '/')
                 rule.to = to->empty() ? std::string{}
                                       : (rule.to.back() == '/' ? *to + "/" : *to);
-                e.rules.push_back(std::move(rule));
+                out.push_back(std::move(rule));
             }
+            return out;
+        };
+        const auto rules = install->find("rules");
+        if (rules != install->end()) {
+            e.rules = parse_rules(*rules);
         }
     }
     return e;
@@ -179,7 +241,7 @@ bool CatalogEntry::ServesTitle(u64 title_id) const {
 }
 
 bool CatalogEntry::Installable() const {
-    if (source.type != Source::Type::GithubRelease) {
+    if (source.type != Source::Type::GithubRelease && source.type != Source::Type::Gamebanana) {
         return true;
     }
     std::string p = source.asset_pattern;
@@ -264,6 +326,12 @@ bool GlobMatch(std::string_view pattern, std::string_view text) {
         ++p;
     }
     return p == pattern.size();
+}
+
+u32 Crc32(const u8* data, std::size_t size) {
+    boost::crc_32_type result;
+    result.process_bytes(data, size);
+    return result.checksum();
 }
 
 std::string TitleIdText(u64 title_id) {

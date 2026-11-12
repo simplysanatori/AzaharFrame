@@ -131,6 +131,7 @@ private:
     float stick_repeat = 0.0f;
     int stick_dir = 0;
     Menu::Id rest_id = Menu::Id::None; ///< what the beam rests on, for the tooltip
+    int rest_index = -1; ///< AzaharFrame modcat: the resting target's index (ModVersion)
     float rest_s = 0.0f;
     XrTime last_time = 0;
     uint64_t posted = 0;   ///< redraws asked for

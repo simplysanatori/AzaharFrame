@@ -117,6 +117,7 @@ enum class Id : int {
     TexturePack,    ///< index: 0 Off, i + 1 mods.textures.packs[i]
     TexturePreload,
     RestartGame,    ///< the snackbar's Restart
+    ModVersion,     ///< AzaharFrame modcat: a mod's version chip (the tooltip's anchor); index: mods.mods.available
     ModLink,        ///< "Created by <author>": index into the page's list (loaded or available)
     DownloadPacks,  ///< the Textures segment: opens Download Packs
     TexturesBack,   ///< Download Packs' back button
@@ -229,6 +230,7 @@ struct MenuView {
     std::array<float, static_cast<int>(Tab::Count)> scroll{}; ///< dp scrolled down
     Id open_menu = Id::None;  ///< a menu button whose menu is open
     Id tooltip = Id::None;    ///< the one-line explanation of a row
+    int tooltip_index = -1;   ///< AzaharFrame modcat: which row's (ModVersion)
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
     ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab

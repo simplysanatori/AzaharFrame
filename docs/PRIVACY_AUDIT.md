@@ -45,6 +45,9 @@ The emulator makes no network connection of its own (web service, telemetry, upd
 | `raw.githubusercontent.com` | `GET /simplysanatori/3ds-game-fixes/main/catalog/mods.json` (once per run, when a fix is installed or the Mods tab refreshes its list) | The mod catalog: which mods exist, for which title IDs, and where each is downloaded from |
 | `api.github.com` | `GET /repos/<owner>/<repo>/releases/latest` (or `/releases/tags/<tag>`), `GET /repos/<owner>/<repo>/git/trees/<ref>?recursive=1` | Only when the player installs a mod from the Mods tab: the author's own repository named in the catalog entry |
 | `github.com`, `raw.githubusercontent.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `codeload.github.com` | `GET` of the release asset or repository file named by the catalog entry (a redirect from `github.com` to GitHub's asset hosts is followed; any other host or plain `http` is refused) | The mod's files, straight from its author's GitHub repository; nothing is re-hosted |
+| `api.github.com` | `GET /repos/<owner>/<repo>/releases/...` and `.../commits?path=...&per_page=1` | The date a mod was last updated, shown on its Install Mods row (a release's published date or a file's last commit) |
+| `gamebanana.com` | `GET /apiv11/Mod/<id>/ProfilePage` (the public API; no account, no cookie) | A GameBanana mod's name, files and update date |
+| `gamebanana.com`, `files.gamebanana.com`, `filecache<N>.gamebanana.com` | `GET /dl/<file id>`, redirected to GameBanana's file hosts (any other host or plain `http` is refused) | The mod's newest file, straight from GameBanana; nothing is re-hosted |
 
 Texture packs (VR menu, Textures segment, "Download Packs", `src/core/custom_tex/download.*`). Only when the player taps Download on a pack, never in the background; the catalog list itself is read with the one catalog request above (`catalog/textures.json`, same host) or from the copy compiled in:
 

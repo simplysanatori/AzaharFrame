@@ -671,15 +671,42 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
                     {"d", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", false, OfferState::Installed, "", false},
                     {"r", "Project Restoration", "leoetlino", "https://github.com/leoetlino/project-restoration", false, OfferState::Unavailable,
                      "Unsupported Archive", false},
-                    {"n", "No Bloom", "simplysanatori", "https://example.com/x", true, OfferState::Installing, "Downloading", false}};
+                    {"n", "No Bloom", "simplysanatori", "http://example.com/x", true, OfferState::Installing, "Downloading", false}};
     d.Draw(m, v);
     CHECK(HasHit(d, Id::ModInstall, 0));
     CHECK(!HasHit(d, Id::ModInstall, 1)); // installed
     CHECK(!HasHit(d, Id::ModInstall, 2)); // cannot install yet
     CHECK(!HasHit(d, Id::ModInstall, 3)); // installing
     CHECK(HasHit(d, Id::ModLink, 0));
-    CHECK(!HasHit(d, Id::ModLink, 3)); // not a GitHub address: no link
+    CHECK(!HasHit(d, Id::ModLink, 3)); // not an https address: no link
     CheckTargets(d);
+    CHECK(!HasHit(d, Id::ModVersion, 2)); // no version chip
+    // AzaharFrame modcat: version chips (a hit each), the matching one filled, a tooltip on hover
+    mm.available[2].version = "1.0";
+    mm.available[2].version_tip = "For the original 1.0 game, or 1.0 with the 1.1 update.";
+    mm.available[0].version = "Card 1.1";
+    mm.available[0].version_tip = "For game cards with 1.1 built in.";
+    mm.available[0].version_match = true;
+    mm.available[0].updated = "Updated Mar 2022";
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModVersion, 0));
+    CHECK(HasHit(d, Id::ModVersion, 2));
+    CHECK(HasHit(d, Id::ModInstall, 0)); // the chip does not take the button
+    CHECK(HasHit(d, Id::ModLink, 0));
+    const auto* chip = FindHit(d, Id::ModVersion, 0);
+    REQUIRE(chip);
+    CHECK(d.menu.HitTest(chip->r.Cx(), chip->r.Cy()) == Target{Id::ModVersion, 0});
+    v.tooltip = Id::ModVersion;
+    v.tooltip_index = 0;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModVersion, 0));
+    v.tooltip = Id::None;
+    v.tooltip_index = -1;
+    CheckTargets(d);
+    mm.available[0].version.clear();
+    mm.available[0].version_tip.clear();
+    mm.available[0].version_match = false;
+    mm.available[2].version.clear();
     mm.busy = true; // another install runs: Install waits
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::ModInstall, 0));

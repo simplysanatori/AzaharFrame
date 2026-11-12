@@ -106,9 +106,9 @@ ModsListModel SampleModsOot3d() {
     mm.catalog = CatalogState::Ready;
     mm.available = {
         {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
-         false, OfferState::Install, "", false},
+         false, OfferState::Install, "", false, "Updated Nov 2026"}, // AzaharFrame modcat
         {"oot3d-ocarina-reframed-dual", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud",
-         false, OfferState::Install, "", false}};
+         false, OfferState::Install, "", false, "Updated Oct 2026"}};
     return mm;
 }
 
@@ -658,6 +658,26 @@ int main(int argc, char** argv) {
         v.open_link = "https://github.com/OTPR26/OOT3DHud";
         v.hover = {Id::DialogConfirm};
         ok &= shot("mods-open-github", mi, v);
+        // AzaharFrame modcat: Project Restoration's three builds as chips, the game's filled first
+        MenuModel mv = mi;
+        mv.mods.mods.available = {
+            {"v110", "Project Restoration", "leoetlino", "https://github.com/leoetlino/project-restoration",
+             false, OfferState::Install, "", false, "Updated Jan 2022", "Card 1.1",
+             "For game cards with 1.1 built in.", true},
+            {"v100", "Project Restoration", "leoetlino", "https://github.com/leoetlino/project-restoration",
+             false, OfferState::Install, "", false, "Updated Jan 2022", "1.0",
+             "For the original 1.0 game, or 1.0 with the 1.1 update.", false},
+            {"v101", "Project Restoration", "leoetlino", "https://github.com/leoetlino/project-restoration",
+             false, OfferState::Install, "", false, "Updated Jan 2022", "Fallback",
+             "Try this if the first one doesn't work.", false}};
+        v.open_link.clear();
+        v.hover = {Id::ModVersion, 1};
+        v.tooltip = Id::ModVersion;
+        v.tooltip_index = 1;
+        ok &= shot("mods-version-chips", mv, v);
+        v.tooltip = Id::None;
+        v.tooltip_index = -1;
+        v.open_link = "https://github.com/OTPR26/OOT3DHud";
         v.open_link.clear();
         MenuModel ml = m; // loaded, waiting for a restart
         ml.mods.mods.loaded = {

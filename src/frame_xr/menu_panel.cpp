@@ -382,6 +382,7 @@ void MenuPanel::Open(const XrPosef& at, float width, std::vector<std::pair<std::
     view.page = Menu::Page::Tabs;
     view.hover = view.pressed = {};
     view.open_menu = view.tooltip = view.dragging = Id::None;
+    view.tooltip_index = -1;
     Resume();
 }
 
@@ -1305,7 +1306,7 @@ void MenuPanel::Click(Target t, Host& host) {
         if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
             const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
                                              : mm.loaded[static_cast<std::size_t>(t.index)].url;
-            if (!Menu::GithubLinkText(url).empty()) {
+            if (!Menu::LinkText(url).empty()) { // AzaharFrame modcat: GameBanana pages too
                 view.open_link = url;
             }
         }
@@ -1652,21 +1653,30 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
 
     // ---- The tooltip: a beam resting on a setting ----
     const Id rest = hover.id;
-    if (rest != rest_id) {
+    const int rest_idx = rest == Id::ModVersion ? hover.index : -1; // AzaharFrame modcat
+    if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
+        rest_index = rest_idx;
         rest_s = 0.0f;
         view.tooltip = Id::None;
+        view.tooltip_index = -1;
     } else if (rest != Id::None && view.pressed.id == Id::None) {
         rest_s += dt;
+        const auto& offers = model.mods.mods.available;
+        const bool chip_text = rest == Id::ModVersion && rest_idx >= 0 &&
+                               rest_idx < static_cast<int>(offers.size()) &&
+                               !offers[static_cast<std::size_t>(rest_idx)].version_tip.empty();
         const bool has_text =
-            !Menu::ExplainFor(rest).empty() ||
+            chip_text || (rest != Id::ModVersion && !Menu::ExplainFor(rest).empty()) ||
             model.locked[static_cast<std::size_t>(rest)] != Lock::None;
         if (rest_s >= kTooltipRest && has_text) {
             view.tooltip = rest;
+            view.tooltip_index = rest_idx;
         }
     }
     if (view.pressed.id != Id::None) {
         view.tooltip = Id::None;
+        view.tooltip_index = -1;
     }
 
     view.remap = remap.View();

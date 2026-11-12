@@ -152,7 +152,8 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
 #include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
 #include "citra_qt/frame_mirror.h"
-#include "citra_qt/frame_mods.h" // AzaharFrame texui
+#include "citra_qt/frame_mods.h"
+#include "core/mods/catalog.h" // AzaharFrame texui
 #include "citra_qt/frame_mode.h"
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
@@ -1412,6 +1413,16 @@ GMainWindow::GMainWindow(Core::System& system_)
                                                        !g_frame_game_config_name.empty());
                         if (!g_frame_mods) { // AzaharFrame texui
                             g_frame_mods = new FrameMods(this);
+                            // AzaharFrame modcat: the game's code, for mods that fit a game build
+                            g_frame_mods->SetCodeCrcSource([this]() -> std::optional<u32> {
+                                std::vector<u8> code;
+                                if (system.GetAppLoader().ReadCode(code) !=
+                                        Loader::ResultStatus::Success ||
+                                    code.empty()) {
+                                    return std::nullopt;
+                                }
+                                return Mods::Crc32(code.data(), code.size());
+                            });
                         }
                         g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
                         if (!g_frame_cheats) { // AzaharFrame cheatstab
