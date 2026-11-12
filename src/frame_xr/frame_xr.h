@@ -129,6 +129,9 @@ struct ViewPose {
     XrPosef head{{0, 0, 0, 1}, {0, 0, 0}};
     XrPosef eye[2]{{{0, 0, 0, 1}, {0, 0, 0}}, {{0, 0, 0, 1}, {0, 0, 0}}};
     XrFovf fov[2]{};
+    /// AzaharFrame jump: xrLocateViews succeeded with both eyes' orientations valid this frame
+    /// (else `eye` and `fov` are the defaults).
+    bool views_valid = false;
 };
 ViewPose LatestViewPose();
 /// AzaharFrame doubling: the head pose the game picture released last was drawn with (immersive

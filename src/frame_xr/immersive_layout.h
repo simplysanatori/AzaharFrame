@@ -157,6 +157,48 @@ struct EyeFov {
 /// either eye sees to each side (outer_*).
 ViewFov BothEyes(const EyeFov& left, const EyeFov& right);
 
+/// AzaharFrame jump: the view the head-locked screen is fitted to (its pitch, its height and the
+/// game's up-and-down factor all follow it), held steady. SteamVR on the Frame can report the
+/// eyes' views a little differently from one frame to the next (in the owner's Mario Kart 7
+/// launches of 2026-11-12 the both-eyes view switched between two shapes 1.9 degrees apart, top
+/// or bottom cut), and a screen refitted every frame jumped up and down with them while the head
+/// was still. The lenses do not move, so the view is fitted once, from the mean of the first
+/// kViewSettleFirstFrames frames, and again only when the mean of a whole block of
+/// kViewSettleBlockFrames frames is more than kViewSettleChangeDeg (or kViewSettleIpdM) away: a
+/// lasting change (IPD), never a frame-to-frame one. XR thread only.
+inline constexpr int kViewSettleFirstFrames = 30;   ///< a quarter second at 120 Hz
+inline constexpr int kViewSettleBlockFrames = 240;  ///< two seconds at 120 Hz
+inline constexpr float kViewSettleChangeDeg = 0.5f;
+inline constexpr float kViewSettleIpdM = 0.001f;
+
+class ViewSettle {
+public:
+    /// One XR frame's view (BothEyes) and half the distance between the eyes, in metres. True
+    /// when the view in use changed: the first frame, the settled first mean when it differs, or
+    /// a lasting change.
+    bool Add(const ViewFov& view, float half_ipd);
+    const ViewFov& View() const {
+        return view_;
+    }
+    float HalfIpd() const {
+        return half_ipd_;
+    }
+    bool Has() const {
+        return has_;
+    }
+    /// How far (radians, the largest of the eight angles) a view is from the one in use.
+    float Distance(const ViewFov& view) const;
+
+private:
+    void Restart();
+    ViewFov view_{};
+    float half_ipd_ = 0.0f;
+    bool has_ = false;
+    bool settled_ = false; ///< the first mean is in use
+    int count_ = 0;
+    double sum_[9]{};
+};
+
 /// What the player chose (saved per game). Defaults: kDefault*.
 struct Placement {
     float pitch_deg = kDefaultPitchDeg; ///< relative to the middle of the view

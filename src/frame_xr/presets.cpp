@@ -39,6 +39,11 @@ namespace {
 // than wide 35 degrees to the side) and with Narrow Screen 20 % (20 % thinner still); 10 % was
 // "okay-ish". So no narrowing, and the screen 10 % smaller instead: the HUD sits where 10 % put
 // it across, and the world keeps its shape (gain 1.11 both ways).
+// AzaharFrame jump: those notes are older than the values below, which are the owner's own of
+// 2026-11-12 (set in the in-game menu): Immersive Game FOV 40, Match Game Camera off, Narrow
+// Screen 30 %, Narrow Height 15 %, size 2.02 at 0.37 m. Match Game Camera is set off here too,
+// so a player on the defaults gets the gain the owner tuned (with it on, the gain would follow
+// the 52-degree racing camera instead).
 constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .mode = 3,
                                       .register_offset = 90,
@@ -48,6 +53,7 @@ constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .wider_level = 3,
                                       .narrow = 30,
                                       .screen_size = 2.022f,
+                                      .match_camera = 0,
                                       .resolution = 3,
                                       .texture_filter = 3,
                                       .narrow_y = 15,

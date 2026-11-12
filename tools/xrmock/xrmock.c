@@ -21,6 +21,9 @@
 //   MOCK_XR_SWAY=0            keep the head still (default: it turns slowly
 //                             from side to side, so poses located for
 //                             different times differ)
+//   MOCK_XR_EYE_WOBBLE=<deg>  the right eye's view pitched up and down by this much
+//                             relative to the head, the sign alternating each display
+//                             frame (eye views that differ from frame to frame)
 //   MOCK_XR_SPACEWARP=1       offer XR_FB_space_warp
 //   MOCK_XR_EXTENSIONS=a,b    replace the list of extensions offered
 //   MOCK_XR_SKIP=1            a frame begun late loses refreshes (the display
@@ -139,6 +142,7 @@ static XrQuaternionf qyawpitch(float yawDeg, float pitchDeg) {
 }
 
 static int gSway = 1;
+static float gEyeWobbleRad = 0.0f; // MOCK_XR_EYE_WOBBLE, in radians
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
 // Sessions begun so far. A later session (an app that ended its session and made a new one)
 // keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
@@ -1568,7 +1572,12 @@ static XrResult XRAPI_CALL mLocateViews(XrSession s, const XrViewLocateInfo* li,
     XrPosef inv = base ? pinv(worldOf(base, li->displayTime)) : pident();
     XrPosef head = headAt(li->displayTime);
     for (uint32_t e = 0; e < 2 && e < cap; e++) {
-        XrPosef eye = pmul(head, (XrPosef){{0, 0, 0, 1}, {e ? 0.032f : -0.032f, 0, 0}});
+        XrQuaternionf tilt = {0, 0, 0, 1};
+        if (e == 1 && gEyeWobbleRad != 0.0f) {
+            const float a = ((li->displayTime / gPeriod) & 1) ? gEyeWobbleRad : -gEyeWobbleRad;
+            tilt = (XrQuaternionf){sinf(a / 2), 0, 0, cosf(a / 2)};
+        }
+        XrPosef eye = pmul(head, (XrPosef){tilt, {e ? 0.032f : -0.032f, 0, 0}});
         v[e].pose = pmul(inv, eye);
         v[e].fov = (XrFovf){-0.84f, 0.84f, 0.84f, -0.84f};
         gLocates[gLocateNext].pose[e] = v[e].pose;
@@ -1675,6 +1684,8 @@ static void init(void) {
     if (hz) gPeriod = (int64_t)(1e9 / atof(hz));
     const char* sway = getenv("MOCK_XR_SWAY");
     if (sway && atoi(sway) == 0) gSway = 0;
+    const char* wobble = getenv("MOCK_XR_EYE_WOBBLE");
+    if (wobble) gEyeWobbleRad = (float)(atof(wobble) * 3.14159265358979 / 180.0);
     gDumpDir = getenv("MOCK_XR_DUMP_DIR");
     if (gDumpDir) {
         mkdir(gDumpDir, 0755);
