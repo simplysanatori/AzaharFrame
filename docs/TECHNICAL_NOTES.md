@@ -106,7 +106,7 @@ The build uses Ninja, Release, `ENABLE_FFMPEG=OFF`, `USE_AUDIOTRACK=OFF`, Vulkan
 
 `ENABLE_FRAME_XR` needs no flag: `CMakeLists.txt` turns it on for Linux aarch64 (with Vulkan and Qt on), and `src/frame_xr/CMakeLists.txt` takes the OpenXR headers from `third_party/openxr/include` in the tree.
 
-That build links the Qt 6 and SDL2 SteamOS has. The release is the portable build, `steam-frame/build-portable.sh 1.1.1`, which carries its own Qt and builds SDL2 in; see [AGENTS.md](../AGENTS.md#portable-build).
+That build links the Qt 6 and SDL2 SteamOS has. The release is the portable build, `steam-frame/build-portable.sh 1.1.1`, which carries its own Qt and carries SDL3 and sdl2-compat; see [AGENTS.md](../AGENTS.md#portable-build).
 
 `steam-frame/release/make-release.sh [version [build-dir]]` packs an existing build without building or touching Steam. Tarballs and `SHA256SUMS` in `steam-frame/release/` are ignored by git.
 

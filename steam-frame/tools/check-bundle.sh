@@ -38,6 +38,8 @@ L="$(readlink -f "$APP/lib" 2>/dev/null || echo "$APP/lib")"
 if [ -d "$APP/lib" ]; then
     for f in "$APP"/lib/*; do [ -e "$f" ] && allowed "${f##*/}" && fail "app/lib/${f##*/} is on the allowlist: it must come from the system"; done
 fi
+# sdl2-compat opens SDL3 by dlopen, so nothing below sees it: the pair must be there together
+if [ -e "$APP/lib/libSDL2-2.0.so.0" ] && [ ! -e "$APP/lib/libSDL3.so.0" ]; then fail "app/lib has sdl2-compat (libSDL2-2.0.so.0) but no libSDL3.so.0, which it opens at run time"; fi
 # the newest Qt symbol version the bundled Qt defines
 QTMAX=
 if [ -f "$APP/lib/libQt6Core.so.6" ]; then

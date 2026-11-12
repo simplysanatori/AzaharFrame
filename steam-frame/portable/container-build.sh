@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs inside the build container (steam-frame/build-portable.sh starts it): copies the source to the
 # working volume, builds Azahar for Frame against the container's Qt with RUNPATH $ORIGIN/lib, and stages
-# the Qt libraries and plugins beside it.
+# the Qt libraries and plugins beside it, with SDL3 and sdl2-compat (built here by build-sdl.sh).
 # Mounts: /src-ro (the checkout, read only), /ext-ro (a checkout whose externals/ is filled, read only,
 # optional), /work (source copy and build tree, kept between runs), /ccache, /out (the result).
 # Environment: JOBS, GIT_COMMIT, GIT_TAG (written to GIT-COMMIT and GIT-TAG for the version text),
@@ -43,6 +43,12 @@ rsync -a --delete --exclude=.git "$from" "$SRC/$CL/"
 echo "${GIT_COMMIT:-unknown}" > "$SRC/GIT-COMMIT"
 echo "${AZAHARFRAME_VERSION:-${GIT_TAG:-unknown}}" > "$SRC/GIT-TAG"
 
+# SDL: SDL3 and sdl2-compat, pinned, in their own prefix on the work volume (built once, build-sdl.sh).  Azahar
+# links SDL2 dynamically through sdl2-compat; both libraries are staged into lib/ below.
+echo "== SDL3 and sdl2-compat"
+SDLP=/work/sdl-prefix
+"$HERE/build-sdl.sh" "$SDLP" /work/sdl-src "$JOBS"
+
 export CCACHE_DIR=/ccache CCACHE_MAXSIZE=10G CCACHE_BASEDIR=/work
 PREFIX_MAP="-ffile-prefix-map=$SRC/= -ffile-prefix-map=$BLD/=build/"
 RPATH='$ORIGIN/lib'
@@ -52,7 +58,7 @@ nice -n 19 cmake -S "$SRC" -B "$BLD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DCMAKE_C_FLAGS="$PREFIX_MAP" -DCMAKE_CXX_FLAGS="$PREFIX_MAP" -DAZAHARFRAME_RELEASE=ON \
-    -DCMAKE_PREFIX_PATH="$QT" -DUSE_SYSTEM_QT=ON \
+    -DCMAKE_PREFIX_PATH="$QT;$SDLP" -DUSE_SYSTEM_QT=ON \
     -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH="$RPATH" \
     -DCMAKE_EXE_LINKER_FLAGS="-Wl,--enable-new-dtags" \
     -DENABLE_FFMPEG=OFF -DUSE_AUDIOTRACK=OFF \
@@ -61,7 +67,7 @@ nice -n 19 cmake -S "$SRC" -B "$BLD" -G Ninja \
     -DENABLE_TESTS=OFF -DENABLE_ROOM=OFF -DENABLE_ROOM_STANDALONE=OFF \
     -DENABLE_WEB_SERVICE=OFF -DENABLE_DISCORD_RPC=OFF -DENABLE_SCRIPTING=OFF \
     -DENABLE_LTO=OFF -DCITRA_WARNINGS_AS_ERRORS=OFF \
-    -DENABLE_CUBEB=ON -DENABLE_OPENAL=ON -DENABLE_SDL2=ON -DUSE_SYSTEM_SDL2=OFF \
+    -DENABLE_CUBEB=ON -DENABLE_OPENAL=ON -DENABLE_SDL2=ON -DUSE_SYSTEM_SDL2=ON -DSDL2_DIR="$SDLP/lib/cmake/SDL2" \
     ${CF_EXTRA_CMAKE_FLAGS:-}
 
 echo "== build -j$JOBS"
@@ -81,12 +87,13 @@ BIN="$BLD/bin/Release/azahar"
 rm -rf /out/bin /out/bundle
 mkdir -p /out/bin
 cp "$BIN" /out/bin/azahar
-"$HERE/stage-bundle.sh" "$QT" /out/bin/azahar /out/bundle "$SRC/steam-frame/tools/host-libs.allow"
+SDL_PREFIX="$SDLP" "$HERE/stage-bundle.sh" "$QT" /out/bin/azahar /out/bundle "$SRC/steam-frame/tools/host-libs.allow"
 {
     echo "built: $(date -u +%FT%TZ)"
     echo "source: ${GIT_COMMIT:-unknown}"
     echo "compiler: $(c++ --version | head -n 1)"
     echo "glibc: $(ldd --version | head -n 1)"
+    echo "sdl: $(cat "$SDLP/.pins")"
     echo "qt: $(basename "$(dirname "$QT")") (tree sha256 $(cat /opt/qt-tree.sha256))"
 } > /out/BUILD-INFO.txt
 cat /out/BUILD-INFO.txt
