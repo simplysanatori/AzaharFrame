@@ -5,7 +5,8 @@
 # Mounts: /src-ro (the checkout, read only), /ext-ro (a checkout whose externals/ is filled, read only,
 # optional), /work (source copy and build tree, kept between runs), /ccache, /out (the result).
 # Environment: JOBS, GIT_COMMIT, GIT_TAG (written to GIT-COMMIT and GIT-TAG for the version text),
-# AZAHARFRAME_VERSION (a release's version: written to GIT-TAG instead of GIT_TAG), CF_EXTRA_CMAKE_FLAGS.
+# AZAHARFRAME_VERSION (a release's version: written to GIT-TAG instead of GIT_TAG), CF_EXTRA_CMAKE_FLAGS,
+# AZAHARFRAME_SENTRY_DSN (Send Report's Sentry DSN; none: Save Report only).
 set -euo pipefail
 JOBS=${JOBS:-4}
 SRC=/work/src
@@ -58,6 +59,7 @@ nice -n 19 cmake -S "$SRC" -B "$BLD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DCMAKE_C_FLAGS="$PREFIX_MAP" -DCMAKE_CXX_FLAGS="$PREFIX_MAP" -DAZAHARFRAME_RELEASE=ON \
+    -DAZAHARFRAME_SENTRY_DSN="${AZAHARFRAME_SENTRY_DSN:-}" \
     -DCMAKE_PREFIX_PATH="$QT;$SDLP" -DUSE_SYSTEM_QT=ON \
     -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH="$RPATH" \
     -DCMAKE_EXE_LINKER_FLAGS="-Wl,--enable-new-dtags" \

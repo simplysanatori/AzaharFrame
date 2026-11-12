@@ -27,6 +27,12 @@ jobs:
       AZAHARFRAME_PORTABLE_CACHE: ${{ github.workspace }}/../portable-cache
       AZAHARFRAME_OUT: /home/runner/work/_temp/release-out
       ALLOW_MISSING_HOST: '1'           # the runner has no SteamOS libraries beyond those installed below
+      # Send Report's Sentry DSN and the symbol upload (steam-frame/release/sentry-dsn.sh, upload-symbols.sh);
+      # empty secrets: no Send Report, no upload
+      AZAHARFRAME_SENTRY_DSN: ${{ secrets.AZAHARFRAME_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
     steps:
       - uses: actions/checkout@v4
         with:
