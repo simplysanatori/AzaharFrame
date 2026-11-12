@@ -55,7 +55,17 @@ template <typename Work, typename Done>
 void OffThread(FrameMods* self, Work work, Done done) {
     QPointer<FrameMods> guard(self);
     std::thread([guard, work = std::move(work), done = std::move(done)] {
-        auto result = work();
+        // AzaharFrame jsoncrash: an exception out of the job (a bad file, a JSON type error) was
+        // an uncaught exception on a thread of its own: std::terminate, the whole app gone.
+        // The job's result type is default-constructible: its "empty" answer is the failure.
+        decltype(work()) result{};
+        try {
+            result = work();
+        } catch (const std::exception& e) {
+            LOG_ERROR(Frontend, "xr: mods: a background job failed: {}", e.what());
+        } catch (...) {
+            LOG_ERROR(Frontend, "xr: mods: a background job failed");
+        }
         QMetaObject::invokeMethod(
             qApp,
             [guard, done, result = std::move(result)] {
@@ -66,6 +76,13 @@ void OffThread(FrameMods* self, Work work, Done done) {
             Qt::QueuedConnection);
     }).detach();
 }
+
+/// AzaharFrame jsoncrash: a job's answer; a default one (the job threw) is a failure.
+struct AvailableResult {
+    bool same = false;
+    bool failed = true;
+    std::vector<Mods::AvailableMod> list;
+};
 
 /// What an install is doing, as the row's supporting line says it.
 std::string PhaseText(Mods::State::Phase phase) {
@@ -278,7 +295,7 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     if (title_id == 0) {
         // AzaharFrame stall: a game with no title id (homebrew) has no catalog mods; Install Mods
         // says so at once (it waited for an answer that never came, its ring standing still).
-        if (r.command == C::LoadModCatalog && mods.catalog != Menu::CatalogState::Ready) {
+        if (r.command == C::LoadModCatalog && mods.catalog != Menu::CatalogState::Ready) { // jsoncrash: Failed too
             LOG_INFO(Frontend, "xr: mods: Install Mods: no title id, no catalog mods");
             mods.available.clear();
             mods.catalog = Menu::CatalogState::Ready;
@@ -293,7 +310,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     case C::LoadModCatalog:
         LOG_INFO(Frontend, "xr: mods: Install Mods opened ({:016X}, list {})", title_id,
                  mods.catalog == Menu::CatalogState::Ready ? "shown" : "being made");
-        if (mods.catalog == Menu::CatalogState::Idle) {
+        if (mods.catalog == Menu::CatalogState::Idle ||
+            mods.catalog == Menu::CatalogState::Failed) { // AzaharFrame jsoncrash: Retry
             mods.catalog = Menu::CatalogState::Loading;
             PublishMods();
         }
@@ -599,29 +617,54 @@ void FrameMods::ListAvailable(bool network) {
             using Clock = std::chrono::steady_clock;
             const auto t0 = Clock::now();
             Mods::Library& lib = Mods::Default();
+            AvailableResult out;
+            out.failed = false;
             bool changed = false;
             if (network) {
                 changed |= lib.RefreshCatalogOnce(); // one request a run
                 // AzaharFrame modcat: the sources' own dates, once a run; no new request after 8 s
                 changed |= lib.RefreshDates(tid, Clock::now() + std::chrono::seconds(8)) > 0;
             }
-            auto list = lib.ListAvailable(tid, game.code_crc, &game);
+            // AzaharFrame jsoncrash: an install holds the library for as long as it copies files;
+            // the list used to wait behind it with the ring turning. It waits 20 s at most, then
+            // says so (Couldn't Load Mods, Retry).
+            const auto give_up = Clock::now() + std::chrono::seconds(20);
+            while (lib.Busy() && Clock::now() < give_up) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            if (lib.Busy()) {
+                LOG_WARNING(Frontend, "xr: mods: the library stayed busy for 20 s, no list");
+                out.failed = true;
+                return out;
+            }
+            out.list = lib.ListAvailable(tid, game.code_crc, &game);
             const auto ms =
                 std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t0).count();
-            LOG_INFO(Frontend, "xr: mods: {} catalog mods for {:016X} in {} ms ({})", list.size(),
-                     tid, ms,
+            LOG_INFO(Frontend, "xr: mods: {} catalog mods for {:016X} in {} ms ({})",
+                     out.list.size(), tid, ms,
                      !network ? "the catalog in hand"
                               : changed ? "after the requests" : "the requests changed nothing");
-            return std::make_pair(network && !changed, std::move(list));
+            out.same = network && !changed;
+            return out;
         },
-        [this, tid, network](const std::pair<bool, std::vector<Mods::AvailableMod>>& r) {
+        [this, tid, network](const AvailableResult& r) {
             if (network) {
                 mods_network_running = false;
             }
-            if (tid != title_id || r.first) {
-                return; // another game now, or the same list
+            if (tid != title_id) {
+                return; // another game now
             }
-            SetAvailable(r.second);
+            if (r.failed) {
+                if (mods.catalog != Menu::CatalogState::Ready) {
+                    mods.catalog = Menu::CatalogState::Failed;
+                    PublishMods();
+                }
+                return;
+            }
+            if (r.same) {
+                return; // the same list
+            }
+            SetAvailable(r.list);
         });
 }
 

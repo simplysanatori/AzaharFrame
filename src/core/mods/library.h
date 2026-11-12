@@ -216,6 +216,9 @@ public:
     /// AzaharFrame compat: with `game`, the mods made for another region, release or version of the
     /// same game (compat.h) are listed too, after the others, each with its verdict; game's
     /// code_crc is used and `game_code_crc` ignored.
+    /// AzaharFrame jsoncrash: whether an install, remove or other long job holds the library now
+    /// (a list would wait for it).
+    bool Busy() const;
     std::vector<AvailableMod> ListAvailable(u64 title_id,
                                             std::optional<u32> game_code_crc = std::nullopt,
                                             const Compat::Game* game = nullptr) const;

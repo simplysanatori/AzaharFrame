@@ -101,6 +101,7 @@ TEST_CASE("Running: an install for the running game is staged, then applied when
     const std::string mods = dir + "mods/" + kTidText + "/";
     const std::string tex = dir + "textures/" + kTidText + "/tex/";
     library.SetRunningTitle(kTid);
+    CHECK_FALSE(library.Busy()); // AzaharFrame jsoncrash: idle, so a list does not wait
 
     const auto one = library.Install(kTid, "one");
     REQUIRE(one.result == InstallResult::Ok);

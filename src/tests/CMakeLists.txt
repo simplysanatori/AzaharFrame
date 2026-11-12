@@ -70,6 +70,7 @@ add_executable(tests
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     core/custom_tex_parts.cpp # AzaharFrame texparts
+    core/pack_config_json.cpp # AzaharFrame jsoncrash
     core/custom_tex_optimize.cpp # AzaharFrame ui3
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
@@ -110,6 +111,7 @@ endif()
 target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core)
 target_link_libraries(tests PRIVATE input_common) # AzaharFrame
 target_link_libraries(tests PRIVATE httplib) # AzaharFrame crashreport: Send Report to 127.0.0.1
+target_link_libraries(tests PRIVATE json-headers) # AzaharFrame jsoncrash: pack_config.h
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)

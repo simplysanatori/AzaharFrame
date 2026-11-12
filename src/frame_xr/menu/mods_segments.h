@@ -86,7 +86,7 @@ struct ModOffer {
     bool operator==(const ModOffer&) const = default;
 };
 
-enum class CatalogState : uint8_t { Idle, Loading, Ready };
+enum class CatalogState : uint8_t { Idle, Loading, Ready, Failed }; // AzaharFrame jsoncrash: Failed
 
 /// The question over the panel, when there is one.
 enum class ModsDialogKind : uint8_t {

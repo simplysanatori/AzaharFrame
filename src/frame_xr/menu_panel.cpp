@@ -871,6 +871,7 @@ void MenuPanel::BuildModel(const Host& host) {
     // Idle): the ring turns from the start, and never stands still.
     bool spinning = m.mods.mods.catalog == Menu::CatalogState::Loading ||
                     (m.mods.mods.catalog != Menu::CatalogState::Ready &&
+                     m.mods.mods.catalog != Menu::CatalogState::Failed &&
                      view.mods_page == Menu::ModsPage::Install);
     for (const auto& o : m.mods.mods.available) {
         spinning |= o.state == Menu::OfferState::Installing;

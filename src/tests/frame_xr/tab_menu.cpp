@@ -743,6 +743,12 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(HasHit(d, Id::ModsBack, -1));
     CHECK(!HasHit(d, Id::InstallMods, -1));
     CHECK(!HasHit(d, Id::ModInstall, 0));
+    // AzaharFrame jsoncrash: a list that could not be made says so, with Retry (a hit that asks for
+    // the catalog again), and no ring
+    mm.catalog = CatalogState::Failed;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModsBack, -1));
+    CHECK(HasHit(d, Id::InstallMods, -1));
     mm.catalog = CatalogState::Ready;
     mm.available = {{"s", "Ocarina ReFramed (Single Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", false, OfferState::Install, "", false},
                     {"d", "Ocarina ReFramed (Dual Screen)", "OTPR26", "https://github.com/OTPR26/OOT3DHud", false, OfferState::Installed, "", false},
