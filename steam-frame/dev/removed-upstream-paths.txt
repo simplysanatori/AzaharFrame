@@ -1,0 +1,12 @@
+# Paths from upstream Azahar that this fork deliberately does not carry (the Android
+# app is never built or shipped). steam-frame/dev/merge-upstream.sh keeps them deleted
+# when merging upstream. One repo-relative path per line (file, directory or submodule).
+src/android
+.ci/android.sh
+tools/check-kotlin-formatting.sh
+tools/fix-kotlin-formatting.sh
+CMakeModules/AndroidNdkModules.cmake
+# Android-only submodules (only referenced under if (ANDROID) in externals/CMakeLists.txt)
+externals/libadrenotools
+externals/libyuv
+externals/openxr-sdk-src
