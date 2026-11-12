@@ -15,6 +15,7 @@
 #include "common/string_util.h"
 #include "common/texture.h"
 #include "core/core.h"
+#include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/frontend/image_interface.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
@@ -457,7 +458,34 @@ std::vector<FileUtil::FSTEntry> CustomTexManager::GetTextures(u64 title_id) {
     std::vector<FileUtil::FSTEntry> textures;
     FileUtil::ScanDirectoryTree(load_path, texture_dir, 64);
     FileUtil::GetAllFilesFromNestedEntries(texture_dir, textures);
-    return textures;
+    // AzaharFrame texparts: the parts of the pack turned off in Customize are left out, and the
+    // parts higher in its list are read first, so they keep a hash two parts share
+    // (Material::AddMapTexture keeps the first file of a hash). core/custom_tex/parts.h.
+    std::vector<CustomTex::Parts::File> files;
+    files.reserve(textures.size());
+    for (const FileUtil::FSTEntry& e : textures) {
+        std::string rel = e.physicalName.size() > load_path.size()
+                              ? e.physicalName.substr(load_path.size())
+                              : e.physicalName;
+        for (std::size_t at = rel.find("//"); at != std::string::npos; at = rel.find("//", at)) {
+            rel.erase(at, 1);
+        }
+        rel.erase(0, std::min(rel.size(), rel.find_first_not_of('/')));
+        files.push_back({std::move(rel), e.size});
+    }
+    const CustomTex::Parts::State state = CustomTex::Parts::ReadState(load_path);
+    const CustomTex::Parts::Layout layout = CustomTex::Parts::Build(files, state.hints);
+    const std::vector<std::size_t> order = CustomTex::Parts::LoadOrder(layout, state, files);
+    std::vector<FileUtil::FSTEntry> loaded;
+    loaded.reserve(order.size());
+    for (const std::size_t i : order) {
+        loaded.push_back(std::move(textures[i]));
+    }
+    if (loaded.size() != textures.size()) {
+        LOG_INFO(Render, "custom textures: {} of {} files are in parts turned off",
+                 textures.size() - loaded.size(), textures.size());
+    }
+    return loaded;
 }
 
 void CustomTexManager::CreateWorkers() {

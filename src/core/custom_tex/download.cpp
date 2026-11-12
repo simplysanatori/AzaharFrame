@@ -26,6 +26,7 @@
 #include "core/cheats/online.h"
 #include "core/custom_tex/download.h"
 #include "core/custom_tex/packs.h"
+#include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
 #include "core/mods/multipart.h" // AzaharFrame catalog3
@@ -409,6 +410,21 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             }
             e.layout = layout == "variants" ? Layout::Variants : Layout::Single;
             e.folder = SanitizeFolderName(str(p, "folder").empty() ? e.name : str(p, "folder"));
+            if (const auto c = p.find("customize"); c != p.end() && c->is_object()) {
+                // AzaharFrame texparts: install hints for Customize (core/custom_tex/parts.h)
+                const auto strings = [](const nlohmann::json& a) {
+                    std::vector<std::string> out;
+                    for (const auto& v : a.is_array() ? a : nlohmann::json::array()) {
+                        if (v.is_string()) {
+                            out.push_back(v.get<std::string>());
+                        }
+                    }
+                    return out;
+                };
+                e.customize.choose_one = str(*c, "choose_one");
+                e.customize.keep = strings(c->value("keep", nlohmann::json::array()));
+                e.customize.off = strings(c->value("off", nlohmann::json::array()));
+            }
 
             const bool parts_only = !p.contains("source") && p.contains("parts") && p["parts"].is_array() &&
                                     !p["parts"].empty() && p["parts"][0].is_object();
@@ -697,26 +713,7 @@ std::vector<PackFolder> FindPackFolders(const std::vector<std::string>& files, L
     for (const auto& c : common) {
         lca = JoinPath(lca, c);
     }
-    if (layout == Layout::Variants) {
-        std::set<std::string> children;
-        bool direct = false;
-        const std::size_t depth = common.size();
-        for (const auto& d : tex_dirs) {
-            const auto parts = SplitPath(d);
-            if (parts.size() <= depth) {
-                direct = true;
-            } else {
-                children.insert(parts[depth]);
-            }
-        }
-        if (!direct && children.size() > 1) {
-            std::vector<PackFolder> out;
-            for (const auto& c : children) {
-                out.push_back({JoinPath(lca, c), c});
-            }
-            return out;
-        }
-    }
+    (void)layout; // AzaharFrame texparts: variants install as one pack with parts
     std::string root = lca;
     std::size_t best = std::string::npos;
     for (const auto& d : json_dirs) {
@@ -1107,6 +1104,9 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
             pj["name"] = pf.name.empty() ? entry.name : entry.name + " - " + pf.name;
             pj["author"] = entry.author;
             std::ofstream(dst / "pack.json") << pj.dump(2);
+        }
+        if (!entry.customize.Empty()) {
+            Parts::WriteHints(dst.string(), entry.customize); // AzaharFrame texparts
         }
         made.push_back(dst.filename().string());
         if (pf.dir.empty()) {

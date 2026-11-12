@@ -57,6 +57,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     mods/zip_install.h # AzaharFrame zipinstall
     custom_tex/packs.cpp # AzaharFrame texdata
     custom_tex/packs.h # AzaharFrame texdata
+    custom_tex/parts.cpp # AzaharFrame texparts
+    custom_tex/parts.h # AzaharFrame texparts
     custom_tex/download.cpp # AzaharFrame texdl
     custom_tex/download.h # AzaharFrame texdl
     custom_tex/download_default.cpp # AzaharFrame texdl

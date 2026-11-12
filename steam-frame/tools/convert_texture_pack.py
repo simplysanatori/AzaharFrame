@@ -26,6 +26,9 @@ import threading
 import time
 
 MARKER = ".azaharframe-ktx.json"
+# AzaharFrame texparts: the parts turned on and off (Customize); the converted pack starts with
+# the choices of the pack it is made from and keeps its own after that
+PARTS_STATE = ".azaharframe-parts.json"
 BLOCKS = {"4x4": (4, 4), "6x6": (6, 6), "8x6": (8, 6)}
 EXIT_FAILED, EXIT_USAGE, EXIT_NO_ENCODER, EXIT_STOPPED, EXIT_NO_SPACE = 1, 2, 3, 4, 5
 
@@ -137,7 +140,7 @@ def scan(src_real):
         seen.add(real)
         dirs.sort()
         for name in sorted(names):
-            if name == MARKER or name.endswith(".part"):
+            if name in (MARKER, PARTS_STATE) or name.endswith(".part"):
                 continue
             files.append(os.path.relpath(os.path.join(root, name), src_real))
     return files
@@ -367,6 +370,10 @@ class Converter:
             "kept_as_png": len(failed),
         }
         write_json(os.path.join(self.out, MARKER), marker)
+        state_src = os.path.join(self.src, PARTS_STATE)
+        state_out = os.path.join(self.out, PARTS_STATE)
+        if os.path.isfile(state_src) and not os.path.lexists(state_out):
+            shutil.copy2(state_src, state_out)
         size = sum(os.path.getsize(os.path.join(r, n)) for r, _, ns in os.walk(self.out)
                    for n in ns)
         say(f"done: {self.out} ({human(size)})")

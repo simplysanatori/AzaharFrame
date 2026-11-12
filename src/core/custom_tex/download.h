@@ -51,6 +51,7 @@
 #include <thread>
 #include <vector>
 #include "common/common_types.h"
+#include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/compat.h" // AzaharFrame compat
 
 namespace CustomTex::Download {
@@ -72,7 +73,7 @@ struct Source {
 
 enum class Layout {
     Single,   // one pack: the folder that holds the textures (wrapper folders are dropped)
-    Variants, // each folder under the common parent is its own pack
+    Variants, // AzaharFrame texparts: one pack too; its folders are the parts Customize shows
 };
 
 struct Entry {
@@ -96,6 +97,7 @@ struct Entry {
     std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown);
                            // catalog3: the catalog's own value may be "YYYY-MM"
     bool verified = false; // AzaharFrame zipinstall: known to work (the menu's verified badge)
+    Parts::Hints customize; // AzaharFrame texparts: "customize", written into the pack at install
 
     bool ServesTitle(u64 title_id) const;
 };
@@ -160,8 +162,8 @@ struct PackFolder {
 };
 /// Where the textures are in an archive, from its file paths ('/' separated, files only): the
 /// folders that hold tex1_*.png|dds|ktx. Single: the folder of a pack.json that covers every texture
-/// folder, else the lowest common parent of them. Variants: each child of that parent. Empty when
-/// there are no textures.
+/// folder, else the lowest common parent of them. Variants: the same (AzaharFrame texparts: one
+/// pack, its folders the parts). Empty when there are no textures.
 std::vector<PackFolder> FindPackFolders(const std::vector<std::string>& files, Layout layout);
 
 /// Bytes to have free before a download of `archive_size` bytes (archive plus its unpacked copy plus
