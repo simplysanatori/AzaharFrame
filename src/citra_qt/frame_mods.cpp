@@ -228,7 +228,9 @@ const Mods::Compat::Game& FrameMods::GameInfo() {
         g.code_crc = game_crc;
         LOG_INFO(Frontend, "xr: mods: the game is {:016X}, region {}, version {} ({}), code {}",
                  g.title_id, g.region == Mods::Compat::Region::Unknown ? "unknown" : Mods::Compat::RegionName(g.region),
-                 g.version ? Mods::Compat::VersionText(*g.version) : "unknown", g.version_source,
+                 g.version ? Mods::Compat::VersionText(*g.version)
+                           : (g.version_state.empty() ? std::string("unknown") : "not known, it " + g.version_state),
+                 g.version_source,
                  g.code_crc ? fmt::format("{:08x}", *g.code_crc) : "unknown");
         game_info = std::move(g);
     }
@@ -627,9 +629,11 @@ void FrameMods::ListAvailable(bool network) {
             Mods::Library& lib = Mods::Default();
             AvailableResult out;
             out.failed = false;
+            Mods::Compat::Game game_in = game; // AzaharFrame versions: may learn its version below
             bool changed = false;
             if (network) {
                 changed |= lib.RefreshCatalogOnce(); // one request a run
+                Mods::Compat::UpdateVersion(game_in); // AzaharFrame versions: the online table may name it
                 // AzaharFrame modcat: the sources' own dates, once a run; no new request after 8 s
                 changed |= lib.RefreshDates(tid, Clock::now() + std::chrono::seconds(8)) > 0;
             }
@@ -645,7 +649,7 @@ void FrameMods::ListAvailable(bool network) {
                 out.failed = true;
                 return out;
             }
-            out.list = lib.ListAvailable(tid, game.code_crc, &game);
+            out.list = lib.ListAvailable(tid, game_in.code_crc, &game_in);
             const auto ms =
                 std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t0).count();
             LOG_INFO(Frontend, "xr: mods: {} catalog mods for {:016X} in {} ms ({})",

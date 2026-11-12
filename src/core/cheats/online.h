@@ -118,7 +118,8 @@ struct DownloadResult {
     bool by_revision = false;  // the ROM gave a cartridge revision, not a version
     bool found_any = false;    // at least one source had a file for the title
     bool fix_available = false;
-    std::string update_version; // "v1.1" when an update title is installed
+    std::string update_version; // "v1.1" when an update title is installed and its version is known
+    bool has_update = false;    // AzaharFrame versions: an update title is installed (version known or not)
     std::string error;         // non-empty: nothing could be fetched (network, rate limit)
     std::string warning;       // one source failed, the other worked
     bool stale = false;        // AzaharFrame integ: another game runs now; nothing was added

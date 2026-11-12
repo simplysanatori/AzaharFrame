@@ -16,6 +16,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "core/cheats/online.h"
+#include "core/cheats/game_version.h" // AzaharFrame versions
 #include "core/mods/catalog_schema.h" // AzaharFrame harden
 #include "core/custom_tex/download.h" // AzaharFrame catalog3 round 2: Drive pages, ids
 #include "core/mods/library.h"
@@ -575,6 +576,11 @@ bool Library::RefreshCatalog(std::string* error) {
         return fail(err.empty() ? "Mod list is empty" : err);
     }
     SetCatalog(std::move(*parsed));
+    // AzaharFrame versions: the catalog's "versions" section (what each game shows for a raw
+    // version) extends and overrides the table built into the program
+    if (Cheats::Sharkive::SetOnlineVersions(reply.body)) {
+        LOG_INFO(Frontend, "Mods: version table from the catalog");
+    }
     return true;
 }
 

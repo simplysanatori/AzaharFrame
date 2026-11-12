@@ -381,25 +381,16 @@ Mods::Compat::Game FrameGameInfoOf(Core::System& system, const std::string& game
     }
     if (g.title_id != 0) {
         const auto v = Cheats::Online::QueryInstalledVersion(g.title_id, game_path);
-        using S = Cheats::Sharkive::VersionSource;
-        const auto as = [](const std::optional<Cheats::Sharkive::Version>& x)
-            -> std::optional<Mods::Compat::Version> {
-            if (!x) {
-                return std::nullopt;
-            }
-            return Mods::Compat::Version{x->major, x->minor};
-        };
-        if ((v.source == S::UpdateTmd || v.source == S::BaseTmd) && v.tmd) {
-            // AzaharFrame echoes: the version the game shows (Sharkive::GameVersionOf), the
-            // raw TMD only in the log
-            g.version = as(v.version);
-            g.updates = v.updates;
-            g.version_source = fmt::format("{}, TMD v{}",
-                                           v.source == S::UpdateTmd ? "update" : "installed title", *v.tmd);
-        } else {
-            g.version = Mods::Compat::GameVersion(std::nullopt, std::nullopt, v.revision,
-                                                  &g.version_source);
+        // AzaharFrame versions: what the game shows (the table), else "Update Installed" or
+        // "Rev N": never a number decoded from the raw version. The log keeps the raw number
+        // and its decoded triple.
+        if (v.version) {
+            g.version = Mods::Compat::Version{v.version->major, v.version->minor};
         }
+        g.unmapped = v.unmapped;
+        g.raw_version = v.raw;
+        g.version_state = v.State();
+        g.version_source = v.LogText();
     }
     return g;
 }

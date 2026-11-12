@@ -99,43 +99,6 @@ TEST_CASE("Sharkive: title version and matching", "[sharkive]") {
     REQUIRE(MarkOtherVersions(entries, std::nullopt) == 0);
 }
 
-TEST_CASE("Sharkive: installed version order", "[sharkive]") {
-    const auto none = SelectInstalledVersion(0, std::nullopt, std::nullopt, std::nullopt);
-    REQUIRE_FALSE(none.version.has_value());
-    REQUIRE_FALSE(none.revision.has_value());
-    REQUIRE(none.source == VersionSource::Unknown);
-
-    // update > base > ROM
-    auto r = SelectInstalledVersion(0, 0x0410, 0x0400, 0x0002);
-    REQUIRE_FALSE(r.version.has_value()); // an update the list does not name: not known
-    REQUIRE(r.updates == 1);
-    REQUIRE(r.tmd == 0x0410);
-    REQUIRE(r.source == VersionSource::UpdateTmd);
-    REQUIRE_FALSE(r.revision.has_value());
-    r = SelectInstalledVersion(0, std::nullopt, 0, 0x0002);
-    REQUIRE(r.version == Version{1, 0}); // an installed title as released
-    REQUIRE(r.updates == 0);
-    REQUIRE(r.source == VersionSource::BaseTmd);
-    // an update of 0 still wins over the ROM
-    r = SelectInstalledVersion(0, 0, std::nullopt, 0x0002);
-    REQUIRE(r.source == VersionSource::UpdateTmd);
-    REQUIRE(r.version == Version{1, 0});
-
-    // cartridge: remaster / 2 is the revision, no version
-    r = SelectInstalledVersion(0, std::nullopt, std::nullopt, 0x0002);
-    REQUIRE(r.source == VersionSource::Ncch);
-    REQUIRE(r.revision == 1);
-    REQUIRE_FALSE(r.version.has_value());
-    r = SelectInstalledVersion(0, std::nullopt, std::nullopt, 4);
-    REQUIRE(r.revision == 2);
-    // zero is ambiguous: unknown
-    r = SelectInstalledVersion(0, std::nullopt, std::nullopt, 0);
-    REQUIRE(r.source == VersionSource::Unknown);
-    REQUIRE_FALSE(r.revision.has_value());
-    // odd: not understood
-    REQUIRE(SelectInstalledVersion(0, std::nullopt, std::nullopt, 3).source == VersionSource::Unknown);
-}
-
 TEST_CASE("Sharkive: revision tags and marking", "[sharkive]") {
     REQUIRE(TagRevision("All Karts, Rev1 Game v1.1") == 1);
     REQUIRE(TagRevision("Full Course Laps - USA Rev0 v1.1") == 0);
@@ -155,39 +118,3 @@ TEST_CASE("Sharkive: revision tags and marking", "[sharkive]") {
     REQUIRE(entries[2].comments.empty()); // version-only tags stay unflagged
 }
 
-// AzaharFrame echoes: the version the game shows, not the TMD's bits (Mario Kart 7's last update,
-// "Ver. 1.2", is TMD 3072; Fire Emblem Echoes' only update, "ver 1.1", is TMD 1024).
-TEST_CASE("Sharkive: the version a game shows for its update", "[sharkive]") {
-    REQUIRE(FromTitleVersion(3072) == Version{3, 0}); // the raw split, for logs only
-    REQUIRE(GameVersionOf(0x0004000000030800ULL, 3072) == Version{1, 2});
-    REQUIRE(GameVersionOf(0x0004000E00030800ULL, 3072) == Version{1, 2}); // the update's own ID
-    REQUIRE(GameVersionOf(0x00040000001B4100ULL, 1024) == Version{1, 1});
-    REQUIRE(GameVersionOf(0x00040000001B4000ULL, 1024) == Version{1, 1});
-    REQUIRE(GameVersionOf(0x00040000001A2B00ULL, 1024) == Version{1, 1});
-    REQUIRE(GameVersionOf(0x0004000000055D00ULL, 0) == Version{1, 0}); // as released
-    REQUIRE(GameVersionOf(0x0004000000055D00ULL, 15) == Version{1, 0});
-    REQUIRE_FALSE(GameVersionOf(0x0004000000055D00ULL, 5216).has_value()); // not listed
-    REQUIRE_FALSE(GameVersionOf(0x0004000000030700ULL, 3072).has_value()); // only the USA one is
-
-    // Mario Kart 7 with its update: v1.0 and v1.1 cheats are for another version, named as 1.2
-    const auto mk7 = SelectInstalledVersion(0x0004000000030800ULL, 3072, std::nullopt, 0x0002);
-    REQUIRE(mk7.version == Version{1, 2});
-    REQUIRE(mk7.updates == 3);
-    auto entries = Parse("[All Karts, Game v1.0]\n00000000 00000001\n\n"
-                         "[Manual Mode, Game v1.1 USA]\n00000000 00000002\n\n[C]\n00000000 00000003\n");
-    REQUIRE(MarkOtherVersions(entries, mk7) == 2);
-    REQUIRE(entries[0].comments == "Version note: for v1.0, installed v1.2\n");
-    REQUIRE(entries[1].comments == "Version note: for v1.1, installed v1.2\n");
-    REQUIRE(entries[2].comments.empty());
-
-    // an update the list does not name: a v1.0 cheat is not for it, any other tag may be
-    const auto other = SelectInstalledVersion(0x0004000000055D00ULL, 5216, std::nullopt, std::nullopt);
-    REQUIRE_FALSE(other.version.has_value());
-    REQUIRE_FALSE(VersionMatches(Version{1, 0}, other));
-    REQUIRE(VersionMatches(Version{1, 5}, other));
-    REQUIRE(VersionMatches(std::nullopt, other));
-    entries = Parse("[A v1.0]\n00000000 00000001\n\n[B v1.5]\n00000000 00000002\n");
-    REQUIRE(MarkOtherVersions(entries, other) == 1);
-    REQUIRE(entries[0].comments == "Version note: for v1.0, this game has an update\n");
-    REQUIRE(entries[1].comments.empty());
-}

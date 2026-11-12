@@ -129,13 +129,18 @@ TEST_CASE("Compat: the verdicts", "[mods][compat]") {
     }
     SECTION("an update whose version is not known") { // AzaharFrame echoes
         Game g = GameOf(kOotUsa, std::nullopt);
-        g.updates = 5;
+        g.unmapped = true;
+        g.version_state = "has an update installed";
         const Verdict v = Judge({{kOotUsa}, "1.0", {}}, g, f);
         CHECK(v.kind == Mismatch::Version);
         CHECK(v.Reason() == "Made for game version 1.0. Yours has an update installed. It may not work.");
         CHECK(v.Body("mod") == "This mod was made for game version 1.0, and yours has an update "
                                "installed. It may not work, or the game may not start.");
-        CHECK(Judge({{kOotUsa}, "1.5", {}}, g, f).Fits()); // nothing to compare with
+        CHECK(Judge({{kOotUsa}, "1.5", {}}, g, f).kind == Mismatch::Version); // the table decides
+        CHECK(Judge({{kOotUsa}, "", {}}, g, f).Fits());
+        g.version_state = "is Rev 1";
+        CHECK(Judge({{kOotUsa}, "1.1", {}}, g, f).Reason() ==
+              "Made for game version 1.1. Yours is Rev 1. It may not work.");
         CHECK(Judge({{kOotUsa}, "1.0", {}}, GameOf(kOotUsa), f).Fits()); // no update
     }
     SECTION("another build, by the code's CRC") {

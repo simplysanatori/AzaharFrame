@@ -169,9 +169,20 @@ MergeResult Merge(const std::vector<Fetched>& fetched, const std::vector<std::st
             taken.push_back(entry.name);
             entry.comments = WithSource(entry.comments, source.source);
         }
-        if (installed.revision) {
+        if (installed.revision && !installed.version) {
             out.by_revision = true;
             out.mismatched += Sharkive::MarkOtherRevisions(fresh, *installed.revision);
+            // AzaharFrame versions: a version tag the game's version (not known here) cannot
+            // confirm is marked too, once
+            for (auto& entry : fresh) {
+                if (entry.comments.find("Version note:") == std::string::npos) {
+                    std::vector<Sharkive::Entry> one{entry};
+                    if (Sharkive::MarkOtherVersions(one, installed) > 0) {
+                        entry = std::move(one.front());
+                        ++out.mismatched;
+                    }
+                }
+            }
         } else {
             out.mismatched += Sharkive::MarkOtherVersions(fresh, installed);
         }
@@ -403,6 +414,8 @@ std::string StatusText(const DownloadResult& r) {
                             r.by_revision ? "revision" : "version");
         if (!r.update_version.empty()) {
             text += fmt::format(" (update {} installed)", r.update_version);
+        } else if (r.has_update) {
+            text += " (update installed)";
         }
     }
     if (!r.warning.empty()) {
@@ -425,15 +438,21 @@ Sharkive::InstalledVersion QueryInstalledVersion(u64 title_id, const std::string
     };
     const auto update = tmd_version((0x0004000EULL << 32) | low);
     const auto base = tmd_version((0x00040000ULL << 32) | low);
+    // AzaharFrame versions: the file's own version too (a cartridge's card info, a CIA's TMD); the
+    // ExHeader remaster only when nothing else gave one
+    const Sharkive::FileVersion file =
+        game_path.empty() ? Sharkive::FileVersion{} : Sharkive::ReadFileVersion(game_path);
     std::optional<u16> remaster;
-    if (!update && !base && !game_path.empty()) {
+    if (!update && !base && !file.card_version && !file.cia_tmd && !game_path.empty()) {
         FileSys::NCCHContainer ncch(game_path);
         if (ncch.Load() == Loader::ResultStatus::Success) {
             const auto& r = ncch.exheader_header.codeset_info.flags.remaster_version;
             remaster = static_cast<u16>(r[0] | (r[1] << 8));
         }
     }
-    return Sharkive::SelectInstalledVersion(title_id, update, base, remaster);
+    auto result = Sharkive::SelectInstalledVersion(title_id, update, base, file, remaster);
+    LOG_INFO(Core_Cheats, "game version of {:016X}: {}", title_id, result.LogText());
+    return result;
 }
 
 // AzaharFrame integ: the network part, tagged with its title; no CheatEngine is touched here.
@@ -534,8 +553,10 @@ DownloadResult ApplyFetch(CheatEngine& engine, const Fetch& fetch, u64 running_t
     out.mismatched = merged.mismatched;
     out.by_revision = merged.by_revision;
     const auto& installed = fetch.installed;
-    if (installed.source == Sharkive::VersionSource::UpdateTmd && installed.version) {
-        out.update_version = Sharkive::ToString(*installed.version);
+    if (installed.source == Sharkive::VersionSource::UpdateTmd) {
+        // AzaharFrame versions: what the game shows, or "an update" when that is not known
+        out.update_version = installed.version ? Sharkive::ToString(*installed.version) : "";
+        out.has_update = true;
     }
     return out;
 }
