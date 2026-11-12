@@ -7,8 +7,8 @@
 //
 //   frame_xr_menu_dump OUT_DIR [--models DIR] [--px-per-dp N] [--texparts THUMBS_DIR]
 //
-// AzaharFrame texparts: --texparts draws only the texture pack Customize mockup (texparts_mock.h),
-// with the part previews from THUMBS_DIR/<key>.png.
+// AzaharFrame texparts: --texparts draws only the texture pack Customize screens
+// (texparts_dump.h), with the part previews from THUMBS_DIR/<key>.png.
 //
 // DIR holds frame_controller_left.model and frame_controller_right.model (the files the
 // installer makes, in the user folder's frame-models/); without them the Controls tab is empty.
@@ -27,7 +27,7 @@
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
-#include "frame_xr/menu/texparts_mock.h" // AzaharFrame texparts
+#include "frame_xr/menu/texparts_dump.h" // AzaharFrame texparts
 #include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/toast_fit.h"     // AzaharFrame menuux
@@ -300,8 +300,7 @@ int main(int argc, char** argv) {
     const int w = static_cast<int>((kPanelW + kMargin * 2.0f) * px_per_dp + 0.5f);
     const int h = static_cast<int>((kPanelH + kMargin * 2.0f) * px_per_dp + 0.5f);
     const auto shot = [&](const std::string& name, const MenuModel& m, MenuView v,
-                          const MouseOverlay& mouse = {},
-                          const std::function<void(Kit&)>& overlay = {}) { // AzaharFrame texparts
+                          const MouseOverlay& mouse = {}) {
         frame_xr::ui::Canvas cv;
         cv.Init(w, h);
         cv.Clear(Rgb(kBackdrop));
@@ -315,9 +314,6 @@ int main(int argc, char** argv) {
             v.scroll[static_cast<int>(v.tab)] = menu.MaxScroll();
             panel.Init(panel.w, panel.h);
             menu.Draw(kit, m, v);
-        }
-        if (overlay) {
-            overlay(kit); // AzaharFrame texparts: a mockup drawn over the real menu
         }
         const int ox = static_cast<int>(kMargin * px_per_dp + 0.5f);
         for (int y = 0; y < panel.h; y++) {
@@ -340,13 +336,10 @@ int main(int argc, char** argv) {
 
     const MenuModel m = SampleModel();
     if (!texparts.empty()) { // AzaharFrame texparts
-        return TexPartsMock::Run(texparts == "-" ? std::string() : texparts, m,
-                                 [&](const std::string& name, const MenuModel& model,
-                                     const MenuView& view, const std::function<void(Kit&)>& overlay) {
-                                     return shot(name, model, view, {}, overlay);
-                                 })
-                   ? 0
-                   : 1;
+        const auto draw = [&](const std::string& name, const MenuModel& model, MenuView view) {
+            return shot(name, model, view);
+        };
+        return TexPartsDump::Run(texparts == "-" ? std::string() : texparts, m, draw) ? 0 : 1;
     }
     bool ok = true;
 

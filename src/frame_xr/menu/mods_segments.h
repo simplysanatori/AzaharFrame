@@ -11,7 +11,8 @@
 // list of mods for this title (ListAvailable). A conflict asks before anything is replaced.
 //
 // Textures: Custom Textures, the game's packs (core/custom_tex/packs.h) as a single-select list
-// with Off first, Preload.
+// with Off first, Preload. AzaharFrame texparts: a pack of two or more parts has Customize, a page
+// of its parts (TexturePartsModel).
 //
 // Both: a change applies from the next start, so a snackbar says "Restart the Game to Apply"
 // with a Restart action. The Qt side (citra_qt/frame_mods.cpp) fills these; nothing here depends
@@ -20,6 +21,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,8 +29,8 @@ namespace FrameXr::Menu {
 
 /// The Mods segment's two pages.
 enum class ModsPage : uint8_t { Loaded, Install };
-/// The Textures segment's two pages.
-enum class TexturesPage : uint8_t { Packs, Download };
+/// The Textures segment's pages (AzaharFrame texparts: Parts, a pack's Customize page).
+enum class TexturesPage : uint8_t { Packs, Download, Parts };
 
 /// One row of the loaded list (Mods::ModInfo).
 struct ModRow {
@@ -130,7 +132,44 @@ struct TexturePackItem {
     std::string detail; ///< one line: "Henriko Magnifico · 6.0.0 · ASTC/KTX · 2.1 GB" ("" = none)
     bool active = false;
     bool downloaded = false; ///< from Download Packs: it has Delete
+    bool customize = false;  ///< AzaharFrame texparts: two or more parts: the Customize button
     bool operator==(const TexturePackItem&) const = default;
+};
+
+/// AzaharFrame texparts: a row of a pack's Customize page (core/custom_tex/parts.h; the Qt side
+/// makes them from its Layout).
+enum class PartRowKind : uint8_t {
+    Check,       ///< a part: checkbox, preview, name, counts
+    Folder,      ///< a folder of parts: a checkbox for all of them (mixed when some are on)
+    ChoiceTitle, ///< a group of variants: its name over its rows
+    ChoiceOff,   ///< the group's "Off"
+    Choice,      ///< one variant: radio button, preview, name, counts
+};
+
+struct TexturePartRow {
+    PartRowKind kind = PartRowKind::Check;
+    std::string name;
+    std::string detail; ///< "1,434 Textures · 4.5 GB · Conflicts with Effects"
+    /// The preview: `preview_px` square RGBA, corners rounded (null: a placeholder).
+    std::shared_ptr<const std::vector<uint8_t>> preview;
+    int preview_px = 0;
+    int value = 0;       ///< Check, Folder: 0 off, 1 some, 2 on; Choice, ChoiceOff: 2 chosen
+    bool child = false;  ///< in a folder: indented
+    bool arrows = false; ///< its order decides a conflict: Move Up, Move Down
+    bool up = false, down = false; ///< they can move
+    bool operator==(const TexturePartRow&) const = default;
+};
+
+struct TexturePartsModel {
+    std::string pack_id; ///< the pack the page is for ("" none)
+    std::string title;   ///< the pack's name
+    std::string author;  ///< "" none
+    std::string rest;    ///< after the author: "6.0.0 · 2,034 Textures On · 5.0 GB"
+    bool loading = false;
+    bool all_buttons = false; ///< it has checkboxes: All On, All Off
+    bool note = false;        ///< parts conflict: the order note
+    std::vector<TexturePartRow> rows;
+    bool operator==(const TexturePartsModel&) const = default;
 };
 
 /// What a downloadable pack's row ends with.
@@ -173,6 +212,7 @@ struct TexturesModel {
     bool downloading = false;           ///< a download runs: the other Download buttons wait
     ModsDialog dialog;                  ///< BigDownload, DeletePack
     int spin = 0;                       ///< the progress ring's step while a download runs
+    TexturePartsModel parts;            ///< AzaharFrame texparts: the Customize page
     bool operator==(const TexturesModel&) const = default;
 };
 

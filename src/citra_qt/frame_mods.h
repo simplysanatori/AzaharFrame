@@ -38,6 +38,7 @@
 
 #include "common/common_types.h"
 #include "core/custom_tex/packs.h"
+#include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/compat.h" // AzaharFrame compat
 #include "frame_xr/menu/mods_segments.h"
 
@@ -111,6 +112,30 @@ private:
     void PollProgress();
     void PublishMods();
     void PublishTextures();
+    // AzaharFrame texparts: a pack's Customize page (core/custom_tex/parts.h)
+    void OpenParts(const std::string& pack_id);
+    void PartClicked(int row);
+    void MovePart(int row, int delta);
+    void AllParts(bool on);
+    void PartsChanged(); ///< saves the state, the page and the pack row again
+    void BuildPartRows();
+    struct PartAction {
+        enum class Kind { None, Part, Folder, Choose } kind = Kind::None;
+        std::size_t group = 0; ///< index into parts_layout.groups
+        std::string key;       ///< Part: the part; Choose: the part ("" Off)
+    };
+    struct PackParts {
+        std::size_t count = 0; ///< Layout::PartCount
+        std::string on_text;   ///< "6 of 7 Parts"
+    };
+    std::map<std::string, PackParts> pack_parts; ///< by pack id, from RefreshPacks
+    std::string parts_path;                      ///< the pack the page is for
+    CustomTex::Parts::Layout parts_layout;
+    CustomTex::Parts::State parts_state;
+    std::vector<PartAction> part_actions; ///< one for each row of textures.parts
+    /// The page's previews, by part key.
+    std::map<std::string, std::shared_ptr<const std::vector<uint8_t>>> part_previews;
+    int parts_serial = 0; ///< the page opened last (a scan of an older one is dropped)
     void LoadPackDownloads();
     void ListPackDownloads();
     void StartDownload(const std::string& id);

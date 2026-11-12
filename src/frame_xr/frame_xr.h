@@ -220,6 +220,11 @@ enum class MenuCommand {
     HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
     HomebrewUpdate,  ///< the same for an update
     HomebrewPlay,    ///< close the menu and start the installed package
+    // AzaharFrame texparts: a pack's Customize page (Menu::TexturePartsModel, frame_mods.cpp)
+    OpenTextureParts,  ///< `text`: the pack's id (CustomTex::Pack::id)
+    TexturePart,       ///< `value`: the row clicked (a checkbox or a radio button)
+    MoveTexturePart,   ///< `value`: the row; `text` "up" or "down"
+    TexturePartsAll,   ///< `value` 1 All On, 0 All Off
 };
 enum class MenuSetting {
     HideBottomScreen,

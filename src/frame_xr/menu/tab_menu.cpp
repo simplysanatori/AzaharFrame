@@ -365,6 +365,16 @@ std::string LabelFor(Id id) {
         return "Cancel";
     case Id::PackDelete:
         return "Delete";
+    case Id::PackCustomize: // AzaharFrame texparts
+        return "Customize";
+    case Id::PartsAllOn:
+        return "All On";
+    case Id::PartsAllOff:
+        return "All Off";
+    case Id::PartUp:
+        return "Move Up";
+    case Id::PartDown:
+        return "Move Down";
     case Id::InstallFromZip: // AzaharFrame zipinstall
         return "Install from Zip";
     case Id::HomebrewInstall: // AzaharFrame emerald

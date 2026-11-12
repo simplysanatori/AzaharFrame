@@ -146,6 +146,14 @@ enum class Id : int {
     ModCompat,  ///< a mod's "Not for Your Version" and region chips (the tooltip's anchor); index: mods.mods.available
     PackCompat, ///< the same on Download Packs; index: mods.textures.downloads
     TurnBackOn, ///< the "Turned Off" snackbar's action
+    // AzaharFrame texparts: a pack's Customize page (mods_segments.h TexturePartsModel)
+    PackCustomize, ///< index: mods.textures.packs
+    PartsBack,     ///< the page's back button
+    PartsAllOn,
+    PartsAllOff,
+    TexturePart, ///< index: mods.textures.parts.rows (a checkbox or a radio button)
+    PartUp,      ///< index: mods.textures.parts.rows
+    PartDown,    ///< index: mods.textures.parts.rows
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -358,6 +366,9 @@ private:
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);
+    /// AzaharFrame texparts: a pack's Customize page (mods_segments.cpp); the list ends at `bottom`.
+    void DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuView& view,
+                          const Rect& area, float bottom);
     /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
