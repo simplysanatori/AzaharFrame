@@ -402,6 +402,11 @@ public:
     /// Applies any changes to settings to this core instance.
     void ApplySettings();
 
+    /// AzaharFrame menuux: only the input part of ApplySettings (the HID, applet and IR devices
+    /// read the controls profile again). ApplySettings also makes the audio sink again (a pop)
+    /// and asks for the shaders again (a stutter), which a new button mapping does not need.
+    void ReloadInputDevices();
+
     void RegisterAppLoaderEarly(std::unique_ptr<Loader::AppLoader>& loader);
 
     void InsertCartridge(const std::string& path);

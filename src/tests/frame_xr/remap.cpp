@@ -361,7 +361,8 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
     s.Draw();
     CHECK(s.Has(Id::RemapChip, B::A));
     CHECK(s.Has(Id::TouchpadTouch, 0));
-    CHECK(s.Has(Id::TouchpadTouch, 2));
+    CHECK(s.Has(Id::TouchpadTouch, 1)); // AzaharFrame menuux: Tap for Input, Click for Input
+    CHECK_FALSE(s.Has(Id::TouchpadTouch, 2));
     CHECK(s.Has(Id::RemapReset, -1));
     CHECK(s.Has(Id::RecentreAtEdge, -1));
     CHECK_FALSE(s.Has(Id::RemapChip, B::Touch));

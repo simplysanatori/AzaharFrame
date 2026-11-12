@@ -170,9 +170,14 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
         CursorInput in;
         in.live = on && pad.present;
         in.absolute = true;
-        in.has_point = pad.present && (pad.contact || pad.click);
+        // AzaharFrame menuux: Click for Input: a click held keeps its touch and drags with the
+        // finger; should the pad stop reporting the finger while the click is still down, the
+        // touch stays where it was (a pad may report the lifted finger at 0, 0).
+        const bool click_mode = frame.mode == TouchpadMode::Click;
+        const bool held = click_mode && pad.click && owner_ == TouchSource::Pad && touching_;
+        in.has_point = pad.present && (pad.contact || (pad.click && !held));
         in.point = {pad.x, pad.y};
-        in.down = frame.mode == TouchpadMode::Touch ? pad.contact : pad.click && in.has_point;
+        in.down = click_mode ? pad.click && (in.has_point || held) : pad.contact;
         in.recentre = frame.pad_recentre;
         CursorStep(out, pad_, in, TouchSource::Pad, frame.time_ns);
     }

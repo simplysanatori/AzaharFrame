@@ -1,0 +1,100 @@
+// Copyright 2026 AzaharFrame contributors
+// Licensed under GPLv3 or any later version
+// Refer to the license.txt file included.
+
+// AzaharFrame menuux: Dynamic Resolution (Settings::values.vr_dynamic_resolution, Off by
+// default).
+//
+// The rule: Internal Resolution is the ceiling and 1x the floor. Dynamic Resolution only ever
+// draws below the Internal Resolution setting, one step at a time, never under 1x; at 1x it has
+// nothing to do (the menu shows its row disabled). It lowers the resolution only when the GPU is
+// the limit: the GPU's time on the game's frames is near or over the headset's frame budget (its
+// display period). Frames missed while the GPU has room are the emulation thread's (CPU-bound):
+// a lower resolution would not help them, so they never step it down.
+//
+// What it measures: each second the XR thread's summary (Runtime::LogSummary) gives the display
+// period and how long the GPU took to finish each game frame's last work after it was queued
+// (video_core/vr_dynamic_resolution.h). A GPU that keeps up finishes it in a few ms; one that
+// cannot is still on earlier work, close to or past a whole display period. Whether the game
+// runs at 30 or 60 fps does not count; seconds without game frames (paused, the menu open) are
+// not judged, and a stopped game starts it again from the setting.
+//
+// Not jarring: a step needs kDownAfter bad (or kUpAfter good) seconds in a row, one step at a
+// time; the seconds after a step are not judged (the step's own hitch: the rasterizer cache
+// starts again at the new factor); and a step up the GPU cannot hold blocks that level for
+// kRetryWait, and for the rest of the game the second time, so it settles instead of going up
+// and down.
+
+#pragma once
+
+#include <cstdint>
+
+namespace FrameXr {
+
+namespace DynamicResolution {
+
+/// One second (about) of the XR thread's frames.
+struct Second {
+    double seconds = 1.0;
+    uint32_t display_frames = 0;
+    double period_ms = 0.0;  ///< the runtime's display period
+    uint32_t emu_frames = 0; ///< game frames (0: paused, the menu, no game)
+    uint32_t gpu_frames = 0; ///< game frames whose GPU finish was timed
+    double gpu_ms = 0.0;     ///< their average time from the last submit to the fence
+    bool live = true;        ///< a game is running (its screens are live)
+};
+
+/// The decisions, without threads or settings (unit-tested).
+class Controller {
+public:
+    /// The GPU's time as a share of the display period: from kBadBudget on it is the limit,
+    /// under kGoodBudget it has room for a step up.
+    static constexpr double kBadBudget = 0.9;
+    static constexpr double kGoodBudget = 0.5;
+    static constexpr uint32_t kMinGpuFrames = 5; ///< fewer timed frames say nothing
+    static constexpr int kDownAfter = 3;        ///< bad seconds in a row for a step down
+    static constexpr int kUpAfter = 10;         ///< good seconds in a row for a step up
+    static constexpr int kSettle = 5;           ///< seconds not judged after a step
+    static constexpr int kFailWindow = 20;      ///< a step down this soon after a step up fails
+    static constexpr int kRetryWait = 120;      ///< seconds before that level is tried again
+    static constexpr int kMaxSteps = 32;
+
+    /// Judges a second; `max_drop` is how far it may go (the factor less 1). Returns the steps
+    /// under the factor to draw at now.
+    int Judge(const Second& s, int max_drop);
+    int Drop() const {
+        return drop;
+    }
+    /// From the factor itself again (the setting changed, Dynamic Resolution went off, the game
+    /// stopped).
+    void Reset();
+
+    /// Whether a second is bad (the GPU is the limit) or good (it has room); neither: neutral.
+    static bool Bad(const Second& s);
+    static bool Good(const Second& s);
+
+private:
+    int drop = 0;
+    int bad = 0;
+    int good = 0;
+    int settle = 0;
+    double now = 0.0; ///< seconds since the start
+    double last_up = -1e9;
+    /// Per drop level (the level a step up went to): failed step ups and until when it waits.
+    int failed[kMaxSteps] = {};
+    double blocked_until[kMaxSteps] = {};
+};
+
+/// Frame loop side: the controller for the running session, fed by Runtime::LogSummary.
+void Install();
+void Uninstall();
+/// XR thread, once a second: judges it when the setting is on (else nothing is taken off).
+void NoteSecond(const Second& s);
+/// The steps taken off now.
+int Drop();
+/// Any thread: from the factor itself again.
+void Reset();
+
+} // namespace DynamicResolution
+
+} // namespace FrameXr

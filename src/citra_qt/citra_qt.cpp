@@ -4076,7 +4076,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             profile.analogs[i] = r.analogs[i]; // AzaharFrame padsui: the sticks
         }
         Settings::SaveProfile(Settings::values.current_input_profile_index);
-        system.ApplySettings(); // the game's input devices read the profile again
+        // AzaharFrame menuux: the game's input devices read the profile again; not
+        // ApplySettings, whose new audio sink was the "blip" (and a stutter) on every edit.
+        system.ReloadInputDevices();
         config->Save();
         FrameXrPushControls();
         return;
@@ -4164,6 +4166,21 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::TouchpadTouch: // AzaharFrame menu
         set(v.vr_touchpad_touch, std::min<u32>(u, 2));
         break;
+    case S::InternalResolution: // AzaharFrame menuux: the renderer reads it every frame
+        set(v.resolution_factor, std::clamp<u32>(u, 1, 18));
+        break;
+    case S::DynamicResolution:
+        set(v.vr_dynamic_resolution, r.value != 0);
+        break;
+    case S::TextureFilter:
+        set(v.texture_filter, static_cast<Settings::TextureFilter>(std::min<u32>(u, 5)));
+        break;
+    case S::AsyncShaders: // from the next start
+        set(v.async_shader_compilation, r.value != 0);
+        break;
+    case S::FastForwardSpeed:
+        set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
+        break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
         if (g_frame_mods) {
@@ -4197,6 +4214,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
+    FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
+    FrameKeepSetting keep_texture_filter{v.texture_filter};
+    FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4209,6 +4229,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();
+    keep_resolution.Restore();
+    keep_texture_filter.Restore();
+    keep_async_shaders.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }

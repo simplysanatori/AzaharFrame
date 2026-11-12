@@ -94,6 +94,14 @@ struct Rect {
 
 enum class ButtonStyle { Filled, Tonal, Danger, Text };
 
+/// AzaharFrame menuux: a line of text as drawn (for the overflow tests): its box from the cap
+/// height to the baseline, the clip it was drawn in, the text.
+struct DrawnText {
+    Rect box;
+    Rect clip;
+    std::string text;
+};
+
 class Kit {
 public:
     explicit Kit(float px_per_dp);
@@ -103,6 +111,10 @@ public:
     }
     /// The canvas to draw on (dp coordinates from its top left).
     void Begin(Canvas& canvas);
+    /// AzaharFrame menuux: every line of text drawn from now on is added to `out` (none: off).
+    void RecordText(std::vector<DrawnText>* out) {
+        record = out;
+    }
     /// Drawing outside `r` is dropped (a scrolled list); ClearClip ends it.
     void Clip(const Rect& r);
     void ClearClip();
@@ -179,6 +191,8 @@ private:
 
     Canvas* cv = nullptr;
     float s;
+    std::vector<DrawnText>* record = nullptr; ///< AzaharFrame menuux
+    Rect clip{-1e9f, -1e9f, 1e9f, 1e9f};
 };
 
 /// Opaque colour from 0xRRGGBB with an opacity.

@@ -477,6 +477,30 @@ int main(int argc, char** argv) {
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
 
+    // AzaharFrame menuux: the renderer's rows, the Internal Resolution menu, Dynamic Resolution
+    // at 1x, and the Position tab's longest offset.
+    MenuModel rm = m;
+    rm.internal_resolution = 3;
+    v = {};
+    v.tab = Tab::Settings;
+    v.scroll[static_cast<int>(Tab::Settings)] = 5.0f * 64.0f;
+    v.hover = {Id::DynamicResolution};
+    ok &= shot("5f-settings-renderer", rm, v);
+    v.open_menu = Id::InternalResolution;
+    v.hover = {Id::InternalResolution, 3};
+    ok &= shot("5g-settings-resolution-menu", rm, v);
+    v.open_menu = Id::None;
+    rm.internal_resolution = 1;
+    v.hover = {Id::DynamicResolution, kLabelIndex};
+    v.tooltip = Id::DynamicResolution;
+    ok &= shot("5h-settings-dynamic-at-1x", rm, v);
+    MenuModel om = m;
+    om.immersive_offset = "Right 3.5°, Down 2.5°";
+    om.immersive_offset_set = true;
+    v = {};
+    v.tab = Tab::Position;
+    ok &= shot("2d-position-long-offset", om, v);
+
     // AzaharFrame cheatstab: the Mods tab's Cheats segment and each state.
     MenuModel cm = m;
     cm.mods.cheats = SampleCheats();

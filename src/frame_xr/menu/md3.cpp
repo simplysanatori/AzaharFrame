@@ -46,10 +46,12 @@ void Kit::Begin(Canvas& canvas) {
 
 void Kit::Clip(const Rect& r) {
     cv->SetClip(D(r.x0), D(r.y0), D(r.x1), D(r.y1));
+    clip = r;
 }
 
 void Kit::ClearClip() {
     cv->ResetClip();
+    clip = {-1e9f, -1e9f, 1e9f, 1e9f};
 }
 
 frame_xr::ui::TtfFont& Kit::FontFor(bool medium) const {
@@ -118,8 +120,15 @@ float Kit::TextMid(float x, float cy, Type type, uint32_t rgb, const std::string
 
 float Kit::TextSized(float x, float baseline, float size_dp, bool medium, uint32_t rgb,
                      const std::string& str, int align, float opacity) {
-    return FontFor(medium).Draw(*cv, D(x), D(baseline), D(size_dp), Rgb(rgb, opacity), str, align) /
-           s;
+    const float w =
+        FontFor(medium).Draw(*cv, D(x), D(baseline), D(size_dp), Rgb(rgb, opacity), str, align) / s;
+    if (record && !str.empty()) { // AzaharFrame menuux: the overflow tests
+        const float x0 = x - (align == 1 ? w * 0.5f : align == 2 ? w : 0.0f);
+        record->push_back({{x0, baseline - CapHeightSized(size_dp, medium), x0 + w, baseline},
+                           clip,
+                           str});
+    }
+    return w;
 }
 
 float Kit::TextWidth(Type type, const std::string& str) const {
