@@ -282,7 +282,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 
 Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 
-The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
+The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. **Reset Position** in the menu puts it back to the middle. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
 The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. It can grow to 2.5 times that size. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 

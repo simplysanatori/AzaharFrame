@@ -40,6 +40,16 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen keeps its size, distance and pitch unless a grip holds it; then it goes back to its default placement and its saved one is forgotten (`Immersive::OnResetPanels`). **Reset Position** in the menu always puts it back. SteamVR's own recenter (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
+The rest pose (`Layout::RestPose`) is taken when immersive mode starts, again each time it
+resumes after a pause, and on a re-centre; never from the render size. AzaharFrame immersive,
+after the owner's report that a resolution change (Internal Resolution, Dynamic Resolution, a
+game's own option) left the character off to one side with the camera swinging round it: those
+changes are made in a pause, and the old rest pose belonged to where the player faced and sat
+before it. After turning or leaning in the pause the game camera kept that turn, and the head's
+offset, times the game's world scale, moved the camera sideways and round the character. Mock
+runs that change Internal Resolution mid-game with the head still (`AZAHARFRAME_TEST_RESOLUTION`)
+keep the picture exactly where it was in Ocarina of Time 3D and Super Mario 3D Land.
+
 While immersive mode is paused (modes 2 and 3 with the bottom screen shown or the in-game menu open,
 any mode while the bottom screen is in focus),
 the grips move the normal screens as usual.
@@ -204,7 +214,8 @@ rotation goes into the game camera (`QuadRotation`, used by both `HeadLockedQuad
 `GameCameraRotation`), exactly as the pitch above: the world stays where it is and only the window
 onto it moves, the angle is the same at every distance and size, the gains still apply to the head
 turn alone, and the size is fitted without it (nudging never resizes the screen). A re-centre
-only resets the rest pose, so it keeps the offset. Mode 1 turns its wide screen (and the bottom
+only resets the rest pose, so it keeps the offset; **Reset Position** in the menu puts it back to
+the middle with everything else. Mode 1 turns its wide screen (and the bottom
 screen under it) about the rest pose by the same angles. It is global, not per game: it is about
 the player's eyes. Putting a game's screen back (right stick click while holding) keeps it;
 **Immersive Offset** in the VR settings shows it and resets it. The XR thread writes the setting
@@ -385,6 +396,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_IMMERSIVE_FOV` | unset | the game camera's vertical angle in degrees (20..120); sets the head-locked screen size and wins over the Immersive Game FOV setting (default 60, 30..110) |
 | `AZAHARFRAME_IMMERSIVE_DISTANCE` | 0.75 | the default distance in metres (0.3..3) for a game without a saved placement; sizes scale with it, so only stereo depth changes |
 | `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
+| `AZAHARFRAME_TEST_RESOLUTION` | unset | `<seconds>:<factor>`: sets Internal Resolution that long after the game started, once (mock runs) |
 | `AZAHARFRAME_IMMERSIVE_WIDER` | unset | 0 to 4: the Wider View level, over the setting (comparing levels in mock runs) |
 | `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
 

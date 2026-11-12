@@ -885,7 +885,12 @@ void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFr
     };
     host.reset_position = [this, &rt] {
         ResetPlacement(rt);
-        Immersive::OnResetPanels(false);
+        if (Immersive::OnResetPanels(false)) { // AzaharFrame immersive: the offset too
+            std::scoped_lock lock{hooks_mutex};
+            if (hooks.vr_setting_changed) {
+                hooks.vr_setting_changed();
+            }
+        }
         Vis::RecentreStats(); // AzaharFrame statspos
         ShowToastText("Position Reset");
     };

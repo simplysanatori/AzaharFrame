@@ -164,6 +164,29 @@ Cover DefaultCover(const ViewFov& view, float pitch_rad, float eye_shift) {
     return c;
 }
 
+bool RestPose::Update(bool engaged, bool valid, int64_t pose_time) {
+    if (engaged && !was_engaged_ && have_) {
+        Recentre(0); // resumed after a pause
+    }
+    was_engaged_ = engaged;
+    if (!engaged || !valid || (have_ && !(recentre_ && pose_time >= after_))) {
+        return false;
+    }
+    have_ = true;
+    recentre_ = false;
+    return true;
+}
+
+void RestPose::Recentre(int64_t after_time) {
+    recentre_ = true;
+    after_ = after_time;
+}
+
+void RestPose::Forget() {
+    have_ = false;
+    recentre_ = false;
+}
+
 float WiderFactor(uint32_t level) {
     return kFactorMin + 0.1f * static_cast<float>(std::min(level, kMaxWiderLevel));
 }

@@ -120,7 +120,9 @@ void OnRecentred(XrTime change_time);
 /// Right Stick Click held for 1 second (reset_panels, `stick_hold`) or Reset Position, in every
 /// mode: re-centres the view on the head. In immersive mode the immersive screen goes back to
 /// its default placement for this game (the saved one is forgotten) on Reset Position, and on
-/// the stick hold only while a grip holds it; otherwise it keeps its placement. XR thread.
-void OnResetPanels(bool stick_hold);
+/// the stick hold only while a grip holds it; otherwise it keeps its placement. Reset Position
+/// also puts the Immersive Offset back to the middle. True when a setting changed (to be
+/// saved). XR thread.
+bool OnResetPanels(bool stick_hold);
 
 } // namespace FrameXr::Immersive
