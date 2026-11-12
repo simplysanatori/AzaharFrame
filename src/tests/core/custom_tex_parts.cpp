@@ -207,7 +207,7 @@ TEST_CASE("texparts: the higher part loads first, parts off are left out", "[tex
           loaded.end());
     CHECK(GroupValue(l, s, *l.FindGroup("AI Upscaled or WIP")) == 1);
     CHECK(CountOn(l, s) == std::pair<int, int>{3, 6});
-    CHECK(TotalsOn(l, s) == std::pair<u64, u64>{5, 400});
+    CHECK(TotalsOn(l, s) == std::pair<u64, u64>{5, 500}); // the loose texture counts too
 
     SetAll(s, l, true);
     CHECK(CountOn(l, s) == std::pair<int, int>{5, 6}); // the font stays off
