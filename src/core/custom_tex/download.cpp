@@ -17,6 +17,7 @@
 #include <sstream>
 #include <system_error>
 #include <httplib.h>
+#include "common/request_path.h"
 #include <json.hpp>
 #include <cryptopp/sha.h>
 #include <fmt/format.h>
@@ -1107,13 +1108,14 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
+        client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
         httplib::Headers headers{{"Accept-Encoding", "identity"}};
         if (io.resume_from > 0) {
             headers.emplace("Range", fmt::format("bytes={}-", io.resume_from));
         }
         bool refused = false;
         const auto res = client.Get(
-            path, headers,
+            Common::RequestPath(path), headers,
             [&](const httplib::Response& r) {
                 step.status = r.status;
                 step.location = r.get_header_value("Location");

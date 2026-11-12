@@ -17,6 +17,7 @@
 #include <httplib.h>
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/request_path.h"
 
 namespace Homebrew {
 
@@ -71,10 +72,48 @@ bool HostAllowed(std::string_view host) {
 
 namespace {
 
+/// "sp,sv,sig" for "?sp=r&sv=1&sig=x": the names only.
+std::string QueryNames(const std::string& path) {
+    const auto q = path.find('?');
+    if (q == std::string::npos) {
+        return "none";
+    }
+    std::string names;
+    std::size_t at = q + 1;
+    while (at <= path.size()) {
+        auto end = path.find('&', at);
+        if (end == std::string::npos) {
+            end = path.size();
+        }
+        const std::string pair = path.substr(at, end - at);
+        if (!names.empty()) {
+            names += ',';
+        }
+        names += pair.substr(0, pair.find('='));
+        at = end + 1;
+    }
+    return names;
+}
+
+std::string HeaderText(const httplib::Headers& headers) {
+    std::string out;
+    for (const auto& [name, value] : headers) {
+        out += fmt::format("{}{}: {}", out.empty() ? "" : ", ", name, value);
+    }
+    return out;
+}
+
+std::string HostOf(const std::string& url) {
+    const auto start = url.find("://");
+    const auto slash = url.find('/', start == std::string::npos ? 0 : start + 3);
+    return url.substr(0, slash);
+}
+
 struct Hop {
     int status = 0;
     std::string location;
     std::string error;
+    std::string error_body; // an error answer's first bytes, for the log
     bool done = false; // the body went to `sink`
 };
 
@@ -96,13 +135,18 @@ Hop GetOnce(const std::string& host, const std::string& path,
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
+        client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
         httplib::Headers headers{{"Accept-Encoding", "identity"}};
         if (host == kApiHost) {
             headers.emplace("Accept", "application/vnd.github+json");
         }
+        // AzaharFrame emerald: every hop in the log, without the query's values (a signed URL's
+        // query is a credential): host, path, the query's names, our headers, the answer.
+        LOG_INFO(Frontend, "homebrew: GET {}{} (query: {}; headers: {})", host,
+                 path.substr(0, path.find('?')), QueryNames(path), HeaderText(headers));
         bool stopped = false;
         const auto res = client.Get(
-            path, headers,
+            Common::RequestPath(path), headers,
             [&](const httplib::Response& r) {
                 hop.status = r.status;
                 hop.location = r.get_header_value("Location");
@@ -121,6 +165,9 @@ Hop GetOnce(const std::string& host, const std::string& path,
             },
             [&](const char* data, std::size_t len) {
                 if (!hop.done) {
+                    if (hop.status >= 400 && hop.error_body.size() < 1000) {
+                        hop.error_body.append(data, std::min<std::size_t>(len, 1000));
+                    }
                     return true; // a redirect's or an error's body
                 }
                 if (!sink(data, len)) {
@@ -129,6 +176,16 @@ Hop GetOnce(const std::string& host, const std::string& path,
                 }
                 return true;
             });
+        if (res) {
+            const auto type = res->get_header_value("Content-Type");
+            LOG_INFO(Frontend, "homebrew: {} from {}{}{}", hop.status, host,
+                     hop.location.empty() ? "" : ", redirect to ",
+                     hop.location.empty() ? "" : HostOf(hop.location));
+            if (hop.status >= 400) {
+                LOG_WARNING(Frontend, "homebrew: {} answered {} ({}): {}", host, hop.status, type,
+                            hop.error_body.substr(0, 1000));
+            }
+        }
         if (!res && !stopped) {
             hop.error = httplib::to_string(res.error());
         } else if (stopped && hop.error.empty()) {

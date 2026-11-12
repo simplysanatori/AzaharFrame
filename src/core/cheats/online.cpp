@@ -7,6 +7,7 @@
 #include <mutex>
 #include <set>
 #include <httplib.h>
+#include "common/request_path.h"
 #include <json.hpp>
 #include <fmt/format.h>
 #include "common/file_util.h"
@@ -213,7 +214,8 @@ HttpResult HttpsGet(const std::string& host, const std::string& path) {
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
-        const auto res = client.Get(path);
+        client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
+        const auto res = client.Get(Common::RequestPath(path));
         if (!res) {
             out.error = httplib::to_string(res.error());
             LOG_WARNING(Frontend, "Cheats: GET {}{} failed: {}", host, path, out.error);
@@ -250,6 +252,7 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
+        client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
         httplib::Headers headers;
         if (host == kApiHost) {
             headers.emplace("Accept", "application/vnd.github+json");
@@ -257,7 +260,7 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
         bool too_large = false;
         std::string body;
         const auto res = client.Get(
-            path, headers, [](const httplib::Response&) { return true; },
+            Common::RequestPath(path), headers, [](const httplib::Response&) { return true; },
             [&](const char* data, std::size_t len) {
                 if (body.size() + len > max_body) {
                     too_large = true;

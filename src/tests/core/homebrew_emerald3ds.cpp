@@ -12,6 +12,11 @@
 #include <string>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <thread>
+#include "common/logging/backend.h"
+#include "common/request_path.h"
+#include "core/custom_tex/download.h"
 #include "core/homebrew/emerald3ds.h"
 #include "core/homebrew/net.h"
 #include "core/homebrew/packages.h"
@@ -315,4 +320,77 @@ TEST_CASE("Emerald 3DS: the state file", "[frame_xr][emerald]") {
     CHECK(back->latest_tag == s.latest_tag);
     CHECK_FALSE(ParseState("{}"));
     CHECK_FALSE(ParseState("not json"));
+}
+
+namespace {
+void StartConsoleLog() {
+    static bool started = false;
+    if (!started) {
+        Common::Log::Initialize();
+        Common::Log::SetColorConsoleBackendEnabled(true);
+        Common::Log::Start();
+        started = true;
+    }
+}
+} // namespace
+
+// AzaharFrame emerald: the real downloads, by hand only (hidden tag; needs the network and
+// spends a GitHub API call): ./tests "[.network]"
+TEST_CASE("Emerald 3DS: the release's small files download", "[.network]") {
+    StartConsoleLog();
+    const auto dir = std::filesystem::temp_directory_path() / "azaharframe-emerald-net";
+    std::filesystem::create_directories(dir);
+    const Homebrew::Reply latest = Homebrew::GetText(std::string(kLatestUrl), 1 << 20);
+    REQUIRE(latest.error.empty());
+    const auto release = ParseRelease(latest.body);
+    REQUIRE(release);
+    for (const std::string name : {"SHA256SUMS.txt", "web-manifest.json", "Emerald3DS.smdh"}) {
+        const std::string url = std::string(kAssetPrefix) + release->tag + "/" + name;
+        const std::string error =
+            Homebrew::Download(url, (dir / name).string(), [](u64, u64) { return true; });
+        INFO(name);
+        CHECK(error.empty());
+        CHECK(std::filesystem::file_size(dir / name) > 0);
+    }
+    std::filesystem::remove_all(dir);
+}
+
+// AzaharFrame emerald: request lines keep a signed URL's query byte for byte.
+TEST_CASE("Emerald 3DS: request paths go out as written", "[frame_xr][emerald]") {
+    // GitHub's release-assets redirect (an Azure SAS URL): '+' is a space in "rscd", and the
+    // signature covers it, so it must not become %2B (that was a 403 AuthenticationFailed).
+    const std::string signed_path =
+        "/github-production-release-asset/1/abc?sp=r&se=2026-11-12T06%3A41%3A19Z"
+        "&rscd=attachment%3B+filename%3DEmerald3DS.smdh&rsct=application%2Foctet-stream"
+        "&sig=AbC%2Bd%2Fe%3D&jwt=a.b.c&x=1,2;3'4";
+    CHECK(Common::RequestPath(signed_path) == signed_path);
+    CHECK(Common::RequestPath("/a b/\xC3\xA9\t") == "/a%20b/%C3%A9%09");
+    CHECK(Common::RequestPath("") == "");
+}
+
+
+// AzaharFrame emerald: a large GitHub release pack through the same redirect to
+// release-assets.githubusercontent.com, by hand only: ./tests "[.network]" (mods_library.cpp and
+// custom_tex_download.cpp have the mod and small-pack ones).
+TEST_CASE("Download Packs: Majora's Mask 3D HD downloads", "[.network]") {
+    StartConsoleLog();
+    const auto dir = std::filesystem::temp_directory_path() / "azaharframe-packs-net";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    {
+        CustomTex::Download::Downloader packs(dir.string() + "/");
+        REQUIRE(packs.Start("mm3d-hd-deathwrench", 0x0004000000125500));
+        CustomTex::Download::State st;
+        for (int i = 0; i < 600; i++) { // 5 minutes at most
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            st = packs.GetState();
+            if (!st.Busy()) {
+                break;
+            }
+        }
+        INFO(st.error);
+        CHECK(st.phase == CustomTex::Download::State::Phase::Done);
+        CHECK(!st.installed.empty()); // its folders (78 MB zip, sha256 checked)
+    }
+    std::filesystem::remove_all(dir);
 }

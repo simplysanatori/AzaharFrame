@@ -158,6 +158,10 @@ bool TtfFont::Ok() const {
     return impl->ok;
 }
 
+bool TtfFont::HasGlyph(char32_t cp) const { // AzaharFrame emerald
+    return impl->ok && stbtt_FindGlyphIndex(&impl->info, static_cast<int>(cp)) != 0;
+}
+
 float TtfFont::Width(float px, const std::string& s) const {
     if (!impl->ok) {
         return 0.0f;
