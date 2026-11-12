@@ -232,11 +232,6 @@ if (ENABLE_ROOM_STANDALONE)
     add_subdirectory(citra_room_standalone)
 endif()
 
-if (ANDROID AND NOT ENABLE_LIBRETRO)
-    add_subdirectory(android/app/src/main/jni)
-    target_include_directories(citra-android PRIVATE android/app/src/main)
-endif()
-
 if (ENABLE_WEB_SERVICE)
     add_subdirectory(web_service)
 endif()

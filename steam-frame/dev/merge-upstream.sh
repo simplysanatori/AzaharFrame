@@ -15,7 +15,6 @@ LIST=steam-frame/dev/removed-upstream-paths.txt
 git fetch --tags azahar || exit 1
 git rev-parse -q --verify "$REF^{commit}" >/dev/null || { echo "unknown ref $REF"; exit 1; }
 git merge --no-commit --no-ff "$REF" 2>&1 | tail -n 15
-[ -f .git ] || [ -d .git ] || true
 git rev-parse -q --verify MERGE_HEAD >/dev/null || { echo "no merge in progress (already up to date?)"; exit 0; }
 
 # Drop the removed submodules' sections if a merge brought them back.
