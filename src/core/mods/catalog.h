@@ -61,6 +61,8 @@
 //   "downloads": 12345                                        AzaharFrame compat: lifetime downloads
 //     (the order of Install Mods, and "10K+ Downloads" on the row)
 //   "version_chip": {"label": "1.0", "tip": "For the original 1.0 game.", "code_crc32": ["c75021d9"]}
+//     or {"0004000000033500": ["9d9683e5"]} for CRC32s read from one title ID's build only: the
+//     other title IDs of the entry have none, and an unknown CRC is never a reason for anything.
 //     A mod made for one build of a game, shown as a chip on its row ("label", with "tip" as its
 //     tooltip). "code_crc32": the CRC32 of the game's .code this mod's code patch was made for (a
 //     BPS patch's own source checksum); the row whose list holds the running game's CRC32 is
@@ -80,6 +82,7 @@
 #pragma once
 
 #include <optional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -130,10 +133,14 @@ struct CatalogEntry {
     std::vector<Source> parts;       // AzaharFrame catalog3: "parts": downloaded in order, joined, unpacked as one
     std::string chip;     // AzaharFrame modcat: "1.0", "Card 1.1", "Fallback" ("" none)
     std::string chip_tip; // its tooltip
-    std::vector<u32> code_crc32; // the game code CRC32s it was made for
+    std::vector<u32> code_crc32; // the game code CRC32s it was made for (any title ID of the entry)
+    std::map<u64, std::vector<u32>> code_crc32_by_title; // or per title ID ({"<tid>": [...]})
     std::string notes;
 
     bool ServesTitle(u64 title_id) const;
+    /// The code CRC32s for this title ID: its own list in the per-title form (none for a title ID
+    /// the form does not name), else the entry's list.
+    std::vector<u32> CodeCrcsFor(u64 title_id) const;
     /// False for a .7z or .rar asset when the system has no bsdtar.
     bool Installable() const;
 };

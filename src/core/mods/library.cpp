@@ -1612,9 +1612,9 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         game_code_crc = game->code_crc;
         for (const auto& e : catalog_.mods) {
             families.Add(e.title, e.title_ids);
+            const auto crcs = e.CodeCrcsFor(title_id);
             if (game_code_crc && e.ServesTitle(title_id) &&
-                std::find(e.code_crc32.begin(), e.code_crc32.end(), *game_code_crc) !=
-                    e.code_crc32.end()) {
+                std::find(crcs.begin(), crcs.end(), *game_code_crc) != crcs.end()) {
                 matched_build = e.chip;
             }
         }
@@ -1622,7 +1622,7 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
     for (const auto& e : catalog_.mods) {
         Compat::Verdict verdict;
         if (game) {
-            verdict = Compat::Judge({e.title_ids, e.chip, e.code_crc32}, *game, families, matched_build);
+            verdict = Compat::Judge({e.title_ids, e.chip, e.CodeCrcsFor(title_id)}, *game, families, matched_build);
             if (!verdict.shown) {
                 continue;
             }
@@ -1641,8 +1641,9 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         a.author_url = e.author_url;
         a.chip = e.chip;
         a.chip_tip = e.chip_tip;
-        a.matches_game = game_code_crc && std::find(e.code_crc32.begin(), e.code_crc32.end(),
-                                                     *game_code_crc) != e.code_crc32.end();
+        const auto own_crcs = e.CodeCrcsFor(title_id);
+        a.matches_game = game_code_crc && std::find(own_crcs.begin(), own_crcs.end(),
+                                                     *game_code_crc) != own_crcs.end();
         const auto date = dates_.find(e.id);
         a.updated = date != dates_.end() && !date->second.empty() ? date->second : e.updated;
         const auto version = versions_.find(e.id); // AzaharFrame ui3

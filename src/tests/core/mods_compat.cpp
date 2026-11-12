@@ -154,6 +154,17 @@ TEST_CASE("Compat: the verdicts", "[mods][compat]") {
         CHECK(Judge({{kMmUsa}, "1.0", {0xc75021d9u}}, g, f, "").Fits());
         CHECK(Judge({{kMmUsa}, "1.1", {0xc75021d9u}}, g, f, "").kind == Mismatch::Version);
     }
+    SECTION("a code CRC no entry lists says nothing") {
+        // another region's build: its CRC is in no list, so nothing about the CRC is shown and
+        // the version alone decides (1.0 as released fits the 1.0 chip, never the Card 1.1 one)
+        Game g = GameOf(kMmEur);
+        g.code_crc = 0x12345678u;
+        CHECK(Judge({{kMmUsa, kMmEur}, "1.0", {0xc75021d9u}}, g, f, "").Fits());
+        CHECK(Judge({{kMmUsa, kMmEur}, "Card 1.1", {0xffdf1ee8u}}, g, f, "").Fits());
+        CHECK(Judge({{kOotUsa, kOotEur}, "1.0", {0x9d9683e5u}}, GameOf(kOotEur), f, "").Fits());
+        g.code_crc.reset(); // none read at all: the same
+        CHECK(Judge({{kMmUsa, kMmEur}, "1.0", {0xc75021d9u}}, g, f, "").Fits());
+    }
     SECTION("every reason says may") {
         for (const Verdict& v : {Judge({{kOotUsa}, "", {}}, GameOf(kOotEur), f),
                                  Judge({{kFatesBr}, "", {}}, GameOf(kFatesSe), f),
