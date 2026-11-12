@@ -16,6 +16,7 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_xr_target.h"
+#include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
 
 #include <vk_mem_alloc.h>
 
@@ -510,6 +511,7 @@ bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets) {
 }
 
 void XrPresentTarget::EndFrame(u64 tick) {
+    VideoCore::DynamicResolution::NoteSubmit(); // AzaharFrame menuux: how far behind the GPU is
     std::scoped_lock lock{mutex};
     handoff.EndFrame(frame, tick);
     frame = {};
@@ -553,6 +555,7 @@ void XrPresentTarget::RunReleaseDirect(u64 tick) {
     MasterSemaphore* master = scheduler.GetMasterSemaphore();
     if (!skip_gpu_wait) {
         master->Wait(tick);
+        VideoCore::DynamicResolution::NoteGpuDone(); // AzaharFrame menuux
     }
     const bool finished = master->IsFree(tick);
     Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
@@ -571,6 +574,7 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
     // The frame's draw into the slot was submitted before `tick` signals; the copy's own
     // submission comes after, and the queue runs them in that order.
     scheduler.GetMasterSemaphore()->Wait(tick);
+    VideoCore::DynamicResolution::NoteGpuDone(); // AzaharFrame menuux
     copy_cmdbuf.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     constexpr vk::ImageSubresourceRange range = {
         .aspectMask = vk::ImageAspectFlagBits::eColor,

@@ -55,13 +55,23 @@ struct CursorSample {
     bool recentre = true;
 };
 
-enum class TouchSource : int { None = 0, Beam, Pad, Mouse, Cursor };
+/// AzaharFrame mouse: Bottom Screen Reticle (reticle.h): a controller's absolute point.
+struct ReticleSample {
+    bool on = false;   ///< live: a game running, the menu closed, the controller tracked
+    Vec2f point;       ///< 0..1 from the top left
+    bool down = false; ///< its trigger
+};
+
+enum class TouchSource : int { None = 0, Beam, Pad, Mouse, Cursor, Reticle };
 
 struct TouchpadFrame {
     TouchpadMode mode = TouchpadMode::Off;
     PadSample pad;
     MouseSample mouse;
     CursorSample cursor; ///< AzaharFrame padsui
+    /// AzaharFrame mouse: touches whether the bottom screen is shown or not (the game is aimed,
+    /// not the panel); its dot shows only on a shown one.
+    ReticleSample reticle;
     bool pad_recentre = false; ///< AzaharFrame padsui: the pad's Recentre at Edge
     bool bottom_visible = false;
     int64_t time_ns = 0;
@@ -161,6 +171,7 @@ private:
     // AzaharFrame padsui: the touchpad's and the mouse's cursors, one pipeline.
     CursorTrack pad_;
     CursorTrack cursor_;
+    CursorTrack reticle_; ///< AzaharFrame mouse
     Source mouse_;
     bool mouse_seen_ = false;
     float mouse_last_x_ = 0.0f;

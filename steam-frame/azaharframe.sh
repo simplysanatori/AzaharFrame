@@ -13,6 +13,8 @@
 # (the single word vr or flat; VR when there is none).  The emulator writes that file when
 # the mode is switched while it runs.  To override it for one launch (testing), none of
 # which touches the file:  azaharframe.sh --flat | --vr,  or AZAHARFRAME_FLAT=1 | 0.
+# A Flat run that did not quit cleanly (the file flat-running is still there) starts the
+# next launch in VR, once.
 #
 # Test settings for one launch from the Steam library, which passes no
 # environment of its own: VAR=value lines in session.env in the data folder.
@@ -65,11 +67,22 @@ if [ -z "$MODE" ]; then
     1) MODE=flat ;;
     0) MODE=vr ;;
     *) MODE=$(head -c 16 "$DATA/mode" 2> /dev/null | tr -d '[:space:]')
-       case "$MODE" in flat | vr) ;; *) MODE=vr ;; esac ;;
+       case "$MODE" in flat | vr) ;; *) MODE=vr ;; esac
+       # AzaharFrame flat: the emulator keeps the file flat-running while it runs in Flat and
+       # removes it when it quits cleanly (or goes to VR). Still there: the last Flat run ended
+       # in a crash, a kill or out of memory, so VR this once (the mode file stays as it is;
+       # the next launch is Flat again). Overrides (--flat, AZAHARFRAME_FLAT) are not changed.
+       if [ "$MODE" = flat ] && [ -e "$DATA/flat-running" ]; then
+         echo "mode: the last Flat run did not quit cleanly (crash, kill or out of memory): VR this once"
+         MODE=vr
+       fi ;;
   esac
 fi
+rm -f "$DATA/flat-running"
 echo "mode: $MODE"
 export AZAHARFRAME_MODE=$MODE
+# Test driver: AZAHARFRAME_TEST_MODE_ONLY=1 stops here (steam-frame/test/launch-mode-test.sh).
+[ "$AZAHARFRAME_TEST_MODE_ONLY" = 1 ] && exit 0
 
 # Input in each mode.  VR uses the Frame controllers through the headset's own bindings;
 # flat gets them from Steam Input as a gamepad (SDL).  The two live in separate input

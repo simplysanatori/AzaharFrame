@@ -87,6 +87,8 @@ struct Entry {
     std::string folder; // the pack folder's base name
     std::string licence;
     std::string notes;
+    std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown)
+    bool verified = false; // AzaharFrame zipinstall: known to work (the menu's verified badge)
 
     bool ServesTitle(u64 title_id) const;
 };
@@ -132,6 +134,7 @@ struct DriveItem {
     std::string id;
     std::string name;
     bool is_folder = false;
+    std::string modified; // the listing's "last modified" text ("Sep 4", "3/10/25", "3:14 PM")
 };
 /// The entries of Drive's embedded folder view (https://drive.google.com/embeddedfolderview?id=ID):
 /// id, name and whether it is a subfolder. Empty for a page with no entries.
@@ -162,6 +165,18 @@ std::string FreeSpaceError(u64 required, u64 available);
 /// Free bytes of the file system holding `dir` (nullopt on error).
 std::optional<u64> FreeSpace(const std::string& dir);
 
+// AzaharFrame zipinstall: when a pack was last updated (Download Packs shows "Updated Sep 2026").
+/// "YYYY-MM-DD" from "YYYY-MM-DD" or an ISO 8601 time ("2025-02-28T12:34:56Z", GitHub's
+/// published_at); nullopt for anything else or an impossible date.
+std::optional<std::string> ParseIsoDate(std::string_view text);
+/// "YYYY-MM-DD" from Drive's folder listing: "Sep 4" (this year), "3/10/25" or "3/10/2025" (month
+/// first), a time of day ("3:14 PM": today). `today` is "YYYY-MM-DD".
+std::optional<std::string> ParseDriveDate(std::string_view text, const std::string& today);
+/// "Updated Sep 2026" for "2026-09-04"; "" when the date is not one.
+std::string UpdatedText(const std::string& iso_date);
+/// Today's date, local time, "YYYY-MM-DD".
+std::string TodayIso();
+
 /// "gb" style text for sizes: "78 MB", "1.8 GB".
 std::string SizeText(u64 bytes);
 
@@ -181,6 +196,9 @@ struct PackInfo {
     bool installed = false;         // a folder from this entry is in the library
     std::vector<std::string> folders; // installed folders (names) for Delete
     bool partial = false;           // a kept partial download exists
+    std::string updated;            // AzaharFrame zipinstall: "YYYY-MM-DD": the installed copy's
+                                    // source date when it was downloaded, else the catalog's
+    bool verified = false;          // AzaharFrame zipinstall: the catalog's "verified"
 };
 
 struct State {
@@ -241,6 +259,7 @@ private:
     bool refreshing_ = false;
     std::atomic<u64> done_{0};
     std::atomic<u64> total_{0};
+    std::string live_updated_; // AzaharFrame zipinstall: the source's date (worker thread only)
 };
 
 // Installing a finished archive (exposed for tests).
@@ -251,5 +270,28 @@ private:
 std::string InstallArchive(const std::string& archive_path, const Entry& entry, u64 title_id,
                            const std::string& load_dir, const std::atomic_bool* cancel,
                            std::vector<std::string>* installed, const std::string& tool_override = {});
+
+// AzaharFrame zipinstall: the steps of InstallArchive that Install from Zip (core/mods/zip_install.h)
+// shares.
+
+/// Unpacks `archive_path` (zip, 7z or rar, kind from the file's first bytes) into `work` (emptied first;
+/// the caller removes it). `root` gets the folder that holds the files. "" on success, else the error
+/// ("The download is not a zip, 7z or rar archive", "Cancelled", ...). Unsafe paths ("..", absolute),
+/// links and special files are refused (Mods::ExtractZip, Mods::ExtractFileToDir); so is an unpacked
+/// total over `max_total`.
+std::string UnpackArchive(const std::string& archive_path, const std::string& work,
+                          const std::atomic_bool* cancel, std::string* root,
+                          const std::string& tool_override = {},
+                          std::uint64_t max_total = 64ull << 30);
+/// Every regular file under `root`: relative, '/' separated, sorted.
+std::vector<std::string> ListFiles(const std::string& root);
+/// tex1_*.png|dds|ktx, any case.
+bool IsTextureFileName(std::string_view base);
+/// The id in a pack folder's download marker; nullopt when the folder has none (the player's own).
+std::optional<std::string> MarkerId(const std::string& folder);
+/// Writes the marker (`source`: "github", "gdrive", "https", "zip"), which makes the folder deletable.
+/// `updated`: the source's date of the download ("YYYY-MM-DD", "" unknown), for Download Packs.
+bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source,
+                 const std::string& updated = {});
 
 } // namespace CustomTex::Download

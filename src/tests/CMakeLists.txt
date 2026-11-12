@@ -7,6 +7,7 @@ add_executable(tests
     frame_xr/touchpad_touch.cpp # AzaharFrame touchpad
     frame_xr/gamepads.cpp # AzaharFrame pads
     frame_xr/mouse.cpp # AzaharFrame padsui
+    frame_xr/reticle.cpp # AzaharFrame mouse
     frame_xr/keyboard_layout.cpp # AzaharFrame
     frame_xr/presets.cpp # AzaharFrame vrqol
     ../frame_xr/presets.cpp # AzaharFrame vrqol
@@ -18,6 +19,7 @@ add_executable(tests
     ../frame_xr/input/gamepads.cpp # AzaharFrame pads
     ../frame_xr/input/mouse.cpp # AzaharFrame padsui
     ../frame_xr/input/mouse_pointer.cpp # AzaharFrame padsui
+    ../frame_xr/input/reticle.cpp # AzaharFrame mouse
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/immersive_layout.cpp # AzaharFrame
@@ -32,10 +34,18 @@ add_executable(tests
     frame_xr/vis.cpp # AzaharFrame vrvis
     frame_xr/xr_handoff.cpp # AzaharFrame handoff
     frame_xr/flat_fit.cpp # AzaharFrame flatdialog
+    frame_xr/mem_guard.cpp # AzaharFrame modfix
     frame_xr/list_nav.cpp # AzaharFrame gamelist
+    frame_xr/flat_pads.cpp # AzaharFrame flat
+    frame_xr/flat_vr_hold.cpp # AzaharFrame flat
     frame_xr/swkbd.cpp # AzaharFrame kbd
     ../frame_xr/menu/swkbd_model.cpp # AzaharFrame kbd
     ../frame_xr/swkbd_config.cpp # AzaharFrame kbd
+    frame_xr/dynamic_resolution.cpp # AzaharFrame menuux
+    ../frame_xr/dynamic_resolution.cpp # AzaharFrame menuux
+    frame_xr/ui_sound.cpp # AzaharFrame menuux
+    ../frame_xr/ui_sound_wav.cpp # AzaharFrame menuux
+    frame_xr/toast_fit.cpp # AzaharFrame menuux
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp
@@ -46,6 +56,7 @@ add_executable(tests
     core/mods_library.cpp # AzaharFrame moddata
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
+    frame_xr/zip_install.cpp # AzaharFrame zipinstall
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp

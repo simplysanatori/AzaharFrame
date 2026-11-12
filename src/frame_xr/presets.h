@@ -32,10 +32,21 @@ struct ImmersivePreset {
     const char* eye_indicator = nullptr;
     /// AzaharFrame depth: Settings::values.vr_immersive_squeeze (Narrow Screen, 0 to 3).
     uint32_t squeeze = 0;
+    /// AzaharFrame immersive: the immersive screen's default size, times the size that fills
+    /// the view (0 = 1; immersive_layout.h). A placement the player saved wins.
+    float screen_size = 0.0f;
 };
 
 /// The preset for the game with this title id (any region), or null.
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id);
+
+/// AzaharFrame immersive: false for a game whose immersive mode does not work (Kid Icarus:
+/// Uprising, every region): it always runs in the normal view, its config's Immersive Mode is set
+/// to Off when it starts, and the VR menu does not offer the setting.
+bool ImmersiveOffered(uint64_t title_id);
+
+/// Every title id without immersive mode, for tests and documentation.
+const uint64_t* ImmersiveNotOfferedTitles(std::size_t& count);
 
 /// Every title id with a preset, for tests and documentation.
 struct ImmersivePresetTitle {

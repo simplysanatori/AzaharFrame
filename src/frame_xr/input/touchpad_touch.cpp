@@ -170,9 +170,14 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
         CursorInput in;
         in.live = on && pad.present;
         in.absolute = true;
-        in.has_point = pad.present && (pad.contact || pad.click);
+        // AzaharFrame menuux: Click for Input: a click held keeps its touch and drags with the
+        // finger; should the pad stop reporting the finger while the click is still down, the
+        // touch stays where it was (a pad may report the lifted finger at 0, 0).
+        const bool click_mode = frame.mode == TouchpadMode::Click;
+        const bool held = click_mode && pad.click && owner_ == TouchSource::Pad && touching_;
+        in.has_point = pad.present && (pad.contact || (pad.click && !held));
         in.point = {pad.x, pad.y};
-        in.down = frame.mode == TouchpadMode::Touch ? pad.contact : pad.click && in.has_point;
+        in.down = click_mode ? pad.click && (in.has_point || held) : pad.contact;
         in.recentre = frame.pad_recentre;
         CursorStep(out, pad_, in, TouchSource::Pad, frame.time_ns);
     }
@@ -189,6 +194,21 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
         CursorStep(out, cursor_, in, TouchSource::Cursor, frame.time_ns);
         cursor_hover =
             cursor_on && (frame.time_ns - cursor_.move_ns < kMouseIdleNs || (in.live && in.down));
+    }
+
+    // AzaharFrame mouse: Bottom Screen Reticle: an absolute point, the same pipeline; no Recentre
+    // at Edge (its edges drift instead, reticle.h).
+    bool reticle_hover = false;
+    {
+        const ReticleSample& rs = frame.reticle;
+        CursorInput in;
+        in.live = rs.on;
+        in.absolute = true;
+        in.has_point = rs.on;
+        in.point = rs.point;
+        in.down = rs.down;
+        CursorStep(out, reticle_, in, TouchSource::Reticle, frame.time_ns);
+        reticle_hover = rs.on && (frame.time_ns - reticle_.move_ns < kMouseIdleNs || rs.down);
     }
 
     // The mouse: the left button touches in both modes (a hover is not a contact).
@@ -223,12 +243,15 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
 
     // The dot: where the touch is, or where it would be (pad contact in Click mode, the pointer).
     TouchpadCursor& c = out.cursor;
-    if ((on || cursor_on) && owner_ != TouchSource::Beam) {
+    const bool reticle_shown = frame.bottom_visible && frame.reticle.on; // AzaharFrame mouse
+    if ((on || cursor_on || reticle_shown) && owner_ != TouchSource::Beam) {
         const bool pad_hover = frame.pad.present && (frame.pad.contact || frame.pad.click);
         TouchSource src = TouchSource::None;
         if (owner_ == TouchSource::Pad || owner_ == TouchSource::Mouse ||
-            owner_ == TouchSource::Cursor) {
+            owner_ == TouchSource::Cursor || owner_ == TouchSource::Reticle) {
             src = owner_;
+        } else if (reticle_shown && reticle_hover) {
+            src = TouchSource::Reticle; // AzaharFrame mouse
         } else if (pad_hover) {
             src = TouchSource::Pad;
         } else if (cursor_hover) {
@@ -237,9 +260,10 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
             src = TouchSource::Mouse;
         }
         if (src != TouchSource::None) {
-            const Source& s = src == TouchSource::Pad     ? pad_.src
-                              : src == TouchSource::Mouse ? mouse_
-                                                          : cursor_.src;
+            const Source& s = src == TouchSource::Pad       ? pad_.src
+                              : src == TouchSource::Mouse   ? mouse_
+                              : src == TouchSource::Reticle ? reticle_.src
+                                                            : cursor_.src;
             c.visible = true;
             c.source = src;
             c.px = s.px;
@@ -260,6 +284,7 @@ bool TouchpadTouch::Reset() {
     mouse_ = Source{};
     mouse_seen_ = false;
     cursor_ = CursorTrack{};
+    reticle_ = CursorTrack{};
     return was;
 }
 

@@ -35,6 +35,7 @@ protected:
     void SyncDrawUniforms();
 
     void SetVRData(const int32_t  &vrImmersiveMode, const float& immersiveModeFactor, int uoffset, const float& gamePosScaler, const float inv_view[16]) override;
+    void SetVRFactorY(float factor_y) override; // AzaharFrame immersive
 
 protected:
     /// Structure that the hardware rendered vertices are composed of

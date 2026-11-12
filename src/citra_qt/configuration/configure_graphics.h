@@ -32,6 +32,8 @@ public:
     void SetConfiguration();
 
     void UpdateBackgroundColorButton(const QColor& color);
+    /// AzaharFrame immersive: see ConfigureFrameVr::SetImmersiveOffered.
+    void SetImmersiveOffered(bool offered);
 
 private:
     void SetupPerGameUI();

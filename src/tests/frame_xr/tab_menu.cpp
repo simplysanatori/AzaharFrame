@@ -5,11 +5,17 @@
 // AzaharFrame tabmenu: the in-game menu's layout (frame_xr/menu/tab_menu.h): targets big enough
 // for a beam, labels that fit, hit testing.
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
+#include "frame_xr/input/mouse.h"   // AzaharFrame mouse
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
+#include "frame_xr/toast_fit.h"     // AzaharFrame menuux
+#include "frame_xr/ui/ui_canvas.h"
 
 using namespace FrameXr::Menu;
 
@@ -81,11 +87,10 @@ TEST_CASE("Tab menu: every target is at least 48 dp", "[frame_xr][tabmenu]") {
 
 TEST_CASE("Tab menu: labels and options are not cut", "[frame_xr][tabmenu]") {
     Kit kit(1.0f);
-    // The Main tab's tiles: three to a row in the pane.
-    const float tile_w = (kPanelW - 104.0f - 12.0f - 48.0f - 24.0f) / 3.0f;
+    // The Main tab's tiles: four to a row in the pane (AzaharFrame menuux).
+    const float tile_w = (kPanelW - 104.0f - 12.0f - 48.0f - 36.0f) / 4.0f;
     for (Id id : {Id::QuickSave, Id::QuickLoad, Id::Screenshot, Id::SaveState, Id::LoadState,
-                  Id::Restart, Id::AzaharWindow, Id::SwitchToFlat,
-                  Id::CloseGame}) {
+                  Id::Restart, Id::AzaharWindow, Id::CloseGame}) {
         const std::string label = LabelFor(id);
         REQUIRE(!label.empty());
         CHECK(kit.Fit(Type::Label, label, tile_w - 16.0f) == label);
@@ -145,13 +150,19 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     // The Wider View row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
-    v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f; // AzaharFrame depth3d: lower down now
     m.immersive_mode = 0;
-    d.Draw(m, v);
+    // AzaharFrame depth3d: lower down now; menuux: not at the end any more, so every scroll.
     bool label = false;
-    for (const auto& h : d.menu.Hits()) {
-        CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
-        label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+    for (float scroll = 0.0f;; scroll += 32.0f) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
+            label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+        }
+        if (scroll >= d.menu.MaxScroll()) {
+            break;
+        }
     }
     CHECK(label);
 
@@ -221,7 +232,7 @@ TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[fra
 }
 
 // AzaharFrame menu: Move Screens, Touchpad Touch, Edit Controls and Cheats are on the menu.
-TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[frame_xr][tabmenu]") {
+TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
     const auto has = [&d](Id id, int index) {
@@ -241,9 +252,29 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     v.tab = Tab::Controls;
     d.Draw(m, v);
     CHECK(has(Id::TouchpadTouch, 0));
-    CHECK(has(Id::TouchpadTouch, 2));
+    CHECK(has(Id::TouchpadTouch, 1));
+    CHECK_FALSE(has(Id::TouchpadTouch, 2));
     CHECK(has(Id::EditControls, -1));
-    CHECK(OptionsFor(Id::TouchpadTouch) == std::vector<std::string>{"Off", "Touch", "Click"});
+    // AzaharFrame menuux: the owner's names.
+    CHECK(LabelFor(Id::TouchpadTouch) == "Touchpad");
+    CHECK(OptionsFor(Id::TouchpadTouch) ==
+          std::vector<std::string>{"Tap for Input", "Click for Input"});
+    // AzaharFrame mouse: Bottom Screen Reticle under Touchpad.
+    CHECK(has(Id::BottomScreenReticle, 0));
+    CHECK(has(Id::BottomScreenReticle, 2));
+    CHECK(OptionsFor(Id::BottomScreenReticle) ==
+          std::vector<std::string>{"Off", "Left Controller", "Right Controller"});
+    CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
+    // At Edge: only while the reticle is on.
+    CHECK_FALSE(has(Id::ReticleAtEdge, 0));
+    m.bottom_screen_reticle = 2;
+    d.Draw(m, v);
+    CHECK(has(Id::ReticleAtEdge, 0));
+    CHECK(has(Id::ReticleAtEdge, 1));
+    CHECK(has(Id::TouchpadTouch, 1));
+    CHECK(has(Id::EditControls, -1));
+    CHECK(OptionsFor(Id::ReticleAtEdge) == std::vector<std::string>{"Follow", "Snap to Middle"});
+    CHECK(LabelFor(Id::ReticleAtEdge) == "At Edge");
 }
 
 // AzaharFrame cheatstab: the Mods tab and its Cheats segment.
@@ -722,6 +753,435 @@ TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(SizeText(640'000'000) == "640 MB");
     CHECK(SizeText(2'100'000'000) == "2.1 GB");
     CHECK(SizeText(12'345) == "12 KB");
+}
+
+// AzaharFrame menuux: Switch to Flat, the Settings tab's renderer rows, the Touchpad row's line,
+// and no text running into other text or out of its place with the longest strings.
+namespace {
+
+MenuModel Longest() {
+    MenuModel m = Sample();
+    m.game_title = "The Legend of Zelda: Majora's Mask 3D (Europe) (En,Fr,De,Es,It)";
+    m.immersive_offset = "Right 10.0°, Down 10.0°";
+    m.immersive_offset_set = true;
+    for (int i = 1; i <= 10; i++) {
+        m.slots.push_back({i, "2026-12-31 23:59"});
+    }
+    m.stats_game = {{"App FPS", "60"}, {"Emulation Speed", "100%"}, {"Frame Time", "16.7 ms"},
+                    {"Internal Resolution", "8x"}, {"Shaders Compiled", "1234"}};
+    m.stats_vr = {{"Display FPS", "120"}, {"Late Frames", "30"}};
+    m.stats_system = {{"Battery", "100%"}, {"Temperature", "45°C"}};
+    m.version = "1.2.0";
+    m.immersive_mode = 2; // the longest option
+    m.screen_shape = 1;
+    m.motion_controls = 1;
+    m.internal_resolution = 8;
+    m.texture_filter = 2;
+    m.fast_forward_speed = 3;
+    m.bottom_screen_reticle = 2; // AzaharFrame mouse: the Reticle and At Edge rows too
+    return m;
+}
+
+struct Audit {
+    Kit kit{1.0f};
+    frame_xr::ui::Canvas canvas;
+    TabMenu menu;
+    std::vector<DrawnText> texts;
+    void Draw(const MenuModel& m, const MenuView& v) {
+        canvas.Init(static_cast<int>(kPanelW), static_cast<int>(kPanelH));
+        kit.Begin(canvas);
+        texts.clear();
+        kit.RecordText(&texts);
+        menu.Draw(kit, m, v);
+        kit.RecordText(nullptr);
+    }
+    bool Drew(const std::string& s) const {
+        for (const auto& t : texts) {
+            if (t.text == s) {
+                return true;
+            }
+        }
+        return false;
+    }
+    // Every line on view stays inside the panel and its clip, and keeps 8 dp from any other
+    // line beside it.
+    void Check(const char* where) const {
+        constexpr float kGap = 8.0f;
+        std::vector<Rect> shown;
+        std::vector<std::string> what;
+        for (const auto& t : texts) {
+            const float y0 = std::max(t.box.y0, t.clip.y0), y1 = std::min(t.box.y1, t.clip.y1);
+            if (y1 <= y0) {
+                continue; // scrolled out of view
+            }
+            INFO(where << ": \"" << t.text << "\" " << t.box.x0 << ".." << t.box.x1);
+            CHECK(t.box.x0 >= -0.5f);
+            CHECK(t.box.x1 <= kPanelW + 0.5f);
+            CHECK(t.box.x0 >= t.clip.x0 - 0.5f);
+            CHECK(t.box.x1 <= t.clip.x1 + 0.5f);
+            shown.push_back({t.box.x0, y0, t.box.x1, y1});
+            what.push_back(t.text);
+        }
+        for (std::size_t i = 0; i < shown.size(); i++) {
+            for (std::size_t j = i + 1; j < shown.size(); j++) {
+                const Rect& a = shown[i];
+                const Rect& b = shown[j];
+                const float v = std::min(a.y1, b.y1) - std::max(a.y0, b.y0);
+                if (v <= 2.0f) {
+                    continue; // different lines
+                }
+                const float gap = std::max(a.x0, b.x0) - std::min(a.x1, b.x1);
+                INFO(where << ": \"" << what[i] << "\" and \"" << what[j] << "\" " << gap
+                           << " dp apart");
+                CHECK(gap >= kGap);
+            }
+        }
+    }
+};
+
+} // namespace
+
+TEST_CASE("Tab menu: Switch to Flat on the Main and Settings tabs", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    d.Draw(m, v);
+    const auto find = [&d](Id id) -> const MenuLayout::Hit* {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == -1) {
+                return &h;
+            }
+        }
+        return nullptr;
+    };
+    const auto* main_flat = find(Id::SwitchToFlat);
+    const auto* cont = find(Id::Continue);
+    REQUIRE(main_flat != nullptr);
+    REQUIRE(cont != nullptr);
+    CHECK(main_flat->r.W() == cont->r.W()); // as wide as Continue
+    CHECK(main_flat->r.y0 > cont->r.y1);
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id != Id::SwitchToFlat && h.t.id != Id::TabButton) {
+            CHECK(h.r.y1 <= main_flat->r.y0); // at the bottom
+        }
+    }
+    CHECK(LabelFor(Id::SwitchToFlat) == "Switch to Flat");
+    const float main_w = main_flat->r.W(); // the hits are drawn again below
+    // Settings: the last row, as wide as the pane's content, both scopes.
+    for (int scope = 0; scope < 2; scope++) {
+        m.scope = scope;
+        v = {};
+        v.tab = Tab::Settings;
+        v.scroll[static_cast<int>(Tab::Settings)] = 10000.0f;
+        d.Draw(m, v);
+        const auto* flat = find(Id::SwitchToFlat);
+        REQUIRE(flat != nullptr);
+        CHECK(flat->r.W() == main_w);
+        const auto* more = find(Id::MoreSettings);
+        REQUIRE(more != nullptr);
+        CHECK(flat->r.y0 >= more->r.y1);
+        CHECK(d.menu.HitTest(flat->r.Cx(), flat->r.Cy()) == Target{Id::SwitchToFlat});
+    }
+}
+
+TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and the picks",
+          "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    m.internal_resolution = 3;
+    MenuView v;
+    v.tab = Tab::Settings;
+    bool seen_res = false, seen_dyn = false, seen_filter = false, seen_async = false,
+         seen_ff = false;
+    for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            seen_res |= h.t.id == Id::InternalResolution && h.t.index == -1;
+            seen_dyn |= h.t.id == Id::DynamicResolution && h.t.index == -1;
+            seen_filter |= h.t.id == Id::TextureFilter && h.t.index == 4;
+            seen_async |= h.t.id == Id::AsyncShaders && h.t.index == -1;
+            seen_ff |= h.t.id == Id::FastForwardSpeed && h.t.index == 3;
+        }
+    }
+    CHECK(seen_res);
+    CHECK(seen_dyn);
+    CHECK(seen_filter);
+    CHECK(seen_async);
+    CHECK(seen_ff);
+    CHECK(OptionsFor(Id::InternalResolution).size() == static_cast<std::size_t>(kMaxResolution));
+    CHECK(OptionsFor(Id::InternalResolution).front() == "1x (400x240)");
+    CHECK(OptionsFor(Id::InternalResolution).back() == "8x (3200x1920)");
+    CHECK(OptionsFor(Id::TextureFilter) ==
+          std::vector<std::string>{"None", "Bicubic", "ScaleForce", "xBRZ", "MMPX"});
+    CHECK(OptionsFor(Id::FastForwardSpeed) ==
+          std::vector<std::string>{"150%", "200%", "300%", "400%"});
+    for (Id id : {Id::InternalResolution, Id::DynamicResolution, Id::TextureFilter,
+                  Id::AsyncShaders, Id::FastForwardSpeed}) {
+        CHECK(!LabelFor(id).empty());
+        CHECK(!ExplainFor(id).empty());
+    }
+    // No volume, frame rate or refresh rate row (owner decision).
+    for (int i = 0; i < kIdCount; i++) {
+        const std::string label = LabelFor(static_cast<Id>(i));
+        CHECK(label.find("Volume") == std::string::npos);
+        CHECK(label.find("Frame Rate") == std::string::npos);
+        CHECK(label.find("Refresh") == std::string::npos);
+    }
+}
+
+TEST_CASE("Tab menu: Dynamic Resolution has nothing to do at 1x", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Settings;
+    // Whether its switch can be pressed (-1), or only its tooltip shows (kLabelIndex).
+    const auto hit = [&](int factor) {
+        m.internal_resolution = factor;
+        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            for (const auto& h : d.menu.Hits()) {
+                if (h.t.id == Id::DynamicResolution) {
+                    return h.t.index;
+                }
+            }
+        }
+        return -100;
+    };
+    CHECK(hit(1) == kLabelIndex);
+    CHECK(!ExplainLock(Lock::AtLowest).empty());
+    CHECK(hit(2) == -1);
+    CHECK(hit(0) == -1); // Auto: whatever factor it works out
+}
+
+TEST_CASE("Tab menu: an Internal Resolution the menu does not offer still shows",
+          "[frame_xr][tabmenu]") {
+    Audit a;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Settings;
+    for (const auto& [factor, text] : std::vector<std::pair<int, std::string>>{
+             {0, "Auto"}, {12, "12x"}, {4, "4x (1600x960)"}}) {
+        m.internal_resolution = factor;
+        bool drawn = false;
+        for (float scroll = 0.0f; scroll <= 3000.0f && !drawn; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            a.Draw(m, v);
+            drawn = a.Drew(text);
+        }
+        INFO(factor);
+        CHECK(drawn);
+    }
+}
+
+TEST_CASE("Tab menu: the Touchpad row says what its value does", "[frame_xr][tabmenu]") {
+    Audit a;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Controls;
+    for (int value = 0; value < 2; value++) {
+        m.touchpad_touch = value;
+        a.Draw(m, v);
+        CHECK(a.Drew(TouchpadSupporting(value)));
+        CHECK_FALSE(a.Drew(TouchpadSupporting(1 - value)));
+        a.Check("Controls");
+    }
+    CHECK(TouchpadSupporting(0) != TouchpadSupporting(1));
+}
+
+TEST_CASE("Tab menu: no text overflows, with the longest strings", "[frame_xr][tabmenu]") {
+    Audit a;
+    const MenuModel m = Longest();
+    for (int t = 0; t < static_cast<int>(Tab::Count); t++) {
+        MenuView v;
+        v.tab = static_cast<Tab>(t);
+        if (v.tab == Tab::Mods) {
+            continue; // its segments have their own tests
+        }
+        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+            v.scroll[static_cast<std::size_t>(t)] = scroll;
+            a.Draw(m, v);
+            a.Check(("tab " + std::to_string(t)).c_str());
+            if (scroll >= a.menu.MaxScroll()) {
+                break;
+            }
+        }
+    }
+    for (Page page : {Page::SaveSlots, Page::LoadSlots}) {
+        MenuView v;
+        v.page = page;
+        a.Draw(m, v);
+        a.Check("slots");
+    }
+    // Both scopes of the Settings tab (Per-Game shows the title beside them).
+    MenuModel per_game = m;
+    per_game.scope = 1;
+    MenuView v;
+    v.tab = Tab::Settings;
+    a.Draw(per_game, v);
+    a.Check("Settings, Per-Game");
+    // The Touchpad row's longer line.
+    per_game.touchpad_touch = 1;
+    v.tab = Tab::Controls;
+    a.Draw(per_game, v);
+    a.Check("Controls, Click for Input");
+    // Edit Controls on a pad with a touchpad: the Touchpad choices beside Reset to Default and
+    // Done, whole.
+    MenuModel edit = Longest();
+    EditDevice frame;
+    frame.name = "Frame Controllers";
+    EditDevice pad;
+    pad.name = "DualShock 4";
+    pad.kind = DeviceKind::Gamepad;
+    pad.names = ButtonNames::DualShock;
+    pad.has_touchpad = true;
+    edit.devices.list = {frame, pad};
+    edit.devices.selected = 1;
+    v = {};
+    v.tab = Tab::Controls;
+    v.remap.editing = true;
+    for (int value = 0; value < 2; value++) {
+        edit.touchpad_touch = value;
+        a.Draw(edit, v);
+        CHECK(a.Drew("Tap for Input"));
+        CHECK(a.Drew("Click for Input"));
+        a.Check("Edit Controls");
+    }
+}
+
+// AzaharFrame mouse: the one-time toasts fit one line of a toast in the large font, by lane
+// menuux's toast_fit.h (rows 1024 px wide, 40 px of padding each side; the box sizes to its
+// text), and the font has the middle dot.
+TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr][tabmenu]") {
+    namespace ui = frame_xr::ui;
+    ui::InitFonts(); // alone, no other test has loaded them
+    const float dot = ui::TextWidth(ui::kFontLarge, "\xC2\xB7");
+    CHECK(dot != ui::TextWidth(ui::kFontLarge, "?"));
+    constexpr float kOneLine =
+        static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
+    CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kReticleHint) <= kOneLine);
+    CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
+}
+
+// AzaharFrame zipinstall: Install from Zip on the Textures page and Install Mods, and its page.
+TEST_CASE("Tab menu: Install from Zip", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    CHECK(LabelFor(Id::InstallFromZip) == "Install from Zip");
+
+    // the Textures page, with and without packs
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(HasHit(d, Id::DownloadPacks, -1));
+    m.mods.textures = Packs(2);
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Textures)));
+    CHECK(FindHit(d, Id::InstallFromZip, 0)->r.x0 > FindHit(d, Id::DownloadPacks, -1)->r.x1);
+    CheckTargets(d);
+
+    // the browser over the Textures page
+    ZipModel& z = m.mods.zip;
+    z.open = true;
+    z.target = ZipTarget::Textures;
+    z.browse = true;
+    z.folder = "/home/u/Downloads";
+    z.can_go_up = true;
+    z.chips = {{"Downloads", "/home/u/Downloads"}, {"Documents", "/home/u/Documents"}, {"Home", "/home/u"}};
+    for (int i = 0; i < 20; i++) {
+        z.entries.push_back({"Pack " + std::to_string(i) + ".zip", false, "12 MB"});
+    }
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TexturePack, 0));
+    CHECK(HasHit(d, Id::ZipBack, -1));
+    CHECK(HasHit(d, Id::ZipChip, 0));
+    CHECK(HasHit(d, Id::ZipChip, 2));
+    CHECK(HasHit(d, Id::ZipUp, -1));
+    CHECK(HasHit(d, Id::ZipEntry, 0));
+    CHECK(!HasHit(d, Id::ZipEntry, 19)); // scrolled away
+    CHECK(d.menu.MaxScroll() > 0.0f);
+    CheckTargets(d);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipEntry, 19));
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+
+    // only on its own segment
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    v.mods_segment = ModsSegment::Textures;
+
+    // working: no way back, no list
+    z.working = true;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ZipBack, -1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.working = false;
+
+    // several games: choose one
+    z.choices = {"0004000000033500", "0004000000033600"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ZipChoice, 0));
+    CHECK(HasHit(d, Id::ZipChoice, 1));
+    CHECK(!HasHit(d, Id::ZipEntry, 0));
+    z.choices.clear();
+
+    // a question is modal
+    z.dialog = {ModsDialogKind::Replace, "Pack 1", "Pack 1"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    CHECK(d.menu.HitTest(kPanelW * 0.5f, 140.0f).id != Id::ZipEntry);
+    z = {};
+
+    // Install Mods' bar
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    m.mods.mods.catalog = CatalogState::Ready;
+    d.Draw(m, v);
+    REQUIRE(FindHit(d, Id::InstallFromZip, static_cast<int>(ZipTarget::Mods)));
+    CHECK(FindHit(d, Id::InstallFromZip, 1)->r.H() >= 48.0f);
+    m.mods.mods.busy = true; // not while an install runs
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::InstallFromZip, 1));
+}
+
+// AzaharFrame zipinstall: Download Packs rows: the verified badge and "<author> · Updated <Mon YYYY>",
+// which fits beside the row's button for the catalog's longest author.
+TEST_CASE("Tab menu: Download Packs dates fit", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Download;
+    const std::string author = "Henriko Magnifico"; // the longest in catalog/textures.json
+    m.mods.textures.downloads = {
+        {"a", "Ocarina of Time 3D 4K", author, "", "", PackOfferState::Download, -1, "", "Updated Sep 2026", true},
+        {"b", "Ocarina of Time 3D 1080p", author, "", "", PackOfferState::Downloading, 42, "Downloading",
+         "Updated Sep 2026", true}};
+    m.mods.textures.downloading = true;
+    d.Draw(m, v);
+    const auto* row = FindHit(d, Id::PackDownload, kLabelIndex);
+    REQUIRE(row);
+    const float x0 = row->r.x0 + 12.0f;
+    constexpr float kNameGap = 24.0f;
+    const auto line = [&](const std::string& rest) {
+        return d.kit.TextWidthSized(14.0f, false, author + " · " + rest);
+    };
+    // Download: the button (disabled while another downloads, so measured by its label)
+    const float button = d.kit.TextWidth(Type::Label, "Download") + 48.0f;
+    CHECK(line("Updated Sep 2026") <= (row->r.x1 - 12.0f - button - kNameGap) - x0);
+    // Downloading: Cancel, the percent and the ring
+    const auto* cancel = FindHit(d, Id::PackCancel, 1);
+    REQUIRE(cancel);
+    const float right = cancel->r.x0 - 4.0f - d.kit.TextWidth(Type::Label, "100%") - 12.0f - 24.0f - kNameGap;
+    CHECK(line("Downloading") <= right - x0);
+    CHECK(line("Updated Sep 2026") <= right - x0); // even the longer text would fit
 }
 
 // AzaharFrame emerald: the Mods tab's Homebrew segment.

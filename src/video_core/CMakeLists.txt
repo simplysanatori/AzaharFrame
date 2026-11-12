@@ -18,6 +18,7 @@ add_library(video_core STATIC EXCLUDE_FROM_ALL
     rasterizer_accelerated.cpp
     rasterizer_accelerated.h
     vr_view_matrix.h # AzaharFrame
+    vr_dynamic_resolution.h # AzaharFrame menuux
     rasterizer_interface.h
     renderer_base.cpp
     renderer_base.h

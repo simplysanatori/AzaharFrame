@@ -88,7 +88,7 @@ The screens have two places. The Primary Screen is where the top screen starts. 
 |---|---|
 | Right stick click, tap | The bottom screen becomes the Primary Screen, at the top screen's height, and the top screen becomes the Secondary Screen. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
-| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode the immersive screen and the view too. The focus and what is hidden stay as they are |
+| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode re-centres the view. The immersive screen keeps its size unless you hold it with a grip. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
@@ -256,6 +256,8 @@ Press both bumpers, **View** and **Menu** together to switch between VR and Flat
 
 Hold both bumpers first, then press **View** and **Menu**.
 
+In Flat there are two more ways back to VR: the **VR** button in the status bar of Azahar's window, next to the renderer and volume buttons, and, with no game running, holding **Menu** for 1 second.
+
 ## Hiding the bottom screen
 
 Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
@@ -264,7 +266,7 @@ Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Sc
 |---|---|
 | Both bumpers, then **View** | Shows or hides the bottom screen |
 | Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
-| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look. SteamVR's recenter (hold the Steam button) does the same |
+| Right stick click, held for 1 second | In immersive mode it also re-centres the view on where you look. The screen keeps its size, as with SteamVR's recenter (hold the Steam button). **Reset Position** in the menu puts the screen back |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 ## Moving the immersive screen
@@ -278,11 +280,11 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Wider View, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Wider View: 1.2x**. Kept for this game |
-| Right stick click, held for 1 second | Puts the screen back where it starts, re-centres the view and resets the normal screens, held or not. A tap does nothing while you hold the screen |
+| Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, re-centres the view and resets the normal screens. Without a grip it only re-centres, and the screen keeps its size. A tap does nothing while you hold the screen |
 
 Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 
-The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
+The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. **Reset Position** in the menu puts it back to the middle. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
 The screen starts a little below eye level, with its sides, and the HUD there, inside the sharp middle of the lenses. It can grow to 2.5 times that size. Bigger only enlarges the game's picture; it shows more around it only with **Wider View** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
@@ -331,7 +333,7 @@ The same controller still points at the screens, so aiming also moves its beam. 
 
 ## Playing in a window (Flat)
 
-The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat).
+The same library entry can also run Azahar as a flat window on SteamVR's big screen, with other apps usable beside it. It starts in the mode you used last, VR the first time. That mode is kept in the file `mode` in `~/.local/share/AzaharFrame`, as the single word `vr` or `flat`. To start in Flat once without changing it, add `AZAHARFRAME_FLAT=1` to `session.env` in the same folder (`0` forces VR). From a terminal, `azaharframe.sh --flat` or `--vr` does the same. To switch while it runs, see [VR and Flat](#vr-and-flat). If a run in Flat ends without a clean quit (a crash, or the system closing it), the next launch starts in VR, once, and the one after that is Flat again.
 
 In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Azahar maps it the same way as in VR: the same controls profile, the same buttons, holds and chords. A tap of **View** is still Select and a tap of **Menu** is still Start, so the game's own menus work.
 
@@ -342,6 +344,8 @@ The differences:
 - The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).
 - Holding **Menu** for 1 second opens the Flat menu instead of the in-game menu, see below.
+- Holding **Menu** for 3 seconds asks **Switch to VR?**, in a game or in the game list. **A** is **Yes**, **B** is **No**, and the buttons can be clicked too. In a game the Flat menu opens on the way, at 1 second; **No** goes back to the game, in Fullscreen if it was. Let go before 3 seconds and nothing more happens. The **VR** button in the status bar, next to the renderer and volume buttons, switches with one click.
+- Only a tap of **Menu**, under 0.3 seconds, reaches the game as Start. A longer press never pauses or unpauses the game, even if you let go before 1 second.
 
 Azahar's window is 16:9 in Flat, the shape of the big screen, so it fills it with no bars at the sides. Flat starts with the **Large Screen** layout: one big screen and the other one small beside it, which suits the wide screen. Flat keeps its own layout. The stick clicks and **View > Screen Layout** change it while you play in Flat, and the layout in the settings stays as it is for VR. **View > Fullscreen** works in Flat only: in VR the in-game menu always shows the whole window, with its menus.
 
@@ -351,7 +355,7 @@ Holding **View** for 1.5 seconds stops the game. Quick Save, Quick Load, Fast Fo
 
 Hold **Menu** for 1 second in a game in Flat. The game pauses and Azahar's window leaves Fullscreen, with its menu bar and status bar, so the pointer reaches **File**, **Emulation**, **View** and the rest, **Emulation > Configure Current Application...** included. The window stays on the big screen, 16:9.
 
-To go back to the game, hold **Menu** for 1 second again, press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. Holding **View** for 1.5 seconds stops the game.
+To go back to the game, hold **Menu** for 1 second again and let go (held on to 3 seconds, it asks **Switch to VR?** instead), press **B** with no menu or dialog open, or select **Emulation > Continue**. The window goes back to Fullscreen if it was. **B** with a menu or dialog open closes that first. Holding **View** for 1.5 seconds stops the game.
 
 Switching between VR and Flat with the in-game menu or the Flat menu open closes it, and the game goes on.
 

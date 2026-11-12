@@ -50,6 +50,10 @@ struct MapperConfig {
     int64_t menu_hold_ns = 1'000'000'000;
     /// A shorter Menu press is Start, sent when Menu is let go and held for this long.
     int64_t start_pulse_ns = 100'000'000;
+    /// AzaharFrame flat: only a Menu press shorter than this is Start (a tap). A longer one is a
+    /// hold on its way to the in-game menu, the Flat menu or "Switch to VR?", and the game sees
+    /// nothing of it, let go early or not, so a long hold never pauses or unpauses the game.
+    int64_t menu_tap_max_ns = 300'000'000;
     /// View pressed with both bumpers held waits this long for Menu (the VR / flat chord) before
     /// it is the bottom screen toggle or Select.
     int64_t chord_grace_ns = 150'000'000;

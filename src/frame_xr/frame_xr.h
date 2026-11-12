@@ -65,7 +65,8 @@ bool HasExtension(const char* name);
 // SetFlatInput (Steam Input's gamepad) through the same mapping as in VR.
 
 /// Asks for VR (true: make a session) or flat (false: end it). Any thread; the XR thread does
-/// it, and FrontendHooks::vr_changed reports the result. False when XR is not started.
+/// it, and FrontendHooks::vr_changed reports the result. False when XR is not started, and for
+/// VR once the OpenXR runtime has gone away (AzaharFrame flat).
 bool SetVr(bool vr);
 /// The mode asked for last.
 bool WantsVr();
@@ -202,6 +203,13 @@ enum class MenuCommand {
     CancelPackDownload,
     DeletePack,        ///< `text`: the downloaded pack's id (CustomTex::Pack::id), asks first
     TexturesDialog,    ///< the Textures dialog's answer: `value` 1 Download / Delete, 0 Cancel
+    // AzaharFrame zipinstall: Install from Zip (Menu::ZipModel, citra_qt/frame_mods.cpp)
+    InstallFromZip, ///< `value`: Menu::ZipTarget; VR opens the browser, Flat Qt's file dialog
+    ZipBrowse,      ///< `text`: the folder to list
+    ZipPick,        ///< `text`: the archive to install
+    ZipChoose,      ///< `value`: the index of the game in ZipModel::choices
+    ZipDialog,      ///< the page's dialog: `value` 1 Replace, 0 Cancel / OK
+    ZipClose,       ///< the page's back button
     // AzaharFrame emerald: the Mods tab's Homebrew segment (citra_qt/frame_homebrew.cpp), `text`: the package's id
     HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
     HomebrewUpdate,  ///< the same for an update
@@ -228,9 +236,16 @@ enum class MenuSetting {
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
-    TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
+    TouchpadTouch, ///< AzaharFrame menu: `value` 1 Tap for Input, 2 Click for Input (0 Off)
+    BottomScreenReticle, ///< AzaharFrame mouse: `value` 0 Off, 1 Left, 2 Right Controller
+    ReticleAtEdge,       ///< AzaharFrame mouse: `value` 0 Follow, 1 Snap to Middle
     CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
     PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)
+    InternalResolution, ///< AzaharFrame menuux: `value` 1 to 8 (resolution_factor)
+    DynamicResolution,  ///< AzaharFrame menuux: `value` 0 or 1 (vr_dynamic_resolution)
+    TextureFilter,      ///< AzaharFrame menuux: `value` a Settings::TextureFilter
+    AsyncShaders,       ///< AzaharFrame menuux: `value` 0 or 1 (async_shader_compilation)
+    FastForwardSpeed,   ///< AzaharFrame menuux: `value` percent (turbo_limit)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;
@@ -241,6 +256,11 @@ struct MenuRequest {
     std::vector<std::string> buttons; ///< AzaharFrame remap: SetButtons, Settings::InputProfile::buttons
     std::vector<std::string> analogs; ///< AzaharFrame padsui: SetButtons, InputProfile::analogs (or none)
 };
+
+/// AzaharFrame flat: FrontendHooks::flat_vr_prompt. OpenFromGame: the hold began in a game and
+/// opened the Flat menu on its way (leaving Fullscreen), so No closes that menu again (the game
+/// goes on, Fullscreen again if it was). Open: the game list, or a hold begun in the Flat menu.
+enum class FlatVrPrompt { Open, OpenFromGame, Yes, No };
 
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).
 struct FrontendHooks {
@@ -282,6 +302,10 @@ struct FrontendHooks {
     /// AzaharFrame tabmenu: a button or setting of the in-game menu (menu_panel.h). Queue to the
     /// GUI thread.
     std::function<void(const MenuRequest& request)> menu_request;
+    /// AzaharFrame flat: Menu held 3 s in Flat: open the "Switch to VR?" question (Open), or A
+    /// (Yes: switch) or B (No: close it) while it shows. The Qt side calls SetFlatVrPrompt(false)
+    /// once it closes, however it closes. Queue to the GUI thread.
+    std::function<void(FlatVrPrompt what)> flat_vr_prompt;
 };
 void SetFrontendHooks(FrontendHooks hooks);
 
@@ -341,6 +365,9 @@ void SetHomePanelListNav(bool enabled);
 /// The in-game menu: the home panel in front of the (paused) game's screens, which are dimmed;
 /// the controllers drive the panel and not the game. GUI thread, after the game paused.
 void SetInGameMenu(bool open);
+/// AzaharFrame flat: the "Switch to VR?" question (FrontendHooks::flat_vr_prompt) closed (false)
+/// or opened (true). While it shows Flat's controller drives only it. Any thread.
+void SetFlatVrPrompt(bool open);
 /// AzaharFrame tabmenu: while the in-game menu is open, show Azahar's window (true; the Qt side
 /// captures it as the home panel, for "Azahar's Window", "More Settings" and any dialog) or the
 /// menu (false). GUI thread.
@@ -360,11 +387,13 @@ namespace Menu {
 struct CheatsModel;
 struct ModsListModel;
 struct TexturesModel;
+struct ZipModel;
 struct HomebrewTabModel; // AzaharFrame emerald
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
+void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 

@@ -314,8 +314,6 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_mode.cpp frame_mode.h)
     # AzaharFrame texui: the in-game menu's Mods and Textures segments, the Qt side.
     target_sources(citra_qt PRIVATE frame_mods.cpp frame_mods.h)
-    # AzaharFrame window: the bottom screen in its own desktop window during VR.
-    target_sources(citra_qt PRIVATE frame_bottom_window.cpp frame_bottom_window.h)
     # AzaharFrame cheatstab: the in-game menu's Cheats tab, the Qt side.
     target_sources(citra_qt PRIVATE frame_cheats.cpp frame_cheats.h)
     # AzaharFrame emerald: the Homebrew menu and the Mods tab's Homebrew segment, the Qt side.

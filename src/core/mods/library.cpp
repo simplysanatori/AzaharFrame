@@ -456,6 +456,39 @@ void Library::RefreshCatalogOnce() {
 }
 
 // One GET with redirects followed to GitHub's own hosts only.
+std::string ShortFailure(std::string_view e) {
+    const auto has = [&](std::string_view needle) { return e.find(needle) != std::string_view::npos; };
+    if (has("rate limit")) {
+        return "Rate Limited";
+    }
+    if (has("Connection") || has("SSL") || has("No reply") || has("certificate") || has("Resolve")) {
+        return "No Connection";
+    }
+    if (has("Read") || has("Write") || has("Timeout") || has("timed out")) {
+        return "Timed Out";
+    }
+    if (has("too large") || has("too big")) {
+        return "Too Large";
+    }
+    if (has("No release") || has("No matching") || has("not found") || has("Server returned 404")) {
+        return "Not Found";
+    }
+    if (has("Server returned")) {
+        return "Server Error";
+    }
+    if (has("archive") || has("zip") || has("Zip") || has("Nothing in the download") || has("code patch") ||
+        has("Unsupported")) {
+        return "Bad Archive";
+    }
+    if (has("Cannot write") || has("Cannot copy") || has("Cannot delete")) {
+        return "Disk Error";
+    }
+    if (has("Another install")) {
+        return "Busy";
+    }
+    return "Error";
+}
+
 bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error) {
     std::string current = url;
     for (int hop = 0; hop < 6; ++hop) {
@@ -465,6 +498,13 @@ bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& ou
             return false;
         }
         out = transport_(host, path, max_bytes);
+        if (out.status == 0 && out.error != "Download too large") {
+            // AzaharFrame modfix: one retry when the connection failed or timed out (a download
+            // while the headset is busy has been seen to fail once and work the next time).
+            LOG_WARNING(Frontend, "Mods: GET {}{} failed: {}; retrying", host, path,
+                        out.error.empty() ? "No reply" : out.error);
+            out = transport_(host, path, max_bytes);
+        }
         if (out.status == 301 || out.status == 302 || out.status == 303 || out.status == 307 ||
             out.status == 308) {
             if (out.location.empty()) {
@@ -816,9 +856,13 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         std::lock_guard lock{mutex_};
         const CatalogEntry* found = catalog_.Find(mod_id);
         if (found == nullptr || !found->ServesTitle(title_id)) {
-            return {InstallResult::NotAvailable, "No such mod for this game"};
+            found = nullptr;
+        } else {
+            entry = *found;
         }
-        entry = *found;
+    }
+    if (entry.id.empty()) {
+        return InstallFromLibrary(title_id, mod_id, replace); // AzaharFrame zipinstall
     }
     if (!entry.Installable()) {
         return {InstallResult::NotAvailable, "This mod needs bsdtar (for 7z and rar), which wasn't found"};
@@ -901,11 +945,24 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
     SetState(State::Phase::Installing, mod_id, fmt::format("Installing {}", entry.name));
 
     std::lock_guard lock{mutex_};
+    return ActivateLocked(title_id, mod_id, manifest, entry.verified, replace);
+}
+
+InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, Manifest& manifest,
+                                       bool verified, bool replace) {
+    const auto fail = [&](InstallResult r, const std::string& why) {
+        SetState(State::Phase::Failed, mod_id, "Install failed: " + why);
+        InstallOutcome o;
+        o.result = r;
+        o.error = why;
+        return o;
+    };
+    const std::string dir = LibraryDir(title_id) + manifest.id + "/";
     // Conflicts against everything active in the mods folder
     std::map<std::string, std::pair<const ModInfo*, std::string>> taken; // key -> owner, path
     const auto loaded = ListLoadedLocked(title_id);
     for (const auto& m : loaded) {
-        if (m.state != ModState::Active || m.id == entry.id) {
+        if (m.state != ModState::Active || m.id == manifest.id) {
             continue;
         }
         for (const auto& f : m.files) {
@@ -925,7 +982,7 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
     }
     bool legacy_ours = false;
     for (const ModInfo* c : clashes) {
-        if (c->id == kLegacyFixId && entry.verified) {
+        if (c->id == kLegacyFixId && verified) {
             legacy_ours = true; // our own earlier install of the same fix: upgrade it silently
         }
     }
@@ -986,8 +1043,133 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
         RemoveFilesOf(title_id, written);
         return fail(InstallResult::Error, "Cannot write the manifest");
     }
-    SetState(State::Phase::Done, mod_id, fmt::format("{} Installed", entry.name));
+    SetState(State::Phase::Done, mod_id, fmt::format("{} Installed", manifest.name));
     return {};
+}
+
+// AzaharFrame zipinstall: Install from Zip's mods (core/mods/zip_install.h)
+
+namespace {
+bool LocalIdOk(const std::string& id) {
+    if (id.size() <= std::string_view(kZipPrefix).size() || id.size() > 80 ||
+        id.compare(0, std::string_view(kZipPrefix).size(), kZipPrefix) != 0) {
+        return false;
+    }
+    return std::all_of(id.begin(), id.end(), [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
+    });
+}
+} // namespace
+
+InstallOutcome Library::InstallFromLibrary(u64 title_id, const std::string& mod_id, bool replace) {
+    Manifest manifest;
+    {
+        std::lock_guard lock{mutex_};
+        if (!LocalIdOk(mod_id) || !ReadManifest(LibraryDir(title_id) + mod_id + "/", manifest) ||
+            manifest.source != kZipSource) {
+            return {InstallResult::NotAvailable, "No such mod for this game"};
+        }
+    }
+    {
+        std::lock_guard sl{state_mutex_};
+        if (busy_) {
+            return {InstallResult::Error, "Another install is running"};
+        }
+        busy_ = true;
+    }
+    struct Done {
+        Library& self;
+        ~Done() {
+            std::lock_guard sl{self.state_mutex_};
+            self.busy_ = false;
+        }
+    } done{*this};
+    if (manifest.active) {
+        SetState(State::Phase::Done, mod_id, "");
+        return {InstallResult::AlreadyInstalled, {}};
+    }
+    SetState(State::Phase::Installing, mod_id, fmt::format("Installing {}", manifest.name));
+    std::lock_guard lock{mutex_};
+    return ActivateLocked(title_id, mod_id, manifest, false, replace);
+}
+
+InstallOutcome Library::InstallLocal(u64 title_id, const std::string& id, const std::string& name,
+                                     const std::vector<LocalFile>& files, bool replace_same) {
+    if (!LocalIdOk(id) || name.empty()) {
+        return {InstallResult::Error, "Bad mod name"};
+    }
+    if (files.empty()) {
+        return {InstallResult::Error, "Nothing in the archive fits this game"};
+    }
+    for (const LocalFile& f : files) {
+        if (!IsModPath(f.target)) {
+            return {InstallResult::Error, "Bad mod path " + f.target};
+        }
+    }
+    {
+        std::lock_guard sl{state_mutex_};
+        if (busy_) {
+            return {InstallResult::Error, "Another install is running"};
+        }
+        busy_ = true;
+    }
+    struct Done {
+        Library& self;
+        ~Done() {
+            std::lock_guard sl{self.state_mutex_};
+            self.busy_ = false;
+        }
+    } done{*this};
+    const auto fail = [&](InstallResult r, const std::string& why) {
+        SetState(State::Phase::Failed, id, "Install failed: " + why);
+        InstallOutcome o;
+        o.result = r;
+        o.error = why;
+        return o;
+    };
+    SetState(State::Phase::Installing, id, fmt::format("Installing {}", name));
+    std::lock_guard lock{mutex_};
+    const std::string dir = LibraryDir(title_id) + id + "/";
+    Manifest old;
+    if (ReadManifest(dir, old)) {
+        if (!replace_same) {
+            // The same mod (by name) is installed: never replaced without a question.
+            InstallOutcome o;
+            o.result = InstallResult::Conflict;
+            o.error = fmt::format("Conflicts with {}", old.name);
+            o.conflict_id = id;
+            o.conflict_name = old.name;
+            SetState(State::Phase::Failed, id, "Install failed: " + o.error);
+            return o;
+        }
+        if (auto r = DeactivateLocked(title_id, id); !r.ok) {
+            return fail(InstallResult::Error, r.error);
+        }
+    }
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    Manifest manifest;
+    manifest.id = id;
+    manifest.name = name;
+    manifest.source = kZipSource;
+    std::map<std::string, std::string> by_target; // the later of two files with one target wins
+    for (const LocalFile& f : files) {
+        by_target[f.target] = f.source;
+    }
+    for (const auto& [target, source] : by_target) {
+        fs::create_directories(fs::path(dir + "files/" + target).parent_path(), ec);
+        fs::copy_file(source, dir + "files/" + target, fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            fs::remove_all(dir, ec);
+            return fail(InstallResult::Error, "Cannot write the mod library");
+        }
+        manifest.files.push_back(target);
+    }
+    if (!WriteManifest(dir, manifest)) {
+        fs::remove_all(dir, ec);
+        return fail(InstallResult::Error, "Cannot write the mod library");
+    }
+    return ActivateLocked(title_id, id, manifest, false, false);
 }
 
 // ---------------------------------------------------------------------------------------------

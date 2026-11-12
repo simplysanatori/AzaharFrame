@@ -9,6 +9,7 @@
 #include "core/tracer/recorder.h"
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/renderer_base.h"
+#include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
 #include "video_core/vr_immersive.h" // AzaharFrame
 
 namespace VideoCore {
@@ -27,9 +28,10 @@ u32 RendererBase::GetResolutionScaleFactor() {
     }
 
     const u32 scale_factor = Settings::values.resolution_factor.GetValue();
-    // AzaharFrame: two steps more in immersive mode (vr_immersive.h).
-    return VideoCore::Immersive::AdjustResolution(
-        scale_factor != 0 ? scale_factor : render_window.GetFramebufferLayout().GetScalingRatio());
+    // AzaharFrame: two steps more in immersive mode (vr_immersive.h); AzaharFrame menuux: fewer
+    // while Dynamic Resolution has stepped down (vr_dynamic_resolution.h).
+    return VideoCore::DynamicResolution::Apply(VideoCore::Immersive::AdjustResolution(
+        scale_factor != 0 ? scale_factor : render_window.GetFramebufferLayout().GetScalingRatio()));
 }
 
 void RendererBase::UpdateCurrentFramebufferLayout(bool is_portrait_mode) {

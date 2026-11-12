@@ -15,12 +15,15 @@
 #include "common/param_package.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
+#include "frame_xr/presets.h" // AzaharFrame immersive
 #include "frame_xr/session.h"
+#include "frame_xr/ui_sound.h" // AzaharFrame menuux: Edit Controls' click
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/menu_diagram.h"
@@ -218,6 +221,9 @@ bool PerGameSetting(Id id) {
     case Id::NarrowScreen:
     case Id::DepthFactor:
     case Id::Depth3d: // AzaharFrame depth3d
+    case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
+    case Id::TextureFilter:
+    case Id::AsyncShaders:
         return true;
     default:
         return false;
@@ -245,9 +251,28 @@ bool UsesGlobal(Id id) {
         return v.vr_immersive_positional_game_scaler.UsingGlobal();
     case Id::Depth3d:
         return v.factor_3d.UsingGlobal();
+    case Id::InternalResolution: // AzaharFrame menuux
+        return v.resolution_factor.UsingGlobal();
+    case Id::TextureFilter:
+        return v.texture_filter.UsingGlobal();
+    case Id::AsyncShaders:
+        return v.async_shader_compilation.UsingGlobal();
     default:
         return true;
     }
+}
+
+/// AzaharFrame zipinstall: Install from Zip's page shows (over the segment and page it came from).
+bool ZipShown(const Menu::MenuModel& model, const Menu::MenuView& view) {
+    const auto& zip = model.mods.zip;
+    if (!zip.open || view.tab != Menu::Tab::Mods) {
+        return false;
+    }
+    if (zip.target == Menu::ZipTarget::Textures) {
+        return view.mods_segment == Menu::ModsSegment::Textures &&
+               view.textures_page == Menu::TexturesPage::Packs;
+    }
+    return view.mods_segment == Menu::ModsSegment::Mods && view.mods_page == Menu::ModsPage::Install;
 }
 
 // AzaharFrame cheatstab: the Mods tab's values from the Qt side (SetInGameMenuCheats and so on).
@@ -271,6 +296,11 @@ void SetInGameMenuModsList(const Menu::ModsListModel& mods) {
 void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
     std::scoped_lock lock{g_mods_mutex};
     g_mods.textures = textures;
+}
+
+void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.zip = zip;
 }
 
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew) { // AzaharFrame emerald
@@ -392,6 +422,7 @@ void MenuPanel::BeginEdit() {
         Input::Devices::CancelListen();
         edit_pad_listening = false;
     }
+    UiSound::Prepare(); // AzaharFrame menuux: the click loaded before the first edit
     LOG_INFO(Frontend, "xr: in-game menu: Edit Controls");
 }
 
@@ -429,6 +460,7 @@ void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
     if (e != Event::Moved && e != Event::Swapped && e != Event::Reset) {
         return;
     }
+    UiSound::PlayClick(); // AzaharFrame menuux: Steam's soft click, off this thread
     // AzaharFrame pads: a gamepad's mapping goes to user/controller-mappings.txt.
     if (edit_device != Input::kFrameDeviceId) {
         if (edit_device == Input::kMouseDeviceId) {
@@ -653,7 +685,10 @@ void MenuPanel::BuildModel(const Host& host) {
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
-    m.touchpad_touch = static_cast<int>(std::min<u32>(v.vr_touchpad_touch.GetValue(), 2));
+    m.touchpad_touch = v.vr_touchpad_touch.GetValue() == 2 ? 1 : 0; // AzaharFrame menuux
+    m.bottom_screen_reticle = // AzaharFrame mouse
+        static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 2));
+    m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -734,7 +769,7 @@ void MenuPanel::BuildModel(const Host& host) {
                                  mouse_test.y};
         } else if (sel.kind == Menu::DeviceKind::Gamepad && sel.has_touchpad) {
             const Input::PadSample pad = Input::Devices::GetTouchpad(sel.key);
-            const bool click_mode = m.touchpad_touch == 2;
+            const bool click_mode = m.touchpad_touch == 1; // AzaharFrame menuux
             m.devices.pointer = {pad.contact || pad.click, click_mode ? pad.click : pad.contact,
                                  std::clamp(pad.x, 0.0f, 1.0f), std::clamp(pad.y, 0.0f, 1.0f)};
         }
@@ -757,6 +792,28 @@ void MenuPanel::BuildModel(const Host& host) {
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     m.depth_3d = static_cast<int>(std::min<u32>(v.factor_3d.GetValue(), 100)); // depth3d
+    // AzaharFrame menuux: the renderer's settings.
+    m.internal_resolution = static_cast<int>(std::min<u32>(v.resolution_factor.GetValue(), 18));
+    m.dynamic_resolution = v.vr_dynamic_resolution.GetValue();
+    m.texture_filter = 0;
+    for (std::size_t i = 0; i < Menu::kTextureFilters.size(); i++) {
+        if (static_cast<int>(v.texture_filter.GetValue()) == Menu::kTextureFilters[i]) {
+            m.texture_filter = static_cast<int>(i);
+        }
+    }
+    m.async_shaders = v.async_shader_compilation.GetValue();
+    m.fast_forward_speed = 0;
+    {
+        const double ff = v.turbo_limit.GetValue();
+        double best = 1e9;
+        for (std::size_t i = 0; i < Menu::kFastForwardSpeeds.size(); i++) {
+            const double d = std::fabs(ff - Menu::kFastForwardSpeeds[i]);
+            if (d < best) {
+                best = d;
+                m.fast_forward_speed = static_cast<int>(i);
+            }
+        }
+    }
     // AzaharFrame texui: the two switches straight from the settings (the rest is the Qt side's)
     m.mods.textures.custom_textures = v.custom_textures.GetValue();
     m.mods.textures.preload = v.preload_textures.GetValue();
@@ -770,6 +827,13 @@ void MenuPanel::BuildModel(const Host& host) {
                                                 std::chrono::steady_clock::now().time_since_epoch())
                                                 .count() /
                                             66);
+    }
+    if ((m.mods.zip.working || m.mods.zip.loading) && view.tab == Menu::Tab::Mods) {
+        // AzaharFrame zipinstall: Install from Zip's ring
+        m.mods.zip.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                               std::chrono::steady_clock::now().time_since_epoch())
+                                               .count() /
+                                           66);
     }
     if (m.mods.textures.downloading && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Textures &&
@@ -806,6 +870,12 @@ void MenuPanel::BuildModel(const Host& host) {
     if (!per_game_ok) {
         lock(Id::Scope, Lock::Unavailable);
     }
+    // AzaharFrame immersive: a game without immersive mode (Kid Icarus: Uprising) runs in the
+    // normal view; the menu shows Off and does not offer the setting.
+    if (!ImmersiveOffered(GameTitleId())) {
+        m.immersive_mode = 0;
+        lock(Id::ImmersiveMode, Lock::NotForGame);
+    }
     model = std::move(m);
 }
 
@@ -841,9 +911,53 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::MoveScreens;
         ShowToastText(Menu::LabelFor(id) + ": " + Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
         break;
-    case Id::TouchpadTouch: // AzaharFrame menu, global
-        Apply(v.vr_touchpad_touch, std::min<u32>(u, 2), false);
+    case Id::TouchpadTouch: // AzaharFrame menu, global; menuux: 0 Tap (1), 1 Click (2)
+        r.value = u >= 1 ? 2 : 1;
+        Apply(v.vr_touchpad_touch, static_cast<u32>(r.value), false);
         r.setting = MenuSetting::TouchpadTouch;
+        break;
+    // AzaharFrame menuux: the renderer's settings. A new Internal Resolution or Texture Filter
+    // takes effect at the next frame (the rasterizer cache starts again: a short hitch).
+    case Id::InternalResolution:
+        r.value = std::clamp(value + 1, 1, Menu::kMaxResolution);
+        Apply(v.resolution_factor, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::InternalResolution;
+        DynamicResolution::Reset(); // from the new value, no step off
+        break;
+    case Id::DynamicResolution:
+        Apply(v.vr_dynamic_resolution, value != 0, false);
+        r.setting = MenuSetting::DynamicResolution;
+        if (value == 0) {
+            DynamicResolution::Reset();
+        }
+        break;
+    case Id::TextureFilter:
+        r.value = Menu::kTextureFilters[std::min<std::size_t>(u, Menu::kTextureFilters.size() - 1)];
+        Apply(v.texture_filter, static_cast<Settings::TextureFilter>(r.value), per_game);
+        r.setting = MenuSetting::TextureFilter;
+        break;
+    case Id::AsyncShaders:
+        Apply(v.async_shader_compilation, value != 0, per_game);
+        r.setting = MenuSetting::AsyncShaders;
+        ShowToastText("Async Shader Compilation: From the Next Start");
+        break;
+    case Id::FastForwardSpeed:
+        r.value =
+            Menu::kFastForwardSpeeds[std::min<std::size_t>(u, Menu::kFastForwardSpeeds.size() - 1)];
+        Apply(v.turbo_limit, static_cast<double>(r.value), false);
+        r.setting = MenuSetting::FastForwardSpeed;
+        break;
+    case Id::ReticleAtEdge: // AzaharFrame mouse, global
+        Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), false);
+        r.setting = MenuSetting::ReticleAtEdge;
+        LOG_INFO(Frontend, "xr: in-game menu: At Edge = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 1)]);
+        break;
+    case Id::BottomScreenReticle: // AzaharFrame mouse, global
+        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 2), false);
+        r.setting = MenuSetting::BottomScreenReticle;
+        LOG_INFO(Frontend, "xr: in-game menu: Bottom Screen Reticle = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
         break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
@@ -1106,6 +1220,52 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::RestartGame:
         ask(MenuCommand::Restart);
         break;
+    // AzaharFrame zipinstall: Install from Zip (citra_qt/frame_mods.cpp)
+    case Id::InstallFromZip:
+        if (t.index == static_cast<int>(Menu::ZipTarget::Textures) ||
+            t.index == static_cast<int>(Menu::ZipTarget::Mods)) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask(MenuCommand::InstallFromZip, t.index);
+        }
+        break;
+    case Id::ZipBack:
+        view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        ask(MenuCommand::ZipClose);
+        break;
+    case Id::ZipChip:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.chips.size())) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask_text(MenuCommand::ZipBrowse,
+                     model.mods.zip.chips[static_cast<std::size_t>(t.index)].path);
+        }
+        break;
+    case Id::ZipUp:
+        if (model.mods.zip.can_go_up) {
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            const std::string& folder = model.mods.zip.folder;
+            const std::size_t slash = folder.find_last_of('/');
+            ask_text(MenuCommand::ZipBrowse,
+                     slash == std::string::npos || slash == 0 ? std::string("/") : folder.substr(0, slash));
+        }
+        break;
+    case Id::ZipEntry:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.entries.size())) {
+            const Menu::ZipEntry& e = model.mods.zip.entries[static_cast<std::size_t>(t.index)];
+            const std::string& folder = model.mods.zip.folder;
+            const std::string path = (folder == "/" ? folder : folder + "/") + e.name;
+            if (e.folder) {
+                view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+                ask_text(MenuCommand::ZipBrowse, path);
+            } else {
+                ask_text(MenuCommand::ZipPick, path);
+            }
+        }
+        break;
+    case Id::ZipChoice:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.zip.choices.size())) {
+            ask(MenuCommand::ZipChoose, t.index);
+        }
+        break;
     case Id::InstallMods:
         view.mods_page = Menu::ModsPage::Install;
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
@@ -1148,6 +1308,10 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     case Id::DialogConfirm:
     case Id::DialogCancel: {
+        if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
+            ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
+            break;
+        }
         // The segment's own dialog (the Qt side's), else the link's (the view's).
         const bool textures = view.mods_segment == Menu::ModsSegment::Textures;
         const auto& dialog = textures ? model.mods.textures.dialog : model.mods.mods.dialog;
@@ -1245,12 +1409,19 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MatchCamera: // AzaharFrame depth
         SetSetting(t.id, model.match_camera ? 0 : 1, host);
         break;
+    case Id::DynamicResolution: // AzaharFrame menuux
+        SetSetting(t.id, model.dynamic_resolution ? 0 : 1, host);
+        break;
+    case Id::AsyncShaders:
+        SetSetting(t.id, model.async_shaders ? 0 : 1, host);
+        break;
     case Id::ImmersiveOffsetReset:
         SetSetting(t.id, 0, host);
         break;
     case Id::ScreenShape:
     case Id::ScreenCurve:
     case Id::ImmersiveMode:
+    case Id::InternalResolution: // AzaharFrame menuux
         view.open_menu = t.id; // a menu button: its menu
         break;
     case Id::ControlsPage:
@@ -1262,6 +1433,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ScreenLayout:
     case Id::MoveScreens:
     case Id::TouchpadTouch:
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+    case Id::ReticleAtEdge:
     case Id::StatsPosition:
     case Id::Background:
     case Id::FaceButtons:
@@ -1270,6 +1443,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::WiderView:
     case Id::NarrowScreen:
     case Id::DepthFactor:
+    case Id::TextureFilter:    // AzaharFrame menuux
+    case Id::FastForwardSpeed:
         if (t.index >= 0) {
             SetSetting(t.id, t.index, host);
         }
@@ -1406,8 +1581,17 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                 view.mods_segment == Menu::ModsSegment::Mods;
         const bool textures_shown = view.tab == Menu::Tab::Mods &&
                                     view.mods_segment == Menu::ModsSegment::Textures;
+        // AzaharFrame zipinstall: Install from Zip's page over the segment it came from
+        const auto& zip = model.mods.zip;
+        const bool zip_shown = ZipShown(model, view);
         if (view.open_menu != Id::None) {
             view.open_menu = Id::None;
+        } else if (zip_shown && zip.dialog.kind != Menu::ModsDialogKind::None) {
+            Click({Id::DialogCancel}, host);
+        } else if (zip_shown) {
+            if (!zip.working) {
+                Click({Id::ZipBack}, host);
+            }
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);

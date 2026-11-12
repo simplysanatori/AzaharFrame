@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
 #include "frame_xr/vis/async_overlay.h"
 
@@ -65,6 +66,7 @@ private:
     /// The toasts and the passthrough layer's transparent square.
     Vis::AsyncOverlay toast_chain;
     frame_xr::ui::Canvas atlas; ///< its pixels (the text rows are redrawn)
+    std::vector<ToastFit::Box> row_boxes; ///< AzaharFrame menuux: each row's box (toast_fit.h)
     bool logged_unsupported = false;
 
     std::atomic<int> toast_kind{-1}; ///< a request not yet taken by the XR thread

@@ -23,6 +23,9 @@
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
+#include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
+#include "frame_xr/toast_fit.h"     // AzaharFrame menuux
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/menu_diagram.h"
@@ -125,7 +128,24 @@ TexturesModel SamplePokemonDownloads() {
     t.custom_textures = true;
     t.downloads = {{"pokemon-xy-hd", "Pokemon X and Y HD", "Ullr8, Gray-Rice",
                     "https://github.com/Gray-Rice/PokeTex-3DS", "1.8 GB", PackOfferState::Download,
-                    -1, ""}};
+                    -1, "", "Updated Feb 2025", false}};
+    return t;
+}
+
+/// AzaharFrame zipinstall: Henriko Magnifico's verified packs, the longest author line.
+TexturesModel SampleOot3dDownloads() {
+    TexturesModel t;
+    t.custom_textures = true;
+    t.downloads = {{"oot3d-4k-henriko", "Ocarina of Time 3D 4K", "Henriko Magnifico",
+                    "", "", PackOfferState::Download, -1, "",
+                    "Updated Sep 2026", true},
+                   {"oot3d-1080p-henriko", "Ocarina of Time 3D 1080p", "Henriko Magnifico",
+                    "", "", PackOfferState::Downloading, 42,
+                    "Downloading", "Updated Sep 2026", true},
+                   {"mm3d-hd-deathwrench", "Majora's Mask 3D HD", "DeathWrench",
+                    "https://github.com/DeathWrench/MM3DHD", "", PackOfferState::Installed, -1, "",
+                    "Updated May 2021", false}};
+    t.downloading = true;
     return t;
 }
 
@@ -308,6 +328,49 @@ int main(int argc, char** argv) {
 
     const MenuModel m = SampleModel();
     bool ok = true;
+
+    // AzaharFrame mouse + menuux: toasts as hud.cpp draws them (a box sized by toast_fit.h, the
+    // text centred; one line in the large font, else two in the small one), one row each.
+    {
+        namespace ui = frame_xr::ui;
+        ui::InitFonts();
+        const std::vector<std::string> toasts{
+            Input::kReticleHint, Input::kMouseHint,
+            "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
+            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle"};
+        ui::Canvas cv;
+        cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
+        cv.Clear(Rgb(kBackdrop));
+        const ui::Color white = ui::rgb(240, 240, 245);
+        for (std::size_t i = 0; i < toasts.size(); i++) {
+            const std::string& t = toasts[i];
+            std::vector<std::string> lines;
+            const ToastFit::Box box = ToastFit::Fit(ui::TextWidth(ui::kFontLarge, t.c_str()), [&] {
+                lines = ui::WrapText(ui::kFontSmall, t,
+                                     ToastFit::kAtlasW - 2.0f * ToastFit::kPadPx, 2);
+                float w = 0.0f;
+                for (const auto& l : lines) {
+                    w = std::max(w, ui::TextWidth(ui::kFontSmall, l.c_str()));
+                }
+                return w;
+            });
+            const float top = static_cast<float>(i * ToastFit::kRowPx);
+            const float w = static_cast<float>(box.box_px);
+            cv.RoundRect(2, top + 2, w - 2, top + ToastFit::kRowPx - 2, 36,
+                         ui::rgb(28, 28, 34, 0.92f));
+            if (!box.two_lines) {
+                cv.Text(w / 2.0f, top + 62, ui::kFontLarge, t.c_str(), white, 1);
+            } else {
+                for (std::size_t l = 0; l < lines.size() && l < 2; l++) {
+                    cv.Text(w / 2.0f, top + (lines.size() == 1 ? 58 : 40 + 38 * l),
+                            ui::kFontSmall, lines[l].c_str(), white, 1);
+                }
+            }
+            std::printf("toast %zu: %d px%s: %s\n", i, box.box_px, box.two_lines ? ", two lines" : "",
+                        t.c_str());
+        }
+        ok &= WritePng(out + "/toasts.png", cv);
+    }
     MenuView v;
     v.tab = Tab::Main;
     v.hover = {Id::QuickSave};
@@ -354,6 +417,17 @@ int main(int argc, char** argv) {
     mw.controls_page = 1;
     v.hover = {};
     ok &= shot("4b-controls-window", mw, v);
+    // AzaharFrame mouse: Bottom Screen Reticle on (At Edge under it), Click for Input.
+    {
+        MenuModel mr = m;
+        mr.touchpad_touch = 1;
+        mr.bottom_screen_reticle = 2;
+        mr.reticle_at_edge = 1;
+        v = {};
+        v.tab = Tab::Controls;
+        v.hover = {Id::ReticleAtEdge, 1};
+        ok &= shot("4c-controls-reticle", mr, v);
+    }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
     // DualShock 4 (a touchpad), a mouse.
@@ -477,6 +551,30 @@ int main(int argc, char** argv) {
     v.hover = {Id::ImmersiveMode, 2};
     ok &= shot("5d-settings-immersive-menu", off, v);
 
+    // AzaharFrame menuux: the renderer's rows, the Internal Resolution menu, Dynamic Resolution
+    // at 1x, and the Position tab's longest offset.
+    MenuModel rm = m;
+    rm.internal_resolution = 3;
+    v = {};
+    v.tab = Tab::Settings;
+    v.scroll[static_cast<int>(Tab::Settings)] = 5.0f * 64.0f;
+    v.hover = {Id::DynamicResolution};
+    ok &= shot("5f-settings-renderer", rm, v);
+    v.open_menu = Id::InternalResolution;
+    v.hover = {Id::InternalResolution, 3};
+    ok &= shot("5g-settings-resolution-menu", rm, v);
+    v.open_menu = Id::None;
+    rm.internal_resolution = 1;
+    v.hover = {Id::DynamicResolution, kLabelIndex};
+    v.tooltip = Id::DynamicResolution;
+    ok &= shot("5h-settings-dynamic-at-1x", rm, v);
+    MenuModel om = m;
+    om.immersive_offset = "Right 3.5°, Down 2.5°";
+    om.immersive_offset_set = true;
+    v = {};
+    v.tab = Tab::Position;
+    ok &= shot("2d-position-long-offset", om, v);
+
     // AzaharFrame cheatstab: the Mods tab's Cheats segment and each state.
     MenuModel cm = m;
     cm.mods.cheats = SampleCheats();
@@ -529,6 +627,19 @@ int main(int argc, char** argv) {
         v.mods_page = ModsPage::Install;
         v.hover = {Id::ModInstall, 0};
         ok &= shot("mods-install", mi, v);
+        v.hover = {Id::InstallFromZip, 1}; // AzaharFrame zipinstall
+        ok &= shot("zip-mods-button", mi, v);
+        MenuModel mz = mi;
+        mz.mods.zip.open = true;
+        mz.mods.zip.target = ZipTarget::Mods;
+        mz.mods.zip.browse = true;
+        mz.mods.zip.folder = "/home/user/Downloads/Mods";
+        mz.mods.zip.folder_text = "~/Downloads/Mods";
+        mz.mods.zip.can_go_up = true;
+        mz.mods.zip.chips = {{"Downloads", "/home/user/Downloads"}, {"Home", "/home/user"}};
+        mz.mods.zip.entries = {{"Ocarina-ReFramed-v1.5.9.zip", false, "3.4 MB"}};
+        v.hover = {Id::ZipUp, -1};
+        ok &= shot("zip-mods-browse", mz, v);
         MenuModel mp = mi; // downloading the first, the second waits
         mp.mods.mods.busy = true;
         mp.mods.mods.available[0].state = OfferState::Installing;
@@ -601,6 +712,10 @@ int main(int argc, char** argv) {
         v.textures_page = TexturesPage::Download;
         v.hover = {Id::PackDownload, 0};
         ok &= shot("download-list", dm, v);
+        MenuModel dh = dm; // AzaharFrame zipinstall: dates and the verified badge
+        dh.mods.textures = SampleOot3dDownloads();
+        v.hover = {Id::PackLink, 0};
+        ok &= shot("download-list-dates", dh, v);
         MenuModel db = dm;
         db.mods.textures.dialog = {ModsDialogKind::BigDownload, "Pokemon X and Y HD", "1.8 GB"};
         v.hover = {Id::DialogConfirm};
@@ -637,6 +752,59 @@ int main(int argc, char** argv) {
         dp.mods.textures.dialog = {ModsDialogKind::DeletePack, "Pokemon X and Y HD", ""};
         v.hover = {Id::DialogConfirm};
         ok &= shot("textures-delete", dp, v);
+        // AzaharFrame zipinstall: Install from Zip
+        v.hover = {Id::InstallFromZip, 0};
+        dp.mods.textures.dialog = {};
+        ok &= shot("zip-textures-button", dp, v);
+        MenuModel zm = dp;
+        ZipModel& z = zm.mods.zip;
+        z.open = true;
+        z.target = ZipTarget::Textures;
+        z.browse = true;
+        z.folder = "/home/user/Downloads";
+        z.folder_text = "~/Downloads";
+        z.can_go_up = true;
+        z.chips = {{"Downloads", "/home/user/Downloads"},
+                   {"Documents", "/home/user/Documents"},
+                   {"Home", "/home/user"}};
+        z.entries = {{"3DS Packs", true, ""},
+                     {"Screenshots", true, ""},
+                     {"Henriko Magnifico Ocarina of Time 3D 4K Texture Pack v6.0.0.zip", false, "2.1 GB"},
+                     {"No Bloom.7z", false, "12 KB"},
+                     {"PokeTex-3DS.zip", false, "1.8 GB"}};
+        v.hover = {Id::ZipEntry, 2};
+        ok &= shot("zip-browse", zm, v);
+        MenuModel ze = zm;
+        ze.mods.zip.file = "photos.zip";
+        ze.mods.zip.error = "Not a Texture Pack or Mod";
+        v.hover = {Id::ZipChip, 1};
+        ok &= shot("zip-error", ze, v);
+        MenuModel zw = zm;
+        zw.mods.zip.working = true;
+        zw.mods.zip.phase = "Unpacking";
+        zw.mods.zip.file = "PokeTex-3DS.zip";
+        v.hover = {};
+        ok &= shot("zip-working", zw, v);
+        MenuModel zc = zm;
+        zc.mods.zip.choices = {"0004000000033500", "0004000000033600"};
+        v.hover = {Id::ZipChoice, 0};
+        ok &= shot("zip-choose", zc, v);
+        MenuModel zr = zm;
+        zr.mods.zip.dialog = {ModsDialogKind::Replace, "PokeTex-3DS", "Pokemon X and Y HD"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("zip-replace", zr, v);
+        MenuModel zf = dm;
+        zf.mods.zip = z;
+        zf.mods.zip.browse = false;
+        zf.mods.zip.file = "photos.zip";
+        zf.mods.zip.error = "Not a Texture Pack or Mod";
+        v.hover = {};
+        ok &= shot("zip-flat-error", zf, v);
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.hover = {Id::InstallFromZip, 0};
+        ok &= shot("zip-textures-empty", dm, v);
     }
     v = {};
     v.tab = Tab::Main;

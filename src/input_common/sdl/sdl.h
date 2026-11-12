@@ -44,6 +44,10 @@ public:
     }
     virtual void GetPadInfos(std::vector<SDLPadInfo>& out) {}
     virtual void GetPadStates(std::vector<SDLPadState>& out) {}
+    /// AzaharFrame flat: see InputCommon::GetSDLPumpCount.
+    virtual std::uint64_t GetPumpCount() {
+        return 0;
+    }
 };
 
 class NullState : public State {

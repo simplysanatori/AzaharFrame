@@ -100,6 +100,9 @@ std::uint64_t GetSDLPadGeneration();
 void GetSDLPadInfos(std::vector<SDLPadInfo>& out);
 /// Fills `out` with their states (replacing its contents; no allocation once it has grown).
 void GetSDLPadStates(std::vector<SDLPadState>& out);
+/// AzaharFrame flat: how many times input_common's SDL thread has pumped SDL's events (0 when
+/// it runs no thread). If it stops growing, no controller state changes reach the program.
+std::uint64_t GetSDLPumpCount();
 
 namespace Polling {
 

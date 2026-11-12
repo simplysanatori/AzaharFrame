@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
@@ -23,11 +24,16 @@
 #include "common/stall_telemetry.h"
 #include "common/thread.h"
 #include "frame_xr/controls.h"
+#include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
+#include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
+#include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
+#include "input_common/main.h" // AzaharFrame flat: SDL pump count
 
 namespace FrameXr {
 
@@ -294,13 +300,14 @@ bool Runtime::PollEvents() {
             break;
         case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING: {
             // SteamVR's recenter (hold the Steam button) moves the LOCAL space. Re-centre the
-            // immersive view with it, as the right stick click hold does.
+            // immersive view with it; AzaharFrame immersive: its screen keeps its placement.
             const auto& e =
                 reinterpret_cast<const XrEventDataReferenceSpaceChangePending&>(event);
             if (e.referenceSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL) {
                 LOG_INFO(Frontend, "xr: SteamVR recentred, re-centring the immersive view");
-                Immersive::OnResetPanels();
+                Immersive::OnRecentred(e.changeTime);
                 Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
+                Input::RequestReticleRezero(); // AzaharFrame mouse: Bottom Screen Reticle
             }
             break;
         }
@@ -390,6 +397,12 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double alloc_ms = telemetry.device_alloc_max_us.exchange(0) / 1000.0;
     const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
+    // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
+    {
+        const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
+        DynamicResolution::NoteSecond({seconds, frames, display_period_ns / 1e6, emu_frames,
+                                       gpu.frames, gpu.avg_ms, screens_live.load()});
+    }
     stats.window_us_sum.exchange(0);
     take(stats.window_us_max);
     const std::string emu =
@@ -415,14 +428,24 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
 
 void Runtime::LogFlatSummary(double seconds) {
     const auto take = [](std::atomic<uint32_t>& a) { return a.exchange(0); };
+    if (DynamicResolution::Drop() != 0) { // AzaharFrame menuux: flat draws at the setting
+        DynamicResolution::Reset();
+    }
     const uint32_t presents = take(stats.window_presents);
     const uint64_t us_sum = stats.window_us_sum.exchange(0);
     const uint32_t us_max = take(stats.window_us_max);
+    // AzaharFrame flat: what reaches the program from the gamepad, and whether input_common's
+    // SDL thread still pumps SDL's events (no pumps: no controller state changes at all).
+    static uint64_t last_pumps = 0;
+    const uint64_t pumps = InputCommon::GetSDLPumpCount();
+    const uint64_t pumped = pumps - std::exchange(last_pumps, pumps);
     LOG_INFO(Frontend,
              "xr: flat {:.1f}s, window presents {} ({:.2f} ms avg, {:.2f} max on the emu thread), "
-             "screens {}",
+             "screens {}, {}, SDL pumped {} times{}",
              seconds, presents, presents ? us_sum / 1000.0 / presents : 0.0, us_max / 1000.0,
-             screens_live.load() ? "live" : "off");
+             screens_live.load() ? "live" : "off",
+             ui ? ui->TakeFlatInputSummary() : std::string{"no input"}, pumped,
+             lost ? ", OpenXR gone" : "");
 }
 
 // Flat: no session. The gamepad (FlatFrame) about 120 times a second, a line a second.
@@ -464,8 +487,21 @@ void Runtime::FrameLoop() {
     while (true) {
         loop_top = Clock::now();
         Watchdog::Beat("events");
-        if (!PollEvents() || lost) {
-            break;
+        if (!lost && !PollEvents()) {
+            // AzaharFrame flat: the runtime is gone (SteamVR quit or crashed). This loop used to
+            // end here, which left the game holding whatever the controllers held last, flat
+            // with no input at all and no way back. Now any session ends, the game gets nothing
+            // held, and the loop carries on flat (the gamepad), with VR refused from here on.
+            LOG_ERROR(Frontend, "xr: the OpenXR runtime is gone; flat from now on");
+            want_vr = false;
+            if (session) {
+                exit_requested = false;
+                DestroySession();
+                flat_seconds = 0.0;
+                if (ui) {
+                    ui->NotifyVr(false);
+                }
+            }
         }
 
         // ---- Flat: no session ----
@@ -562,6 +598,7 @@ void Runtime::FrameLoop() {
         }
         last_wait = now;
         phases = {};
+        display_period_ns = fs.predictedDisplayPeriod; // AzaharFrame menuux
 
         auto mark = Clock::now();
         Watchdog::Beat("xrBeginFrame (with the queue lock)");
@@ -819,6 +856,7 @@ bool Start(const StartOptions& options) {
     g_runtime = std::move(rt);
     VideoCore::SetXrScreenSink(g_runtime.get());
     Immersive::Install(); // AzaharFrame immersive mode; before the XR thread reads its state
+    DynamicResolution::Install(); // AzaharFrame menuux
     g_runtime->StartThread();
     LOG_INFO(Frontend, "xr: started");
     return true;
@@ -832,6 +870,8 @@ void Shutdown() {
     VideoCore::SetXrScreenSink(nullptr);
     g_runtime->StopThread();
     Immersive::Uninstall(); // AzaharFrame immersive mode
+    DynamicResolution::Uninstall(); // AzaharFrame menuux
+    UiSound::Shutdown();
     g_runtime->Destroy();
     g_runtime.reset();
     Settings::frame_flat_mono = false;
@@ -847,7 +887,7 @@ bool HasExtension(const char* name) {
 
 bool SetVr(bool vr) {
     auto* rt = GetRuntime();
-    if (!rt || !rt->loop_alive) {
+    if (!rt || !rt->loop_alive || (vr && rt->lost)) { // AzaharFrame flat: no runtime, no VR
         return false;
     }
     if (rt->want_vr.exchange(vr) != vr) {
@@ -1023,6 +1063,12 @@ void SetHomePanelListNav(bool enabled) { // AzaharFrame gamelist
 void SetInGameMenu(bool open) {
     if (auto* rt = GetRuntime(); rt && rt->ui) {
         rt->ui->SetInGameMenu(open);
+    }
+}
+
+void SetFlatVrPrompt(bool open) { // AzaharFrame flat
+    if (auto* rt = GetRuntime(); rt && rt->ui) {
+        rt->ui->SetFlatVrPrompt(open);
     }
 }
 

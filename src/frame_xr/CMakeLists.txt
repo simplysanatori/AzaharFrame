@@ -4,6 +4,8 @@
 add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     app.cpp
     controls.cpp
+    dynamic_resolution.cpp # AzaharFrame menuux
+    dynamic_resolution.h
     frame_xr.h
     immersive.cpp
     immersive.h
@@ -17,6 +19,10 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     overlays.cpp
     session.cpp
     session.h
+    toast_fit.h # AzaharFrame menuux
+    ui_sound.cpp # AzaharFrame menuux
+    ui_sound.h
+    ui_sound_wav.cpp
     vulkan_bridge.cpp
     vulkan_bridge.h
     watchdog.cpp
@@ -38,6 +44,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/mouse.h
     input/mouse_pointer.cpp # AzaharFrame padsui: adapted from Frametop (MIT)
     input/mouse_pointer.h
+    input/reticle.cpp # AzaharFrame mouse
+    input/reticle.h
     input/profile_routes.h
     input/click_gesture.h
     input/geometry.cpp
@@ -47,6 +55,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/input_frame.h
     input/list_nav.h
     input/chord_latch.h
+    input/flat_pads.h # AzaharFrame flat
+    input/flat_vr_hold.h # AzaharFrame flat
     input/mapper.cpp
     input/mapper.h
     input/motion.cpp
@@ -122,6 +132,11 @@ target_include_directories(frame_xr PUBLIC ${PROJECT_SOURCE_DIR}/third_party/ope
 target_link_libraries(frame_xr PUBLIC citra_common citra_core video_core input_common vulkan-headers vma)
 target_link_libraries(frame_xr PRIVATE frame_xr_picker ${CMAKE_DL_LIBS} Threads::Threads)
 target_link_libraries(frame_xr PUBLIC frame_xr_menu) # AzaharFrame tabmenu
+# AzaharFrame menuux: Edit Controls' click plays through SDL's audio (ui_sound.cpp).
+if (ENABLE_SDL2)
+    target_link_libraries(frame_xr PRIVATE SDL2::SDL2)
+    target_compile_definitions(frame_xr PRIVATE HAVE_SDL2)
+endif()
 
 # AzaharFrame kbd: the game's keyboard (the 3DS software keyboard applet) in VR.
 target_sources(frame_xr PRIVATE

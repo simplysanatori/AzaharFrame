@@ -14,7 +14,8 @@ namespace FrameXr::Input {
 InputBridge::InputBridge(const MapperConfig& config) : mapper_(config) {}
 
 const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeometry& panels,
-                                         const InputFrame* gamepads, const MouseFrame* mouse) {
+                                         const InputFrame* gamepads, const MouseFrame* mouse,
+                                         const ReticleSample* reticle) {
     const bool by_position = Settings::values.vr_face_buttons.GetValue() == 0;
     mapper_.SetFaceButtonsByPosition(by_position);
     last_ = mapper_.Update(frame, panels);
@@ -65,6 +66,9 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     if (mouse_here && gamepads && mouse->mode == MouseMode::BottomScreen) {
         touch.cursor = {true, mouse->motion, MouseScreenGain(mouse->speed), mouse->Touch(),
                         mouse->recentre};
+    }
+    if (reticle) {
+        touch.reticle = *reticle; // AzaharFrame mouse
     }
     const TouchpadResult result = touchpad_.Update(touch);
     touchpad_cursor_ = result.cursor;

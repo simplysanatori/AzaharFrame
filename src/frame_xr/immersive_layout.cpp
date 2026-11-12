@@ -70,8 +70,16 @@ ViewFov BothEyes(const EyeFov& l, const EyeFov& r) {
     v.right = std::min(l.right + l.yaw, r.right + r.yaw);
     v.up = std::min(l.up + l.pitch, r.up + r.pitch);
     v.down = std::max(l.down + l.pitch, r.down + r.pitch);
+    // AzaharFrame immersive: how far either eye sees to the side.
+    v.outer_left = std::min(l.left + l.yaw, r.left + r.yaw);
+    v.outer_right = std::max(l.right + l.yaw, r.right + r.yaw);
+    v.outer_up = std::max(l.up + l.pitch, r.up + r.pitch);
+    v.outer_down = std::min(l.down + l.pitch, r.down + r.pitch);
     // Nonsense from the runtime (no overlap, or an inverted range): keep the fallback.
-    if (!(v.right - v.left > 10.0f * kDegToRad) || !(v.up - v.down > 10.0f * kDegToRad)) {
+    if (!(v.right - v.left > 10.0f * kDegToRad) || !(v.up - v.down > 10.0f * kDegToRad) ||
+        !(v.outer_left <= v.left) || !(v.outer_right >= v.right) ||
+        !(v.outer_right - v.outer_left < 170.0f * kDegToRad) ||
+        !(v.outer_up - v.outer_down < 170.0f * kDegToRad)) {
         return ViewFov{};
     }
     return v;
@@ -124,17 +132,59 @@ float PlacementPitch(const Placement& p, const ViewFov& view) {
 }
 } // namespace
 
-float DefaultTanHalfY(float game_fov_y_deg, float aspect, float pitch_rad, const ViewFov& view,
-                      float eye_shift) {
-    // The whole quad inside the view, and its middle row (where the log measures its width)
-    // no wider than +-kComfortHalfWidthDeg. A lower screen's bottom corners reach a little
-    // farther out, its top ones a little less.
-    const float fit =
-        std::min(FitTanHalfY(view, aspect, pitch_rad, kFitMarginDeg * kDegToRad, eye_shift),
-                 std::tan(kComfortHalfWidthDeg * kDegToRad) / aspect);
-    // Never larger than the game's own angle: no magnifying gain by default, even when the view
-    // has room for more. Wider View then grows the screen with the factor (SizeForWider).
-    return std::min(fit, GameTan(game_fov_y_deg));
+Cover DefaultCover(const ViewFov& view, float pitch_rad, float eye_shift) {
+    // AzaharFrame immersive: the corners of what either eye sees (a black edge in the corner of
+    // one eye was the "porthole"), as seen from the screen turned down by `pitch_rad`. The view
+    // is a rectangle of tangents, its picture on the screen's plane a quadrilateral, so its
+    // corners are the farthest points.
+    const float left = std::min(view.left, view.outer_left);
+    const float right = std::max(view.right, view.outer_right);
+    const float down = std::min(view.down, view.outer_down);
+    const float up = std::max(view.up, view.outer_up);
+    const Quatf to_screen = Input::Conjugate(PitchRotation(pitch_rad));
+    float max_x = 0.0f, max_y = 0.0f;
+    for (const float h : {left, right}) {
+        for (const float e : {down, up}) {
+            const Vec3f d = Input::Rotate(to_screen, Vec3f{std::tan(h), std::tan(e), -1.0f});
+            if (d.z >= -1e-3f) {
+                continue; // behind the screen's plane: the view is far wider than any screen
+            }
+            max_x = std::max(max_x, std::abs(d.x / -d.z));
+            max_y = std::max(max_y, std::abs(d.y / -d.z));
+        }
+    }
+    const auto past = [](float t) {
+        const float angle = std::atan(t) + kFillMarginDeg * kDegToRad;
+        return std::tan(std::min(angle, 80.0f * kDegToRad));
+    };
+    Cover c;
+    // Each eye of mode 2's shared quad looks at it from `eye_shift` to the side.
+    c.tan_x = past(max_x) + std::abs(eye_shift);
+    c.tan_y = std::max(past(max_y), std::tan(kMinFillHalfHeightDeg * kDegToRad));
+    return c;
+}
+
+bool RestPose::Update(bool engaged, bool valid, int64_t pose_time) {
+    if (engaged && !was_engaged_ && have_) {
+        Recentre(0); // resumed after a pause
+    }
+    was_engaged_ = engaged;
+    if (!engaged || !valid || (have_ && !(recentre_ && pose_time >= after_))) {
+        return false;
+    }
+    have_ = true;
+    recentre_ = false;
+    return true;
+}
+
+void RestPose::Recentre(int64_t after_time) {
+    recentre_ = true;
+    after_ = after_time;
+}
+
+void RestPose::Forget() {
+    have_ = false;
+    recentre_ = false;
 }
 
 float WiderFactor(uint32_t level) {
@@ -206,38 +256,48 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     s.aspect = aspect * (1.0f - squeeze);
     s.distance = p.distance;
     s.pitch_rad = PlacementPitch(p, view);
-    const float t = GameTan(game_fov_y_deg);
-    // The height comes from the picture's own shape; the squeeze only narrows it.
-    const float wanted =
-        DefaultTanHalfY(game_fov_y_deg, aspect, s.pitch_rad, view, eye_shift) * p.size;
-    // The game draws its own frame times the Wider View factor, whatever the size: a bigger
-    // screen magnifies it (gain below 1) and never shows past it, where a game's culling and
-    // scenery run out. A Wider View step scales the size with the factor (SizeForWider).
+    // The game draws its own frame times the Wider View factor across, whatever the size: a
+    // bigger screen magnifies it (gain below 1). A Wider View step scales the size with the
+    // factor (SizeForWider). Up and down it draws as much more as the screen's shape needs
+    // (factor_y below).
     s.factor = std::isfinite(options.wider) ? std::clamp(options.wider, kFactorMin, kFactorMax)
                                             : kFactorMin;
-    // The game's half height (tan) at that factor over the screen's: 1 = the same angle. The
-    // screen keeps its size when the gain hits a limit (the world then drifts a little).
-    s.tan_half_y = wanted;
-    s.gain = std::clamp(s.factor * t / wanted, kMinGain, kMaxGain);
+    // AzaharFrame immersive: the screen is sized with the settled camera (`game_fov_y_deg`):
+    // filling the view both ways, no bigger than a gain of kMinGain allows.
+    const float t = GameTan(game_fov_y_deg);
+    const float a = std::isfinite(aspect) && aspect > 0.1f ? aspect : 5.0f / 3.0f;
+    // Fitted at the middle of the view, so moving the screen up or down never resizes it.
+    const Cover cover = DefaultCover(view, ViewMiddlePitch(view), eye_shift);
+    float qx = cover.tan_x, qy = cover.tan_y;
+    // Never shorter than the picture's own shape (the game would be cut off at the top and
+    // bottom), and the game draws at most kMaxFactorY times its own height.
+    qy = std::clamp(qy, qx / a, kMaxFactorY * qx / (s.factor * a));
+    // The gain across is factor x the game's half width over the screen's (tangents).
+    const float cap = s.factor * a * t / kMinGain;
+    if (qx > cap) {
+        qy *= cap / qx;
+        qx = cap;
+    }
+    qx *= p.size;
+    qy *= p.size;
+    // The game draws factor_y times its own height into the screen's height, so the picture
+    // has the same scale both ways: factor x a / qx = factor_y / qy.
+    s.factor_y = s.factor * a * qy / qx;
+    s.tan_half_y = qy;
+    s.aspect = qx / qy * (1.0f - squeeze);
+    // The gain follows the camera right now (a zoom): the game's half height (tan) at that
+    // factor over the screen's, 1 = the same angle. The screen keeps its size when the gain hits
+    // a limit (the world then drifts a little).
+    const float live = std::isfinite(options.live_fov_y_deg) && options.live_fov_y_deg > 0.0f
+                           ? GameTan(options.live_fov_y_deg)
+                           : t;
+    s.gain = std::clamp(s.factor_y * live / qy, kMinGain, kMaxGain);
     s.gain_x = std::clamp(s.gain / (1.0f - squeeze), kMinGain, kMaxGain);
     // The Immersive Offset last: it turns the screen fitted above, never resizes it.
     const LensOffset offset = ClampedOffset(offset_in);
     s.pitch_rad += offset.up_deg * kDegToRad;
     s.yaw_rad = -offset.right_deg * kDegToRad;
     return s;
-}
-
-float SizeFromOldDefault(float old_size, const Placement& placement, float game_fov_y_deg,
-                         float aspect, const ViewFov& view, float eye_shift) {
-    const Placement p = Clamped(placement);
-    const float pitch = PlacementPitch(p, view);
-    // Earlier builds: the whole view both eyes see, at most 1.4 times the game's angle.
-    const float old_default =
-        std::min(FitTanHalfY(view, aspect, pitch, kFitMarginDeg * kDegToRad, eye_shift),
-                 kFactorMax * GameTan(game_fov_y_deg));
-    const float now = DefaultTanHalfY(game_fov_y_deg, aspect, pitch, view, eye_shift);
-    const float size = std::isfinite(old_size) ? old_size : 1.0f;
-    return std::clamp(size * old_default / now, kMinSize, kMaxSize);
 }
 
 Quatf PitchRotation(float pitch_rad) {
@@ -414,6 +474,7 @@ void Adjuster::Cancel() {
 
 namespace {
 std::string Key(uint64_t title_id, bool wide) {
+    // The key's kind is only an index; Format writes the kind of the line.
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%016llX %s", static_cast<unsigned long long>(title_id),
                   wide ? "wide" : "head");
@@ -436,13 +497,15 @@ void Store::Parse(const std::string& text) {
             continue;
         }
         if (id.size() != 16 || id.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos ||
-            (kind != "view" && kind != "head" && kind != "wide")) {
+            (kind != "screen" && kind != "view" && kind != "head" && kind != "wide")) {
             continue;
         }
         const uint64_t title = std::strtoull(id.c_str(), nullptr, 16);
-        const bool old_size = kind == "head";
+        // AzaharFrame immersive: "view" (1.2.0 test builds) and "head" (1.0, 1.1) sizes were
+        // relative to smaller defaults.
+        const bool old_size = kind == "head" || kind == "view";
         const std::string key = Key(title, kind == "wide");
-        // A converted line wins over an old one for the same game, whatever the order.
+        // A line of this build wins over an old one for the same game, whatever the order.
         if (const auto it = entries_.find(key);
             old_size && it != entries_.end() && !it->second.old_size) {
             continue;
@@ -454,12 +517,14 @@ void Store::Parse(const std::string& text) {
 
 std::string Store::Format() const {
     std::string out = "# Azahar for Frame: immersive screen placement per game\n"
-                      "# title id, view (modes 2 and 3) or wide (mode 1), pitch in degrees, "
+                      "# title id, screen (modes 2 and 3) or wide (mode 1), pitch in degrees, "
                       "distance in metres, size\n";
     for (const auto& [key, e] : entries_) {
         std::string line = key;
         if (line.size() > 5 && line.compare(line.size() - 5, 5, " head") == 0) {
-            line.replace(line.size() - 4, 4, e.old_size ? "head" : "view");
+            // An old line not yet replaced keeps its kind ("view" for both: its size is not
+            // used, so the older kind no longer matters).
+            line.replace(line.size() - 4, 4, e.old_size ? "view" : "screen");
         }
         char buf[96];
         std::snprintf(buf, sizeof(buf), "%s %.2f %.3f %.3f\n", line.c_str(),
@@ -497,6 +562,72 @@ CameraShape CameraInUse(bool match_camera, float measured_fov_deg, float measure
         return {measured_fov_deg, measured_aspect};
     }
     return {setting_fov_deg, setting_aspect};
+}
+
+// AzaharFrame immersive
+unsigned CameraFilter::Add(float tan_half_y, float aspect) {
+    if (!std::isfinite(tan_half_y) || !std::isfinite(aspect) || tan_half_y <= 0.0f ||
+        aspect <= 0.0f) {
+        return None;
+    }
+    const float fov = std::clamp(2.0f * std::atan(tan_half_y) / kDegToRad, 30.0f, 110.0f);
+    const auto same_fov = [](float a, float b) { return std::abs(a - b) < kSameFovDeg; };
+    const auto same_aspect = [](float a, float b) { return std::abs(a - b) < kSameAspect * b; };
+    unsigned change = None;
+
+    // The live angle (the gain).
+    if (live_fov_ > 0.0f && same_fov(fov, live_fov_)) {
+        live_count_ = 0;
+    } else {
+        live_count_ = live_count_ > 0 && same_fov(fov, live_pending_) ? live_count_ + 1 : 1;
+        if (live_count_ == 1) {
+            live_pending_ = fov;
+        }
+        if (live_count_ >= 2) {
+            live_fov_ = fov;
+            live_count_ = 0;
+            change |= Live;
+        }
+    }
+
+    if (screen_fov_ <= 0.0f) {
+        // The first: the screen takes it with the live angle.
+        if (change & Live) {
+            screen_fov_ = fov;
+            screen_aspect_ = aspect;
+            change |= Screen;
+        }
+        return change;
+    }
+    // The screen's angle: only one held for kSettleCount measurements.
+    if (same_fov(fov, screen_fov_)) {
+        settle_count_ = 0;
+    } else {
+        settle_count_ = settle_count_ > 0 && same_fov(fov, settle_fov_) ? settle_count_ + 1 : 1;
+        if (settle_count_ == 1) {
+            settle_fov_ = fov;
+        }
+        if (settle_count_ >= kSettleCount) {
+            screen_fov_ = fov;
+            settle_count_ = 0;
+            change |= Screen;
+        }
+    }
+    // The screen's shape: only at the screen's vertical angle (a zoom never reshapes it).
+    if (same_fov(fov, screen_fov_) && !same_aspect(aspect, screen_aspect_)) {
+        shape_count_ = shape_count_ > 0 && same_aspect(aspect, shape_pending_) ? shape_count_ + 1 : 1;
+        if (shape_count_ == 1) {
+            shape_pending_ = aspect;
+        }
+        if (shape_count_ >= 2) {
+            screen_aspect_ = aspect;
+            shape_count_ = 0;
+            change |= Screen;
+        }
+    } else {
+        shape_count_ = 0;
+    }
+    return change;
 }
 
 } // namespace FrameXr::Immersive::Layout

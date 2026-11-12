@@ -18,6 +18,7 @@
 #include <QFutureWatcher>
 #include <QIcon>
 #include <QLabel>
+#include <QPainter>
 #include <QPointer>
 #include <QTimer>
 #include <QMessageBox>
@@ -152,9 +153,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h" // AzaharFrame texui
-#include "citra_qt/frame_bottom_window.h" // AzaharFrame window
 #include "citra_qt/frame_mode.h"
-#include "common/frame_bottom_window.h" // AzaharFrame window
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
@@ -170,7 +169,18 @@ bool g_frame_xr_start_flat = false;
 // The launcher's profile for flat without XR (SDL). With XR both modes use the Frame profile.
 constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 // Switches between VR and flat (writes the mode file); the XR thread's answer, the mode now.
+// g_frame_xr_switch is the one way to switch, GUI thread: the chord (FrontendHooks::toggle_vr),
+// the in-game menu's buttons (FrameMenuRequest), the status bar's VR button and the tests.
 std::function<void(bool vr)> g_frame_xr_switch;
+// AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
+QPushButton* g_frame_vr_button = nullptr;
+void UpdateFrameVrButton() {
+    if (g_frame_vr_button) {
+        const bool show = FrameXr::IsStarted() && !FrameXr::WantsVr() && !FrameXr::VrShowing();
+        g_frame_vr_button->setVisible(show);
+        g_frame_vr_button->setEnabled(show);
+    }
+}
 std::function<void(bool vr)> g_frame_xr_mode_changed;
 // SIGTERM / SIGINT: stop the game and quit, so the XR session ends cleanly.
 volatile std::sig_atomic_t g_frame_xr_terminate = 0;
@@ -235,6 +245,61 @@ std::string g_frame_game_config_name;
 std::function<void()> g_frame_xr_quick_load;
 // AzaharFrame tabmenu: the in-game menu's requests (FrontendHooks::menu_request). GUI thread.
 std::function<void(const FrameXr::MenuRequest&)> g_frame_xr_menu_request;
+// AzaharFrame flat: "Switch to VR?" (Menu held 3 s in Flat): Azahar's own kind of question box,
+// clicked or answered with A (Yes) and B (No) through FrontendHooks::flat_vr_prompt. Yes is the
+// switch (g_frame_xr_switch); nothing else asks from Flat with the controller.
+QPointer<QMessageBox> g_frame_vr_prompt;
+bool g_frame_vr_prompt_from_game = false; ///< No goes back to the game (FlatVrPrompt::OpenFromGame)
+void FrameVrPrompt(QWidget* parent, FrameXr::FlatVrPrompt what) {
+    const bool from_game = what == FrameXr::FlatVrPrompt::OpenFromGame;
+    if (what == FrameXr::FlatVrPrompt::Yes || what == FrameXr::FlatVrPrompt::No) {
+        if (g_frame_vr_prompt) {
+            g_frame_vr_prompt
+                ->button(what == FrameXr::FlatVrPrompt::Yes ? QMessageBox::Yes : QMessageBox::No)
+                ->click();
+        } else {
+            FrameXr::SetFlatVrPrompt(false);
+        }
+        return;
+    }
+    if (FrameXr::WantsVr() || FrameXr::VrShowing()) {
+        FrameXr::SetFlatVrPrompt(false);
+        return;
+    }
+    if (!g_frame_vr_prompt) {
+        auto* box = new QMessageBox(QMessageBox::Question, QObject::tr("Switch to VR"),
+                                    QObject::tr("Switch to VR?"),
+                                    QMessageBox::Yes | QMessageBox::No, parent);
+        box->setInformativeText(QObject::tr("A: Yes    B: No"));
+        box->setDefaultButton(QMessageBox::Yes);
+        box->setEscapeButton(QMessageBox::No);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        QObject::connect(box, &QMessageBox::finished, box, [box](int) {
+            const bool yes = box->clickedButton() == box->button(QMessageBox::Yes);
+            FrameXr::SetFlatVrPrompt(false);
+            LOG_INFO(Frontend, "xr: flat: Switch to VR? {}", yes ? "Yes" : "No");
+            // No after a hold begun in a game: back to it, as before the hold (the Flat menu
+            // it opened closes: the game goes on, Fullscreen again if it was).
+            if (!yes && g_frame_vr_prompt_from_game && !FrameXr::WantsVr() && g_frame_mirror &&
+                g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
+                g_frame_xr_set_menu(false);
+            }
+            if (yes) {
+                QTimer::singleShot(0, qApp, [] { // once the box is gone
+                    if (g_frame_xr_switch && !FrameXr::WantsVr()) {
+                        g_frame_xr_switch(true);
+                    }
+                });
+            }
+        });
+        g_frame_vr_prompt_from_game = from_game;
+        g_frame_vr_prompt = box;
+        box->open();
+    }
+    FrameXr::SetFlatVrPrompt(true);
+    g_frame_vr_prompt->raise();
+    g_frame_vr_prompt->activateWindow();
+}
 
 // AzaharFrame tabmenu: a per-game VR setting as it is in memory (constructing the game's
 // QtConfig to save it reads its file back into the settings; this puts the value back).
@@ -1041,6 +1106,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                     },
                     Qt::QueuedConnection);
             };
+            hooks.flat_vr_prompt = [this](FrameXr::FlatVrPrompt what) { // AzaharFrame flat
+                QMetaObject::invokeMethod(
+                    this, [this, what] { FrameVrPrompt(this, what); }, Qt::QueuedConnection);
+            };
             FrameXr::SetFrontendHooks(std::move(hooks));
             FrameXr::SetFlatInput(FrameMode::ReadGamepad);
             // Both bumpers + View + Menu, in VR or flat: the other mode, kept for the next start.
@@ -1049,6 +1118,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (!FrameXr::SetVr(vr)) {
                         LOG_WARNING(Frontend, "xr: cannot switch to {} (no XR any more)",
                                     vr ? "VR" : "flat");
+                        UpdateFrameVrButton(); // AzaharFrame flat
                         return;
                     }
                     FrameMode::WriteModeFile(vr);
@@ -1129,6 +1199,11 @@ GMainWindow::GMainWindow(Core::System& system_)
             };
             g_frame_xr_mode_changed = [this](bool vr) {
                 LOG_INFO(Frontend, "xr: now {}", vr ? "in VR" : "flat");
+                FrameMode::MarkFlatRunning(!vr); // AzaharFrame flat: the crash safety net
+                UpdateFrameVrButton(); // AzaharFrame flat
+                if (vr && g_frame_vr_prompt) {
+                    g_frame_vr_prompt->done(QMessageBox::No); // AzaharFrame flat: VR already
+                }
                 if (g_frame_xr_fast_forward) {
                     g_frame_xr_fast_forward(false, "the mode switched");
                 }
@@ -1167,7 +1242,6 @@ GMainWindow::GMainWindow(Core::System& system_)
                 // Flat's own screen layout in flat, the configured one in VR.
                 Settings::frame_flat_layout.active = !vr;
                 SyncMenuUISettings();
-                UpdateSecondaryWindowVisibility(); // AzaharFrame window
                 if (emulation_running && system.IsPoweredOn()) {
                     system.GPU().Renderer().UpdateCurrentFramebufferLayout();
                 }
@@ -1413,7 +1487,9 @@ GMainWindow::GMainWindow(Core::System& system_)
             }
             if (!FrameXr::VrShowing()) {
                 FrameMode::StartFlat(this); // the window to SteamVR's theater (Game Mode)
+                FrameMode::MarkFlatRunning(true); // AzaharFrame flat: the crash safety net
             }
+            UpdateFrameVrButton(); // AzaharFrame flat
             FrameXrPushGameDirs();
             FrameXrPushControls(); // AzaharFrame vrvis
 
@@ -1441,6 +1517,41 @@ GMainWindow::GMainWindow(Core::System& system_)
                     if (g_frame_xr_switch) {
                         g_frame_xr_switch(!FrameXr::WantsVr());
                     }
+                });
+            }
+
+            // Test driver (AzaharFrame flat): AZAHARFRAME_TEST_SHOTS="DIR:SECONDS" saves the
+            // window (flat-window.png) and its status bar (flat-statusbar.png) at that time after
+            // start, then opens "Switch to VR?" as Menu held 3 s does, saves it alone
+            // (flat-vr-prompt.png) and over the window (flat-vr-prompt-window.png), and answers No.
+            if (const QString shots = qEnvironmentVariable("AZAHARFRAME_TEST_SHOTS");
+                shots.lastIndexOf(QLatin1Char(':')) > 0) {
+                const int colon = static_cast<int>(shots.lastIndexOf(QLatin1Char(':')));
+                const QString dir = shots.left(colon);
+                const int ms = static_cast<int>(shots.mid(colon + 1).toDouble() * 1000.0);
+                QTimer::singleShot(ms, this, [this, dir] {
+                    grab().save(dir + QStringLiteral("/flat-window.png"));
+                    statusBar()->grab().save(dir + QStringLiteral("/flat-statusbar.png"));
+                    LOG_INFO(Frontend, "xr test: window and status bar saved in {}",
+                             dir.toStdString());
+                    FrameVrPrompt(this, FrameXr::FlatVrPrompt::Open);
+                    QTimer::singleShot(1000, this, [this, dir] {
+                        if (!g_frame_vr_prompt) {
+                            LOG_WARNING(Frontend, "xr test: no Switch to VR? to save");
+                            return;
+                        }
+                        const QPixmap box = g_frame_vr_prompt->grab();
+                        box.save(dir + QStringLiteral("/flat-vr-prompt.png"));
+                        QPixmap all = grab();
+                        QPainter painter(&all);
+                        painter.drawPixmap(g_frame_vr_prompt->mapToGlobal(QPoint(0, 0)) -
+                                               mapToGlobal(QPoint(0, 0)),
+                                           box);
+                        painter.end();
+                        all.save(dir + QStringLiteral("/flat-vr-prompt-window.png"));
+                        LOG_INFO(Frontend, "xr test: Switch to VR? saved");
+                        FrameVrPrompt(this, FrameXr::FlatVrPrompt::No);
+                    });
                 });
             }
 
@@ -1631,6 +1742,24 @@ void GMainWindow::InitializeWidgets() {
         volume_popup->setGeometry(QRect(bottomLeft, QSize(rect.width(), rect.height())));
     });
     statusBar()->insertPermanentWidget(1, volume_button);
+
+    // AzaharFrame flat: back to VR from flat, next to the renderer and volume buttons (hidden in
+    // VR and without OpenXR). Made like the renderer button (its object name, so the theme's
+    // style, and bold coloured text): one press switches, as the chord does (g_frame_xr_switch
+    // ignores a second press while the window leaves the theater).
+    g_frame_vr_button = new QPushButton(QStringLiteral("VR"));
+    g_frame_vr_button->setObjectName(QStringLiteral("GraphicsAPIStatusBarButton"));
+    g_frame_vr_button->setFocusPolicy(Qt::NoFocus);
+    g_frame_vr_button->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; color: #1a9fff; }"));
+    g_frame_vr_button->setVisible(false);
+    connect(g_frame_vr_button, &QPushButton::clicked, this, [] {
+        LOG_INFO(Frontend, "xr: flat: the status bar's VR button");
+        if (g_frame_xr_switch) {
+            g_frame_xr_switch(true);
+        }
+    });
+    statusBar()->insertPermanentWidget(2, g_frame_vr_button);
 
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusText());
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusIcon());
@@ -2614,6 +2743,14 @@ void GMainWindow::BootGame(const QString& filename) {
         g_frame_game_config_name = config_file_name; // AzaharFrame widerview
         g_frame_runs++;                              // AzaharFrame texui
 #endif
+#ifdef ENABLE_FRAME_XR // AzaharFrame immersive: a game without immersive mode runs normally
+        if (!FrameXr::ImmersiveOffered(title_id) &&
+            Settings::values.vr_immersive_mode.GetValue() != 0) {
+            Settings::values.vr_immersive_mode.SetGlobal(false);
+            Settings::values.vr_immersive_mode.SetValue(0);
+            LOG_INFO(Frontend, "xr: immersive mode is not offered for this game: Off");
+        }
+#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
             auto& mode = Settings::values.vr_immersive_mode;
@@ -2878,12 +3015,7 @@ void GMainWindow::ShutdownGame() {
     disconnect(secondary_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
 
     render_window->hide();
-#ifdef ENABLE_FRAME_XR
-    // AzaharFrame window: the bottom screen's window goes see-through, never unmapped.
-    FrameBottomWindow::Update(secondary_window, false, false);
-    if (!FrameBottomWindow::KeepMapped())
-#endif
-        secondary_window->hide();
+    secondary_window->hide();
     loading_screen->hide();
     loading_screen->Clear();
 
@@ -4121,7 +4253,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             profile.analogs[i] = r.analogs[i]; // AzaharFrame padsui: the sticks
         }
         Settings::SaveProfile(Settings::values.current_input_profile_index);
-        system.ApplySettings(); // the game's input devices read the profile again
+        // AzaharFrame menuux: the game's input devices read the profile again; not
+        // ApplySettings, whose new audio sink was the "blip" (and a stutter) on every edit.
+        system.ReloadInputDevices();
         config->Save();
         FrameXrPushControls();
         return;
@@ -4209,6 +4343,27 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::TouchpadTouch: // AzaharFrame menu
         set(v.vr_touchpad_touch, std::min<u32>(u, 2));
         break;
+    case S::InternalResolution: // AzaharFrame menuux: the renderer reads it every frame
+        set(v.resolution_factor, std::clamp<u32>(u, 1, 18));
+        break;
+    case S::DynamicResolution:
+        set(v.vr_dynamic_resolution, r.value != 0);
+        break;
+    case S::TextureFilter:
+        set(v.texture_filter, static_cast<Settings::TextureFilter>(std::min<u32>(u, 5)));
+        break;
+    case S::AsyncShaders: // from the next start
+        set(v.async_shader_compilation, r.value != 0);
+        break;
+    case S::FastForwardSpeed:
+        set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
+        break;
+    case S::BottomScreenReticle: // AzaharFrame mouse
+        set(v.vr_bottom_screen_reticle, std::min<u32>(u, 2));
+        break;
+    case S::ReticleAtEdge: // AzaharFrame mouse
+        set(v.vr_reticle_at_edge, std::min<u32>(u, 1));
+        break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
         if (g_frame_mods) {
@@ -4242,6 +4397,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
+    FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
+    FrameKeepSetting keep_texture_filter{v.texture_filter};
+    FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
@@ -4254,6 +4412,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();
+    keep_resolution.Restore();
+    keep_texture_filter.Restore();
+    keep_async_shaders.Restore();
     game_config.Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }
@@ -4347,29 +4508,15 @@ void GMainWindow::ToggleWindowMode() {
 }
 
 void GMainWindow::UpdateSecondaryWindowVisibility() {
-#ifdef ENABLE_FRAME_XR
-    // AzaharFrame window: in VR the bottom screen's own window (vr_bottom_screen_window).
-    const bool bottom_window =
-        FrameBottomWindow::Update(secondary_window, FrameXr::VrShowing(), emulation_running);
-#else
-    const bool bottom_window = false;
-#endif
     if (!emulation_running) {
         return;
     }
-    if (bottom_window) {
-        // AzaharFrame window: shown above; the focus stays with the main window below.
-    } else if (Settings::values.layout_option.GetValue() ==
-               Settings::LayoutOption::SeparateWindows) {
+    if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
         secondary_window->restoreGeometry(UISettings::values.secondarywindow_geometry);
-        secondary_window->setWindowOpacity(1.0); // AzaharFrame window: see-through after VR
         secondary_window->show();
     } else {
         UISettings::values.secondarywindow_geometry = secondary_window->saveGeometry();
-#ifdef ENABLE_FRAME_XR
-        if (!FrameBottomWindow::KeepMapped()) // AzaharFrame window: see-through, never unmapped
-#endif
-            secondary_window->hide();
+        secondary_window->hide();
     }
     // make sure focus is on primary window whenever this changes
     if (UISettings::values.single_window_mode.GetValue()) {
@@ -6066,11 +6213,6 @@ void GMainWindow::UpdateWindowTitle() {
         secondary_window->setWindowTitle(QStringLiteral("Azahar for Frame %1 | %2 | %3")
                                              .arg(full_name, game_title, tr("Secondary Window")));
     }
-#ifdef ENABLE_FRAME_XR
-    if (Settings::frame_vr_bottom_window) { // AzaharFrame window
-        secondary_window->setWindowTitle(FrameBottomWindow::Title());
-    }
-#endif
 }
 
 void GMainWindow::UpdateUISettings() {
@@ -6354,6 +6496,7 @@ int LaunchQtFrontend(int argc, char* argv[]) {
 
     int result = app.exec();
 #ifdef ENABLE_FRAME_XR // AzaharFrame: no renderer exists any more.
+    FrameMode::MarkFlatRunning(false); // AzaharFrame flat: a clean quit (the crash safety net)
     InputCommon::FrameXr::SetTouchSink(nullptr);
     g_frame_xr_touch_sink.reset();
     FrameXr::Shutdown();

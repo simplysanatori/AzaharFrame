@@ -162,15 +162,15 @@ Narrows the screen so the side HUD moves into view. Full modes only. The game lo
 
 ## Depth Factor Multiplier
 
-Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value: Super Mario 3D Land 100x, Mario Kart 7 and Kid Icarus: Uprising 10x (their presets).
+Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value: Super Mario 3D Land 100x, Mario Kart 7 10x (their presets).
 
 ## View Matrix Register
 
-**Full (6DoF): Other Games** only. The shader register that holds the game's camera. **Auto** finds it while you play. Mario Kart 7, Super Mario 3D Land and Kid Icarus: Uprising use 90, and Asphalt 3D uses 8. Change it only for a game that already has a known value.
+**Full (6DoF): Other Games** only. The shader register that holds the game's camera. **Auto** finds it while you play. Mario Kart 7 and Super Mario 3D Land use 90, and Asphalt 3D uses 8. Change it only for a game that already has a known value.
 
 ## Eye Indicator Register
 
-**Full (6DoF): Other Games** only. The register and index that tell the two eyes apart, such as `87,2` (Mario Kart 7, Super Mario 3D Land, Kid Icarus: Uprising). Leave it empty to find it while you play; that takes a little while, and until then both eyes see the same picture.
+**Full (6DoF): Other Games** only. The register and index that tell the two eyes apart, such as `87,2` (Mario Kart 7, Super Mario 3D Land). Leave it empty to find it while you play; that takes a little while, and until then both eyes see the same picture.
 
 ## What changes from Azahar
 

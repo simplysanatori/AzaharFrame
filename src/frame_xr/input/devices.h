@@ -18,9 +18,10 @@
 //  Devices
 //    List()            Frame Controllers (id "frame", always first), then each gamepad (SDL;
 //                      Bluetooth or USB), connected ones first, then "mouse" when a real mouse
-//                      is plugged in or paired (/proc/bus/input/devices: a mouse handler with
-//                      relative X and Y on USB or Bluetooth, not Valve's virtual ones). Hot-plug
-//                      shows at once for gamepads, within 2 s for the mouse. A gamepad that went
+//                      is plugged in or paired (/proc/bus/input/devices: relative X and Y and a
+//                      left button, any bus, not Valve's virtual ones; a keyboard's mouse
+//                      interface once it moves: ClassifyInputDevices). Hot-plug shows at once
+//                      for gamepads, within 2 s for the mouse. A gamepad that went
 //                      away stays listed with connected = false until the program ends.
 //    Revision()        changes whenever the list, a mapping or Face Buttons changes: redraw.
 //

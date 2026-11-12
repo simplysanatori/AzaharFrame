@@ -51,6 +51,11 @@ namespace Mods {
 /// for the rule syntax; with no rules the layout is detected.
 std::string MapPath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id);
 
+/// AzaharFrame modfix: a few words for the menu from an install error ("No Connection", "Timed Out",
+/// "Rate Limited", "Not Found", "Bad Archive", "Disk Error"), so "Install Failed" says why. The
+/// full error goes to the log.
+std::string ShortFailure(std::string_view error);
+
 /// True for a path Azahar's loader can use (see the top of this file).
 bool IsModPath(std::string_view rel);
 
@@ -129,6 +134,16 @@ struct State {
 /// The id of the mods an earlier version of the Cheats tab installed (code.ips + code.ips.developer).
 constexpr const char* kLegacyFixId = "legacy-fix";
 constexpr const char* kUnmanagedPrefix = "unmanaged:";
+/// AzaharFrame zipinstall: mods from Install from Zip have ids "zip-<name>" and this source.
+constexpr const char* kZipPrefix = "zip-";
+constexpr const char* kZipSource = "zip";
+
+/// AzaharFrame zipinstall: one file of a mod from a zip: where it is on disk, where it goes in the
+/// mods folder (MapPath's answer).
+struct LocalFile {
+    std::string source;
+    std::string target;
+};
 
 struct HttpReply {
     int status = 0; // 0: no reply
@@ -152,6 +167,13 @@ public:
     std::vector<AvailableMod> ListAvailable(u64 title_id) const;
 
     InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false);
+    /// AzaharFrame zipinstall: a mod from a local archive, kept in the library like a downloaded one
+    /// (source kZipSource, no catalog entry), then put in the mods folder as Install does. `id` starts
+    /// with kZipPrefix. A mod with that id already in the library is a Conflict naming itself
+    /// (conflict_id == id) unless `replace_same`; a clash with another mod is the usual Conflict, and
+    /// Install(id, true) afterwards replaces it from the library copy.
+    InstallOutcome InstallLocal(u64 title_id, const std::string& id, const std::string& name,
+                                const std::vector<LocalFile>& files, bool replace_same = false);
     /// Takes a managed mod out of mods/<TID>/ but keeps it in the library.
     RemoveOutcome Deactivate(u64 title_id, const std::string& mod_id);
     /// Managed: its files from the mods folder and the library. Unmanaged / legacy: that item's files.
@@ -181,6 +203,11 @@ private:
     std::vector<ModInfo> ListLoadedLocked(u64 title_id) const;
     RemoveOutcome RemoveFilesOf(u64 title_id, const std::vector<std::string>& files);
     RemoveOutcome DeactivateLocked(u64 title_id, const std::string& mod_id);
+    /// The conflict check and the copy into the mods folder (mutex_ held). AzaharFrame zipinstall
+    InstallOutcome ActivateLocked(u64 title_id, const std::string& mod_id, Manifest& manifest,
+                                  bool verified, bool replace);
+    /// Install for a mod only in the library (from a zip). AzaharFrame zipinstall
+    InstallOutcome InstallFromLibrary(u64 title_id, const std::string& mod_id, bool replace);
 
     std::string load_dir_;
     Transport transport_;

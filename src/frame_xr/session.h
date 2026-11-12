@@ -189,11 +189,13 @@ public:
     QueueLock queue_lock;
     std::chrono::steady_clock::time_point last_emu_frame{}; // emu thread only
     Stats stats;
+    /// AzaharFrame menuux: the runtime's display period at the last xrWaitFrame (XR thread).
+    XrDuration display_period_ns = 0;
 
     // Session state (XR thread writes, others read).
     std::atomic<XrSessionState> state{XR_SESSION_STATE_UNKNOWN};
     std::atomic<bool> running{false}; ///< between xrBeginSession and xrEndSession
-    std::atomic<bool> lost{false};    ///< the instance is lost (the frame loop ends)
+    std::atomic<bool> lost{false};    ///< the instance is lost (the frame loop goes on flat)
     std::atomic<bool> session_ended{false}; ///< EXITING / LOSS_PENDING: DestroySession next
     std::atomic<bool> detaching{false};     ///< the session is being ended: no new XR images
 

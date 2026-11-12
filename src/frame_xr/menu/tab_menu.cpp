@@ -41,7 +41,8 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
     {"Settings", Sym::kSettings},
 }};
 
-enum class RowKind { Switch, Segmented, Slider, MenuButton, Offset, Link };
+// AzaharFrame menuux: Button, a full-width tonal button (Switch to Flat at the end of Settings).
+enum class RowKind { Switch, Segmented, Slider, MenuButton, Offset, Link, Button };
 
 struct Row {
     Id id;
@@ -51,7 +52,7 @@ struct Row {
     int selected = 0;  ///< Segmented, MenuButton
     float t = 0.0f;    ///< Slider
     int stops = 0;     ///< Slider
-    std::string value; ///< Slider, Offset
+    std::string value; ///< Slider, Offset; a MenuButton's value when it is none of its options
     bool Enabled() const {
         return lock == Lock::None;
     }
@@ -111,6 +112,22 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         depth.t = (static_cast<float>(m.depth_3d) - dr.min) / (dr.max - dr.min);
         depth.value = SliderText(Id::Depth3d, static_cast<float>(m.depth_3d));
         rows.push_back(depth);
+        // AzaharFrame menuux: the renderer's settings people change most, for VR.
+        Row res = row(Id::InternalResolution, RowKind::MenuButton, m.internal_resolution - 1);
+        if (m.internal_resolution < 1 || m.internal_resolution > kMaxResolution) {
+            res.value = m.internal_resolution < 1 ? "Auto" : std::to_string(m.internal_resolution) + "x";
+            res.selected = -1;
+        }
+        rows.push_back(res);
+        // Internal Resolution is its ceiling and 1x its floor: at 1x it has nothing to do.
+        Row dynamic = row(Id::DynamicResolution, RowKind::Switch, 0, m.dynamic_resolution);
+        if (dynamic.lock == Lock::None && m.internal_resolution == 1) {
+            dynamic.lock = Lock::AtLowest;
+        }
+        rows.push_back(dynamic);
+        rows.push_back(row(Id::TextureFilter, RowKind::Segmented, m.texture_filter));
+        rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
+        rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
         rows.push_back(full(row(Id::WiderView, RowKind::Segmented, m.wider_view)));
         Row fov = full(row(Id::GameFov, RowKind::Slider));
@@ -122,6 +139,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m) {
         rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
         rows.push_back(row(Id::MoreSettings, RowKind::Link));
+        rows.push_back(row(Id::SwitchToFlat, RowKind::Button)); // AzaharFrame menuux
     }
     return rows;
 }
@@ -137,7 +155,9 @@ const std::vector<std::string>& OptionsFor(Id id) {
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
-    static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
+    static const std::vector<std::string> kTouchpad{"Tap for Input", "Click for Input"}; // menuux
+    static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller"};
+    static const std::vector<std::string> kAtEdge{"Follow", "Snap to Middle"};
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -154,7 +174,22 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kWider{"Off", "1.1x", "1.2x", "1.3x", "1.4x"};
     static const std::vector<std::string> kNarrow{"Off", "10%", "20%", "30%"};
     static const std::vector<std::string> kDepth{"1x", "10x", "100x"};
+    // AzaharFrame menuux
+    static const std::vector<std::string> kResolution{
+        "1x (400x240)",   "2x (800x480)",   "3x (1200x720)",  "4x (1600x960)",
+        "5x (2000x1200)", "6x (2400x1440)", "7x (2800x1680)", "8x (3200x1920)"};
+    static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
+                                                     "MMPX"};
+    static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
+    static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
+                  kFastForwardSpeeds.size() == 4);
     switch (id) {
+    case Id::InternalResolution:
+        return kResolution;
+    case Id::TextureFilter:
+        return kTexFilter;
+    case Id::FastForwardSpeed:
+        return kFastForward;
     case Id::ScreenShape:
         return kShape;
     case Id::ScreenCurve:
@@ -165,6 +200,10 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMove;
     case Id::TouchpadTouch:
         return kTouchpad;
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return kReticle;
+    case Id::ReticleAtEdge:
+        return kAtEdge;
     case Id::MouseMode:
         return kMouseMode;
     case Id::StatsPosition:
@@ -232,8 +271,12 @@ std::string LabelFor(Id id) {
         return "Screen Layout";
     case Id::MoveScreens:
         return "Detach Screens";
-    case Id::TouchpadTouch:
-        return "Touchpad Touch";
+    case Id::TouchpadTouch: // AzaharFrame menuux
+        return "Touchpad";
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return "Bottom Screen Reticle";
+    case Id::ReticleAtEdge:
+        return "At Edge";
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
@@ -270,6 +313,16 @@ std::string LabelFor(Id id) {
         return "Window Scale";
     case Id::Depth3d:
         return "3D Depth";
+    case Id::InternalResolution: // AzaharFrame menuux
+        return "Internal Resolution";
+    case Id::DynamicResolution:
+        return "Dynamic Resolution";
+    case Id::TextureFilter:
+        return "Texture Filter";
+    case Id::AsyncShaders:
+        return "Async Shader Compilation";
+    case Id::FastForwardSpeed:
+        return "Fast Forward Speed";
     case Id::ImmersiveMode:
         return "Immersive Mode";
     case Id::WiderView:
@@ -308,6 +361,8 @@ std::string LabelFor(Id id) {
         return "Cancel";
     case Id::PackDelete:
         return "Delete";
+    case Id::InstallFromZip: // AzaharFrame zipinstall
+        return "Install from Zip";
     case Id::HomebrewInstall: // AzaharFrame emerald
         return "Install";
     case Id::HomebrewUpdate:
@@ -347,6 +402,16 @@ std::string ExplainFor(Id id) {
         return "Makes text and buttons in Azahar's window bigger.";
     case Id::Depth3d:
         return "How deep the 3D looks in this game.";
+    case Id::InternalResolution: // AzaharFrame menuux
+        return "How sharp the game is drawn. Higher needs more of the GPU.";
+    case Id::DynamicResolution:
+        return "Lowers the resolution a step while the GPU cannot keep up.";
+    case Id::TextureFilter:
+        return "Smooths the game's textures. Some filters cost frames.";
+    case Id::AsyncShaders:
+        return "Fewer stutters while new effects load. From the next start.";
+    case Id::FastForwardSpeed:
+        return "How fast View + Right Trigger runs the game.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
@@ -372,9 +437,19 @@ std::string ExplainLock(Lock lock) {
         return "Only in the Full immersive modes.";
     case Lock::Unavailable:
         return "Not available on this headset.";
+    case Lock::AtLowest: // AzaharFrame menuux
+        return "Internal Resolution is already 1x, the lowest.";
+    case Lock::NotForGame: // AzaharFrame immersive
+        return "Not available for this game.";
     default:
         return {};
     }
+}
+
+// AzaharFrame menuux
+std::string TouchpadSupporting(int value) {
+    return value == 1 ? "Press the pad to touch the bottom screen. Hold it down to drag."
+                      : "Your finger on the pad touches the bottom screen.";
 }
 
 SliderRange SliderFor(Id id) {
@@ -491,28 +566,34 @@ void TabMenu::DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, c
     AddHit(cont, {Id::Continue}, pane);
     y = cont.y1 + 20.0f;
 
+    // AzaharFrame menuux: eight tiles, four to a row, and Switch to Flat under them as wide as
+    // Continue (the same button ends the Settings tab).
     struct TileDef {
         Id id;
         char32_t icon;
         ButtonStyle style;
     };
-    const std::array<TileDef, 9> tiles{{
+    const std::array<TileDef, 8> tiles{{
         {Id::QuickSave, Sym::kSave, ButtonStyle::Tonal},
         {Id::QuickLoad, Sym::kHistory, ButtonStyle::Tonal},
-        {Id::Screenshot, Sym::kPhotoCamera, ButtonStyle::Tonal},
         {Id::SaveState, Sym::kSaveAs, ButtonStyle::Tonal},
         {Id::LoadState, Sym::kFolderOpen, ButtonStyle::Tonal},
+        {Id::Screenshot, Sym::kPhotoCamera, ButtonStyle::Tonal},
         {Id::Restart, Sym::kRestartAlt, ButtonStyle::Tonal},
         {Id::AzaharWindow, Sym::kOpenInNew, ButtonStyle::Tonal},
-        {Id::SwitchToFlat, Sym::kTv, ButtonStyle::Tonal},
         {Id::CloseGame, Sym::kClose, ButtonStyle::Danger},
     }};
     const float gap = 12.0f;
-    const float tw = (c.W() - gap * 2.0f) / 3.0f;
-    const float th = (c.y1 - y - gap * 2.0f) / 3.0f;
+    const Rect flat{c.x0, c.y1 - 56.0f, c.x1, c.y1};
+    kit.Button(flat, ButtonStyle::Tonal, Sym::kTv, LabelFor(Id::SwitchToFlat),
+               StateOf(view, {Id::SwitchToFlat}), Type::Title);
+    AddHit(flat, {Id::SwitchToFlat}, pane);
+    constexpr int kColumns = 4;
+    const float tw = (c.W() - gap * (kColumns - 1)) / kColumns;
+    const float th = (flat.y0 - gap - y - gap) / 2.0f;
     for (std::size_t i = 0; i < tiles.size(); i++) {
-        const float x = c.x0 + static_cast<float>(i % 3) * (tw + gap);
-        const float ty = y + static_cast<float>(i / 3) * (th + gap);
+        const float x = c.x0 + static_cast<float>(i % kColumns) * (tw + gap);
+        const float ty = y + static_cast<float>(i / kColumns) * (th + gap);
         const Rect r{x, ty, x + tw, ty + th};
         const bool enabled = tiles[i].id != Id::QuickLoad || model.quick_load_available;
         kit.Tile(r, tiles[i].style, tiles[i].icon, LabelFor(tiles[i].id),
@@ -713,9 +794,16 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         const bool mouse = dev.kind == DeviceKind::Mouse;
         const Id bar_id = mouse ? Id::MouseMode : Id::TouchpadTouch;
         const auto& opts = OptionsFor(bar_id);
-        const std::string& label = LabelFor(bar_id);
-        const float lw = kit.TextWidth(Type::Body, label);
-        const float room = bar_x1 - 16.0f - c.x0 - lw - 12.0f;
+        std::string label = LabelFor(bar_id);
+        // AzaharFrame menuux: the choices whole; the label only when it fits beside them
+        // (Touchpad's "Tap for Input" and "Click for Input" say what they are).
+        const float want = kit.SegmentedWidth(opts);
+        const float all = bar_x1 - 16.0f - c.x0;
+        if (kit.TextWidth(Type::Body, label) + 12.0f + want > all) {
+            label.clear();
+        }
+        const float lw = label.empty() ? -12.0f : kit.TextWidth(Type::Body, label);
+        const float room = all - lw - 12.0f;
         const float tw = kit.SegmentedWidth(opts, room);
         const Rect ts{c.x0 + lw + 12.0f, c.y0, c.x0 + lw + 12.0f + tw, c.y0 + bar_h};
         const Lock lock = model.locked[static_cast<std::size_t>(bar_id)];
@@ -949,8 +1037,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         const Rect bs = ds.BottomScreen();
         const float x = bs.x0 + std::clamp(pt.x, 0.0f, 1.0f) * bs.W();
         const float y = bs.y0 + std::clamp(pt.y, 0.0f, 1.0f) * bs.H();
-        const float op =
-            dev.kind != DeviceKind::Mouse && model.touchpad_touch == 0 ? kDisabledContent : 1.0f;
+        const float op = 1.0f; // AzaharFrame menuux: the Touchpad row has no Off now
         constexpr float kRing = 10.0f;
         kit.Clip(bs);
         if (pt.down) {
@@ -1074,30 +1161,45 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
     AddHit(edit, {Id::EditControls}, pane);
-    // Touchpad Touch: a label and its three choices.
-    const Rect tp_row{c.x0 - 12.0f, seg.y1 + 8.0f, c.x1 + 12.0f, seg.y1 + 8.0f + kControlH + 8.0f};
-    const Lock tp_lock = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)];
-    const bool tp_enabled = tp_lock == Lock::None;
-    AddHit(tp_row, {Id::TouchpadTouch, kLabelIndex}, pane);
-    anchors.push_back({Id::TouchpadTouch, c.x0, tp_row.y0 + 6.0f, tp_lock});
-    kit.TextMid(c.x0, tp_row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(Id::TouchpadTouch), 0,
-                tp_enabled ? 1.0f : kDisabledContent);
-    {
-        const auto& opts = OptionsFor(Id::TouchpadTouch);
+    // Touchpad: a label and its two choices; AzaharFrame menuux: under them one line saying what
+    // the chosen one does (the only row with a supporting line: the owner asked for it).
+    // AzaharFrame mouse: Bottom Screen Reticle under that line, the same way.
+    const auto choice_row = [&](Id id, float y0, int value) {
+        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        AddHit(row, {id, kLabelIndex}, pane);
+        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        const auto& opts = OptionsFor(id);
         const float tw = kit.SegmentedWidth(opts, c.W() * 0.6f);
-        const Rect ts{c.x1 - tw, tp_row.Cy() - kControlH * 0.5f, c.x1, tp_row.Cy() + kControlH * 0.5f};
-        const int th = view.hover.id == Id::TouchpadTouch ? view.hover.index : -1;
-        const int tpr = view.pressed.id == Id::TouchpadTouch ? view.pressed.index : -1;
-        kit.Segmented(ts, opts, model.touchpad_touch, th, tpr, !tp_enabled);
-        if (tp_enabled) {
+        const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
+        const int th = view.hover.id == id ? view.hover.index : -1;
+        const int tpr = view.pressed.id == id ? view.pressed.index : -1;
+        kit.Segmented(ts, opts, value, th, tpr, !enabled);
+        if (enabled) {
             const auto e = kit.SegmentEdges(ts, opts);
             for (int i = 0; i < static_cast<int>(opts.size()); i++) {
                 AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
-                       {Id::TouchpadTouch, i}, pane);
+                       {id, i}, pane);
             }
         }
+        return row;
+    };
+    const Rect tp_row = choice_row(Id::TouchpadTouch, seg.y1 + 8.0f, model.touchpad_touch);
+    const float support_y = tp_row.y1 + 6.0f;
+    const bool tp_enabled = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)] == Lock::None;
+    kit.TextMid(c.x0, support_y, Type::Tooltip, Tok::kOnSurfaceVariant,
+                kit.Fit(Type::Tooltip, TouchpadSupporting(model.touchpad_touch), c.W()), 0,
+                tp_enabled ? 1.0f : kDisabledContent);
+    Rect reticle_row =
+        choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
+    if (model.bottom_screen_reticle != 0) {
+        // At Edge only while the reticle is on.
+        reticle_row = choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
     }
-    const Rect area{pane.x0 + 8.0f, tp_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+    const Rect area{pane.x0 + 8.0f, reticle_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }
@@ -1143,10 +1245,15 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
     }
 
     const std::vector<Row> rows = RowsFor(view.tab, model);
-    // The labels' column: as wide as the widest label.
+    // The labels' column: as wide as the widest label of a row whose control starts at it (a
+    // slider, a menu button, the offset). AzaharFrame menuux: a segmented button or a switch
+    // starts after its own label, so a long label elsewhere does not squeeze it.
     float label_w = 0.0f;
     for (const Row& r : rows) {
-        label_w = std::max(label_w, kit.TextWidth(Type::Body, LabelFor(r.id)));
+        if (r.kind == RowKind::Slider || r.kind == RowKind::MenuButton ||
+            r.kind == RowKind::Offset) {
+            label_w = std::max(label_w, kit.TextWidth(Type::Body, LabelFor(r.id)));
+        }
     }
     const float control_x0 = c.x0 + label_w + kLabelGap;
     const Rect list{pane.x0, top, pane.x1, pane.y1 - 8.0f};
@@ -1165,6 +1272,18 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         const float cy = row.Cy();
         const Target whole{r.id};
         const bool enabled = r.Enabled();
+        if (r.kind == RowKind::Button) {
+            // AzaharFrame menuux: a full-width tonal button (Switch to Flat), no label.
+            const Rect b{c.x0, cy - 28.0f, c.x1, cy + 28.0f};
+            kit.Button(b, ButtonStyle::Tonal, Sym::kTv, LabelFor(r.id),
+                       StateOf(view, whole, enabled), Type::Title);
+            if (enabled) {
+                AddHit(b, whole, list);
+            }
+            y += kRowH;
+            continue;
+        }
+        const float own_x0 = c.x0 + kit.TextWidth(Type::Body, LabelFor(r.id)) + kLabelGap;
         const bool row_hit = r.kind == RowKind::Switch || r.kind == RowKind::Link;
         if (row.y1 > list.y0 && row.y0 < list.y1) {
             anchors.push_back({r.id, c.x0, std::max(row.y0, list.y0) + 6.0f, r.lock});
@@ -1185,7 +1304,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             break;
         case RowKind::Segmented: {
             const auto& opts = OptionsFor(r.id);
-            const float w = kit.SegmentedWidth(opts, ctl.W());
+            const float w = kit.SegmentedWidth(opts, ctl.x1 - own_x0);
             const Rect seg{ctl.x1 - w, ctl.y0, ctl.x1, ctl.y1};
             const int hover = view.hover.id == r.id ? view.hover.index : -1;
             const int pressed = view.pressed.id == r.id ? view.pressed.index : -1;
@@ -1227,7 +1346,8 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             const Rect mb{std::max(ctl.x0, ctl.x1 - 420.0f), ctl.y0, ctl.x1, ctl.y1};
             const std::size_t sel =
                 std::min(static_cast<std::size_t>(std::max(r.selected, 0)), opts.size() - 1);
-            kit.MenuButton(mb, opts[sel], view.open_menu == r.id, StateOf(view, whole, enabled));
+            kit.MenuButton(mb, r.value.empty() ? opts[sel] : r.value, view.open_menu == r.id,
+                           StateOf(view, whole, enabled));
             if (enabled) {
                 AddHit(mb, whole, list);
             }
@@ -1238,19 +1358,28 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             break;
         }
         case RowKind::Offset: {
+            // AzaharFrame menuux: Reset an outlined button as wide as its label (Material: 24 dp
+            // each side), the value in the room left of it, cut to fit, 16 dp clear of it.
             const Target reset{Id::ImmersiveOffsetReset};
-            const Rect rb{ctl.x1 - 96.0f, ctl.y0, ctl.x1, ctl.y1};
+            const std::string& reset_label = LabelFor(Id::ImmersiveOffsetReset);
+            const float rw = std::max(64.0f, kit.TextWidth(Type::Label, reset_label) + 48.0f);
+            const Rect rb{ctl.x1 - rw, ctl.y0, ctl.x1, ctl.y1};
             const bool can = enabled && r.on;
-            kit.Button(rb, ButtonStyle::Text, 0, LabelFor(Id::ImmersiveOffsetReset),
-                       StateOf(view, reset, can));
+            const State rs = StateOf(view, reset, can);
+            kit.Stroke(rb, rb.H() * 0.5f, 1.0f, Tok::kOutline, can ? 1.0f : kDisabledContainer);
+            kit.Button(rb, ButtonStyle::Text, 0, reset_label, rs);
             if (can) {
                 AddHit(rb, reset, list);
             }
-            kit.TextMid(rb.x0 - 12.0f, cy, Type::Value, Tok::kOnSurfaceVariant, r.value, 2);
+            const float room = rb.x0 - 16.0f - ctl.x0;
+            kit.TextMid(rb.x0 - 16.0f, cy, Type::Value, Tok::kOnSurfaceVariant,
+                        kit.Fit(Type::Value, r.value, room), 2);
             break;
         }
         case RowKind::Link:
             kit.Icon(c.x1 - 12.0f, cy, 24.0f, Sym::kOpenInNew, false, Tok::kOnSurfaceVariant);
+            break;
+        case RowKind::Button:
             break;
         }
         y += kRowH;

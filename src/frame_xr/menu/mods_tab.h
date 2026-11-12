@@ -21,6 +21,7 @@ struct ModsTabModel {
     CheatsModel cheats;
     ModsListModel mods;
     TexturesModel textures;
+    ZipModel zip; ///< AzaharFrame zipinstall: Install from Zip
     bool operator==(const ModsTabModel&) const = default;
 };
 

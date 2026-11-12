@@ -67,7 +67,7 @@ enum class Id : int {
     StatsPosition, ///< AzaharFrame statspos
     // Controls
     ControlsPage,
-    TouchpadTouch, ///< AzaharFrame menu
+    TouchpadTouch, ///< AzaharFrame menu: the Touchpad row (Tap for Input, Click for Input)
     EditControls,  ///< AzaharFrame menu
     RemapChip,     ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
     RemapCancel,   ///< AzaharFrame remap: stop listening
@@ -78,6 +78,8 @@ enum class Id : int {
     RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
     UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
     CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
+    BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right Controller
+    ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     // Settings
     Scope,
     Background,
@@ -86,6 +88,11 @@ enum class Id : int {
     ShowControllers,
     WindowScale,
     Depth3d, ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
+    InternalResolution, ///< AzaharFrame menuux: resolution_factor, per game (a menu, 1x to 8x)
+    DynamicResolution,  ///< AzaharFrame menuux: vr_dynamic_resolution, global
+    TextureFilter,      ///< AzaharFrame menuux: texture_filter, per game
+    AsyncShaders,       ///< AzaharFrame menuux: async_shader_compilation, per game
+    FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
     ImmersiveMode,
     WiderView,
     GameFov,
@@ -117,6 +124,13 @@ enum class Id : int {
     PackCancel,     ///< index: mods.textures.downloads
     PackLink,       ///< index: mods.textures.downloads ("Created by <author>")
     PackDelete,     ///< index: mods.textures.packs (a downloaded pack)
+    // AzaharFrame zipinstall: Install from Zip (mods_segments.h ZipModel)
+    InstallFromZip, ///< index: ZipTarget (the Textures page's, Install Mods')
+    ZipBack,        ///< the page's back button
+    ZipChip,        ///< index: mods.zip.chips
+    ZipUp,          ///< the ".." row
+    ZipEntry,       ///< index: mods.zip.entries
+    ZipChoice,      ///< index: mods.zip.choices
     // The Mods tab's Homebrew segment (AzaharFrame emerald): homebrew_tab.h, index: homebrew.items
     HomebrewInstall,
     HomebrewUpdate,
@@ -143,6 +157,8 @@ enum class Lock : uint8_t {
     GameValue,   ///< the game has its own value, while Global is chosen
     FullOnly,    ///< only in the Full immersive modes (TabMenu finds these itself)
     Unavailable, ///< the runtime does not offer it
+    AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
+    NotForGame,  ///< AzaharFrame immersive: not offered for the running game (presets.h)
 };
 
 struct SaveSlot {
@@ -171,7 +187,9 @@ struct MenuModel {
     std::string version;
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
-    int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
+    int touchpad_touch = 0; ///< AzaharFrame menuux: 0 Tap for Input, 1 Click for Input
+    int bottom_screen_reticle = 0; ///< AzaharFrame mouse: 0 Off, 1 Left, 2 Right Controller
+    int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game
@@ -181,6 +199,11 @@ struct MenuModel {
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %
+    int internal_resolution = 1; ///< AzaharFrame menuux: resolution_factor (0 Auto, 1 to 18)
+    bool dynamic_resolution = false;
+    int texture_filter = 0;      ///< index into OptionsFor(Id::TextureFilter)
+    bool async_shaders = false;
+    int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
@@ -214,6 +237,15 @@ struct MenuView {
     RemapView remap; ///< AzaharFrame remap: Edit Controls
     bool operator==(const MenuView&) const = default;
 };
+
+/// AzaharFrame menuux: Internal Resolution's choices are 1x to kMaxResolution (the XR screens
+/// stop at 8x: renderer_vulkan_xr.cpp); Texture Filter's are these Settings::TextureFilter values
+/// (Anime4K is OpenGL only); Fast Forward Speed's these turbo_limit percentages.
+constexpr int kMaxResolution = 8;
+constexpr std::array<int, 5> kTextureFilters{0, 2, 3, 4, 5};
+constexpr std::array<int, 4> kFastForwardSpeeds{150, 200, 300, 400};
+/// AzaharFrame menuux: the line under the Touchpad row for its value (0 Tap, 1 Click).
+std::string TouchpadSupporting(int value);
 
 /// The option lists (Azahar for Frame's own strings).
 const std::vector<std::string>& OptionsFor(Id id);
@@ -301,6 +333,8 @@ private:
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);
+    /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
+    void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
                       const Rect& area); ///< AzaharFrame emerald: homebrew_tab.cpp
     void DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
