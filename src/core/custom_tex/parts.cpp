@@ -827,6 +827,11 @@ void SetAll(State& state, const Layout& layout, bool on) {
     }
 }
 
+void SetOrder(State& state, const Layout& layout, const std::vector<std::string>& keys) {
+    Materialize(state, layout);
+    state.order = keys;
+}
+
 std::vector<std::size_t> LoadOrder(const Layout& layout, const State& state,
                                    const std::vector<File>& files) {
     const Ranks ranks = MakeRanks(layout, state);

@@ -132,6 +132,8 @@ void Choose(State& state, const Layout& layout, const Group& group, std::string_
 void Move(State& state, const Layout& layout, std::string_view group_key, int delta);
 /// Every checkbox part on or off; choices stay.
 void SetAll(State& state, const Layout& layout, bool on);
+/// AzaharFrame texlayers: the groups in `keys` order (the rest after, in their order).
+void SetOrder(State& state, const Layout& layout, const std::vector<std::string>& keys);
 
 /// The texture loader's list: indices into `files`, in the order to read them (the top group's
 /// first, each part's files by path), without the files of parts that are off.

@@ -16,6 +16,7 @@
 #include <QTimer>
 
 #include "common/logging/log.h"
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/packs.h"
 #include "core/mods/library.h"
 
@@ -38,8 +39,9 @@ std::vector<CG::Item> ActiveItems(u64 title_id) {
             items.push_back({CG::Item::Kind::Mod, m.id, m.name});
         }
     }
-    if (const auto pack = CustomTex::ActivePack(CustomTex::DefaultPaths(), title_id)) {
-        items.push_back({CG::Item::Kind::Pack, pack->id, pack->name});
+    // AzaharFrame texlayers: every pack on
+    for (const CustomTex::Pack& pack : CustomTex::Layers::ActivePacks(CustomTex::DefaultPaths(), title_id)) {
+        items.push_back({CG::Item::Kind::Pack, pack.id, pack.name});
     }
     return items;
 }
@@ -96,7 +98,7 @@ void FrameCrashGuard::BeforeBoot(u64 title_id_) {
     if (crashed.empty()) {
         return;
     }
-    const auto active_pack = CustomTex::ActivePack(CustomTex::DefaultPaths(), title_id_);
+    const CustomTex::Layers::State layers = CustomTex::Layers::Current(CustomTex::DefaultPaths(), title_id_);
     for (const CG::Item& item : crashed) {
         bool off = false;
         if (item.kind == CG::Item::Kind::Mod) {
@@ -109,8 +111,8 @@ void FrameCrashGuard::BeforeBoot(u64 title_id_) {
                     }
                 }
             }
-        } else if (active_pack && active_pack->id == item.id) {
-            const auto r = CustomTex::Deactivate(CustomTex::DefaultPaths(), title_id_);
+        } else if (CustomTex::Layers::Has(layers, item.id)) { // AzaharFrame texlayers: that pack only
+            const auto r = CustomTex::Layers::TurnOff(CustomTex::DefaultPaths(), title_id_, item.id);
             off = r.ok;
             if (!r.ok) {
                 LOG_WARNING(Frontend, "xr: crash guard: pack {} not turned off: {}", item.name, r.error);
@@ -236,11 +238,8 @@ void FrameCrashGuard::TurnBackOn(std::function<void(bool)> done) {
                     LOG_WARNING(Frontend, "xr: crash guard: {} not turned back on: {}", item.id, r.error);
                 }
             } else {
-                for (const CustomTex::Pack& p : CustomTex::ListPacks(CustomTex::DefaultPaths(), tid)) {
-                    if (p.id == item.id) {
-                        on = CustomTex::Activate(CustomTex::DefaultPaths(), tid, p).ok;
-                    }
-                }
+                // AzaharFrame texlayers: back on beside the others
+                on = CustomTex::Layers::TurnOn(CustomTex::DefaultPaths(), tid, item.id).ok;
             }
             if (on) {
                 CG::Guard(CG::DefaultDir()).NoteOn(tid, item); // new again: watched at the next start

@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <array>   // AzaharFrame memguard
+#include <charconv>   // AzaharFrame texlayers
 #include <chrono>  // AzaharFrame
+#include <filesystem> // AzaharFrame texlayers
 #include <cstdlib> // AzaharFrame memguard
 #include <fstream> // AzaharFrame memwarn
 #include <thread>  // AzaharFrame memguard
@@ -21,7 +23,8 @@
 #include "common/string_util.h"
 #include "common/texture.h"
 #include "core/core.h"
-#include "core/custom_tex/parts.h" // AzaharFrame texparts
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
+#include "core/custom_tex/parts.h"  // AzaharFrame texparts
 #include "core/frontend/image_interface.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
@@ -181,6 +184,7 @@ void CustomTexManager::FindCustomTextures() {
     }
 
     custom_textures.reserve(textures.size());
+    std::size_t replaced = 0; // AzaharFrame texlayers
     for (const FileUtil::FSTEntry& file : textures) {
         if (file.isDirectory) {
             continue;
@@ -195,10 +199,20 @@ void CustomTexManager::FindCustomTextures() {
             if (!material) {
                 material = std::make_unique<Material>();
             }
+            // AzaharFrame texlayers: a hash a pack higher in the list already has (the first file
+            // read wins); counted, not an error line each
+            if (material->textures[static_cast<std::size_t>(texture->type)]) {
+                replaced++;
+                continue;
+            }
             material->hash = hash;
             material->per_level_files = !skip_mipmap;
             material->AddMapTexture(texture);
         }
+    }
+    if (replaced > 0) {
+        LOG_INFO(Render, "custom textures: {} textures replaced by a part or pack higher in the list",
+                 replaced);
     }
     textures_loaded = true;
 }
@@ -651,6 +665,33 @@ std::vector<FileUtil::FSTEntry> CustomTexManager::GetTextures(u64 title_id) {
         FileUtil::CreateFullPath(load_path);
     }
 
+    // AzaharFrame texlayers: two or more packs on (core/custom_tex/layers.h): every pack's files
+    // where they are, the top entry's first, so it keeps a hash two packs share
+    if (const auto layered = CustomTex::Layers::LoaderFiles(
+            GetUserPath(FileUtil::UserPath::LoadDir), title_id)) {
+        std::vector<FileUtil::FSTEntry> loaded;
+        loaded.reserve(layered->files.size());
+        for (const auto& [path, size] : layered->files) {
+            FileUtil::FSTEntry e{};
+            e.isDirectory = false;
+            e.size = size;
+            e.physicalName = path;
+            e.virtualName = std::string{FileUtil::GetFilename(path)};
+            loaded.push_back(std::move(e));
+        }
+        // ReadConfig reads the top pack's pack.json (load/textures/<TID> points at it); the
+        // others' file-to-hash maps count too
+        std::error_code ec;
+        const std::string linked =
+            std::filesystem::weakly_canonical(load_path, ec).generic_string();
+        for (const std::string& pack : layered->packs) {
+            if (pack != linked && pack + "/" != linked) {
+                ReadTextureMap(pack + "/pack.json");
+            }
+        }
+        return loaded;
+    }
+
     FileUtil::FSTEntry texture_dir;
     std::vector<FileUtil::FSTEntry> textures;
     FileUtil::ScanDirectoryTree(load_path, texture_dir, 64);
@@ -683,6 +724,42 @@ std::vector<FileUtil::FSTEntry> CustomTexManager::GetTextures(u64 title_id) {
                  textures.size() - loaded.size(), textures.size());
     }
     return loaded;
+}
+
+void CustomTexManager::ReadTextureMap(const std::string& config_path) { // AzaharFrame texlayers
+    FileUtil::IOFile file{config_path, "r"};
+    if (!file.IsOpen()) {
+        return;
+    }
+    std::string text(file.GetSize(), '\0');
+    if (file.ReadBytes(text.data(), text.size()) != text.size()) {
+        return;
+    }
+    const nlohmann::json json = nlohmann::json::parse(text, nullptr, false, true);
+    const auto textures = json.is_object() ? json.find("textures") : json.end();
+    if (!json.is_object() || textures == json.end() || !textures->is_object()) {
+        return;
+    }
+    for (const auto& [key, value] : textures->items()) {
+        u64 hash = 0;
+        const auto [end, err] = std::from_chars(key.data(), key.data() + key.size(), hash, 16);
+        if (err != std::errc{} || end == key.data()) {
+            continue;
+        }
+        const auto add = [&](const nlohmann::json& file_name) {
+            if (file_name.is_string()) {
+                path_to_hash_map[std::string{FileUtil::GetFilename(file_name.get<std::string>())}]
+                    .push_back(hash);
+            }
+        };
+        if (value.is_array()) {
+            for (const auto& v : value) {
+                add(v);
+            }
+        } else {
+            add(value);
+        }
+    }
 }
 
 void CustomTexManager::CreateWorkers() {

@@ -26,6 +26,7 @@
 #include "common/logging/log.h"
 #include "core/cheats/online.h"
 #include "core/custom_tex/download.h"
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/packs.h"
 #include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/archive.h"
@@ -414,6 +415,7 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             }
             e.layout = layout == "variants" ? Layout::Variants : Layout::Single;
             e.folder = SanitizeFolderName(str(p, "folder").empty() ? e.name : str(p, "folder"));
+            e.layer_on = str(p, "layer_on"); // AzaharFrame texlayers (core/custom_tex/layers.h)
             if (const auto c = p.find("customize"); c != p.end() && c->is_object()) {
                 // AzaharFrame texparts: install hints for Customize (core/custom_tex/parts.h)
                 const auto strings = [](const nlohmann::json& a) {
@@ -1902,12 +1904,11 @@ Result Downloader::Delete(u64 title_id, const std::string& folder) {
     }
     CustomTex::Paths paths;
     paths.load_dir = load_dir_;
-    if (const auto active = CustomTex::ActivePack(paths, title_id);
-        active && fs::equivalent(fs::path(active->path), dir, ec)) {
-        if (const auto r = CustomTex::Deactivate(paths, title_id); !r.ok) {
-            result.error = r.error;
-            return result;
-        }
+    // AzaharFrame texlayers: out of the game's list (the link moves to the next pack, if any)
+    const std::string id = fs::weakly_canonical(dir, ec).generic_string();
+    if (const auto r = CustomTex::Layers::TurnOff(paths, title_id, id); !r.ok) {
+        result.error = r.error;
+        return result;
     }
     fs::remove_all(dir, ec);
     if (ec) {

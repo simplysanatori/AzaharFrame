@@ -99,6 +99,7 @@ struct Entry {
                            // catalog3: the catalog's own value may be "YYYY-MM"
     bool verified = false; // AzaharFrame zipinstall: known to work (the menu's verified badge)
     Parts::Hints customize; // AzaharFrame texparts: "customize", written into the pack at install
+    std::string layer_on;   // AzaharFrame texlayers: the catalog id of the pack this one goes on top of
 
     bool ServesTitle(u64 title_id) const;
 };
