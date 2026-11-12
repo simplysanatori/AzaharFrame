@@ -337,6 +337,9 @@ std::string InstalledVersion::Display() const {
     if (version) {
         return fmt::format("{}.{}", version->major, version->minor);
     }
+    if (source == VersionSource::Ncch && revision) {
+        return fmt::format("Rev {}", *revision); // a revision counter only, nothing to map
+    }
     if (!unmapped) {
         return {};
     }
@@ -400,22 +403,23 @@ InstalledVersion SelectInstalledVersion(u64 title_id, std::optional<u16> update_
                                         std::optional<u16> base_tmd, const FileVersion& file,
                                         std::optional<u16> ncch_remaster) {
     InstalledVersion out;
-    // installed: the update's TMD, else the base's
+    // What the loader runs: an installed update title, whenever one exists (it is opened from the
+    // SDMC title or the CIA bundle and overlays the base). So its TMD decides, and a cartridge's
+    // NCSD value, which counts in other numbers, is never compared with it. With no update the
+    // file's own data decides (the CIA's TMD, or the cartridge's card info), then an installed
+    // title's TMD.
     if (update_tmd) {
         out.raw = update_tmd;
         out.source = VersionSource::UpdateTmd;
+    } else if (file.cia_tmd) {
+        out.raw = file.cia_tmd;
+        out.source = VersionSource::CiaTmd;
+    } else if (file.card_version) {
+        out.raw = file.card_version;
+        out.source = VersionSource::CardInfo;
     } else if (base_tmd) {
         out.raw = base_tmd;
         out.source = VersionSource::BaseTmd;
-    }
-    // the file's own: the cartridge's card info or the CIA's TMD; the higher one wins, and a tie
-    // goes to the installed one
-    if (file.cia_tmd || file.card_version) {
-        const u16 value = file.cia_tmd ? *file.cia_tmd : *file.card_version;
-        if (!out.raw || value > *out.raw) {
-            out.raw = value;
-            out.source = file.cia_tmd ? VersionSource::CiaTmd : VersionSource::CardInfo;
-        }
     }
     if (file.card_revision) {
         out.revision = *file.card_revision;
