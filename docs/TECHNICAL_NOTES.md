@@ -207,7 +207,6 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_PADS=0` | `frame_xr/input/devices.cpp` | other gamepads stay out of the game in VR (they are still listed in Edit Controls), see [MAPPING.md](../src/frame_xr/input/MAPPING.md#other-gamepads-in-vr-azaharframe-pads) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
 | `AZAHARFRAME_ART` | picker, Qt icon | folder with `logo.png` and `icon.png` (default: `art/` next to the program) |
-| `AZAHARFRAME_TOOLS` | Emerald homebrew build | folder with `emerald3ds-build.py` (default: `tools/` next to the program) |
 | `XR_RUNTIME_JSON` | the OpenXR loader | the runtime; the launcher sets SteamVR's when nothing else names one |
 | `QT_SCALE_FACTOR` | Qt | scales the settings window |
 | `AZAHARFRAME_FLAT_SCREEN` | `citra_qt/frame_mode.cpp` | where SteamVR shows the window in Flat (Game Mode only): `theater` (default; the big screen, through `azahar --frame-cef --screen`, which runs `vrcmd --dock-overlay`), `dashboard` (only inside the dashboard, as before) or `off` (Steam is not asked) |
