@@ -678,7 +678,7 @@ void MenuPanel::BuildModel(const Host& host) {
         m.mods = g_mods;
         m.homebrew = g_homebrew; // AzaharFrame emerald
     }
-    if (view.tab == Menu::Tab::Mods && view.mods_segment == Menu::ModsSegment::Homebrew &&
+    if (view.tab == Menu::Tab::Homebrew && // AzaharFrame ui3: its own tab
         // AzaharFrame emerald: the progress ring turns
         std::any_of(m.homebrew.items.begin(), m.homebrew.items.end(),
                     [](const Menu::HomebrewItem& i) { return i.busy && i.progress < 0; })) {
@@ -1113,17 +1113,17 @@ void MenuPanel::Click(Target t, Host& host) {
     if (t.index == Menu::kLabelIndex || t.index == Menu::kMenuAreaIndex) {
         return;
     }
-    static constexpr std::array<const char*, 6> kTabNames{"Main",     "Position", "Stats",
-                                                          "Controls", "Mods",     "Settings"};
-    static constexpr std::array<const char*, 4> kSegmentNames{"Cheats", "Mods", "Textures",
-                                                              "Homebrew"}; // emerald
+    static constexpr std::array<const char*, 7> kTabNames{"Main", "Position", "Stats", "Controls",
+                                                          "Mods", "Homebrew", "Settings"}; // ui3
+    static_assert(kTabNames.size() == static_cast<std::size_t>(Menu::Tab::Count));
+    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
                  kTabNames[static_cast<std::size_t>(
                      std::clamp(t.index, 0, static_cast<int>(kTabNames.size()) - 1))]);
     } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
         LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
-                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 3))]);
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -1177,7 +1177,7 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Homebrew) &&
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1186,11 +1186,13 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
         break;
-    case Id::HomebrewInstall: // AzaharFrame emerald: the Homebrew segment (citra_qt/frame_homebrew.cpp)
+    case Id::HomebrewInstall: // AzaharFrame emerald: the Homebrew tab (citra_qt/frame_homebrew.cpp)
+    case Id::HomebrewReinstall: // AzaharFrame ui3: Install again (Run without an update)
     case Id::HomebrewUpdate:
     case Id::HomebrewPlay:
         if (t.index >= 0 && t.index < static_cast<int>(model.homebrew.items.size())) {
-            const MenuCommand c = t.id == Id::HomebrewInstall  ? MenuCommand::HomebrewInstall
+            const MenuCommand c = t.id == Id::HomebrewInstall || t.id == Id::HomebrewReinstall
+                                      ? MenuCommand::HomebrewInstall
                                   : t.id == Id::HomebrewUpdate ? MenuCommand::HomebrewUpdate
                                                                : MenuCommand::HomebrewPlay;
             ask_text(c, model.homebrew.items[static_cast<std::size_t>(t.index)].id);

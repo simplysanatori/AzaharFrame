@@ -19,7 +19,7 @@ namespace {
 
 // Layout (dp). The rail on the left, the pane (the tab's content) to its right.
 constexpr float kRailW = 104.0f;
-constexpr float kRailItemH = 80.0f;
+constexpr float kRailItemH = 72.0f; // AzaharFrame ui3: 80 until the seventh tab (Homebrew)
 constexpr float kPaneMargin = 12.0f;
 constexpr float kPaneRadius = 24.0f;
 constexpr float kPad = 24.0f;      ///< inside the pane
@@ -38,6 +38,7 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
     {"Stats", Sym::kMonitoring},
     {"Controls", Sym::kStadiaController},
     {"Mods", Sym::kExtension}, // AzaharFrame cheatstab
+    {"Homebrew", Sym::kDeployedCode}, // AzaharFrame ui3
     {"Settings", Sym::kSettings},
 }};
 
@@ -162,8 +163,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
-    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures",
-                                                         "Homebrew"}; // cheatstab, emerald
+    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
@@ -383,6 +383,8 @@ std::string LabelFor(Id id) {
         return "Update";
     case Id::HomebrewPlay:
         return "Play";
+    case Id::HomebrewReinstall: // AzaharFrame ui3
+        return "Reinstall";
     case Id::AddCheat: // AzaharFrame ui2
         return "Add Cheat";
     case Id::InstallCheatFile:
@@ -547,6 +549,9 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
         break;
     case Tab::Mods: // AzaharFrame cheatstab
         DrawMods(kit, model, view, pane);
+        break;
+    case Tab::Homebrew: // AzaharFrame ui3
+        DrawHomebrew(kit, model, view, pane);
         break;
     default:
         DrawRows(kit, model, view, pane);

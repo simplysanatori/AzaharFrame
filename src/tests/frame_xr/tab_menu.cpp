@@ -339,16 +339,28 @@ TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
         return false;
     };
     MenuView v;
-    // The rail: Main, Position, Stats, Controls, Mods, Settings.
+    // The rail: Main, Position, Stats, Controls, Mods, Homebrew (AzaharFrame ui3), Settings.
     d.Draw(m, v);
     CHECK(has(Id::TabButton, static_cast<int>(Tab::Mods)));
+    CHECK(has(Id::TabButton, static_cast<int>(Tab::Homebrew)));
     CHECK(static_cast<int>(Tab::Mods) == static_cast<int>(Tab::Controls) + 1);
-    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Mods) + 1);
+    CHECK(static_cast<int>(Tab::Homebrew) == static_cast<int>(Tab::Mods) + 1);
+    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Homebrew) + 1);
+    // Seven rail items, each a 48 dp target at least, inside the panel.
+    int rail = 0;
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::TabButton) {
+            rail++;
+            CHECK(h.r.H() >= 48.0f);
+            CHECK(h.r.y0 >= 0.0f);
+            CHECK(h.r.y1 <= kPanelH);
+        }
+    }
+    CHECK(rail == static_cast<int>(Tab::Count));
 
-    // The segmented button on every segment; Cheats first.
+    // The segmented button on every segment; Cheats first. Homebrew is a tab of its own (ui3).
     v.tab = Tab::Mods;
-    CHECK(OptionsFor(Id::ModsSegment) ==
-          std::vector<std::string>{"Cheats", "Mods", "Textures", "Homebrew"}); // emerald
+    CHECK(OptionsFor(Id::ModsSegment) == std::vector<std::string>{"Cheats", "Mods", "Textures"});
     for (const ModsSegment s : {ModsSegment::Cheats, ModsSegment::Mods, ModsSegment::Textures}) {
         v.mods_segment = s;
         d.Draw(m, v);
@@ -1365,13 +1377,12 @@ TEST_CASE("Tab menu: Download Packs dates fit", "[frame_xr][tabmenu]") {
     CHECK(line("Updated Sep 2026") <= right - x0); // even the longer text would fit
 }
 
-// AzaharFrame emerald: the Mods tab's Homebrew segment.
-TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
+// AzaharFrame emerald: the Homebrew tab (a segment of the Mods tab until ui3).
+TEST_CASE("Tab menu: the Homebrew tab", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
     MenuView v;
-    v.tab = Tab::Mods;
-    v.mods_segment = ModsSegment::Homebrew;
+    v.tab = Tab::Homebrew;
     const auto has = [&d](Id id, int index) {
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == id && h.t.index == index) {
@@ -1386,24 +1397,47 @@ TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
     item.title = "Pokémon Emerald 3DS";
     item.author = "ZallaxDev";
 
+    // No items: the empty state, no segmented button (its own tab now).
+    d.Draw(m, v);
+    CHECK(!has(Id::ModsSegment, 0));
+    CHECK(!has(Id::HomebrewInstall, 0));
+
     // Not installed: Install only.
     m.homebrew.items = {item};
     d.Draw(m, v);
-    CHECK(has(Id::ModsSegment, 3));
+    CHECK(!has(Id::ModsSegment, 0));
     CHECK(has(Id::HomebrewInstall, 0));
     CHECK(!has(Id::HomebrewPlay, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(!has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) == std::vector<Id>{Id::HomebrewInstall});
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev");
+    // The row starts where the other tabs' content does (the pane's padding).
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::HomebrewInstall) {
+            CHECK(h.r.y0 >= 12.0f + 24.0f);
+        }
+    }
 
-    // Installed and current: Play; with a newer release: Play and Update.
+    // Installed and current (AzaharFrame ui3): Play and Reinstall; with a newer release: Play and
+    // Update.
     m.homebrew.items[0].installed = true;
+    m.homebrew.items[0].author = "ZallaxDev \u00b7 English";
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
+    CHECK(has(Id::HomebrewReinstall, 0));
     CHECK(!has(Id::HomebrewInstall, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) ==
+          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewReinstall});
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev \u00b7 English");
     m.homebrew.items[0].update = true;
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
     CHECK(has(Id::HomebrewUpdate, 0));
+    CHECK(!has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) ==
+          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewUpdate});
 
     // Busy: no buttons until it ends.
     m.homebrew.items[0].busy = true;
@@ -1412,10 +1446,17 @@ TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(!has(Id::HomebrewPlay, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]).empty());
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "Downloading 42%");
     CHECK(d.menu.MaxScroll() == 0.0f);
+    // A failure: the line is the error once it is no longer busy.
+    m.homebrew.items[0].busy = false;
+    m.homebrew.items[0].status = "Download Failed";
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "Download Failed");
 
     CHECK(LabelFor(Id::HomebrewInstall) == "Install");
     CHECK(LabelFor(Id::HomebrewUpdate) == "Update");
+    CHECK(LabelFor(Id::HomebrewReinstall) == "Reinstall");
     CHECK(LabelFor(Id::HomebrewPlay) == "Play");
 }
 

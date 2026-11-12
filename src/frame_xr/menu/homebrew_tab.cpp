@@ -2,13 +2,15 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame emerald: the Mods tab's Homebrew segment (homebrew_tab.h), Material 3 under the
-// segmented button:
+// AzaharFrame emerald: the Homebrew tab (homebrew_tab.h; a segment of the Mods tab until ui3),
+// Material 3:
 //
 //   Pokémon Emerald 3DS                                 [Install]           not installed
 //   ZallaxDev
-//   Pokémon Emerald 3DS                       [Update]  [> Play]            installed
-//   ZallaxDev
+//   Pokémon Emerald 3DS                       [Update]  [> Play]            a newer release seen
+//   ZallaxDev · English
+//   Pokémon Emerald 3DS                    [Reinstall]  [> Play]            the latest installed
+//   ZallaxDev · English
 //   Pokémon Emerald 3DS                                    (o)              installing
 //   Downloading 42%
 
@@ -71,27 +73,47 @@ void Ring(Kit& kit, float cx, float cy, float frac, int spin) {
 
 } // namespace
 
+std::vector<Id> HomebrewButtons(const HomebrewItem& item) {
+    if (item.busy) {
+        return {};
+    }
+    if (!item.installed) {
+        return {Id::HomebrewInstall};
+    }
+    return {Id::HomebrewPlay, item.update ? Id::HomebrewUpdate : Id::HomebrewReinstall};
+}
+
+std::string HomebrewLine(const HomebrewItem& item) {
+    std::string line = item.status.empty() ? item.author : item.status;
+    if (item.busy && item.progress >= 0) {
+        line += " " + std::to_string(std::clamp(item.progress, 0, 1000) / 10) + "%";
+    }
+    return line;
+}
+
 void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
-                           const Rect& area) {
+                           const Rect& pane) {
     const HomebrewTabModel& m = model.homebrew;
-    const Rect c{area.x0 + kPad, area.y0, area.x1 - kPad, area.y1 - kPad};
+    // AzaharFrame ui3: its own tab now: the whole pane, padded as the other tabs
+    const Rect area = pane;
+    const Rect c{area.x0 + kPad, area.y0 + kPad, area.x1 - kPad, area.y1 - kPad};
     layout.max_scroll = 0.0f;
     layout.scroll_step = kRow;
     if (m.items.empty()) {
-        kit.Icon(c.Cx(), c.Cy() - 24.0f, 48.0f, Sym::kCode, false, Tok::kOnSurfaceVariant);
+        kit.Icon(c.Cx(), c.Cy() - 24.0f, 48.0f, Sym::kDeployedCode, false, Tok::kOnSurfaceVariant);
         kit.TextMid(c.Cx(), c.Cy() + 28.0f, Type::Title, Tok::kOnSurface, "No Homebrew", 1);
         return;
     }
     const float list_h = kRow * static_cast<float>(m.items.size());
     layout.max_scroll = std::max(0.0f, std::ceil((list_h - c.H()) / kRow) * kRow);
     const float scroll =
-        std::clamp(view.scroll[static_cast<int>(Tab::Mods)], 0.0f, layout.max_scroll);
+        std::clamp(view.scroll[static_cast<int>(Tab::Homebrew)], 0.0f, layout.max_scroll);
     kit.Clip(area);
     for (std::size_t i = 0; i < m.items.size(); i++) {
         const HomebrewItem& it = m.items[i];
         const int idx = static_cast<int>(i);
         const float y = c.y0 + kRow * static_cast<float>(i) - scroll;
-        if (y < c.y0 - 0.01f || y + kRow > c.y1 + kPad + 0.01f) {
+        if (y < c.y0 - 0.01f || y + kRow > c.y1 + 0.01f) {
             continue; // whole rows only
         }
         const float cy = y + kRow * 0.5f;
@@ -110,21 +132,24 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
         if (it.busy) {
             Ring(kit, right - 16.0f, cy, it.progress < 0 ? -1.0f : it.progress / 1000.0f, m.spin);
             right -= 32.0f + kGap;
-        } else if (!it.installed) {
-            button(Id::HomebrewInstall, ButtonStyle::Filled, Sym::kDownload);
-        } else {
-            button(Id::HomebrewPlay, ButtonStyle::Filled, Sym::kPlayArrow);
-            if (it.update) {
-                button(Id::HomebrewUpdate, ButtonStyle::Tonal, 0);
+        }
+        for (const Id id : HomebrewButtons(it)) {
+            switch (id) {
+            case Id::HomebrewInstall:
+                button(id, ButtonStyle::Filled, Sym::kDownload);
+                break;
+            case Id::HomebrewPlay:
+                button(id, ButtonStyle::Filled, Sym::kPlayArrow);
+                break;
+            default: // Update, Reinstall (AzaharFrame ui3)
+                button(id, ButtonStyle::Tonal, 0);
+                break;
             }
         }
         const float text_w = right + kGap - kNameGap - c.x0;
         kit.TextMid(c.x0, cy - 12.0f, Type::Body, Tok::kOnSurface,
                     kit.Fit(Type::Body, it.title, text_w));
-        std::string line = it.status.empty() ? it.author : it.status;
-        if (it.busy && it.progress >= 0) {
-            line += " " + std::to_string(std::clamp(it.progress, 0, 1000) / 10) + "%";
-        }
+        const std::string line = HomebrewLine(it);
         const bool error = !it.busy && !it.status.empty();
         kit.TextSized(c.x0, cy + 22.0f, kSmall, false, error ? Tok::kError : Tok::kOnSurfaceVariant,
                       kit.Fit(Type::Tooltip, line, text_w));

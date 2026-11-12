@@ -35,6 +35,7 @@ ICONS = [
     # AzaharFrame texui: the Mods tab's Textures segment
     "texture",
     "shift", "shift_lock", "backspace",  # AzaharFrame kbd
+    "deployed_code",  # AzaharFrame ui3: the Homebrew tab
 ]
 
 # Text: printable ASCII, the Latin-1 Supplement (game and homebrew titles: "Pokémon", accents of

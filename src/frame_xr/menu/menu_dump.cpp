@@ -751,6 +751,43 @@ int main(int argc, char** argv) {
         v.hover = {Id::ModRemove, 2};
         ok &= shot("mods-restart", ml, v);
 
+        // AzaharFrame ui3: the Homebrew tab (a segment of the Mods tab until now), each state
+        {
+            MenuModel hb = m;
+            hb.game_title = "Pokémon Emerald 3DS";
+            MenuView hv;
+            hv.tab = Tab::Homebrew;
+            ok &= shot("homebrew-empty", hb, hv);
+            HomebrewItem it;
+            it.id = "emerald3ds";
+            it.title = "Pokémon Emerald 3DS";
+            it.author = "ZallaxDev";
+            hb.homebrew.items = {it};
+            hv.hover = {Id::HomebrewInstall, 0};
+            ok &= shot("homebrew-install", hb, hv);
+            hb.homebrew.items[0].busy = true;
+            hb.homebrew.items[0].status = "Downloading";
+            hb.homebrew.items[0].progress = 420;
+            hv.hover = {};
+            ok &= shot("homebrew-installing", hb, hv);
+            hb.homebrew.items[0].progress = -1;
+            hb.homebrew.items[0].status = "Building";
+            hb.homebrew.spin = 7;
+            ok &= shot("homebrew-building", hb, hv);
+            hb.homebrew.items[0] = it;
+            hb.homebrew.items[0].installed = true;
+            hb.homebrew.items[0].author = "ZallaxDev \u00b7 English";
+            hv.hover = {Id::HomebrewPlay, 0};
+            ok &= shot("homebrew-installed", hb, hv);
+            hb.homebrew.items[0].update = true;
+            hv.hover = {Id::HomebrewUpdate, 0};
+            ok &= shot("homebrew-update", hb, hv);
+            hb.homebrew.items[0].update = false;
+            hb.homebrew.items[0].status = "Could not connect";
+            hv.hover = {};
+            ok &= shot("homebrew-error", hb, hv);
+        }
+
         MenuModel tm = m;
         tm.mods.textures = SampleTextures();
         v = {};
