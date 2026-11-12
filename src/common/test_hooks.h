@@ -9,6 +9,13 @@
 
 namespace Common {
 
+/// True in a build with test hooks (for a test-only command-line flag, as getenv's twin).
+#ifdef AZAHARFRAME_TEST_HOOKS
+inline constexpr bool kTestHooks = true;
+#else
+inline constexpr bool kTestHooks = false;
+#endif
+
 /// getenv() for a test or diagnostic switch; nullptr in a build without test hooks.
 inline const char* TestHookEnv([[maybe_unused]] const char* name) {
 #ifdef AZAHARFRAME_TEST_HOOKS

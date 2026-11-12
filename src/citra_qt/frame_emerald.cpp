@@ -23,6 +23,7 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QProgressDialog>
+#include <QPushButton>
 #include <QTimer>
 #include "citra_qt/frame_texture_pack.h"
 #include "citra_qt/uisettings.h"
@@ -30,9 +31,11 @@
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/homebrew/emerald3ds_build.h"
+#include "core/homebrew/emerald3ds_fallback.h"
 #include "core/homebrew/net.h"
 
 namespace E = Homebrew::Emerald3ds;
+namespace F = Homebrew::Emerald3ds::Fallback;
 
 namespace {
 
@@ -253,6 +256,9 @@ QString FrameEmerald::ChooseRomDir(QWidget* parent) {
 /// AzaharFrame cpphelpers: what is about to be downloaded and from where, so the player decides
 /// knowingly.
 bool FrameEmerald::ConfirmSource(QWidget* parent, const QString& title) {
+    if (automatic) { // developer and test runs have no dialogs (AZAHARFRAME_HOMEBREW_AUTO)
+        return true;
+    }
     const QString version = state.latest_tag.empty() ? tr("the latest release")
                                                      : tr("Version %1").arg(Q(state.latest_tag));
     return QMessageBox::question(
@@ -561,9 +567,108 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
             });
     };
 
+    // ---- 2b. Fallback (AzaharFrame emfallback): the release's recipe is one the C++ builder cannot
+    // follow. With the player's approval (asked once per release version) the release's own builder
+    // builds the pack in a bubblewrap sandbox; what it writes is checked as for the C++ builder's pack
+    // and installed the same way. ----
+    auto fallback = [this, window, job, close_dialog, install, cancel, dialog,
+                     shown](Prepared p, std::string reason) {
+        LOG_WARNING(Frontend, "emerald3ds: the built-in builder cannot build {}: {}", p.tag, reason);
+        const F::Tools tools = F::Detect();
+        if (!tools.Ok()) {
+            close_dialog();
+            Finish(window, Q(F::UnavailableText(p.tag, tools.missing)), {});
+            return;
+        }
+        const std::string choices_path = paths.data_dir + F::kChoicesFile;
+        F::Choices choices = F::LoadChoices(choices_path);
+        F::Choice choice = choices.Get(p.tag);
+        if (choice == F::Choice::Unasked) {
+            bool yes = false;
+            bool answered = false;
+            const QString test = FrameTestEnv("AZAHARFRAME_TEST_EMERALD_FALLBACK_ANSWER");
+            if (!test.isEmpty()) {
+                yes = test == QStringLiteral("yes");
+                answered = true;
+            }
+            if (!answered && !automatic) {
+                dialog->hide();
+                QMessageBox box(QMessageBox::Question, Q(F::PromptTitle(p.tag)), Q(F::PromptText(true)),
+                                QMessageBox::NoButton, window);
+                QPushButton* build_button =
+                    box.addButton(tr(F::kButtonBuild), QMessageBox::AcceptRole);
+                box.addButton(tr(F::kButtonNotNow), QMessageBox::RejectRole);
+                box.setDefaultButton(build_button);
+                box.exec();
+                yes = box.clickedButton() == build_button;
+                dialog->show();
+            }
+            if (yes) { // only "Build" is remembered; Not Now just cancels this time
+                choice = F::Choice::Allowed;
+                choices.Set(p.tag, choice);
+                if (!F::SaveChoices(choices_path, choices)) {
+                    LOG_WARNING(Frontend, "emerald3ds: the choice could not be saved");
+                }
+            }
+        }
+        if (choice != F::Choice::Allowed) {
+            close_dialog();
+            Finish(window,
+                   tr("Azahar for Frame can't build Emerald 3DS %1 itself yet. Nothing was installed.")
+                       .arg(Q(p.tag)),
+                   {});
+            return;
+        }
+        SetBusy(true, tr("Building"), 400);
+        dialog->setLabelText(tr("Building With Emerald 3DS's Builder\nIn a sandbox that can only read "
+                                "your ROM and write its own folder"));
+        F::Options fo;
+        fo.build.payload_zip = p.payload_zip;
+        fo.build.rom = job.rom;
+        fo.build.out_dir = p.out_dir;
+        fo.build.cache_dir = paths.data_dir + "followers-cache";
+        fo.build.language = p.variant.language;
+        fo.build.cancel = cancel.get();
+        fo.build.progress = [shown](int permille, const std::string&) {
+            shown->store(400 + permille * 550 / 1000);
+        };
+        fo.expected_abi = p.variant.data_abi;
+        fo.expected_3dsx_sha256 = p.variant.three_dsx_sha256;
+        fo.expected_rom_sha1 = p.rom_sha1;
+        fo.tools = tools;
+        OffThread(
+            this, [fo]() { return F::Run(fo); },
+            [this, window, close_dialog, install, cancel, p](E::Build::Result r) {
+                if (cancel->load() || r.stopped) {
+                    close_dialog();
+                    Finish(window, tr("Cancelled"), {});
+                    return;
+                }
+                if (!r.ok) {
+                    LOG_WARNING(Frontend, "emerald3ds: Emerald 3DS's own builder: {}", r.error);
+                    close_dialog();
+                    Finish(window,
+                           r.error.empty() ? tr("The data pack could not be built")
+                                           : QString::fromStdString(r.error),
+                           {});
+                    return;
+                }
+                if (r.abi != p.variant.data_abi) {
+                    close_dialog();
+                    Finish(window, tr("The data pack does not match this release"), {});
+                    return;
+                }
+                LOG_INFO(Frontend, "emerald3ds: {} built by Emerald 3DS's own builder in the sandbox (not the "
+                                   "built-in builder)",
+                         p.tag);
+                install(p);
+            });
+    };
+
     // ---- 2. Build: emerald3ds.pak from the release's recipe (AzaharFrame cpphelpers: in this
     // program, off the GUI thread; no Python and no separate process) ----
-    auto build = [this, window, job, close_dialog, install, cancel, dialog, shown](Prepared p) {
+    auto build = [this, window, job, close_dialog, install, fallback, cancel, dialog,
+                  shown](Prepared p) {
         SetBusy(true, tr("Building"), 400);
         dialog->setLabelText(
             tr("Building the Data Pack\nUsing Emerald 3DS's own build recipe from the release"));
@@ -578,11 +683,25 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
             shown->store(400 + permille * 550 / 1000);
         };
         OffThread(
-            this, [options]() { return E::Build::BuildPack(options); },
-            [this, window, close_dialog, install, cancel, p](E::Build::Result r) {
+            this,
+            [options]() {
+                if (FrameTestEnv("AZAHARFRAME_TEST_EMERALD_FORCE_UNSUPPORTED") ==
+                    QStringLiteral("1")) { // the recipe of a release this builder cannot follow
+                    E::Build::Result forced;
+                    forced.unsupported = true;
+                    forced.error = "forced for a test";
+                    return forced;
+                }
+                return E::Build::BuildPack(options);
+            },
+            [this, window, close_dialog, install, fallback, cancel, p](E::Build::Result r) {
                 if (cancel->load() || r.stopped) {
                     close_dialog();
                     Finish(window, tr("Cancelled"), {});
+                    return;
+                }
+                if (r.unsupported) {
+                    fallback(p, r.error);
                     return;
                 }
                 if (!r.ok) {
@@ -599,6 +718,7 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
                     Finish(window, tr("The data pack does not match this release"), {});
                     return;
                 }
+                LOG_INFO(Frontend, "emerald3ds: {} built by the built-in (C++) builder", p.tag);
                 install(p);
             });
     };

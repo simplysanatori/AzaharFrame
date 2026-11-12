@@ -68,6 +68,7 @@ add_executable(tests
     core/mods_compat.cpp # AzaharFrame compat
     core/harden.cpp # AzaharFrame harden
     core/cpp_helpers.cpp # AzaharFrame cpphelpers
+    core/emerald_fallback.cpp # AzaharFrame emfallback
     core/custom_tex_packs.cpp # AzaharFrame texdata
     core/custom_tex_download.cpp # AzaharFrame texdl
     core/custom_tex_parts.cpp # AzaharFrame texparts
@@ -114,7 +115,7 @@ endif()
 target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_core)
 target_link_libraries(tests PRIVATE input_common) # AzaharFrame
 target_link_libraries(tests PRIVATE httplib) # AzaharFrame crashreport: Send Report to 127.0.0.1
-target_link_libraries(tests PRIVATE json-headers) # AzaharFrame jsoncrash: pack_config.h
+target_link_libraries(tests PRIVATE json-headers) # AzaharFrame jsoncrash: pack_config.h; emfallback: the recipe parser header
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)

@@ -70,7 +70,7 @@ The requests carry the open game's 16-digit title ID in the path and the usual H
 
 ### Homebrew (Homebrew tab)
 
-Pokémon Emerald 3DS is built on the Frame from the player's own ROM (`src/core/homebrew/*`, in the program itself: no Python and no downloaded code runs). The program asks GitHub for the project's latest release when the player taps **Install**, **Update** or **Check for Updates** (at most once in 30 seconds), and once a day when the game list loads, only while the game is installed:
+Pokémon Emerald 3DS is built on the Frame from the player's own ROM (`src/core/homebrew/*`, in the program itself: no Python and no downloaded code runs, except in the one case below that the player approves). The program asks GitHub for the project's latest release when the player taps **Install**, **Update** or **Check for Updates** (at most once in 30 seconds), and once a day when the game list loads, only while the game is installed:
 
 | Host | Request | Why |
 |---|---|---|
@@ -81,6 +81,21 @@ Pokémon Emerald 3DS is built on the Frame from the player's own ROM (`src/core/
 The release's own files (`SHA256SUMS.txt` is checked first) are data: the program reads the recipe and the programs in it as data and never runs them or any other downloaded code. The Add or Update prompt shows the version and "From ZallaxDev/emerald-3ds on GitHub".
 
 The ROM never leaves the Frame. The requests carry no title ID, account or cookie.
+
+#### The release's own builder (Emerald 3DS fallback)
+
+Only when a newer release's recipe is one the program's own builder cannot follow (`Result::unsupported`: a newer recipe schema, an operation or a program it does not know, 3D scenery it would have to generate with the release's scripts, or data that does not match the release's ABI), the program says so and asks, once per release version for a yes (`user/emerald3ds/fallback-choices.json` keeps only "build"; **Not Now** is not remembered and the next Install or Update asks again). If the player taps **Build With Emerald 3DS's Builder** it runs the Python builder inside the release's `Emerald3DS-WebPayload.zip` (the package the project's Windows and web builders use; the zip was already downloaded and checked against `SHA256SUMS.txt`) as `/usr/bin/python3 -I -B launcher.py` under `/usr/bin/bwrap`, with a fixed command line (no shell, no PATH search) and a 30 minute limit. What runs and what it can reach:
+
+| | |
+|---|---|
+| Runs | `python3 -I -B` on a launcher script that this program writes itself and that only unpacks the zip into the work folder and imports the release's builder package from there. The release's code is the only downloaded code that ever runs, and only here |
+| Sees | `/usr` read only (the interpreter and its libraries), a fresh empty `/home`, `/tmp`, `/run` and `/etc` (`tmpfs`), `/proc` and `/dev` of its own; a cleared environment (`PATH`, `HOME`, `LANG`, two Python switches) |
+| Reads | The ROM file, the release's zip and the launcher, each bound read only at its own path under `/in`; the follower files already cached by SHA-256, copied into the work folder first (after a validated run, the new ones whose content matches their SHA-256 name are copied back to the cache) |
+| Writes | One folder, the work folder (`user/emerald3ds/work/out`), bound as `/out`. Nothing else of the player's files is visible, readable or writable (a canary file in the home folder is neither: the unit test `[sandbox]` checks it) |
+| Network | None (`--unshare-all`), except the two follower hosts above when follower downloads are on: then the network namespace is shared, with the name lookup and certificate files of `/etc` read only. Nothing of the player's is sent either way |
+| Ends | With the program (`--die-with-parent`), at **Cancel** (the sandbox is killed at once), or at the time limit |
+
+What it writes is checked by the program before anything is installed: the pack's header, index and payload checksums, its data ABI and the ROM's SHA-1, and the hash of the game's .3dsx against the release's manifest. It is then installed exactly like a pack the program's builder made, and the log says which builder made it. If bubblewrap or Python 3.11 is not there, the prompt says so and no button is offered.
 
 ### Crash reports (Send Report)
 
