@@ -295,6 +295,9 @@ std::string StatusText(const DownloadResult& r) {
     if (!r.error.empty()) {
         return fmt::format("Download failed: {}", r.error);
     }
+    if (r.stale) { // AzaharFrame integ
+        return "Nothing added: the game changed";
+    }
     if (!r.found_any) {
         return "No cheats for this game";
     }
@@ -340,10 +343,12 @@ Sharkive::InstalledVersion QueryInstalledVersion(u64 title_id, const std::string
     return Sharkive::SelectInstalledVersion(update, base, remaster);
 }
 
-DownloadResult DownloadCheatsWith(const HttpGet& get, CheatEngine& engine, u64 title_id,
-                                  const std::string& game_path) {
-    DownloadResult out;
-    std::vector<Fetched> fetched;
+// AzaharFrame integ: the network part, tagged with its title; no CheatEngine is touched here.
+Fetch FetchCheatsWith(const HttpGet& get, u64 title_id, const std::string& game_path) {
+    Fetch fetch;
+    fetch.title_id = title_id;
+    DownloadResult& out = fetch.result;
+    std::vector<Fetched>& fetched = fetch.fetched;
     std::vector<std::string> errors;
 
     // Developer: one tree request, then the files
@@ -391,35 +396,60 @@ DownloadResult DownloadCheatsWith(const HttpGet& get, CheatEngine& engine, u64 t
 
     if (!files && !sharkive_ok) {
         out.error = errors.empty() ? "No reply" : errors.front();
-        return out;
+        return fetch;
     }
     if (!errors.empty()) {
         out.warning = errors.front();
     }
+    fetch.installed = QueryInstalledVersion(title_id, game_path);
+    return fetch;
+}
 
-    engine.LoadCheatFile(title_id);
+Fetch FetchCheats(u64 title_id, const std::string& game_path) {
+    return FetchCheatsWith(HttpsGet, title_id, game_path);
+}
+
+DownloadResult ApplyFetch(CheatEngine& engine, const Fetch& fetch, u64 running_title_id) {
+    DownloadResult out = fetch.result;
+    if (!out.error.empty()) {
+        return out;
+    }
+    const auto loaded = engine.GetLoadedTitleId();
+    if (running_title_id != fetch.title_id || (loaded && *loaded != fetch.title_id)) {
+        LOG_INFO(Core_Cheats, "cheats download for {:016X} dropped: {:016X} runs now", fetch.title_id,
+                 running_title_id);
+        out.stale = true;
+        return out;
+    }
+
+    engine.LoadCheatFile(fetch.title_id);
     std::vector<std::string> names;
     for (const auto& cheat : engine.GetCheats()) {
         names.push_back(cheat->GetName());
     }
-    const auto installed = QueryInstalledVersion(title_id, game_path);
-    const auto merged = Merge(fetched, names, installed);
+    const auto merged = Merge(fetch.fetched, names, fetch.installed);
     for (const auto& entry : merged.added) {
         auto cheat = std::make_shared<GatewayCheat>(entry.name, entry.code, entry.comments);
         cheat->SetEnabled(false);
         engine.AddCheat(std::move(cheat));
     }
     if (!merged.added.empty()) {
-        engine.SaveCheatFile(title_id);
+        engine.SaveCheatFile(fetch.title_id);
     }
     out.developer_added = merged.developer;
     out.sharkive_added = merged.sharkive;
     out.mismatched = merged.mismatched;
     out.by_revision = merged.by_revision;
+    const auto& installed = fetch.installed;
     if (installed.source == Sharkive::VersionSource::UpdateTmd && installed.version) {
         out.update_version = Sharkive::ToString(*installed.version);
     }
     return out;
+}
+
+DownloadResult DownloadCheatsWith(const HttpGet& get, CheatEngine& engine, u64 title_id,
+                                  const std::string& game_path) {
+    return ApplyFetch(engine, FetchCheatsWith(get, title_id, game_path), title_id);
 }
 
 DownloadResult DownloadCheats(CheatEngine& engine, u64 title_id, const std::string& game_path) {

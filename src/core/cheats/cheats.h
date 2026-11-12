@@ -54,6 +54,9 @@ public:
         return process_id;
     }
 
+    /// AzaharFrame integ: the title whose cheat file the list holds (nullopt before any load).
+    std::optional<u64> GetLoadedTitleId() const;
+
 private:
     /// The cheat execution callback.
     void RunCallback(std::uintptr_t user_data, s64 cycles_late);

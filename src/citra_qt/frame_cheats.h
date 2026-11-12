@@ -41,6 +41,8 @@ private:
     void Publish();
     void Download();
     void SetCheat(int index, bool on);
+    /// The title of the game running now, 0 when none (AzaharFrame integ).
+    u64 RunningTitle() const;
 
     Core::System& system;
     u64 title_id = 0;

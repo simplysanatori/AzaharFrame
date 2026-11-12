@@ -6,6 +6,7 @@
 // list API (no network: a fake fetch function).
 
 #include <catch2/catch_test_macros.hpp>
+#include <fmt/format.h>
 #include "common/file_util.h"
 #include "core/cheats/cheats.h"
 #include "core/cheats/online.h"
@@ -234,4 +235,77 @@ TEST_CASE("Online: download, list and enable", "[cheats_online]") {
     REQUIRE(list[0].enabled);
     REQUIRE(list[0].source == Source::Developer);
     FileUtil::DeleteDirRecursively("/tmp/azf_cheats_test_user/");
+}
+
+// AzaharFrame integ: a download that ends after another game started must not land in that game's
+// list (nor switch the engine back to the first game's file).
+TEST_CASE("Online: a download for another title is dropped", "[cheats_online]") {
+    constexpr u64 kOther = 0x0004000000999999ULL;
+    // SetUserPath keeps the first test's folders (the paths are set once), so use whatever it gives
+    FileUtil::SetUserPath("/tmp/azf_cheats_test_stale/");
+    const std::string cheats_dir = FileUtil::GetUserPath(FileUtil::UserPath::CheatsDir);
+    FileUtil::DeleteDirRecursively(cheats_dir);
+    FileUtil::CreateFullPath(cheats_dir + "x");
+    auto& system = Core::System::GetInstance();
+    CheatEngine engine(system);
+
+    const HttpGet get = [](const std::string& host, const std::string& path) {
+        HttpResult r;
+        r.status = 200;
+        if (host == "https://api.github.com") {
+            r.body = kTree;
+        } else if (path.find("Sharkive") != std::string::npos) {
+            r.body = kSharkive;
+        } else {
+            r.body = kDev;
+        }
+        return r;
+    };
+    const auto cheat_file = [&](u64 id) { return fmt::format("{}{:016X}.txt", cheats_dir, id); };
+
+    // started for kTitle; kOther starts (and loads its cheat file) before the download ends
+    engine.LoadCheatFile(kTitle);
+    const Fetch fetch = FetchCheatsWith(get, kTitle, "");
+    REQUIRE(fetch.title_id == kTitle);
+    REQUIRE(fetch.result.error.empty());
+    REQUIRE(fetch.fetched.size() == 2);
+    engine.LoadCheatFile(kOther);
+
+    // the frontend says kOther runs
+    auto result = ApplyFetch(engine, fetch, kOther);
+    REQUIRE(result.stale);
+    REQUIRE(result.developer_added + result.sharkive_added == 0);
+    REQUIRE(engine.GetLoadedTitleId() == kOther);
+    REQUIRE(engine.GetCheats().empty());
+    REQUIRE_FALSE(FileUtil::Exists(cheat_file(kTitle)));
+    REQUIRE_FALSE(FileUtil::Exists(cheat_file(kOther)));
+    REQUIRE(StatusText(result) == "Nothing added: the game changed");
+
+    // a stale running title from the caller is caught by the engine's own title too
+    result = ApplyFetch(engine, fetch, kTitle);
+    REQUIRE(result.stale);
+    REQUIRE(engine.GetLoadedTitleId() == kOther);
+    REQUIRE(engine.GetCheats().empty());
+
+    // the same title running again (restarted): the download is applied
+    engine.LoadCheatFile(kTitle);
+    result = ApplyFetch(engine, fetch, kTitle);
+    REQUIRE_FALSE(result.stale);
+    REQUIRE(result.developer_added == 2);
+    REQUIRE(result.sharkive_added == 2);
+    REQUIRE(engine.GetCheats().size() == 4);
+    REQUIRE(FileUtil::Exists(cheat_file(kTitle)));
+
+    // a failed fetch stays a failure, never stale
+    const HttpGet down = [](const std::string&, const std::string&) {
+        HttpResult r;
+        r.error = "offline";
+        return r;
+    };
+    const Fetch failed = FetchCheatsWith(down, kTitle, "");
+    result = ApplyFetch(engine, failed, kOther);
+    REQUIRE_FALSE(result.stale);
+    REQUIRE(result.error == "offline");
+    FileUtil::DeleteDirRecursively(cheats_dir);
+    FileUtil::DeleteDirRecursively("/tmp/azf_cheats_test_stale/");
 }

@@ -276,18 +276,21 @@ void ConfigureCheats::OnDownloadCheats() {
     ui->buttonDownloadCheats->setEnabled(false);
     ui->labelDownloadStatus->setText(tr("Downloading..."));
 
+    // AzaharFrame integ: only the network part runs on the worker; the merge runs here, on the GUI
+    // thread, and ApplyFetch drops it when the engine holds another title by then.
     QPointer<ConfigureCheats> self(this);
-    Cheats::CheatEngine* engine = &cheat_engine;
     const u64 id = title_id;
     const std::string path = game_path;
-    std::thread([self, engine, id, path] {
-        const auto result = Cheats::Online::DownloadCheats(*engine, id, path);
+    std::thread([self, id, path] {
+        auto fetch = Cheats::Online::FetchCheats(id, path);
         QMetaObject::invokeMethod(
             qApp,
-            [self, result] {
+            [self, fetch = std::move(fetch)] {
                 if (!self) {
                     return;
                 }
+                const auto result =
+                    Cheats::Online::ApplyFetch(self->cheat_engine, fetch, self->title_id);
                 self->downloading = false;
                 self->ui->buttonDownloadCheats->setEnabled(true);
                 if (result.developer_added + result.sharkive_added > 0) {

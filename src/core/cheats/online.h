@@ -109,15 +109,36 @@ struct DownloadResult {
     std::string update_version; // "v1.1" when an update title is installed
     std::string error;         // non-empty: nothing could be fetched (network, rate limit)
     std::string warning;       // one source failed, the other worked
+    bool stale = false;        // AzaharFrame integ: another game runs now; nothing was added
 };
 
 /// One-line status: "12 cheats added, 3 for another version", "No cheats for this game",
 /// "Download failed: ..." and so on.
 std::string StatusText(const DownloadResult& result);
 
-/// Fetches both sources for the title (Developer first), merges by name into the engine's list
-/// (user cheats and enabled states untouched, new ones disabled), and saves the cheat file.
-/// `game_path` is the running game's file, for its cartridge revision when no TMD is installed.
+/// AzaharFrame integ: a download in two steps, so a download that ends after another game started
+/// never lands in that game's list. FetchCheats (network, any thread) is tagged with the title it
+/// was made for; ApplyFetch (the thread that starts games, i.e. the GUI thread) merges it only
+/// while that title still runs.
+struct Fetch {
+    u64 title_id = 0;             // the title the download was made for
+    std::vector<Fetched> fetched; // Developer first, then Sharkive
+    Sharkive::InstalledVersion installed;
+    DownloadResult result; // error, warning, found_any, fix_available so far
+};
+
+/// Fetches both sources for the title (Developer first). Touches no CheatEngine.
+/// `game_path` is the game's file, for its cartridge revision when no TMD is installed.
+Fetch FetchCheats(u64 title_id, const std::string& game_path);
+/// The same with a fetch function of your own (tests).
+Fetch FetchCheatsWith(const HttpGet& get, u64 title_id, const std::string& game_path);
+
+/// Merges a fetch by name into the engine's list (user cheats and enabled states untouched, new
+/// ones disabled) and saves the cheat file. Nothing is touched, and the result says `stale`, when
+/// `running_title_id` (the game running now) or the title the engine holds is not the fetch's.
+DownloadResult ApplyFetch(CheatEngine& engine, const Fetch& fetch, u64 running_title_id);
+
+/// FetchCheats then ApplyFetch for the same title, on the calling thread.
 DownloadResult DownloadCheats(CheatEngine& engine, u64 title_id, const std::string& game_path);
 /// The same with a fetch function of your own (tests).
 DownloadResult DownloadCheatsWith(const HttpGet& get, CheatEngine& engine, u64 title_id,

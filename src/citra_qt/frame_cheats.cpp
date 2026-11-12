@@ -13,6 +13,7 @@
 #include "common/logging/log.h"
 #include "core/cheats/online.h"
 #include "core/core.h"
+#include "core/loader/loader.h"
 #include "frame_xr/frame_xr.h"
 
 namespace Online = Cheats::Online;
@@ -127,16 +128,22 @@ void FrameCheats::Download() {
     status.clear();
     Publish();
     LOG_INFO(Frontend, "xr: in-game menu: downloading cheats");
-    Cheats::CheatEngine* engine = &system.CheatEngine();
+    // AzaharFrame integ: the network part off the GUI thread, tagged with this title; the merge on
+    // the GUI thread (where games start) only while that title still runs, so a download that ends
+    // after another game started never lands in that game's list.
     const u64 id = title_id;
     const std::string path = game_path;
     OffThread(
-        this, [engine, id, path] { return Online::DownloadCheats(*engine, id, path); },
-        [this, id](const Online::DownloadResult& result) {
+        this, [id, path] { return Online::FetchCheats(id, path); },
+        [this, id](const Online::Fetch& fetch) {
+            const auto result = Online::ApplyFetch(system.CheatEngine(), fetch, RunningTitle());
             if (id != title_id) {
-                return;
+                return; // the menu shows another game now (Open reset the state)
             }
-            if (!result.error.empty()) {
+            if (result.stale) {
+                download = Menu::DownloadState::Idle;
+                status.clear();
+            } else if (!result.error.empty()) {
                 download = Menu::DownloadState::Failed;
                 status = Menu::FailureReason(Online::StatusText(result)); // under "Download Failed"
             } else {
@@ -146,4 +153,14 @@ void FrameCheats::Download() {
             LOG_INFO(Frontend, "xr: in-game menu: cheats download: {}", Online::StatusText(result));
             Publish();
         });
+}
+
+// AzaharFrame integ
+u64 FrameCheats::RunningTitle() const {
+    u64 id = 0;
+    if (!system.IsPoweredOn() ||
+        system.GetAppLoader().ReadProgramId(id) != Loader::ResultStatus::Success) {
+        return 0;
+    }
+    return id;
 }

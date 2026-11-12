@@ -78,6 +78,12 @@ void CheatEngine::SaveCheatFile(u64 title_id) const {
     }
 }
 
+// AzaharFrame integ
+std::optional<u64> CheatEngine::GetLoadedTitleId() const {
+    std::shared_lock lock{cheats_list_mutex};
+    return loaded_title_id;
+}
+
 void CheatEngine::LoadCheatFile(u64 title_id) {
     {
         std::unique_lock lock{cheats_list_mutex};
