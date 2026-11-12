@@ -185,7 +185,7 @@ constexpr char kFlatGamepadProfile[] = "Flat Gamepad";
 std::function<void(bool vr)> g_frame_xr_switch;
 // AzaharFrame flat: the status bar's "VR" button, shown while flat with OpenXR at hand.
 QPushButton* g_frame_vr_button = nullptr;
-// AzaharFrame polish: its partner in VR, "Flat", in the same place (right of Volume) while
+// AzaharFrame polish: its partner in VR, "FLAT", in the same place (right of Volume) while
 // Azahar's window shows in the headset; the in-game menu's Switch to Flat does the same.
 QPushButton* g_frame_flat_button = nullptr;
 void UpdateFrameVrButton() {
@@ -1886,16 +1886,16 @@ void GMainWindow::InitializeWidgets() {
         }
     });
     statusBar()->insertPermanentWidget(2, g_frame_vr_button);
-    // AzaharFrame polish: "Flat" in VR, made as the VR button and next to it (one of the two
+    // AzaharFrame polish: "FLAT" in VR, made as the VR button and next to it (one of the two
     // shows at a time, so either sits right of Volume). The same switch as the in-game menu's
     // Switch to Flat (FrameMenuRequest, MenuCommand::SwitchToFlat).
-    g_frame_flat_button = new QPushButton(QStringLiteral("Flat"));
+    g_frame_flat_button = new QPushButton(QStringLiteral("FLAT"));  // AzaharFrame integ3: capitals, as VULKAN and VOLUME
     g_frame_flat_button->setObjectName(QStringLiteral("GraphicsAPIStatusBarButton"));
     g_frame_flat_button->setFocusPolicy(Qt::NoFocus);
     g_frame_flat_button->setStyleSheet(g_frame_vr_button->styleSheet());
     g_frame_flat_button->setVisible(false);
     connect(g_frame_flat_button, &QPushButton::clicked, this, [] {
-        LOG_INFO(Frontend, "xr: the status bar's Flat button");
+        LOG_INFO(Frontend, "xr: the status bar's FLAT button");
         if (g_frame_xr_switch) {
             g_frame_xr_switch(false);
         }

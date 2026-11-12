@@ -258,7 +258,7 @@ Hold both bumpers first, then press **View** and **Menu**.
 
 In Flat there are two more ways back to VR: the **VR** button in the status bar of Azahar's window, next to the renderer and volume buttons, and, with no game running, holding **Menu** for 1 second.
 
-In VR, Azahar's window has a **Flat** button in the same place, and the in-game menu has **Switch to Flat**.
+In VR, Azahar's window has a **FLAT** button in the same place, and the in-game menu has **Switch to Flat**.
 
 ## Hiding the bottom screen
 
