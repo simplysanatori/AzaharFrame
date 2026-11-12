@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame tabmenu: the in-game menu as one panel in the structure of CitraVR's VR menu (a
-// column of tabs on the left: Main, Position, Stats, Controls, Mods, Settings), drawn in Material 3
+// column of tabs on the left: Main, Position, Stats, Controls, Mods, Homebrew, Settings), drawn in Material 3
 // (md3.h). This file is the menu's content, layout, drawing and hit testing; it knows nothing of
 // OpenXR, Qt or the settings. The host fills a MenuModel with the current values, keeps a
 // MenuView (the tab, what the beam points at, scrolling, an open menu), draws with Draw and maps
@@ -33,7 +33,8 @@ constexpr float kPanelH = 560.0f;
 constexpr float kPanelRadius = 32.0f;
 constexpr float kRowH = 72.0f; ///< a settings row; the lists scroll in steps of one
 
-enum class Tab : int { Main, Position, Stats, Controls, Mods, Settings, Count }; // AzaharFrame cheatstab: Mods
+// AzaharFrame cheatstab: Mods; ui3: Homebrew (was a segment of Mods)
+enum class Tab : int { Main, Position, Stats, Controls, Mods, Homebrew, Settings, Count };
 
 /// Everything on the menu a beam can point at.
 enum class Id : int {
@@ -134,7 +135,7 @@ enum class Id : int {
     ZipUp,          ///< the ".." row
     ZipEntry,       ///< index: mods.zip.entries
     ZipChoice,      ///< index: mods.zip.choices
-    // The Mods tab's Homebrew segment (AzaharFrame emerald): homebrew_tab.h, index: homebrew.items
+    // The Homebrew tab (AzaharFrame emerald; ui3: its own tab): homebrew_tab.h, index: homebrew.items
     HomebrewInstall,
     HomebrewUpdate,
     HomebrewPlay,
@@ -154,6 +155,14 @@ enum class Id : int {
     TexturePart, ///< index: mods.textures.parts.rows (a checkbox or a radio button)
     PartUp,      ///< index: mods.textures.parts.rows
     PartDown,    ///< index: mods.textures.parts.rows
+    HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index: homebrew.items
+    HomebrewCheck,     ///< AzaharFrame ui3: Check for Updates; index: homebrew.items
+    // AzaharFrame ui3: Optimize for Frame on a pack's page (mods_segments.h PackOptimize)
+    OptimizePack,  ///< Optimize for Frame (the estimate, then the dialog)
+    OptimizeStop,  ///< Stop while it converts
+    UseOriginal,   ///< back to the PNG pack (from the next start)
+    OptimizeNudge, ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
+    RemoveOriginal, ///< AzaharFrame ui3: the optimized pack's original, deleted after a dialog
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -183,6 +192,7 @@ enum class Lock : uint8_t {
 struct SaveSlot {
     int slot = 0;
     std::string time; ///< "" = empty
+    bool other = false; ///< AzaharFrame savestate: from another build ("From 1.1.1"): dimmed
     bool operator==(const SaveSlot&) const = default;
 };
 
@@ -191,6 +201,7 @@ struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
     std::vector<SaveSlot> slots; ///< slots 1 to 10
+    ModsDialog notice; ///< AzaharFrame savestate: a dialog over the whole menu (ModsDialogKind::Notice)
     // Position
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect
@@ -363,6 +374,13 @@ private:
     float DrawTurnedOffSnackbar(Kit& kit, const MenuView& view, const Rect& area,
                                 const std::vector<std::string>& names, float bottom);
     void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
+    /// AzaharFrame ui3: a snackbar with one action ending at `bottom` (one or two lines); returns
+    /// where a list over it must end.
+    float DrawActionSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                             const std::string& text, Id action, float bottom);
+    /// AzaharFrame ui3: Optimize for Frame's row on a pack's page, from `y`; returns its bottom.
+    float DrawOptimizeRow(Kit& kit, const PackOptimize& o, const MenuView& view, const Rect& area,
+                          float x0, float x1, float y);
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
                            const Rect& area, float bottom);
@@ -372,7 +390,7 @@ private:
     /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
-                      const Rect& area); ///< AzaharFrame emerald: homebrew_tab.cpp
+                      const Rect& pane); ///< AzaharFrame emerald: homebrew_tab.cpp; ui3: the Homebrew tab
     /// AzaharFrame ui2: Install from Zip at a download page's bar end.
     void DrawZipButton(Kit& kit, const MenuView& view, const Rect& area, ZipTarget target,
                        bool enabled);

@@ -55,6 +55,7 @@ struct PackInfo;
 namespace FrameXr {
 struct MenuRequest;
 }
+class QProcess;
 class QTimer;
 
 class FrameMods : public QObject {
@@ -83,6 +84,17 @@ public:
     void Command(const FrameXr::MenuRequest& request);
     /// Custom Textures or Preload changed (the Qt side saved it): the snackbar.
     void TextureSettingChanged();
+    /// AzaharFrame ui3: whether a game runs now (GUI thread): a pack switch Optimize for Frame
+    /// or Use Original asks for then waits for ApplyPendingPack.
+    void SetGameRunningSource(std::function<bool()> source);
+    /// AzaharFrame ui3: the switch that waited (the game stopped, or the next one boots, before
+    /// its loader reads the folders): load/textures/<TID> points at the chosen pack of the pair,
+    /// the Customize choices carried over. GUI thread; quick (a listing and a symlink).
+    void ApplyPendingPack();
+    /// AzaharFrame integ3: the game `tid`'s texture pack was too large to preload (memguard): the
+    /// next pack list for it offers Optimize for Frame on its active PNG pack (ui3's snackbar),
+    /// whatever the pack's size and even if it was asked about before.
+    void NudgeOptimizeActive(u64 tid);
 
 private:
     std::function<std::optional<u32>()> code_crc_source; // AzaharFrame modcat
@@ -98,8 +110,11 @@ private:
     /// AzaharFrame compat: mods and packs whose unscanned GameBanana file the player allowed
     std::set<std::string> unscanned_ok;
     struct Pending {
-        // AzaharFrame compat: Unscanned. AzaharFrame memguard: Preload (the menu applies Turn On)
-        enum class Kind { None, Install, Remove, Download, Delete, BigInstall, Unscanned, Preload };
+        enum class Kind { None, Install, Remove, Download, Delete, BigInstall,
+                          Unscanned /* AzaharFrame compat */,
+                          Preload /* AzaharFrame memguard: the menu applies Turn On */,
+                          Optimize /* AzaharFrame ui3: the PNG pack's path */,
+                          RemoveOriginal /* AzaharFrame ui3: the optimized copy's path */ };
         Kind kind = Kind::None;
         std::string id;
     };
@@ -135,6 +150,7 @@ private:
     struct PackParts {
         std::size_t count = 0; ///< Layout::PartCount
         std::string on_text;   ///< "6 of 7 Parts"
+        bool optimizable = false; ///< AzaharFrame ui3: PNG, or an optimized copy: it has a page
     };
     std::map<std::string, PackParts> pack_parts; ///< by pack id, from RefreshPacks
     std::string parts_path;                      ///< the pack the page is for
@@ -164,6 +180,48 @@ private:
     void ZipCheats(const std::string& path); ///< AzaharFrame ui2: a cheat file, or a zip of one
     void ZipCloseJob();
     void PublishZip();
+
+    // AzaharFrame ui3: Optimize for Frame (frame_mods_optimize.cpp; core/custom_tex/optimize.h)
+    void OptimizeAsk(const std::string& pack_id);   ///< the estimate, then the dialog
+    void OptimizeStart(const std::string& png);     ///< the dialog's Optimize
+    void OptimizeConvert(const std::string& png);   ///< after the encoder is there
+    void OptimizeStop();
+    void OptimizeDone(int code, bool stopped);
+    void UseOriginal(const std::string& pack_id);
+    /// AzaharFrame ui3: Remove Original: "Remove the Original Pack?" for the page's pair, then (the
+    /// dialog's Remove) the guarded delete off the GUI thread (CustomTex::Optimize::RemoveOriginal).
+    void RemoveOriginalAsk(const std::string& pack_id);
+    void RemoveOriginalDo(const std::string& optimized);
+    /// The folder the game reads its pack from (load/textures/<TID>).
+    std::string ActiveLink() const;
+    /// A pack's size as the page shows it ("4.7 GB"), "" unknown.
+    std::string PackSizeText(const std::string& path) const;
+    /// Makes `path` (a pack of the game `tid`) the one used, now or (a game running) when it stops;
+    /// `carry_from`: the pair's other pack, whose Customize choices go with it.
+    void ChoosePack(u64 tid, const std::string& path, const std::string& carry_from);
+    void UpdateOptimizeRow(); ///< the page's row from the pair, the job and the pending switch
+    void CheckNudge();        ///< "Optimize <Pack> for Frame?" for a candidate, once a pack
+    const CustomTex::Pack* PackByPath(const std::string& path) const;
+    std::function<bool()> game_running_source;
+    QProcess* optimize_process = nullptr;
+    std::string optimize_png;   ///< the pack converting now (canonical path)
+    u64 optimize_title = 0;
+    FrameXr::Menu::PackOptimize optimize_progress; ///< its Converting state
+    bool optimize_stopping = false;
+    std::string optimize_output; ///< its last lines, for the log
+    std::string optimize_checking; ///< the pack whose estimate runs
+    /// Stopped or Failed, by the PNG pack's canonical path (until it runs again or ends well)
+    std::map<std::string, FrameXr::Menu::PackOptimize> optimize_states;
+    struct PendingSwitch {
+        u64 title = 0;
+        std::string path;       ///< the pack to use (canonical)
+        std::string carry_from; ///< its pair's other pack
+    };
+    std::optional<PendingSwitch> pending_switch;
+    /// Packs that became active (id) or were downloaded ("folder:" + folder name): the nudge's
+    /// candidates, checked once their size is known.
+    std::set<std::string> nudge_candidates;
+    u64 nudge_active_title = 0; ///< AzaharFrame integ3: NudgeOptimizeActive's game, until a list
 
     u64 title_id = 0;
     int run = -1;

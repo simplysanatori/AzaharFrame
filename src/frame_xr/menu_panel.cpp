@@ -306,6 +306,21 @@ void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
     g_mods.zip = zip;
 }
 
+Menu::ModsDialog g_notice; // AzaharFrame savestate, under g_mods_mutex
+
+void SetInGameMenuNotice(const std::string& title, const std::string& body,
+                         const std::string& confirm, const std::string& cancel) {
+    std::scoped_lock lock{g_mods_mutex};
+    g_notice = {};
+    if (!title.empty()) {
+        g_notice.kind = Menu::ModsDialogKind::Notice;
+        g_notice.mod = title;
+        g_notice.other = body;
+        g_notice.confirm = confirm;
+        g_notice.cancel = cancel;
+    }
+}
+
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew) { // AzaharFrame emerald
     std::scoped_lock lock{g_mods_mutex};
     g_homebrew = homebrew;
@@ -666,7 +681,7 @@ void MenuPanel::BuildModel(const Host& host) {
             if (s.slot == 0) {
                 m.quick_load_available = true;
             } else {
-                m.slots.push_back({s.slot, s.time});
+                m.slots.push_back({s.slot, s.time, s.other});
             }
         }
     }
@@ -677,11 +692,12 @@ void MenuPanel::BuildModel(const Host& host) {
         std::scoped_lock lock{g_mods_mutex};
         m.mods = g_mods;
         m.homebrew = g_homebrew; // AzaharFrame emerald
+        m.notice = g_notice;     // AzaharFrame savestate
     }
-    if (view.tab == Menu::Tab::Mods && view.mods_segment == Menu::ModsSegment::Homebrew &&
+    if (view.tab == Menu::Tab::Homebrew && // AzaharFrame ui3: its own tab
         // AzaharFrame emerald: the progress ring turns
         std::any_of(m.homebrew.items.begin(), m.homebrew.items.end(),
-                    [](const Menu::HomebrewItem& i) { return i.busy && i.progress < 0; })) {
+                    [](const Menu::HomebrewItem& i) { return (i.busy && i.progress < 0) || i.checking; })) {
         m.homebrew.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                std::chrono::steady_clock::now().time_since_epoch())
                                                .count() /
@@ -875,6 +891,15 @@ void MenuPanel::BuildModel(const Host& host) {
                 .count() /
             66);
     }
+    if (m.mods.textures.parts.optimize.state == Menu::OptimizeState::Checking &&
+        view.tab == Menu::Tab::Mods && view.textures_page == Menu::TexturesPage::Parts) {
+        // AzaharFrame ui3: Optimize for Frame's ring while the estimate runs
+        m.mods.textures.parts.optimize.spin = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count() /
+            66);
+    }
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
@@ -923,7 +948,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::HideBottomScreen:
         Apply(v.vr_hide_bottom_screen, value != 0, per_game);
         r.setting = MenuSetting::HideBottomScreen;
-        ShowToastText("Hide Bottom Screen: From the Next Start");
+        ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
         break;
     case Id::ScreenShape:
         Apply(v.vr_top_aspect, u, per_game);
@@ -970,7 +995,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::AsyncShaders:
         Apply(v.async_shader_compilation, value != 0, per_game);
         r.setting = MenuSetting::AsyncShaders;
-        ShowToastText("Async Shader Compilation: From the Next Start");
+        ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
         break;
     case Id::FastForwardSpeed:
         r.value =
@@ -1113,17 +1138,17 @@ void MenuPanel::Click(Target t, Host& host) {
     if (t.index == Menu::kLabelIndex || t.index == Menu::kMenuAreaIndex) {
         return;
     }
-    static constexpr std::array<const char*, 6> kTabNames{"Main",     "Position", "Stats",
-                                                          "Controls", "Mods",     "Settings"};
-    static constexpr std::array<const char*, 4> kSegmentNames{"Cheats", "Mods", "Textures",
-                                                              "Homebrew"}; // emerald
+    static constexpr std::array<const char*, 7> kTabNames{"Main", "Position", "Stats", "Controls",
+                                                          "Mods", "Homebrew", "Settings"}; // ui3
+    static_assert(kTabNames.size() == static_cast<std::size_t>(Menu::Tab::Count));
+    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
                  kTabNames[static_cast<std::size_t>(
                      std::clamp(t.index, 0, static_cast<int>(kTabNames.size()) - 1))]);
     } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
         LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
-                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 3))]);
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -1177,7 +1202,7 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Homebrew) &&
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1186,12 +1211,16 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::CheatsWindow:
         ask(MenuCommand::Cheats);
         break;
-    case Id::HomebrewInstall: // AzaharFrame emerald: the Homebrew segment (citra_qt/frame_homebrew.cpp)
+    case Id::HomebrewInstall: // AzaharFrame emerald: the Homebrew tab (citra_qt/frame_homebrew.cpp)
+    case Id::HomebrewReinstall: // AzaharFrame ui3: Install again (Run without an update)
     case Id::HomebrewUpdate:
     case Id::HomebrewPlay:
+    case Id::HomebrewCheck: // AzaharFrame ui3
         if (t.index >= 0 && t.index < static_cast<int>(model.homebrew.items.size())) {
-            const MenuCommand c = t.id == Id::HomebrewInstall  ? MenuCommand::HomebrewInstall
+            const MenuCommand c = t.id == Id::HomebrewInstall || t.id == Id::HomebrewReinstall
+                                      ? MenuCommand::HomebrewInstall
                                   : t.id == Id::HomebrewUpdate ? MenuCommand::HomebrewUpdate
+                                  : t.id == Id::HomebrewCheck  ? MenuCommand::HomebrewCheck
                                                                : MenuCommand::HomebrewPlay;
             ask_text(c, model.homebrew.items[static_cast<std::size_t>(t.index)].id);
         }
@@ -1267,6 +1296,26 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::PartsBack:
         view.textures_page = Menu::TexturesPage::Packs;
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+        break;
+    // AzaharFrame ui3: Optimize for Frame on the pack's page; the snackbar's Optimize opens it
+    case Id::OptimizePack:
+        ask_text(MenuCommand::OptimizePack, model.mods.textures.parts.pack_id);
+        break;
+    case Id::OptimizeStop:
+        ask_text(MenuCommand::OptimizeStop, model.mods.textures.parts.pack_id);
+        break;
+    case Id::UseOriginal:
+        ask_text(MenuCommand::UseOriginalPack, model.mods.textures.parts.pack_id);
+        break;
+    case Id::RemoveOriginal:
+        ask_text(MenuCommand::RemoveOriginalPack, model.mods.textures.parts.pack_id);
+        break;
+    case Id::OptimizeNudge:
+        if (!model.mods.textures.nudge_pack.empty()) {
+            view.textures_page = Menu::TexturesPage::Parts;
+            view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
+            ask_text(MenuCommand::OpenTextureParts, model.mods.textures.nudge_pack);
+        }
         break;
     case Id::PartsAllOn:
     case Id::PartsAllOff:
@@ -1407,6 +1456,10 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     case Id::DialogConfirm:
     case Id::DialogCancel: {
+        if (model.notice.kind != Menu::ModsDialogKind::None) { // AzaharFrame savestate: drawn on top
+            ask(MenuCommand::NoticeAnswer, t.id == Id::DialogConfirm ? 1 : 0);
+            break;
+        }
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
             break;

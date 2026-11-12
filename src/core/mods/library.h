@@ -124,6 +124,8 @@ struct AvailableMod {
     std::string author_url; // AzaharFrame modcat: what the author's name opens ("" none)
     std::string updated;    // AzaharFrame modcat: "YYYY-MM-DD", the source's own date, "" unknown;
                             // catalog3: the catalog's own value may be "YYYY-MM"
+    std::string version;    // AzaharFrame ui3: the source's own version (a release tag, GameBanana's),
+                            // else the catalog's "version"; "" unknown
     u64 downloads = 0;      // AzaharFrame catalog3: lifetime downloads (CatalogEntry::downloads), 0 unknown
     u64 size = 0;           // AzaharFrame catalog3: bytes to download (CatalogEntry::size), 0 unknown
     /// AzaharFrame catalog3: a file of this mod (any part) has no GameBanana scan result yet. Known after
@@ -304,7 +306,11 @@ private:
     std::string WorkDir(const std::string& mod_id) const;
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
                         std::string& version, std::string& error);
-    std::string LookupDate(const CatalogEntry& entry); // AzaharFrame modcat
+    /// AzaharFrame modcat: the source's date; ui3: and its version ("" each when unknown).
+    struct SourceFacts {
+        std::string date, version;
+    };
+    SourceFacts LookupDate(const CatalogEntry& entry);
     void SetProgress(u64 done, u64 total); // AzaharFrame mega
     void SetState(State::Phase phase, const std::string& mod_id, const std::string& text);
     std::vector<ModInfo> ListLoadedLocked(u64 title_id) const;
@@ -327,6 +333,7 @@ private:
     std::chrono::milliseconds empty_retry_delay_{2000};
     std::string catalog_too_new_error_; // AzaharFrame harden: set once a live catalog was from a newer format
     std::map<std::string, std::string> dates_; // catalog id -> "YYYY-MM-DD" (AzaharFrame modcat)
+    std::map<std::string, std::string> versions_; // catalog id -> the source's version (AzaharFrame ui3)
     mutable std::mutex state_mutex_;
     State state_;
     bool busy_ = false;

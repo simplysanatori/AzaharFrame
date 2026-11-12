@@ -123,6 +123,7 @@
 #include "core/hle/service/nfc/nfc.h"
 #include "core/loader/loader.h"
 #include "core/movie.h"
+#include "core/save_backup.h" // AzaharFrame savestate
 #include "core/savestate.h"
 #include "core/system_titles.h"
 #include "input_common/main.h"
@@ -410,8 +411,11 @@ std::function<void(FrameXr::FlatScreens what)> g_frame_xr_flat_screens;
 bool g_frame_fullscreen = false;
 // AzaharFrame flat4: the Flat menu left Fullscreen when it opened; it goes back when it closes.
 bool g_frame_flat_menu_fullscreen = false;
-// AzaharFrame memguard: when the "not preloaded" toast showed (loading toasts wait 4 s). GUI thread
+// AzaharFrame memguard: when the "not preloaded" toast showed (loading toasts wait 5 s). GUI thread
 QElapsedTimer g_frame_preload_notice;
+// AzaharFrame integ3: the game whose pack was not preloaded; the in-game menu's next open offers
+// Optimize for Frame on its pack (FrameMods::NudgeOptimizeActive). 0 none. GUI thread
+u64 g_frame_preload_nudge_title = 0;
 // The layout a left stick click in flat goes back to from Single Screen.
 Settings::LayoutOption g_frame_flat_before_single = Settings::LayoutOption::LargeScreen;
 
@@ -1405,6 +1409,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                 }
                 last.start();
                 UpdateSaveStates();
+                if (FrameSaveStateAsk(true, 0)) { // AzaharFrame savestate: About Save States
+                    return;
+                }
                 const auto started = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
                 ui->action_Quick_Save->trigger();
                 // Confirm once the file is there (the emulation thread saves at its next frame).
@@ -1442,11 +1449,10 @@ GMainWindow::GMainWindow(Core::System& system_)
                     notify(FrameXr::Toast::NoQuickSave, tr("No Quick Save"));
                     return;
                 }
-                // The first-time savestate warning is a dialog: open the in-game menu so that
-                // it can be seen and answered in the headset.
-                if (UISettings::values.save_state_warning && FrameXr::VrShowing() &&
-                    g_frame_mirror && !g_frame_mirror->MenuOpen() && g_frame_xr_set_menu) {
-                    g_frame_xr_set_menu(true);
+                // AzaharFrame savestate: About Save States, or a state from another build: the
+                // question (in the in-game menu in VR) loads it, or not, when answered
+                if (FrameSaveStateAsk(false, 0)) {
+                    return;
                 }
                 ui->action_Quick_Load->trigger();
                 notify(FrameXr::Toast::QuickLoaded, tr("Quick Loaded"));
@@ -1462,6 +1468,17 @@ GMainWindow::GMainWindow(Core::System& system_)
                 g_frame_xr_set_menu = [this](bool open) {
                     if (!g_frame_mirror || g_frame_mirror->MenuOpen() == open) {
                         return;
+                    }
+                    // AzaharFrame savestate: closed with a notice unanswered: its "no", before the
+                    // game resumes (a half-loaded state stops the game here)
+                    if (!open && frame_notice_answer) {
+                        FrameXr::SetInGameMenuNotice("", "", "", "");
+                        frame_notice_opened_menu = false;
+                        auto answer = std::exchange(frame_notice_answer, {});
+                        answer(false);
+                        if (!emulation_running || !g_frame_mirror->MenuOpen()) {
+                            return;
+                        }
                     }
                     if (open && (!emulation_running || !emu_thread)) {
                         return;
@@ -1480,30 +1497,18 @@ GMainWindow::GMainWindow(Core::System& system_)
                         OnPauseGame();
                     }
                     if (open && !flat) { // AzaharFrame tabmenu: the title and save slots
-                        std::vector<FrameXr::MenuSaveSlot> menu_slots; // "slots" is Qt's
+                        FramePushMenuInfo(); // AzaharFrame savestate: each slot's header
                         u64 title_id{};
                         const bool have_id = system.GetAppLoader().ReadProgramId(title_id) ==
                                              Loader::ResultStatus::Success;
-                        if (have_id) {
-                            for (const auto& state :
-                                 Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
-                                menu_slots.push_back(
-                                    {static_cast<int>(state.slot),
-                                     QDateTime::fromSecsSinceEpoch(static_cast<qint64>(state.time))
-                                         .toString(QStringLiteral("yyyy-MM-dd hh:mm"))
-                                         .toStdString()});
-                            }
-                        }
-                        FrameXr::SetInGameMenuInfo(game_title.toStdString(), menu_slots,
-                                                   have_id && title_id != 0 &&
-                                                       !g_frame_game_config_name.empty());
                         if (!g_frame_mods) { // AzaharFrame texui
                             g_frame_mods = new FrameMods(this);
                             // AzaharFrame catalog3: "<Mod> Downloaded. Restart to Enable.": a toast in the
                             // headset, the status bar in Flat
                             g_frame_mods->SetNotifier([this](const std::string& text) {
                                 if (FrameXr::VrShowing()) {
-                                    FrameXr::ShowToastText(text);
+                                    // AzaharFrame ui3: five seconds, a one-shot message
+                                    FrameXr::ShowToastText(text, FrameXr::ToastTime::Long);
                                 } else if (!message_label_used_for_movie) {
                                     const QString q = QString::fromStdString(text);
                                     message_label->setText(q);
@@ -1542,8 +1547,15 @@ GMainWindow::GMainWindow(Core::System& system_)
                             g_frame_mods->SetGameInfoSource([this]() {
                                 return FrameGameInfoOf(system, this->game_path.toStdString());
                             });
+                            // AzaharFrame ui3: Optimize for Frame switches packs only between runs
+                            g_frame_mods->SetGameRunningSource([this]() { return emulation_running; });
                         }
                         g_frame_mods->Open(have_id ? title_id : 0, g_frame_runs);
+                        // AzaharFrame integ3: the pack too large to preload: Optimize for Frame
+                        if (have_id && g_frame_preload_nudge_title == title_id) {
+                            g_frame_mods->NudgeOptimizeActive(
+                                std::exchange(g_frame_preload_nudge_title, 0));
+                        }
                         if (!g_frame_cheats) { // AzaharFrame cheatstab
                             g_frame_cheats = new FrameCheats(
                                 system,
@@ -2807,6 +2819,9 @@ bool GMainWindow::LoadROM(const QString& filename) {
     // loader reads the game's folders
     Mods::Default().SetRunningTitle(0);
     Mods::Default().ApplyPending();
+    if (g_frame_mods) { // AzaharFrame ui3: a texture pack switch Optimize for Frame asked for
+        g_frame_mods->ApplyPendingPack();
+    }
 
     const auto scope = render_window->Acquire();
 
@@ -2978,6 +2993,7 @@ void GMainWindow::BootGame(const QString& filename) {
 #ifdef ENABLE_FRAME_XR
         g_frame_game_config_name = config_file_name; // AzaharFrame widerview
         g_frame_runs++;                              // AzaharFrame texui
+        g_frame_preload_nudge_title = 0; // AzaharFrame integ3: this run's own preload decides
 #endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame vrqol: known immersive setups, unless the player chose
         if (const FrameXr::ImmersivePreset* preset = FrameXr::FindImmersivePreset(title_id)) {
@@ -3148,6 +3164,9 @@ void GMainWindow::BootGame(const QString& filename) {
     emu_thread->start();
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: the new mods are watched until a clean run
     FrameCrashGuard::Get().Started(frame_guard_title);
+    if (frame_guard_title != 0) { // AzaharFrame savestate: Restore Save Data, once
+        FrameOfferSaveRescue(frame_guard_title);
+    }
 #endif
 
     connect(render_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
@@ -3177,22 +3196,21 @@ void GMainWindow::BootGame(const QString& filename) {
     connect(
         emu_thread.get(), &EmuThread::PreloadSkipped, this,
         [this](bool stopped) {
-            // Both load as needed (preload_budget.h). To come with the pack page: an Optimize
-            // action that opens it.
+            // Both load as needed (preload_budget.h).
             const QString text =
                 QString::fromUtf8(stopped ? VideoCore::PreloadBudget::kStoppedToast
                                           : VideoCore::PreloadBudget::kTooLargeToast);
             LOG_WARNING(Frontend, "custom textures: told the player \"{}\"", text.toStdString());
 #ifdef ENABLE_FRAME_XR
+            // AzaharFrame integ3: the in-game menu then offers Optimize for Frame on the pack
+            u64 title_id{};
+            if (system.GetAppLoader().ReadProgramId(title_id) == Loader::ResultStatus::Success) {
+                g_frame_preload_nudge_title = title_id;
+            }
             if (FrameXr::VrShowing()) {
-                // Two toasts' time (4 s), with no loading toast over it meanwhile
+                // A one-shot message (ui3: five seconds), with no loading toast over it meanwhile
                 g_frame_preload_notice.start();
-                FrameXr::ShowToastText(text.toStdString());
-                QTimer::singleShot(2000, this, [text] {
-                    if (FrameXr::VrShowing()) {
-                        FrameXr::ShowToastText(text.toStdString());
-                    }
-                });
+                FrameXr::ShowToastText(text.toStdString(), FrameXr::ToastTime::Long);
                 return;
             }
 #endif
@@ -3255,6 +3273,12 @@ void GMainWindow::ShutdownGame() {
 #ifdef ENABLE_FRAME_XR // AzaharFrame compat: a normal stop is a clean run (not after an error)
     FrameCrashGuard::Get().Stopped();
 #endif
+    // AzaharFrame savestate: Load Anyway's session ended cleanly: no Restore Save Data next time
+    if (!frame_rescue_root.empty() && !frame_rescue_keep) {
+        Core::SaveBackup::Disarm(frame_rescue_root);
+    }
+    frame_rescue_root.clear();
+    frame_rescue_keep = false;
 
     if (ui->action_Fullscreen->isChecked()) {
         HideFullscreen();
@@ -3369,6 +3393,9 @@ void GMainWindow::ShutdownGame() {
     // AzaharFrame catalog3: the game is not running: what waited goes in or out
     Mods::Default().SetRunningTitle(0);
     Mods::Default().ApplyPending();
+    if (g_frame_mods) { // AzaharFrame ui3
+        g_frame_mods->ApplyPendingPack();
+    }
 
     // Update the GUI
     UpdateMenuState();
@@ -3448,6 +3475,14 @@ void GMainWindow::UpdateSaveStates() {
     auto savestates = Core::ListSaveStates(title_id, movie.GetCurrentMovieID());
     for (u32 i = 0; i < Core::SaveStateSlotCount; ++i) {
         actions_load_state[i]->setEnabled(false);
+        // AzaharFrame savestate: set again each time from the file's header (a slot saved over
+        // is this build's at once)
+        for (QAction* a : {actions_load_state[i], actions_save_state[i], ui->action_Quick_Load,
+                           ui->action_Quick_Save}) {
+            QFont font = a->font();
+            font.setItalic(false);
+            a->setFont(font);
+        }
         if (i == 0) {
             actions_load_state[i]->setText(tr("Quick Load"));
             actions_save_state[i]->setText(tr("Quick Save"));
@@ -3461,20 +3496,32 @@ void GMainWindow::UpdateSaveStates() {
             continue;
         }
         actions_load_state[savestate.slot]->setEnabled(true);
+        // AzaharFrame savestate: a state from another build: "From 1.1.1" in place of its date,
+        // in italics (dimmed); it still loads, after Load Anyway's question
+        const bool other = savestate.status != Core::SaveStateInfo::ValidationStatus::OK;
+        const QString when =
+            other ? QString::fromStdString(Core::SaveStateFromText(
+                        Core::FrameVersionOf(savestate.build_name, savestate.build_version)))
+                  : QDateTime::fromSecsSinceEpoch(savestate.time)
+                        .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss"));
+        if (other) {
+            for (QAction* a :
+                 savestate.slot == 0
+                     ? std::initializer_list<QAction*>{ui->action_Quick_Load, ui->action_Quick_Save}
+                     : std::initializer_list<QAction*>{actions_load_state[savestate.slot],
+                                                       actions_save_state[savestate.slot]}) {
+                QFont font = a->font();
+                font.setItalic(true);
+                a->setFont(font);
+            }
+        }
         if (savestate.slot == 0) {
-            const auto text = QStringLiteral("%2")
-                                  .arg(QDateTime::fromSecsSinceEpoch(savestate.time)
-                                           .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
-                                  .trimmed();
+            const auto text = when.trimmed();
             ui->action_Quick_Save->setText(tr("Quick Save - %1").arg(text).trimmed());
             ui->action_Quick_Load->setText(tr("Quick Load - %1").arg(text).trimmed());
             continue;
         }
-        const auto text = tr("Slot %1 - %2")
-                              .arg(savestate.slot)
-                              .arg(QDateTime::fromSecsSinceEpoch(savestate.time)
-                                       .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
-                              .trimmed();
+        const auto text = tr("Slot %1 - %2").arg(savestate.slot).arg(when).trimmed();
 
         actions_load_state[savestate.slot]->setText(text);
         actions_save_state[savestate.slot]->setText(text);
@@ -4458,15 +4505,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         }
         LOG_INFO(Frontend, "xr: in-game menu: {} slot {}", save ? "save to" : "load from",
                  r.value);
-        if (!save && UISettings::values.save_state_warning) {
-            action->trigger(); // its warning shows in Azahar's window, over the paused game
-            close_menu();
-        } else {
-            close_menu(); // saved or loaded at the emulation thread's next frame
-            action->trigger();
+        // AzaharFrame savestate: About Save States, or "This Save State Is From an Older
+        // Version": a dialog in the menu, which stays open until it is answered
+        if (FrameSaveStateAsk(save, static_cast<u32>(r.value))) {
+            return;
         }
+        close_menu(); // saved or loaded at the emulation thread's next frame
+        action->trigger();
         return;
     }
+    case C::NoticeAnswer: // AzaharFrame savestate
+        FrameNoticeAnswer(r.value == 1);
+        return;
     case C::Screenshot:
         close_menu(); // the next frame of the game, not of the paused one
         OnCaptureScreenshot();
@@ -4517,6 +4567,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
+    case C::HomebrewCheck: // AzaharFrame ui3: Check for Updates; the result as a toast
+        QTimer::singleShot(0, this, [r] {
+            if (g_frame_homebrew) {
+                g_frame_homebrew->CheckNow(QString::fromStdString(r.text), true);
+            }
+        });
+        return;
     case C::HomebrewPlay: {
         const QString path = g_frame_homebrew
                                  ? g_frame_homebrew->GamePath(QString::fromStdString(r.text))
@@ -4563,6 +4620,10 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case C::TexturePart:
     case C::MoveTexturePart:
     case C::TexturePartsAll:
+    case C::OptimizePack: // AzaharFrame ui3
+    case C::OptimizeStop:
+    case C::UseOriginalPack:
+    case C::RemoveOriginalPack:
         if (g_frame_mods) {
             g_frame_mods->Command(r);
         }
@@ -5043,9 +5104,11 @@ void GMainWindow::OnSaveState() {
     QAction* action = qobject_cast<QAction*>(sender());
     ASSERT(action);
 
-    system.SendSignal(Core::System::Signal::Save, action->data().toUInt());
-    system.frame_limiter.AdvanceFrame();
-    newest_slot = action->data().toUInt();
+    // AzaharFrame savestate: About Save States the first time
+    const u32 slot = action->data().toUInt();
+    if (!FrameSaveStateAsk(true, slot)) {
+        FrameDoSave(slot);
+    }
 }
 
 void GMainWindow::OnLoadState() {
@@ -5056,17 +5119,272 @@ void GMainWindow::OnLoadState() {
     QAction* action = qobject_cast<QAction*>(sender());
     ASSERT(action);
 
-    if (UISettings::values.save_state_warning) {
-        QMessageBox::warning(
-            this, tr("Savestates"),
-            tr("Warning: Savestates are NOT a replacement for in-application saves, "
-               "and are not meant to be reliable.\n\nUse at your own risk!"));
-        UISettings::values.save_state_warning = false;
-        config->Save();
+    // AzaharFrame savestate: About Save States the first time (in place of Azahar's warning),
+    // and Load Anyway for a state from another build
+    const u32 slot = action->data().toUInt();
+    if (!FrameSaveStateAsk(false, slot)) {
+        FrameDoLoad(slot);
     }
+}
 
-    system.SendSignal(Core::System::Signal::Load, action->data().toUInt());
+// ---- AzaharFrame savestate ----
+
+bool GMainWindow::FrameSaveStateAsk(bool save, u32 slot) {
+    if (UISettings::values.save_state_warning) {
+        FrameAsk(QString::fromUtf8(Core::kSaveStatesAboutTitle),
+                 QString::fromUtf8(Core::kSaveStatesAboutBody),
+                 QString::fromUtf8(Core::kSaveStatesAboutButton), {}, [this, save, slot](bool yes) {
+                     if (!yes) {
+                         return; // closed without Got It: shown again next time
+                     }
+                     UISettings::values.save_state_warning = false;
+                     config->Save();
+                     if (!system.IsPoweredOn() || FrameSaveStateAsk(save, slot)) {
+                         return;
+                     }
+                     if (save) {
+                         FrameDoSave(slot);
+                     } else {
+                         FrameDoLoad(slot);
+                     }
+                 });
+        return true;
+    }
+    if (save) {
+        return false;
+    }
+    u64 title_id{};
+    if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        return false;
+    }
+    // Read from the file's header now (a slot saved over is this build's at once)
+    const auto info = Core::GetSaveStateInfo(title_id, movie.GetCurrentMovieID(), slot);
+    if (info.slot != slot || info.status == Core::SaveStateInfo::ValidationStatus::OK) {
+        return false;
+    }
+    FrameAskLoadAnyway(slot, Core::FrameVersionOf(info.build_name, info.build_version));
+    return true;
+}
+
+void GMainWindow::FrameDoSave(u32 slot) {
+    system.SendSignal(Core::System::Signal::Save, slot);
     system.frame_limiter.AdvanceFrame();
+    newest_slot = slot;
+    FrameRefreshSlotsAfterSave(slot);
+}
+
+void GMainWindow::FrameDoLoad(u32 slot) {
+    frame_last_load_slot = slot;
+    system.SendSignal(Core::System::Signal::Load, slot);
+    system.frame_limiter.AdvanceFrame();
+}
+
+// The slot lists (the Load State menu, the in-game menu's grid) again once the state is written:
+// the slot then shows this build's state, not dimmed, whatever was there before.
+void GMainWindow::FrameRefreshSlotsAfterSave(u32 slot) {
+    const auto started = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+    auto* timer = new QTimer(this);
+    timer->setInterval(150);
+    connect(timer, &QTimer::timeout, this, [this, timer, slot, started, tries = 0]() mutable {
+        u64 title_id{};
+        bool done = !system.IsPoweredOn();
+        if (!done && system.GetAppLoader().ReadProgramId(title_id) == Loader::ResultStatus::Success) {
+            const auto info = Core::GetSaveStateInfo(title_id, movie.GetCurrentMovieID(), slot);
+            done = info.slot == slot && info.time + 1 >= started;
+        }
+        if (done || ++tries >= 40) {
+            timer->deleteLater();
+            UpdateSaveStates();
+            FramePushMenuInfo();
+        }
+    });
+    timer->start();
+}
+
+void GMainWindow::FramePushMenuInfo() {
+#ifdef ENABLE_FRAME_XR
+    if (!system.IsPoweredOn()) {
+        return;
+    }
+    std::vector<FrameXr::MenuSaveSlot> menu_slots; // "slots" is Qt's
+    u64 title_id{};
+    const bool have_id =
+        system.GetAppLoader().ReadProgramId(title_id) == Loader::ResultStatus::Success;
+    if (have_id) {
+        // Each slot's header, read again every time: nothing is kept between refreshes
+        for (const auto& state : Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
+            const bool other = state.status != Core::SaveStateInfo::ValidationStatus::OK;
+            menu_slots.push_back(
+                {static_cast<int>(state.slot),
+                 other ? Core::SaveStateFromText(
+                             Core::FrameVersionOf(state.build_name, state.build_version))
+                       : QDateTime::fromSecsSinceEpoch(static_cast<qint64>(state.time))
+                             .toString(QStringLiteral("yyyy-MM-dd hh:mm"))
+                             .toStdString(),
+                 other});
+        }
+    }
+    FrameXr::SetInGameMenuInfo(game_title.toStdString(), menu_slots,
+                               have_id && title_id != 0 && !g_frame_game_config_name.empty());
+#endif
+}
+
+void GMainWindow::FrameAskLoadAnyway(u32 slot, const std::string& version) {
+    const std::string full = Common::g_build_fullname;
+    const std::string ours = Core::FrameVersionOf(full, std::string(Core::kFrameBuildTag) + full);
+    FrameAsk(QString::fromStdString(Core::SaveStateMismatchTitle(version, ours)),
+             QString::fromStdString(Core::SaveStateMismatchBody(version)),
+             QString::fromUtf8(Core::kLoadAnywayButton), tr("Cancel"), [this, slot](bool yes) {
+                 if (yes && system.IsPoweredOn()) {
+                     FrameLoadAnyway(slot);
+                 }
+             });
+}
+
+// Load Anyway: the game's save data is copied first (the newest 3 kept), and a marker offers it
+// back at the next start unless the session ends cleanly; the core saves the moment before to its
+// own file (kBeforeLoadAnywaySlot), then loads the state without the build check.
+void GMainWindow::FrameLoadAnyway(u32 slot) {
+    u64 title_id{};
+    if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        return;
+    }
+    const std::string save_dir = FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(
+        FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir), title_id);
+    const std::string root =
+        Core::SaveBackup::Root(FileUtil::GetUserPath(FileUtil::UserPath::UserDir), title_id);
+    if (FileUtil::IsDirectory(save_dir)) {
+        const std::string backup = Core::SaveBackup::Backup(
+            save_dir, root, Core::SaveBackup::Stamp(QDateTime::currentSecsSinceEpoch()));
+        if (backup.empty()) {
+            LOG_ERROR(Frontend, "savestate: save data not backed up, so not loaded");
+            FrameAsk(tr("Save Data Not Backed Up"),
+                     tr("This game's save data couldn't be backed up, so the save state wasn't "
+                        "loaded."),
+                     tr("OK"), {}, {});
+            return;
+        }
+        Core::SaveBackup::Arm(root, backup, save_dir);
+        frame_rescue_root = root;
+        frame_rescue_keep = false;
+        LOG_INFO(Frontend, "savestate: Load Anyway, slot {}, save data backed up to {}", slot,
+                 backup);
+    }
+    frame_last_load_slot = slot;
+    frame_load_anyway_pending = true;
+    QTimer::singleShot(3000, this, [this] { frame_load_anyway_pending = false; });
+    system.SendSignal(Core::System::Signal::LoadAnyway, slot);
+    system.frame_limiter.AdvanceFrame();
+}
+
+// A question in the in-game menu (VR; it opens the menu if it is closed), else a message box.
+// `answer` gets true for `confirm`, false for `cancel` or the menu closed unanswered.
+void GMainWindow::FrameAsk(const QString& title, const QString& body, const QString& confirm,
+                           const QString& cancel, std::function<void(bool)> answer) {
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing() && g_frame_mirror && g_frame_xr_set_menu && emulation_running) {
+        if (frame_notice_answer) {
+            std::exchange(frame_notice_answer, {})(false);
+        }
+        frame_notice_answer = answer ? std::move(answer) : [](bool) {};
+        frame_notice_opened_menu = frame_notice_opened_menu || !g_frame_mirror->MenuOpen();
+        FrameXr::SetInGameMenuNotice(title.toStdString(), body.toStdString(), confirm.toStdString(),
+                                     cancel.toStdString());
+        g_frame_xr_set_menu(true);
+        return;
+    }
+#endif
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::NoIcon);
+    box.setWindowTitle(title);
+    box.setTextFormat(Qt::RichText);
+    box.setText(QStringLiteral("<b>%1</b>").arg(title.toHtmlEscaped()));
+    box.setInformativeText(body.toHtmlEscaped());
+    QPushButton* yes = box.addButton(confirm, QMessageBox::AcceptRole);
+    QPushButton* no = cancel.isEmpty() ? nullptr : box.addButton(cancel, QMessageBox::RejectRole);
+    box.setDefaultButton(no ? no : yes); // Load Anyway is never the default
+    box.exec();
+    if (answer) {
+        answer(box.clickedButton() == yes);
+    }
+}
+
+void GMainWindow::FrameNoticeAnswer(bool yes) {
+#ifdef ENABLE_FRAME_XR
+    FrameXr::SetInGameMenuNotice("", "", "", "");
+    auto answer = std::exchange(frame_notice_answer, {});
+    const bool opened = std::exchange(frame_notice_opened_menu, false);
+    if (answer) {
+        answer(yes);
+    }
+    if (frame_notice_answer) { // the answer asked again (About, then Load Anyway)
+        frame_notice_opened_menu = frame_notice_opened_menu || opened;
+        return;
+    }
+    // The answer went on (saved, loaded, stopped the game): the menu closes; Cancel goes back to
+    // the menu, unless the question opened it
+    if ((yes || opened) && emulation_running && g_frame_xr_set_menu) {
+        g_frame_xr_set_menu(false);
+    }
+#endif
+}
+
+// Reading the state failed partway: the emulated system may be half-restored, so it does not run
+// again (the emulation thread stopped at the error); the game stops when this is answered. Nothing
+// ran between the backup and the load, so the save data is as it was and the marker goes.
+void GMainWindow::FrameSaveStateHalfLoaded() {
+    frame_load_anyway_pending = false;
+    if (!frame_rescue_root.empty()) {
+        Core::SaveBackup::Disarm(frame_rescue_root);
+        frame_rescue_root.clear();
+    }
+    FrameAsk(QString::fromUtf8(Core::kSaveStateNotLoaded),
+             tr("The game had to stop. Its save data wasn't changed."), tr("OK"), {},
+             [this](bool) {
+                 if (emulation_running) {
+                     ShutdownGame();
+                 }
+             });
+}
+
+// A Load Anyway whose session did not end cleanly (a crash, a fatal error): once, a few seconds
+// into the game's next start, Restore Save Data puts back the copy from before it.
+void GMainWindow::FrameOfferSaveRescue(u64 title_id) {
+    const std::string root =
+        Core::SaveBackup::Root(FileUtil::GetUserPath(FileUtil::UserPath::UserDir), title_id);
+    if (!Core::SaveBackup::Armed(root)) {
+        return;
+    }
+    QTimer::singleShot(4000, this, [this, root] {
+        if (!emulation_running || root == frame_rescue_root || !Core::SaveBackup::Armed(root)) {
+            return;
+        }
+        FrameAsk(tr("Restore Save Data?"),
+                 tr("A save state from another version was loaded last time, and the game didn't "
+                    "close normally. You can put back this game's save data from before that "
+                    "load."),
+                 tr("Restore Save Data"), tr("Keep Current"), [this, root](bool yes) {
+                     const auto pending = Core::SaveBackup::Armed(root);
+                     Core::SaveBackup::Disarm(root); // asked once
+                     if (!yes || !pending) {
+                         return;
+                     }
+                     const QString path = game_path;
+                     ShutdownGame();
+                     const bool restored =
+                         Core::SaveBackup::Restore(pending->backup, pending->save_dir);
+                     LOG_INFO(Frontend, "savestate: save data {} from {}",
+                              restored ? "restored" : "NOT restored", pending->backup);
+                     BootGame(path);
+                     if (!restored) {
+                         QTimer::singleShot(3000, this, [this] {
+                             FrameAsk(tr("Save Data Not Restored"),
+                                      tr("The backup is still in the save-backups folder."),
+                                      tr("OK"), {}, {});
+                         });
+                     }
+                 });
+    });
 }
 
 void GMainWindow::OnConfigure() {
@@ -6096,6 +6414,37 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
         return;
     }
 
+    // AzaharFrame savestate: after an error the Load Anyway marker stays for the next start
+    // (savestate errors leave the game's save data as it was)
+    using RS = Core::System::ResultStatus;
+    if (result != RS::ErrorSavestate && result != RS::ErrorSavestateBuildMismatch &&
+        result != RS::ErrorSavestateHalfLoaded && result != RS::ShutdownRequested) {
+        frame_rescue_keep = true;
+    }
+    if (result == RS::ErrorSavestateHalfLoaded) {
+        FrameSaveStateHalfLoaded();
+        return;
+    }
+    if (result == RS::ErrorSavestateBuildMismatch) { // the slot changed after it was tapped
+        if (emu_thread) {
+            emu_thread->SetRunning(true);
+        }
+        FrameAskLoadAnyway(frame_last_load_slot, details);
+        return;
+    }
+    if (result == RS::ErrorSavestate && std::exchange(frame_load_anyway_pending, false)) {
+        if (!frame_rescue_root.empty()) { // not loaded: the save data is as it was
+            Core::SaveBackup::Disarm(frame_rescue_root);
+            frame_rescue_root.clear();
+        }
+        if (emu_thread) {
+            emu_thread->SetRunning(true);
+        }
+        FrameAsk(QString::fromUtf8(Core::kSaveStateNotLoaded),
+                 tr("The game and its save data weren't changed."), tr("OK"), {}, {});
+        return;
+    }
+
     QString title, message;
     QMessageBox::Icon error_severity_icon;
     bool can_continue = true;
@@ -6135,17 +6484,6 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
                "right-click the application in the game list and select "
                "<b>Disk Shader Cache &gt; Delete Vulkan Shader Cache</b>.");
         status_message = tr("Shader cache crash");
-        error_severity_icon = QMessageBox::Icon::Critical;
-    } else if (result == Core::System::ResultStatus::ErrorSavestateBuildMismatch) {
-        title = tr("Savestate version mismatch");
-        message = tr("Could not load savestate because it was created on a different Azahar "
-                     "version:<br/>"
-                     "<b>Azahar %1</b>.<br/><br/>Please read our blog entry <a "
-                     "href='https://azahar-emu.org/blog/understanding-save-states/'>understanding "
-                     "savestates</a> for more information.<br/><br/>To recover your progress, "
-                     "downgrade to <b>Azahar %1</b>, load this savestate and use the application's "
-                     "built-in save functionality.")
-                      .arg(QString::fromStdString(details));
         error_severity_icon = QMessageBox::Icon::Critical;
     } else {
         title = tr("Fatal Error");
@@ -6534,8 +6872,8 @@ void GMainWindow::FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t
     if (!FrameXr::VrShowing() || stage == VideoCore::LoadCallbackStage::Prepare) {
         return;
     }
-    // AzaharFrame memguard: the "not preloaded" notice stays on view for its 4 s
-    if (g_frame_preload_notice.isValid() && g_frame_preload_notice.elapsed() < 4000) {
+    // AzaharFrame memguard: the "not preloaded" notice stays on view for its 5 s (ui3's long toast)
+    if (g_frame_preload_notice.isValid() && g_frame_preload_notice.elapsed() < 5000) {
         return;
     }
     const QString text = loading_screen->GetStageTranslation(stage, value, total, object);

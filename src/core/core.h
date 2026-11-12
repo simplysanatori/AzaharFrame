@@ -111,6 +111,7 @@ public:
         ShutdownRequested,           ///< Emulated program requested a system shutdown
         ErrorShaderCacheCrash,       ///< The emulator crashed the last time it built the disk
                                      ///< shader cache
+        ErrorSavestateHalfLoaded,    ///< AzaharFrame savestate: a load failed partway: the game stops
         ErrorUnknown                 ///< Any other error
     };
 
@@ -161,7 +162,9 @@ public:
     /// Shutdown and then load again
     void Reset();
 
-    enum class Signal : u32 { None, Shutdown, Reset, Save, Load };
+    /// AzaharFrame savestate: LoadAnyway: a state from another build, after the moment before is
+    /// saved to kBeforeLoadAnywaySlot.
+    enum class Signal : u32 { None, Shutdown, Reset, Save, Load, LoadAnyway };
 
     bool SendSignal(Signal signal, u32 param = 0);
 
@@ -393,11 +396,13 @@ public:
 
     void SaveState(u32 slot) const;
 
-    void LoadState(u32 slot);
+    /// AzaharFrame savestate: `allow_mismatch` (Load Anyway) skips only the build check. A failure
+    /// reading the archive into the system throws SaveStateHalfLoaded (savestate.h).
+    void LoadState(u32 slot, bool allow_mismatch = false);
 
     std::vector<u8> SaveStateBuffer() const;
 
-    bool LoadStateBuffer(std::vector<u8> buffer);
+    bool LoadStateBuffer(std::vector<u8> buffer, bool allow_mismatch = false);
 
     /// Applies any changes to settings to this core instance.
     void ApplySettings();
@@ -551,6 +556,7 @@ private:
     SaveStateStatus save_state_status = SaveStateStatus::NONE;
     SaveStateStatus save_state_request_status = SaveStateStatus::NONE;
     u32 save_state_slot = 0;
+    bool save_state_allow_mismatch = false; ///< AzaharFrame savestate: Signal::LoadAnyway
     std::chrono::steady_clock::time_point save_state_request_time{};
 
     ResultStatus status = ResultStatus::Success;

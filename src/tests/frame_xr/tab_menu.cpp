@@ -6,6 +6,7 @@
 // for a beam, labels that fit, hit testing.
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
@@ -339,16 +340,28 @@ TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
         return false;
     };
     MenuView v;
-    // The rail: Main, Position, Stats, Controls, Mods, Settings.
+    // The rail: Main, Position, Stats, Controls, Mods, Homebrew (AzaharFrame ui3), Settings.
     d.Draw(m, v);
     CHECK(has(Id::TabButton, static_cast<int>(Tab::Mods)));
+    CHECK(has(Id::TabButton, static_cast<int>(Tab::Homebrew)));
     CHECK(static_cast<int>(Tab::Mods) == static_cast<int>(Tab::Controls) + 1);
-    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Mods) + 1);
+    CHECK(static_cast<int>(Tab::Homebrew) == static_cast<int>(Tab::Mods) + 1);
+    CHECK(static_cast<int>(Tab::Settings) == static_cast<int>(Tab::Homebrew) + 1);
+    // Seven rail items, each a 48 dp target at least, inside the panel.
+    int rail = 0;
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::TabButton) {
+            rail++;
+            CHECK(h.r.H() >= 48.0f);
+            CHECK(h.r.y0 >= 0.0f);
+            CHECK(h.r.y1 <= kPanelH);
+        }
+    }
+    CHECK(rail == static_cast<int>(Tab::Count));
 
-    // The segmented button on every segment; Cheats first.
+    // The segmented button on every segment; Cheats first. Homebrew is a tab of its own (ui3).
     v.tab = Tab::Mods;
-    CHECK(OptionsFor(Id::ModsSegment) ==
-          std::vector<std::string>{"Cheats", "Mods", "Textures", "Homebrew"}); // emerald
+    CHECK(OptionsFor(Id::ModsSegment) == std::vector<std::string>{"Cheats", "Mods", "Textures"});
     for (const ModsSegment s : {ModsSegment::Cheats, ModsSegment::Mods, ModsSegment::Textures}) {
         v.mods_segment = s;
         d.Draw(m, v);
@@ -853,6 +866,75 @@ TEST_CASE("Mods segments: links", "[frame_xr][tabmenu]") {
         CHECK(LinkText(bad).empty());
         CHECK(LinkHost(bad).empty());
     }
+}
+
+// AzaharFrame ui3: an Install Mods row's version after the author, and its date, whenever known.
+TEST_CASE("Mods segments: a catalog row's version and date", "[frame_xr][tabmenu]") {
+    CHECK(ModVersionText("") == "");
+    CHECK(ModVersionText("172") == "v172");
+    CHECK(ModVersionText("1.0.0") == "v1.0.0");
+    CHECK(ModVersionText("v1.5.9") == "v1.5.9");
+    CHECK(ModVersionText("Beta 2") == "Beta 2");
+
+    // Kid Icarus: Uprising's C-Stick & Gyro patch (MEGA, no date or version from the source): the
+    // catalog's "version" and "updated".
+    ModOffer kiu;
+    kiu.id = "kiu-cstick-gyro";
+    kiu.name = "C-Stick & Gyro";
+    kiu.author = "Darkshade";
+    kiu.mod_version = "v172";
+    kiu.updated = "Updated Oct 2026";
+    const auto all = [](const std::vector<std::string>& parts) {
+        return BylineText("Darkshade", parts, parts.size());
+    };
+    CHECK(all(OfferParts(kiu)) == "Created by Darkshade · v172 · Updated Oct 2026");
+    // With the rest known: the version, then the downloads, the date last.
+    kiu.downloads = "1K+ Downloads";
+    kiu.version_match = true;
+    CHECK(all(OfferParts(kiu)) ==
+          "Created by Darkshade · v172 · Matches Your Game · 1K+ Downloads · Updated Oct 2026");
+    // Installing or failed: the version and the note.
+    kiu.note = "Downloading 42%";
+    CHECK(all(OfferParts(kiu)) == "Created by Darkshade · v172 · Downloading 42%");
+    CHECK(OfferParts(kiu)[1] == "Downloading 42%"); // the part drawn in red when it failed
+    kiu.note.clear();
+    // Nothing known: the author alone.
+    ModOffer bare;
+    bare.author = "Someone";
+    CHECK(BylineText("Someone", OfferParts(bare), 4) == "Created by Someone");
+    // A pack: the downloads and the date; the phase while it downloads.
+    PackOffer pack;
+    pack.downloads = "10K+ Downloads";
+    pack.updated = "Updated Mar 2026";
+    CHECK(BylineText("Henriko Magnifico", PackOfferParts(pack), 2) ==
+          "Created by Henriko Magnifico · 10K+ Downloads · Updated Mar 2026");
+    pack.state = PackOfferState::Downloading;
+    pack.note = "Unpacking";
+    CHECK(PackOfferParts(pack) == std::vector<std::string>{"Unpacking"});
+
+    // The row draws in the Install Mods list with its link and button, the version beside the
+    // author (the hit target stays the author's name alone).
+    Drawn d;
+    MenuModel m = Sample();
+    m.mods.mods.catalog = CatalogState::Ready;
+    kiu.note.clear();
+    kiu.url = "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/";
+    m.mods.mods.available = {kiu};
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    d.Draw(m, v);
+    bool install = false, link = false;
+    for (const auto& h : d.menu.Hits()) {
+        install |= h.t.id == Id::ModInstall && h.t.index == 0;
+        if (h.t.id == Id::ModLink && h.t.index == 0) {
+            link = true;
+            CHECK(h.r.W() < 200.0f);
+        }
+    }
+    CHECK(install);
+    CHECK(link);
 }
 
 TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
@@ -1365,13 +1447,12 @@ TEST_CASE("Tab menu: Download Packs dates fit", "[frame_xr][tabmenu]") {
     CHECK(line("Updated Sep 2026") <= right - x0); // even the longer text would fit
 }
 
-// AzaharFrame emerald: the Mods tab's Homebrew segment.
-TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
+// AzaharFrame emerald: the Homebrew tab (a segment of the Mods tab until ui3).
+TEST_CASE("Tab menu: the Homebrew tab", "[frame_xr][tabmenu]") {
     Drawn d;
     MenuModel m = Sample();
     MenuView v;
-    v.tab = Tab::Mods;
-    v.mods_segment = ModsSegment::Homebrew;
+    v.tab = Tab::Homebrew;
     const auto has = [&d](Id id, int index) {
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == id && h.t.index == index) {
@@ -1386,24 +1467,66 @@ TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
     item.title = "Pokémon Emerald 3DS";
     item.author = "ZallaxDev";
 
+    // No items: the empty state, no segmented button (its own tab now).
+    d.Draw(m, v);
+    CHECK(!has(Id::ModsSegment, 0));
+    CHECK(!has(Id::HomebrewInstall, 0));
+
     // Not installed: Install only.
     m.homebrew.items = {item};
     d.Draw(m, v);
-    CHECK(has(Id::ModsSegment, 3));
+    CHECK(!has(Id::ModsSegment, 0));
     CHECK(has(Id::HomebrewInstall, 0));
     CHECK(!has(Id::HomebrewPlay, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(!has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) == std::vector<Id>{Id::HomebrewInstall});
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev");
+    // The row starts where the other tabs' content does (the pane's padding).
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::HomebrewInstall) {
+            CHECK(h.r.y0 >= 12.0f + 24.0f);
+        }
+    }
 
-    // Installed and current: Play; with a newer release: Play and Update.
+    // Installed and current (AzaharFrame ui3): Play, Check for Updates and the quieter Reinstall;
+    // with a newer release: Play and Update.
     m.homebrew.items[0].installed = true;
+    m.homebrew.items[0].author = "ZallaxDev \u00b7 English";
+    m.homebrew.items[0].version = "v0.5.0";
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
+    CHECK(has(Id::HomebrewCheck, 0));
+    CHECK(has(Id::HomebrewReinstall, 0));
     CHECK(!has(Id::HomebrewInstall, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) ==
+          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewCheck, Id::HomebrewReinstall});
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "ZallaxDev \u00b7 English \u00b7 v0.5.0");
+    CHECK(HomebrewCheckLabel(m.homebrew.items[0]) == "Check for Updates");
+    // Checking: "Checking" with its ring, not pressable; Reinstall stays.
+    m.homebrew.items[0].checking = true;
+    d.Draw(m, v);
+    CHECK(!has(Id::HomebrewCheck, 0));
+    CHECK(has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewCheckLabel(m.homebrew.items[0]) == "Checking");
+    // No newer release: when it was checked.
+    m.homebrew.items[0].checking = false;
+    m.homebrew.items[0].checked = "Checked Just Now";
+    CHECK(HomebrewLine(m.homebrew.items[0]) ==
+          "ZallaxDev \u00b7 English \u00b7 v0.5.0 \u00b7 Checked Just Now");
+    // A newer release: Update, and the new version on the row.
     m.homebrew.items[0].update = true;
+    m.homebrew.items[0].latest = "v0.6.0";
     d.Draw(m, v);
     CHECK(has(Id::HomebrewPlay, 0));
     CHECK(has(Id::HomebrewUpdate, 0));
+    CHECK(!has(Id::HomebrewCheck, 0));
+    CHECK(!has(Id::HomebrewReinstall, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]) ==
+          std::vector<Id>{Id::HomebrewPlay, Id::HomebrewUpdate});
+    CHECK(HomebrewLine(m.homebrew.items[0]) ==
+          "ZallaxDev \u00b7 English \u00b7 v0.5.0 \u00b7 v0.6.0 Available");
 
     // Busy: no buttons until it ends.
     m.homebrew.items[0].busy = true;
@@ -1412,10 +1535,18 @@ TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(!has(Id::HomebrewPlay, 0));
     CHECK(!has(Id::HomebrewUpdate, 0));
+    CHECK(HomebrewButtons(m.homebrew.items[0]).empty());
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "Downloading 42%");
     CHECK(d.menu.MaxScroll() == 0.0f);
+    // A failure: the line is the error once it is no longer busy.
+    m.homebrew.items[0].busy = false;
+    m.homebrew.items[0].status = "Download Failed";
+    CHECK(HomebrewLine(m.homebrew.items[0]) == "Download Failed");
 
     CHECK(LabelFor(Id::HomebrewInstall) == "Install");
     CHECK(LabelFor(Id::HomebrewUpdate) == "Update");
+    CHECK(LabelFor(Id::HomebrewReinstall) == "Reinstall");
+    CHECK(LabelFor(Id::HomebrewCheck) == "Check for Updates");
     CHECK(LabelFor(Id::HomebrewPlay) == "Play");
 }
 
@@ -1474,10 +1605,77 @@ TEST_CASE("Compat: download buckets and the bullet line", "[frame_xr][tabmenu][c
     CHECK(DownloadsText(49999) == "10K+ Downloads");
     CHECK(DownloadsText(50000) == "50K+ Downloads");
     CHECK(DownloadsText(5000000) == "50K+ Downloads");
-    CHECK(BulletLine({"10K+ Downloads", "Updated Mar 2026"}) ==
-          "• 10K+ Downloads • Updated Mar 2026");
-    CHECK(BulletLine({"", "Updated Mar 2026"}) == "• Updated Mar 2026"); // unknown parts go
-    CHECK(BulletLine({"", ""}).empty());
+}
+
+// AzaharFrame ui3: a byline on one line, going on to a second only when it runs out of width, and
+// then at a " · " (never inside a part), the author kept on the first.
+TEST_CASE("Mods segments: where a byline wraps", "[frame_xr][tabmenu]") {
+    // "Created by Darkshade" 150 wide, " · " 12, the parts 40, 90, 120.
+    const std::vector<float> parts{40.0f, 90.0f, 120.0f};
+    const float all = 150.0f + 12.0f * 3 + 40.0f + 90.0f + 120.0f; // 436
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 1000.0f) == 3); // short: one line
+    CHECK(BylineSplit(150.0f, parts, 12.0f, all) == 3);     // exactly fits
+    CHECK(BylineSplit(150.0f, parts, 12.0f, all - 1.0f) == 2); // the last part goes down whole
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 310.0f) == 2); // 150 + 12 + 40 + 12 + 90 = 304
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 250.0f) == 1);
+    CHECK(BylineSplit(150.0f, parts, 12.0f, 160.0f) == 0); // the author alone, the rest below
+    CHECK(BylineSplit(150.0f, {}, 12.0f, 100.0f) == 0);
+    // No author: the first part stays on the first line even when cut.
+    CHECK(BylineSplit(0.0f, parts, 12.0f, 30.0f) == 1);
+    CHECK(BylineSplit(0.0f, parts, 12.0f, 1000.0f) == 3);
+    // The text it makes: the break at a separator, the author on the first line.
+    const std::vector<std::string> p{"v172", "10K+ Downloads", "Updated Oct 2026"};
+    CHECK(BylineText("Darkshade", p, 3) ==
+          "Created by Darkshade · v172 · 10K+ Downloads · Updated Oct 2026");
+    CHECK(BylineText("Darkshade", p, 2) ==
+          "Created by Darkshade · v172 · 10K+ Downloads\nUpdated Oct 2026");
+    CHECK(BylineText("Darkshade", p, 0) ==
+          "Created by Darkshade\nv172 · 10K+ Downloads · Updated Oct 2026");
+    CHECK(BylineText("Darkshade", {"", "v172", ""}, 1) == "Created by Darkshade · v172");
+
+    // Drawn: a short row is the one-line height, a long one (a long author and all four parts in
+    // a narrow column) wraps and is taller; the link stays the author's name on the first line.
+    Drawn d;
+    MenuModel m = Sample();
+    m.mods.mods.catalog = CatalogState::Ready;
+    ModOffer s1;
+    s1.id = "short";
+    s1.name = "Short";
+    s1.author = "Darkshade";
+    s1.url = "https://gamebanana.com/members/1";
+    s1.mod_version = "v172";
+    ModOffer s2 = s1;
+    s2.id = "long";
+    s2.name = "Long";
+    s2.author = "The Very Long Author Name of a GameBanana Member";
+    s2.version_match = true;
+    s2.downloads = "10K+ Downloads";
+    s2.updated = "Updated Oct 2026";
+    s2.version = "v1.0 USA";
+    s2.mismatch = true;
+    s2.region_chip = "EUR";
+    m.mods.mods.available = {s1, s2};
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    d.Draw(m, v);
+    Rect r0{}, r1{}, l1{};
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::ModNote && h.t.index == 0) {
+            r0 = h.r;
+        }
+        if (h.t.id == Id::ModNote && h.t.index == 1) {
+            r1 = h.r;
+        }
+        if (h.t.id == Id::ModLink && h.t.index == 1) {
+            l1 = h.r;
+        }
+    }
+    CHECK(std::abs(r0.H() - 80.0f) < 0.01f);
+    CHECK(std::abs(r1.H() - 96.0f) < 0.01f);
+    REQUIRE(l1.W() > 0.0f);
+    CHECK(std::abs(l1.Cy() - (r1.y0 + 50.0f)) < 0.01f); // the link on the first byline line
 }
 
 TEST_CASE("Compat: the cheat's This May Not Work body", "[frame_xr][tabmenu][compat]") {
@@ -1763,4 +1961,218 @@ TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
             CHECK(h.r.y1 <= kListBottom + 0.01f);
         }
     }
+}
+
+// AzaharFrame ui3: Optimize for Frame, the pack-level row on a pack's page, its dialog and the
+// snackbar that points to it. No colons anywhere (label and value rows instead).
+TEST_CASE("Tab menu: Optimize for Frame", "[frame_xr][tabmenu]") {
+    // The row's text, state by state.
+    PackOptimize o;
+    CHECK(OptimizeText(o).title.empty());
+    CHECK(OptimizeText(o).button == 0);
+    o.state = OptimizeState::Png;
+    o.size_text = "4.7 GB";
+    OptimizeRowText t = OptimizeText(o);
+    CHECK(t.title == "PNG · 4.7 GB");
+    CHECK(t.line == kOptimizeLine);
+    CHECK(t.button == 1);
+    o.state = OptimizeState::Checking;
+    t = OptimizeText(o);
+    CHECK(t.ring);
+    CHECK(t.button == 0);
+    o.state = OptimizeState::Converting;
+    o.phase = "Preparing the Encoder";
+    t = OptimizeText(o);
+    CHECK(t.line == "Preparing the Encoder");
+    CHECK(t.bar);
+    CHECK(t.button == 2);
+    o.done = 1234;
+    o.total = 2308;
+    o.permille = 534;
+    t = OptimizeText(o);
+    CHECK(t.line == "1,234 of 2,308 Textures · 53%");
+    o.state = OptimizeState::Stopped;
+    t = OptimizeText(o);
+    CHECK(t.line == "Stopped. Optimize Again to Carry On.");
+    CHECK(t.button == 1);
+    CHECK_FALSE(t.bar);
+    o.state = OptimizeState::Failed;
+    o.error = "Not Enough Space";
+    t = OptimizeText(o);
+    CHECK(t.line == "Not Optimized · Not Enough Space");
+    CHECK(t.line_error);
+    o.state = OptimizeState::Optimized;
+    o.size_text = "2.1 GB";
+    t = OptimizeText(o);
+    CHECK(t.title == "Optimized for Frame · ASTC · 2.1 GB");
+    CHECK(t.line == "Original PNG Pack");
+    CHECK(t.button == 3);
+    CHECK_FALSE(t.remove); // the game still reads the original
+    // AzaharFrame ui3: Remove Original next to Use Original, the original's size under the title.
+    o.original_size = "4.7 GB";
+    o.can_remove = true;
+    t = OptimizeText(o);
+    CHECK(t.line == "Original PNG Pack · 4.7 GB");
+    CHECK(t.remove);
+    CHECK(t.button == 3);
+    // Removed: no Use Original, no Remove Original.
+    o.original_removed = true;
+    t = OptimizeText(o);
+    CHECK(t.title == "Optimized for Frame · ASTC · 2.1 GB · Original Removed");
+    CHECK(t.button == 0);
+    CHECK_FALSE(t.remove);
+    CHECK(t.line.empty());
+    o.original_removed = false;
+    CHECK(RemoveOriginalBody("4.7 GB", true) ==
+          "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need "
+          "to download it again.");
+    CHECK(RemoveOriginalBody("4.7 GB", false) ==
+          "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need "
+          "to add it again.");
+    CHECK(RemoveOriginalBody("", true).rfind("The optimized pack", 0) == 0);
+    CHECK(std::string(kRemoveOriginalTitle) == "Remove the Original Pack?");
+    CHECK(LabelFor(Id::RemoveOriginal) == "Remove Original");
+    CHECK(CountWithCommas(0) == "0");
+    CHECK(CountWithCommas(999) == "999");
+    CHECK(CountWithCommas(2308) == "2,308");
+    CHECK(CountWithCommas(1234567) == "1,234,567");
+    CHECK(OptimizeNudgeText("4K (PNG)") == "Optimize 4K (PNG) for Frame?");
+    CHECK(LabelFor(Id::OptimizePack) == "Optimize for Frame");
+    CHECK(LabelFor(Id::OptimizeStop) == "Stop");
+    CHECK(LabelFor(Id::UseOriginal) == "Use Original");
+    CHECK(LabelFor(Id::OptimizeNudge) == "Optimize");
+    for (const std::string& s : {std::string(kOptimizeLine), std::string(kOptimizeBody),
+                                std::string(kOptimizeStopped), LabelFor(Id::OptimizePack)}) {
+        CHECK(s.find(':') == std::string::npos);
+    }
+
+    // On the page: under the pack's line, the button; the parts list starts below the row.
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Parts;
+    m.mods.textures = Packs(2);
+    TexturePartsModel& p = m.mods.textures.parts;
+    p.pack_id = "p1";
+    p.title = "4K (PNG)";
+    p.author = "Henriko Magnifico";
+    p.rest = "3.2 · 2,308 Textures On · 4.7 GB";
+    p.rows = {{PartRowKind::Check, "Effects", "52 Textures · 73 MB"},
+              {PartRowKind::Check, "UI", "40 Textures · 20 MB"}};
+    p.optimize.state = OptimizeState::Png;
+    p.optimize.size_text = "4.7 GB";
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::OptimizePack, -1));
+    REQUIRE(HasHit(d, Id::TexturePart, 0));
+    CHECK(FindHit(d, Id::TexturePart, 0)->r.y0 > FindHit(d, Id::OptimizePack, -1)->r.y1);
+    CheckTargets(d);
+    p.optimize.state = OptimizeState::Converting;
+    p.optimize.total = 2308;
+    p.optimize.done = 10;
+    p.optimize.permille = 4;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::OptimizeStop, -1));
+    CHECK(!HasHit(d, Id::OptimizePack, -1));
+    p.optimize.state = OptimizeState::Optimized;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::UseOriginal, -1));
+    p.optimize.state = OptimizeState::None; // a KTX pack of its own: no row
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::OptimizePack, -1));
+    CHECK(!HasHit(d, Id::UseOriginal, -1));
+
+    // The dialog: Optimize and Cancel over the page.
+    p.optimize.state = OptimizeState::Png;
+    m.mods.textures.dialog = {ModsDialogKind::Optimize, "2,308", "About 4.7 GB"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    { // under the scrim: the beam on the button hits the dialog's area
+        const MenuLayout::Hit* b = FindHit(d, Id::OptimizePack, -1);
+        REQUIRE(b != nullptr);
+        CHECK(d.menu.HitTest(b->r.Cx(), b->r.Cy()).id != Id::OptimizePack);
+    }
+    m.mods.textures.dialog = {};
+
+    // The snackbar on the pack list, with the restart one under it.
+    v.textures_page = TexturesPage::Packs;
+    m.mods.textures.nudge_pack = "p1";
+    m.mods.textures.nudge_name = "4K (PNG)";
+    m.mods.textures.needs_restart = true;
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::OptimizeNudge, -1));
+    REQUIRE(HasHit(d, Id::RestartGame, -1));
+    CHECK(FindHit(d, Id::OptimizeNudge, -1)->r.y1 <= FindHit(d, Id::RestartGame, -1)->r.y0);
+    CheckTargets(d);
+    v.textures_page = TexturesPage::Parts; // not over the pack's own page
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::OptimizeNudge, -1));
+}
+
+// AzaharFrame savestate: a state from another build is dimmed with "From 1.1.1" in place of its
+// date, still tappable; the About and mismatch notices lie over everything, and only their
+// buttons are hit.
+TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr][tabmenu]") {
+    Audit a;
+    MenuModel m = Sample();
+    m.slots = {{1, "From 1.1.1", true}, {3, "2026-11-09 19:02"}};
+    MenuView v;
+    v.page = Page::LoadSlots;
+    a.Draw(m, v);
+    a.Check("load slots, one from 1.1.1");
+    CHECK(a.Drew("From 1.1.1"));
+    CHECK(a.Drew("2026-11-09 19:02"));
+    const auto centre = [&](Id id, int index = -1) -> Target {
+        for (const auto& h : a.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return a.menu.HitTest(h.r.Cx(), h.r.Cy());
+            }
+        }
+        return {};
+    };
+    CHECK(centre(Id::Slot, 1) == Target{Id::Slot, 1});
+
+    // Saved over: a plain slot again (the list comes from the files each time)
+    m.slots = {{1, "2026-11-12 10:15"}, {3, "2026-11-09 19:02"}};
+    a.Draw(m, v);
+    CHECK(!a.Drew("From 1.1.1"));
+    CHECK(a.Drew("2026-11-12 10:15"));
+
+    m.notice.kind = ModsDialogKind::Notice;
+    m.notice.mod = "This Save State Is From an Older Version";
+    m.notice.other = "It was made with Azahar for Frame 1.1.1. It may not load, and it could "
+                     "corrupt this game's progress. Save states are NOT a replacement for saving "
+                     "in the game.";
+    m.notice.confirm = "Load Anyway";
+    m.notice.cancel = "Cancel";
+    // (the rows under the scrim are not checked against the dialog's lines)
+    for (const Page page : {Page::LoadSlots, Page::Tabs}) {
+        v.page = page;
+        a.Draw(m, v);
+        std::string all; // the headline wraps
+        for (const auto& t : a.texts) {
+            all += t.text + " ";
+        }
+        CHECK(all.find("This Save State Is From an Older Version") != std::string::npos);
+        CHECK(all.find("Save states are NOT a replacement for saving in the game.") !=
+              std::string::npos);
+        CHECK(a.Drew("Load Anyway"));
+        CHECK(a.Drew("Cancel"));
+        CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
+        CHECK(centre(Id::DialogCancel) == Target{Id::DialogCancel});
+        CHECK(centre(Id::Slot, 3) != Target{Id::Slot, 3});
+        CHECK(centre(Id::Continue) != Target{Id::Continue});
+    }
+
+    // About Save States: one button
+    m.notice.mod = "About Save States";
+    m.notice.other = "Save states are NOT a replacement for saving in the game.";
+    m.notice.confirm = "Got It";
+    m.notice.cancel.clear();
+    a.Draw(m, v);
+    CHECK(a.Drew("Got It"));
+    CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
+    CHECK(centre(Id::DialogCancel) == Target{});
 }

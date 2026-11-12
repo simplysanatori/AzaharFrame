@@ -12,8 +12,27 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+
+namespace FrameXr {
+
+/// AzaharFrame ui3: how long a toast stays, unless a newer toast replaces it. Short: the answer to
+/// a press just made, whose effect shows (a value, a mode: "Mouse: Pointer", "Offset Right 1.5°").
+/// Long: a one-shot message about something done in the background, applied later, or refused
+/// ("<Mod> Downloaded. Restart to Enable.", "Texture Pack Not Changed", "Quick Saved"), which must
+/// not be missed while playing.
+enum class ToastTime : uint8_t { Short, Long };
+
+} // namespace FrameXr
 
 namespace FrameXr::ToastFit {
+
+constexpr int64_t kShortNs = 2'000'000'000; ///< ToastTime::Short
+constexpr int64_t kLongNs = 5'000'000'000;  ///< ToastTime::Long
+
+constexpr int64_t DurationNs(ToastTime time) {
+    return time == ToastTime::Long ? kLongNs : kShortNs;
+}
 
 constexpr int kAtlasW = 1024;
 constexpr int kRowPx = 96;

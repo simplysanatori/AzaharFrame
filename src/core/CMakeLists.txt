@@ -59,6 +59,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/packs.h # AzaharFrame texdata
     custom_tex/parts.cpp # AzaharFrame texparts
     custom_tex/parts.h # AzaharFrame texparts
+    custom_tex/optimize.cpp # AzaharFrame ui3
+    custom_tex/optimize.h # AzaharFrame ui3
     custom_tex/download.cpp # AzaharFrame texdl
     custom_tex/download.h # AzaharFrame texdl
     custom_tex/download_default.cpp # AzaharFrame texdl
@@ -68,6 +70,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     homebrew/net.h # AzaharFrame emerald
     homebrew/packages.cpp # AzaharFrame emerald
     homebrew/packages.h # AzaharFrame emerald
+    homebrew/update_check.cpp # AzaharFrame ui3
+    homebrew/update_check.h # AzaharFrame ui3
     core.cpp
     core.h
     core_timing.cpp
@@ -521,6 +525,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     perf_stats.cpp
     perf_stats.h
     precompiled_headers.h
+    save_backup.cpp # AzaharFrame savestate
+    save_backup.h # AzaharFrame savestate
     savestate.cpp
     savestate.h
     system_titles.cpp

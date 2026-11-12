@@ -19,7 +19,7 @@ namespace {
 
 // Layout (dp). The rail on the left, the pane (the tab's content) to its right.
 constexpr float kRailW = 104.0f;
-constexpr float kRailItemH = 80.0f;
+constexpr float kRailItemH = 72.0f; // AzaharFrame ui3: 80 until the seventh tab (Homebrew)
 constexpr float kPaneMargin = 12.0f;
 constexpr float kPaneRadius = 24.0f;
 constexpr float kPad = 24.0f;      ///< inside the pane
@@ -38,6 +38,7 @@ constexpr std::array<TabInfo, static_cast<int>(Tab::Count)> kTabs{{
     {"Stats", Sym::kMonitoring},
     {"Controls", Sym::kStadiaController},
     {"Mods", Sym::kExtension}, // AzaharFrame cheatstab
+    {"Homebrew", Sym::kDeployedCode}, // AzaharFrame ui3
     {"Settings", Sym::kSettings},
 }};
 
@@ -162,8 +163,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
-    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures",
-                                                         "Homebrew"}; // cheatstab, emerald
+    static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
@@ -383,6 +383,20 @@ std::string LabelFor(Id id) {
         return "Update";
     case Id::HomebrewPlay:
         return "Play";
+    case Id::HomebrewReinstall: // AzaharFrame ui3
+        return "Reinstall";
+    case Id::HomebrewCheck:
+        return "Check for Updates";
+    case Id::OptimizePack: // AzaharFrame ui3
+        return "Optimize for Frame";
+    case Id::OptimizeStop:
+        return "Stop";
+    case Id::UseOriginal:
+        return "Use Original";
+    case Id::RemoveOriginal: // AzaharFrame ui3
+        return "Remove Original";
+    case Id::OptimizeNudge:
+        return "Optimize";
     case Id::AddCheat: // AzaharFrame ui2
         return "Add Cheat";
     case Id::InstallCheatFile:
@@ -548,9 +562,16 @@ void TabMenu::Draw(Kit& kit, const MenuModel& model, const MenuView& view) {
     case Tab::Mods: // AzaharFrame cheatstab
         DrawMods(kit, model, view, pane);
         break;
+    case Tab::Homebrew: // AzaharFrame ui3
+        DrawHomebrew(kit, model, view, pane);
+        break;
     default:
         DrawRows(kit, model, view, pane);
         break;
+    }
+    if (model.notice.kind != ModsDialogKind::None) { // AzaharFrame savestate: over everything
+        DrawModsDialog(kit, model.notice, view);
+        return;
     }
     DrawTooltip(kit, view, pane);
 }
@@ -639,9 +660,11 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
     for (int i = 0; i < kSlots; i++) {
         const int slot = i + 1;
         std::string time;
+        bool other = false; // AzaharFrame savestate: from another build: dimmed, still tappable
         for (const SaveSlot& s : model.slots) {
             if (s.slot == slot) {
                 time = s.time;
+                other = s.other;
             }
         }
         const bool empty = time.empty();
@@ -651,7 +674,9 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
         const Rect r{x, y, x + cw, y + rh};
         const Target t{Id::Slot, slot};
         const State st = StateOf(view, t, enabled);
-        const float op = enabled ? 1.0f : kDisabledContent;
+        // AzaharFrame savestate: another build's state is dimmed less than an empty slot: it
+        // still loads (after Load Anyway's question)
+        const float op = !enabled ? kDisabledContent : other ? 0.62f : 1.0f;
         kit.Fill(r, 16.0f, Tok::kSurfaceContainerHigh, enabled ? 1.0f : 0.5f);
         kit.StateLayer(r, 16.0f, Tok::kOnSurface, st);
         kit.TextMid(r.x0 + 20.0f, r.Cy(), Type::Label, Tok::kOnSurface,

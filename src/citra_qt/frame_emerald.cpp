@@ -167,6 +167,14 @@ HomebrewPackager::Status FrameEmerald::GetStatus() const {
     if (s.installed) {
         s.detail = QString::fromStdString(E::LanguageName(state.language));
     }
+    s.checking = checking; // AzaharFrame ui3
+    if (s.installed) {
+        s.version = QString::fromStdString(state.tag);
+        s.checked = state.last_check;
+    }
+    if (s.update) {
+        s.latest = QString::fromStdString(state.latest_tag);
+    }
     s.game_path = !state.rom_dir_copy.empty() && FileUtil::Exists(state.rom_dir_copy)
                       ? QString::fromStdString(state.rom_dir_copy)
                       : QString::fromStdString(paths.three_dsx);
@@ -319,9 +327,33 @@ void FrameEmerald::CheckForUpdate() {
     if (busy || checking || !GetStatus().installed || !E::CheckDue(state.last_check, Now())) {
         return;
     }
-    checking = true;
     state.last_check = Now();
     SaveState();
+    Fetch();
+}
+
+void FrameEmerald::CheckNow(std::function<void(Homebrew::CheckResult)> done) { // AzaharFrame ui3
+    if (busy || !GetStatus().installed) {
+        return;
+    }
+    if (checking) { // the daily check, or a press a moment ago: its answer
+        waiting.push_back(std::move(done));
+        return;
+    }
+    const s64 now = Now();
+    if (!manual.Due(now)) { // pressed again within the gap: the last answer, no request
+        LOG_INFO(Frontend, "emerald3ds: Check for Updates: the last result again");
+        done(*manual.last_result);
+        return;
+    }
+    manual.Asked(now);
+    waiting.push_back(std::move(done));
+    Fetch();
+}
+
+void FrameEmerald::Fetch() {
+    checking = true;
+    emit Changed();
     OffThread(
         this,
         [] {
@@ -336,13 +368,22 @@ void FrameEmerald::CheckForUpdate() {
         },
         [this](std::string tag) {
             checking = false;
-            if (tag.empty() || busy) {
-                return;
+            const Homebrew::CheckResult result = Homebrew::ResultOf(tag, state.tag);
+            if (!tag.empty() && !busy) {
+                state.latest_tag = tag;
+                state.last_check = Now();
+                SaveState();
+                LOG_INFO(Frontend, "emerald3ds: latest release {}, installed {}", tag, state.tag);
+            } else if (tag.empty()) {
+                LOG_WARNING(Frontend, "emerald3ds: the update check had no answer");
             }
-            state.latest_tag = tag;
-            SaveState();
-            LOG_INFO(Frontend, "emerald3ds: latest release {}, installed {}", tag, state.tag);
+            manual.Answered(result);
             emit Changed();
+            auto done = std::move(waiting);
+            waiting.clear();
+            for (auto& d : done) {
+                d(result);
+            }
         });
 }
 

@@ -23,6 +23,7 @@
 
 #include "common/common_types.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/toast_fit.h" // AzaharFrame ui3: ToastTime
 #include "frame_xr/xr_includes.h"
 #include "video_core/vulkan_hooks.h"
 
@@ -221,11 +222,18 @@ enum class MenuCommand {
     HomebrewInstall, ///< Azahar's window, then the package's own steps (the ROM, a game folder)
     HomebrewUpdate,  ///< the same for an update
     HomebrewPlay,    ///< close the menu and start the installed package
+    HomebrewCheck,   ///< AzaharFrame ui3: Check for Updates now (a toast says what it found)
     // AzaharFrame texparts: a pack's Customize page (Menu::TexturePartsModel, frame_mods.cpp)
     OpenTextureParts,  ///< `text`: the pack's id (CustomTex::Pack::id)
     TexturePart,       ///< `value`: the row clicked (a checkbox or a radio button)
     MoveTexturePart,   ///< `value`: the row; `text` "up" or "down"
     TexturePartsAll,   ///< `value` 1 All On, 0 All Off
+    // AzaharFrame ui3: Optimize for Frame on a pack's page (frame_mods.cpp), `text`: the page's pack
+    OptimizePack,    ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)
+    OptimizeStop,    ///< stops the conversion (carried on by the next Optimize)
+    UseOriginalPack, ///< the PNG pack again, from the next start
+    RemoveOriginalPack, ///< "Remove the Original Pack?" (TexturesDialog answers it), then deletes it
+    NoticeAnswer, ///< AzaharFrame savestate: SetInGameMenuNotice's dialog: `value` 1 its confirm, 0 cancel
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -390,7 +398,13 @@ void SetInGameMenuWindow(bool window);
 struct MenuSaveSlot {
     int slot = 0;
     std::string time;
+    bool other = false; ///< AzaharFrame savestate: from another build: `time` is "From 1.1.1"
 };
+/// AzaharFrame savestate: a dialog over the in-game menu ("About Save States", "This Save State Is
+/// From an Older Version"), answered with MenuCommand::NoticeAnswer; `title` "" takes it away;
+/// `cancel` "" is a dialog of one button. Any thread.
+void SetInGameMenuNotice(const std::string& title, const std::string& body,
+                         const std::string& confirm, const std::string& cancel);
 void SetInGameMenuInfo(const std::string& title, const std::vector<MenuSaveSlot>& slots,
                        bool per_game);
 /// AzaharFrame cheatstab: the Mods tab's segments' values (frame_xr/menu/cheats_tab.h,
@@ -409,7 +423,8 @@ void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 
-/// A short message on a small panel in front of you for two seconds (any thread; VR only).
+/// A short message on a small panel in front of you (any thread; VR only): Quick Saved, Quick
+/// Loaded and No Quick Save for five seconds, Fast Forward and Normal Speed for two (ToastTimeOf).
 enum class Toast {
     QuickSaved = 0,
     QuickLoaded = 1,
@@ -418,9 +433,15 @@ enum class Toast {
     NormalSpeed = 4,
 };
 void ShowToast(Toast kind);
+/// AzaharFrame ui3: how long each of those stays.
+constexpr ToastTime ToastTimeOf(Toast kind) {
+    return kind == Toast::FastForward || kind == Toast::NormalSpeed ? ToastTime::Short
+                                                                    : ToastTime::Long;
+}
 /// AzaharFrame vrsize: a short message of any text (UTF-8, one line; a degree sign is drawn
-/// too) in the same place and for as long as a toast. Any thread.
-void ShowToastText(const std::string& text);
+/// too) in the same place as a toast. Any thread. AzaharFrame ui3: `time` (toast_fit.h): Short
+/// (2 s) for the answer to a press, Long (5 s) for a one-shot message.
+void ShowToastText(const std::string& text, ToastTime time = ToastTime::Short);
 /// AzaharFrame controls: takes a text toast back before its time if it is `text` (any thread).
 void HideToastText(const std::string& text);
 /// AzaharFrame controls: the grip hint chip (two short lines, '\n'; "↕" and "↔" are drawn as

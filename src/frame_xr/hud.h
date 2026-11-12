@@ -9,7 +9,8 @@
 //    AzaharFrame vis: only on frames without the controller models; their layer is transparent
 //    round them and is then the one projection layer (vis/layer_plan.h: SteamVR shakes a second).
 //    Both live in one swapchain (SteamVR allows 16 per session).
-//  - A toast: a short message ("Quick Saved") on a small quad in front of you for two seconds.
+//  - A toast: a short message ("Quick Saved") on a small quad in front of you for two or five
+//    seconds (AzaharFrame ui3: ToastTime, toast_fit.h), or until a newer toast replaces it.
 //    The messages are drawn once into one swapchain when the session is made, so showing
 //    one needs no GPU work (the XR thread does none while a game runs).
 //    "Fast Forward" and "Normal Speed" are toasts too (fast forward turned on or off).
@@ -52,7 +53,7 @@ public:
     /// Any thread.
     void ShowToast(Toast kind);
     /// Any thread. One line of UTF-8; "°" is drawn as a small ring (the font has none).
-    void ShowToastText(const std::string& text);
+    void ShowToastText(const std::string& text, ToastTime time = ToastTime::Short);
     /// Any thread. AzaharFrame controls: takes a text toast back before its time, if `text` is
     /// the one showing or waiting ("Stopping..." when the View hold is let go).
     void HideToastText(const std::string& text);
@@ -74,13 +75,16 @@ private:
     std::atomic<int> toast_kind{-1}; ///< a request not yet taken by the XR thread
     int shown_kind = -1; ///< the atlas row on view, -1 none
     XrTime shown_since = 0;
+    XrTime shown_ns = ToastFit::kShortNs; ///< AzaharFrame ui3: how long the one on view stays
     XrPosef shown_pose{{0, 0, 0, 1}, {0, 0, 0}};
 
     std::mutex text_mutex;
     std::string text_request; ///< ShowToastText not yet taken (text_requested)
+    ToastTime text_request_time = ToastTime::Short; ///< AzaharFrame ui3
     bool text_requested = false;
     int text_row_waiting = -1; ///< a text row uploaded, shown once the copy is done
     std::string waiting_text;  ///< its text
+    ToastTime waiting_time = ToastTime::Short; ///< AzaharFrame ui3: and how long it stays
     std::string shown_text;    ///< the text row's text on view
     std::string hide_request;  ///< HideToastText not yet taken
     bool hide_requested = false;

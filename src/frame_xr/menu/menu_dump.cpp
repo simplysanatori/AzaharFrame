@@ -346,17 +346,9 @@ int main(int argc, char** argv) {
 
     // AzaharFrame mouse + menuux: toasts as hud.cpp draws them (a box sized by toast_fit.h, the
     // text centred; one line in the large font, else two in the small one), one row each.
-    {
+    // AzaharFrame ui3: a list of toasts to one file (the Homebrew results have their own)
+    const auto toast_shot = [&out](const std::string& file, const std::vector<std::string>& toasts) {
         namespace ui = frame_xr::ui;
-        ui::InitFonts();
-        const std::vector<std::string> toasts{
-            Input::kReticleHint, Input::kMouseHint,
-            "Async Shader Compilation: From the Next Start", "Hide Bottom Screen: From the Next Start",
-            "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
-            "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
-            VideoCore::PreloadBudget::kTooLargeToast, // AzaharFrame memguard
-            VideoCore::PreloadBudget::kStoppedToast,
-            "Stopping..."};
         ui::Canvas cv;
         cv.Init(ToastFit::kAtlasW, ToastFit::kRowPx * static_cast<int>(toasts.size()));
         cv.Clear(Rgb(kBackdrop));
@@ -388,7 +380,23 @@ int main(int argc, char** argv) {
             std::printf("toast %zu: %d px%s: %s\n", i, box.box_px, box.two_lines ? ", two lines" : "",
                         t.c_str());
         }
-        ok &= WritePng(out + "/toasts.png", cv);
+        return WritePng(out + "/" + file, cv);
+    };
+    {
+        frame_xr::ui::InitFonts();
+        ok &= toast_shot("toasts.png",
+                         {Input::kReticleHint, Input::kMouseHint,
+                          "Async Shader Compilation: From the Next Start",
+                          "Hide Bottom Screen: From the Next Start",
+                          "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
+                          "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
+                          VideoCore::PreloadBudget::kTooLargeToast, // AzaharFrame memguard
+                          VideoCore::PreloadBudget::kStoppedToast, "Stopping...",
+                          "C-Stick & Gyro Downloaded. Restart to Enable."}); // AzaharFrame ui3: five seconds
+        // AzaharFrame ui3: Check for Updates' results (five seconds)
+        ok &= toast_shot("homebrew-no-updates-toast.png", {"No Updates Available"});
+        ok &= toast_shot("homebrew-update-available-toast.png", {"Update Available"});
+        ok &= toast_shot("homebrew-check-failed-toast.png", {"Couldn't Check for Updates"});
     }
     MenuView v;
     v.tab = Tab::Main;
@@ -409,6 +417,49 @@ int main(int argc, char** argv) {
     v.page = Page::LoadSlots;
     v.hover = {Id::Slot, 2};
     ok &= shot("1b-main-load-slots", m, v);
+    { // AzaharFrame savestate: slots from another build, the mismatch and About notices
+        MenuModel sm = m;
+        sm.slots = {{1, "From 1.1.1", true}, {2, "2026-11-09 19:02"}, {5, "From Another Version", true}};
+        MenuView sv;
+        sv.page = Page::LoadSlots;
+        sv.hover = {Id::Slot, 1};
+        ok &= shot("1c-load-slots-other-build", sm, sv);
+        sv.hover = {};
+        sm.notice.kind = ModsDialogKind::Notice;
+        sm.notice.mod = "This Save State Is From an Older Version";
+        sm.notice.other = "It was made with Azahar for Frame 1.1.1. It may not load, and it could "
+                          "corrupt this game's progress. Save states are NOT a replacement for "
+                          "saving in the game.";
+        sm.notice.confirm = "Load Anyway";
+        sm.notice.cancel = "Cancel";
+        ok &= shot("1d-load-anyway-dialog", sm, sv);
+        sm.notice.mod = "This Save State Is From Another Version";
+        sm.notice.other = "It was made with another version of Azahar. It may not load, and it "
+                          "could corrupt this game's progress. Save states are NOT a replacement "
+                          "for saving in the game.";
+        ok &= shot("1e-load-anyway-dialog-other", sm, sv);
+        sm.notice.mod = "About Save States";
+        sm.notice.other = "Save states are NOT a replacement for saving in the game. They only load "
+                          "in the version of Azahar for Frame that made them, so after an update "
+                          "older ones may not load. Save in the game before you update.";
+        sm.notice.confirm = "Got It";
+        sm.notice.cancel.clear();
+        sv.page = Page::SaveSlots;
+        ok &= shot("1f-about-save-states", sm, sv);
+        sm.notice.mod = "Restore Save Data?";
+        sm.notice.other = "A save state from another version was loaded last time, and the game "
+                          "didn't close normally. You can put back this game's save data from "
+                          "before that load.";
+        sm.notice.confirm = "Restore Save Data";
+        sm.notice.cancel = "Keep Current";
+        sv.page = Page::Tabs;
+        ok &= shot("1g-restore-save-data", sm, sv);
+        sm.notice.mod = "This Save State Couldn't Be Loaded";
+        sm.notice.other = "The game had to stop. Its save data wasn't changed.";
+        sm.notice.confirm = "OK";
+        sm.notice.cancel.clear();
+        ok &= shot("1h-save-state-not-loaded", sm, sv);
+    }
 
     v = {};
     v.tab = Tab::Position;
@@ -681,6 +732,50 @@ int main(int argc, char** argv) {
             hv.hover = {};
             ok &= shot("mods-install-homebrew", mh, hv);
         }
+        { // AzaharFrame ui3: Kid Icarus: Uprising's MEGA patches, the version by the author, the date
+            MenuModel mk = m;
+            mk.game_title = "Kid Icarus: Uprising";
+            mk.mods.mods.catalog = CatalogState::Ready;
+            const char* kUrl = "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/";
+            for (const char* name : {"C-Stick & Gyro", "Widescreen 16:9", "Ultrawide 21:9"}) {
+                ModOffer o;
+                o.id = name;
+                o.name = name;
+                o.author = "Darkshade";
+                o.url = kUrl;
+                o.mod_version = "v172";
+                o.updated = "Updated Oct 2026";
+                mk.mods.mods.available.push_back(o);
+            }
+            ModOffer cd;
+            cd.id = "kiu-cd-quality-soundtrack";
+            cd.name = "CD Quality Soundtrack";
+            cd.author = "Zara Nerd";
+            cd.url = "https://gamebanana.com/members/6074804";
+            cd.mod_version = "v1.0.0";
+            cd.downloads = "Under 100 Downloads";
+            cd.updated = "Updated Oct 2026";
+            mk.mods.mods.available.push_back(cd);
+            MenuView kv = v;
+            kv.hover = {Id::ModInstall, 0};
+            ok &= shot("mods-install-kiu", mk, kv);
+            // AzaharFrame ui3: a GameBanana row with all four parts and a long author name: the
+            // byline goes on to a second line at a " · "
+            MenuModel ml = mk;
+            ModOffer lg;
+            lg.id = "kiu-long";
+            lg.name = "Restored Japanese Voices";
+            lg.author = "The Kid Icarus Uprising Restoration Collective";
+            lg.url = "https://gamebanana.com/members/1";
+            lg.mod_version = "v2.4.1";
+            lg.version = "v3.2.0";
+            lg.version_match = true;
+            lg.downloads = "10K+ Downloads";
+            lg.updated = "Updated Sep 2026";
+            ml.mods.mods.available.insert(ml.mods.mods.available.begin(), lg);
+            kv.hover = {Id::ModLink, 0};
+            ok &= shot("mods-install-long", ml, kv);
+        }
         v.hover = {Id::InstallFromZip, 1}; // AzaharFrame zipinstall
         ok &= shot("zip-mods-button", mi, v);
         MenuModel mz = mi;
@@ -755,6 +850,60 @@ int main(int argc, char** argv) {
         v.hover = {Id::ModRemove, 2};
         ok &= shot("mods-restart", ml, v);
 
+        // AzaharFrame ui3: the Homebrew tab (a segment of the Mods tab until now), each state
+        {
+            MenuModel hb = m;
+            hb.game_title = "Pokémon Emerald 3DS";
+            MenuView hv;
+            hv.tab = Tab::Homebrew;
+            ok &= shot("homebrew-empty", hb, hv);
+            HomebrewItem it;
+            it.id = "emerald3ds";
+            it.title = "Pokémon Emerald 3DS";
+            it.author = "ZallaxDev";
+            hb.homebrew.items = {it};
+            hv.hover = {Id::HomebrewInstall, 0};
+            ok &= shot("homebrew-install", hb, hv);
+            hb.homebrew.items[0].busy = true;
+            hb.homebrew.items[0].status = "Downloading";
+            hb.homebrew.items[0].progress = 420;
+            hv.hover = {};
+            ok &= shot("homebrew-installing", hb, hv);
+            hb.homebrew.items[0].progress = -1;
+            hb.homebrew.items[0].status = "Building";
+            hb.homebrew.spin = 7;
+            ok &= shot("homebrew-building", hb, hv);
+            hb.homebrew.items[0] = it;
+            hb.homebrew.items[0].installed = true;
+            hb.homebrew.items[0].author = "ZallaxDev \u00b7 English";
+            hb.homebrew.items[0].version = "v0.5.0";
+            hv.hover = {Id::HomebrewCheck, 0};
+            ok &= shot("homebrew-installed", hb, hv);
+            hb.homebrew.items[0].checking = true; // AzaharFrame ui3: Check for Updates' states
+            hb.homebrew.spin = 7;
+            hv.hover = {};
+            ok &= shot("homebrew-checking", hb, hv);
+            hb.homebrew.items[0].checking = false;
+            hb.homebrew.items[0].checked = "Checked Just Now";
+            ok &= shot("homebrew-no-updates", hb, hv);
+            hv.hover = {Id::HomebrewReinstall, 0};
+            ok &= shot("homebrew-reinstall", hb, hv);
+            hv.hover = {};
+            hb.homebrew.items[0].checked = "Checked 2 Hours Ago"; // failed: the row as it was
+            ok &= shot("homebrew-check-failed", hb, hv);
+            hb.homebrew.items[0].checked = "Checked Just Now";
+            hb.homebrew.items[0].update = true;
+            hb.homebrew.items[0].latest = "v0.6.0";
+            hv.hover = {Id::HomebrewUpdate, 0};
+            ok &= shot("homebrew-update", hb, hv);
+            hb.homebrew.items[0].update = false;
+            hb.homebrew.items[0].latest.clear();
+            hb.homebrew.items[0].checked.clear();
+            hb.homebrew.items[0].status = "Could not connect";
+            hv.hover = {};
+            ok &= shot("homebrew-error", hb, hv);
+        }
+
         MenuModel tm = m;
         tm.mods.textures = SampleTextures();
         v = {};
@@ -762,6 +911,74 @@ int main(int argc, char** argv) {
         v.mods_segment = ModsSegment::Textures;
         v.hover = {Id::TexturePack, 1};
         ok &= shot("textures", tm, v);
+        { // AzaharFrame ui3: Optimize for Frame on a PNG pack's page, each state, and its snackbar
+            MenuModel om = m;
+            om.mods.textures = SampleTextures();
+            TexturePartsModel& pp = om.mods.textures.parts;
+            pp.pack_id = "oot3d-4k-png";
+            pp.title = "4K (PNG)";
+            pp.author = "Henriko Magnifico";
+            pp.rest = "3.2 \u00b7 2,034 Textures On \u00b7 4.7 GB";
+            pp.all_buttons = true;
+            pp.rows = {{PartRowKind::Check, "Characters", "291 Textures \u00b7 263 MB", nullptr, 0, 2},
+                       {PartRowKind::Check, "Effects", "52 Textures \u00b7 73 MB", nullptr, 0, 2},
+                       {PartRowKind::Check, "Environment", "1,434 Textures \u00b7 4.2 GB", nullptr, 0, 2},
+                       {PartRowKind::Check, "UI", "257 Textures \u00b7 160 MB", nullptr, 0, 0}};
+            pp.optimize.state = OptimizeState::Png;
+            pp.optimize.size_text = "4.7 GB";
+            MenuView ov;
+            ov.tab = mods_tab;
+            ov.mods_segment = ModsSegment::Textures;
+            ov.textures_page = TexturesPage::Parts;
+            ov.hover = {Id::OptimizePack};
+            ok &= shot("optimize-png", om, ov);
+            om.mods.textures.dialog = {ModsDialogKind::Optimize, "2,308", "About 4.7 GB"};
+            ov.hover = {Id::DialogConfirm};
+            ok &= shot("optimize-confirm", om, ov);
+            om.mods.textures.dialog = {};
+            pp.optimize.state = OptimizeState::Converting;
+            pp.optimize.done = 1234;
+            pp.optimize.total = 2308;
+            pp.optimize.permille = 534;
+            ov.hover = {};
+            ok &= shot("optimize-converting", om, ov);
+            pp.optimize = {OptimizeState::Stopped, "4.7 GB"};
+            ok &= shot("optimize-stopped", om, ov);
+            pp.optimize = {OptimizeState::Failed, "4.7 GB", 0, 0, -1, {}, "Not Enough Space"};
+            ok &= shot("optimize-failed", om, ov);
+            pp.optimize = {OptimizeState::Optimized, "2.1 GB"};
+            pp.optimize.original_size = "4.7 GB";
+            om.mods.textures.needs_restart = true;
+            ok &= shot("optimize-optimized", om, ov);
+            // AzaharFrame ui3: Remove Original (the copy in use), its dialog, and after
+            om.mods.textures.needs_restart = false;
+            pp.optimize.can_remove = true;
+            ov.hover = {Id::RemoveOriginal};
+            ok &= shot("optimize-remove", om, ov);
+            om.mods.textures.dialog = {ModsDialogKind::RemoveOriginal,
+                                       RemoveOriginalBody("4.7 GB", true), ""};
+            ov.hover = {Id::DialogConfirm};
+            ok &= shot("optimize-remove-confirm", om, ov);
+            om.mods.textures.dialog = {};
+            pp.optimize.original_removed = true;
+            pp.optimize.can_remove = false;
+            pp.title = "4K"; // the page is the copy's now
+            ov.hover = {};
+            ok &= shot("optimize-removed", om, ov);
+            MenuModel nm = m;
+            nm.mods.textures = SampleTextures();
+            nm.mods.textures.packs[2].active = true;
+            nm.mods.textures.packs[1].active = false;
+            nm.mods.textures.packs[2].customize = true;
+            nm.mods.textures.nudge_pack = "oot3d-4k-png";
+            nm.mods.textures.nudge_name = "4K (PNG)";
+            nm.mods.textures.needs_restart = true;
+            MenuView nv;
+            nv.tab = mods_tab;
+            nv.mods_segment = ModsSegment::Textures;
+            nv.hover = {Id::OptimizeNudge};
+            ok &= shot("optimize-nudge", nm, nv);
+        }
         MenuModel tr = tm;
         for (auto& p : tr.mods.textures.packs) {
             p.active = p.id == "oot3d-1080p";

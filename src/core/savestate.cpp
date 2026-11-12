@@ -3,6 +3,8 @@
 // Refer to the LICENSE.txt file included.
 
 #include <chrono>
+#include <cstring>
+#include <optional>
 #include <sstream>
 #include <cryptopp/hex.h>
 #include <fmt/ranges.h>
@@ -38,20 +40,24 @@ static_assert(sizeof(CSTHeader) == 256, "CSTHeader should be 256 bytes");
 
 constexpr std::array<u8, 4> header_magic_bytes{{'C', 'S', 'T', 0x1B}};
 
-static std::string GetSaveStatePath(u64 program_id, u64 movie_id, u32 slot) {
+// AzaharFrame savestate: the states folder is a parameter (StatePathIn), so the slot list can be
+// tested in a folder of its own
+std::string StatePathIn(const std::string& states_dir, u64 program_id, u64 movie_id, u32 slot) {
     if (movie_id) {
-        return fmt::format("{}{:016X}.movie{:016X}.{:02d}.cst",
-                           FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id,
-                           movie_id, slot);
+        return fmt::format("{}{:016X}.movie{:016X}.{:02d}.cst", states_dir, program_id, movie_id,
+                           slot);
     } else {
-        return fmt::format("{}{:016X}.{:02d}.cst",
-                           FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id, slot);
+        return fmt::format("{}{:016X}.{:02d}.cst", states_dir, program_id, slot);
     }
 }
 
+static std::string GetSaveStatePath(u64 program_id, u64 movie_id, u32 slot) {
+    return StatePathIn(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id, movie_id,
+                       slot);
+}
+
 static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 program_id,
-                              u64 movie_id) {
-    const auto path = GetSaveStatePath(program_id, movie_id, info.slot);
+                              const std::string& path) {
     if (header.filetype != header_magic_bytes) {
         LOG_WARNING(Core, "Invalid save state file {}", path);
         return false;
@@ -81,11 +87,160 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
     return true;
 }
 
+// ---- AzaharFrame savestate (savestate.h) ----
+
+namespace {
+
+/// "1.2.0" as numbers ({1, 2, 0}); a "-rc1" style suffix is left out; nullopt when not x.y.z.
+std::optional<std::array<u32, 3>> ParseVersion(std::string_view v) {
+    std::array<u32, 3> out{};
+    std::size_t at = 0;
+    for (std::size_t i = 0; i < 3; i++) {
+        if (i > 0) {
+            if (at >= v.size() || v[at] != '.') {
+                return std::nullopt;
+            }
+            at++;
+        }
+        const std::size_t from = at;
+        u32 n = 0;
+        while (at < v.size() && v[at] >= '0' && v[at] <= '9' && at - from < 6) {
+            n = n * 10 + static_cast<u32>(v[at] - '0');
+            at++;
+        }
+        if (at == from) {
+            return std::nullopt;
+        }
+        out[i] = n;
+    }
+    if (at != v.size() && v[at] != '-') {
+        return std::nullopt;
+    }
+    return out;
+}
+
+} // namespace
+
+std::string FrameVersionOf(std::string_view build_name, std::string_view build_version) {
+    if (build_version.size() > kFrameBuildTag.size() &&
+        build_version.substr(0, kFrameBuildTag.size()) == kFrameBuildTag) {
+        return std::string(build_version.substr(kFrameBuildTag.size()));
+    }
+    // Before 1.2.0 only build_name was written: one of our releases is "1.<minor>.<patch>".
+    const auto v = ParseVersion(build_name);
+    if (v && (*v)[0] == 1) {
+        return std::string(build_name);
+    }
+    return {};
+}
+
+std::string SaveStateMismatchTitle(std::string_view version, std::string_view ours) {
+    const auto a = ParseVersion(version);
+    const auto b = ParseVersion(ours);
+    if (a && b && *a != *b) {
+        return *a < *b ? "This Save State Is From an Older Version"
+                       : "This Save State Is From a Newer Version";
+    }
+    return "This Save State Is From Another Version";
+}
+
+std::string SaveStateMismatchBody(std::string_view version) {
+    const std::string made = version.empty()
+                                 ? std::string("It was made with another version of Azahar.")
+                                 : "It was made with Azahar for Frame " + std::string(version) + ".";
+    return made + " It may not load, and it could corrupt this game's progress. Save states are "
+                  "NOT a replacement for saving in the game.";
+}
+
+std::string SaveStateFromText(std::string_view version) {
+    return version.empty() ? std::string("From Another Version") : "From " + std::string(version);
+}
+
+std::array<u8, 256> MakeStateHeader(u64 program_id, std::string_view revision_hex,
+                                    std::string_view build_name, std::string_view build_version,
+                                    u64 time) {
+    CSTHeader header{};
+    header.filetype = header_magic_bytes;
+    header.program_id = program_id;
+    std::string rev_bytes;
+    CryptoPP::StringSource ss(std::string(revision_hex), true,
+                              new CryptoPP::HexDecoder(new CryptoPP::StringSink(rev_bytes)));
+    std::memcpy(header.revision.data(), rev_bytes.data(),
+                std::min(rev_bytes.size(), sizeof(header.revision)));
+    header.time = time;
+    std::memcpy(header.build_name.data(), build_name.data(),
+                std::min(build_name.size(), sizeof(header.build_name) - 1));
+    std::memcpy(header.build_version.data(), build_version.data(),
+                std::min(build_version.size(), sizeof(header.build_version) - 1));
+    std::array<u8, 256> out{};
+    std::memcpy(out.data(), &header, sizeof(header));
+    return out;
+}
+
+std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time) {
+    // build_version "AZF 1.2.0", so a later build can name the version
+    const std::string build_fullname = Common::g_build_fullname;
+    return MakeStateHeader(program_id, Common::g_scm_rev, build_fullname,
+                           std::string(kFrameBuildTag) + build_fullname, time);
+}
+
+void WriteStateFile(const std::string& path, std::span<const u8> header,
+                    std::span<const u8> body) {
+    FileUtil::IOFile file(path, "wb"); // "wb": a slot saved over is replaced, header and all
+    if (!file) {
+        throw std::runtime_error("Could not open file " + path);
+    }
+    if (file.WriteBytes(header.data(), header.size()) != header.size() ||
+        file.WriteBytes(body.data(), body.size()) != body.size()) {
+        throw std::runtime_error("Could not write to file " + path);
+    }
+}
+
+HeaderCheck CheckStateHeader(std::span<const u8> data, u64 program_id,
+                             std::string_view revision_hex, bool allow_mismatch) {
+    if (data.size() < sizeof(CSTHeader)) {
+        return HeaderCheck::NotAState;
+    }
+    CSTHeader header;
+    std::memcpy(&header, data.data(), sizeof(header));
+    if (header.filetype != header_magic_bytes) {
+        return HeaderCheck::NotAState;
+    }
+    if (header.program_id != program_id) {
+        return HeaderCheck::OtherGame;
+    }
+    const std::string revision = fmt::format("{:02x}", fmt::join(header.revision, ""));
+    if (revision != revision_hex && !allow_mismatch) {
+        return HeaderCheck::OtherBuild;
+    }
+    return HeaderCheck::Ok;
+}
+
+void RestoreGuarded(const std::function<void()>& restore) {
+    try {
+        restore();
+    } catch (const std::exception& e) {
+        LOG_ERROR(Core, "Save state not read: {}", e.what());
+        throw SaveStateHalfLoaded();
+    } catch (...) {
+        LOG_ERROR(Core, "Save state not read: an unknown error");
+        throw SaveStateHalfLoaded();
+    }
+}
+
 std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
+    return ListSaveStatesIn(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id,
+                            movie_id);
+}
+
+// AzaharFrame savestate: reads every slot's header from its file, each time (nothing is kept), so a
+// slot saved over shows the new state's build at once
+std::vector<SaveStateInfo> ListSaveStatesIn(const std::string& states_dir, u64 program_id,
+                                            u64 movie_id) {
     std::vector<SaveStateInfo> result;
     result.reserve(SaveStateSlotCount);
     for (u32 slot = 0; slot <= SaveStateSlotCount; ++slot) {
-        const auto path = GetSaveStatePath(program_id, movie_id, slot);
+        const auto path = StatePathIn(states_dir, program_id, movie_id, slot);
         if (!FileUtil::Exists(path)) {
             continue;
         }
@@ -107,7 +262,7 @@ std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
             LOG_ERROR(Core, "Could not read from file {}", path);
             continue;
         }
-        if (!ValidateSaveState(header, info, program_id, movie_id)) {
+        if (!ValidateSaveState(header, info, program_id, path)) {
             continue;
         }
 
@@ -117,10 +272,16 @@ std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
 }
 
 SaveStateInfo GetSaveStateInfo(u64 program_id, u64 movie_id, u32 slot) {
+    return GetSaveStateInfoIn(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id,
+                              movie_id, slot);
+}
+
+SaveStateInfo GetSaveStateInfoIn(const std::string& states_dir, u64 program_id, u64 movie_id,
+                                 u32 slot) {
     SaveStateInfo info{};
     info.slot = std::numeric_limits<u32>::max();
 
-    const auto path = GetSaveStatePath(program_id, movie_id, slot);
+    const auto path = StatePathIn(states_dir, program_id, movie_id, slot);
     if (!FileUtil::Exists(path)) {
         return info;
     }
@@ -139,7 +300,7 @@ SaveStateInfo GetSaveStateInfo(u64 program_id, u64 movie_id, u32 slot) {
         LOG_ERROR(Core, "Could not read from file {}", path);
         return info;
     }
-    if (ValidateSaveState(header, info, program_id, movie_id)) {
+    if (ValidateSaveState(header, info, program_id, path)) {
         info.slot = slot;
     }
     return info;
@@ -168,33 +329,16 @@ void System::SaveState(u32 slot) const {
         throw std::runtime_error("Could not create path " + path);
     }
 
-    FileUtil::IOFile file(path, "wb");
-    if (!file) {
-        throw std::runtime_error("Could not open file " + path);
-    }
-
-    CSTHeader header{};
-    header.filetype = header_magic_bytes;
-    header.program_id = title_id;
-    std::string rev_bytes;
-    CryptoPP::StringSource ss(Common::g_scm_rev, true,
-                              new CryptoPP::HexDecoder(new CryptoPP::StringSink(rev_bytes)));
-    std::memcpy(header.revision.data(), rev_bytes.data(), sizeof(header.revision));
-    header.time = std::chrono::duration_cast<std::chrono::seconds>(
-                      std::chrono::system_clock::now().time_since_epoch())
-                      .count();
-    const std::string build_fullname = Common::g_build_fullname;
-    std::memset(header.build_name.data(), 0, sizeof(header.build_name));
-    std::memcpy(header.build_name.data(), build_fullname.c_str(),
-                std::min(build_fullname.length(), sizeof(header.build_name) - 1));
-
-    if (file.WriteBytes(&header, sizeof(header)) != sizeof(header) ||
-        file.WriteBytes(buffer.data(), buffer.size()) != buffer.size()) {
-        throw std::runtime_error("Could not write to file " + path);
-    }
+    WriteStateFile(path,
+                   CurrentStateHeader(
+                       title_id, static_cast<u64>(
+                                     std::chrono::duration_cast<std::chrono::seconds>(
+                                         std::chrono::system_clock::now().time_since_epoch())
+                                         .count())),
+                   buffer);
 }
 
-void System::LoadState(u32 slot) {
+void System::LoadState(u32 slot, bool allow_mismatch) {
     if (app_loader) {
         if (!app_loader->SupportsSaveStates()) {
             throw std::runtime_error("Savestates are not supported by the current application "
@@ -224,8 +368,10 @@ void System::LoadState(u32 slot) {
         // validate header
         SaveStateInfo info;
         info.slot = slot;
-        if (!ValidateSaveState(header, info, title_id, movie_id) ||
-            info.status == SaveStateInfo::ValidationStatus::BuildMismatch) {
+        // AzaharFrame savestate: strict (this build's revision) unless Load Anyway; the file type
+        // and the game are checked either way
+        if (!ValidateSaveState(header, info, title_id, path) ||
+            (!allow_mismatch && info.status != SaveStateInfo::ValidationStatus::OK)) {
             throw std::runtime_error("Invalid savestate");
         }
 
@@ -233,15 +379,20 @@ void System::LoadState(u32 slot) {
             throw std::runtime_error("Could not read from file at " + path);
         }
         decompressed = Common::Compression::DecompressDataZSTD(buffer);
+        if (decompressed.empty()) { // nothing read into the system yet: the game goes on
+            throw std::runtime_error(kSaveStateNotLoaded);
+        }
     }
     std::istringstream sstream{
         std::string{reinterpret_cast<char*>(decompressed.data()), decompressed.size()},
         std::ios_base::binary};
     decompressed.clear();
 
-    // Deserialize
-    iarchive ia{sstream};
-    ia&* this;
+    // Deserialize (AzaharFrame savestate: a failure here leaves the system half-restored)
+    RestoreGuarded([&] {
+        iarchive ia{sstream};
+        ia&* this;
+    });
 }
 
 std::vector<u8> System::SaveStateBuffer() const {
@@ -280,45 +431,46 @@ std::vector<u8> System::SaveStateBuffer() const {
     return result;
 }
 
-bool System::LoadStateBuffer(std::vector<u8> buffer) {
-    CSTHeader header;
-
-    if (buffer.size() < sizeof(header)) {
-        LOG_ERROR(Core, "Save state too small");
-        return false;
-    }
-
-    header = *((CSTHeader*)buffer.data());
-
-    if (header.filetype != header_magic_bytes) {
+bool System::LoadStateBuffer(std::vector<u8> buffer, bool allow_mismatch) {
+    // AzaharFrame savestate: the checks as LoadState's (CheckStateHeader), the revision skipped
+    // only when asked
+    switch (CheckStateHeader(buffer, title_id, Common::g_scm_rev, allow_mismatch)) {
+    case HeaderCheck::Ok:
+        break;
+    case HeaderCheck::NotAState:
         LOG_ERROR(Core, "Invalid save state");
         return false;
-    }
-
-    if (header.program_id != title_id) {
+    case HeaderCheck::OtherGame:
         LOG_ERROR(Core, "Save state isn't for the current game");
         return false;
-    }
-    std::string revision = fmt::format("{:02x}", fmt::join(header.revision, ""));
-    if (revision != Common::g_scm_rev) {
-        LOG_ERROR(Core,
-                  "Save state file created from a different revision (core: {}, savestate: {})",
-                  Common::g_scm_rev, revision);
+    case HeaderCheck::OtherBuild:
+        LOG_ERROR(Core, "Save state file created from a different revision (core: {})",
+                  Common::g_scm_rev);
         return false;
     }
 
     std::vector<u8> state(buffer.begin() + sizeof(CSTHeader), buffer.end());
     auto decompressed = Common::Compression::DecompressDataZSTD(state);
+    if (decompressed.empty()) {
+        LOG_ERROR(Core, "Save state not decompressed");
+        return false;
+    }
 
     std::istringstream sstream{
         std::string{reinterpret_cast<char*>(decompressed.data()), decompressed.size()},
         std::ios_base::binary};
     decompressed.clear();
 
-    // Deserialize
-    iarchive ia{sstream};
-    ia&* this;
-
+    // Deserialize. A failure partway leaves the system half-restored: the caller is told (false)
+    // and must not run it on; never an exception out of here.
+    try {
+        RestoreGuarded([&] {
+            iarchive ia{sstream};
+            ia&* this;
+        });
+    } catch (const SaveStateHalfLoaded&) {
+        return false;
+    }
     return true;
 }
 

@@ -1412,6 +1412,64 @@ TEST_CASE("Mods: the source's own date on Install Mods rows", "[mods]") {
     REQUIRE(list[1].updated.empty());
 }
 
+// AzaharFrame ui3: the mod's own version on Install Mods rows: a release's tag, GameBanana's version,
+// else the catalog's "version" (a MEGA source has none of its own); and the compiled-in catalog's
+// Kid Icarus entries carry theirs and their month.
+TEST_CASE("Mods: the version on Install Mods rows", "[mods]") {
+    const std::string dir = TempDir("versions");
+    FakeNet net;
+    Library library(dir, DefaultCatalog(), net.Get());
+    net.Ok("https://gamebanana.com/apiv11/Mod/695893/ProfilePage", GbProfile(""));
+    net.Ok("https://api.github.com/repos/OTPR26/OOT3DHud/releases/latest",
+           "{\"tag_name\":\"v9\",\"published_at\":\"2026-08-03T10:11:12Z\",\"assets\":[]}");
+    const auto version_of = [&](const std::string& id) {
+        for (const auto& a : library.ListAvailable(kTid)) {
+            if (a.id == id) {
+                return a.version;
+            }
+        }
+        return std::string("missing");
+    };
+    REQUIRE(version_of("ocarina-reframed-single-screen").empty()); // nothing asked yet
+    library.RefreshDates(kTid);
+    REQUIRE(version_of("ocarina-reframed-single-screen") == "v9");
+    REQUIRE(version_of(kGbOot) == "3.2.2");
+
+    const auto cat = ParseCatalog(R"({"mods":[
+      {"id":"m","name":"M","title_ids":["0004000000030100"],"version":"v172","updated":"2026-10",
+       "source":{"type":"mega","link":"https://mega.nz/file/mS5QwCzb#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA","file_pattern":"*.zip"}},
+      {"id":"long","name":"L","title_ids":["0004000000030100"],"version":"a version far too long to show",
+       "source":{"type":"mega","link":"https://mega.nz/file/mS5QwCzb#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA","file_pattern":"*.zip"}},
+      {"id":"num","name":"N","title_ids":["0004000000030100"],"version":7,
+       "source":{"type":"mega","link":"https://mega.nz/file/mS5QwCzb#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA","file_pattern":"*.zip"}}]})");
+    REQUIRE(cat.has_value());
+    REQUIRE(cat->mods.size() == 3); // a bad "version" drops the field, not the entry
+    REQUIRE(cat->mods[0].version == "v172");
+    REQUIRE(cat->mods[1].version.empty());
+    REQUIRE(cat->mods[2].version.empty());
+    FakeNet none;
+    Library mega(TempDir("versions2"), *cat, none.Get());
+    mega.RefreshDates(0x0004000000030100);
+    const auto list = mega.ListAvailable(0x0004000000030100);
+    REQUIRE(list.size() == 3);
+    for (const auto& a : list) {
+        if (a.id == "m") {
+            REQUIRE(a.version == "v172");
+            REQUIRE(a.updated == "2026-10");
+        }
+    }
+    REQUIRE(none.log.empty()); // MEGA: nothing to ask
+
+    const auto builtin = DefaultCatalog();
+    for (const char* id : {"kiu-cstick-gyro", "kiu-cstick-gyro-widescreen-16-9",
+                           "kiu-cstick-gyro-ultrawide-21-9"}) {
+        const CatalogEntry* e = builtin.Find(id);
+        REQUIRE(e != nullptr);
+        REQUIRE(e->version == "v172");
+        REQUIRE(e->updated == "2026-10");
+    }
+}
+
 // AzaharFrame stall: Install Mods' list comes from the catalog in hand with no request; the
 // date requests stop at their deadline and the rest are asked on a later call.
 TEST_CASE("Mods: the list needs no request; dates stop at the deadline", "[mods]") {

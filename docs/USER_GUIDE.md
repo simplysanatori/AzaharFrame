@@ -125,7 +125,7 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 **Mods**
 
 - The list shows what is installed for the game. Mods installed from here have a switch and **Remove**. Files you put in the mods folder yourself have **Remove** only, which asks first.
-- **Install Mods** lists the mods known for the game, with their author and the date they were last updated, and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
+- **Install Mods** lists the mods known for the game, with their author, their version and the date they were last updated (when the source says), and installs one with **Install**. The files come straight from the author's GitHub repository or GameBanana page; nothing is re-hosted. The list holds my own fixes and community mods such as Single Screen Experience, Ocarina ReFramed and Project Restoration. Project Restoration has three rows, each with a chip for the game version it was made for (hover it for what it means); the row that matches your game says so and comes first.
 - When two mods change the same files, installing the second asks before it replaces the first, or tells you which one to remove first.
 - **Created by** and the author's name open the author's page in Steam's browser, after **Open GitHub?**.
 
@@ -135,16 +135,21 @@ The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, *
 - Pick one of the game's packs, or **Off**. Each row names the author, the version, the format and the size.
 - **Download Packs** lists packs for the game and downloads one with **Download**, from GitHub or Google Drive, with the free space checked first. They include Henriko Magnifico's 4K and 1080p packs for Ocarina of Time 3D, Majora's Mask 3D, Super Mario 3D Land and A Link Between Worlds. **Cancel** stops a download. **Delete** removes a downloaded pack.
 - **Preload** loads the whole pack when the game starts, instead of while you play.
+- **Customize** on a pack opens its page. A PNG pack has **Optimize for Frame** there: it makes the ASTC copy described under [Optimize Texture Pack for Frame](#optimize-texture-pack-for-frame), with the progress on the page and **Stop**. It keeps going if you close the menu, at the lowest priority, and never touches the files the game has open. The copy takes over at the next start, and the parts you turned off stay off. **Use Original** switches back. **Remove Original** deletes the PNG pack to free its space, once the game no longer reads it; to go back after that, download or add the pack again. A PNG pack over 1 GB asks once, **Optimize <Pack> for Frame?**, when you pick it or its download finishes.
 
 A change to mods or textures shows **Restart the Game to Apply**. **Restart** restarts the game.
 
 Downloaded packs go to `load/texture-packs/<TitleID>/`, and `load/textures/<TitleID>` points at the one you picked. Installed mods are kept in `load/mod-library/<TitleID>/` and copied into `load/mods/<TitleID>/`.
 
+#### The Homebrew tab
+
+The in-game menu's **Homebrew** tab, under **Mods**, installs homebrew built from a game you own. For now that is [Pokémon Emerald 3DS](https://github.com/ZallaxDev/emerald-3ds). **Install** continues in Azahar's window: it asks for your Pokémon Emerald ROM, the language and the game folder, then downloads the release and builds the game, with the progress on the row. Once it is installed, **Play** starts it. Once a day, when the game list loads, Azahar for Frame asks GitHub for the latest release; **Update** then shows next to **Play**. When you already have the latest, **Check for Updates** asks again at once, and the row shows the installed version and when it was checked. **Reinstall** builds the game again from the kept ROM, if something went wrong. Azahar's own **Homebrew** menu has the same entries, with **Check for Updates** at its end.
+
 #### Optimize Texture Pack for Frame
 
 HD packs are PNG files, and the emulator decodes each one the first time the game uses it. A 4096×4096 texture takes over a second, so a new area shows the low-resolution textures first. I added a converter for that. In the Azahar window, right-click the game and choose **Optimize Texture Pack for Frame...**. It writes a copy of the pack in ASTC, the compressed format the Frame's GPU reads as it is, with every mip level made in advance. Those files load in a few milliseconds, with no decoding, and take a quarter of the GPU memory.
 
-- The original pack is not changed. The copy goes next to it (`<TitleID>-astc4x4`), and the game's folder in `load/textures/` becomes a link to the copy. **Use Original Texture Pack** in the same menu switches back. To remove the copy, delete its folder.
+- The original pack is not changed. The copy goes next to it (`<TitleID>-astc4x4`), and the game's folder in `load/textures/` becomes a link to the copy. **Use Original Texture Pack** in the same menu switches back. To remove the copy, delete its folder. **Remove Original Texture Pack...** deletes the original to free its space; it only ever deletes the folder the copy was made from, inside the texture folders. The in-game menu does the same from the pack's page (see **Textures** above).
 - The first time, it builds its encoder (ARM's astcenc). That takes under a minute and needs git, CMake and a C++ compiler.
 - **Stop** is safe. Choose the menu entry again and it carries on where it left off. It runs at the lowest priority, but it is still best not to run it while you play.
 - Ocarina of Time 3D with Henriko Magnifico's 4K pack: 2308 textures, 4.5 GB as PNG. As ASTC 4x4 it is 6.0 GB, and about 2.7 GB with `--block 6x6`. It takes about 15 to 20 minutes on the Frame, or about 6 with `--quality fast`, which looks nearly the same. Decoded, the PNGs would be 18 GB of memory; the emulator keeps an ASTC texture in memory only until the GPU has it.
@@ -269,6 +274,12 @@ Global, not per game: **Black** (default) or **Passthrough**. Passthrough shows 
 
 Hold **View** and press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The in-game menu has **Quick Save** and **Quick Load** buttons too. Both use Azahar's Quick Save slot, the same as the Emulation menu. A short message in front of you confirms it. Details: [CONTROLS.md](CONTROLS.md#quick-save-and-quick-load).
 
+### Save states
+
+Save states are NOT a replacement for saving in the game. A state only loads in the version of Azahar for Frame that made it, so save in the game before you update. The first time you save or load a state, **About Save States** says so once.
+
+A state from another version shows **From 1.1.1** (or **From Another Version**) in place of its date, dimmed. Tapping it asks first: **Load Anyway** may work, or it may break the game's progress. Before it loads, the game's save data is copied to `user/save-backups/<TitleID>/` (the last 3 copies are kept), and the moment before is saved to its own file. If the game then closes unexpectedly, the next time it starts you can **Restore Save Data**. If a state can't be read, the game stops and nothing is changed. Saving over a slot makes it a normal slot again.
+
 ### Fast Forward
 
 Hold **View** and pull the right trigger to run the game at Azahar's turbo speed. Do it again to go back. "Fast Forward" shows in front of you for 2 seconds; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
@@ -334,6 +345,8 @@ Keep other heavy work off the Frame while you play.
 | Screen places, per game | `~/.local/share/AzaharFrame/user/screen-placement.txt` |
 | Gamepad and mouse layouts | `~/.local/share/AzaharFrame/user/controller-mappings.txt` |
 | Cheats, per game | `~/.local/share/AzaharFrame/user/cheats/<TitleID>.txt` |
+| Save states, and the moment before a Load Anyway (`<TitleID>.99.cst`) | `~/.local/share/AzaharFrame/user/states` |
+| Save data copies made by Load Anyway, per game (last 3) | `~/.local/share/AzaharFrame/user/save-backups/<TitleID>` |
 | Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |

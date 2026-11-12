@@ -1049,9 +1049,9 @@ void ShowToast(Toast kind) {
     }
 }
 
-void ShowToastText(const std::string& text) {
+void ShowToastText(const std::string& text, ToastTime time) {
     if (auto* rt = GetRuntime()) {
-        rt->hud.ShowToastText(text);
+        rt->hud.ShowToastText(text, time);
     }
 }
 

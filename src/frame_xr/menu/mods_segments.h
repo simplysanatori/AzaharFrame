@@ -80,6 +80,9 @@ struct ModOffer {
     /// AzaharFrame compat: GameBanana has not scanned its file yet (AvailableMod::unscanned, known
     /// after an install was refused for it): Install asks first
     bool unscanned = false;
+    /// AzaharFrame ui3: the mod's own version ("v172", "v1.5.9"; the catalog's "version", a GitHub
+    /// release tag or GameBanana's), after "Created by <author>"; "" unknown
+    std::string mod_version;
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -102,6 +105,10 @@ enum class ModsDialogKind : uint8_t {
     Preload,     ///< AzaharFrame memguard: "Preload Textures?", `mod` = the supporting text, `rows`
                  ///< the numbers, `status` and `other` the status row
                  ///< (video_core/custom_textures/preload_budget.h MakeConfirmText): Cancel, Turn On
+    Optimize,    ///< AzaharFrame ui3: "Optimize Texture Pack?", kOptimizeBody, the rows Textures
+                 ///< (`mod`, "2,308") and Size (`other`, "About 4.7 GB"): Cancel, Optimize
+    RemoveOriginal, ///< AzaharFrame ui3: kRemoveOriginalTitle, `mod` = RemoveOriginalBody: Cancel, Remove
+    Notice, ///< AzaharFrame savestate: `mod` the title, `other` the body, `confirm` (and `cancel`)
 };
 
 struct ModsDialog {
@@ -114,6 +121,7 @@ struct ModsDialog {
     std::vector<std::pair<std::string, std::string>> rows;
     int status = 0;
     std::string title;
+    std::string confirm, cancel; ///< AzaharFrame savestate: Notice's buttons (cancel "" none)
     bool operator==(const ModsDialog&) const = default;
 };
 
@@ -170,6 +178,46 @@ struct TexturePartRow {
     bool operator==(const TexturePartRow&) const = default;
 };
 
+/// AzaharFrame ui3: Optimize for Frame, the pack-level row at the top of a pack's page
+/// (core/custom_tex/optimize.h; the Qt side runs the converter). The pair is the PNG pack and its
+/// optimized copy; the row shows the one chosen (active, or waiting for the next start).
+enum class OptimizeState : uint8_t {
+    None,       ///< no row (not a PNG pack, nor an optimized one)
+    Png,        ///< "PNG · 4.7 GB", Optimize for Frame
+    Checking,   ///< the estimate runs (a ring where the button was)
+    Converting, ///< the progress, Stop
+    Stopped,    ///< "Stopped. Optimize Again to Carry On.", Optimize for Frame
+    Failed,     ///< the reason in the error colour, Optimize for Frame
+    Optimized,  ///< "Optimized for Frame · ASTC · 2.1 GB", Use Original
+};
+
+struct PackOptimize {
+    OptimizeState state = OptimizeState::None;
+    std::string size_text; ///< the shown pack's size ("4.7 GB"), "" unknown
+    int done = 0, total = 0; ///< Converting: textures
+    int permille = -1;       ///< Converting: 0 to 1000, -1 not yet known
+    std::string phase;       ///< Converting before the first texture ("Preparing the Encoder")
+    std::string error;       ///< Failed: why ("Not Enough Space")
+    int spin = 0;            ///< Checking: the ring's step (menu_panel.cpp)
+    // Optimized (AzaharFrame ui3): the original PNG pack
+    std::string original_size; ///< its size ("4.7 GB"), "" unknown
+    bool original_removed = false; ///< it is gone: no Use Original
+    bool can_remove = false;       ///< Remove Original (not what the game reads now)
+    bool operator==(const PackOptimize&) const = default;
+};
+
+/// AzaharFrame ui3: the row's text and button, for the state (unit-tested).
+struct OptimizeRowText {
+    std::string title;   ///< "PNG · 4.7 GB", "Optimized for Frame · ASTC · 2.1 GB"
+    std::string line;    ///< under it ("" none)
+    bool line_error = false;
+    int button = 0;      ///< 0 none, 1 Optimize for Frame (tonal), 2 Stop (text), 3 Use Original (text)
+    bool remove = false; ///< Remove Original (text), left of Use Original
+    bool ring = false;   ///< a progress ring in the button's place (Checking)
+    bool bar = false;    ///< a linear progress bar under the title (Converting)
+};
+OptimizeRowText OptimizeText(const PackOptimize& o);
+
 struct TexturePartsModel {
     std::string pack_id; ///< the pack the page is for ("" none)
     std::string title;   ///< the pack's name
@@ -179,6 +227,7 @@ struct TexturePartsModel {
     bool all_buttons = false; ///< it has checkboxes: All On, All Off
     bool note = false;        ///< parts conflict: the order note
     std::vector<TexturePartRow> rows;
+    PackOptimize optimize; ///< AzaharFrame ui3: Optimize for Frame
     bool operator==(const TexturePartsModel&) const = default;
 };
 
@@ -223,6 +272,10 @@ struct TexturesModel {
     ModsDialog dialog;                  ///< BigDownload, DeletePack
     int spin = 0;                       ///< the progress ring's step while a download runs
     TexturePartsModel parts;            ///< AzaharFrame texparts: the Customize page
+    /// AzaharFrame ui3: "Optimize <Pack> for Frame?" with Optimize (the pack's page), once a pack:
+    /// a PNG pack over 1 GB turned on or downloaded. "" none.
+    std::string nudge_pack; ///< its id
+    std::string nudge_name;
     bool operator==(const TexturesModel&) const = default;
 };
 
@@ -296,11 +349,47 @@ std::string TurnedOffText(const std::vector<std::string>& names);
 /// AzaharFrame compat: lifetime downloads, roughly: "Under 100 Downloads", "100+ Downloads",
 /// "1K+ Downloads", "5K+ Downloads", "10K+ Downloads", "50K+ Downloads".
 std::string DownloadsText(uint64_t count);
-/// "• a • b" of the parts that are not empty ("" when none is).
-std::string BulletLine(const std::vector<std::string>& parts);
+/// AzaharFrame ui3: how many of a byline's parts ("Created by <author> · a · b · c") stay on its
+/// first line, from the widths: `lead_w` "Created by <author>" (0: no author), `part_w` each
+/// part's, `sep_w` " · "'s. All fit: part_w.size(). The rest go on to the second line whole, so
+/// it breaks at a " · " only; the author always stays on the first, and with no author the first
+/// part does (cut to fit).
+std::size_t BylineSplit(float lead_w, const std::vector<float>& part_w, float sep_w, float width);
+/// The byline as text, "\n" where it goes on to the second line after `first` parts (tests).
+std::string BylineText(const std::string& author, const std::vector<std::string>& parts,
+                       std::size_t first);
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);
+
+/// AzaharFrame ui3: Optimize for Frame's strings (the Flat ones, shortened).
+inline constexpr const char* kOptimizeLine =
+    "Converts the pack to a format the GPU reads directly. HD textures show sooner and use less "
+    "memory. The original is kept.";
+inline constexpr const char* kOptimizeBody =
+    "Converts the pack to a format the GPU reads directly, so HD textures show sooner and use "
+    "less memory. The original is kept.";
+inline constexpr const char* kOptimizeStopped = "Stopped. Optimize Again to Carry On.";
+/// AzaharFrame ui3: Remove Original's dialog.
+inline constexpr const char* kRemoveOriginalTitle = "Remove the Original Pack?";
+/// "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need to
+/// download it again." (`catalog`; else "add it again"); no size known: no first sentence.
+std::string RemoveOriginalBody(const std::string& size, bool catalog);
+/// "Optimize 4K (PNG) for Frame?"
+std::string OptimizeNudgeText(const std::string& pack);
+/// "2,308"
+std::string CountWithCommas(uint64_t n);
+
+/// AzaharFrame ui3: a mod's version as its rows show it: "v172", "v1.5.9", "Beta 2"; a bare number
+/// gets the "v" ("172" -> "v172"); "" stays "".
+std::string ModVersionText(const std::string& version);
+/// AzaharFrame ui3: what follows "Created by <author>" on an Install Mods row: the version, then its
+/// note (the phase, a failure; index 1) when it has one, else Matches Your Game, "10K+ Downloads",
+/// "Updated Oct 2026" ("" the ones not known).
+std::vector<std::string> OfferParts(const ModOffer& offer);
+/// A Download Packs row's: the note while it downloads or when it failed, else "10K+ Downloads",
+/// "Updated Oct 2026".
+std::vector<std::string> PackOfferParts(const PackOffer& offer);
 
 /// "2.1 GB", "640 MB", "12 KB": a size the way Android's file manager shows it (1000s).
 std::string SizeText(uint64_t bytes);

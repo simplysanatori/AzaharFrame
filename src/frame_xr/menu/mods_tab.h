@@ -15,7 +15,8 @@
 
 namespace FrameXr::Menu {
 
-enum class ModsSegment : uint8_t { Cheats, Mods, Textures, Homebrew }; // AzaharFrame emerald: Homebrew
+// AzaharFrame emerald added Homebrew here; ui3 made it a tab of its own (Tab::Homebrew)
+enum class ModsSegment : uint8_t { Cheats, Mods, Textures };
 
 struct ModsTabModel {
     CheatsModel cheats;

@@ -318,6 +318,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_mods.cpp frame_mods.h)
     # AzaharFrame memguard: "Preload Custom Textures" with the memory numbers, VR and Flat.
     target_sources(citra_qt PRIVATE frame_preload_confirm.cpp frame_preload_confirm.h)
+    # AzaharFrame ui3: Optimize for Frame on the VR menu's pack page (FrameMods' part).
+    target_sources(citra_qt PRIVATE frame_mods_optimize.cpp)
     # AzaharFrame texparts: Customize Texture Pack in Flat (game list menu, Emulation menu).
     target_sources(citra_qt PRIVATE frame_texture_parts.cpp frame_texture_parts.h)
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat

@@ -1905,6 +1905,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/",
       "verified": false,
+      "version": "v172",
+      "updated": "2026-10",
       "source": {
         "type": "mega",
         "link": "https://mega.nz/file/mS5QwCzb#bKRm4ltwCj8XN2Xd23os8yFiOaJD_zvA5xDTH5yF8rQ",
@@ -1942,6 +1944,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/",
       "verified": false,
+      "version": "v172",
+      "updated": "2026-10",
       "source": {
         "type": "mega",
         "link": "https://mega.nz/file/mS5QwCzb#bKRm4ltwCj8XN2Xd23os8yFiOaJD_zvA5xDTH5yF8rQ",
@@ -1979,6 +1983,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated",
       "homepage": "https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/",
       "verified": false,
+      "version": "v172",
+      "updated": "2026-10",
       "source": {
         "type": "mega",
         "link": "https://mega.nz/file/mS5QwCzb#bKRm4ltwCj8XN2Xd23os8yFiOaJD_zvA5xDTH5yF8rQ",
