@@ -45,16 +45,20 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **About Save States** says it once: save states are NOT a replacement for saving in the game.
 - A state loads in the version that made it. States from 1.1.1 show **From 1.1.1**, dimmed.
-- **Load Anyway** still loads one. It backs up the game's save data and extdata first. If the game then closes unexpectedly, the next start offers **Restore Save Data**.
+- **Load Anyway** still loads one. It backs up the game's save data and extdata first. If the game then closes unexpectedly within 10 minutes of play, the next start offers **Restore Save Data**.
+- **Restore** backs up your current save data first, so newer progress is never lost.
 - **Undo Load** takes back a load from a slot or an autosave, until the game closes.
 - A state that can't be read stops the game with a message instead of crashing it.
+- A state or Quick Save that can't be written shows **Couldn't Save State**. The game keeps running, and the slot keeps the state it had.
 
 ### Autosave
 
 - **Autosave** makes save states while you play. It is off by default. Turn it on in **Settings** > **General**.
 - It saves every 5 minutes, when you open the menu and when you close the game. Each game keeps its newest 3. Both can be set per game.
+- The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - **Load State** has an **Autosave** card with the newest one, and a list of the others.
 - "Autosaved" shows above the top screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
+- Autosaves wait while memory is nearly full, because writing one needs about 0.9 GB more for a moment.
 - Autosaves never replace a slot or the Quick Save.
 - In Azahar's window, autosaves are at the end of **Emulation > Load State**. The settings are in **Emulation > Configure > General** and in a game's **Properties**.
 
