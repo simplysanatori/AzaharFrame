@@ -9,8 +9,10 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -20,6 +22,7 @@
 #include <QGuiApplication>
 #include <QPointer>
 #include <QProcess>
+#include <QPushButton>
 #include <QSaveFile>
 #include <QTimer>
 #include <QWidget>
@@ -31,6 +34,10 @@
 #include "common/logging/log.h"
 #include "frame_xr/input/flat_pads.h"
 #include "input_common/main.h"
+
+#ifdef HAVE_SDL2
+#include <SDL.h>
+#endif
 
 namespace FrameMode {
 
@@ -110,6 +117,146 @@ void ReadTestPad(const std::vector<TestPadEvent>& script, FrameXr::Input::InputF
     }
 }
 
+// AzaharFrame flatfix: AZAHARFRAME_TEST_FLAT_PAD_SDL=1 sends the test script through SDL instead:
+// a thread of its own plays it on an SDL virtual game controller ("AzaharFrame Test Pad"), and
+// ReadGamepad reads SDL as it reads Steam Input's pad, so a mock run covers input_common's SDL
+// thread and its locks too. Two more controls: "attach 0" takes the pad away and "attach 1"
+// brings it back (as Steam Input re-creates its pad), "vrbutton 1" clicks the status bar's VR
+// button. The pad comes with the first Flat pass; the thread ends after the last event.
+bool TestPadThroughSdl() {
+    static const bool on = qEnvironmentVariable("AZAHARFRAME_TEST_FLAT_PAD_SDL") ==
+                           QStringLiteral("1");
+    return on;
+}
+
+#ifdef HAVE_SDL2
+void ClickVrButton() {
+    QMetaObject::invokeMethod(
+        qApp,
+        [] {
+            for (QWidget* w : QApplication::allWidgets()) {
+                auto* button = qobject_cast<QPushButton*>(w);
+                if (button && button->objectName() == QStringLiteral("GraphicsAPIStatusBarButton") &&
+                    button->text() == QStringLiteral("VR")) {
+                    LOG_INFO(Frontend, "xr test: clicking the status bar's VR button ({})",
+                             button->isVisible() && button->isEnabled() ? "shown" : "hidden");
+                    button->click();
+                }
+            }
+        },
+        Qt::QueuedConnection);
+}
+
+void PlaySdlTestPad(const std::vector<TestPadEvent>& script) {
+    SDL_Joystick* joystick = nullptr;
+    SDL_JoystickID instance = -1;
+    // Device index calls under SDL's joystick lock: input_common's thread uses indices too.
+    const auto attach = [&] {
+        SDL_LockJoysticks();
+        SDL_VirtualJoystickDesc desc{};
+        desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+        desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
+        desc.naxes = SDL_CONTROLLER_AXIS_MAX;
+        desc.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
+        desc.vendor_id = 0x045e; // an Xbox 360 pad: a plain gamepad to the pad picker
+        desc.product_id = 0x028e;
+        desc.name = "AzaharFrame Test Pad";
+        const int index = SDL_JoystickAttachVirtualEx(&desc);
+        joystick = index >= 0 ? SDL_JoystickOpen(index) : nullptr;
+        instance = joystick ? SDL_JoystickInstanceID(joystick) : -1;
+        SDL_UnlockJoysticks();
+        LOG_INFO(Frontend, "xr test: SDL test pad attached (index {}, instance {}{})", index,
+                 instance, joystick ? "" : fmt::format(", {}", SDL_GetError()));
+    };
+    const auto detach = [&] {
+        SDL_LockJoysticks();
+        for (int i = 0; joystick && i < SDL_NumJoysticks(); i++) {
+            if (SDL_JoystickGetDeviceInstanceID(i) == instance) {
+                SDL_JoystickClose(joystick);
+                SDL_JoystickDetachVirtual(i);
+                joystick = nullptr;
+            }
+        }
+        SDL_UnlockJoysticks();
+        LOG_INFO(Frontend, "xr test: SDL test pad detached");
+    };
+    const auto button = [](const std::string& c) -> int {
+        static const std::vector<std::pair<std::string, int>> names{
+            {"a", SDL_CONTROLLER_BUTTON_A},
+            {"b", SDL_CONTROLLER_BUTTON_B},
+            {"x", SDL_CONTROLLER_BUTTON_X},
+            {"y", SDL_CONTROLLER_BUTTON_Y},
+            {"view", SDL_CONTROLLER_BUTTON_BACK},
+            {"menu", SDL_CONTROLLER_BUTTON_START},
+            {"ls", SDL_CONTROLLER_BUTTON_LEFTSTICK},
+            {"rs", SDL_CONTROLLER_BUTTON_RIGHTSTICK},
+            {"lb", SDL_CONTROLLER_BUTTON_LEFTSHOULDER},
+            {"rb", SDL_CONTROLLER_BUTTON_RIGHTSHOULDER},
+            {"up", SDL_CONTROLLER_BUTTON_DPAD_UP},
+            {"down", SDL_CONTROLLER_BUTTON_DPAD_DOWN},
+            {"left", SDL_CONTROLLER_BUTTON_DPAD_LEFT},
+            {"right", SDL_CONTROLLER_BUTTON_DPAD_RIGHT}};
+        for (const auto& [name, b] : names) {
+            if (name == c) {
+                return b;
+            }
+        }
+        return -1;
+    };
+    const auto axis = [](const std::string& c) -> int {
+        static const std::vector<std::pair<std::string, int>> names{
+            {"lx", SDL_CONTROLLER_AXIS_LEFTX},         {"ly", SDL_CONTROLLER_AXIS_LEFTY},
+            {"rx", SDL_CONTROLLER_AXIS_RIGHTX},        {"ry", SDL_CONTROLLER_AXIS_RIGHTY},
+            {"lt", SDL_CONTROLLER_AXIS_TRIGGERLEFT},   {"rt", SDL_CONTROLLER_AXIS_TRIGGERRIGHT}};
+        for (const auto& [name, a] : names) {
+            if (name == c) {
+                return a;
+            }
+        }
+        return -1;
+    };
+    attach();
+    for (const TestPadEvent& e : script) {
+        while (std::chrono::steady_clock::now() - g_start <
+               std::chrono::duration<double>(e.at)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        if (e.control == "attach") {
+            if (e.value > 0.5f && !joystick) {
+                attach();
+            } else if (e.value <= 0.5f && joystick) {
+                detach();
+            }
+        } else if (e.control == "vrbutton") {
+            if (e.value > 0.5f) {
+                ClickVrButton();
+            }
+        } else if (const int b = button(e.control); b >= 0 && joystick) {
+            SDL_JoystickSetVirtualButton(joystick, b, e.value > 0.5f ? 1 : 0);
+        } else if (const int a = axis(e.control); a >= 0 && joystick) {
+            // The script's stick Y grows upwards, SDL's downwards; triggers 0..1.
+            const bool y = e.control == "ly" || e.control == "ry";
+            const float v = std::clamp(y ? -e.value : e.value, -1.0f, 1.0f);
+            SDL_JoystickSetVirtualAxis(joystick, a, static_cast<Sint16>(std::lround(v * 32767.0f)));
+        }
+    }
+    LOG_INFO(Frontend, "xr test: SDL test pad script done ({} events)", script.size());
+}
+#endif
+
+void StartSdlTestPad(const std::vector<TestPadEvent>& script) {
+#ifdef HAVE_SDL2
+    static std::once_flag once;
+    std::call_once(once, [&script] {
+        LOG_INFO(Frontend, "xr test: the flat gamepad script goes through SDL "
+                           "(AZAHARFRAME_TEST_FLAT_PAD_SDL=1)");
+        std::thread([&script] { PlaySdlTestPad(script); }).detach();
+    });
+#else
+    static_cast<void>(script);
+#endif
+}
+
 } // namespace
 
 // AzaharFrame flat: the controllers input_common's SDL thread already has open (Azahar's own
@@ -148,8 +295,11 @@ std::string PadName(const FlatPads& pads, int id) {
 
 bool ReadGamepad(FrameXr::Input::InputFrame& frame) {
     if (const auto* script = TestPadScript()) {
-        ReadTestPad(*script, frame);
-        return true;
+        if (!TestPadThroughSdl()) {
+            ReadTestPad(*script, frame);
+            return true;
+        }
+        StartSdlTestPad(*script); // AzaharFrame flatfix: then read SDL as below
     }
     auto& pads = Pads();
     std::scoped_lock lock{pads.mutex};

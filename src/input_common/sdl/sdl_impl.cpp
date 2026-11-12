@@ -19,6 +19,7 @@
 #include "common/logging/log.h"
 #include "common/math_util.h"
 #include "common/param_package.h"
+#include "common/thread.h"
 #include "common/threadsafe_queue.h"
 #include "core/frontend/input.h"
 #include "input_common/sdl/sdl_impl.h"
@@ -855,6 +856,8 @@ SDLState::SDLState() {
     if (start_thread) {
         poll_thread = std::thread([this] {
             using namespace std::chrono_literals;
+            // AzaharFrame flatfix: named, so the frame loop's watchdog can say what it does.
+            Common::SetCurrentThreadName("SDLPump");
             while (initialized) {
                 SDL_PumpEvents();
                 pump_count++; // AzaharFrame flat: the flat summary shows that SDL is pumped

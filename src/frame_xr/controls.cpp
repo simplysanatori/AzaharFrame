@@ -21,6 +21,7 @@
 #include "frame_xr/picker/logo_loader.h"
 #include "frame_xr/picker/picker.h"
 #include "frame_xr/session.h"
+#include "frame_xr/watchdog.h" // AzaharFrame flatfix
 #include "input_common/frame_xr.h" // AzaharFrame padsui
 
 namespace FrameXr {
@@ -438,9 +439,11 @@ void VrUi::FlatFrame(int64_t now_ns) {
     Input::InputFrame in;
     bool have = false;
     {
+        Watchdog::FlatPhase("reading the gamepad"); // AzaharFrame flatfix
         std::scoped_lock lock{flat_mutex};
         have = flat_input && flat_input(in);
     }
+    Watchdog::FlatPhase("the gamepad's controls"); // AzaharFrame flatfix
     in.time_ns = now_ns;
     if (have) {
         // AzaharFrame flat: counted before the latch, for the summary line (the input arrives).
@@ -525,6 +528,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
         // AzaharFrame gamelist: the game list with the D-pad, the left stick and A's double tap,
         // as on VR's window (there is no beam: one A does nothing here).
         if (have && !game_running) {
+            Watchdog::FlatPhase("the game list"); // AzaharFrame flatfix
             const Input::ListNav::Result list =
                 flat_list_nav.Update(mirror.Enabled() && mirror.ListNavEnabled(), in.dpad_up,
                                      in.dpad_down, in.hand[0].stick.y, in.a, now_ns);
@@ -578,6 +582,7 @@ void VrUi::FlatFrame(int64_t now_ns) {
         in.head_active = view.valid;
         in.head = ToInput(view.head);
     }
+    Watchdog::FlatPhase("the game's controls"); // AzaharFrame flatfix
     const Input::MapperOutput& out = bridge.Process(in, panels);
     bridge_live = true;
     LogFlatGameButtons(out.controls);
