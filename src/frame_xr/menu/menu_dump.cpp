@@ -864,6 +864,156 @@ int main(int argc, char** argv) {
         dz.mods.textures.downloads.clear();
         ok &= shot("zip-textures-empty", dz, v);
     }
+    // AzaharFrame compat: entries for another version of the game, with their reasons; the catalog
+    // rows' "Created by" and bulleted lines, sorted by downloads; This May Not Work; Turned Off.
+    {
+        const Tab mods_tab = Tab::Mods;
+        // Majora's Mask 3D, Europe, code matching Card 1.1: the game's own first (most downloaded
+        // first), then the other builds and the USA-only mods.
+        const auto offer = [](const char* id, const char* name, const char* author, const char* updated,
+                              const char* downloads) {
+            ModOffer o;
+            o.id = id;
+            o.name = name;
+            o.author = author;
+            o.url = "https://gamebanana.com/members/1";
+            o.updated = updated;
+            o.downloads = downloads;
+            return o;
+        };
+        MenuModel cm = m;
+        cm.game_title = "The Legend of Zelda: Majora's Mask 3D";
+        ModsListModel& mm = cm.mods.mods;
+        mm.catalog = CatalogState::Ready;
+        ModOffer pr110 = offer("mm3d-project-restoration-v110", "Project Restoration", "leoetlino",
+                               "Updated Jan 2022", "50K+ Downloads");
+        pr110.version = "Card 1.1";
+        pr110.version_tip = "For game cards with 1.1 built in.";
+        pr110.version_match = true;
+        ModOffer inn = offer("mm3d-dirtier-stock-pot-inn", "Dirtier Stock Pot Inn", "Takeshre",
+                             "Updated Mar 2026", "1K+ Downloads");
+        ModOffer pr100 = offer("mm3d-project-restoration-v100", "Project Restoration", "leoetlino",
+                               "Updated Jan 2022", "10K+ Downloads");
+        pr100.version = "1.0";
+        pr100.version_tip = "For the original 1.0 game, or 1.0 with the 1.1 update.";
+        pr100.mismatch = true;
+        pr100.mismatch_reason = "Made for another build of the game. Yours matches Card 1.1. It may not work.";
+        pr100.mismatch_body = "This mod was made for another build of the game, and yours matches Card 1.1. "
+                              "It may not work, or the game may not start.";
+        ModOffer lillie = offer("mm3d-legend-of-lillie", "The Legend of Lillie", "Ellie", "", "100+ Downloads");
+        lillie.mismatch = true;
+        lillie.region_chip = "USA Only";
+        lillie.mismatch_reason = "Made for the USA version. Yours is the European version. It may not work.";
+        lillie.mismatch_body = "This mod was made for the USA version of the game, and yours is the European "
+                               "version. It may not work, or the game may not start.";
+        lillie.notes = "Replaces Link and his four masked forms with Lillie from Pokemon Sun and Moon.";
+        mm.available = {pr110, inn, pr100, lillie};
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        v.mods_page = ModsPage::Install;
+        ok &= shot("compat-mods", cm, v);
+        v.scroll[static_cast<int>(mods_tab)] = -1.0f; // the last rows
+        v.hover = {Id::ModCompat, 3};
+        v.tooltip = Id::ModCompat;
+        v.tooltip_index = 3;
+        ok &= shot("compat-mods-chip-tooltip", cm, v);
+        v.hover = {Id::ModNote, 3};
+        v.tooltip = Id::ModNote;
+        v.tooltip_index = 3;
+        ok &= shot("compat-mods-row-tooltip", cm, v);
+        v.scroll[static_cast<int>(mods_tab)] = 0.0f;
+        v.hover = {Id::ModNote, 2}; // a row's notes stay clear of every chip, its own and others'
+        v.tooltip_index = 2;
+        cm.mods.mods.available[2].notes =
+            "For the original 1.0 game, or 1.0 with the 1.1 update. The Korean release is not supported. "
+            "It conflicts with the other Project Restoration builds.";
+        ok &= shot("compat-mods-notes-tooltip", cm, v);
+        v.tooltip = Id::None;
+        v.tooltip_index = -1;
+        v.scroll[static_cast<int>(mods_tab)] = -1.0f;
+        v.confirm = {Id::ModInstall, 3, "mm3d-legend-of-lillie"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("compat-mods-dialog", cm, v);
+
+        // Download Packs: Ocarina of Time 3D, Japan: the packs for every region first, sorted
+        TexturesModel& t = cm.mods.textures;
+        t.custom_textures = true;
+        PackOffer p4k{"oot3d-4k-henriko", "Ocarina of Time 3D 4K", "Henriko Magnifico", "", "", PackOfferState::Download,
+                      -1, "", "Updated Sep 2026", true};
+        p4k.downloads = "50K+ Downloads";
+        PackOffer p1080{"oot3d-1080p-henriko", "Ocarina of Time 3D 1080p", "Henriko Magnifico", "", "",
+                        PackOfferState::Download, -1, "", "Updated Sep 2026", true};
+        p1080.downloads = "5K+ Downloads";
+        PackOffer touch{"oot3d-touchless-layout-vanilla", "Touchless Layout", "Linkus", "", "",
+                        PackOfferState::Download, -1, "", "", false};
+        touch.downloads = "Under 100 Downloads";
+        PackOffer npc{"oot3d-1998-npc-overhaul", "1998 NPC Overhaul", "Hylian Modding", "", "",
+                      PackOfferState::Download, -1, "", "Updated Mar 2026", false};
+        npc.mismatch = true;
+        npc.region_chip = "USA and Europe";
+        npc.mismatch_reason = "Made for the USA and European versions. Yours is the Japanese version. It may not work.";
+        npc.mismatch_body = "This texture pack was made for the USA and European versions of the game, and yours "
+                            "is the Japanese version. It may not work, or the game may not start.";
+        PackOffer skin{"oot3d-link-skin-pack", "Link Skin Pack", "Nintendo Fan", "", "", PackOfferState::Download,
+                       -1, "", "", false};
+        skin.mismatch = true;
+        skin.region_chip = "USA Only";
+        skin.mismatch_reason = "Made for the USA version. Yours is the Japanese version. It may not work.";
+        t.downloads = {p4k, p1080, touch, npc, skin};
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Textures;
+        v.textures_page = TexturesPage::Download;
+        ok &= shot("compat-packs-sorted", cm, v);
+        v.scroll[static_cast<int>(mods_tab)] = -1.0f;
+        v.hover = {Id::PackCompat, 3};
+        v.tooltip = Id::PackCompat;
+        v.tooltip_index = 3;
+        ok &= shot("compat-packs-chip-tooltip", cm, v);
+        v.tooltip = Id::None;
+        v.tooltip_index = -1;
+        v.confirm = {Id::PackDownload, 3, "oot3d-1998-npc-overhaul"};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("compat-packs-dialog", cm, v);
+        // GameBanana has not scanned the file: the question after the refusal (the scan alone) ...
+        v.confirm = {};
+        t.dialog = {ModsDialogKind::Unscanned, t.downloads[3].name, "Download Anyway"};
+        ok &= shot("compat-unscanned-dialog", cm, v);
+        t.dialog = {};
+        // ... and, known before the click, one dialog with both reasons, the version first
+        t.downloads[3].unscanned = true;
+        v.confirm = {Id::PackDownload, 3, "oot3d-1998-npc-overhaul"};
+        ok &= shot("compat-unscanned-version-dialog", cm, v);
+        t.downloads[3].unscanned = false;
+
+        // A cheat for 1.1 on a 1.0 game
+        MenuModel ch = m;
+        ch.mods.cheats = SampleCheats();
+        ch.mods.cheats.cheats[2].version_note = "for v1.1, installed v1.0";
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Cheats;
+        v.confirm = {Id::Cheat, 2, ch.mods.cheats.cheats[2].name};
+        v.hover = {Id::DialogConfirm};
+        ok &= shot("compat-cheat-dialog", ch, v);
+
+        // Turned off before this start: the snackbar on the Mods segment (one, then two names)
+        MenuModel to = m;
+        to.mods.mods.loaded = {
+            {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen)", "OTPR26",
+             "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, false},
+            {"unmanaged:romfs", "romfs", "", "", "214 Files", false, false, true}};
+        to.mods.mods.turned_off = {"Ocarina ReFramed (Single Screen)"};
+        v = {};
+        v.tab = mods_tab;
+        v.mods_segment = ModsSegment::Mods;
+        v.hover = {Id::TurnBackOn};
+        ok &= shot("compat-turned-off", to, v);
+        to.mods.mods.turned_off = {"Ocarina ReFramed (Single Screen)", "Ocarina of Time 3D 4K"};
+        v.hover = {};
+        ok &= shot("compat-turned-off-two", to, v);
+    }
     v = {};
     v.tab = Tab::Main;
     ok &= shot("main", m, v);

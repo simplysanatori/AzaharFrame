@@ -142,6 +142,10 @@ enum class Id : int {
     AddCheat,         ///< a name and a code on the game's keyboard
     InstallCheatFile, ///< Install from Zip's browser, for a cheat file (.txt or a zip of one)
     ModCancel, ///< AzaharFrame integ3: Cancel while a catalog mod downloads; index: mods.mods.available
+    // AzaharFrame compat: entries for another version (mods_segments.h ModOffer::mismatch)
+    ModCompat,  ///< a mod's "Not for Your Version" and region chips (the tooltip's anchor); index: mods.mods.available
+    PackCompat, ///< the same on Download Packs; index: mods.textures.downloads
+    TurnBackOn, ///< the "Turned Off" snackbar's action
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -235,7 +239,7 @@ struct MenuView {
     std::array<float, static_cast<int>(Tab::Count)> scroll{}; ///< dp scrolled down
     Id open_menu = Id::None;  ///< a menu button whose menu is open
     Id tooltip = Id::None;    ///< the one-line explanation of a row
-    int tooltip_index = -1;   ///< AzaharFrame modcat: which row's (ModVersion, ModNote, PackNote)
+    int tooltip_index = -1;   ///< AzaharFrame modcat: which row's (ModVersion, ModNote, PackNote, ModCompat, PackCompat)
     Id dragging = Id::None;   ///< a slider held: drawn at drag_t
     float drag_t = 0.0f;
     ModsSegment mods_segment = ModsSegment::Cheats; ///< AzaharFrame cheatstab
@@ -243,6 +247,14 @@ struct MenuView {
     TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
     std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
     RemapView remap; ///< AzaharFrame remap: Edit Controls
+    /// AzaharFrame compat: "This May Not Work" asked before ModInstall, PackDownload or turning a
+    /// Cheat on (`index` the row, `key` its id or name, checked again on the answer).
+    struct Confirm {
+        Id id = Id::None;
+        int index = -1;
+        std::string key;
+        bool operator==(const Confirm&) const = default;
+    } confirm;
     bool operator==(const MenuView&) const = default;
 };
 
@@ -338,6 +350,10 @@ private:
     /// over it must end.
     float DrawRestartSnackbar(Kit& kit, const MenuView& view, const Rect& area,
                               const std::string& text = {}); // AzaharFrame catalog3: "" = Restart the Game to Apply
+    /// AzaharFrame compat: "Turned Off <names>: ..." with Turn Back On, ending at `bottom`;
+    /// returns where a list over it must end.
+    float DrawTurnedOffSnackbar(Kit& kit, const MenuView& view, const Rect& area,
+                                const std::vector<std::string>& names, float bottom);
     void DrawModsDialog(Kit& kit, const ModsDialog& dialog, const MenuView& view);
     /// Download Packs, the Textures segment's second page; the list ends at `bottom`.
     void DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView& view,
@@ -364,5 +380,12 @@ private:
     };
     std::vector<Anchor> anchors;
 };
+
+/// AzaharFrame compat: "This May Not Work" for the row `view.confirm` names (kind None when the
+/// row is gone, changed, or fits after all). The body comes from the row (ModOffer, PackOffer) or
+/// the cheat's version note (CheatMismatchBody).
+ModsDialog CompatConfirmDialog(const MenuModel& model, const MenuView& view);
+/// AzaharFrame compat: what answering it allows (kAnywayOtherVersion | kAnywayUnscanned), 0 none.
+int CompatConfirmFlags(const MenuModel& model, const MenuView& view);
 
 } // namespace FrameXr::Menu

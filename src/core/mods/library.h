@@ -48,6 +48,7 @@
 #include "core/mods/catalog.h"
 #include "core/mods/mega.h" // AzaharFrame mega
 #include "core/mods/multipart.h" // AzaharFrame catalog3
+#include "core/mods/compat.h" // AzaharFrame compat
 
 namespace Mods {
 
@@ -138,6 +139,7 @@ struct AvailableMod {
     bool installable = true; // false: a 7z or rar download and no bsdtar
     bool active = false;     // installed and in the mods folder
     bool in_library = false; // downloaded, not active
+    Compat::Verdict compat;  // AzaharFrame compat: for another region or version of the game
 };
 
 enum class InstallResult { Ok, AlreadyInstalled, Conflict, NotAvailable, Error };
@@ -208,15 +210,23 @@ public:
     /// Catalog mods for the title, with their state. AzaharFrame modcat: `game_code_crc` is the
     /// CRC32 of the game's .code as Azahar reads it (Crc32 of the loader's ReadCode); the mods
     /// made for it are marked and come first.
+    /// AzaharFrame compat: with `game`, the mods made for another region, release or version of the
+    /// same game (compat.h) are listed too, after the others, each with its verdict; game's
+    /// code_crc is used and `game_code_crc` ignored.
     std::vector<AvailableMod> ListAvailable(u64 title_id,
-                                            std::optional<u32> game_code_crc = std::nullopt) const;
+                                            std::optional<u32> game_code_crc = std::nullopt,
+                                            const Compat::Game* game = nullptr) const;
 
     /// AzaharFrame catalog3: a GameBanana file with scan result "unknown" is used only with
     /// `allow_unscanned` (a clean file that matches is always preferred); without it the install fails
     /// with "GameBanana Hasn't Scanned This File Yet" and `outcome.unscanned` is true. Every other
     /// non-clean result is refused either way.
+    /// AzaharFrame compat: `other_version` installs a mod made for another region or release of
+    /// the game (Install Anyway) into this title's folder: rules with {tid} are read for this
+    /// title, and when nothing in the download fits it, for the mod's own title IDs in turn. A mod
+    /// already in this title's library installs with or without it.
     InstallOutcome Install(u64 title_id, const std::string& mod_id, bool replace = false,
-                           bool allow_unscanned = false);
+                           bool allow_unscanned = false, bool other_version = false);
     /// AzaharFrame zipinstall: a mod from a local archive, kept in the library like a downloaded one
     /// (source kZipSource, no catalog entry), then put in the mods folder as Install does. `id` starts
     /// with kZipPrefix. A mod with that id already in the library is a Conflict naming itself
@@ -266,7 +276,8 @@ public:
 
 private:
     struct Manifest;
-    InstallOutcome InstallImpl(u64 title_id, const std::string& mod_id, bool replace);
+    InstallOutcome InstallImpl(u64 title_id, const std::string& mod_id, bool replace,
+                               bool other_version); // AzaharFrame compat: other_version
     // AzaharFrame catalog3: unscanned GameBanana files (install thread; the set under mutex_)
     bool allow_unscanned_ = false;
     bool hit_unscanned_ = false; // this install met or used an unscanned file

@@ -109,6 +109,33 @@ std::string VersionChip(const std::string& note) {
     return v;
 }
 
+std::string CheatMismatchBody(const std::string& note) {
+    // "for v1.1, installed v1.0" / "for v1.0, this game is v1.1" / "for Rev0, this cartridge is
+    // Rev1": the word after "for", and the last word.
+    if (note.empty()) {
+        return {};
+    }
+    const std::string theirs = VersionChip(note);
+    const std::size_t space = note.find_last_of(' ');
+    const std::string yours = space == std::string::npos ? std::string{} : note.substr(space + 1);
+    const auto spell = [](const std::string& v) -> std::string {
+        if (v.size() > 1 && (v[0] == 'v' || v[0] == 'V') && v[1] >= '0' && v[1] <= '9') {
+            return "version " + v.substr(1);
+        }
+        if (v.size() > 3 && (v.rfind("Rev", 0) == 0 || v.rfind("rev", 0) == 0)) {
+            return "revision " + v.substr(3);
+        }
+        return v;
+    };
+    // AzaharFrame compat: only a note in that form names both; anything else says less.
+    if (note.rfind("for ", 0) != 0 || theirs.empty() || yours.empty() || yours == theirs ||
+        spell(theirs) == theirs || spell(yours) == yours) {
+        return "This cheat was made for another version of the game. It may not work.";
+    }
+    return "This cheat was made for " + spell(theirs) + ", and your game is " + spell(yours) +
+           ". It may not work.";
+}
+
 std::string FailureReason(const std::string& error) {
     // "Download failed: No reply" gives "No reply", then a capital first letter as a sentence.
     std::string why = error;
@@ -285,6 +312,8 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
         kit.Fill({area.x1 - 10.0f, ty, area.x1 - 6.0f, ty + thumb_h}, 2.0f, Tok::kOnSurfaceVariant,
                  0.38f);
     }
+    // AzaharFrame compat: "This May Not Work" before a cheat for another version turns on
+    DrawModsDialog(kit, CompatConfirmDialog(model, view), view);
 }
 
 } // namespace FrameXr::Menu

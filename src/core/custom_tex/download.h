@@ -51,6 +51,7 @@
 #include <thread>
 #include <vector>
 #include "common/common_types.h"
+#include "core/mods/compat.h" // AzaharFrame compat
 
 namespace CustomTex::Download {
 
@@ -178,7 +179,7 @@ std::optional<std::string> ParseIsoDate(std::string_view text);
 /// "YYYY-MM-DD" from Drive's folder listing: "Sep 4" (this year), "3/10/25" or "3/10/2025" (month
 /// first), a time of day ("3:14 PM": today). `today` is "YYYY-MM-DD".
 std::optional<std::string> ParseDriveDate(std::string_view text, const std::string& today);
-/// "Updated Sep 2026" for "2026-09-04"; "" when the date is not one.
+/// "Updated Sep 2026" for "2026-09-04" (AzaharFrame compat: or "2026-09"); "" when the date is not one.
 std::string UpdatedText(const std::string& iso_date);
 /// Today's date, local time, "YYYY-MM-DD".
 std::string TodayIso();
@@ -208,6 +209,7 @@ struct PackInfo {
     u64 downloads = 0;              // AzaharFrame catalog3: lifetime downloads (Entry::downloads), 0 unknown
     bool unscanned = false;         // AzaharFrame catalog3: a GameBanana file of it has no scan result yet (known
                                     // after Start was refused for it, or went ahead with allow_unscanned)
+    Mods::Compat::Verdict compat;   // AzaharFrame compat: made for another region or release
 };
 
 struct State {
@@ -239,11 +241,16 @@ public:
     Downloader(const Downloader&) = delete;
     Downloader& operator=(const Downloader&) = delete;
 
-    std::vector<PackInfo> ListForTitle(u64 title_id) const;
+    /// AzaharFrame compat: with `game`, the packs of the game's other regions and releases too
+    /// (Mods::Compat), after the others, each with its verdict.
+    std::vector<PackInfo> ListForTitle(u64 title_id, const Mods::Compat::Game* game = nullptr) const;
     /// AzaharFrame catalog3: a GameBanana file whose scan is "unknown" is used only with
     /// `allow_unscanned` (a clean file is preferred); otherwise it fails with "GameBanana Hasn't Scanned
     /// This File Yet" and State::unscanned / PackInfo::unscanned say why. Other non-clean results: refused.
-    bool Start(const std::string& pack_id, u64 title_id, bool allow_unscanned = false);
+    /// AzaharFrame compat: `other_version` starts a pack made for another region or release of the
+    /// game (Download Anyway); it installs for `title_id`.
+    bool Start(const std::string& pack_id, u64 title_id, bool allow_unscanned = false,
+               bool other_version = false);
     State GetState() const;
     void Cancel();
     void DiscardPartial(const std::string& pack_id);

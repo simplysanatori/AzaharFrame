@@ -38,6 +38,7 @@
 
 #include "common/common_types.h"
 #include "core/custom_tex/packs.h"
+#include "core/mods/compat.h" // AzaharFrame compat
 #include "frame_xr/menu/mods_segments.h"
 
 namespace Mods::Zip {
@@ -65,6 +66,9 @@ public:
     void SetTexturesEnabler(std::function<bool()> enabler);
     /// AzaharFrame catalog3: where short messages go (a toast in VR, the status bar in Flat).
     void SetNotifier(std::function<void(const std::string&)> notifier);
+    /// AzaharFrame compat: the running game's region and version (GUI thread; the CRC is added
+    /// from the source above), for the entries made for another version of it.
+    void SetGameInfoSource(std::function<Mods::Compat::Game()> source);
 
     /// The in-game menu opened on this game (`run` counts the games started, so a restart of the
     /// same game clears the snackbar): read its mods and packs and publish them.
@@ -83,11 +87,19 @@ private:
     std::map<std::string, u64> mod_sizes; ///< AzaharFrame catalog3: bytes a mod still has to download (0 unknown or here already)
     std::optional<u32> game_crc;
     bool game_crc_read = false;
+    std::function<Mods::Compat::Game()> game_info_source; // AzaharFrame compat
+    std::optional<Mods::Compat::Game> game_info;           // read once a run
+    const Mods::Compat::Game& GameInfo();
+    std::set<std::string> anyway; ///< AzaharFrame compat: mods and packs confirmed "Anyway"
+    /// AzaharFrame compat: mods and packs whose unscanned GameBanana file the player allowed
+    std::set<std::string> unscanned_ok;
     struct Pending {
-        enum class Kind { None, Install, Remove, Download, Delete, BigInstall } kind = Kind::None;
+        enum class Kind { None, Install, Remove, Download, Delete, BigInstall,
+                          Unscanned /* AzaharFrame compat */ } kind = Kind::None;
         std::string id;
     };
 
+    void AllowAnyway(const std::string& id, int value); // AzaharFrame compat
     void RefreshLoaded();
     void RefreshAvailable();
     void RefreshPacks();
@@ -113,7 +125,8 @@ private:
     void ZipPick(const std::string& path);
     void ZipInstall(std::shared_ptr<Mods::Zip::Job> job, u64 tid, bool replace);
     void ZipAnswer(bool yes);
-    void ZipDone(bool texture, u64 tid);
+    void ZipDone(bool texture, u64 tid, const std::string& mod_id = {});
+    void TurnBackOn(); ///< AzaharFrame compat: the "Turned Off" snackbar's action
     void ZipFail(const std::string& error);
     void ZipCheats(const std::string& path); ///< AzaharFrame ui2: a cheat file, or a zip of one
     void ZipCloseJob();

@@ -1329,20 +1329,34 @@ void Downloader::RefreshCatalogAsync() {
     });
 }
 
-std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
+std::vector<PackInfo> Downloader::ListForTitle(u64 title_id, const Mods::Compat::Game* game) const {
     std::vector<Entry> entries;
+    std::vector<Mods::Compat::Verdict> verdicts; // AzaharFrame compat
     {
         std::lock_guard lock{mutex_};
+        Mods::Compat::Families families;
         for (const auto& e : catalog_.packs) {
-            if (e.ServesTitle(title_id)) {
+            families.Add(e.title, e.title_ids);
+        }
+        for (const auto& e : catalog_.packs) {
+            if (game) {
+                auto v = Mods::Compat::Judge({e.title_ids, {}, {}}, *game, families);
+                if (v.shown) {
+                    entries.push_back(e);
+                    verdicts.push_back(std::move(v));
+                }
+            } else if (e.ServesTitle(title_id)) {
                 entries.push_back(e);
+                verdicts.emplace_back();
             }
         }
     }
     std::vector<PackInfo> out;
     std::error_code ec;
-    for (const auto& e : entries) {
+    for (std::size_t n = 0; n < entries.size(); n++) {
+        const Entry& e = entries[n];
         PackInfo info;
+        info.compat = verdicts[n];
         info.id = e.id;
         info.name = e.name;
         info.author = e.author;
@@ -1375,6 +1389,20 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id) const {
         std::sort(info.folders.begin(), info.folders.end());
         out.push_back(std::move(info));
     }
+    // AzaharFrame compat: the packs for the game's own version first, then the most downloaded
+    // (unknown counts last), then by name
+    std::stable_sort(out.begin(), out.end(), [](const PackInfo& a, const PackInfo& b) {
+        if (a.compat.Fits() != b.compat.Fits()) {
+            return a.compat.Fits();
+        }
+        if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
+            return a.downloads > 0;
+        }
+        if (a.downloads != b.downloads) {
+            return a.downloads > b.downloads;
+        }
+        return a.name < b.name;
+    });
     return out;
 }
 
@@ -1420,7 +1448,8 @@ void Downloader::DiscardPartial(const std::string& pack_id) {
     fs::remove(fs::path(load_dir_) / "texture-downloads" / (pack_id + ".part"), ec);
 }
 
-bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unscanned) {
+bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unscanned,
+                       bool other_version) {
     Entry entry;
     {
         std::lock_guard lock{mutex_};
@@ -1428,7 +1457,7 @@ bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unsc
             return false;
         }
         const Entry* e = catalog_.Find(pack_id);
-        if (e == nullptr || !e->ServesTitle(title_id)) {
+        if (e == nullptr || !(e->ServesTitle(title_id) || other_version)) {
             return false;
         }
         entry = *e;

@@ -41,6 +41,10 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     mods/archive.cpp # AzaharFrame moddata
     mods/archive.h # AzaharFrame moddata
     mods/catalog.cpp # AzaharFrame moddata
+    mods/compat.cpp # AzaharFrame compat
+    mods/compat.h # AzaharFrame compat
+    mods/crash_guard.cpp # AzaharFrame compat
+    mods/crash_guard.h # AzaharFrame compat
     mods/catalog.h # AzaharFrame moddata
     mods/catalog_default.cpp # AzaharFrame moddata
     mods/library.cpp # AzaharFrame moddata

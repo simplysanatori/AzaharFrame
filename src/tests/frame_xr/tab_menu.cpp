@@ -732,6 +732,9 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
     CHECK(!HasHit(d, Id::ModInstall, 2)); // cannot install yet
     CHECK(!HasHit(d, Id::ModInstall, 3)); // installing
     // AzaharFrame integ3: while it downloads, Cancel in the Install button's place (only there)
+    // (AzaharFrame compat: the taller catalog rows put the fourth one under the fold: scrolled)
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
     CHECK(HasHit(d, Id::ModCancel, 3));
     CHECK(!HasHit(d, Id::ModCancel, 0));
     CHECK(LabelFor(Id::ModCancel) == "Cancel");
@@ -740,6 +743,8 @@ TEST_CASE("Tab menu: the Mods segment", "[frame_xr][tabmenu]") {
         REQUIRE(cancel);
         CHECK(d.menu.HitTest(cancel->r.Cx(), cancel->r.Cy()) == Target{Id::ModCancel, 3});
     }
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+    d.Draw(m, v);
     CHECK(HasHit(d, Id::ModLink, 0));
     CHECK(!HasHit(d, Id::ModLink, 3)); // not an https address: no link
     CheckTargets(d);
@@ -1434,4 +1439,241 @@ TEST_CASE("Tab menu: the fonts have Latin-1 letters", "[frame_xr][tabmenu]") {
         }
         CHECK_FALSE(font.HasGlyph(U'\u4E00')); // CJK stays out
     }
+}
+
+// AzaharFrame compat: entries for another version, "This May Not Work", the cheat body, the
+// download buckets and the Turned Off text.
+namespace {
+
+ModOffer OtherVersionMod(std::string id, std::string name) {
+    ModOffer o;
+    o.id = std::move(id);
+    o.name = std::move(name);
+    o.author = "Author";
+    o.url = "https://github.com/owner/repo";
+    o.mismatch = true;
+    o.region_chip = "USA Only";
+    o.mismatch_reason = "Made for the USA version. Yours is the European version. It may not work.";
+    o.mismatch_body = "This mod was made for the USA version of the game, and yours is the European "
+                      "version. It may not work, or the game may not start.";
+    return o;
+}
+
+} // namespace
+
+TEST_CASE("Compat: download buckets and the bullet line", "[frame_xr][tabmenu][compat]") {
+    CHECK(DownloadsText(0) == "Under 100 Downloads");
+    CHECK(DownloadsText(99) == "Under 100 Downloads");
+    CHECK(DownloadsText(100) == "100+ Downloads");
+    CHECK(DownloadsText(999) == "100+ Downloads");
+    CHECK(DownloadsText(1000) == "1K+ Downloads");
+    CHECK(DownloadsText(4999) == "1K+ Downloads");
+    CHECK(DownloadsText(5000) == "5K+ Downloads");
+    CHECK(DownloadsText(9999) == "5K+ Downloads");
+    CHECK(DownloadsText(10000) == "10K+ Downloads");
+    CHECK(DownloadsText(49999) == "10K+ Downloads");
+    CHECK(DownloadsText(50000) == "50K+ Downloads");
+    CHECK(DownloadsText(5000000) == "50K+ Downloads");
+    CHECK(BulletLine({"10K+ Downloads", "Updated Mar 2026"}) ==
+          "• 10K+ Downloads • Updated Mar 2026");
+    CHECK(BulletLine({"", "Updated Mar 2026"}) == "• Updated Mar 2026"); // unknown parts go
+    CHECK(BulletLine({"", ""}).empty());
+}
+
+TEST_CASE("Compat: the cheat's This May Not Work body", "[frame_xr][tabmenu][compat]") {
+    CHECK(CheatMismatchBody("for v1.1, installed v1.0") ==
+          "This cheat was made for version 1.1, and your game is version 1.0. It may not work.");
+    CHECK(CheatMismatchBody("for v1.0, this game is v1.1") ==
+          "This cheat was made for version 1.0, and your game is version 1.1. It may not work.");
+    CHECK(CheatMismatchBody("for Rev0, this cartridge is Rev1") ==
+          "This cheat was made for revision 0, and your game is revision 1. It may not work.");
+    CHECK(CheatMismatchBody("another version") ==
+          "This cheat was made for another version of the game. It may not work.");
+    CHECK(CheatMismatchBody("").empty());
+}
+
+TEST_CASE("Compat: This May Not Work for a mod, a pack and a cheat", "[frame_xr][tabmenu][compat]") {
+    MenuModel m = Sample();
+    m.mods.mods.available = {ModOffer{"fit", "Fits", "A"}, OtherVersionMod("usa", "USA Mod")};
+    PackOffer p;
+    p.id = "pack";
+    p.name = "HD Pack";
+    p.mismatch = true;
+    p.mismatch_body = "This texture pack was made for the Japanese version of the game. It may not "
+                      "work, or the game may not start.";
+    m.mods.textures.downloads = {PackOffer{"ok", "Fine"}, p};
+    m.mods.cheats.cheats = {CheatItem{"Plain"},
+                            CheatItem{"Moon Jump", CheatSource::Sharkive, false, "for v1.1, installed v1.0"}};
+
+    MenuView v;
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::None);
+
+    v.confirm = {Id::ModInstall, 1, "usa"};
+    ModsDialog d = CompatConfirmDialog(m, v);
+    CHECK(d.kind == ModsDialogKind::Mismatch);
+    CHECK(d.mod == m.mods.mods.available[1].mismatch_body);
+    CHECK(d.other == "Install Anyway");
+    v.confirm = {Id::ModInstall, 0, "fit"}; // fits: nothing to ask
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::None);
+    v.confirm = {Id::ModInstall, 0, "usa"}; // the list moved: stale, nothing
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::None);
+    v.confirm = {Id::ModInstall, 7, "usa"};
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::None);
+
+    v.confirm = {Id::PackDownload, 1, "pack"};
+    d = CompatConfirmDialog(m, v);
+    CHECK(d.kind == ModsDialogKind::Mismatch);
+    CHECK(d.mod == p.mismatch_body);
+    CHECK(d.other == "Download Anyway");
+
+    v.confirm = {Id::Cheat, 1, "Moon Jump"};
+    d = CompatConfirmDialog(m, v);
+    CHECK(d.kind == ModsDialogKind::Mismatch);
+    CHECK(d.mod == "This cheat was made for version 1.1, and your game is version 1.0. It may not work.");
+    CHECK(d.other == "Turn On Anyway");
+    v.confirm = {Id::Cheat, 0, "Plain"}; // no version note: turns on without asking
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::None);
+    CHECK(std::string(kMayNotWorkTitle) == "This May Not Work");
+    CHECK(std::string(kNotForYourVersion) == "Not for Your Version");
+}
+
+TEST_CASE("Compat: the chips, their tooltips and the dialog in the lists", "[frame_xr][tabmenu][compat]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    m.mods.mods.catalog = CatalogState::Ready;
+    ModOffer fit{"fit", "Fits", "A", "https://github.com/owner/fit"};
+    fit.downloads = "10K+ Downloads";
+    fit.updated = "Updated Mar 2026";
+    m.mods.mods.available = {fit, OtherVersionMod("usa", "USA Mod")};
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ModCompat, 0));
+    REQUIRE(HasHit(d, Id::ModCompat, 1));
+    CHECK(HasHit(d, Id::ModInstall, 1)); // Install still there: it asks first
+    CheckTargets(d);
+
+    // The chip's tooltip draws, the hits stay.
+    v.tooltip = Id::ModCompat;
+    v.tooltip_index = 1;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::ModCompat, 1));
+    CHECK(HasHit(d, Id::ModInstall, 1));
+    v.tooltip = Id::None;
+    v.tooltip_index = -1;
+
+    // The dialog is modal and has Install Anyway and Cancel.
+    const auto install = FindHit(d, Id::ModInstall, 1)->r;
+    v.confirm = {Id::ModInstall, 1, "usa"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(HasHit(d, Id::DialogCancel, -1));
+    CHECK(d.menu.HitTest(install.Cx(), install.Cy()).id != Id::ModInstall);
+    CheckTargets(d);
+    v.confirm = {};
+
+    // Download Packs: the same chip.
+    v.mods_segment = ModsSegment::Textures;
+    v.textures_page = TexturesPage::Download;
+    PackOffer p{"p", "HD Pack", "B", "https://github.com/owner/p", "1 GB"};
+    p.mismatch = true;
+    p.region_chip = "Japan Only";
+    p.mismatch_reason = "Made for the Japanese version. It may not work.";
+    p.mismatch_body = "This texture pack was made for the Japanese version of the game. It may not "
+                      "work, or the game may not start.";
+    m.mods.textures.downloads = {PackOffer{"ok", "Fine", "C", "https://github.com/owner/ok", "2 GB"}, p};
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::PackCompat, 0));
+    CHECK(HasHit(d, Id::PackCompat, 1));
+    CHECK(HasHit(d, Id::PackDownload, 1));
+    CheckTargets(d);
+    v.confirm = {Id::PackDownload, 1, "p"};
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::DialogConfirm, -1));
+    CHECK(LabelFor(Id::TurnBackOn) == "Turn Back On");
+}
+
+TEST_CASE("Compat: the Turned Off snackbar", "[frame_xr][tabmenu][compat]") {
+    CHECK(TurnedOffText({"No Bloom"}) ==
+          "Turned Off No Bloom: The game closed unexpectedly after it was installed.");
+    CHECK(TurnedOffText({"No Bloom", "HD Textures"}) ==
+          "Turned Off No Bloom and HD Textures: The game closed unexpectedly after they were installed.");
+    CHECK(TurnedOffText({"A", "B", "C"}) ==
+          "Turned Off A, B and C: The game closed unexpectedly after they were installed.");
+
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TurnBackOn, -1));
+    m.mods.mods.turned_off = {"Ocarina ReFramed (Single Screen)", "HD Textures"};
+    m.mods.mods.turned_off_serial = 1;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TurnBackOn, -1));
+    CheckTargets(d);
+    v.mods_segment = ModsSegment::Textures; // shown on the Textures segment too
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TurnBackOn, -1));
+}
+
+TEST_CASE("Compat: GameBanana hasn't scanned the file yet", "[frame_xr][tabmenu][compat]") {
+    MenuModel m = Sample();
+    ModOffer plain{"gb", "GameBanana Mod", "A"};
+    plain.unscanned = true;
+    ModOffer both = OtherVersionMod("usa", "USA Mod");
+    both.unscanned = true;
+    m.mods.mods.available = {plain, both, OtherVersionMod("only", "Only Version")};
+    PackOffer pack{"p", "Pack", "B"};
+    pack.unscanned = true;
+    m.mods.textures.downloads = {pack};
+
+    MenuView v;
+    v.confirm = {Id::ModInstall, 0, "gb"};
+    ModsDialog d = CompatConfirmDialog(m, v);
+    CHECK(d.kind == ModsDialogKind::Unscanned);
+    CHECK(d.mod == "GameBanana hasn't finished checking this file for viruses. Download it anyway?");
+    CHECK(d.other == "Download Anyway");
+    CHECK(CompatConfirmFlags(m, v) == kAnywayUnscanned);
+
+    // both: one dialog, the version reason first
+    v.confirm = {Id::ModInstall, 1, "usa"};
+    d = CompatConfirmDialog(m, v);
+    CHECK(d.kind == ModsDialogKind::Mismatch);
+    CHECK(d.mod == both.mismatch_body + " GameBanana also hasn't finished checking this file for viruses.");
+    CHECK(d.other == "Install Anyway");
+    CHECK(CompatConfirmFlags(m, v) == (kAnywayOtherVersion | kAnywayUnscanned));
+
+    v.confirm = {Id::ModInstall, 2, "only"};
+    CHECK(CompatConfirmFlags(m, v) == kAnywayOtherVersion);
+    v.confirm = {Id::ModInstall, 2, "stale"};
+    CHECK(CompatConfirmFlags(m, v) == 0);
+
+    v.confirm = {Id::PackDownload, 0, "p"};
+    CHECK(CompatConfirmDialog(m, v).kind == ModsDialogKind::Unscanned);
+    CHECK(CompatConfirmFlags(m, v) == kAnywayUnscanned);
+
+    // drawn: the title, Download Anyway and Cancel; modal
+    Drawn dr;
+    MenuView dv;
+    dv.tab = kModsTab;
+    dv.mods_segment = ModsSegment::Mods;
+    dv.mods_page = ModsPage::Install;
+    m.mods.mods.catalog = CatalogState::Ready;
+    m.mods.mods.dialog = {ModsDialogKind::Unscanned, "GameBanana Mod", "Download Anyway"}; // after a refusal
+    dr.Draw(m, dv);
+    CHECK(HasHit(dr, Id::DialogConfirm, -1));
+    CHECK(HasHit(dr, Id::DialogCancel, -1));
+    CheckTargets(dr);
+    m.mods.mods.dialog = {};
+    dr.Draw(m, dv);
+    REQUIRE(FindHit(dr, Id::ModInstall, 0));
+    const auto install = FindHit(dr, Id::ModInstall, 0)->r;
+    m.mods.mods.dialog = {ModsDialogKind::Unscanned, "GameBanana Mod", "Download Anyway"};
+    dr.Draw(m, dv);
+    CHECK(dr.menu.HitTest(install.Cx(), install.Cy()).id != Id::ModInstall); // modal
+    CHECK(std::string(kUnscannedTitle) == "GameBanana Hasn't Scanned This File Yet");
 }

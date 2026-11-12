@@ -739,9 +739,13 @@ TEST_CASE("Mods: install, manifest, conflicts, replace, remove", "[mods]") {
         REQUIRE(loaded[0].source == "github.com/simplysanatori/3ds-game-fixes");
         const auto available = library.ListAvailable(kTid);
         REQUIRE(available.size() == 4); // owner-fix, reframed, hdhud, seven
-        REQUIRE(available[0].id == "owner-fix"); // the maintainer's first
-        REQUIRE(available[0].active);
-        REQUIRE(available[0].verified);
+        // AzaharFrame compat: no download counts in this catalog: by name
+        REQUIRE(available[0].id == "hdhud");
+        const auto fix = std::find_if(available.begin(), available.end(),
+                                      [](const AvailableMod& a) { return a.id == "owner-fix"; });
+        REQUIRE(fix != available.end());
+        REQUIRE(fix->active);
+        REQUIRE(fix->verified);
     }
     SECTION("a file that is not an IPS patch is refused") {
         net.Ok("https://raw.githubusercontent.com/simplysanatori/3ds-game-fixes/main/games/g/patch/0004000000033500/code.ips", "<html>");
@@ -1133,14 +1137,16 @@ TEST_CASE("Mods: GameBanana mod in the compiled-in catalog", "[mods]") {
     const auto* re = c.Find("ocarina-reframed-single-screen");
     REQUIRE(re != nullptr);
     REQUIRE_FALSE(re->verified); // stays, unverified
-    // listed first for the game: verified before unverified
+    // listed for the game (AzaharFrame compat: by downloads, then name, not verified first)
     FakeNet net;
     Library library(TempDir("gbcat"), c, net.Get());
     const auto list = library.ListAvailable(kTid);
     REQUIRE(list.size() >= 3);
-    REQUIRE(list[0].id == kGbOot);
-    REQUIRE(list[0].verified);
-    REQUIRE(list[0].author_url == "https://gamebanana.com/members/1544353");
+    const auto it = std::find_if(list.begin(), list.end(),
+                                 [](const AvailableMod& a) { return a.id == kGbOot; });
+    REQUIRE(it != list.end());
+    REQUIRE(it->verified);
+    REQUIRE(it->author_url == "https://gamebanana.com/members/1544353");
 }
 
 TEST_CASE("Mods: GameBanana install", "[mods]") {

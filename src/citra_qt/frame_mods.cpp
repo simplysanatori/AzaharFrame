@@ -33,6 +33,7 @@
 #include "core/custom_tex/download.h"
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
+#include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
@@ -154,6 +155,29 @@ void FrameMods::SetCodeCrcSource(std::function<std::optional<u32>()> source) {
     code_crc_source = std::move(source);
 }
 
+void FrameMods::SetGameInfoSource(std::function<Mods::Compat::Game()> source) {
+    game_info_source = std::move(source);
+}
+
+const Mods::Compat::Game& FrameMods::GameInfo() {
+    if (!game_crc_read && code_crc_source) {
+        game_crc = code_crc_source();
+        game_crc_read = true;
+    }
+    if (!game_info) {
+        Mods::Compat::Game g = game_info_source ? game_info_source() : Mods::Compat::Game{};
+        g.title_id = title_id;
+        g.code_crc = game_crc;
+        LOG_INFO(Frontend, "xr: mods: the game is {:016X}, region {}, version {} ({}), code {}",
+                 g.title_id, g.region == Mods::Compat::Region::Unknown ? "unknown" : Mods::Compat::RegionName(g.region),
+                 g.version ? Mods::Compat::VersionText(*g.version) : "unknown", g.version_source,
+                 g.code_crc ? fmt::format("{:08x}", *g.code_crc) : "unknown");
+        game_info = std::move(g);
+    }
+    game_info->code_crc = game_crc;
+    return *game_info;
+}
+
 void FrameMods::Open(u64 title_id_, int run_) {
     if (title_id_ != title_id || run_ != run) {
         // Another game, or the same one started again: what waited for a restart has applied.
@@ -161,6 +185,9 @@ void FrameMods::Open(u64 title_id_, int run_) {
         run = run_;
         game_crc_read = false; // AzaharFrame modcat
         game_crc.reset();
+        game_info.reset(); // AzaharFrame compat
+        anyway.clear();
+        unscanned_ok.clear();
         mods = {};
         textures = {};
         packs.clear();
@@ -179,6 +206,21 @@ void FrameMods::Open(u64 title_id_, int run_) {
     }
     if (title_id == 0) {
         return;
+    }
+    // AzaharFrame compat: what was turned off before this start (the snackbar)
+    {
+        const FrameCrashGuard& guard = FrameCrashGuard::Get();
+        std::vector<std::string> names;
+        if (guard.TurnedOffTitle() == title_id) {
+            for (const auto& item : guard.TurnedOff()) {
+                names.push_back(item.name);
+            }
+        }
+        if (names != mods.turned_off || guard.Serial() != mods.turned_off_serial) {
+            mods.turned_off = std::move(names);
+            mods.turned_off_serial = guard.Serial();
+            PublishMods();
+        }
     }
     RefreshLoaded();
     RefreshPacks();
@@ -208,6 +250,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         RefreshAvailable();
         return;
     case C::InstallMod:
+        AllowAnyway(r.text, r.value); // AzaharFrame compat: Install Anyway
+
         Install(r.text, false);
         return;
     case C::CancelModInstall: // AzaharFrame integ3: the install fails with "Cancelled"
@@ -215,6 +259,9 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             LOG_INFO(Frontend, "xr: mods: install {} cancelled", installing);
             Mods::Default().Cancel();
         }
+        return;
+    case C::TurnBackOn: // AzaharFrame compat
+        TurnBackOn();
         return;
     case C::SetModActive:
         if (r.value != 0) {
@@ -263,6 +310,9 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
             Install(p.id, true);
         } else if (p.kind == Pending::Kind::BigInstall) { // AzaharFrame catalog3
             Install(p.id, false, true);
+        } else if (p.kind == Pending::Kind::Unscanned) { // AzaharFrame compat: Download Anyway
+            unscanned_ok.insert(p.id);
+            Install(p.id, false, true);
         } else if (p.kind == Pending::Kind::Remove) {
             Remove(p.id);
         }
@@ -276,6 +326,7 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         if (!o || textures.downloading || !downloader) {
             return;
         }
+        AllowAnyway(r.text, r.value); // AzaharFrame compat: Download Anyway
         const auto size = offer_sizes.find(r.text);
         if (size != offer_sizes.end() && size->second > 1'000'000'000) { // a big one: say how big first
             pack_pending = {Pending::Kind::Download, r.text};
@@ -314,7 +365,10 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         if (r.value == 0) {
             return;
         }
-        if (p.kind == Pending::Kind::Download) {
+        if (p.kind == Pending::Kind::Unscanned) { // AzaharFrame compat: Download Anyway
+            unscanned_ok.insert(p.id);
+            StartDownload(p.id);
+        } else if (p.kind == Pending::Kind::Download) {
             StartDownload(p.id);
         } else if (p.kind == Pending::Kind::Delete) {
             DeletePack(p.id);
@@ -426,18 +480,14 @@ void FrameMods::RefreshAvailable() {
     const u64 tid = title_id;
     // AzaharFrame modcat: the game's code CRC32, read here on the GUI thread (once per game), marks
     // the mods made for this build
-    if (!game_crc_read && code_crc_source) {
-        game_crc = code_crc_source();
-        game_crc_read = true;
-    }
-    const std::optional<u32> crc = game_crc;
+    const Mods::Compat::Game game = GameInfo(); // AzaharFrame compat: with the CRC
     OffThread(
         this,
-        [tid, crc] {
+        [tid, game] {
             Mods::Library& lib = Mods::Default();
             lib.RefreshCatalogOnce(); // one request a run; the built-in catalog without it
             lib.RefreshDates(tid);    // AzaharFrame modcat: the sources' own dates, once a run
-            return lib.ListAvailable(tid, crc);
+            return lib.ListAvailable(tid, game.code_crc, &game);
         },
         [this, tid](const std::vector<Mods::AvailableMod>& list) {
             if (tid != title_id) {
@@ -459,6 +509,14 @@ void FrameMods::RefreshAvailable() {
                 o.version_tip = a.chip_tip;
                 o.version_match = a.matches_game;
                 o.verified = a.verified;
+                o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
+                o.unscanned = a.unscanned;
+                if (!a.compat.Fits()) { // AzaharFrame compat
+                    o.mismatch = true;
+                    o.region_chip = a.compat.RegionChip();
+                    o.mismatch_reason = a.compat.Reason();
+                    o.mismatch_body = a.compat.Body("mod");
+                }
                 if (a.id == installing) {
                     o.state = Menu::OfferState::Installing;
                     o.note = PhaseText(Mods::Default().GetState().phase);
@@ -526,8 +584,13 @@ void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
     progress->start(250);
     const u64 tid = title_id;
     LOG_INFO(Frontend, "xr: mods: install {}{}", id, replace ? " (replace)" : "");
+    const bool other = anyway.count(id) != 0;             // AzaharFrame compat
+    const bool unscanned = unscanned_ok.count(id) != 0;   // AzaharFrame compat
     OffThread(
-        this, [tid, id, replace] { return Mods::Default().Install(tid, id, replace); },
+        this,
+        [tid, id, replace, unscanned, other] {
+            return Mods::Default().Install(tid, id, replace, unscanned, other);
+        },
         [this, tid, id](const Mods::InstallOutcome& out) {
             progress->stop();
             installing.clear();
@@ -556,6 +619,8 @@ void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
                 if (out.staged && notifier) {
                     notifier(name + " Downloaded. Restart to Enable.");
                 }
+                // AzaharFrame compat: new until the game has a clean run with it
+                FrameCrashGuard::NoteOn(tid, {Mods::CrashGuard::Item::Kind::Mod, id, name});
                 break;
             case Mods::InstallResult::AlreadyInstalled:
                 break;
@@ -574,6 +639,13 @@ void FrameMods::Install(const std::string& id, bool replace, bool confirmed) {
             case Mods::InstallResult::Error:
                 if (out.error == "Cancelled") { // AzaharFrame integ3: back to Install
                     LOG_INFO(Frontend, "xr: mods: install {} cancelled", id);
+                    break;
+                }
+                // AzaharFrame compat: GameBanana has not scanned the file yet: ask (only that)
+                if (out.unscanned && unscanned_ok.count(id) == 0) {
+                    LOG_INFO(Frontend, "xr: mods: {} is not scanned yet: asking", id);
+                    pending = {Pending::Kind::Unscanned, id};
+                    mods.dialog = {Menu::ModsDialogKind::Unscanned, name, "Download Anyway"};
                     break;
                 }
                 LOG_WARNING(Frontend, "xr: mods: install {} failed: {}", id, out.error);
@@ -619,6 +691,7 @@ void FrameMods::Deactivate(const std::string& id) {
             }
             if (out.ok) {
                 mods.needs_restart = true;
+                FrameCrashGuard::NoteOff(tid, Mods::CrashGuard::Item::Kind::Mod, id); // AzaharFrame compat
             } else {
                 LOG_WARNING(Frontend, "xr: mods: turning off {} failed: {}", id, out.error);
             }
@@ -647,6 +720,7 @@ void FrameMods::Remove(const std::string& id) {
             }
             if (out.ok) {
                 mods.needs_restart = true;
+                FrameCrashGuard::NoteOff(tid, Mods::CrashGuard::Item::Kind::Mod, id); // AzaharFrame compat
             } else {
                 LOG_WARNING(Frontend, "xr: mods: remove {} failed: {}", id, out.error);
             }
@@ -656,6 +730,33 @@ void FrameMods::Remove(const std::string& id) {
             }
             PublishMods();
         });
+}
+
+// AzaharFrame compat: the "Turned Off" snackbar's Turn Back On
+void FrameMods::TurnBackOn() {
+    if (mods.turned_off.empty()) {
+        return;
+    }
+    const u64 tid = title_id;
+    mods.turned_off.clear();
+    PublishMods();
+    FrameCrashGuard::Get().TurnBackOn([this, tid](bool ok) {
+        if (tid != title_id) {
+            return;
+        }
+        if (!ok) {
+            FrameXr::ShowToastText("Not Turned Back On");
+        }
+        mods.needs_restart = true;
+        textures.needs_restart = true;
+        RefreshLoaded();
+        RefreshPacks();
+        if (mods.catalog == Menu::CatalogState::Ready) {
+            RefreshAvailable();
+        }
+        PublishMods();
+        PublishTextures();
+    });
 }
 
 void FrameMods::PublishMods() {
@@ -751,19 +852,33 @@ void FrameMods::SelectPack(const std::string& id) {
     PublishTextures();
     const u64 tid = title_id;
     LOG_INFO(Frontend, "xr: texture packs: {}", pack ? pack->name : "Off");
+    std::string previous; // AzaharFrame compat: the pack that was on
+    for (const CustomTex::Pack& p : packs) {
+        if (p.active) {
+            previous = p.id;
+        }
+    }
     OffThread(
         this,
         [tid, pack] {
             const CustomTex::Paths paths = CustomTex::DefaultPaths();
             return pack ? CustomTex::Activate(paths, tid, *pack) : CustomTex::Deactivate(paths, tid);
         },
-        [this, tid](const CustomTex::Result& out) {
+        [this, tid, pack, previous](const CustomTex::Result& out) {
             textures.busy = false;
             if (tid != title_id) {
                 return;
             }
             if (out.ok) {
                 textures.needs_restart = true;
+                // AzaharFrame compat: the pack turned on is new until a clean run
+                using Kind = Mods::CrashGuard::Item::Kind;
+                if (!previous.empty() && (!pack || pack->id != previous)) {
+                    FrameCrashGuard::NoteOff(tid, Kind::Pack, previous);
+                }
+                if (pack) {
+                    FrameCrashGuard::NoteOn(tid, {Kind::Pack, pack->id, pack->name});
+                }
             } else {
                 LOG_WARNING(Frontend, "xr: texture packs: switch failed: {}", out.error);
                 FrameXr::ShowToastText("Texture Pack Not Changed");
@@ -819,8 +934,9 @@ void FrameMods::ListPackDownloads() {
     }
     const auto dl = downloader;
     const u64 tid = title_id;
+    const Mods::Compat::Game game = GameInfo(); // AzaharFrame compat: other versions' packs too
     OffThread(
-        this, [dl, tid] { return dl->ListForTitle(tid); },
+        this, [dl, tid, game] { return dl->ListForTitle(tid, &game); },
         [this, tid](const std::vector<CustomTex::Download::PackInfo>& list) {
             if (tid == title_id) {
                 SetOffers(list);
@@ -848,6 +964,14 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
         o.verified = p.verified;
         o.notes = p.notes; // AzaharFrame modcat2
+        o.downloads = p.downloads > 0 ? Menu::DownloadsText(p.downloads) : std::string{}; // AzaharFrame compat
+        o.unscanned = p.unscanned;
+        if (!p.compat.Fits()) { // AzaharFrame compat
+            o.mismatch = true;
+            o.region_chip = p.compat.RegionChip();
+            o.mismatch_reason = p.compat.Reason();
+            o.mismatch_body = p.compat.Body("texture pack");
+        }
         if (running && st.pack_id == p.id) {
             o.state = Menu::PackOfferState::Downloading;
         } else if (p.installed) {
@@ -878,12 +1002,24 @@ Menu::PackOffer* FrameMods::PackOffer(const std::string& id) {
     return nullptr;
 }
 
+// AzaharFrame compat: what the player allowed with Install Anyway / Download Anyway (the bits of
+// Menu::kAnywayOtherVersion and Menu::kAnywayUnscanned).
+void FrameMods::AllowAnyway(const std::string& id, int value) {
+    if (value & Menu::kAnywayOtherVersion) {
+        anyway.insert(id);
+    }
+    if (value & Menu::kAnywayUnscanned) {
+        unscanned_ok.insert(id);
+    }
+}
+
 void FrameMods::StartDownload(const std::string& id) {
     Menu::PackOffer* o = PackOffer(id);
     if (!o || !downloader || textures.downloading) {
         return;
     }
-    if (!downloader->Start(id, title_id)) { // returns at once; the work runs on its thread
+    if (!downloader->Start(id, title_id, unscanned_ok.count(id) != 0,
+                           anyway.count(id) != 0)) { // returns at once; the work runs on its thread
         LOG_WARNING(Frontend, "xr: texture packs: download {} did not start", id);
         return;
     }
@@ -939,6 +1075,15 @@ void FrameMods::PollDownload() {
         RefreshPacks();
         break;
     case Phase::Failed:
+        // AzaharFrame compat: GameBanana has not scanned the file yet: ask (only that)
+        if (st.unscanned && unscanned_ok.count(st.pack_id) == 0) {
+            LOG_INFO(Frontend, "xr: texture packs: {} is not scanned yet: asking", st.pack_id);
+            const Menu::PackOffer* o = PackOffer(st.pack_id);
+            pack_pending = {Pending::Kind::Unscanned, st.pack_id};
+            textures.dialog = {Menu::ModsDialogKind::Unscanned, o ? o->name : st.pack_id,
+                               "Download Anyway"};
+            break;
+        }
         LOG_WARNING(Frontend, "xr: texture packs: download {} failed: {}", st.pack_id, st.error);
         pack_failed = st.pack_id;
         pack_error = st.error.empty() ? std::string("Download Failed") : st.error;
@@ -1270,7 +1415,7 @@ void FrameMods::ZipInstall(std::shared_ptr<Zip::Job> job, u64 tid, bool replace)
             switch (out.result) {
             case R::Ok:
                 LOG_INFO(Frontend, "xr: zip: installed {} for {:016X}", out.installed, tid);
-                return ZipDone(texture, tid);
+                return ZipDone(texture, tid, texture ? std::string{} : out.installed);
             case R::Conflict:
             case R::Blocked: {
                 // Never replaced silently: ask, or say what has to go first.
@@ -1323,7 +1468,7 @@ void FrameMods::ZipAnswer(bool yes) {
                 }
                 if (out.result == Mods::InstallResult::Ok ||
                     out.result == Mods::InstallResult::AlreadyInstalled) {
-                    return ZipDone(false, tid);
+                    return ZipDone(false, tid, id);
                 }
                 LOG_WARNING(Frontend, "xr: zip: {} not installed: {}", id, out.error);
                 ZipFail(Zip::ShortError(out.error));
@@ -1344,7 +1489,11 @@ void FrameMods::ZipAnswer(bool yes) {
     PublishZip();
 }
 
-void FrameMods::ZipDone(bool texture, u64 tid) {
+void FrameMods::ZipDone(bool texture, u64 tid, const std::string& mod_id) {
+    if (!mod_id.empty()) { // AzaharFrame compat: new until a clean run
+        FrameCrashGuard::NoteOn(tid, {Mods::CrashGuard::Item::Kind::Mod, mod_id,
+                                      zip_job ? zip_job->name : mod_id});
+    }
     ZipCloseJob();
     zip.working = false;
     zip.open = false;
