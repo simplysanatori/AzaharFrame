@@ -30,13 +30,27 @@ const char* MouseInputName(int input) {
     }
 }
 
+float CursorSpeedScale(int speed) {
+    static constexpr float kScale[kNumCursorSpeeds] = {0.5f, 0.7f, 1.0f, 1.4f, 2.0f};
+    return kScale[std::clamp(speed, 0, kNumCursorSpeeds - 1)];
+}
+
 float MouseScreenGain(int speed) {
     // A mouse of 800 to 1600 counts per inch: an inch or so across the screen at Normal.
-    return speed <= 0 ? 0.15f : speed == 1 ? 0.3f : 0.6f;
+    return 0.3f * CursorSpeedScale(speed);
 }
 
 float MousePointerGain(int speed) {
-    return speed <= 0 ? 0.015f : speed == 1 ? 0.03f : 0.06f;
+    return 0.03f * CursorSpeedScale(speed);
+}
+
+int MousePointerHand(const InputFrame& in) {
+    const int right = HandIndex(Hand::Right);
+    const int left = HandIndex(Hand::Left);
+    if (!in.hand[static_cast<std::size_t>(right)].active) {
+        return right;
+    }
+    return in.hand[static_cast<std::size_t>(left)].active ? right : left;
 }
 
 // ---- MouseLogic -----------------------------------------------------------------------------
@@ -81,37 +95,26 @@ MouseFrame MouseLogic::Update(const MouseRaw& raw, int open_menu_input, int64_t 
         edge_any = edge_any || (down[k] && !prev[k]);
     }
 
-    // Left and Right: the chord, or a click a moment late.
+    // Left and Right go to the game at once. The other one going down within kChordWindowNs is
+    // the chord: both are let go for the game there and then, and the ring starts.
     for (int i = 0; i < 2; i++) {
         const std::size_t k = static_cast<std::size_t>(i);
         const std::size_t j = 1 - k;
-        const bool edge = down[k] && !prev[k];
-        if (edge && !swallowed_[k]) {
-            if (pending_since_[j] != 0 && now - pending_since_[j] <= kChordWindowNs) {
-                // The other one is waiting: the chord. Neither reaches anything.
-                chord_ = true;
-                chord_fired_ = false;
-                chord_since_ = now;
-                pending_since_ = {};
-                tap_until_ = {};
-                swallowed_[0] = swallowed_[1] = true;
-            } else if (down[j] && prev[j] && !swallowed_[j] && pending_since_[j] == 0) {
-                // The other one is a press already going on: a plain press, at once.
-            } else {
-                pending_since_[k] = now;
-            }
-        }
-    }
-    for (int i = 0; i < 2; i++) {
-        const std::size_t k = static_cast<std::size_t>(i);
-        if (pending_since_[k] == 0) {
+        if (!down[k]) {
+            down_since_[k] = 0;
             continue;
         }
-        if (!down[k]) {
-            pending_since_[k] = 0; // let go while it waited: a short press all the same
-            tap_until_[k] = now + kTapNs;
-        } else if (now - pending_since_[k] > kChordWindowNs) {
-            pending_since_[k] = 0; // no chord: the click goes on
+        if (prev[k] || swallowed_[k]) {
+            continue;
+        }
+        if (down_since_[j] != 0 && now - down_since_[j] <= kChordWindowNs) {
+            chord_ = true;
+            chord_fired_ = false;
+            chord_since_ = now;
+            down_since_ = {};
+            swallowed_[0] = swallowed_[1] = true;
+        } else {
+            down_since_[k] = now;
         }
     }
     if (chord_) {
@@ -136,11 +139,7 @@ MouseFrame MouseLogic::Update(const MouseRaw& raw, int open_menu_input, int64_t 
         if (!down[k]) {
             swallowed_[k] = false;
         }
-        bool held = down[k] && !swallowed_[k];
-        if (i < 2) {
-            held = (held && pending_since_[k] == 0) || now < tap_until_[k];
-        }
-        out.held[k] = held;
+        out.held[k] = down[k] && !swallowed_[k];
     }
     if (release_wheel_) {
         release_wheel_ = false;
@@ -162,8 +161,7 @@ MouseFrame MouseLogic::Update(const MouseRaw& raw, int open_menu_input, int64_t 
 
 void MouseLogic::Release() {
     swallowed_ = last_.buttons;
-    pending_since_ = {};
-    tap_until_ = {};
+    down_since_ = {};
     chord_ = false;
     release_wheel_ = true;
 }
@@ -172,8 +170,7 @@ void MouseLogic::Swallow(int input) {
     if (input >= 0 && input < kNumMouseButtons) {
         swallowed_[static_cast<std::size_t>(input)] = true;
         if (input < 2) {
-            pending_since_[static_cast<std::size_t>(input)] = 0;
-            tap_until_[static_cast<std::size_t>(input)] = 0;
+            down_since_[static_cast<std::size_t>(input)] = 0;
         }
     } else if (input == static_cast<int>(MouseInput::WheelUp) ||
                input == static_cast<int>(MouseInput::WheelDown)) {

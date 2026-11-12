@@ -351,11 +351,11 @@ void Kit::Switch(const Rect& r, bool on, State state) {
     }
 }
 
-void Kit::Slider(const Rect& r, float t, const std::string& value, State state, int stops) {
+void Kit::Slider(const Rect& r, float t, const std::string& value, State state, int stops,
+                 float value_w) {
     // Material 3 (2024) slider: a 16 dp track, a 4 x 44 dp handle with a 6 dp gap each side,
-    // a stop dot at the inactive end. The value at the right, in its own column.
-    const float value_w = 64.0f;
-    const float x0 = r.x0, x1 = r.x1 - value_w - 16.0f;
+    // a stop dot at the inactive end. The value at the right, in its own column (none: 0).
+    const float x0 = r.x0, x1 = r.x1 - (value_w > 0.0f ? value_w + 16.0f : 0.0f);
     const float cy = r.Cy(), th = 16.0f;
     t = std::clamp(t, 0.0f, 1.0f);
     const bool off = state == State::Disabled;
@@ -388,7 +388,9 @@ void Kit::Slider(const Rect& r, float t, const std::string& value, State state, 
     }
     Fill({hx - handle_w * 0.5f, cy - 22.0f, hx + handle_w * 0.5f, cy + 22.0f}, handle_w * 0.5f,
          active, aop);
-    TextMid(r.x1, cy, Type::Value, off ? Tok::kOnSurface : Tok::kOnSurface, value, 2, aop);
+    if (value_w > 0.0f) {
+        TextMid(r.x1, cy, Type::Value, off ? Tok::kOnSurface : Tok::kOnSurface, value, 2, aop);
+    }
 }
 
 void Kit::MenuButton(const Rect& r, const std::string& value, bool open, State state) {

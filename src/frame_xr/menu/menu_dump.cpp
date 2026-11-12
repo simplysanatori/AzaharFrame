@@ -334,6 +334,7 @@ int main(int argc, char** argv) {
         mouse.mapping[DsButton::L] = 3; // Back
         mouse.mapping[DsButton::R] = 4; // Forward
         mouse.extras = {0, 2};          // Left Click touches, Middle Click opens the menu
+        ds4.enabled = true;
         me.devices.list = {frame, ds4, mouse};
 
         v = {};
@@ -355,6 +356,14 @@ int main(int argc, char** argv) {
         me.touchpad_touch = 1;
         me.devices.pointer = {.shown = true, .down = true, .x = 0.64f, .y = 0.38f};
         ok &= shot("edit-3ds-gamepad", me, v);
+        // AzaharFrame padsui: the DualShock 4 not used (its dot hollow, the switch off).
+        {
+            MenuModel off = me;
+            off.devices.list[1].enabled = false;
+            v.hover = {Id::UseDevice};
+            ok &= shot("edit-3ds-gamepad-off", off, v);
+            v.hover = {Id::EditDevice, 2};
+        }
 
         v.hover = {};
         me.devices.selected = 2;

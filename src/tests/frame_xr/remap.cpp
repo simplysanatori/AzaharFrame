@@ -366,6 +366,8 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
     CHECK(s.Has(Id::RecentreAtEdge, -1));
     CHECK_FALSE(s.Has(Id::RemapChip, B::Touch));
     CHECK_FALSE(s.Has(Id::MouseMode, 0));
+    CHECK(s.Has(Id::UseDevice, -1)); // a gamepad can be switched off
+    CHECK_FALSE(s.Has(Id::CursorSpeed, -1));
     // AzaharFrame padsui: the mouse: its buttons, Touch Screen and Open Menu, no sticks; Mouse
     // Mode in place of Touchpad Touch; Recentre at Edge in Bottom Screen mode only.
     s.m.devices.selected = 2;
@@ -383,16 +385,24 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
     CHECK_FALSE(s.Has(Id::TouchpadTouch, 1));
     CHECK(s.Has(Id::RecentreAtEdge, -1));
     CHECK(s.Has(Id::EditDevice, 2));
+    CHECK(s.Has(Id::UseDevice, -1));
+    CHECK(s.Has(Id::CursorSpeed, -1));
+    CHECK(s.menu.Layout().SliderAt(Id::CursorSpeed, 10000.0f) == 1.0f);
     const auto& hits = s.menu.Hits();
     for (std::size_t i = 0; i < hits.size(); i++) {
+        const auto counted = [](Id id) {
+            return id == Id::RemapChip || id == Id::RecentreAtEdge || id == Id::CursorSpeed ||
+                   id == Id::UseDevice || id == Id::EditDevice || id == Id::RemapReset ||
+                   id == Id::MouseMode || id == Id::RemapDone;
+        };
         const Id ai = hits[i].t.id;
-        if (ai != Id::RemapChip && ai != Id::RecentreAtEdge) {
+        if (!counted(ai)) {
             continue;
         }
         CHECK(hits[i].r.H() >= 48.0f - 0.01f);
         for (std::size_t j = i + 1; j < hits.size(); j++) {
             const Id bj = hits[j].t.id;
-            if (bj != Id::RemapChip && bj != Id::RecentreAtEdge) {
+            if (!counted(bj)) {
                 continue;
             }
             const Rect& a = hits[i].r;
@@ -401,6 +411,12 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
         }
     }
     CHECK(SourceName(ButtonNames::Mouse, 1) == "Right Click");
+    // The Frame Controllers are always used: no switch.
+    s.m.devices.selected = 0;
+    s.Draw();
+    CHECK_FALSE(s.Has(Id::UseDevice, -1));
+    CHECK_FALSE(s.Has(Id::CursorSpeed, -1));
+    s.m.devices.selected = 2;
     s.m.devices.list[2].mouse_mode = 1;
     s.Draw();
     CHECK_FALSE(s.Has(Id::RecentreAtEdge, -1));

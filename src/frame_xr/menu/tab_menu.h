@@ -75,6 +75,8 @@ enum class Id : int {
     EditDevice,    ///< AzaharFrame padsui, index: the device in MenuModel::devices
     MouseMode,     ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
     RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
+    UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
+    CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     // Settings
     Scope,
     Background,

@@ -234,6 +234,10 @@ std::string LabelFor(Id id) {
         return "Mouse Mode";
     case Id::RecentreAtEdge:
         return "Recentre at Edge";
+    case Id::UseDevice:
+        return "Use This Device";
+    case Id::CursorSpeed:
+        return "Cursor Speed";
     case Id::EditControls:
         return "Edit Controls";
     case Id::RemapCancel:
@@ -341,6 +345,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::Depth3d) {
         return {0.0f, 100.0f, 5.0f};
+    }
+    if (id == Id::CursorSpeed) { // AzaharFrame padsui: five steps, Normal in the middle
+        return {0.0f, 4.0f, 1.0f};
     }
     return {};
 }
@@ -617,14 +624,13 @@ constexpr std::array<int, 7> kLeftChips{DsButton::ZL,   DsButton::L,     kDsCirc
                                         DsButton::Left, DsButton::Right, DsButton::Down};
 constexpr std::array<int, 7> kRightChips{DsButton::ZR, DsButton::R, kDsCStick, DsButton::X,
                                          DsButton::A,  DsButton::B, DsButton::Y};
-// The mouse (no sticks): the D-pad's chips one up, Touch Screen last, its leader passing under
-// the D-pad into the bottom screen's left edge (beside Recentre at Edge, under it); Open Menu
-// where the C-Stick's chip was, with no leader (it is the VR menu's, not the 3DS's).
-constexpr std::array<int, 7> kMouseLeftChips{DsButton::ZL,    DsButton::L,     DsButton::Up,
-                                             DsButton::Left,  DsButton::Right, DsButton::Down,
-                                             DsButton::Touch};
-constexpr std::array<int, 7> kMouseRightChips{DsButton::ZR, DsButton::R, DsButton::OpenMenu,
-                                              DsButton::X,  DsButton::A, DsButton::B, DsButton::Y};
+// The mouse (no sticks): six chips a column (Y over B there: with the shorter columns Y's leader
+// would cross B's button); Touch Screen in the row under the drawing, its
+// leader up into the bottom screen; Open Menu (the VR menu's, not the 3DS's) in the settings row.
+constexpr std::array<int, 6> kMouseLeftChips{DsButton::ZL,   DsButton::L,     DsButton::Up,
+                                             DsButton::Left, DsButton::Right, DsButton::Down};
+constexpr std::array<int, 6> kMouseRightChips{DsButton::ZR, DsButton::R, DsButton::X,
+                                              DsButton::A,  DsButton::Y, DsButton::B};
 
 
 bool IsStick(int target) {
@@ -650,21 +656,33 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     kit.Button(done, ButtonStyle::Filled, Sym::kCheck, LabelFor(Id::RemapDone),
                StateOf(view, {Id::RemapDone}));
     AddHit(done, {Id::RemapDone}, pane);
-    const float title_w =
+    // AzaharFrame padsui: Reset to Default beside Done (the device row has Use This Device).
+    float bar_x1 = done.x0 - 8.0f;
+    if (buttons) {
+        const float reset_w =
+            12.0f + 20.0f + 8.0f + kit.TextWidth(Type::Label, LabelFor(Id::RemapReset)) + 16.0f;
+        const Rect reset{bar_x1 - reset_w, c.y0, bar_x1, c.y0 + bar_h};
+        kit.Button(reset, ButtonStyle::Text, Sym::kRestartAlt, LabelFor(Id::RemapReset),
+                   StateOf(view, {Id::RemapReset}));
+        AddHit(reset, {Id::RemapReset}, pane);
+        bar_x1 = reset.x0 - 8.0f;
+    }
+    // The device's own setting at the start of the bar, else the title.
+    if (!HasPointer(dev)) {
         kit.TextMid(c.x0, c.y0 + bar_h * 0.5f, Type::Title, Tok::kOnSurface, LabelFor(Id::EditControls));
-    if (HasPointer(dev)) {
+    } else {
         // A touchpad: Touchpad Touch (global). The mouse: its Mouse Mode (AzaharFrame padsui).
         const bool mouse = dev.kind == DeviceKind::Mouse;
         const Id bar_id = mouse ? Id::MouseMode : Id::TouchpadTouch;
         const auto& opts = OptionsFor(bar_id);
         const std::string& label = LabelFor(bar_id);
         const float lw = kit.TextWidth(Type::Body, label);
-        const float room = done.x0 - 16.0f - (c.x0 + title_w + 24.0f) - lw - 12.0f;
+        const float room = bar_x1 - 16.0f - c.x0 - lw - 12.0f;
         const float tw = kit.SegmentedWidth(opts, room);
-        const Rect ts{done.x0 - 16.0f - tw, c.y0, done.x0 - 16.0f, c.y0 + bar_h};
+        const Rect ts{c.x0 + lw + 12.0f, c.y0, c.x0 + lw + 12.0f + tw, c.y0 + bar_h};
         const Lock lock = model.locked[static_cast<std::size_t>(bar_id)];
         const bool enabled = lock == Lock::None;
-        kit.TextMid(ts.x0 - 12.0f, ts.Cy(), Type::Body, Tok::kOnSurface, label, 2,
+        kit.TextMid(c.x0, ts.Cy(), Type::Body, Tok::kOnSurface, label, 0,
                     enabled ? 1.0f : kDisabledContent);
         const int th = view.hover.id == bar_id ? view.hover.index : -1;
         const int tp = view.pressed.id == bar_id ? view.pressed.index : -1;
@@ -680,9 +698,11 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
 
     // ---- Middle: the 3DS, the chips round it ----
     const Rect slot{c.x0, c.y1 - kControlH, c.x1, c.y1};
-    const Rect area{c.x0, c.y0 + bar_h + 8.0f, c.x1, slot.y0 - 8.0f};
-    // The same place for every device, the mouse (no chips) too: switching devices leaves the
-    // drawing where it is.
+    // AzaharFrame padsui: the mouse (no sticks, six chips a column) has a settings row over the
+    // device row: Open Menu, Recentre at Edge, Cursor Speed. Its drawing is a little smaller.
+    const bool mouse_page = dev.kind == DeviceKind::Mouse;
+    const Rect settings{c.x0, slot.y0 - kChipGap - kChipH, c.x1, slot.y0 - kChipGap};
+    const Rect area{c.x0, c.y0 + bar_h + 8.0f, c.x1, (mouse_page ? settings.y0 : slot.y0) - 8.0f};
     const Rect art{c.x0, area.y0, c.x1, area.y1 - kChipH - kChipGap};
     // The columns keep room for the widest chip; the drawing takes what is left.
     const float col_w = kChipPadL + kGlyph + kChipGap +
@@ -700,7 +720,11 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     std::vector<Chip> chips;
     const auto text_of = [&](int t) {
         if (Remap::IsExtra(t)) { // AzaharFrame padsui: the mouse's Touch Screen, Open Menu
-            return SourceName(dev.names, dev.extras[static_cast<std::size_t>(t - DsButton::Touch)]);
+            const std::string name =
+                SourceName(dev.names, dev.extras[static_cast<std::size_t>(t - DsButton::Touch)]);
+            // Chips of their own, out of the columns: they say what they are.
+            return std::string(t == DsButton::OpenMenu ? "Open Menu: " : "Touch Screen: ") +
+                   (name.empty() ? std::string("None") : name);
         }
         if (IsStick(t)) {
             return StickRouteName(dev.sticks[t == kDsCirclePad ? 0 : 1]);
@@ -737,53 +761,95 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
             column(kMouseLeftChips, true);
             column(kMouseRightChips, false);
         }
-        // AzaharFrame padsui: Recentre at Edge (the mouse in Bottom Screen mode, a touchpad): a
-        // filter chip at the start of the row under the drawing.
-        float recentre_x1 = c.x0;
-        if (HasRecentre(dev)) {
-            const std::string& label = LabelFor(Id::RecentreAtEdge);
+        // AzaharFrame padsui: a filter chip (Recentre at Edge) at `x` in the row `row`.
+        const auto filter_chip = [&](float x, const Rect& row, Id id, bool on) {
+            const std::string& label = LabelFor(id);
             constexpr float kCheckW = 18.0f + 8.0f;
-            const float w = (dev.recentre ? 8.0f + kCheckW : 16.0f) +
-                            kit.TextWidth(Type::Label, label) + 16.0f;
-            const Rect r{c.x0, area.y1 - kChipH, c.x0 + w, area.y1};
-            const Target tg{Id::RecentreAtEdge};
-            if (dev.recentre) {
+            const float w = (on ? 8.0f + kCheckW : 16.0f) + kit.TextWidth(Type::Label, label) + 16.0f;
+            const Rect r{x, row.y0, x + w, row.y1};
+            const Target tg{id};
+            if (on) {
                 kit.Fill(r, kChipRadius, Tok::kSecondaryContainer);
             } else {
                 kit.Fill(r, kChipRadius, Tok::kSurface);
                 kit.Stroke(r, kChipRadius, 1.0f, Tok::kOutline);
             }
-            const uint32_t fg = dev.recentre ? Tok::kOnSecondaryContainer : Tok::kOnSurfaceVariant;
+            const uint32_t fg = on ? Tok::kOnSecondaryContainer : Tok::kOnSurfaceVariant;
             kit.StateLayer(r, kChipRadius, fg, StateOf(view, tg));
             float tx = r.x0 + 16.0f;
-            if (dev.recentre) {
+            if (on) {
                 kit.Icon(r.x0 + 8.0f + 9.0f, r.Cy(), 18.0f, Sym::kCheck, false, fg);
                 tx = r.x0 + 8.0f + kCheckW;
             }
             kit.TextMid(tx, r.Cy(), Type::Label, fg, label);
             AddHit({r.x0, r.y0 - kChipGap * 0.5f, r.x1, r.y1 + kChipGap * 0.5f}, tg, pane);
-            recentre_x1 = r.x1 + kChipGap;
+            return r.x1 + kChipGap;
+        };
+        const Rect under{c.x0, area.y1 - kChipH, c.x1, area.y1}; // the row under the drawing
+        float row_x = c.x0;
+        if (mouse_page) {
+            // The settings row: Open Menu (a chip like the others, editable), Recentre at Edge
+            // (Bottom Screen mode), Cursor Speed at the end.
+            const float w = chip_w(DsButton::OpenMenu, c.W());
+            const Rect om{settings.x0, settings.y0, settings.x0 + w, settings.y1};
+            chips.push_back({DsButton::OpenMenu, om, {om.Cx(), om.y0}});
+            const std::string& label = LabelFor(Id::CursorSpeed);
+            const float lw = kit.TextWidth(Type::Body, label);
+            float sx = om.x1 + 16.0f;
+            if (HasRecentre(dev)) {
+                sx = filter_chip(sx, settings, Id::RecentreAtEdge, dev.recentre) + 8.0f;
+            }
+            const float slider_x0 = std::max(sx + lw + 16.0f, settings.x1 - 180.0f);
+            kit.TextMid(slider_x0 - 12.0f, settings.Cy(), Type::Body, Tok::kOnSurface, label, 2);
+            const Rect sl{slider_x0, settings.Cy() - 24.0f, settings.x1, settings.Cy() + 24.0f};
+            const SliderRange range = SliderFor(Id::CursorSpeed);
+            float t = static_cast<float>(dev.speed) / range.max;
+            if (view.dragging == Id::CursorSpeed) {
+                t = std::round(view.drag_t * range.max) / range.max;
+            }
+            kit.Slider(sl, t, {},
+                       view.dragging == Id::CursorSpeed ? State::Pressed
+                                                        : StateOf(view, {Id::CursorSpeed}),
+                       static_cast<int>(range.max), 0.0f);
+            layout.sliders.push_back({Id::CursorSpeed, sl.x0, sl.x1});
+            AddHit({sl.x0 - 8.0f, settings.y0 - kChipGap * 0.5f, sl.x1, settings.y1 + kChipGap * 0.5f},
+                   {Id::CursorSpeed}, pane);
+            // Touch Screen leads up into the bottom screen from the row under the drawing.
+            const float tw = chip_w(DsButton::Touch, c.W());
+            const Rect ts{under.x0, under.y0, under.x0 + tw, under.y1};
+            chips.push_back({DsButton::Touch, ts, {ts.x1, ts.Cy()}});
+            row_x = ts.x1 + kChipGap;
+        } else if (HasRecentre(dev)) {
+            row_x = filter_chip(row_x, under, Id::RecentreAtEdge, dev.recentre);
         }
         // The row under the drawing: Select's and Start's chips either side of their buttons'
         // line (Select's leader then stays left of Start's), Home's under Home or, when that
-        // would meet Select's, just left of it.
+        // would meet Select's, just left of it; all three moved right when the chips before them
+        // need the room.
         {
             const float sel_w = chip_w(DsButton::Select, c.W());
             const float start_w = chip_w(DsButton::Start, c.W());
             const float home_w = chip_w(DsButton::Home, c.W());
             float mid = ds.Anchor(DsButton::Start).x;
             mid = std::min(mid, c.x1 - start_w - kChipGap * 0.5f);
-            const Rect start{mid + kChipGap * 0.5f, area.y1 - kChipH, mid + kChipGap * 0.5f + start_w, area.y1};
-            const Rect sel{start.x0 - kChipGap - sel_w, start.y0, start.x0 - kChipGap, start.y1};
+            Rect start{mid + kChipGap * 0.5f, under.y0, mid + kChipGap * 0.5f + start_w, under.y1};
+            Rect sel{start.x0 - kChipGap - sel_w, start.y0, start.x0 - kChipGap, start.y1};
             float hx = std::min(ds.Anchor(DsButton::Home).x - home_w * 0.5f, sel.x0 - kChipGap - home_w);
-            hx = std::max(hx, recentre_x1);
+            if (hx < row_x) {
+                const float dx = std::min(row_x - hx, c.x1 - start.x1);
+                hx += dx;
+                start.x0 += dx;
+                start.x1 += dx;
+                sel.x0 += dx;
+                sel.x1 += dx;
+            }
             const Rect home{hx, start.y0, hx + home_w, start.y1};
             chips.push_back({DsButton::Home, home, {home.Cx(), home.y0}});
             chips.push_back({DsButton::Select, sel, {sel.Cx(), sel.y0}});
             chips.push_back({DsButton::Start, start, {start.Cx(), start.y0}});
         }
-        // The mouse's Touch Screen leads into the bottom screen at its left edge; Open Menu has
-        // no leader.
+        // The mouse's Touch Screen leads into the bottom screen near its bottom left corner;
+        // Open Menu has no leader.
         const Rect bs = ds.BottomScreen();
         const DsPoint touch_at{bs.x0 + 6.0f, bs.y0 + bs.H() * 0.8f};
         for (const Chip& ch : chips) {
@@ -879,26 +945,33 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         AddHit({cancel.x0, bar.y0, cancel.x1, bar.y1}, {Id::RemapCancel}, pane);
         return;
     }
+    // AzaharFrame padsui: Use This Device at the end of the row, for every device but the Frame
+    // Controllers (always used).
     float right = slot.x1;
-    if (buttons) {
-        const float reset_w =
-            12.0f + 20.0f + 8.0f + kit.TextWidth(Type::Label, LabelFor(Id::RemapReset)) + 16.0f;
-        const Rect reset{slot.x1 - reset_w, slot.y0, slot.x1, slot.y1};
-        kit.Button(reset, ButtonStyle::Text, Sym::kRestartAlt, LabelFor(Id::RemapReset),
-                   StateOf(view, {Id::RemapReset}));
-        AddHit(reset, {Id::RemapReset}, pane);
-        right = reset.x0 - 16.0f;
+    if (sel && dev.kind != DeviceKind::Frame) {
+        const std::string& label = LabelFor(Id::UseDevice);
+        const float w = kit.TextWidth(Type::Label, label) + 12.0f + 52.0f;
+        const Rect sw{slot.x1 - w, slot.y0, slot.x1, slot.y1};
+        const State st = StateOf(view, {Id::UseDevice});
+        kit.StateLayer({sw.x0 - 12.0f, sw.y0, sw.x1 + 8.0f, sw.y1}, 16.0f, Tok::kOnSurface, st);
+        kit.TextMid(sw.x0, sw.Cy(), Type::Label, Tok::kOnSurface, label);
+        kit.Switch(sw, dev.enabled, st);
+        AddHit({sw.x0 - 12.0f, sw.y0, sw.x1, sw.y1}, {Id::UseDevice}, pane);
+        right = sw.x0 - 12.0f - 16.0f;
     }
     // Material filter chips: 8 dp corners, an outline, the chosen one in the secondary container
-    // with a check. Too many for the row: each gets an equal share and its name is shortened.
+    // with a check. Each has a dot when its device is connected (hollow while it is not used).
+    // Too many for the row: each gets an equal share and its name is shortened.
     const int n = static_cast<int>(model.devices.list.size());
     constexpr float kCheckW = 18.0f + 8.0f;
+    constexpr float kDotW = 8.0f + 8.0f; ///< the status dot and its gap
     std::vector<float> widths;
     float total = 0.0f;
     for (int i = 0; i < n; i++) {
+        const EditDevice& d = model.devices.list[static_cast<std::size_t>(i)];
         const bool chosen = i == model.devices.selected;
-        const float w = (chosen ? 8.0f + kCheckW : 16.0f) +
-                        kit.TextWidth(Type::Label, model.devices.list[static_cast<std::size_t>(i)].name) + 16.0f;
+        const float w = (chosen ? 8.0f + kCheckW : 16.0f) + (d.connected ? kDotW : 0.0f) +
+                        kit.TextWidth(Type::Label, d.name) + 16.0f;
         widths.push_back(w);
         total += w + (i > 0 ? kChipGap : 0.0f);
     }
@@ -906,6 +979,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     const float share = n > 0 ? (avail - kChipGap * static_cast<float>(n - 1)) / static_cast<float>(n) : 0.0f;
     float x = slot.x0;
     for (int i = 0; i < n; i++) {
+        const EditDevice& d = model.devices.list[static_cast<std::size_t>(i)];
         const bool chosen = i == model.devices.selected;
         const float w = total > avail ? std::min(widths[static_cast<std::size_t>(i)], share)
                                       : widths[static_cast<std::size_t>(i)];
@@ -923,9 +997,17 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
             kit.Icon(r.x0 + 8.0f + 9.0f, r.Cy(), 18.0f, Sym::kCheck, false, fg);
             tx = r.x0 + 8.0f + kCheckW;
         }
+        if (d.connected) {
+            const float dx = tx + 4.0f;
+            if (d.enabled) {
+                kit.Dot(dx, r.Cy(), 4.0f, Tok::kPrimary);
+            } else {
+                kit.Stroke({dx - 4.0f, r.Cy() - 4.0f, dx + 4.0f, r.Cy() + 4.0f}, 4.0f, 1.5f, fg);
+            }
+            tx += kDotW;
+        }
         kit.TextMid(tx, r.Cy(), Type::Label, fg,
-                    kit.Fit(Type::Label, model.devices.list[static_cast<std::size_t>(i)].name,
-                            r.x1 - 16.0f - tx + 1.0f));
+                    kit.Fit(Type::Label, d.name, r.x1 - 16.0f - tx + 1.0f));
         AddHit({r.x0, slot.y0, r.x1, slot.y1}, tg, pane);
         x += w + kChipGap;
     }

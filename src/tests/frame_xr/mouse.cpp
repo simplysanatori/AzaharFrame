@@ -66,27 +66,21 @@ struct MouseSource final : GamepadSource {
 
 } // namespace
 
-TEST_CASE("Mouse: a click goes on a moment late, a chord reaches nothing", "[frame_xr]") {
+TEST_CASE("Mouse: a click goes at once, a chord lets both go at once", "[frame_xr]") {
     MouseRig r;
-    r.Set(1, true); // Right Click
-    CHECK_FALSE(r.Step(10).held[M(MouseInput::RightClick)]); // waiting for Left
-    CHECK_FALSE(r.Step(50).held[M(MouseInput::RightClick)]);
-    CHECK(r.Step(40).held[M(MouseInput::RightClick)]); // past the window: a click
+    r.Set(1, true); // Right Click: pressed in the same frame
+    CHECK(r.Step(10).held[M(MouseInput::RightClick)]);
+    CHECK(r.Step(200).held[M(MouseInput::RightClick)]);
     r.Set(1, false);
     CHECK_FALSE(r.Step(10).held[M(MouseInput::RightClick)]);
 
-    // A quick tap, let go while it waited, still presses for a moment.
-    r.Set(1, true);
-    r.Step(10);
-    r.Set(1, false);
-    CHECK(r.Step(10).held[M(MouseInput::RightClick)]);
-    CHECK_FALSE(r.Step(60).held[M(MouseInput::RightClick)]);
-
-    // Left then Right within the window: the chord. Nothing reaches the game; the ring fills.
+    // Left, then Right 40 ms later: Left reached the game for 40 ms, then both let go and the
+    // ring starts.
     r.Set(0, true);
-    r.Step(10);
+    CHECK(r.Step(10).held[M(MouseInput::LeftClick)]);
+    CHECK(r.Step(30).held[M(MouseInput::LeftClick)]);
     r.Set(1, true);
-    MouseFrame f = r.Step(30);
+    MouseFrame f = r.Step(10);
     CHECK_FALSE(f.held[M(MouseInput::LeftClick)]);
     CHECK_FALSE(f.held[M(MouseInput::RightClick)]);
     CHECK(f.chord == Approx(0.0f));
@@ -104,10 +98,12 @@ TEST_CASE("Mouse: a click goes on a moment late, a chord reaches nothing", "[fra
     r.Set(1, false);
     r.Step(10);
 
-    // Let go early: no switch, and still nothing reached the game.
+    // Both in the same frame: the chord, nothing reaches the game. Let go early: no switch.
     r.Set(0, true);
     r.Set(1, true);
-    r.Step(10);
+    f = r.Step(10);
+    CHECK_FALSE(f.held[M(MouseInput::LeftClick)]);
+    CHECK_FALSE(f.held[M(MouseInput::RightClick)]);
     f = r.Step(2000);
     CHECK(f.chord > 0.6f);
     r.Set(1, false);
@@ -118,7 +114,7 @@ TEST_CASE("Mouse: a click goes on a moment late, a chord reaches nothing", "[fra
     r.Set(0, false);
     r.Step(10);
 
-    // Right held as a press already: Left joining later is a plain press too.
+    // Right held past the window: Left joining later is a plain press too.
     r.Set(1, true);
     r.Step(10);
     r.Step(100);
@@ -204,7 +200,7 @@ TEST_CASE("Mouse: its mapping, defaults and the file", "[frame_xr]") {
     const GamepadMapping& o = old.Find("abc", 0, 0, "")->mapping;
     CHECK(o.touch == -1);
     CHECK(o.mode == 0);
-    CHECK(o.speed == 1);
+    CHECK(o.speed == kCursorSpeedNormal);
     CHECK(o.recentre);
 }
 
@@ -408,7 +404,7 @@ TEST_CASE("Mouse: Pointer: the ray from where you look, turned by the counts", "
     MousePointer p;
     MouseFrame m;
     m.present = true;
-    m.speed = 1; // 0.03 degrees a count
+    m.speed = kCursorSpeedNormal; // 0.03 degrees a count
     HandInput real; // no controller
     Posef head;     // at the origin, looking down -Z
     head.position = {0.0f, 1.6f, 0.0f};
@@ -474,4 +470,152 @@ TEST_CASE("Mouse: the ray stands in for the right controller", "[frame_xr]") {
     ApplyMousePointer(in, 1, aim, false, -1.0f);
     CHECK(in.hand[1].stick.y == Approx(-1.0f)); // the wheel, in the menu
     CHECK_FALSE(in.hand[0].mouse);
+}
+
+TEST_CASE("Cursor Speed scales both modes", "[frame_xr]") {
+    CHECK(CursorSpeedScale(kCursorSpeedNormal) == Approx(1.0f));
+    CHECK(CursorSpeedScale(0) == Approx(0.5f));
+    CHECK(CursorSpeedScale(4) == Approx(2.0f));
+    CHECK(CursorSpeedScale(9) == Approx(2.0f)); // clamped
+    CHECK(MouseScreenGain(kCursorSpeedNormal) == Approx(0.3f));
+    CHECK(MouseScreenGain(4) == Approx(0.6f));
+    CHECK(MousePointerGain(kCursorSpeedNormal) == Approx(0.03f)); // Frametop's
+    CHECK(MousePointerGain(0) == Approx(0.015f));
+
+    // Pointer: the same counts turn the ray twice as far at the fastest step.
+    const auto turned = [](int speed) {
+        MousePointer p;
+        MouseFrame m;
+        m.present = true;
+        m.speed = speed;
+        HandInput real;
+        Posef head;
+        int64_t now = 1'000 * kMs;
+        m.motion = {40, 0};
+        m.used = true;
+        p.Update(m, true, real, head, true, now += 10 * kMs); // wakes
+        const float start = p.yaw_deg();
+        m.motion = {-100, 0};
+        p.Update(m, true, real, head, true, now += 10 * kMs);
+        return p.yaw_deg() - start;
+    };
+    CHECK(turned(kCursorSpeedNormal) == Approx(3.0f).margin(0.01f));
+    CHECK(turned(4) == Approx(6.0f).margin(0.01f));
+    CHECK(turned(0) == Approx(1.5f).margin(0.01f));
+
+    // Bottom Screen: the gain moves the shared cursor that many pixels a count.
+    TouchpadTouch t;
+    TouchpadFrame f;
+    f.bottom_visible = true;
+    f.cursor = {true, {100.0f, 0.0f}, MouseScreenGain(4), false, true};
+    f.time_ns = 1'000 * kMs;
+    const TouchpadResult r = t.Update(f);
+    CHECK(r.cursor.px == Approx(220.0f)); // from the middle, 100 counts at 0.6
+}
+
+TEST_CASE("Mouse: the ray takes a free hand, never a controller in use", "[frame_xr]") {
+    InputFrame in;
+    const int left = HandIndex(Hand::Left), right = HandIndex(Hand::Right);
+    CHECK(MousePointerHand(in) == right); // no controllers
+    in.hand[static_cast<std::size_t>(left)].active = true;
+    CHECK(MousePointerHand(in) == right); // the owner's way: left controller, mouse in the right
+    in.hand[static_cast<std::size_t>(left)].active = false;
+    in.hand[static_cast<std::size_t>(right)].active = true;
+    CHECK(MousePointerHand(in) == left); // only the right controller on
+    in.hand[static_cast<std::size_t>(left)].active = true;
+    CHECK(MousePointerHand(in) == right); // both: the right one's, the one used last has it
+
+    // The other hand's controller moving does not take the ray: the pointer only watches the
+    // hand it stands in for (none here).
+    MousePointer p;
+    MouseFrame m;
+    m.present = true;
+    HandInput free_hand; // asleep
+    Posef head;
+    int64_t now = 1'000 * kMs;
+    m.motion = {50, 0};
+    m.used = true;
+    REQUIRE(p.Update(m, true, free_hand, head, true, now += 10 * kMs).active);
+    m.motion = {};
+    m.used = false;
+    for (int i = 0; i < 100; i++) {
+        CHECK(p.Update(m, true, free_hand, head, true, now += 10 * kMs).active);
+    }
+    // Applied: the left controller's own ray stays as it was.
+    InputFrame both;
+    both.hand[static_cast<std::size_t>(left)].active = true;
+    both.hand[static_cast<std::size_t>(left)].trigger = 1.0f;
+    ApplyMousePointer(both, MousePointerHand(both), {}, false, 0.0f);
+    CHECK(both.hand[static_cast<std::size_t>(right)].mouse);
+    CHECK_FALSE(both.hand[static_cast<std::size_t>(left)].mouse);
+    CHECK(both.hand[static_cast<std::size_t>(left)].trigger == Approx(1.0f));
+}
+
+TEST_CASE("Touch: the newest press owns the one touch until it lifts", "[frame_xr]") {
+    TouchpadTouch t;
+    int64_t now = 1'000 * kMs;
+    TouchpadFrame f;
+    f.mode = TouchpadMode::Touch;
+    f.bottom_visible = true;
+    f.cursor = {true, {}, 1.0f, false, false};
+    std::array<TouchEvent, 1> beam{};
+    const auto step = [&](int beam_events = 0) {
+        now += 10 * kMs;
+        f.time_ns = now;
+        f.beam = beam.data();
+        f.beam_count = beam_events;
+        const TouchpadResult r = t.Update(f);
+        f.cursor.motion = {};
+        return r;
+    };
+    step();
+    f.pad.present = true;
+    step();
+    // The mouse touches.
+    f.cursor.down = true;
+    TouchpadResult r = step();
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Pressed);
+    CHECK(t.owner() == TouchSource::Cursor);
+    // A Frame beam presses: it takes the touch (one Moved, no lift).
+    beam[0] = {TouchEventType::Pressed, 30.0f, 40.0f};
+    r = step(1);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Moved);
+    CHECK(r.events[0].x == Approx(30.0f));
+    CHECK(t.owner() == TouchSource::Beam);
+    // Both held, both moving: only the beam's moves reach the game, every frame.
+    for (int i = 0; i < 5; i++) {
+        f.cursor.motion = {5.0f, 0.0f};
+        beam[0] = {TouchEventType::Moved, 31.0f + static_cast<float>(i), 40.0f};
+        r = step(1);
+        REQUIRE(r.event_count == 1);
+        CHECK(r.events[0].x == Approx(31.0f + static_cast<float>(i)));
+        CHECK(t.owner() == TouchSource::Beam);
+    }
+    // The touchpad touches too: now it owns the touch.
+    f.pad = {true, true, false, 0.25f, 0.5f};
+    r = step();
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].x == Approx(80.0f));
+    CHECK(t.owner() == TouchSource::Pad);
+    // The beam lets go: nothing (it no longer owns it). The pad lifts: the touch ends, and the
+    // mouse, still held, does not take it back until it presses again.
+    beam[0] = {TouchEventType::Released, 0.0f, 0.0f};
+    CHECK(step(1).event_count == 0);
+    f.pad.contact = false;
+    r = step();
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Released);
+    for (int i = 0; i < 5; i++) {
+        f.cursor.motion = {1.0f, 1.0f};
+        CHECK(step().event_count == 0);
+    }
+    f.cursor.down = false;
+    step();
+    f.cursor.down = true;
+    r = step();
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Pressed);
+    CHECK(t.owner() == TouchSource::Cursor);
 }

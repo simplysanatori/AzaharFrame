@@ -113,6 +113,18 @@ public:
         return touching_;
     }
 
+    /// AzaharFrame padsui: what a cursor source gives the shared cursor pipeline (CursorStep): a
+    /// touchpad its finger's point (absolute), the mouse its counts (relative).
+    struct CursorInput {
+        bool live = false;     ///< the source counts at all now
+        bool absolute = false; ///< `point` (0..1) is where it is; else `delta` moves it
+        bool has_point = false;
+        Vec2f point;
+        Vec2f delta;           ///< 3DS pixels this frame (counts times the speed's gain)
+        bool down = false;     ///< touching (click = touch, held = drag)
+        bool recentre = false; ///< Recentre at Edge
+    };
+
 private:
     struct Source {
         bool engaged_prev = false;
@@ -120,6 +132,22 @@ private:
         float px = 0.0f;
         float py = 0.0f;
     };
+    /// AzaharFrame padsui: one cursor of the shared pipeline: its point, clamped to the screen,
+    /// and Recentre at Edge's state.
+    struct CursorTrack {
+        Source src;
+        bool started = false;
+        Vec2f offset;          ///< absolute: added to the point after a recentre
+        bool gap = false;      ///< lifted by Recentre at Edge, touching again at gap_until
+        int64_t gap_until = 0;
+        bool at_edge = false;  ///< absolute: was at an edge last frame
+        int64_t move_ns = 0;   ///< last moved
+    };
+    /// The pipeline: moves the cursor, clamps it, touches with `down` (and drags while held),
+    /// and with Recentre at Edge lifts a drag that runs into an edge and touches again at the
+    /// middle after kRecentreGapNs.
+    void CursorStep(TouchpadResult& out, CursorTrack& t, const CursorInput& in, TouchSource who,
+                    int64_t now);
     void Emit(TouchpadResult& out, TouchEventType type, float px, float py);
     void Take(TouchpadResult& out, TouchSource who, float px, float py);
     void Drop(TouchpadResult& out, TouchSource who);
@@ -130,18 +158,10 @@ private:
     bool touching_ = false; ///< the sink has been told of a touch
     float sent_px_ = 0.0f;
     float sent_py_ = 0.0f;
-    Source pad_;
+    // AzaharFrame padsui: the touchpad's and the mouse's cursors, one pipeline.
+    CursorTrack pad_;
+    CursorTrack cursor_;
     Source mouse_;
-    // AzaharFrame padsui: the mouse's cursor, and Recentre at Edge.
-    Source cursor_;
-    bool cursor_started_ = false;
-    int64_t cursor_move_ns_ = 0;
-    bool cursor_gap_ = false;
-    int64_t cursor_gap_until_ = 0;
-    Vec2f pad_offset_;
-    bool pad_gap_ = false;
-    int64_t pad_gap_until_ = 0;
-    bool pad_at_edge_ = false;
     bool mouse_seen_ = false;
     float mouse_last_x_ = 0.0f;
     float mouse_last_y_ = 0.0f;

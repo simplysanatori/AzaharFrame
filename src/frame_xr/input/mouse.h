@@ -24,7 +24,8 @@
 //                  works the menu, the screens and the grab bars as a controller's beam does:
 //                  the touch input is its trigger. Picking up the right controller hands it
 //                  back; moving the mouse on purpose takes it again.
-// Left and Right Click held together for 3 s switch the mode. The other inputs are the 3DS
+// Left and Right Click held together for 3 s switch the mode (pressed within 80 ms of each other:
+// both are let go for the game at once). The other inputs are the 3DS
 // buttons of the mapping, and Open Menu (Middle Click by default) opens and closes the menu.
 namespace FrameXr::Input {
 
@@ -58,12 +59,21 @@ struct MouseRaw {
 };
 
 enum class MouseMode : uint8_t { BottomScreen = 0, Pointer = 1 };
-enum class MouseSpeed : uint8_t { Slow = 0, Normal = 1, Fast = 2 };
 
-/// Bottom Screen: 3DS pixels per count.
+/// Cursor Speed: five steps, the middle one Normal. It scales the mouse's counts in both modes
+/// (and a relative cursor's motion in TouchpadTouch).
+constexpr int kNumCursorSpeeds = 5;
+constexpr int kCursorSpeedNormal = 2;
+/// How much faster than Normal: 0.5, 0.7, 1, 1.4, 2.
+float CursorSpeedScale(int speed);
+/// Bottom Screen: 3DS pixels per count (0.3 at Normal).
 float MouseScreenGain(int speed);
-/// Pointer: degrees per count.
+/// Pointer: degrees per count (Frametop's 0.03 at Normal).
 float MousePointerGain(int speed);
+/// Which hand's slot of the InputFrame the Pointer's ray takes: the right one when its
+/// controller is off or asleep, else the left one when that is, else the right one (shared with
+/// its controller: the one used last has it). A controller in the other hand keeps its own ray.
+int MousePointerHand(const InputFrame& in);
 
 /// One display frame of the mouse.
 struct MouseFrame {
@@ -77,9 +87,10 @@ struct MouseFrame {
     float chord = 0.0f;
     bool switch_mode = false; ///< the hold completed this frame
     bool used = false;        ///< moved or pressed this frame
+    bool disabled = false;    ///< a mouse is there, with Use This Device off
     /// From the mouse's mapping (the hub fills them in).
     MouseMode mode = MouseMode::BottomScreen;
-    int speed = static_cast<int>(MouseSpeed::Normal);
+    int speed = kCursorSpeedNormal;
     bool recentre = true;
     int touch_input = static_cast<int>(MouseInput::LeftClick); ///< -1: none
     bool Touch() const {
@@ -90,13 +101,12 @@ struct MouseFrame {
 
 class MouseLogic {
 public:
-    /// A click of Left or Right waits this long for the other one: both within it are the chord
-    /// (and reach nothing), else the click goes on, this much late.
+    /// Left and Right Click go to the game at once; the other one going down within this long
+    /// is the chord: both are let go for the game at that moment (it may have seen a tap shorter
+    /// than this) and stay away until let go.
     static constexpr int64_t kChordWindowNs = 80'000'000;
     /// The chord held this long switches the mode.
     static constexpr int64_t kChordHoldNs = 3'000'000'000;
-    /// A click let go while it waited still presses for this long.
-    static constexpr int64_t kTapNs = 50'000'000;
     /// A wheel notch presses for kNotchOnNs, then lets go for kNotchOffNs before the next one.
     static constexpr int64_t kNotchOnNs = 50'000'000;
     static constexpr int64_t kNotchOffNs = 40'000'000;
@@ -121,8 +131,7 @@ private:
     bool seen_ = false;
     MouseRaw last_;
     std::array<bool, kNumMouseButtons> swallowed_{};
-    std::array<int64_t, 2> pending_since_{}; ///< Left, Right: waiting for the other, 0 not
-    std::array<int64_t, 2> tap_until_{};
+    std::array<int64_t, 2> down_since_{}; ///< Left, Right: when the press began, 0 none
     bool chord_ = false;
     bool chord_fired_ = false;
     int64_t chord_since_ = 0;

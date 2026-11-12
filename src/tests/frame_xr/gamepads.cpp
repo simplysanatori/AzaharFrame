@@ -46,6 +46,10 @@ struct FakeSource final : GamepadSource {
     std::string InputDevices() override {
         return devices;
     }
+    MouseRaw mouse; // AzaharFrame padsui
+    MouseRaw Mouse() override {
+        return mouse;
+    }
 
     void Add(int id, std::string guid, std::string name, PadType type, uint16_t vendor,
              uint16_t product, bool touchpad = false, bool steam = false) {
@@ -633,4 +637,71 @@ TEST_CASE("Gamepads: listening shows the pad's sticks", "[frame_xr]") {
     REQUIRE(r.state == GamepadHub::ListenResult::State::Listening);
     REQUIRE(std::fabs(r.sticks[0].x) > 0.5f);
     REQUIRE(r.sticks[1].x == Approx(0.0f));
+}
+
+// AzaharFrame padsui: every device feeds the game at once; Edit Controls' device row only picks
+// which mapping is edited.
+TEST_CASE("Devices: the Frame, the mouse and a gamepad press together", "[frame_xr]") {
+    Rig rig;
+    rig.source.Add(1, kDs4Guid, "Wireless Controller", PadType::PS4, 0x054c, 0x09cc, true);
+    rig.MakeReal(1);
+    rig.source.mouse.present = true;
+    rig.source.devices = "I: Bus=0003 Vendor=046d Product=c077 Version=0111\n"
+                         "N: Name=\"USB Optical Mouse\"\nH: Handlers=mouse0 event7\nB: REL=903\n\n";
+    // The owner's profile: the 3DS's A on the left controller's D-pad Left.
+    rig.routes.buttons[NB::A] = static_cast<int8_t>(Control::DpadLeft);
+    const auto step = [&](bool frame_dpad_left) {
+        rig.now += 11 * kMs;
+        rig.frame.time_ns = rig.now;
+        rig.hub.PollMouse(rig.now);
+        ControlState controls; // the Frame controllers' own, as the mapper gave them
+        controls.buttons[C(Control::DpadLeft)] = frame_dpad_left;
+        rig.hub.Merge(rig.frame, rig.routes, controls, true);
+        return controls;
+    };
+    step(false);
+    const GamepadMapping pad = rig.hub.Mapping(kDs4Guid, rig.routes);
+    const int pad_b = pad.buttons[NB::B];
+    REQUIRE(pad_b >= 0);
+    const auto b_control = static_cast<std::size_t>(rig.routes.buttons[NB::B]);
+    const auto l_control = static_cast<std::size_t>(rig.routes.buttons[NB::L]);
+
+    // One frame: the Frame's D-pad Left (3DS A), the mouse's Right Click (3DS A too) and Back
+    // (L), the gamepad's 3DS B and L.
+    rig.source.mouse.buttons[1] = true; // Right Click
+    rig.source.mouse.buttons[3] = true; // Back
+    rig.source.State(1).buttons[pad_b] = true;
+    rig.source.State(1).buttons[pad.buttons[NB::L]] = true;
+    ControlState c = step(true);
+    CHECK(c.buttons[C(Control::DpadLeft)]);
+    CHECK(c.buttons[b_control]);
+    CHECK(c.buttons[l_control]);
+    // The Frame lets go: the mouse still holds the 3DS's A.
+    c = step(false);
+    CHECK(c.buttons[C(Control::DpadLeft)]);
+    // The mouse lets go too, the gamepad still holds B and L.
+    rig.source.mouse.buttons = {};
+    c = step(false);
+    CHECK_FALSE(c.buttons[C(Control::DpadLeft)]);
+    CHECK(c.buttons[b_control]);
+    CHECK(c.buttons[l_control]);
+
+    // Use This Device off: that device reaches nothing, the others still do.
+    GamepadMapping off = pad;
+    off.enabled = false;
+    REQUIRE(rig.hub.SetMapping(kDs4Guid, off));
+    rig.source.mouse.buttons[1] = true;
+    c = step(false);
+    CHECK_FALSE(c.buttons[b_control]);
+    CHECK(c.buttons[C(Control::DpadLeft)]); // the mouse's A
+    CHECK(rig.storage.text.find(" use=0") != std::string::npos);
+    GamepadMapping mouse_off = rig.hub.Mapping(kMouseDeviceId, rig.routes);
+    mouse_off.enabled = false;
+    REQUIRE(rig.hub.SetMapping(kMouseDeviceId, mouse_off));
+    c = step(true);
+    CHECK(c.buttons[C(Control::DpadLeft)]); // the Frame's own
+    c = step(false);
+    CHECK_FALSE(c.buttons[C(Control::DpadLeft)]);
+    CHECK(rig.hub.LastMouse().disabled);
+    CHECK_FALSE(rig.hub.LastMouse().present);
 }

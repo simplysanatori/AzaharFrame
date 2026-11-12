@@ -703,9 +703,11 @@ void MappingFile::Parse(const std::string& text) {
                 e.mapping.mode = v == "1" ? 1 : 0;
             } else if (k == "speed") {
                 const long n = std::strtol(v.c_str(), nullptr, 10);
-                e.mapping.speed = static_cast<uint8_t>(std::clamp<long>(n, 0, 2));
+                e.mapping.speed = static_cast<uint8_t>(std::clamp<long>(n, 0, kNumCursorSpeeds - 1));
             } else if (k == "recentre") {
                 e.mapping.recentre = v != "0";
+            } else if (k == "use") {
+                e.mapping.enabled = v != "0";
             } else if (k == "vendor") {
                 e.vendor = static_cast<uint16_t>(std::strtoul(v.c_str(), nullptr, 16));
             } else if (k == "product") {
@@ -743,6 +745,9 @@ std::string MappingFile::Format() const {
         }
         if (e.mapping.recentre != plain.recentre) {
             out += " recentre=0";
+        }
+        if (e.mapping.enabled != plain.enabled) {
+            out += " use=0";
         }
         out += " vendor=" + Hex4(e.vendor) + " product=" + Hex4(e.product);
         out += " name=" + e.name + "\n";
@@ -1205,7 +1210,7 @@ TouchpadPick GamepadHub::PickTouchpadLocked() {
                 MappingLocked(p).recentre};
     };
     const auto usable = [this](const Pad& p) {
-        return p.connected && !p.frame_own && p.touch.present;
+        return p.connected && !p.frame_own && p.touch.present && MappingLocked(p).enabled;
     };
     // The menu's choice, while it is connected.
     if (!touchpad_id_.empty()) {
@@ -1247,7 +1252,8 @@ GamepadHub::MergeResult GamepadHub::Merge(const InputFrame& frame, const Profile
     // AzaharFrame padsui: the mouse's 3DS buttons (the frame PollMouse read).
     if (swallow_now) {
         mouse_logic_.Release();
-    } else if (merge_buttons && merge_enabled_ && mouse_frame_.present) {
+    } else if (merge_buttons && merge_enabled_ && mouse_frame_.present &&
+               MouseMappingLocked().enabled) {
         MergeIntoFrame(ApplyMouseMapping(mouse_frame_.held, MouseMappingLocked()), routes, controls);
     }
     if (pads_.empty()) {
@@ -1280,7 +1286,8 @@ GamepadHub::MergeResult GamepadHub::Merge(const InputFrame& frame, const Profile
                 pad.swallowed[k] = false;
             }
         }
-        if (!merge_buttons || !merge_enabled_ || verdict == EchoGuard::Verdict::Echo) {
+        if (!merge_buttons || !merge_enabled_ || verdict == EchoGuard::Verdict::Echo ||
+            !MappingLocked(pad).enabled) { // AzaharFrame padsui: Use This Device off
             continue;
         }
         // The echo filter works on SDL's numbering; turn it into positions as the inputs are.
@@ -1318,6 +1325,12 @@ MouseFrame GamepadHub::PollMouse(int64_t now_ns) {
     std::scoped_lock lock{mutex_};
     GamepadMapping m = MouseMappingLocked();
     MouseFrame f = mouse_logic_.Update(source_.Mouse(), m.open_menu, now_ns);
+    if (!m.enabled) {
+        // AzaharFrame padsui: Use This Device off: no motion, no inputs, no ray.
+        const bool present = f.present;
+        f = MouseFrame{};
+        f.disabled = present;
+    }
     if (f.switch_mode) {
         m.mode = m.mode == 0 ? 1 : 0;
         SetMouseMappingLocked(m);

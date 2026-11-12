@@ -58,6 +58,9 @@ struct EditDevice {
     RemapExtras extras = kNoExtras;
     int mouse_mode = 0;   ///< the mouse: 0 Bottom Screen, 1 Pointer
     bool recentre = true; ///< the mouse and a touchpad: Recentre at Edge
+    int speed = 2;        ///< the mouse: Cursor Speed, 0 to 4
+    bool connected = true; ///< shown with a dot in the device row
+    bool enabled = true;  ///< Use This Device (the Frame Controllers are always used)
     bool operator==(const EditDevice&) const = default;
 };
 

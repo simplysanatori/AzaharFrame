@@ -618,6 +618,7 @@ void MenuPanel::BuildModel(const Host& host) {
             e.key = d.id;
             e.name = d.name;
             e.has_touchpad = d.has_touchpad;
+            e.connected = d.connected; // AzaharFrame padsui: the row's status dot
             if (d.kind == Input::DeviceKind::Frame) {
                 e.kind = Menu::DeviceKind::Frame;
                 e.names = Menu::ButtonNames::Frame;
@@ -633,6 +634,8 @@ void MenuPanel::BuildModel(const Host& host) {
                 e.extras = {gm.touch, gm.open_menu};
                 e.mouse_mode = gm.mode;
                 e.recentre = gm.recentre;
+                e.speed = gm.speed;
+                e.enabled = gm.enabled;
             } else {
                 e.kind = Menu::DeviceKind::Gamepad;
                 e.names = Menu::NamesFor(static_cast<int>(d.type), d.steam_input);
@@ -640,6 +643,7 @@ void MenuPanel::BuildModel(const Host& host) {
                 e.mapping = Input::ControlTableOf(gm, Input::ReportsByLabel(d.type, d.steam_input));
                 e.sticks = {gm.analogs[0], gm.analogs[1]};
                 e.recentre = gm.recentre; // AzaharFrame padsui
+                e.enabled = gm.enabled;
             }
             if (d.id == edit_device) {
                 m.devices.selected = static_cast<int>(m.devices.list.size());
@@ -764,6 +768,13 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_touchpad_touch, std::min<u32>(u, 2), false);
         r.setting = MenuSetting::TouchpadTouch;
         break;
+    case Id::CursorSpeed: { // AzaharFrame padsui: the mouse's, kept with its mapping, live
+        Input::GamepadMapping cm = Input::Devices::GetMapping(Input::kMouseDeviceId);
+        cm.speed = static_cast<uint8_t>(std::clamp(value, 0, Input::kNumCursorSpeeds - 1));
+        Input::Devices::SetMapping(Input::kMouseDeviceId, cm);
+        LOG_INFO(Frontend, "xr: in-game menu: Cursor Speed = {}", cm.speed);
+        return;
+    }
     case Id::ImmersiveOffsetReset:
         Apply(v.vr_immersive_offset_x, 0.0f, false);
         Apply(v.vr_immersive_offset_y, 0.0f, false);
@@ -935,6 +946,16 @@ void MenuPanel::Click(Target t, Host& host) {
             Input::Devices::SetMapping(Input::kMouseDeviceId, mm);
             ShowToastText(t.index == 1 ? "Mouse: Pointer" : "Mouse: Bottom Screen");
         }
+        break;
+    }
+    case Id::UseDevice: { // AzaharFrame padsui: the device being edited; the Frame's is always on
+        if (edit_device == Input::kFrameDeviceId) {
+            break;
+        }
+        Input::GamepadMapping um = Input::Devices::GetMapping(edit_device);
+        um.enabled = !um.enabled;
+        Input::Devices::SetMapping(edit_device, um);
+        LOG_INFO(Frontend, "xr: in-game menu: Use This Device {}", um.enabled ? "on" : "off");
         break;
     }
     case Id::RecentreAtEdge: { // AzaharFrame padsui: the device being edited

@@ -37,7 +37,9 @@
 //    SetMapping(id, mapping)   the whole table; a table equal to the default removes the pad's
 //                              own entry. Saves. False for "frame" and unknown ids.
 //      - "mouse" (AzaharFrame padsui): buttons hold MouseInputs (mouse.h); touch, open_menu,
-//        mode (Bottom Screen, Pointer), speed and recentre are its own.
+//        mode (Bottom Screen, Pointer) and speed (Cursor Speed) are its own.
+//      - recentre (Recentre at Edge) and enabled (Use This Device: off, the device reaches
+//        nothing) are every device's but the Frame's.
 //    ResetMapping(id)          back to the default; saves.
 //    Mappings are per model (two DualShock 4s share one), kept in user/controller-mappings.txt.
 //

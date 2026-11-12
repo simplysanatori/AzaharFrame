@@ -131,8 +131,11 @@ struct GamepadMapping {
     int8_t touch = -1;
     int8_t open_menu = -1;
     uint8_t mode = 0;  ///< MouseMode
-    uint8_t speed = 1; ///< MouseSpeed
+    uint8_t speed = kCursorSpeedNormal; ///< Cursor Speed, 0 to kNumCursorSpeeds - 1
     bool recentre = true;
+    /// Use This Device: off, the device reaches nothing (Edit Controls still edits it). The
+    /// Frame's is always on.
+    bool enabled = true;
     bool operator==(const GamepadMapping&) const = default;
 };
 /// An empty mapping (every entry -1).
@@ -262,9 +265,10 @@ std::array<bool, kNumPadInputs> FrameAsPad(const InputFrame& frame);
 ///   <key> buttons=<18 values> analogs=<2 values> vendor=<hex> product=<hex> name=<name>
 /// values comma separated (PadInput / PadStick numbers), -1 for none; the name runs to the end
 /// of the line. Lines starting with # are comments. AzaharFrame padsui: the mouse is the line
-/// "mouse" (MouseInputs), with touch=, menu=, mode=, speed=; recentre=0 turns Recentre at Edge
-/// off. Each is written only when it is not the plain value (touch and menu -1, mode 0, speed 1,
-/// recentre 1), and a line without them reads as those, so older files read the same.
+/// "mouse" (MouseInputs), with touch=, menu=, mode=, speed= (Cursor Speed, 0 to 4); recentre=0
+/// turns Recentre at Edge off, use=0 Use This Device. Each is written only when it is not the
+/// plain value (touch and menu -1, mode 0, speed 2, recentre and use 1), and a line without them
+/// reads as those, so older files read the same.
 struct MappingEntry {
     GamepadMapping mapping;
     uint16_t vendor = 0;

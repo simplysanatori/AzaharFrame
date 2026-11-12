@@ -303,8 +303,10 @@ void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_inp
         }
     }
     const ViewPose view = LatestViewPose();
-    const std::size_t right = static_cast<std::size_t>(Input::HandIndex(Input::Hand::Right));
-    const auto ray = mouse_pointer.Update(mouse_frame, pointer_mode, in.hand[right],
+    // The hand whose slot the ray takes: one with no controller awake if there is one, so a
+    // controller in the other hand keeps its own ray (Input::MousePointerHand).
+    const std::size_t slot = static_cast<std::size_t>(Input::MousePointerHand(in));
+    const auto ray = mouse_pointer.Update(mouse_frame, pointer_mode, in.hand[slot],
                                           ToInput(view.head), view.valid, info.display_time);
     if (ray.took) {
         LOG_INFO(Frontend, "xr: mouse: the pointer has the right hand's ray");
@@ -320,7 +322,7 @@ void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_inp
             : held[static_cast<std::size_t>(Input::MouseInput::WheelUp)]   ? 1.0f
             : held[static_cast<std::size_t>(Input::MouseInput::WheelDown)] ? -1.0f
                                                                            : 0.0f;
-        Input::ApplyMousePointer(in, static_cast<int>(right), ray.aim, mouse_frame.Touch(), wheel);
+        Input::ApplyMousePointer(in, static_cast<int>(slot), ray.aim, mouse_frame.Touch(), wheel);
     }
     mouse_mark_valid = false; // set again by whoever draws the cursor this frame
 }
