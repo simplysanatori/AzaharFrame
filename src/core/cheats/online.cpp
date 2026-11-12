@@ -215,7 +215,24 @@ HttpResult HttpsGet(const std::string& host, const std::string& path) {
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
         client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
-        const auto res = client.Get(Common::RequestPath(path));
+        // The body is capped while it arrives, not after it is all in memory.
+        bool too_large = false;
+        std::string body;
+        const auto res = client.Get(
+            Common::RequestPath(path), httplib::Headers{},
+            [](const httplib::Response&) { return true; },
+            [&](const char* data, std::size_t len) {
+                if (body.size() + len > max_body) {
+                    too_large = true;
+                    return false;
+                }
+                body.append(data, len);
+                return true;
+            });
+        if (too_large) {
+            out.error = "Reply too large";
+            return out;
+        }
         if (!res) {
             out.error = httplib::to_string(res.error());
             LOG_WARNING(Frontend, "Cheats: GET {}{} failed: {}", host, path, out.error);
@@ -226,10 +243,8 @@ HttpResult HttpsGet(const std::string& host, const std::string& path) {
             out.error = "GitHub rate limit reached, try again later";
         } else if (res->status != 200 && res->status != 404) {
             out.error = "Server returned " + std::to_string(res->status);
-        } else if (res->body.size() > max_body) {
-            out.error = "Reply too large";
         } else {
-            out.body = res->body;
+            out.body = std::move(body);
         }
     } catch (const std::exception& e) {
         out.error = e.what();
@@ -320,12 +335,24 @@ RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const
         std::string body;
         httplib::Result res;
         if (request.method == "POST") {
-            res = client.Post(Common::RequestPath(path), headers, request.body, request.content_type);
-            if (res && res->body.size() > max_body) {
-                too_large = true;
-            } else if (res) {
-                body = res->body;
-            }
+            // Through a content receiver, so that the reply is capped while it arrives.
+            httplib::Request req;
+            req.method = "POST";
+            req.path = Common::RequestPath(path);
+            req.headers = headers;
+            req.set_header("Content-Type", request.content_type);
+            req.body = request.body;
+            req.response_handler = [](const httplib::Response&) { return true; };
+            req.content_receiver = [&](const char* data, std::size_t len, std::uint64_t,
+                                       std::uint64_t) {
+                if (body.size() + len > max_body) {
+                    too_large = true;
+                    return false;
+                }
+                body.append(data, len);
+                return true;
+            };
+            res = client.send(req);
         } else {
             res = client.Get(
                 Common::RequestPath(path), headers, [](const httplib::Response&) { return true; },

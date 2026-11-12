@@ -26,9 +26,12 @@ struct Reply {
 Reply GetText(const std::string& url, std::size_t max_body);
 
 /// A file, written to dest + ".part" and renamed when whole. `progress(done, total)` (total 0
-/// when the host does not say) returns false to stop. "" on success, else why.
+/// when the host does not say) returns false to stop. "" on success, else why. At most `max_bytes`
+/// (by Content-Length, and again as the bytes arrive); callers that know the asset's size pass it
+/// plus a margin.
 std::string Download(const std::string& url, const std::string& dest,
-                     const std::function<bool(u64, u64)>& progress);
+                     const std::function<bool(u64, u64)>& progress,
+                     u64 max_bytes = 128ULL * 1024 * 1024);
 
 /// Whether a host ("https://github.com") may be fetched from.
 bool HostAllowed(std::string_view host);

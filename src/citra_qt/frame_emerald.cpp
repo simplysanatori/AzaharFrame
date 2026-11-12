@@ -707,7 +707,7 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
                         shown->store(
                             static_cast<int>((base + done) * 400 / std::max<u64>(total, 1)));
                         return !cancel->load();
-                    });
+                    }, asset->size != 0 ? asset->size + (4ULL << 20) : 128ULL << 20);
                 if (cancel->load()) {
                     p.error = "Cancelled";
                     return p;
