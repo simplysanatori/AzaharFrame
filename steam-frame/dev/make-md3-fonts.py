@@ -34,6 +34,7 @@ ICONS = [
     "extension",
     # AzaharFrame texui: the Mods tab's Textures segment
     "texture",
+    "shift", "shift_lock", "backspace",  # AzaharFrame kbd
 ]
 
 # Text: printable ASCII and the few other characters the labels and values use.
