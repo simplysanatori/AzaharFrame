@@ -156,6 +156,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Tap for Input", "Click for Input"}; // menuux
+    static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller"};
+    static const std::vector<std::string> kAtEdge{"Follow", "Snap to Middle"};
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -197,6 +199,10 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMove;
     case Id::TouchpadTouch:
         return kTouchpad;
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return kReticle;
+    case Id::ReticleAtEdge:
+        return kAtEdge;
     case Id::MouseMode:
         return kMouseMode;
     case Id::StatsPosition:
@@ -266,6 +272,10 @@ std::string LabelFor(Id id) {
         return "Detach Screens";
     case Id::TouchpadTouch: // AzaharFrame menuux
         return "Touchpad";
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+        return "Bottom Screen Reticle";
+    case Id::ReticleAtEdge:
+        return "At Edge";
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
@@ -1142,33 +1152,43 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     AddHit(edit, {Id::EditControls}, pane);
     // Touchpad: a label and its two choices; AzaharFrame menuux: under them one line saying what
     // the chosen one does (the only row with a supporting line: the owner asked for it).
-    const Rect tp_row{c.x0 - 12.0f, seg.y1 + 8.0f, c.x1 + 12.0f, seg.y1 + 8.0f + kControlH + 8.0f};
-    const Lock tp_lock = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)];
-    const bool tp_enabled = tp_lock == Lock::None;
-    AddHit(tp_row, {Id::TouchpadTouch, kLabelIndex}, pane);
-    anchors.push_back({Id::TouchpadTouch, c.x0, tp_row.y0 + 6.0f, tp_lock});
-    kit.TextMid(c.x0, tp_row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(Id::TouchpadTouch), 0,
-                tp_enabled ? 1.0f : kDisabledContent);
-    {
-        const auto& opts = OptionsFor(Id::TouchpadTouch);
+    // AzaharFrame mouse: Bottom Screen Reticle under that line, the same way.
+    const auto choice_row = [&](Id id, float y0, int value) {
+        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        AddHit(row, {id, kLabelIndex}, pane);
+        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        const auto& opts = OptionsFor(id);
         const float tw = kit.SegmentedWidth(opts, c.W() * 0.6f);
-        const Rect ts{c.x1 - tw, tp_row.Cy() - kControlH * 0.5f, c.x1, tp_row.Cy() + kControlH * 0.5f};
-        const int th = view.hover.id == Id::TouchpadTouch ? view.hover.index : -1;
-        const int tpr = view.pressed.id == Id::TouchpadTouch ? view.pressed.index : -1;
-        kit.Segmented(ts, opts, model.touchpad_touch, th, tpr, !tp_enabled);
-        if (tp_enabled) {
+        const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
+        const int th = view.hover.id == id ? view.hover.index : -1;
+        const int tpr = view.pressed.id == id ? view.pressed.index : -1;
+        kit.Segmented(ts, opts, value, th, tpr, !enabled);
+        if (enabled) {
             const auto e = kit.SegmentEdges(ts, opts);
             for (int i = 0; i < static_cast<int>(opts.size()); i++) {
                 AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
-                       {Id::TouchpadTouch, i}, pane);
+                       {id, i}, pane);
             }
         }
-    }
+        return row;
+    };
+    const Rect tp_row = choice_row(Id::TouchpadTouch, seg.y1 + 8.0f, model.touchpad_touch);
     const float support_y = tp_row.y1 + 6.0f;
+    const bool tp_enabled = model.locked[static_cast<std::size_t>(Id::TouchpadTouch)] == Lock::None;
     kit.TextMid(c.x0, support_y, Type::Tooltip, Tok::kOnSurfaceVariant,
                 kit.Fit(Type::Tooltip, TouchpadSupporting(model.touchpad_touch), c.W()), 0,
                 tp_enabled ? 1.0f : kDisabledContent);
-    const Rect area{pane.x0 + 8.0f, support_y + 14.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
+    Rect reticle_row =
+        choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
+    if (model.bottom_screen_reticle != 0) {
+        // At Edge only while the reticle is on.
+        reticle_row = choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
+    }
+    const Rect area{pane.x0 + 8.0f, reticle_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }

@@ -263,6 +263,7 @@ TEST_CASE("Gamepads: mice in /proc/bus/input/devices", "[frame_xr]") {
 N: Name="MX Master 3S"
 H: Handlers=sysrq kbd event5 mouse0
 B: EV=17
+B: KEY=1f0000 0 0 0 0
 B: REL=1943
 
 I: Bus=0003 Vendor=28de Product=1205 Version=0111
@@ -367,7 +368,7 @@ TEST_CASE("Gamepads: the device registry and hot-plug", "[frame_xr]") {
 
     // A mouse shows (read again at most every 2 s).
     rig.source.devices = "I: Bus=0005 Vendor=046d Product=b034\nN: Name=\"MX Anywhere\"\n"
-                         "H: Handlers=event5 mouse0\nB: REL=143\n";
+                         "H: Handlers=event5 mouse0\nB: KEY=70000 0 0 0 0\nB: REL=143\n";
     REQUIRE(rig.hub.Devices(rig.now).size() == 4);
     list = rig.hub.Devices(rig.now + 2'000 * kMs);
     REQUIRE(list.size() == 5);
@@ -647,7 +648,8 @@ TEST_CASE("Devices: the Frame, the mouse and a gamepad press together", "[frame_
     rig.MakeReal(1);
     rig.source.mouse.present = true;
     rig.source.devices = "I: Bus=0003 Vendor=046d Product=c077 Version=0111\n"
-                         "N: Name=\"USB Optical Mouse\"\nH: Handlers=mouse0 event7\nB: REL=903\n\n";
+                         "N: Name=\"USB Optical Mouse\"\nH: Handlers=mouse0 event7\n"
+                         "B: KEY=70000 0 0 0 0\nB: REL=903\n\n";
     // The owner's profile: the 3DS's A on the left controller's D-pad Left.
     rig.routes.buttons[NB::A] = static_cast<int8_t>(Control::DpadLeft);
     const auto step = [&](bool frame_dpad_left) {

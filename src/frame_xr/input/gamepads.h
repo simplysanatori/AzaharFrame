@@ -207,14 +207,41 @@ struct MouseInfo {
     uint16_t bus = 0;
     uint16_t vendor = 0;
     uint16_t product = 0;
+    /// AzaharFrame mouse: the physical device it belongs to (bus, ids, and its Bluetooth
+    /// address or USB port: never logged), and whether it is a keyboard's mouse interface.
+    std::string group;
+    bool companion = false;
 };
-/// The real mice in /proc/bus/input/devices' text: a "mouse" handler, relative X and Y, on USB
-/// or Bluetooth, not Valve's (the Frame's and Steam's virtual devices). Touchpads (absolute)
-/// are not mice.
+
+/// AzaharFrame mouse: what the input devices in /proc/bus/input/devices are to the mouse. A
+/// mouse is found by what it can do, not by its handlers (a Bluetooth mouse through uhid may
+/// have no mouseN): relative X and Y (B: REL) and a left button (B: KEY, BTN_LEFT), on any bus,
+/// not Valve's (the Frame's and Steam's virtual devices). A keyboard's mouse interface (the node
+/// of a device that also has a keyboard with LEDs: a Keychron's "Mouse", for mouse keys) is a
+/// Companion: it counts as a mouse only once it reports motion (UsableMice).
+enum class MouseVerdict : uint8_t { Mouse, Companion, Relay, Valve, NoMotion, NoButton };
+struct MouseCandidate {
+    MouseInfo info;
+    MouseVerdict verdict = MouseVerdict::Mouse;
+};
+/// The verdict for a log line: "a mouse", "ignored: no relative X and Y"...
+const char* MouseVerdictText(MouseVerdict verdict);
+/// "USB", "Bluetooth", "virtual", "I2C", "other bus".
+const char* BusName(uint16_t bus);
+/// Every node of the text that looks like a pointer (relative axes, a left button, a mouse
+/// handler or "mouse" in its name), with its verdict, in the text's order.
+std::vector<MouseCandidate> ClassifyInputDevices(const std::string& text);
+/// The mice and the keyboards' mouse interfaces (companion set) in /proc/bus/input/devices'
+/// text. Touchpads (absolute) are not mice.
 std::vector<MouseInfo> ParseInputDevices(const std::string& text);
 /// AzaharFrame padsui: Frametop's virtual mouse ("frametop virtual mouse"), which its input relay
 /// feeds the real mice into while it holds them (EVIOCGRAB) and Frametop is paused for a VR game.
 std::vector<MouseInfo> ParseRelayMice(const std::string& text);
+/// AzaharFrame mouse: the candidates that count as the mouse: every one but a companion whose
+/// group has not moved yet (`moved_groups`: MouseInfo::group of the companions that reported
+/// relative X or Y).
+std::vector<MouseInfo> UsableMice(const std::vector<MouseInfo>& candidates,
+                                  const std::vector<std::string>& moved_groups);
 
 // ---- Telling the Frame's own pad from a real one -------------------------------------------
 
@@ -307,6 +334,11 @@ public:
     virtual void States(std::vector<InputCommon::SDLPadState>& out) = 0;
     /// /proc/bus/input/devices' text, or empty.
     virtual std::string InputDevices() = 0;
+    /// AzaharFrame mouse: the mice that count now (UsableMice). By default the text's, with no
+    /// companion moved; the program's source also knows which companions have moved.
+    virtual std::vector<MouseInfo> Mice() {
+        return UsableMice(ParseInputDevices(InputDevices()), {});
+    }
     /// AzaharFrame padsui: the mice's running totals (all real mice, and Frametop's relay mouse
     /// while it feeds them), present when a real mouse is connected.
     virtual MouseRaw Mouse() {

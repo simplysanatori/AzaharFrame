@@ -4181,6 +4181,12 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::FastForwardSpeed:
         set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
         break;
+    case S::BottomScreenReticle: // AzaharFrame mouse
+        set(v.vr_bottom_screen_reticle, std::min<u32>(u, 2));
+        break;
+    case S::ReticleAtEdge: // AzaharFrame mouse
+        set(v.vr_reticle_at_edge, std::min<u32>(u, 1));
+        break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
         if (g_frame_mods) {

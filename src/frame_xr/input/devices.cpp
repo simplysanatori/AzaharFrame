@@ -51,6 +51,11 @@ std::string ReadInputDevices() {
 /// real mice with EVIOCGRAB and, paused for a VR game, feeds them into its virtual mouse; when
 /// it does not hold them, the real ones report and its mouse would count twice). Nothing is
 /// grabbed: the desktop keeps the mouse.
+/// AzaharFrame mouse: the mice are found by their capabilities (ClassifyInputDevices), so a
+/// Bluetooth mouse with no mouseN handler counts. A keyboard's mouse interface is read too, but
+/// counts (and its clicks reach anything) only once it reports motion; that is kept for the run,
+/// so a mouse that sleeps and comes back (a new event node) needs no new motion. The list is read
+/// again every 2 s and when a node stops reading (unplugged, gone to sleep).
 class MouseReader {
 public:
     ~MouseReader() {
@@ -61,10 +66,7 @@ public:
 
     MouseRaw Read() {
         const int64_t now = NowNs();
-        if (!scanned_ || now - scanned_ns_ >= 2'000'000'000 || rescan_) {
-            Scan(now);
-        }
-        raw_.present = present_;
+        ScanIfDue(now);
 #ifdef __linux__
         bool real_seen = false;
         int64_t relay_dx = 0, relay_dy = 0, relay_up = 0, relay_down = 0;
@@ -77,7 +79,9 @@ public:
                 const ssize_t got = ::read(n.fd, ev, sizeof(ev));
                 if (got <= 0) {
                     if (got < 0 && errno != EAGAIN && errno != EINTR) {
-                        Close(n); // unplugged
+                        LOG_INFO(Frontend, "xr: mouse: \"{}\" ({}) stopped reading: gone",
+                                 n.name, n.event);
+                        Close(n); // unplugged, or a Bluetooth mouse gone to sleep
                         rescan_ = true;
                     }
                     break;
@@ -88,6 +92,20 @@ public:
                     if (e.type == EV_SYN && e.code == SYN_DROPPED) {
                         RefreshButtons(n);
                         continue;
+                    }
+                    if (e.type == EV_KEY && e.code >= BTN_LEFT && e.code <= BTN_EXTRA) {
+                        n.buttons[static_cast<std::size_t>(e.code - BTN_LEFT)] = e.value != 0;
+                    }
+                    if (!Counts(n)) {
+                        // A keyboard's mouse interface: its first motion makes it a mouse.
+                        if (e.type == EV_REL && (e.code == REL_X || e.code == REL_Y) &&
+                            e.value != 0) {
+                            moved_groups_.push_back(n.group);
+                            LOG_INFO(Frontend, "xr: mouse: \"{}\" ({}) moved: used as a mouse",
+                                     n.name, n.event);
+                        } else {
+                            continue;
+                        }
                     }
                     if (!n.relay && (e.type == EV_REL || e.type == EV_KEY)) {
                         real_seen = true;
@@ -108,8 +126,6 @@ public:
                                 down -= e.value;
                             }
                         }
-                    } else if (e.type == EV_KEY && e.code >= BTN_LEFT && e.code <= BTN_EXTRA) {
-                        n.buttons[static_cast<std::size_t>(e.code - BTN_LEFT)] = e.value != 0;
                     }
                 }
             }
@@ -125,25 +141,48 @@ public:
             raw_.wheel_down += relay_down;
         }
         raw_.buttons = {};
+        bool present = false;
         for (const Node& n : nodes_) {
-            if (n.fd < 0 || (n.relay && !use_relay)) {
+            if (n.fd < 0 || (n.relay && !use_relay) || !Counts(n)) {
                 continue;
             }
+            present = present || !n.relay;
             for (std::size_t b = 0; b < raw_.buttons.size(); b++) {
                 raw_.buttons[b] = raw_.buttons[b] || n.buttons[b];
             }
         }
+        raw_.present = present;
 #endif
         return raw_;
+    }
+
+    /// The mice that count now (the device list's).
+    std::vector<MouseInfo> Mice() {
+        ScanIfDue(NowNs());
+        return UsableMice(real_, moved_groups_);
     }
 
 private:
     struct Node {
         std::string event;
         bool relay = false;
+        bool companion = false;
+        std::string group;
+        std::string name;
         int fd = -1;
         std::array<bool, kNumMouseButtons> buttons{};
     };
+
+    bool Counts(const Node& n) const {
+        return !n.companion ||
+               std::find(moved_groups_.begin(), moved_groups_.end(), n.group) != moved_groups_.end();
+    }
+
+    void ScanIfDue(int64_t now) {
+        if (!scanned_ || now - scanned_ns_ >= 2'000'000'000 || now < scanned_ns_ || rescan_) {
+            Scan(now);
+        }
+    }
 
     static void Close(Node& n) {
 #ifdef __linux__
@@ -169,29 +208,52 @@ private:
 #endif
     }
 
+    /// One line per pointer-like device whenever the list changes (names and ids only).
+    void LogChanges(const std::vector<MouseCandidate>& all) {
+        std::string signature;
+        for (const MouseCandidate& c : all) {
+            signature += c.info.event + '\n' + c.info.name + '\n' +
+                         std::to_string(static_cast<int>(c.verdict)) + '\n';
+        }
+        if (logged_once_ && signature == logged_) {
+            return;
+        }
+        logged_once_ = true;
+        logged_ = std::move(signature);
+        if (all.empty()) {
+            LOG_INFO(Frontend, "xr: mouse: no pointer devices");
+        }
+        for (const MouseCandidate& c : all) {
+            LOG_INFO(Frontend, "xr: mouse: \"{}\" ({} {:04x}:{:04x}, {}): {}", c.info.name,
+                     BusName(c.info.bus), c.info.vendor, c.info.product,
+                     c.info.event.empty() ? "no event node" : c.info.event,
+                     MouseVerdictText(c.verdict));
+        }
+    }
+
     void Scan(int64_t now) {
         scanned_ = true;
         scanned_ns_ = now;
         rescan_ = false;
-        const std::string text = ReadInputDevices();
-        const std::vector<MouseInfo> real = ParseInputDevices(text);
-        const std::vector<MouseInfo> relay = ParseRelayMice(text);
-        present_ = !real.empty();
+        const std::vector<MouseCandidate> all = ClassifyInputDevices(ReadInputDevices());
+        LogChanges(all);
         std::vector<Node> want;
-        for (const MouseInfo& m : real) {
-            if (!m.event.empty()) {
-                want.push_back({m.event, false});
+        real_.clear();
+        for (const MouseCandidate& c : all) {
+            const bool relay = c.verdict == MouseVerdict::Relay;
+            if (c.verdict == MouseVerdict::Mouse || c.verdict == MouseVerdict::Companion) {
+                real_.push_back(c.info);
+            } else if (!relay) {
+                continue;
             }
-        }
-        for (const MouseInfo& m : relay) {
-            if (!m.event.empty()) {
-                want.push_back({m.event, true});
+            if (!c.info.event.empty()) {
+                want.push_back({c.info.event, relay, c.info.companion, c.info.group, c.info.name});
             }
         }
         std::vector<Node> kept;
         for (Node& n : nodes_) {
             const bool still = std::any_of(want.begin(), want.end(), [&n](const Node& w) {
-                return w.event == n.event && w.relay == n.relay;
+                return w.event == n.event && w.relay == n.relay && w.group == n.group;
             });
             if (still && n.fd >= 0) {
                 kept.push_back(n);
@@ -209,11 +271,19 @@ private:
             const std::string path = "/dev/input/" + w.event;
             w.fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
             if (w.fd < 0) {
-                LOG_WARNING(Frontend, "xr: mouse: cannot read {} ({})", path, std::strerror(errno));
+                if (std::find(failed_.begin(), failed_.end(), path) == failed_.end()) {
+                    failed_.push_back(path); // once per node, not every 2 s
+                    LOG_WARNING(Frontend, "xr: mouse: cannot read {} ({})", path,
+                                std::strerror(errno));
+                }
                 continue;
             }
+            failed_.erase(std::remove(failed_.begin(), failed_.end(), path), failed_.end());
             RefreshButtons(w);
-            LOG_INFO(Frontend, "xr: mouse: reading {}{}", path, w.relay ? " (Frametop's relay)" : "");
+            LOG_INFO(Frontend, "xr: mouse: reading {} \"{}\"{}", path, w.name,
+                     w.relay       ? " (Frametop's relay)"
+                     : Counts(w)   ? ""
+                                   : " (waiting for it to move)");
 #endif
             kept.push_back(w);
         }
@@ -221,10 +291,14 @@ private:
     }
 
     std::vector<Node> nodes_;
+    std::vector<MouseInfo> real_;
+    std::vector<std::string> moved_groups_;
+    std::vector<std::string> failed_;
+    std::string logged_;
+    bool logged_once_ = false;
     bool scanned_ = false;
     bool rescan_ = false;
     int64_t scanned_ns_ = 0;
-    bool present_ = false;
     int64_t real_until_ = 0;
     MouseRaw raw_;
 };
@@ -258,6 +332,9 @@ public:
     }
     MouseRaw Mouse() override {
         return mouse_.Read();
+    }
+    std::vector<MouseInfo> Mice() override {
+        return mouse_.Mice();
     }
 
 private:

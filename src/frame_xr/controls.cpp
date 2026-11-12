@@ -278,6 +278,14 @@ void VrUi::SetFlatInput(FlatInputSource source) {
     flat_input = std::move(source);
 }
 
+// AzaharFrame mouse: the config is written half a second later (citra_qt's vr_setting_changed).
+void VrUi::SaveVrSettingSoon() {
+    std::scoped_lock lock{hooks_mutex};
+    if (hooks.vr_setting_changed) {
+        hooks.vr_setting_changed();
+    }
+}
+
 void VrUi::NotifyVr(bool vr) {
     std::scoped_lock lock{hooks_mutex};
     if (hooks.vr_changed) {
@@ -290,6 +298,12 @@ void VrUi::NotifyVr(bool vr) {
 // the mode; Open Menu; in Pointer mode its ray in place of the right controller's.
 void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_input) {
     mouse_frame = Input::Devices::Hub().PollMouse(info.display_time);
+    if (mouse_frame.present && !Settings::values.vr_hint_mouse_shown.GetValue()) {
+        // AzaharFrame mouse: once per install, the first mouse found.
+        Settings::values.vr_hint_mouse_shown.SetValue(true);
+        ShowToastText(Input::kMouseHint);
+        SaveVrSettingSoon();
+    }
     // The window gets the mouse's clicks too: it leaves them alone while we read the mouse.
     InputCommon::FrameXr::SetVrMouseOwned(mouse_frame.present);
     const bool pointer_mode = mouse_frame.mode == Input::MouseMode::Pointer;
@@ -1321,6 +1335,44 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // screen in focus pauses immersive mode (SetBottomFocused below), so the grips move the
     // normal screens then.
     Input::InputFrame game_in = in;
+    // AzaharFrame mouse: Bottom Screen Reticle: the chosen controller aims the bottom screen and
+    // its trigger touches there; its trigger and grip reach neither the mapper (no ZL or ZR, no
+    // beam touch, no grab) nor the immersive screen. Its grip re-zeroes (reticle.h).
+    Input::ReticleSample reticle_sample;
+    {
+        const int rh = Input::ReticleHandIndex(
+            Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue()));
+        if (rh != reticle_hand_logged) {
+            reticle_hand_logged = rh;
+            LOG_INFO(Frontend, "xr: Bottom Screen Reticle: {}",
+                     rh < 0 ? "off" : rh == Input::HandIndex(Input::Hand::Left) ? "left" : "right");
+            if (rh >= 0 && !Settings::values.vr_hint_reticle_shown.GetValue()) {
+                // Once per install: what the controller does now.
+                Settings::values.vr_hint_reticle_shown.SetValue(true);
+                ShowToastText(Input::kReticleHint);
+                SaveVrSettingSoon();
+            }
+        }
+        if (Input::TakeReticleRezero()) {
+            reticle.Rezero();
+        }
+        if (rh >= 0) {
+            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(rh)];
+            const Input::ReticleFrame rf =
+                reticle.Update(hand, true, mouse_frame.speed, in.time_ns,
+                               Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()));
+            if (rf.rezeroed) {
+                LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");
+            }
+            reticle_sample = {rf.on, rf.point, rf.down};
+            if (rf.on) {
+                hand.trigger = 0.0f;
+                hand.grip = 0.0f;
+            }
+        } else {
+            reticle.Reset();
+        }
+    }
     Immersive::OnGameInput(game_in); // immersive.cpp
     // AzaharFrame vrsize: while a grip holds a screen the D-pad nudges it (the immersive screen:
     // the global Immersive Offset; the normal pair: a step about the head) and never reaches
@@ -1351,7 +1403,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         game_in.head = ToInput(view.head);
     }
     // AzaharFrame pads: the other gamepads play too (the raw `in` tells Steam's echo of the Frame).
-    const Input::MapperOutput& out = bridge.Process(game_in, panels, &in, &mouse_frame);
+    const Input::MapperOutput& out =
+        bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
     bridge_live = true;
 
     const auto& cmd = out.commands;
@@ -1406,6 +1459,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         // AzaharFrame controls: one rule, the 1 s hold resets the screens and re-centres, in every
         // mode (the immersive screen too, held or not); a tap never does.
         Immersive::OnResetPanels();
+        reticle.Rezero(); // AzaharFrame mouse
         Vis::RecentreStats(); // AzaharFrame statspos: the stats in front of you again
     } else if (drag_free && cmd.drag_hand >= 0) {
         // AzaharFrame move: a free slot, as the stats panel In Front: round you with the beam,

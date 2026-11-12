@@ -651,6 +651,9 @@ void MenuPanel::BuildModel(const Host& host) {
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
     m.touchpad_touch = v.vr_touchpad_touch.GetValue() == 2 ? 1 : 0; // AzaharFrame menuux
+    m.bottom_screen_reticle = // AzaharFrame mouse
+        static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 2));
+    m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -895,6 +898,18 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
             Menu::kFastForwardSpeeds[std::min<std::size_t>(u, Menu::kFastForwardSpeeds.size() - 1)];
         Apply(v.turbo_limit, static_cast<double>(r.value), false);
         r.setting = MenuSetting::FastForwardSpeed;
+        break;
+    case Id::ReticleAtEdge: // AzaharFrame mouse, global
+        Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), false);
+        r.setting = MenuSetting::ReticleAtEdge;
+        LOG_INFO(Frontend, "xr: in-game menu: At Edge = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 1)]);
+        break;
+    case Id::BottomScreenReticle: // AzaharFrame mouse, global
+        Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 2), false);
+        r.setting = MenuSetting::BottomScreenReticle;
+        LOG_INFO(Frontend, "xr: in-game menu: Bottom Screen Reticle = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
         break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
@@ -1308,6 +1323,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ScreenLayout:
     case Id::MoveScreens:
     case Id::TouchpadTouch:
+    case Id::BottomScreenReticle: // AzaharFrame mouse
+    case Id::ReticleAtEdge:
     case Id::StatsPosition:
     case Id::Background:
     case Id::FaceButtons:
