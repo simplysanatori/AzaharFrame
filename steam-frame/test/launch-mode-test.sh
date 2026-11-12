@@ -11,6 +11,11 @@ REAL_MARK=$HOME/.cache/headset-in-use
 mark_state() { stat -c '%Y %i' "$REAL_MARK" 2> /dev/null || echo none; }
 MARK_BEFORE=$(mark_state)
 export AZAHARFRAME_MARK=$T/headset-in-use
+# AzaharFrame integ4: the wrapper makes the controller models in the background with the program
+# (azahar --frame-controller-models) when they are missing and SteamVR is here; the stand-ins below
+# are not that program (one loops until TERM), so the throwaway data folder has them already.
+mkdir -p "$T/user/frame-models"
+: > "$T/user/frame-models/frame_controller_left.model"; : > "$T/user/frame-models/frame_controller_right.model"
 # run [ARGS...]: the mode launch.log names
 run() {
   env -u AZAHARFRAME_FLAT AZAHARFRAME_HOME="$T" AZAHARFRAME_TEST_MODE_ONLY=1 \
@@ -108,7 +113,7 @@ if command -v systemd-run > /dev/null && systemd-run --user --scope --quiet --co
   check "  no failed scope is left" 0 "$(systemctl --user list-units --all --no-legend 'azaharframe-*.scope' 2> /dev/null | grep -c failed)"
   rm -f "$T/out-of-memory"
   # A stand-in that waits: TERM to the wrapper (Steam's Stop) reaches it inside the scope.
-  printf '#!/bin/bash\ntrap "echo term > %s/term; exit 0" TERM\nwhile :; do sleep 0.1; done\n' "$T" > "$T/app/azahar"
+  printf '#!/bin/bash\ncase "$1" in --frame-*) exit 0 ;; esac\ntrap "echo term > %s/term; exit 0" TERM\nwhile :; do sleep 0.1; done\n' "$T" > "$T/app/azahar"
   rm -f "$T/term"
   env -u AZAHARFRAME_FLAT -u AZAHARFRAME_TEST_MODE_ONLY -u SteamAppId AZAHARFRAME_HOME="$T" \
     XR_RUNTIME_JSON=/dev/null bash "$T/app/azaharframe.sh" --flat > /dev/null 2>&1 &

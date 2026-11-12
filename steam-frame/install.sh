@@ -198,7 +198,8 @@ MODELS=$DATA/user/frame-models
 if [ -f "$MODELS/frame_controller_left.model" ] && [ -f "$MODELS/frame_controller_right.model" ]; then
   echo "controller models: already in $MODELS"
 elif [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
-  act "$AZ" --frame-controller-models "$MODELS" || echo "warning: the controller models could not be made (the beams still show)"
+  act timeout 300 "$AZ" --frame-controller-models "$MODELS" ||
+    echo "warning: the controller models could not be made (the beams still show)"
 else
   echo "note: SteamVR's Frame controller models are not here; the controllers are not drawn in VR"
 fi

@@ -319,7 +319,8 @@ MODELS=$DATA/user/frame-models
 if [ ! -f "$MODELS/frame_controller_right.model" ] && [ -x "$HERE/azahar" ] &&
    [ -d /opt/steamvr/drivers/frame_controller/resources/rendermodels ]; then
   echo "controller models: making them in the background"
-  nice -n 19 "$HERE/azahar" --frame-controller-models "$MODELS" > "$DATA/frame-models.log" 2>&1 &
+  # (5 minutes at most: a job that hangs must not outlive the session)
+  timeout 300 nice -n 19 "$HERE/azahar" --frame-controller-models "$MODELS" > "$DATA/frame-models.log" 2>&1 &
 fi
 
 ARGS=(--vr)
