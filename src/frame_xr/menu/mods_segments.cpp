@@ -228,6 +228,32 @@ Rect CreatedBy(Kit& kit, float x, float right, float cy, const std::string& auth
     return r;
 }
 
+/// AzaharFrame modcat2: where a row's notes tooltip goes (over the row's name, above it; under the
+/// row when it is the first one shown). Drawn after the list, up to three sentences wrapped.
+struct NoteTip {
+    float cx = 0.0f, y = 0.0f;
+    bool above = true;
+    float max_w = 0.0f;
+    std::string text;
+};
+NoteTip MakeNoteTip(const Kit& kit, const std::string& text, const Rect& row, const Rect& list,
+                    const Rect& area, float name_x0, float name_x1) {
+    NoteTip t;
+    t.text = text;
+    t.max_w = std::min(area.W() - 48.0f, 560.0f);
+    const auto lines = kit.TooltipLines(text, t.max_w - 20.0f);
+    float widest = 0.0f;
+    for (const auto& l : lines) {
+        widest = std::max(widest, kit.TextWidth(Type::Tooltip, l));
+    }
+    const float half = (widest + 20.0f) * 0.5f;
+    t.cx = std::clamp(name_x0 + (name_x1 - name_x0) * 0.5f, area.x0 + half + 4.0f, area.x1 - half - 4.0f);
+    const float h = 20.0f * static_cast<float>(lines.size()) + 10.0f;
+    t.above = row.y0 - h - 8.0f > list.y0;
+    t.y = t.above ? row.y0 + 8.0f : row.y1 - 8.0f;
+    return t;
+}
+
 /// The link's target: the text's width and more (at least 48) and the row's lower 48 dp, under
 /// the name line (rows of kRowLink).
 Rect LinkTarget(const Rect& link, const Rect& row) {
@@ -545,6 +571,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                 bool above = true;
                 std::string text;
             } chip_tip;
+            NoteTip note_tip; // AzaharFrame modcat2
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
                 if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
@@ -618,6 +645,10 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                     }
                     name_right = chip.x0 - kNameGap;
                 }
+                AddHit({row.x0, y, name_right, y + kRowLink}, {Id::ModNote, idx}, list);
+                if (view.tooltip == Id::ModNote && view.tooltip_index == idx && !o.notes.empty()) {
+                    note_tip = MakeNoteTip(kit, o.notes, row, list, area, c.x0, name_right);
+                }
                 RowText(kit, c.x0, name_right, cy + kLinkNameDy, o.name, o.verified, "", false,
                         1.0f, true);
                 // AzaharFrame modcat: as Download Packs: the author alone, then "Updated Sep 2026"
@@ -637,6 +668,9 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             }
             kit.ClearClip();
             ScrollIndicator(kit, list, area.x1, s);
+            if (!note_tip.text.empty()) {
+                kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
+            }
             if (!chip_tip.text.empty()) {
                 kit.Tooltip(chip_tip.cx, chip_tip.y, chip_tip.text, chip_tip.above);
             }
@@ -885,6 +919,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
     kit.Clip(list);
+    NoteTip note_tip; // AzaharFrame modcat2
     for (std::size_t i = 0; i < m.downloads.size(); i++) {
         const float y = top + s.tops[i] - s.scroll;
         if (y + kRowLink <= list.y0 || y + kRowLink > list.y1 + 0.01f) {
@@ -947,6 +982,10 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         const float text_right = right - kNameGap;
         // AzaharFrame zipinstall: the verified badge; "<author> · Updated Sep 2026" (the phase
         // while it downloads, the error when it failed)
+        AddHit({row.x0, y, text_right, y + kRowLink}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
+        if (view.tooltip == Id::PackNote && view.tooltip_index == idx && !o.notes.empty()) {
+            note_tip = MakeNoteTip(kit, o.notes, row, list, area, c.x0, text_right);
+        }
         RowText(kit, c.x0, text_right, cy + kLinkNameDy, o.name, o.verified, "", false, 1.0f, true);
         const bool failed = o.state == PackOfferState::Failed;
         const bool busy = o.state == PackOfferState::Downloading;
@@ -960,6 +999,9 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
+    if (!note_tip.text.empty()) {
+        kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
+    }
 }
 
 // AzaharFrame ui2: Install from Zip at the end of a download page's bar (Install Mods, Download

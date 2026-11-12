@@ -65,6 +65,7 @@ struct ModOffer {
     std::string version;     ///< AzaharFrame modcat: the version chip ("1.0", "Card 1.1"), "" none
     std::string version_tip; ///< its tooltip
     bool version_match = false; ///< made for the game's own build: a filled chip, "Matches Your Game"
+    std::string notes;       ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -130,6 +131,7 @@ struct PackOffer {
     std::string note;      ///< Downloading: the phase ("Unpacking"); Failed: why
     std::string updated;   ///< AzaharFrame zipinstall: "Updated Sep 2026" ("" unknown)
     bool verified = false; ///< AzaharFrame zipinstall: known to work: the verified badge
+    std::string notes;     ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
     bool operator==(const PackOffer&) const = default;
 };
 

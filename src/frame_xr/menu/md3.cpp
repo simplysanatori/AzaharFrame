@@ -447,4 +447,51 @@ void Kit::Tooltip(float cx, float y, const std::string& text, bool above) {
     TextMid(r.Cx(), r.Cy(), Type::Tooltip, Tok::kInverseOnSurface, text, 1);
 }
 
+// AzaharFrame modcat2
+std::vector<std::string> Kit::TooltipLines(const std::string& text, float max_w) const {
+    std::vector<std::string> lines;
+    std::string line;
+    std::size_t at = 0;
+    while (at < text.size()) {
+        std::size_t end = text.find(' ', at);
+        if (end == std::string::npos) {
+            end = text.size();
+        }
+        const std::string word = text.substr(at, end - at);
+        const std::string next = line.empty() ? word : line + " " + word;
+        if (!line.empty() && TextWidth(Type::Tooltip, next) > max_w) {
+            lines.push_back(line);
+            line = word;
+        } else {
+            line = next;
+        }
+        at = end + 1;
+    }
+    if (!line.empty()) {
+        lines.push_back(line);
+    }
+    return lines;
+}
+
+void Kit::TooltipWrapped(float cx, float y, const std::string& text, bool above, float max_w) {
+    const auto lines = TooltipLines(text, max_w - 20.0f);
+    if (lines.empty()) {
+        return;
+    }
+    const float pad = 10.0f, line_h = 20.0f;
+    float widest = 0.0f;
+    for (const auto& l : lines) {
+        widest = std::max(widest, TextWidth(Type::Tooltip, l));
+    }
+    const float w = widest + pad * 2.0f;
+    const float h = line_h * static_cast<float>(lines.size()) + 10.0f;
+    const float y0 = above ? y - h - 4.0f : y + 4.0f;
+    const Rect r{cx - w * 0.5f, y0, cx + w * 0.5f, y0 + h};
+    Fill(r, 6.0f, Tok::kInverseSurface);
+    for (std::size_t i = 0; i < lines.size(); i++) {
+        TextMid(r.x0 + pad, r.y0 + 5.0f + line_h * (static_cast<float>(i) + 0.5f), Type::Tooltip,
+                Tok::kInverseOnSurface, lines[i], 0);
+    }
+}
+
 } // namespace FrameXr::Menu

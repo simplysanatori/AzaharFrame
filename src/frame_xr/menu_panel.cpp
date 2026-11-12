@@ -1673,7 +1673,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
 
     // ---- The tooltip: a beam resting on a setting ----
     const Id rest = hover.id;
-    const int rest_idx = rest == Id::ModVersion ? hover.index : -1; // AzaharFrame modcat
+    const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote;
+    const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
         rest_index = rest_idx;
@@ -1683,11 +1684,21 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     } else if (rest != Id::None && view.pressed.id == Id::None) {
         rest_s += dt;
         const auto& offers = model.mods.mods.available;
-        const bool chip_text = rest == Id::ModVersion && rest_idx >= 0 &&
-                               rest_idx < static_cast<int>(offers.size()) &&
-                               !offers[static_cast<std::size_t>(rest_idx)].version_tip.empty();
+        const auto& packs = model.mods.textures.downloads;
+        const auto at_offer = [&](int i) -> const Menu::ModOffer* {
+            return i >= 0 && i < static_cast<int>(offers.size()) ? &offers[static_cast<std::size_t>(i)] : nullptr;
+        };
+        bool row_text = false; // AzaharFrame modcat2: the chip's tooltip, a row's notes
+        if (rest == Id::ModVersion) {
+            row_text = at_offer(rest_idx) && !at_offer(rest_idx)->version_tip.empty();
+        } else if (rest == Id::ModNote) {
+            row_text = at_offer(rest_idx) && !at_offer(rest_idx)->notes.empty();
+        } else if (rest == Id::PackNote) {
+            row_text = rest_idx >= 0 && rest_idx < static_cast<int>(packs.size()) &&
+                       !packs[static_cast<std::size_t>(rest_idx)].notes.empty();
+        }
         const bool has_text =
-            chip_text || (rest != Id::ModVersion && !Menu::ExplainFor(rest).empty()) ||
+            row_text || (!indexed && !Menu::ExplainFor(rest).empty()) ||
             model.locked[static_cast<std::size_t>(rest)] != Lock::None;
         if (rest_s >= kTooltipRest && has_text) {
             view.tooltip = rest;
