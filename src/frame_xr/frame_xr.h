@@ -197,7 +197,7 @@ enum class MenuCommand {
     // AzaharFrame texui: the Mods tab's Mods and Textures segments (citra_qt/frame_mods.cpp;
     // core/mods/library.h and core/custom_tex/packs.h do the work). The snackbar's Restart is
     // Restart; Custom Textures and Preload are settings.
-    SelectTexturePack, ///< `text`: the pack's id, "" for Off
+    SelectTexturePack, ///< `text`: the pack's id; `value` 1 on, 0 off (AzaharFrame texlayers)
     LoadModCatalog,    ///< Install Mods opened: the catalog (once a run), the title's mods
     InstallMod,        ///< `text`: the mod's id (a conflict asks first)
     SetModActive,      ///< `text`: a managed mod's id, `value` 1 into the mods folder, 0 out
@@ -233,6 +233,9 @@ enum class MenuCommand {
     TexturePart,      ///< `value`: the row clicked (a checkbox or a radio button)
     MoveTexturePart,  ///< `value`: the row; `text` "up" or "down"
     TexturePartsAll,  ///< `value` 1 All On, 0 All Off
+    // AzaharFrame texlayers: Enabled Textures (Menu::TexturesModel::layers)
+    TextureLayer,     ///< `value`: the row's checkbox
+    MoveTextureLayer, ///< `value`: the row; `text` "up" or "down"
     // AzaharFrame ui3: Optimize for Frame on a pack's page (frame_mods.cpp), `text`: the page's
     // pack
     OptimizePack,       ///< the estimate, then "Optimize Texture Pack?" (TexturesDialog answers it)

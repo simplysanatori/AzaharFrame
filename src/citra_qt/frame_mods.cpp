@@ -36,6 +36,7 @@
 #include "core/cheats/online.h"
 #include "core/core.h"                 // AzaharFrame ui2
 #include "core/custom_tex/download.h"
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/optimize.h" // AzaharFrame ui3
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
@@ -231,6 +232,7 @@ void FrameMods::Open(u64 title_id_, int run_) {
         mods = {};
         textures = {};
         packs.clear();
+        layers.reset(); // AzaharFrame texlayers
         failed.clear();
         pending = {};
         pack_pending = {};
@@ -288,7 +290,13 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
     }
     switch (r.command) {
     case C::SelectTexturePack:
-        SelectPack(r.text);
+        SelectPack(r.text, r.value != 0);
+        return;
+    case C::TextureLayer: // AzaharFrame texlayers
+        ToggleLayer(r.value);
+        return;
+    case C::MoveTextureLayer:
+        MoveLayer(r.value, r.text == "up" ? -1 : 1);
         return;
     case C::LoadModCatalog:
         LOG_INFO(Frontend, "xr: mods: Install Mods opened ({:016X}, list {})", title_id,
@@ -903,45 +911,50 @@ void FrameMods::RefreshPacks() {
     OffThread(
         this,
         [tid] {
-            auto list = CustomTex::ListPacks(CustomTex::DefaultPaths(), tid);
+            // AzaharFrame texlayers: the packs, their parts and the game's list, read once
+            auto game = std::make_shared<CustomTex::Layers::Game>(
+                CustomTex::Layers::Game::Load(CustomTex::DefaultPaths(), tid));
             // AzaharFrame zipinstall: the packs Install from Zip made can be deleted too
             std::set<std::string> zipped;
             // AzaharFrame texparts: which packs have Customize, and "6 of 7 Parts"
             std::map<std::string, PackParts> parts;
-            for (const CustomTex::Pack& p : list) {
+            for (const CustomTex::Pack& p : game->packs) {
                 const auto id = p.managed ? CustomTex::Download::MarkerId(p.path) : std::nullopt;
                 if (id && id->rfind("zip:", 0) == 0) {
                     zipped.insert(std::filesystem::path(p.path).filename().string());
                 }
                 namespace P = CustomTex::Parts;
-                const P::State state = P::ReadState(p.path);
-                const P::Layout layout = P::Build(P::ListFiles(p.path), state.hints);
-                parts[p.id] = {layout.PartCount(), P::PartsOnText(layout, state),
+                const CustomTex::Layers::PackData& d = game->data[p.id];
+                parts[p.id] = {d.layout.PartCount(), P::PartsOnText(d.layout, d.state),
                                // AzaharFrame ui3: Optimize for Frame is on the pack's page
                                p.format == CustomTex::Format::Png ||
                                    CustomTex::Optimize::IsOptimized(p.path)};
             }
-            return std::make_tuple(std::move(list), std::move(zipped), std::move(parts));
+            return std::make_tuple(std::move(game), std::move(zipped), std::move(parts));
         },
-        [this, tid](const std::tuple<std::vector<CustomTex::Pack>, std::set<std::string>,
+        [this, tid](const std::tuple<std::shared_ptr<CustomTex::Layers::Game>, std::set<std::string>,
                                      std::map<std::string, PackParts>>& result) {
             if (tid != title_id) {
                 return;
             }
-            const std::vector<CustomTex::Pack>& list = std::get<0>(result);
+            layers = std::get<0>(result);
             zip_packs = std::get<1>(result);
             pack_parts = std::get<2>(result);
-            packs = list;
+            packs = layers->packs;
             textures.packs.clear();
-            for (const CustomTex::Pack& p : packs) {
+            for (CustomTex::Pack& p : packs) {
                 const std::string folder = std::filesystem::path(p.path).filename().string();
                 const bool mine =
                     p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
                 // AzaharFrame ui3: a switch waiting for the next start shows as chosen
-                const bool active = pending_switch && pending_switch->title == tid
-                                        ? p.id == pending_switch->path
-                                        : p.active;
-                textures.packs.push_back({p.id, p.name, PackDetail(p), active, mine});
+                if (pending_switch && pending_switch->title == tid) {
+                    if (p.id == pending_switch->path) {
+                        p.active = true;
+                    } else if (p.id == pending_switch->carry_from) {
+                        p.active = false;
+                    }
+                }
+                textures.packs.push_back({p.id, p.name, PackDetail(p), p.active, mine});
                 if (const auto it = pack_parts.find(p.id); it != pack_parts.end()) {
                     // AzaharFrame texparts; ui3: a PNG or optimized pack has its page too
                     textures.packs.back().customize = it->second.count >= 2 || it->second.optimizable;
@@ -949,11 +962,70 @@ void FrameMods::RefreshPacks() {
                         Menu::JoinDetail({textures.packs.back().detail, it->second.on_text});
                 }
             }
+            BuildLayerRows();
             UpdateOptimizeRow(); // AzaharFrame ui3
             CheckNudge();
             PublishTextures();
             ComputeSizes();
         });
+}
+
+// AzaharFrame texlayers: Enabled Textures, when two or more packs are on.
+void FrameMods::BuildLayerRows() {
+    textures.layers.clear();
+    if (!layers || CustomTex::Layers::Packs(layers->list).size() < 2) {
+        return;
+    }
+    for (const CustomTex::Layers::Row& r : layers->Rows()) {
+        textures.layers.push_back({r.name, r.detail, r.value, r.up, r.down});
+    }
+}
+
+/// The pack rows' "6 of 7 Parts" after the list changed a pack's parts.
+void FrameMods::LayersChanged(const std::string& pack) {
+    namespace P = CustomTex::Parts;
+    if (const auto d = layers->data.find(pack); d != layers->data.end()) {
+        for (std::size_t i = 0; i < packs.size() && i < textures.packs.size(); i++) {
+            if (packs[i].id == pack) {
+                pack_parts[pack].on_text = P::PartsOnText(d->second.layout, d->second.state);
+                textures.packs[i].detail =
+                    Menu::JoinDetail({PackDetail(packs[i]), pack_parts[pack].on_text});
+            }
+        }
+    }
+    const CustomTex::Result r = layers->Save(CustomTex::DefaultPaths(), title_id);
+    if (!r.ok) {
+        LOG_WARNING(Frontend, "xr: texture layers: cannot save: {}", r.error);
+        FrameXr::ShowToastText("Texture Pack Not Changed", FrameXr::ToastTime::Long);
+    }
+    textures.needs_restart = true;
+    BuildLayerRows();
+    PublishTextures();
+}
+
+void FrameMods::ToggleLayer(int row) {
+    if (!layers || textures.busy || row < 0 ||
+        row >= static_cast<int>(layers->list.entries.size())) {
+        return;
+    }
+    const std::string pack = layers->list.entries[static_cast<std::size_t>(row)].pack;
+    if (layers->Toggle(static_cast<std::size_t>(row))) {
+        LOG_INFO(Frontend, "xr: texture layers: {} on/off in {}",
+                 layers->list.entries[static_cast<std::size_t>(row)].key, pack);
+        LayersChanged(pack);
+    }
+}
+
+void FrameMods::MoveLayer(int row, int delta) {
+    if (!layers || textures.busy || row < 0 ||
+        row >= static_cast<int>(layers->list.entries.size())) {
+        return;
+    }
+    const std::string pack = layers->list.entries[static_cast<std::size_t>(row)].pack;
+    if (layers->Move(static_cast<std::size_t>(row), delta)) {
+        LOG_INFO(Frontend, "xr: texture layers: row {} moved {}", row, delta < 0 ? "up" : "down");
+        LayersChanged(pack);
+    }
 }
 
 void FrameMods::ComputeSizes() {
@@ -992,61 +1064,57 @@ void FrameMods::ComputeSizes() {
         });
 }
 
-void FrameMods::SelectPack(const std::string& id) {
-    if (textures.busy) {
+void FrameMods::SelectPack(const std::string& id, bool on) {
+    // AzaharFrame texlayers: a pack's checkbox: on (at its place in the list) or off
+    if (textures.busy || !layers) {
         return;
     }
-    std::optional<CustomTex::Pack> pack;
-    if (!id.empty()) {
-        for (const CustomTex::Pack& p : packs) {
-            if (p.id == id) {
-                pack = p;
-            }
-        }
-        if (!pack) {
-            return;
-        }
+    const CustomTex::Pack* pack = layers->Find(id);
+    if (!pack) {
+        return;
     }
-    textures.busy = true;
+    const std::string name = pack->name;
     if (pending_switch && pending_switch->title == title_id) { // AzaharFrame ui3: this choice wins
         LOG_INFO(Frontend, "xr: texture packs: the waiting switch to {} is dropped",
                  pending_switch->path);
         pending_switch.reset();
     }
     textures.nudge_pack.clear(); // AzaharFrame ui3
-    for (Menu::TexturePackItem& p : textures.packs) {
-        p.active = p.id == id; // at once; the list is read again after
+    const std::vector<std::string> before = CustomTex::Layers::Packs(layers->list);
+    layers->SetOn(id, on);
+    const std::vector<std::string> after = CustomTex::Layers::Packs(layers->list);
+    for (std::size_t i = 0; i < packs.size() && i < textures.packs.size(); i++) {
+        packs[i].active = layers->IsOn(packs[i].id);
+        textures.packs[i].active = packs[i].active; // at once; the list is read again after
     }
+    BuildLayerRows();
+    textures.busy = true;
     PublishTextures();
     const u64 tid = title_id;
-    LOG_INFO(Frontend, "xr: texture packs: {}", pack ? pack->name : "Off");
-    std::string previous; // AzaharFrame compat: the pack that was on
-    for (const CustomTex::Pack& p : packs) {
-        if (p.active) {
-            previous = p.id;
-        }
-    }
+    LOG_INFO(Frontend, "xr: texture packs: {} {}", name, on ? "on" : "off");
+    const auto game = std::make_shared<CustomTex::Layers::Game>(*layers);
     OffThread(
-        this,
-        [tid, pack] {
-            const CustomTex::Paths paths = CustomTex::DefaultPaths();
-            return pack ? CustomTex::Activate(paths, tid, *pack) : CustomTex::Deactivate(paths, tid);
-        },
-        [this, tid, pack, previous](const CustomTex::Result& out) {
+        this, [tid, game] { return game->Save(CustomTex::DefaultPaths(), tid); },
+        [this, tid, before, after, name](const CustomTex::Result& out) {
             textures.busy = false;
             if (tid != title_id) {
                 return;
             }
             if (out.ok) {
                 textures.needs_restart = true;
-                // AzaharFrame compat: the pack turned on is new until a clean run
+                // AzaharFrame compat: a pack turned on is new until a clean run
                 using Kind = Mods::CrashGuard::Item::Kind;
-                if (!previous.empty() && (!pack || pack->id != previous)) {
-                    FrameCrashGuard::NoteOff(tid, Kind::Pack, previous);
+                for (const std::string& p : before) {
+                    if (std::find(after.begin(), after.end(), p) == after.end()) {
+                        FrameCrashGuard::NoteOff(tid, Kind::Pack, p);
+                    }
                 }
-                if (pack) {
-                    FrameCrashGuard::NoteOn(tid, {Kind::Pack, pack->id, pack->name});
-                    nudge_candidates.insert(pack->id); // AzaharFrame ui3
+                for (const std::string& p : after) {
+                    if (std::find(before.begin(), before.end(), p) == before.end()) {
+                        const CustomTex::Pack* added = layers ? layers->Find(p) : nullptr;
+                        FrameCrashGuard::NoteOn(tid, {Kind::Pack, p, added ? added->name : name});
+                        nudge_candidates.insert(p); // AzaharFrame ui3
+                    }
                 }
             } else {
                 LOG_WARNING(Frontend, "xr: texture packs: switch failed: {}", out.error);
@@ -1279,6 +1347,16 @@ void FrameMods::PartsChanged() {
     }
     const auto [on, all] = P::CountOn(parts_layout, parts_state);
     LOG_INFO(Frontend, "xr: texture parts: {} of {} parts on in {}", on, all, parts_path);
+    // AzaharFrame texlayers: the game's list follows the pack's order (and its checkboxes)
+    if (layers && layers->IsOn(textures.parts.pack_id)) {
+        layers->PackChanged(textures.parts.pack_id, parts_state);
+        if (const CustomTex::Result r = layers->Save(CustomTex::DefaultPaths(), title_id); !r.ok) {
+            LOG_WARNING(Frontend, "xr: texture layers: cannot save: {}", r.error);
+        }
+        BuildLayerRows();
+    } else if (layers) {
+        layers->PackChanged(textures.parts.pack_id, parts_state);
+    }
     BuildPartRows();
     for (std::size_t i = 0; i < packs.size() && i < textures.packs.size(); i++) {
         if (packs[i].id != textures.parts.pack_id) {

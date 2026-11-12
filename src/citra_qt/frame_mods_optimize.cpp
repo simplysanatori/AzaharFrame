@@ -25,6 +25,7 @@
 #include "citra_qt/frame_texture_pack.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/optimize.h"
 #include "core/custom_tex/packs.h"
 #include "frame_xr/frame_xr.h"
@@ -327,7 +328,15 @@ void FrameMods::ApplyPendingPack() {
             LOG_WARNING(Frontend, "xr: optimize: the Customize choices of {} did not carry over",
                         s.carry_from);
         }
-        const CustomTex::Result r = CustomTex::Activate(paths, s.title, p);
+        // AzaharFrame texlayers: in its pair's place in the game's list (on top when the pair was off)
+        namespace L = CustomTex::Layers;
+        L::State list = L::Current(paths, s.title);
+        if (!s.carry_from.empty() && L::Has(list, s.carry_from)) {
+            L::Replace(list, s.carry_from, p.id);
+        } else {
+            L::Add(list, p.id, {std::string{}});
+        }
+        const CustomTex::Result r = L::Apply(paths, s.title, list);
         LOG_INFO(Frontend, "xr: optimize: {:016X} uses {}{}", s.title, p.path,
                  r.ok ? "" : " (failed: " + r.error + ")");
         return;
@@ -352,14 +361,16 @@ void FrameMods::UpdateOptimizeRow() {
     if (png.empty() && copy.empty()) {
         return;
     }
-    // The one chosen: waiting for the next start, else the one load/textures/<TID> points at.
+    // The one chosen: waiting for the next start, else the one of the pair that is on
+    // (AzaharFrame texlayers: other packs may be on too).
     std::string chosen;
     if (pending_switch && pending_switch->title == title_id) {
         chosen = pending_switch->path;
     } else {
         for (const CustomTex::Pack& p : packs) {
-            if (p.active) {
-                chosen = p.id;
+            if (p.active && (p.id == png || p.id == copy || Canon(p.path) == png ||
+                             Canon(p.path) == copy)) {
+                chosen = Canon(p.path);
             }
         }
     }

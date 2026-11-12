@@ -1375,11 +1375,21 @@ void MenuPanel::Click(Target t, Host& host) {
             ask(MenuCommand::AskPreload, 1);
         }
         break;
-    case Id::TexturePack:
-        if (t.index >= 0 && t.index <= static_cast<int>(model.mods.textures.packs.size())) {
-            ask_text(MenuCommand::SelectTexturePack,
-                     t.index > 0 ? model.mods.textures.packs[static_cast<std::size_t>(t.index - 1)].id
-                                 : std::string{});
+    case Id::TexturePack: // AzaharFrame texlayers: its checkbox, on or off
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.packs.size())) {
+            const auto& p = model.mods.textures.packs[static_cast<std::size_t>(t.index)];
+            ask_text(MenuCommand::SelectTexturePack, p.id, p.active ? 0 : 1);
+        }
+        break;
+    case Id::TextureLayer:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.layers.size())) {
+            ask(MenuCommand::TextureLayer, t.index);
+        }
+        break;
+    case Id::LayerUp:
+    case Id::LayerDown:
+        if (t.index >= 0 && t.index < static_cast<int>(model.mods.textures.layers.size())) {
+            ask_text(MenuCommand::MoveTextureLayer, t.id == Id::LayerUp ? "up" : "down", t.index);
         }
         break;
     case Id::PackDelete: // "Delete <name>?" first (the Qt side asks)
@@ -1969,6 +1979,7 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     const bool indexed = rest == Id::ModVersion || rest == Id::ModNote || rest == Id::PackNote ||
                          rest == Id::ModCompat || rest == Id::PackCompat || // AzaharFrame compat
                          rest == Id::PartUp || rest == Id::PartDown ||      // AzaharFrame texparts
+                         rest == Id::LayerUp || rest == Id::LayerDown ||    // AzaharFrame texlayers
                          rest == Id::UseGlobal; // AzaharFrame useglobal: which row's chip
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
@@ -1998,6 +2009,7 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         } else if (rest == Id::ModCompat) { // AzaharFrame compat
             row_text = at_offer(rest_idx) && !at_offer(rest_idx)->mismatch_reason.empty();
         } else if (rest == Id::PartUp || rest == Id::PartDown || // AzaharFrame texparts
+                   rest == Id::LayerUp || rest == Id::LayerDown || // AzaharFrame texlayers
                    rest == Id::UseGlobal) { // AzaharFrame useglobal: "Use Global Value"
             // Move Up, Move Down
             row_text = true;

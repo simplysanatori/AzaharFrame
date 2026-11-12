@@ -134,7 +134,7 @@ enum class Id : int {
     DialogConfirm, ///< the dialog's Replace / Remove
     DialogCancel,  ///< and its Cancel / OK
     CustomTextures,
-    TexturePack, ///< index: 0 Off, i + 1 mods.textures.packs[i]
+    TexturePack, ///< index: mods.textures.packs (its checkbox; AzaharFrame texlayers)
     TexturePreload,
     RestartGame, ///< the snackbar's Restart
     ModNote,     ///< AzaharFrame modcat2: an Install Mods row's name (tooltip: the entry's notes);
@@ -180,6 +180,10 @@ enum class Id : int {
     TexturePart,       ///< index: mods.textures.parts.rows (a checkbox or a radio button)
     PartUp,            ///< index: mods.textures.parts.rows
     PartDown,          ///< index: mods.textures.parts.rows
+    // AzaharFrame texlayers: Enabled Textures (mods_segments.h TexturesModel::layers)
+    TextureLayer, ///< index: mods.textures.layers (its checkbox)
+    LayerUp,      ///< index: mods.textures.layers
+    LayerDown,    ///< index: mods.textures.layers
     HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index:
                        ///< homebrew.items
     HomebrewCheck,     ///< AzaharFrame ui3: Check for Updates; index: homebrew.items

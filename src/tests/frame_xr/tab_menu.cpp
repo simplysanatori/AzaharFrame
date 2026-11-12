@@ -513,21 +513,26 @@ TEST_CASE("Tab menu: the Textures segment", "[frame_xr][tabmenu]") {
     CHECK(!HasHit(d, Id::TexturePack, 0));
     CHECK(d.menu.MaxScroll() == 0.0f);
 
-    // Custom Textures, Off and three packs, Preload: all on view without scrolling.
+    // Custom Textures, three packs (a checkbox each; AzaharFrame texlayers), Preload: all on view
+    // without scrolling.
     m.mods.textures = Packs(3);
     d.Draw(m, v);
     CHECK(HasHit(d, Id::CustomTextures, -1));
     CHECK(HasHit(d, Id::TexturePreload, -1));
-    for (int i = 0; i <= 3; i++) {
+    for (int i = 0; i < 3; i++) {
         CHECK(HasHit(d, Id::TexturePack, i));
     }
+    CHECK(!HasHit(d, Id::TexturePack, 3)); // no Off row
     CHECK(d.menu.MaxScroll() == 0.0f);
     CheckTargets(d);
-    // In that order, Off first.
+    // In that order.
     REQUIRE(FindHit(d, Id::TexturePack, 0));
     CHECK(FindHit(d, Id::CustomTextures, -1)->r.y1 <= FindHit(d, Id::TexturePack, 0)->r.y0);
     CHECK(FindHit(d, Id::TexturePack, 0)->r.y1 <= FindHit(d, Id::TexturePack, 1)->r.y0 + 0.01f);
-    CHECK(FindHit(d, Id::TexturePack, 3)->r.y1 <= FindHit(d, Id::TexturePreload, -1)->r.y0);
+    CHECK(FindHit(d, Id::TexturePack, 2)->r.y1 <= FindHit(d, Id::TexturePreload, -1)->r.y0);
+    // No Enabled Textures with one pack on
+    CHECK(!HasHit(d, Id::TextureLayer, 0));
+    CHECK(!HasHit(d, Id::LayerUp, 1));
     // Download Packs above them.
     REQUIRE(FindHit(d, Id::DownloadPacks, -1));
     CHECK(FindHit(d, Id::DownloadPacks, -1)->r.y1 <= FindHit(d, Id::CustomTextures, -1)->r.y0);
@@ -1903,6 +1908,46 @@ TEST_CASE("Compat: GameBanana hasn't scanned the file yet", "[frame_xr][tabmenu]
     CHECK(std::string(kUnscannedTitle) == "GameBanana Hasn't Scanned This File Yet");
 }
 
+// AzaharFrame texlayers: Enabled Textures, with two packs on: the entries under the packs, a
+// checkbox for a part, none for a whole pack, Move Up and Move Down; Preload after them.
+TEST_CASE("Tab menu: enabled textures", "[frame_xr][tabmenu]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    m.mods.textures = Packs(2);
+    m.mods.textures.packs[0].active = true;
+    m.mods.textures.layers = {
+        {"Gen 1", "Modern Pokemon Sprites · Replaces 120 Textures From 5X Redrawn UI HD", 2, false, true},
+        {"5X Redrawn UI HD", "2,014 Textures", -1, true, true},
+        {"Gen 2", "Modern Pokemon Sprites", 0, true, false}};
+    d.Draw(m, v);
+    CheckTargets(d);
+    REQUIRE(HasHit(d, Id::TextureLayer, 0));
+    CHECK(!HasHit(d, Id::TextureLayer, 1)); // a whole pack: no checkbox
+    CHECK(!HasHit(d, Id::LayerUp, 0));      // the top cannot move up
+    REQUIRE(HasHit(d, Id::LayerDown, 0));
+    REQUIRE(HasHit(d, Id::LayerUp, 1));
+    REQUIRE(HasHit(d, Id::LayerDown, 1));
+    CHECK(!HasHit(d, Id::LayerDown, 2));
+    CHECK(LabelFor(Id::LayerUp) == "Move Up");
+    CHECK(LabelFor(Id::LayerDown) == "Move Down");
+    // under the packs, over Preload
+    CHECK(FindHit(d, Id::TexturePack, 1)->r.y1 <= FindHit(d, Id::TextureLayer, 0)->r.y0);
+    CHECK(FindHit(d, Id::LayerDown, 0)->r.x1 <= FindHit(d, Id::TextureLayer, 0)->r.x1 + 0.01f);
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    REQUIRE(HasHit(d, Id::TexturePreload, -1));
+    CHECK(FindHit(d, Id::TextureLayer, 2)->r.y1 <= FindHit(d, Id::TexturePreload, -1)->r.y0);
+    // Custom Textures off: no changes
+    m.mods.textures.custom_textures = false;
+    v.scroll[static_cast<int>(kModsTab)] = 0.0f;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::TextureLayer, 0));
+    CHECK(!HasHit(d, Id::LayerDown, 0));
+}
+
 // AzaharFrame texparts: Customize on a pack row, and the pack's Customize page.
 TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
     Drawn d;
@@ -1920,7 +1965,7 @@ TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
     REQUIRE(HasHit(d, Id::PackCustomize, 2));
     // beside Delete, not over it, and inside the pack's row
     CHECK(FindHit(d, Id::PackCustomize, 2)->r.x1 <= FindHit(d, Id::PackDelete, 2)->r.x0 + 0.01f);
-    CHECK(FindHit(d, Id::PackCustomize, 1)->r.y0 >= FindHit(d, Id::TexturePack, 2)->r.y0 - 0.01f);
+    CHECK(FindHit(d, Id::PackCustomize, 1)->r.y0 >= FindHit(d, Id::TexturePack, 1)->r.y0 - 0.01f);
     CheckTargets(d);
     CHECK(LabelFor(Id::PackCustomize) == "Customize");
 

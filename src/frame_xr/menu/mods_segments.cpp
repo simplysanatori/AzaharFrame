@@ -1512,6 +1512,11 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
 // ---------------------------------------------------------------------------------------------
 // Textures
 
+namespace { // AzaharFrame texlayers: drawn on the Textures page too (defined with the parts page)
+void Checkbox(Kit& kit, float cx, float cy, int value, bool enabled);
+void ArrowButton(Kit& kit, float cx, float cy, bool up, bool enabled, State st);
+} // namespace
+
 void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& view,
                            const Rect& area) {
     const TexturesModel& m = model.mods.textures;
@@ -1572,27 +1577,32 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit(b, {Id::DownloadPacks}, area);
     }
 
+    // AzaharFrame texlayers: each pack a checkbox; with two or more on, Enabled Textures under
+    // them: every entry of the packs on in one order (higher wins), Move Up / Move Down.
     struct Item {
-        enum class Kind { Switch, Divider, Pack } kind;
+        enum class Kind { Switch, Divider, Pack, Subhead, Note, Layer } kind;
         Id id = Id::None;
-        int index = -1; ///< Pack: 0 Off, i + 1 packs[i]
+        int index = -1; ///< Pack: packs[i]; Layer: layers[i]
         float h = kRow1;
     };
+    constexpr float kLayerSubhead = 40.0f;
+    constexpr float kLayerNote = 28.0f;
     std::vector<Item> items{{Item::Kind::Switch, Id::CustomTextures},
                             {Item::Kind::Divider, Id::None, -1, kDividerH}};
-    for (int i = 0; i <= static_cast<int>(m.packs.size()); i++) {
-        const bool two = i > 0 && !m.packs[static_cast<std::size_t>(i - 1)].detail.empty();
+    for (int i = 0; i < static_cast<int>(m.packs.size()); i++) {
+        const bool two = !m.packs[static_cast<std::size_t>(i)].detail.empty();
         items.push_back({Item::Kind::Pack, Id::TexturePack, i, two ? kRow2 : kRow1});
+    }
+    if (!m.layers.empty()) {
+        items.push_back({Item::Kind::Subhead, Id::None, -1, kLayerSubhead});
+        items.push_back({Item::Kind::Note, Id::None, -1, kLayerNote});
+        for (int i = 0; i < static_cast<int>(m.layers.size()); i++) {
+            const bool two = !m.layers[static_cast<std::size_t>(i)].detail.empty();
+            items.push_back({Item::Kind::Layer, Id::TextureLayer, i, two ? kRow2 : kRow1});
+        }
     }
     items.push_back({Item::Kind::Divider, Id::None, -1, kDividerH});
     items.push_back({Item::Kind::Switch, Id::TexturePreload});
-    int active = 0; // Off
-    for (std::size_t i = 0; i < m.packs.size(); i++) {
-        if (m.packs[i].active) {
-            active = static_cast<int>(i) + 1;
-            break;
-        }
-    }
 
     const float top = c.y0 + kBarH + 8.0f;
     const Rect list{area.x0, top, area.x1, bottom};
@@ -1604,6 +1614,11 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
     const bool on = m.custom_textures;
+    struct Tip {
+        float cx = 0.0f, y = 0.0f;
+        std::string text;
+        bool above = true;
+    } tip;
     kit.Clip(list);
     for (std::size_t n = 0; n < items.size(); n++) {
         const Item& it = items[n];
@@ -1615,10 +1630,59 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
             kit.Fill({c.x0, y + 8.0f, c.x1, y + 9.0f}, 0.0f, Tok::kOutlineVariant);
             continue;
         }
+        const float op_all = on ? 1.0f : kDisabledContent;
+        if (it.kind == Item::Kind::Subhead) { // Material list subheader
+            kit.TextSized(c.x0, y + it.h - 12.0f, kSmall, true, Tok::kPrimary, "Enabled Textures", 0,
+                          op_all);
+            continue;
+        }
+        if (it.kind == Item::Kind::Note) {
+            const float cy = y + it.h * 0.5f - 2.0f;
+            kit.Icon(c.x0 + 10.0f, cy, 20.0f, Sym::kInfo, false, Tok::kOnSurfaceVariant);
+            const std::string text = "Texture Conflicts: Higher in the List Takes Priority";
+            kit.TextSized(c.x0 + 30.0f, cy + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall, false,
+                          Tok::kOnSurfaceVariant, kit.Fit(Type::Tooltip, text, c.W() - 30.0f));
+            continue;
+        }
         const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + it.h};
         const float cy = row.Cy();
-        const Target t{it.id, it.kind == Item::Kind::Pack ? it.index : -1};
+        const bool listed = it.kind == Item::Kind::Pack || it.kind == Item::Kind::Layer;
+        const Target t{it.id, listed ? it.index : -1};
         const bool enabled = !m.busy && (it.id == Id::CustomTextures || on);
+        if (it.kind == Item::Kind::Layer) {
+            const TextureLayerRow& r = m.layers[static_cast<std::size_t>(it.index)];
+            const bool box = r.value >= 0;
+            const State st = StateOf(view, t, enabled && box);
+            const float op = enabled ? 1.0f : kDisabledContent;
+            if (box) {
+                kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
+                AddHit(row, enabled ? t : Target{it.id, kLabelIndex}, list);
+                Checkbox(kit, c.x0 + 12.0f, cy, r.value, enabled);
+            } else {
+                // A whole pack, or variants: on with its pack; changed on its Customize page
+                kit.Icon(c.x0 + 12.0f, cy, 24.0f, Sym::kTexture, false, Tok::kOnSurfaceVariant, op);
+            }
+            constexpr float kBtn = 48.0f;
+            const float down_cx = c.x1 - kBtn * 0.5f + 12.0f;
+            const float up_cx = down_cx - kBtn;
+            for (const bool up : {true, false}) {
+                const float bx = up ? up_cx : down_cx;
+                const Target at{up ? Id::LayerUp : Id::LayerDown, it.index};
+                const bool can = enabled && (up ? r.up : r.down);
+                ArrowButton(kit, bx, cy, up, can, StateOf(view, at, can));
+                if (can) {
+                    AddHit({bx - kBtn * 0.5f, cy - 24.0f, bx + kBtn * 0.5f, cy + 24.0f}, at, list);
+                }
+                if (view.tooltip == at.id && view.tooltip_index == it.index) {
+                    const bool first = y - kRow1 < list.y0;
+                    tip = {bx, first ? row.y1 - 4.0f : row.y0 + 4.0f, up ? "Move Up" : "Move Down",
+                           !first};
+                }
+            }
+            RowText(kit, c.x0 + kLeading, up_cx - kBtn * 0.5f - 8.0f, cy, r.name, false, r.detail,
+                    false, op);
+            continue;
+        }
         const State st = StateOf(view, t, enabled);
         const float op = enabled ? 1.0f : kDisabledContent;
         kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
@@ -1630,12 +1694,10 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                         kit.Fit(Type::Body, LabelFor(it.id), c.W() - kSwitchW - kNameGap), 0, op);
             continue;
         }
-        Radio(kit, c.x0 + 12.0f, cy, it.index == active, enabled);
+        const TexturePackItem& p = m.packs[static_cast<std::size_t>(it.index)];
+        Checkbox(kit, c.x0 + 12.0f, cy, p.active ? 2 : 0, enabled);
         const float tx = c.x0 + kLeading;
-        if (it.index == 0) {
-            kit.TextMid(tx, cy, Type::Body, Tok::kOnSurface, "Off", 0, op);
-        } else {
-            const TexturePackItem& p = m.packs[static_cast<std::size_t>(it.index - 1)];
+        {
             float right = c.x1;
             float trail = c.x1; // AzaharFrame texparts: where the next button ends
             if (p.downloaded) {
@@ -1644,7 +1706,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 const float w = ButtonWidth(kit, label, false, 12.0f);
                 const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f}; // integ
                 const bool can = !m.busy && !m.downloading;
-                const Target dt{Id::PackDelete, it.index - 1};
+                const Target dt{Id::PackDelete, it.index};
                 kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, dt, can));
                 if (can) {
                     AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, dt, list);
@@ -1657,7 +1719,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 const std::string label = LabelFor(Id::PackCustomize);
                 const float w = ButtonWidth(kit, label, true, 12.0f);
                 const Rect b{trail - w, cy - kButtonH * 0.5f, trail, cy + kButtonH * 0.5f};
-                const Target ct{Id::PackCustomize, it.index - 1};
+                const Target ct{Id::PackCustomize, it.index};
                 kit.Button(b, ButtonStyle::Text, Sym::kTune, label, StateOf(view, ct, !m.busy));
                 if (!m.busy) {
                     AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, ct, list);
@@ -1669,6 +1731,10 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     }
     kit.ClearClip();
     ScrollIndicator(kit, list, area.x1, s);
+    if (!tip.text.empty()) {
+        const float half = (kit.TextWidth(Type::Tooltip, tip.text) + 20.0f) * 0.5f;
+        kit.Tooltip(std::min(tip.cx, area.x1 - 8.0f - half), tip.y, tip.text, tip.above);
+    }
     DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
 }
 

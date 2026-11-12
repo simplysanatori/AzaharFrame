@@ -833,9 +833,13 @@ void GameList::AddGamePopup(QMenu& context_menu, const QString& path, const QStr
 #ifdef ENABLE_FRAME_XR
     // AzaharFrame: convert the title's texture pack to ASTC, or go back to the original one
     if (is_application && FrameTexturePack::HasPack(program_id)) {
+        // AzaharFrame texlayers: with several packs on, these act on the top one: named
+        const QString top = FrameTexturePack::TopPackName(program_id);
         auto* texture_pack = new QAction(FrameTexturePack::IsOptimized(program_id)
-                                             ? tr("Use Original Texture Pack")
-                                             : tr("Optimize Texture Pack for Frame..."),
+                                             ? (top.isEmpty() ? tr("Use Original Texture Pack")
+                                                              : tr("Use Original %1").arg(top))
+                                             : (top.isEmpty() ? tr("Optimize Texture Pack for Frame...")
+                                                              : tr("Optimize %1 for Frame...").arg(top)),
                                          &context_menu);
         context_menu.insertAction(shader_menu->menuAction(), texture_pack);
         connect(texture_pack, &QAction::triggered, this,
@@ -853,7 +857,10 @@ void GameList::AddGamePopup(QMenu& context_menu, const QString& path, const QStr
                 FrameTexturePack::RemoveOriginal(this, program_id, running == program_id);
             });
         }
-        // AzaharFrame texparts: the pack's parts (the Emulation menu has it for the running game)
+    }
+    // AzaharFrame texparts: the pack's parts (the Emulation menu has it for the running game);
+    // texlayers: the game's packs too, on or off
+    if (is_application && FrameTexturePack::HasAnyPack(program_id)) {
         auto* customize = new QAction(tr("Customize Texture Pack..."), &context_menu);
         context_menu.insertAction(shader_menu->menuAction(), customize);
         connect(customize, &QAction::triggered, this, [this, program_id] {

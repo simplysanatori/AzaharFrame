@@ -25,8 +25,11 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #ifndef AZAHARFRAME_TEXPARTS_REVIEW // the review harness (steam-frame/dev) has no emulator
+#include <memory>
 #include <fmt/format.h>
+#include "citra_qt/frame_texture_layers.h" // AzaharFrame texlayers
 #include "common/file_util.h"
+#include "core/custom_tex/layers.h"
 #endif
 
 namespace P = CustomTex::Parts;
@@ -90,21 +93,17 @@ FrameTexturePartsDialog::FrameTexturePartsDialog(QWidget* parent, const std::str
     QApplication::restoreOverrideCursor();
 
     auto* v = new QVBoxLayout(this);
-    const PackInfo info = ReadPackInfo(pack);
-    std::string name = info.name;
-    if (name.empty()) {
-        // the folder's name; for load/textures/<TID>, the pack it points to
-        std::error_code ec;
-        name = std::filesystem::weakly_canonical(pack, ec).filename().string();
-    }
-    auto* title = new QLabel(Q(name));
+    top = new QWidget; // AzaharFrame texlayers: the game's packs (AddTop)
+    auto* top_layout = new QVBoxLayout(top);
+    top_layout->setContentsMargins(0, 0, 0, 0);
+    top->hide();
+    v->addWidget(top);
+    title = new QLabel;
     QFont tf = title->font();
     tf.setPointSizeF(tf.pointSizeF() * 1.4);
     title->setFont(tf);
     v->addWidget(title);
     header = new QLabel;
-    header->setProperty("author", Q(info.author));
-    header->setProperty("version", Q(info.version));
     v->addWidget(header);
 
     auto* row = new QHBoxLayout;
@@ -159,14 +158,64 @@ FrameTexturePartsDialog::FrameTexturePartsDialog(QWidget* parent, const std::str
     connect(move_down, &QPushButton::clicked, this, [this] { MoveSelected(1); });
     connect(all_on, &QPushButton::clicked, this, [this] {
         P::SetAll(state, layout, true);
-        Rebuild();
+        Changed();
     });
     connect(all_off, &QPushButton::clicked, this, [this] {
         P::SetAll(state, layout, false);
-        Rebuild();
+        Changed();
     });
+    ShowPack(pack, &state);
+}
+
+void FrameTexturePartsDialog::ShowPack(const std::string& pack_, const P::State* known) {
+    if (pack_ != pack) {
+        if (state.set) {
+            other_states[pack] = state; // kept for Save
+        }
+        pack = pack_;
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const auto kept = other_states.find(pack);
+        state = known ? *known : kept != other_states.end() ? kept->second : P::ReadState(pack);
+        layout = P::Scan(pack, state.hints);
+        QApplication::restoreOverrideCursor();
+    } else if (known) {
+        state = *known;
+    }
+    const PackInfo info = ReadPackInfo(pack);
+    std::string name = info.name;
+    if (name.empty()) {
+        // the folder's name; for load/textures/<TID>, the pack it points to
+        std::error_code ec;
+        name = std::filesystem::weakly_canonical(pack, ec).filename().string();
+    }
+    title->setText(Q(name));
+    header->setProperty("author", Q(info.author));
+    header->setProperty("version", Q(info.version));
+    selected_key.clear();
     if (const auto order = P::Order(layout, state); !order.empty()) {
         selected_key = layout.groups[order[0]].key; // the first row starts selected
+    }
+    Rebuild();
+}
+
+void FrameTexturePartsDialog::SetPackState(const std::string& pack_, const P::State& state_) {
+    if (pack_ == pack) {
+        state = state_;
+        Rebuild();
+    } else {
+        other_states[pack_] = state_;
+    }
+}
+
+void FrameTexturePartsDialog::AddTop(QWidget* widget) {
+    top->layout()->addWidget(widget);
+    top->show();
+    resize(width(), 820);
+}
+
+void FrameTexturePartsDialog::Changed() {
+    if (on_change) {
+        on_change(pack, state);
     }
     Rebuild();
 }
@@ -176,10 +225,19 @@ bool FrameTexturePartsDialog::HasParts() const {
 }
 
 bool FrameTexturePartsDialog::Save() {
-    if (!state.set) {
-        return true; // nothing changed
+    bool ok = true;
+    for (const auto& [other, other_state] : other_states) { // AzaharFrame texlayers
+        if (other != pack && other_state.set) {
+            ok = P::WriteState(other, other_state) && ok;
+        }
     }
-    return P::WriteState(pack, state);
+    if (state.set) { // else nothing changed
+        ok = P::WriteState(pack, state) && ok;
+    }
+    if (ok && on_save) {
+        ok = on_save();
+    }
+    return ok;
 }
 
 void FrameTexturePartsDialog::Rebuild() {
@@ -279,7 +337,7 @@ void FrameTexturePartsDialog::Rebuild() {
                     }
                     P::Choose(state, layout, layout.groups[gi], key);
                     // after the click: the button's own signal is still running
-                    QMetaObject::invokeMethod(this, [this] { Rebuild(); }, Qt::QueuedConnection);
+                    QMetaObject::invokeMethod(this, [this] { Changed(); }, Qt::QueuedConnection);
                 });
             }
             it->setExpanded(true);
@@ -311,7 +369,7 @@ void FrameTexturePartsDialog::ItemChanged(QTreeWidgetItem* it, int column) {
     } else if (!key.empty()) {
         P::SetPart(state, layout, key, on);
     }
-    QMetaObject::invokeMethod(this, [this] { Rebuild(); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(this, [this] { Changed(); }, Qt::QueuedConnection);
 }
 
 int FrameTexturePartsDialog::SelectedGroup() const {
@@ -349,24 +407,32 @@ void FrameTexturePartsDialog::MoveSelected(int delta) {
     }
     selected_key = layout.groups[static_cast<std::size_t>(gi)].key;
     P::Move(state, layout, selected_key, delta);
-    Rebuild();
+    Changed();
 }
 
 #ifndef AZAHARFRAME_TEXPARTS_REVIEW
 void FrameTexturePartsDialog::Open(QWidget* parent, u64 title_id, bool running) {
-    const std::string pack = fmt::format(
-        "{}textures/{:016X}", FileUtil::GetUserPath(FileUtil::UserPath::LoadDir), title_id);
     const QString title = QStringLiteral("Customize Texture Pack");
-    if (!FileUtil::IsDirectory(pack)) {
+    // AzaharFrame texlayers: every pack of the game, on or off, and their order
+    const CustomTex::Paths paths = CustomTex::DefaultPaths();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto game = std::make_shared<CustomTex::Layers::Game>(CustomTex::Layers::Game::Load(paths, title_id));
+    QApplication::restoreOverrideCursor();
+    if (game->packs.empty()) {
         QMessageBox::information(parent, title, QStringLiteral("No Texture Pack for This Game"));
         return;
     }
-    FrameTexturePartsDialog dialog(parent, pack, running);
-    if (!dialog.HasParts()) {
-        QMessageBox::information(parent, title,
-                                 QStringLiteral("This Texture Pack Has No Parts to Customize"));
-        return;
-    }
+    const std::vector<std::string> on = CustomTex::Layers::Packs(game->list);
+    const std::string first = on.empty() ? game->packs[0].id : on[0];
+    FrameTexturePartsDialog dialog(parent, first, running);
+    auto* packs = new FrameTextureLayers(&dialog, game);
+    dialog.AddTop(packs);
+    dialog.on_change = [packs](const std::string& pack, const P::State& state) {
+        packs->PackChanged(pack, state);
+    };
+    dialog.on_save = [game, paths, title_id] {
+        return game->Save(paths, title_id).ok;
+    };
     dialog.exec();
 }
 #endif

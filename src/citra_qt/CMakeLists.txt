@@ -324,6 +324,7 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_mods_optimize.cpp)
     # AzaharFrame texparts: Customize Texture Pack in Flat (game list menu, Emulation menu).
     target_sources(citra_qt PRIVATE frame_texture_parts.cpp frame_texture_parts.h)
+    target_sources(citra_qt PRIVATE frame_texture_layers.cpp frame_texture_layers.h) # AzaharFrame texlayers
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat
     target_sources(citra_qt PRIVATE frame_crash_dialog.cpp frame_crash_dialog.h) # AzaharFrame crashreport
     if (AZAHARFRAME_RELEASE) # AzaharFrame crashreport: no test drivers or test crash in a release

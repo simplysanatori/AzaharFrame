@@ -2762,7 +2762,7 @@ void GMainWindow::ConnectWidgetEvents() {
         ui->menu_Emulation->addAction(customize);
         connect(ui->menu_Emulation, &QMenu::aboutToShow, this, [this, customize] {
             customize->setEnabled(emulation_running && game_title_id != 0 &&
-                                  FrameTexturePack::HasPack(game_title_id));
+                                  FrameTexturePack::HasAnyPack(game_title_id)); // texlayers
         });
         connect(customize, &QAction::triggered, this, [this] {
             if (emulation_running && game_title_id != 0) {
