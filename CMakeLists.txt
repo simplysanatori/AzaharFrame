@@ -602,10 +602,14 @@ endif()
 # SDL2
 if (ENABLE_SDL2 AND USE_SYSTEM_SDL2)
     find_package(SDL2 REQUIRED)
-    add_library(SDL2 INTERFACE)
-    target_link_libraries(SDL2 INTERFACE "${SDL2_LIBRARY}")
-    target_include_directories(SDL2 INTERFACE "${SDL2_INCLUDE_DIR}")
-    add_library(SDL2::SDL2 ALIAS SDL2)
+    # AzaharFrame sdl3: SDL 2.30+ and sdl2-compat (the portable release's bundled one, SDL2_DIR) export the
+    # SDL2::SDL2 target themselves; only an old SDL2 without it gets the wrapper.
+    if (NOT TARGET SDL2::SDL2)
+        add_library(SDL2 INTERFACE)
+        target_link_libraries(SDL2 INTERFACE "${SDL2_LIBRARY}")
+        target_include_directories(SDL2 INTERFACE "${SDL2_INCLUDE_DIR}")
+        add_library(SDL2::SDL2 ALIAS SDL2)
+    endif()
 endif()
 
 if (ENABLE_LIBUSB AND USE_SYSTEM_LIBUSB)

@@ -3,7 +3,9 @@
 # ICU and anything else tools/host-libs.allow does not list), plugins/ (the Qt plugins) and qt.conf (Qt's
 # prefix is the app folder).  Runs in the build container, after the build.
 #   stage-bundle.sh <Qt prefix> <azahar binary> <out dir> [allowlist]
-# Needs patchelf, objdump, ldconfig.
+# Needs patchelf, objdump, ldconfig.  SDL_PREFIX (the prefix build-sdl.sh installed into) names where libSDL2-2.0.so.0
+# (sdl2-compat) comes from; libSDL3.so.0 is copied beside it, because sdl2-compat opens it at run time (dlopen), so no
+# NEEDED entry names it.
 #
 # Every library the program, the plugins and the libraries themselves need is copied from the Qt prefix.
 # One that is neither in Qt nor on the allowlist is copied from the machine this runs on and reported, so a
@@ -48,6 +50,14 @@ find "$OUT/plugins/platformthemes" -name '*.so' ! -name 'libqxdgdesktopportal.so
 for d in "$OUT"/plugins/*/; do echo "  ${d#"$OUT"/}: $(cd "$d" && ls | tr '\n' ' ')"; done
 
 echo "== libraries"
+# SDL3, which sdl2-compat opens at run time ("libSDL3.so.0" is searched through the RUNPATH of libSDL2-2.0.so.0, so
+# $ORIGIN = lib/): no NEEDED entry names it, so it is copied by hand, before the scan below so that it is scanned too
+if objdump -p "$BIN" | awk '$1 == "NEEDED" { print $2 }' | grep -qx 'libSDL2-2.0.so.0'; then
+    [ -n "${SDL_PREFIX:-}" ] && [ -e "$SDL_PREFIX/lib/libSDL3.so.0" ] && [ -e "$SDL_PREFIX/lib/libSDL2-2.0.so.0" ] \
+        || { echo "the program needs libSDL2-2.0.so.0 but SDL_PREFIX has no sdl2-compat and SDL3"; exit 1; }
+    cp -L "$SDL_PREFIX/lib/libSDL3.so.0" "$OUT/lib/libSDL3.so.0"; chmod 755 "$OUT/lib/libSDL3.so.0"
+    echo "  SDL3 beside sdl2-compat: libSDL3.so.0"
+fi
 LDC="$(ldconfig -p)"
 # every library the program, the plugins and the bundled libraries need, until nothing new comes in
 while :; do
@@ -59,6 +69,8 @@ while :; do
             allowed "$s" && continue
             if [ -e "$QT/lib/$s" ]; then
                 cp -L "$QT/lib/$s" "$OUT/lib/$s"
+            elif [ -n "${SDL_PREFIX:-}" ] && [ -e "$SDL_PREFIX/lib/$s" ]; then
+                cp -L "$SDL_PREFIX/lib/$s" "$OUT/lib/$s"
             else
                 p="$(awk -v s="$s" '$1 == s && /AArch64|aarch64/ { print $NF; exit }' <<<"$LDC")"
                 [ -n "$p" ] || { echo "${f#"$OUT"/} needs $s: not in Qt, not on this machine, not allowlisted"; exit 1; }
@@ -71,6 +83,8 @@ while :; do
     done < <({ printf '%s\0' "$BIN"; find "$OUT" -type f -print0; })
     [ "$added" = 1 ] || break
 done
+
+if [ -n "${SDL_PREFIX:-}" ] && [ -d "$SDL_PREFIX/licenses" ]; then mkdir -p "$OUT/licenses"; cp "$SDL_PREFIX"/licenses/* "$OUT/licenses/"; fi
 
 # RUNPATH: libraries find their neighbours in lib/, plugins two folders up.  Qt's own libraries are
 # built with $ORIGIN-relative paths already; whatever else is not gets one.  (No strip after this: strip

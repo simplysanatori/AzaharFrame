@@ -132,11 +132,20 @@ The controller models' converter (`steam-frame/tools/frame-controller-models.py`
 
 ## SDL
 
-SDL 2 (https://www.libsdl.org) reads game controllers and, in the Azahar
-build, plays sound. zlib licence. The release builds in the copy in
-`externals/sdl2/SDL/`, Azahar's pin ([licence](externals/sdl2/SDL/LICENSE.txt)).
-A program built on the Frame with `steam-frame/build.sh` links the SDL 2 library
-SteamOS provides.
+SDL (https://www.libsdl.org) reads game controllers and, in the Azahar build,
+plays sound. zlib licence. The release carries two libraries in `lib/`, built
+from the official release tarballs of libsdl-org (the exact versions and
+checksums are in `steam-frame/portable/build-sdl.sh`):
+
+- **SDL 3**, Copyright (C) 1997-2026 Sam Lantinga, zlib licence ([licence](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt); in a release: licenses/SDL3-LICENSE.txt).
+  It needs to be 3.4.10 or newer for the 2026 Steam Controller's touchpad.
+- **sdl2-compat**, Copyright (C) 2026 Sam Lantinga, zlib licence ([licence](https://github.com/libsdl-org/sdl2-compat/blob/main/LICENSE.txt); in a release: licenses/sdl2-compat-LICENSE.txt).
+  It is `libSDL2-2.0.so.0`, the library Azahar links, and passes every call on to SDL 3.
+
+A program built on the Frame with `steam-frame/build.sh` links the SDL library
+SteamOS provides instead (its own sdl2-compat over its own SDL 3). The SDL 2
+copy in `externals/sdl2/SDL/` (Azahar's pin, [licence](externals/sdl2/SDL/LICENSE.txt))
+is no longer built into the release.
 
 ## Azahar's external libraries
 

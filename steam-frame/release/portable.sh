@@ -25,6 +25,8 @@ portable_stage() {
   fi
   [ -f "$bundle/qt.conf" ] || { echo "make-release: $bundle has no qt.conf" >&2; exit 1; }
   cp -a "$bundle/lib" "$bundle/plugins" "$bundle/qt.conf" "$stage/"
+  # the licences of the libraries the bundle carries (SDL3, sdl2-compat)
+  if [ -d "$bundle/licenses" ]; then mkdir -p "$stage/licenses"; cp -a "$bundle/licenses/." "$stage/licenses/"; fi
   PORTABLE_FILES="lib plugins qt.conf"
 }
 
@@ -48,6 +50,26 @@ portable_verify() {
     local outside
     outside=$(grep -oE 'calling init: [^ ]+' <<<"$out" | sed 's/^calling init: //' | grep -E '/lib(Qt6|icu|SDL)' | grep -v "^$app/" || true)
     if [ -n "$outside" ]; then echo "$outside" >&2; rm -rf "$scratch" "$tarball"; echo "make-release: loaded libraries from outside the release" >&2; exit 1; fi
+    # SDL: sdl2-compat opens SDL3 when SDL starts, which `azahar -v` never does.  Load the bundled libraries the same way
+    # here: SDL2 through its own path, then SDL3's version must be 3.4.10 or newer (the Steam Controller's touchpad),
+    # and the libSDL3.so.0 the loader opened must be the one in the folder.
+    if [ -e "$app/lib/libSDL2-2.0.so.0" ]; then
+      local sdlout sdlv
+      sdlout=$(cd "$app" && env -u LD_LIBRARY_PATH LD_DEBUG=libs HOME="$scratch/home" python3 -I -c '
+import ctypes, sys
+l2 = ctypes.CDLL(sys.argv[1] + "/lib/libSDL2-2.0.so.0")
+class V(ctypes.Structure): _fields_ = [("major", ctypes.c_uint8), ("minor", ctypes.c_uint8), ("patch", ctypes.c_uint8)]
+v = V(); l2.SDL_GetVersion(ctypes.byref(v))
+l3 = ctypes.CDLL(sys.argv[1] + "/lib/libSDL3.so.0"); l3.SDL_GetVersion.restype = ctypes.c_int
+n = l3.SDL_GetVersion()
+print("SDLVERSION sdl2 %d.%d.%d sdl3 %d.%d.%d" % (v.major, v.minor, v.patch, n // 1000000, n // 1000 % 1000, n % 1000))
+sys.exit(0 if n >= 3004010 else 3)   # the Steam Controller touchpad needs 3.4.10
+' "$app" 2>&1) || { echo "$sdlout" | tail -n 8 >&2; rm -rf "$scratch" "$tarball"; echo "make-release: the bundled SDL did not load, or SDL3 is older than 3.4.10" >&2; exit 1; }
+      sdlv=$(grep -oE 'SDLVERSION .*' <<<"$sdlout")
+      outside=$(grep -oE 'calling init: [^ ]+' <<<"$sdlout" | sed 's/^calling init: //' | grep -E '/libSDL' | grep -v "^$app/" || true)
+      if [ -n "$outside" ]; then echo "$outside" >&2; rm -rf "$scratch" "$tarball"; echo "make-release: SDL loaded from outside the release" >&2; exit 1; fi
+      echo "make-release: bundled SDL loads: $sdlv"
+    fi
     # -v prints "Azahar for Frame <version>" (the first line is the program's; LD_DEBUG writes the rest)
     local said
     said=$(grep -E '^Azahar for Frame ' <<<"$out" | head -n 1)
