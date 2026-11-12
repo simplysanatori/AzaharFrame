@@ -195,8 +195,13 @@ void RecentreStats() {
     g_shared.stats_recentre = true;
 }
 
+/// AzaharFrame padsui: the pointer dot's picture (controls.cpp's kDotSize).
+constexpr int32_t kMouseDotPixels = 64;
+
 struct Visuals::Impl {
     Runtime* rt = nullptr;
+    Input::MousePointer* mouse_pointer = nullptr; // AzaharFrame padsui
+    Visuals::Mark mouse_dot;
     AsyncOverlay atlas;
     AsyncOverlay stats_chain;
     PanelArt atlas_art;
@@ -922,6 +927,54 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             }
         }
     }
+    // AzaharFrame padsui: the mouse's ray: a dot only, on what it hits (a panel's own dot when
+    // the panel draws one), on the plane of the panel it just left, or out in the room.
+    m.mouse_dot = {};
+    for (int h = 0; h < Input::kNumHands; h++) {
+        const Input::HandInput& hand = in.hand[static_cast<std::size_t>(h)];
+        if (!have_input || !hand.active || !hand.mouse || !m.mouse_pointer || !view.valid) {
+            continue;
+        }
+        const Input::Ray ray = Input::RayFromPose(hand.aim);
+        float hit_t = -1.0f;
+        Vec3f normal{0.0f, 0.0f, 1.0f};
+        const auto consider = [&](const Input::PanelQuad& q) {
+            const auto hit = Input::IntersectQuad(ray, q);
+            if (hit.in_bounds && hit.t > 0.05f && (hit_t < 0.0f || hit.t < hit_t)) {
+                hit_t = hit.t;
+                normal = Input::Rotate(q.pose.orientation, {0.0f, 0.0f, 1.0f});
+            }
+        };
+        for (const Quad& q : kept) {
+            if (q.swapchain != dim) {
+                consider({ToInput(q.pose), q.size.width, q.size.height, true});
+            }
+        }
+        for (const Input::PanelQuad& q : screens) {
+            if (q.visible) {
+                consider(q);
+            }
+        }
+        const bool panel_dot = beam_end[h] && !stub[h];
+        const Input::MousePointer::Dot md =
+            m.mouse_pointer->PlaceDot(hit_t, normal, hand.trigger > 0.5f, head.position);
+        beam_end[h].reset(); // no beam for the mouse
+        stub[h] = false;
+        if (!md.shown) {
+            continue;
+        }
+        Quad q;
+        q.swapchain = dot;
+        q.image_rect = {{0, 0}, {kMouseDotPixels, kMouseDotPixels}};
+        q.pose = ToXr({Input::FaceViewer(md.position, head.position, {0.0f, 1.0f, 0.0f}),
+                       md.position});
+        q.size = {md.size_m, md.size_m};
+        q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+        m.mouse_dot = {true, q.pose, md.size_m};
+        if (!panel_dot && info.should_render) {
+            m.top_dots.push_back(q);
+        }
+    }
     layers = std::move(kept);
     if (info.should_render && view.valid) {
         for (int h = 0; h < Input::kNumHands; h++) {
@@ -955,7 +1008,8 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     if (Settings::values.vr_show_controllers.GetValue() && info.should_render) {
         for (int h = 0; h < Input::kNumHands; h++) {
             auto& out = hands[static_cast<std::size_t>(h)];
-            out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f;
+            out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f &&
+                        !in.hand[static_cast<std::size_t>(h)].mouse; // AzaharFrame padsui
             out.aim = m.activity[h].Pose();
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
@@ -963,6 +1017,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     }
     m.models.Frame(rt, view, hands);
     m.models_layer = m.models.Layer();
+}
+
+void Visuals::SetMousePointer(Input::MousePointer* pointer) {
+    impl->mouse_pointer = pointer;
+}
+
+Visuals::Mark Visuals::MouseDot() const {
+    return impl->mouse_dot;
 }
 
 const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,

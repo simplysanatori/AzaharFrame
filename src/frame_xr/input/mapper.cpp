@@ -487,7 +487,10 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
 
         switch (state.gesture) {
         case Gesture::Passthrough:
-            controls.Set(hand == Hand::Left ? Control::TriggerL : Control::TriggerR, true);
+            // AzaharFrame padsui: the mouse's ray clicks; it presses no ZL or ZR.
+            if (!input.mouse) {
+                controls.Set(hand == Hand::Left ? Control::TriggerL : Control::TriggerR, true);
+            }
             break;
         case Gesture::Touch: {
             const QuadHit hit = IntersectQuad(ray, panels.bottom);

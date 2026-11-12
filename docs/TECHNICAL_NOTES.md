@@ -14,6 +14,7 @@ New code, in files of its own:
 | `src/video_core/renderer_vulkan/vk_xr_target.*` | the three OpenXR swapchains, the spill images and the handoff thread (`vk_xr_handoff.h`: its rules) |
 | `src/video_core/renderer_vulkan/renderer_vulkan_xr.cpp` | `RenderToXr()` |
 | `src/input_common/frame_xr.*` | the Frame controller input engine |
+| `src/frame_xr/input/mouse_pointer.*` | the mouse's Pointer mode, adapted from Frametop's pointer helper (MIT, see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md#frametop)) |
 | `src/citra_qt/configuration/configure_frame_vr.*`, `src/citra_qt/frame_branding.h` | the **VR** group in the Graphics tab, the Azahar for Frame icon |
 | `src/citra_qt/frame_texture_pack.h` | **Optimize Texture Pack for Frame...** and **Use Original Texture Pack** in the game list menu |
 | `src/tests/frame_xr/` | unit tests for the input mapper, the screen geometry and the picker |
@@ -175,6 +176,7 @@ Set these in `~/.local/share/AzaharFrame/session.env` (one `VAR=value` per line)
 | `AZAHARFRAME_REFRESH_HZ` | `azaharframe.sh` | 90 or 120 (default 120), set in SteamVR for the entry |
 | `AZAHARFRAME_FDM=1` | `azaharframe.sh`, `citra_qt.cpp` | leaves Valve's FDM injection layer on (by default `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` turns it off, see [AGENTS.md](../AGENTS.md)) |
 | `AZAHARFRAME_IMMERSIVE_FOV`, `_DISTANCE`, `_LOCAL` | `frame_xr/immersive.cpp` | immersive mode tuning (the FOV one overrides the Immersive Game FOV setting), see [IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md) |
+| `AZAHARFRAME_PADS=0` | `frame_xr/input/devices.cpp` | other gamepads stay out of the game in VR (they are still listed in Edit Controls), see [MAPPING.md](../src/frame_xr/input/MAPPING.md#other-gamepads-in-vr-azaharframe-pads) |
 | `AZAHARFRAME_OPENXR_LOADER` | `frame_xr/xr_loader.cpp` | path of an OpenXR loader to use before SteamVR's |
 | `AZAHARFRAME_ART` | picker, Qt icon | folder with `logo.png` and `icon.png` (default: `art/` next to the program) |
 | `AZAHARFRAME_TOOLS` | game list menu | folder with `convert-texture-pack.sh` (default: `tools/` next to the program) |

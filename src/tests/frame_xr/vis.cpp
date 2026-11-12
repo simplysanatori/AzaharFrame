@@ -9,6 +9,7 @@
 #include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "frame_xr/input/controls.h"
 #include "frame_xr/vis/beam.h"
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
@@ -49,7 +50,7 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Trigger") == "3DS ZL, Touch on Bottom Screen");
         REQUIRE(ActionFor(page.game, "Menu") == "3DS Start");
         REQUIRE(ActionFor(page.game, "View") == "3DS Select");
-        REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Other Screen");
+        REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Secondary Screen");
         REQUIRE(ActionFor(page.game, "Hold Left Stick Click (1 s)") == "Screen Layout");
         REQUIRE(ActionFor(page.game, "Right Stick Click") == "Swap Screens");
         REQUIRE(ActionFor(page.game, "Hold Right Stick Click (1 s)") == "Reset Screens and View");
@@ -371,7 +372,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(g, 1, CtrlPart::Y, "Y") == "3DS X");
         REQUIRE(DiagramAction(g, 0, CtrlPart::Dpad, "D-Pad") == "3DS D-Pad");
         REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Left Stick") == "Circle Pad");
-        REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Click") == "Hide or Show Other Screen");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Stick, "Click") == "Hide or Show Secondary Screen");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Right Stick") == "C-Stick");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Click") == "Swap Screens");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Reset Screens and View");

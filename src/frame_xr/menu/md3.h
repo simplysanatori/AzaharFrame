@@ -47,6 +47,7 @@ constexpr uint32_t kOutline = 0x8D9199;
 constexpr uint32_t kOutlineVariant = 0x42474E;
 constexpr uint32_t kInverseSurface = 0xE1E2E8;
 constexpr uint32_t kInverseOnSurface = 0x2E3135;
+constexpr uint32_t kInversePrimary = 0x35618E; ///< AzaharFrame remap: snackbar actions (primary tone 40)
 constexpr uint32_t kError = 0xFFB4AB;
 constexpr uint32_t kErrorContainer = 0x93000A;
 constexpr uint32_t kOnErrorContainer = 0xFFDAD6;
@@ -150,7 +151,8 @@ public:
     /// A switch centred vertically in `r`, at its right end (52 x 32).
     void Switch(const Rect& r, bool on, State state);
     /// A slider in `r`: `t` 0..1, the value text at the right.
-    void Slider(const Rect& r, float t, const std::string& value, State state, int stops = 0);
+    void Slider(const Rect& r, float t, const std::string& value, State state, int stops = 0,
+                float value_w = 64.0f);
     /// A tonal menu button showing `value` with a drop-down arrow.
     void MenuButton(const Rect& r, const std::string& value, bool open, State state);
     /// An open menu of `options` at `r` (its top left and width; the height follows).

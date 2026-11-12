@@ -24,6 +24,9 @@ struct HandInput {
     bool bumper = false;
     Vec2f stick;
     bool stick_click = false;
+    /// AzaharFrame padsui: the mouse's ray stands in for this hand (Mouse Mode: Pointer): no
+    /// controller to draw, no beam, its trigger only clicks (mouse_pointer.h).
+    bool mouse = false;
 };
 
 /// Everything the controllers report in one display frame. A and B and X and Y and Menu are on the

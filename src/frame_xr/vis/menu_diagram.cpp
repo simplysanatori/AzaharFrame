@@ -8,6 +8,7 @@
 #include <cmath>
 #include <string>
 
+#include "frame_xr/menu/md3_fonts.h"
 #include "frame_xr/vis/help_layout.h"
 
 namespace FrameXr::Vis {
@@ -88,21 +89,24 @@ MenuDiagramArt MakeMenuDiagramArt(const ModelFile& left, const ModelFile& right,
     return art;
 }
 
-void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, DiagramPageId page,
-                     const MenuDiagramArt& art) {
-    if (art.top[0].width == 0) {
-        return;
-    }
-    const float k = art.k;
-    // Help panel pixels (x 0..kDiagramPanelW, y kDiagramTop..kDiagramBottom) into the area.
-    const float span_h = kDiagramBottom - kDiagramTop;
-    const float sc = std::min(area.W() / kDiagramPanelW, area.H() / span_h);
-    const float ox = area.Cx() - kDiagramPanelW * sc * 0.5f;
-    const float oy = area.Cy() - span_h * sc * 0.5f - kDiagramTop * sc;
-    const auto X = [&](float x) { return ox + x * sc; };
-    const auto Y = [&](float y) { return oy + y * sc; };
+namespace {
 
-    // Where each part shows (help panel pixels), as HelpArtAnchors.
+// What a drawing of the diagram needs once the labels are placed: the area's mapping into help
+// panel pixels, and the placed labels.
+struct Placed {
+    float sc = 1.0f, ox = 0.0f, oy = 0.0f;
+    std::vector<DiagramPlaced> labels;
+    float X(float x) const {
+        return ox + x * sc;
+    }
+    float Y(float y) const {
+        return oy + y * sc;
+    }
+};
+
+// Where each part shows (help panel pixels), as HelpArtAnchors.
+DiagramAnchors ArtAnchors(const MenuDiagramArt& art) {
+    const float k = art.k;
     DiagramAnchors an;
     for (int h = 0; h < 2; h++) {
         for (std::size_t p = 0; p < kCtrlParts; p++) {
@@ -118,6 +122,13 @@ void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, Dia
             an.bounds[h][p] = {b[0] / k + ix, b[1] / k + iy, b[2] / k + ix, b[3] / k + iy};
         }
     }
+    return an;
+}
+
+// The drawings, help panel pixels mapped by X and Y.
+template <typename FX, typename FY>
+void DrawArt(Menu::Kit& kit, const MenuDiagramArt& art, const FX& X, const FY& Y) {
+    const float k = art.k;
     for (int h = 0; h < 2; h++) {
         const DiagramImage& t = art.top[h];
         const float tx = DiagramTopX(h), ty = kDiagramTopY;
@@ -129,23 +140,57 @@ void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, Dia
         kit.Image(f.rgba.data(), f.width, f.height,
                   {X(fx), Y(fy), X(fx + f.width / k), Y(fy + f.height / k)});
     }
+}
+
+// Draws the controller pictures and places the labels of `page` (as DrawMenuDiagram did).
+Placed PlaceDiagram(Menu::Kit& kit, const Rect& area, const DiagramPage& page,
+                    const MenuDiagramArt& art) {
+    Placed out;
+    // Help panel pixels (x 0..kDiagramPanelW, y kDiagramTop..kDiagramBottom) into the area.
+    const float span_h = kDiagramBottom - kDiagramTop;
+    const float sc = std::min(area.W() / kDiagramPanelW, area.H() / span_h);
+    out.sc = sc;
+    out.ox = area.Cx() - kDiagramPanelW * sc * 0.5f;
+    out.oy = area.Cy() - span_h * sc * 0.5f - kDiagramTop * sc;
+    const auto X = [&](float x) { return out.X(x); };
+    const auto Y = [&](float y) { return out.Y(y); };
+
+    const DiagramAnchors an = ArtAnchors(art);
+    DrawArt(kit, art, X, Y);
     // Label text in help panel pixels for the layout; drawn at sc dp a pixel.
     const auto measure = [&](float size, bool bold, const std::string& text) {
         return kit.TextWidthSized(size * sc, bold, text) / sc;
     };
-    const auto placed =
-        LayoutHelpDiagram(d.pages[static_cast<std::size_t>(page)], an, measure);
-    for (const DiagramPlaced& p : placed) {
+    out.labels = LayoutHelpDiagram(page, an, measure);
+    return out;
+}
+
+void DrawLeaders(Menu::Kit& kit, const Placed& pl) {
+    for (const DiagramPlaced& p : pl.labels) {
         for (const DiagramLeader& l : p.leaders) {
-            kit.Line(X(l.from.x), Y(l.from.y), X(l.to.x), Y(l.to.y), 1.5f, Tok::kOutline);
+            kit.Line(pl.X(l.from.x), pl.Y(l.from.y), pl.X(l.to.x), pl.Y(l.to.y), 1.5f, Tok::kOutline);
             if (l.ring > 0.0f) {
-                const float r = l.ring * sc;
-                kit.Stroke({X(l.dot.x) - r, Y(l.dot.y) - r, X(l.dot.x) + r, Y(l.dot.y) + r}, r, 1.5f,
-                           Tok::kPrimary);
+                const float r = l.ring * pl.sc;
+                kit.Stroke({pl.X(l.dot.x) - r, pl.Y(l.dot.y) - r, pl.X(l.dot.x) + r, pl.Y(l.dot.y) + r},
+                           r, 1.5f, Tok::kPrimary);
             } else {
-                kit.Dot(X(l.dot.x), Y(l.dot.y), 3.5f, Tok::kPrimary);
+                kit.Dot(pl.X(l.dot.x), pl.Y(l.dot.y), 3.5f, Tok::kPrimary);
             }
         }
+    }
+}
+
+} // namespace
+
+void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, DiagramPageId page,
+                     const MenuDiagramArt& art) {
+    if (art.top[0].width == 0) {
+        return;
+    }
+    const Placed pl = PlaceDiagram(kit, area, d.pages[static_cast<std::size_t>(page)], art);
+    DrawLeaders(kit, pl);
+    const float sc = pl.sc;
+    for (const DiagramPlaced& p : pl.labels) {
         float y = p.y0;
         const auto& lines = p.label->lines;
         for (std::size_t i = 0; i < lines.size(); i++) {
@@ -155,8 +200,8 @@ void DrawMenuDiagram(Menu::Kit& kit, const Rect& area, const HelpDiagram& d, Dia
             }
             const float size = kDiagramLabelSize * sc;
             const float base =
-                Y(y + kDiagramLabelLine * 0.5f) + kit.CapHeightSized(size, l.title) * 0.5f;
-            float x = X(p.x0 + (l.sub ? kDiagramSubIndent : 0.0f));
+                pl.Y(y + kDiagramLabelLine * 0.5f) + kit.CapHeightSized(size, l.title) * 0.5f;
+            float x = pl.X(p.x0 + (l.sub ? kDiagramSubIndent : 0.0f));
             if (l.heading) {
                 kit.TextSized(x, base, size, true, Tok::kPrimary, l.key);
             } else {

@@ -181,7 +181,8 @@ enum class MenuCommand {
     MoreSettings, ///< the same, with Emulation > Configure... open
     Cheats,       ///< AzaharFrame menu: the same, with the game's Cheats tab open
                   ///< (the Cheats tab's Azahar's Window)
-    EditControls, ///< AzaharFrame menu: the controls remap (the remap lane's)
+    EditControls, ///< AzaharFrame menu: Edit Controls started (nothing for the Qt side to do)
+    SetButtons,   ///< AzaharFrame remap: `buttons` are the controls profile's 3DS buttons (18)
     SetSetting,   ///< `setting` to `value`, `per_game` for the running game only
     // AzaharFrame cheatstab: the Cheats tab (core/cheats/online.h does the work)
     ToggleCheat,    ///< `value`: the cheat's index (ListCheats order), on or off, at once, saved
@@ -233,6 +234,8 @@ struct MenuRequest {
     int value = 0;
     bool per_game = false;
     std::string text; ///< AzaharFrame texui: a pack's or a mod's id
+    std::vector<std::string> buttons; ///< AzaharFrame remap: SetButtons, Settings::InputProfile::buttons
+    std::vector<std::string> analogs; ///< AzaharFrame padsui: SetButtons, InputProfile::analogs (or none)
 };
 
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).

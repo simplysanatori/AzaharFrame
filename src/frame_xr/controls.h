@@ -23,6 +23,7 @@
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
 #include "frame_xr/keyboard/keyboard_panel.h" // AzaharFrame keyboard
@@ -213,6 +214,17 @@ private:
                     std::vector<Quad>& layers);
     MirrorPanel::Placement home_place{};
     OverlayChain dim_chain; ///< a dark see-through quad between the game screens and the panel
+    // AzaharFrame padsui: the mouse (input/mouse.h): this frame's, its Pointer mode ray, the
+    // ring that fills while Left and Right Click are held to switch the mode, and where the
+    // ring goes (the cursor last drawn).
+    Input::MouseFrame mouse_frame;
+    Input::MousePointer mouse_pointer;
+    OverlayChain ring_chain;
+    bool mouse_mark_valid = false;
+    XrPosef mouse_mark{};
+    float mouse_mark_size = 0.0f;
+    void MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_input);
+    void AddMouseRing(const FrameInfo& info, std::vector<Quad>& layers);
     /// A hold of one button (the mapper, which times Menu and View in a game, does not run
     /// while the menu shows). Arms only once the button was let go.
     struct Hold {

@@ -46,12 +46,23 @@ struct MouseSample {
     float y = 0.0f;
 };
 
-enum class TouchSource : int { None = 0, Beam, Pad, Mouse };
+/// AzaharFrame padsui: the mouse in Mouse Mode: Bottom Screen: relative, a cursor of its own.
+struct CursorSample {
+    bool on = false;   ///< a mouse in Bottom Screen mode, a game running, the menu closed
+    Vec2f motion;      ///< counts this frame, right and down
+    float gain = 0.3f; ///< 3DS pixels per count
+    bool down = false; ///< the touch input held
+    bool recentre = true;
+};
+
+enum class TouchSource : int { None = 0, Beam, Pad, Mouse, Cursor };
 
 struct TouchpadFrame {
     TouchpadMode mode = TouchpadMode::Off;
     PadSample pad;
     MouseSample mouse;
+    CursorSample cursor; ///< AzaharFrame padsui
+    bool pad_recentre = false; ///< AzaharFrame padsui: the pad's Recentre at Edge
     bool bottom_visible = false;
     int64_t time_ns = 0;
     /// The mapper's touch events of this frame (the controller beam).
@@ -83,6 +94,11 @@ public:
     static constexpr int64_t kMouseIdleNs = 2'000'000'000;
     /// A touch only moves when it changed by at least this many 3DS pixels (as the mapper's).
     static constexpr float kMoveEpsilonPx = 0.25f;
+    /// AzaharFrame padsui: Recentre at Edge: a drag that runs into an edge lifts for this long
+    /// (so the game sees the lift) and touches again at the middle.
+    static constexpr int64_t kRecentreGapNs = 50'000'000;
+    /// A touchpad's point this near an edge (a fraction of the screen) is at it.
+    static constexpr float kPadEdge = 0.02f;
 
     TouchpadResult Update(const TouchpadFrame& frame);
 
@@ -97,6 +113,18 @@ public:
         return touching_;
     }
 
+    /// AzaharFrame padsui: what a cursor source gives the shared cursor pipeline (CursorStep): a
+    /// touchpad its finger's point (absolute), the mouse its counts (relative).
+    struct CursorInput {
+        bool live = false;     ///< the source counts at all now
+        bool absolute = false; ///< `point` (0..1) is where it is; else `delta` moves it
+        bool has_point = false;
+        Vec2f point;
+        Vec2f delta;           ///< 3DS pixels this frame (counts times the speed's gain)
+        bool down = false;     ///< touching (click = touch, held = drag)
+        bool recentre = false; ///< Recentre at Edge
+    };
+
 private:
     struct Source {
         bool engaged_prev = false;
@@ -104,6 +132,22 @@ private:
         float px = 0.0f;
         float py = 0.0f;
     };
+    /// AzaharFrame padsui: one cursor of the shared pipeline: its point, clamped to the screen,
+    /// and Recentre at Edge's state.
+    struct CursorTrack {
+        Source src;
+        bool started = false;
+        Vec2f offset;          ///< absolute: added to the point after a recentre
+        bool gap = false;      ///< lifted by Recentre at Edge, touching again at gap_until
+        int64_t gap_until = 0;
+        bool at_edge = false;  ///< absolute: was at an edge last frame
+        int64_t move_ns = 0;   ///< last moved
+    };
+    /// The pipeline: moves the cursor, clamps it, touches with `down` (and drags while held),
+    /// and with Recentre at Edge lifts a drag that runs into an edge and touches again at the
+    /// middle after kRecentreGapNs.
+    void CursorStep(TouchpadResult& out, CursorTrack& t, const CursorInput& in, TouchSource who,
+                    int64_t now);
     void Emit(TouchpadResult& out, TouchEventType type, float px, float py);
     void Take(TouchpadResult& out, TouchSource who, float px, float py);
     void Drop(TouchpadResult& out, TouchSource who);
@@ -114,7 +158,9 @@ private:
     bool touching_ = false; ///< the sink has been told of a touch
     float sent_px_ = 0.0f;
     float sent_py_ = 0.0f;
-    Source pad_;
+    // AzaharFrame padsui: the touchpad's and the mouse's cursors, one pipeline.
+    CursorTrack pad_;
+    CursorTrack cursor_;
     Source mouse_;
     bool mouse_seen_ = false;
     float mouse_last_x_ = 0.0f;

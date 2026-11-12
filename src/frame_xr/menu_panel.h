@@ -33,6 +33,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/menu/remap.h"
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/vis/async_overlay.h"
 
@@ -105,6 +106,9 @@ private:
     void Click(Menu::Target t, Host& host);
     void SetSetting(Menu::Id id, int value, Host& host);
     void Worker();
+    void BeginEdit();
+    void EditChanged(Menu::Remap::Event e, Host& host);
+    void EditInput(const Input::InputFrame& in, bool have_input, float dt, Host& host);
 
     // XR thread.
     Vis::AsyncOverlay chain;
@@ -133,6 +137,25 @@ private:
     uint64_t uploaded = 0; ///< the newest drawn pixels uploaded
     bool posted_any = false;
     bool stale = false, stale_uploaded = false; ///< AzaharFrame kbd: Forget
+    // AzaharFrame remap: Edit Controls. `edit_buttons` is the profile's 3DS buttons as last
+    // written; `edit_table` the same as the state machine's table (to see what changed).
+    Menu::Remap remap;
+    std::array<std::string, Menu::kRemapButtons> edit_buttons;
+    Menu::RemapTable edit_table{};
+    // AzaharFrame padsui: the profile's Circle Pad and C-Stick, the same as stick routes.
+    std::array<std::string, 2> edit_analogs;
+    Menu::RemapSticks edit_sticks = Menu::kDefaultSticks;
+    std::array<bool, 11> edit_prev{};
+    bool edit_b_prev = true;
+    /// AzaharFrame pads: the device Edit Controls edits ("frame", a gamepad's id, "mouse"), and
+    /// whether its next button is being listened for (frame_xr/input/devices.h).
+    std::string edit_device{"frame"};
+    bool edit_pad_by_label = false;
+    bool edit_pad_listening = false;
+    /// AzaharFrame padsui: the mouse's Pointer Test cursor (0..1 on the bottom screen).
+    Input::Vec2f mouse_test{0.5f, 0.5f};
+    bool mouse_test_started = false;
+    void BeginDeviceEdit(const std::string& id, bool by_label);
     Menu::MenuModel posted_model;
     Menu::MenuView posted_view;
 

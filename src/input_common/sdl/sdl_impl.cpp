@@ -382,6 +382,7 @@ void SDLState::InitJoystick(int joystick_index) {
         return;
     }
     const std::string guid = GetGUID(sdl_joystick);
+    pad_generation++; // AzaharFrame pads
 
     JoystickMapLock lock{joystick_map_mutex};
     if (joystick_map.find(guid) == joystick_map.end()) {
@@ -412,6 +413,7 @@ void SDLState::CloseJoystick(SDL_JoystickID instance_id) {
     if (joystick) {
         LOG_DEBUG(Input, "Closing joystick with instance ID {}", instance_id);
         joystick->SetSDLJoystick(nullptr, nullptr);
+        pad_generation++; // AzaharFrame pads
     } else {
         LOG_DEBUG(Input, "Joystick with instance ID {} already closed or not found", instance_id);
     }
@@ -1281,6 +1283,99 @@ bool SDLState::GetTouchpad(TouchpadSample& sample) {
     }
 #endif
     return false;
+}
+
+// AzaharFrame pads: the game controllers for the VR gamepad merge. joystick_vector can hold a
+// reconnected controller twice (InitJoystick reuses its slot and adds it again), so each SDL
+// instance is taken once.
+std::uint64_t SDLState::GetPadGeneration() {
+    return pad_generation.load();
+}
+
+void SDLState::GetPadInfos(std::vector<SDLPadInfo>& out) {
+    out.clear();
+    std::lock_guard lock{joystick_map_mutex};
+    for (const auto& joystick : *joystick_vector) {
+        SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
+        SDL_Joystick* sdl_joystick = joystick ? joystick->GetSDLJoystick() : nullptr;
+        if (!controller || !sdl_joystick) {
+            continue;
+        }
+        const int id = SDL_JoystickInstanceID(sdl_joystick);
+        if (std::any_of(out.begin(), out.end(), [id](const auto& p) { return p.id == id; })) {
+            continue;
+        }
+        SDLPadInfo info;
+        info.id = id;
+        info.guid = joystick->GetGUID();
+        const char* name = SDL_GameControllerName(controller);
+        info.name = name ? name : "";
+        info.type = static_cast<int>(SDL_GameControllerGetType(controller));
+        info.vendor = SDL_GameControllerGetVendor(controller);
+        info.product = SDL_GameControllerGetProduct(controller);
+        // The GUID's vendor and product are the virtual pad's (SDL_GetJoystickGUIDInfo), the
+        // calls above the real controller's when Steam says which it is.
+#if SDL_VERSION_ATLEAST(2, 26, 0)
+        Uint16 guid_vendor = 0;
+        Uint16 guid_product = 0;
+        const SDL_JoystickGUID guid = SDL_JoystickGetGUID(sdl_joystick);
+        SDL_GetJoystickGUIDInfo(guid, &guid_vendor, &guid_product, nullptr, nullptr);
+        info.steam_virtual = guid_vendor == 0x28de && guid_product == 0x11ff;
+#endif
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+        info.has_touchpad = SDL_GameControllerGetNumTouchpads(controller) > 0;
+#endif
+        out.push_back(std::move(info));
+    }
+}
+
+void SDLState::GetPadStates(std::vector<SDLPadState>& out) {
+    static_assert(SDLPadState::kButtons == SDL_CONTROLLER_BUTTON_MAX);
+    static_assert(SDLPadState::kAxes == SDL_CONTROLLER_AXIS_MAX);
+    std::size_t count = 0;
+    std::lock_guard lock{joystick_map_mutex};
+    for (const auto& joystick : *joystick_vector) {
+        SDL_GameController* controller = joystick ? joystick->GetSDLGameController() : nullptr;
+        SDL_Joystick* sdl_joystick = joystick ? joystick->GetSDLJoystick() : nullptr;
+        if (!controller || !sdl_joystick) {
+            continue;
+        }
+        const int id = SDL_JoystickInstanceID(sdl_joystick);
+        if (std::any_of(out.begin(), out.begin() + count,
+                        [id](const auto& p) { return p.id == id; })) {
+            continue;
+        }
+        if (count == out.size()) {
+            out.emplace_back();
+        }
+        SDLPadState& state = out[count++];
+        state.id = id;
+        for (int b = 0; b < SDLPadState::kButtons; b++) {
+            state.buttons[b] = SDL_GameControllerGetButton(
+                                   controller, static_cast<SDL_GameControllerButton>(b)) != 0;
+        }
+        for (int a = 0; a < SDLPadState::kAxes; a++) {
+            state.axes[a] = std::clamp(
+                SDL_GameControllerGetAxis(controller, static_cast<SDL_GameControllerAxis>(a)) /
+                    32767.0f,
+                -1.0f, 1.0f);
+        }
+        state.touchpad = {};
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+        const int pads = SDL_GameControllerGetNumTouchpads(controller);
+        if (pads > 0) {
+            const int pad = pads >= 2 ? 1 : 0; // the Steam Controller's right pad, as GetTouchpad
+            const auto [x, y, down] = joystick->GetTouch(pad);
+            state.touchpad.present = true;
+            state.touchpad.contact = down != 0.0f;
+            state.touchpad.click =
+                SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_TOUCHPAD) != 0;
+            state.touchpad.x = x;
+            state.touchpad.y = y;
+        }
+#endif
+    }
+    out.resize(count);
 }
 
 void SDLState::GetSystemBatteryState(float& percentage, bool& charging) {

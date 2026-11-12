@@ -590,6 +590,12 @@ void GRenderWindow::keyReleaseEvent(QKeyEvent* event) {
 // the touchpad as a mouse (Steam Input): it goes to the XR side as a position over the window and
 // the left button, to touch the bottom screen there, and not as a touch in the window's layout.
 bool GRenderWindow::FeedVrMouse(const QMouseEvent* event, bool leaving) {
+    // AzaharFrame padsui: a real mouse in VR is read directly (frame_xr/input/devices.h): its
+    // clicks on this window touch nothing here.
+    if (FrameXr::VrShowing() && InputCommon::FrameXr::VrMouseOwned()) {
+        InputCommon::FrameXr::ClearMouseState();
+        return true;
+    }
     if (Settings::values.vr_touchpad_touch.GetValue() == 0 || !FrameXr::VrShowing()) {
         InputCommon::FrameXr::ClearMouseState();
         return false;

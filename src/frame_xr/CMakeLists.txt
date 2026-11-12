@@ -30,6 +30,15 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/actions.h
     input/controls.h
     input/default_bindings.h
+    input/devices.cpp # AzaharFrame pads
+    input/devices.h
+    input/gamepads.cpp
+    input/gamepads.h
+    input/mouse.cpp # AzaharFrame padsui
+    input/mouse.h
+    input/mouse_pointer.cpp # AzaharFrame padsui: adapted from Frametop (MIT)
+    input/mouse_pointer.h
+    input/profile_routes.h
     input/click_gesture.h
     input/geometry.cpp
     input/geometry.h

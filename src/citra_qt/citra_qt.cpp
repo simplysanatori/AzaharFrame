@@ -364,6 +364,10 @@ void FrameXrPushControls() {
     FrameXr::SetControlBindings(
         std::vector<std::string>(profile.buttons.begin(), profile.buttons.end()),
         std::vector<std::string>(profile.analogs.begin(), profile.analogs.end()), profile.name);
+    // AzaharFrame pads: the Frame controls the profile binds to each 3DS button, which the other
+    // gamepads press in VR.
+    InputCommon::FrameXr::SetProfileRoutes(
+        InputCommon::FrameXr::RoutesOf(profile.buttons, profile.analogs));
 }
 
 Frontend::WindowSystemType FrameXrWindowSystemType() {
@@ -4047,7 +4051,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
-    case C::EditControls: // AzaharFrame menu: the remap lane's
+    case C::EditControls: // AzaharFrame remap: the menu does it all
         return;
     case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
@@ -4071,6 +4075,20 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             g_frame_mods->Command(r);
         }
         return;
+    case C::SetButtons: { // AzaharFrame remap: Edit Controls changed the profile's 3DS buttons
+        auto& profile = Settings::values.current_input_profile;
+        for (std::size_t i = 0; i < profile.buttons.size() && i < r.buttons.size(); i++) {
+            profile.buttons[i] = r.buttons[i];
+        }
+        for (std::size_t i = 0; i < profile.analogs.size() && i < r.analogs.size(); i++) {
+            profile.analogs[i] = r.analogs[i]; // AzaharFrame padsui: the sticks
+        }
+        Settings::SaveProfile(Settings::values.current_input_profile_index);
+        system.ApplySettings(); // the game's input devices read the profile again
+        config->Save();
+        FrameXrPushControls();
+        return;
+    }
     case C::SetSetting:
         break;
     }

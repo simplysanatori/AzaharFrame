@@ -33,6 +33,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/vis/beam.h"
 
 namespace FrameXr {
@@ -103,6 +104,17 @@ public:
     /// AzaharFrame tabmenu: the stats as the stats panel would show them now (the in-game menu's
     /// Stats tab, as it opens: the last second the game ran). XR thread.
     std::vector<std::pair<std::string, std::string>> MenuStats();
+
+    /// AzaharFrame padsui: the mouse's ray (Mouse Mode: Pointer), whose hand is drawn as a dot
+    /// only: no controller, no beam. Its dot goes where MousePointer::PlaceDot says.
+    void SetMousePointer(Input::MousePointer* pointer);
+    struct Mark {
+        bool shown = false;
+        XrPosef pose{};
+        float size_m = 0.0f;
+    };
+    /// The mouse ray's dot as last drawn (for the mode-switch ring).
+    Mark MouseDot() const;
 
 private:
     struct Impl;

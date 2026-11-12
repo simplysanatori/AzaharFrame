@@ -20,8 +20,10 @@
 #include <utility>
 #include <vector>
 
+#include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/mods_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/remap.h"
 
 namespace FrameXr::Menu {
 
@@ -66,6 +68,15 @@ enum class Id : int {
     ControlsPage,
     TouchpadTouch, ///< AzaharFrame menu
     EditControls,  ///< AzaharFrame menu
+    RemapChip,     ///< AzaharFrame remap, index: the 3DS button (DsButton) of a chip
+    RemapCancel,   ///< AzaharFrame remap: stop listening
+    RemapReset,    ///< AzaharFrame remap: Reset to Default
+    RemapDone,     ///< AzaharFrame remap: Done
+    EditDevice,    ///< AzaharFrame padsui, index: the device in MenuModel::devices
+    MouseMode,     ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
+    RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
+    UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
+    CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     // Settings
     Scope,
     Background,
@@ -144,7 +155,7 @@ struct MenuModel {
     bool hide_bottom_screen = false;
     int screen_shape = 0;  ///< Settings::values.vr_top_aspect
     int screen_layout = 0; ///< 0 Stacked, 1 Side by Side (AzaharFrame layout)
-    int move_screens = 0;  ///< 0 Together, 1 Separately (AzaharFrame menu)
+    int move_screens = 0;  ///< 0 Off, 1 Secondary, 2 Both (AzaharFrame menu)
     int screen_curve = 0;  ///< index of Off, 15, 30, 45, 60, 75, 90 degrees
     std::string immersive_offset = "None";
     bool immersive_offset_set = false;
@@ -156,6 +167,7 @@ struct MenuModel {
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
     int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
+    EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game
     int background = 0;
@@ -193,6 +205,7 @@ struct MenuView {
     ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
     TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
     std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
+    RemapView remap; ///< AzaharFrame remap: Edit Controls
     bool operator==(const MenuView&) const = default;
 };
 
@@ -236,7 +249,8 @@ struct MenuLayout {
 
 class TabMenu {
 public:
-    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab.
+    /// Draws the controller diagram of `page` into `area` (dp) on the Controls tab (Edit
+    /// Controls draws the 3DS itself, ds_drawing.h).
     using DiagramDraw = std::function<void(Kit& kit, const Rect& area, int page)>;
 
     void SetDiagram(DiagramDraw draw) {
@@ -266,6 +280,7 @@ private:
     void DrawMain(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
+    void DrawEditControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawControls(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     /// AzaharFrame cheatstab: the Mods tab (mods_tab.cpp) and its segments, each drawn in `area`
     /// (the pane's width, under the segmented button): cheats_tab.cpp, mods_segments.cpp.

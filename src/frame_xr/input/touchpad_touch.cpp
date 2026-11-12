@@ -69,6 +69,73 @@ bool TouchpadTouch::Engage(Source& s, bool engaged) {
     return edge;
 }
 
+// AzaharFrame padsui: the shared cursor pipeline.
+void TouchpadTouch::CursorStep(TouchpadResult& out, CursorTrack& t, const CursorInput& in,
+                               TouchSource who, int64_t now) {
+    const float max_x = std::nextafter(kBottomScreenWidthPx, 0.0f);
+    const float max_y = std::nextafter(kBottomScreenHeightPx, 0.0f);
+    if (!t.started) {
+        t.src.px = kBottomScreenWidthPx * 0.5f;
+        t.src.py = kBottomScreenHeightPx * 0.5f;
+        t.started = true;
+    }
+    const bool engaged = in.live && in.down;
+    if (!engaged) {
+        t.offset = {};
+        t.gap = false;
+    }
+    // Where it is, and whether it ran into an edge this frame.
+    bool hit_edge = false;
+    bool at_edge = false;
+    if (in.absolute) {
+        if (in.has_point) {
+            const float ux = in.point.x + t.offset.x, uy = in.point.y + t.offset.y;
+            const float nx = ToPx(Clamp01(ux), kBottomScreenWidthPx);
+            const float ny = ToPx(Clamp01(uy), kBottomScreenHeightPx);
+            if (nx != t.src.px || ny != t.src.py) {
+                t.move_ns = now;
+            }
+            t.src.px = nx;
+            t.src.py = ny;
+            at_edge = ux <= kPadEdge || ux >= 1.0f - kPadEdge || uy <= kPadEdge ||
+                      uy >= 1.0f - kPadEdge;
+            hit_edge = at_edge && !t.at_edge;
+        }
+    } else if (in.live && (in.delta.x != 0.0f || in.delta.y != 0.0f)) {
+        const float nx = t.src.px + in.delta.x;
+        const float ny = t.src.py + in.delta.y;
+        hit_edge = nx < 0.0f || nx > max_x || ny < 0.0f || ny > max_y;
+        t.src.px = std::clamp(nx, 0.0f, max_x);
+        t.src.py = std::clamp(ny, 0.0f, max_y);
+        t.move_ns = now;
+    }
+    const bool edge = Engage(t.src, engaged);
+    if (!engaged) {
+        Drop(out, who);
+    } else if (t.gap) {
+        if (now >= t.gap_until) {
+            t.gap = false;
+            Take(out, who, t.src.px, t.src.py);
+        }
+    } else if (edge) {
+        Take(out, who, t.src.px, t.src.py);
+    } else if (in.recentre && hit_edge && owner_ == who && touching_) {
+        // Recentre at Edge: lift, and touch again at the middle; an absolute source goes on
+        // from there by its motion (an offset) until it lets go.
+        Drop(out, who);
+        if (in.absolute) {
+            t.offset = {0.5f - in.point.x, 0.5f - in.point.y};
+        }
+        t.src.px = kBottomScreenWidthPx * 0.5f;
+        t.src.py = kBottomScreenHeightPx * 0.5f;
+        t.gap = true;
+        t.gap_until = now + kRecentreGapNs;
+    } else {
+        Follow(out, who, t.src.px, t.src.py);
+    }
+    t.at_edge = engaged && at_edge && !t.gap;
+}
+
 TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
     TouchpadResult out;
 
@@ -93,26 +160,35 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
     }
 
     const bool on = frame.mode != TouchpadMode::Off && frame.bottom_visible;
+    const bool cursor_on = frame.bottom_visible && frame.cursor.on; // AzaharFrame padsui
 
     // The pad. Touch: finger contact is the touch. Click: the click is, contact only aims.
+    // AzaharFrame padsui: the pad and the mouse's cursor share one pipeline (CursorStep): the pad
+    // gives its point, the mouse its counts.
     {
         const PadSample& pad = frame.pad;
-        const bool has_point = pad.present && (pad.contact || pad.click);
-        const bool engaged =
-            on && pad.present &&
-            (frame.mode == TouchpadMode::Touch ? pad.contact : pad.click && has_point);
-        if (has_point) {
-            pad_.px = ToPx(Clamp01(pad.x), kBottomScreenWidthPx);
-            pad_.py = ToPx(Clamp01(pad.y), kBottomScreenHeightPx);
-        }
-        if (Engage(pad_, engaged)) {
-            Take(out, TouchSource::Pad, pad_.px, pad_.py);
-        } else if (engaged) {
-            Follow(out, TouchSource::Pad, pad_.px, pad_.py);
-        }
-        if (!engaged) {
-            Drop(out, TouchSource::Pad);
-        }
+        CursorInput in;
+        in.live = on && pad.present;
+        in.absolute = true;
+        in.has_point = pad.present && (pad.contact || pad.click);
+        in.point = {pad.x, pad.y};
+        in.down = frame.mode == TouchpadMode::Touch ? pad.contact : pad.click && in.has_point;
+        in.recentre = frame.pad_recentre;
+        CursorStep(out, pad_, in, TouchSource::Pad, frame.time_ns);
+    }
+
+    // AzaharFrame padsui: the mouse in Bottom Screen mode: its counts, scaled by Cursor Speed.
+    bool cursor_hover = false;
+    {
+        const CursorSample& c = frame.cursor;
+        CursorInput in;
+        in.live = cursor_on;
+        in.delta = {c.motion.x * c.gain, c.motion.y * c.gain};
+        in.down = c.down;
+        in.recentre = c.recentre;
+        CursorStep(out, cursor_, in, TouchSource::Cursor, frame.time_ns);
+        cursor_hover =
+            cursor_on && (frame.time_ns - cursor_.move_ns < kMouseIdleNs || (in.live && in.down));
     }
 
     // The mouse: the left button touches in both modes (a hover is not a contact).
@@ -147,18 +223,23 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
 
     // The dot: where the touch is, or where it would be (pad contact in Click mode, the pointer).
     TouchpadCursor& c = out.cursor;
-    if (on && owner_ != TouchSource::Beam) {
+    if ((on || cursor_on) && owner_ != TouchSource::Beam) {
         const bool pad_hover = frame.pad.present && (frame.pad.contact || frame.pad.click);
         TouchSource src = TouchSource::None;
-        if (owner_ == TouchSource::Pad || owner_ == TouchSource::Mouse) {
+        if (owner_ == TouchSource::Pad || owner_ == TouchSource::Mouse ||
+            owner_ == TouchSource::Cursor) {
             src = owner_;
         } else if (pad_hover) {
             src = TouchSource::Pad;
+        } else if (cursor_hover) {
+            src = TouchSource::Cursor;
         } else if (mouse_hover) {
             src = TouchSource::Mouse;
         }
         if (src != TouchSource::None) {
-            const Source& s = src == TouchSource::Pad ? pad_ : mouse_;
+            const Source& s = src == TouchSource::Pad     ? pad_.src
+                              : src == TouchSource::Mouse ? mouse_
+                                                          : cursor_.src;
             c.visible = true;
             c.source = src;
             c.px = s.px;
@@ -175,9 +256,10 @@ bool TouchpadTouch::Reset() {
     const bool was = touching_;
     owner_ = TouchSource::None;
     touching_ = false;
-    pad_ = Source{};
+    pad_ = CursorTrack{};
     mouse_ = Source{};
     mouse_seen_ = false;
+    cursor_ = CursorTrack{};
     return was;
 }
 

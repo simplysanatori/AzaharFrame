@@ -12,8 +12,11 @@
 #include <utility>
 
 #include <fmt/format.h>
+#include "common/param_package.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "frame_xr/input/default_bindings.h"
+#include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
@@ -22,6 +25,7 @@
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/menu_diagram.h"
 #include "frame_xr/vis/visuals.h"
+#include "input_common/frame_xr.h" // AzaharFrame pads: the mouse for the Pointer Test
 
 namespace FrameXr {
 
@@ -82,6 +86,99 @@ std::string OffsetText(float x, float y) {
     part(x, "Right", "Left");
     part(y, "Up", "Down");
     return s.empty() ? std::string{"None"} : s;
+}
+
+// AzaharFrame padsui: the menu's 3DS button indices are Settings::NativeButton's.
+static_assert(Menu::DsButton::A == Settings::NativeButton::A &&
+              Menu::DsButton::Select == Settings::NativeButton::Select &&
+              Menu::DsButton::ZL == Settings::NativeButton::ZL &&
+              Menu::DsButton::ZR == Settings::NativeButton::ZR &&
+              Menu::DsButton::Home == Settings::NativeButton::Home &&
+              Menu::kRemapButtons == Settings::NativeButton::NumButtons);
+
+// AzaharFrame remap: the controls profile's 3DS buttons as a table (the Frame control driving
+// each), and back. Only buttons bound to the frame_xr engine are in the table; the others are left
+// as they are.
+// AzaharFrame padsui: the mouse's mapping holds MouseInputs, as the menu's table does.
+Menu::RemapTable MouseTableOf(const Input::GamepadMapping& m) {
+    Menu::RemapTable t = Menu::kNoMapping;
+    for (std::size_t i = 0; i < t.size() && i < m.buttons.size(); i++) {
+        t[i] = m.buttons[i];
+    }
+    return t;
+}
+
+Menu::RemapTable TableOf(const std::array<std::string, Menu::kRemapButtons>& buttons) {
+    Menu::RemapTable t;
+    t.fill(-1);
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        const Common::ParamPackage p(buttons[i]);
+        if (p.Get("engine", "") == "frame_xr" && p.Has("button")) {
+            t[i] = static_cast<int8_t>(p.Get("button", -1));
+        }
+    }
+    return t;
+}
+
+void ApplyTable(std::array<std::string, Menu::kRemapButtons>& buttons, const Menu::RemapTable& now,
+                const Menu::RemapTable& before) {
+    for (std::size_t i = 0; i < buttons.size(); i++) {
+        if (now[i] == before[i]) {
+            continue;
+        }
+        if (now[i] < 0) {
+            buttons[i].clear();
+            continue;
+        }
+        Common::ParamPackage p(buttons[i]);
+        if (p.Get("engine", "") != "frame_xr") {
+            p = Common::ParamPackage{};
+            p.Set("engine", "frame_xr");
+        }
+        p.Set("button", static_cast<int>(now[i]));
+        buttons[i] = p.Serialize();
+    }
+}
+
+// AzaharFrame padsui: the profile's Circle Pad and C-Stick as stick routes (stick_route.h), and
+// back. A stick bound to another engine is -1 and left as it is.
+Menu::RemapSticks SticksOf(const std::array<std::string, 2>& analogs) {
+    Menu::RemapSticks t{-1, -1};
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        const Common::ParamPackage p(analogs[i]);
+        if (p.Get("engine", "") == "frame_xr" && p.Has("analog")) {
+            Input::StickRoute r;
+            r.stick = p.Get("analog", -1);
+            r.swap_xy = p.Get("swap_xy", 0) != 0;
+            r.invert_x = p.Get("invert_x", 0) != 0;
+            r.invert_y = p.Get("invert_y", 0) != 0;
+            t[i] = Input::EncodeStickRoute(r);
+        }
+    }
+    return t;
+}
+
+void ApplySticks(std::array<std::string, 2>& analogs, const Menu::RemapSticks& now,
+                 const Menu::RemapSticks& before) {
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        if (now[i] == before[i] || now[i] < 0) {
+            continue;
+        }
+        const Input::StickRoute r = Input::DecodeStickRoute(now[i]);
+        Common::ParamPackage p;
+        p.Set("engine", "frame_xr");
+        p.Set("analog", r.stick);
+        if (r.swap_xy) {
+            p.Set("swap_xy", 1);
+        }
+        if (r.invert_x) {
+            p.Set("invert_x", 1);
+        }
+        if (r.invert_y) {
+            p.Set("invert_y", 1);
+        }
+        analogs[i] = p.Serialize();
+    }
 }
 
 /// The release's VERSION file beside the program, or "" for a build from source.
@@ -263,10 +360,240 @@ void MenuPanel::Resume() {
     LOG_INFO(Frontend, "xr: in-game menu: the tab menu shows");
 }
 
+void MenuPanel::BeginEdit() {
+    const Vis::HelpBindings given = Vis::CurrentHelpBindings();
+    const Vis::HelpBindings b = given.valid ? given : Vis::DefaultHelpBindings();
+    for (std::size_t i = 0; i < edit_buttons.size(); i++) {
+        edit_buttons[i] = b.buttons[i];
+    }
+    edit_table = TableOf(edit_buttons);
+    for (std::size_t i = 0; i < edit_analogs.size(); i++) {
+        edit_analogs[i] = b.analogs[i];
+    }
+    edit_sticks = SticksOf(edit_analogs);
+    std::array<std::string, Menu::kRemapButtons> defaults;
+    const Vis::HelpBindings d = Vis::DefaultHelpBindings();
+    for (std::size_t i = 0; i < defaults.size(); i++) {
+        defaults[i] = d.buttons[i];
+    }
+    remap.Begin(edit_table, TableOf(defaults), Menu::RemapSource::Frame, edit_sticks,
+                SticksOf({d.analogs[0], d.analogs[1]}));
+    edit_prev = {};
+    edit_b_prev = true;
+    // AzaharFrame pads: Edit Controls starts on the Frame controllers.
+    edit_device = Input::kFrameDeviceId;
+    if (edit_pad_listening) {
+        Input::Devices::CancelListen();
+        edit_pad_listening = false;
+    }
+    LOG_INFO(Frontend, "xr: in-game menu: Edit Controls");
+}
+
+// AzaharFrame pads: Edit Controls on a gamepad (its mapping from the registry, in the menu's
+// terms) or the mouse (AzaharFrame padsui: its MouseInputs as they are, Touch Screen and Open
+// Menu besides).
+void MenuPanel::BeginDeviceEdit(const std::string& id, bool by_label) {
+    if (edit_pad_listening) {
+        Input::Devices::CancelListen();
+        edit_pad_listening = false;
+    }
+    edit_device = id;
+    edit_pad_by_label = by_label;
+    if (id == Input::kMouseDeviceId) {
+        const Input::GamepadMapping now = Input::Devices::GetMapping(id);
+        const Input::GamepadMapping def = Input::Devices::GetDefaultMapping(id);
+        remap.Begin(MouseTableOf(now), MouseTableOf(def), Menu::RemapSource::Mouse, {-1, -1},
+                    {-1, -1}, {now.touch, now.open_menu}, {def.touch, def.open_menu});
+        mouse_test_started = false;
+    } else {
+        const Input::GamepadMapping now = Input::Devices::GetMapping(id);
+        const Input::GamepadMapping def = Input::Devices::GetDefaultMapping(id);
+        remap.Begin(Input::ControlTableOf(now, by_label), Input::ControlTableOf(def, by_label),
+                    Menu::RemapSource::Pad, {now.analogs[0], now.analogs[1]},
+                    {def.analogs[0], def.analogs[1]});
+    }
+    edit_prev = {};
+    LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: another device");
+}
+
+// A change of the table is written to the controls profile at once (the Qt side keeps it in the
+// profile and the config), and the diagram shows it in the next frame.
+void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
+    using Event = Menu::Remap::Event;
+    if (e != Event::Moved && e != Event::Swapped && e != Event::Reset) {
+        return;
+    }
+    // AzaharFrame pads: a gamepad's mapping goes to user/controller-mappings.txt.
+    if (edit_device != Input::kFrameDeviceId) {
+        if (edit_device == Input::kMouseDeviceId) {
+            // AzaharFrame padsui: the mouse's buttons, Touch Screen and Open Menu; Reset to
+            // Default leaves its Mouse Mode and Recentre at Edge as they are.
+            const Input::GamepadMapping cur = Input::Devices::GetMapping(edit_device);
+            Input::GamepadMapping m = cur;
+            for (std::size_t i = 0; i < m.buttons.size() && i < remap.Table().size(); i++) {
+                m.buttons[i] = remap.Table()[i];
+            }
+            m.touch = remap.Extras()[0];
+            m.open_menu = remap.Extras()[1];
+            const bool saved = Input::Devices::SetMapping(edit_device, m);
+            LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: mouse {}{}",
+                     e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved",
+                     saved ? "" : " (not saved)");
+            return;
+        }
+        Input::GamepadMapping m = Input::WithControlTable(Input::Devices::GetMapping(edit_device),
+                                                          remap.Table(), edit_pad_by_label);
+        m.analogs = {remap.Sticks()[0], remap.Sticks()[1]}; // AzaharFrame padsui: stick routes
+        const bool saved = e == Event::Reset ? (Input::Devices::ResetMapping(edit_device), true)
+                                             : Input::Devices::SetMapping(edit_device, m);
+        LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: gamepad {}{}",
+                 e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved",
+                 saved ? "" : " (not saved)");
+        return;
+    }
+    ApplyTable(edit_buttons, remap.Table(), edit_table);
+    edit_table = remap.Table();
+    ApplySticks(edit_analogs, remap.Sticks(), edit_sticks); // AzaharFrame padsui
+    edit_sticks = remap.Sticks();
+    const Vis::HelpBindings given = Vis::CurrentHelpBindings();
+    const Vis::HelpBindings b = given.valid ? given : Vis::DefaultHelpBindings();
+    SetControlBindings(std::vector<std::string>(edit_buttons.begin(), edit_buttons.end()),
+                       std::vector<std::string>(edit_analogs.begin(), edit_analogs.end()),
+                       b.profile_name);
+    MenuRequest r;
+    r.command = MenuCommand::SetButtons;
+    r.buttons.assign(edit_buttons.begin(), edit_buttons.end());
+    r.analogs.assign(edit_analogs.begin(), edit_analogs.end());
+    if (host.request) {
+        host.request(r);
+    }
+    LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: {}",
+             e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved");
+}
+
+// A Frame button pressed while a chip listens (the XR thread's raw input): B cancels, the others
+// move the chip's 3DS buttons to it. Presses are edges; the game is paused, so it sees none.
+void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt, Host& host) {
+    using Input::Control;
+    const bool pos = model.face_buttons == 0;
+    const std::array<bool, 11> now = {
+        have_input && in.a,
+        have_input && in.x,
+        have_input && in.y,
+        have_input && in.menu,
+        have_input && in.view,
+        have_input && in.dpad_up,
+        have_input && in.dpad_down,
+        have_input && in.dpad_left,
+        have_input && in.dpad_right,
+        have_input && in.hand[0].bumper,
+        have_input && in.hand[1].bumper,
+    };
+    // By position the Frame's A drives the pad's B (mapper.cpp), and so on.
+    const std::array<Control, 11> as = {
+        pos ? Control::B : Control::A, pos ? Control::Y : Control::X, pos ? Control::X : Control::Y,
+        Control::Menu,     Control::View,   Control::DpadUp,  Control::DpadDown,
+        Control::DpadLeft, Control::DpadRight, Control::BumperL, Control::BumperR};
+    // AzaharFrame pads: a gamepad being edited: its own next press (devices.h); the Frame's
+    // buttons are not its buttons (B still cancels, the beam still clicks).
+    if (remap.Source() == Menu::RemapSource::Mouse) {
+        // AzaharFrame padsui: the mouse being edited: its next click, button or wheel notch.
+        if (remap.Listening() >= 0) {
+            if (!edit_pad_listening) {
+                edit_pad_listening = Input::Devices::BeginListen(edit_device);
+            }
+            if (edit_pad_listening) {
+                using State = Input::GamepadHub::ListenResult::State;
+                const Input::GamepadHub::ListenResult r = Input::Devices::PollListen();
+                if (r.state == State::Pressed) {
+                    edit_pad_listening = false;
+                    EditChanged(remap.Press(r.input), host);
+                } else if (r.state != State::Listening) {
+                    edit_pad_listening = false;
+                    EditChanged(remap.Cancel(), host); // the mouse went away
+                }
+            }
+            EditChanged(remap.Tick(dt), host);
+        } else if (edit_pad_listening) {
+            Input::Devices::CancelListen();
+            edit_pad_listening = false;
+        }
+        edit_prev = now;
+        return;
+    }
+    if (remap.Source() == Menu::RemapSource::Pad) {
+        if (remap.Listening() >= 0) {
+            if (!edit_pad_listening) {
+                edit_pad_listening = Input::Devices::BeginListen(edit_device);
+            }
+            if (edit_pad_listening) {
+                using State = Input::GamepadHub::ListenResult::State;
+                const Input::GamepadHub::ListenResult r = Input::Devices::PollListen();
+                if (remap.ListeningStick()) {
+                    // AzaharFrame padsui: a 3DS stick listens: the pad's sticks, two pushes. A
+                    // button pressed meanwhile ends the hub's listening: listen again.
+                    if (r.state == State::Listening) {
+                        for (std::size_t i = 0; i < r.sticks.size(); i++) {
+                            EditChanged(remap.Stick(static_cast<int>(i), r.sticks[i]), host);
+                        }
+                    } else if (r.state == State::Pressed) {
+                        edit_pad_listening = false;
+                    } else {
+                        edit_pad_listening = false;
+                        EditChanged(remap.Cancel(), host); // the pad went away
+                    }
+                    if (remap.Listening() < 0 && edit_pad_listening) {
+                        Input::Devices::CancelListen();
+                        edit_pad_listening = false;
+                    }
+                } else if (r.state == State::Pressed) {
+                    edit_pad_listening = false;
+                    const int control = Input::ControlOfPadInput(r.input, edit_pad_by_label);
+                    if (control >= 0) {
+                        EditChanged(remap.Press(control), host);
+                    } // Guide, Misc1, the touchpad click: keep listening
+                } else if (r.state != State::Listening) {
+                    edit_pad_listening = false;
+                    EditChanged(remap.Cancel(), host); // the pad went away
+                }
+            }
+            EditChanged(remap.Tick(dt), host);
+        } else if (edit_pad_listening) {
+            Input::Devices::CancelListen();
+            edit_pad_listening = false;
+        }
+        edit_prev = now;
+        return;
+    }
+    if (remap.ListeningStick()) {
+        // AzaharFrame padsui: a 3DS stick listens: each Frame stick, as the hand reads it. The
+        // gestures stay on the physical sticks (mapper.cpp); only the 3DS stick's source moves.
+        for (int h = 0; h < 2 && have_input; h++) {
+            EditChanged(remap.Stick(h, in.hand[static_cast<std::size_t>(h)].stick), host);
+        }
+        EditChanged(remap.Tick(dt), host);
+    } else if (remap.Listening() >= 0) {
+        for (std::size_t i = 0; i < now.size(); i++) {
+            if (now[i] && !edit_prev[i]) {
+                EditChanged(remap.Press(static_cast<int>(as[i])), host);
+                break;
+            }
+        }
+        EditChanged(remap.Tick(dt), host);
+    }
+    edit_prev = now;
+}
+
 void MenuPanel::Close() {
     if (!open) {
         return;
     }
+    remap.Done();
+    if (edit_pad_listening) { // AzaharFrame pads
+        Input::Devices::CancelListen();
+        edit_pad_listening = false;
+    }
+    view.remap = remap.View();
     open = false;
     view.open_menu = view.dragging = Id::None;
     press_hand = -1;
@@ -311,6 +638,91 @@ void MenuPanel::BuildModel(const Host& host) {
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
     m.touchpad_touch = static_cast<int>(std::min<u32>(v.vr_touchpad_touch.GetValue(), 2));
+    if (remap.Editing()) {
+        // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
+        // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
+        // edited shows the state machine's table.
+        const Vis::HelpBindings given = Vis::CurrentHelpBindings();
+        const Vis::HelpBindings hb = given.valid ? given : Vis::DefaultHelpBindings();
+        std::array<std::string, Menu::kRemapButtons> profile_buttons;
+        for (std::size_t i = 0; i < profile_buttons.size(); i++) {
+            profile_buttons[i] = hb.buttons[i];
+        }
+        const Menu::RemapSticks profile_sticks = SticksOf({hb.analogs[0], hb.analogs[1]});
+        m.devices.selected = -1;
+        for (const Input::DeviceInfo& d : Input::Devices::List()) {
+            Menu::EditDevice e;
+            e.key = d.id;
+            e.name = d.name;
+            e.has_touchpad = d.has_touchpad;
+            e.connected = d.connected; // AzaharFrame padsui: the row's status dot
+            if (d.kind == Input::DeviceKind::Frame) {
+                e.kind = Menu::DeviceKind::Frame;
+                e.names = Menu::ButtonNames::Frame;
+                e.mapping = TableOf(profile_buttons);
+                e.sticks = profile_sticks;
+            } else if (d.kind == Input::DeviceKind::Mouse) {
+                // AzaharFrame padsui: the mouse's buttons, Touch Screen and Open Menu.
+                e.kind = Menu::DeviceKind::Mouse;
+                e.names = Menu::ButtonNames::Mouse;
+                const Input::GamepadMapping gm = Input::Devices::GetMapping(d.id);
+                e.mapping = MouseTableOf(gm);
+                e.sticks = {-1, -1};
+                e.extras = {gm.touch, gm.open_menu};
+                e.mouse_mode = gm.mode;
+                e.recentre = gm.recentre;
+                e.speed = gm.speed;
+                e.enabled = gm.enabled;
+            } else {
+                e.kind = Menu::DeviceKind::Gamepad;
+                e.names = Menu::NamesFor(static_cast<int>(d.type), d.steam_input);
+                const Input::GamepadMapping gm = Input::Devices::GetMapping(d.id);
+                e.mapping = Input::ControlTableOf(gm, Input::ReportsByLabel(d.type, d.steam_input));
+                e.sticks = {gm.analogs[0], gm.analogs[1]};
+                e.recentre = gm.recentre; // AzaharFrame padsui
+                e.enabled = gm.enabled;
+            }
+            if (d.id == edit_device) {
+                m.devices.selected = static_cast<int>(m.devices.list.size());
+                e.mapping = remap.Table();
+                e.sticks = remap.Sticks();
+                if (e.kind == Menu::DeviceKind::Mouse) {
+                    e.extras = remap.Extras();
+                }
+            }
+            m.devices.list.push_back(std::move(e));
+        }
+        if (m.devices.selected < 0) {
+            // The device went from the list (it never does while the program runs): the Frame's.
+            m.devices.selected = 0;
+            edit_device = Input::kFrameDeviceId;
+            BeginEdit();
+            m.devices.list[0].mapping = remap.Table();
+            m.devices.list[0].sticks = remap.Sticks();
+        }
+        // The Pointer Test: the chosen gamepad's touchpad, or the mouse over the window.
+        const Menu::EditDevice& sel = m.devices.list[static_cast<std::size_t>(m.devices.selected)];
+        if (sel.kind == Menu::DeviceKind::Mouse) {
+            // AzaharFrame padsui: in Bottom Screen mode, a cursor of the menu's own, moved as the
+            // game's would be (relative, clamped); its touch input pressed is a touch. In Pointer
+            // mode the ray is the test.
+            const Input::MouseFrame mf = Input::Devices::Hub().LastMouse();
+            if (!mouse_test_started) {
+                mouse_test = {0.5f, 0.5f};
+                mouse_test_started = true;
+            }
+            const float gain = Input::MouseScreenGain(mf.speed);
+            mouse_test.x = std::clamp(mouse_test.x + mf.motion.x * gain / 320.0f, 0.0f, 1.0f);
+            mouse_test.y = std::clamp(mouse_test.y + mf.motion.y * gain / 240.0f, 0.0f, 1.0f);
+            m.devices.pointer = {mf.present && sel.mouse_mode == 0, mf.Touch(), mouse_test.x,
+                                 mouse_test.y};
+        } else if (sel.kind == Menu::DeviceKind::Gamepad && sel.has_touchpad) {
+            const Input::PadSample pad = Input::Devices::GetTouchpad(sel.key);
+            const bool click_mode = m.touchpad_touch == 2;
+            m.devices.pointer = {pad.contact || pad.click, click_mode ? pad.click : pad.contact,
+                                 std::clamp(pad.x, 0.0f, 1.0f), std::clamp(pad.y, 0.0f, 1.0f)};
+        }
+    }
     const float ox = v.vr_immersive_offset_x.GetValue(), oy = v.vr_immersive_offset_y.GetValue();
     m.immersive_offset = OffsetText(ox, oy);
     m.immersive_offset_set = std::fabs(ox) >= 0.05f || std::fabs(oy) >= 0.05f;
@@ -427,6 +839,13 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.preload_textures, value != 0, r.per_game);
         r.setting = MenuSetting::PreloadTextures;
         break;
+    case Id::CursorSpeed: { // AzaharFrame padsui: the mouse's, kept with its mapping, live
+        Input::GamepadMapping cm = Input::Devices::GetMapping(Input::kMouseDeviceId);
+        cm.speed = static_cast<uint8_t>(std::clamp(value, 0, Input::kNumCursorSpeeds - 1));
+        Input::Devices::SetMapping(Input::kMouseDeviceId, cm);
+        LOG_INFO(Frontend, "xr: in-game menu: Cursor Speed = {}", cm.speed);
+        return;
+    }
     case Id::ImmersiveOffsetReset:
         Apply(v.vr_immersive_offset_x, 0.0f, false);
         Apply(v.vr_immersive_offset_y, 0.0f, false);
@@ -545,6 +964,7 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     switch (t.id) {
     case Id::TabButton:
+        remap.Done(); // AzaharFrame remap
         view.tab = static_cast<Menu::Tab>(t.index);
         view.page = Menu::Page::Tabs;
         break;
@@ -714,9 +1134,67 @@ void MenuPanel::Click(Target t, Host& host) {
         }
         break;
     }
-    case Id::EditControls: // AzaharFrame menu: the remap lane's
-        ask(MenuCommand::EditControls);
+    case Id::EditControls: // AzaharFrame remap
+        BeginEdit();
         break;
+    case Id::RemapChip:
+        remap.Choose(t.index);
+        break;
+    case Id::RemapCancel:
+        remap.Cancel();
+        break;
+    case Id::RemapReset:
+        EditChanged(remap.Reset(), host);
+        break;
+    case Id::RemapDone:
+        remap.Done();
+        break;
+    case Id::MouseMode: { // AzaharFrame padsui: the mouse's, kept with its mapping
+        Input::GamepadMapping mm = Input::Devices::GetMapping(Input::kMouseDeviceId);
+        if (t.index >= 0 && t.index <= 1 && mm.mode != static_cast<uint8_t>(t.index)) {
+            mm.mode = static_cast<uint8_t>(t.index);
+            Input::Devices::SetMapping(Input::kMouseDeviceId, mm);
+            ShowToastText(t.index == 1 ? "Mouse: Pointer" : "Mouse: Bottom Screen");
+        }
+        break;
+    }
+    case Id::UseDevice: { // AzaharFrame padsui: the device being edited; the Frame's is always on
+        if (edit_device == Input::kFrameDeviceId) {
+            break;
+        }
+        Input::GamepadMapping um = Input::Devices::GetMapping(edit_device);
+        um.enabled = !um.enabled;
+        Input::Devices::SetMapping(edit_device, um);
+        LOG_INFO(Frontend, "xr: in-game menu: Use This Device {}", um.enabled ? "on" : "off");
+        break;
+    }
+    case Id::RecentreAtEdge: { // AzaharFrame padsui: the device being edited
+        if (edit_device == Input::kFrameDeviceId) {
+            break;
+        }
+        Input::GamepadMapping rm = Input::Devices::GetMapping(edit_device);
+        rm.recentre = !rm.recentre;
+        Input::Devices::SetMapping(edit_device, rm);
+        break;
+    }
+    case Id::EditDevice: { // AzaharFrame padsui + pads: another device's buttons
+        if (t.index < 0 || t.index >= static_cast<int>(model.devices.list.size())) {
+            break;
+        }
+        const Menu::EditDevice& d = model.devices.list[static_cast<std::size_t>(t.index)];
+        if (d.key == edit_device) {
+            break;
+        }
+        if (d.kind == Menu::DeviceKind::Frame) {
+            BeginEdit();
+        } else {
+            BeginDeviceEdit(d.key, d.names == Menu::ButtonNames::Nintendo);
+            if (d.kind == Menu::DeviceKind::Gamepad && d.has_touchpad) {
+                Input::Devices::SetTouchpadDevice(d.key); // Touchpad Touch follows it
+            }
+        }
+        break;
+    }
     case Id::ResetPosition:
         if (host.reset_position) {
             host.reset_position();
@@ -823,11 +1301,16 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     }
     // A (right controller) clicks too, for the hand that points.
     const bool a = have_input && in.a;
-    const bool a_edge = a && !a_down;
+    const bool listening = remap.Listening() >= 0; // AzaharFrame remap: A is then a button to map
+    const bool a_edge = a && !a_down && !listening;
     a_down = a;
     const bool b = have_input && in.b;
     const bool b_edge = b && !b_down;
     b_down = b;
+
+    if (remap.Editing()) {
+        EditInput(in, have_input, dt, host); // AzaharFrame remap
+    }
 
     // ---- Press, drag, release ----
     if (press_hand < 0 && p >= 0 && (edge[p] || a_edge) && hover.id != Id::None) {
@@ -883,7 +1366,12 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     view.hover = hover;
 
     // ---- B: back ----
-    if (b_edge) {
+    if (b_edge && remap.Editing()) {
+        // AzaharFrame remap: B stops listening, then leaves Edit Controls
+        if (remap.Cancel() == Menu::Remap::Event::None) {
+            remap.Done();
+        }
+    } else if (b_edge) {
         // AzaharFrame texui: the Mods segment's dialog (Cancel), then Install Mods (back).
         // The Textures segment's the same way: its dialog, then Download Packs.
         const bool mods_shown = view.tab == Menu::Tab::Mods &&
@@ -963,6 +1451,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     if (view.pressed.id != Id::None) {
         view.tooltip = Id::None;
     }
+
+    view.remap = remap.View();
 
     // ---- A redraw when anything changed; the newest drawing to the swapchain ----
     if (chain.Valid() && (!posted_any || !(model == posted_model) || !(view == posted_view) ||

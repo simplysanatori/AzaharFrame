@@ -340,4 +340,40 @@ gesture also fires).
 
 ## Touchpad Touch (AzaharFrame touchpad)
 
-Settings tab Touchpad Touch: Off, Touch or Click. A gamepad touchpad (the first controller that has one, the right pad when it has two) maps absolutely onto the bottom screen, with a dot where the touch is. Touch: finger contact touches. Click: the pad click touches and contact only moves the dot. The mouse over the render window (a touchpad that Steam Input maps to the mouse) maps the same way over the window, and its left button touches in both modes; its dot fades 2 s after the pointer rests. The beam, the pad and the mouse share one touch: the last to touch wins, the owner's release ends it, and a source that stayed down must let go before it touches again. A hidden bottom screen has no pad or mouse touch. Logic: `touchpad_touch.*`; feeds: `InputCommon::GetSDLTouchpad` and `FrameXr::GetMouseState`.
+Settings tab Touchpad Touch: Off, Touch or Click. A gamepad touchpad (the one Edit Controls chose, else the one touched last, else the first controller that has one; the right pad when it has two) maps absolutely onto the bottom screen, with a dot where the touch is. Touch: finger contact touches. Click: the pad click touches and contact only moves the dot. The mouse over the render window (a touchpad that Steam Input maps to the mouse) maps the same way over the window, and its left button touches in both modes; its dot fades 2 s after the pointer rests. The beam, the pad and the mouse share one touch: the last to touch wins, the owner's release ends it, and a source that stayed down must let go before it touches again. A hidden bottom screen has no pad or mouse touch. Logic: `touchpad_touch.*`; feeds: the gamepad hub (`gamepads.*`) and `FrameXr::GetMouseState`.
+
+Recentre at Edge (AzaharFrame padsui; Edit Controls, per device, on by default): a touch dragged into the screen's edge (within 2% of it) lifts and, 50 ms later, touches again at the middle; the pad then moves the touch by its motion from there until the finger lets go, so a turn or an aim can go on. Kept with the pad's mapping (`recentre=0` when off).
+
+## Other gamepads in VR (AzaharFrame pads)
+
+In VR, with a game running and the in-game menu closed, every SDL gamepad (Bluetooth or USB, with
+or without Steam Input) joins the Frame controllers. Its inputs are taken by position (`PadInput`,
+SDL's button order then the two triggers; a Nintendo pad that SDL reports by label is turned back),
+its own 3DS mapping turns them into 3DS buttons and sticks, and those press the Frame controls the
+controls profile binds to the same 3DS buttons (`ProfileRoutes`, pushed by the Qt side with the
+profile): buttons ORed, the stick pushed further wins. So a 3DS button the profile does not give a
+Frame control cannot be pressed from a gamepad either. Default mapping: the right button A, the
+bottom B, the top X, the left Y (by label with Face Buttons: By Label), shoulders L and R, triggers
+ZL and ZR, Start and Back Start and Select, the D-pad, the left stick the Circle Pad, the right stick
+the C-Stick. Mappings are per model in `user/controller-mappings.txt` (key: SDL's GUID, or
+`steam:<vendor>:<product>` behind Steam Input; found again by vendor, product and name when the
+pad switches between the two). The Frame's own pad as SDL sees it (Valve's vendor id, not one of
+Valve's gamepads) is never merged; a pad that only ever presses with the Frame (Steam's echo of it)
+is dropped after three presses (`EchoGuard`). The menu's API is `devices.h`; `AZAHARFRAME_PADS=0`
+turns the merge off. Tests: `src/tests/frame_xr/gamepads.cpp`.
+
+## The mouse in VR (AzaharFrame padsui)
+
+A USB or Bluetooth mouse is read from its event node (`/proc/bus/input/devices`; relative counts, so it works with no window under it) and listed in Edit Controls as Mouse once plugged in. Its mapping is the line `mouse` in `user/controller-mappings.txt`: `buttons=` holds `MouseInput`s (0 Left Click, 1 Right Click, 2 Middle Click, 3 Back, 4 Forward, 5 Wheel Up, 6 Wheel Down) by 3DS button, and `touch=`, `menu=`, `mode=`, `speed=` (Cursor Speed, 0 to 4), `recentre=0` and `use=0` are written only when not the default. Default: Right Click A, Back L, Forward R, Left Click touches, Middle Click Open Menu, Bottom Screen, Cursor Speed Normal (the middle of five steps: 0.5, 0.7, 1, 1.4 and 2 times), Recentre at Edge on, used. A wheel notch is a 50 ms press. Lines without the new keys read as before.
+
+- **Bottom Screen:** a cursor of its own on the bottom screen, moved by the counts (0.3 pixels a count at Normal, times Cursor Speed) and kept on it, with the touchpad's dot. The touch input touches there; held, it drags; Recentre at Edge as above (a drag pushed past an edge). The touchpads and the mouse go through one cursor pipeline (`TouchpadTouch::CursorStep`): a source gives its point (a touchpad, absolute) or its motion (the mouse, relative), and the clamp, click to touch, hold to drag and Recentre at Edge are the same code.
+- **Pointer:** the mouse turns a ray about you, fixed in the room (yaw and pitch, 0.03 degrees a count), which takes the slot of a hand with no controller awake (the right one first; with both controllers on, the right one's, the one used last has it), so a controller in the other hand keeps its own ray (`MousePointerHand`, `HandInput::mouse`). The menu, every tab, Edit Controls, the dialogs, the keyboard panel, the screens (the touch input touches the bottom screen) and the grab bars take it as a beam. It wakes on a deliberate move (40 counts within a second) where you look; the controller of its slot moved on purpose takes its ray back (the other hand's never does). Cursor Speed scales its 0.03 degrees a count. Its dot is on what it hits, else on the plane of the panel it just left (30 cm past its edge, for the grab bars), else 1.5 m out. The wheel scrolls the menu's lists. Adapted from Frametop's pointer helper (`mouse_pointer.*`).
+- **Switching:** Mouse Mode in Edit Controls, or Left and Right Click held together for 3 s (a ring fills round the dot; the toast "Mouse: Pointer" or "Mouse: Bottom Screen"). Left and Right Click go to the game at once; when the other goes down within 80 ms, both are let go for the game there and then (it may have seen a tap that short) and stay away until let go.
+- **Open Menu** (Middle Click by default) opens and closes the in-game menu.
+- In VR the render window leaves the mouse's clicks alone while a mouse is plugged in (the window's touchpad-as-mouse path then waits too).
+
+With Frametop installed: Frametop's input relay grabs a mouse to drive its own 3D mouse, so Azahar for Frame sees none of its motion. Frametop pauses itself while a VR game runs (Pause while a VR game runs on, the default), and paused, its relay passes the mouse on through its virtual mouse ("frametop virtual mouse"), which Azahar for Frame reads when the real one is quiet. If the mouse does nothing in VR, pause Frametop: its Pause/resume Frametop action (a mouse button, key combination or controller button you mapped), or `input/ft-pause on` in Frametop's folder; `input/ft-pause off` resumes it after.
+
+**Every device at once.** The Frame controllers, every gamepad and the mouse feed the game together: their 3DS buttons press the Frame controls the profile gives those 3DS buttons, ORed, and of two sticks the one pushed further wins. Edit Controls' device row only chooses which device's mapping is edited; each device but the Frame Controllers has Use This Device (`use=0` when off: it reaches nothing). A dot on a device's chip shows it is connected (hollow when not used). The 3DS has one touch: the newest press of the beams, a touchpad or the mouse owns it until it lifts, and a source still down after losing it touches again only after a new press.
+
+Tests: `src/tests/frame_xr/mouse.cpp`, `gamepads.cpp` (every device in one frame), Edit Controls' in `src/tests/frame_xr/remap.cpp`.

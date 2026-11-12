@@ -6,6 +6,7 @@
 
 #include "frame_xr/input/mapper.h"
 #include "frame_xr/input/motion.h"
+#include "frame_xr/input/mouse.h"
 #include "frame_xr/input/touchpad_touch.h"
 
 // AzaharFrame
@@ -19,8 +20,14 @@ public:
     explicit InputBridge(const MapperConfig& config = {});
 
     /// One display frame. `panels` is where the screens are now. The returned reference is valid
-    /// until the next call.
-    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels);
+    /// until the next call. AzaharFrame pads: with `gamepads` (VR, a game running, the menu
+    /// closed: the controllers' raw input of this frame) the other gamepads join the Frame's
+    /// virtual pad (frame_xr/input/devices.h).
+    /// AzaharFrame padsui: `mouse` (the hub's PollMouse of this frame) in Bottom Screen mode
+    /// moves its cursor and touches; its buttons join with the gamepads'.
+    const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels,
+                                const InputFrame* gamepads = nullptr,
+                                const MouseFrame* mouse = nullptr);
 
     /// Releases every button, centres the sticks and lifts a touch in progress. Call when the
     /// game ends, the session loses focus, or the picker takes over.
