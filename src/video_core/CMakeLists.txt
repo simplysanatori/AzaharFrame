@@ -208,6 +208,7 @@ if (ENABLE_VULKAN)
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/vk_xr_target.h>
         $<$<NOT:$<BOOL:${ENABLE_LIBRETRO}>>:renderer_vulkan/vk_xr_handoff.h> # AzaharFrame handoff
         vulkan_hooks.h
+        xr_content_pose.h
         shader/generator/spv_fs_shader_gen.cpp
         shader/generator/spv_fs_shader_gen.h
     )

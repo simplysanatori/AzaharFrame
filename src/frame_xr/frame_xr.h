@@ -131,6 +131,9 @@ struct ViewPose {
     XrFovf fov[2]{};
 };
 ViewPose LatestViewPose();
+/// AzaharFrame doubling: the head pose the game picture released last was drawn with (immersive
+/// modes 2 and 3; invalid otherwise). Any thread.
+VideoCore::XrContentPose ShownContentPose();
 
 /// Where the game screens are (LOCAL space; sizes in metres).
 struct ScreenPlacement {

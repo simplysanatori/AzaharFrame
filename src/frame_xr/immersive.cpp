@@ -88,6 +88,15 @@ struct Tuning {
     /// AzaharFrame immersive: AZAHARFRAME_IMMERSIVE_WIDER (0 to 4) wins over the Wider View
     /// setting (-1: unset), for comparing levels without changing a game's settings.
     int wider_level = -1;
+    /// AzaharFrame doubling: AZAHARFRAME_IMMERSIVE_ANCHOR (default 1): the head-locked screen of
+    /// modes 2 and 3 is placed where the head was when its picture was drawn (LOCAL space), not
+    /// where the head is at display time. 0: VIEW space as before (or LOCAL from the newest head
+    /// pose with AZAHARFRAME_IMMERSIVE_LOCAL=1).
+    bool anchor = true;
+    /// AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS (default 250, 50..2000): a picture older than this
+    /// (the game stopped drawing: loading, a stall) goes back to the head, so the screen never
+    /// stays behind out of view.
+    float anchor_max_ms = 250.0f;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -118,6 +127,9 @@ Tuning ReadTuning() {
     t.local_space = local && std::string(local) == "1";
     const char* measure = std::getenv("AZAHARFRAME_IMMERSIVE_MEASURE");
     t.measure = !(measure && std::string(measure) == "0");
+    const char* anchor = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR");
+    t.anchor = !(anchor && std::string(anchor) == "0");
+    t.anchor_max_ms = EnvFloat("AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS", 250.0f, 50.0f, 2000.0f);
     const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
     if (wider && *wider) {
         t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
@@ -176,6 +188,18 @@ XrPosef Compose(const XrPosef& a, const XrPosef& b) {
             Add(a.position, Rotate(a.orientation, b.position))};
 }
 
+// AzaharFrame doubling: the head pose a picture was drawn with, as an XrPosef.
+XrPosef ToXr(const VideoCore::XrContentPose& c) {
+    return {{c.orientation[0], c.orientation[1], c.orientation[2], c.orientation[3]},
+            {c.position[0], c.position[1], c.position[2]}};
+}
+
+/// The angle between two orientations, in degrees.
+float AngleDeg(const XrQuaternionf& a, const XrQuaternionf& b) {
+    const float d = std::abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w);
+    return 2.0f * std::acos(std::min(d, 1.0f)) * 57.29578f;
+}
+
 /// CitraVR's UpdateImmersiveModeIfNeeded (vr_main.cpp:1310-1360) for a head pose relative to
 /// the reference: the inverse head rotation (CitraVR's ToRotationMatrix + ToInverse; the
 /// inverse of a rotation is its transpose) with the inverse head position, rotated into the
@@ -228,6 +252,11 @@ std::string PlacementPath() {
 float Deg(float rad) {
     return rad / L::kDegToRad;
 }
+
+// AzaharFrame doubling: the picture's head pose when the immersive screen may be anchored to it
+// now: a Full mode is engaged, the picture was drawn in it, after the last recenter, and it is
+// not older than the limit (`display` is this frame's display time).
+bool AnchorPose(XrTime display, XrPosef& head);
 
 // The title id of the game being started (SetGameTitleId, GUI thread).
 std::atomic<uint64_t> g_title_id{0};
@@ -282,6 +311,22 @@ struct State {
     L::LensOffset offset;
     bool offset_logged = false;
     int64_t last_input_ns = 0;
+    /// AzaharFrame doubling: SteamVR's last recenter (the LOCAL space moved then): a picture
+    /// drawn with a head pose located before it is not anchored.
+    XrTime recentre_time = 0;
+    /// AzaharFrame doubling: per second, while a Full mode is engaged: how old the picture on
+    /// view is against this frame's display time, how far the head turned since it was drawn
+    /// (what a head-locked screen shows as the world swinging with the head), and how many
+    /// frames the screen was anchored.
+    struct AgeStats {
+        int64_t since_ns = 0;
+        uint32_t frames = 0, anchored = 0, no_pose = 0;
+        double age_sum_ms = 0, age_max_ms = 0, turn_sum_deg = 0, turn_max_deg = 0;
+        uint32_t pictures = 0; ///< different pictures seen (by their pose time)
+        int64_t last_picture = 0;
+        uint32_t run = 0;           ///< display frames the current picture has been on view
+        uint32_t runs[4]{};         ///< pictures on view for 1, 2, 3, 4 or more display frames
+    } age;
 };
 
 State g;
@@ -419,6 +464,22 @@ void TestResolutionHook() {
         Settings::values.resolution_factor.SetValue(factor);
         LOG_INFO(Frontend, "xr: immersive: test: Internal Resolution {}x", factor);
     }
+}
+
+bool AnchorPose(XrTime display, XrPosef& head) {
+    if (!g.engaged || !IsViewMode(g.mode)) {
+        return false;
+    }
+    const VideoCore::XrContentPose shown = ShownContentPose();
+    if (!shown.valid || shown.time < g.recentre_time) {
+        return false;
+    }
+    const double age_ms = (display - shown.time) / 1e6;
+    if (age_ms > g.tuning.anchor_max_ms || age_ms < -100.0) {
+        return false;
+    }
+    head = ToXr(shown);
+    return true;
 }
 
 void OnFrame(const FrameInfo& info) {
@@ -590,6 +651,20 @@ void OnFrame(const FrameInfo& info) {
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
+    // AzaharFrame doubling: the pose the game camera is made from goes with it (the immersive
+    // screen is placed at it once the picture drawn with it is on view).
+    if (g.engaged && IsViewMode(mode) && g.view.valid) {
+        const XrPosef& h = g.view.head;
+        data.pose.valid = true;
+        data.pose.orientation[0] = h.orientation.x;
+        data.pose.orientation[1] = h.orientation.y;
+        data.pose.orientation[2] = h.orientation.z;
+        data.pose.orientation[3] = h.orientation.w;
+        data.pose.position[0] = h.position.x;
+        data.pose.position[1] = h.position.y;
+        data.pose.position[2] = h.position.z;
+        data.pose.time = g.view.time;
+    }
     if (g.engaged) {
         data.mode = static_cast<s32>(mode);
         data.factor = mode < 2 ? kWideFactor : g.solved.factor;
@@ -616,6 +691,58 @@ void OnFrame(const FrameInfo& info) {
         }
     }
     VideoCore::Immersive::Publish(data);
+
+    // AzaharFrame doubling: the per-second picture age line (Full modes, engaged).
+    if (g.engaged && IsViewMode(mode) && g.view.valid) {
+        auto& a = g.age;
+        const VideoCore::XrContentPose shown = ShownContentPose();
+        a.frames++;
+        if (shown.valid) {
+            const double age_ms = (g.view.time - shown.time) / 1e6;
+            const double turn = AngleDeg(g.view.head.orientation, ToXr(shown).orientation);
+            a.age_sum_ms += age_ms;
+            a.age_max_ms = std::max(a.age_max_ms, age_ms);
+            a.turn_sum_deg += turn;
+            a.turn_max_deg = std::max(a.turn_max_deg, turn);
+            if (shown.time != a.last_picture) {
+                if (a.run > 0) {
+                    a.runs[std::min<uint32_t>(a.run, 4) - 1]++;
+                }
+                a.run = 0;
+                a.last_picture = shown.time;
+                a.pictures++;
+            }
+            a.run++;
+            XrPosef unused;
+            if (g.tuning.anchor && AnchorPose(g.view.time, unused)) {
+                a.anchored++;
+            }
+        } else {
+            a.no_pose++;
+        }
+        if (a.since_ns == 0) {
+            a.since_ns = g.view.time;
+        } else if (g.view.time - a.since_ns >= 1'000'000'000) {
+            const uint32_t n = a.frames - a.no_pose;
+            LOG_INFO(Frontend,
+                     "xr: immersive: {} frames, {} pictures, picture drawn {:.1f} ms (max {:.1f}) "
+                     "before display, head turned {:.2f} degrees (max {:.2f}) since it was drawn, "
+                     "screen anchored to the picture in {} frames, {} without a pose ({}); "
+                     "pictures on view 1/2/3/4+ frames {}/{}/{}/{}",
+                     a.frames, a.pictures, n ? a.age_sum_ms / n : 0.0, a.age_max_ms,
+                     n ? a.turn_sum_deg / n : 0.0, a.turn_max_deg, a.anchored, a.no_pose,
+                     g.tuning.anchor ? "AZAHARFRAME_IMMERSIVE_ANCHOR on" : "anchor off",
+                     a.runs[0], a.runs[1], a.runs[2], a.runs[3]);
+            const int64_t keep_picture = a.last_picture;
+            const uint32_t keep_run = a.run;
+            a = {};
+            a.since_ns = g.view.time;
+            a.last_picture = keep_picture;
+            a.run = keep_run;
+        }
+    } else {
+        g.age = {};
+    }
 
     if (g.engaged != was_engaged) {
         if (g.engaged) {
@@ -677,6 +804,12 @@ void Install() {
                  ? fmt::format("{:.0f} degrees high (environment)", g.tuning.game_fov_y_deg)
                  : std::string{"angle from the game's setting"},
              g.tuning.local_space ? "LOCAL" : "VIEW");
+    LOG_INFO(Frontend,
+             "xr: immersive: Full modes' screen {} (AZAHARFRAME_IMMERSIVE_ANCHOR), pictures older "
+             "than {:.0f} ms go back to the head",
+             g.tuning.anchor ? "placed where the head was when its picture was drawn"
+                             : "locked to the head at display time",
+             g.tuning.anchor_max_ms);
 }
 
 void Uninstall() {
@@ -729,10 +862,20 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         // GameSurfaceLayer.cpp GetTopPanelFromHeadPose), mode 2 uses one pose for both. The
         // size, pitch and distance come from the placement (immersive_layout.h).
         out.top_size = {g.solved.width(), g.solved.height()};
+        // AzaharFrame doubling: where the head was when the picture on view was drawn. The game
+        // camera followed that pose, so the screen placed there keeps the world where it is
+        // while the head moves on; head-locked, the world swung with the head until the next
+        // picture (2 to 4 display frames, 25 to 70 ms old) and jumped back: a double image on
+        // fast head turns. SteamVR re-projects the layer for the head at display time.
+        XrPosef anchor_head;
+        const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head);
         for (int eye = 0; eye < 2; eye++) {
             const float x = g.mode == 3 ? (eye == 0 ? -g.half_ipd : g.half_ipd) : 0.0f;
             const XrPosef in_view = ToXr(L::HeadLockedQuadPose(g.solved, x));
-            if (g.tuning.local_space && g.view.valid) {
+            if (anchored) {
+                out.top_space = local_space;
+                out.top_pose[eye] = Compose(anchor_head, in_view);
+            } else if (g.tuning.local_space && g.view.valid) {
                 out.top_space = local_space;
                 out.top_pose[eye] = Compose(g.view.head, in_view);
             } else {
@@ -743,8 +886,9 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         out.top_pointable = false;
         out.show_bottom = false;
     }
-    const float top_distance = out.top_space == view_space ? g.solved.distance
-                                                           : DistanceTo(out.top_pose[0]);
+    const float top_distance = out.top_space == view_space || (g.engaged && IsViewMode(g.mode))
+                                   ? g.solved.distance
+                                   : DistanceTo(out.top_pose[0]);
     out.bottom_first = DistanceTo(out.bottom_pose) > top_distance;
     return out;
 }
@@ -870,6 +1014,7 @@ std::optional<float> SavedHeadSize(uint64_t title_id) {
 }
 
 void OnRecentred(XrTime change_time) {
+    g.recentre_time = change_time; // AzaharFrame doubling: older pictures are not anchored
     // AzaharFrame immersive: SteamVR's recenter only re-centres. The screen keeps its size,
     // distance and pitch (the owner's report: each recenter after a resize put the screen back
     // to the default size, "farther away"); the rest pose is taken from the first head pose

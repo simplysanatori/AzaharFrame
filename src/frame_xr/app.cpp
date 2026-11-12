@@ -400,6 +400,7 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double emu_wait_ms = take(stats.emu_wait_us_max) / 1000.0;
     const uint32_t skipped = take(stats.skipped_acquires);
     const uint32_t end_errors = take(stats.end_frame_errors);
+    const uint32_t eyes_mixed = take(stats.eyes_mixed); // AzaharFrame doubling
     const uint32_t emu_frames = take(stats.emu_frames);
     const uint64_t emu_sum_us = stats.emu_frame_us_sum.exchange(0);
     const uint32_t emu_max_us = take(stats.emu_frame_us_max);
@@ -434,14 +435,14 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
              "endFrame errors {}, state {}, screens {}, {}, window presents {}, XR queue lock wait "
              "max {:.2f} ms, emu submit max {:.2f} ms (lock wait {:.2f}), window present max "
              "{:.2f} ms, vkAllocateMemory max {:.1f} ms (largest {:.0f} MiB), slowest frame "
-             "{:.1f} ms ({})",
+             "{:.1f} ms ({}), eyes from different game frames {}",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], spill_shown, spill_replaced, emu_waits, emu_wait_ms,
              unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,
-             PhasesText(worst));
+             PhasesText(worst), eyes_mixed);
 }
 
 void Runtime::LogFlatSummary(double seconds) {
@@ -691,6 +692,15 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("layers");
         quad_layers.clear();
+        // AzaharFrame doubling: the two eyes' top images of separate swapchains from different
+        // game frames (a release of the set came between); never with set releases or packed.
+        if (!packed_top && screens_live) {
+            const ScreenChain& l = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
+            const ScreenChain& r = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopRight)];
+            if (l.has_image && r.has_image && l.frame_serial != r.frame_serial) {
+                stats.eyes_mixed++;
+            }
+        }
         // AzaharFrame autosave: the normal top screen, for the "Autosaved" label over its corner
         bool label_top_ok = false;
         XrPosef label_top_pose{{0, 0, 0, 1}, {0, 0, 0}};
@@ -707,7 +717,12 @@ void Runtime::FrameLoop() {
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
-                const ScreenChain& chain = screens[static_cast<std::size_t>(s)];
+                // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
+                // the upper half and the right eye in the lower one (kXrPackedGap between).
+                const bool top = s != VideoCore::XrScreen::Bottom;
+                const ScreenChain& chain =
+                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
+                                                                       : s)];
                 if (!chain.handle || !chain.has_image) {
                     return;
                 }
@@ -716,6 +731,15 @@ void Runtime::FrameLoop() {
                 q.image_rect = {{0, 0},
                                 {static_cast<int32_t>(chain.width),
                                  static_cast<int32_t>(chain.height)}};
+                if (packed_top && top) {
+                    const int32_t half =
+                        static_cast<int32_t>((chain.height - VideoCore::kXrPackedGap) / 2);
+                    q.image_rect.extent.height = half;
+                    if (s == VideoCore::XrScreen::TopRight) {
+                        q.image_rect.offset.y =
+                            half + static_cast<int32_t>(VideoCore::kXrPackedGap);
+                    }
+                }
                 q.pose = pose;
                 q.size = size;
                 q.eye = eye;
@@ -1047,6 +1071,14 @@ void RemoveQuad(int id) {
         std::scoped_lock lock{rt->quads_mutex};
         rt->quads.erase(id);
     }
+}
+
+VideoCore::XrContentPose ShownContentPose() {
+    if (auto* rt = GetRuntime()) {
+        std::scoped_lock lock{rt->content_mutex};
+        return rt->shown_content;
+    }
+    return {};
 }
 
 ViewPose LatestViewPose() {

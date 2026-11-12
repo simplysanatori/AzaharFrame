@@ -38,8 +38,15 @@ public:
 
     struct Target {
         vk::Framebuffer framebuffer;
-        u32 width;
+        u32 width;  ///< the screen's size
         u32 height;
+        // AzaharFrame doubling: a packed top screen draws both eyes in one render pass of one
+        // image (AZAHARFRAME_XR_PACKED): the right eye kXrPackedGap below the left one.
+        u32 offset_y = 0;
+        u32 fb_width = 0; ///< the framebuffer's size (the render area)
+        u32 fb_height = 0;
+        bool begin_pass = true; ///< begins the render pass (else continues the one before)
+        bool end_pass = true;   ///< ends it after this screen
     };
 
     XrPresentTarget(const Instance& instance, Scheduler& scheduler, VideoCore::XrScreenSink& sink,
@@ -56,8 +63,16 @@ public:
 
     /// Where this frame's three screens are drawn: the swapchain images the handoff
     /// thread waited for, or a spill slot while they are still in use. Never waits.
-    /// False: no XR output this frame (draw nothing, no EndFrame).
-    bool BeginFrame(std::array<Target, kScreens>& targets);
+    /// False: no XR output this frame (draw nothing, no EndFrame). AzaharFrame doubling:
+    /// `content` is the head pose the picture was drawn with (given back with its release).
+    bool BeginFrame(std::array<Target, kScreens>& targets,
+                    const VideoCore::XrContentPose& content);
+
+    /// AzaharFrame doubling: both top screen images in the TopLeft swapchain (sink's PackedTop):
+    /// the caller asks for that one kXrPackedGap + twice as high and for none for TopRight.
+    bool Packed() const {
+        return packed;
+    }
 
     /// After Scheduler::Flush: the frame drawn since BeginFrame was submitted with
     /// `tick` (the tick of that submission).
@@ -100,6 +115,10 @@ private:
     void RunReleaseDirect(u64 tick);
     void RunCopySpill(std::size_t slot, u64 tick);
     bool SpillReady() const;
+    /// AzaharFrame doubling: a screen with its own swapchain (not the packed right eye).
+    bool Used(std::size_t i) const {
+        return !(packed && i == static_cast<std::size_t>(VideoCore::XrScreen::TopRight));
+    }
 
     const Instance& instance;
     Scheduler& scheduler;
@@ -119,6 +138,11 @@ private:
     std::condition_variable_any cv;
     XrHandoff handoff;
     XrHandoff::Frame frame{}; ///< emu thread: the frame between BeginFrame and EndFrame
+    // AzaharFrame doubling: the head pose of each frame's picture, by path (under `mutex`).
+    VideoCore::XrContentPose frame_content{};  ///< emu thread: the frame being drawn
+    VideoCore::XrContentPose direct_content{}; ///< the Direct frame to be released
+    std::array<VideoCore::XrContentPose, XrHandoff::kSlots> slot_content{};
+    bool packed = false;
     bool skip_gpu_wait = false; ///< AZAHARFRAME_XR_NO_GPU_WAIT=1: negative test only
     std::jthread release_thread;
 };

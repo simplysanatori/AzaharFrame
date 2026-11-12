@@ -16,6 +16,7 @@
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
+#include "video_core/vr_immersive.h" // AzaharFrame doubling
 #include "video_core/vulkan_hooks.h"
 
 namespace Vulkan {
@@ -67,9 +68,13 @@ bool RendererVulkan::RenderToXr() {
     }
 
     const u32 scale = std::clamp<u32>(GetResolutionScaleFactor(), 1, kMaxScale);
+    // AzaharFrame doubling: packed, both eyes in the TopLeft swapchain (left above, right below).
+    const bool packed = xr_target->Packed();
     const std::array<vk::Extent2D, XrPresentTarget::kScreens> sizes = {
-        vk::Extent2D{kTopWidth * scale, kScreenHeight * scale},
-        vk::Extent2D{kTopWidth * scale, kScreenHeight * scale},
+        vk::Extent2D{kTopWidth * scale,
+                     packed ? 2 * kScreenHeight * scale + VideoCore::kXrPackedGap
+                            : kScreenHeight * scale},
+        packed ? vk::Extent2D{} : vk::Extent2D{kTopWidth * scale, kScreenHeight * scale},
         vk::Extent2D{kBottomWidth * scale, kScreenHeight * scale},
     };
     if (!xr_target->Prepare(sizes)) {
@@ -85,7 +90,9 @@ bool RendererVulkan::RenderToXr() {
     renderpass_cache.EndRendering();
 
     std::array<XrPresentTarget::Target, XrPresentTarget::kScreens> targets{};
-    if (!xr_target->BeginFrame(targets)) {
+    // AzaharFrame doubling: the head pose the picture on the screens was drawn with (immersive
+    // modes 2 and 3), handed back with the images' release.
+    if (!xr_target->BeginFrame(targets, VideoCore::Immersive::DrawnContentPose())) {
         return false;
     }
     for (u32 screen_id = 0; screen_id < XrPresentTarget::kScreens; screen_id++) {
@@ -95,38 +102,43 @@ bool RendererVulkan::RenderToXr() {
                           layout = *present_pipeline_layout](vk::CommandBuffer cmdbuf) {
             const vk::Viewport viewport = {
                 .x = 0.0f,
-                .y = 0.0f,
+                .y = static_cast<float>(target.offset_y),
                 .width = static_cast<float>(target.width),
                 .height = static_cast<float>(target.height),
                 .minDepth = 0.0f,
                 .maxDepth = 1.0f,
             };
             const vk::Rect2D scissor = {
-                .offset = {0, 0},
+                .offset = {0, static_cast<s32>(target.offset_y)},
                 .extent = {target.width, target.height},
             };
-            const vk::ClearValue clear{
-                .color = vk::ClearColorValue{.float32 = std::array{0.f, 0.f, 0.f, 1.f}}};
-            const vk::RenderPassBeginInfo begin_info = {
-                .renderPass = renderpass,
-                .framebuffer = target.framebuffer,
-                .renderArea = scissor,
-                .clearValueCount = 1,
-                .pClearValues = &clear,
-            };
-            cmdbuf.beginRenderPass(begin_info, vk::SubpassContents::eInline);
+            if (target.begin_pass) {
+                // The whole image: a packed top screen's gap between the eyes is cleared too.
+                const vk::ClearValue clear{
+                    .color = vk::ClearColorValue{.float32 = std::array{0.f, 0.f, 0.f, 1.f}}};
+                const vk::RenderPassBeginInfo begin_info = {
+                    .renderPass = renderpass,
+                    .framebuffer = target.framebuffer,
+                    .renderArea = {.offset = {0, 0}, .extent = {target.fb_width, target.fb_height}},
+                    .clearValueCount = 1,
+                    .pClearValues = &clear,
+                };
+                cmdbuf.beginRenderPass(begin_info, vk::SubpassContents::eInline);
+                cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+                cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0,
+                                          present_set, {});
+            }
             cmdbuf.setViewport(0, viewport);
             cmdbuf.setScissor(0, scissor);
-            cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-            cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, present_set,
-                                      {});
         });
         draw_info.modelview = Orthographic(target.width, target.height);
         draw_info.layer = 0;
         DrawSingleScreen(screen_id, 0.0f, 0.0f, static_cast<float>(target.width),
                          static_cast<float>(target.height),
                          Layout::DisplayOrientation::Landscape);
-        scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+        if (target.end_pass) {
+            scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+        }
     }
     Common::DebugStall::Maybe(Common::DebugStall::Where::Acquire); // AzaharFrame: test only
     // The tick this submission signals (Scheduler::SubmitExecution).

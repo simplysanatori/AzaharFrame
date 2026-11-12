@@ -97,6 +97,8 @@ struct ScreenChain {
     bool acquired = false;   ///< an image is acquired and not yet waited for
     bool waited = false;     ///< an image is waited for and not yet released
     bool has_image = false;  ///< released at least once since made (may be shown)
+    /// AzaharFrame doubling: the game frame (Runtime::release_serial) of the image released last.
+    uint64_t frame_serial = 0;
 };
 
 /// Where one display frame's time went (milliseconds), from one xrWaitFrame return to the next.
@@ -120,6 +122,9 @@ struct Stats {
     std::atomic<uint32_t> unfinished[kScreens]{};
     std::atomic<uint32_t> skipped_acquires{0};
     std::atomic<uint32_t> end_frame_errors{0};
+    /// AzaharFrame doubling: frames ended with the two eyes' top images from different game
+    /// frames (separate swapchains only; never with set releases or a packed top screen).
+    std::atomic<uint32_t> eyes_mixed{0};
     // Emulated frames: time between the renderer's XR frames (emu thread).
     std::atomic<uint32_t> emu_frames{0};
     std::atomic<uint64_t> emu_frame_us_sum{0};
@@ -161,6 +166,8 @@ public:
                              uint32_t capacity) override;
     int32_t Acquire(VideoCore::XrScreen screen) override;
     void Release(VideoCore::XrScreen screen, bool gpu_finished) override;
+    void ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) override;
+    bool PackedTop() const override;
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
     void NoteLateRelease(VideoCore::XrScreen screen) override;
@@ -196,6 +203,19 @@ public:
     mutable std::mutex screens_mutex;
     std::array<ScreenChain, kScreens> screens;
     std::atomic<bool> screens_live{false};
+
+    // AzaharFrame doubling (all three read once, at construction; see DOUBLING in IMMERSIVE.md).
+    /// AZAHARFRAME_XR_SET_RELEASE (default 1): ReleaseFrame releases every screen under
+    /// screens_mutex, so an xrEndFrame sees all of one game frame or all of the one before.
+    bool set_release = true;
+    /// AZAHARFRAME_XR_PACKED (default 1): both top screen images in the TopLeft swapchain.
+    bool packed_top = true;
+    /// Game frames released (ReleaseFrame), the serial of the newest (the handoff thread's).
+    uint64_t release_serial = 0;
+    /// The head pose of the picture released last (ShownContentPose); guarded by content_mutex,
+    /// written under screens_mutex too with set releases.
+    mutable std::mutex content_mutex;
+    VideoCore::XrContentPose shown_content{};
 
     QueueLock queue_lock;
     std::chrono::steady_clock::time_point last_emu_frame{}; // emu thread only
