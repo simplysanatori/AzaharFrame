@@ -95,6 +95,10 @@ bool LoadInstanceFunctions(XrInstance instance);
 /// Forgets the instance entry points (the instance was destroyed).
 void UnloadInstanceFunctions();
 
+/// AzaharFrame flat2: the instance was destroyed and a new one will load the same runtime's entry
+/// points again: they stay (another thread may hold one), only ResultName stops using it.
+void ForgetInstance();
+
 /// "XR_ERROR_..." text of a result (needs an instance for the runtime's names).
 const char* ResultName(XrResult result);
 

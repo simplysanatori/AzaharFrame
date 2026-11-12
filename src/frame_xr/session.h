@@ -6,9 +6,10 @@
 // instance, session, spaces and the screen swapchains (VideoCore::XrScreenSink);
 // app.cpp runs the frame loop thread and the public extension points.
 //
-// VR <-> flat: the instance and the Vulkan device live for the whole run; the session (with
-// its spaces, swapchains and the UI's actions and overlay chains) is made by CreateSession and
-// ended by DestroySession, both on the XR thread once it runs. `chains_mutex` keeps the renderer's
+// VR <-> flat: the Vulkan device lives for the whole run; the session (with its spaces,
+// swapchains and the UI's actions and overlay chains) is made by CreateSession and ended by
+// DestroySession, both on the XR thread once it runs. AzaharFrame flat2: the XrInstance goes with
+// its session and VR again makes a new one (RenewInstance; instance_policy.h says why). `chains_mutex` keeps the renderer's
 // swapchain calls out while DestroySession destroys the swapchains, and `generation` tells
 // the renderer to drop what it made of their images.
 
@@ -25,6 +26,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/hud.h" // AzaharFrame vrqol
+#include "frame_xr/instance_policy.h" // AzaharFrame flat2
 #include "frame_xr/vulkan_bridge.h"
 
 namespace FrameXr {
@@ -142,6 +144,11 @@ public:
     bool CreateSession();
     /// Ends what CreateSession made; the instance and device stay. XR thread (or no thread).
     void DestroySession();
+    /// AzaharFrame flat2: before a session, a new XrInstance when the policy asks for one (none,
+    /// or the current one had its session), on the Vulkan device made at start. False: none.
+    bool RenewInstance();
+    /// AzaharFrame flat2: the XrInstance (no session may be left). The device stays.
+    void DestroyXrInstance();
     /// Everything.
     void Destroy();
     bool HasExtension(const char* name) const;
@@ -177,7 +184,11 @@ public:
     std::unique_ptr<VrUi> ui; ///< controllers, picker, pointer (controls.cpp)
     Hud hud;                  ///< passthrough background and toasts (hud.cpp)
     bool alpha_blend_supported = false; ///< the runtime offers XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
-    std::vector<std::string> enabled_extensions;
+    std::vector<std::string> enabled_extensions; ///< chosen once, the same for every instance
+    StartOptions start_options;                  ///< AzaharFrame flat2: for a new instance
+    InstanceSessions instance_sessions;          ///< AzaharFrame flat2 (XR thread once it runs)
+    /// AzaharFrame flat2: where the frame loop is, for a stop that it does not answer.
+    std::atomic<const char*> loop_phase{"not started"};
     VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
 
     // Swapchains: screens_mutex guards the handles against recreation while the
@@ -203,6 +214,7 @@ public:
     std::atomic<bool> want_vr{true};
     std::atomic<bool> has_session{false}; ///< `session` is valid (read from other threads)
     std::atomic<bool> loop_alive{false};
+    bool loop_abandoned = false; ///< AzaharFrame flat2: StopThread gave up on a stuck loop
     std::atomic<uint64_t> generation{1};
     std::shared_mutex chains_mutex; ///< shared: renderer swapchain calls; unique: DestroySession
 
@@ -219,6 +231,8 @@ public:
     ScreenPlacement placement;
 
 private:
+    /// The XrInstance and its system; `renew`: the extensions chosen the first time.
+    bool CreateXrInstance(bool renew);
     void FrameLoop();
     void FlatStep(double& log_seconds);
     void LogFlatSummary(double seconds);

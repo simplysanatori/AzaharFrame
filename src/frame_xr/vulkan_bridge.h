@@ -36,6 +36,13 @@ public:
     /// Destroys the device and instance (after the XR session is gone).
     void Destroy();
 
+    /// AzaharFrame flat2: the XrInstance in use now (a new one for each VR session); the Vulkan
+    /// instance and device made through the first stay.
+    void SetXr(XrInstance instance_, XrSystemId system_) {
+        xr_instance = instance_;
+        xr_system = system_;
+    }
+
     VkInstance Instance() const {
         return instance;
     }

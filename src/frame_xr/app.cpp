@@ -219,7 +219,22 @@ void Runtime::StartThread() {
 void Runtime::StopThread() {
     stop = true;
     if (thread.joinable()) {
-        thread.join();
+        // AzaharFrame flat2: a loop stuck in a runtime call never answers a stop, and a join
+        // here kept the program from quitting until Steam killed it (2026-11-11, 23:26). Wait 6 s
+        // (a session's end may take 3), say where it is, and leave it behind (Shutdown then leaves
+        // what it may still use).
+        const auto give_up = Clock::now() + std::chrono::seconds(6);
+        while (loop_alive && Clock::now() < give_up) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (loop_alive) {
+            LOG_ERROR(Frontend, "xr: the frame loop did not stop within 6 s ({}); left behind",
+                      loop_phase.load());
+            thread.detach();
+            loop_abandoned = true;
+        } else {
+            thread.join();
+        }
     }
     Watchdog::Stop();
 }
@@ -487,7 +502,8 @@ void Runtime::FrameLoop() {
     while (true) {
         loop_top = Clock::now();
         Watchdog::Beat("events");
-        if (!lost && !PollEvents()) {
+        loop_phase = "xrPollEvent";
+        if (instance && !lost && !PollEvents()) { // AzaharFrame flat2: no instance while flat
             // AzaharFrame flat: the runtime is gone (SteamVR quit or crashed). This loop used to
             // end here, which left the game holding whatever the controllers held last, flat
             // with no input at all and no way back. Now any session ends, the game gets nothing
@@ -502,6 +518,9 @@ void Runtime::FrameLoop() {
                     ui->NotifyVr(false);
                 }
             }
+            if (instance_sessions.EndInstanceAfterSession()) {
+                DestroyXrInstance(); // AzaharFrame flat2: VR may ask for a new one later
+            }
         }
 
         // ---- Flat: no session ----
@@ -512,10 +531,15 @@ void Runtime::FrameLoop() {
             }
             if (want_vr) {
                 LOG_INFO(Frontend, "xr: VR again: making a session");
-                const bool made = CreateSession();
+                // AzaharFrame flat2: on a new XR instance (instance_policy.h).
+                loop_phase = "a new XR instance and session";
+                const bool made = RenewInstance() && CreateSession();
                 if (!made) {
                     LOG_ERROR(Frontend, "xr: no session, staying flat");
                     want_vr = false;
+                    if (instance_sessions.EndInstanceAfterSession()) {
+                        DestroyXrInstance();
+                    }
                 }
                 if (ui) {
                     ui->NotifyVr(made);
@@ -524,6 +548,7 @@ void Runtime::FrameLoop() {
                 last_log = Clock::now();
                 continue;
             }
+            loop_phase = "flat";
             FlatStep(flat_seconds);
             continue;
         }
@@ -555,9 +580,16 @@ void Runtime::FrameLoop() {
             const bool asked = exit_requested;
             exit_requested = false;
             exit_deadline = Clock::time_point::max();
+            loop_phase = "destroying the session";
             DestroySession();
             if (stop) {
                 break;
+            }
+            if (instance_sessions.EndInstanceAfterSession()) {
+                // AzaharFrame flat2: the instance goes with its session; VR again makes a new one,
+                // whose first session SteamVR gives the controllers to.
+                loop_phase = "destroying the XR instance";
+                DestroyXrInstance();
             }
             if (!asked) {
                 // SteamVR ended it (quit from its dashboard, the headset gone): carry on flat.
@@ -572,9 +604,11 @@ void Runtime::FrameLoop() {
         }
         if (!running) {
             Watchdog::Idle();
+            loop_phase = "waiting for the session to run or end";
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
+        loop_phase = "VR frames";
 
         XrFrameState fs{XR_TYPE_FRAME_STATE};
         const auto wait_start = Clock::now();
@@ -869,6 +903,13 @@ void Shutdown() {
     LOG_INFO(Frontend, "xr: shutting down");
     VideoCore::SetXrScreenSink(nullptr);
     g_runtime->StopThread();
+    if (g_runtime->loop_abandoned) {
+        // AzaharFrame flat2: the stuck loop may still use all of it: left as it is (the process
+        // is ending).
+        static_cast<void>(g_runtime.release());
+        Settings::frame_flat_mono = false;
+        return;
+    }
     Immersive::Uninstall(); // AzaharFrame immersive mode
     DynamicResolution::Uninstall(); // AzaharFrame menuux
     UiSound::Shutdown();
