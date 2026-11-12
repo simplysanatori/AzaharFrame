@@ -811,6 +811,13 @@ struct Values {
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};
     SwitchableSetting<bool> vr_hint_mouse_shown{false, "vr_hint_mouse_shown"};
+    // AzaharFrame autosave (VR and Flat; a global value and a game's own): a save state of its own
+    // every few minutes of play, when the VR menu opens and when the game is closed
+    // (core/autosave.h). Every is in minutes (1, 2, 5, 10 or 15); Keep is how many the game keeps
+    // (1 to 10), the oldest go.
+    SwitchableSetting<bool> autosave_enabled{false, "autosave_enabled"};
+    SwitchableSetting<u32, true> autosave_every{5, 1, 15, "autosave_every"};
+    SwitchableSetting<u32, true> autosave_keep{3, 1, 10, "autosave_keep"};
 };
 
 extern Values values;

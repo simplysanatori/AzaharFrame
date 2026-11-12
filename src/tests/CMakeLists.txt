@@ -70,6 +70,9 @@ add_executable(tests
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/homebrew_update_check.cpp # AzaharFrame ui3
     core/savestate_frame.cpp # AzaharFrame savestate
+    core/autosave_frame.cpp # AzaharFrame autosave
+    frame_xr/autosave_label.cpp # AzaharFrame autosave
+    ../frame_xr/vis/autosave_label.cpp # AzaharFrame autosave
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp
