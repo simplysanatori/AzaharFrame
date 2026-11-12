@@ -408,7 +408,9 @@ public:
 
     /// Listening for the next input of one gamepad (the menu's "press a button"): inputs held
     /// when it starts count only once let go. Poll returns the first new press, once.
-    bool BeginListen(const std::string& id);
+    /// AzaharFrame input2: `ignore` (a PadInput, for "mouse" a MouseInput, -1 none) is never
+    /// reported and never kept from anything: the pointer's select, which works the menu.
+    bool BeginListen(const std::string& id, int ignore = -1);
     void CancelListen();
     struct ListenResult {
         enum class State { Idle, Listening, Pressed, Gone } state = State::Idle;
@@ -506,6 +508,7 @@ private:
     std::string listen_id_;
     bool listening_ = false;
     std::array<bool, kNumPadInputs> listen_held_{};
+    int listen_ignore_ = -1; ///< AzaharFrame input2
     ListenResult listen_result_;
 };
 

@@ -4322,7 +4322,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
         break;
     case S::BottomScreenReticle: // AzaharFrame mouse
-        set(v.vr_bottom_screen_reticle, std::min<u32>(u, 2));
+        set(v.vr_bottom_screen_reticle, std::min<u32>(u, 3)); // AzaharFrame input2: 3 Headset
         break;
     case S::ReticleAtEdge: // AzaharFrame mouse
         set(v.vr_reticle_at_edge, std::min<u32>(u, 1));

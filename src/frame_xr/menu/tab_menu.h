@@ -77,7 +77,7 @@ enum class Id : int {
     RecentreAtEdge, ///< AzaharFrame padsui: the selected device's Recentre at Edge
     UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
     CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
-    BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right Controller
+    BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right, 3 Headset
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     // Settings
     Scope,
@@ -183,7 +183,7 @@ struct MenuModel {
     // Controls
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
     int touchpad_touch = 0; ///< AzaharFrame menuux: 0 Tap for Input, 1 Click for Input
-    int bottom_screen_reticle = 0; ///< AzaharFrame mouse: 0 Off, 1 Left, 2 Right Controller
+    int bottom_screen_reticle = 0; ///< AzaharFrame mouse: 0 Off, 1 Left, 2 Right, 3 Headset
     int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings

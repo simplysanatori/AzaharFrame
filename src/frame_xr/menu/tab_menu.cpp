@@ -156,7 +156,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
     static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Tap for Input", "Click for Input"}; // menuux
-    static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller"};
+    static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller",
+                                                   "Headset"}; // AzaharFrame input2: Headset
     static const std::vector<std::string> kAtEdge{"Follow", "Snap to Middle"};
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
@@ -1045,9 +1046,13 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     if (listening) {
         // Material snackbar: inverse surface, 4 dp corners, the message, the action in inverse
         // primary (a text button) at its end.
-        const std::string prompt = !IsStick(view.remap.listening) ? "Press a Button\xE2\x80\xA6"
-                                   : view.remap.step == 0       ? "Push the Stick Up\xE2\x80\xA6"
-                                                                : "Push the Stick Right\xE2\x80\xA6";
+        std::string prompt = !IsStick(view.remap.listening) ? "Press a Button\xE2\x80\xA6"
+                             : view.remap.step == 0       ? "Push the Stick Up\xE2\x80\xA6"
+                                                          : "Push the Stick Right\xE2\x80\xA6";
+        if (view.remap.countdown > 0) {
+            // AzaharFrame input2: 3, 2, 1, then it closes and the binding stays as it was.
+            prompt += " " + std::to_string(view.remap.countdown);
+        }
         const std::string& action = LabelFor(Id::RemapCancel);
         const float text = 16.0f;
         const float tw = kit.TextWidthSized(text, false, prompt);
@@ -1166,7 +1171,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
                     enabled ? 1.0f : kDisabledContent);
         const auto& opts = OptionsFor(id);
-        const float tw = kit.SegmentedWidth(opts, c.W() * 0.6f);
+        // AzaharFrame input2: up to 0.64 of the width (the reticle's four choices need it).
+        const float tw = kit.SegmentedWidth(opts, c.W() * 0.64f);
         const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
         const int th = view.hover.id == id ? view.hover.index : -1;
         const int tpr = view.pressed.id == id ? view.pressed.index : -1;

@@ -12,7 +12,9 @@
 //   Trigger on a game's button  on release: the game's answer (the confirm button checks the
 //                               text first and says why it was refused under the field)
 //   B                           Backspace
-// A physical keyboard types into the field too (swkbd.h; Enter is the confirm button).
+// A physical keyboard types into the field too (swkbd.h; Enter is the confirm button). AzaharFrame
+// input2: in VR Qt never sees its keys, so the keyboards are read from their event nodes while
+// the keyboard is open (input/phys_keyboard.h): Esc is the cancel button, Shift+Enter a new line.
 
 #pragma once
 
@@ -27,6 +29,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/phys_keyboard.h" // AzaharFrame input2
 #include "frame_xr/menu/swkbd_model.h"
 #include "frame_xr/swkbd.h"
 
@@ -91,6 +94,9 @@ private:
     uint64_t posted = 0, uploaded = 0;
     bool our_upload = false; ///< our pixels were uploaded since Place
     bool ready = false;      ///< our pixels are in the chain: the quad may show
+
+    /// AzaharFrame input2: the physical keyboards, read only while the keyboard is open.
+    Input::PhysicalKeyboards keyboards;
 
     std::chrono::steady_clock::time_point created{}; ///< the test driver's clock
     bool test_fired = false;

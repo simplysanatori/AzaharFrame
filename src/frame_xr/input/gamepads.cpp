@@ -1236,8 +1236,9 @@ bool GamepadHub::ResetMapping(const std::string& id) {
     return true;
 }
 
-bool GamepadHub::BeginListen(const std::string& id) {
+bool GamepadHub::BeginListen(const std::string& id, int ignore) {
     std::scoped_lock lock{mutex_};
+    listen_ignore_ = ignore; // AzaharFrame input2
     if (id == kMouseDeviceId) {
         // AzaharFrame padsui: the mouse's next click, button or wheel notch.
         listen_mouse_ = source_.Mouse();
@@ -1290,14 +1291,17 @@ GamepadHub::ListenResult GamepadHub::PollListen() {
             const std::size_t k = static_cast<std::size_t>(b);
             if (!now.buttons[k]) {
                 listen_mouse_.buttons[k] = false;
-            } else if (!listen_mouse_.buttons[k]) {
+            } else if (!listen_mouse_.buttons[k] && b != listen_ignore_) {
                 input = b;
             }
         }
-        if (input < 0 && now.wheel_up > listen_mouse_.wheel_up) {
-            input = static_cast<int>(MouseInput::WheelUp);
-        } else if (input < 0 && now.wheel_down > listen_mouse_.wheel_down) {
-            input = static_cast<int>(MouseInput::WheelDown);
+        const int wheel_up = static_cast<int>(MouseInput::WheelUp);
+        const int wheel_down = static_cast<int>(MouseInput::WheelDown);
+        if (input < 0 && now.wheel_up > listen_mouse_.wheel_up && listen_ignore_ != wheel_up) {
+            input = wheel_up;
+        } else if (input < 0 && now.wheel_down > listen_mouse_.wheel_down &&
+                   listen_ignore_ != wheel_down) {
+            input = wheel_down;
         }
         listen_mouse_.wheel_up = now.wheel_up;
         listen_mouse_.wheel_down = now.wheel_down;
@@ -1322,7 +1326,7 @@ GamepadHub::ListenResult GamepadHub::PollListen() {
         const bool now = pad->inputs.pressed[k];
         if (!now) {
             listen_held_[k] = false;
-        } else if (!listen_held_[k]) {
+        } else if (!listen_held_[k] && i != listen_ignore_) {
             listening_ = false;
             listen_result_ = {};
             // Held until let go: the press never reaches the game when the menu closes.

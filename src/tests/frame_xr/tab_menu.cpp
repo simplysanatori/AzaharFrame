@@ -262,8 +262,9 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     // AzaharFrame mouse: Bottom Screen Reticle under Touchpad.
     CHECK(has(Id::BottomScreenReticle, 0));
     CHECK(has(Id::BottomScreenReticle, 2));
+    CHECK(has(Id::BottomScreenReticle, 3)); // AzaharFrame input2
     CHECK(OptionsFor(Id::BottomScreenReticle) ==
-          std::vector<std::string>{"Off", "Left Controller", "Right Controller"});
+          std::vector<std::string>{"Off", "Left Controller", "Right Controller", "Headset"});
     CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
     // At Edge: only while the reticle is on.
     CHECK_FALSE(has(Id::ReticleAtEdge, 0));
@@ -777,7 +778,7 @@ MenuModel Longest() {
     m.internal_resolution = 8;
     m.texture_filter = 2;
     m.fast_forward_speed = 3;
-    m.bottom_screen_reticle = 2; // AzaharFrame mouse: the Reticle and At Edge rows too
+    m.bottom_screen_reticle = 3; // AzaharFrame mouse: the Reticle and At Edge rows too (Headset)
     return m;
 }
 
@@ -1060,6 +1061,7 @@ TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr]
     constexpr float kOneLine =
         static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kReticleHint) <= kOneLine);
+    CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kReticleHeadHint) <= kOneLine); // input2
     CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }
 

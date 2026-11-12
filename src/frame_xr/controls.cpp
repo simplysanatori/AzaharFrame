@@ -1428,36 +1428,52 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // AzaharFrame mouse: Bottom Screen Reticle: the chosen controller aims the bottom screen and
     // its trigger touches there; its trigger and grip reach neither the mapper (no ZL or ZR, no
     // beam touch, no grab) nor the immersive screen. Its grip re-zeroes (reticle.h).
+    // AzaharFrame input2: Headset: the head aims, either trigger touches (both triggers are the
+    // reticle's then), the grips keep their jobs; Recenter re-zeroes.
     Input::ReticleSample reticle_sample;
     {
-        const int rh = Input::ReticleHandIndex(
-            Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue()));
-        if (rh != reticle_hand_logged) {
-            reticle_hand_logged = rh;
-            LOG_INFO(Frontend, "xr: Bottom Screen Reticle: {}",
-                     rh < 0 ? "off" : rh == Input::HandIndex(Input::Hand::Left) ? "left" : "right");
-            if (rh >= 0 && !Settings::values.vr_hint_reticle_shown.GetValue()) {
+        const Input::ReticleHand source =
+            Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue());
+        const int rs = static_cast<int>(source);
+        if (rs != reticle_hand_logged) {
+            reticle_hand_logged = rs;
+            static constexpr const char* kNames[] = {"off", "left", "right", "headset"};
+            LOG_INFO(Frontend, "xr: Bottom Screen Reticle: {}", kNames[rs & 3]);
+            if (source != Input::ReticleHand::Off &&
+                !Settings::values.vr_hint_reticle_shown.GetValue()) {
                 // Once per install: what the controller does now.
                 Settings::values.vr_hint_reticle_shown.SetValue(true);
-                ShowToastText(Input::kReticleHint);
+                ShowToastText(source == Input::ReticleHand::Headset ? Input::kReticleHeadHint
+                                                                    : Input::kReticleHint);
                 SaveVrSettingSoon();
             }
         }
         if (Input::TakeReticleRezero()) {
             reticle.Rezero();
         }
-        if (rh >= 0) {
-            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(rh)];
-            const Input::ReticleFrame rf =
-                reticle.Update(hand, true, mouse_frame.speed, in.time_ns,
-                               Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()));
+        const int rh = Input::ReticleHandIndex(source);
+        if (source != Input::ReticleHand::Off) {
+            const ViewPose head_view = LatestViewPose();
+            const Input::Quatf head = ToInput(head_view.head).orientation;
+            const Input::ReticleAim aim =
+                rh >= 0 ? Input::ReticleAimOf(game_in.hand[static_cast<std::size_t>(rh)])
+                        : Input::ReticleHeadAim(head_view.valid, head, game_in.hand[0],
+                                                game_in.hand[1]);
+            const Input::ReticleFrame rf = reticle.Update(
+                aim, true, Input::ReticleHalfWidthDeg(source), in.time_ns,
+                Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()));
             if (rf.rezeroed) {
                 LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");
             }
             reticle_sample = {rf.on, rf.point, rf.down};
-            if (rf.on) {
+            if (rf.on && rh >= 0) {
+                Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(rh)];
                 hand.trigger = 0.0f;
                 hand.grip = 0.0f;
+            } else if (rf.on) {
+                for (Input::HandInput& hand : game_in.hand) {
+                    hand.trigger = 0.0f;
+                }
             }
         } else {
             reticle.Reset();

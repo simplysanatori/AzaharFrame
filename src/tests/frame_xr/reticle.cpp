@@ -2,6 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <cmath>
+#include <random>
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,7 +18,8 @@ using namespace FrameXr::Input;
 namespace {
 
 constexpr int64_t kMs = 1'000'000;
-constexpr int kNormal = 2;
+constexpr float kHalf = 15.0f; ///< the cone these tests were written for (30 degrees wide)
+constexpr float kRadPerDeg = 3.14159265f / 180.0f;
 
 HandInput Aim(float yaw, float pitch, float trigger = 0.0f, float grip = 0.0f) {
     HandInput h;
@@ -32,10 +35,11 @@ struct Rig {
     int64_t now = 1'000 * kMs;
     ReticleFrame f;
     ReticleEdge edge = ReticleEdge::Follow;
-    ReticleFrame& Step(const HandInput& h, int frames = 1, int speed = kNormal) {
+    float half = kHalf;
+    ReticleFrame& Step(const HandInput& h, int frames = 1) {
         for (int i = 0; i < frames; i++) {
             now += 11 * kMs;
-            f = r.Update(h, true, speed, now, edge);
+            f = r.Update(ReticleAimOf(h), true, half, now, edge);
         }
         return f;
     }
@@ -44,9 +48,11 @@ struct Rig {
 } // namespace
 
 TEST_CASE("Reticle: angle to point", "[frame_xr]") {
-    CHECK(ReticleHalfWidthDeg(kNormal) == Approx(15.0f));
-    CHECK(ReticleHalfWidthDeg(4) == Approx(7.5f));  // faster: a narrower cone
-    CHECK(ReticleHalfWidthDeg(0) == Approx(30.0f)); // slower: a wider one
+    // AzaharFrame input2: its own cone, not the mouse's Cursor Speed.
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Left) == Approx(20.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Right) == Approx(20.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Headset) == Approx(15.0f));
+    CHECK(ReticleHalfWidthDeg(ReticleHand::Off) == Approx(0.0f));
     Vec2f p = ReticlePoint(0.0f, 0.0f, 15.0f);
     CHECK(p.x == Approx(0.5f));
     CHECK(p.y == Approx(0.5f));
@@ -61,6 +67,9 @@ TEST_CASE("Reticle: angle to point", "[frame_xr]") {
     CHECK(ReticleHandIndex(ReticleHand::Off) == -1);
     CHECK(ReticleHandIndex(ReticleHandFrom(1)) == HandIndex(Hand::Left));
     CHECK(ReticleHandIndex(ReticleHandFrom(2)) == HandIndex(Hand::Right));
+    CHECK(ReticleHandFrom(3) == ReticleHand::Headset);
+    CHECK(ReticleHandIndex(ReticleHand::Headset) == -1);
+    CHECK(ReticleHandFrom(4) == ReticleHand::Off);
 }
 
 TEST_CASE("Reticle: absolute aim from where it starts, with edge drift", "[frame_xr]") {
@@ -77,13 +86,15 @@ TEST_CASE("Reticle: absolute aim from where it starts, with edge drift", "[frame
     // Back: the same direction is the same point.
     f = t.Step(Aim(30.0f, 10.0f), 90);
     CHECK(f.point.x == Approx(0.5f).margin(0.01));
-    // 25 degrees left: on the left edge, the reference dragged 10 degrees along.
+    // 25 degrees left: on the left edge, the reference dragged about 10 degrees along (the yaw
+    // across the cone is the turn times the cosine of the reference's pitch).
+    const float ys = std::cos(10.0f * kRadPerDeg);
     f = t.Step(Aim(55.0f, 10.0f), 90);
     CHECK(f.point.x == Approx(0.0f).margin(0.01));
-    CHECK(t.r.ref_yaw_deg() == Approx(40.0f).margin(0.2));
-    // Turning back moves the point at once: 15 degrees left is now 5 from the reference.
+    CHECK(t.r.ref_yaw_deg() == Approx(55.0f - 15.0f / ys).margin(0.05));
+    // Turning back moves the point at once: 10 degrees back is that far from the edge.
     f = t.Step(Aim(45.0f, 10.0f), 90);
-    CHECK(f.point.x == Approx(0.5f - 5.0f / 30.0f).margin(0.01));
+    CHECK(f.point.x == Approx(10.0f * ys / 30.0f).margin(0.005));
 }
 
 TEST_CASE("Reticle: grip and Recenter re-zero, the trigger touches", "[frame_xr]") {
@@ -143,7 +154,7 @@ TEST_CASE("Reticle: off, untracked and turning through behind you", "[frame_xr]"
     CHECK(f.on);
     CHECK(f.point.x == Approx(0.5f));
     t.now += 11 * kMs;
-    CHECK_FALSE(t.r.Update(Aim(-20.0f, 0.0f), false, kNormal, t.now).on);
+    CHECK_FALSE(t.r.Update(ReticleAimOf(Aim(-20.0f, 0.0f)), false, kHalf, t.now).on);
 
     // From 179 degrees to -179 is 2 degrees further left, not 358 to the right.
     Rig w;
@@ -313,4 +324,116 @@ TEST_CASE("Reticle: Snap to Middle waits before it snaps again", "[frame_xr]") {
         CHECK_FALSE(follow.Step(Aim(-60.0f, 0.0f)).snapped);
     }
     CHECK(follow.f.point.x == Approx(1.0f).margin(0.01));
+}
+
+// AzaharFrame input2: the head aims, either trigger touches, the grips do nothing to it.
+TEST_CASE("Reticle: Headset", "[frame_xr]") {
+    HandInput left = Aim(50.0f, -30.0f);
+    HandInput right = Aim(-50.0f, -30.0f);
+    ReticleAim a = ReticleHeadAim(true, AimOrientation(DirectionOf(0.0f, 0.0f)), left, right);
+    CHECK(a.active);
+    CHECK(a.trigger == 0.0f);
+    CHECK(a.grip == 0.0f);
+    left.trigger = 0.7f;
+    CHECK(ReticleHeadAim(true, a.orientation, left, right).trigger == Approx(0.7f));
+    left.trigger = 0.0f;
+    right.trigger = 0.9f;
+    right.grip = 1.0f;
+    a = ReticleHeadAim(true, a.orientation, left, right);
+    CHECK(a.trigger == Approx(0.9f));
+    CHECK(a.grip == 0.0f); // a grip grabs screens as before, it never re-zeroes the head
+    CHECK_FALSE(ReticleHeadAim(false, a.orientation, left, right).active);
+
+    BottomScreenReticle r;
+    int64_t now = 1'000 * kMs;
+    const float hw = ReticleHalfWidthDeg(ReticleHand::Headset);
+    const auto head = [&](float yaw, float pitch, float trigger, int frames) {
+        ReticleFrame f;
+        for (int i = 0; i < frames; i++) {
+            now += 11 * kMs;
+            ReticleAim h{true, AimOrientation(DirectionOf(yaw, pitch)), trigger, 0.0f};
+            f = r.Update(h, true, hw, now);
+        }
+        return f;
+    };
+    ReticleFrame f = head(0.0f, 0.0f, 0.0f, 1);
+    CHECK(f.point.x == Approx(0.5f));
+    // The head turned 7.5 degrees right: a quarter of the cone right of the middle.
+    f = head(-7.5f, 0.0f, 0.0f, 90);
+    CHECK(f.point.x == Approx(0.75f).margin(0.01));
+    CHECK_FALSE(f.down);
+    CHECK(head(-7.5f, 0.0f, 0.8f, 1).down);
+    // Recenter: the middle is where the head points.
+    r.Rezero();
+    f = head(-7.5f, 0.0f, 0.0f, 1);
+    CHECK(f.rezeroed);
+    CHECK(f.point.x == Approx(0.5f));
+}
+
+// AzaharFrame input2: a controller held pointing down is as fast sideways as up and down.
+TEST_CASE("Reticle: the yaw across the cone at the reference's pitch", "[frame_xr]") {
+    Rig t;
+    t.half = ReticleHalfWidthDeg(ReticleHand::Right);
+    t.Step(Aim(0.0f, -40.0f));
+    ReticleFrame f = t.Step(Aim(-10.0f, -40.0f), 120);
+    const float across = 10.0f * std::cos(40.0f * kRadPerDeg); // about 7.7 degrees
+    CHECK(f.point.x == Approx(0.5f + across / 40.0f).margin(0.003));
+    // Up and down as before: 7.7 degrees up.
+    t.Step(Aim(0.0f, -40.0f), 120);
+    f = t.Step(Aim(0.0f, -40.0f + across), 120);
+    CHECK(f.point.y == Approx(0.5f - across / 30.0f).margin(0.003));
+}
+
+// AzaharFrame input2: the point keeps up with a steady move (it trailed 0.6 degrees at 20
+// degrees a second before), and a flick settles at once.
+TEST_CASE("Reticle: little lag in a move", "[frame_xr]") {
+    Rig t;
+    t.half = ReticleHalfWidthDeg(ReticleHand::Right);
+    std::mt19937 rng(7);
+    std::normal_distribution<float> tremor(0.0f, 0.03f);
+    t.Step(Aim(10.0f, 0.0f));
+    // 20 degrees a second to the right, for 0.9 s (from 10 left to 8 right).
+    float yaw = 10.0f;
+    double lag = 0.0;
+    int n = 0;
+    for (int i = 0; i < 82; i++) {
+        yaw -= 20.0f * 0.011f;
+        const ReticleFrame& f = t.Step(Aim(yaw + tremor(rng), 0.0f));
+        if (i >= 40) {
+            const float shown = 10.0f - (f.point.x - 0.5f) * 40.0f; // the yaw the point shows
+            lag += shown - yaw;
+            n++;
+        }
+    }
+    CHECK(lag / n < 0.4);
+    CHECK(lag / n > 0.0);
+    // A flick of 10 degrees in 0.1 s: within 0.2 degrees 50 ms after it stops.
+    Rig k;
+    k.half = 20.0f;
+    k.Step(Aim(0.0f, 0.0f));
+    for (int i = 1; i <= 9; i++) {
+        k.Step(Aim(-10.0f * static_cast<float>(i) / 9.0f, 0.0f));
+    }
+    const ReticleFrame& f = k.Step(Aim(-10.0f, 0.0f), 5);
+    CHECK((f.point.x - 0.5f) * 40.0f == Approx(10.0f).margin(0.2));
+}
+
+// AzaharFrame input2: at an edge, tremor moves the reference at most by its own size; it does
+// not creep a little further every time it crosses.
+TEST_CASE("Reticle: tremor at an edge does not creep the reference", "[frame_xr]") {
+    Rig t;
+    t.half = 20.0f;
+    t.Step(Aim(0.0f, 0.0f));
+    t.Step(Aim(-20.0f, 0.0f), 120); // on the right edge
+    const float ref0 = t.r.ref_yaw_deg();
+    std::mt19937 rng(3);
+    std::uniform_real_distribution<float> tremor(-0.15f, 0.15f);
+    for (int i = 0; i < 900; i++) { // 10 s
+        t.Step(Aim(-20.0f + tremor(rng), tremor(rng)));
+    }
+    CHECK(std::fabs(t.r.ref_yaw_deg() - ref0) < 0.15f);
+    CHECK(std::fabs(t.r.ref_pitch_deg()) < 0.15f);
+    // Back to the middle: the same direction is the same point as before.
+    const ReticleFrame& f = t.Step(Aim(0.0f, 0.0f), 120);
+    CHECK(f.point.x == Approx(0.5f).margin(0.008));
 }

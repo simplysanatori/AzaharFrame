@@ -795,8 +795,9 @@ struct Values {
     // while the headset misses frames and back up when it holds them (frame_xr/dynamic_resolution.h).
     SwitchableSetting<bool> vr_dynamic_resolution{false, "vr_dynamic_resolution"};
     // AzaharFrame mouse: Bottom Screen Reticle, global: 0 Off, 1 Left Controller, 2 Right
-    // Controller. That controller aims a point on the bottom screen; its trigger touches there.
-    SwitchableSetting<u32, true> vr_bottom_screen_reticle{0, 0, 2, "vr_bottom_screen_reticle"};
+    // Controller, 3 Headset (AzaharFrame input2). That controller (or the head) aims a point on
+    // the bottom screen; its trigger (with Headset: either trigger) touches there.
+    SwitchableSetting<u32, true> vr_bottom_screen_reticle{0, 0, 3, "vr_bottom_screen_reticle"};
     // AzaharFrame mouse: the reticle's At Edge, global: 0 Follow (the edges drift), 1 Snap to
     // Middle (past an edge it re-zeroes; a held touch lifts and touches again at the middle).
     SwitchableSetting<u32, true> vr_reticle_at_edge{0, 0, 1, "vr_reticle_at_edge"};

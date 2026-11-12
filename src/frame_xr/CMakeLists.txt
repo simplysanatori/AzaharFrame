@@ -44,6 +44,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/mouse.h
     input/mouse_pointer.cpp # AzaharFrame padsui: adapted from Frametop (MIT)
     input/mouse_pointer.h
+    input/phys_keyboard.cpp # AzaharFrame input2
+    input/phys_keyboard.h
     input/reticle.cpp # AzaharFrame mouse
     input/reticle.h
     input/profile_routes.h
