@@ -192,6 +192,8 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
     REQUIRE(Settings::values.resolution_factor.GetValue() == 3);
     REQUIRE(Settings::values.vr_immersive_squeeze.GetValue() == 30);
     REQUIRE(Settings::values.vr_immersive_eye_indicator.GetValue() == "87,2");
+    // AzaharFrame jump: the owner's tuning had Match Game Camera off (the gain from 40 degrees).
+    REQUIRE(Settings::values.vr_immersive_match_camera.GetValue() == false);
     ResetPresetSettings();
 }
 

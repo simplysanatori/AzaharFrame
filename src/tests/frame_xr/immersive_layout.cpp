@@ -1290,3 +1290,92 @@ TEST_CASE("FrameXr immersive: a resolution change keeps the centre", "[frame_xr]
         REQUIRE(rest.Update(true, true, 500));
     }
 }
+
+// AzaharFrame jump: the Frame's eye views as located in the owner's Mario Kart 7 launches of
+// 2026-11-12 switched between two shapes (the right eye 1.9 degrees up or down against the left:
+// the both-eyes view cut at the top or the bottom), and the screen refitted each frame jumped
+// up and down with them.
+namespace {
+ViewFov FrameView(float right_eye_pitch_deg) {
+    const EyeFov l{Rad(-59.1f), Rad(50.4f), Rad(49.5f), Rad(-60.0f)};
+    EyeFov r{Rad(-50.4f), Rad(59.1f), Rad(49.5f), Rad(-59.6f)};
+    r.pitch = Rad(right_eye_pitch_deg);
+    return BothEyes(l, r);
+}
+HeadLocked SolveMk7(const ViewFov& view) {
+    Placement p;
+    p.pitch_deg = -6.0f;
+    p.distance = 0.371f;
+    p.size = 2.022f;
+    Options o;
+    o.wider = 1.3f;
+    o.squeeze = 0.30f;
+    o.squeeze_y = 0.15f;
+    return SolveHeadLocked(p, 40.0f, kAspect3ds, view, 0.0f, o, LensOffset{0.5f, 0.0f});
+}
+} // namespace
+
+TEST_CASE("FrameXr immersive: views that change each frame refit the screen each frame",
+          "[frame_xr]") {
+    // What happened without ViewSettle: the screen's pitch and the game's up-and-down factor
+    // follow each frame's view (the log's "-10.1 / -11.9 degrees from straight ahead" and
+    // "1.64 / 1.55 up and down" for one placement).
+    const HeadLocked up = SolveMk7(FrameView(1.9f));
+    const HeadLocked down = SolveMk7(FrameView(-1.9f));
+    REQUIRE(std::abs(up.pitch_rad - down.pitch_rad) > Rad(1.5f));
+    REQUIRE(std::abs(up.factor_y - down.factor_y) > 0.05f);
+}
+
+TEST_CASE("FrameXr immersive: the screen is fitted to a settled view", "[frame_xr]") {
+    ViewSettle settle;
+    REQUIRE_FALSE(settle.Has());
+    // The first frame: something to fit to at once.
+    REQUIRE(settle.Add(FrameView(1.9f), 0.032f));
+    REQUIRE(settle.Has());
+    int changes = 0;
+    for (int i = 1; i < kViewSettleFirstFrames; i++) {
+        changes += settle.Add(FrameView(i % 2 ? -1.9f : 1.9f), 0.032f) ? 1 : 0;
+    }
+    // The first mean (half of each shape) replaces the first frame's view.
+    REQUIRE(changes == 1);
+    const ViewFov fitted = settle.View();
+    const HeadLocked first = SolveMk7(fitted);
+    // From then on the alternating views never move the screen.
+    for (int i = 0; i < 20 * kViewSettleBlockFrames; i++) {
+        REQUIRE_FALSE(settle.Add(FrameView(i % 2 ? 1.9f : -1.9f), 0.032f));
+    }
+    REQUIRE(settle.Distance(fitted) == 0.0f);
+    const HeadLocked later = SolveMk7(settle.View());
+    REQUIRE(later.pitch_rad == first.pitch_rad);
+    REQUIRE(later.factor_y == first.factor_y);
+    // Between the two shapes, about where a still view puts it.
+    const HeadLocked still = SolveMk7(FrameView(0.0f));
+    REQUIRE(std::abs(first.pitch_rad - still.pitch_rad) < Rad(0.3f));
+    REQUIRE(settle.HalfIpd() == Approx(0.032f));
+}
+
+TEST_CASE("FrameXr immersive: a lasting view change refits the screen once", "[frame_xr]") {
+    ViewSettle settle;
+    for (int i = 0; i < kViewSettleFirstFrames; i++) {
+        settle.Add(FrameView(0.0f), 0.032f);
+    }
+    const ViewFov before = settle.View();
+    // A short change (well under a block) does nothing.
+    int changes = 0;
+    for (int i = 0; i < 20; i++) {
+        changes += settle.Add(FrameView(4.0f), 0.032f) ? 1 : 0;
+    }
+    for (int i = 20; i < kViewSettleBlockFrames; i++) {
+        changes += settle.Add(FrameView(0.0f), 0.032f) ? 1 : 0;
+    }
+    REQUIRE(changes == 0);
+    REQUIRE(settle.Distance(before) == 0.0f);
+    // A change held for a whole block (the IPD wheel): taken at the block's end, once.
+    for (int i = 0; i < 3 * kViewSettleBlockFrames; i++) {
+        changes += settle.Add(FrameView(0.0f), 0.034f) ? 1 : 0;
+    }
+    REQUIRE(changes == 1);
+    REQUIRE(settle.HalfIpd() == Approx(0.034f));
+    // Nonsense from the runtime is left out.
+    REQUIRE_FALSE(settle.Add(FrameView(0.0f), std::nanf("")));
+}

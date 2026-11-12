@@ -52,6 +52,7 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_SECONDS=<s>` | the session stops after this long (default 20, 0 never) |
 | `MOCK_XR_HZ=<hz>` | display refresh |
 | `MOCK_XR_SWAY=0` | keep the head still |
+| `MOCK_XR_EYE_WOBBLE=<deg>` | the right eye's view pitched up and down by this much relative to the head, the sign alternating each display frame (eye views that change from frame to frame, as the Frame's did in the Mario Kart 7 report) |
 | `MOCK_XR_SKIP=1` | a frame begun late loses refreshes |
 | `MOCK_XR_EXTENSIONS=a,b` | replace the list of extensions offered |
 | `MOCK_XR_END_GPU=1` | `xrEndFrame` waits for the app's queue to go idle before it returns, as SteamVR's did on the Frame while a GPU-heavy game ran (13 to 23 ms calls). The app holds its queue lock around the call, so this also holds back the app's own submits and swapchain releases |

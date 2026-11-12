@@ -85,6 +85,92 @@ ViewFov BothEyes(const EyeFov& l, const EyeFov& r) {
     return v;
 }
 
+namespace {
+// AzaharFrame jump: ViewSettle's fields, in one order.
+constexpr int kViewFields = 8;
+void ViewFields(const ViewFov& v, float out[kViewFields]) {
+    out[0] = v.left;
+    out[1] = v.right;
+    out[2] = v.up;
+    out[3] = v.down;
+    out[4] = v.outer_left;
+    out[5] = v.outer_right;
+    out[6] = v.outer_up;
+    out[7] = v.outer_down;
+}
+ViewFov FromFields(const double in[kViewFields], double n) {
+    ViewFov v;
+    v.left = static_cast<float>(in[0] / n);
+    v.right = static_cast<float>(in[1] / n);
+    v.up = static_cast<float>(in[2] / n);
+    v.down = static_cast<float>(in[3] / n);
+    v.outer_left = static_cast<float>(in[4] / n);
+    v.outer_right = static_cast<float>(in[5] / n);
+    v.outer_up = static_cast<float>(in[6] / n);
+    v.outer_down = static_cast<float>(in[7] / n);
+    return v;
+}
+} // namespace
+
+float ViewSettle::Distance(const ViewFov& view) const {
+    float a[kViewFields], b[kViewFields];
+    ViewFields(view, a);
+    ViewFields(view_, b);
+    float d = 0.0f;
+    for (int i = 0; i < kViewFields; i++) {
+        d = std::max(d, std::abs(a[i] - b[i]));
+    }
+    return d;
+}
+
+void ViewSettle::Restart() {
+    count_ = 0;
+    std::fill(std::begin(sum_), std::end(sum_), 0.0);
+}
+
+bool ViewSettle::Add(const ViewFov& view, float half_ipd) {
+    float f[kViewFields];
+    ViewFields(view, f);
+    bool finite = std::isfinite(half_ipd);
+    for (const float x : f) {
+        finite = finite && std::isfinite(x);
+    }
+    if (!finite) {
+        return false;
+    }
+    bool changed = false;
+    if (!has_) { // something to fit to from the first frame on
+        has_ = true;
+        view_ = view;
+        half_ipd_ = half_ipd;
+        Restart();
+        changed = true;
+    }
+    for (int i = 0; i < kViewFields; i++) {
+        sum_[i] += f[i];
+    }
+    sum_[kViewFields] += half_ipd;
+    count_++;
+    if (count_ < (settled_ ? kViewSettleBlockFrames : kViewSettleFirstFrames)) {
+        return changed;
+    }
+    const ViewFov mean = FromFields(sum_, count_);
+    const float mean_ipd = static_cast<float>(sum_[kViewFields] / count_);
+    // The first mean replaces the first frame's view whenever it differs at all; after that only
+    // a lasting change does.
+    const bool first = !settled_;
+    settled_ = true;
+    Restart();
+    const float limit = first ? 0.0f : kViewSettleChangeDeg * kDegToRad;
+    const float ipd_limit = first ? 0.0f : kViewSettleIpdM;
+    if (Distance(mean) > limit || std::abs(mean_ipd - half_ipd_) > ipd_limit) {
+        view_ = mean;
+        half_ipd_ = mean_ipd;
+        changed = true;
+    }
+    return changed;
+}
+
 Placement Clamped(Placement p) {
     p.pitch_deg = std::isfinite(p.pitch_deg) ? std::clamp(p.pitch_deg, kMinPitchDeg, kMaxPitchDeg)
                                              : kDefaultPitchDeg;

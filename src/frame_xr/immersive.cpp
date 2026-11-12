@@ -305,7 +305,12 @@ struct State {
     L::Placement head_place;
     L::Placement wide_place;
     L::ViewFov view_fov;
-    bool view_fov_logged = false;
+    /// AzaharFrame jump: the view the screen is fitted to, held steady (ViewSettle); view_fov
+    /// and half_ipd are its values.
+    L::ViewSettle view_settle;
+    L::ViewFov view_raw; ///< this frame's view as the runtime located it
+    bool view_raw_valid = false;
+    int view_fov_changes = 0; ///< the settled view's changes (the log line's note)
     L::HeadLocked solved;
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
@@ -327,6 +332,10 @@ struct State {
         int64_t last_picture = 0;
         uint32_t run = 0;           ///< display frames the current picture has been on view
         uint32_t runs[4]{};         ///< pictures on view for 1, 2, 3, 4 or more display frames
+        /// AzaharFrame jump: the middle of the view as located each frame (lowest, highest),
+        /// and the frames whose view was more than kViewSettleChangeDeg from the fitted one.
+        float mid_min_deg = 1e9f, mid_max_deg = -1e9f;
+        uint32_t view_off = 0;
     } age;
 };
 
@@ -614,22 +623,32 @@ void OnFrame(const FrameInfo& info) {
         const XrVector3f between = Rotate(Conj(g.view.head.orientation),
                                           Sub(g.view.eye[1].position, g.view.eye[0].position));
         const float half = std::abs(between.x) / 2;
-        g.half_ipd = (half > 0.02f && half < 0.045f) ? half : kDefaultHalfIpd;
-        g.view_fov = L::BothEyes(EyeInHead(g.view.head, g.view.eye[0], g.view.fov[0]),
+        g.view_raw = L::BothEyes(EyeInHead(g.view.head, g.view.eye[0], g.view.fov[0]),
                                  EyeInHead(g.view.head, g.view.eye[1], g.view.fov[1]));
-        if (!g.view_fov_logged) {
-            g.view_fov_logged = true;
+        g.view_raw_valid = g.view.views_valid;
+        // AzaharFrame jump: the screen is fitted to a settled view, not to each frame's: the
+        // runtime's per-frame eye views moved the screen and the game's camera up and down.
+        if (g.view_raw_valid && g.view_settle.Add(g.view_raw, (half > 0.02f && half < 0.045f) ? half
+                                                                            : kDefaultHalfIpd)) {
+            g.view_fov = g.view_settle.View();
+            g.half_ipd = g.view_settle.HalfIpd();
             LOG_INFO(Frontend,
                      "xr: immersive: both eyes see {:.1f} to {:.1f} degrees across, {:.1f} to "
-                     "{:.1f} up, either eye {:.1f} to {:.1f} across, {:.1f} to {:.1f} up (left "
-                     "eye {:.1f}/{:.1f}/{:.1f}/{:.1f})",
+                     "{:.1f} up, either eye {:.1f} to {:.1f} across, {:.1f} to {:.1f} up, eyes "
+                     "{:.1f} mm apart (left eye now {:.1f}/{:.1f}/{:.1f}/{:.1f}); the screen is "
+                     "fitted to this{}",
                      Deg(g.view_fov.left), Deg(g.view_fov.right), Deg(g.view_fov.down),
                      Deg(g.view_fov.up), Deg(g.view_fov.outer_left), Deg(g.view_fov.outer_right),
                      Deg(g.view_fov.outer_down), Deg(g.view_fov.outer_up),
-                     Deg(g.view.fov[0].angleLeft),
+                     2000.0f * g.half_ipd, Deg(g.view.fov[0].angleLeft),
                      Deg(g.view.fov[0].angleRight), Deg(g.view.fov[0].angleDown),
-                     Deg(g.view.fov[0].angleUp));
+                     Deg(g.view.fov[0].angleUp),
+                     g.view_fov_changes++ == 0 ? " (first frame)"
+                     : g.view_fov_changes == 2 ? " (mean of the first frames)"
+                                               : " (changed for good)");
         }
+    } else {
+        g.view_raw_valid = false;
     }
     if (IsViewMode(mode)) {
         // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
@@ -703,6 +722,14 @@ void OnFrame(const FrameInfo& info) {
         auto& a = g.age;
         const VideoCore::XrContentPose shown = ShownContentPose();
         a.frames++;
+        if (g.view_raw_valid) { // AzaharFrame jump: the view as located, against the fitted one
+            const float mid = Deg(L::ViewMiddlePitch(g.view_raw));
+            a.mid_min_deg = std::min(a.mid_min_deg, mid);
+            a.mid_max_deg = std::max(a.mid_max_deg, mid);
+            if (g.view_settle.Distance(g.view_raw) > L::kViewSettleChangeDeg * L::kDegToRad) {
+                a.view_off++;
+            }
+        }
         if (shown.valid) {
             const double age_ms = (g.view.time - shown.time) / 1e6;
             const double turn = AngleDeg(g.view.head.orientation, ToXr(shown).orientation);
@@ -734,11 +761,16 @@ void OnFrame(const FrameInfo& info) {
                      "xr: immersive: {} frames, {} pictures, picture drawn {:.1f} ms (max {:.1f}) "
                      "before display, head turned {:.2f} degrees (max {:.2f}) since it was drawn, "
                      "screen anchored to the picture in {} frames, {} without a pose ({}); "
-                     "pictures on view 1/2/3/4+ frames {}/{}/{}/{}",
+                     "pictures on view 1/2/3/4+ frames {}/{}/{}/{}; view's middle as located "
+                     "{:.1f} to {:.1f} degrees (screen fitted to {:.1f}), {} frames' view more "
+                     "than {:.1f} degrees off",
                      a.frames, a.pictures, n ? a.age_sum_ms / n : 0.0, a.age_max_ms,
                      n ? a.turn_sum_deg / n : 0.0, a.turn_max_deg, a.anchored, a.no_pose,
                      g.tuning.anchor ? "AZAHARFRAME_IMMERSIVE_ANCHOR on" : "anchor off",
-                     a.runs[0], a.runs[1], a.runs[2], a.runs[3]);
+                     a.runs[0], a.runs[1], a.runs[2], a.runs[3],
+                     a.mid_min_deg <= a.mid_max_deg ? a.mid_min_deg : 0.0f,
+                     a.mid_min_deg <= a.mid_max_deg ? a.mid_max_deg : 0.0f,
+                     Deg(L::ViewMiddlePitch(g.view_fov)), a.view_off, L::kViewSettleChangeDeg);
             const int64_t keep_picture = a.last_picture;
             const uint32_t keep_run = a.run;
             a = {};
