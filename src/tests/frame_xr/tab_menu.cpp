@@ -602,7 +602,8 @@ TEST_CASE("Tab menu: Download Packs", "[frame_xr][tabmenu]") {
     {
         const auto* name = FindHit(d, Id::PackNote, 0);
         REQUIRE(name);
-        CHECK(d.menu.HitTest(name->r.x0 + 40.0f, name->r.Cy() - 8.0f) == Target{Id::PackNote, 0});
+        // on the name's line: the author link under it starts at the row's middle line
+        CHECK(d.menu.HitTest(name->r.x0 + 40.0f, name->r.y0 + 16.0f) == Target{Id::PackNote, 0});
         m.mods.textures.downloads[0].notes =
             "A 4K pack for the whole game. It is large, so it asks first. Restart the game after it installs.";
         v.tooltip = Id::PackNote;
