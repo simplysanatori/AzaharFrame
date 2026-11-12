@@ -11,7 +11,9 @@
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/md3_fonts.h"
 #include "frame_xr/menu/tab_menu.h"
+#include "frame_xr/ui/ui_ttf.h"
 #include "frame_xr/input/mouse.h"   // AzaharFrame mouse
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/toast_fit.h"     // AzaharFrame menuux
@@ -1236,4 +1238,26 @@ TEST_CASE("Tab menu: the Homebrew segment", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::HomebrewInstall) == "Install");
     CHECK(LabelFor(Id::HomebrewUpdate) == "Update");
     CHECK(LabelFor(Id::HomebrewPlay) == "Play");
+}
+
+// AzaharFrame emerald: the menu's text fonts (menu/md3_fonts.h) cover the Latin-1 Supplement
+// ("Pokémon") and the bullet and curly quotes; anything else draws the missing-glyph box.
+TEST_CASE("Tab menu: the fonts have Latin-1 letters", "[frame_xr][tabmenu]") {
+    for (const char* data : {FrameXr::Menu::Fonts::kSans400, FrameXr::Menu::Fonts::kSans500}) {
+        frame_xr::ui::TtfFont font;
+        REQUIRE(font.LoadBase64(data));
+        for (char32_t cp = 0x20; cp < 0x7F; cp++) {
+            INFO(static_cast<uint32_t>(cp));
+            CHECK(font.HasGlyph(cp));
+        }
+        for (char32_t cp = 0xA0; cp <= 0xFF; cp++) {
+            INFO(static_cast<uint32_t>(cp));
+            CHECK(font.HasGlyph(cp));
+        }
+        for (const char32_t cp : {U'•', U'‘', U'’', U'“', U'”', U'–', U'—', U'…'}) {
+            INFO(static_cast<uint32_t>(cp));
+            CHECK(font.HasGlyph(cp));
+        }
+        CHECK_FALSE(font.HasGlyph(U'\u4E00')); // CJK stays out
+    }
 }

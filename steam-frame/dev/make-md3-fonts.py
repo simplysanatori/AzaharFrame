@@ -37,8 +37,10 @@ ICONS = [
     "shift", "shift_lock", "backspace",  # AzaharFrame kbd
 ]
 
-# Text: printable ASCII and the few other characters the labels and values use.
-TEXT = "".join(chr(c) for c in range(0x20, 0x7F)) + "°×–—…·’“”"
+# Text: printable ASCII, the Latin-1 Supplement (game and homebrew titles: "Pokémon", accents of
+# the European languages; AzaharFrame emerald) and the few other characters the labels use.
+TEXT = ("".join(chr(c) for c in range(0x20, 0x7F)) + "".join(chr(c) for c in range(0xA0, 0x100)) +
+        "–—…‘’“”•")
 
 
 def cut(font, unicodes, features):

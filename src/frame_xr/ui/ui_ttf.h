@@ -29,6 +29,8 @@ public:
     bool LoadBase64(const char* base64);
     bool LoadFile(const std::string& path);
     bool Ok() const;
+    /// Whether the font has a glyph for `cp` (else it draws its missing-glyph box). AzaharFrame emerald
+    bool HasGlyph(char32_t cp) const;
 
     /// Width of UTF-8 `s` at `px` pixels per em, with kerning.
     float Width(float px, const std::string& s) const;
