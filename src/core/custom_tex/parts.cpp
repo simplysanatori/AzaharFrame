@@ -482,6 +482,7 @@ Layout Build(const std::vector<File>& files, const Hints& hints) {
         }
         if (t.comps.size() == d + 1) {
             layout.loose_textures++;
+            layout.loose_bytes += t.file->size;
             continue;
         }
         Top& top = tops[t.comps[d]];
@@ -722,7 +723,7 @@ std::pair<int, int> CountOn(const Layout& layout, const State& state) {
 }
 
 std::pair<u64, u64> TotalsOn(const Layout& layout, const State& state) {
-    u64 n = layout.loose_textures, bytes = 0;
+    u64 n = layout.loose_textures, bytes = layout.loose_bytes;
     for (const Group& g : layout.groups) {
         for (const Part& p : g.parts) {
             if (IsOn(layout, state, g, p)) {

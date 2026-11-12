@@ -272,3 +272,35 @@ TEST_CASE("texparts: texts", "[texparts]") {
     CHECK(CanMove(l, *l.FindGroup("EFFECTS")));
     CHECK_FALSE(CanMove(l, *l.FindGroup("choice:fonts")));
 }
+
+TEST_CASE("texparts: the size of what is on counts loose textures", "[texparts]") {
+    // loose only (a flat or optimized copy), 100 bytes each
+    {
+        const Layout l = Build(Files({"tex1_64x64_A_3.ktx", "tex1_64x64_B_3.ktx"}));
+        const State s;
+        CHECK(l.loose_textures == 2);
+        CHECK(l.loose_bytes == 200);
+        CHECK(TotalsOn(l, s) == std::pair<u64, u64>{2, 200});
+    }
+    // loose beside parts: the parts that are off drop out, the loose ones stay
+    {
+        const Layout l = Build(Files({"tex1_64x64_A_3.png", Tex("UI", "B"), Tex("Fonts", "C")}));
+        State s;
+        const auto all = TotalsOn(l, s);
+        CHECK(all.second == 100 + 100 + 100);
+        SetAll(s, l, false);
+        CHECK(TotalsOn(l, s) == std::pair<u64, u64>{1, 100});
+    }
+    // two layered packs: the sizes of both add up
+    {
+        const Layout a = Build(Files({"tex1_64x64_A_3.png", "tex1_64x64_B_3.png"}));
+        const Layout b = Build(Files({Tex("UI", "C")}));
+        const State s;
+        CHECK(TotalsOn(a, s).second + TotalsOn(b, s).second == 300);
+    }
+    // nothing on
+    {
+        const Layout l = Build(Files({}));
+        CHECK(TotalsOn(l, State{}) == std::pair<u64, u64>{0, 0});
+    }
+}
