@@ -336,7 +336,7 @@ void UpdateMeasuredCamera() {
 
 // AzaharFrame immersive: the immersive mode in use, the setting's (every game can turn it on).
 u32 ModeInUse() {
-    return VideoCore::Immersive::ImmersiveModeSetting(); // AzaharFrame presets: 0 where unsupported
+    return Settings::values.vr_immersive_mode.GetValue();
 }
 
 L::ScreenDecision Decision() {
@@ -949,8 +949,6 @@ namespace FrameXr {
 
 void SetGameTitleId(uint64_t title_id) {
     Immersive::g_title_id = title_id;
-    // AzaharFrame presets: Immersive View stays Off for a game that does not work in it.
-    VideoCore::Immersive::g_immersive_blocked = !ImmersiveSupported(title_id);
 }
 
 uint64_t GameTitleId() { // AzaharFrame move: the normal screens' per-game placement

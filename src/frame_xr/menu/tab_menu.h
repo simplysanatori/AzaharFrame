@@ -215,7 +215,6 @@ enum class Lock : uint8_t {
     AtLowest,    ///< AzaharFrame menuux: Dynamic Resolution at 1x Internal Resolution
     InPassthrough, ///< AzaharFrame vis: Show Controllers while the Background is Passthrough
     AutosaveOff,   ///< AzaharFrame autosave: Every and Keep while Autosave is off
-    NoImmersive,   ///< AzaharFrame presets: the game does not work in Immersive View
 };
 
 struct SaveSlot {

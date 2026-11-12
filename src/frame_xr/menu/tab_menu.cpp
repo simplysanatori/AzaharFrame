@@ -600,8 +600,6 @@ std::string ExplainLock(Lock lock) {
         return "Internal Resolution is already 1x, the lowest.";
     case Lock::InPassthrough: // AzaharFrame vis
         return "Off while the Background is Passthrough.";
-    case Lock::NoImmersive: // AzaharFrame presets
-        return "This Game Doesn't Work in Immersive View.";
     case Lock::AutosaveOff: // AzaharFrame autosave
         return "Turn on Autosave to change it.";
     default:

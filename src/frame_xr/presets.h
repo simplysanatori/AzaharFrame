@@ -59,18 +59,10 @@ struct ImmersivePreset {
     bool own_placement = false;
     float place_pitch_deg = 0.0f;
     float place_distance = 0.0f;
-    /// AzaharFrame presets: the game does not work in Immersive View (Kid Icarus: Uprising: its 3D
-    /// effects follow the head's position). Immersive stays Off whatever the global or per-game
-    /// value is; the menus show the row unavailable.
-    bool no_immersive = false;
 };
 
 /// The preset for the game with this title id (any region), or null.
 const ImmersivePreset* FindImmersivePreset(uint64_t title_id);
-
-/// False for a game that does not work in Immersive View (any region); true for every other game,
-/// and for title id 0.
-bool ImmersiveSupported(uint64_t title_id);
 
 /// Applies a preset to Settings::values for the game that is starting: each value only where
 /// this game's config has no value of its own and the global one is still the default (a value
