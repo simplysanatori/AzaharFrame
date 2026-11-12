@@ -5,6 +5,12 @@
 HERE=$(dirname "$(readlink -f "$0")")/..
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 FAILS=0
+# AzaharFrame integ3: the real headset marker must be left as it is (other work on the Frame
+# waits on it); the launcher is pointed at a throwaway one.
+REAL_MARK=$HOME/.cache/headset-in-use
+mark_state() { stat -c '%Y %i' "$REAL_MARK" 2> /dev/null || echo none; }
+MARK_BEFORE=$(mark_state)
+export AZAHARFRAME_MARK=$T/headset-in-use
 # run [ARGS...]: the mode launch.log names
 run() {
   env -u AZAHARFRAME_FLAT AZAHARFRAME_HOME="$T" AZAHARFRAME_TEST_MODE_ONLY=1 \
@@ -28,4 +34,14 @@ echo flat > "$T/mode"; : > "$T/flat-running"
 check "--flat with a marker: Flat (an override)" flat "$(run --flat)"
 rm -f "$T/mode"
 check "no mode file: VR" vr "$(run)"
+# A whole launch with a stand-in emulator (a copy of the wrapper beside a script called azahar):
+# the marker is AZAHARFRAME_MARK while it runs and gone after, the real one is left alone.
+mkdir -p "$T/app" && cp "$HERE/azaharframe.sh" "$T/app/"
+printf '#!/bin/bash\n[ -e "$AZAHARFRAME_MARK" ] && echo yes > "%s/seen" || echo no > "%s/seen"\n' "$T" "$T" > "$T/app/azahar"
+chmod +x "$T/app/azahar"
+env -u AZAHARFRAME_FLAT -u AZAHARFRAME_TEST_MODE_ONLY -u SteamAppId AZAHARFRAME_HOME="$T" XR_RUNTIME_JSON=/dev/null \
+  bash "$T/app/azaharframe.sh" --flat > /dev/null 2>&1
+check "a launch: the stand-in emulator ran with the test marker made" yes "$(cat "$T/seen" 2> /dev/null)"
+check "  and the test marker is gone after" no "$([ -e "$AZAHARFRAME_MARK" ] && echo yes || echo no)"
+check "the real headset marker is untouched" "$MARK_BEFORE" "$(mark_state)"
 [ "$FAILS" = 0 ] && echo "all passed" || { echo "$FAILS failed"; exit 1; }

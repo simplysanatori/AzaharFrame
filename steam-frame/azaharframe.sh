@@ -234,10 +234,11 @@ if [ -n "$SteamAppId" ] && [ -x "$VRCMD" ]; then
 fi
 
 # Tell other work on the Frame that the headset is in use.  Only removed again if
-# this wrapper made the marker.
-MARK=$HOME/.cache/headset-in-use
+# this wrapper made the marker.  AzaharFrame integ3: AZAHARFRAME_MARK is another path for it, so
+# tests never make or remove the real one (steam-frame/test/*.sh set it to a throwaway file).
+MARK=${AZAHARFRAME_MARK:-$HOME/.cache/headset-in-use}
 MADE_MARK=
-if [ ! -e "$MARK" ] && mkdir -p "$HOME/.cache" && : > "$MARK"; then MADE_MARK=1; fi
+if [ ! -e "$MARK" ] && mkdir -p "$(dirname "$MARK")" && : > "$MARK"; then MADE_MARK=1; fi
 
 # The Steam Frame controllers drawn in VR: made from SteamVR's own models once (install.sh does it
 # too), in the background so this start does not wait; the next start draws them.

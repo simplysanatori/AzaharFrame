@@ -59,6 +59,9 @@ fi
 mkdir -p "$OUT/dumps" || exit 2
 SCRIPT_ABS=""; [ -z "$SCRIPT" ] || SCRIPT_ABS=$(readlink -f "$SCRIPT")
 
+# AzaharFrame integ3: anything this run starts that would make the headset marker (azaharframe.sh)
+# makes a throwaway one in the run folder instead of ~/.cache/headset-in-use.
+export AZAHARFRAME_MARK=${AZAHARFRAME_MARK:-$OUT/headset-in-use}
 CMD=("$BIN" --vr)
 [ -z "$ROM" ] || CMD+=("$ROM")
 CMD+=("${EXTRA[@]}")

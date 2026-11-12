@@ -31,6 +31,7 @@ MOCKRUN=${MOCKRUN:-$CF/mockgo.sh}
 [ -x "$MOCKRUN" ] || MOCKRUN=$REPO/tools/mockrun.sh
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+export AZAHARFRAME_MARK=$T/headset-in-use  # AzaharFrame integ3: never the real marker
 # VR: seconds since the first session began (about 0.5 s after the start). The chord pressed for
 # 0.2 s, once in each of the four VR sessions.
 cat > "$T/vr.script" << 'EOF'
