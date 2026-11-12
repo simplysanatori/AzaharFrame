@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -824,4 +825,82 @@ B: REL=3
     REQUIRE(relay.size() == 1);
     CHECK(relay[0].event == "event13");
     CHECK(ClassifyInputDevices("").empty());
+}
+
+// AzaharFrame mouse: Bottom Screen mode end to end (hub, then the touch pipeline): a plain Left
+// Click touches in the frame it goes down; Right joining within the chord window lifts that touch
+// and nothing touches while both are held, through the 3 s that switch the mode.
+TEST_CASE("Mouse: the Left and Right chord lifts the touch and holds none", "[frame_xr]") {
+    MouseSource src;
+    src.raw.present = true;
+    src.devices = "I: Bus=0003 Vendor=046d Product=c077\nN: Name=\"Mouse\"\n"
+                  "H: Handlers=event7\nB: KEY=70000 0 0 0 0\nB: REL=3\n\n";
+    std::string saved;
+    GamepadHub hub(src, {[&] { return saved; }, [&](const std::string& t) {
+                             saved = t;
+                             return true;
+                         }});
+    TouchpadTouch touch;
+    int64_t now = 1'000 * kMs;
+    int presses = 0, releases = 0;
+    bool switched = false;
+    const auto frame = [&](int64_t ms) {
+        now += ms * kMs;
+        const MouseFrame f = hub.PollMouse(now);
+        switched = switched || f.switch_mode;
+        TouchpadFrame fr;
+        fr.time_ns = now;
+        fr.bottom_visible = true;
+        if (f.mode == MouseMode::BottomScreen) {
+            fr.cursor = {true, f.motion, MouseScreenGain(f.speed), f.Touch(), f.recentre};
+        }
+        const TouchpadResult r = touch.Update(fr);
+        int p = 0, rl = 0;
+        for (int i = 0; i < r.event_count; i++) {
+            p += r.events[static_cast<std::size_t>(i)].type == TouchEventType::Pressed;
+            rl += r.events[static_cast<std::size_t>(i)].type == TouchEventType::Released;
+        }
+        presses += p;
+        releases += rl;
+        return std::pair{p, rl};
+    };
+    frame(11);
+    // A plain click: the touch in the same frame, no wait.
+    src.raw.buttons[0] = true;
+    CHECK(frame(11) == std::pair{1, 0});
+    src.raw.buttons[0] = false;
+    CHECK(frame(11) == std::pair{0, 1});
+    frame(200);
+
+    // Left, then Right 40 ms later: the touch Left started lifts as Right goes down.
+    for (int order = 0; order < 2; order++) {
+        presses = releases = 0;
+        switched = false;
+        const std::size_t first = order == 0 ? 0 : 1, second = 1 - first;
+        src.raw.buttons[first] = true;
+        frame(11);
+        frame(11);
+        src.raw.buttons[second] = true;
+        frame(11);
+        CHECK(presses == releases); // Left's touch (if it was the first) has lifted
+        CHECK(presses == (order == 0 ? 1 : 0));
+        const int before = presses;
+        for (int i = 0; i < 300; i++) { // 3.3 s held
+            frame(11);
+        }
+        CHECK(presses == before); // no touch while both are held
+        CHECK(releases == before);
+        CHECK(switched);
+        src.raw.buttons = {};
+        frame(11);
+        frame(11);
+        CHECK(presses == before);
+        // Back to Bottom Screen for the next round.
+        if (hub.LastMouse().mode == MouseMode::Pointer) {
+            GamepadMapping m = hub.Mapping(kMouseDeviceId, {});
+            m.mode = 0;
+            REQUIRE(hub.SetMapping(kMouseDeviceId, m));
+        }
+        frame(200);
+    }
 }

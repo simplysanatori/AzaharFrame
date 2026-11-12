@@ -139,6 +139,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kMove{"Off", "Secondary", "Both"};
     static const std::vector<std::string> kTouchpad{"Off", "Touch", "Click"};
     static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller"};
+    static const std::vector<std::string> kAtEdge{"Follow", "Snap to Middle"};
     static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
@@ -167,6 +168,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kTouchpad;
     case Id::BottomScreenReticle: // AzaharFrame mouse
         return kReticle;
+    case Id::ReticleAtEdge:
+        return kAtEdge;
     case Id::MouseMode:
         return kMouseMode;
     case Id::StatsPosition:
@@ -238,6 +241,8 @@ std::string LabelFor(Id id) {
         return "Touchpad Touch";
     case Id::BottomScreenReticle: // AzaharFrame mouse
         return "Bottom Screen Reticle";
+    case Id::ReticleAtEdge:
+        return "At Edge";
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
@@ -1098,8 +1103,12 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         return row;
     };
     const Rect tp_row = choice_row(Id::TouchpadTouch, seg.y1 + 8.0f, model.touchpad_touch);
-    const Rect reticle_row =
+    Rect reticle_row =
         choice_row(Id::BottomScreenReticle, tp_row.y1, model.bottom_screen_reticle);
+    if (model.bottom_screen_reticle != 0) {
+        // At Edge only while the reticle is on.
+        reticle_row = choice_row(Id::ReticleAtEdge, reticle_row.y1, model.reticle_at_edge);
+    }
     const Rect area{pane.x0 + 8.0f, reticle_row.y1 + 4.0f, pane.x1 - 8.0f, pane.y1 - 8.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);

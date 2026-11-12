@@ -221,6 +221,7 @@ private:
     Input::MouseFrame mouse_frame;
     Input::MousePointer mouse_pointer;
     Input::BottomScreenReticle reticle; ///< AzaharFrame mouse: Bottom Screen Reticle
+    void SaveVrSettingSoon();           ///< AzaharFrame mouse
     int reticle_hand_logged = -2;
     OverlayChain ring_chain;
     bool mouse_mark_valid = false;

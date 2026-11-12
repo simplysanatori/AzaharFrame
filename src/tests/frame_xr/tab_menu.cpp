@@ -10,6 +10,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/tab_menu.h"
+#include "frame_xr/input/mouse.h"   // AzaharFrame mouse
+#include "frame_xr/input/reticle.h" // AzaharFrame mouse
+#include "frame_xr/ui/ui_canvas.h"
 
 using namespace FrameXr::Menu;
 
@@ -250,6 +253,16 @@ TEST_CASE("Tab menu: Move Screens, Touchpad Touch, Edit Controls, Cheats", "[fra
     CHECK(OptionsFor(Id::BottomScreenReticle) ==
           std::vector<std::string>{"Off", "Left Controller", "Right Controller"});
     CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
+    // At Edge: only while the reticle is on.
+    CHECK_FALSE(has(Id::ReticleAtEdge, 0));
+    m.bottom_screen_reticle = 2;
+    d.Draw(m, v);
+    CHECK(has(Id::ReticleAtEdge, 0));
+    CHECK(has(Id::ReticleAtEdge, 1));
+    CHECK(has(Id::TouchpadTouch, 2));
+    CHECK(has(Id::EditControls, -1));
+    CHECK(OptionsFor(Id::ReticleAtEdge) == std::vector<std::string>{"Follow", "Snap to Middle"});
+    CHECK(LabelFor(Id::ReticleAtEdge) == "At Edge");
 }
 
 // AzaharFrame cheatstab: the Mods tab and its Cheats segment.
@@ -727,4 +740,16 @@ TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(SizeText(640'000'000) == "640 MB");
     CHECK(SizeText(2'100'000'000) == "2.1 GB");
     CHECK(SizeText(12'345) == "12 KB");
+}
+
+// AzaharFrame mouse: the one-time toasts fit one line of a toast in the large font, by lane
+// menuux's toast_fit.h (rows 1024 px wide, 40 px of padding each side; the box sizes to its
+// text), and the font has the middle dot.
+TEST_CASE("Toasts: the mouse and the reticle's one-time toasts fit", "[frame_xr][tabmenu]") {
+    namespace ui = frame_xr::ui;
+    const float dot = ui::TextWidth(ui::kFontLarge, "\xC2\xB7");
+    CHECK(dot != ui::TextWidth(ui::kFontLarge, "?"));
+    constexpr float kOneLine = 1024.0f - 2.0f * 40.0f;
+    CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kReticleHint) <= kOneLine);
+    CHECK(ui::TextWidth(ui::kFontLarge, FrameXr::Input::kMouseHint) <= kOneLine);
 }

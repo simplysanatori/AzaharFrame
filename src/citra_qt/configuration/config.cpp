@@ -571,6 +571,9 @@ void QtConfig::ReadVrValues() {
         ReadGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
         ReadGlobalSetting(Settings::values.vr_touchpad_touch); // AzaharFrame menu
         ReadGlobalSetting(Settings::values.vr_bottom_screen_reticle); // AzaharFrame mouse
+        ReadGlobalSetting(Settings::values.vr_reticle_at_edge);       // AzaharFrame mouse
+        ReadGlobalSetting(Settings::values.vr_hint_reticle_shown);
+        ReadGlobalSetting(Settings::values.vr_hint_mouse_shown);
         ReadGlobalSetting(Settings::values.vr_bottom_screen_window); // AzaharFrame menu
     }
 
@@ -1222,6 +1225,9 @@ void QtConfig::SaveVrValues() {
         WriteGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
         WriteGlobalSetting(Settings::values.vr_touchpad_touch); // AzaharFrame menu
         WriteGlobalSetting(Settings::values.vr_bottom_screen_reticle); // AzaharFrame mouse
+        WriteGlobalSetting(Settings::values.vr_reticle_at_edge);       // AzaharFrame mouse
+        WriteGlobalSetting(Settings::values.vr_hint_reticle_shown);
+        WriteGlobalSetting(Settings::values.vr_hint_mouse_shown);
         WriteGlobalSetting(Settings::values.vr_bottom_screen_window); // AzaharFrame menu
     }
 

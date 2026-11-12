@@ -78,6 +78,7 @@ enum class Id : int {
     UseDevice,      ///< AzaharFrame padsui: the selected device's Use This Device
     CursorSpeed,    ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right Controller
+    ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     // Settings
     Scope,
     Background,
@@ -169,6 +170,7 @@ struct MenuModel {
     int controls_page = 0; ///< 0 In Game, 1 Azahar's Window
     int touchpad_touch = 0; ///< 0 Off, 1 Touch, 2 Click (AzaharFrame menu)
     int bottom_screen_reticle = 0; ///< AzaharFrame mouse: 0 Off, 1 Left, 2 Right Controller
+    int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game

@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/input/mouse_pointer.h"
@@ -30,10 +31,11 @@ struct Rig {
     BottomScreenReticle r;
     int64_t now = 1'000 * kMs;
     ReticleFrame f;
+    ReticleEdge edge = ReticleEdge::Follow;
     ReticleFrame& Step(const HandInput& h, int frames = 1, int speed = kNormal) {
         for (int i = 0; i < frames; i++) {
             now += 11 * kMs;
-            f = r.Update(h, true, speed, now);
+            f = r.Update(h, true, speed, now, edge);
         }
         return f;
     }
@@ -194,4 +196,121 @@ TEST_CASE("Reticle: touches through the cursor pipeline, the bottom screen hidde
     r = t.Update(fr);
     REQUIRE(r.event_count == 1);
     CHECK(r.events[0].type == TouchEventType::Released);
+}
+
+TEST_CASE("Reticle: Snap to Middle lifts at the edge and touches again at the middle",
+          "[frame_xr]") {
+    CHECK(ReticleEdgeFrom(0) == ReticleEdge::Follow);
+    CHECK(ReticleEdgeFrom(1) == ReticleEdge::SnapToMiddle);
+    Rig t;
+    t.edge = ReticleEdge::SnapToMiddle;
+    TouchpadTouch touch;
+    TouchpadFrame fr;
+    fr.bottom_visible = true;
+    // One frame of both: the reticle, then the touch pipeline as the bridge runs it.
+    std::vector<TouchEvent> seen;
+    const auto frame = [&](const HandInput& h) {
+        const ReticleFrame& f = t.Step(h);
+        fr.time_ns = t.now;
+        fr.reticle = {f.on, f.point, f.down};
+        const TouchpadResult r = touch.Update(fr);
+        seen.assign(r.events.begin(), r.events.begin() + r.event_count);
+        return f;
+    };
+    frame(Aim(0.0f, 0.0f));
+    frame(Aim(0.0f, 0.0f, 1.0f));
+    REQUIRE(seen.size() == 1);
+    CHECK(seen[0].type == TouchEventType::Pressed);
+    CHECK(seen[0].x == Approx(160.0f));
+    // A swipe right, 3 degrees a frame (about 270 degrees a second), the trigger held.
+    float yaw = 0.0f;
+    int snapped_at = -1;
+    std::vector<std::vector<TouchEvent>> log;
+    for (int i = 0; i < 40; i++) {
+        yaw -= 3.0f;
+        const ReticleFrame f = frame(Aim(yaw, 0.0f, 1.0f));
+        log.push_back(seen);
+        if (f.snapped && snapped_at < 0) {
+            snapped_at = i;
+        }
+    }
+    REQUIRE(snapped_at > 0);
+    // Before the snap the touch dragged right toward the edge.
+    bool moved_right = false;
+    for (int i = 0; i < snapped_at; i++) {
+        for (const TouchEvent& e : log[static_cast<std::size_t>(i)]) {
+            CHECK(e.type == TouchEventType::Moved);
+            moved_right = moved_right || e.x > 240.0f;
+        }
+    }
+    CHECK(moved_right);
+    // The snap frame: a release (the game sees the stylus lift)...
+    const auto& at = log[static_cast<std::size_t>(snapped_at)];
+    REQUIRE(at.size() == 1);
+    CHECK(at[0].type == TouchEventType::Released);
+    // ...then nothing for at least one frame, then a touch at the middle.
+    int pressed_at = -1;
+    for (int i = snapped_at + 1; i < 40 && pressed_at < 0; i++) {
+        for (const TouchEvent& e : log[static_cast<std::size_t>(i)]) {
+            if (e.type == TouchEventType::Pressed) {
+                pressed_at = i;
+                CHECK(e.x == Approx(160.0f).margin(1.0f));
+                CHECK(e.y == Approx(120.0f).margin(1.0f));
+            } else {
+                FAIL("only a press may follow the lift");
+            }
+        }
+    }
+    REQUIRE(pressed_at > snapped_at + 1);
+    CHECK((pressed_at - snapped_at) * 11 * kMs >= BottomScreenReticle::kLiftNs);
+    // And the drag goes on from the middle, to the right.
+    bool dragged_on = false;
+    for (int i = pressed_at + 1; i < 40; i++) {
+        for (const TouchEvent& e : log[static_cast<std::size_t>(i)]) {
+            if (e.type == TouchEventType::Moved && e.x > 160.0f) {
+                dragged_on = true;
+            }
+        }
+    }
+    CHECK(dragged_on);
+}
+
+TEST_CASE("Reticle: Snap to Middle waits before it snaps again", "[frame_xr]") {
+    Rig t;
+    t.edge = ReticleEdge::SnapToMiddle;
+    t.Step(Aim(0.0f, 0.0f));
+    // No touch: past the right edge (15 degrees) the point snaps to the middle at once.
+    ReticleFrame f = t.Step(Aim(-16.0f, 0.0f));
+    int frames = 1;
+    while (!f.snapped && frames < 30) {
+        f = t.Step(Aim(-16.0f, 0.0f));
+        frames++;
+    }
+    REQUIRE(f.snapped);
+    CHECK(f.point.x == Approx(0.5f));
+    CHECK_FALSE(f.down);
+    // Straight on past the next edge within the cooldown: no second snap, the edge drifts.
+    f = t.Step(Aim(-40.0f, 0.0f));
+    CHECK_FALSE(f.snapped);
+    for (int i = 0; i < 10; i++) { // 110 ms, inside the 200 ms
+        f = t.Step(Aim(-40.0f, 0.0f));
+        CHECK_FALSE(f.snapped);
+    }
+    CHECK(f.point.x > 0.9f);
+    // Back inside until the cooldown is over; then past the edge snaps again.
+    for (int i = 0; i < 30; i++) {
+        CHECK_FALSE(t.Step(Aim(-25.0f, 0.0f)).snapped);
+    }
+    bool again = false;
+    for (int i = 0; i < 10 && !again; i++) {
+        again = t.Step(Aim(-60.0f, 0.0f)).snapped;
+    }
+    CHECK(again);
+    // Follow never snaps.
+    Rig follow;
+    follow.Step(Aim(0.0f, 0.0f));
+    for (int i = 0; i < 60; i++) {
+        CHECK_FALSE(follow.Step(Aim(-60.0f, 0.0f)).snapped);
+    }
+    CHECK(follow.f.point.x == Approx(1.0f).margin(0.01));
 }

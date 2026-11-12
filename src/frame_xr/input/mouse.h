@@ -29,6 +29,9 @@
 // buttons of the mapping, and Open Menu (Middle Click by default) opens and closes the menu.
 namespace FrameXr::Input {
 
+/// AzaharFrame mouse: the one-time toast when a mouse is first found.
+inline constexpr const char* kMouseHint = "Mouse Ready \xC2\xB7 Hold Both Buttons for Pointer";
+
 /// The inputs a mouse gives (a mouse mapping's values).
 enum class MouseInput : int {
     LeftClick,

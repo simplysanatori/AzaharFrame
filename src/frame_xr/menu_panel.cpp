@@ -640,6 +640,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.touchpad_touch = static_cast<int>(std::min<u32>(v.vr_touchpad_touch.GetValue(), 2));
     m.bottom_screen_reticle = // AzaharFrame mouse
         static_cast<int>(std::min<u32>(v.vr_bottom_screen_reticle.GetValue(), 2));
+    m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -830,6 +831,12 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::TouchpadTouch: // AzaharFrame menu, global
         Apply(v.vr_touchpad_touch, std::min<u32>(u, 2), false);
         r.setting = MenuSetting::TouchpadTouch;
+        break;
+    case Id::ReticleAtEdge: // AzaharFrame mouse, global
+        Apply(v.vr_reticle_at_edge, std::min<u32>(u, 1), false);
+        r.setting = MenuSetting::ReticleAtEdge;
+        LOG_INFO(Frontend, "xr: in-game menu: At Edge = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 1)]);
         break;
     case Id::BottomScreenReticle: // AzaharFrame mouse, global
         Apply(v.vr_bottom_screen_reticle, std::min<u32>(u, 2), false);
@@ -1243,6 +1250,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MoveScreens:
     case Id::TouchpadTouch:
     case Id::BottomScreenReticle: // AzaharFrame mouse
+    case Id::ReticleAtEdge:
     case Id::StatsPosition:
     case Id::Background:
     case Id::FaceButtons:

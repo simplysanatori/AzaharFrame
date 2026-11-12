@@ -91,10 +91,13 @@ void BottomScreenReticle::Reset() {
     pitch_filter_.Reset();
     trigger_ = false;
     grip_ = false;
+    lifting_ = false;
+    lift_until_ = 0;
+    snap_ready_ = 0;
 }
 
 ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int speed,
-                                         int64_t now) {
+                                         int64_t now, ReticleEdge edge) {
     ReticleFrame f;
     if (!live || !hand.active) {
         Reset();
@@ -126,11 +129,40 @@ ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int s
         rezero_ = false;
     }
 
-    // Edge drift: past an edge the reference comes along, the point stays on the edge.
     const float hw = ReticleHalfWidthDeg(speed);
     const float hh = hw * kHeightOverWidth;
     float dy = fy - ref_yaw_;
     float dp = fp - ref_pitch_;
+    trigger_ = hand.trigger > (trigger_ ? kTriggerRelease : kTriggerPress);
+    // Snap to Middle: past an edge (and not just after the last snap), the middle is where it
+    // points now; a touch held lifts first.
+    if (edge == ReticleEdge::SnapToMiddle && !lifting_ && now >= snap_ready_ &&
+        (std::fabs(dy) > hw || std::fabs(dp) > hh)) {
+        f.snapped = true;
+        ref_yaw_ = fy;
+        ref_pitch_ = fp;
+        out_ = {};
+        dy = dp = 0.0f;
+        if (trigger_) {
+            lifting_ = true;
+            lift_until_ = now + kLiftNs;
+        } else {
+            snap_ready_ = now + kSnapCooldownNs;
+        }
+    } else if (lifting_) {
+        // Lifted: the middle stays where it points, so the touch comes back at the middle
+        // however far the swipe goes meanwhile.
+        ref_yaw_ = fy;
+        ref_pitch_ = fp;
+        out_ = {};
+        dy = dp = 0.0f;
+        if (now >= lift_until_ || !trigger_) {
+            lifting_ = false; // this frame touches again (if still held)
+            snap_ready_ = now + kSnapCooldownNs;
+        }
+    }
+    // Edge drift (Follow, and Snap to Middle while it waits): past an edge the reference comes
+    // along, the point stays on the edge.
     if (dy > hw) {
         ref_yaw_ += dy - hw;
         dy = hw;
@@ -158,8 +190,7 @@ ReticleFrame BottomScreenReticle::Update(const HandInput& hand, bool live, int s
 
     f.on = true;
     f.point = ReticlePoint(out_.x, out_.y, hw);
-    trigger_ = hand.trigger > (trigger_ ? kTriggerRelease : kTriggerPress);
-    f.down = trigger_;
+    f.down = trigger_ && !lifting_;
     return f;
 }
 

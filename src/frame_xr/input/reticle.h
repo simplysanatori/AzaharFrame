@@ -36,6 +36,17 @@ enum class ReticleHand : int { Off = 0, Left = 1, Right = 2 };
 constexpr ReticleHand ReticleHandFrom(uint32_t value) {
     return value == 1 ? ReticleHand::Left : value == 2 ? ReticleHand::Right : ReticleHand::Off;
 }
+/// Settings::values.vr_reticle_at_edge (At Edge): Follow is the edge drift; Snap to Middle
+/// re-zeroes when the aim passes an edge, and a touch held then lifts at the edge (a release the
+/// game sees for kLiftNs, at least one frame) and touches again at the middle: a stylus's
+/// swipe, lift, swipe (in Kid Icarus: Uprising on foot, that turns the camera). After a snap
+/// another waits kSnapCooldownNs past the touch again (meanwhile the edges drift).
+enum class ReticleEdge : int { Follow = 0, SnapToMiddle = 1 };
+
+constexpr ReticleEdge ReticleEdgeFrom(uint32_t value) {
+    return value == 1 ? ReticleEdge::SnapToMiddle : ReticleEdge::Follow;
+}
+
 /// The hand index (HandIndex) of a choice, -1 for Off.
 int ReticleHandIndex(ReticleHand hand);
 
@@ -72,7 +83,11 @@ struct ReticleFrame {
     Vec2f point;       ///< 0..1 from the top left
     bool down = false; ///< the trigger held: touching
     bool rezeroed = false; ///< the reference moved to where it points this frame
+    bool snapped = false;  ///< At Edge: Snap to Middle went off this frame
 };
+
+/// The one-time toast when the reticle is first set to a controller.
+inline constexpr const char* kReticleHint = "Trigger Touches \xC2\xB7 Grip Re-centres";
 
 /// SteamVR's recenter (any thread): the reticle's next frame re-zeroes. TakeReticleRezero
 /// returns it once.
@@ -89,11 +104,17 @@ public:
     static constexpr float kTriggerRelease = 0.40f;
     static constexpr float kGripPress = 0.60f;
     static constexpr float kGripRelease = 0.40f;
+    /// Snap to Middle: a held touch lifts this long (and at least one frame).
+    static constexpr int64_t kLiftNs = 50'000'000;
+    /// Snap to Middle: no other snap for this long after the touch comes back (or the snap,
+    /// with no touch).
+    static constexpr int64_t kSnapCooldownNs = 200'000'000;
 
     /// One frame. `live`: on, a game running, the menu closed. `hand`: the chosen controller as
     /// read. A controller that is not tracked gives `on` false; when it comes back it starts at
     /// the middle.
-    ReticleFrame Update(const HandInput& hand, bool live, int speed, int64_t now_ns);
+    ReticleFrame Update(const HandInput& hand, bool live, int speed, int64_t now_ns,
+                        ReticleEdge edge = ReticleEdge::Follow);
     /// The next frame puts the reference where the controller points (Recenter).
     void Rezero() {
         rezero_ = true;
@@ -116,6 +137,10 @@ private:
     OneEuro pitch_filter_{kMinCutoffHz, kBeta, kDCutoffHz};
     int64_t last_ns_ = 0;
     bool trigger_ = false;
+    // Snap to Middle.
+    bool lifting_ = false;
+    int64_t lift_until_ = 0;
+    int64_t snap_ready_ = 0;
     bool grip_ = false;
 };
 

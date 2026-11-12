@@ -226,6 +226,7 @@ enum class MenuSetting {
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
     TouchpadTouch, ///< AzaharFrame menu: `value` 0 Off, 1 Touch, 2 Click
     BottomScreenReticle, ///< AzaharFrame mouse: `value` 0 Off, 1 Left, 2 Right Controller
+    ReticleAtEdge,       ///< AzaharFrame mouse: `value` 0 Follow, 1 Snap to Middle
     CustomTextures,  ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.custom_textures)
     PreloadTextures, ///< AzaharFrame texui: `value` 0 or 1 (Settings::values.preload_textures)
 };
