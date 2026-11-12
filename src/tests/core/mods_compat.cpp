@@ -127,6 +127,17 @@ TEST_CASE("Compat: the verdicts", "[mods][compat]") {
         CHECK(Judge({{kOotUsa}, "Card 1.1", {}}, GameOf(kOotUsa), f).Fits()); // not a plain version
         CHECK(Judge({{kOotUsa}, "1.1", {}}, GameOf(kOotUsa, std::nullopt), f).Fits()); // unknown
     }
+    SECTION("an update whose version is not known") { // AzaharFrame echoes
+        Game g = GameOf(kOotUsa, std::nullopt);
+        g.updates = 5;
+        const Verdict v = Judge({{kOotUsa}, "1.0", {}}, g, f);
+        CHECK(v.kind == Mismatch::Version);
+        CHECK(v.Reason() == "Made for game version 1.0. Yours has an update installed. It may not work.");
+        CHECK(v.Body("mod") == "This mod was made for game version 1.0, and yours has an update "
+                               "installed. It may not work, or the game may not start.");
+        CHECK(Judge({{kOotUsa}, "1.5", {}}, g, f).Fits()); // nothing to compare with
+        CHECK(Judge({{kOotUsa}, "1.0", {}}, GameOf(kOotUsa), f).Fits()); // no update
+    }
     SECTION("another build, by the code's CRC") {
         Game g = GameOf(kMmUsa);
         g.code_crc = 0xffdf1ee8u;
@@ -134,8 +145,9 @@ TEST_CASE("Compat: the verdicts", "[mods][compat]") {
         CHECK(other.kind == Mismatch::Build);
         CHECK(other.Reason() == "Made for another build of the game. Yours matches Card 1.1. It may not work.");
         CHECK(Judge({{kMmUsa}, "Card 1.1", {0xffdf1ee8u}}, g, f, "Card 1.1").Fits());
-        // no entry matches the code: nothing is said
+        // no entry matches the code: the version decides
         CHECK(Judge({{kMmUsa}, "1.0", {0xc75021d9u}}, g, f, "").Fits());
+        CHECK(Judge({{kMmUsa}, "1.1", {0xc75021d9u}}, g, f, "").kind == Mismatch::Version);
     }
     SECTION("every reason says may") {
         for (const Verdict& v : {Judge({{kOotUsa}, "", {}}, GameOf(kOotEur), f),
@@ -331,4 +343,23 @@ TEST_CASE("Compat: Echoes EU code patches follow the game's code", "[mods][compa
     CHECK(find(list, "echoes-ghosting-shader-fix-eu-v10").matches_game);
     CHECK(find(list, "echoes-ghosting-shader-fix-eu-v11").compat.kind == Mismatch::Build);
     CHECK(find(list, "echoes-60fps-eu").compat.kind == Mismatch::Build);
+}
+
+// AzaharFrame echoes: True 60 FPS and the Ghosting Shader Fix are both code patches, so the Mods tab
+// asks which one to use (Install returns Conflict); the notes say so too.
+TEST_CASE("Compat: Echoes True 60 FPS and the Ghosting Shader Fix conflict", "[mods][compat]") {
+    const auto parsed = ParseCatalog(DefaultCatalogJson());
+    REQUIRE(parsed.has_value());
+    for (const char* region : {"us", "eu", "jp"}) {
+        const auto* fps = parsed->Find(std::string("echoes-60fps-") + region);
+        REQUIRE(fps != nullptr);
+        CHECK(fps->notes.find("Can't be combined with the Ghosting Shader Fix") != std::string::npos);
+        for (const char* v : {"v10", "v11"}) {
+            const auto* fix = parsed->Find(std::string("echoes-ghosting-shader-fix-") + region + "-" + v);
+            REQUIRE(fix != nullptr);
+            REQUIRE(fps->rules.size() == 1);
+            REQUIRE(fix->rules.size() == 1);
+            CHECK(ConflictKey(fps->rules[0].to) == ConflictKey(fix->rules[0].to));
+        }
+    }
 }

@@ -28,6 +28,13 @@ const char* DefaultCatalogJson() {
         "type": "owner_repo_path",
         "path": "games/stella-glow-usa/patch/0004000000173700/code.ips"
       },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "bcefeb6e"
+        ]
+      },
       "install": {
         "rules": [
           {
@@ -58,6 +65,13 @@ const char* DefaultCatalogJson() {
         "type": "gamebanana",
         "mod": 695893,
         "file_pattern": "singlescreen_*.zip"
+      },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "9d9683e5"
+        ]
       },
       "install": {
         "rules": [
@@ -100,6 +114,13 @@ const char* DefaultCatalogJson() {
         "tag": "latest",
         "asset_pattern": "Ocarina-ReFramed-*-Single-Screen-Mods.zip"
       },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "9d9683e5"
+        ]
+      },
       "install": {
         "rules": [
           {
@@ -132,6 +153,13 @@ const char* DefaultCatalogJson() {
         "repo": "OTPR26/OOT3DHud",
         "tag": "latest",
         "asset_pattern": "Ocarina-ReFramed-*-Dual-Screen-Mods.zip"
+      },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "9d9683e5"
+        ]
       },
       "install": {
         "rules": [
@@ -820,6 +848,13 @@ const char* DefaultCatalogJson() {
         "mod": 51424,
         "file_pattern": "shaderfix.zip"
       },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "290d9542"
+        ]
+      },
       "install": {
         "rules": [
           {
@@ -1129,7 +1164,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (North America). It needs game update 1.1, and is a code patch that replaces any other code patch, such as the ghosting shader fix."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (North America). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
     },
     {
       "id": "echoes-60fps-eu",
@@ -1165,7 +1200,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (Europe). It needs game update 1.1, and is a code patch that replaces any other code patch, such as the ghosting shader fix."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Europe). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
     },
     {
       "id": "echoes-60fps-jp",
@@ -1198,7 +1233,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (Japan). It needs game update 1.1, and is a code patch that replaces any other code patch, such as the ghosting shader fix."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Japan). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
     },
     {
       "id": "echoes-ghosting-shader-fix-us-v10",
@@ -1587,7 +1622,10 @@ const char* DefaultCatalogJson() {
       },
       "version_chip": {
         "label": "1.0",
-        "tip": "For game version 1.0."
+        "tip": "For game version 1.0.",
+        "code_crc32": [
+          "31dad06e"
+        ]
       },
       "install": {
         "rules": [
@@ -1773,6 +1811,13 @@ const char* DefaultCatalogJson() {
         "mod": 424187,
         "file_pattern": "uga_full_*.7z"
       },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "31dad06e"
+        ]
+      },
       "install": {
         "rules": [
           {
@@ -1895,6 +1940,13 @@ const char* DefaultCatalogJson() {
         "type": "gamebanana",
         "mod": 736542,
         "file_pattern": "fe13_removeavatarcreation.zip"
+      },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "31dad06e"
+        ]
       },
       "install": {
         "rules": [
@@ -2130,6 +2182,13 @@ const char* DefaultCatalogJson() {
         "mod": 486567,
         "file_pattern": "x_citra_shiny_lock_removal_40a3b.zip"
       },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "3778c475"
+        ]
+      },
       "install": {
         "rules": [
           {
@@ -2160,6 +2219,13 @@ const char* DefaultCatalogJson() {
         "type": "gamebanana",
         "mod": 486567,
         "file_pattern": "x_citra_shiny_lock_removal_trades.zip"
+      },
+      "version_chip": {
+        "label": "1.0",
+        "tip": "For the game as released (1.0), without an update.",
+        "code_crc32": [
+          "3778c475"
+        ]
       },
       "install": {
         "rules": [
