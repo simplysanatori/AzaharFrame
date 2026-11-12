@@ -129,6 +129,9 @@ private:
     Menu::Remap remap;
     std::array<std::string, Menu::kRemapButtons> edit_buttons;
     Menu::RemapTable edit_table{};
+    // AzaharFrame padsui: the profile's Circle Pad and C-Stick, the same as stick routes.
+    std::array<std::string, 2> edit_analogs;
+    Menu::RemapSticks edit_sticks = Menu::kDefaultSticks;
     std::array<bool, 11> edit_prev{};
     bool edit_b_prev = true;
     Menu::MenuModel posted_model;

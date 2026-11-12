@@ -586,8 +586,8 @@ void TabMenu::DrawStats(Kit& kit, const MenuModel& model, const MenuView& view, 
 
 // AzaharFrame padsui: Edit Controls. The title, Touchpad Touch for a device with a pointer, and
 // Done on top; in the middle our drawing of a New 3DS XL with a chip for every 3DS input saying
-// what drives it on the selected device, in that device's own names (the sticks as text: they
-// do not move); at the bottom the devices as Material filter chips and Reset to Default, or,
+// what drives it on the selected device, in that device's own names (sticks too: two pushes,
+// up then right, give one); at the bottom the devices as Material filter chips and Reset to Default, or,
 // while a chip listens, the snackbar "Press a Button…" with Cancel.
 namespace {
 
@@ -598,7 +598,9 @@ constexpr float kGlyph = 24.0f;
 constexpr float kChipPadL = 8.0f;  ///< before the glyph
 constexpr float kChipGap = 8.0f;   ///< glyph to text, and between chips
 constexpr float kChipPadR = 16.0f; ///< after the text
-constexpr float kLeader = 28.0f;   ///< the columns' inner edges to the drawing
+constexpr float kLeader = 24.0f;   ///< the columns' inner edges to the drawing
+/// The longest chip the columns must hold whole (a gamepad's stick clicks are as long).
+constexpr const char* kWidestChip = "Right Stick Flipped";
 
 // The chips round the drawing: each column top to bottom, the row under it left to right.
 // (Ordered so no two leader lines cross: ZL over L, its button being further in.)
@@ -609,7 +611,7 @@ constexpr std::array<int, 7> kRightChips{DsButton::ZR, DsButton::R, kDsCStick, D
 constexpr std::array<int, 3> kRowChips{DsButton::Home, DsButton::Select, DsButton::Start};
 
 bool IsStick(int target) {
-    return target == kDsCirclePad || target == kDsCStick;
+    return Remap::IsStick(target);
 }
 
 } // namespace
@@ -659,9 +661,13 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     // ---- Middle: the 3DS, the chips round it ----
     const Rect slot{c.x0, c.y1 - kControlH, c.x1, c.y1};
     const Rect area{c.x0, c.y0 + bar_h + 8.0f, c.x1, slot.y0 - 8.0f};
-    // (The mouse has no chips: its drawing takes the row under it too.)
-    const Rect art{c.x0, area.y0, c.x1, buttons ? area.y1 - kChipH - kChipGap : area.y1};
-    const DsDrawing ds = PlaceDs(art);
+    // The same place for every device, the mouse (no chips) too: switching devices leaves the
+    // drawing where it is.
+    const Rect art{c.x0, area.y0, c.x1, area.y1 - kChipH - kChipGap};
+    // The columns keep room for the widest chip; the drawing takes what is left.
+    const float col_w = kChipPadL + kGlyph + kChipGap +
+                        kit.TextWidthSized(kChipText, true, kWidestChip) + kChipPadR + 1.0f;
+    const DsDrawing ds = PlaceDs({c.x0 + col_w + kLeader, art.y0, c.x1 - col_w - kLeader, art.y1});
     const int lit = listening ? view.remap.listening : -1;
     DrawDs(kit, ds, lit);
 
@@ -674,7 +680,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     std::vector<Chip> chips;
     const auto text_of = [&](int t) {
         if (IsStick(t)) {
-            return StickName(dev.sticks[t == kDsCirclePad ? 0 : 1]);
+            return StickRouteName(dev.sticks[t == kDsCirclePad ? 0 : 1]);
         }
         return SourceName(dev.names, dev.mapping[static_cast<std::size_t>(t)], by_position);
     };
@@ -725,7 +731,6 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     for (const Chip& ch : chips) {
         const int t = ch.target;
         const Rect& r = ch.r;
-        const bool stick = IsStick(t);
         const bool on = t == lit;
         const Target tg{Id::RemapChip, t};
         std::string text = text_of(t);
@@ -733,7 +738,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         if (none) {
             text = "None";
         }
-        uint32_t ink = none || stick ? Tok::kOnSurfaceVariant : Tok::kOnSurface;
+        uint32_t ink = none ? Tok::kOnSurfaceVariant : Tok::kOnSurface;
         uint32_t glyph_fg = Tok::kPrimary, glyph_bg = Tok::kSecondaryContainer;
         kit.Fill(r, kChipRadius, Tok::kSurface);
         if (on) {
@@ -742,23 +747,19 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
             ink = Tok::kOnPrimaryContainer;
             glyph_fg = Tok::kOnPrimary;
             glyph_bg = Tok::kPrimary;
-        } else if (!stick) {
+        } else {
             kit.Stroke(r, kChipRadius, 1.0f, Tok::kOutline);
         }
-        if (!stick) {
-            kit.StateLayer(r, kChipRadius, on ? Tok::kOnPrimaryContainer : Tok::kOnSurfaceVariant,
-                           StateOf(view, tg));
-        }
+        kit.StateLayer(r, kChipRadius, on ? Tok::kOnPrimaryContainer : Tok::kOnSurfaceVariant,
+                       StateOf(view, tg));
         const Rect gb{r.x0 + kChipPadL, r.Cy() - kGlyph * 0.5f, r.x0 + kChipPadL + kGlyph,
                       r.Cy() + kGlyph * 0.5f};
         DrawDsGlyph(kit, gb, t, glyph_fg, glyph_bg);
         const float tx = gb.x1 + kChipGap;
         kit.TextSized(tx, r.Cy() + kit.CapHeightSized(kChipText, true) * 0.5f, kChipText, true, ink,
                       kit.Fit(Type::Label, text, r.x1 - kChipPadR - tx + 1.0f));
-        if (!stick) {
-            // The target: the chip and half the gap over and under it (48 dp, Material's minimum).
-            AddHit({r.x0, r.y0 - kChipGap * 0.5f, r.x1, r.y1 + kChipGap * 0.5f}, tg, pane);
-        }
+        // The target: the chip and half the gap over and under it (48 dp, Material's minimum).
+        AddHit({r.x0, r.y0 - kChipGap * 0.5f, r.x1, r.y1 + kChipGap * 0.5f}, tg, pane);
     }
 
     // The Pointer Test: where the touchpad or the mouse touches the bottom screen now.
@@ -782,7 +783,9 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     if (listening) {
         // Material snackbar: inverse surface, 4 dp corners, the message, the action in inverse
         // primary (a text button) at its end.
-        const std::string prompt = "Press a Button\xE2\x80\xA6";
+        const std::string prompt = !IsStick(view.remap.listening) ? "Press a Button\xE2\x80\xA6"
+                                   : view.remap.step == 0       ? "Push the Stick Up\xE2\x80\xA6"
+                                                                : "Push the Stick Right\xE2\x80\xA6";
         const std::string& action = LabelFor(Id::RemapCancel);
         const float text = 16.0f;
         const float tw = kit.TextWidthSized(text, false, prompt);

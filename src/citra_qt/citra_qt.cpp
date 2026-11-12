@@ -3987,6 +3987,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         for (std::size_t i = 0; i < profile.buttons.size() && i < r.buttons.size(); i++) {
             profile.buttons[i] = r.buttons[i];
         }
+        for (std::size_t i = 0; i < profile.analogs.size() && i < r.analogs.size(); i++) {
+            profile.analogs[i] = r.analogs[i]; // AzaharFrame padsui: the sticks
+        }
         Settings::SaveProfile(Settings::values.current_input_profile_index);
         system.ApplySettings(); // the game's input devices read the profile again
         config->Save();

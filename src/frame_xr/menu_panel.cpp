@@ -128,6 +128,47 @@ void ApplyTable(std::array<std::string, Menu::kRemapButtons>& buttons, const Men
     }
 }
 
+// AzaharFrame padsui: the profile's Circle Pad and C-Stick as stick routes (stick_route.h), and
+// back. A stick bound to another engine is -1 and left as it is.
+Menu::RemapSticks SticksOf(const std::array<std::string, 2>& analogs) {
+    Menu::RemapSticks t{-1, -1};
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        const Common::ParamPackage p(analogs[i]);
+        if (p.Get("engine", "") == "frame_xr" && p.Has("analog")) {
+            Input::StickRoute r;
+            r.stick = p.Get("analog", -1);
+            r.swap_xy = p.Get("swap_xy", 0) != 0;
+            r.invert_x = p.Get("invert_x", 0) != 0;
+            r.invert_y = p.Get("invert_y", 0) != 0;
+            t[i] = Input::EncodeStickRoute(r);
+        }
+    }
+    return t;
+}
+
+void ApplySticks(std::array<std::string, 2>& analogs, const Menu::RemapSticks& now,
+                 const Menu::RemapSticks& before) {
+    for (std::size_t i = 0; i < analogs.size(); i++) {
+        if (now[i] == before[i] || now[i] < 0) {
+            continue;
+        }
+        const Input::StickRoute r = Input::DecodeStickRoute(now[i]);
+        Common::ParamPackage p;
+        p.Set("engine", "frame_xr");
+        p.Set("analog", r.stick);
+        if (r.swap_xy) {
+            p.Set("swap_xy", 1);
+        }
+        if (r.invert_x) {
+            p.Set("invert_x", 1);
+        }
+        if (r.invert_y) {
+            p.Set("invert_y", 1);
+        }
+        analogs[i] = p.Serialize();
+    }
+}
+
 /// The release's VERSION file beside the program, or "" for a build from source.
 std::string ReadVersion() {
     std::error_code ec;
@@ -291,12 +332,17 @@ void MenuPanel::BeginEdit() {
         edit_buttons[i] = b.buttons[i];
     }
     edit_table = TableOf(edit_buttons);
+    for (std::size_t i = 0; i < edit_analogs.size(); i++) {
+        edit_analogs[i] = b.analogs[i];
+    }
+    edit_sticks = SticksOf(edit_analogs);
     std::array<std::string, Menu::kRemapButtons> defaults;
     const Vis::HelpBindings d = Vis::DefaultHelpBindings();
     for (std::size_t i = 0; i < defaults.size(); i++) {
         defaults[i] = d.buttons[i];
     }
-    remap.Begin(edit_table, TableOf(defaults));
+    remap.Begin(edit_table, TableOf(defaults), Menu::RemapSource::Frame, edit_sticks,
+                SticksOf({d.analogs[0], d.analogs[1]}));
     edit_prev = {};
     edit_b_prev = true;
     LOG_INFO(Frontend, "xr: in-game menu: Edit Controls");
@@ -311,13 +357,17 @@ void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
     }
     ApplyTable(edit_buttons, remap.Table(), edit_table);
     edit_table = remap.Table();
+    ApplySticks(edit_analogs, remap.Sticks(), edit_sticks); // AzaharFrame padsui
+    edit_sticks = remap.Sticks();
     const Vis::HelpBindings given = Vis::CurrentHelpBindings();
     const Vis::HelpBindings b = given.valid ? given : Vis::DefaultHelpBindings();
     SetControlBindings(std::vector<std::string>(edit_buttons.begin(), edit_buttons.end()),
-                       std::vector<std::string>(b.analogs.begin(), b.analogs.end()), b.profile_name);
+                       std::vector<std::string>(edit_analogs.begin(), edit_analogs.end()),
+                       b.profile_name);
     MenuRequest r;
     r.command = MenuCommand::SetButtons;
     r.buttons.assign(edit_buttons.begin(), edit_buttons.end());
+    r.analogs.assign(edit_analogs.begin(), edit_analogs.end());
     if (host.request) {
         host.request(r);
     }
@@ -348,7 +398,14 @@ void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt
         pos ? Control::B : Control::A, pos ? Control::Y : Control::X, pos ? Control::X : Control::Y,
         Control::Menu,     Control::View,   Control::DpadUp,  Control::DpadDown,
         Control::DpadLeft, Control::DpadRight, Control::BumperL, Control::BumperR};
-    if (remap.Listening() >= 0) {
+    if (remap.ListeningStick()) {
+        // AzaharFrame padsui: a 3DS stick listens: each Frame stick, as the hand reads it. The
+        // gestures stay on the physical sticks (mapper.cpp); only the 3DS stick's source moves.
+        for (int h = 0; h < 2 && have_input; h++) {
+            EditChanged(remap.Stick(h, in.hand[static_cast<std::size_t>(h)].stick), host);
+        }
+        EditChanged(remap.Tick(dt), host);
+    } else if (remap.Listening() >= 0) {
         for (std::size_t i = 0; i < now.size(); i++) {
             if (now[i] && !edit_prev[i]) {
                 EditChanged(remap.Press(static_cast<int>(as[i])), host);
@@ -404,6 +461,7 @@ void MenuPanel::BuildModel(const Host& host) {
         frame.key = "frame";
         frame.name = "Frame Controllers";
         frame.mapping = remap.Table();
+        frame.sticks = remap.Sticks();
         m.devices.list = {frame};
         m.devices.selected = 0;
     }

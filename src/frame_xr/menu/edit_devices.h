@@ -51,8 +51,8 @@ struct EditDevice {
     ButtonNames names = ButtonNames::Frame;
     bool has_touchpad = false;
     RemapTable mapping = kNoMapping; ///< 3DS button -> the device's Input::Control, or -1
-    /// Circle Pad, C-Stick -> the device's Input::AnalogControl, or -1 (shown, not edited).
-    std::array<int8_t, 2> sticks{0, 1};
+    /// Circle Pad, C-Stick -> an encoded Input::StickRoute of the device's sticks, or -1.
+    RemapSticks sticks = kDefaultSticks;
     bool operator==(const EditDevice&) const = default;
 };
 
@@ -79,8 +79,8 @@ struct EditDevices {
 /// "Left Bumper"), or "" for -1. Frame Controllers with `face_by_position` (Face Buttons: By
 /// Position): the Frame's A drives Control::B (mapper.cpp), so Control::B is "A".
 std::string SourceName(ButtonNames names, int control, bool face_by_position = true);
-/// "Left Stick", "Right Stick", or "".
-std::string StickName(int analog_control);
+/// "Left Stick", "Right Stick", "Left Stick Flipped" (its axes swapped or turned round), or "".
+std::string StickRouteName(int8_t route);
 
 constexpr RemapSource SourceOf(DeviceKind kind) {
     return kind == DeviceKind::Frame ? RemapSource::Frame : RemapSource::Pad;

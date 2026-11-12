@@ -6,6 +6,7 @@
 #include <cstring>
 #include <mutex>
 #include "frame_xr/input/default_bindings.h"
+#include "frame_xr/input/stick_route.h"
 #include "input_common/frame_xr.h"
 
 // AzaharFrame
@@ -51,14 +52,22 @@ private:
 
 class FrameXrAnalog final : public Input::AnalogDevice {
 public:
-    explicit FrameXrAnalog(AnalogControl control_) : control(control_) {}
+    // AzaharFrame padsui: `route` swaps or turns the axes round (Edit Controls' two pushes).
+    FrameXrAnalog(AnalogControl control_, ::FrameXr::Input::StickRoute route_)
+        : control(control_), route(route_) {}
 
     std::tuple<float, float> GetStatus() const override {
-        return GetPad().GetStick(control);
+        const auto [x, y] = GetPad().GetStick(control);
+        if (route.Plain()) {
+            return {x, y};
+        }
+        const auto v = ::FrameXr::Input::ApplyStickRoute({x, y}, route);
+        return {v.x, v.y};
     }
 
 private:
     AnalogControl control;
+    ::FrameXr::Input::StickRoute route;
 };
 
 class FrameXrMotion final : public Input::MotionDevice {
@@ -93,7 +102,12 @@ public:
         if (index < 0 || index >= kNumAnalogControls) {
             return std::make_unique<Input::AnalogDevice>(); // reads as centred
         }
-        return std::make_unique<FrameXrAnalog>(static_cast<AnalogControl>(index));
+        ::FrameXr::Input::StickRoute route; // AzaharFrame padsui
+        route.stick = index;
+        route.swap_xy = params.Get("swap_xy", 0) != 0;
+        route.invert_x = params.Get("invert_x", 0) != 0;
+        route.invert_y = params.Get("invert_y", 0) != 0;
+        return std::make_unique<FrameXrAnalog>(static_cast<AnalogControl>(index), route);
     }
 };
 

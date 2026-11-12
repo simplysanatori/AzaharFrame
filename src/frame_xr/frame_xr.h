@@ -203,6 +203,7 @@ struct MenuRequest {
     int value = 0;
     bool per_game = false;
     std::vector<std::string> buttons; ///< AzaharFrame remap: SetButtons, Settings::InputProfile::buttons
+    std::vector<std::string> analogs; ///< AzaharFrame padsui: SetButtons, InputProfile::analogs (or none)
 };
 
 /// What the XR thread asks the Qt side to do (both must queue to the GUI thread).

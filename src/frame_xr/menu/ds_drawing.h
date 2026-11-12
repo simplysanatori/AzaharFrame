@@ -5,20 +5,21 @@
 // AzaharFrame padsui: Edit Controls' drawing of a 3DS: an open New 3DS XL from the front, both
 // screens, in line art made of the menu kit's shapes (our own drawing, no logos), with a dot on
 // every input Edit Controls shows. The drawing is laid out in its own units (about a millimetre
-// of the real console: 160 wide, 192 tall open) and scaled into the space it gets.
+// of the real console: 160 wide, 192.5 tall open) and scaled into the space it gets.
 
 #pragma once
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/remap.h"
 
 namespace FrameXr::Menu {
 
 /// The drawing's inputs: the 3DS buttons (DsButton) and the two sticks.
-constexpr int kDsCirclePad = 32;
-constexpr int kDsCStick = 33;
+constexpr int kDsCirclePad = DsButton::CirclePad;
+constexpr int kDsCStick = DsButton::CStick;
 
 constexpr float kDsUnitsW = 160.0f;
-constexpr float kDsUnitsH = 192.0f;
+constexpr float kDsUnitsH = 192.5f;
 
 struct DsPoint {
     float x = 0, y = 0;

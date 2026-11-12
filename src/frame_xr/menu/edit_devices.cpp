@@ -105,11 +105,13 @@ std::string SourceName(ButtonNames names, int control, bool face_by_position) {
     return names == ButtonNames::Frame ? FrameName(c, face_by_position) : PadName(names, c);
 }
 
-std::string StickName(int analog_control) {
-    if (analog_control < 0 || analog_control >= Input::kNumAnalogControls) {
+std::string StickRouteName(int8_t route) {
+    const Input::StickRoute r = Input::DecodeStickRoute(route);
+    if (r.stick < 0 || r.stick >= Input::kNumAnalogControls) {
         return {};
     }
-    return Input::AnalogControlName(static_cast<Input::AnalogControl>(analog_control));
+    const std::string name = Input::AnalogControlName(static_cast<Input::AnalogControl>(r.stick));
+    return r.Plain() ? name : name + " Flipped";
 }
 
 RemapTable PositionalPadTable() {

@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "frame_xr/input/controls.h"
+#include "frame_xr/input/stick_route.h"
 
 namespace FrameXr::Menu {
 
@@ -29,7 +30,13 @@ using RemapTable = std::array<int8_t, kRemapButtons>;
 /// dependency; menu_panel.cpp checks they match).
 namespace DsButton {
 enum : int { A, B, X, Y, Up, Down, Left, Right, L, R, Start, Select, ZL = 14, ZR = 15, Home = 16 };
+/// The two sticks, as Edit Controls' targets (after the buttons).
+enum : int { CirclePad = 32, CStick = 33 };
 } // namespace DsButton
+
+/// AzaharFrame padsui: Circle Pad, C-Stick -> an encoded Input::StickRoute (stick_route.h), or -1.
+using RemapSticks = std::array<int8_t, 2>;
+inline constexpr RemapSticks kDefaultSticks{0, 1}; ///< the left stick the Circle Pad, the right the C-Stick
 
 /// AzaharFrame padsui: whose buttons the table holds, for which presses can take a 3DS button.
 enum class RemapSource : uint8_t { Frame, Pad };
@@ -38,6 +45,7 @@ enum class RemapSource : uint8_t { Frame, Pad };
 struct RemapView {
     bool editing = false;
     int listening = -1; ///< the 3DS button (Settings::NativeButton) waiting for a press, or -1
+    int step = 0;       ///< a stick listening: 0 "Push the Stick Up", 1 "Push the Stick Right"
     uint32_t rev = 0;   ///< counts every change, so the menu redraws
     bool operator==(const RemapView&) const = default;
 };
@@ -47,6 +55,7 @@ public:
     enum class Event {
         None,      ///< nothing happened
         Listening, ///< a 3DS button now waits for a press
+        Next,      ///< a stick took the push for up, and waits for the one for right
         Moved,     ///< the 3DS button took a control no other 3DS button had
         Swapped,   ///< the 3DS button took another's control, which took its old one
         Cancelled, ///< listening ended with no change
@@ -68,9 +77,16 @@ public:
     /// controls as Input::Controls; its Guide button is SteamOS's and its touchpad Touchpad Touch's).
     static bool Listenable(int control, RemapSource source);
 
-    /// Edit mode starts from `table` of `source`; `defaults` is what Reset to Default restores.
+    /// Circle Pad and C-Stick.
+    static bool IsStick(int target) {
+        return target == DsButton::CirclePad || target == DsButton::CStick;
+    }
+
+    /// Edit mode starts from `table` and `sticks` of `source`; the defaults are what Reset to
+    /// Default restores.
     void Begin(const RemapTable& table, const RemapTable& defaults,
-               RemapSource source = RemapSource::Frame);
+               RemapSource source = RemapSource::Frame, const RemapSticks& sticks = kDefaultSticks,
+               const RemapSticks& stick_defaults = kDefaultSticks);
     RemapSource Source() const {
         return source;
     }
@@ -83,17 +99,30 @@ public:
     const RemapTable& Table() const {
         return table;
     }
+    const RemapSticks& Sticks() const {
+        return sticks;
+    }
+    /// A stick target listens.
+    bool ListeningStick() const {
+        return IsStick(view.listening);
+    }
     const RemapView& View() const {
         return view;
     }
 
-    /// A 3DS button was clicked: it listens (the same one again, or one that cannot change,
-    /// stops listening).
-    Event Choose(int button);
+    /// A 3DS button or stick was clicked: it listens (the same one again, or one that cannot
+    /// change, stops listening).
+    Event Choose(int target);
     /// A button of the device was pressed while a 3DS button listens: the 3DS button takes it,
     /// and a 3DS button that had it takes the listening one's old control. Pressing the control
     /// it already has ends listening (Cancelled); one that cannot be used keeps it (None).
     Event Press(int control);
+    /// The device's stick `stick` (Input::AnalogControl) is at `value` while a 3DS stick
+    /// listens. A clear push along one axis is the first answer (up: Next), a push of the same
+    /// stick along its other axis the second (right): the 3DS stick takes that stick with its
+    /// axes as pushed, and the other 3DS stick, if it had that stick, takes this one's old route.
+    /// The same route as before ends listening (Cancelled).
+    Event Stick(int stick, Input::Vec2f value);
     Event Cancel();
     /// Reset to Default: the table is the defaults; listening ends.
     Event Reset();
@@ -105,6 +134,9 @@ public:
 private:
     RemapTable table{};
     RemapTable defaults{};
+    RemapSticks sticks = kDefaultSticks;
+    RemapSticks stick_defaults = kDefaultSticks;
+    Input::StickPush up_push;
     RemapView view;
     RemapSource source = RemapSource::Frame;
     float listened = 0.0f;

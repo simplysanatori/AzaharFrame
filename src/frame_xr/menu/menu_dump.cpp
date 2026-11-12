@@ -257,6 +257,7 @@ int main(int argc, char** argv) {
         ds4.names = NamesFor(4, false);
         ds4.has_touchpad = true;
         ds4.mapping = PositionalPadTable();
+        ds4.sticks = {0, Input::EncodeStickRoute({1, false, false, true})}; // C-Stick Y turned round
         EditDevice mouse;
         mouse.key = "mouse";
         mouse.name = "Mouse";
@@ -272,6 +273,10 @@ int main(int argc, char** argv) {
         v.remap.listening = DsButton::X;
         v.hover = {Id::RemapCancel};
         ok &= shot("edit-3ds-listening", me, v);
+        v.remap.listening = DsButton::CirclePad;
+        v.remap.step = 1;
+        ok &= shot("edit-3ds-stick", me, v);
+        v.remap.step = 0;
 
         v.remap.listening = -1;
         v.hover = {Id::EditDevice, 2};

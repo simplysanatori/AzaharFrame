@@ -147,7 +147,7 @@ TEST_CASE("Remap: a gamepad's triggers, paddles and stick clicks can be used", "
 
 TEST_CASE("Remap: only the 3DS's own buttons can listen", "[frame_xr]") {
     Remap r = Started();
-    for (const int b : std::initializer_list<int>{12, 13, 17, -1, 18, kDsCirclePad, kDsCStick}) { // Debug, GPIO14, Power, sticks
+    for (const int b : std::initializer_list<int>{12, 13, 17, -1, 18, 31, 34}) { // Debug, GPIO14, Power
         REQUIRE_FALSE(Remap::Editable(b));
         REQUIRE(r.Choose(b) == Remap::Event::None);
         REQUIRE(r.Listening() == -1);
@@ -235,8 +235,11 @@ TEST_CASE("Edit Controls: each device's buttons by its own names", "[frame_xr]")
     CHECK(SourceName(NamesFor(5, false), C(Control::Menu)) == "Plus");
     CHECK(SourceName(NamesFor(100, false), C(Control::GripL)) == "Left Grip");
     CHECK(SourceName(NamesFor(0, false), C(Control::GripL)) == "Left Paddle");
-    CHECK(StickName(0) == "Left Stick");
-    CHECK(StickName(-1).empty());
+    CHECK(StickRouteName(0) == "Left Stick");
+    CHECK(StickRouteName(1) == "Right Stick");
+    CHECK(StickRouteName(FrameXr::Input::EncodeStickRoute({1, false, false, true})) ==
+          "Right Stick Flipped");
+    CHECK(StickRouteName(-1).empty());
     // The positional default: the right button is the 3DS's A.
     const RemapTable p = PositionalPadTable();
     CHECK(SourceName(ds4, p[B::A]) == "Circle");
@@ -307,7 +310,8 @@ TEST_CASE("Edit Controls: a chip on every 3DS button, the devices, Cancel only w
                         B::Select, B::ZL, B::ZR, B::Home}) {
         CHECK(s.Has(Id::RemapChip, b));
     }
-    CHECK_FALSE(s.Has(Id::RemapChip, kDsCirclePad)); // the sticks are shown, not edited
+    CHECK(s.Has(Id::RemapChip, kDsCirclePad));
+    CHECK(s.Has(Id::RemapChip, kDsCStick));
     CHECK(s.Has(Id::EditDevice, 0));
     CHECK(s.Has(Id::EditDevice, 1));
     CHECK(s.Has(Id::EditDevice, 2));
@@ -383,4 +387,105 @@ TEST_CASE("Edit Controls: many devices still fit the row", "[frame_xr]") {
     }
     CHECK(right > 0.0f);
     CHECK(right <= kPanelW - 12.0f);
+}
+
+TEST_CASE("Stick routes: two pushes give the stick, its axes and their directions", "[frame_xr]") {
+    using namespace FrameXr::Input;
+    // Plain: up is +Y, right is +X.
+    StickRoute r = RouteFromPushes({0, 1, 1}, {0, 0, 1});
+    CHECK(r == StickRoute{0, false, false, false});
+    CHECK(EncodeStickRoute(r) == 0);
+    // Up read as down (an inverted Y), right as right.
+    r = RouteFromPushes({1, 1, -1}, {1, 0, 1});
+    CHECK(r == StickRoute{1, false, false, true});
+    Vec2f v = ApplyStickRoute({0.0f, -1.0f}, r);
+    CHECK(v.y == 1.0f);
+    // A pad turned a quarter: up moves X, right moves -Y.
+    r = RouteFromPushes({0, 0, 1}, {0, 1, -1});
+    CHECK(r.swap_xy);
+    CHECK(r.invert_x);
+    v = ApplyStickRoute({1.0f, 0.0f}, r); // pushed "up"
+    CHECK(v.x == 0.0f);
+    CHECK(v.y == 1.0f);
+    v = ApplyStickRoute({0.0f, -1.0f}, r); // pushed "right"
+    CHECK(v.x == 1.0f);
+    // Not an answer: the same axis twice, or two sticks.
+    CHECK(RouteFromPushes({0, 1, 1}, {0, 1, -1}).stick == -1);
+    CHECK(RouteFromPushes({0, 1, 1}, {1, 0, 1}).stick == -1);
+    // Round trip of every route.
+    for (int st = 0; st < 2; st++) {
+        for (int bits = 0; bits < 8; bits++) {
+            const StickRoute q{st, (bits & 1) != 0, (bits & 2) != 0, (bits & 4) != 0};
+            CHECK(DecodeStickRoute(EncodeStickRoute(q)) == q);
+        }
+    }
+    CHECK(DecodeStickRoute(-1).stick == -1);
+    // A push is clear: past 0.7 along one axis, the other under half of it.
+    CHECK(DetectStickPush(0, {0.1f, 0.9f}) == StickPush{0, 1, 1});
+    CHECK(DetectStickPush(1, {-0.8f, 0.2f}) == StickPush{1, 0, -1});
+    CHECK(DetectStickPush(0, {0.6f, 0.6f}).stick == -1);
+    CHECK(DetectStickPush(0, {0.5f, 0.0f}).stick == -1);
+}
+
+TEST_CASE("Remap: a 3DS stick learns from two pushes, the other swaps", "[frame_xr]") {
+    using FrameXr::Input::DecodeStickRoute;
+    Remap r = Started();
+    REQUIRE(r.Choose(B::CirclePad) == Remap::Event::Listening);
+    REQUIRE(r.ListeningStick());
+    REQUIRE(r.View().step == 0);
+    REQUIRE(r.Press(C(Control::A)) == Remap::Event::None); // buttons do nothing now
+    REQUIRE(r.Stick(1, {0.2f, 0.3f}) == Remap::Event::None); // not a clear push
+    REQUIRE(r.Stick(1, {0.0f, 0.95f}) == Remap::Event::Next); // the right stick, up
+    REQUIRE(r.View().step == 1);
+    REQUIRE(r.Stick(1, {0.0f, 0.95f}) == Remap::Event::None); // still up: waits for right
+    REQUIRE(r.Stick(0, {0.95f, 0.0f}) == Remap::Event::None); // the other stick: no
+    REQUIRE(r.Stick(1, {0.9f, 0.1f}) == Remap::Event::Swapped);
+    REQUIRE(r.Listening() == -1);
+    REQUIRE(r.View().step == 0);
+    REQUIRE(r.Sticks()[0] == 1); // the Circle Pad on the right stick
+    REQUIRE(r.Sticks()[1] == 0); // the C-Stick took the left
+    // The same route again: no change.
+    r.Choose(B::CirclePad);
+    r.Stick(1, {0.0f, 1.0f});
+    REQUIRE(r.Stick(1, {1.0f, 0.0f}) == Remap::Event::Cancelled);
+    // Inverted Y on the C-Stick: up pushed as down.
+    r.Choose(B::CStick);
+    r.Stick(0, {0.0f, -1.0f});
+    REQUIRE(r.Stick(0, {1.0f, 0.0f}) == Remap::Event::Moved);
+    REQUIRE(DecodeStickRoute(r.Sticks()[1]).invert_y);
+    REQUIRE(DecodeStickRoute(r.Sticks()[1]).stick == 0);
+    // Cancel and Reset.
+    r.Choose(B::CStick);
+    r.Stick(0, {0.0f, 1.0f});
+    REQUIRE(r.Cancel() == Remap::Event::Cancelled);
+    REQUIRE(r.View().step == 0);
+    REQUIRE(r.Reset() == Remap::Event::Reset);
+    REQUIRE(r.Sticks() == kDefaultSticks);
+    // Timeout restarts with each step.
+    r.Choose(B::CirclePad);
+    r.Tick(Remap::kListenSeconds * 0.9f);
+    r.Stick(0, {0.0f, 1.0f});
+    REQUIRE(r.Tick(Remap::kListenSeconds * 0.5f) == Remap::Event::None);
+    REQUIRE(r.Tick(Remap::kListenSeconds * 0.6f) == Remap::Event::Cancelled);
+}
+
+TEST_CASE("Remap: a gamepad's sticks swap the same way", "[frame_xr]") {
+    Remap r;
+    r.Begin(PositionalPadTable(), PositionalPadTable(), RemapSource::Pad, kDefaultSticks,
+            kDefaultSticks);
+    r.Choose(B::CStick);
+    r.Stick(0, {0.0f, 1.0f});
+    REQUIRE(r.Stick(0, {1.0f, 0.0f}) == Remap::Event::Swapped);
+    REQUIRE(r.Sticks() == RemapSticks{1, 0});
+    REQUIRE(r.Table() == PositionalPadTable()); // buttons untouched
+}
+
+TEST_CASE("Edit Controls: a listening stick asks for up, then right", "[frame_xr]") {
+    EditScreen s;
+    s.v.remap.listening = B::CirclePad;
+    s.Draw();
+    CHECK(s.Has(Id::RemapCancel, -1));
+    s.v.remap.step = 1;
+    s.Draw();
+    CHECK(s.Has(Id::RemapCancel, -1));
 }
