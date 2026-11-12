@@ -1185,7 +1185,11 @@ void MenuPanel::Click(Target t, Host& host) {
                 LOG_INFO(Frontend, "xr: in-game menu: Settings: {}", scope ? "Per-Game" : "Global");
             } else if (menu == Id::AutosaveCard) { // AzaharFrame autosave: the card's list
                 LOG_INFO(Frontend, "xr: in-game menu: Load Autosave {}", t.index + 1);
-                ask(MenuCommand::LoadAutosave, t.index);
+                // AzaharFrame advfix: the entry as drawn (its file and time), not its place
+                const auto i = static_cast<std::size_t>(t.index);
+                ask_text(MenuCommand::LoadAutosave,
+                         i < model.autosaves.size() ? model.autosaves[i].id : std::string{},
+                         t.index);
                 view.page = Menu::Page::Tabs;
             } else {
                 SetSetting(menu, t.index, host);
@@ -1243,7 +1247,8 @@ void MenuPanel::Click(Target t, Host& host) {
     // AzaharFrame autosave: Load State's card (owner's Option B)
     case Id::AutosaveCard:
         if (model.autosaves.size() == 1) {
-            ask(MenuCommand::LoadAutosave, 0); // Keep 1 (or the only one so far): loads it
+            // Keep 1 (or the only one so far): loads it (AzaharFrame advfix: as drawn)
+            ask_text(MenuCommand::LoadAutosave, model.autosaves.front().id, 0);
             view.page = Menu::Page::Tabs;
         } else if (model.autosaves.size() > 1) {
             view.open_menu = Id::AutosaveCard;

@@ -69,6 +69,24 @@ inline constexpr const char* kSaveStateNotLoaded = "This Save State Couldn't Be 
 /// AzaharFrame advfix: its body when nothing was restored (the game goes on as it was).
 inline constexpr const char* kSaveStateNotLoadedBody =
     "The game and its save data weren't changed.";
+/// AzaharFrame advfix: a save state (a slot or Quick Save) that could not be written.
+inline constexpr const char* kSaveFailedTitle = "Couldn't Save State";
+inline constexpr const char* kSaveFailedBody =
+    "The game is still running. Try another slot, or free up space on the Frame.";
+/// Why a state file could not be written, when known.
+enum class SaveFailure : u8 { Unknown, NoSpace, Write };
+/// The notice's body: the reason on a line of its own ("Not Enough Space", "Couldn't Write the
+/// File"), then kSaveFailedBody; kSaveFailedBody alone when the reason is not known.
+std::string SaveFailedBody(SaveFailure failure);
+/// NoSpace when the folder of `path` (or the nearest one that exists) has less free space than
+/// `needed` bytes, else Write.
+SaveFailure WriteFailureAt(const std::string& path, std::size_t needed);
+/// System::SaveState's write failed (what() the details for the log).
+struct SaveStateWriteFailed : std::runtime_error {
+    SaveStateWriteFailed(SaveFailure f, const std::string& what)
+        : std::runtime_error(what), failure(f) {}
+    SaveFailure failure;
+};
 
 /// The Azahar for Frame version that made a state, from its header: build_version "AZF 1.2.0"
 /// (states from 1.2.0 on), else a build_name that is one of our releases ("1.1.1": every release

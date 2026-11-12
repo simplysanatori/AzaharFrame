@@ -310,3 +310,25 @@ TEST_CASE("Save states: a load that fails before restoring gets the clean notice
     CHECK(std::string(kSaveStateNotLoaded) == "This Save State Couldn't Be Loaded");
     CHECK(std::string(kSaveStateNotLoadedBody) == "The game and its save data weren't changed.");
 }
+
+// AzaharFrame advfix
+TEST_CASE("Save states: a save that fails says why", "[savestate_frame]") {
+    CHECK(std::string(kSaveFailedTitle) == "Couldn't Save State");
+    CHECK(SaveFailedBody(SaveFailure::Unknown) ==
+          "The game is still running. Try another slot, or free up space on the Frame.");
+    CHECK(SaveFailedBody(SaveFailure::NoSpace) ==
+          "Not Enough Space\nThe game is still running. Try another slot, or free up space on "
+          "the Frame.");
+    CHECK(SaveFailedBody(SaveFailure::Write).rfind("Couldn't Write the File\n", 0) == 0);
+    TempDir states("savefail");
+    // More than the disk holds: Not Enough Space; a folder in the way: Couldn't Write the File
+    CHECK(WriteFailureAt(states.Dir() + "x/0004000000055D00.01.cst", std::size_t(1) << 62) ==
+          SaveFailure::NoSpace);
+    WriteText(states.path / "blocked", "a file where the folder would be");
+    const std::string path = states.Dir() + "blocked/0004000000055D00.01.cst";
+    CHECK_THROWS(WriteStateFile(path, CurrentStateHeader(kTitle, 1), std::vector<u8>{1, 2}));
+    CHECK(WriteFailureAt(path, 300) == SaveFailure::Write);
+    const SaveStateWriteFailed e(SaveFailure::NoSpace, "details");
+    CHECK(e.failure == SaveFailure::NoSpace);
+    CHECK(std::string(e.what()) == "details");
+}

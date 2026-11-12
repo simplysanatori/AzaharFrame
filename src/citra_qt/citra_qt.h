@@ -266,9 +266,12 @@ private:
     void FrameAutosaveList();
     void FrameUpdateAutosaveActions();
     void FramePushAutosaves();
-    void FrameLoadAutosave(int index);
-    void FrameDoLoadAutosave(const std::string& path, bool anyway);
-    void FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version);
+    /// AzaharFrame advfix: by Autosave::EntryId as the list showed it; gone: the clean notice.
+    void FrameLoadAutosave(const std::string& id);
+    // AzaharFrame advfix: `time`, when not 0, the header time the list showed (checked by the core)
+    void FrameDoLoadAutosave(const std::string& path, bool anyway, u64 time = 0);
+    void FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version,
+                                    u64 time = 0);
     void FrameUndoLoad();
     /// Autosave, Every or Keep, from the Emulation menu or a test: the game's own value when it
     /// has one, else the global one, saved to that file.
@@ -535,6 +538,7 @@ private:
     std::string frame_rescue_root;  ///< Load Anyway armed Restore Save Data in this session
     bool frame_rescue_keep = false; ///< an error since: the marker stays for the next start
     s64 frame_rescue_clean_ms = 0;  ///< AzaharFrame advfix: play since Load Anyway, no error
+    int frame_save_failures = 0;    ///< AzaharFrame advfix: saves that failed (Quick Saved's check)
     bool frame_load_anyway_pending = false; ///< a Load Anyway in flight (its error is ours)
     u32 frame_last_load_slot = 0;
 

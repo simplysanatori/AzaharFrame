@@ -281,6 +281,24 @@ std::size_t PruneAll(const std::string& dir, u32 keep) {
     return removed;
 }
 
+std::string EntryId(const Entry& entry) {
+    return fmt::format("{}@{}", fs::path(entry.path).filename().string(), entry.time);
+}
+
+int FindEntry(const std::vector<Entry>& entries, const std::string& id) {
+    for (std::size_t i = 0; i < entries.size(); i++) {
+        if (!id.empty() && EntryId(entries[i]) == id) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+bool SameState(const std::string& path, u64 program_id, u64 time) {
+    const SaveStateInfo info = GetSaveStateInfoAt(path, program_id);
+    return info.slot == 0 && (time == 0 || info.time == time);
+}
+
 std::vector<Entry> Shown(std::vector<Entry> all, u32 keep) {
     keep = ClampKeep(keep);
     std::vector<Entry> out;
@@ -400,16 +418,7 @@ std::string FailureToast(Failure failure) {
 }
 
 Failure WriteFailure(const std::string& path, std::size_t needed) {
-    std::error_code ec;
-    fs::path dir = fs::path(path).parent_path();
-    while (!dir.empty() && !fs::exists(dir, ec) && dir != dir.parent_path()) {
-        dir = dir.parent_path(); // a folder not made yet: the free space where it would be
-    }
-    const fs::space_info space = fs::space(dir.empty() ? fs::path(".") : dir, ec);
-    if (!ec && space.available < needed) {
-        return Failure::NoSpace;
-    }
-    return Failure::Write;
+    return WriteFailureAt(path, needed) == SaveFailure::NoSpace ? Failure::NoSpace : Failure::Write;
 }
 
 std::string FailureNotice::Show(Failure failure, s64 now_ms) {

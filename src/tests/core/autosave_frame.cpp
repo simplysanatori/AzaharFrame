@@ -483,3 +483,39 @@ TEST_CASE("Autosave: a failed one is told, not too often", "[autosave][frame_xr]
     CHECK(!done.ok);
     CHECK(done.failure == A::Failure::Write);
 }
+
+TEST_CASE("Autosave: loaded by what the list showed, not its place", "[autosave][frame_xr]") {
+    TempDir states("identity");
+    const std::string dir = A::Dir(states.Dir());
+    const std::string t0 = Make(dir, kTitle, 0);
+    Make(dir, kTitle, 300);
+    const std::string menu = A::MenuPathFor(dir, kTitle, 0);
+    WriteStateFile(menu, CurrentStateHeader(kTitle, static_cast<u64>(kBase + 400)),
+                   std::vector<u8>{1});
+    const auto shown = A::List(dir, kTitle, 0); // as the card drew it: menu, +300, +0
+    REQUIRE(shown.size() == 3);
+    const std::string menu_id = A::EntryId(shown[0]);
+    const std::string oldest_id = A::EntryId(shown[2]);
+    CHECK(menu_id == "0004000000055D00.menu.cst@" + std::to_string(kBase + 400));
+    CHECK(A::FindEntry(shown, oldest_id) == 2);
+    CHECK(A::SameState(menu, kTitle, static_cast<u64>(kBase + 400)));
+
+    // A timer autosave lands and the menu-open one is replaced before the tap reaches the
+    // emulator: the places shift, the identities still find the right ones
+    Make(dir, kTitle, 600);
+    WriteStateFile(menu, CurrentStateHeader(kTitle, static_cast<u64>(kBase + 700)),
+                   std::vector<u8>{1});
+    auto now = A::List(dir, kTitle, 0);
+    REQUIRE(now.size() == 4);
+    CHECK(A::FindEntry(now, oldest_id) == 3); // was 2
+    // The menu-open autosave the card showed is no longer in its file: not loaded at all
+    CHECK(A::FindEntry(now, menu_id) == -1);
+    CHECK(!A::SameState(menu, kTitle, static_cast<u64>(kBase + 400)));
+    CHECK(A::SameState(menu, kTitle, 0));
+    // One pruned since: gone, nothing else in its place
+    fs::remove(t0);
+    now = A::List(dir, kTitle, 0);
+    CHECK(A::FindEntry(now, oldest_id) == -1);
+    CHECK(!A::SameState(t0, kTitle, 0));
+    CHECK(A::FindEntry(now, "") == -1);
+}

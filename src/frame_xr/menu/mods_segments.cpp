@@ -458,25 +458,35 @@ void EmptyState(Kit& kit, const Rect& area, char32_t icon, bool ring, int spin,
 std::vector<std::string> Wrap(const Kit& kit, const std::string& s, float size, bool medium,
                               float width, int max_lines) {
     std::vector<std::string> lines;
-    std::string line;
-    std::size_t at = 0;
-    while (at < s.size()) {
-        std::size_t end = s.find(' ', at);
-        if (end == std::string::npos) {
-            end = s.size();
+    // AzaharFrame advfix: a '\n' starts a new line (a notice's reason line)
+    std::size_t para = 0;
+    while (para <= s.size()) {
+        std::size_t para_end = s.find('\n', para);
+        if (para_end == std::string::npos) {
+            para_end = s.size();
         }
-        const std::string word = s.substr(at, end - at);
-        const std::string next = line.empty() ? word : line + " " + word;
-        if (!line.empty() && kit.TextWidthSized(size, medium, next) > width) {
+        const std::string p = s.substr(para, para_end - para);
+        std::string line;
+        std::size_t at = 0;
+        while (at < p.size()) {
+            std::size_t end = p.find(' ', at);
+            if (end == std::string::npos) {
+                end = p.size();
+            }
+            const std::string word = p.substr(at, end - at);
+            const std::string next = line.empty() ? word : line + " " + word;
+            if (!line.empty() && kit.TextWidthSized(size, medium, next) > width) {
+                lines.push_back(line);
+                line = word;
+            } else {
+                line = next;
+            }
+            at = end + 1;
+        }
+        if (!line.empty()) {
             lines.push_back(line);
-            line = word;
-        } else {
-            line = next;
         }
-        at = end + 1;
-    }
-    if (!line.empty()) {
-        lines.push_back(line);
+        para = para_end + 1;
     }
     if (static_cast<int>(lines.size()) > max_lines) {
         std::string last = lines[static_cast<std::size_t>(max_lines - 1)];

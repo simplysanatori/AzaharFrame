@@ -96,6 +96,17 @@ std::vector<Entry> List(const std::string& dir, u64 program_id, u64 movie_id);
 std::size_t Prune(const std::string& dir, u64 program_id, u64 movie_id, u32 keep);
 /// The same for every game in `dir` (Keep was lowered).
 std::size_t PruneAll(const std::string& dir, u32 keep);
+/// AzaharFrame advfix: an autosave's identity as a list showed it: its file name and the time in
+/// its header ("0004000000055D00.menu.cst@1794000000"). The menu-open autosave's file is replaced
+/// each time, so the time tells one of its states from the next.
+std::string EntryId(const Entry& entry);
+/// AzaharFrame advfix: the entry of `entries` with that identity, or -1 (gone, or replaced since
+/// the list was drawn: nothing else is loaded in its place).
+int FindEntry(const std::vector<Entry>& entries, const std::string& id);
+/// AzaharFrame advfix: `path` still holds a state of this game made at `time` (0: any time). The
+/// core checks it just before loading, since the menu-open autosave's file may be replaced
+/// between the tap and the load.
+bool SameState(const std::string& path, u64 program_id, u64 time);
 /// AzaharFrame advfix: the autosaves a list shows: the menu-open one and the newest `keep` of the
 /// rest (the rest are about to go: Keep was just lowered), newest first.
 std::vector<Entry> Shown(std::vector<Entry> all, u32 keep);

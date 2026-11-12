@@ -580,6 +580,15 @@ int main(int argc, char** argv) {
         sm.notice.other = "The game and its save data weren't changed.";
         sv.page = Page::LoadSlots;
         ok &= shot("1h2-save-state-not-loaded-unchanged", sm, sv);
+        // AzaharFrame advfix: a save that failed, with its reason, and with none
+        sm.notice.mod = "Couldn't Save State";
+        sm.notice.other = "Not Enough Space\nThe game is still running. Try another slot, or "
+                          "free up space on the Frame.";
+        sv.page = Page::SaveSlots;
+        ok &= shot("1h3-save-state-not-saved-no-space", sm, sv);
+        sm.notice.other = "The game is still running. Try another slot, or free up space on the "
+                          "Frame.";
+        ok &= shot("1h4-save-state-not-saved", sm, sv);
     }
 
     v = {};

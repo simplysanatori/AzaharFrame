@@ -203,6 +203,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
     Signal signal{Signal::None};
     u32 param{};
     std::string autosave_path; // AzaharFrame autosave: LoadAutosave's
+    u64 autosave_time = 0;     // AzaharFrame advfix: and the time its list showed
     {
         std::scoped_lock lock{signal_mutex};
         if (current_signal != Signal::None) {
@@ -210,6 +211,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             param = signal_param;
             current_signal = Signal::None;
             autosave_path = std::exchange(autosave_load_path, {});
+            autosave_time = std::exchange(autosave_load_time, 0); // AzaharFrame advfix
         }
     }
     switch (signal) {
@@ -267,7 +269,9 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             autosave_writer->WaitIdle(); // the newest may still be on its way to the disk
         }
         const auto info = GetSaveStateInfoAt(autosave_path, title_id);
-        if (info.slot != 0) {
+        if (info.slot != 0 || !Autosave::SameState(autosave_path, title_id, autosave_time)) {
+            // AzaharFrame advfix: gone, or another state in its file since the list showed it
+            LOG_WARNING(Core, "autosave: {} is gone or changed since it was shown", autosave_path);
             status_details = kSaveStateNotLoaded;
             return ResultStatus::ErrorSavestate;
         }
@@ -278,6 +282,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         }
         save_state_allow_mismatch = signal == Signal::LoadAutosaveAnyway;
         autosave_loading_path = autosave_path;
+        autosave_loading_time = autosave_time;
         save_state_request_time = std::chrono::steady_clock::now();
         save_state_request_status = SaveStateStatus::LOADING;
         break;
@@ -291,6 +296,7 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         break;
     case Signal::Save: {
         savestate_error_on_load = false; // AzaharFrame advfix
+        savestate_save_failure = static_cast<u8>(SaveFailure::Unknown);
         if (save_state_request_status != SaveStateStatus::NONE) {
             LOG_ERROR(Core, "A pending save state operation has not finished yet");
             status_details = "A pending save state operation has not finished yet";
@@ -315,6 +321,12 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
             autosave_writer->WaitIdle(); // AzaharFrame autosave: an undo file still being written
         }
         if (const std::string path = std::exchange(autosave_loading_path, {}); !path.empty()) {
+            // AzaharFrame advfix: still the state the list showed (after the writer's last write)
+            if (!Autosave::SameState(path, title_id, std::exchange(autosave_loading_time, 0))) {
+                LOG_WARNING(Core, "autosave: {} changed since it was shown", path);
+                status_details = kSaveStateNotLoaded;
+                return ResultStatus::ErrorSavestate;
+            }
             // AzaharFrame autosave: the moment before to its own file (Undo Load), then the
             // autosave
             LOG_INFO(Core, "Begin load of autosave {}{}", path,
@@ -383,8 +395,14 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
                      std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now() - t0)
                          .count());
+        } catch (const SaveStateWriteFailed& e) { // AzaharFrame advfix: why, for the notice
+            LOG_ERROR(Core, "Error saving: {}", e.what());
+            savestate_save_failure = static_cast<u8>(e.failure);
+            status_details = e.what();
+            return ResultStatus::ErrorSavestate;
         } catch (const std::exception& e) {
             LOG_ERROR(Core, "Error saving: {}", e.what());
+            savestate_save_failure = static_cast<u8>(SaveFailure::Unknown);
             status_details = e.what();
             return ResultStatus::ErrorSavestate;
         }
@@ -530,7 +548,7 @@ bool System::RequestAutosave(Autosave::Reason reason) {
     return SendSignal(Signal::Autosave, static_cast<u32>(reason));
 }
 
-bool System::RequestLoadAutosave(const std::string& path, bool anyway) {
+bool System::RequestLoadAutosave(const std::string& path, bool anyway, u64 time) {
     std::scoped_lock lock{signal_mutex};
     if (current_signal != Signal::None) {
         LOG_ERROR(Core, "Unable to load an autosave as {} is ongoing", current_signal);
@@ -539,6 +557,7 @@ bool System::RequestLoadAutosave(const std::string& path, bool anyway) {
     current_signal = anyway ? Signal::LoadAutosaveAnyway : Signal::LoadAutosave;
     signal_param = 0;
     autosave_load_path = path;
+    autosave_load_time = time; // AzaharFrame advfix
     return true;
 }
 

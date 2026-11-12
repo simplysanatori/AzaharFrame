@@ -2202,6 +2202,17 @@ TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr
     CHECK(a.Drew("Got It"));
     CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
     CHECK(centre(Id::DialogCancel) == Target{});
+    // AzaharFrame advfix: Couldn't Save State, its reason on a line of its own
+    m.notice.mod = "Couldn't Save State";
+    m.notice.other = "Not Enough Space\nThe game is still running. Try another slot, or free up "
+                     "space on the Frame.";
+    m.notice.confirm = "OK";
+    a.Draw(m, v);
+    a.Check("Couldn't Save State");
+    CHECK(a.Drew("Couldn't Save State"));
+    CHECK(a.Drew("Not Enough Space"));
+    CHECK(!a.Drew("Not Enough Space The game is still running."));
+    CHECK(centre(Id::DialogConfirm) == Target{Id::DialogConfirm});
 }
 
 // AzaharFrame autosave: Settings in three sections, each with the scope's menu button; Per-Game

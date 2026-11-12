@@ -1416,28 +1416,36 @@ GMainWindow::GMainWindow(Core::System& system_)
                     return;
                 }
                 const auto started = static_cast<u64>(QDateTime::currentSecsSinceEpoch());
+                const int failures = frame_save_failures; // AzaharFrame advfix
                 ui->action_Quick_Save->trigger();
                 // Confirm once the file is there (the emulation thread saves at its next frame).
                 auto* timer = new QTimer(this);
                 timer->setInterval(150);
                 int tries = 0;
-                connect(timer, &QTimer::timeout, this, [this, timer, notify, started, tries]() mutable {
-                    u64 title_id{};
-                    bool done = false;
-                    if (system.GetAppLoader().ReadProgramId(title_id) ==
-                        Loader::ResultStatus::Success) {
-                        for (const auto& state :
-                             Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
-                            done |= state.slot == 0 && state.time + 1 >= started;
-                        }
-                    }
-                    if (done) {
-                        notify(FrameXr::Toast::QuickSaved, tr("Quick Saved"));
-                    }
-                    if (done || ++tries >= 40) { // a failed save shows Azahar's own error
-                        timer->deleteLater();
-                    }
-                });
+                connect(timer, &QTimer::timeout, this,
+                        [this, timer, notify, started, tries, failures]() mutable {
+                            u64 title_id{};
+                            bool done = false;
+                            // AzaharFrame advfix: it failed (Couldn't Save State shows): no Quick
+                            // Saved, even if part of the file was written
+                            if (frame_save_failures != failures) {
+                                timer->deleteLater();
+                                return;
+                            }
+                            if (system.GetAppLoader().ReadProgramId(title_id) ==
+                                Loader::ResultStatus::Success) {
+                                for (const auto& state :
+                                     Core::ListSaveStates(title_id, movie.GetCurrentMovieID())) {
+                                    done |= state.slot == 0 && state.time + 1 >= started;
+                                }
+                            }
+                            if (done) {
+                                notify(FrameXr::Toast::QuickSaved, tr("Quick Saved"));
+                            }
+                            if (done || ++tries >= 40) { // a failed save shows Couldn't Save State
+                                timer->deleteLater();
+                            }
+                        });
                 timer->start();
             };
             g_frame_xr_quick_load = [this, notify] {
@@ -1854,7 +1862,12 @@ GMainWindow::GMainWindow(Core::System& system_)
                             g_frame_xr_set_menu(what == QStringLiteral("menu"));
                         }
                     } else if (what == QStringLiteral("load") && n >= 1) {
-                        FrameLoadAutosave(static_cast<int>(n) - 1);
+                        FrameAutosaveList(); // the test's "Autosave N": as listed now
+                        FrameLoadAutosave(n <= frame_autosaves.size()
+                                              ? Core::Autosave::EntryId(frame_autosaves[n - 1])
+                                              : std::string("gone"));
+                    } else if (what == QStringLiteral("loadid") && parts.size() > 2) {
+                        FrameLoadAutosave(parts.mid(2).join(QLatin1Char(':')).toStdString());
                     } else if (what == QStringLiteral("qtshots")) {
                         // Emulation > Load State, the Emulation menu and Configure > General
                         // (global, then this game's) as PNGs in AZAHARFRAME_TEST_AUTOSAVE_SHOTS.
@@ -4636,17 +4649,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         FrameNoticeAnswer(r.value == 1);
         return;
     case C::LoadAutosave: { // AzaharFrame autosave: Load State's card
+        // AzaharFrame advfix: the autosave the card showed (r.text, its file and time), found
+        // again in the list now; one gone or replaced since gets the clean notice
         FrameAutosaveList();
-        if (r.value < 0 || r.value >= static_cast<int>(frame_autosaves.size())) {
-            return;
-        }
-        LOG_INFO(Frontend, "xr: in-game menu: load autosave {}", r.value + 1);
+        const int i = Core::Autosave::FindEntry(frame_autosaves, r.text);
+        LOG_INFO(Frontend, "xr: in-game menu: load autosave {} ({}, now {})", r.value + 1, r.text,
+                 i + 1);
         // About Save States or Load Anyway's question: a dialog in the menu, which stays open
-        if (!UISettings::values.save_state_warning &&
-            !frame_autosaves[static_cast<std::size_t>(r.value)].other) {
+        if (i >= 0 && !UISettings::values.save_state_warning &&
+            !frame_autosaves[static_cast<std::size_t>(i)].other) {
             close_menu();
         }
-        FrameLoadAutosave(r.value);
+        FrameLoadAutosave(r.text);
         return;
     }
     case C::UndoLoad:
@@ -6652,6 +6666,19 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
                  QString::fromUtf8(Core::kSaveStateNotLoadedBody), tr("OK"), {}, {});
         return;
     }
+    // AzaharFrame advfix: a save that failed (a slot, Quick Save): the same notice path, with the
+    // reason when known; the game goes on
+    if (result == RS::ErrorSavestate) {
+        LOG_WARNING(Frontend, "savestate: save failed: {}", details);
+        frame_save_failures++;
+        if (emu_thread) {
+            emu_thread->SetRunning(true);
+        }
+        FrameAsk(QString::fromUtf8(Core::kSaveFailedTitle),
+                 QString::fromStdString(Core::SaveFailedBody(system.SavestateSaveFailure())),
+                 tr("OK"), {}, {});
+        return;
+    }
 
     QString title, message;
     QMessageBox::Icon error_severity_icon;
@@ -7522,9 +7549,9 @@ void GMainWindow::FrameAutosaveInit() {
     frame_autosave_separator = ui->menu_Load_State->addSeparator();
     for (std::size_t i = 0; i < actions_load_autosave.size(); i++) {
         QAction* a = new QAction(this);
-        a->setData(static_cast<int>(i));
+        // AzaharFrame advfix: the entry the action showed (its data, set with its text)
         connect(a, &QAction::triggered, this,
-                [this, i] { FrameLoadAutosave(static_cast<int>(i)); });
+                [this, a] { FrameLoadAutosave(a->data().toString().toStdString()); });
         ui->menu_Load_State->addAction(a);
         actions_load_autosave[i] = a;
     }
@@ -7730,10 +7757,12 @@ void GMainWindow::FrameUpdateAutosaveActions() {
             const std::string when = e.other ? Core::SaveStateFromText(e.version)
                                              : Core::Autosave::LocalDateTimeSeconds(e.time);
             a->setText(QString::fromStdString(Core::Autosave::MenuEntry(label, when)));
+            a->setData(QString::fromStdString(Core::Autosave::EntryId(e))); // AzaharFrame advfix
             a->setEnabled(true);
             font.setItalic(e.other);
         } else {
             a->setText(QString::fromStdString(label));
+            a->setData(QString{});
             a->setEnabled(false);
         }
         a->setFont(font);
@@ -7762,6 +7791,7 @@ void GMainWindow::FramePushAutosaves() {
         c.time =
             e.other ? Core::SaveStateFromText(e.version) : Core::Autosave::LocalDateTime(e.time);
         c.clock = e.other ? c.time : Core::Autosave::LocalTime(e.time);
+        c.id = Core::Autosave::EntryId(e); // AzaharFrame advfix
         if (!e.thumb.empty()) {
             QImage img(QString::fromStdString(e.thumb));
             if (!img.isNull()) {
@@ -7848,54 +7878,62 @@ void GMainWindow::FrameAutosaveWritten(const Core::Autosave::Writer::Done& done)
     }
 }
 
-void GMainWindow::FrameLoadAutosave(int index) {
+void GMainWindow::FrameLoadAutosave(const std::string& id) {
     if (!system.IsPoweredOn()) {
         return;
     }
+    // AzaharFrame advfix: the autosave the list showed, by its file and time, never the one now
+    // in its place; gone or replaced since: the clean notice, nothing loaded
     FrameAutosaveList();
-    if (index < 0 || index >= static_cast<int>(frame_autosaves.size())) {
+    const int index = Core::Autosave::FindEntry(frame_autosaves, id);
+    if (index < 0) {
+        LOG_WARNING(Frontend, "autosave: {} is gone or changed since it was shown: not loaded", id);
+        FrameAsk(QString::fromUtf8(Core::kSaveStateNotLoaded),
+                 QString::fromUtf8(Core::kSaveStateNotLoadedBody), tr("OK"), {}, {});
         return;
     }
     const Core::Autosave::Entry e = frame_autosaves[static_cast<std::size_t>(index)];
     if (UISettings::values.save_state_warning) { // About Save States the first time, as a slot
         FrameAsk(QString::fromUtf8(Core::kSaveStatesAboutTitle),
                  QString::fromUtf8(Core::kSaveStatesAboutBody),
-                 QString::fromUtf8(Core::kSaveStatesAboutButton), {}, [this, index](bool yes) {
+                 QString::fromUtf8(Core::kSaveStatesAboutButton), {}, [this, id](bool yes) {
                      if (!yes) {
                          return;
                      }
                      UISettings::values.save_state_warning = false;
                      config->Save();
-                     FrameLoadAutosave(index);
+                     FrameLoadAutosave(id);
                  });
         return;
     }
     if (e.other) {
-        FrameAskLoadAutosaveAnyway(e.path, e.version);
+        FrameAskLoadAutosaveAnyway(e.path, e.version, e.time);
         return;
     }
     frame_loaded_autosave_time = e.time;
-    FrameDoLoadAutosave(e.path, false);
+    FrameDoLoadAutosave(e.path, false, e.time);
 }
 
-void GMainWindow::FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version) {
+void GMainWindow::FrameAskLoadAutosaveAnyway(const std::string& path, const std::string& version,
+                                             u64 time) {
     const std::string full = Common::g_build_fullname;
     const std::string ours = Core::FrameVersionOf(full, std::string(Core::kFrameBuildTag) + full);
     FrameAsk(QString::fromStdString(Core::SaveStateMismatchTitle(version, ours)),
              QString::fromStdString(Core::SaveStateMismatchBody(version)),
-             QString::fromUtf8(Core::kLoadAnywayButton), tr("Cancel"), [this, path](bool yes) {
+             QString::fromUtf8(Core::kLoadAnywayButton), tr("Cancel"),
+             [this, path, time](bool yes) {
                  if (yes && system.IsPoweredOn()) {
                      u64 title_id{};
                      system.GetAppLoader().ReadProgramId(title_id);
                      frame_loaded_autosave_time = Core::GetSaveStateInfoAt(path, title_id).time;
-                     FrameDoLoadAutosave(path, true);
+                     FrameDoLoadAutosave(path, true, time);
                  }
              });
 }
 
 // Loads `path`; the core first saves the moment before to its own file (Undo Load). Load Anyway
 // (another build) backs up the game's save data first, as for a slot.
-void GMainWindow::FrameDoLoadAutosave(const std::string& path, bool anyway) {
+void GMainWindow::FrameDoLoadAutosave(const std::string& path, bool anyway, u64 time) {
     u64 title_id{};
     if (system.GetAppLoader().ReadProgramId(title_id) != Loader::ResultStatus::Success) {
         return;
@@ -7909,7 +7947,7 @@ void GMainWindow::FrameDoLoadAutosave(const std::string& path, bool anyway) {
     }
     LOG_INFO(Frontend, "autosave: load {}{}", path, anyway ? " (Load Anyway)" : "");
     frame_last_load_autosave = path;
-    if (!system.RequestLoadAutosave(path, anyway)) {
+    if (!system.RequestLoadAutosave(path, anyway, time)) {
         return;
     }
     system.frame_limiter.AdvanceFrame();

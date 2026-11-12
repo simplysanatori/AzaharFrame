@@ -225,6 +225,7 @@ struct AutosaveCard {
     std::string clock; ///< "10:14" (the list's right column), or "From 1.1.1"
     bool other = false; ///< made by another build: dimmed, still loads (after Load Anyway)
     std::shared_ptr<const AutosavePicture> picture; ///< null: an icon
+    std::string id; ///< AzaharFrame advfix: Autosave::EntryId, sent back when it is tapped
     bool operator==(const AutosaveCard&) const = default;
 };
 
