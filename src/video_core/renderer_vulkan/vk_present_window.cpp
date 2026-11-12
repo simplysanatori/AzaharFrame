@@ -14,6 +14,7 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
 #include "vk_platform.h"
+#include "common/frame_crash.h" // AzaharFrame crashreport
 
 #include <vk_mem_alloc.h>
 
@@ -508,6 +509,8 @@ void PresentWindow::CopyToSwapchain(Frame* frame) {
     try {
         graphics_queue.submit(submit_info, frame->present_done);
     } catch (vk::DeviceLostError& err) {
+        // AzaharFrame crashreport: the next start says the graphics driver stopped responding
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::DeviceLost, err.what());
         LOG_CRITICAL(Render_Vulkan, "Device lost during present submit: {}", err.what());
         UNREACHABLE();
     }

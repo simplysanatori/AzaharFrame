@@ -5,6 +5,7 @@
 #include <mutex>
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
+#include "common/frame_crash.h" // AzaharFrame crashreport
 
 namespace Vulkan {
 
@@ -98,6 +99,8 @@ void MasterSemaphoreTimeline::SubmitWork(vk::CommandBuffer cmdbuf, vk::Semaphore
     try {
         instance.GetGraphicsQueue().submit(submit_info);
     } catch (vk::DeviceLostError& err) {
+        // AzaharFrame crashreport: the next start says the graphics driver stopped responding
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::DeviceLost, err.what());
         UNREACHABLE_MSG("Device lost during submit: {}", err.what());
     }
 }
@@ -150,6 +153,8 @@ void MasterSemaphoreFence::SubmitWork(vk::CommandBuffer cmdbuf, vk::Semaphore wa
     try {
         instance.GetGraphicsQueue().submit(submit_info, fence);
     } catch (vk::DeviceLostError& err) {
+        // AzaharFrame crashreport: the next start says the graphics driver stopped responding
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::DeviceLost, err.what());
         UNREACHABLE_MSG("Device lost during submit: {}", err.what());
     }
 

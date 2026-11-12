@@ -55,6 +55,10 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - A save state that can't be read stops the game cleanly instead of crashing it.
 - **About Save States** explains once that save states are NOT a replacement for saving in the game.
 
+### Crash reports
+
+- If Azahar closed badly last time, the next start says why (ran out of memory, the graphics driver stopped responding, the game hit a fatal error, Azahar crashed, or closed unexpectedly) and which game was running. You can add what you were doing, see exactly what a report holds, save it as a zip, or send it to me. Nothing is sent unless you tap **Send Report**.
+
 ### Bug fixes
 
 - From Azahar: a freeze when a controller connects or disconnects, and signature checks for encrypted content.

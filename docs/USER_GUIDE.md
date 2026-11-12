@@ -350,6 +350,8 @@ Keep other heavy work off the Frame while you play.
 | Mods and texture packs from the Mods tab | `~/.local/share/AzaharFrame/user/load/mod-library`, `load/texture-packs` |
 | Launcher log | `~/.local/share/AzaharFrame/launch.log` |
 | Emulator log | `~/.local/share/AzaharFrame/user/log/azahar_log.txt` |
+| Saved crash reports | `~/Documents/AzaharFrame Reports` |
+| What a run that ended badly left (read and removed at the next start) | `~/.local/share/AzaharFrame/user/crash-reports` |
 | Settings for one launch | `~/.local/share/AzaharFrame/session.env` |
 | Mode it starts in (`vr` or `flat`) | `~/.local/share/AzaharFrame/mode` |
 | Texture pack encoder (built on first use) | `~/.local/share/AzaharFrame/tools` |
@@ -372,6 +374,19 @@ How the port works: [TECHNICAL.md](TECHNICAL.md).
 - **A gamepad's touchpad does nothing.** Turn on **Touchpad Touch** and turn Steam Input off for that controller.
 - **A downloaded mod or texture pack does not show.** Restart the game.
 - **One edge of the immersive screen is cut off by the lenses.** Squeeze a grip and press the D-pad away from that edge until it shows: right when the left edge is cut off.
+
+## Crash reports
+
+If Azahar closed badly last time, the next start tells you why: **Ran Out of Memory**, **Graphics Driver Stopped Responding**, **The Game Hit a Fatal Error**, **Azahar Crashed**, or **Closed Unexpectedly** when I can't tell (the headset froze, or Azahar was killed). It also names the game that was running. It shows once per crash.
+
+You can type what you were doing in **What Were You Doing?** In VR, tapping the box opens the keyboard; **Done** puts the text in the box. Then:
+
+- **See What's Sent** shows the whole report, word for word.
+- **Save Report** saves it as a zip in `~/Documents/AzaharFrame Reports`, so you can attach it to an issue.
+- **Send Report** sends it to me through [Sentry](https://sentry.io), a crash reporting service. It only sends when you tap it, and only that one report.
+- **Don't Send** closes it. Nothing is kept.
+
+A report holds the reason, the game's name and title ID, Azahar for Frame's version, SteamOS's version, your graphics chip and driver, the main graphics and VR settings, the last 2,000 lines of the emulator log, what you typed, and for a crash the signal, the stack (memory addresses and the names of the program's own files) and the build IDs of those files. Your home folder is shown as `~` and your user name as `<user>`. It holds no IP address, no account and nothing else about you, and Azahar for Frame doesn't send anything in the background.
 
 ## Reporting a problem
 

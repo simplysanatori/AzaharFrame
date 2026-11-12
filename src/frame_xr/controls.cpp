@@ -25,6 +25,7 @@
 #include "frame_xr/session.h"
 #include "frame_xr/watchdog.h" // AzaharFrame flatfix
 #include "input_common/frame_xr.h" // AzaharFrame padsui
+#include "common/frame_crash.h" // AzaharFrame crashreport
 
 namespace FrameXr {
 
@@ -844,6 +845,23 @@ void VrUi::EnterSwkbd() {
     const float bottom = Input::Length(ToInput(place.bottom_pose).position - head);
     const float d =
         std::clamp(std::min({kMenuDistance, top - 0.2f, bottom - 0.2f}), kMenuNearest, kMenuDistance);
+    if (SwkbdUnderWindow()) {
+        // AzaharFrame crashreport: no game (a dialog of Azahar's window asked, "What Were You
+        // Doing?"): the keyboard goes under the window, a little nearer and turned up to the
+        // head, so the dialog stays in view above it.
+        const Input::Posef win = ToInput(mirror.Pose());
+        const float w = mirror.Width();
+        const float kb_w = w * 0.8f;
+        const float kb_h = kb_w * (Swkbd::kPanelH / Swkbd::kPanelW);
+        const Input::Vec3f at =
+            win.position +
+            Input::Rotate(win.orientation, {0.0f, -mirror.HeightFor(w) * 0.5f - kb_h * 0.35f, 0.25f});
+        const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
+        swkbd.Place(ToXr(pose), kb_w);
+        swkbd_shown = true;
+        LOG_INFO(Frontend, "xr: keyboard shown under Azahar's window");
+        return;
+    }
     const Input::Vec3f at = head + forward * d;
     const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
     swkbd.Place(ToXr(pose), kMenuWidthPerMetre * d);
@@ -871,14 +889,34 @@ void VrUi::LeaveSwkbd(const Input::InputFrame& in) {
     LOG_INFO(Frontend, "xr: game keyboard hidden");
 }
 
-void VrUi::SwkbdFrame(const FrameInfo& info, const Input::InputFrame& in, bool have_input,
+bool VrUi::SwkbdUnderWindow() const { // AzaharFrame crashreport
+    return !game_running && mirror.Enabled();
+}
+
+void VrUi::SwkbdFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame& in,
+                      bool have_input,
                       std::vector<Quad>& layers) {
     if (have_input && ModeChord(in)) {
         RequestToggleVr("game keyboard"); // to flat: Azahar's dialog takes over
     }
+    keyboard.Hide();
+    if (SwkbdUnderWindow()) {
+        // AzaharFrame crashreport: Azahar's window (the dialog) stays, without input, behind the
+        // keyboard under it; no dim.
+        std::vector<Quad> window_layers;
+        std::optional<XrPosef> no_cursor;
+        mirror.Frame(rt.session, rt.swapchain_format, uploader, info, in, false, window_layers,
+                     no_cursor);
+        layers.insert(layers.end(), window_layers.begin(), window_layers.end());
+        std::optional<XrPosef> cursor;
+        swkbd.Frame(info, in, have_input, tab_menu.Chain(), layers, cursor);
+        if (cursor) {
+            AddCursor(*cursor, 0.02f * swkbd.Width() / 1.6f, layers);
+        }
+        return;
+    }
     Immersive::SetMenuOpen(true);
     mirror.Hide();
-    keyboard.Hide();
     if (info.should_render && dim_chain.has_image) {
         Quad dim;
         dim.swapchain = dim_chain.handle;
@@ -1353,7 +1391,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     if (menu_shown && !(swkbd_shown && swkbd_first)) {
         MenuFrame(rt, info, window_in, have_input, layers);
     } else if (swkbd_shown) {
-        SwkbdFrame(info, window_in, have_input, layers); // AzaharFrame kbd
+        SwkbdFrame(rt, info, window_in, have_input, layers); // AzaharFrame kbd
     } else if (game_running) {
         if (picker_shown) {
             picker_shown = false;
@@ -1439,6 +1477,8 @@ void VrUi::StartupEscapeTick(const FrameInfo& info, const Input::InputFrame& in,
     }
     case StartupEscape::Action::Quit:
         LOG_CRITICAL(Frontend, "xr: the game did not stop within 10 s of the request: quitting");
+        Common::FrameCrash::NoteCause(Common::FrameCrash::Cause::Stuck, // AzaharFrame crashreport
+                                      "The game didn't stop within 10 s of Menu held");
         std::fprintf(stderr, "azahar: the game did not stop within 10 s of the stop held in VR, "
                              "quitting\n");
         std::fflush(stderr);

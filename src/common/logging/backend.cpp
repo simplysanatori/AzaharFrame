@@ -165,6 +165,7 @@ public:
     }
 
     ~FileBackend() override = default;
+    std::chrono::steady_clock::time_point last_flush{}; // AzaharFrame crashreport
 
     void Write(const Entry& entry) override {
         if (!enabled) {
@@ -177,7 +178,12 @@ public:
         // Prevent logs from exceeding a set maximum size in the event that log entries are spammed.
         const auto write_limit = 100_MiB;
         const bool write_limit_exceeded = bytes_written > write_limit;
-        if (entry.log_level >= Level::Error || write_limit_exceeded) {
+        // AzaharFrame crashreport: also once a second, so a crash loses at most a second of the
+        // log (the next start's crash report sends its last lines)
+        const auto now = std::chrono::steady_clock::now();
+        const bool due = now - last_flush > std::chrono::seconds(1);
+        if (entry.log_level >= Level::Error || write_limit_exceeded || due) {
+            last_flush = now;
             if (write_limit_exceeded) {
                 // Stop writing after the write limit is exceeded.
                 // Don't close the file so we can print a stacktrace if necessary

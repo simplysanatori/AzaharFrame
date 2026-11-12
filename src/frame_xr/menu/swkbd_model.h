@@ -30,6 +30,8 @@ struct Button {
     std::string label;
     uint8_t id = 0;       ///< what the game gets back (Frontend::KeyboardData::button)
     bool confirm = false; ///< the OK button: the text is checked first
+    /// AzaharFrame crashreport: Clear: empties the field and leaves the keyboard open
+    bool clears = false;
 };
 
 /// What the game asked for.
@@ -49,6 +51,9 @@ struct Spec {
     /// AzaharFrame ui2: asked for by the in-game menu (a cheat's name and code): shows over the
     /// open menu instead of waiting for it to close.
     bool over_menu = false;
+    /// AzaharFrame crashreport: the text the field starts with (cut to max_length), the caret
+    /// after it.
+    std::string initial;
 };
 
 /// What closes the keyboard: the text and the button.

@@ -43,6 +43,10 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     mods/catalog.cpp # AzaharFrame moddata
     mods/compat.cpp # AzaharFrame compat
     mods/compat.h # AzaharFrame compat
+    frame_crash_report.cpp # AzaharFrame crashreport
+    frame_crash_report.h # AzaharFrame crashreport
+    frame_crash_send.cpp # AzaharFrame crashreport
+    frame_crash_send.h # AzaharFrame crashreport
     mods/crash_guard.cpp # AzaharFrame compat
     mods/crash_guard.h # AzaharFrame compat
     mods/catalog.h # AzaharFrame moddata
@@ -553,6 +557,24 @@ create_target_directory_groups(citra_core)
 
 target_link_libraries(citra_core PUBLIC citra_common PRIVATE audio_core network video_core input_common)
 target_link_libraries(citra_core PRIVATE Boost::boost Boost::serialization Boost::iostreams httplib json-headers)
+# AzaharFrame crashreport: the DSN and release name for Send Report (frame_crash_send.cpp only)
+set(FRAME_CRASH_DSN "${AZAHARFRAME_SENTRY_DSN}")
+if (FRAME_CRASH_DSN STREQUAL "" AND DEFINED ENV{AZAHARFRAME_SENTRY_DSN})
+    set(FRAME_CRASH_DSN "$ENV{AZAHARFRAME_SENTRY_DSN}")
+endif()
+if (AZAHARFRAME_RELEASE)
+    set(FRAME_CRASH_ENVIRONMENT "production")
+else()
+    set(FRAME_CRASH_ENVIRONMENT "development")
+endif()
+configure_file(frame_crash_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/frame_crash_config.h @ONLY)
+if (AZAHARFRAME_SENTRY)
+    target_link_libraries(citra_core PRIVATE sentry)
+    target_compile_definitions(citra_core PRIVATE AZAHARFRAME_SENTRY=1)
+endif()
+if (AZAHARFRAME_RELEASE)
+    target_compile_definitions(citra_core PRIVATE AZAHARFRAME_RELEASE_BUILD=1)
+endif()
 target_link_libraries(citra_core PUBLIC dds-ktx PRIVATE cryptopp fmt lodepng open_source_archives)
 
 if (ENABLE_WEB_SERVICE)
