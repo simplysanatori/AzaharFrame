@@ -132,6 +132,9 @@ struct ViewPose {
     /// AzaharFrame jump: xrLocateViews succeeded with both eyes' orientations valid this frame
     /// (else `eye` and `fov` are the defaults).
     bool views_valid = false;
+    /// AzaharFrame ipd: both eye positions valid and tracked this frame (the IPD is measured
+    /// from them).
+    bool eye_positions_tracked = false;
 };
 ViewPose LatestViewPose();
 /// AzaharFrame doubling: the head pose the game picture released last was drawn with (immersive
