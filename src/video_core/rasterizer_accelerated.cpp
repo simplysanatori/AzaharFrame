@@ -658,6 +658,13 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
 
         if (viewMatrixIndex != -1 && vs_uniforms.f.size() > viewMatrixIndex)
         {
+            // AzaharFrame oot (frame trace only): the game's own uniforms of this world upload,
+            // before the patch, so the trace can tell whether the game moved anything since the
+            // swap before (a world redrawn at 60 with its logic at 30 repeats every other swap).
+            if (VideoCore::Immersive::FrameTrace::Traced()) {
+                VideoCore::Immersive::g_frame_trace.WorldUniforms(
+                    VideoCore::Immersive::HashBytes(f.data(), sizeof(f[0]) * f.size()));
+            }
             if (matrixMode == 2)
             {
                 f[viewMatrixIndex][0] = vr_inv_view[0];

@@ -399,6 +399,11 @@ public:
     void Transfer() noexcept {
         ++copies_;
     }
+    /// AzaharFrame oot (traced): one world upload's game uniforms, before the patch.
+    void WorldUniforms(u64 hash) noexcept {
+        frame_sum_ += hash;
+        ++frame_uploads_;
+    }
     /// A latch with a swap (`swap`) or the VBlank fallback; `track` after its Latch.
     void Latch(bool swap, const ContentTrack& track, bool full_mode, int64_t now_ms) {
         if (swap) {
@@ -412,6 +417,16 @@ public:
             if (sequence_len_ < kSequence) {
                 sequence_[sequence_len_++] = world_draws_;
             }
+            if (frame_uploads_ > 0) {
+                ++game_frames_;
+                if (have_last_sum_ && frame_sum_ == last_sum_) {
+                    ++game_repeats_;
+                }
+                last_sum_ = frame_sum_;
+                have_last_sum_ = true;
+            }
+            frame_sum_ = 0;
+            frame_uploads_ = 0;
             switch (track.LastKind()) {
             case ContentTrack::Kind::Same:
                 ++same_;
@@ -456,13 +471,19 @@ public:
                 }
                 LOG_INFO(HW_GPU,
                          "xr: immersive frame trace: world draws per swap {}; world "
-                         "projections {}{}",
+                         "projections {}{}; game uniforms the same as the swap before in {} of "
+                         "{} swaps with world uploads",
                          seq, proj.empty() ? "none" : proj,
-                         other_proj_ ? " and " + std::to_string(other_proj_) + " more" : "");
+                         other_proj_ ? " and " + std::to_string(other_proj_) + " more" : "",
+                         game_repeats_, game_frames_);
             }
         }
+        const u64 keep_sum = last_sum_;
+        const bool keep_have = have_last_sum_;
         *this = FrameTrace{};
         start_ms_ = now_ms;
+        last_sum_ = keep_sum;
+        have_last_sum_ = keep_have;
     }
     static bool Traced() {
         static const bool on = [] {
@@ -487,8 +508,21 @@ private:
     std::array<Proj, kProjections> proj_{};
     int projections_ = 0;
     u32 other_proj_ = 0;
+    u64 frame_sum_ = 0, last_sum_ = 0;
+    u32 frame_uploads_ = 0, game_frames_ = 0, game_repeats_ = 0;
+    bool have_last_sum_ = false;
     int64_t start_ms_ = 0;
 };
+
+/// AzaharFrame oot: FNV-1a of `size` bytes (the frame trace).
+inline u64 HashBytes(const void* data, std::size_t size) noexcept {
+    const auto* p = static_cast<const unsigned char*>(data);
+    u64 h = 1469598103934665603ull;
+    for (std::size_t i = 0; i < size; ++i) {
+        h = (h ^ p[i]) * 1099511628211ull;
+    }
+    return h;
+}
 inline FrameTrace g_frame_trace;
 
 /// AzaharFrame oot: a draw through the game's patched world camera (emulation thread), with the
