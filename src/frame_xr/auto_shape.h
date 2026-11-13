@@ -7,8 +7,9 @@
 // option draws anamorphic into the 400x240 top screen (16:9 about 1.78, 21:9 about 2.33), the
 // game itself at 5:3. The emulation thread measures the projection (video_core/vr_auto_shape.h);
 // Decider picks the shape from it:
-//   - the nearest of 5:3, 16:10, 16:9 and 21:9 within kTolerance (anything else, a 4:3 close-up
-//     or a stretched effect, is not a shape and is ignored);
+//   - the nearest of 4:3, 3:2, 5:3, 16:10, 16:9 and 21:9 within kTolerance (anything else, a
+//     stretched effect, is not a shape and is ignored; AzaharFrame oot: 4:3 and 3:2 too, a mod's
+//     Standard shape; a 4:3 close-up shorter than kStableMs still changes nothing);
 //   - only after the same shape was measured for kStableMs without a gap over kGapMs, so a short
 //     cutscene or a menu's camera does not switch it;
 //   - with hysteresis: while the measurement is within kTolerance of the shape in use, it stays;
@@ -30,7 +31,8 @@ namespace FrameXr::AutoShape {
 inline constexpr std::uint32_t kAutomatic = 6;
 inline constexpr float kAspect3ds = 400.0f / 240.0f;
 
-/// The Screen Shape value (vr_top_aspect) and its aspect: 5:3 (0), 16:10 (5), 16:9 (1), 21:9 (2).
+/// The Screen Shape value (vr_top_aspect) and its aspect: 4:3 (3), 3:2 (4), 5:3 (0), 16:10 (5),
+/// 16:9 (1), 21:9 (2).
 struct Shape {
     std::uint32_t value = 0;
     float aspect = kAspect3ds;
