@@ -31,6 +31,7 @@
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
+#include "frame_xr/toast_depth.h" // AzaharFrame integ9: ScreenUse
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/watchdog.h"
@@ -752,33 +753,15 @@ void Runtime::FrameLoop() {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
                 // the upper half and the right eye in the lower one (kXrPackedGap between).
                 const bool top = s != VideoCore::XrScreen::Bottom;
-                if (top && hide_top) {
-                    return; // AzaharFrame dbl: shown once already
-                }
                 const ScreenChain& chain =
                     screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
                                                                        : s)];
-                if (!chain.handle || !chain.has_image) {
-                    return;
-                }
-                Quad q;
-                q.swapchain = chain.handle;
-                q.image_rect = {{0, 0},
-                                {static_cast<int32_t>(chain.width),
-                                 static_cast<int32_t>(chain.height)}};
-                if (packed_top && top) {
-                    const int32_t half =
-                        static_cast<int32_t>((chain.height - VideoCore::kXrPackedGap) / 2);
-                    q.image_rect.extent.height = half;
-                    if (s == VideoCore::XrScreen::TopRight) {
-                        q.image_rect.offset.y =
-                            half + static_cast<int32_t>(VideoCore::kXrPackedGap);
-                    }
-                }
-                q.pose = pose;
-                q.size = size;
-                q.eye = eye;
-                {
+                // AzaharFrame integ9: the toast's inputs take the screen whether or not its layer
+                // is left out this refresh (SINGLE_FLASH), so the toast's depth holds still.
+                const ToastDepth::ScreenUse use =
+                    ToastDepth::UseOf(chain.handle != XR_NULL_HANDLE && chain.has_image,
+                                      top && hide_top);
+                if (use.toast_input) {
                     // AzaharFrame kiu2: where it is in LOCAL space, for the toast (toast_depth.h).
                     Input::PanelQuad tq;
                     tq.pose = {{pose.orientation.x, pose.orientation.y, pose.orientation.z,
@@ -798,6 +781,26 @@ void Runtime::FrameLoop() {
                     tq.curve_radius = curve;
                     toast_screens.push_back(tq);
                 }
+                if (!use.layer) {
+                    return; // no picture, or (AzaharFrame dbl) shown once already
+                }
+                Quad q;
+                q.swapchain = chain.handle;
+                q.image_rect = {{0, 0},
+                                {static_cast<int32_t>(chain.width),
+                                 static_cast<int32_t>(chain.height)}};
+                if (packed_top && top) {
+                    const int32_t half =
+                        static_cast<int32_t>((chain.height - VideoCore::kXrPackedGap) / 2);
+                    q.image_rect.extent.height = half;
+                    if (s == VideoCore::XrScreen::TopRight) {
+                        q.image_rect.offset.y =
+                            half + static_cast<int32_t>(VideoCore::kXrPackedGap);
+                    }
+                }
+                q.pose = pose;
+                q.size = size;
+                q.eye = eye;
                 if (curve > 0.0f) {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
                 } else {

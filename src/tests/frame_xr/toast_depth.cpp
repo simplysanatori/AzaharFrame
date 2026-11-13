@@ -99,3 +99,18 @@ TEST_CASE("Toasts: in front of a nearer screen, at any distance", "[frame_xr][ki
                                           {Screen(0.05f, 0.0f, 0.0f, 2.0f, 2.0f)});
     CHECK(k * Length(toast.position) == Approx(ToastDepth::kMinDistanceM));
 }
+
+TEST_CASE("Toast depth: the screens go into the toast's inputs even when left out",
+          "[frame_xr][toast]") {
+    // AzaharFrame integ9: with SINGLE_FLASH the top screen's layer is left out every other
+    // refresh, but the toast still sees it (in front of it, and shown).
+    constexpr auto shown = ToastDepth::UseOf(true, false);
+    constexpr auto hidden = ToastDepth::UseOf(true, true);
+    constexpr auto none = ToastDepth::UseOf(false, false);
+    CHECK(shown.toast_input);
+    CHECK(shown.layer);
+    CHECK(hidden.toast_input);
+    CHECK_FALSE(hidden.layer);
+    CHECK_FALSE(none.toast_input);
+    CHECK_FALSE(none.layer);
+}

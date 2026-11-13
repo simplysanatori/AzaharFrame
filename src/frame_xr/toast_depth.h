@@ -66,4 +66,16 @@ inline float NearScale(const Input::Vec3f& eye, const Input::Posef& toast, float
     return std::clamp(k, std::min(kMinDistanceM / centre_d, 1.0f), 1.0f);
 }
 
+/// AzaharFrame integ9: what the frame loop does with a screen this refresh (app.cpp add_screen).
+/// The toast's inputs take every screen with a picture, whether or not its layer is drawn: with
+/// AZAHARFRAME_XR_SINGLE_FLASH the top screen's layer is left out on every other refresh, and a
+/// toast that saw it only on alternate refreshes jumped between its own distance and the near one.
+struct ScreenUse {
+    bool toast_input = false; ///< goes into the toast's screens (NearScale)
+    bool layer = false;       ///< drawn as a layer this refresh
+};
+constexpr ScreenUse UseOf(bool has_picture, bool hidden_this_refresh) {
+    return {has_picture, has_picture && !hidden_this_refresh};
+}
+
 } // namespace FrameXr::ToastDepth
