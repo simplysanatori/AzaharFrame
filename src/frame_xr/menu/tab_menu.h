@@ -115,6 +115,7 @@ enum class Id : int {
     DynamicResolution,  ///< AzaharFrame menuux: vr_dynamic_resolution, global
     TextureFilter,      ///< AzaharFrame menuux: texture_filter, per game
     AsyncShaders,       ///< AzaharFrame menuux: async_shader_compilation, per game
+    AccurateImageCopies, ///< AzaharFrame accxfer: accurate_image_copies, per game
     FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
     ImmersiveMode,
     WiderView,
@@ -293,6 +294,7 @@ struct MenuModel {
     bool dynamic_resolution = false;
     int texture_filter = 0;      ///< index into OptionsFor(Id::TextureFilter)
     bool async_shaders = false;
+    bool accurate_image_copies = false; ///< AzaharFrame accxfer
     int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x

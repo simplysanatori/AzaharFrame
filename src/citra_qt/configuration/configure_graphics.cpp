@@ -162,6 +162,8 @@ void ConfigureGraphics::SetConfiguration() {
             Settings::values.use_display_refresh_rate_detection.GetValue());
     }
     ui->simulate_3ds_gpu_timings->setChecked(Settings::values.simulate_3ds_gpu_timings.GetValue());
+    ui->toggle_accurate_image_copies->setChecked(
+        Settings::values.accurate_image_copies.GetValue()); // AzaharFrame accxfer
     if (frame_vr) { // AzaharFrame
         frame_vr->SetConfiguration();
     }
@@ -199,6 +201,10 @@ void ConfigureGraphics::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.simulate_3ds_gpu_timings,
                                              ui->simulate_3ds_gpu_timings,
                                              simulate_3ds_gpu_timings);
+    // AzaharFrame accxfer: global, or this game's own value (never the box into the global one)
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.accurate_image_copies,
+                                             ui->toggle_accurate_image_copies,
+                                             accurate_image_copies);
 
     if (Settings::IsConfiguringGlobal()) {
         Settings::values.use_shader_jit = ui->toggle_shader_jit->isChecked();
@@ -237,6 +243,8 @@ void ConfigureGraphics::SetupPerGameUI() {
             Settings::values.delay_game_render_thread_us.UsingGlobal());
         ui->simulate_3ds_gpu_timings->setEnabled(
             Settings::values.simulate_3ds_gpu_timings.UsingGlobal());
+        ui->toggle_accurate_image_copies->setEnabled(
+            Settings::values.accurate_image_copies.UsingGlobal()); // AzaharFrame accxfer
         return;
     }
 
@@ -285,6 +293,9 @@ void ConfigureGraphics::SetupPerGameUI() {
     ConfigurationShared::SetColoredTristate(ui->simulate_3ds_gpu_timings,
                                             Settings::values.simulate_3ds_gpu_timings,
                                             simulate_3ds_gpu_timings);
+    ConfigurationShared::SetColoredTristate(ui->toggle_accurate_image_copies,
+                                            Settings::values.accurate_image_copies,
+                                            accurate_image_copies); // AzaharFrame accxfer
 }
 
 void ConfigureGraphics::SetPhysicalDeviceComboVisibility(int index) {

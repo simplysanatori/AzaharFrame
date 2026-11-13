@@ -22,3 +22,20 @@ TEST_CASE("TransferOverlaps finds Fire Emblem's in-place glow downscales", "[vid
     REQUIRE_FALSE(TransferOverlaps(0x1100, 0x100, 0x1000, 0x100));
     REQUIRE_FALSE(TransferOverlaps(0x1000, 0, 0x1000, 0x100));
 }
+
+// AzaharFrame accxfer: Accurate Image Copies sends every display transfer to the software path;
+// off, only the overlapping ones go.
+TEST_CASE("Accurate Image Copies sends every display transfer to the software path",
+          "[video_core]") {
+    using VideoCore::DisplayTransferInSoftware;
+    // the frame's own transfer: hardware when off, software when on
+    REQUIRE_FALSE(DisplayTransferInSoftware(false, 0x18000000, 256 * 400 * 4, 0x18108D00,
+                                            128 * 200 * 4));
+    REQUIRE(DisplayTransferInSoftware(true, 0x18000000, 256 * 400 * 4, 0x18108D00,
+                                      128 * 200 * 4));
+    // an in-place downscale goes to software either way
+    REQUIRE(DisplayTransferInSoftware(false, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 4));
+    REQUIRE(DisplayTransferInSoftware(true, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 4));
+    static_assert(DisplayTransferInSoftware(true, 0x1000, 0x100, 0x2000, 0x100));
+    static_assert(!DisplayTransferInSoftware(false, 0x1000, 0x100, 0x2000, 0x100));
+}

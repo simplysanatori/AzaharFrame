@@ -106,4 +106,12 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
     return in_size != 0 && out_size != 0 && out < in + in_size && in < out + out_size;
 }
 
+/// AzaharFrame accxfer: whether a display transfer takes the software path: always with
+/// Accurate Image Copies on (Settings::values.accurate_image_copies), else when its output
+/// overlaps its input (TransferOverlaps).
+[[nodiscard]] constexpr bool DisplayTransferInSoftware(bool accurate_copies, u32 in, u32 in_size,
+                                                       u32 out, u32 out_size) {
+    return accurate_copies || TransferOverlaps(in, in_size, out, out_size);
+}
+
 } // namespace VideoCore
