@@ -445,7 +445,29 @@ void Hud::ShowHint(const std::string& text, const XrPosef& pose, float width_m) 
     hint_requested = true;
 }
 
-bool Hud::HintQuad(XrTime time, Quad& quad) {
+namespace {
+// AzaharFrame kiu2: in front of every screen it is over, whatever their distance (an immersive
+// screen can be nearer than a toast's 0.9 m): scaled about the eye, so it keeps its direction
+// and its size in view. Returns the factor (1: left as it is).
+float BringInFront(const ViewPose& head, const std::vector<Input::PanelQuad>* screens,
+                   Quad& quad) {
+    if (!screens || !head.valid) {
+        return 1.0f;
+    }
+    const Input::Vec3f eye = ToInput(head.head).position;
+    const Input::Posef pose = ToInput(quad.pose);
+    const float k = ToastDepth::NearScale(eye, pose, quad.size.width, quad.size.height, *screens);
+    if (k < 1.0f) {
+        const Input::Vec3f p = eye + (pose.position - eye) * k;
+        quad.pose.position = {p.x, p.y, p.z};
+        quad.size = {quad.size.width * k, quad.size.height * k};
+    }
+    return k;
+}
+} // namespace
+
+bool Hud::HintQuad(XrTime time, Quad& quad, const ViewPose& head,
+                   const std::vector<Input::PanelQuad>* screens) {
     if (!toast_chain.HasImage()) {
         return false;
     }
@@ -475,6 +497,7 @@ bool Hud::HintQuad(XrTime time, Quad& quad) {
                        {static_cast<int32_t>(kHintWidth), static_cast<int32_t>(kToastHeight)}};
     quad.pose = hint_pose;
     quad.size = {hint_width, hint_width * kToastHeight / kHintWidth};
+    BringInFront(head, screens, quad); // AzaharFrame kiu2
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;
@@ -787,18 +810,9 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
                        {static_cast<int32_t>(box.box_px), static_cast<int32_t>(kToastHeight)}};
     quad.pose = shown_pose;
     quad.size = {box.width_m, box.height_m};
-    // AzaharFrame kiu2: in front of every screen it is over, whatever their distance (an
-    // immersive screen can be nearer than the toast's 0.9 m): scaled about the eye, so it keeps
-    // its direction and its size in view.
+    // AzaharFrame kiu2: in front of every screen it is over (BringInFront).
     if (screens && head.valid) {
-        const Input::Vec3f eye = ToInput(head.head).position;
-        const float k = ToastDepth::NearScale(eye, ToInput(shown_pose), box.width_m, box.height_m,
-                                              *screens);
-        if (k < 1.0f) {
-            const Input::Vec3f p = eye + (ToInput(shown_pose).position - eye) * k;
-            quad.pose.position = {p.x, p.y, p.z};
-            quad.size = {box.width_m * k, box.height_m * k};
-        }
+        const float k = BringInFront(head, screens, quad);
         if ((k < 1.0f) != toast_nearer_logged) {
             toast_nearer_logged = k < 1.0f;
             if (k < 1.0f) {

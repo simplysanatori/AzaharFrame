@@ -888,7 +888,7 @@ void Runtime::FrameLoop() {
             }
             // AzaharFrame controls: the grip hint chip under the held screen.
             Quad hint;
-            if (hud.HintQuad(fs.predictedDisplayTime, hint)) {
+            if (hud.HintQuad(fs.predictedDisplayTime, hint, LatestViewPose(), &toast_screens)) {
                 quad_layers.push_back(MakeQuad(local_space, hint));
             }
             // AzaharFrame autosave: "Autosaved" over the top screen's corner

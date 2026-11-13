@@ -73,7 +73,8 @@ public:
     bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
                    const std::vector<Input::PanelQuad>* screens = nullptr);
     /// XR thread, each frame after ToastQuad: the hint chip while it shows.
-    bool HintQuad(XrTime time, Quad& quad);
+    bool HintQuad(XrTime time, Quad& quad, const ViewPose& head = {},
+                  const std::vector<Input::PanelQuad>* screens = nullptr);
     /// AzaharFrame autosave: any thread. "Autosaved" over the top screen's corner (vis/
     /// autosave_label.h), else the Autosaved toast.
     void ShowAutosaved();
