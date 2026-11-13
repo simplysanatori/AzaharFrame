@@ -210,8 +210,11 @@ Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touc
 - While it aims, that controller draws no beam. In the in-game menu, Azahar's window and the keyboard it is a normal pointer.
 - **Headset**: your head aims, and the trigger of either controller touches.
 - **Reticle Speed**, under it, sets how far the dot moves for a turn of your head or the controller: 0.5x to 4.0x, one value for both. At the default 2.0x your head turns about 15 degrees from edge to edge and 11 from top to bottom (30 and 22.5 at 1.0x); a controller turns 20 and 15.
-- **Bottom Screen Reticle**, **Reticle Speed** and **At Edge** can be set per game with the **Global | Per-Game** switch at the top of the tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and the switches below can be set per game with the **Global | Per-Game** switch at the top of the tab. Kid Icarus: Uprising starts with **Headset** and **C-Stick at Edge** on unless you set them yourself.
 - **At Edge**, under it: **Follow** (the default) keeps the dot on the edge. **Snap to Middle** lifts the touch at the edge and touches again in the middle, like a stylus swipe.
+- **C-Stick at Edge**: while the trigger touches near an edge, the C-Stick pushes toward it too, more the closer you are to the edge. It lets go when you lift the trigger or move away from the edge. In Kid Icarus: Uprising with the C-Stick & Gyro mod this turns the camera, as the mod does when C-Stick aiming reaches the edge.
+- **Aim Only While Pressed**: the dot stays in the middle until the trigger touches, and goes back when you let go.
+- **Right Stick Moves Touch**: the right stick moves the touch point too, and is not the C-Stick while the reticle aims. Off, the right stick stays the C-Stick.
 
 ### The mouse
 
@@ -366,7 +369,7 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab. E
 
 ## Motion controls
 
-Some games aim by moving the 3DS, like the first-person items in Ocarina of Time 3D (the slingshot, the bow, the hookshot). In VR the controller you chose in **Motion Controls** is the 3DS's gyroscope and accelerometer. Hold it as if it were the 3DS in front of you, with its beam pointing into the screen. Turn it left and right to turn, and tilt it up and down to tilt. The tilt of the beam also tells the game which way is down. The game is told how the controller turns and which way it hangs, not how your hand moves through the room. Choose **Headset** to aim with your head instead: turn and tilt it as you would the 3DS, with looking straight ahead as the 3DS held upright in front of you, and both controllers point as usual.
+Some games aim by moving the 3DS, like the first-person items in Ocarina of Time 3D (the slingshot, the bow, the hookshot). In VR the controller you chose in **Motion Controls** is the 3DS's gyroscope and accelerometer. Hold it as if it were the 3DS in front of you, with its beam pointing into the screen. Turn it left and right to turn, and tilt it up and down to tilt. The tilt of the beam also tells the game which way is down. The game is told how the controller turns and which way it hangs, not how your hand moves through the room. Choose **Headset** to aim with your head instead: turn and tilt it as you would the 3DS, with looking straight ahead as the 3DS held upright in front of you, and both controllers point as usual. **Motion Controls** can be set per game. Kid Icarus: Uprising starts with it off, because the C-Stick & Gyro mod's gyro aim moved the reticle whenever you moved.
 
 The same controller still points at the screens, so aiming also moves its beam. If that gets in the way, choose the controller you do not point with. A game that does not use the sensors is not affected, and **Off** leaves the 3DS lying flat and still. A motion device you chose yourself in **Emulation > Configure > Controls > Motion/Touch** is left alone.
 

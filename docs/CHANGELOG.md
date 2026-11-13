@@ -73,7 +73,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and **Touchpad** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**, **C-Stick at Edge** on and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
 
 ### Crash reports
 
@@ -95,6 +95,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
 - **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
+- **C-Stick at Edge**: hold the reticle's touch near an edge of the bottom screen and the C-Stick pushes that way too. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming reaches the edge.
+- **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
 ### Mouse and Pointer Controls
 
@@ -115,7 +117,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Immersive View upgrades
 
-- **Match Game Camera** follows the game's camera while it runs, so cutscenes, zooms and widescreen mods stay correct. You can turn it off in the VR menu or in Azahar's settings if it causes problems.
+- **Detect Game FOV** reads the game camera's field of view, so cutscenes, zooms and widescreen mods stay correct. I gave it three choices: **Always** follows the camera while you play, **Once** measures it once and saves it for that game, and **Off** uses the Immersive Game FOV you set. You can change it in the VR menu or in Azahar's settings.
 - New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Narrow Screen, Wider View and where the screen sits. A value you set yourself always wins.
 - The immersive screen now fills your view, top to bottom too, so there is no black border around it. The game draws further up and down to fill it without stretching the picture. When a game zooms in to aim, the screen keeps its size and shape.
 - Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.

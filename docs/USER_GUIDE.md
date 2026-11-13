@@ -220,7 +220,7 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
 
-**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. **C-Stick at Edge**, under them, pushes the C-Stick toward an edge while you touch near it, which turns the camera in Kid Icarus: Uprising with the C-Stick & Gyro mod. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 The mouse has two modes, in **Mouse Mode** on its Edit Controls page. Hold the left and right buttons together for 3 seconds to switch; **Mouse: Pointer** or **Mouse: Bottom Screen** shows.
 
@@ -260,7 +260,7 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab. [
 Global settings, not per game:
 
 - **Face Buttons**: **By Position (Nintendo)** (default) makes the Frame's A, B, X and Y do what the 3DS button in the same place does. **By Label (Xbox)** makes A, B, X and Y the 3DS's A, B, X and Y.
-- **Motion Controls**: **Off**, **Right Controller** (default) or **Left Controller**. The controller becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS.
+- **Motion Controls**: **Off**, **Right Controller** (default), **Left Controller** or **Headset**. The controller, or your head, becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS. It can be set per game, and Kid Icarus: Uprising starts with it off.
 
 ### Window Scale
 
