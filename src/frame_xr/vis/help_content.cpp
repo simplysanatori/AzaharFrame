@@ -259,8 +259,8 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales
     Row(g, "Hold Grip + D-Pad Up or Down",
         std::string("Screen Curve or ") + ImNames::kRenderMargin);
-    Row(g, "Hold Both Grips + D-Pad Sideways", ImNames::kHorizontalScale);
-    Row(g, "Hold Both Grips + D-Pad Up or Down", ImNames::kVerticalScale);
+    Row(g, "Both Grips + D-Pad Left or Right", ImNames::kHorizontalScale);
+    Row(g, "Both Grips + D-Pad Up or Down", ImNames::kVerticalScale);
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
     Row(g, "Hold View + Left Bumper (0.5 s)", "Quick Load");

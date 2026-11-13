@@ -80,8 +80,8 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
         REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") ==
                 "Screen Curve or Render Margin"); // AzaharFrame kiu
-        REQUIRE(ActionFor(page.game, "Hold Both Grips + D-Pad Sideways") == "Horizontal Scale");
-        REQUIRE(ActionFor(page.game, "Hold Both Grips + D-Pad Up or Down") == "Vertical Scale");
+        REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Left or Right") == "Horizontal Scale");
+        REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Up or Down") == "Vertical Scale");
         REQUIRE(ActionFor(page.game, "D-Pad Up") == "Nothing");
         REQUIRE(ActionFor(page.game, "D-Pad Down") == "3DS D-Pad Down");
         REQUIRE(page.footer.find("Profile: Mine") != std::string::npos);
