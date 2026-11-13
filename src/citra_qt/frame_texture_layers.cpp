@@ -89,13 +89,16 @@ void FrameTextureLayers::Rebuild() {
     building = true;
     const std::string shown = dialog->ShownPack();
     packs->clear();
-    for (const CustomTex::Pack& p : game->packs) {
+    // AzaharFrame texrow: a pack and its Optimize for Frame copy are one row, as in the in-game
+    // menu (Layers::PackRows): the copy in use, or (the pair off) the optimized copy
+    for (const L::PackRow& r : game->PackRows()) {
+        const CustomTex::Pack& p = game->packs[r.shown];
         auto* it = new QListWidgetItem(Q(p.name), packs);
         it->setData(kRoleId, Q(p.id));
         it->setToolTip(Q(p.path));
         it->setFlags(it->flags() | Qt::ItemIsUserCheckable);
-        it->setCheckState(game->IsOn(p.id) ? Qt::Checked : Qt::Unchecked);
-        if (p.id == shown) {
+        it->setCheckState(r.on ? Qt::Checked : Qt::Unchecked);
+        if (p.id == shown || (r.other && game->packs[*r.other].id == shown)) {
             packs->setCurrentItem(it);
         }
     }
