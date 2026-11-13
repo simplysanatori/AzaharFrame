@@ -118,6 +118,11 @@ std::string FoldedText(char32_t cp) {
     if (cp >= 0xC0 && cp <= 0xFF && kBase[cp - 0xC0] != '*' && kBase[cp - 0xC0] != '/') {
         return std::string(1, kBase[cp - 0xC0]);
     }
+    // Latin Extended-A (U+0100..U+017F): the base letter.
+    static const char kExtA[] = "AaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs";
+    if (cp >= 0x100 && cp <= 0x17F && kExtA[cp - 0x100] != '?') {
+        return std::string(1, kExtA[cp - 0x100]);
+    }
     return "?";
 }
 

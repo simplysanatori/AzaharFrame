@@ -39,9 +39,11 @@ ICONS = [
 ]
 
 # Text: printable ASCII, the Latin-1 Supplement (game and homebrew titles: "Pokémon", accents of
-# the European languages; AzaharFrame emerald) and the few other characters the labels use.
-TEXT = ("".join(chr(c) for c in range(0x20, 0x7F)) + "".join(chr(c) for c in range(0xA0, 0x100)) +
-        "–—…‘’“”•")
+# the European languages; AzaharFrame emerald), Latin Extended-A (Polish, Czech, Turkish, Hungarian
+# titles; AzaharFrame utf8: the canvas text of the VR UI falls back to this face for anything its
+# baked ASCII atlas lacks) and the few other characters the labels use.
+TEXT = ("".join(chr(c) for c in range(0x20, 0x7F)) + "".join(chr(c) for c in range(0xA0, 0x180)) +
+        "–—…‘’‚“”„•™€")
 
 
 def cut(font, unicodes, features):

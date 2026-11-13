@@ -450,7 +450,7 @@ TEST_CASE("Autosave: the scope's toast and Undo Load's text", "[autosave][frame_
     // A title with an accent stays UTF-8 (Pokémon X, é = C3 A9), whole, also when it is cut
     CHECK(A::ScopeToast(false, "Pok\xC3\xA9mon X") == "Autosave Off for Pok\xC3\xA9mon X");
     CHECK(A::ScopeToast(false, "Pok\xC3\xA9mon Ultra Sun and Moon Edition") ==
-          "Autosave Off for Pok\xC3\xA9mon Ultra Sun and...");
+          "Autosave Off for Pok\xC3\xA9mon Ultra Sun and Mo...");
     // Long titles cut to 24 characters with "...", no space before the dots
     CHECK(A::ScopeToast(true, "The Legend of Zelda: Majora's Mask 3D") ==
           "Autosave On for The Legend of Zelda: Maj...");
