@@ -245,11 +245,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     match_camera_combo = new QComboBox(this);
     match_camera_combo->setObjectName(QStringLiteral("frame_vr_match_camera_combo"));
     match_camera_combo->addItem(tr("Off"));
-    match_camera_combo->addItem(tr("Set Once"));
+    match_camera_combo->addItem(tr("Once"));
     match_camera_combo->addItem(tr("Always"));
     match_camera_row = MakeRow(this, QStringLiteral("frame_vr_match_camera_row"),
-                               tr("Match Game Camera"),
-                               tr("Matches the screen to the game's own camera."),
+                               tr("Detect Game FOV"),
+                               tr("Reads the game's field of view so the world lines up with "
+                                  "your head."),
                                {match_camera_combo});
     layout->addWidget(match_camera_row);
 
@@ -488,9 +489,8 @@ void ConfigureFrameVr::ShowOffset(float right_deg, float up_deg) {
 void ConfigureFrameVr::SetMatchCameraTips() {
     const std::array<QString, 3> tips{
         tr("Uses Immersive Game FOV as set."),
-        tr("Measures the game's camera once and sets Immersive Game FOV to match. Choose again "
-           "to remeasure."),
-        tr("Follows the game's camera smoothly as it changes."),
+        tr("Measures it once while you play and saves it. Choose again to remeasure."),
+        tr("Keeps measuring and eases into changes."),
     };
     QComboBox* box = match_camera_combo;
     const bool per_game = !Settings::IsConfiguringGlobal();

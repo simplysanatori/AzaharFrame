@@ -545,6 +545,9 @@ int main(int argc, char** argv) {
                           "Couldn't Autosave: Not Enough Space",
                           "Couldn't Autosave: Couldn't Write the File"});
         // AzaharFrame utf8: titles and text with accents and typographic punctuation
+        // AzaharFrame fovonce: Detect Game FOV's two toasts (the HUD draws "°" as a ring; the
+        // middle dot is the font's)
+        ok &= toast_shot("fo-toasts.png", {"Game FOV Detected: 40", "Couldn't Detect Game FOV \u00b7 Kept 50"});
         ok &= toast_shot("utf8-toasts.png",
                          {"Autosave Off for Pokémon X", "Autosave On for Pokémon Y",
                           "Super Mario 3D Land – München ñandú",
@@ -880,23 +883,23 @@ int main(int argc, char** argv) {
         ok &= shot("xg-image-copies-tip-label", ic, v);
         v = settings(SettingsSection::Graphics);
     }
-    // AzaharFrame fovonce: Match Game Camera, Off | Set Once | Always, each choice picked with its
+    // AzaharFrame fovonce: Detect Game FOV, Off | Once | Always, each choice picked with its
     // tooltip under the beam, and the label's.
     {
         MenuModel mc = pg;
         mc.game_fov = 52;
         v = settings(SettingsSection::Immersive);
-        static constexpr const char* kNames[] = {"off", "set-once", "always"};
+        static constexpr const char* kNames[] = {"off", "once", "always"};
         for (int i = 0; i < 3; i++) {
             mc.match_camera = i;
             v.hover = {Id::MatchCamera, i};
             v.tooltip = Id::MatchCamera;
             v.tooltip_index = i;
-            ok &= shot(std::string("fo-match-camera-tip-") + kNames[i], mc, v);
+            ok &= shot(std::string("fo-detect-fov-tip-") + kNames[i], mc, v);
         }
         v.hover = {Id::MatchCamera, kLabelIndex};
         v.tooltip_index = kLabelIndex;
-        ok &= shot("fo-match-camera-tip-label", mc, v);
+        ok &= shot("fo-detect-fov-tip-label", mc, v);
         v = settings(SettingsSection::Immersive);
     }
     // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the

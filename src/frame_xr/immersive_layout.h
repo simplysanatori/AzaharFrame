@@ -445,13 +445,16 @@ private:
     std::vector<std::pair<float, int64_t>> pending_;
 };
 
-/// Always: the angle to follow, from the measurements: the median of the last kWindowMs (an even
-/// count takes the middle one nearer the angle followed so far). A new angle wins once it held
-/// for more than half the window (about 1.1 s), so a cut or a spike that is back sooner changes
-/// nothing; a gradual change (Mario Kart 7 widening with speed) is followed about a second late.
+/// Always: the angle to follow, from the measurements: the median of the last kCount (an even
+/// count, at the start, takes the middle one nearer the angle followed so far). A new angle wins
+/// with the third measurement in a row (about half a second), however the measurements are
+/// spaced (a game that skips some), so a flash or a one-off reading changes nothing; a gradual
+/// change (Mario Kart 7 widening with speed) is followed about half a second late. FovSlew then
+/// moves to it gently, so a longer hold is not needed: a cut that does win is slewed, never
+/// stepped.
 class FovFollow {
 public:
-    static constexpr int64_t kWindowMs = 2250;
+    static constexpr std::size_t kCount = 5;
 
     void Add(int64_t t_ms, float fov_deg);
     void Reset() {
@@ -493,6 +496,60 @@ private:
     float value_ = 0.0f;
     float speed_ = 0.0f; ///< per second
     int64_t last_ms_ = 0;
+};
+
+/// Always: moves a value toward its target by at most kMaxStepDeg each displayed frame, the step
+/// itself changing by at most kStepChangeDeg a frame (kRampFrames to full speed), and braking so it
+/// arrives with a step that small: no kick when it starts or stops, the same both ways (a camera
+/// that comes back mid-way turns smoothly). 0.1 degrees a frame is 12 degrees a second at 120 Hz:
+/// a 10 degree cut takes about 0.8 s, 40 degrees about 3.5 s. The first value is taken as it is.
+class FovSlew {
+public:
+    static constexpr float kMaxStepDeg = 0.1f;
+    static constexpr int kRampFrames = 24;
+    static constexpr float kStepChangeDeg = kMaxStepDeg / kRampFrames;
+
+    /// One displayed frame: the value now.
+    float Update(float target);
+    void Reset() {
+        *this = FovSlew{};
+    }
+    bool Moving() const {
+        return moving_;
+    }
+    float Value() const {
+        return value_;
+    }
+    /// This frame's step (signed, degrees).
+    float Step() const {
+        return step_;
+    }
+
+private:
+    bool have_ = false;
+    bool moving_ = false;
+    float value_ = 0.0f;
+    float step_ = 0.0f;
+};
+
+/// The angles Match Game Camera hands the solver each frame, from the ones the choice gives
+/// (`screen_deg` sizes the screen, `live_deg` is the gain's): Off as they are; Set Once eased
+/// (FovEase, only the value it writes ever changes them); Always slewed (FovSlew).
+class CameraAngles {
+public:
+    struct Out {
+        float screen_deg;
+        float live_deg;
+    };
+    /// `mode`: 0 Off, 1 Set Once, 2 Always (Settings::MatchGameCamera).
+    Out Update(unsigned mode, float screen_deg, float live_deg, int64_t now_ms);
+    void Reset() {
+        *this = CameraAngles{};
+    }
+
+private:
+    FovEase ease_screen_, ease_live_;
+    FovSlew slew_screen_, slew_live_;
 };
 
 /// Match Game Camera on and a measurement made (`measured_fov_deg` > 0): the measured angle and

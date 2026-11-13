@@ -118,23 +118,28 @@ the gain past its limit, so there the world moves with the head a little instead
 `xr: immersive: game camera measured 45.0 degrees high, 1.667 wide` (the screen's camera; the live
 angle at debug level). Screen Shape still shapes the normal top screen.
 
-**Match Game Camera** (`vr_immersive_match_camera_mode`, global and per game, live; AzaharFrame
-fovonce) is Off, Set Once or Always. The pure parts are in `immersive_layout.h` (`FovEstimate`,
-`FovFollow`, `FovEase`, unit tested), and they work in time, not frames or degrees fitted to a
-game, so they hold for any game and any settings: what they give is used exactly as a typed
-Immersive Game FOV would be.
+**Detect Game FOV** (named Match Game Camera before; `vr_immersive_match_camera_mode`, global and
+per game, live; AzaharFrame fovonce) is Off, Once or Always (in the code `MatchGameCamera::Off`,
+`SetOnce`, `Always`). The pure parts are in `immersive_layout.h` (`FovEstimate`, `FovFollow`,
+`FovSlew`, `FovEase`, `CameraAngles`, unit tested), and they work in time and per displayed frame,
+not in degrees fitted to a game, so they hold for any game and any settings: what they give is used
+exactly as a typed Immersive Game FOV would be.
 
 - **Off:** the emulation thread reads no registers at all (`g_measure_camera`, `MeasureDraw`) and
   Immersive Game FOV and Screen Shape are used as they are.
 - **Always** (the default, the earlier "on"): the measured camera as above, followed calmly. The
-  live angle is the median of the last 2.25 s of measurements (`FovFollow`), so a new angle wins
-  only once it held for about a second: a cut, a flash or a Z-target that is back sooner changes
-  nothing, and a gradual change (Mario Kart 7 widening with speed) is followed about a second late.
-  The screen's angle and the live one are then eased (`FovEase`: critically damped, 95 % of the
-  way in 0.5 s, no overshoot, the speed carried on when the target moves again), so neither the
-  screen nor the gain ever changes in one step. Before this, every cut that held two measurements
-  moved the gain in one frame ("the whole view jumps").
-- **Set Once:** the camera is measured while a game in a Full mode is on view (the menu closed),
+  live angle to follow is the median of the last five measurements (`FovFollow`), so a new angle
+  wins with the third in a row (about half a second, however the game spaces them): a flash, a
+  one-off reading or a menu that is back sooner starts nothing. The screen's angle and the live one then move toward
+  it by at most 0.1 degrees per displayed frame (`FovSlew`; 12 degrees a second at 120 Hz, a
+  10 degree cut in about 0.8 s, 40 degrees in about 3.5 s), and the step itself changes by at most
+  a 24th of that a frame, so it starts and stops gently: no kick at either end, the same both ways,
+  and a camera that comes back mid-way is followed back the same way. A gradual change (Mario
+  Kart 7 widening with speed, a few degrees a second) is followed about half a second behind.
+  Before this, a cut moved the gain in one frame ("the whole view jumps"); the half-second ease of
+  the first 1.2.0 builds still showed as a jump. With the slew a longer hold is not needed: one that
+  does win is never stepped, only slewed.
+- **Once:** the camera is measured while a game in a Full mode is on view (the menu closed),
   and the screen meanwhile uses the settings, as Off. `FovEstimate` counts a measured angle only
   once it held for 2 s (each measurement within 1.5 degrees of the one before, none missing for
   1 s), so cuts, Z-targeting, menus and flashes are left out; ortho and HUD projections never
@@ -144,19 +149,19 @@ Immersive Game FOV would be.
   (a game with long cutscenes at other angles). Its time-weighted mean, rounded to a degree, is
   written as the game's own Immersive Game FOV with `vr_immersive_fov_measured` (per game; the Qt
   side saves the game's file through `MenuSetting::MeasuredGameFov`), eased in, a toast says
-  `Immersive Game FOV: Set to N°`, and nothing is measured for that game again: it is an ordinary
+  `Game FOV Detected: N°`, and nothing is measured for that game again: it is an ordinary
   per-game value the player can change. With no value after 60 s of measuring, the setting stays,
-  the log and a toast (`Immersive Game FOV: Not Measured, Kept N°`) say so, and the next start of
-  the game tries again. Choosing Set Once again in the VR menu (also while it is picked) or newly
+  the log and a toast (`Couldn't Detect Game FOV · Kept N°`) say so, and the next start of
+  the game tries again. Choosing Once again in the VR menu (also while it is picked) or newly
   in the game's Properties clears `vr_immersive_fov_measured` and measures anew. Logged as
-  `xr: immersive: Match Game Camera Set Once: the game camera is N degrees high ...`.
+  `xr: immersive: Detect Game FOV Once: the game camera is N degrees high ...`.
 
 A config from before has only the old switch `vr_immersive_match_camera`: on becomes Always, off
 Off, globally and per game (`FrameConfig::MigratedMatchCamera`, tested in frame_qt_tests); the
 old key is no longer written. Presets set the three-way value (Super Mario 3D Land Always, Mario
 Kart 7 and the Zelda games Off). `AZAHARFRAME_IMMERSIVE_MEASURE=0` forces it off, and
 `AZAHARFRAME_IMMERSIVE_FOV_TRACE=1` logs the angles each frame while they move (each measurement,
-the angle followed, the eased screen and live angles), for mocks.
+the angle followed, the slewed screen and live angles), for mocks.
 
 ## Placement
 
@@ -217,7 +222,8 @@ pitch, both gains and the size. A preset can make a game's default bigger or sma
 The angle the screen is sized with: the game's own **Immersive Game FOV** when it has one (a
 preset's measured play camera, or the player's per-game value), so the screen keeps one size
 through cutscenes and menus while the gain follows the measured angle; otherwise the settled
-measurement (Match Game Camera Always) or the setting. With Set Once or Always it is eased in.
+measurement (Detect Game FOV Always) or the setting. Always slews it in, Once eases in the value
+it wrote.
 
 Two per-game settings change this (**VR** group, logged as
 `xr: immersive: Wider View ..., Narrow Screen ..., Narrow Height ...`):
@@ -396,7 +402,7 @@ for a game whose properties have no value of their own.
 | Super Mario 3D Land | 3, view 90, eye 87,2 | 45 degrees, 5:3, title and levels | 58 units in a level | 100x (58.5) | at Wider View 1.4x black below the floor in mock runs; the owner plays it at 1.4x |
 | Mario Kart 7 | 3, view 90, eye 87,2 | 52 racing, 55 in the fly-by before a race, 40 and 16 in menus | 3.4 | 10x (5.9) | menus stay odd in the Full modes (Differences from CitraVR) |
 | Ocarina of Time 3D | 2 (view 4) | 55 in play (54.6 to 55.4: Jabu-Jabu's Belly wobbles), 35 to 70 in cutscenes, 5:3 without mods | (one flat picture) | 10x | leaning moves the camera; Link is about 56 units tall, so 10x at 3D Depth 30 is life size |
-| Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes, 30 to 55 measured in play (the owner's headset log; the real camera stays at 55), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera; Match Game Camera off in its preset |
+| Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes, 30 to 55 measured in play (the owner's headset log; the real camera stays at 55), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera; Detect Game FOV Off in its preset |
 | Asphalt 3D | 3, view 8 | not measured | | 1x | CitraVR's notes only |
 
 AzaharFrame presets: the table above is what was measured. The values the presets ship are the
@@ -519,8 +525,8 @@ as before. A second line each second says how far far scenery on the anchored sc
 its picture was drawn, and how far it moved from one display frame to the next
 (`xr: immersive: far scenery on the anchored screen ...`). The rest of a fast turn's slip is the
 gain: the game camera turns `gain` times the head, which keeps the world still at the screen's middle
-only when the gain is the game's real angle over the screen's (Match Game Camera Always, or an
-Immersive Game FOV that is the game's real angle, such as the one Set Once measured).
+only when the gain is the game's real angle over the screen's (Detect Game FOV Always, or an
+Immersive Game FOV that is the game's real angle, such as the one Once measured).
 
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
