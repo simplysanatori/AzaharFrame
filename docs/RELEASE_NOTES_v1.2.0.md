@@ -127,6 +127,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
 - **Preparing Shaders** shows while a game waits for its shaders.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
+- In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.

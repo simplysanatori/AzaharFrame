@@ -327,6 +327,7 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_texture_layers.cpp frame_texture_layers.h) # AzaharFrame texlayers
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat
     target_sources(citra_qt PRIVATE frame_crash_dialog.cpp frame_crash_dialog.h) # AzaharFrame crashreport
+    target_sources(citra_qt PRIVATE frame_open_folder.cpp frame_open_folder.h) # AzaharFrame qtfiles
     if (AZAHARFRAME_RELEASE) # AzaharFrame crashreport: no test drivers or test crash in a release
         target_compile_definitions(citra_qt PRIVATE AZAHARFRAME_RELEASE_BUILD=1)
     endif()

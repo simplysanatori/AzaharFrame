@@ -50,6 +50,7 @@
 #endif
 #include "citra_meta/common_strings.h"
 #include "citra_qt/aboutdialog.h"
+#include "citra_qt/frame_open_folder.h" // AzaharFrame qtfiles
 #include "citra_qt/applets/mii_selector.h"
 #include "citra_qt/applets/swkbd.h"
 #include "citra_qt/bootmanager.h"
@@ -2940,9 +2941,9 @@ void GMainWindow::ConnectMenuEvents() {
     connect_menu(ui->action_Extract_ROM_Bundle, &GMainWindow::OnExtractBundle);
 
     // Help
-    connect_menu(ui->action_Open_Log_Folder, []() {
+    connect_menu(ui->action_Open_Log_Folder, [this]() {
         QString path = QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::LogDir));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        FrameOpenFolder::Open(this, path, tr("Log")); // AzaharFrame qtfiles
     });
     connect_menu(ui->action_FAQ, []() {
         QDesktopServices::openUrl(QUrl(QStringLiteral("https://azahar-emu.org/pages/faq/")));
@@ -3908,7 +3909,8 @@ void GMainWindow::OnGameListOpenFolder(u64 data_id, GameListOpenTarget target) {
 
     LOG_INFO(Frontend, "Opening {} path for data_id={:016x}", open_target, data_id);
 
-    QDesktopServices::openUrl(QUrl::fromLocalFile(qpath));
+    // AzaharFrame qtfiles: Qt's file dialog in VR and Game Mode, else the file manager.
+    FrameOpenFolder::Open(this, qpath, QString::fromStdString(open_target));
 }
 
 void GMainWindow::OnGameListRemovePlayTimeData(u64 program_id) {
@@ -4209,10 +4211,10 @@ void GMainWindow::OnGameListDumpRomFS(QString game_path, u64 program_id) {
                         tr("Could not dump base RomFS.\nRefer to the log for details."));
                     return;
                 }
-                QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(base_path)));
-                if (update == Loader::ResultStatus::Success) {
-                    QDesktopServices::openUrl(
-                        QUrl::fromLocalFile(QString::fromStdString(update_path)));
+                // AzaharFrame qtfiles: one dialog in VR and Game Mode (Up shows the update's too).
+                FrameOpenFolder::Open(this, QString::fromStdString(base_path), tr("RomFS"));
+                if (update == Loader::ResultStatus::Success && !FrameOpenFolder::UseDialog()) {
+                    FrameOpenFolder::Open(this, QString::fromStdString(update_path), tr("RomFS"));
                 }
             });
 
@@ -4240,7 +4242,11 @@ void GMainWindow::OnGameListOpenDirectory(const QString& directory) {
         QMessageBox::critical(this, tr("Error Opening %1").arg(path), tr("Folder does not exist!"));
         return;
     }
-    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    // AzaharFrame qtfiles
+    const QString label = directory == QStringLiteral("INSTALLED") ? tr("Installed Titles")
+                          : directory == QStringLiteral("SYSTEM")  ? tr("System Titles")
+                                                                   : QFileInfo(path).fileName();
+    FrameOpenFolder::Open(this, path, label);
 }
 
 void GMainWindow::OnGameListAddDirectory() {
@@ -6089,18 +6095,21 @@ void GMainWindow::OnRemoveAmiibo() {
 }
 
 void GMainWindow::OnOpenCitraFolder() {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::UserDir))));
+    FrameOpenFolder::Open( // AzaharFrame qtfiles
+        this, QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::UserDir)),
+        tr("User"));
 }
 
 void GMainWindow::OnOpenNANDFolder() {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::NANDDir))));
+    FrameOpenFolder::Open( // AzaharFrame qtfiles
+        this, QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::NANDDir)),
+        tr("NAND"));
 }
 
 void GMainWindow::OnOpenSDMCFolder() {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir))));
+    FrameOpenFolder::Open( // AzaharFrame qtfiles
+        this, QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)),
+        tr("SDMC"));
 }
 
 void GMainWindow::OnToggleFilterBar() {
