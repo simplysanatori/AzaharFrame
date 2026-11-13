@@ -673,8 +673,7 @@ void OnFrame(const FrameInfo& info) {
     }
     if (IsViewMode(mode)) {
         // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
-        const float d = L::Clamped(g.head_place).distance;
-        const float eye_shift = mode == 2 ? g.half_ipd / d : 0.0f;
+        const float eye_shift = L::SharedQuadEyeShift(mode, g.head_place, g.half_ipd);
         // AzaharFrame depth: the game's own angle and shape when its projection was found
         // (each change logged), else the settings. AzaharFrame immersive: the screen is sized
         // and shaped with the settled camera; a zoom only changes the gain.
@@ -923,8 +922,10 @@ float TopAspect() {
 }
 
 // AzaharFrame turns: the per-second slip figures (AgeStats) for this frame's anchored screen
-// (Screens, after OnFrame). Each eye in mode 3 (from the eye as located), the head in mode 2.
-void NoteSlip(bool anchored, const XrPosef (&top_pose)[2]) {
+// (Screens, after OnFrame): for each eye as located, how far far scenery at the screen's middle is
+// from where that eye saw it when the picture was drawn (AzaharFrame turns2: against the picture's
+// own placement, so mode 2's shared quad, seen from half the IPD to the side, counts as 0 there).
+void NoteSlip(bool anchored, const XrPosef& picture, const XrPosef (&top_pose)[2]) {
     auto& a = g.age;
     if (!anchored || !g.view.valid) {
         g.slip_prev_valid = false;
@@ -933,12 +934,17 @@ void NoteSlip(bool anchored, const XrPosef (&top_pose)[2]) {
     float err[2][2]{};
     float slip = 0.0f, step = 0.0f;
     for (int eye = 0; eye < 2; eye++) {
-        const XrPosef& p = top_pose[eye];
-        const XrVector3f from = g.mode == 3 && g.view.views_valid ? g.view.eye[eye].position
-                                                                  : g.view.head.position;
-        const XrVector3f v = Rotate(Conj(p.orientation), Sub(p.position, from));
-        err[eye][0] = Deg(std::atan2(v.x, -v.z));
-        err[eye][1] = Deg(std::atan2(v.y, -v.z));
+        const XrVector3f from =
+            g.view.views_valid
+                ? g.view.eye[eye].position
+                : Add(g.view.head.position,
+                      Rotate(g.view.head.orientation, {L::EyeX(eye, g.half_ipd), 0.0f, 0.0f}));
+        const Input::Vec2f e =
+            L::FarSceneryError(ToIn(picture), L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd),
+                               L::EyeX(eye, g.half_ipd), ToIn(top_pose[eye]),
+                               {from.x, from.y, from.z});
+        err[eye][0] = Deg(e.x);
+        err[eye][1] = Deg(e.y);
         slip = std::max(slip, std::hypot(err[eye][0], err[eye][1]));
         if (g.slip_prev_valid) {
             step = std::max(step, std::hypot(err[eye][0] - g.slip_prev[eye][0],
@@ -999,16 +1005,16 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         // fast head turns. SteamVR re-projects the layer for the head at display time.
         // AzaharFrame turns: about the eye where it is now (AnchoredQuadPose), so the eyes moving
         // with a turn do not slide the screen against its scenery.
-        XrPosef anchor_head;
+        XrPosef anchor_head{{0, 0, 0, 1}, {0, 0, 0}};
         const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head);
         const bool follow_eye = g.tuning.anchor_eye && g.view.valid;
         for (int eye = 0; eye < 2; eye++) {
-            const float x = g.mode == 3 ? (eye == 0 ? -g.half_ipd : g.half_ipd) : 0.0f;
-            const Input::Posef in_view = L::HeadLockedQuadPose(g.solved, x);
+            const Input::Posef in_view = L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd);
             if (anchored) {
                 out.top_space = local_space;
-                out.top_pose[eye] = ToXr(L::AnchoredQuadPose(ToIn(anchor_head), ToIn(g.view.head),
-                                                             in_view, x, follow_eye));
+                out.top_pose[eye] = ToXr(L::AnchoredFullQuad(g.solved, g.mode, eye, g.half_ipd,
+                                                             ToIn(anchor_head), ToIn(g.view.head),
+                                                             follow_eye));
             } else if (g.tuning.local_space && g.view.valid) {
                 out.top_space = local_space;
                 out.top_pose[eye] = Compose(g.view.head, ToXr(in_view));
@@ -1017,7 +1023,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
                 out.top_pose[eye] = ToXr(in_view);
             }
         }
-        NoteSlip(anchored, out.top_pose);
+        NoteSlip(anchored, anchor_head, out.top_pose);
         out.top_pointable = false;
         out.show_bottom = false;
     }

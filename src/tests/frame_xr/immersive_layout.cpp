@@ -6,6 +6,8 @@
 #include <array>
 #include <optional>
 #include <cmath>
+#include <cstdio>
+#include <random>
 #include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -1417,4 +1419,141 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps its scenery still when t
     const Posef a = AnchoredQuadPose(picture, picture, in_view, 0.032f, true);
     const Posef b = AnchoredQuadPose(picture, picture, in_view, 0.032f, false);
     REQUIRE(In::Length(a.position - b.position) == Approx(0.0f).margin(1e-6));
+}
+
+// AzaharFrame turns2: the anchored screen for any settings, not only a preset's. Random but valid
+// settings (mode, distance, size, pitch, Immersive Game FOV and Screen Shape or a measured camera,
+// Wider View, Narrow Screen and Height, a zoom, the Immersive Offset, the view and the eyes) go
+// through SolveHeadLocked and the quad Immersive::Screens shows (AnchoredFullQuad); the head turns
+// (yaw, pitch, roll) about a neck behind and below the eyes and leans. Each eye must see every
+// point of the screen (its middle and corners) in the same direction as when the picture was drawn:
+// far scenery stays where the picture put it. With the head where the picture was drawn, the
+// placement is the one before the anchoring followed the eye.
+TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for any settings",
+          "[frame_xr]") {
+    std::mt19937 rng(20261113);
+    const auto uni = [&rng](float lo, float hi) {
+        return std::uniform_real_distribution<float>(lo, hi)(rng);
+    };
+    const auto pick = [&rng](uint32_t n) { return static_cast<uint32_t>(rng() % n); };
+    const auto compose = [](const Posef& a, const Posef& b) {
+        return Posef{In::Normalized(In::Multiply(a.orientation, b.orientation)),
+                     a.position + In::Rotate(a.orientation, b.position)};
+    };
+    const auto angle = [](const Vec3f& a, const Vec3f& b) { // degrees, accurate near 0
+        const double ax = a.x, ay = a.y, az = a.z, bx = b.x, by = b.y, bz = b.z;
+        const double cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+        return std::atan2(std::sqrt(cx * cx + cy * cy + cz * cz), ax * bx + ay * by + az * bz) *
+               180.0 / 3.14159265358979;
+    };
+    const auto ypr = [](float yaw, float pitch, float roll) {
+        const Quatf r{0.0f, 0.0f, std::sin(roll / 2), std::cos(roll / 2)};
+        return In::Normalized(In::Multiply(In::Multiply(YawRotation(yaw), PitchRotation(pitch)), r));
+    };
+    const float shapes[] = {400.0f / 240.0f, 16.0f / 9.0f, 21.0f / 9.0f,
+                            4.0f / 3.0f,     3.0f / 2.0f,  16.0f / 10.0f};
+    constexpr int kCombinations = 600, kTurns = 4;
+    double worst = 0.0, worst_rest_pos = 0.0, worst_rest_deg = 0.0, worst_camera = 0.0;
+    double worst_fixed = 0.0, worst_head_pivot = 0.0, worst_reported = 0.0;
+    int placements = 0;
+    for (int c = 0; c < kCombinations; c++) {
+        const uint32_t mode = 2 + pick(2);
+        const Placement p{uni(kMinPitchDeg, kMaxPitchDeg), uni(kMinDistance, kMaxDistance),
+                          uni(kMinSize, kMaxSize)};
+        // Two eyes with their own (asymmetric, canted) views.
+        const EyeFov left{-Rad(uni(40, 65)), Rad(uni(30, 55)), Rad(uni(35, 60)), -Rad(uni(35, 60)),
+                          Rad(uni(0, 10)), Rad(uni(-4, 4))};
+        const EyeFov right{-Rad(uni(30, 55)), Rad(uni(40, 65)), Rad(uni(35, 60)),
+                           -Rad(uni(35, 60)), -Rad(uni(0, 10)), Rad(uni(-4, 4))};
+        const ViewFov view = BothEyes(left, right);
+        const float half_ipd = uni(0.027f, 0.040f);
+        Options o;
+        o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
+        o.squeeze = SqueezeFor(pick(kMaxNarrowPercent + 1));
+        o.squeeze_y = SqueezeFor(pick(kMaxNarrowPercent + 1));
+        o.live_fov_y_deg = pick(3) == 0 ? 0.0f : uni(10, 150);
+        const LensOffset offset{uni(-kMaxOffsetDeg, kMaxOffsetDeg), uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
+        // Match Game Camera with a measurement, or the settings (Immersive Game FOV, Screen
+        // Shape); a game's own FOV sizes the screen (immersive.cpp OnFrame).
+        const float setting_fov = uni(30, 110);
+        const CameraShape cam = CameraInUse(pick(2) == 1, pick(3) ? uni(10, 150) : 0.0f,
+                                            uni(1.2f, 3.0f), setting_fov, shapes[pick(6)]);
+        const float fov = pick(2) ? setting_fov : cam.fov_y_deg;
+        const HeadLocked s = SolveHeadLocked(p, fov, cam.aspect, view,
+                                             SharedQuadEyeShift(mode, p, half_ipd), o, offset);
+        REQUIRE(std::isfinite(s.tan_half_y));
+        REQUIRE(s.width() > 0.0f);
+        REQUIRE(s.height() > 0.0f);
+        for (int t = 0; t < kTurns; t++) {
+            const Posef picture{ypr(Rad(uni(-180, 180)), Rad(uni(-50, 50)), Rad(uni(-20, 20))),
+                                Vec3f{uni(-1, 1), uni(1, 2), uni(-1, 1)}};
+            // The head turned (in its own frame) about a neck `back` behind and `down` below the
+            // eyes, and leaned a little.
+            const Quatf turn = ypr(Rad(uni(-40, 40)), Rad(uni(-25, 25)), Rad(uni(-15, 15)));
+            const Vec3f neck_in_head{0.0f, -uni(0, 0.1f), uni(0, 0.12f)};
+            const Vec3f neck = picture.position + In::Rotate(picture.orientation, neck_in_head);
+            Posef now;
+            now.orientation = In::Normalized(In::Multiply(picture.orientation, turn));
+            now.position = neck - In::Rotate(now.orientation, neck_in_head) +
+                           Vec3f{uni(-0.05f, 0.05f), uni(-0.05f, 0.05f), uni(-0.05f, 0.05f)};
+            for (int eye = 0; eye < 2; eye++) {
+                const float x = EyeX(eye, half_ipd);
+                const Posef in_view = FullQuadInView(s, mode, eye, half_ipd);
+                const Posef drawn = compose(picture, in_view); // where the picture put it
+                const Vec3f eye_then = picture.position + In::Rotate(picture.orientation, Vec3f{x, 0, 0});
+                const Vec3f eye_now = now.position + In::Rotate(now.orientation, Vec3f{x, 0, 0});
+                const Posef placed = AnchoredFullQuad(s, mode, eye, half_ipd, picture, now, true);
+                const Posef fixed = AnchoredFullQuad(s, mode, eye, half_ipd, picture, now, false);
+                const Posef head_pivot = AnchoredQuadPose(picture, now, in_view, 0.0f, true);
+                for (const float sx : {0.0f, -0.5f, 0.5f}) {
+                    for (const float sy : {0.0f, -0.5f, 0.5f}) {
+                        const Vec3f u{sx * s.width(), sy * s.height(), 0.0f};
+                        const auto at = [&u](const Posef& q) {
+                            return q.position + In::Rotate(q.orientation, u);
+                        };
+                        const Vec3f then = at(drawn) - eye_then;
+                        worst = std::max(worst, angle(at(placed) - eye_now, then));
+                        worst_fixed = std::max(worst_fixed, angle(at(fixed) - eye_now, then));
+                        if (mode == 2) {
+                            worst_head_pivot =
+                                std::max(worst_head_pivot, angle(at(head_pivot) - eye_now, then));
+                        }
+                    }
+                }
+                // What the per-second log line reports for it.
+                const In::Vec2f e = FarSceneryError(picture, in_view, x, placed, eye_now);
+                worst_reported = std::max<double>(worst_reported, std::hypot(e.x, e.y) / kDegToRad);
+                // The head where the picture was drawn: the placement before the anchoring
+                // followed the eye.
+                const Posef rest = AnchoredFullQuad(s, mode, eye, half_ipd, picture, picture, true);
+                worst_rest_pos = std::max<double>(worst_rest_pos, In::Length(rest.position - drawn.position));
+                worst_rest_deg = std::max(worst_rest_deg, angle(In::Rotate(rest.orientation, Vec3f{0, 0, -1}),
+                                                                In::Rotate(drawn.orientation, Vec3f{0, 0, -1})));
+                worst_rest_deg = std::max(worst_rest_deg, angle(In::Rotate(rest.orientation, Vec3f{1, 0, 0}),
+                                                                In::Rotate(drawn.orientation, Vec3f{1, 0, 0})));
+                // There, the screen's middle is where the game camera looked (at the rest pose):
+                // from the eye in mode 3, from the middle of the head in mode 2 (one picture).
+                const Vec3f from = mode == 3 ? eye_then : picture.position;
+                const Vec3f looked = In::Rotate(
+                    picture.orientation, Forward(GameCameraRotation(Quatf{}, s)));
+                worst_camera = std::max(worst_camera, angle(drawn.position - from, looked));
+                placements++;
+            }
+        }
+    }
+    std::printf("anchored screen sweep: %d settings, %d eye placements; worst far scenery error "
+                "%.5f degrees (reported %.5f), at the picture's pose %.2g m and %.5f degrees from "
+                "the old placement, screen's middle %.5f degrees from the game camera; without "
+                "following the eye %.2f degrees, mode 2 about the middle of the head %.3f degrees\n",
+                kCombinations, placements, worst, worst_reported, worst_rest_pos, worst_rest_deg,
+                worst_camera, worst_fixed, worst_head_pivot);
+    REQUIRE(placements == kCombinations * kTurns * 2);
+    REQUIRE(worst < 0.002);
+    REQUIRE(worst_reported < 0.002);
+    REQUIRE(worst_rest_pos < 2e-5);
+    REQUIRE(worst_rest_deg < 0.002);
+    REQUIRE(worst_camera < 0.002);
+    // The sweep can see a slip: the old placement and mode 2 about the head are off.
+    REQUIRE(worst_fixed > 1.0);
+    REQUIRE(worst_head_pivot > 0.1);
 }

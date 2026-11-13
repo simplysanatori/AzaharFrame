@@ -467,6 +467,18 @@ Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x) {
     return {q, Vec3f{eye_x, 0.0f, 0.0f} + Input::Rotate(q, Vec3f{0.0f, 0.0f, -solved.distance})};
 }
 
+float EyeX(int eye, float half_ipd) {
+    return eye == 0 ? -half_ipd : half_ipd;
+}
+
+float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_ipd) {
+    return mode == 2 ? half_ipd / Clamped(placement).distance : 0.0f;
+}
+
+Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd) {
+    return HeadLockedQuadPose(solved, mode == 3 ? EyeX(eye, half_ipd) : 0.0f);
+}
+
 Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_view,
                        float eye_x, bool follow_eye) {
     if (!follow_eye) {
@@ -477,6 +489,23 @@ Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_v
     const Vec3f eye_now = now.position + Input::Rotate(now.orientation, eye);
     return {Input::Normalized(Input::Multiply(picture.orientation, in_view.orientation)),
             eye_now + Input::Rotate(picture.orientation, in_view.position - eye)};
+}
+
+Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                       const Posef& picture, const Posef& now, bool follow_eye) {
+    return AnchoredQuadPose(picture, now, FullQuadInView(solved, mode, eye, half_ipd),
+                            EyeX(eye, half_ipd), follow_eye);
+}
+
+Input::Vec2f FarSceneryError(const Posef& picture, const Posef& in_view, float eye_x,
+                             const Posef& placed, const Vec3f& eye_now) {
+    // Both directions in the frame of the quad as the picture placed it.
+    const Quatf frame = Input::Normalized(Input::Multiply(picture.orientation, in_view.orientation));
+    const Vec3f now = Input::Rotate(Input::Conjugate(frame), placed.position - eye_now);
+    const Vec3f drawn = Input::Rotate(Input::Conjugate(in_view.orientation),
+                                      in_view.position - Vec3f{eye_x, 0.0f, 0.0f});
+    return {std::atan2(now.x, -now.z) - std::atan2(drawn.x, -drawn.z),
+            std::atan2(now.y, -now.z) - std::atan2(drawn.y, -drawn.z)};
 }
 
 Posef WideQuadPose(const Posef& rest, float pitch_rad, float distance, float yaw_rad) {

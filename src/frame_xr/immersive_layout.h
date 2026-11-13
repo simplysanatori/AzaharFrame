@@ -404,19 +404,48 @@ Input::Quatf GameCameraRotation(const Input::Quatf& head_rel, const HeadLocked& 
 /// The head-locked quad's pose in the head's (VIEW) space for an eye `eye_x` to the side.
 Input::Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x);
 
-/// AzaharFrame turns: the head-locked quad (`in_view`, HeadLockedQuadPose for `eye_x`) placed
-/// for the picture drawn with the head at `picture`, while the head is at `now` (LOCAL space).
+/// AzaharFrame turns2: where eye `eye` (0 left, 1 right) is in the head's frame, across.
+float EyeX(int eye, float half_ipd);
+
+/// AzaharFrame turns2: mode 2's shared quad is seen from half the IPD to the side, that over its
+/// distance (SolveHeadLocked's `eye_shift`); 0 in mode 3, whose quads are each on their eye.
+float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_ipd);
+
+/// AzaharFrame turns2: the Full modes' quad eye `eye` sees, in the head's (VIEW) space: in mode 3
+/// centred on that eye, in mode 2 one quad for both (centred between them).
+Input::Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd);
+
+/// AzaharFrame turns: the head-locked quad (`in_view`, in the head's frame) placed for the
+/// picture drawn with the head at `picture`, while the head is at `now` (LOCAL space), for the
+/// eye at `eye_x` across in the head's frame (in mode 3 the quad is centred on it, in mode 2 it
+/// is not).
 ///   - `follow_eye` false: where it was in the picture's head frame (Compose(picture, in_view)).
 ///     The turn is undone, but a real head turns about the neck, so the eyes move sideways with
 ///     it, and the quad (at its distance) moves against the scenery it shows as if the scenery
 ///     were that near: about r / distance of the turn (r, the eyes ahead of the neck), 23 % at
 ///     Mario Kart 7's 0.37 m, until the next picture puts it back: a double image on fast turns.
-///   - `follow_eye` true: the picture's orientation, about the eye where it is now: the picture
-///     is seen in the direction it was drawn in, from wherever the eye has moved, as a world far
-///     away is (what a rotational reprojection does). The game camera follows the head's
-///     position on the next picture, as before.
+///   - `follow_eye` true: the picture's orientation, about the eye where it is now: the eye sees
+///     the quad exactly as it saw it when the picture was drawn, in the same directions, from
+///     wherever it has moved, as a world far away is (what a rotational reprojection does). The
+///     game camera follows the head's position on the next picture, as before. With the head at
+///     `picture` it is the placement above, whatever the quad and the eye.
+/// AzaharFrame turns2: about each eye in mode 2 too (it was about the middle of the head, so each
+/// eye was off by half the IPD / distance of the turn: 1 % at 3 m, 11 % at 0.3 m).
 Input::Posef AnchoredQuadPose(const Input::Posef& picture, const Input::Posef& now,
                               const Input::Posef& in_view, float eye_x, bool follow_eye);
+
+/// AzaharFrame turns2: the Full modes' anchored quad for eye `eye` (Immersive::Screens):
+/// AnchoredQuadPose of FullQuadInView about EyeX.
+Input::Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                              const Input::Posef& picture, const Input::Posef& now,
+                              bool follow_eye);
+
+/// AzaharFrame turns2: how far far scenery at the middle of `placed` (a quad in LOCAL space),
+/// seen from `eye_now` (LOCAL), is from where that eye saw it when the picture was drawn (the
+/// quad `in_view` in the head frame `picture`, seen from the eye at `eye_x` in it): radians
+/// across and up, in the picture quad's frame. 0 and 0 when the screen keeps its scenery still.
+Input::Vec2f FarSceneryError(const Input::Posef& picture, const Input::Posef& in_view, float eye_x,
+                             const Input::Posef& placed, const Input::Vec3f& eye_now);
 
 /// Mode 1: the wide screen around the rest pose (room-fixed), at `pitch` (the player's pitch
 /// plus the middle of the view) and `distance`, turned by `yaw` (positive = left; the

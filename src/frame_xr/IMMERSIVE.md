@@ -485,6 +485,20 @@ gain: the game camera turns `gain` times the head, which keeps the world still a
 only when the gain is the game's real angle over the screen's (Match Game Camera on, or an Immersive
 Game FOV that is the game's real angle).
 
+AzaharFrame turns2: the same for any settings. In mode 2 the one quad both eyes see was kept about
+the middle of the head, so each eye, half the IPD to the side, was off by half the IPD / distance of
+the turn: 1 % at 3 m, the presets' distance, but 11 % at 0.3 m. Each eye's quad is now kept about
+that eye in both Full modes (`Layout::AnchoredFullQuad`, the quad `Immersive::Screens` shows), so
+each eye sees its screen exactly as when the picture was drawn, in the same directions. Nothing in it
+depends on the distance, size, pitch, Immersive Offset, Immersive Game FOV or Screen Shape, Match Game
+Camera, Wider View, Narrow Screen or Height, a zoom, the view or the IPD: a unit test sweeps 600 random
+combinations of them (both Full modes) with four random head turns each (yaw, pitch, roll about a
+neck behind and below the eyes, and a lean) and checks every point of the screen from each eye: the
+largest error is 0.0001 degrees, and with the head where the picture was drawn the placement is the
+one before (`the anchored screen keeps far scenery still for any settings`). The per-second line
+measures from each eye as located against where that eye saw the picture's middle when it was
+drawn; before, mode 2 measured from the middle of the head, which hid that error.
+
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
