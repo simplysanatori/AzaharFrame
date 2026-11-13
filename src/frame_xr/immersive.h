@@ -102,6 +102,10 @@ bool HoldingScreen();
 /// toast. True when the offset changed (the caller has the config saved). XR thread.
 bool NudgeOffset(int right_steps, int up_steps);
 
+/// AzaharFrame ipd: true once after the XR thread saved a new IPD in
+/// Settings::values.vr_last_ipd_mm (the caller has the config saved). XR thread.
+bool TakeIpdSaved();
+
 /// AzaharFrame widerview: grip + D-pad up (+1) or down (-1) while a grip holds the immersive
 /// screen (Full modes): one Wider View step (Settings::values.vr_immersive_wider_view_level, set
 /// for this game; the default size grows with it, so the picture keeps its scale) and the

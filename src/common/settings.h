@@ -814,6 +814,10 @@ struct Values {
     // VR sets it; read every frame (frame_xr/immersive_layout.h).
     SwitchableSetting<float, true> vr_immersive_offset_x{0.f, -10.f, 10.f, "vr_immersive_offset_x"};
     SwitchableSetting<float, true> vr_immersive_offset_y{0.f, -10.f, 10.f, "vr_immersive_offset_y"};
+    // AzaharFrame ipd (global only): the headset's IPD in mm as last read from SteamVR (0 = never),
+    // the fallback at the next start until it is read again (frame_xr/ipd_smoother.h). Written by
+    // the XR thread only when the settled IPD moves more than 0.5 mm.
+    SwitchableSetting<float, true> vr_last_ipd_mm{0.f, 0.f, 100.f, "vr_last_ipd_mm"};
     // AzaharFrame curve (global only): the normal (not immersive) screens bent into cylinder
     // layers, as the angle in degrees the main screen's width spans (0 = flat quads). The steps
     // are 15, 30, 45 and 60; grip + D-pad up or down in VR changes it. Read every frame
