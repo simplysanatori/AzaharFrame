@@ -200,6 +200,12 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
     const DebugScope scope{runtime, Common::Vec4f{0.f, 0.f, 1.f, 1.f},
                            "RasterizerCache::AccelerateTextureCopy ({})", config.DebugName()};
 
+    // AzaharFrame accxfer: Accurate Image Copies: texture copies take the software path too
+    // (SwBlitter::TextureCopy, the same fallback as a copy the cache can't do).
+    if (Settings::values.accurate_image_copies.GetValue()) {
+        return false;
+    }
+
     // Texture copy size is aligned to 16 byte units
     const u32 copy_size = Common::AlignDown(config.texture_copy.size, 16);
     if (copy_size == 0) {
@@ -328,6 +334,19 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
     if (config.flip_vertically && config.crop_input_lines) {
         dst_params.addr += (config.input_width - config.output_width) * (config.output_height - 1) *
                            Pica::BytesPerPixel(config.output_format);
+    }
+
+    // AzaharFrame feshimmer: an output that overlaps the input in memory goes to the software
+    // path. Fire Emblem Echoes and Fates halve their glow buffer in place, the output at the
+    // input's address, then halve it again into the space after it. As blits between the
+    // cache's overlapping surfaces it left garbage in the glow that changed every frame at a
+    // raised internal resolution (the shimmer of every 3D scene in VR), and the surfaces were
+    // remade every frame at about three times the GPU time. In memory, it is what the 3DS does.
+    // AzaharFrame accxfer: with Accurate Image Copies on, every display transfer does.
+    if (DisplayTransferInSoftware(Settings::values.accurate_image_copies.GetValue(),
+                                  src_params.addr, src_params.size, dst_params.addr,
+                                  dst_params.size)) {
+        return false;
     }
 
     auto [src_surface_id, src_rect] = GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);

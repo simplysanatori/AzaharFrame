@@ -98,4 +98,20 @@ void EncodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
 void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr end_addr,
                    std::span<u8> source, std::span<u8> dest, bool convert = false);
 
+/// AzaharFrame feshimmer: whether a transfer's output [out, out + out_size) overlaps its
+/// input [in, in + in_size) in guest memory, as an in-place downscale does. The hardware works
+/// through memory in order, which the surfaces of the cache can't follow (see
+/// AccelerateDisplayTransfer).
+[[nodiscard]] constexpr bool TransferOverlaps(u32 in, u32 in_size, u32 out, u32 out_size) {
+    return in_size != 0 && out_size != 0 && out < in + in_size && in < out + out_size;
+}
+
+/// AzaharFrame accxfer: whether a display transfer takes the software path: always with
+/// Accurate Image Copies on (Settings::values.accurate_image_copies), else when its output
+/// overlaps its input (TransferOverlaps).
+[[nodiscard]] constexpr bool DisplayTransferInSoftware(bool accurate_copies, u32 in, u32 in_size,
+                                                       u32 out, u32 out_size) {
+    return accurate_copies || TransferOverlaps(in, in_size, out, out_size);
+}
+
 } // namespace VideoCore

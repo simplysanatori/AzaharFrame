@@ -6,6 +6,7 @@
 #include "right_eye_disabler.h"
 #include "video_core/gpu.h"
 #include "video_core/gpu_impl.h"
+#include "video_core/vr_immersive.h" // AzaharFrame: never in VR
 
 namespace VideoCore {
 bool RightEyeDisabler::ShouldAllowCmdQueueTrigger(PAddr addr, u32 size) {
@@ -58,7 +59,10 @@ void RightEyeDisabler::ReportEndFrame() {
     if (!enabled)
         return;
 
-    enable_for_frame = Settings::values.disable_right_eye_render.GetValue();
+    // AzaharFrame: off while an XR session exists (WantedForFrame), so the checks above return
+    // at once and upstream's guessing never runs in VR.
+    enable_for_frame = WantedForFrame(Settings::values.disable_right_eye_render.GetValue(),
+                                      Immersive::g_xr_active.load(std::memory_order_relaxed));
 
     if (display_tranfer_happened) {
         top_screen_drawn = false;

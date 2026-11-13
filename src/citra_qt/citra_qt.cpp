@@ -64,6 +64,7 @@
 #include "citra_qt/configuration/config.h"
 #include "citra_qt/configuration/configure_dialog.h"
 #include "citra_qt/configuration/configure_general.h"
+#include "citra_qt/configuration/configure_graphics.h" // AzaharFrame accxfer: test pictures
 #include "citra_qt/configuration/configure_per_game.h"
 #include "citra_qt/debugger/console.h"
 #include "citra_qt/debugger/graphics/graphics.h"
@@ -2006,8 +2007,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                     } else if (what == QStringLiteral("loadid") && parts.size() > 2) {
                         FrameLoadAutosave(parts.mid(2).join(QLatin1Char(':')).toStdString());
                     } else if (what == QStringLiteral("qtshots")) {
-                        // Emulation > Load State, the Emulation menu and Configure > General
-                        // (global, then this game's) as PNGs in AZAHARFRAME_TEST_AUTOSAVE_SHOTS.
+                        // Emulation > Load State, the Emulation menu and Configure > General and
+                        // Graphics (global, then this game's) as PNGs in
+                        // AZAHARFRAME_TEST_AUTOSAVE_SHOTS.
                         const QString dir = FrameTestEnv("AZAHARFRAME_TEST_AUTOSAVE_SHOTS");
                         UpdateSaveStates();
                         const auto shoot = [](QMenu* menu, QString file) {
@@ -2021,7 +2023,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                         QTimer::singleShot(900, this, [this, shoot, dir] {
                             shoot(ui->menu_Emulation, dir + QStringLiteral("/qt-emulation.png"));
                         });
-                        QTimer::singleShot(1800, this, [dir] {
+                        QTimer::singleShot(1800, this, [this, dir] {
                             for (const bool global : {true, false}) {
                                 Settings::SetConfiguringGlobal(global);
                                 ConfigureGeneral general;
@@ -2029,6 +2031,13 @@ GMainWindow::GMainWindow(Core::System& system_)
                                 general.grab().save(
                                     dir + (global ? QStringLiteral("/qt-configure-general.png")
                                                   : QStringLiteral("/qt-properties-general.png")));
+                                // AzaharFrame accxfer: the Graphics tab too
+                                ConfigureGraphics graphics(QString{}, physical_devices,
+                                                           system.IsPoweredOn());
+                                graphics.resize(graphics.sizeHint().expandedTo(QSize(560, 0)));
+                                graphics.grab().save(
+                                    dir + (global ? QStringLiteral("/qt-configure-graphics.png")
+                                                  : QStringLiteral("/qt-properties-graphics.png")));
                             }
                             Settings::SetConfiguringGlobal(true);
                             LOG_INFO(Frontend, "autosave test: Qt pictures saved in {}",
@@ -5069,6 +5078,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::AsyncShaders: // from the next start
         set(v.async_shader_compilation, r.value != 0);
         break;
+    case S::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
+        set(v.accurate_image_copies, r.value != 0);
+        break;
     case S::FastForwardSpeed:
         set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
         break;
@@ -5140,6 +5152,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
     FrameKeepSetting keep_texture_filter{v.texture_filter};
     FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
+    FrameKeepSetting keep_accurate_copies{v.accurate_image_copies}; // AzaharFrame accxfer
     FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
     FrameKeepSetting keep_autosave_every{v.autosave_every};
     FrameKeepSetting keep_autosave_keep{v.autosave_keep};
@@ -5160,6 +5173,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_resolution.Restore();
     keep_texture_filter.Restore();
     keep_async_shaders.Restore();
+    keep_accurate_copies.Restore();
     keep_autosave.Restore();
     keep_autosave_every.Restore();
     keep_autosave_keep.Restore();

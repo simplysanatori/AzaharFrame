@@ -148,7 +148,10 @@ void ConfigureEnhancements::ApplyConfiguration() {
         Settings::values.pp_shader_name =
             ui->shader_combobox->itemText(ui->shader_combobox->currentIndex()).toStdString();
     }
-    Settings::values.disable_right_eye_render = ui->disable_right_eye_render->isChecked();
+    // AzaharFrame: no plain `disable_right_eye_render = isChecked()` here (upstream had one). In
+    // a game's Properties it wrote the box into the global value while the game used it, so a
+    // tick for one game stayed on for every game booted after it until Azahar quit (Fire Emblem
+    // Fates booted with it on after a tick in Echoes). ApplyPerGameSetting below does both cases.
 
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.filter_mode,
                                              ui->toggle_linear_filter, linear_filter);

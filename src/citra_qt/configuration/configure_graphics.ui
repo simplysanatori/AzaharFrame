@@ -421,6 +421,16 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="toggle_accurate_image_copies">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Accurate Image Copies</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

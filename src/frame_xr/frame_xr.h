@@ -290,6 +290,7 @@ enum class MenuSetting {
     AutosaveEvery, ///< `value` minutes (autosave_every)
     AutosaveKeep,  ///< `value` 1 to 10 (autosave_keep)
     ReticleSpeed,  ///< AzaharFrame reticle: `value` tenths of 1x, 5 to 40 (vr_reticle_speed)
+    AccurateImageCopies, ///< AzaharFrame accxfer: `value` 0 or 1 (accurate_image_copies)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

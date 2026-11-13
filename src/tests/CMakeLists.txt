@@ -101,6 +101,8 @@ add_executable(tests
     audio_core/mic_queue_tests.cpp # AzaharFrame fixes11
     video_core/pica_types.cpp
     video_core/shader.cpp
+    video_core/right_eye_disabler.cpp # AzaharFrame feshimmer
+    video_core/transfer_overlap.cpp # AzaharFrame feshimmer
     audio_core/merryhime_3ds_audio/merry_audio/merry_audio.cpp
     audio_core/merryhime_3ds_audio/merry_audio/merry_audio.h
     audio_core/merryhime_3ds_audio/merry_audio/service_fixture.cpp

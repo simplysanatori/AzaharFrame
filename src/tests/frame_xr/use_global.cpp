@@ -122,17 +122,22 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
         CHECK(v.factor_3d.GetValue() == 70u);
         CHECK(v.vr_immersive_game_fov.GetValue() == 80);
     }
-    SECTION("switches (Async Shader Compilation, Match Game Camera, Autosave)") {
+    SECTION("switches (Async Shader Compilation, Match Game Camera, Autosave, Accurate Copies)") {
         Keep k1{v.async_shader_compilation};
         Keep k2{v.vr_immersive_match_camera};
         Keep k3{v.autosave_enabled};
+        Keep k4{v.accurate_image_copies}; // AzaharFrame accxfer
         SetGlobalValue(v.async_shader_compilation, false);
         SetGameValue(v.async_shader_compilation, true);
         SetGlobalValue(v.vr_immersive_match_camera, true);
         SetGameValue(v.vr_immersive_match_camera, false);
         SetGlobalValue(v.autosave_enabled, false);
         SetGameValue(v.autosave_enabled, true);
-        for (Id id : {Id::AsyncShaders, Id::MatchCamera, Id::Autosave}) {
+        SetGlobalValue(v.accurate_image_copies, false);
+        SetGameValue(v.accurate_image_copies, true);
+        CHECK(v.accurate_image_copies.GetValue());
+        CHECK(!v.accurate_image_copies.GetValue(true)); // the game's tick is not the global one
+        for (Id id : {Id::AsyncShaders, Id::MatchCamera, Id::Autosave, Id::AccurateImageCopies}) {
             CHECK(Marked(id));
             CHECK(PerGame::UseGlobalValue(id));
             CHECK(!Marked(id));
@@ -140,6 +145,7 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
         CHECK(!v.async_shader_compilation.GetValue());
         CHECK(v.vr_immersive_match_camera.GetValue());
         CHECK(!v.autosave_enabled.GetValue());
+        CHECK(!v.accurate_image_copies.GetValue());
         SetGlobalValue(v.autosave_enabled, true);
         CHECK(v.autosave_enabled.GetValue());
     }

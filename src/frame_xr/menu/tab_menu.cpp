@@ -170,6 +170,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(dynamic);
             rows.push_back(row(Id::TextureFilter, RowKind::Segmented, m.texture_filter));
             rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
+            rows.push_back(row(Id::AccurateImageCopies, RowKind::Switch, 0, // AzaharFrame accxfer
+                               m.accurate_image_copies));
             return rows;
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
@@ -195,6 +197,7 @@ SettingsSection SectionOf(Id id) {
     case Id::InternalResolution:
     case Id::DynamicResolution:
     case Id::TextureFilter:
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
     case Id::AsyncShaders:
         return SettingsSection::Graphics;
     case Id::ImmersiveMode:
@@ -222,6 +225,7 @@ bool PerGameSetting(Id id) {
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
     case Id::TextureFilter:
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
     case Id::AsyncShaders:
     case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
     case Id::AutosaveEvery:
@@ -452,6 +456,8 @@ std::string LabelFor(Id id) {
         return "Texture Filter";
     case Id::AsyncShaders:
         return "Async Shader Compilation";
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
+        return "Accurate Image Copies";
     case Id::FastForwardSpeed:
         return "Fast Forward Speed";
     case Id::ImmersiveMode:
@@ -603,6 +609,8 @@ std::string ExplainFor(Id id) {
         return "Smooths the game's textures. Some filters cost frames.";
     case Id::AsyncShaders:
         return "Fewer stutters while new effects load. From the next start.";
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
+        return "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.";
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::ImmersiveMode:

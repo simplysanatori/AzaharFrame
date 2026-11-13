@@ -663,6 +663,11 @@ struct Values {
     SwitchableSetting<bool> preload_textures{false, Keys::preload_textures};
     SwitchableSetting<bool> async_custom_loading{true, Keys::async_custom_loading};
     SwitchableSetting<bool> disable_right_eye_render{false, Keys::disable_right_eye_render};
+    // AzaharFrame accxfer: Accurate Image Copies: every display transfer and texture copy takes
+    // the software path (in guest memory, as the 3DS does) instead of a blit between the cache's
+    // surfaces. A fallback for glitches; it costs GPU readbacks and the picture comes from
+    // memory at 1x. Read at each transfer (rasterizer_cache.h), so it applies at once.
+    SwitchableSetting<bool> accurate_image_copies{false, Keys::accurate_image_copies};
 
     // Audio
     bool audio_muted;

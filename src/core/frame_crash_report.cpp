@@ -1099,6 +1099,7 @@ std::string SettingsSummary() {
     s += fmt::format("Dynamic Resolution: {}\n", on(v.vr_dynamic_resolution.GetValue()));
     s += fmt::format("Texture Filter: {}\n", filter(v.texture_filter.GetValue()));
     s += fmt::format("Async Shaders: {}\n", on(v.async_shader_compilation.GetValue()));
+    s += fmt::format("Accurate Image Copies: {}\n", on(v.accurate_image_copies.GetValue()));
     s += fmt::format("Disk Shader Cache: {}\n", on(v.use_disk_shader_cache.GetValue()));
     s += fmt::format("Custom Textures: {}\n", on(v.custom_textures.GetValue()));
     s += fmt::format("Preload Textures: {}\n", on(v.preload_textures.GetValue()));

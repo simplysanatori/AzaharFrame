@@ -240,6 +240,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::TextureFilter;
     case Id::AsyncShaders:
         return MenuSetting::AsyncShaders;
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
+        return MenuSetting::AccurateImageCopies;
     case Id::Autosave:
         return MenuSetting::Autosave;
     case Id::AutosaveEvery:
@@ -854,6 +856,7 @@ void MenuPanel::BuildModel(const Host& host) {
         }
     }
     m.async_shaders = v.async_shader_compilation.GetValue();
+    m.accurate_image_copies = v.accurate_image_copies.GetValue(); // AzaharFrame accxfer
     m.fast_forward_speed = 0;
     {
         const double ff = v.turbo_limit.GetValue();
@@ -1046,6 +1049,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.async_shader_compilation, value != 0, per_game);
         r.setting = MenuSetting::AsyncShaders;
         ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
+        break;
+    case Id::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
+        Apply(v.accurate_image_copies, value != 0, per_game);
+        r.setting = MenuSetting::AccurateImageCopies;
         break;
     case Id::FastForwardSpeed:
         r.value =
@@ -1774,6 +1781,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);
+        break;
+    case Id::AccurateImageCopies: // AzaharFrame accxfer
+        SetSetting(t.id, model.accurate_image_copies ? 0 : 1, host);
         break;
     case Id::ImmersiveOffsetReset:
         SetSetting(t.id, 0, host);

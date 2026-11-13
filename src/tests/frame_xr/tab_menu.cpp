@@ -1193,7 +1193,7 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     MenuView v;
     v.tab = Tab::Settings;
     bool seen_res = false, seen_dyn = false, seen_filter = false, seen_async = false,
-         seen_ff = false;
+         seen_ff = false, seen_copies = false;
     for (int sec = 0; sec < static_cast<int>(SettingsSection::Count); sec++) // AzaharFrame autosave
     for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
         v.section = static_cast<SettingsSection>(sec);
@@ -1204,6 +1204,7 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
             seen_dyn |= h.t.id == Id::DynamicResolution && h.t.index == -1;
             seen_filter |= h.t.id == Id::TextureFilter && h.t.index == 4;
             seen_async |= h.t.id == Id::AsyncShaders && h.t.index == -1;
+            seen_copies |= h.t.id == Id::AccurateImageCopies && h.t.index == -1; // accxfer
             seen_ff |= h.t.id == Id::FastForwardSpeed && h.t.index == 3;
         }
     }
@@ -1211,6 +1212,11 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     CHECK(seen_dyn);
     CHECK(seen_filter);
     CHECK(seen_async);
+    CHECK(seen_copies);
+    CHECK(SectionOf(Id::AccurateImageCopies) == SettingsSection::Graphics);
+    CHECK(LabelFor(Id::AccurateImageCopies) == "Accurate Image Copies");
+    CHECK(ExplainFor(Id::AccurateImageCopies) ==
+          "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.");
     CHECK(seen_ff);
     CHECK(OptionsFor(Id::InternalResolution).size() == static_cast<std::size_t>(kMaxResolution));
     CHECK(OptionsFor(Id::InternalResolution).front() == "1x (400x240)");
@@ -1220,7 +1226,7 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     CHECK(OptionsFor(Id::FastForwardSpeed) ==
           std::vector<std::string>{"150%", "200%", "300%", "400%"});
     for (Id id : {Id::InternalResolution, Id::DynamicResolution, Id::TextureFilter,
-                  Id::AsyncShaders, Id::FastForwardSpeed}) {
+                  Id::AsyncShaders, Id::AccurateImageCopies, Id::FastForwardSpeed}) {
         CHECK(!LabelFor(id).empty());
         CHECK(!ExplainFor(id).empty());
     }
@@ -2754,10 +2760,11 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(!PerGameSetting(id));
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
-                  Id::ImmersiveMode, Id::WiderView, Id::GameFov, Id::MatchCamera,
-                  Id::NarrowScreen, Id::DepthFactor, Id::Autosave, Id::AutosaveEvery,
-                  Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape, Id::TouchpadTouch,
-                  Id::BottomScreenReticle, Id::ReticleSpeed, Id::ReticleAtEdge}) {
+                  Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
+                  Id::MatchCamera, Id::NarrowScreen, Id::DepthFactor, Id::Autosave,
+                  Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
+                  Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
+                  Id::ReticleAtEdge}) {
         CHECK(PerGameSetting(id));
     }
     CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
