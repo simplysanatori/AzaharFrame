@@ -346,6 +346,15 @@ void FrameLimiter::WaitOnce() {
 }
 
 void FrameLimiter::DoFrameLimiting(microseconds current_system_time_us) {
+    // AzaharFrame pacing: in VR at 120 Hz the game runs at exactly 60 pictures a second, each
+    // ready at a set place between two of the headset's latches (common/xr_pacer.h).
+    auto& pace_shared = Common::XrPacer::Get();
+    const Common::XrPacer::LimiterLock::Step pace = pace_lock.Frame(
+        pace_shared, frame_advancing_enabled, Settings::GetFrameLimit(),
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+
     if (frame_advancing_enabled) {
         // Frame advancing is enabled: wait on event instead of doing framelimiting
         WaitForFrameAdvance();
@@ -353,7 +362,7 @@ void FrameLimiter::DoFrameLimiting(microseconds current_system_time_us) {
     }
 
     auto now = Clock::now();
-    double sleep_scale = Settings::GetFrameLimit() / 100.0;
+    double sleep_scale = Settings::GetFrameLimit() / 100.0 * pace.speed;
 
     if (Settings::GetFrameLimit() == 0) {
         return;
@@ -368,9 +377,11 @@ void FrameLimiter::DoFrameLimiting(microseconds current_system_time_us) {
         std::chrono::duration<double, std::chrono::microseconds::period>(
             (current_system_time_us - previous_system_time_us) / sleep_scale));
     frame_limiting_delta_err -= duration_cast<microseconds>(now - previous_walltime);
+    frame_limiting_delta_err += microseconds{pace.correction_us}; // AzaharFrame pacing
     frame_limiting_delta_err =
         std::clamp(frame_limiting_delta_err, -max_lag_time_us, max_lag_time_us);
 
+    pace_lock.NoteSleep(pace_shared, frame_limiting_delta_err > microseconds::zero());
     if (frame_limiting_delta_err > microseconds::zero()) {
         if (wait_callback) {
             wait_callback(std::chrono::steady_clock::now() + frame_limiting_delta_err);
@@ -384,6 +395,9 @@ void FrameLimiter::DoFrameLimiting(microseconds current_system_time_us) {
 
     previous_system_time_us = current_system_time_us;
     previous_walltime = now;
+    pace_lock.NoteWake(pace_shared, std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count()); // AzaharFrame pacing
 }
 
 bool FrameLimiter::IsFrameAdvancing() const {

@@ -603,6 +603,7 @@ void XrPresentTarget::RunReleaseDirect(u64 tick) {
         content = direct_content;
     }
     // AzaharFrame doubling: the screens of one game frame go together (Runtime::ReleaseFrame).
+    sink.WaitPresentSlot(); // AzaharFrame pacing: never a picture on view for one refresh
     sink.ReleaseFrame(finished, content);
     std::scoped_lock lock{mutex};
     for (Screen& screen : screens) {
@@ -719,6 +720,7 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
         std::scoped_lock lock{mutex};
         content = slot_content[slot];
     }
+    sink.WaitPresentSlot(); // AzaharFrame pacing: never a picture on view for one refresh
     sink.ReleaseFrame(finished, content); // AzaharFrame doubling: one game frame together
     sink.NoteSpillShown();
     std::scoped_lock lock{mutex};

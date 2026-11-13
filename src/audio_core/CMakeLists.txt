@@ -6,6 +6,7 @@ add_library(audio_core STATIC EXCLUDE_FROM_ALL
     csnd.h
     dsp_interface.cpp
     dsp_interface.h
+    rate_trim.h # AzaharFrame pacing
     hle/aac_decoder.cpp
     hle/aac_decoder.h
     hle/common.h

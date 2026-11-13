@@ -10,6 +10,7 @@
 #include <span>
 #include <boost/serialization/access.hpp>
 #include "audio_core/audio_types.h"
+#include "audio_core/rate_trim.h"
 #include "audio_core/time_stretch.h"
 #include "common/common_types.h"
 #include "common/ring_buffer.h"
@@ -133,6 +134,7 @@ private:
     std::size_t fifo_low_fill = std::numeric_limits<std::size_t>::max();
     std::size_t backlog_window_frames = 0;
     TimeStretcher time_stretcher;
+    RateTrim rate_trim; ///< AzaharFrame pacing: the backlog read at the game's speed while locked
     std::unique_ptr<Sink> sink;
 
     std::mutex csnd_mutex;

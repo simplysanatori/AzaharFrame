@@ -13,6 +13,7 @@
 #include "common/bit_field.h"
 #include "common/common_types.h"
 #include "common/thread.h"
+#include "common/xr_pacer.h"
 
 namespace Core {
 
@@ -252,6 +253,9 @@ private:
 
     /// Whether to use frame advancing (i.e. frame by frame)
     std::atomic_bool frame_advancing_enabled;
+
+    /// AzaharFrame pacing: in VR at 120 Hz, two refreshes per game frame (common/xr_pacer.h).
+    Common::XrPacer::LimiterLock pace_lock;
 
     /// Event to advance the frame when frame advancing is enabled
     Common::Event frame_advance_event;

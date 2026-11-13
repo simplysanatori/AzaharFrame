@@ -11,6 +11,7 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "common/xr_pacer.h"
 #include "core/core.h"
 #include "core/dumping/backend.h"
 
@@ -135,7 +136,16 @@ void DspInterface::DrainFifoBacklog(std::size_t num_frames) {
     if (fifo_low_fill > 2 * kept_frames) {
         const std::size_t excess = fifo_low_fill - kept_frames;
         fifo.Pop(excess);
-        LOG_DEBUG(Audio, "Dropped {} frames of audio backlog", excess);
+        // AzaharFrame pacing: counted for the VR pacing line; while the lock runs a drop means
+        // the rate trim missed, worth seeing in the log.
+        auto& pace = Common::XrPacer::Get();
+        pace.audio_drops.fetch_add(1, std::memory_order_relaxed);
+        pace.audio_dropped_frames.fetch_add(static_cast<u32>(excess), std::memory_order_relaxed);
+        if (pace.audio_ratio.load(std::memory_order_relaxed) != 1.0) {
+            LOG_INFO(Audio, "Dropped {} frames of audio backlog (VR frame pacing lock on)", excess);
+        } else {
+            LOG_DEBUG(Audio, "Dropped {} frames of audio backlog", excess);
+        }
     }
     fifo_low_fill = std::numeric_limits<std::size_t>::max();
     backlog_window_frames = 0;
@@ -166,7 +176,18 @@ void DspInterface::OutputCallback(s16* buffer, std::size_t num_frames) {
             // so that they do not bleed into the next time the stretcher is enabled.
             time_stretcher.Clear();
         }
-        frames_written += fifo.Pop(buffer, num_frames - frames_written);
+        // AzaharFrame pacing: while the VR frame pacing lock runs the game fast (x1.0028 at
+        // 120 Hz) the backlog is read that much faster, so it does not grow (rate_trim.h).
+        const double ratio = Common::XrPacer::Get().audio_ratio.load(std::memory_order_relaxed);
+        if (ratio != 1.0) {
+            frames_written += rate_trim.Process(
+                ratio, buffer + 2 * frames_written, num_frames - frames_written,
+                [this](RateTrim::Frame* dst, std::size_t max) { return fifo.Pop(dst, max); });
+        } else if (!rate_trim.Idle()) {
+            frames_written +=
+                rate_trim.Flush(buffer + 2 * frames_written, num_frames - frames_written);
+        }
+        frames_written += fifo.Pop(buffer + 2 * frames_written, num_frames - frames_written);
         DrainFifoBacklog(num_frames);
     }
 
