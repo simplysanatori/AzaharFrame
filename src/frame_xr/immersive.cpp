@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -33,6 +34,7 @@
 #include "frame_xr/ipd_smoother.h" // AzaharFrame ipd
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/presets.h" // AzaharFrame immersive: preset screen sizes
+#include "frame_xr/test_switches.h" // AzaharFrame integ9
 #include "video_core/vr_immersive.h"
 
 namespace FrameXr::Immersive {
@@ -127,13 +129,34 @@ struct Tuning {
     /// the game's own in front of its world (an item screen) without the Render Margin
     /// (L::MenuExact); 0: always with it, as before.
     bool menu_exact = true;
+    /// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_TAG_OFFSET (a test switch, live): the picture's
+    /// pose tag one latch earlier (-1) or later (+1) (ContentTrack::SetTagOffset).
+    int tag_offset = 0;
+    /// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_POSITION_SCALE (a test switch, live): the head
+    /// position's move in the game camera times this (0: the camera turns only), 3D Depth and the
+    /// game's two eyes unchanged.
+    float position_scale = 1.0f;
+    /// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_WORLD_TAG (0: tag by the latch, as up to 1.2).
+    bool world_tag = true;
 };
 
+// AzaharFrame integ9: through the live test-switch file (common/frame_test_switches.h), so a
+// switch changed in the file while running is read with its new value.
+std::optional<std::string> Switch(const char* name) {
+    return Common::FrameTestSwitches::Value(name);
+}
+
+bool SwitchIs(const char* name, const char* value) {
+    const std::optional<std::string> v = Switch(name);
+    return v && *v == value;
+}
+
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
-    const char* v = std::getenv(name);
-    if (!v || !*v) {
+    const std::optional<std::string> s = Switch(name);
+    if (!s || s->empty()) {
         return fallback;
     }
+    const char* v = s->c_str();
     char* end = nullptr;
     const float f = std::strtof(v, &end);
     if (end == v || !std::isfinite(f)) {
@@ -150,36 +173,36 @@ Tuning ReadTuning() {
                           L::kMaxDistance);
     t.head_distance = EnvFloat("AZAHARFRAME_IMMERSIVE_DISTANCE", L::kDefaultHeadDistance,
                                L::kMinDistance, L::kMaxDistance);
-    const char* fov_env = std::getenv("AZAHARFRAME_IMMERSIVE_FOV");
-    t.fov_from_env = fov_env && *fov_env;
+    const std::optional<std::string> fov_env = Switch("AZAHARFRAME_IMMERSIVE_FOV");
+    t.fov_from_env = fov_env && !fov_env->empty();
     t.game_fov_y_deg = EnvFloat("AZAHARFRAME_IMMERSIVE_FOV", kDefaultGameFovY, 20.0f, 120.0f);
-    const char* local = std::getenv("AZAHARFRAME_IMMERSIVE_LOCAL");
-    t.local_space = local && std::string(local) == "1";
-    const char* measure = std::getenv("AZAHARFRAME_IMMERSIVE_MEASURE");
-    t.measure = !(measure && std::string(measure) == "0");
-    const char* anchor = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR");
-    t.anchor = !(anchor && std::string(anchor) == "0");
+    t.local_space = SwitchIs("AZAHARFRAME_IMMERSIVE_LOCAL", "1");
+    t.measure = !SwitchIs("AZAHARFRAME_IMMERSIVE_MEASURE", "0");
+    t.anchor = !SwitchIs("AZAHARFRAME_IMMERSIVE_ANCHOR", "0");
     t.anchor_max_ms = EnvFloat("AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS", 250.0f, 50.0f, 2000.0f);
-    const char* anchor_eye = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR_EYE");
-    t.anchor_eye = !(anchor_eye && std::string(anchor_eye) == "0");
-    if (const char* depth = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH"); depth && *depth) {
-        const std::string v = depth;
+    t.anchor_eye = !SwitchIs("AZAHARFRAME_IMMERSIVE_ANCHOR_EYE", "0");
+    if (const std::optional<std::string> depth = Switch("AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH");
+        depth && !depth->empty()) {
+        const std::string& v = *depth;
         t.anchor_depth_m = v == "far"    ? -1.0f
                            : v == "screen" ? 0.0f
                            : v == "focus"  ? -2.0f
                            : v == "mid"    ? -3.0f
-                                           : std::clamp(static_cast<float>(std::atof(depth)), 0.05f,
-                                                        1000.0f);
+                                           : std::clamp(static_cast<float>(std::atof(v.c_str())),
+                                                        0.05f, 1000.0f);
     }
-    const char* fov_trace = std::getenv("AZAHARFRAME_IMMERSIVE_FOV_TRACE");
-    t.fov_trace = fov_trace && std::string(fov_trace) == "1";
-    const char* menu_exact = std::getenv("AZAHARFRAME_IMMERSIVE_MENU_EXACT");
-    t.menu_exact = !(menu_exact && std::string(menu_exact) == "0");
-    const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
-    if (wider && *wider) {
+    t.fov_trace = SwitchIs("AZAHARFRAME_IMMERSIVE_FOV_TRACE", "1");
+    t.menu_exact = !SwitchIs("AZAHARFRAME_IMMERSIVE_MENU_EXACT", "0");
+    if (const std::optional<std::string> wider = Switch("AZAHARFRAME_IMMERSIVE_WIDER");
+        wider && !wider->empty()) {
         t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
                                                   static_cast<float>(L::kMaxWiderLevel)));
     }
+    t.tag_offset = TestSwitches::TagOffsetFrom(Switch("AZAHARFRAME_IMMERSIVE_TAG_OFFSET"));
+    t.position_scale =
+        TestSwitches::PositionScaleFrom(Switch("AZAHARFRAME_IMMERSIVE_POSITION_SCALE"));
+    const std::optional<std::string> world_tag = Switch("AZAHARFRAME_IMMERSIVE_WORLD_TAG");
+    t.world_tag = !(world_tag && !world_tag->empty() && (*world_tag)[0] == '0');
     return t;
 }
 
@@ -1071,7 +1094,9 @@ void OnFrame(const FrameInfo& info) {
             const float scaler = L::GamePositionScale(
                 static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
                 Settings::values.factor_3d.GetValue());
-            FillInverseView(q, p, scaler, data.inv_view);
+            // AzaharFrame integ9: POSITION_SCALE moves the head position's share only; the
+            // game's two eyes (game_pos_scaler, 3D Depth) stay as they are.
+            FillInverseView(q, p, scaler * g.tuning.position_scale, data.inv_view);
             data.game_pos_scaler = -scaler;
         }
     }
@@ -1258,6 +1283,43 @@ std::string DepthChangeToast(unsigned depth) {
         Settings::frame_vr_depth_scale.load(std::memory_order_relaxed));
 }
 
+// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_POSITION_SCALE and what it gives now. Under 10 % 3D
+// Depth the game camera takes no head position at all (L::GamePositionScale is 0), so the
+// factor has nothing to multiply: the log says so.
+static std::string PositionScaleLine() {
+    const float base = L::GamePositionScale(
+        static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
+        Settings::values.factor_3d.GetValue());
+    return fmt::format("head position x{:.2f} (the game camera's head position scale {:.2f} x "
+                       "{:.2f} = {:.2f}{})",
+                       g.tuning.position_scale, base, g.tuning.position_scale,
+                       base * g.tuning.position_scale,
+                       base == 0.0f ? "; none under 10% 3D Depth, so no effect" : "");
+}
+
+void ReloadTestSwitches() {
+    const Tuning t = ReadTuning();
+    // Only the live ones (TestSwitches::ApplyFor); the distance, the FOV, Match Game Camera's
+    // measure and the Wider level keep the values the screen was placed and sized with.
+    g.tuning.anchor = t.anchor;
+    g.tuning.anchor_max_ms = t.anchor_max_ms;
+    g.tuning.anchor_eye = t.anchor_eye;
+    g.tuning.anchor_depth_m = t.anchor_depth_m;
+    g.tuning.fov_trace = t.fov_trace;
+    g.tuning.menu_exact = t.menu_exact;
+    g.tuning.local_space = t.local_space;
+    g.tuning.tag_offset = t.tag_offset;
+    g.tuning.position_scale = t.position_scale;
+    g.tuning.world_tag = t.world_tag;
+    VideoCore::Immersive::g_content.SetFollowWorld(t.world_tag);
+    VideoCore::Immersive::g_content.SetTagOffset(t.tag_offset);
+    LOG_INFO(Frontend,
+             "xr: immersive: test switches now: anchor {}, max {:.0f} ms, about the eye {}, anchor "
+             "depth {:.2f}, world tag {}, tag offset {:+d}, {}",
+             t.anchor ? "on" : "off", t.anchor_max_ms, t.anchor_eye ? "on" : "off",
+             t.anchor_depth_m, t.world_tag ? "on" : "off", t.tag_offset, PositionScaleLine());
+}
+
 void Install() {
     g = State{};
     g_top_aspect = kAspect3ds;
@@ -1266,7 +1328,12 @@ void Install() {
     for (const std::string& sw : Common::FrameTestSwitches::InEffect()) {
         LOG_INFO(Frontend, "xr: test switch {}", sw);
     }
-    VideoCore::Immersive::g_content.SetFollowWorld(VideoCore::Immersive::FollowWorldFromEnv());
+    VideoCore::Immersive::g_content.SetFollowWorld(g.tuning.world_tag);
+    VideoCore::Immersive::g_content.SetTagOffset(g.tuning.tag_offset); // AzaharFrame integ9
+    if (g.tuning.tag_offset != 0 || g.tuning.position_scale != 1.0f) {
+        LOG_INFO(Frontend, "xr: immersive: picture tag offset {:+d} latch, {}", g.tuning.tag_offset,
+                 PositionScaleLine());
+    }
     g.game_fov_y_deg = g.tuning.game_fov_y_deg;
     g.wide_place = DefaultPlacement();
     g.head_place = DefaultHeadPlacement();
@@ -1364,7 +1431,7 @@ float AnchorFollowNow(bool follow_eye) {
     }
     const float scaler = L::GamePositionScale(
         static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
-        Settings::values.factor_3d.GetValue());
+        Settings::values.factor_3d.GetValue()) * g.tuning.position_scale; // AzaharFrame integ9
     const float focus = L::AnchorFollow(
         g.solved.distance, scaler,
         VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),

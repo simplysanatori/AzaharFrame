@@ -260,11 +260,19 @@ public:
     /// a double-buffered game showing a picture copied one frame earlier is followed).
     static constexpr u32 kTransferLatches = 3;
 
+    /// AzaharFrame integ9: poses applied at the latches remembered for the tag offset.
+    static constexpr int kLatched = 8;
+
     explicit ContentTrack(bool follow_world = true) noexcept : follow_world_(follow_world) {}
 
     /// A snapshot was handed to the rasterizer: the draws from now on use its pose.
     void Applied(const XrContentPose& pose) noexcept {
         applied_ = pose;
+        // AzaharFrame integ9: tag offset +1 on the newest pose: the one applied after the latch.
+        if (tag_next_ && pose.valid) {
+            drawn_ = pose;
+        }
+        tag_next_ = false;
     }
     /// AzaharFrame oot: a draw through the game's world camera, patched with the applied pose.
     void WorldDraw() noexcept {
@@ -296,7 +304,12 @@ public:
                 last_turn_deg_ = TurnDeg(copy->world, by_latch);
             }
         }
-        drawn_ = follow_world_ && last_ == Kind::Earlier ? copy->world : by_latch;
+        drawn_ = follow_world_.load(std::memory_order_relaxed) && last_ == Kind::Earlier
+                     ? copy->world
+                     : by_latch;
+        tag_next_ = false;
+        Remember(by_latch);
+        ShiftTag(tag_offset_.load(std::memory_order_relaxed));
         ++latches_;
     }
     const XrContentPose& Drawn() const noexcept {
@@ -314,12 +327,24 @@ public:
         return last_turn_deg_;
     }
     bool FollowsWorld() const noexcept {
-        return follow_world_;
+        return follow_world_.load(std::memory_order_relaxed);
     }
     /// AzaharFrame dbl: the switch read again once the test-switch file is in the environment
-    /// (g_content is made before main).
+    /// (g_content is made before main). AzaharFrame integ9: any thread, live.
     void SetFollowWorld(bool follow) noexcept {
-        follow_world_ = follow;
+        follow_world_.store(follow, std::memory_order_relaxed);
+    }
+    /// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_TAG_OFFSET (a test switch, any thread, live):
+    /// each picture is tagged with the pose applied one latch earlier (-1) or later (+1) than
+    /// the one the rules above give, as an A/B of the tag where it cannot be told (Mario Kart 7's
+    /// pictures are all "not told"). The poses are the distinct ones applied at the latches;
+    /// with no earlier one remembered the tag stays. +1 on the newest pose takes the one applied
+    /// right after the latch (ApplyPending), the pose the game's next frame is drawn with.
+    void SetTagOffset(int offset) noexcept {
+        tag_offset_.store(std::clamp(offset, -1, 1), std::memory_order_relaxed);
+    }
+    int TagOffset() const noexcept {
+        return tag_offset_.load(std::memory_order_relaxed);
     }
 
     /// The angle between two head orientations, in degrees.
@@ -354,7 +379,46 @@ private:
         return nullptr;
     }
 
-    bool follow_world_ = true;
+    /// AzaharFrame integ9: a pose applied at a latch, if it differs from the last one remembered.
+    void Remember(const XrContentPose& p) noexcept {
+        if (!p.valid || (latched_count_ > 0 && latched_[(latched_next_ + kLatched - 1) %
+                                                        kLatched].time == p.time)) {
+            return;
+        }
+        latched_[latched_next_] = p;
+        latched_next_ = (latched_next_ + 1) % kLatched;
+        latched_count_ = std::min(latched_count_ + 1, kLatched);
+    }
+    /// AzaharFrame integ9: drawn_ moved by `offset` along the remembered poses (SetTagOffset).
+    void ShiftTag(int offset) noexcept {
+        if (offset == 0 || !drawn_.valid) {
+            return;
+        }
+        // Age 0: the newest remembered, 1 the one before, ...
+        for (int age = 0; age < latched_count_; ++age) {
+            const XrContentPose& p = latched_[(latched_next_ + kLatched - 1 - age) % kLatched];
+            if (p.time != drawn_.time) {
+                continue;
+            }
+            if (offset < 0) {
+                if (age + 1 < latched_count_) {
+                    drawn_ = latched_[(latched_next_ + kLatched - 2 - age) % kLatched];
+                }
+            } else if (age > 0) {
+                drawn_ = latched_[(latched_next_ + kLatched - age) % kLatched];
+            } else {
+                tag_next_ = true; // the newest: the pose applied after this latch
+            }
+            return;
+        }
+    }
+
+    std::atomic<bool> follow_world_{true};
+    std::atomic<int> tag_offset_{0};
+    std::array<XrContentPose, kLatched> latched_{};
+    int latched_next_ = 0;
+    int latched_count_ = 0;
+    bool tag_next_ = false;
     XrContentPose applied_{};
     XrContentPose drawn_{};
     XrContentPose world_{};

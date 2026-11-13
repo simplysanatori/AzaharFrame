@@ -1230,6 +1230,51 @@ TEST_CASE("FrameXr immersive: the picture's head pose follows the game frame", "
     REQUIRE(track.Drawn().time == 3);
 }
 
+TEST_CASE("Immersive: AZAHARFRAME_IMMERSIVE_TAG_OFFSET moves the picture's tag one latch",
+          "[frame_xr][immersive]") {
+    using VideoCore::Immersive::ContentTrack;
+    const auto pose = [](int64_t t) {
+        VideoCore::XrContentPose p;
+        p.valid = true;
+        p.time = t;
+        return p;
+    };
+    // Off (0): as the rule gives (the test in immersive_layout.cpp).
+    for (const int offset : {0, -1, 1}) {
+        ContentTrack track;
+        track.SetTagOffset(offset);
+        CHECK(track.TagOffset() == offset);
+        track.Applied(pose(1));
+        track.Latch(); // frame 1 on the screens; only one pose remembered
+        track.Applied(pose(2));
+        CHECK(track.Drawn().time == (offset == 1 ? 2 : 1));
+        track.Latch(); // frame 2 on the screens
+        track.Applied(pose(3));
+        CHECK(track.Drawn().time == 2 + offset);
+        track.Latch();
+        track.Applied(pose(4));
+        CHECK(track.Drawn().time == 3 + offset);
+        // No new snapshot at a latch: the same pose, the same tag.
+        track.Latch();
+        CHECK(track.Drawn().time == 4 + (offset < 0 ? -1 : 0));
+    }
+    // Out of range: clamped. Live: the next latch takes it.
+    ContentTrack track;
+    track.SetTagOffset(5);
+    CHECK(track.TagOffset() == 1);
+    track.SetTagOffset(0);
+    track.Applied(pose(1));
+    track.Latch();
+    track.Applied(pose(2));
+    track.Latch();
+    CHECK(track.Drawn().time == 2);
+    track.SetTagOffset(-1);
+    track.Applied(pose(3));
+    CHECK(track.Drawn().time == 2); // until the next latch
+    track.Latch();
+    CHECK(track.Drawn().time == 2);
+}
+
 // AzaharFrame immersive: the owner's report: after a resolution change (Internal Resolution,
 // Dynamic Resolution, a game's own option) the character was off to one side and the camera
 // swung round it. Nothing about the render size goes into the rest pose, the screen or the

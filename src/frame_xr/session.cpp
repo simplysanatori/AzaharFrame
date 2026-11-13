@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -13,6 +14,7 @@
 
 #include "common/logging/log.h"
 #include "common/frame_flat.h"
+#include "common/frame_test_switches.h" // AzaharFrame integ9
 #include "frame_xr/controls.h"
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
@@ -85,6 +87,23 @@ Runtime::~Runtime() {
 bool Runtime::HasExtension(const char* name) const {
     return std::find(enabled_extensions.begin(), enabled_extensions.end(), name) !=
            enabled_extensions.end();
+}
+
+void Runtime::RequestRefreshRate() {
+    auto& xr = Xr();
+    if (!session || !xr.xrRequestDisplayRefreshRateFB) {
+        return;
+    }
+    const std::optional<std::string> want =
+        Common::FrameTestSwitches::Value("AZAHARFRAME_XR_REFRESH_RATE");
+    const float hz = want && !want->empty() ? static_cast<float>(std::atof(want->c_str()))
+                                            : start_refresh_hz;
+    if (!(hz > 0.0f)) {
+        return;
+    }
+    const XrResult rr = xr.xrRequestDisplayRefreshRateFB(session, hz);
+    LOG_INFO(Frontend, "xr: AZAHARFRAME_XR_REFRESH_RATE: asked for {:.1f} Hz{}: {}", hz,
+             want && !want->empty() ? "" : " (the start's)", ResultName(rr));
 }
 
 bool Runtime::CreateInstance(const StartOptions& options) {
@@ -357,12 +376,9 @@ bool Runtime::CreateSession() {
         }
         LOG_INFO(Frontend, "xr: display refresh rates offered: {} Hz (now {:.1f} Hz)",
                  list.empty() ? "none listed" : list, now);
-        const char* want = std::getenv("AZAHARFRAME_XR_REFRESH_RATE");
-        if (want && *want && xr.xrRequestDisplayRefreshRateFB) {
-            const float hz = static_cast<float>(std::atof(want));
-            const XrResult rr = xr.xrRequestDisplayRefreshRateFB(session, hz);
-            LOG_INFO(Frontend, "xr: AZAHARFRAME_XR_REFRESH_RATE: asked for {:.1f} Hz: {}", hz,
-                     ResultName(rr));
+        start_refresh_hz = now;
+        if (Common::FrameTestSwitches::Value("AZAHARFRAME_XR_REFRESH_RATE")) {
+            RequestRefreshRate();
         }
     }
 

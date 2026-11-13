@@ -31,7 +31,8 @@
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/session.h"
-#include "frame_xr/toast_depth.h" // AzaharFrame integ9: ScreenUse
+#include "frame_xr/test_switches.h" // AzaharFrame integ9: the switch file, live
+#include "frame_xr/toast_depth.h"   // AzaharFrame integ9: ScreenUse
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/watchdog.h"
@@ -514,6 +515,40 @@ void Runtime::FrameLoop() {
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
+    // AzaharFrame dbl / integ9: AZAHARFRAME_XR_SINGLE_FLASH, live (test_switches.h).
+    TestSwitches::SingleFlash single_flash;
+    bool test_single_flash =
+        TestSwitches::OnFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_SINGLE_FLASH"));
+    // AzaharFrame integ9: the test-switch file read again when it changed (once a second, after
+    // xrEndFrame): the live switches applied, each change logged and shown in a toast.
+    const auto poll_test_switches = [&] {
+        const std::vector<Common::FrameTestSwitches::Change> changes =
+            Common::FrameTestSwitches::Live().Poll();
+        if (changes.empty()) {
+            return;
+        }
+        bool immersive = false;
+        for (const Common::FrameTestSwitches::Change& c : changes) {
+            LOG_INFO(Frontend, "xr: {}", TestSwitches::LogLine(c));
+            if (c.env_wins || TestSwitches::ApplyFor(c.name) != TestSwitches::Apply::Live) {
+                continue;
+            }
+            if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH") {
+                test_single_flash = TestSwitches::OnFrom(Common::FrameTestSwitches::Value(c.name));
+            } else if (c.name == "AZAHARFRAME_XR_REFRESH_RATE") {
+                RequestRefreshRate();
+            } else {
+                immersive = true;
+            }
+        }
+        if (immersive) {
+            Immersive::ReloadTestSwitches();
+        }
+        const std::string toast = TestSwitches::ToastText(changes);
+        if (!toast.empty()) {
+            hud.ShowToastText(toast, ToastTime::Long);
+        }
+    };
 
     while (true) {
         loop_top = Clock::now();
@@ -735,18 +770,11 @@ void Runtime::FrameLoop() {
             // show it again show no top screen (black, or the room with passthrough). Dim and
             // flickering, but no game picture is ever seen twice: an A/B for double images
             // that come from a picture held on two refreshes.
-            static const bool single_flash = [] {
-                const char* v = std::getenv("AZAHARFRAME_XR_SINGLE_FLASH");
-                return v && v[0] == '1';
-            }();
-            static uint64_t flashed_serial = 0;
+            // AzaharFrame integ9: live (test_switches.h; the switch file is read again while running).
             bool hide_top = false;
-            if (single_flash) {
+            {
                 const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
-                if (t.has_image) {
-                    hide_top = t.frame_serial == flashed_serial;
-                    flashed_serial = t.frame_serial;
-                }
+                hide_top = single_flash.Hide(test_single_flash, t.has_image, t.frame_serial);
             }
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
@@ -1004,6 +1032,7 @@ void Runtime::FrameLoop() {
         if (since >= 1.0) {
             LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
             pacing.Second(since); // AzaharFrame pacing
+            poll_test_switches(); // AzaharFrame integ9
             last_log = log_now;
             wait_sum_ms = wait_max_ms = 0.0;
             wait_count = 0;

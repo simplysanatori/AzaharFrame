@@ -44,6 +44,9 @@ namespace FrameXr::Immersive {
 void Install();
 /// Before the frame loop stops (publishes "off", removes the callback).
 void Uninstall();
+/// AzaharFrame integ9: XR thread, after the test-switch file changed: reads the switches that
+/// apply live again (test_switches.h ApplyFor); the others keep the values of the start.
+void ReloadTestSwitches();
 
 /// The top screen's width over its height for the game on view (5:3, 16:9, 21:9, 4:3, 3:2 or 16:10; 5:3 when no
 /// game has started). Read from the settings every frame while a game runs. Any thread.

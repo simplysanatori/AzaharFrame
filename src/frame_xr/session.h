@@ -158,6 +158,10 @@ public:
     /// Everything.
     void Destroy();
     bool HasExtension(const char* name) const;
+    /// AzaharFrame integ9: AZAHARFRAME_XR_REFRESH_RATE (a test switch, live): asks the runtime
+    /// for that refresh rate (XR_FB_display_refresh_rate), or, unset, for the one the session
+    /// started with. XR thread, with a session.
+    void RequestRefreshRate();
 
     // XrScreenSink (emu thread / renderer release thread)
     bool IsActive() const override;
@@ -226,6 +230,7 @@ public:
     Stats stats;
     /// AzaharFrame menuux: the runtime's display period at the last xrWaitFrame (XR thread).
     XrDuration display_period_ns = 0;
+    float start_refresh_hz = 0.0f; ///< AzaharFrame integ9: the session's rate at its start
 
     // Session state (XR thread writes, others read).
     std::atomic<XrSessionState> state{XR_SESSION_STATE_UNKNOWN};
