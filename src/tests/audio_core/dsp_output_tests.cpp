@@ -261,3 +261,39 @@ TEST_CASE("DSP output: 1x unlocked is the plain path", "[audio_core][pacing][ffa
     CHECK(plain.step_one == plain.steps);
     CHECK(plain.edge_jumps == 0);
 }
+
+// AzaharFrame ffspeed
+TEST_CASE("DSP output: fast forward with Normal Speed, back to 1x", "[audio_core][ffspeed]") {
+    Restore restore;
+    Core::System system;
+    TestDsp dsp(system);
+    auto sink_owner = std::make_unique<TestSink>();
+    TestSink& sink = *sink_owner;
+    dsp.SetSink(std::move(sink_owner));
+    Settings::values.fast_forward_audio.SetValue(Mode::NormalSpeed);
+    Settings::values.frame_limit.SetValue(100.0);
+    Common::XrPacer::Get().audio_ratio.store(1.0);
+    Game game{dsp, sink};
+    const Played before = game.Play(1.0, 2.0, 0.5);
+    CHECK(before.step_one == before.steps);
+
+    // 300 %: played at real time. The right channel's ramp steps by 1 inside each stretch (the
+    // jumps are the other steps), the tone keeps 440 Hz.
+    Settings::values.frame_limit.SetValue(300.0);
+    const Played ff = game.Play(3.0, 8.0, 1.0);
+    REQUIRE(ff.freq.size() >= 6);
+    for (double f : ff.freq) {
+        CHECK(f > 440.0 * 0.97);
+        CHECK(f < 440.0 * 1.03);
+    }
+    CHECK(static_cast<double>(ff.step_one) > 0.8 * static_cast<double>(ff.steps));
+    CHECK(ff.step_other > 0); // it does skip ahead
+    // (steps of 0 are not read: inside a crossfade the blended ramp can stand still)
+
+    // Back to 1x: the skipper plays out and the plain path follows; from then on every step is 1.
+    Settings::values.frame_limit.SetValue(100.0);
+    game.Play(1.0, 1.0);
+    const Played after = game.Play(1.0, 4.0, 0.5);
+    CHECK(after.step_one == after.steps);
+    CHECK(after.edge_jumps == 0);
+}

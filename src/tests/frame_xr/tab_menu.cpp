@@ -3103,10 +3103,10 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
 TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]") {
     CHECK(LabelFor(Id::FastForwardAudio) == "Fast Forward Audio");
     CHECK(OptionsFor(Id::FastForwardAudio) ==
-          std::vector<std::string>{"Sped Up", "Normal Pitch", "Muted"});
+          std::vector<std::string>{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"});
     CHECK(ExplainFor(Id::FastForwardAudio) ==
-          "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at "
-          "their usual pitch.");
+          "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed "
+          "plays at real speed.");
     CHECK(PerGameSetting(Id::FastForwardAudio));
     CHECK(SectionOf(Id::FastForwardAudio) == SettingsSection::General);
     MenuModel m = Sample();

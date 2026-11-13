@@ -72,7 +72,7 @@ void ConfigureAudio::SetConfiguration() {
     ui->toggle_audio_stretching->setChecked(Settings::values.enable_audio_stretching.GetValue());
     // AzaharFrame ffaudio
     ui->ff_audio_combo_box->setCurrentIndex(
-        static_cast<int>(Settings::values.fast_forward_audio.GetValue()));
+        static_cast<int>(Settings::FastForwardAudioIndex(Settings::values.fast_forward_audio.GetValue())));
     ui->toggle_realtime_audio->setChecked(Settings::values.enable_realtime_audio.GetValue());
     ui->simulate_headphones_plugged->setChecked(
         Settings::values.simulate_headphones_plugged.GetValue());
@@ -99,8 +99,13 @@ void ConfigureAudio::SetConfiguration() {
                                                &Settings::values.audio_emulation);
         ConfigurationShared::SetHighlight(ui->widget_ff_audio,
                                           !Settings::values.fast_forward_audio.UsingGlobal());
-        ConfigurationShared::SetPerGameSetting(ui->ff_audio_combo_box,
-                                               &Settings::values.fast_forward_audio);
+        // AzaharFrame ffspeed: the combo lists the choices in menu order, not by stored value
+        ui->ff_audio_combo_box->setCurrentIndex(
+            Settings::values.fast_forward_audio.UsingGlobal()
+                ? ConfigurationShared::USE_GLOBAL_INDEX
+                : static_cast<int>(Settings::FastForwardAudioIndex(
+                      Settings::values.fast_forward_audio.GetValue())) +
+                      ConfigurationShared::USE_GLOBAL_OFFSET);
     } else {
         s32 selection = static_cast<s32>(Settings::values.audio_emulation.GetValue());
         ui->emulation_combo_box->setCurrentIndex(selection);
@@ -184,8 +189,10 @@ void ConfigureAudio::ApplyConfiguration() {
                                              ui->toggle_realtime_audio, realtime_audio);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.audio_emulation,
                                              ui->emulation_combo_box);
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.fast_forward_audio,
-                                             ui->ff_audio_combo_box); // AzaharFrame ffaudio
+    ConfigurationShared::ApplyPerGameSetting(
+        &Settings::values.fast_forward_audio, ui->ff_audio_combo_box,
+        [](s32 index) { return Settings::FastForwardAudioFromIndex(static_cast<u32>(index)); });
+    // AzaharFrame ffaudio, ffspeed
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.volume, ui->volume_combo_box, [this](s32) {
             return static_cast<float>(ui->volume_slider->value()) / ui->volume_slider->maximum();
@@ -272,7 +279,8 @@ void ConfigureAudio::SetupPerGameUI() {
 
     ConfigurationShared::SetColoredComboBox(
         ui->ff_audio_combo_box, ui->widget_ff_audio,
-        static_cast<u32>(Settings::values.fast_forward_audio.GetValue(true))); // AzaharFrame ffaudio
+        Settings::FastForwardAudioIndex(
+            Settings::values.fast_forward_audio.GetValue(true))); // AzaharFrame ffaudio, ffspeed
 
     ConfigurationShared::SetColoredTristate(
         ui->toggle_audio_stretching, Settings::values.enable_audio_stretching, audio_stretching);

@@ -867,8 +867,8 @@ void MenuPanel::BuildModel(const Host& host) {
     m.async_shaders = v.async_shader_compilation.GetValue();
     m.accurate_image_copies = // AzaharFrame accxfer, xfergpu: 0 Off, 1 Automatic, 2 On
         std::min(static_cast<int>(v.image_copy_accuracy.GetValue()), 2);
-    m.fast_forward_audio = static_cast<int>(std::min<u32>(
-        static_cast<u32>(v.fast_forward_audio.GetValue()), 2)); // AzaharFrame ffaudio
+    m.fast_forward_audio = static_cast<int>(Settings::FastForwardAudioIndex(
+        v.fast_forward_audio.GetValue())); // AzaharFrame ffaudio, ffspeed: the row's order
     m.fast_forward_speed = 0;
     {
         const double ff = v.turbo_limit.GetValue();
@@ -1070,8 +1070,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::AccurateImageCopies;
         break;
     case Id::FastForwardAudio: // AzaharFrame ffaudio: from the next sound block
-        r.value = static_cast<int>(std::min<u32>(u, 2));
-        Apply(v.fast_forward_audio, static_cast<Settings::FastForwardAudio>(r.value), per_game);
+        r.value = static_cast<int>(std::min<u32>(u, 3)); // the row's index
+        Apply(v.fast_forward_audio, Settings::FastForwardAudioFromIndex(u), per_game);
         r.setting = MenuSetting::FastForwardAudio;
         break;
     case Id::FastForwardSpeed:

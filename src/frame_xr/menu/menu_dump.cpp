@@ -855,6 +855,20 @@ int main(int argc, char** argv) {
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         v.hover = {Id::ReportProblem};
         ok &= shot("5a6-settings-general-help", pg, v);
+        // AzaharFrame ffspeed: the Fast Forward Audio row (four choices) with its tooltip
+        for (int pick : {1, 2, 3}) {
+            MenuModel fa = pg;
+            fa.fast_forward_audio = pick;
+            v = settings(SettingsSection::General);
+            v.scroll[static_cast<int>(Tab::Settings)] = 300.0f;
+            if (pick == 2) {
+                v.hover = {Id::FastForwardAudio, kLabelIndex};
+                v.tooltip = Id::FastForwardAudio;
+            }
+            ok &= shot(pick == 2 ? "5a7-ff-audio-normal-speed-tooltip"
+                                 : (pick == 1 ? "5a7-ff-audio-normal-pitch" : "5a7-ff-audio-muted"),
+                       fa, v);
+        }
     }
     v = settings(SettingsSection::Immersive);
     v.hover = {Id::GameFov};

@@ -5176,7 +5176,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         set(v.image_copy_accuracy, static_cast<Settings::ImageCopyAccuracy>(std::min<u32>(u, 2)));
         break;
     case S::FastForwardAudio: // AzaharFrame ffaudio: the audio thread reads it each block
-        set(v.fast_forward_audio, static_cast<Settings::FastForwardAudio>(std::min<u32>(u, 2)));
+        set(v.fast_forward_audio, Settings::FastForwardAudioFromIndex(u));
         break;
     case S::FastForwardSpeed:
         set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));

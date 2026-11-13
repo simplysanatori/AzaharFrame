@@ -39,6 +39,9 @@ DspInterface::~DspInterface() {
     if (capture_file) {
         std::fclose(capture_file);
     }
+    if (capture_in_file) {
+        std::fclose(capture_in_file);
+    }
 }
 
 void DspInterface::SetSink(AudioCore::SinkType sink_type, std::string_view audio_device) {
@@ -171,17 +174,26 @@ void DspInterface::DrainFifoBacklog(std::size_t num_frames) {
 
 // AzaharFrame ffaudio: a developer aid for the mocks: AZAHARFRAME_AUDIO_STATS=FILE logs the queue
 // once a second, AZAHARFRAME_AUDIO_CAPTURE=FILE keeps the raw output (s16 stereo at the sink rate).
+void DspInterface::InitStatFiles() {
+    if (stat_init) {
+        return;
+    }
+    stat_init = true;
+    if (const char* path = std::getenv("AZAHARFRAME_AUDIO_STATS"); path && *path) {
+        stat_file = std::fopen(path, "w");
+    }
+    if (const char* path = std::getenv("AZAHARFRAME_AUDIO_CAPTURE"); path && *path) {
+        capture_file = std::fopen(path, "wb");
+    }
+    // ffspeed: what the game made, as it reaches the skipper (to measure the tempo and the jumps)
+    if (const char* path = std::getenv("AZAHARFRAME_AUDIO_CAPTURE_IN"); path && *path) {
+        capture_in_file = std::fopen(path, "wb");
+    }
+}
+
 void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
                                    std::size_t frames_written, bool stretched) {
-    if (!stat_init) {
-        stat_init = true;
-        if (const char* path = std::getenv("AZAHARFRAME_AUDIO_STATS"); path && *path) {
-            stat_file = std::fopen(path, "w");
-        }
-        if (const char* path = std::getenv("AZAHARFRAME_AUDIO_CAPTURE"); path && *path) {
-            capture_file = std::fopen(path, "wb");
-        }
-    }
+    InitStatFiles();
     if (capture_file) {
         std::fwrite(buffer, sizeof(s16), num_frames * 2, capture_file);
     }
@@ -200,10 +212,12 @@ void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
     }
     stat_window = 0;
     const double queue_ms =
-        1000.0 * static_cast<double>(fifo.Size() + time_stretcher.PendingFrames()) / native_sample_rate;
+        1000.0 * static_cast<double>(fifo.Size() + time_stretcher.PendingFrames() + skipper.Queued()) /
+        native_sample_rate;
     std::fprintf(stat_file,
                  "t=%.2f limit=%.0f stretch=%d ratio=%.3f queue_ms=%.1f fifo=%zu pending=%zu out=%zu in=%zu "
-                 "underruns=%llu callbacks=%llu pushed=%llu gain=%.2f mode=%u cpu_ns=%llu trim=%.4f\n",
+                 "underruns=%llu callbacks=%llu pushed=%llu gain=%.2f mode=%u cpu_ns=%llu trim=%.4f "
+                 "skips=%llu skipped_ms=%.0f\n",
                  static_cast<double>(stat_frames) / rate, Settings::GetFrameLimit(),
                  stretched ? 1 : 0, time_stretcher.GetStretchRatio(), queue_ms, fifo.Size(),
                  time_stretcher.PendingFrames(), time_stretcher.OutputQueued(),
@@ -212,7 +226,9 @@ void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
                  static_cast<unsigned long long>(pushed_frames.load()), ff_gain,
                  static_cast<unsigned>(Settings::values.fast_forward_audio.GetValue()),
                  static_cast<unsigned long long>(stat_cpu_ns),
-                 Common::XrPacer::Get().audio_ratio.load(std::memory_order_relaxed)); // pacing
+                 Common::XrPacer::Get().audio_ratio.load(std::memory_order_relaxed), // pacing
+                 static_cast<unsigned long long>(skipper.Jumps()),
+                 1000.0 * static_cast<double>(skipper.SkippedFrames()) / native_sample_rate);
     std::fflush(stat_file);
 }
 
@@ -256,6 +272,9 @@ void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
         }
     }
     time_stretcher.SetLowLatency(low_latency);
+    if (!plan.skip && (want_stretching || plan.mute)) {
+        skipper.Reset(); // switched to another choice mid fast forward: what it held is dropped
+    }
 
     // Determine if we should stretch based on the current emulation speed.
     // TODO: Only activate audio stretching when emulation speed goes below 95% threshold
@@ -292,6 +311,38 @@ void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
             // so that they do not bleed into the next time the stretcher is enabled.
             time_stretcher.Clear();
         }
+        // AzaharFrame ffspeed: Normal Speed. The sound the game makes goes through the skipper
+        // (stretches at 1x, jumps to the newest sound); when fast forward ends it makes one last
+        // jump and plays out what is left, then the plain path below takes over.
+        bool skipping = plan.skip || !skipper.Idle();
+        if (skipping) {
+            if (plan.skip && !skipper.Finishing()) {
+                std::vector<s16> in{fifo.Pop()};
+                if (!rate_trim.Idle()) {
+                    std::vector<s16> held;
+                    std::array<s16, 2 * 16> part{};
+                    while (!rate_trim.Idle()) {
+                        const std::size_t n = rate_trim.Flush(part.data(), 16);
+                        held.insert(held.end(), part.begin(),
+                                    part.begin() + static_cast<std::ptrdiff_t>(2 * n));
+                    }
+                    in.insert(in.begin(), held.begin(), held.end());
+                }
+                InitStatFiles();
+                if (capture_in_file) {
+                    std::fwrite(in.data(), sizeof(s16), in.size(), capture_in_file);
+                }
+                skipper.Feed(in.data(), in.size() / 2);
+            } else {
+                skipper.Finish();
+            }
+            frames_written += skipper.Render(buffer + 2 * frames_written, num_frames - frames_written);
+            if (skipper.Idle() && !(plan.skip && !skipper.Finishing())) {
+                skipper.Reset();
+                skipping = false; // the rest of the block comes straight from the fifo
+            }
+        }
+        if (!skipping) {
         // AzaharFrame pacing: while the VR frame pacing lock runs the game fast (x1.0028 at
         // 120 Hz) the backlog is read that much faster, so it does not grow (rate_trim.h). Never
         // while fast forwarding (PlainReadRatio): ffaudio's Sped Up and Muted play it as it is.
@@ -311,6 +362,7 @@ void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
             fifo.Pop(fifo.Size()); // nothing of the fast forward is kept for after it
         }
         DrainFifoBacklog(num_frames);
+        }
     }
 
     if (frames_written > 0) {

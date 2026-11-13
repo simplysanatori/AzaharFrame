@@ -317,7 +317,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
                                                      "MMPX"};
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
-    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Muted"};
+    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
     static const std::vector<std::string> kMatchCamera{"Off", "Set Once", "Always"}; // fovonce
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
@@ -673,7 +673,7 @@ std::string ExplainFor(Id id) {
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::FastForwardAudio:
-        return "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch.";
+        return "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed plays at real speed.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
@@ -2090,7 +2090,9 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
         const float half =
             wrap ? wrap_w * 0.5f : kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
         const float lx = a.cx >= 0.0f ? a.cx : a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
-        const float cx = std::clamp(lx, pane.x0 + half + 4.0f, pane.x1 - half - 4.0f);
+        // (a text wider than the pane has no room to slide: centre it, never an inverted clamp)
+        const float lo = pane.x0 + half + 4.0f, hi = pane.x1 - half - 4.0f;
+        const float cx = hi < lo ? 0.5f * (pane.x0 + pane.x1) : std::clamp(lx, lo, hi);
         const auto tip = [&](float y, bool above) {
             if (wrap) {
                 kit.TooltipWrapped(cx, y, text, above, wrap_w);
