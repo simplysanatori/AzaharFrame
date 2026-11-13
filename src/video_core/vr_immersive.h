@@ -317,12 +317,17 @@ public:
 
     /// The angle between two head orientations, in degrees.
     static float TurnDeg(const XrContentPose& a, const XrContentPose& b) noexcept {
-        float dot = 0.0f;
-        for (int i = 0; i < 4; ++i) {
-            dot += a.orientation[i] * b.orientation[i];
-        }
-        dot = std::min(std::abs(dot), 1.0f);
-        return 2.0f * std::acos(dot) * 57.29578f;
+        // conj(a) x b, in doubles; atan2 keeps small angles exact (acos near 1 does not).
+        const double ax = -a.orientation[0], ay = -a.orientation[1], az = -a.orientation[2],
+                     aw = a.orientation[3];
+        const double bx = b.orientation[0], by = b.orientation[1], bz = b.orientation[2],
+                     bw = b.orientation[3];
+        const double x = aw * bx + ax * bw + ay * bz - az * by;
+        const double y = aw * by - ax * bz + ay * bw + az * bx;
+        const double z = aw * bz + ax * by - ay * bx + az * bw;
+        const double w = aw * bw - ax * bx - ay * by - az * bz;
+        return static_cast<float>(2.0 * std::atan2(std::sqrt(x * x + y * y + z * z), std::abs(w)) *
+                                  57.29577951308232);
     }
 
 private:

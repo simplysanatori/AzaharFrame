@@ -231,7 +231,10 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         Options wider;
         wider.wider = WiderFactor(4);
         const HeadLocked s = SolveHeadLocked(Placement{}, 110.0f, 16.0f / 9.0f, frame, 0.0f, wider);
-        REQUIRE(CoverSpareDeg(frame, s) == Approx(kFillMarginDeg).margin(0.05f));
+        // AzaharFrame oot: in the picture's own shape it fills the view across, at most.
+        const Cover cover = DefaultCover(frame, ViewMiddlePitch(frame), 0.0f);
+        REQUIRE(s.tan_half_y * s.aspect == Approx(cover.tan_x));
+        REQUIRE(s.tan_half_y <= cover.tan_y);
         REQUIRE(s.gain > 1.0f);
         REQUIRE(s.gain <= kMaxGain);
         REQUIRE(s.factor_y * std::tan(Rad(55)) / s.tan_half_y == Approx(s.gain));
@@ -1887,7 +1890,7 @@ TEST_CASE("FrameXr immersive: Wider View pads the game's own shape evenly for an
         REQUIRE(qx / (s.factor * aspect * t) == Approx(qy / (s.factor_y * t)));
         // A point of the game's frame (its corner, at w = 1 inside the view) lands where the
         // frame gives it: the frame is 1 / factor of the screen both ways.
-        REQUIRE((qx / s.factor) / qy == Approx(aspect));
+        REQUIRE((qx / s.factor) / (qy / s.factor_y) == Approx(aspect));
         // The gains: the padded game tangent over the screen's, per axis, within the limits.
         const float base = s.factor_y * live / qy;
         REQUIRE(s.gain == Approx(std::clamp(base / (1.0f - o.squeeze_y), kMinGain, kMaxGain)));
