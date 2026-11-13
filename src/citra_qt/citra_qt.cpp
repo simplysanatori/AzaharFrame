@@ -184,7 +184,9 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
+#include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
+#include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
@@ -3410,6 +3412,11 @@ void GMainWindow::BootGame(const QString& filename) {
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: the immersive screen's placement is saved per title id.
     FrameXr::SetGameTitleId(Loader::ResultStatus::Success == res ? title_id : 0);
+    // AzaharFrame fixes7: Screen Shape: Automatic starts at the shape the game's turned-on mods
+    // are made for (their catalog "aspect"), until the game camera is measured.
+    FrameXr::AutoShape::SetHint(Loader::ResultStatus::Success == res
+                                    ? Mods::EnabledModsAspectHint(title_id).value_or(0.0f)
+                                    : 0.0f);
     FrameHomebrew::ApplyBootSettings(filename); // AzaharFrame emerald: e.g. HLE audio
 #endif
 
