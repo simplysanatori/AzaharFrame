@@ -116,8 +116,9 @@ struct Tuning {
     /// AzaharFrame dbl: AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH (a test switch): the depth whose
     /// scenery the anchored screen keeps still while a picture is shown again as the eyes move
     /// (L::AnchorFollow): "far" (default, as ANCHOR_EYE on), "screen" (as ANCHOR_EYE off),
-    /// "focus" (the game's zero-parallax plane, measured: Mario Kart 7's kart, Link), or metres.
-    /// anchor_depth_m: below 0 far, 0 screen, -2 focus, else metres.
+    /// "focus" (the game's zero-parallax plane, measured: Mario Kart 7's kart, Link), "mid"
+    /// (halfway between far and focus: each steps by half), or metres.
+    /// anchor_depth_m: -1 far, 0 screen, -2 focus, -3 mid, else metres.
     float anchor_depth_m = -1.0f;
     /// AzaharFrame fovonce: AZAHARFRAME_IMMERSIVE_FOV_TRACE=1 logs each frame's camera angles
     /// while they move (a measurement, the angle followed, the eased ones), for mocks.
@@ -166,6 +167,7 @@ Tuning ReadTuning() {
         t.anchor_depth_m = v == "far"    ? -1.0f
                            : v == "screen" ? 0.0f
                            : v == "focus"  ? -2.0f
+                           : v == "mid"    ? -3.0f
                                            : std::clamp(static_cast<float>(std::atof(depth)), 0.05f,
                                                         1000.0f);
     }
@@ -1360,10 +1362,12 @@ float AnchorFollowNow(bool follow_eye) {
     const float scaler = L::GamePositionScale(
         static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
         Settings::values.factor_3d.GetValue());
-    const float follow = L::AnchorFollow(
+    const float focus = L::AnchorFollow(
         g.solved.distance, scaler,
         VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
         g.solved.gain_x);
+    // "mid": far scenery and the plane each step by half the plane's parallax.
+    const float follow = depth == -3.0f ? 0.5f * (1.0f + focus) : focus;
     static float said = 2.0f;
     static int64_t said_ms = 0;
     const int64_t now = VideoCore::Immersive::SteadyMs();
@@ -1371,10 +1375,11 @@ float AnchorFollowNow(bool follow_eye) {
         said = follow;
         said_ms = now;
         LOG_INFO(Frontend,
-                 "xr: anchor depth focus: the screen follows the eyes' move x{:.2f} (the game's "
+                 "xr: anchor depth {}: the screen follows the eyes' move x{:.2f} (the game's "
                  "zero-parallax plane {:.1f} units ahead, head motion x{:.1f}, yaw gain {:.2f}, "
                  "screen at {:.2f} m)",
-                 follow, VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
+                 depth == -3.0f ? "mid" : "focus", follow,
+                 VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
                  scaler, g.solved.gain_x, g.solved.distance);
     }
     return follow;
