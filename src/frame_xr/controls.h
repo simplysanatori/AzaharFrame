@@ -24,6 +24,7 @@
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/flat_vr_hold.h" // AzaharFrame flat
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/input/key_device.h"   // AzaharFrame keys
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/input/reticle.h"       // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
@@ -229,6 +230,7 @@ private:
     // ring that fills while Left and Right Click are held to switch the mode, and where the
     // ring goes (the cursor last drawn).
     Input::MouseFrame mouse_frame;
+    Input::KeyboardFrame keyboard_frame; // AzaharFrame keys
     Input::MousePointer mouse_pointer;
     Input::BottomScreenReticle reticle; ///< AzaharFrame mouse: Bottom Screen Reticle
     void SaveVrSettingSoon();           ///< AzaharFrame mouse
@@ -239,6 +241,7 @@ private:
     XrPosef mouse_mark{};
     float mouse_mark_size = 0.0f;
     void MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_input);
+    void KeyboardTick(const FrameInfo& info); // AzaharFrame keys
     void AddMouseRing(const FrameInfo& info, std::vector<Quad>& layers);
     /// A hold of one button (the mapper, which times Menu and View in a game, does not run
     /// while the menu shows). Arms only once the button was let go.

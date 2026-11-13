@@ -304,6 +304,197 @@ private:
     MouseRaw raw_;
 };
 
+/// AzaharFrame keys: the keyboards, read from their event nodes as the mice are (no window of the
+/// app has the keyboard focus in VR). Every keyboard adds in; one with no LEDs (a mouse's own
+/// keyboard node) counts only once a key goes down on it, kept for the run. Nothing is grabbed
+/// (the desktop keeps the keyboard) and no key is ever logged. The list is read again every 2 s
+/// and when a node stops reading (unplugged, a Bluetooth keyboard gone to sleep).
+class KeyboardReader {
+public:
+    ~KeyboardReader() {
+        for (Node& n : nodes_) {
+            Close(n);
+        }
+    }
+
+    KeyboardRaw Read() {
+        ScanIfDue(NowNs());
+#ifdef __linux__
+        for (Node& n : nodes_) {
+            if (n.fd < 0) {
+                continue;
+            }
+            input_event ev[64];
+            while (true) {
+                const ssize_t got = ::read(n.fd, ev, sizeof(ev));
+                if (got <= 0) {
+                    if (got < 0 && errno != EAGAIN && errno != EINTR) {
+                        LOG_INFO(Frontend, "xr: keyboard: \"{}\" ({}) stopped reading: gone",
+                                 n.name, n.event);
+                        Close(n);
+                        rescan_ = true;
+                    }
+                    break;
+                }
+                const std::size_t count = static_cast<std::size_t>(got) / sizeof(input_event);
+                for (std::size_t i = 0; i < count; i++) {
+                    const input_event& e = ev[i];
+                    if (e.type == EV_SYN && e.code == SYN_DROPPED) {
+                        RefreshKeys(n);
+                        continue;
+                    }
+                    if (e.type != EV_KEY || e.code == 0 || e.code >= kNumKeys || e.value == 2) {
+                        continue;
+                    }
+                    const std::size_t k = e.code;
+                    n.down[k] = e.value != 0;
+                    if (e.value == 0) {
+                        continue;
+                    }
+                    if (!Counts(n)) {
+                        pressed_groups_.push_back(n.group);
+                        LOG_INFO(Frontend, "xr: keyboard: \"{}\" ({}) typed: used as a keyboard",
+                                 n.name, n.event);
+                    }
+                    raw_.presses[k]++;
+                }
+            }
+        }
+        raw_.down = {};
+        bool present = false;
+        for (const Node& n : nodes_) {
+            if (n.fd < 0 || !Counts(n)) {
+                continue;
+            }
+            present = true;
+            for (std::size_t k = 0; k < raw_.down.size(); k++) {
+                raw_.down[k] = raw_.down[k] || n.down[k];
+            }
+        }
+        raw_.present = present;
+#endif
+        return raw_;
+    }
+
+    std::vector<KeyboardInfo> Keyboards() {
+        ScanIfDue(NowNs());
+        return UsableKeyboards(all_, pressed_groups_);
+    }
+
+private:
+    struct Node {
+        std::string event;
+        std::string name;
+        std::string group;
+        bool needs_key = false;
+        int fd = -1;
+        std::array<bool, kNumKeys> down{};
+    };
+
+    bool Counts(const Node& n) const {
+        return !n.needs_key || std::find(pressed_groups_.begin(), pressed_groups_.end(),
+                                         n.group) != pressed_groups_.end();
+    }
+
+    void ScanIfDue(int64_t now) {
+        if (!scanned_ || now - scanned_ns_ >= 2'000'000'000 || now < scanned_ns_ || rescan_) {
+            Scan(now);
+        }
+    }
+
+    static void Close(Node& n) {
+#ifdef __linux__
+        if (n.fd >= 0) {
+            ::close(n.fd);
+        }
+#endif
+        n.fd = -1;
+        n.down = {};
+    }
+
+    static void RefreshKeys(Node& n) {
+#ifdef __linux__
+        unsigned long keys[(KEY_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {};
+        if (::ioctl(n.fd, EVIOCGKEY(sizeof(keys)), keys) >= 0) {
+            for (int k = 0; k < kNumKeys; k++) {
+                const unsigned long word = keys[k / (8 * sizeof(unsigned long))];
+                n.down[static_cast<std::size_t>(k)] = (word >> (k % (8 * sizeof(unsigned long)))) & 1UL;
+            }
+        }
+#endif
+    }
+
+    void Scan(int64_t now) {
+        scanned_ = true;
+        scanned_ns_ = now;
+        rescan_ = false;
+        all_ = ClassifyKeyboards(ReadInputDevices());
+        std::string signature;
+        for (const KeyboardInfo& k : all_) {
+            signature += k.event + '\n' + k.name + '\n';
+        }
+        if (!logged_once_ || signature != logged_) {
+            logged_once_ = true;
+            logged_ = signature;
+            if (all_.empty()) {
+                LOG_INFO(Frontend, "xr: keyboard: no keyboards");
+            }
+            for (const KeyboardInfo& k : all_) {
+                LOG_INFO(Frontend, "xr: keyboard: \"{}\" ({} {:04x}:{:04x}, {}){}", k.name,
+                         BusName(k.bus), k.vendor, k.product, k.event,
+                         k.needs_key ? ": no LEDs, used once a key goes down on it" : "");
+            }
+        }
+        std::vector<Node> kept;
+        for (Node& n : nodes_) {
+            const bool still = std::any_of(all_.begin(), all_.end(), [&n](const KeyboardInfo& k) {
+                return k.event == n.event && k.group == n.group;
+            });
+            if (still && n.fd >= 0) {
+                kept.push_back(n);
+            } else {
+                Close(n);
+            }
+        }
+        for (const KeyboardInfo& k : all_) {
+            if (std::any_of(kept.begin(), kept.end(),
+                            [&k](const Node& n) { return n.event == k.event; })) {
+                continue;
+            }
+            Node n{k.event, k.name, k.group, k.needs_key};
+#ifdef __linux__
+            const std::string path = "/dev/input/" + k.event;
+            n.fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+            if (n.fd < 0) {
+                if (std::find(failed_.begin(), failed_.end(), path) == failed_.end()) {
+                    failed_.push_back(path); // once per node, not every 2 s
+                    LOG_WARNING(Frontend, "xr: keyboard: cannot read {} ({})", path,
+                                std::strerror(errno));
+                }
+                continue;
+            }
+            failed_.erase(std::remove(failed_.begin(), failed_.end(), path), failed_.end());
+            RefreshKeys(n); // held now: no press (KeyboardLogic keeps it from the game)
+            LOG_INFO(Frontend, "xr: keyboard: reading {} \"{}\"{}", path, n.name,
+                     Counts(n) ? "" : " (waiting for a key)");
+#endif
+            kept.push_back(std::move(n));
+        }
+        nodes_ = std::move(kept);
+    }
+
+    std::vector<Node> nodes_;
+    std::vector<KeyboardInfo> all_;
+    std::vector<std::string> pressed_groups_;
+    std::vector<std::string> failed_;
+    std::string logged_;
+    bool logged_once_ = false;
+    bool scanned_ = false;
+    bool rescan_ = false;
+    int64_t scanned_ns_ = 0;
+    KeyboardRaw raw_;
+};
+
 /// input_common's SDL, and the kernel's list of input devices.
 class SystemSource final : public GamepadSource {
 public:
@@ -337,9 +528,16 @@ public:
     std::vector<MouseInfo> Mice() override {
         return mouse_.Mice();
     }
+    KeyboardRaw Keyboard() override { // AzaharFrame keys
+        return keyboard_.Read();
+    }
+    std::vector<KeyboardInfo> Keyboards() override {
+        return keyboard_.Keyboards();
+    }
 
 private:
     MouseReader mouse_;
+    KeyboardReader keyboard_;
 };
 
 GamepadStorage SystemStorage() {
@@ -405,7 +603,9 @@ bool SetMapping(const std::string& id, const GamepadMapping& mapping) {
 }
 
 bool SetButton(const std::string& id, int button, int input) {
-    const int inputs = id == kMouseDeviceId ? kNumMouseInputs : kNumPadInputs;
+    const int inputs = id == kMouseDeviceId      ? kNumMouseInputs
+                       : id == kKeyboardDeviceId ? kNumKeys // AzaharFrame keys
+                                                 : kNumPadInputs;
     if (button < 0 || button >= Settings::NativeButton::NumButtons || input < -1 ||
         input >= inputs || id == kFrameDeviceId) {
         return false;

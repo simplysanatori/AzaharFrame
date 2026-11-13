@@ -35,6 +35,9 @@ enum : int { CirclePad = 32, CStick = 33 };
 /// The mouse's own targets: the input that touches the bottom screen, the one that opens the
 /// menu (RemapExtras).
 enum : int { Touch = 34, OpenMenu = 35 };
+/// AzaharFrame keys: the keyboard's modifier key (both sticks tilted halfway while held); Open
+/// Menu is the keyboard's too.
+enum : int { Modifier = 36 };
 } // namespace DsButton
 
 /// AzaharFrame padsui: Circle Pad, C-Stick -> an encoded Input::StickRoute (stick_route.h), or -1.
@@ -45,15 +48,25 @@ inline constexpr RemapSticks kDefaultSticks{0, 1}; ///< the left stick the Circl
 using RemapExtras = std::array<int8_t, 2>;
 inline constexpr RemapExtras kNoExtras{-1, -1};
 
+/// AzaharFrame keys: the keyboard's keys for the sticks (the Circle Pad's up, down, left, right,
+/// then the C-Stick's) and its modifier key, as key codes (key_names.h), -1 none.
+using RemapKeys = std::array<int8_t, 9>;
+inline constexpr RemapKeys kNoKeys{-1, -1, -1, -1, -1, -1, -1, -1, -1};
+inline constexpr std::size_t kModifierSlot = 8;
+
 /// AzaharFrame padsui: whose buttons the table holds, for which presses can take a 3DS button.
-/// The mouse's table holds MouseInputs (Left Click...) and it has the extras.
-enum class RemapSource : uint8_t { Frame, Pad, Mouse };
+/// The mouse's table holds MouseInputs (Left Click...) and it has the extras. AzaharFrame keys:
+/// the keyboard's holds key codes; its sticks are four keys each (RemapKeys), and of the extras
+/// it has Open Menu, and the modifier.
+enum class RemapSource : uint8_t { Frame, Pad, Mouse, Keyboard };
 
 /// What the drawing needs of the state.
 struct RemapView {
     bool editing = false;
     int listening = -1; ///< the 3DS button (Settings::NativeButton) waiting for a press, or -1
-    int step = 0;       ///< a stick listening: 0 "Push the Stick Up", 1 "Push the Stick Right"
+    /// A stick listening: 0 "Push the Stick Up", 1 "Push the Stick Right"; the keyboard's 0 to
+    /// 3: the key for up, down, left, right.
+    int step = 0;
     /// AzaharFrame input2: 3, 2, 1 in the last seconds before listening gives up, else 0.
     int countdown = 0;
     uint32_t rev = 0;   ///< counts every change, so the menu redraws
@@ -65,7 +78,8 @@ public:
     enum class Event {
         None,      ///< nothing happened
         Listening, ///< a 3DS button now waits for a press
-        Next,      ///< a stick took the push for up, and waits for the one for right
+        Next,      ///< a stick took the push for up, and waits for the one for right (the
+                   ///< keyboard: a key for one direction, and waits for the next)
         Moved,     ///< the 3DS button took a control no other 3DS button had
         Swapped,   ///< the 3DS button took another's control, which took its old one
         Cancelled, ///< listening ended with no change
@@ -102,6 +116,9 @@ public:
     static bool IsExtra(int target) {
         return target == DsButton::Touch || target == DsButton::OpenMenu;
     }
+    /// AzaharFrame keys: the targets a source has besides the 3DS buttons and sticks (the
+    /// mouse: Touch Screen, Open Menu; the keyboard: Open Menu, the modifier).
+    static bool HasTarget(RemapSource source, int target);
 
     /// Edit mode starts from `table` and `sticks` of `source`; the defaults are what Reset to
     /// Default restores.
@@ -109,7 +126,8 @@ public:
                RemapSource source = RemapSource::Frame, const RemapSticks& sticks = kDefaultSticks,
                const RemapSticks& stick_defaults = kDefaultSticks,
                const RemapExtras& extras = kNoExtras,
-               const RemapExtras& extra_defaults = kNoExtras);
+               const RemapExtras& extra_defaults = kNoExtras, const RemapKeys& keys = kNoKeys,
+               const RemapKeys& key_defaults = kNoKeys);
     RemapSource Source() const {
         return source;
     }
@@ -128,6 +146,9 @@ public:
     const RemapExtras& Extras() const {
         return extras;
     }
+    const RemapKeys& Keys() const { ///< AzaharFrame keys
+        return keys;
+    }
     /// A stick target listens.
     bool ListeningStick() const {
         return IsStick(view.listening);
@@ -143,6 +164,10 @@ public:
     /// and a 3DS button that had it takes the listening one's old control (the mouse's Touch
     /// Screen and Open Menu swap with the buttons alike). Pressing the control
     /// it already has ends listening (Cancelled); one that cannot be used keeps it (None).
+    /// AzaharFrame keys: the keyboard's 3DS stick takes four keys in turn (Next after each of
+    /// the first three, each swapping as a button does); the last one gives Moved or Swapped
+    /// for the four together (Cancelled when nothing changed). Cancel or the time running out
+    /// before the fourth puts all four back.
     Event Press(int control);
     /// The device's stick `stick` (Input::AnalogControl) is at `value` while a 3DS stick
     /// listens. A clear push along one axis is the first answer (up: Next), a push of the same
@@ -167,12 +192,22 @@ public:
     bool IgnoresPress(int control) const;
 
 private:
+    Event PressStickKey(int control);
+
     RemapTable table{};
     RemapTable defaults{};
     RemapSticks sticks = kDefaultSticks;
     RemapSticks stick_defaults = kDefaultSticks;
     RemapExtras extras = kNoExtras;
     RemapExtras extra_defaults = kNoExtras;
+    RemapKeys keys = kNoKeys; ///< AzaharFrame keys
+    RemapKeys key_defaults = kNoKeys;
+    /// AzaharFrame keys: the keyboard's stick listening: what to put back on Cancel, and
+    /// whether a step swapped.
+    RemapTable before_table{};
+    RemapExtras before_extras = kNoExtras;
+    RemapKeys before_keys = kNoKeys;
+    bool key_swapped = false;
     Input::StickPush up_push;
     RemapView view;
     RemapSource source = RemapSource::Frame;

@@ -359,6 +359,22 @@ void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_inp
     mouse_mark_valid = false; // set again by whoever draws the cursor this frame
 }
 
+// AzaharFrame keys: the keyboard, once a frame: its frame from the hub (the game gets its 3DS
+// buttons and sticks through the bridge), and Open Menu. While the game's keyboard is open the
+// keys type into it (swkbd_panel.cpp) and reach neither the game nor Open Menu (Esc is its
+// cancel there).
+void VrUi::KeyboardTick(const FrameInfo& info) {
+    const bool typing = swkbd_shown || GameKeyboardReadsKeyboards();
+    keyboard_frame = Input::Devices::Hub().PollKeyboard(info.display_time, typing);
+    if (keyboard_frame.open_menu && game_running) {
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.toggle_menu) {
+            LOG_INFO(Frontend, "xr: keyboard: Open Menu");
+            hooks.toggle_menu();
+        }
+    }
+}
+
 // AzaharFrame padsui: Left and Right Click held: the ring fills round the cursor (or, with none
 // drawn, in front of you).
 void VrUi::AddMouseRing(const FrameInfo& info, std::vector<Quad>& layers) {
@@ -1343,6 +1359,7 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         mode_latch.Filter(in); // the chord that made this session stays away until let go
     }
     MouseTick(info, in, have_input); // AzaharFrame padsui
+    KeyboardTick(info);              // AzaharFrame keys
 
     if (launch_pending && info.display_time - launch_time > 10'000'000'000LL) {
         launch_pending = false; // the boot failed or was refused; allow another pick

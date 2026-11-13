@@ -292,7 +292,8 @@ void DrawDs(Kit& kit, const DsDrawing& d, int lit) {
     circle(kSelect, kSmallR, kPart);
 
     // The chosen input: a ring in the primary colour.
-    if (lit >= 0 && !Remap::IsExtra(lit)) { // padsui: the mouse's own targets are not on the 3DS
+    // padsui: the mouse's own targets are not on the 3DS (keys: nor the keyboard's modifier)
+    if (lit >= 0 && !Remap::IsExtra(lit) && lit != DsButton::Modifier) {
         const DsPoint c = d.Anchor(lit);
         const float r = d.Radius(lit) + 4.0f;
         kit.Stroke({c.x - r, c.y - r, c.x + r, c.y + r}, r, 2.0f, Tok::kPrimary);
@@ -391,6 +392,14 @@ void DrawDsGlyph(Kit& kit, const Rect& b, int target, uint32_t fg, uint32_t bg) 
             const float y = cy + static_cast<float>(i) * r * 0.32f;
             kit.Fill({cx - w, y - h, cx + w, y + h}, h, fg);
         }
+        break;
+    }
+    case DsButton::Modifier: {
+        // AzaharFrame keys: the Circle Pad pushed halfway: its ring, the cap off centre.
+        kit.Dot(cx, cy, r, bg);
+        kit.Stroke({cx - r, cy - r, cx + r, cy + r}, r, 1.2f, fg, 0.7f);
+        const float cr = r * 0.42f, off = r * 0.3f;
+        kit.Dot(cx + off, cy - off, cr, fg);
         break;
     }
     default:

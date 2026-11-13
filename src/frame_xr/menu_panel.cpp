@@ -111,6 +111,23 @@ Menu::RemapTable MouseTableOf(const Input::GamepadMapping& m) {
     return t;
 }
 
+// AzaharFrame keys: the keyboard's stick keys and modifier in the menu's terms, and back.
+Menu::RemapKeys KeysOf(const Input::GamepadMapping& m) {
+    Menu::RemapKeys k = Menu::kNoKeys;
+    for (std::size_t i = 0; i < m.stick_keys.size(); i++) {
+        k[i] = m.stick_keys[i];
+    }
+    k[Menu::kModifierSlot] = m.modifier;
+    return k;
+}
+
+void SetKeys(Input::GamepadMapping& m, const Menu::RemapKeys& k) {
+    for (std::size_t i = 0; i < m.stick_keys.size(); i++) {
+        m.stick_keys[i] = k[i];
+    }
+    m.modifier = k[Menu::kModifierSlot];
+}
+
 Menu::RemapTable TableOf(const std::array<std::string, Menu::kRemapButtons>& buttons) {
     Menu::RemapTable t;
     t.fill(-1);
@@ -479,6 +496,13 @@ void MenuPanel::BeginDeviceEdit(const std::string& id, bool by_label) {
         remap.Begin(MouseTableOf(now), MouseTableOf(def), Menu::RemapSource::Mouse, {-1, -1},
                     {-1, -1}, {now.touch, now.open_menu}, {def.touch, def.open_menu});
         mouse_test_started = false;
+    } else if (id == Input::kKeyboardDeviceId) {
+        // AzaharFrame keys: its key codes as they are; Open Menu, the stick keys, the modifier.
+        const Input::GamepadMapping now = Input::Devices::GetMapping(id);
+        const Input::GamepadMapping def = Input::Devices::GetDefaultMapping(id);
+        remap.Begin(MouseTableOf(now), MouseTableOf(def), Menu::RemapSource::Keyboard, {-1, -1},
+                    {-1, -1}, {-1, now.open_menu}, {-1, def.open_menu}, KeysOf(now),
+                    KeysOf(def));
     } else {
         const Input::GamepadMapping now = Input::Devices::GetMapping(id);
         const Input::GamepadMapping def = Input::Devices::GetDefaultMapping(id);
@@ -512,6 +536,21 @@ void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
             m.open_menu = remap.Extras()[1];
             const bool saved = Input::Devices::SetMapping(edit_device, m);
             LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: mouse {}{}",
+                     e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved",
+                     saved ? "" : " (not saved)");
+            return;
+        }
+        if (edit_device == Input::kKeyboardDeviceId) {
+            // AzaharFrame keys: its keys, Open Menu, the stick keys and the modifier; Reset to
+            // Default leaves Use This Device as it is.
+            Input::GamepadMapping m = Input::Devices::GetMapping(edit_device);
+            for (std::size_t i = 0; i < m.buttons.size() && i < remap.Table().size(); i++) {
+                m.buttons[i] = remap.Table()[i];
+            }
+            m.open_menu = remap.Extras()[1];
+            SetKeys(m, remap.Keys());
+            const bool saved = Input::Devices::SetMapping(edit_device, m);
+            LOG_INFO(Frontend, "xr: in-game menu: Edit Controls: keyboard {}{}",
                      e == Event::Reset ? "Reset to Default" : e == Event::Swapped ? "swapped" : "moved",
                      saved ? "" : " (not saved)");
             return;
@@ -607,6 +646,32 @@ void MenuPanel::EditInput(const Input::InputFrame& in, bool have_input, float dt
     // AzaharFrame input2: a gamepad never works the menu, and the Frame's triggers (the beams'
     // select) cannot be bound (Remap::Listenable): no pointer select to guard.
     remap.SetPointerSelect(-1, false);
+    if (remap.Source() == Menu::RemapSource::Keyboard) {
+        // AzaharFrame keys: the keyboard being edited: its next key (a stick: four in turn; the
+        // hub's listening ends with each, so it starts again for the next).
+        if (remap.Listening() >= 0) {
+            if (!edit_pad_listening) {
+                edit_pad_listening = Input::Devices::BeginListen(edit_device);
+            }
+            if (edit_pad_listening) {
+                using State = Input::GamepadHub::ListenResult::State;
+                const Input::GamepadHub::ListenResult r = Input::Devices::PollListen();
+                if (r.state == State::Pressed) {
+                    edit_pad_listening = false;
+                    EditChanged(remap.Press(r.input), host);
+                } else if (r.state != State::Listening) {
+                    edit_pad_listening = false;
+                    EditChanged(remap.Cancel(), host); // the keyboard went away
+                }
+            }
+            EditChanged(remap.Tick(dt), host);
+        } else if (edit_pad_listening) {
+            Input::Devices::CancelListen();
+            edit_pad_listening = false;
+        }
+        edit_prev = now;
+        return;
+    }
     if (remap.Source() == Menu::RemapSource::Pad) {
         if (remap.Listening() >= 0) {
             if (!edit_pad_listening) {
@@ -780,6 +845,16 @@ void MenuPanel::BuildModel(const Host& host) {
                 e.recentre = gm.recentre;
                 e.speed = gm.speed;
                 e.enabled = gm.enabled;
+            } else if (d.kind == Input::DeviceKind::Keyboard) {
+                // AzaharFrame keys: its keys, Open Menu, the stick keys and the modifier.
+                e.kind = Menu::DeviceKind::Keyboard;
+                e.names = Menu::ButtonNames::Keyboard;
+                const Input::GamepadMapping gm = Input::Devices::GetMapping(d.id);
+                e.mapping = MouseTableOf(gm);
+                e.sticks = {-1, -1};
+                e.extras = {-1, gm.open_menu};
+                e.keys = KeysOf(gm);
+                e.enabled = gm.enabled;
             } else {
                 e.kind = Menu::DeviceKind::Gamepad;
                 e.names = Menu::NamesFor(static_cast<int>(d.type), d.steam_input);
@@ -793,8 +868,9 @@ void MenuPanel::BuildModel(const Host& host) {
                 m.devices.selected = static_cast<int>(m.devices.list.size());
                 e.mapping = remap.Table();
                 e.sticks = remap.Sticks();
-                if (e.kind == Menu::DeviceKind::Mouse) {
+                if (e.kind == Menu::DeviceKind::Mouse || e.kind == Menu::DeviceKind::Keyboard) {
                     e.extras = remap.Extras();
+                    e.keys = remap.Keys(); // AzaharFrame keys (none for the mouse)
                 }
             }
             m.devices.list.push_back(std::move(e));

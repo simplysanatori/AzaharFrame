@@ -13,6 +13,7 @@
 // DIR holds frame_controller_left.model and frame_controller_right.model (the files the
 // installer makes, in the user folder's frame-models/); without them the Controls tab is empty.
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -21,11 +22,13 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <lodepng.h>
 
 #include "frame_xr/input/controls.h"
+#include "frame_xr/input/key_names.h" // AzaharFrame keys
 #include "frame_xr/input/mouse.h"   // AzaharFrame mouse: its one-time toast
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/mem_watch.h"     // AzaharFrame memwarn
@@ -774,6 +777,62 @@ int main(int argc, char** argv) {
         ok &= shot("edit-3ds-mouse-pointer", mp, v, at);
         at.ring = 0.5f;
         ok &= shot("edit-3ds-mouse-chord", mp, v, at);
+
+        // AzaharFrame keys: a keyboard, its default (Azahar's desktop keys, gamepads.cpp's
+        // DefaultKeyboardMapping), then listening, then a WASD Circle Pad.
+        namespace K = Input::Key;
+        EditDevice kb;
+        kb.key = "keyboard";
+        kb.name = "Keyboard";
+        kb.kind = DeviceKind::Keyboard;
+        kb.names = ButtonNames::Keyboard;
+        kb.sticks = {-1, -1};
+        const std::array<std::pair<int, int>, 15> kd{{{DsButton::A, K::A},
+                                                      {DsButton::B, K::S},
+                                                      {DsButton::X, K::Z},
+                                                      {DsButton::Y, K::X},
+                                                      {DsButton::Up, K::T},
+                                                      {DsButton::Down, K::G},
+                                                      {DsButton::Left, K::F},
+                                                      {DsButton::Right, K::H},
+                                                      {DsButton::L, K::Q},
+                                                      {DsButton::R, K::W},
+                                                      {DsButton::Start, K::M},
+                                                      {DsButton::Select, K::N},
+                                                      {DsButton::ZL, K::Num1},
+                                                      {DsButton::ZR, K::Num2},
+                                                      {DsButton::Home, K::B}}};
+        for (const auto& [b, k] : kd) {
+            kb.mapping[static_cast<std::size_t>(b)] = static_cast<int8_t>(k);
+        }
+        kb.extras = {-1, K::Esc};
+        kb.keys = {K::Up, K::Down, K::Left, K::Right, K::I, K::K, K::J, K::L, K::D};
+        MenuModel mk = me;
+        mk.devices.list = {frame, ds4, mouse, kb};
+        mk.devices.selected = 3;
+        mk.devices.pointer = {};
+        v = {};
+        v.tab = Tab::Controls;
+        v.remap.editing = true;
+        ok &= shot("edit-3ds-keyboard", mk, v);
+        v.remap.listening = DsButton::CirclePad;
+        v.remap.step = 1;
+        v.hover = {Id::RemapCancel};
+        ok &= shot("edit-3ds-keyboard-stick", mk, v);
+        v.remap.step = 0;
+        v.remap.listening = DsButton::Modifier;
+        ok &= shot("edit-3ds-keyboard-listening", mk, v);
+        v.remap.listening = -1;
+        v.hover = {};
+        mk.devices.list[3].keys = {K::W, K::S, K::A, K::D, K::I, K::K, K::J, K::L, K::LeftShift};
+        auto& custom = mk.devices.list[3].mapping;
+        custom[DsButton::A] = K::Space;
+        custom[DsButton::B] = K::Enter;
+        custom[DsButton::Up] = K::Up;
+        custom[DsButton::Down] = K::Down;
+        custom[DsButton::Left] = K::Left;
+        custom[DsButton::Right] = K::Right;
+        ok &= shot("edit-3ds-keyboard-custom", mk, v);
     }
 
     // AzaharFrame autosave: Settings in three sections (General · Graphics · Immersive), the scope

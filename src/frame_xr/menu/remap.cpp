@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "frame_xr/input/key_names.h"
 #include "frame_xr/input/mouse.h"
 
 namespace FrameXr::Menu {
@@ -44,10 +45,24 @@ bool Remap::Listenable(int control, RemapSource from) {
     if (from == RemapSource::Mouse) { // AzaharFrame padsui: any of its seven inputs
         return control >= 0 && control < Input::kNumMouseInputs;
     }
+    if (from == RemapSource::Keyboard) { // AzaharFrame keys: any key with a name
+        return Input::BindableKey(control);
+    }
     // A gamepad's controls are Input::Controls too (lane pads: SDL's A B X Y, the D-pad, the
     // shoulders, the triggers, Start as Menu, Back as View, the stick clicks, the paddles as the
     // grips); its triggers do not click the beam, and its Guide and touchpad never reach here.
     return control >= 0 && control < Input::kNumControls;
+}
+
+bool Remap::HasTarget(RemapSource from, int target) {
+    switch (from) {
+    case RemapSource::Mouse:
+        return IsExtra(target);
+    case RemapSource::Keyboard:
+        return target == DsButton::OpenMenu || target == DsButton::Modifier;
+    default:
+        return false;
+    }
 }
 
 uint32_t RemapButtonsOn(const RemapTable& table, int control) {
@@ -62,8 +77,11 @@ uint32_t RemapButtonsOn(const RemapTable& table, int control) {
 
 void Remap::Begin(const RemapTable& from, const RemapTable& reset_to, RemapSource from_source,
                   const RemapSticks& from_sticks, const RemapSticks& sticks_reset_to,
-                  const RemapExtras& from_extras, const RemapExtras& extras_reset_to) {
+                  const RemapExtras& from_extras, const RemapExtras& extras_reset_to,
+                  const RemapKeys& from_keys, const RemapKeys& keys_reset_to) {
     table = from;
+    keys = from_keys;
+    key_defaults = keys_reset_to;
     extras = from_extras;
     extra_defaults = extras_reset_to;
     defaults = reset_to;
@@ -82,10 +100,17 @@ Remap::Event Remap::Choose(int target) {
     if (!view.editing) {
         return Event::None;
     }
-    const bool extra = IsExtra(target) && source == RemapSource::Mouse;
+    const bool extra = HasTarget(source, target);
     if ((!Editable(target) && !IsStick(target) && !extra) || target == view.listening) {
         return Cancel();
     }
+    if (view.listening >= 0) {
+        Cancel(); // AzaharFrame keys: a keyboard stick half done goes back first
+    }
+    before_table = table;
+    before_extras = extras;
+    before_keys = keys;
+    key_swapped = false;
     view.listening = target;
     view.step = 0;
     view.countdown = 0;
@@ -97,14 +122,22 @@ Remap::Event Remap::Choose(int target) {
 }
 
 Remap::Event Remap::Press(int control) {
-    if (!view.editing || view.listening < 0 || IsStick(view.listening)) {
+    const bool key_stick = source == RemapSource::Keyboard && IsStick(view.listening);
+    if (!view.editing || view.listening < 0 || (IsStick(view.listening) && !key_stick)) {
         return Event::None;
     }
     if (!Listenable(control, source) || IgnoresPress(control)) {
         return Event::None; // a button that cannot be used: keep listening
     }
-    // The table's 3DS buttons, then the mouse's Touch Screen and Open Menu, as one list.
+    if (key_stick) {
+        return PressStickKey(control);
+    }
+    // The table's 3DS buttons, then the mouse's Touch Screen and Open Menu (the keyboard's Open
+    // Menu and modifier, and its sticks' keys), as one list.
     const auto slot = [this](int target) -> int8_t& {
+        if (target == DsButton::Modifier) {
+            return keys[kModifierSlot];
+        }
         return IsExtra(target) ? extras[static_cast<std::size_t>(target - DsButton::Touch)]
                                : table[static_cast<std::size_t>(target)];
     };
@@ -130,19 +163,60 @@ Remap::Event Remap::Press(int control) {
             take_old(table[static_cast<std::size_t>(i)]);
         }
     }
-    if (source == RemapSource::Mouse) {
-        for (int t : {static_cast<int>(DsButton::Touch), static_cast<int>(DsButton::OpenMenu)}) {
-            if (t != target) {
-                take_old(slot(t));
-            }
+    for (int t : {static_cast<int>(DsButton::Touch), static_cast<int>(DsButton::OpenMenu),
+                  static_cast<int>(DsButton::Modifier)}) {
+        if (t != target && HasTarget(source, t)) {
+            take_old(slot(t));
+        }
+    }
+    if (source == RemapSource::Keyboard) {
+        for (std::size_t i = 0; i < kModifierSlot; i++) {
+            take_old(keys[i]);
         }
     }
     slot(target) = static_cast<int8_t>(control);
     return swapped ? Event::Swapped : Event::Moved;
 }
 
+// AzaharFrame keys: one of the four keys of a keyboard's 3DS stick (Press).
+Remap::Event Remap::PressStickKey(int control) {
+    const std::size_t at = (view.listening == DsButton::CirclePad ? 0 : 4) +
+                           static_cast<std::size_t>(view.step);
+    int8_t& mine = keys[at];
+    const int8_t old = mine;
+    if (old != control) {
+        const auto take_old = [&](int8_t& other) {
+            if (&other != &mine && other == control) {
+                other = old;
+                key_swapped = key_swapped || old >= 0;
+            }
+        };
+        for (int8_t& b : table) {
+            take_old(b);
+        }
+        take_old(extras[static_cast<std::size_t>(DsButton::OpenMenu - DsButton::Touch)]);
+        for (int8_t& k : keys) {
+            take_old(k);
+        }
+        mine = static_cast<int8_t>(control);
+    }
+    view.rev++;
+    view.countdown = 0;
+    listened = 0.0f;
+    if (view.step < 3) {
+        view.step++;
+        return Event::Next;
+    }
+    view.listening = -1;
+    view.step = 0;
+    if (table == before_table && extras == before_extras && keys == before_keys) {
+        return Event::Cancelled;
+    }
+    return key_swapped ? Event::Swapped : Event::Moved;
+}
+
 Remap::Event Remap::Stick(int stick, Input::Vec2f value) {
-    if (!view.editing || !IsStick(view.listening)) {
+    if (!view.editing || !IsStick(view.listening) || source == RemapSource::Keyboard) {
         return Event::None;
     }
     const Input::StickPush push = Input::DetectStickPush(stick, value);
@@ -185,6 +259,12 @@ Remap::Event Remap::Cancel() {
     if (!view.editing || view.listening < 0) {
         return Event::None;
     }
+    if (source == RemapSource::Keyboard && IsStick(view.listening)) {
+        // AzaharFrame keys: a stick's keys go back as they were (a half-done four).
+        table = before_table;
+        extras = before_extras;
+        keys = before_keys;
+    }
     view.listening = -1;
     view.step = 0;
     view.countdown = 0;
@@ -199,6 +279,7 @@ Remap::Event Remap::Reset() {
     table = defaults;
     sticks = stick_defaults;
     extras = extra_defaults;
+    keys = key_defaults; // AzaharFrame keys
     view.listening = -1;
     view.step = 0;
     view.countdown = 0;

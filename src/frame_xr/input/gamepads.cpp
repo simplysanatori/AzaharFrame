@@ -303,6 +303,48 @@ ThreeDsPadState ApplyMouseMapping(const std::array<bool, kNumMouseInputs>& held,
     return out;
 }
 
+// AzaharFrame keys
+GamepadMapping DefaultKeyboardMapping() {
+    GamepadMapping m = EmptyMapping();
+    const auto set = [&m](NB button, int key) { m.buttons[button] = static_cast<int8_t>(key); };
+    set(NB::A, Key::A);
+    set(NB::B, Key::S);
+    set(NB::X, Key::Z);
+    set(NB::Y, Key::X);
+    set(NB::Up, Key::T);
+    set(NB::Down, Key::G);
+    set(NB::Left, Key::F);
+    set(NB::Right, Key::H);
+    set(NB::L, Key::Q);
+    set(NB::R, Key::W);
+    set(NB::Start, Key::M);
+    set(NB::Select, Key::N);
+    set(NB::ZL, Key::Num1);
+    set(NB::ZR, Key::Num2);
+    set(NB::Home, Key::B);
+    m.stick_keys = {Key::Up, Key::Down, Key::Left, Key::Right, Key::I, Key::K, Key::J, Key::L};
+    m.modifier = Key::D;
+    m.open_menu = Key::Esc;
+    return m;
+}
+
+ThreeDsPadState ApplyKeyboardMapping(const std::array<bool, kNumKeys>& held,
+                                     const GamepadMapping& mapping) {
+    ThreeDsPadState out;
+    for (std::size_t b = 0; b < mapping.buttons.size(); b++) {
+        const int key = mapping.buttons[b];
+        if (key > 0 && key < kNumKeys && held[static_cast<std::size_t>(key)]) {
+            out.buttons[b] = true;
+        }
+    }
+    const bool modifier = mapping.modifier > 0 && held[static_cast<std::size_t>(mapping.modifier)];
+    for (int a = 0; a < 2; a++) {
+        out.analogs[static_cast<std::size_t>(a)] =
+            KeyStickValue(held, mapping.StickKeys(a), modifier);
+    }
+    return out;
+}
+
 ThreeDsPadState ApplyGamepadMapping(const PadInputs& pad, const GamepadMapping& mapping) {
     ThreeDsPadState out;
     for (std::size_t b = 0; b < mapping.buttons.size(); b++) {
@@ -730,6 +772,45 @@ std::vector<MouseInfo> UsableMice(const std::vector<MouseInfo>& candidates,
     return out;
 }
 
+// ---- Keyboards ----------------------------------------------------------------------------
+
+std::vector<KeyboardInfo> ClassifyKeyboards(const std::string& text) {
+    constexpr int kEvKey = 0x01;
+    std::vector<KeyboardInfo> out;
+    for (const ProcNode& n : ParseProcNodes(text)) {
+        bool keys = !n.info.event.empty() && n.info.vendor != kValveVendor && ProcBit(n.ev, kEvKey);
+        for (const int k : {int{Key::A}, int{Key::Z}, int{Key::Space}, int{Key::Enter},
+                            14 /* Backspace */}) {
+            keys = keys && ProcBit(n.key, k);
+        }
+        if (!keys) {
+            continue;
+        }
+        KeyboardInfo k;
+        k.name = n.info.name;
+        k.event = n.info.event;
+        k.bus = n.info.bus;
+        k.vendor = n.info.vendor;
+        k.product = n.info.product;
+        k.group = GroupOf(n);
+        k.needs_key = !ProcBit(n.ev, kEvLed);
+        out.push_back(std::move(k));
+    }
+    return out;
+}
+
+std::vector<KeyboardInfo> UsableKeyboards(const std::vector<KeyboardInfo>& candidates,
+                                          const std::vector<std::string>& pressed_groups) {
+    std::vector<KeyboardInfo> out;
+    for (const KeyboardInfo& k : candidates) {
+        if (!k.needs_key || std::find(pressed_groups.begin(), pressed_groups.end(), k.group) !=
+                                pressed_groups.end()) {
+            out.push_back(k);
+        }
+    }
+    return out;
+}
+
 // ---- EchoGuard ----------------------------------------------------------------------------
 
 std::array<bool, kNumPadInputs> FrameAsPad(const InputFrame& frame) {
@@ -830,6 +911,10 @@ void MappingFile::Parse(const std::string& text) {
         }
         const std::string key = line.substr(0, sp);
         std::string rest = line.substr(sp + 1);
+        if (key == kKeyboardDeviceId) {
+            ParseKeyboardLine(rest);
+            continue;
+        }
         MappingEntry e;
         e.mapping = EmptyMapping();
         bool have_buttons = false;
@@ -889,8 +974,15 @@ std::string MappingFile::Format() const {
     std::string out = "# Azahar for Frame: 3DS mappings of other controllers (Edit Controls).\n"
                       "# <key> buttons=<3DS A,B,X,Y,Up,Down,Left,Right,L,R,Start,Select,Debug,"
                       "Gpio14,ZL,ZR,Home,Power> analogs=<Circle Pad,C-Stick> vendor= product= "
-                      "name=\n";
+                      "name=\n"
+                      "# keyboard: only what differs from the default, as Linux key codes "
+                      "(-1 none): <3DS button>= circle= c_stick=<up,down,left,right> modifier= "
+                      "menu= use=\n";
     for (const auto& [key, e] : entries_) {
+        if (key == kKeyboardDeviceId) {
+            out += FormatKeyboardLine(e);
+            continue;
+        }
         out += key;
         out += " buttons=" + JoinValues(e.mapping.buttons.data(), e.mapping.buttons.size());
         out += " analogs=" + JoinValues(e.mapping.analogs.data(), e.mapping.analogs.size());
@@ -917,6 +1009,86 @@ std::string MappingFile::Format() const {
         out += " vendor=" + Hex4(e.vendor) + " product=" + Hex4(e.product);
         out += " name=" + e.name + "\n";
     }
+    return out;
+}
+
+// AzaharFrame keys: the keyboard's line (MappingEntry in gamepads.h).
+namespace {
+constexpr std::array<const char*, Settings::NativeButton::NumButtons> kKeyButtonNames{
+    "a", "b", "x", "y", "up", "down", "left", "right", "l", "r", "start", "select",
+    "debug", "gpio14", "zl", "zr", "home", "power"};
+
+int8_t KeyValue(const std::string& v) {
+    const long n = std::strtol(v.c_str(), nullptr, 10);
+    return n > 0 && n < kNumKeys ? static_cast<int8_t>(n) : -1;
+}
+} // namespace
+
+void MappingFile::ParseKeyboardLine(std::string rest) {
+    MappingEntry e;
+    e.mapping = DefaultKeyboardMapping();
+    const std::size_t name_at = rest.find("name=");
+    if (name_at != std::string::npos) {
+        e.name = rest.substr(name_at + 5);
+        rest = rest.substr(0, name_at);
+    }
+    std::istringstream words(rest);
+    std::string w;
+    while (words >> w) {
+        const std::size_t eq = w.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        const std::string k = w.substr(0, eq);
+        const std::string v = w.substr(eq + 1);
+        const auto button = std::find(kKeyButtonNames.begin(), kKeyButtonNames.end(), k);
+        if (button != kKeyButtonNames.end()) {
+            e.mapping.buttons[static_cast<std::size_t>(button - kKeyButtonNames.begin())] =
+                KeyValue(v);
+        } else if (k == "circle" || k == "c_stick") {
+            std::istringstream values(v);
+            std::string one;
+            const std::size_t at = k == "circle" ? 0 : 4;
+            for (std::size_t i = 0; i < 4 && std::getline(values, one, ','); i++) {
+                e.mapping.stick_keys[at + i] = KeyValue(one);
+            }
+        } else if (k == "modifier") {
+            e.mapping.modifier = KeyValue(v);
+        } else if (k == "menu") {
+            e.mapping.open_menu = KeyValue(v);
+        } else if (k == "use") {
+            e.mapping.enabled = v != "0";
+        }
+    }
+    entries_[kKeyboardDeviceId] = std::move(e);
+}
+
+std::string MappingFile::FormatKeyboardLine(const MappingEntry& e) {
+    const GamepadMapping def = DefaultKeyboardMapping();
+    const GamepadMapping& m = e.mapping;
+    std::string out = kKeyboardDeviceId;
+    for (std::size_t b = 0; b < m.buttons.size(); b++) {
+        if (m.buttons[b] != def.buttons[b]) {
+            out += std::string(" ") + kKeyButtonNames[b] + "=" + std::to_string(m.buttons[b]);
+        }
+    }
+    for (int a = 0; a < 2; a++) {
+        const auto keys = m.StickKeys(a);
+        if (keys != def.StickKeys(a)) {
+            out += a == 0 ? " circle=" : " c_stick=";
+            out += JoinValues(keys.data(), keys.size());
+        }
+    }
+    if (m.modifier != def.modifier) {
+        out += " modifier=" + std::to_string(m.modifier);
+    }
+    if (m.open_menu != def.open_menu) {
+        out += " menu=" + std::to_string(m.open_menu);
+    }
+    if (!m.enabled) {
+        out += " use=0";
+    }
+    out += " name=" + e.name + "\n";
     return out;
 }
 
@@ -1128,9 +1300,13 @@ std::vector<DeviceInfo> GamepadHub::Devices(int64_t now_ns) {
                 return a.name == b.name && a.vendor == b.vendor && a.product == b.product;
             });
         mice_ = std::move(mice);
+        // AzaharFrame keys: the keyboards, as often.
+        std::vector<KeyboardInfo> keyboards = source_.Keyboards();
+        const bool keyboards_changed = keyboards.empty() != keyboards_.empty();
+        keyboards_ = std::move(keyboards);
         mice_read_ = true;
         mice_read_ns_ = now_ns;
-        if (changed) {
+        if (changed || keyboards_changed) {
             revision_++;
         }
     }
@@ -1142,6 +1318,17 @@ std::vector<DeviceInfo> GamepadHub::Devices(int64_t now_ns) {
         mouse.vendor = mice_[0].vendor;
         mouse.product = mice_[0].product;
         out.push_back(std::move(mouse));
+    }
+    if (!keyboards_.empty()) {
+        // AzaharFrame keys: every keyboard is one device (they share one mapping).
+        DeviceInfo keyboard;
+        keyboard.kind = DeviceKind::Keyboard;
+        keyboard.id = kKeyboardDeviceId;
+        keyboard.name = "Keyboard";
+        keyboard.vendor = keyboards_[0].vendor;
+        keyboard.product = keyboards_[0].product;
+        keyboard.custom = file_.Find(kKeyboardDeviceId, 0, 0, "") != nullptr;
+        out.push_back(std::move(keyboard));
     }
     return out;
 }
@@ -1170,6 +1357,24 @@ bool GamepadHub::SetMouseMappingLocked(const GamepadMapping& mapping) {
     return SaveLocked();
 }
 
+GamepadMapping GamepadHub::KeyboardMappingLocked() {
+    LoadLocked();
+    if (const MappingEntry* e = file_.Find(kKeyboardDeviceId, 0, 0, "")) {
+        return e->mapping;
+    }
+    return DefaultKeyboardMapping();
+}
+
+bool GamepadHub::SetKeyboardMappingLocked(const GamepadMapping& mapping) {
+    LoadLocked();
+    file_.Remove(kKeyboardDeviceId, 0, 0, "");
+    if (!(mapping == DefaultKeyboardMapping())) {
+        file_.Set(kKeyboardDeviceId, {mapping, 0, 0, "Keyboard"});
+    }
+    revision_++;
+    return SaveLocked();
+}
+
 GamepadMapping GamepadHub::Mapping(const std::string& id, const ProfileRoutes& routes) {
     if (id == kFrameDeviceId) {
         return MappingOfRoutes(routes);
@@ -1177,6 +1382,9 @@ GamepadMapping GamepadHub::Mapping(const std::string& id, const ProfileRoutes& r
     std::scoped_lock lock{mutex_};
     if (id == kMouseDeviceId) {
         return MouseMappingLocked();
+    }
+    if (id == kKeyboardDeviceId) {
+        return KeyboardMappingLocked();
     }
     RefreshLocked();
     const Pad* pad = FindLocked(id);
@@ -1186,6 +1394,9 @@ GamepadMapping GamepadHub::Mapping(const std::string& id, const ProfileRoutes& r
 GamepadMapping GamepadHub::DefaultMapping(const std::string& id) {
     if (id == kMouseDeviceId) {
         return DefaultMouseMapping();
+    }
+    if (id == kKeyboardDeviceId) {
+        return DefaultKeyboardMapping();
     }
     std::scoped_lock lock{mutex_};
     RefreshLocked();
@@ -1197,6 +1408,9 @@ bool GamepadHub::SetMapping(const std::string& id, const GamepadMapping& mapping
     std::scoped_lock lock{mutex_};
     if (id == kMouseDeviceId) {
         return SetMouseMappingLocked(mapping);
+    }
+    if (id == kKeyboardDeviceId) {
+        return SetKeyboardMappingLocked(mapping);
     }
     LoadLocked();
     RefreshLocked();
@@ -1218,8 +1432,8 @@ bool GamepadHub::SetMapping(const std::string& id, const GamepadMapping& mapping
 bool GamepadHub::ResetMapping(const std::string& id) {
     std::scoped_lock lock{mutex_};
     LoadLocked();
-    if (id == kMouseDeviceId) {
-        if (!file_.Remove(kMouseDeviceId, 0, 0, "")) {
+    if (id == kMouseDeviceId || id == kKeyboardDeviceId) {
+        if (!file_.Remove(id, 0, 0, "")) {
             return false;
         }
         revision_++;
@@ -1247,11 +1461,25 @@ bool GamepadHub::BeginListen(const std::string& id, int ignore) {
         }
         listen_id_ = id;
         listen_is_mouse_ = true;
+        listen_is_keyboard_ = false;
         listening_ = true;
         listen_result_ = {ListenResult::State::Listening, -1};
         return true;
     }
     listen_is_mouse_ = false;
+    if (id == kKeyboardDeviceId) {
+        // AzaharFrame keys: the keyboard's next key down.
+        listen_keys_ = source_.Keyboard();
+        if (!listen_keys_.present) {
+            return false;
+        }
+        listen_id_ = id;
+        listen_is_keyboard_ = true;
+        listening_ = true;
+        listen_result_ = {ListenResult::State::Listening, -1};
+        return true;
+    }
+    listen_is_keyboard_ = false;
     RefreshLocked();
     Pad* pad = FindLocked(id);
     if (!pad || !pad->connected) {
@@ -1311,6 +1539,28 @@ GamepadHub::ListenResult GamepadHub::PollListen() {
             mouse_logic_.Swallow(input); // held until let go: never the game's
             return {ListenResult::State::Pressed, input};
         }
+        return {ListenResult::State::Listening, -1};
+    }
+    if (listen_is_keyboard_) {
+        // AzaharFrame keys: a key that went down since listening began (counts, so a key held
+        // then is not one until pressed again).
+        const KeyboardRaw now = source_.Keyboard();
+        if (!now.present) {
+            listening_ = false;
+            listen_result_ = {};
+            return {ListenResult::State::Gone, -1};
+        }
+        for (int k = 1; k < kNumKeys; k++) {
+            const std::size_t i = static_cast<std::size_t>(k);
+            if (now.presses[i] != listen_keys_.presses[i] && k != listen_ignore_ &&
+                BindableKey(k)) {
+                listening_ = false;
+                listen_result_ = {};
+                keyboard_logic_.Swallow(k); // held until let go: never the game's or Open Menu
+                return {ListenResult::State::Pressed, k};
+            }
+        }
+        listen_keys_ = now;
         return {ListenResult::State::Listening, -1};
     }
     RefreshLocked();
@@ -1425,6 +1675,16 @@ GamepadHub::MergeResult GamepadHub::Merge(const InputFrame& frame, const Profile
                MouseMappingLocked().enabled) {
         MergeIntoFrame(ApplyMouseMapping(mouse_frame_.held, MouseMappingLocked()), routes, controls);
     }
+    // AzaharFrame keys: the keyboard's (the frame PollKeyboard read).
+    if (swallow_now) {
+        keyboard_logic_.Release();
+        keyboard_frame_.held = {};
+    } else if (merge_buttons && merge_enabled_ && keyboard_frame_.present) {
+        const GamepadMapping km = KeyboardMappingLocked();
+        if (km.enabled) {
+            MergeIntoFrame(ApplyKeyboardMapping(keyboard_frame_.held, km), routes, controls);
+        }
+    }
     if (pads_.empty()) {
         return result;
     }
@@ -1488,6 +1748,7 @@ void GamepadHub::Release() {
     std::scoped_lock lock{mutex_};
     release_pending_ = true;
     mouse_logic_.Release();
+    keyboard_logic_.Release(); // AzaharFrame keys
 }
 
 MouseFrame GamepadHub::PollMouse(int64_t now_ns) {
@@ -1515,6 +1776,32 @@ MouseFrame GamepadHub::PollMouse(int64_t now_ns) {
 MouseFrame GamepadHub::LastMouse() {
     std::scoped_lock lock{mutex_};
     return mouse_frame_;
+}
+
+KeyboardFrame GamepadHub::PollKeyboard(int64_t now_ns, bool typing) {
+    static_cast<void>(now_ns);
+    std::scoped_lock lock{mutex_};
+    const GamepadMapping m = KeyboardMappingLocked();
+    KeyboardFrame f = keyboard_logic_.Update(source_.Keyboard(), m.open_menu);
+    if (typing || (listening_ && listen_is_keyboard_)) {
+        // Typing into the game's keyboard, or Edit Controls taking a key: nothing for the game
+        // or Open Menu, now or once it ends while still held.
+        keyboard_logic_.Release();
+        f.held = {};
+        f.open_menu = false;
+    }
+    if (!m.enabled) {
+        const bool present = f.present;
+        f = KeyboardFrame{};
+        f.disabled = present;
+    }
+    keyboard_frame_ = f;
+    return f;
+}
+
+KeyboardFrame GamepadHub::LastKeyboard() {
+    std::scoped_lock lock{mutex_};
+    return keyboard_frame_;
 }
 
 } // namespace FrameXr::Input

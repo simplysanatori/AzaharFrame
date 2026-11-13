@@ -375,9 +375,36 @@ A mouse is read from its event node (relative counts, so it works with no window
 
 With Frametop installed: Frametop's input relay grabs a mouse to drive its own 3D mouse, so Azahar for Frame sees none of its motion. Frametop pauses itself while a VR game runs (Pause while a VR game runs on, the default), and paused, its relay passes the mouse on through its virtual mouse ("frametop virtual mouse"), which Azahar for Frame reads when the real one is quiet. If the mouse does nothing in VR, pause Frametop: its Pause/resume Frametop action (a mouse button, key combination or controller button you mapped), or `input/ft-pause on` in Frametop's folder; `input/ft-pause off` resumes it after.
 
-**Every device at once.** The Frame controllers, every gamepad and the mouse feed the game together: their 3DS buttons press the Frame controls the profile gives those 3DS buttons, ORed, and of two sticks the one pushed further wins. Edit Controls' device row only chooses which device's mapping is edited; each device but the Frame Controllers has Use This Device (`use=0` when off: it reaches nothing). A dot on a device's chip shows it is connected (hollow when not used). The 3DS has one touch: the newest press of the beams, a touchpad or the mouse owns it until it lifts, and a source still down after losing it touches again only after a new press.
+**Every device at once.** The Frame controllers, every gamepad, the mouse and the keyboard feed the game together: their 3DS buttons press the Frame controls the profile gives those 3DS buttons, ORed, and of two sticks the one pushed further wins. Edit Controls' device row only chooses which device's mapping is edited; each device but the Frame Controllers has Use This Device (`use=0` when off: it reaches nothing). A dot on a device's chip shows it is connected (hollow when not used). The 3DS has one touch: the newest press of the beams, a touchpad or the mouse owns it until it lifts, and a source still down after losing it touches again only after a new press.
 
 Tests: `src/tests/frame_xr/mouse.cpp`, `gamepads.cpp` (every device in one frame), Edit Controls' in `src/tests/frame_xr/remap.cpp`.
+
+## A physical keyboard as a controller (AzaharFrame keys)
+
+A keyboard (USB or Bluetooth) plays the game in VR alongside the other devices, and is listed in Edit Controls as Keyboard once one is connected. Keyboards are found as the game's keyboard finds them (`ClassifyKeyboards`, the same test as `ParseKeyboards`: an event handler and a keyboard's keys, A to Z, Space, Enter and Backspace, not Valve's, so a controller in its keyboard mode is never a keyboard) and read from their event nodes (`KeyboardReader` in `devices.cpp`), every keyboard into one device with one mapping. A keyboard node without LEDs (a mouse's own keyboard node, such as the MX Master's "Keyboard", for its programmable buttons) counts only once a key goes down on it, which holds for the run. The list is read again every 2 s and when a node stops reading, so a Bluetooth keyboard that sleeps and reconnects comes back by itself. A keyboard's mouse interface (a Keychron's "Mouse" node) stays the mouse's, as above. Nothing is grabbed (the desktop keeps the keyboard) and no key is ever logged: one log line per keyboard when the list changes (`xr: keyboard: "Keychron Q1 Pro Keyboard" (Bluetooth 3434:0610, event7)`).
+
+Keys are by Linux key code, not by layout (named by the US key caps: `key_names.h`), codes 1 to 127: every key of a full-size keyboard; the volume, mute and power keys are the system's and are never bound. The default is Azahar's own desktop keyboard (`citra_qt/configuration/config.cpp`'s `default_buttons` and `default_analogs`), so a game plays as it does in the desktop app:
+
+| 3DS | Key | | 3DS | Key |
+| --- | --- | --- | --- | --- |
+| A | A | | L | Q |
+| B | S | | R | W |
+| X | Z | | ZL | 1 |
+| Y | X | | ZR | 2 |
+| D-Pad up / down / left / right | T / G / F / H | | Start | M |
+| Circle Pad up / down / left / right | Up / Down / Left / Right Arrow | | Select | N |
+| C-Stick up / down / left / right | I / K / J / L | | Home | B |
+| Modifier (both sticks halfway while held) | D | | Open Menu | Esc |
+
+Azahar's Debug (O), Gpio14 (P) and Power (V) keys are left out: nothing in VR reaches those 3DS buttons. Home, as on a gamepad, reaches the game only when the controls profile gives it a Frame control. Open Menu is Esc: nothing else uses it in the default, and Azahar binds no 3DS button to it.
+
+- **Sticks from keys** as Azahar's analog from buttons: full tilt along an axis, a diagonal at sqrt(1/2) on each axis, times 0.5 while the modifier is held; up and down together cancel out. Like every device's stick, the one pushed further wins against the Frame's.
+- **Typing and playing:** while the game's keyboard is open (`swkbd_shown`, or the game's keyboard reading keyboards), the keys type into it as above and none reaches the game or Open Menu (Esc is its cancel there); what is still held when typing ends stays away from the game until let go. So does what is held as the in-game menu closes, as for every device. A tap shorter than a frame still counts for one frame (the source counts presses).
+- **Open Menu** (Esc by default) opens and closes the in-game menu in a game.
+- **Edit Controls:** the 3DS drawing with the gamepad's chips (each 3DS button's key, the Circle Pad's and the C-Stick's four keys: "Arrow Keys", or the keys in the order up, left, down, right: "W A S D", "I J K L"), and, in the bar at the top where the title is (the mouse has Mouse Mode there), Open Menu and Modifier, both editable chips; the columns stay the gamepad's, 48 dp targets each. A button listens with "Press a Key…"; a stick takes four keys in turn, "Press a Key for Up…", "…Down…", "…Left…", "…Right…" (`Remap::Press`: each key swaps as a button does; Cancel or the 3, 2, 1 running out before the fourth puts all four back). Any key can be bound, Esc included; a key held as listening starts counts only once pressed again, and the key that answers never reaches the game or Open Menu. Reset to Default and Use This Device as for the other devices.
+- **Mapping file:** the line `keyboard` in `user/controller-mappings.txt`, with only what differs from the default, so a later default reaches every key the owner never changed: a 3DS button by its name (`a b x y up down left right l r start select debug gpio14 zl zr home power`), `circle=` and `c_stick=` (up, down, left, right), `modifier=`, `menu=` (key codes, -1 none), `use=0`; the default has no line. Builds before this one skip the line.
+
+Logic: `key_device.*` (pure: `KeyboardLogic`, `KeyStickValue`), `key_names.h`, the hub (`GamepadHub::PollKeyboard`, `Merge`), `VrUi::KeyboardTick` in `controls.cpp`. Tests: `src/tests/frame_xr/keys.cpp`; Edit Controls' in `remap.cpp`.
 
 ## Bottom Screen Reticle (AzaharFrame mouse)
 

@@ -19,6 +19,8 @@ add_executable(tests
     ../frame_xr/input/touchpad_touch.cpp # AzaharFrame touchpad
     ../frame_xr/input/gamepads.cpp # AzaharFrame pads
     ../frame_xr/input/mouse.cpp # AzaharFrame padsui
+    ../frame_xr/input/key_device.cpp # AzaharFrame keys
+    frame_xr/keys.cpp # AzaharFrame keys
     ../frame_xr/input/mouse_pointer.cpp # AzaharFrame padsui
     ../frame_xr/input/reticle.cpp # AzaharFrame mouse
     ../frame_xr/input/phys_keyboard.cpp # AzaharFrame input2

@@ -5,6 +5,7 @@
 #include "frame_xr/menu/edit_devices.h"
 
 #include "frame_xr/input/controls.h"
+#include "frame_xr/input/key_names.h"
 
 namespace FrameXr::Menu {
 
@@ -105,6 +106,9 @@ std::string SourceName(ButtonNames names, int control, bool face_by_position) {
                    ? kMouse[static_cast<std::size_t>(control)]
                    : std::string{};
     }
+    if (names == ButtonNames::Keyboard) { // AzaharFrame keys
+        return Input::KeyName(control);
+    }
     if (control < 0 || control >= Input::kNumControls) {
         return {};
     }
@@ -119,6 +123,14 @@ std::string StickRouteName(int8_t route) {
     }
     const std::string name = Input::AnalogControlName(static_cast<Input::AnalogControl>(r.stick));
     return r.Plain() ? name : name + " Flipped";
+}
+
+std::string StickSourceName(const EditDevice& d, int analog) {
+    if (d.kind == DeviceKind::Keyboard) {
+        const std::size_t at = analog == 0 ? 0 : 4;
+        return Input::KeyStickName({d.keys[at], d.keys[at + 1], d.keys[at + 2], d.keys[at + 3]});
+    }
+    return StickRouteName(d.sticks[analog == 0 ? 0 : 1]);
 }
 
 RemapTable PositionalPadTable() {

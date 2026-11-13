@@ -179,7 +179,7 @@ After a change to mods or textures, **Restart the Game to Apply** shows with a *
 
 | Control | What it does |
 |---|---|
-| A device chip at the bottom | Picks what you edit: **Frame Controllers**, a connected gamepad, or **Mouse** |
+| A device chip at the bottom | Picks what you edit: **Frame Controllers**, a connected gamepad, **Mouse** or **Keyboard** |
 | A chip on the drawing | Listens: **Press a Button…** shows. Press the device's button for that 3DS input. A button that already had a job swaps with it |
 | A chip on the Circle Pad or the C-Stick | **Push the Stick Up…**, then **Push the Stick Right…**. The two pushes set the stick and its directions |
 | **Cancel** | Stops listening |
@@ -232,6 +232,27 @@ A mouse works in VR. **Mouse Mode** on its Edit Controls page has two modes:
 Edit Controls changes what each button and the wheel do. Holding the left and right buttons to switch modes always works.
 
 With Frametop installed, Frametop holds the mouse while it is not paused. It pauses itself while a VR game runs, by default. If the mouse does nothing in VR, pause Frametop.
+
+### Playing with a keyboard
+
+A USB or Bluetooth keyboard plays in VR alongside the Frame controllers, gamepads and the mouse. It starts with Azahar's own keyboard layout, so a game plays as it does in Azahar on a PC:
+
+| Key | 3DS |
+|---|---|
+| A, S, Z, X | A, B, X, Y |
+| T, G, F, H | D-Pad up, down, left, right |
+| Q, W | L, R |
+| 1, 2 | ZL, ZR |
+| M, N | Start, Select |
+| B | Home |
+| Arrow keys | Circle Pad |
+| I, K, J, L | C-Stick |
+| D, held | Both sticks pushed halfway |
+| Esc | Opens and closes the in-game menu |
+
+Keys count by where they are on the keyboard, not by its language layout. On the **Keyboard** Edit Controls page, choose a chip and press a key (**Press a Key…**). The Circle Pad and the C-Stick take four keys in turn: up, down, left, right. **Open Menu** and **Modifier** are the chips at the top.
+
+While a game's keyboard is open, the keys type into it and never reach the game. The desktop keeps the keyboard too.
 
 ## The game keyboard and the Mii Selector
 
@@ -383,7 +404,7 @@ If VR cannot start at all (no SteamVR, or a renderer other than Vulkan), Azahar 
 
 The VR layout (apart from Face Buttons) is a controls profile in **Emulation > Configure > Controls**. There the Frame's controls are named **Frame A**, **Frame Left Bumper**, **Frame Menu** and so on. The first time VR starts, the buttons and sticks of the current profile get this layout, unless one of them already is a Frame control. After that your changes stay. The face buttons there are the 3DS-named ones, so they follow **Face Buttons**: with By Position, **Frame A** is the button in the 3DS's A place, which is the Frame's **B**. Keep a profile of your own under another name if you also use the window with a keyboard.
 
-In VR, gamepads and the mouse have their own layouts, set in **Edit Controls** (see Editing the controls). In Flat, SDL game controllers work as in Azahar, and so do a keyboard and mouse on the window.
+In VR, gamepads, the mouse and a keyboard have their own layouts, set in **Edit Controls** (see Editing the controls). In Flat, SDL game controllers work as in Azahar, and so do a keyboard and mouse on the window.
 
 ## Rumble
 

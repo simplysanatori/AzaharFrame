@@ -20,8 +20,11 @@
 //                      Bluetooth or USB), connected ones first, then "mouse" when a real mouse
 //                      is plugged in or paired (/proc/bus/input/devices: relative X and Y and a
 //                      left button, any bus, not Valve's virtual ones; a keyboard's mouse
-//                      interface once it moves: ClassifyInputDevices). Hot-plug shows at once
-//                      for gamepads, within 2 s for the mouse. A gamepad that went
+//                      interface once it moves: ClassifyInputDevices), then "keyboard"
+//                      ("Keyboard", AzaharFrame keys) when a keyboard is (ClassifyKeyboards: the
+//                      game keyboard's test, and one with no LEDs once a key goes down on it).
+//                      Hot-plug shows at once for gamepads, within 2 s for the mouse and the
+//                      keyboard. A gamepad that went
 //                      away stays listed with connected = false until the program ends.
 //    Revision()        changes whenever the list, a mapping or Face Buttons changes: redraw.
 //
@@ -39,6 +42,9 @@
 //                              own entry. Saves. False for "frame" and unknown ids.
 //      - "mouse" (AzaharFrame padsui): buttons hold MouseInputs (mouse.h); touch, open_menu,
 //        mode (Bottom Screen, Pointer) and speed (Cursor Speed) are its own.
+//      - "keyboard" (AzaharFrame keys): buttons and open_menu hold key codes (key_names.h);
+//        stick_keys (the Circle Pad's and the C-Stick's up, down, left, right) and modifier are
+//        its own. DefaultKeyboardMapping is Azahar's desktop default.
 //      - recentre (Recentre at Edge) and enabled (Use This Device: off, the device reaches
 //        nothing) are every device's but the Frame's.
 //    ResetMapping(id)          back to the default; saves.
@@ -47,7 +53,8 @@
 //  Listening (the UI picked a 3DS button and waits for the device's button):
 //    BeginListen(id)   start; inputs already held count only once let go. False if the pad is
 //                      not connected (or is "frame": the Frame has its own path). "mouse":
-//                      its clicks, side buttons and wheel notches (a MouseInput).
+//                      its clicks, side buttons and wheel notches (a MouseInput). "keyboard":
+//                      its next key down (a key code).
 //    PollListen()      every frame: Listening, Pressed (input = the PadInput, delivered once),
 //                      Gone (the pad went away), Idle. The press is kept from the game.
 //    CancelListen()    stop.
