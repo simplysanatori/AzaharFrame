@@ -133,6 +133,13 @@ enum class AudioEmulation : u32 {
     LLEMultithreaded = 2,
 };
 
+/// AzaharFrame ffaudio: how the sound plays while fast forwarding (a frame limit above 100%).
+enum class FastForwardAudio : u32 {
+    SpedUp = 0,      ///< as the game makes it: faster and higher pitched
+    NormalPitch = 1, ///< time stretched: the pitch stays, the tempo follows the game speed
+    Muted = 2,
+};
+
 enum class TextureFilter : u32 {
     NoFilter = 0,
     Anime4K = 1,
@@ -669,6 +676,8 @@ struct Values {
     SwitchableSetting<AudioEmulation> audio_emulation{AudioEmulation::HLE, Keys::audio_emulation};
     SwitchableSetting<bool> enable_audio_stretching{false, Keys::enable_audio_stretching};
     SwitchableSetting<bool> enable_realtime_audio{false, Keys::enable_realtime_audio};
+    SwitchableSetting<FastForwardAudio> fast_forward_audio{FastForwardAudio::NormalPitch,
+                                                           Keys::fast_forward_audio}; // ffaudio
     SwitchableSetting<float, true> volume{1.f, 0.f, 1.f, Keys::volume};
     Setting<AudioCore::SinkType> output_type{AudioCore::SinkType::Auto, Keys::output_type};
     Setting<std::string> output_device{"Auto", Keys::output_device};

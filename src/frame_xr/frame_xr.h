@@ -286,6 +286,7 @@ enum class MenuSetting {
     TextureFilter,      ///< AzaharFrame menuux: `value` a Settings::TextureFilter
     AsyncShaders,       ///< AzaharFrame menuux: `value` 0 or 1 (async_shader_compilation)
     FastForwardSpeed,   ///< AzaharFrame menuux: `value` percent (turbo_limit)
+    FastForwardAudio,   ///< AzaharFrame ffaudio: `value` a Settings::FastForwardAudio
     Autosave,      ///< AzaharFrame autosave: `value` 0 or 1 (autosave_enabled), may be per game
     AutosaveEvery, ///< `value` minutes (autosave_every)
     AutosaveKeep,  ///< `value` 1 to 10 (autosave_keep)

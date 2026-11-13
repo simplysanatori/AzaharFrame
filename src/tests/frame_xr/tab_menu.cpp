@@ -2847,3 +2847,21 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
     CHECK(!HasHit(d, Id::ReticleSpeed, -1));
     CHECK(HasHit(d, Id::ReticleSpeed, kLabelIndex));
 }
+
+// AzaharFrame ffaudio
+TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]") {
+    CHECK(LabelFor(Id::FastForwardAudio) == "Fast Forward Audio");
+    CHECK(OptionsFor(Id::FastForwardAudio) ==
+          std::vector<std::string>{"Sped Up", "Normal Pitch", "Muted"});
+    CHECK(ExplainFor(Id::FastForwardAudio) ==
+          "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at "
+          "their usual pitch.");
+    CHECK(PerGameSetting(Id::FastForwardAudio));
+    CHECK(SectionOf(Id::FastForwardAudio) == SettingsSection::General);
+    MenuModel m = Sample();
+    m.scope = 1;
+    m.game_value[static_cast<std::size_t>(Id::FastForwardAudio)] = true;
+    CHECK(GameValueRows(m, Tab::Settings, SettingsSection::General) ==
+          std::vector<Id>{Id::FastForwardAudio});
+    CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Graphics).empty());
+}

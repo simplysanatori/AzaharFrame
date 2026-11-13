@@ -110,6 +110,7 @@ foreach(KEY IN ITEMS
     "audio_emulation"
     "enable_audio_stretching"
     "enable_realtime_audio"
+    "fast_forward_audio" # AzaharFrame ffaudio
     "volume"
     "output_type"
     "output_device"

@@ -54,6 +54,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::AsyncShaders:
         f(v.async_shader_compilation);
         return true;
+    case Id::FastForwardAudio: // AzaharFrame ffaudio
+        f(v.fast_forward_audio);
+        return true;
     case Id::Autosave:
         f(v.autosave_enabled);
         return true;
