@@ -182,7 +182,7 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
     }
     if (preset.match_camera >= 0 && fits) {
         fill(v.vr_immersive_match_camera_mode, static_cast<u32>(preset.match_camera),
-             "Match Game Camera"); // AzaharFrame fovonce: 0 Off, 1 Set Once, 2 Always
+             "Detect Game FOV"); // AzaharFrame fovonce: 0 Off, 1 Once, 2 Always
     }
     // AzaharFrame depth: the game's world scale (the eye distance in mode 3).
     if (preset.depth_multiplier != 0 && fits) {
