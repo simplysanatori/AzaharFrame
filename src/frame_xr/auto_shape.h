@@ -77,5 +77,7 @@ void SetHint(float aspect);
 void Frame(bool screens_live, bool automatic);
 /// The aspect Automatic draws with now (5:3 until a game measured otherwise). Any thread.
 float Aspect();
+/// The shape Automatic decided for the game running now (XR thread: the log and tests).
+Shape CurrentShape();
 
 } // namespace FrameXr::AutoShape

@@ -177,4 +177,8 @@ float Aspect() {
     return g_aspect.load(std::memory_order_relaxed);
 }
 
+Shape CurrentShape() {
+    return S().decider.Current();
+}
+
 } // namespace FrameXr::AutoShape

@@ -5,9 +5,11 @@
 // AzaharFrame fixes7: Screen Shape: Automatic: the shape from the measured game camera, and the
 // emulation thread's sampling of the projection in the uniforms.
 
+#include <algorithm>
 #include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h"
 #include "frame_xr/auto_shape.h"
 #include "video_core/vr_auto_shape.h"
 
@@ -165,4 +167,55 @@ TEST_CASE("Auto shape: sampling is rate-limited and publishes each window's winn
     std::int64_t stamp = 0;
     REQUIRE(out.Read(0, tan_half_y, aspect, stamp));
     CHECK(aspect == Approx(k169).margin(0.001));
+}
+
+// integ7: Screen Shape: Automatic measures the game camera itself (g_measure_shape), whatever Match
+// Game Camera is: Off, Set Once while it measures, Set Once after it wrote its value (when the
+// immersive measurement, g_measure_camera, has stopped) and Always. The setting is read as
+// app.cpp reads it each frame.
+TEST_CASE("Auto shape: measures in every Match Game Camera mode", "[frame_xr][autoshape]") {
+    namespace VI = VideoCore::Immersive;
+    using Settings::MatchGameCamera;
+    auto& top = Settings::values.vr_top_aspect;
+    auto& match = Settings::values.vr_immersive_match_camera_mode;
+    auto& measured = Settings::values.vr_immersive_fov_measured;
+    const u32 top_before = top.GetValue(), match_before = match.GetValue();
+    const bool measured_before = measured.GetValue();
+    const auto automatic = [&top] { return top.GetValue() == kAutomatic; };
+    top.SetValue(kAutomatic);
+    SetHint(0.0f);
+    struct Case {
+        MatchGameCamera mode;
+        bool set_once_done;
+    };
+    std::int64_t last_stamp = 0;
+    for (const Case c : {Case{MatchGameCamera::Off, false}, Case{MatchGameCamera::SetOnce, false},
+                         Case{MatchGameCamera::SetOnce, true}, Case{MatchGameCamera::Always, false}}) {
+        INFO("Match Game Camera " << static_cast<u32>(c.mode) << (c.set_once_done ? " (done)" : ""));
+        match.SetValue(static_cast<u32>(c.mode));
+        measured.SetValue(c.set_once_done);
+        Frame(false, automatic()); // the previous game ended
+        Frame(true, automatic());  // a new game: 5:3 until measured
+        REQUIRE(VI::g_measure_shape.load());
+        REQUIRE(CurrentShape().value == 0);
+        // A widescreen mod's camera, a quarter second's winner at a time, for 2.5 s (after the
+        // previous case's, which the new game may read first: one measurement, no switch).
+        const std::int64_t start = std::max(VI::SteadyMs(), last_stamp);
+        for (int i = 1; i <= 10; i++) {
+            last_stamp = start + 250 * i;
+            VI::g_measured_shape.Publish(0.5f, k169, last_stamp);
+            Frame(true, automatic());
+            REQUIRE(VI::g_measure_shape.load());
+        }
+        CHECK(CurrentShape().value == 1);
+        CHECK(CurrentShape().aspect == Approx(k169));
+    }
+    // Another Screen Shape: nothing is measured.
+    top.SetValue(0);
+    Frame(true, automatic());
+    CHECK_FALSE(VI::g_measure_shape.load());
+    Frame(false, automatic());
+    top.SetValue(top_before);
+    match.SetValue(match_before);
+    measured.SetValue(measured_before);
 }
