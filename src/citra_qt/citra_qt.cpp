@@ -1956,9 +1956,20 @@ GMainWindow::GMainWindow(Core::System& system_)
                 }
                 const QString what = parts[1].trimmed();
                 const bool save = what.startsWith(QStringLiteral("save"));
-                const u32 slot = what.mid(4).toUInt();
+                // AzaharFrame oot: loadanyN loads slot N with Load Anyway (a state from another
+                // build, as the owner's quick save is for a mock of this one), asking nothing.
+                const bool any = what.startsWith(QStringLiteral("loadany"));
+                const u32 slot = what.mid(any ? 7 : 4).toUInt();
                 if ((!save && !what.startsWith(QStringLiteral("load"))) ||
                     slot >= Core::SaveStateSlotCount) {
+                    continue;
+                }
+                if (any) {
+                    QTimer::singleShot(static_cast<int>(parts[0].toDouble() * 1000.0), this,
+                                       [this, slot] {
+                                           LOG_INFO(Frontend, "xr test: state loadany{}", slot);
+                                           FrameLoadAnyway(slot);
+                                       });
                     continue;
                 }
                 auto uploads = [] {
