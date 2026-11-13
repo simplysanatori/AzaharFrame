@@ -330,6 +330,16 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
                            Pica::BytesPerPixel(config.output_format);
     }
 
+    // AzaharFrame feshimmer: an output that overlaps the input in memory goes to the software
+    // path. Fire Emblem Echoes and Fates halve their glow buffer in place, the output at the
+    // input's address, then halve it again into the space after it. As blits between the
+    // cache's overlapping surfaces it left garbage in the glow that changed every frame at a
+    // raised internal resolution (the shimmer of every 3D scene in VR), and the surfaces were
+    // remade every frame at about three times the GPU time. In memory, it is what the 3DS does.
+    if (TransferOverlaps(src_params.addr, src_params.size, dst_params.addr, dst_params.size)) {
+        return false;
+    }
+
     auto [src_surface_id, src_rect] = GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
     if (!src_surface_id) {
         return false;
