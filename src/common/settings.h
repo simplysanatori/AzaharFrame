@@ -138,7 +138,27 @@ enum class FastForwardAudio : u32 {
     SpedUp = 0,      ///< as the game makes it: faster and higher pitched
     NormalPitch = 1, ///< time stretched: the pitch stays, the tempo follows the game speed
     Muted = 2,
+    NormalSpeed = 3, ///< real speed and pitch: short stretches played as they are, skipping ahead
 };
+
+/// AzaharFrame ffspeed: the order the menus list the choices in (Sped Up | Normal Pitch |
+/// Normal Speed | Muted). The stored values stay as they were so older configs keep their choice.
+inline constexpr FastForwardAudio kFastForwardAudioOrder[] = {
+    FastForwardAudio::SpedUp, FastForwardAudio::NormalPitch, FastForwardAudio::NormalSpeed,
+    FastForwardAudio::Muted};
+
+constexpr u32 FastForwardAudioIndex(FastForwardAudio mode) {
+    for (u32 i = 0; i < 4; i++) {
+        if (kFastForwardAudioOrder[i] == mode) {
+            return i;
+        }
+    }
+    return 1; // an unknown value shows as Normal Pitch
+}
+
+constexpr FastForwardAudio FastForwardAudioFromIndex(u32 index) {
+    return kFastForwardAudioOrder[index < 4 ? index : 1];
+}
 
 enum class TextureFilter : u32 {
     NoFilter = 0,

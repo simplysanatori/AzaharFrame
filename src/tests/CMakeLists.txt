@@ -100,7 +100,7 @@ add_executable(tests
     audio_core/audio_fixures.h
     audio_core/decoder_tests.cpp
     audio_core/mic_queue_tests.cpp # AzaharFrame fixes11
-    audio_core/ff_audio_tests.cpp # AzaharFrame ffaudio
+    audio_core/ff_audio_tests.cpp # AzaharFrame ffaudio, ffspeed
     audio_core/rate_trim.cpp # AzaharFrame pacing
     audio_core/dsp_output_tests.cpp # AzaharFrame pacing + ffaudio
     video_core/pica_types.cpp

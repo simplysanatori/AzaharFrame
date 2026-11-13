@@ -11,6 +11,7 @@
 #include <span>
 #include <boost/serialization/access.hpp>
 #include "audio_core/audio_types.h"
+#include "audio_core/ff_skip.h"
 #include "audio_core/rate_trim.h"
 #include "audio_core/time_stretch.h"
 #include "common/common_types.h"
@@ -36,6 +37,7 @@ struct FastForwardAudioPlan {
     bool stretch = false;     ///< run the time stretcher
     bool low_latency = false; ///< ...with the small queue of the fast forward profile
     bool mute = false;        ///< fade out and keep the fifo empty
+    bool skip = false;        ///< ffspeed: Normal Speed, stretches played as they are with jumps
 };
 
 /// A frame limit above 100% (or none, 0) is fast forwarding.
@@ -53,6 +55,9 @@ constexpr FastForwardAudioPlan PlanFastForwardAudio(Settings::FastForwardAudio m
             plan.low_latency = true;
         } else if (mode == Settings::FastForwardAudio::Muted) {
             plan.mute = true;
+        } else if (mode == Settings::FastForwardAudio::NormalSpeed) {
+            plan.skip = true;
+            plan.stretch = false; // never both
         }
     }
     return plan;
@@ -159,6 +164,7 @@ protected:
 
 private:
     void FlushResidualStretcherAudio();
+    void InitStatFiles();
     void WriteAudioStats(const s16* buffer, std::size_t num_frames, std::size_t frames_written,
                          bool stretched);
     void OutputCallback(s16* buffer, std::size_t num_frames);
@@ -185,7 +191,9 @@ private:
     u64 stat_callbacks = 0, stat_underruns = 0, stat_frames = 0, stat_window = 0;
     std::FILE* stat_file = nullptr;
     std::FILE* capture_file = nullptr;
+    std::FILE* capture_in_file = nullptr; ///< ffspeed: the sound fed to the skipper
     bool stat_init = false;
+    FastForwardSkipper skipper{static_cast<unsigned>(native_sample_rate)}; ///< ffspeed
     RateTrim rate_trim; ///< AzaharFrame pacing: the backlog read at the game's speed while locked
     std::unique_ptr<Sink> sink;
 

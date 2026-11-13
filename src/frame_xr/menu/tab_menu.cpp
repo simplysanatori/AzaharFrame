@@ -312,7 +312,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
                                                      "MMPX"};
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
-    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Muted"};
+    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
@@ -644,7 +644,7 @@ std::string ExplainFor(Id id) {
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::FastForwardAudio:
-        return "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch.";
+        return "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch. Normal Speed plays at real speed and skips ahead to keep up.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
