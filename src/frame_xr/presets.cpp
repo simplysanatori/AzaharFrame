@@ -82,14 +82,14 @@ constexpr ImmersivePreset kSuperMario3DLand{.name = "Super Mario 3D Land",
 // (the default) a little more. About 55 degrees in play (35 to 70 in cutscenes).
 // AzaharFrame presets: Ocarina of Time 3D has exactly Majora's Mask 3D's values (the owner's
 // request). Its measured angle swings between 30 and 55 degrees in play, so Match Game Camera is
-// off and the 55 degrees hold; Narrow Screen 1 %, 3D Depth 30, the screen 9.21 degrees below the
-// view's middle, 3 m away.
+// off and the 55 degrees hold; 3D Depth 30, the screen 9.21 degrees below the view's middle, 3 m
+// away. AzaharFrame oot: no Narrow Screen of its own (it was the 10 % step), so the default (Off)
+// applies and the world keeps its shape.
 constexpr ImmersivePreset kZelda3D{.name = "Ocarina of Time 3D / Majora's Mask 3D",
                                    .mode = 2,
                                    .register_offset = -1,
                                    .depth_multiplier = 1,
                                    .game_fov = 55,
-                                   .narrow = 1,
                                    .match_camera = 0,
                                    .factor_3d = 30,
                                    .own_placement = true,

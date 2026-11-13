@@ -46,7 +46,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Detect Game FOV](#detect-game-fov) | **Off**, **Once**, **Always** | Always | global and per game | at once |
 | [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
-| [Narrow Screen](#narrow-screen) | **Off** to **30%** in 5% steps (the VR menu: **Off**, **10%**, **20%**, **30%**) | 10% | global and per game | at once |
+| [Narrow Screen](#narrow-screen) | **Off** to **30%** in 5% steps (the VR menu: **Off**, **10%**, **20%**, **30%**) | Off | global and per game | at once |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |

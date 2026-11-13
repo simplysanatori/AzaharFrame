@@ -238,7 +238,7 @@ Two per-game settings change this (**VR** group, logged as
   default. Mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
   Land draw correctly, but Super Mario 3D Land's levels are black below the floor.
 - **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0; AzaharFrame
-  immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame; 1, 2 and 3 are the
+  immersive2: percent, 0 to 30 in 5 % steps, Off by default (AzaharFrame oot; 10 % before), read every frame; 1, 2 and 3 are the
   10 % steps of earlier builds, `Layout::NarrowPercent`): the quad keeps its height and is that much
   narrower than the picture, and the yaw gets its own gain, `gain_x = base gain / (1 - narrow)`, so
   the middle stays locked both ways. The HUD at the sides moves in without changing the vertical
@@ -421,7 +421,7 @@ where a game has no value of its own and the global one is still the default): M
 40, Wider View 1.3x, Narrow Screen 30 % and Height 15 %, Internal Resolution 3x, ScaleForce, the
 screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
 4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view; Immersive stays Off by default, the player can turn it on) Internal Resolution 4x and Bicubic only; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
-Game Camera off, Narrow Screen 1 %, 3D Depth 30, screen 9.21 degrees below the middle, 3 m.
+Game Camera off, 3D Depth 30 (no Narrow Screen of their own since AzaharFrame oot), screen 9.21 degrees below the middle, 3 m.
 
 ### The immersive screen per game
 
@@ -431,14 +431,15 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 
 | Game | Screen Shape | Narrow Screen | Wider View | Up and down | Distance | Size |
 | --- | --- | --- | --- | --- | --- | --- |
-| Any game (default) | 3DS (5:3), or as measured | 10 % | 1.4x | 1.76x (1.26x Wider View) | 3 m | 1 (95 x 85 degrees at 55) |
-| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 1 % | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
-| Majora's Mask 3D | 3DS (5:3) | 1 % | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
-| Super Mario 3D Land | 3DS (5:3) | 10 % | 1.4x | 1.77x | 3 m | 1 (82 x 73) |
+| Any game (default) | 3DS (5:3), or as measured | Off (10 % before AzaharFrame oot) | 1.4x | 1.76x (1.26x Wider View) | 3 m | 1 (95 x 85 degrees at 55) |
+| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | Off (1 % before) | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
+| Majora's Mask 3D | 3DS (5:3) | Off (1 % before) | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
+| Super Mario 3D Land | 3DS (5:3) | Off (10 % before) | 1.4x | 1.77x | 3 m | 1 (82 x 73) |
 | Mario Kart 7 | 3DS (5:3) | Off | 1.4x | 1.77x | 3 m | 0.9 (91 x 76, gain 1.11) |
 
-The two Zelda rows use their preset's Narrow Screen 1 %, so the screen is about a tenth wider than
-the widths in the Size column, which were worked out at 10 %.
+The widths in the Size column were worked out at Narrow Screen 10 %, the default before
+AzaharFrame oot; at Off (now the default, and the Zelda presets no longer set 1 %, the 10 % step)
+the screen is about a tenth wider.
 
 Mario Kart 7 looked stretched at the view-filling size (gain 0.40 to 0.53) and with Narrow
 Screen 20 %; the vertical extension itself is not a stretch (the same scale both ways). Its

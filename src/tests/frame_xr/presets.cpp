@@ -181,7 +181,9 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
         REQUIRE(v.vr_immersive_game_fov.GetValue() == 55);
         REQUIRE(v.vr_immersive_match_camera_mode.GetValue() == 0); // Off
         REQUIRE(v.vr_immersive_positional_game_scaler.GetValue() == 1);
-        REQUIRE(v.vr_immersive_squeeze.GetValue() == 1);
+        // AzaharFrame oot: no Narrow Screen of its own: the default, Off.
+        REQUIRE(v.vr_immersive_squeeze.GetValue() == 0);
+        REQUIRE(v.vr_immersive_squeeze.UsingGlobal());
         REQUIRE(v.factor_3d.GetValue() == 30);
         REQUIRE(v.vr_si_mode_register_offset.GetValue() == -1);
     }

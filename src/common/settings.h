@@ -818,10 +818,11 @@ struct Values {
                                                                "vr_immersive_wider_view_level"};
     // AzaharFrame: Full (6DoF) only. Narrow Screen: the immersive screen this many percent
     // narrower at the same height, so the HUD at the sides moves in (frame_xr/immersive_layout.h).
-    // AzaharFrame immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame;
+    // AzaharFrame immersive2: percent, 0 to 30 in 5 % steps, read every frame (AzaharFrame oot:
+    // Off by default; it draws the world thinner, the owner's call);
     // 1, 2 and 3 are the 10 % steps of earlier builds (Layout::NarrowPercent). Both grips + D-pad
     // left or right set it for the game on view.
-    SwitchableSetting<u32, true> vr_immersive_squeeze{10, 0, 30, "vr_immersive_squeeze"};
+    SwitchableSetting<u32, true> vr_immersive_squeeze{0, 0, 30, "vr_immersive_squeeze"};
     // AzaharFrame immersive2: Narrow Height, the same up and down (percent, 0 to 30, read every
     // frame). Both grips + D-pad up or down set it for the game on view.
     SwitchableSetting<u32, true> vr_immersive_squeeze_y{0, 0, 30, "vr_immersive_squeeze_y"};
