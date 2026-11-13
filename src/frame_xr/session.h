@@ -168,7 +168,7 @@ public:
     int32_t Acquire(VideoCore::XrScreen screen) override;
     void Release(VideoCore::XrScreen screen, bool gpu_finished) override;
     void ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) override;
-    void WaitPresentSlot() override; // AzaharFrame pacing
+    void WaitPresentSlot(uint64_t game_swaps) override; // AzaharFrame pacing
     bool PackedTop() const override;
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
