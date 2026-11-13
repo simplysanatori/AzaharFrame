@@ -40,7 +40,7 @@ Hold **View**, then press the right bumper to Quick Save, or hold the left bumpe
 
 ## Fast Forward
 
-Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you, and doing it again shows "Normal Speed". The sound stays at its normal pitch while it runs. **Fast Forward Audio**, on the VR **Settings** tab (General) and in **Emulation > Configure > Audio**, picks **Sped Up** (the game's own sound, faster and higher), **Normal Pitch** (the default) or **Muted**. It also goes off when the game stops, when a menu opens and when you switch between VR and Flat. In Flat the speed in the status bar shows it.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you, and doing it again shows "Normal Speed". The sound stays at its normal pitch while it runs. **Fast Forward Audio**, on the VR **Settings** tab (General) and in **Emulation > Configure > Audio**, picks **Sped Up** (the game's own sound, faster and higher), **Normal Pitch** (the default), **Normal Speed** (real speed, skipping ahead to keep up) or **Muted**. It also goes off when the game stops, when a menu opens and when you switch between VR and Flat. In Flat the speed in the status bar shows it.
 
 ## Pointing
 

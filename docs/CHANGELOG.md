@@ -9,7 +9,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Changes on the in-game menu's **Settings**, **Controls** and **Position** tabs now apply to the running game by default. Choose **Global** to change them for every game.
 - **Settings** is in three sections: **General**, **Graphics** and **Immersive**.
 - Homebrew has its own tab in the in-game menu.
-- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game.
+- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Normal Speed**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game. **Normal Speed** plays the sound at its real speed and skips ahead to keep up.
 - **Preload Custom Textures** is off by default, and turning it on now asks first.
 - Save states from 1.1.1 are dimmed. They still load with **Load Anyway**.
 - Azahar runs under a memory limit. If a texture pack fills memory, Azahar closes instead of freezing the Frame.
@@ -20,7 +20,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
 - Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
 - Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
-- Code patches are matched to the game's own code. the European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
+- Code patches are matched to the game's own code. The European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
 - **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' pages on GitHub, GameBanana, MEGA or Google Drive.
 - Each mod shows its author, version, downloads and date on one line.
@@ -121,16 +121,17 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
 - The immersive screen now has the game's own shape. **Render Margin** adds the same margin on every side, and at **Off** you see exactly the game's picture. Before, the game drew a quarter more up and down than across, so a 5:3 game came out as 4:3 and full-screen pictures such as Ocarina of Time 3D's item screen were stretched. When a game zooms in to aim, the screen keeps its size and shape.
 - **Screen Shape** has a new **Automatic** choice. I made it follow the shape the game's camera draws with, 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9, so a mod or cheat that changes the picture's shape looks right without setting it yourself.
-- In **Full (6DoF): Ocarina of Time, Majora's Mask**, I now limit the game's 3D so far scenery never splits into a double image. At 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes on the big screen. It now shows the deepest 3D that still lines up, and follows the screen's size and distance as you change them. Your 3D Depth setting stays as you set it.
+- Faraway scenery no longer doubles in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
-- Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.
+- Both eyes now always see the same moment of the game.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
-- Render Margin (Wider View) no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
+- Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 - I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -30% to +30% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at 0%. A game where you set Narrow Screen keeps its screen: Narrow Screen 10% becomes Horizontal Scale -10%. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
-- **Wider View** is now called **Render Margin**. It works as before.
+- **Wider View** is now called **Render Margin**. It adds the same margin on every side, and **Off** shows exactly the game's own picture.
+- The game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
 
 ### Smaller changes
 

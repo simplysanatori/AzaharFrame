@@ -313,7 +313,7 @@ There is no **Save State** in that dialog on purpose: writing a save state needs
 
 ### Fast Forward
 
-Hold **View** and pull the right trigger to run the game at Azahar's turbo speed. Do it again to go back. "Fast Forward" shows in front of you for 2 seconds; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. The sound keeps its normal pitch; **Fast Forward Audio** (VR **Settings** tab, or **Emulation > Configure > Audio**) can also play it **Sped Up** or **Muted**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
+Hold **View** and pull the right trigger to run the game at Azahar's turbo speed. Do it again to go back. "Fast Forward" shows in front of you for 2 seconds; turning it off shows "Normal Speed" for 2 seconds. It goes off by itself when the game stops, when the in-game menu or the Flat menu opens and when you switch between VR and Flat. The speed is **Turbo Speed Limit** in **Emulation > Configure > General**. The sound keeps its normal pitch; **Fast Forward Audio** (VR **Settings** tab, or **Emulation > Configure > Audio**) can also play it **Sped Up**, at **Normal Speed** (skipping ahead to keep up) or **Muted**. Details: [CONTROLS.md](CONTROLS.md#fast-forward).
 
 ### Show Controllers and Show Stats
 
