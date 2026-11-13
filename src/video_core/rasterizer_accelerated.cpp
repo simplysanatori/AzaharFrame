@@ -665,6 +665,26 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                 VideoCore::Immersive::g_frame_trace.WorldUniforms(
                     VideoCore::Immersive::HashBytes(f.data(), sizeof(f[0]) * f.size()));
             }
+            // AzaharFrame dbl: the game's own near term of this draw, before the patch moves its
+            // camera (vr_view_matrix.h NearTermFromRows): with the far points it tells where the
+            // game's two eyes agree, which mode 3's eye distance is bounded by.
+            vr_world_near_k = std::nanf("");
+            vr_world_across = 0.0f;
+            if (viewMatrixIndex >= 4 && vs_uniforms.f.size() > viewMatrixIndex + 2) {
+                float rows[4][4];
+                for (int i = 0; i < 4; ++i) {
+                    for (int j = 0; j < 4; ++j) {
+                        rows[i][j] = f[viewMatrixIndex - 4 + i][j];
+                    }
+                }
+                const float view_t[3] = {f[viewMatrixIndex][3], f[viewMatrixIndex + 1][3],
+                                         f[viewMatrixIndex + 2][3]};
+                float k = 0.0f, across = 0.0f;
+                if (VideoCore::Immersive::NearTermFromRows(rows, view_t, k, across)) {
+                    vr_world_near_k = k;
+                    vr_world_across = across;
+                }
+            }
             if (matrixMode == 2)
             {
                 f[viewMatrixIndex][0] = vr_inv_view[0];
@@ -718,8 +738,13 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                         f[eye_indicator_register][eye_indicator_reg_index] != 0.0f)
                 {
                     const bool isLeftEye = (f[eye_indicator_register][eye_indicator_reg_index] < 0.f);
-                    f[viewMatrixIndex][3] +=
-                            VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, isLeftEye);
+                    // AzaharFrame dbl: the share of it the XR thread allows (StereoEyeLimit), so the
+                    // game's nearest plane stays within the comfort range of its far scenery.
+                    const float eye_scale = std::clamp(
+                        VideoCore::Immersive::g_eye_scale.load(std::memory_order_relaxed), 0.0f,
+                        1.0f);
+                    f[viewMatrixIndex][3] += VideoCore::Immersive::GameEyeOffset(
+                        vr_game_pos_scaler * eye_scale, vr_ipd, isLeftEye);
                 }
             }
 
