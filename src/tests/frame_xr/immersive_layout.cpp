@@ -1897,3 +1897,147 @@ TEST_CASE("FrameXr immersive: Wider View pads the game's own shape evenly for an
     REQUIRE(checked == 2000);
 }
 
+// AzaharFrame oot: the picture is tagged with the pose its world was drawn with, followed through
+// the copies into the framebuffer the game shows, not with the pose applied at the latch before.
+namespace {
+VideoCore::XrContentPose YawPose(int64_t time, float yaw_deg) {
+    VideoCore::XrContentPose p;
+    p.valid = true;
+    const float h = yaw_deg * 3.14159265f / 360.0f;
+    p.orientation[1] = std::sin(h);
+    p.orientation[3] = std::cos(h);
+    p.time = time;
+    return p;
+}
+} // namespace
+
+TEST_CASE("FrameXr immersive: the picture's pose is the one its world was drawn with",
+          "[frame_xr]") {
+    using VideoCore::Immersive::ContentTrack;
+    using Kind = ContentTrack::Kind;
+    constexpr u32 A = 0x18000000, B = 0x18046500;
+    SECTION("a game drawing its world every frame: as before") {
+        ContentTrack track, old(false);
+        for (int f = 1; f < 40; ++f) {
+            const u32 fb = f % 2 ? A : B;
+            for (ContentTrack* t : {&track, &old}) {
+                t->Applied(YawPose(f, 2.0f * f));
+                t->WorldDraw();
+                t->Transfer(fb);
+                t->Latch(fb);
+            }
+            REQUIRE(track.Drawn().time == f);
+            REQUIRE(track.Drawn().time == old.Drawn().time);
+            REQUIRE(track.LastKind() == Kind::Same);
+        }
+    }
+    SECTION("the world every other frame, the HUD in between (30 world pictures in 60 swaps)") {
+        ContentTrack track, old(false);
+        float worst_new = 0.0f, worst_old = 0.0f;
+        int world_frame = 0;
+        for (int f = 1; f < 60; ++f) {
+            const u32 fb = f % 2 ? A : B;
+            for (ContentTrack* t : {&track, &old}) {
+                t->Applied(YawPose(f, 3.0f * f)); // a steady head turn, 3 degrees a frame
+                if (f % 2) {
+                    t->WorldDraw();
+                }
+                t->Transfer(fb); // the HUD composited over the last world, copied in
+                t->Latch(fb);
+            }
+            if (f % 2) {
+                world_frame = f;
+            }
+            const VideoCore::XrContentPose truth = YawPose(world_frame, 3.0f * world_frame);
+            worst_new = std::max(worst_new, ContentTrack::TurnDeg(track.Drawn(), truth));
+            worst_old = std::max(worst_old, ContentTrack::TurnDeg(old.Drawn(), truth));
+            REQUIRE(track.Drawn().time == world_frame);
+            REQUIRE(track.LastKind() == (f % 2 ? Kind::Same : Kind::Earlier));
+            if (!(f % 2)) {
+                REQUIRE(track.LastTurnDeg() == Approx(3.0f).margin(0.01f));
+            }
+        }
+        REQUIRE(worst_new == Approx(0.0f).margin(0.01f));
+        REQUIRE(worst_old == Approx(3.0f).margin(0.01f)); // a frame's turn: the double image
+    }
+    SECTION("the picture copied in before the next frame's world is drawn") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        for (int f = 2; f < 20; ++f) {
+            track.Applied(YawPose(f, 2.0f * f));
+            track.Transfer(A); // frame f - 1's world into the framebuffer
+            track.WorldDraw(); // then frame f's world
+            track.Latch(A);
+            REQUIRE(track.Drawn().time == f - 1);
+            REQUIRE(track.LastKind() == Kind::Earlier);
+        }
+    }
+    SECTION("nothing copied into the framebuffer shown lately: the earlier rule") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        track.Transfer(A);
+        track.Latch(A);
+        for (int f = 2; f < 10; ++f) {
+            track.Applied(YawPose(f, 1.0f * f));
+            track.WorldDraw();
+            track.Latch(B); // drawn straight into B
+            REQUIRE(track.Drawn().time == f);
+            REQUIRE(track.LastKind() == Kind::Untraced);
+        }
+        // An old copy into A no longer counts after kTransferLatches latches.
+        track.Applied(YawPose(10, 10.0f));
+        track.Latch(A);
+        REQUIRE(track.Drawn().time == 10);
+        // The VBlank fallback (no swap): the earlier rule.
+        track.Applied(YawPose(11, 11.0f));
+        track.Transfer(A);
+        track.Latch();
+        REQUIRE(track.Drawn().time == 11);
+    }
+    SECTION("outside the Full modes: no pose, nothing kept") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        track.Transfer(A);
+        track.Latch(A);
+        track.Applied(VideoCore::XrContentPose{}); // immersive mode off
+        track.Transfer(A);
+        track.Latch(A);
+        REQUIRE_FALSE(track.Drawn().valid);
+    }
+    SECTION("any turn rate and swap pattern: the tag is the world's pose") {
+        std::mt19937 rng(7);
+        for (int run = 0; run < 200; ++run) {
+            ContentTrack track;
+            const int every = 1 + static_cast<int>(rng() % 4); // world every 1 to 4 swaps
+            const bool copy_first = rng() % 2;
+            const float rate = static_cast<float>(rng() % 600) / 100.0f; // up to 6 deg a frame
+            int world_frame = -1, copied_frame = -1;
+            for (int f = 0; f < 80; ++f) {
+                const u32 fb = (f % 2) ? A : B;
+                track.Applied(YawPose(f, rate * f));
+                const bool world = f % every == 0;
+                if (copy_first) {
+                    track.Transfer(fb);
+                    copied_frame = world_frame;
+                }
+                if (world) {
+                    track.WorldDraw();
+                    world_frame = f;
+                }
+                if (!copy_first) {
+                    track.Transfer(fb);
+                    copied_frame = world_frame;
+                }
+                track.Latch(fb);
+                if (copied_frame < 0) {
+                    continue;
+                }
+                const VideoCore::XrContentPose truth = YawPose(copied_frame, rate * copied_frame);
+                REQUIRE(ContentTrack::TurnDeg(track.Drawn(), truth) <= 0.01f);
+            }
+        }
+    }
+}

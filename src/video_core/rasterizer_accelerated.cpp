@@ -353,6 +353,8 @@ static void MatrixMultiply(float m[16], const float a[16], const float b[16]) {
 
 void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator::VSPicaUniformData &vs_uniforms)
 {
+    // AzaharFrame oot: whether the draws with these uniforms go through the patched world camera.
+    vr_world_uniforms = false;
     // AzaharFrame fixes7: Screen Shape: Automatic samples the game camera's projection here, in
     // any view, before immersive mode patches anything (vr_auto_shape.h).
     if (VideoCore::Immersive::g_measure_shape.load(std::memory_order_relaxed)) {
@@ -717,6 +719,25 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
             f[viewMatrixIndex][3] += vr_inv_view[12];
             f[viewMatrixIndex + 1][3] += vr_inv_view[13];
             f[viewMatrixIndex + 2][3] += vr_inv_view[14];
+
+            // AzaharFrame oot: the world camera, patched with the pose applied now
+            // (vr_immersive.h ContentTrack); its projection only for the frame trace.
+            vr_world_uniforms = true;
+            vr_world_tan_half_y = 0.0f;
+            vr_world_aspect = 0.0f;
+            if (viewMatrixIndex >= 4 && VideoCore::Immersive::FrameTrace::Traced()) {
+                float rows[4][4];
+                for (int i = 0; i < 4; ++i) {
+                    for (int j = 0; j < 4; ++j) {
+                        rows[i][j] = f[viewMatrixIndex - 4 + i][j];
+                    }
+                }
+                VideoCore::Immersive::Projection p;
+                if (VideoCore::Immersive::ProjectionFromRows(rows, p)) {
+                    vr_world_tan_half_y = p.tan_half_y;
+                    vr_world_aspect = p.aspect;
+                }
+            }
         }
     }
 }

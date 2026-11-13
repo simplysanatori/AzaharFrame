@@ -10,6 +10,7 @@
 #include "common/microprofile.h"
 #include "core/loader/loader.h"
 #include "video_core/pica/pica_core.h"
+#include "video_core/vr_immersive.h" // AzaharFrame oot
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/pica_to_gl.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
@@ -634,6 +635,10 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
 
     // Sync the uniform data
     UploadUniforms(accelerate);
+    // AzaharFrame oot: a draw through the game's patched world camera (vr_immersive.h).
+    if (accelerate && vr_world_uniforms) {
+        VideoCore::Immersive::OnWorldDraw(vr_world_tan_half_y, vr_world_aspect);
+    }
 
     // Draw the vertex batch
     bool succeeded = true;

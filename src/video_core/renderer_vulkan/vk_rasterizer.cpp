@@ -12,6 +12,7 @@
 #include "core/loader/loader.h"
 #include "core/memory.h"
 #include "video_core/pica/pica_core.h"
+#include "video_core/vr_immersive.h" // AzaharFrame oot
 #include "video_core/renderer_vulkan/pica_to_vk.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -612,6 +613,10 @@ bool RasterizerVulkan::Draw(bool accelerate, bool is_indexed) {
     SyncAndUploadLUTs();
     SyncAndUploadLUTsLF();
     UploadUniforms(accelerate);
+    // AzaharFrame oot: a draw through the game's patched world camera (vr_immersive.h).
+    if (accelerate && vr_world_uniforms) {
+        VideoCore::Immersive::OnWorldDraw(vr_world_tan_half_y, vr_world_aspect);
+    }
 
     // Begin rendering
     renderpass_cache.BeginRendering(framebuffer, draw_rect);

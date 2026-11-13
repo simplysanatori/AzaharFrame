@@ -21,9 +21,13 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "common/common_types.h"
+#include "common/logging/log.h" // AzaharFrame oot
 #include "common/settings.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/vr_view_matrix.h" // AzaharFrame depth
@@ -230,28 +234,270 @@ inline void Publish(const VRData& data) {
 }
 
 /// AzaharFrame doubling: emulation thread only. `applied`: the head pose the rasterizer draws
-/// with now (the last snapshot ApplyPending handed over); `drawn`: the one the game frame that
-/// ended at the last latch was drawn with, which is the picture the screens show until the next
-/// one (RendererVulkan::RenderToXr tags the XR images with it).
+/// with now (the last snapshot ApplyPending handed over); `drawn`: the one the picture the game
+/// shows from the last latch on was drawn with (RendererVulkan::RenderToXr tags the XR images
+/// with it).
+///
+/// AzaharFrame oot: the world in a picture is not always drawn in the game frame that shows it.
+/// A game can draw its world every other frame and only its HUD in between (30 world pictures
+/// in 60 swaps), or copy the picture into the framebuffer before it draws the next frame's world.
+/// Tagging such a picture with the pose applied at the latch before gave it a pose its world was
+/// not drawn with: on a head turn the anchored world stepped by the turn of one game frame and
+/// back (a double image the far-scenery line cannot see, as it trusts the tag). So the track
+/// follows the world itself: each draw through the game's patched world camera (WorldDraw) notes
+/// the pose it used, each display transfer or texture copy (Transfer) notes which pose's world
+/// it copied to its address, and the latch takes the pose of the newest copy into the
+/// framebuffer the game shows. Where the game shows a framebuffer no copy went into lately (it
+/// draws straight into it, or nothing was copied for a while), the earlier rule stays: the pose
+/// applied at the latch before. Nothing in it depends on a game, a setting or a frame rate.
 class ContentTrack {
 public:
+    /// Copies remembered (each framebuffer of a double- or triple-buffered game, both eyes).
+    static constexpr int kTransfers = 8;
+    /// A copy counts for this many latches (the latch it was made in and the ones after it, so
+    /// a double-buffered game showing a picture copied one frame earlier is followed).
+    static constexpr u32 kTransferLatches = 3;
+
+    explicit ContentTrack(bool follow_world = true) noexcept : follow_world_(follow_world) {}
+
     /// A snapshot was handed to the rasterizer: the draws from now on use its pose.
     void Applied(const XrContentPose& pose) noexcept {
         applied_ = pose;
     }
-    /// A game frame ended (FrameLatch): its draws used the pose applied so far.
-    void Latch() noexcept {
-        drawn_ = applied_;
+    /// AzaharFrame oot: a draw through the game's world camera, patched with the applied pose.
+    void WorldDraw() noexcept {
+        world_ = applied_;
+        have_world_ = true;
+    }
+    /// AzaharFrame oot: a display transfer or texture copy into `out` (a physical address): the
+    /// picture there now holds the world of the newest world draw.
+    void Transfer(u32 out) noexcept {
+        if (out == 0) {
+            return;
+        }
+        Copy& c = copies_[next_];
+        next_ = (next_ + 1) % kTransfers;
+        c = {out, latches_, have_world_, world_};
+    }
+    /// A game frame ended (FrameLatch). `shown`: the physical address of the top framebuffer
+    /// the game shows from now on (0: no swap, the VBlank fallback; the earlier rule).
+    void Latch(u32 shown = 0) noexcept {
+        const XrContentPose by_latch = applied_; // the rule up to 1.2: the pose applied last
+        const Copy* copy = shown != 0 ? NewestCopy(shown) : nullptr;
+        last_ = Kind::Untraced;
+        last_turn_deg_ = 0.0f;
+        if (copy && copy->have_world && copy->world.valid && by_latch.valid) {
+            if (copy->world.time == by_latch.time) {
+                last_ = Kind::Same;
+            } else {
+                last_ = Kind::Earlier;
+                last_turn_deg_ = TurnDeg(copy->world, by_latch);
+            }
+        }
+        drawn_ = follow_world_ && last_ == Kind::Earlier ? copy->world : by_latch;
+        ++latches_;
     }
     const XrContentPose& Drawn() const noexcept {
         return drawn_;
     }
 
+    /// What the last latch found (for the log and the tests): the world of the picture shown was
+    /// drawn with the pose the earlier rule gives (Same), with an earlier one (Earlier; the
+    /// head turned LastTurnDeg between them), or it could not be told (Untraced).
+    enum class Kind { Untraced, Same, Earlier };
+    Kind LastKind() const noexcept {
+        return last_;
+    }
+    float LastTurnDeg() const noexcept {
+        return last_turn_deg_;
+    }
+    bool FollowsWorld() const noexcept {
+        return follow_world_;
+    }
+
+    /// The angle between two head orientations, in degrees.
+    static float TurnDeg(const XrContentPose& a, const XrContentPose& b) noexcept {
+        float dot = 0.0f;
+        for (int i = 0; i < 4; ++i) {
+            dot += a.orientation[i] * b.orientation[i];
+        }
+        dot = std::min(std::abs(dot), 1.0f);
+        return 2.0f * std::acos(dot) * 57.29578f;
+    }
+
 private:
+    struct Copy {
+        u32 out = 0;
+        u32 latch = 0;
+        bool have_world = false;
+        XrContentPose world{};
+    };
+    const Copy* NewestCopy(u32 shown) const noexcept {
+        for (int i = 1; i <= kTransfers; ++i) {
+            const Copy& c = copies_[(next_ + kTransfers - i) % kTransfers];
+            if (c.out == shown && latches_ - c.latch < kTransferLatches) {
+                return &c;
+            }
+        }
+        return nullptr;
+    }
+
+    bool follow_world_ = true;
     XrContentPose applied_{};
     XrContentPose drawn_{};
+    XrContentPose world_{};
+    bool have_world_ = false;
+    std::array<Copy, kTransfers> copies_{};
+    int next_ = 0;
+    u32 latches_ = 0;
+    Kind last_ = Kind::Untraced;
+    float last_turn_deg_ = 0.0f;
 };
-inline ContentTrack g_content;
+/// AzaharFrame oot: AZAHARFRAME_IMMERSIVE_WORLD_TAG=0 tags a picture with the pose applied at
+/// the latch before, as up to 1.2 (A/B runs); the default follows the world (ContentTrack).
+inline bool FollowWorldFromEnv() {
+    const char* v = std::getenv("AZAHARFRAME_IMMERSIVE_WORLD_TAG");
+    return !(v && v[0] == '0');
+}
+inline ContentTrack g_content{FollowWorldFromEnv()};
+
+/// AzaharFrame oot: what the latches found, once a second in the log while a Full mode is on
+/// (emulation thread). Per top-screen swap: how many draws went through the patched world camera
+/// and how many copies into a framebuffer were made, and whether the world of the picture shown
+/// was drawn with the latch's pose, an earlier one (and how far the head had turned between
+/// them), or could not be told. With AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1 also the world draws of
+/// each swap in order (the first 24 of each second) and the distinct world projections.
+class FrameTrace {
+public:
+    static constexpr int kSequence = 24;
+    static constexpr int kProjections = 6;
+
+    void WorldDraw(float tan_half_y, float aspect, bool traced) noexcept {
+        ++world_draws_;
+        if (!traced) {
+            return;
+        }
+        for (int i = 0; i < projections_; ++i) {
+            Proj& pr = proj_[i];
+            if (std::abs(pr.tan_half_y - tan_half_y) <= 0.002f * pr.tan_half_y &&
+                std::abs(pr.aspect - aspect) <= 0.002f * pr.aspect) {
+                ++pr.draws;
+                return;
+            }
+        }
+        if (projections_ < kProjections) {
+            proj_[projections_++] = {tan_half_y, aspect, 1};
+        } else {
+            ++other_proj_;
+        }
+    }
+    void Transfer() noexcept {
+        ++copies_;
+    }
+    /// A latch with a swap (`swap`) or the VBlank fallback; `track` after its Latch.
+    void Latch(bool swap, const ContentTrack& track, bool full_mode, int64_t now_ms) {
+        if (swap) {
+            ++swaps_;
+            if (world_draws_ == 0) {
+                ++swaps_without_world_;
+            }
+            if (copies_ == 0) {
+                ++swaps_without_copy_;
+            }
+            if (sequence_len_ < kSequence) {
+                sequence_[sequence_len_++] = world_draws_;
+            }
+            switch (track.LastKind()) {
+            case ContentTrack::Kind::Same:
+                ++same_;
+                break;
+            case ContentTrack::Kind::Earlier:
+                ++earlier_;
+                turn_sum_ += track.LastTurnDeg();
+                turn_max_ = std::max(turn_max_, track.LastTurnDeg());
+                break;
+            default:
+                ++untraced_;
+            }
+        }
+        world_draws_ = 0;
+        copies_ = 0;
+        if (start_ms_ == 0) {
+            start_ms_ = now_ms;
+        }
+        if (now_ms - start_ms_ < 1000) {
+            return;
+        }
+        if (full_mode && swaps_ > 0) {
+            LOG_INFO(HW_GPU,
+                     "xr: immersive: {} top screen swaps, {} without a world draw, {} without a "
+                     "copy into a framebuffer; the picture's world drawn with the latch's pose "
+                     "{}, an earlier one {} (the head {:.2f} degrees on, max {:.2f}), not told "
+                     "{}; pictures tagged {} (AZAHARFRAME_IMMERSIVE_WORLD_TAG)",
+                     swaps_, swaps_without_world_, swaps_without_copy_, same_, earlier_,
+                     earlier_ ? turn_sum_ / static_cast<float>(earlier_) : 0.0f, turn_max_,
+                     untraced_, track.FollowsWorld() ? "with the world's pose" : "by the latch");
+            if (Traced()) {
+                std::string seq, proj;
+                for (int i = 0; i < sequence_len_; ++i) {
+                    seq += (i ? "," : "") + std::to_string(sequence_[i]);
+                }
+                for (int i = 0; i < projections_; ++i) {
+                    char b[64];
+                    std::snprintf(b, sizeof(b), "%s%.1f deg x %.3f (%u)", i ? ", " : "",
+                                  2.0f * std::atan(proj_[i].tan_half_y) * 57.29578f,
+                                  proj_[i].aspect, proj_[i].draws);
+                    proj += b;
+                }
+                LOG_INFO(HW_GPU,
+                         "xr: immersive frame trace: world draws per swap {}; world "
+                         "projections {}{}",
+                         seq, proj.empty() ? "none" : proj,
+                         other_proj_ ? " and " + std::to_string(other_proj_) + " more" : "");
+            }
+        }
+        *this = FrameTrace{};
+        start_ms_ = now_ms;
+    }
+    static bool Traced() {
+        static const bool on = [] {
+            const char* v = std::getenv("AZAHARFRAME_IMMERSIVE_FRAME_TRACE");
+            return v && v[0] == '1';
+        }();
+        return on;
+    }
+
+private:
+    struct Proj {
+        float tan_half_y = 0.0f;
+        float aspect = 0.0f;
+        u32 draws = 0;
+    };
+    u32 world_draws_ = 0, copies_ = 0;
+    u32 swaps_ = 0, swaps_without_world_ = 0, swaps_without_copy_ = 0;
+    u32 same_ = 0, earlier_ = 0, untraced_ = 0;
+    float turn_sum_ = 0.0f, turn_max_ = 0.0f;
+    std::array<u32, kSequence> sequence_{};
+    int sequence_len_ = 0;
+    std::array<Proj, kProjections> proj_{};
+    int projections_ = 0;
+    u32 other_proj_ = 0;
+    int64_t start_ms_ = 0;
+};
+inline FrameTrace g_frame_trace;
+
+/// AzaharFrame oot: a draw through the game's patched world camera (emulation thread), with the
+/// projection in the four registers before the view matrix (0: not read).
+inline void OnWorldDraw(float tan_half_y = 0.0f, float aspect = 0.0f) {
+    g_content.WorldDraw();
+    g_frame_trace.WorldDraw(tan_half_y, aspect, tan_half_y > 0.0f);
+}
+
+/// AzaharFrame oot: GPU::MemoryTransfer copied a picture to `out` (physical; emulation thread).
+inline void OnTransfer(u32 out) {
+    g_content.Transfer(out);
+    g_frame_trace.Transfer();
+}
 
 /// Emulation thread, once per game frame (FrameLatch): hands the newest snapshot to the
 /// rasterizer (again for a new rasterizer, as every game boot makes one).
@@ -278,8 +524,10 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
 }
 
 /// AzaharFrame doubling: a game frame ended (a latch): its draws used the pose applied so far.
-inline void LatchFrame(RasterizerInterface* rasterizer) {
-    g_content.Latch();
+/// `shown`: the top framebuffer the game shows from now on (0: no swap, the VBlank fallback).
+inline void LatchFrame(RasterizerInterface* rasterizer, u32 shown = 0) {
+    g_content.Latch(shown);
+    g_frame_trace.Latch(shown != 0, g_content, g_content.Drawn().valid, SteadyMs());
     ApplyPending(rasterizer);
 }
 
@@ -324,9 +572,10 @@ private:
 inline FrameLatch g_frame_latch;
 
 /// GPU::SetBufferSwap for the top screen (emulation thread): a game frame ended.
-inline void OnTopScreenSwap(RasterizerInterface* rasterizer) {
+/// `shown`: the physical address of the left framebuffer the game shows from now on.
+inline void OnTopScreenSwap(RasterizerInterface* rasterizer, u32 shown = 0) {
     if (g_frame_latch.OnTopSwap()) {
-        LatchFrame(rasterizer);
+        LatchFrame(rasterizer, shown);
     }
 }
 

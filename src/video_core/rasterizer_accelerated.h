@@ -85,6 +85,11 @@ protected:
     float vr_ipd = 0.065f;        ///< AzaharFrame ipd: the headset's IPD (SetVRIpd)
     float vr_ipd_logged = 0.0f;   ///< the separation last logged (0: none yet)
     float vr_inv_view[16] = {};
+    /// AzaharFrame oot: the uniforms uploaded last are the game's world camera, patched
+    /// (each draw with them is noted: vr_immersive.h OnWorldDraw), and its projection (trace).
+    bool vr_world_uniforms = false;
+    float vr_world_tan_half_y = 0.0f;
+    float vr_world_aspect = 0.0f;
 
     struct HeuristicResult {
         int32_t view_matrixregister = -1;
