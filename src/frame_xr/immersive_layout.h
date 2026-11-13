@@ -517,19 +517,26 @@ private:
     int64_t last_ms_ = 0;
 };
 
-/// Always: moves a value toward its target by at most kMaxStepDeg each displayed frame, the step
-/// itself changing by at most kStepChangeDeg a frame (kRampFrames to full speed), and braking so it
-/// arrives with a step that small: no kick when it starts or stops, the same both ways (a camera
-/// that comes back mid-way turns smoothly). 0.1 degrees a frame is 12 degrees a second at 120 Hz:
-/// a 10 degree cut takes about 0.8 s, 40 degrees about 3.5 s. The first value is taken as it is.
+/// Always: moves a value toward its target at most kMaxSpeedDegS (12 degrees a second), in time:
+/// each displayed frame moves it by its speed times that frame's real time (the display times'
+/// difference), so it feels the same at 72, 90, 120 or 144 Hz and when frames drop. The speed
+/// changes by at most kAccelDegS2 (full speed in kRampS), and it brakes so it arrives that slowly:
+/// no kick when it starts or stops, the same both ways (a camera that comes back mid-way turns
+/// smoothly). A frame's step is never more than kMaxStepDeg (a frame longer than kMaxFrameS, a
+/// hitch, moves it as one of kMaxFrameS). A 10 degree cut takes about a second, 40 degrees about
+/// 3.5 s. The first value is taken as it is; a frame with no time passed moves nothing.
 class FovSlew {
 public:
-    static constexpr float kMaxStepDeg = 0.1f;
-    static constexpr int kRampFrames = 24;
-    static constexpr float kStepChangeDeg = kMaxStepDeg / kRampFrames;
+    static constexpr float kMaxSpeedDegS = 12.0f;
+    static constexpr float kRampS = 0.2f;
+    static constexpr float kAccelDegS2 = kMaxSpeedDegS / kRampS;
+    /// The per-frame step cap: 12 degrees a second for a frame of 1/48 s.
+    static constexpr float kMaxStepDeg = 0.25f;
+    static constexpr float kMaxFrameS = kMaxStepDeg / kMaxSpeedDegS;
 
-    /// One displayed frame: the value now.
-    float Update(float target);
+    /// One displayed frame at display time `now_ns` (nanoseconds, any monotonic clock): the
+    /// value now.
+    float Update(float target, int64_t now_ns);
     void Reset() {
         *this = FovSlew{};
     }
@@ -543,12 +550,18 @@ public:
     float Step() const {
         return step_;
     }
+    /// The speed now (signed, degrees a second).
+    float Speed() const {
+        return speed_;
+    }
 
 private:
     bool have_ = false;
     bool moving_ = false;
     float value_ = 0.0f;
     float step_ = 0.0f;
+    float speed_ = 0.0f;
+    int64_t last_ns_ = 0;
 };
 
 /// The angles Match Game Camera hands the solver each frame, from the ones the choice gives
@@ -560,8 +573,10 @@ public:
         float screen_deg;
         float live_deg;
     };
-    /// `mode`: 0 Off, 1 Set Once, 2 Always (Settings::MatchGameCamera).
-    Out Update(unsigned mode, float screen_deg, float live_deg, int64_t now_ms);
+    /// `mode`: 0 Off, 1 Set Once, 2 Always (Settings::MatchGameCamera). `now_ms` times Set
+    /// Once's ease, `display_ns` (the frame's display time) Always's slew.
+    Out Update(unsigned mode, float screen_deg, float live_deg, int64_t now_ms,
+               int64_t display_ns);
     void Reset() {
         *this = CameraAngles{};
     }

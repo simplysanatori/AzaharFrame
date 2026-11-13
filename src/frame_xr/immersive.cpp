@@ -936,12 +936,14 @@ void OnFrame(const FrameInfo& info) {
         const bool own_fov =
             g.tuning.fov_from_env || !Settings::values.vr_immersive_game_fov.UsingGlobal();
         float screen_fov = own_fov ? g.game_fov_y_deg : cam.fov_y_deg;
-        // AzaharFrame fovonce: never in one step: Always moves both angles at most 0.1 degrees a
-        // displayed frame, ramped at both ends (FovSlew); Set Once eases in the value it wrote;
-        // Off uses the settings exactly as they are (L::CameraAngles).
+        // AzaharFrame fovonce: never in one step: Always moves both angles at most 12 degrees a
+        // second, timed by the frames' display times and ramped at both ends (FovSlew); Set Once
+        // eases in the value it wrote; Off uses the settings exactly as they are
+        // (L::CameraAngles).
         const int64_t now = VideoCore::Immersive::SteadyMs();
-        const L::CameraAngles::Out angles = g.angles.Update(
-            static_cast<unsigned>(MatchMode()), screen_fov, options.live_fov_y_deg, now);
+        const L::CameraAngles::Out angles =
+            g.angles.Update(static_cast<unsigned>(MatchMode()), screen_fov,
+                            options.live_fov_y_deg, now, static_cast<int64_t>(g.view.time));
         screen_fov = angles.screen_deg;
         options.live_fov_y_deg = angles.live_deg;
         // AzaharFrame oot: mode 2's menu rule: a screen of the game's own in front of its world

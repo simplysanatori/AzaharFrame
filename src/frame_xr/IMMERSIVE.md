@@ -131,9 +131,12 @@ exactly as a typed Immersive Game FOV would be.
   live angle to follow is the median of the last five measurements (`FovFollow`), so a new angle
   wins with the third in a row (about half a second, however the game spaces them): a flash, a
   one-off reading or a menu that is back sooner starts nothing. The screen's angle and the live one then move toward
-  it by at most 0.1 degrees per displayed frame (`FovSlew`; 12 degrees a second at 120 Hz, a
-  10 degree cut in about 0.8 s, 40 degrees in about 3.5 s), and the step itself changes by at most
-  a 24th of that a frame, so it starts and stops gently: no kick at either end, the same both ways,
+  it at most 12 degrees a second (`FovSlew`, timed by each frame's display time, so the same at
+  72, 90, 120 or 144 Hz and through dropped frames; AzaharFrame integ8: it was 0.1 degrees per
+  displayed frame before, slower at 90 Hz; a frame's step is still capped, at 0.25 degrees: a hitch
+  moves it as a 1/48 s frame), a 10 degree cut in about a second, 40 degrees in about 3.5 s, and the
+  speed changes by at most 60 degrees a second per second (full speed in 0.2 s), so it starts and
+  stops gently: no kick at either end, the same both ways,
   and a camera that comes back mid-way is followed back the same way. A gradual change (Mario
   Kart 7 widening with speed, a few degrees a second) is followed about half a second behind.
   Before this, a cut moved the gain in one frame ("the whole view jumps"); the half-second ease of

@@ -1034,11 +1034,13 @@ float FovEase::Update(float target, int64_t now_ms) {
     return value_;
 }
 
-// AzaharFrame fovonce: a step-limited, ramped follow (a trapezoid in speed). Each frame the
-// step toward the target is the largest of (speed up, keep, slow down) that still leaves room to
-// brake at kStepChangeDeg a frame; the last step lands on the target. A target that comes back
-// past the value while it moves: it slows down, turns and comes back the same way.
-float FovSlew::Update(float target) {
+// AzaharFrame fovonce: a speed-limited, ramped follow (a trapezoid in speed), in time
+// (AzaharFrame integ8: it was 0.1 degrees per displayed frame, so it ran slower at 90 Hz than at
+// 120). Each frame the speed toward the target is the largest of (speed up, keep, slow down)
+// that still leaves room to brake at kAccelDegS2 with frames of this length; the last step lands
+// on the target. A target that comes back past the value while it moves: it slows down, turns
+// and comes back the same way.
+float FovSlew::Update(float target, int64_t now_ns) {
     if (!std::isfinite(target)) {
         return value_;
     }
@@ -1046,48 +1048,62 @@ float FovSlew::Update(float target) {
         have_ = true;
         value_ = target;
         step_ = 0.0f;
+        speed_ = 0.0f;
+        last_ns_ = now_ns;
         moving_ = false;
         return value_;
     }
-    constexpr float a = kStepChangeDeg;
+    const float dt = std::min(static_cast<float>(std::max<int64_t>(now_ns - last_ns_, 0)) / 1e9f,
+                              kMaxFrameS);
+    last_ns_ = std::max(last_ns_, now_ns);
+    step_ = 0.0f;
+    if (dt <= 0.0f) {
+        return value_; // no time passed (or the clock went back): nothing moves
+    }
+    const float a = kAccelDegS2 * dt; // the most the speed changes this frame
     const float e = target - value_;
     const float dist = std::abs(e);
-    if (dist < 1e-4f && std::abs(step_) <= a) {
+    if (dist < 1e-4f && std::abs(speed_) <= a) {
         value_ = target;
-        step_ = 0.0f;
+        speed_ = 0.0f;
         moving_ = false;
         return value_;
     }
     const float dir = e > 0.0f ? 1.0f : -1.0f;
-    const float v = step_ * dir; // the speed toward the target (negative: moving away)
-    // Braking from step s at a a frame covers (s - a) + (s - 2a) + ... = s (s - a) / (2a).
-    const auto brake = [](float s) { return s > a ? s * (s - a) / (2.0f * a) : 0.0f; };
+    const float v = speed_ * dir; // the speed toward the target (negative: moving away)
+    // Braking from speed s, a less each frame of dt, covers dt ((s - a) + (s - 2a) + ...) =
+    // s (s - a) / (2 kAccelDegS2).
+    const auto brake = [a](float s) { return s > a ? s * (s - a) / (2.0f * kAccelDegS2) : 0.0f; };
     float next;
     if (v < 0.0f) {
         next = v + a; // slow down, then turn
     } else {
         next = std::max(v - a, 0.0f);
-        for (const float s : {std::min(v + a, kMaxStepDeg), std::min(v, kMaxStepDeg)}) {
-            if (dist - s >= brake(s)) {
+        for (const float s : {std::min(v + a, kMaxSpeedDegS), std::min(v, kMaxSpeedDegS)}) {
+            if (dist - s * dt >= brake(s)) {
                 next = s;
                 break;
             }
         }
         if (next <= 0.0f) {
-            next = std::min(a, dist); // creep the last bit
+            next = std::min(a, dist / dt); // creep the last bit
         }
-        if (next > dist && v - a <= dist) {
-            next = dist; // land on it
+        if (next * dt > dist && v - a <= dist / dt) {
+            next = dist / dt; // land on it
         }
     }
-    step_ = next * dir;
+    speed_ = next * dir;
+    step_ = std::clamp(speed_ * dt, -kMaxStepDeg, kMaxStepDeg);
     value_ += step_;
+    if (std::abs(target - value_) < 1e-4f && std::abs(speed_) <= a) {
+        value_ = target; // landed: exactly the target
+    }
     moving_ = true;
     return value_;
 }
 
 CameraAngles::Out CameraAngles::Update(unsigned mode, float screen_deg, float live_deg,
-                                       int64_t now_ms) {
+                                       int64_t now_ms, int64_t display_ns) {
     if (mode == 1) {
         slew_screen_.Reset();
         slew_live_.Reset();
@@ -1096,7 +1112,8 @@ CameraAngles::Out CameraAngles::Update(unsigned mode, float screen_deg, float li
     if (mode == 2) {
         ease_screen_.Reset();
         ease_live_.Reset();
-        return {slew_screen_.Update(screen_deg), slew_live_.Update(live_deg)};
+        return {slew_screen_.Update(screen_deg, display_ns),
+                slew_live_.Update(live_deg, display_ns)};
     }
     Reset();
     return {screen_deg, live_deg};
