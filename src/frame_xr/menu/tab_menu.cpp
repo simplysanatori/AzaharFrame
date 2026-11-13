@@ -644,7 +644,7 @@ std::string ExplainFor(Id id) {
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::FastForwardAudio:
-        return "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch. Normal Speed plays at real speed and skips ahead to keep up.";
+        return "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed plays at real speed.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
@@ -2033,7 +2033,9 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
         }
         const float half = kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
         const float lx = a.cx >= 0.0f ? a.cx : a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
-        const float cx = std::clamp(lx, pane.x0 + half + 4.0f, pane.x1 - half - 4.0f);
+        // (a text wider than the pane has no room to slide: centre it, never an inverted clamp)
+        const float lo = pane.x0 + half + 4.0f, hi = pane.x1 - half - 4.0f;
+        const float cx = hi < lo ? 0.5f * (pane.x0 + pane.x1) : std::clamp(lx, lo, hi);
         if (a.below) { // AzaharFrame reticle: under the scope toggle
             kit.Tooltip(cx, a.y, text, false);
             return;

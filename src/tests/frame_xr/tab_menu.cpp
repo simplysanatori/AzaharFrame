@@ -3017,8 +3017,8 @@ TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]"
     CHECK(OptionsFor(Id::FastForwardAudio) ==
           std::vector<std::string>{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"});
     CHECK(ExplainFor(Id::FastForwardAudio) ==
-          "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at "
-          "their usual pitch. Normal Speed plays at real speed and skips ahead to keep up.");
+          "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed "
+          "plays at real speed.");
     CHECK(PerGameSetting(Id::FastForwardAudio));
     CHECK(SectionOf(Id::FastForwardAudio) == SettingsSection::General);
     MenuModel m = Sample();
