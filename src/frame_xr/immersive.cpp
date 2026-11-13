@@ -113,6 +113,10 @@ struct Tuning {
     /// AzaharFrame fovonce: AZAHARFRAME_IMMERSIVE_FOV_TRACE=1 logs each frame's camera angles
     /// while they move (a measurement, the angle followed, the eased ones), for mocks.
     bool fov_trace = false;
+    /// AzaharFrame oot: AZAHARFRAME_IMMERSIVE_MENU_EXACT (default 1): mode 2 shows a screen of
+    /// the game's own in front of its world (an item screen) without the Wider View margin
+    /// (L::MenuExact); 0: always with it, as before.
+    bool menu_exact = true;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -150,6 +154,8 @@ Tuning ReadTuning() {
     t.anchor_eye = !(anchor_eye && std::string(anchor_eye) == "0");
     const char* fov_trace = std::getenv("AZAHARFRAME_IMMERSIVE_FOV_TRACE");
     t.fov_trace = fov_trace && std::string(fov_trace) == "1";
+    const char* menu_exact = std::getenv("AZAHARFRAME_IMMERSIVE_MENU_EXACT");
+    t.menu_exact = !(menu_exact && std::string(menu_exact) == "0");
     const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
     if (wider && *wider) {
         t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
@@ -353,6 +359,9 @@ struct State {
     L::HeadLocked solved;
     /// AzaharFrame stereo: mode 2's cap on the game's 3D slider (UpdateStereoCap).
     L::StereoCap stereo_cap;
+    /// AzaharFrame oot: mode 2's menu rule (L::MenuExact), and whether it was last on (the log).
+    L::MenuExact menu_exact;
+    bool menu_exact_on = false;
     float stereo_cap_logged = -1.0f; ///< the cap last logged (below 0: none)
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
@@ -718,7 +727,10 @@ void OnFrame(const FrameInfo& info) {
         // AzaharFrame stereo: the game's 3D is measured afresh, the cap starts from nothing.
         VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
         VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
+        VideoCore::Immersive::g_world_once.store(false, std::memory_order_relaxed); // AzaharFrame oot
         StopStereoCap();
+        g.menu_exact.Reset(); // AzaharFrame oot
+        g.menu_exact_on = false;
         g.camera.Reset();
         g.estimate.Reset(); // AzaharFrame fovonce
         g.follow.Reset();
@@ -926,6 +938,24 @@ void OnFrame(const FrameInfo& info) {
             static_cast<unsigned>(MatchMode()), screen_fov, options.live_fov_y_deg, now);
         screen_fov = angles.screen_deg;
         options.live_fov_y_deg = angles.live_deg;
+        // AzaharFrame oot: mode 2's menu rule: a screen of the game's own in front of its world
+        // (its world drawn once after two eyes) is drawn without the Wider View margin.
+        const bool menu = g.tuning.menu_exact && mode == 2 &&
+                          VideoCore::Immersive::g_world_once.load(std::memory_order_relaxed);
+        if (menu != g.menu_exact_on) {
+            g.menu_exact_on = menu;
+            if (menu) {
+                LOG_INFO(Frontend,
+                         "xr: immersive: the game shows a screen of its own (its world drawn "
+                         "once): at its own size, Wider View {:.1f}x eased to 1.0x",
+                         options.wider);
+            } else {
+                LOG_INFO(Frontend,
+                         "xr: immersive: the game's world in both eyes again: Wider View {:.1f}x",
+                         options.wider);
+            }
+        }
+        options.wider = L::MenuExact::Factor(options.wider, g.menu_exact.Update(menu, now));
         if (MatchMode() != Settings::MatchGameCamera::Off) {
             if (g.tuning.fov_trace) {
                 const float row[4]{g.follow.Target(), screen_fov, options.live_fov_y_deg,

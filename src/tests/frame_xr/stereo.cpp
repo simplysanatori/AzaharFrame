@@ -418,3 +418,122 @@ TEST_CASE("Stereo cap: the slider shown", "[frame_xr][stereo]") {
         }
     }
 }
+
+// ---- The menu rule (mode 2): a screen of the game's own at its own size.
+
+TEST_CASE("Menu rule: the game's world drawn once after two eyes", "[frame_xr][stereo]") {
+    using W = VI::WorldOnceRun;
+    SECTION("gameplay: two eyes every frame, standing still too") {
+        W w;
+        for (int i = 0; i < 600; ++i) {
+            CHECK_FALSE(w.Swap(2, 0.3f));
+        }
+    }
+    SECTION("Ocarina of Time 3D's item screen: after kSwaps in a row, until two eyes again") {
+        W w;
+        for (int i = 0; i < 60; ++i) {
+            w.Swap(2, 0.3f);
+        }
+        for (int i = 0; i < W::kSwaps - 1; ++i) {
+            CHECK_FALSE(w.Swap(1, 0.3f));
+        }
+        CHECK(w.Swap(1, 0.3f));
+        for (int i = 0; i < 100; ++i) {
+            CHECK(w.Swap(i % 7 ? 1 : 0, 0.3f)); // the world once, a swap with none
+        }
+        CHECK_FALSE(w.Swap(2, 0.3f));
+        CHECK_FALSE(w.On());
+    }
+    SECTION("never two eyes before (Mario Kart 7's menus, a title screen in 2D)") {
+        W w;
+        for (int i = 0; i < 300; ++i) {
+            CHECK_FALSE(w.Swap(i % 3 ? 1 : 0, 0.3f));
+        }
+    }
+    SECTION("the world on every other swap (Super Mario 3D Land's title)") {
+        W w;
+        for (int i = 0; i < 300; ++i) {
+            CHECK_FALSE(w.Swap(i % 2 ? 2 : 0, 0.3f));
+        }
+    }
+    SECTION("3D off: one eye is all there is") {
+        W w;
+        for (int i = 0; i < 60; ++i) {
+            w.Swap(2, 0.3f);
+        }
+        for (int i = 0; i < 60; ++i) {
+            CHECK_FALSE(w.Swap(1, 0.0f));
+        }
+    }
+    SECTION("a dropped eye or two in gameplay is not a menu") {
+        W w;
+        for (int i = 0; i < 600; ++i) {
+            CHECK_FALSE(w.Swap(i % 50 < W::kSwaps - 1 ? 1 : 2, 0.3f));
+        }
+    }
+}
+
+TEST_CASE("Menu rule: eased in and out over a quarter of a second", "[frame_xr][stereo]") {
+    MenuExact m;
+    int64_t t = 1000;
+    CHECK(m.Update(false, t) == 0.0f);
+    float last = 0.0f;
+    int frames_in = 0;
+    while (m.Weight() < 1.0f && frames_in < 1000) {
+        t += 8;
+        const float w = m.Update(true, t);
+        CHECK(w >= last);
+        CHECK(w - last <= 1.5f * 8.0f / MenuExact::kEaseMs + 1e-5f); // smooth: no jump
+        last = w;
+        ++frames_in;
+    }
+    CHECK(frames_in * 8 == Approx(MenuExact::kEaseMs).margin(8.0));
+    // Exactly the game's frame at the end, whatever Wider View is.
+    for (const float wider : {1.0f, 1.1f, 1.2f, 1.3f, 1.4f}) {
+        CHECK(MenuExact::Factor(wider, m.Weight()) == 1.0f);
+        CHECK(MenuExact::Factor(wider, 0.0f) == wider);
+    }
+    int frames_out = 0;
+    while (m.Weight() > 0.0f && frames_out < 1000) {
+        t += 8;
+        const float w = m.Update(false, t);
+        CHECK(w <= last);
+        last = w;
+        ++frames_out;
+    }
+    CHECK(frames_out * 8 == Approx(MenuExact::kEaseMs).margin(8.0));
+    // A long gap (a pause) is not a jump either.
+    t += 10000;
+    CHECK(m.Update(true, t) <= 1.5f * 100.0f / MenuExact::kEaseMs);
+}
+
+TEST_CASE("Menu rule: the screen at factor 1 is the game's frame, any settings",
+          "[frame_xr][stereo]") {
+    std::mt19937 rng(20261116);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    for (int run = 0; run < 2000; ++run) {
+        Options o;
+        const uint32_t level = static_cast<uint32_t>(uni(0.0f, 4.99f));
+        o.wider = MenuExact::Factor(WiderFactor(level), 1.0f);
+        o.squeeze = uni(0.0f, 0.3f);
+        o.squeeze_y = uni(0.0f, 0.3f);
+        Placement p;
+        p.size = uni(0.6f, 1.6f);
+        const float fov = uni(40.0f, 70.0f);
+        const float aspect = uni(1.3f, 2.0f);
+        ViewFov view;
+        view.left = -0.9f;
+        view.right = 0.9f;
+        view.down = -0.95f;
+        view.up = 0.8f;
+        view.outer_left = -0.95f;
+        view.outer_right = 0.75f;
+        view.outer_down = -0.95f;
+        view.outer_up = 0.8f;
+        const HeadLocked s = SolveHeadLocked(p, fov, aspect, view, 0.0f, o, {});
+        INFO("run " << run << " level " << level << " fov " << fov << " aspect " << aspect);
+        // No margin either way: the game draws exactly its own frame.
+        CHECK(s.factor == 1.0f);
+        CHECK(s.factor_y == Approx(1.0f).epsilon(1e-5));
+    }
+}

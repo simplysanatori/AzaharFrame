@@ -266,6 +266,49 @@ private:
     float last_slider_ = -1.0f;
 };
 
+/// AzaharFrame oot: a screen of the game's own in front of its world (Ocarina of Time 3D's item
+/// screen): with the game's 3D on (slider above 0) its world is drawn for one eye only, or not at
+/// all, for kSwaps top screen swaps in a row, after the game drew both eyes earlier (so a game or
+/// a screen that never draws two eyes is never taken for one). The world's draws are still there
+/// (the paused world behind it), so "no world draw" alone would miss it; a game that draws its
+/// world on every other swap only (Super Mario 3D Land's title) never has kSwaps in a row.
+/// Gameplay draws both eyes in every frame, standing still too (measured: Ocarina of Time 3D,
+/// Majora's Mask 3D, Mario Kart 7, Kid Icarus: Uprising). A heuristic: the Full mode 2 uses it to
+/// show such a screen at the game's own size (frame_xr/immersive.cpp, IMMERSIVE.md).
+class WorldOnceRun {
+public:
+    static constexpr int kSwaps = 4;
+
+    /// One top screen swap: its eyes (StereoFrame) and the slider the game was shown. True while
+    /// the run holds.
+    bool Swap(int eyes, float slider) noexcept {
+        if (!(slider > 0.0f)) {
+            run_ = 0;
+            return on_ = false;
+        }
+        if (eyes >= 2) {
+            seen_two_ = true;
+            run_ = 0;
+            return on_ = false;
+        }
+        if (run_ < kSwaps) {
+            ++run_;
+        }
+        return on_ = seen_two_ && run_ >= kSwaps;
+    }
+    bool On() const noexcept {
+        return on_;
+    }
+    void Reset() noexcept {
+        *this = WorldOnceRun{};
+    }
+
+private:
+    int run_ = 0;
+    bool seen_two_ = false;
+    bool on_ = false;
+};
+
 /// AzaharFrame depth: the projection most world draws used in each window of time (a quarter
 /// of a second), so a draw with another camera (a menu's, a model on the HUD) does not flicker
 /// the screen's size. Emulation thread only.

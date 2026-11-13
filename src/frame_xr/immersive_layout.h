@@ -659,6 +659,31 @@ private:
     bool limited_ = false;
 };
 
+/// AzaharFrame oot: mode 2's menu rule. While the game shows a screen of its own in front of its
+/// world (video_core/vr_view_matrix.h WorldOnceRun: its world drawn for one eye only, or not at
+/// all, after it drew two), the game draws no Wider View margin (factor 1): the screen is the
+/// game's own picture at its own size, as it laid it out. Eased in and out over kEaseMs
+/// (smoothstep), so the screen never jumps. XR thread; pure (unit tested).
+class MenuExact {
+public:
+    static constexpr float kEaseMs = 250.0f;
+
+    /// `on`: the rule holds now. The weight: 0 the Wider View factor, 1 factor 1.
+    float Update(bool on, int64_t now_ms);
+    float Weight() const;
+    /// The factor at weight `weight` between the Wider View factor `wider` and 1.
+    static float Factor(float wider, float weight) {
+        return wider + (1.0f - wider) * weight;
+    }
+    void Reset() {
+        *this = MenuExact{};
+    }
+
+private:
+    float progress_ = 0.0f;
+    int64_t last_ms_ = 0;
+};
+
 /// AzaharFrame stereo: CitraVR's head-motion scale in the Full modes, 10^multiplier x (3D Depth
 /// / 10, an integer), from the user's 3D Depth: the stereo cap never changes it.
 float GamePositionScale(int multiplier, uint32_t depth_percent);

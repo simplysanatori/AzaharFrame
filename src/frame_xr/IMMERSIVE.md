@@ -617,6 +617,22 @@ scenery never diverges (...)` when it takes effect or moves by half a percent, a
 limited` when it lifts. With the owner's screen (105 degrees wide at 3 m, IPD 69.9 mm) Ocarina of
 Time 3D's limit is 7.7 %.
 
+**Menu screens at the game's own size (mode 2, a heuristic).** Wider View (Render Margin) makes the
+game draw past its frame, and its own full-screen 2D (Ocarina of Time 3D's item screen) is then
+shown smaller, with the margin's world around it. While all of these hold, the game draws with
+factor 1 (no margin), eased in and out over 250 ms (`MenuExact`, `immersive_layout.h`): mode 2;
+the slider the game is shown is above 0; the game drew two eyes earlier in this session; and for
+4 top screen swaps in a row its world is drawn for one eye only, or not at all (`WorldOnceRun`,
+`video_core/vr_view_matrix.h`). Measured: Ocarina of Time 3D's item screen draws its paused world
+once, while gameplay, standing still included, draws two eyes in every frame; Mario Kart 7, Kid
+Icarus: Uprising and Majora's Mask 3D (its title and cutscenes) never trigger it (Mario Kart 7's
+menus draw one eye but never after two; Super Mario 3D Land's title draws its world on every other
+swap only). It reads the game's draws, not its screens, so a game could show something else with
+its world drawn once (a 2D cutscene over a paused world); then that is shown at the game's size
+too. The log says `xr: immersive: the game shows a screen of its own (its world drawn once): at
+its own size, Wider View N eased to 1.0x` and `the game's world in both eyes again`.
+`AZAHARFRAME_IMMERSIVE_MENU_EXACT=0` turns it off (always the margin, as before), for A/B tests.
+
 ## Trying it
 
 Set the mode in the Qt window: Properties of a game, **Graphics** tab, **VR** group, **Immersive Mode**

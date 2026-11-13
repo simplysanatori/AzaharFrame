@@ -548,6 +548,20 @@ float StereoCap::Update(float user, float limit, int64_t now_ms) {
     return std::min(out_, user);
 }
 
+float MenuExact::Update(bool on, int64_t now_ms) {
+    const float dt_ms =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_), 0.0f, 100.0f) : 0.0f;
+    last_ms_ = now_ms;
+    const float step = dt_ms / kEaseMs;
+    progress_ = std::clamp(progress_ + (on ? step : -step), 0.0f, 1.0f);
+    return Weight();
+}
+
+float MenuExact::Weight() const {
+    const float p = progress_;
+    return p * p * (3.0f - 2.0f * p);
+}
+
 float GamePositionScale(int multiplier, uint32_t depth_percent) {
     return std::pow(10.0f, static_cast<float>(multiplier)) *
            static_cast<float>(depth_percent / 10);
