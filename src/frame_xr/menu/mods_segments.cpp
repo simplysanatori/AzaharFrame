@@ -83,7 +83,7 @@ float ScrollWanted(const MenuView& view) {
     return view.scroll[static_cast<std::size_t>(view.tab)];
 }
 
-/// A list scrolled to item edges, as the Cheats segment: nothing shows cut at the top, and at
+/// A list's scroll: it ends with an item's top at the list's top (as the Cheats segment), so at
 /// the end the last item shows whole.
 struct ListScroll {
     std::vector<float> tops;
@@ -109,25 +109,15 @@ ListScroll Scroll(const std::vector<float>& heights, float list_h, float want) {
             }
         }
     }
-    const float w = std::clamp(want, 0.0f, s.max_scroll);
+    // AzaharFrame scroll: anywhere in between too (smooth scrolling); a part row shows cut at
+    // the list's edges.
+    s.scroll = std::clamp(want, 0.0f, s.max_scroll);
     for (std::size_t i = 0; i < s.tops.size(); i++) {
-        if (s.tops[i] <= w + 0.01f) {
-            s.scroll = s.tops[i];
+        if (s.tops[i] <= s.scroll + 0.01f) {
             s.step = heights[i];
         }
     }
     return s;
-}
-
-/// The scroll indicator, as the other long tabs.
-void ScrollIndicator(Kit& kit, const Rect& list, float right, const ListScroll& s) {
-    if (s.max_scroll <= 0.0f) {
-        return;
-    }
-    const float track_h = list.H() - 16.0f;
-    const float thumb_h = std::max(40.0f, track_h * list.H() / s.content_h);
-    const float ty = list.y0 + 8.0f + (track_h - thumb_h) * (s.scroll / s.max_scroll);
-    kit.Fill({right - 10.0f, ty, right - 6.0f, ty + thumb_h}, 2.0f, Tok::kOnSurfaceVariant, 0.38f);
 }
 
 /// An arc (radians, 0 = up, clockwise) as short strokes.
@@ -1042,7 +1032,7 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     const Rect panel{0.0f, 0.0f, kPanelW, kPanelH};
     kit.Fill(panel, kPanelRadius, 0x000000, 0.32f);
     AddHit(panel, {Id::None, kMenuAreaIndex}, panel);
-    layout.max_scroll = 0.0f; // the list under it stays put
+    layout.scroll_locked = true; // AzaharFrame scroll: the list under it stays put, where it was
     std::string headline, body, confirm;
     switch (d.kind) {
     case ModsDialogKind::Replace:
@@ -1290,8 +1280,8 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             for (std::size_t i = 0; i < m.available.size(); i++) {
                 const float y = top + s.tops[i] - s.scroll;
                 const float rh = heights[i];
-                if (y + rh <= list.y0 || y + rh > list.y1 + 0.01f) {
-                    continue; // whole rows only
+                if (y + rh <= list.y0 || y >= list.y1) {
+                    continue; // AzaharFrame scroll: out of view (a part row shows cut)
                 }
                 const ModOffer& o = m.available[i];
                 const int idx = static_cast<int>(i);
@@ -1396,7 +1386,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                 }
             }
             kit.ClearClip();
-            ScrollIndicator(kit, list, area.x1, s);
+            DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
             if (tip_row != nullptr) {
                 const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
                 if (!text.empty()) {
@@ -1464,7 +1454,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     for (std::size_t i = 0; i < m.loaded.size(); i++) {
         const float ih = heights[i];
         const float y = top + s.tops[i] - s.scroll;
-        if (y + ih <= list.y0 || y + ih > list.y1 + 0.01f) {
+        if (y + ih <= list.y0 || y >= list.y1) { // AzaharFrame scroll: out of view
             continue;
         }
         const ModRow& r = m.loaded[i];
@@ -1514,7 +1504,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         }
     }
     kit.ClearClip();
-    ScrollIndicator(kit, list, area.x1, s);
+    DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
     DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
 }
 
@@ -1632,7 +1622,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     for (std::size_t n = 0; n < items.size(); n++) {
         const Item& it = items[n];
         const float y = top + s.tops[n] - s.scroll;
-        if (y + it.h <= list.y0 || y + it.h > list.y1 + 0.01f) {
+        if (y + it.h <= list.y0 || y >= list.y1) { // AzaharFrame scroll: out of view
             continue;
         }
         if (it.kind == Item::Kind::Divider) {
@@ -1739,7 +1729,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         }
     }
     kit.ClearClip();
-    ScrollIndicator(kit, list, area.x1, s);
+    DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
     if (!tip.text.empty()) {
         const float half = (kit.TextWidth(Type::Tooltip, tip.text) + 20.0f) * 0.5f;
         kit.Tooltip(std::min(tip.cx, area.x1 - 8.0f - half), tip.y, tip.text, tip.above);
@@ -1782,8 +1772,8 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
     for (std::size_t i = 0; i < m.downloads.size(); i++) {
         const float y = top + s.tops[i] - s.scroll;
         const float rh = heights[i];
-        if (y + rh <= list.y0 || y + rh > list.y1 + 0.01f) {
-            continue; // whole rows only
+        if (y + rh <= list.y0 || y >= list.y1) {
+            continue; // AzaharFrame scroll: out of view (a part row shows cut)
         }
         const PackOffer& o = m.downloads[i];
         const int idx = static_cast<int>(i);
@@ -1869,7 +1859,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         }
     }
     kit.ClearClip();
-    ScrollIndicator(kit, list, area.x1, s);
+    DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
     if (tip_row != nullptr) {
         const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
         if (!text.empty()) {
@@ -2016,8 +2006,8 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
         kit.Clip(list);
         for (std::size_t i = 0; i < rows.size(); i++) {
             const float y = top + s.tops[i] - s.scroll;
-            if (y + kRow1 <= list.y0 || y + kRow1 > list.y1 + 0.01f) {
-                continue; // whole rows only
+            if (y + kRow1 <= list.y0 || y >= list.y1) {
+                continue; // AzaharFrame scroll: out of view (a part row shows cut)
             }
             const Row& r = rows[i];
             const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kRow1};
@@ -2039,7 +2029,7 @@ void TabMenu::DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const R
             kit.TextMid(tx, row.Cy(), Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, r.name, right - tx));
         }
         kit.ClearClip();
-        ScrollIndicator(kit, list, area.x1, s);
+        DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
     }
     DrawModsDialog(kit, m.dialog, view);
 }
@@ -2169,8 +2159,8 @@ void TabMenu::DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuV
         const TexturePartRow& r = m.rows[i];
         const float h = heights[i];
         const float ry = top + s.tops[i] - s.scroll;
-        if (ry < list.y0 - 0.01f || ry + h > list.y1 + 0.01f) {
-            continue; // whole rows only
+        if (ry + h <= list.y0 || ry >= list.y1) {
+            continue; // AzaharFrame scroll: out of view (a part row shows cut)
         }
         const int idx = static_cast<int>(i);
         const Rect row{c.x0 - 12.0f, ry, c.x1 + 12.0f, ry + h};
@@ -2243,7 +2233,7 @@ void TabMenu::DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuV
         }
     }
     kit.ClearClip();
-    ScrollIndicator(kit, list, area.x1, s);
+    DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
     if (!tip.text.empty()) {
         const float half = (kit.TextWidth(Type::Tooltip, tip.text) + 20.0f) * 0.5f;
         kit.Tooltip(std::min(tip.cx, area.x1 - 8.0f - half), tip.y, tip.text, tip.above);

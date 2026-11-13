@@ -130,13 +130,15 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
     layout.max_scroll = std::max(0.0f, std::ceil((list_h - c.H()) / kRow) * kRow);
     const float scroll =
         std::clamp(view.scroll[static_cast<int>(Tab::Homebrew)], 0.0f, layout.max_scroll);
-    kit.Clip(area);
+    // AzaharFrame scroll: the list between the paddings; a part row shows cut at its edges
+    const Rect list{area.x0, c.y0, area.x1, c.y1};
+    kit.Clip(list);
     for (std::size_t i = 0; i < m.items.size(); i++) {
         const HomebrewItem& it = m.items[i];
         const int idx = static_cast<int>(i);
         const float y = c.y0 + kRow * static_cast<float>(i) - scroll;
-        if (y < c.y0 - 0.01f || y + kRow > c.y1 + 0.01f) {
-            continue; // whole rows only
+        if (y + kRow <= list.y0 || y >= list.y1) {
+            continue; // out of view
         }
         const float cy = y + kRow * 0.5f;
         if (i > 0) {
@@ -149,7 +151,7 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
             const float w = ButtonWidth(kit, label, icon != 0) - (style == ButtonStyle::Text ? 24.0f : 0.0f);
             const Rect b{right - w, cy - kButtonH * 0.5f, right, cy + kButtonH * 0.5f};
             kit.Button(b, style, icon, label, StateOf(view, {id, idx}));
-            AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id, idx}, area);
+            AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id, idx}, list);
             right = b.x0 - kGap;
         };
         // AzaharFrame ui3: Check for Updates; while it asks, "Checking" with a small ring in the
@@ -168,7 +170,7 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
                 kit.TextMid(x0 + 28.0f, cy, Type::Label, Tok::kOnSurface, label, 0);
             } else {
                 kit.Button(b, ButtonStyle::Tonal, 0, label, StateOf(view, {Id::HomebrewCheck, idx}));
-                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::HomebrewCheck, idx}, area);
+                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::HomebrewCheck, idx}, list);
             }
             right = b.x0 - kGap;
         };
@@ -204,6 +206,7 @@ void TabMenu::DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& vie
                       kit.Fit(Type::Tooltip, line, text_w));
     }
     kit.ClearClip();
+    DrawScrollbar(kit, view, list, area.x1, list_h, layout.max_scroll, scroll); // AzaharFrame scroll
 }
 
 } // namespace FrameXr::Menu

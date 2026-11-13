@@ -304,14 +304,7 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
         }
     }
     kit.ClearClip();
-    if (max_scroll > 0.0f) {
-        // The scroll indicator, as the other long tabs.
-        const float track_h = list.H() - 16.0f;
-        const float thumb_h = std::max(40.0f, track_h * list.H() / content_h);
-        const float ty = list.y0 + 8.0f + (track_h - thumb_h) * (scroll / max_scroll);
-        kit.Fill({area.x1 - 10.0f, ty, area.x1 - 6.0f, ty + thumb_h}, 2.0f, Tok::kOnSurfaceVariant,
-                 0.38f);
-    }
+    DrawScrollbar(kit, view, list, area.x1, content_h, max_scroll, scroll); // AzaharFrame scroll
     // AzaharFrame compat: "This May Not Work" before a cheat for another version turns on
     DrawModsDialog(kit, CompatConfirmDialog(model, view), view);
 }

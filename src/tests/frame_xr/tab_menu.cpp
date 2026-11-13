@@ -513,8 +513,20 @@ MenuModel AllOwn(MenuModel m) {
 } // namespace
 
 void CheckTargets(const Drawn& d) {
+    // AzaharFrame scroll: a list scrolls smoothly, so a row can show cut at its top or bottom
+    const MenuLayout& layout = d.menu.Layout();
+    const auto cut = [&layout](const Rect& r) {
+        return layout.bar.Valid() && (r.y0 <= layout.bar.list.y0 + 0.01f ||
+                                      r.y1 >= layout.bar.list.y1 - 0.01f);
+    };
     for (const auto& h : d.menu.Hits()) {
         if (h.t.index == kLabelIndex || h.t.index == kMenuAreaIndex) {
+            continue;
+        }
+        if (h.t.id == Id::Scrollbar) {
+            continue; // a strip down the list's edge (list_scroll.cpp checks it)
+        }
+        if (h.r.H() < 48.0f && cut(h.r)) {
             continue;
         }
         INFO("id " << static_cast<int>(h.t.id) << " index " << h.t.index << " " << h.r.W()
@@ -2061,7 +2073,11 @@ TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
     for (const int i : {0, 1, 2, 4}) {
         CHECK(HasHit(d, Id::TexturePart, i));
     }
-    CHECK(!HasHit(d, Id::TexturePart, 5)); // under the list's end: whole rows only
+    {
+        // under the list's end: cut by it (AzaharFrame scroll: a part row shows)
+        const MenuLayout::Hit* h = FindHit(d, Id::TexturePart, 5);
+        CHECK((h == nullptr || h->r.y1 >= d.menu.Layout().bar.list.y1 - 0.01f));
+    }
     v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
     d.Draw(m, v);
     CHECK(HasHit(d, Id::TexturePart, 5));

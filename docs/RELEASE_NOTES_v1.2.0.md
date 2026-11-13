@@ -128,6 +128,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Preparing Shaders** shows while a game waits for its shaders.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - Messages in the headset stay for 5 seconds.
+- I made long lists in the VR menu, like a game's cheats, much quicker to get through. The stick scrolls faster the further you push it and speeds up as you hold it, you can grab the scrollbar and drag it or click above or below it to jump a page, and you can drag the list itself with the trigger.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 

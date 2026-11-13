@@ -47,8 +47,6 @@ constexpr int kTexW = static_cast<int>(Menu::kPanelW * kPxPerDp + 0.5f);
 constexpr int kTexH = static_cast<int>(Menu::kPanelH * kPxPerDp + 0.5f);
 constexpr float kPress = 0.55f, kLetGo = 0.40f; ///< trigger hysteresis
 constexpr float kTooltipRest = 0.6f;            ///< seconds (owner option A)
-constexpr float kStickOn = 0.6f;
-constexpr float kStickFirstRepeat = 0.4f, kStickRepeat = 0.2f;
 constexpr std::array<uint32_t, 7> kCurveSteps{0, 15, 30, 45, 60, 75, 90};
 constexpr std::array<uint32_t, 3> kScaleSteps{100, 150, 200};
 
@@ -280,7 +278,6 @@ bool ZipShown(const Menu::MenuModel& model, const Menu::MenuView& view) {
 std::mutex g_mods_mutex;
 Menu::ModsTabModel g_mods;
 Menu::HomebrewTabModel g_homebrew; // AzaharFrame emerald, under g_mods_mutex
-constexpr float kDragSlop = 12.0f; ///< dp the beam moves before a press scrolls the list
 
 } // namespace
 
@@ -423,6 +420,9 @@ void MenuPanel::Resume() {
     press_hand = -1;
     rest_id = Id::None;
     view.pressed = {};
+    bar_press.End(); // AzaharFrame scroll
+    list_drag.Cancel();
+    stick_scroll.Reset();
     // Buttons held from opening (Menu, a trigger, B in the window) click nothing until let go.
     a_down = b_down = true;
     trigger_down = {true, true};
@@ -680,6 +680,8 @@ void MenuPanel::Close() {
     view.open_menu = view.dragging = Id::None;
     view.confirm = {}; // AzaharFrame compat: "This May Not Work" goes with the menu
     press_hand = -1;
+    bar_press.End(); // AzaharFrame scroll
+    list_drag.Cancel();
 }
 
 void MenuPanel::BuildModel(const Host& host) {
@@ -1883,55 +1885,87 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     }
 
     // ---- Press, drag, release ----
-    if (press_hand < 0 && p >= 0 && (edge[p] || a_edge) && hover.id != Id::None) {
+    // AzaharFrame scroll: the list of the tab shown; another tab (or a click that moved it)
+    // stops a fling and a stick's build-up.
+    const auto list_scroll = [this]() -> float& {
+        return view.scroll[static_cast<std::size_t>(view.tab)];
+    };
+    if (view.tab != scroll_tab || list_scroll() != scroll_seen) {
+        scroll_tab = view.tab;
+        list_drag.Stop();
+        stick_scroll.Reset();
+    }
+    const bool can_scroll =
+        layout.max_scroll > 0.0f && !layout.scroll_locked && view.open_menu == Id::None;
+    const bool press_edge = press_hand < 0 && p >= 0 && (edge[p] || a_edge);
+    if (press_edge) {
+        list_drag.Stop(); // a press catches a coasting list
+    }
+    // AzaharFrame scroll: a press in the list's empty space can drag it too
+    const bool on_list = press_edge && can_scroll && layout.bar.Valid() && hit[p].in_bounds &&
+                         layout.bar.list.Contains(x, y);
+    if (press_edge && hover.id == Id::Scrollbar && can_scroll && layout.bar.Valid()) {
+        // AzaharFrame scroll: the thumb held (it follows the beam), or the track paged
         press_hand = p;
         view.pressed = hover;
-        drag_y0 = y; // AzaharFrame cheatstab: a press that moves scrolls the list
-        drag_scroll0 = view.scroll[static_cast<std::size_t>(view.tab)];
-        beam_drag = false;
+        list_scroll() = bar_press.Begin(layout.bar, list_scroll(), y);
+    } else if (press_edge && ((hover.id != Id::None && hover.id != Id::Scrollbar) || on_list)) {
+        press_hand = p;
+        view.pressed = hover;
+        press_s = 0.0f;
+        list_drag.Press(y, list_scroll(), press_s); // a press that moves scrolls the list
         if (Menu::SliderFor(hover.id).max > 1.0f && hover.index != Menu::kLabelIndex &&
             view.open_menu == Id::None) {
             view.dragging = hover.id;
         }
     }
     if (press_hand >= 0) {
-        if (view.dragging != Id::None) {
+        press_s += dt;
+        if (bar_press.Active()) {
+            if (p == press_hand && hit[p].on_plane && layout.bar.Valid()) {
+                list_scroll() = bar_press.Update(layout.bar, list_scroll(), y, dt);
+            }
+        } else if (view.dragging != Id::None) {
             const float t = layout.SliderAt(view.dragging, x);
             if (t >= 0.0f) {
                 view.drag_t = t;
             }
-        } else if (view.open_menu == Id::None && layout.max_scroll > 0.0f && p == press_hand &&
-                   hit[p].on_plane && (beam_drag || std::fabs(y - drag_y0) > kDragSlop)) {
-            // AzaharFrame cheatstab: dragged, the list follows the beam and nothing is clicked.
-            beam_drag = true;
-            view.pressed = {};
-            view.scroll[static_cast<std::size_t>(view.tab)] =
-                std::clamp(drag_scroll0 - (y - drag_y0), 0.0f, layout.max_scroll);
+        } else if (can_scroll && p == press_hand && hit[p].on_plane) {
+            // Dragged past the slop: the list follows the beam and nothing is clicked.
+            float s = list_scroll();
+            if (list_drag.Move(y, press_s, s, layout.max_scroll)) {
+                list_scroll() = s;
+                view.pressed = {};
+            }
         }
         const bool let_go = !trigger_down[press_hand] && !a_down; // both let go
         if (let_go) {
-            if (beam_drag) {
-                // Settles on a whole row, as the stick scrolls.
-                beam_drag = false;
-                float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-                const float step = std::max(1.0f, layout.scroll_step);
-                s = std::clamp(std::round(s / step) * step, 0.0f, layout.max_scroll);
+            if (bar_press.Active()) {
+                bar_press.End();
+            } else if (list_drag.Dragging()) {
+                // Let go while moving, it coasts on (no snapping to a row).
             } else if (view.dragging != Id::None) {
                 const Menu::SliderRange r = Menu::SliderFor(view.dragging);
                 const float value =
                     r.min + std::round(view.drag_t * (r.max - r.min) / r.step) * r.step;
                 SetSetting(view.dragging, static_cast<int>(value), host);
                 view.dragging = Id::None;
-            } else if (hover == view.pressed) {
+            } else if (view.pressed.id != Id::None && hover == view.pressed) {
                 Click(hover, host);
             } else if (view.open_menu != Id::None && hover.id == Id::None) {
                 view.open_menu = Id::None; // pressed off the menu
             }
+            list_drag.Release(press_s);
             view.pressed = {};
             press_hand = -1;
         }
     } else if (p < 0 && (edge[0] || edge[1] || a_edge) && view.open_menu != Id::None) {
         view.open_menu = Id::None; // a click beside the panel closes a drop-down menu
+    }
+    if (bar_press.Active()) {
+        hover = {Id::Scrollbar}; // AzaharFrame scroll: held, it stays wide wherever the beam is
+    } else if (list_drag.Dragging()) {
+        hover = {}; // no row lights up under a dragging beam
     }
     view.hover = hover;
 
@@ -1983,7 +2017,7 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         }
     }
 
-    // ---- Sticks: scroll a row at a time ----
+    // ---- Sticks: scroll the list (AzaharFrame scroll: menu/list_scroll.h) ----
     float sy = 0.0f;
     if (have_input) {
         for (const auto& hand : in.hand) {
@@ -1992,29 +2026,28 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             }
         }
     }
-    const int dir = sy > kStickOn ? -1 : sy < -kStickOn ? 1 : 0; // stick up: towards the top
-    if (dir != stick_dir) {
-        stick_dir = dir;
-        stick_hold = 0.0f;
-        stick_repeat = 0.0f;
-        if (dir != 0) {
-            stick_repeat = kStickFirstRepeat;
-            float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
-                           layout.max_scroll);
-        }
-    } else if (dir != 0) {
-        stick_hold += dt;
-        if (stick_hold >= stick_repeat) {
-            stick_repeat += kStickRepeat;
-            float& s = view.scroll[static_cast<std::size_t>(view.tab)];
-            s = std::clamp(s + layout.scroll_step * static_cast<float>(dir), 0.0f,
-                           layout.max_scroll);
-        }
-    }
     {
-        float& s = view.scroll[static_cast<std::size_t>(view.tab)];
+        // Either stick; the further it is pushed the faster, and held over it speeds up. A
+        // held thumb or a dragged list has the scroll to itself; let go, the stick stops it.
+        float& s = list_scroll();
+        const bool can = layout.max_scroll > 0.0f && !layout.scroll_locked &&
+                         view.open_menu == Id::None && !bar_press.Active() &&
+                         !list_drag.Dragging();
+        if (can) {
+            const float view_h = layout.bar.Valid() ? layout.bar.list.H() : Menu::kPanelH * 0.6f;
+            s = stick_scroll.Update(sy, dt, s, layout.max_scroll, view_h, layout.scroll_step);
+            if (stick_scroll.Active()) {
+                list_drag.Stop();
+            }
+            s = list_drag.Coast(s, layout.max_scroll, dt);
+        } else {
+            stick_scroll.Reset();
+            if (layout.scroll_locked || view.open_menu != Id::None) {
+                list_drag.Stop();
+            }
+        }
         s = std::clamp(s, 0.0f, layout.max_scroll);
+        scroll_seen = s;
     }
 
     // ---- The tooltip: a beam resting on a setting ----

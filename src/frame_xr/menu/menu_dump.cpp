@@ -997,6 +997,58 @@ int main(int argc, char** argv) {
     ok &= shot("cheats-error-list", fl, v);
     v.scroll[static_cast<int>(Tab::Mods)] = -1.0f; // the end of the list
     ok &= shot("cheats-scrolled", cm, v);
+    {
+        // AzaharFrame scroll: a long Cheats list (Pokémon X has 125) scrolled part of the way, its
+        // scrollbar at rest, with the beam on it (wider, the track shows) and held (dragged on);
+        // the beam's dot where it points.
+        static const char* const kNames[] = {
+            "Refill AP 4th ATK 4th PKMN (Press LEFT+L)", "Max AP 4th ATK 4th PKMN (Press LEFT+R)",
+            "Lvl 100 aft battle 5th PKMN (Press Y)", "1st ATK 5th PKMN Modifier",
+            "2nd ATK 5th PKMN Modifier", "Refill HP 5th PKMN (Press L)", "Infinite Money",
+            "Max Battle Points", "Walk Through Walls (Hold R)", "Shiny Wild Encounters"};
+        MenuModel lm = m;
+        lm.mods.cheats = SampleCheats();
+        lm.mods.cheats.cheats.clear();
+        for (int i = 0; i < 125; i++) {
+            lm.mods.cheats.cheats.push_back(
+                {std::string(kNames[i % 10]) + " " + std::to_string(i / 10 + 1),
+                 CheatSource::Sharkive, i % 9 == 4,
+                 i % 6 == 0 ? "for v1.5, this game is v1.0" : ""});
+        }
+        lm.mods.cheats.status = "125 cheats added, 21 for another version";
+        const auto dot = [](float x, float y) {
+            return [x, y](Kit& k) {
+                k.Fill({x - 8.0f, y - 8.0f, x + 8.0f, y + 8.0f}, 8.0f, 0x000000, 0.45f);
+                k.Fill({x - 6.0f, y - 6.0f, x + 6.0f, y + 6.0f}, 6.0f, 0xFFFFFF, 0.95f);
+            };
+        };
+        MenuView sv;
+        sv.tab = Tab::Mods;
+        sv.scroll[static_cast<int>(Tab::Mods)] = 1234.0f; // mid-list: a part row at the top
+        ok &= shot("scroll-cheats-idle", lm, sv);
+        const Scrolling::Bar bar = menu.Layout().bar;
+        const float hx = Scrolling::HitRect(bar).Cx();
+        std::printf("scroll-cheats: list %.1f..%.1f, %.1f..%.1f dp, track %.1f..%.1f, thumb %.1f\n",
+                    bar.list.x0, bar.list.x1, bar.list.y0, bar.list.y1, Scrolling::TrackY0(bar),
+                    Scrolling::TrackY1(bar), Scrolling::ThumbH(bar));
+        sv.hover = {Id::Scrollbar};
+        ok &= shot("scroll-cheats-hover", lm, sv, {},
+                   dot(hx, Scrolling::ThumbRect(bar, 1234.0f, true).Cy()));
+        sv.pressed = {Id::Scrollbar};
+        sv.scroll[static_cast<int>(Tab::Mods)] = 3700.0f; // dragged on down the track
+        ok &= shot("scroll-cheats-dragged", lm, sv, {},
+                   dot(hx + 10.0f, Scrolling::ThumbRect(bar, 3700.0f, true).Cy() + 6.0f));
+        // The same bar on the Settings tab (a short overflow: a long thumb).
+        MenuView gv;
+        gv.tab = Tab::Settings;
+        gv.section = SettingsSection::Graphics;
+        gv.scroll[static_cast<int>(Tab::Settings)] = 100.0f;
+        ok &= shot("scroll-settings-idle", m, gv);
+        const Scrolling::Bar gbar = menu.Layout().bar;
+        gv.hover = {Id::Scrollbar};
+        ok &= shot("scroll-settings-hover", m, gv, {},
+                   dot(Scrolling::HitRect(gbar).Cx(), Scrolling::ThumbRect(gbar, 100.0f, true).Cy()));
+    }
     v = {};
     v.tab = Tab::Mods;
     MenuModel em = m;
