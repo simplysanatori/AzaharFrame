@@ -200,8 +200,8 @@ width times the Render Margin factor, so the gain is 1, nothing is magnified, an
 the picture exactly with the head everywhere on it, not only at its middle. The view-filling
 default magnified a 55 degree game 1.6 to 2.5 times (gain 0.4 to 0.6): a perspective picture is
 only right at its middle, and 35 degrees to the side it was drawn 1.4 to 1.6 times taller than
-wide. Majora's Mask 3D with the owner's own settings (gain 1.03, Wider View 1.4x, Narrow Screen 10 %,
-3 m, mode 2; now Render Margin 1.4x and Horizontal Scale -10 %) was "perfect"; those are the defaults now (`kDefaultHeadDistance`, the settings'
+wide. Majora's Mask 3D with the owner's own settings (gain 1.03, Render Margin 1.4x, Horizontal Scale -10 %,
+3 m, mode 2) was "perfect"; those are the defaults now (`kDefaultHeadDistance`, the settings'
 defaults). The screen has the picture's own shape (AzaharFrame oot), and Render Margin widens the
 game's picture by the same factor both ways (`HeadLocked::factor_y` = factor): at Off the game is
 asked for exactly its own picture, whatever the game's shape, mode or view. From AzaharFrame
@@ -444,20 +444,20 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 
 | Game | Screen Shape | Horizontal Scale | Render Margin | Up and down | Distance | Size |
 | --- | --- | --- | --- | --- | --- | --- |
-| Any game (default) | 3DS (5:3), or as measured | 0 % (Narrow Screen 10 % before AzaharFrame oot) | 1.4x | 1.4x (1.76x before AzaharFrame oot) | 3 m | 1 (95 x 85 degrees at 55) |
-| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
-| Majora's Mask 3D | 3DS (5:3) | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
-| Super Mario 3D Land | 3DS (5:3) | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
+| Any game (default) | 3DS (5:3), or as measured | 0 % (-10 % before AzaharFrame oot) | 1.4x | 1.4x (1.76x before AzaharFrame oot) | 3 m | 1 (95 x 85 degrees at 55) |
+| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 0 % (-10 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
+| Majora's Mask 3D | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
+| Super Mario 3D Land | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
 | Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at -30 %, Vertical Scale -15 %) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
 
 The Size column's heights are from before AzaharFrame oot (the view's shape); the screen is now
-as high as the picture's shape gives at that width. The widths were worked out at Narrow Screen 10 %, the default before
-AzaharFrame oot; at Horizontal Scale 0 % (now the default, and the Zelda presets no longer set the
-10 % step) the screen is about a tenth wider.
+as high as the picture's shape gives at that width. The widths were worked out at Horizontal Scale -10 %, the default before
+AzaharFrame oot; at Horizontal Scale 0 % (now the default, and the Zelda presets no longer set a
+scale) the screen is about a tenth wider.
 
-Mario Kart 7 looked stretched at the view-filling size (gain 0.40 to 0.53) and with Narrow
-Screen 20 % (Horizontal Scale -20 % now); the vertical extension itself is not a stretch (the same scale both ways). Its
-preset puts the HUD where Narrow Screen 10 % (Horizontal Scale -10 %) did (about 36 degrees to each side) by making the
+Mario Kart 7 looked stretched at the view-filling size (gain 0.40 to 0.53) and with Horizontal
+Scale -20 %; the vertical extension itself is not a stretch (the same scale both ways). Its
+preset puts the HUD where Horizontal Scale -10 % did (about 36 degrees to each side) by making the
 whole screen 10 % smaller instead, so the world keeps its shape. In mode 3 the distance changes
 nothing visible; in mode 2 it is the flat picture's stereo depth.
 

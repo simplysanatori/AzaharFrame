@@ -194,7 +194,7 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         }
     }
     SECTION("the owner's Majora's Mask 3D: 94 x 83 degrees at gain 1.03") {
-        // Mode 2 at 3 m, 55 degrees, Wider View 1.4x, Narrow Screen 10 % (the owner's log).
+        // Mode 2 at 3 m, 55 degrees, Render Margin 1.4x, Horizontal Scale -10 % (the owner's log).
         Options o;
         o.wider = WiderFactor(4);
         o.squeeze = SqueezeFor(10);
@@ -217,7 +217,7 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         REQUIRE(s.gain == Approx(1.0f));
         REQUIRE(s.gain_x == Approx(1.0f / 0.9f));
     }
-    SECTION("Wider View: the default grows with the factor, the gain stays") {
+    SECTION("Render Margin: the default grows with the factor, the gain stays") {
         Options wider;
         wider.wider = WiderFactor(4);
         const HeadLocked off = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, frame);
@@ -337,7 +337,7 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
         REQUIRE(SolveHeadLocked(small, 60.0f, kAspect3ds, roomy).gain < kMaxGain);
         REQUIRE(kMaxSize >= 2.0f);
     }
-    SECTION("Wider View: the factor is the level; the default size follows, the gain stays") {
+    SECTION("Render Margin: the factor is the level; the default size follows, the gain stays") {
         const ViewFov view50 = Symmetric(50);
         const HeadLocked off = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, view50);
         REQUIRE(off.factor == Approx(kFactorMin));
@@ -363,7 +363,7 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
         REQUIRE(SolveHeadLocked(p, 40.0f, kAspect3ds, view50, 0.0f, too_wide).factor ==
                 Approx(kFactorMax));
     }
-    SECTION("Wider View: the toast and the old switch") {
+    SECTION("Render Margin: the toast and the old switch") {
         REQUIRE(WiderToast(0) == "Render Margin: Off"); // AzaharFrame kiu: was Wider View
         REQUIRE(WiderToast(2) == "Render Margin: 1.2x");
         REQUIRE(WiderToast(4) == "Render Margin: 1.4x");
@@ -393,7 +393,7 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
     }
 }
 
-TEST_CASE("FrameXr immersive: Narrow Screen's setting", "[frame_xr]") {
+TEST_CASE("FrameXr immersive: the old Narrow Screen setting (now Horizontal Scale)", "[frame_xr]") {
     // AzaharFrame immersive2: percent on the 5 % grid; 1 to 3 are the steps of earlier builds.
     REQUIRE(NarrowPercent(0) == 0u);
     REQUIRE(NarrowPercent(1) == 10u);
@@ -413,7 +413,7 @@ TEST_CASE("FrameXr immersive: Narrow Screen's setting", "[frame_xr]") {
     // (immersive_scale.cpp).
 }
 
-TEST_CASE("FrameXr immersive: Narrow Height", "[frame_xr]") {
+TEST_CASE("FrameXr immersive: the old Narrow Height setting (now Vertical Scale)", "[frame_xr]") {
     // AzaharFrame immersive2: the same as Narrow Screen, up and down.
     const ViewFov roomy = Symmetric(70);
     const HeadLocked plain = SolveHeadLocked(Placement{}, 60.0f, kAspect3ds, roomy);
@@ -1418,7 +1418,7 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps its scenery still when t
 
 // AzaharFrame turns2: the anchored screen for any settings, not only a preset's. Random but valid
 // settings (mode, distance, size, pitch, Immersive Game FOV and Screen Shape or a measured camera,
-// Wider View, Narrow Screen and Height, a zoom, the Immersive Offset, the view and the eyes) go
+// Render Margin, Horizontal and Vertical Scale, a zoom, the Immersive Offset, the view and the eyes) go
 // through SolveHeadLocked and the quad Immersive::Screens shows (AnchoredFullQuad); the head turns
 // (yaw, pitch, roll) about a neck behind and below the eyes and leans. Each eye must see every
 // point of the screen (its middle and corners) in the same direction as when the picture was drawn:

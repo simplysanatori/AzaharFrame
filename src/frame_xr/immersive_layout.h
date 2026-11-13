@@ -20,26 +20,27 @@
 //     little against the head. The game's own view never widens with the size, only with the
 //     periphery factors: past them a game's scenery can run out (black below the floor of a
 //     Super Mario 3D Land level).
-//   - Wider View (per game, 1.4x by default; AzaharFrame widerview): the game's periphery factor
+//   - Render Margin (per game, 1.4x by default; AzaharFrame widerview, kiu): the game's periphery factor
 //     across (CitraVR's 1.4 at most, `gl_Position.y /= factor`) is the level the player chose, 1.0x
 //     to 1.4x. The default size grows with the factor, so a step keeps the picture's scale and gain
 //     and only shows more or less around it (AzaharFrame immersive2).
-//   - Narrow Screen (per game, 10 % by default, live; AzaharFrame immersive2): the quad is
-//     narrower than the game's picture by 0 to 30 % (5 % steps) at the same height, and the yaw
-//     gain is the base gain / (1 - narrow), so the HUD at the sides moves in while the middle
-//     stays locked. The world looks that much thinner. Narrow Height does the same up and down
-//     (the pitch gain / (1 - narrow height)): the world looks that much flatter.
+//   - Horizontal Scale (per game, 0 % by default, live; AzaharFrame immersive2, kiu: signed,
+//     positive is larger): the quad is that much wider or narrower than the game's picture
+//     (-30 to +30 %, 5 % steps) at the same height, and the yaw gain is the base gain / (1 +
+//     scale), so a narrower screen brings the HUD at the sides in while the middle stays locked.
+//     The world looks that much thinner. Vertical Scale does the same up and down (the pitch
+//     gain / (1 + vertical scale)): the world looks that much flatter.
 //
 // AzaharFrame immersive2: the default size is the world at its own scale (gain 1): the screen is
-// as many degrees across as the game draws (its camera times the Wider View factor), so nothing is
+// as many degrees across as the game draws (its camera times the Render Margin factor), so nothing is
 // magnified and a head turn moves the picture exactly with the head everywhere on it. The owner's
 // headset test of the view-filling default (gain 0.4 to 0.6) found it far too close, and Mario
 // Kart 7 stretched: a perspective picture magnified 2x is only right at its middle; 35 degrees to
 // the side it is drawn 1.4 to 1.6 times taller than wide. Majora's Mask 3D with the owner's own
-// settings (gain 1.03, Wider View 1.4x, Narrow Screen 10 %, 3 m) was "perfect", so that is the
-// default. The screen takes the view's shape, not the picture's: the Frame's view is taller than
-// 5:3, so the game draws further up and down than across (`factor_y` over `factor`,
-// `gl_Position.x` and `.y` divided separately), at the same scale both ways (not stretched).
+// settings (gain 1.03, Render Margin 1.4x, Horizontal Scale -10 %, 3 m) was "perfect", so that is the
+// default. AzaharFrame oot: the screen takes the picture's own shape, and Render Margin pads it
+// evenly both ways (`factor_y` = `factor`, Off: exactly the game's frame; it took the view's
+// shape before, the game drawing more up and down than across), never stretched.
 // It is never bigger than
 // filling what either eye sees (kFillMarginDeg past it, DefaultCover): a very wide game camera is
 // shrunk to that (gain above 1). A zoom of the game camera does not resize it: only the gain
@@ -256,7 +257,7 @@ struct HeadLocked {
     /// than the picture's shape.
     float factor_y = kFactorMax;
     float tan_half_y = 0.0f;   ///< the quad's half height over its distance
-    float aspect = 5.0f / 3.0f; ///< the quad's width over its height (with both narrowings)
+    float aspect = 5.0f / 3.0f; ///< the quad's width over its height (with both scales)
     float pitch_rad = 0.0f; ///< the quad and the game camera turn by this about the eye
     float distance = kDefaultDistance;
     /// The head's pitch x gain is given to the game. 1 when the quad has the game's angle:
