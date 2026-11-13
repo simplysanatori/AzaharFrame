@@ -28,6 +28,7 @@
 
 #include "common/common_types.h"
 #include "common/logging/log.h" // AzaharFrame oot
+#include "common/frame_log_gate.h" // AzaharFrame integ8
 #include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "video_core/rasterizer_interface.h"
@@ -388,6 +389,50 @@ inline std::atomic<u32> g_stereo_generation{0};
 /// every swap. The XR thread's menu rule reads it (frame_xr/immersive.cpp).
 inline std::atomic<bool> g_world_once{false};
 
+/// AzaharFrame integ8: FrameTrace's two per-second lines in the Full modes (the game's eyes and
+/// far scenery; the world pose) are written on a meaningful change, else every 10 s
+/// (Common::FrameLog::ChangeGate). What they count is summed over the seconds since the line
+/// before; what they last said is kept here. Kept outside FrameTrace, which resets itself each
+/// second. The emulation thread only.
+struct FrameTraceLog {
+    // The stereo line: summed, and what it last said.
+    std::array<u32, 3> eyes{};
+    u32 shown_3d = 0, swaps = 0;
+    int secs = 0;
+    int said_main = -1;      ///< 0, 1 or 2: the game's eyes in most swaps
+    bool said_3d = false;    ///< some swaps in the 3D format
+    float said_far = -1.0f;  ///< far scenery, of the picture's width; below 0 not seen
+    float said_per = -1.0f;  ///< far width per percent; below 0 not measured
+    float said_slider = -1.0f;
+    Common::FrameLog::ChangeGate stereo;
+    // The world-pose line: summed, and what it last said.
+    u32 w_swaps = 0, w_without_world = 0, w_without_copy = 0, w_same = 0, w_earlier = 0,
+        w_untraced = 0;
+    float w_turn_sum = 0.0f, w_turn_max = 0.0f;
+    int w_secs = 0;
+    bool said_earlier = false, said_without_world = false, said_follows = false;
+    Common::FrameLog::ChangeGate world;
+
+    void Reset() {
+        *this = FrameTraceLog{};
+    }
+    /// The stereo line's values this second differ meaningfully from the ones last written:
+    /// the game's eyes in most swaps, the 3D format, far scenery seen or 15 % apart (and 0.05 %
+    /// of the width), the measure per percent 10 % apart, the slider shown half a percent.
+    bool StereoChanged(int main, bool shown3d, float far, float per, float slider) const {
+        using Common::FrameLog::Moved;
+        return main != said_main || shown3d != said_3d || Moved(said_far, far, 0.15f, 0.0005f) ||
+               Moved(said_per, per, 0.10f, 0.0f) || Moved(said_slider, slider, 0.0f, 0.005f);
+    }
+    /// The world-pose line's: pictures drawn with an earlier pose or none, swaps without a
+    /// world draw or none, how pictures are tagged.
+    bool WorldChanged(bool earlier, bool without_world, bool follows) const {
+        return earlier != said_earlier || without_world != said_without_world ||
+               follows != said_follows;
+    }
+};
+inline FrameTraceLog g_frame_trace_log;
+
 class FrameTrace {
 public:
     static constexpr int kFarSamples = 64;
@@ -498,26 +543,77 @@ public:
         }
         g_stereo_far_width.store(far_width, std::memory_order_relaxed);
         if (full_mode && swaps_ > 0) {
-            LOG_INFO(HW_GPU,
-                     "xr: immersive stereo: {} top screen swaps with the game's two eyes, {} with "
-                     "its world drawn once, {} with no world camera; {} in the 3D format; far "
-                     "scenery {} of the picture's width apart ({} per percent of the slider, "
-                     "shown {:.1f} %)",
-                     eyes_[2], eyes_[1], eyes_[0], shown_3d_,
-                     far_width >= 0.0f ? fmt::format("{:.2f} %", far_width * 100.0f)
-                                       : std::string("not seen"),
-                     far_per_slider_.Value() >= 0.0f
-                         ? fmt::format("{:.4f} %", far_per_slider_.Value())
-                         : std::string("not measured"),
-                     100.0f * Settings::frame_vr_slider_shown.load(std::memory_order_relaxed));
-            LOG_INFO(HW_GPU,
-                     "xr: immersive: {} top screen swaps, {} without a world draw, {} without a "
-                     "copy into a framebuffer; the picture's world drawn with the latch's pose "
-                     "{}, an earlier one {} (the head {:.2f} degrees on, max {:.2f}), not told "
-                     "{}; pictures tagged {} (AZAHARFRAME_IMMERSIVE_WORLD_TAG)",
-                     swaps_, swaps_without_world_, swaps_without_copy_, same_, earlier_,
-                     earlier_ ? turn_sum_ / static_cast<float>(earlier_) : 0.0f, turn_max_,
-                     untraced_, track.FollowsWorld() ? "with the world's pose" : "by the latch");
+            // AzaharFrame integ8: on a meaningful change, else every 10 s, summed since the last.
+            FrameTraceLog& lg = g_frame_trace_log;
+            if (generation_ != lg_generation_) {
+                lg.Reset();
+                lg_generation_ = generation_;
+            }
+            for (int e = 0; e < 3; ++e) {
+                lg.eyes[e] += eyes_[e];
+            }
+            lg.shown_3d += shown_3d_;
+            lg.swaps += swaps_;
+            ++lg.secs;
+            const int main = eyes_[2] >= eyes_[1] && eyes_[2] >= eyes_[0] ? 2
+                             : eyes_[1] >= eyes_[0]                     ? 1
+                                                                        : 0;
+            const float per = far_per_slider_.Value();
+            const float slider = Settings::frame_vr_slider_shown.load(std::memory_order_relaxed);
+            const auto say = lg.stereo.Update(
+                now_ms, lg.StereoChanged(main, shown_3d_ > 0, far_width, per, slider));
+            if (say != Common::FrameLog::ChangeGate::Say::Nothing) {
+                LOG_INFO(HW_GPU,
+                         "xr: immersive stereo: {} top screen swaps with the game's two eyes, {} "
+                         "with its world drawn once, {} with no world camera; {} in the 3D "
+                         "format; far scenery {} of the picture's width apart ({} per percent of "
+                         "the slider, shown {:.1f} %) (over {} s, {})",
+                         lg.eyes[2], lg.eyes[1], lg.eyes[0], lg.shown_3d,
+                         far_width >= 0.0f ? fmt::format("{:.2f} %", far_width * 100.0f)
+                                           : std::string("not seen"),
+                         per >= 0.0f ? fmt::format("{:.4f} %", per) : std::string("not measured"),
+                         100.0f * slider, lg.secs, Common::FrameLog::Why(say));
+                lg.eyes = {};
+                lg.shown_3d = lg.swaps = 0;
+                lg.secs = 0;
+                lg.said_main = main;
+                lg.said_3d = shown_3d_ > 0;
+                lg.said_far = far_width;
+                lg.said_per = per;
+                lg.said_slider = slider;
+            }
+            lg.w_swaps += swaps_;
+            lg.w_without_world += swaps_without_world_;
+            lg.w_without_copy += swaps_without_copy_;
+            lg.w_same += same_;
+            lg.w_earlier += earlier_;
+            lg.w_untraced += untraced_;
+            lg.w_turn_sum += turn_sum_;
+            lg.w_turn_max = std::max(lg.w_turn_max, turn_max_);
+            ++lg.w_secs;
+            const bool follows = track.FollowsWorld();
+            const auto wsay = lg.world.Update(
+                now_ms, lg.WorldChanged(earlier_ > 0, swaps_without_world_ > 0, follows));
+            if (wsay != Common::FrameLog::ChangeGate::Say::Nothing) {
+                LOG_INFO(HW_GPU,
+                         "xr: immersive: {} top screen swaps, {} without a world draw, {} "
+                         "without a copy into a framebuffer; the picture's world drawn with the "
+                         "latch's pose {}, an earlier one {} (the head {:.2f} degrees on, max "
+                         "{:.2f}), not told {}; pictures tagged {} (over {} s, {})",
+                         lg.w_swaps, lg.w_without_world, lg.w_without_copy, lg.w_same,
+                         lg.w_earlier,
+                         lg.w_earlier ? lg.w_turn_sum / static_cast<float>(lg.w_earlier) : 0.0f,
+                         lg.w_turn_max, lg.w_untraced,
+                         follows ? "with the world's pose" : "by the latch", lg.w_secs,
+                         Common::FrameLog::Why(wsay));
+                lg.w_swaps = lg.w_without_world = lg.w_without_copy = lg.w_same = lg.w_earlier =
+                    lg.w_untraced = 0;
+                lg.w_turn_sum = lg.w_turn_max = 0.0f;
+                lg.w_secs = 0;
+                lg.said_earlier = earlier_ > 0;
+                lg.said_without_world = swaps_without_world_ > 0;
+                lg.said_follows = follows;
+            }
             if (Traced()) {
                 std::string seq, proj;
                 for (int i = 0; i < sequence_len_; ++i) {
@@ -539,13 +635,18 @@ public:
                          game_repeats_, game_frames_);
             }
         }
+        if (!full_mode) {
+            g_frame_trace_log.Reset(); // AzaharFrame integ8: the next Full mode logs at once
+        }
         const u64 keep_sum = last_sum_;
         const bool keep_have = have_last_sum_;
         const StereoFrame keep_stereo = stereo_;
         const FarPerSlider keep_per_slider = far_per_slider_;
         const WorldOnceRun keep_world_once = world_once_;
         const u32 keep_generation = generation_;
+        const u32 keep_lg_generation = lg_generation_;
         *this = FrameTrace{};
+        lg_generation_ = keep_lg_generation;
         stereo_ = keep_stereo;
         far_per_slider_ = keep_per_slider;
         world_once_ = keep_world_once;
@@ -579,6 +680,7 @@ private:
     FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
     WorldOnceRun world_once_;          ///< AzaharFrame oot: a menu of the game's own
     u32 generation_ = 0;               ///< g_stereo_generation it was reset for
+    u32 lg_generation_ = 0;            ///< AzaharFrame integ8: the one g_frame_trace_log is for
     std::array<u32, 3> eyes_{};        ///< swaps with 0, 1, 2 eyes this second
     u32 shown_3d_ = 0;                 ///< swaps in the 3D format this second
     std::array<float, kFarSamples> far_{};

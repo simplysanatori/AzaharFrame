@@ -22,6 +22,7 @@
 #include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/frame_log_gate.h" // AzaharFrame integ8
 #include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "frame_xr/auto_shape.h" // AzaharFrame fixes7
@@ -364,6 +365,13 @@ struct State {
     L::MenuExact menu_exact;
     bool menu_exact_on = false;
     float stereo_cap_logged = -1.0f; ///< the cap last logged (below 0: none)
+    /// AzaharFrame integ8: the "stereo far" line, on a meaningful change, else every 10 s: what it
+    /// last said, and the far angle's range over the seconds since.
+    Common::FrameLog::ChangeGate far_gate;
+    float far_said_deg = -1.0f, far_said_allow = -1.0f;
+    bool far_said_diverges = false;
+    float far_min_deg = 0.0f, far_max_deg = 0.0f;
+    int far_secs = 0;
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
     L::LensOffset offset;
@@ -1120,15 +1128,36 @@ void OnFrame(const FrameInfo& info) {
                 VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed);
             if (far_width >= 0.0f) {
                 const L::StereoFar st = L::StereoFarOnQuad(g.solved, mode, g.half_ipd, far_width);
-                LOG_INFO(Frontend,
-                         "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
-                         "scenery {:.2f} % of its picture's width apart, {:.3f} m on the screen "
-                         "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm; the eyes "
-                         "{:.2f} degrees inwards; the game's 3D x {:.2f} would be parallel)",
-                         st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
-                         Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
-                         g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
-                         st.vergence_deg, st.natural_scale);
+                // AzaharFrame integ8: on a meaningful change (the far angle 0.1 degrees, what the
+                // eyes allow 0.05 degrees, doubling or not), else every 10 s with the range since.
+                if (g.far_secs == 0) {
+                    g.far_min_deg = g.far_max_deg = st.far_deg;
+                }
+                g.far_min_deg = std::min(g.far_min_deg, st.far_deg);
+                g.far_max_deg = std::max(g.far_max_deg, st.far_deg);
+                ++g.far_secs;
+                using Common::FrameLog::Moved;
+                const bool changed = Moved(g.far_said_deg, st.far_deg, 0.0f, 0.1f) ||
+                                     Moved(g.far_said_allow, st.allow_deg, 0.0f, 0.05f) ||
+                                     st.diverges != g.far_said_diverges;
+                const auto say = g.far_gate.Update(g.view.time / 1'000'000, changed);
+                if (say != Common::FrameLog::ChangeGate::Say::Nothing) {
+                    LOG_INFO(Frontend,
+                             "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
+                             "scenery {:.2f} % of its picture's width apart, {:.3f} m on the "
+                             "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} "
+                             "mm; the eyes {:.2f} degrees inwards; the game's 3D x {:.2f} would "
+                             "be parallel) ({:.2f} to {:.2f} deg over {} s, {})",
+                             st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
+                             Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
+                             g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
+                             st.vergence_deg, st.natural_scale, g.far_min_deg, g.far_max_deg,
+                             g.far_secs, Common::FrameLog::Why(say));
+                    g.far_said_deg = st.far_deg;
+                    g.far_said_allow = st.allow_deg;
+                    g.far_said_diverges = st.diverges;
+                    g.far_secs = 0;
+                }
                 if (st.diverges) {
                     LOG_WARNING(Frontend,
                                 "xr: stereo: the far scenery needs the eyes to diverge {:.2f} "
@@ -1136,6 +1165,11 @@ void OnFrame(const FrameInfo& info) {
                                 "Depth {} %, is too deep for this screen)",
                                 -st.vergence_deg, Settings::values.factor_3d.GetValue());
                 }
+            } else if (g.far_said_deg >= 0.0f) {
+                g.far_gate.Reset(); // AzaharFrame integ8: not seen; logged at once when it is again
+                g.far_said_deg = g.far_said_allow = -1.0f;
+                g.far_said_diverges = false;
+                g.far_secs = 0;
             }
             const int64_t keep_picture = a.last_picture;
             const uint32_t keep_run = a.run;

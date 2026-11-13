@@ -582,10 +582,10 @@ from the rasterizers' draws), which pose's world each display transfer or textur
 address (`OnTransfer`, `GPU::MemoryTransfer`), and at the top screen's swap tags the picture with
 the newest copy into the framebuffer shown (`OnTopScreenSwap`). Where nothing was copied into it in
 the last three latches (a game that draws straight into its framebuffer) or at the VBlank fallback,
-the earlier rule stays. It needs no setting or game value. Once a second the log says
+the earlier rule stays. It needs no setting or game value. The log says
 `xr: immersive: N top screen swaps, ... without a world draw, ... without a copy into a
 framebuffer; the picture's world drawn with the latch's pose ..., an earlier one ... (the head ...
-degrees on ...)`. `AZAHARFRAME_IMMERSIVE_WORLD_TAG=0` tags by the latch again (A/B runs);
+degrees on ...) (over N s, first|changed|no change)` (see below for when). `AZAHARFRAME_IMMERSIVE_WORLD_TAG=0` tags by the latch again (A/B runs);
 `AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1` adds the world draws of each swap in order and the distinct
 world projections each second.
 
@@ -601,12 +601,24 @@ and the screen magnifies it. The rasterizer reads where each world draw's projec
 at infinity across the picture (`FarAcrossFromRows`, `video_core/vr_view_matrix.h`); each top
 screen frame's draws fall in one group per eye (`StereoFrame`): two with the game's 3D on, one
 when it draws its world once (Ocarina of Time 3D's item screen: the paused world, mono, behind
-it). Once a second the emulation thread logs `xr: immersive stereo: N top screen swaps with the
+it). The emulation thread logs `xr: immersive stereo: N top screen swaps with the
 game's two eyes, ... with its world drawn once, ... with no world camera; ... in the 3D format;
 far scenery X % of the picture's width apart`, and the XR thread puts that on the screen
 (`StereoFarOnQuad`, `immersive_layout.h`: the picture is 1/factor of the screen's width, mode 3's
 eye quads are already the IPD apart): `xr: stereo far N deg, eyes allow M deg (...)`, with a
-warning when the eyes would have to diverge (more than 0.1 degrees past parallel). Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
+warning when the eyes would have to diverge (more than 0.1 degrees past parallel).
+
+These three lines are worked out every second but written only the first time, at once on a
+meaningful change, and otherwise as a summary every 10 s (AzaharFrame integ8,
+`Common::FrameLog::ChangeGate`, `common/frame_log_gate.h`; they were written every second, 3 to
+4 MB an hour). Each counts the swaps since the line before and ends `(over N s, first|changed|no
+change)`; the far line also gives the far angle's range over them. Meaningful: for the stereo
+line the game's eyes in most swaps, the 3D format, far scenery seen or not or 15 % apart, the
+measure per percent 10 % apart, the slider shown half a percent; for the world-pose line pictures
+drawn with an earlier pose or none, swaps without a world draw or none, the tagging; for the far
+line the far angle 0.1 degrees, what the eyes allow 0.05 degrees, doubling or not
+(`FrameTraceLog`, `vr_immersive.h`). The divergence warning and the cap's "limited" and "no
+longer limited" lines are written as before. Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
 degrees wide at 3 m, IPD 64 mm): 3D Depth 10, 30 and 50 give 1.17, 3.44 and 5.86 % (the far
 scenery 1.8, 5.2 and 8.9 degrees apart against 1.22 allowed); the game reads the slider live (a
 change shows within a second). Majora's Mask 3D at 50 %: 3.78 %, 3.9 degrees. In mode 3 (slider
