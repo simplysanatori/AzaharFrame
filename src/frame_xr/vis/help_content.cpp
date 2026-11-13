@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "common/param_package.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 #include "frame_xr/input/controls.h"
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/vis/help_content.h"
@@ -17,6 +18,7 @@ using Input::AnalogControl;
 using Input::Control;
 namespace NB = Settings::NativeButton;
 namespace NA = Settings::NativeAnalog;
+namespace ImNames = ::FrameXr::Immersive::Names; // AzaharFrame kiu
 
 const char* ButtonName(int button) {
     switch (button) {
@@ -254,7 +256,11 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Hold Grip + Stick Up or Down", "Nearer or Farther");
     Row(g, "Hold Grip + Stick Sideways", "Screen Size");
     Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
-    Row(g, "Hold Grip + D-Pad Up or Down", "Screen Curve or Wider View"); // curve
+    // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales
+    Row(g, "Hold Grip + D-Pad Up or Down",
+        std::string("Screen Curve or ") + ImNames::kRenderMargin);
+    Row(g, "Hold Both Grips + D-Pad Sideways", ImNames::kHorizontalScale);
+    Row(g, "Hold Both Grips + D-Pad Up or Down", ImNames::kVerticalScale);
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
     Row(g, "Hold View (1.5 s)", "Stop Game");
     Row(g, "Hold View + Left Bumper (0.5 s)", "Quick Load");
@@ -348,7 +354,13 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
           {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("Hold Grip +"),
            Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Screen Size"),
            Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
-           Sub("D-Pad Up or Down", "Curve or Wider View")}); // AzaharFrame curve
+           // AzaharFrame kiu: "/", as wide as fits between the stick labels
+           Sub("D-Pad Up or Down", std::string("Curve / ") + ImNames::kRenderMargin)}); // curve
+    // AzaharFrame kiu: both grips' D-pad, in the right column (under the drawings there is no
+    // room left for it).
+    Label(g, kRight, {CtrlPart::Grip},
+          {SubHeading("Hold Both Grips +"), Sub("D-Pad Left or Right", ImNames::kHorizontalScale),
+           Sub("D-Pad Up or Down", ImNames::kVerticalScale)});
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
     DiagramPage& w = d.pages[static_cast<std::size_t>(DiagramPageId::Window)];
