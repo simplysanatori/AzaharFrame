@@ -1564,7 +1564,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // its trigger touches there; its trigger and grip reach neither the mapper (no ZL or ZR, no
     // beam touch, no grab) nor the immersive screen. Its grip re-zeroes (reticle.h).
     // AzaharFrame input2: Headset: the head aims, either trigger touches (both triggers are the
-    // reticle's then), the grips keep their jobs; Recenter re-zeroes.
+    // reticle's then), the grips keep their jobs; Recentre re-zeroes.
     Input::ReticleSample reticle_sample;
     {
         const Input::ReticleHand source =
