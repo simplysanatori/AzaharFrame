@@ -372,7 +372,9 @@ if (ENABLE_FRAME_XR AND ENABLE_TESTS AND NOT WIN32)
     add_executable(frame_qt_tests ../tests/frame_xr/offscreen_modal.cpp frame_offscreen.cpp
                                   frame_offscreen.h
                                   ../tests/frame_xr/per_game_ini.cpp # AzaharFrame useglobal
-                                  configuration/frame_per_game_ini.h)
+                                  configuration/frame_per_game_ini.h
+                                  ../tests/frame_xr/open_folder.cpp # AzaharFrame qtfiles
+                                  frame_open_folder.cpp frame_open_folder.h)
     target_link_libraries(frame_qt_tests PRIVATE citra_common catch2 Qt6::Widgets)
     if (TARGET Qt6::GuiPrivate)
         target_link_libraries(frame_qt_tests PRIVATE Qt6::GuiPrivate)

@@ -1429,7 +1429,15 @@ void FrameMirror::CheckTextFocus(bool clicked) {
     const bool text = IsTextField(focus);
     if (text && clicked) {
         // Only a click on the field itself: one elsewhere that leaves the keys in it does not.
-        if (focus->rect().contains(focus->mapFromGlobal(last_global.toPoint()))) {
+        // AzaharFrame qtfiles: or a click that just opened a list's name editor (the file
+        // dialog's Rename and New Folder, from its menu).
+        const auto* view =
+            focus->parentWidget()
+                ? qobject_cast<const QAbstractItemView*>(focus->parentWidget()->parentWidget())
+                : nullptr;
+        const bool item_editor = view && focus->parentWidget() == view->viewport();
+        if (focus->rect().contains(focus->mapFromGlobal(last_global.toPoint())) ||
+            (item_editor && !text_focus)) {
             FrameXr::OpenKeyboardForTextField();
         }
     } else if (!text && text_focus) {
