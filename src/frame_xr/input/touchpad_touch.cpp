@@ -126,7 +126,7 @@ void TouchpadTouch::CursorStep(TouchpadResult& out, CursorTrack& t, const Cursor
     } else if (edge) {
         Take(out, who, t.src.px, t.src.py);
     } else if (in.recentre && hit_edge && owner_ == who && touching_) {
-        // Recenter at Edge: lift, and touch again at the middle; an absolute source goes on
+        // Recentre at Edge: lift, and touch again at the middle; an absolute source goes on
         // from there by its motion (an offset) until it lets go.
         Drop(out, who);
         if (in.absolute) {

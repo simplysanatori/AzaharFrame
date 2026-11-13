@@ -89,7 +89,7 @@ The screens have two places. The Primary Screen is where the top screen starts. 
 |---|---|
 | Right stick click, tap | The bottom screen becomes the Primary Screen, at the top screen's height, and the top screen becomes the Secondary Screen. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
-| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode recenters the view. The immersive screen keeps its size unless you hold it with a grip. The focus and what is hidden stay as they are |
+| Right stick click, held for 1 second | Resets the screen positions, and in immersive mode recentres the view. The immersive screen keeps its size unless you hold it with a grip. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
@@ -199,14 +199,14 @@ A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and 
 - **Tap for Input** (the default): a finger on the pad touches the screen.
 - **Click for Input**: pressing the pad touches it, and holding it down drags. The finger alone only moves the dot.
 
-Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recenter at Edge** is there too (see below). A hidden bottom screen takes no touch.
+Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden bottom screen takes no touch.
 
 ### Bottom Screen Reticle
 
 **Bottom Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the bottom screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
 
 - Where the controller points when it starts is the middle of the screen. Point further to move the dot; past an edge, the dot stays on the edge.
-- Its trigger touches, and held, it drags. Its grip recenters the middle where it points now. SteamVR's recenter and the right stick click held for 1 second do too.
+- Its trigger touches, and held, it drags. Its grip recentres the middle where it points now. SteamVR's recentre and the right stick click held for 1 second do too.
 - While it aims, that controller draws no beam. In the in-game menu, Azahar's window and the keyboard it is a normal pointer.
 - **Headset**: your head aims, and the trigger of either controller touches.
 - **Reticle Speed**, under it, sets how far the dot moves for a turn of your head or the controller: 0.5x to 4.0x, one value for both. At the default 2.0x your head turns about 15 degrees from edge to edge and 11 from top to bottom (30 and 22.5 at 1.0x); a controller turns 20 and 15.
@@ -220,7 +220,7 @@ Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touc
 
 A mouse works in VR. **Mouse Mode** on its Edit Controls page has two modes:
 
-- **Bottom Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recenter at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
+- **Bottom Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
 - **Pointer**: the mouse moves a pointer around you that works like the right controller's beam, on the menu, Azahar's window and the screens. Moving your head leaves it where it is.
 
 | Mouse | What it does |
@@ -290,7 +290,7 @@ The models are made from SteamVR's own Frame models when you install. If they ar
 
 ## VR and Flat
 
-Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on SteamVR's big screen (the theater), as a normal app, and stays there when you close the dashboard. Back in VR the 3D comes back; the window first goes back into the dashboard, which takes a few seconds. The next start uses the mode you switched to last.
+Press both bumpers, **View** and **Menu** together to switch between VR and Flat, in a game or not. The game keeps running. In Flat, Azahar's window shows the game on SteamVR's big screen (the theatre), as a normal app, and stays there when you close the dashboard. Back in VR the 3D comes back; the window first goes back into the dashboard, which takes a few seconds. The next start uses the mode you switched to last.
 
 Hold both bumpers first, then press **View** and **Menu**.
 
@@ -306,7 +306,7 @@ Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Sc
 |---|---|
 | Both bumpers, then **View** | Shows or hides the bottom screen |
 | Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
-| Right stick click, held for 1 second | In immersive mode it also recenters the view on where you look. The screen keeps its size, as with SteamVR's recenter (hold the Steam button). **Reset Position** in the menu puts the screen back |
+| Right stick click, held for 1 second | In immersive mode it also recentres the view on where you look. The screen keeps its size, as with SteamVR's recentre (hold the Steam button). **Reset Position** in the menu puts the screen back |
 | Triggers | ZL and ZR everywhere while the bottom screen is hidden |
 
 ## Moving the immersive screen
@@ -322,7 +322,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | D-pad up or down, while holding the screen | Render Margin, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Render Margin: 1.2x**. Kept for this game |
 | Both grips, then D-pad right or left | Full modes: makes the screen wider or narrower, 5% per press, -30% to +30% (**Horizontal Scale**). A label shows the value, for example **Horizontal Scale: -10%**. Kept for this game, at once |
 | Both grips, then D-pad up or down | Full modes: makes the screen taller or shorter in the same way (**Vertical Scale**), for example **Vertical Scale: +5%** |
-| Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, recenters the view and resets the normal screens. Without a grip it only recenters, and the screen keeps its size. A tap does nothing while you hold the screen |
+| Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, recentres the view and resets the normal screens. Without a grip it only recentres, and the screen keeps its size. A tap does nothing while you hold the screen |
 
 Taking hold shows the same kind of hint as for the normal screens, low in front of you.
 

@@ -457,7 +457,7 @@ TEST_CASE("Edit Controls: a pad with a touchpad shows Touchpad Touch, the mouse 
     CHECK(s.Has(Id::UseDevice, -1)); // a gamepad can be switched off
     CHECK_FALSE(s.Has(Id::CursorSpeed, -1));
     // AzaharFrame padsui: the mouse: its buttons, Touch Screen and Open Menu, no sticks; Mouse
-    // Mode in place of Touchpad Touch; Recenter at Edge in Bottom Screen mode only.
+    // Mode in place of Touchpad Touch; Recentre at Edge in Bottom Screen mode only.
     s.m.devices.selected = 2;
     s.Draw();
     for (const int b : std::initializer_list<int>{B::A, B::B, B::X, B::Y, B::Up, B::L, B::R, B::ZL,

@@ -103,7 +103,7 @@ TEST_CASE("Reticle: absolute aim from where it starts, with edge drift", "[frame
     CHECK(f.point.x == Approx(10.0f * ys / 30.0f).margin(0.005));
 }
 
-TEST_CASE("Reticle: grip and Recenter re-zero, the trigger touches", "[frame_xr]") {
+TEST_CASE("Reticle: grip and Recentre re-zero, the trigger touches", "[frame_xr]") {
     Rig t;
     t.Step(Aim(0.0f, 0.0f));
     ReticleFrame f = t.Step(Aim(-10.0f, 0.0f), 90);
@@ -193,7 +193,7 @@ TEST_CASE("Reticle: touches through the cursor pipeline, the bottom screen hidde
     REQUIRE(r.event_count == 1);
     CHECK(r.events[0].type == TouchEventType::Moved);
     CHECK(r.events[0].x == Approx(160.0f));
-    // At the edge it stays down (no Recenter at Edge: the reticle's edges drift).
+    // At the edge it stays down (no Recentre at Edge: the reticle's edges drift).
     fr.reticle.point = {0.0f, 0.5f};
     fr.time_ns += 11 * kMs;
     r = t.Update(fr);
