@@ -20,6 +20,8 @@
 #include "core/mods/catalog_schema.h" // AzaharFrame harden
 #include "core/custom_tex/download.h" // AzaharFrame catalog3 round 2: Drive pages, ids
 #include "core/mods/library.h"
+#include "core/mods/aspect.h" // AzaharFrame fixes7
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 
 namespace fs = std::filesystem;
 
@@ -406,6 +408,7 @@ MapResult MapArchive(const std::vector<ArchiveFile>& archive, const std::vector<
 struct Library::Manifest {
     std::string id, name, version, author, licence, source;
     bool verified = false;
+    std::string aspect; // AzaharFrame fixes7: the catalog's "aspect" at install ("" none)
     bool active = false; // the files are in mods/<TID>/ now
     std::vector<std::string> files;
     std::vector<std::string> texture_files; // AzaharFrame catalog3: relative to load/textures/<TID>/<id>/
@@ -428,11 +431,18 @@ Library::Library(std::string load_dir, Catalog catalog, Transport transport)
         load_dir_ += '/';
     }
     if (!transport_) {
-        transport_ = [](const std::string& host, const std::string& path, std::size_t max) {
-            const auto r = Cheats::Online::HttpsGetRaw(host, path, max);
+        transport_ = [this](const std::string& host, const std::string& path, std::size_t max) {
+            // AzaharFrame fixes7: an install's requests stop on Cancel; a list's (the catalog, the
+            // dates) on another thread meanwhile are not touched by it
+            const auto r = Cheats::Online::HttpsGetRaw(host, path, max, OnInstallThread() ? &stopper_ : nullptr);
             return HttpReply{r.status, r.body, r.location, r.error};
         };
     }
+    // AzaharFrame fixes7: Cancel shuts the socket down at once
+    file_transport_ = [this](const std::string& host, const std::string& path, const std::string& dest,
+                             const std::atomic_bool* cancel, const Multipart::Progress& progress, u64 resume_from) {
+        return Multipart::StreamGet(host, path, dest, cancel, progress, resume_from, &stopper_);
+    };
 }
 
 std::string Library::ModsDir(u64 title_id) const {
@@ -460,6 +470,9 @@ bool Library::ReadManifest(const std::string& dir, Manifest& m) const {
         m.active = j.value("active", false);
         m.pending = j.value("pending", "");
         m.unscanned = j.value("unscanned", false);
+        if (const auto a = j.find("aspect"); a != j.end() && a->is_string()) { // AzaharFrame fixes7
+            m.aspect = NormalizeAspect(a->get<std::string>());
+        }
         m.files.clear();
         for (const auto& f : j.at("files")) {
             const auto rel = f.get<std::string>();
@@ -494,6 +507,9 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     j["licence"] = m.licence;
     j["source"] = m.source;
     j["verified"] = m.verified;
+    if (!m.aspect.empty()) {
+        j["aspect"] = m.aspect; // AzaharFrame fixes7
+    }
     j["active"] = m.active;
     if (!m.pending.empty()) {
         j["pending"] = m.pending;
@@ -612,6 +628,12 @@ std::string ShortFailure(std::string_view e) {
     if (e.rfind("Not Enough Space", 0) == 0 || e == kUnscanned) { // AzaharFrame catalog3
         return std::string(e); // "Not Enough Space: Needs 4.6 GB Free", "GameBanana Hasn't Scanned This File Yet"
     }
+    if (has("is limiting downloads")) { // AzaharFrame fixes7: Transfer::LimitText says it all
+        return std::string(e);
+    }
+    if (has("No connection")) {
+        return "No Connection";
+    }
     if (has("rate limit")) {
         return "Rate Limited";
     }
@@ -646,7 +668,8 @@ std::string ShortFailure(std::string_view e) {
 bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& out, std::string& error) {
     std::string current = url;
     for (int hop = 0; hop < 6; ++hop) {
-        if (cancel_) { // AzaharFrame integ3: Cancel also stops GitHub and GameBanana downloads
+        if (cancel_ && OnInstallThread()) { // AzaharFrame integ3: Cancel also stops GitHub and GameBanana
+                                            // downloads (fixes7: an install's, not a list's)
             error = "Cancelled";
             return false;
         }
@@ -656,7 +679,8 @@ bool Library::Fetch(const std::string& url, std::size_t max_bytes, HttpReply& ou
             return false;
         }
         out = transport_(host, path, max_bytes);
-        if (out.status == 0 && out.error != "Download too large") {
+        if (out.status == 0 && out.error != "Download too large" && !(cancel_ && OnInstallThread()) &&
+            out.error != "Cancelled") {
             // AzaharFrame modfix: one retry when the connection failed or timed out (a download
             // while the headset is busy has been seen to fail once and work the next time).
             LOG_WARNING(Frontend, "Mods: GET {}{} failed: {}; retrying", host, path,
@@ -768,9 +792,24 @@ std::string Library::WorkDir(const std::string& mod_id) const {
     return fmt::format("{}mod-downloads/{}/", load_dir_, mod_id);
 }
 
+u64 Library::PartialBytes(const std::string& mod_id) const { // AzaharFrame fixes7
+    if (mod_id.empty() || mod_id.find('/') != std::string::npos || mod_id == "." || mod_id == "..") {
+        return 0;
+    }
+    u64 total = 0;
+    std::error_code ec;
+    for (fs::directory_iterator it(WorkDir(mod_id), ec), end; !ec && it != end; it.increment(ec)) {
+        const std::string name = it->path().filename().string();
+        if (name.rfind("part", 0) == 0 && name != "parts.txt" && it->is_regular_file(ec)) {
+            total += static_cast<u64>(it->file_size(ec));
+        }
+    }
+    return total;
+}
+
 // One GET into a file with redirects followed to the allowed hosts only.
 bool Library::FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
-                          std::string& error, const std::vector<std::string>& extra_hosts) {
+                          std::string& error, const std::vector<std::string>& extra_hosts, u64 resume_from) {
     std::string current = url;
     int confirms = 0;
     bool retried_empty = false;
@@ -780,7 +819,7 @@ bool Library::FetchToFile(const std::string& url, const std::string& dest, const
             error = "Download refused: not an allowed address";
             return false;
         }
-        auto reply = file_transport_(host, path, dest, &cancel_, progress);
+        auto reply = file_transport_(host, path, dest, &cancel_, progress, resume_from);
         // AzaharFrame harden: a bare 200 with no body (seen on a GameBanana file host) once: ask again after a
         // short wait, then report it.
         if (reply.status == 200 && reply.error.empty() && reply.html.empty() && !retried_empty) {
@@ -793,8 +832,15 @@ bool Library::FetchToFile(const std::string& url, const std::string& dest, const
                     error = "Cancelled";
                     return false;
                 }
-                reply = file_transport_(host, path, dest, &cancel_, progress);
+                reply = file_transport_(host, path, dest, &cancel_, progress, 0);
             }
+        }
+        if (reply.status == 416 && resume_from > 0) {
+            // AzaharFrame fixes7: the kept part is whole already, or the file changed: from the start
+            std::error_code rm_ec;
+            fs::remove(dest, rm_ec);
+            resume_from = 0;
+            continue;
         }
         if ((reply.status == 301 || reply.status == 302 || reply.status == 303 || reply.status == 307 ||
              reply.status == 308) &&
@@ -871,7 +917,10 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
     (void)title_id;
     const std::string work = WorkDir(entry.id);
     std::error_code ec;
-    fs::remove_all(work, ec);
+    // AzaharFrame fixes7: the parts a cancelled (or cut off) download left are kept; they are used
+    // when the parts found below are the same files (parts.txt), else the folder starts over
+    fs::remove_all(work + "out", ec);
+    fs::remove(work + "joined.bin", ec);
     fs::create_directories(work, ec);
     if (ec) {
         error = "Cannot write the download folder";
@@ -1042,6 +1091,23 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
         refs.push_back(std::move(ref));
     }
 
+    // AzaharFrame fixes7: what the kept parts were downloaded from
+    {
+        std::string list;
+        for (const auto& r : refs) {
+            list += fmt::format("{}\t{}\t{}\n", r.mega ? "mega:" + r.name : r.url, r.size, r.name);
+        }
+        std::string kept;
+        if (!ReadFile(work + "parts.txt", kept) || kept != list) {
+            fs::remove_all(work, ec);
+            fs::create_directories(work, ec);
+            if (ec || !Common::WriteFileAtomic(work + "parts.txt", list)) {
+                error = "Cannot write the download folder";
+                return false;
+            }
+        }
+    }
+
     // 2. Room for the parts, the unpacked files and a margin: (parts + unpacked) x 1.1
     u64 parts_total = 0;
     for (const auto& r : refs) {
@@ -1070,20 +1136,36 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
         const auto progress = [this, base, parts_total](u64 done, u64) { SetProgress(base + done, parts_total); };
         bool ok = false;
         std::string why;
+        // AzaharFrame fixes7: a part kept whole is used as it is; a part cut off goes on from its end
+        u64 have = fs::exists(dest, ec) ? static_cast<u64>(fs::file_size(dest, ec)) : 0;
+        if (ec) {
+            have = 0;
+        }
+        if (have > 0 && ref.size != 0 && have == ref.size) {
+            ok = true;
+            SetProgress(base + have, parts_total);
+        }
         for (int attempt = 0; attempt < 2 && !ok; ++attempt) {
             if (cancel_) {
                 error = "Cancelled";
                 return false;
             }
-            fs::remove(dest, ec);
+            if (attempt > 0 || (ref.size != 0 && have > ref.size)) {
+                fs::remove(dest, ec); // the second try starts over
+                have = 0;
+            }
             if (ref.mega) {
                 Mega::RemoteFile remote(mega_net_, ref.mega_file, &cancel_);
-                remote.on_progress = [&](u64 fetched) { SetProgress(base + fetched, parts_total); };
-                std::ofstream out(dest, std::ios::binary | std::ios::trunc);
                 constexpr u64 kChunk = 8ull * 1024 * 1024;
+                const u64 from = have / kChunk * kChunk; // whole chunks only (AzaharFrame fixes7)
+                if (from > 0) {
+                    fs::resize_file(dest, from, ec);
+                }
+                remote.on_progress = [&](u64 fetched) { SetProgress(base + from + fetched, parts_total); };
+                std::ofstream out(dest, std::ios::binary | (from > 0 && !ec ? std::ios::app : std::ios::trunc));
                 std::string chunk;
                 ok = static_cast<bool>(out);
-                for (u64 at = 0; ok && at < ref.mega_file.size; at += kChunk) {
+                for (u64 at = from > 0 && !ec ? from : 0; ok && at < ref.mega_file.size; at += kChunk) {
                     ok = remote.Read(at, kChunk, chunk, why);
                     if (ok) {
                         out.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
@@ -1094,11 +1176,14 @@ bool Library::DownloadParts(const CatalogEntry& entry, u64 title_id, std::string
                     }
                 }
             } else {
-                ok = FetchToFile(ref.url, dest, progress, why, ref.hosts);
+                ok = FetchToFile(ref.url, dest, progress, why, ref.hosts, have);
             }
-            if (!ok && why == "Cancelled") {
-                error = why;
+            if (!ok && (why == "Cancelled" || cancel_)) {
+                error = "Cancelled";
                 return false;
+            }
+            if (!ok && (Transfer::IsLimitError(why) || why.rfind("Not Enough Space", 0) == 0)) {
+                break; // AzaharFrame fixes7: never again against a rate limit
             }
             if (!ok) {
                 LOG_WARNING(Frontend, "Mods: part {} of {} failed: {}{}", i + 1, entry.id, why,
@@ -1530,6 +1615,14 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
             info.licence = m.licence;
             info.source = m.source;
             info.verified = m.verified;
+            // AzaharFrame fixes7: the badge and the shape follow the catalog as it is now
+            if (const CatalogEntry* e = catalog_.Find(m.id)) {
+                info.recommended = e->recommended;
+                info.aspect = e->aspect;
+            }
+            if (info.aspect.empty()) {
+                info.aspect = m.aspect;
+            }
             info.managed = true;
             const bool on = EffectiveActive(m.active, m.pending);
             info.state = on ? ModState::Active : ModState::Inactive;
@@ -1584,7 +1677,13 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
     for (auto& [id, info] : groups) {
         unmanaged.push_back(std::move(info));
     }
-    const auto by_name = [](const ModInfo& a, const ModInfo& b) { return a.name < b.name; };
+    // AzaharFrame fixes7: the recommended ones first in each group, then by name
+    const auto by_name = [](const ModInfo& a, const ModInfo& b) {
+        if (a.recommended != b.recommended) {
+            return a.recommended;
+        }
+        return a.name < b.name;
+    };
     std::sort(active.begin(), active.end(), by_name);
     std::sort(inactive.begin(), inactive.end(), by_name);
     std::vector<ModInfo> out = std::move(active);
@@ -1651,6 +1750,8 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
                         ? version->second
                         : e.version;
         a.verified = e.verified;
+        a.recommended = e.recommended; // AzaharFrame fixes7
+        a.partial_bytes = PartialBytes(e.id);
         a.downloads = e.downloads;                  // AzaharFrame catalog3
         a.size = e.size;
         a.has_textures = !e.texture_rules.empty();
@@ -1671,6 +1772,9 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
     std::stable_sort(out.begin(), out.end(), [](const AvailableMod& a, const AvailableMod& b) {
         if (a.compat.Fits() != b.compat.Fits()) {
             return a.compat.Fits();
+        }
+        if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
+            return a.recommended;
         }
         if (a.matches_game != b.matches_game) {
             return a.matches_game;
@@ -1832,6 +1936,7 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
                                 bool other_version) {
     InstallOutcome outcome;
     std::thread worker([&] {
+        install_thread_ = std::this_thread::get_id(); // AzaharFrame fixes7: what Cancel stops
         Multipart::LowerThisThreadPriority();
         allow_unscanned_ = allow_unscanned;
         hit_unscanned_ = false;
@@ -1842,6 +1947,7 @@ InstallOutcome Library::Install(u64 title_id, const std::string& mod_id, bool re
             unscanned_ids_.insert(mod_id);
         }
         allow_unscanned_ = false;
+        install_thread_ = std::thread::id{};
     });
     worker.join();
     return outcome;
@@ -1876,7 +1982,7 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
             return {InstallResult::Error, "Another install is running"};
         }
         busy_ = true;
-        cancel_ = false; // AzaharFrame mega
+        stopper_.Reset(); // AzaharFrame mega; fixes7
     }
     struct Done {
         Library& self;
@@ -1931,12 +2037,23 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
         big_root_.clear();
         work = WorkDir(entry.id);
         cleanup.path = work;
+        // AzaharFrame fixes7: a cancelled download keeps its parts for Resume (the unpacked files go)
+        const auto keep_parts = [&] {
+            if (error == "Cancelled" || cancel_) {
+                std::error_code e;
+                fs::remove_all(work + "out", e);
+                fs::remove(work + "joined.bin", e);
+                cleanup.path.clear();
+            }
+        };
         if (!entry.parts.empty()) {
             if (!DownloadParts(entry, title_id, root, version, error)) {
+                keep_parts();
                 return fail(InstallResult::Error, error);
             }
         } else {
             if (!DownloadSource(entry, title_id, archive, version, error)) {
+                keep_parts();
                 return fail(InstallResult::Error, error);
             }
             root = big_root_; // a download too big for memory was unpacked to disk
@@ -2016,6 +2133,7 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
                               ? (entry.source.hosts.empty() ? std::string("https") : entry.source.hosts.front())
                               : "github.com/" + entry.source.repo;
         manifest.verified = entry.verified;
+        manifest.aspect = entry.aspect; // AzaharFrame fixes7
         manifest.unscanned = hit_unscanned_;
         manifest.active = false;
         // one file into the library: from memory, or moved from the folder (copied when both parts

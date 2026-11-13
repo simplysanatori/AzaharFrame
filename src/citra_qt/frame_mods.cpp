@@ -38,6 +38,7 @@
 #include "core/custom_tex/download.h"
 #include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/optimize.h" // AzaharFrame ui3
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 #include "core/mods/library.h"
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
@@ -89,7 +90,7 @@ struct AvailableResult {
 std::string PhaseText(Mods::State::Phase phase) {
     switch (phase) {
     case Mods::State::Phase::Resolving:
-        return "Connecting";
+        return "Preparing"; // AzaharFrame fixes7: as Download Packs (CustomTex::Download::kPreparing)
     case Mods::State::Phase::Downloading:
         return "Downloading";
     case Mods::State::Phase::Extracting:
@@ -147,7 +148,7 @@ Menu::ModRow ToRow(const Mods::ModInfo& info, const Mods::Catalog& catalog) {
     Menu::ModRow r;
     r.id = info.id;
     r.name = info.name;
-    r.verified = info.verified;
+    r.recommended = info.recommended; // AzaharFrame fixes7: the badge
     r.managed = info.managed;
     r.active = info.state == Mods::ModState::Active;
     if (info.managed) {
@@ -710,7 +711,7 @@ void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
         o.version = a.chip;
         o.version_tip = a.chip_tip;
         o.version_match = a.matches_game;
-        o.verified = a.verified;
+        o.recommended = a.recommended; // AzaharFrame fixes7: the badge
         o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = a.unscanned;
         o.mod_version = a.version; // AzaharFrame ui3
@@ -730,8 +731,13 @@ void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
             o.note = "Unsupported Archive";
         } else if (a.id == failed) {
             o.note = failed_reason.empty() ? std::string("Install Failed")
-                                           : "Install Failed: " + failed_reason; // AzaharFrame modfix
+                     // AzaharFrame fixes7: a site's rate limit says it all
+                     : Mods::Transfer::IsLimitError(failed_reason) ? failed_reason
+                                                                   : "Install Failed: " + failed_reason; // AzaharFrame modfix
             o.error = true;
+        }
+        if (o.state == Menu::OfferState::Install && a.partial_bytes > 0) {
+            o.resume = Menu::ResumeText(a.partial_bytes, a.size); // AzaharFrame fixes7: Resume
         }
         mods.available.push_back(std::move(o));
     }
@@ -870,6 +876,8 @@ void FrameMods::PollProgress() {
     std::string text = PhaseText(st.phase);
     if (!text.empty() && st.phase == Mods::State::Phase::Downloading && st.total > 0) {
         text += fmt::format(" {}%", std::min<u64>(100, st.done * 100 / st.total)); // AzaharFrame mega
+        // AzaharFrame fixes7: the size too, so a slow start still shows it moving
+        text += " \u00b7 " + Menu::ProgressSizeText(st.done, st.total);
     }
     if (!text.empty() && text != o->note) {
         o->note = text;
@@ -1515,7 +1523,7 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.url = Menu::LinkText(p.author_url).empty() ? std::string{} : p.author_url;
         o.size_text = p.size_text;
         o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
-        o.verified = p.verified;
+        o.recommended = p.recommended; // AzaharFrame fixes7: the badge
         o.notes = p.notes; // AzaharFrame modcat2
         o.downloads = p.downloads > 0 ? Menu::DownloadsText(p.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = p.unscanned;
@@ -1532,6 +1540,10 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         } else if (p.id == pack_failed) {
             o.state = Menu::PackOfferState::Failed;
             o.note = pack_error;
+        }
+        if (o.state == Menu::PackOfferState::Download && p.partial) {
+            // AzaharFrame fixes7: a cancelled download (or one the app was closed in) goes on: Resume
+            o.resume = Menu::ResumeText(p.partial_bytes, p.size);
         }
         offers.push_back(std::move(o));
     }
@@ -1582,7 +1594,8 @@ void FrameMods::StartDownload(const std::string& id) {
     pack_error.clear();
     o->state = Menu::PackOfferState::Downloading;
     o->percent = -1;
-    o->note = "Connecting";
+    o->note = CustomTex::Download::kPreparing; // AzaharFrame fixes7: until the file's bytes start
+    o->resume.clear();
     textures.downloading = true;
     PublishTextures();
     download_poll->start(250);
@@ -1602,11 +1615,17 @@ void FrameMods::PollDownload() {
         if (Menu::PackOffer* o = PackOffer(st.pack_id)) {
             Menu::PackOffer next = *o;
             next.state = Menu::PackOfferState::Downloading;
+            next.resume.clear();
             next.note = st.text;
             next.percent = st.phase == Phase::Downloading && st.bytes_total > 0
                                ? static_cast<int>(std::min<u64>(
                                      st.bytes_done * 100 / st.bytes_total, 100))
                                : -1;
+            if (st.phase == Phase::Downloading) {
+                // AzaharFrame fixes7: "120 MB of 3.4 GB": a big pack on a slow link moves here long
+                // before the percent leaves 0
+                next.note = Menu::ProgressSizeText(st.bytes_done, st.bytes_total);
+            }
             if (!(next == *o)) {
                 *o = std::move(next);
                 PublishTextures();

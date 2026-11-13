@@ -69,6 +69,7 @@ add_executable(tests
     core/mods_running.cpp # AzaharFrame catalog3
     core/mods_compat.cpp # AzaharFrame compat
     core/harden.cpp # AzaharFrame harden
+    core/mods_transfer.cpp # AzaharFrame fixes7
     core/cpp_helpers.cpp # AzaharFrame cpphelpers
     core/emerald_fallback.cpp # AzaharFrame emfallback
     core/custom_tex_packs.cpp # AzaharFrame texdata

@@ -17,6 +17,10 @@
 #include <vector>
 #include "common/common_types.h"
 
+namespace Mods::Transfer {
+class Stopper; // AzaharFrame fixes7: core/mods/transfer.h
+}
+
 namespace Mods::Multipart {
 
 /// "4.6 GB", "300 MB".
@@ -78,15 +82,20 @@ struct FileReply {
     std::string error;
     u64 total = 0; // Content-Length, 0 unknown
     std::string html; // a 200 text/html body (capped at 2 MB, nothing written to the file): Drive's confirm page
+    u64 start = 0;    // AzaharFrame fixes7: where the bytes written began (resume_from on a 206, else 0)
 };
 using Progress = std::function<void(u64 done, u64 total)>;
 /// One GET of `https://host` + `path` into the file `dest` (no redirects followed: a 3xx comes back
-/// with `location` and nothing written). Calls `progress` as bytes arrive.
+/// with `location` and nothing written). Calls `progress` as bytes arrive (counted from the file's
+/// start). AzaharFrame fixes7: `resume_from` > 0 asks for the rest (Range); a 206 appends there
+/// (`start`), a 200 writes the file from the beginning.
 using FileTransport = std::function<FileReply(const std::string& host, const std::string& path,
                                               const std::string& dest, const std::atomic_bool* cancel,
-                                              const Progress& progress)>;
-/// The real one (HTTPS, system certificates).
+                                              const Progress& progress, u64 resume_from)>;
+/// The real one (HTTPS, system certificates). AzaharFrame fixes7: `stopper` (optional) ends it at
+/// once on Cancel; a site that limits downloads gets Mods::Transfer::LimitText as the error.
 FileReply StreamGet(const std::string& host, const std::string& path, const std::string& dest,
-                    const std::atomic_bool* cancel, const Progress& progress);
+                    const std::atomic_bool* cancel, const Progress& progress, u64 resume_from = 0,
+                    Transfer::Stopper* stopper = nullptr);
 
 } // namespace Mods::Multipart

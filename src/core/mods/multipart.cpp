@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <cstdio>
+#include <ctime>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -19,6 +20,7 @@
 #include <fmt/format.h>
 #include "common/request_path.h"
 #include "core/mods/multipart.h"
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 
 namespace fs = std::filesystem;
 
@@ -341,7 +343,8 @@ const char* CaBundle() {
 } // namespace
 
 FileReply StreamGet(const std::string& host, const std::string& path, const std::string& dest,
-                    const std::atomic_bool* cancel, const Progress& progress) {
+                    const std::atomic_bool* cancel, const Progress& progress, u64 resume_from,
+                    Transfer::Stopper* stopper) {
     FileReply reply;
     const char* ca = CaBundle();
     if (ca == nullptr) {
@@ -351,17 +354,26 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
     FILE* file = nullptr;
     try {
         httplib::Client client(host);
-        client.set_connection_timeout(15);
-        client.set_read_timeout(60);
         client.set_write_timeout(30);
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
         client.set_url_encode(false);
-        const httplib::Headers headers{{"Accept-Encoding", "identity"}};
+        // AzaharFrame fixes7: a 10 s connect, a 30 s stall; Cancel ends the lookup, connect and reads
+        if (const std::string why = Transfer::Prepare(client, host, stopper); !why.empty()) {
+            reply.error = why;
+            return reply;
+        }
+        httplib::Headers headers{{"Accept-Encoding", "identity"}};
+        if (resume_from > 0) {
+            headers.emplace("Range", fmt::format("bytes={}-", resume_from));
+        }
         u64 done = 0;
         bool stopped = false;
         bool capture_html = false;
+        bool capture_error = false; // AzaharFrame fixes7: a small error page (a rate limit's)
+        std::string error_body;
+        std::string retry_after;
         const auto res = client.Get(
             Common::RequestPath(path), headers,
             [&](const httplib::Response& r) {
@@ -372,7 +384,27 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
                     ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                 }
                 capture_html = r.status == 200 && ctype.rfind("text/html", 0) == 0;
-                if (r.status == 200 && !capture_html) {
+                capture_error = r.status >= 400;
+                retry_after = r.get_header_value("Retry-After");
+                if (r.status == 206 && resume_from > 0 && !capture_html) {
+                    // AzaharFrame fixes7: the rest of a kept part: Content-Range bytes a-b/total
+                    unsigned long long a = 0, b = 0, t = 0;
+                    const std::string cr = r.get_header_value("Content-Range");
+                    const int n = std::sscanf(cr.c_str(), "bytes %llu-%llu/%llu", &a, &b, &t);
+                    if (n < 2 || a != resume_from) {
+                        reply.error = "The host answered a different range";
+                        return false;
+                    }
+                    reply.total = n == 3 ? t : 0;
+                    reply.start = resume_from;
+                    done = resume_from;
+                    reply.status = 200; // the callers see a whole file
+                    file = std::fopen(dest.c_str(), "ab");
+                    if (file == nullptr) {
+                        reply.error = "Cannot write the download file";
+                        return false;
+                    }
+                } else if (r.status == 200 && !capture_html) {
                     const std::string cl = r.get_header_value("Content-Length");
                     reply.total = cl.empty() ? 0 : std::strtoull(cl.c_str(), nullptr, 10);
                     file = std::fopen(dest.c_str(), "wb");
@@ -394,6 +426,9 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
                     }
                     reply.html.append(data, len);
                 }
+                if (capture_error && error_body.size() < 64 * 1024) {
+                    error_body.append(data, std::min<std::size_t>(len, 64 * 1024 - error_body.size()));
+                }
                 if (file != nullptr) {
                     if (std::fwrite(data, 1, len, file) != len) {
                         reply.error = "Not Enough Space: the disk is full";
@@ -406,18 +441,25 @@ FileReply StreamGet(const std::string& host, const std::string& path, const std:
                 }
                 return true;
             });
+        Transfer::Finish(stopper);
         if (file != nullptr) {
             std::fclose(file);
             file = nullptr;
         }
-        if (stopped) {
+        const auto limit = Transfer::DetectLimit(reply.status, !reply.html.empty() ? reply.html : error_body,
+                                                 retry_after, std::time(nullptr));
+        if (stopped || (!res && cancel != nullptr && cancel->load())) {
             reply.error = "Cancelled";
+        } else if (limit.limited && reply.error.empty()) { // AzaharFrame fixes7: never retried
+            reply.error = Transfer::LimitText(Transfer::SiteName(host), limit.retry_after_s);
+            reply.html.clear();
         } else if (!res && reply.error.empty()) {
             reply.error = httplib::to_string(res.error());
         } else if (res && reply.status == 200 && reply.total != 0 && done != reply.total) {
             reply.error = "Download incomplete";
         }
     } catch (const std::exception& e) {
+        Transfer::Finish(stopper);
         if (file != nullptr) {
             std::fclose(file);
         }

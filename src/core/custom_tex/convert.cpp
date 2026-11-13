@@ -463,12 +463,14 @@ Result Converter::RunInner() {
 
     // Work is counted in texels, so the progress and the estimate follow the big textures
     std::map<std::string, u64> work;
+    std::map<std::string, u64> bytes; // AzaharFrame fixes7: each texture's copy, for the progress
     u64 need = 0;
     for (const std::string& rel : pngs) {
         const std::string path = src + "/" + rel;
         const auto dims = PngSize(path);
         work[rel] = dims ? u64{dims->first} * dims->second : FileSize(path);
         const u64 size = dims ? KtxSize(dims->first, dims->second, plan.block) : FileSize(path);
+        bytes[rel] = size;
         if (!IsUpToDate(path, out + "/" + KtxName(rel))) {
             need += size;
         }
@@ -495,6 +497,7 @@ Result Converter::RunInner() {
 
     std::vector<std::string> todo;
     u64 done_work = 0;
+    u64 done_bytes = 0; // AzaharFrame fixes7
     int done = 0;
     for (const std::string& rel : pngs) {
         const std::string dst = out + "/" + KtxName(rel);
@@ -502,6 +505,7 @@ Result Converter::RunInner() {
         if (IsUpToDate(src + "/" + rel, dst)) {
             done++;
             done_work += work[rel];
+            done_bytes += bytes[rel];
         } else {
             todo.push_back(rel);
         }
@@ -513,6 +517,10 @@ Result Converter::RunInner() {
         total_work += w;
     }
     total_work = std::max<u64>(total_work, 1);
+    u64 total_bytes = 0;
+    for (const auto& [rel, b] : bytes) {
+        total_bytes += b;
+    }
 
     int jobs = request_.jobs;
     if (jobs <= 0) {
@@ -531,7 +539,10 @@ Result Converter::RunInner() {
     const int total_files = static_cast<int>(pngs.size());
     const auto report = [&] {
         if (progress_) {
-            progress_({done, total_files, static_cast<int>(done_work * 1000 / total_work)});
+            // AzaharFrame fixes7: the percent by the copy's size, as the line shows it
+            const int permille = total_bytes > 0 ? static_cast<int>(done_bytes * 1000 / total_bytes)
+                                                 : static_cast<int>(done_work * 1000 / total_work);
+            progress_({done, total_files, permille, done_bytes, total_bytes});
         }
     };
     {
@@ -592,6 +603,7 @@ Result Converter::RunInner() {
             }
             done++;
             done_work += work[rel];
+            done_bytes += bytes[rel];
             report();
         }
         std::lock_guard lock(encoders_mutex_);

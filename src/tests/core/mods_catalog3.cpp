@@ -420,11 +420,13 @@ struct FakeFiles {
     std::map<std::string, int> hits;
     std::map<std::string, std::string> html; // key -> a 200 text/html page (Drive's confirm form, a wall)
     std::vector<std::string> log;
+    std::vector<u64> resumes; // AzaharFrame fixes7: the resume_from of each request
     Multipart::FileTransport Get() {
         return [this](const std::string& host, const std::string& path, const std::string& dest,
-                      const std::atomic_bool*, const Multipart::Progress& progress) {
+                      const std::atomic_bool*, const Multipart::Progress& progress, u64 resume_from) {
             Multipart::FileReply r;
             const std::string key = host + path;
+            resumes.push_back(resume_from);
             log.push_back(key);
             if (fail_first[key]-- > 0) {
                 r.error = "Connection reset";
@@ -440,7 +442,16 @@ struct FakeFiles {
                 r.status = 404;
                 return r;
             }
-            std::ofstream(dest, std::ios::binary | std::ios::trunc) << it->second;
+            if (resume_from > 0) { // AzaharFrame fixes7: the rest of a kept part
+                if (resume_from >= it->second.size()) {
+                    r.status = 416;
+                    return r;
+                }
+                std::ofstream(dest, std::ios::binary | std::ios::app) << it->second.substr(resume_from);
+                r.start = resume_from;
+            } else {
+                std::ofstream(dest, std::ios::binary | std::ios::trunc) << it->second;
+            }
             ++hits[key];
             if (progress) {
                 progress(it->second.size(), it->second.size());
@@ -954,6 +965,69 @@ TEST_CASE("Catalog3: a part that fails is tried once more, then the install fail
         REQUIRE(out.result == InstallResult::Error);
         CHECK(out.error == "Not found");
     }
+}
+
+TEST_CASE("fixes7: a cancelled multipart download goes on from its kept parts", "[mods][catalog3][fixes7]") {
+    if (FindBsdtar().empty()) {
+        SKIP("no bsdtar");
+    }
+    const std::string whole(reinterpret_cast<const char*>(kSevenZip), sizeof(kSevenZip));
+    const std::string json = R"({"schema":1,"mods":[{"id":"s7","name":"S7","title_ids":["0004000000033500"],"author":"A",
+      "parts":[{"type":"github_repo_path","repo":"o/r","ref":"main","path":"p.7z.001"},
+               {"type":"github_repo_path","repo":"o/r","ref":"main","path":"p.7z.002"}],
+      "install":{"rules":[{"from":"b.bin","to":"romfs/b.bin"}]}}]})";
+    const std::string dir = TempDir("resume");
+    FakeFiles net;
+    net.files[PartUrl("p.7z.001")] = whole.substr(0, 400);
+    net.files[PartUrl("p.7z.002")] = whole.substr(400);
+    // what Cancel (or closing the app) left: the first part whole, 100 bytes of the second
+    const std::string work = dir + "mod-downloads/s7/";
+    fs::create_directories(work);
+    std::ofstream(work + "parts.txt", std::ios::binary)
+        << PartUrl("p.7z.001") << "\t0\tp.7z.001\n" << PartUrl("p.7z.002") << "\t0\tp.7z.002\n";
+    std::ofstream(work + "part001", std::ios::binary) << whole.substr(0, 400);
+    std::ofstream(work + "part002", std::ios::binary) << whole.substr(400, 100);
+    auto library_owner = MakeParts(dir, json, net);
+    Library& library = *library_owner;
+    CHECK(library.PartialBytes("s7") == 500);
+    const auto avail = library.ListAvailable(kTid);
+    REQUIRE(avail.size() == 1);
+    CHECK(avail[0].partial_bytes == 500); // the row offers Resume
+    const auto out = library.Install(kTid, "s7");
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    CHECK(Read(dir + "mods/" + kTidText + "/romfs/b.bin") == "hello seven");
+    // the second part was asked for from byte 100 only
+    REQUIRE(net.log.size() >= 2);
+    CHECK(net.log.back() == PartUrl("p.7z.002"));
+    CHECK(net.resumes.back() == 100);
+    CHECK(library.PartialBytes("s7") == 0); // done: nothing kept
+}
+
+TEST_CASE("fixes7: kept parts from other files are not used", "[mods][catalog3][fixes7]") {
+    if (FindBsdtar().empty()) {
+        SKIP("no bsdtar");
+    }
+    const std::string whole(reinterpret_cast<const char*>(kSevenZip), sizeof(kSevenZip));
+    const std::string json = R"({"schema":1,"mods":[{"id":"s7","name":"S7","title_ids":["0004000000033500"],"author":"A",
+      "parts":[{"type":"github_repo_path","repo":"o/r","ref":"main","path":"p.7z.001"},
+               {"type":"github_repo_path","repo":"o/r","ref":"main","path":"p.7z.002"}],
+      "install":{"rules":[{"from":"b.bin","to":"romfs/b.bin"}]}}]})";
+    const std::string dir = TempDir("resume2");
+    FakeFiles net;
+    net.files[PartUrl("p.7z.001")] = whole.substr(0, 400);
+    net.files[PartUrl("p.7z.002")] = whole.substr(400);
+    const std::string work = dir + "mod-downloads/s7/";
+    fs::create_directories(work);
+    std::ofstream(work + "parts.txt", std::ios::binary) << "https://elsewhere/old.7z.001\t0\told\n";
+    std::ofstream(work + "part001", std::ios::binary) << "stale bytes";
+    auto library_owner = MakeParts(dir, json, net);
+    Library& library = *library_owner;
+    const auto out = library.Install(kTid, "s7");
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    CHECK(Read(dir + "mods/" + kTidText + "/romfs/b.bin") == "hello seven");
+    CHECK(std::count(net.resumes.begin(), net.resumes.end(), 0u) == static_cast<long>(net.resumes.size()));
 }
 
 TEST_CASE("Catalog3: JoinParts and FixSplitZip", "[mods][catalog3]") {
