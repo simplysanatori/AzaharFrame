@@ -1972,6 +1972,29 @@ GMainWindow::GMainWindow(Core::System& system_)
                 });
             }
 
+            // Test driver (AzaharFrame natural): AZAHARFRAME_TEST_NATURAL="20:50,26:100" sets the
+            // Full modes' 3D Depth (vr_immersive_depth) and AZAHARFRAME_TEST_LEANING="20:2" the
+            // Leaning choice at those seconds after start, as the menu would.
+            for (const char* env : {"AZAHARFRAME_TEST_NATURAL", "AZAHARFRAME_TEST_LEANING"}) {
+                const bool leaning = std::string_view{env}.ends_with("LEANING");
+                for (const QString& step :
+                     FrameTestEnv(env).split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                    const auto parts = step.split(QLatin1Char(':'));
+                    if (parts.size() != 2) {
+                        continue;
+                    }
+                    const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
+                    const u32 value = std::min(parts[1].toUInt(), leaning ? 3u : 100u);
+                    QTimer::singleShot(ms, this, [ms, value, leaning] {
+                        LOG_INFO(Frontend, "xr test: {} {} at {} ms",
+                                 leaning ? "Leaning" : "Immersive 3D Depth", value, ms);
+                        (leaning ? Settings::values.vr_immersive_leaning
+                                 : Settings::values.vr_immersive_depth)
+                            .SetValue(value);
+                    });
+                }
+            }
+
             // Test driver (AzaharFrame memguard): AZAHARFRAME_TEST_STATES="12:save0,16:load0,..."
             // saves (saveN) or loads (loadN) state slot N (0: the quick save) that many seconds
             // after start, and logs the custom texture uploads so far (they go on after a load

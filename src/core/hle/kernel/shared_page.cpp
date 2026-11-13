@@ -94,6 +94,9 @@ Handler::Handler(Core::Timing& timing, u64 override_init_time) : timing(timing) 
                 Settings::frame_vr_depth_scale.load(), // AzaharFrame vrsize
                 Settings::values.vr_immersive_mode.GetValue() == 2 // AzaharFrame stereo
                     ? Settings::frame_vr_stereo_cap.load(std::memory_order_relaxed)
+                    : -1.0f,
+                Settings::values.vr_immersive_mode.GetValue() == 2 // AzaharFrame natural
+                    ? Settings::frame_vr_natural_slider.load(std::memory_order_relaxed)
                     : -1.0f) :
             0.01f;
     shared_page.sliderstate_3d = static_cast<float_le>(slidestate);

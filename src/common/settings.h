@@ -778,6 +778,16 @@ struct Values {
     SwitchableSetting<u32> vr_immersive_positional_game_scaler{
         0, "vr_immersive_positional_game_scaler"};
     SwitchableSetting<std::string> vr_immersive_eye_indicator{"", "vr_immersive_eye_indicator"};
+    // AzaharFrame natural: 3D Depth in the Full modes, percent of the natural 3D (100: the
+    // farthest scenery at infinity for the screen's size, distance and the IPD; 0: flat), and
+    // how the leaning scale (made from the game's own 3D) follows the screen: 0 live, 1 measured
+    // once per game and held (kFrameLeaningDefault picks the default). Where the game's 3D cannot
+    // be read, leaning uses vr_immersive_positional_game_scaler's fixed scale.
+    // frame_xr/immersive_layout.h "natural".
+    static constexpr u32 kFrameLeaningDefault = 0; // 0 Follow Screen, 1 Fixed
+    SwitchableSetting<u32, true> vr_immersive_depth{100, 0, 100, "vr_immersive_depth"};
+    SwitchableSetting<u32, true> vr_immersive_leaning{kFrameLeaningDefault, 0, 1,
+                                                      "vr_immersive_leaning"};
     // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper
     // chord, see frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};

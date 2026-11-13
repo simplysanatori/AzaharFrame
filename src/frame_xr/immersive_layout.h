@@ -653,8 +653,9 @@ struct StereoFar {
 /// Divergence this small is not counted (nor warned about): the eyes fuse it with ease, and mode
 /// 3's slider of 0.01 leaves Mario Kart 7 and Kid Icarus 0.05 to 0.08 degrees past parallel.
 inline constexpr float kDivergeToleranceDeg = 0.1f;
+/// AzaharFrame natural: `quad_half`, mode 3's eye quads from the middle (below 0: on the eyes).
 StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
-                          float far_width);
+                          float far_width, float quad_half = -1.0f);
 
 /// AzaharFrame stereo: the cap keeps the eyes at least this far from parallel at the far scenery.
 inline constexpr float kStereoMarginDeg = 0.05f;
@@ -729,9 +730,125 @@ private:
 /// / 10, an integer), from the user's 3D Depth: the stereo cap never changes it.
 float GamePositionScale(int multiplier, uint32_t depth_percent);
 
+// ---- AzaharFrame natural: 3D Depth as a share of the natural 3D, and leaning from it ----
+//
+// At the natural slider (StereoSliderLimit with no margin) the game's far scenery is exactly the
+// IPD apart on the screen, so the eyes look at it parallel, as at infinity, and every depth z of
+// the game appears at z x g x IPD / e (e the game's eye separation, g the gain): a true-scale
+// copy of its world at IPD / e metres per game unit. 3D Depth f (0 to 1) shows f x that slider:
+// infinity then comes in to distance / (1 - f), 0 is a flat picture on the screen. Leaning moves
+// the game camera e / IPD game units per metre (the head moving one IPD moves it the game's eye
+// separation at the natural slider): independent of 3D Depth and the IPD, it follows the
+// picture's size on the screen. Mode 3 builds the same geometry with its own eyes
+// (Mode3Stereo). IMMERSIVE.md "Natural 3D".
+
+/// No margin: exactly parallel (the leaning scale's definition).
+inline constexpr float kNaturalMarginDeg = 0.0f;
+
+/// 3D Depth in the Full modes, percent of the natural 3D (Settings::values.vr_immersive_depth).
+/// A game with no value of its own whose own 3DS 3D Depth (factor_3d) is set to 0 keeps 0 (it
+/// was meant flat); anything else is the setting (default 100). At most 100.
+uint32_t NaturalDepthPercent(bool depth_own, uint32_t depth, bool factor_3d_own,
+                             uint32_t factor_3d);
+
+/// The leaning scale, game units per metre: `eye_per_far` (video_core/vr_view_matrix.h
+/// EyePerFar: the game's eye separation per unit of its far width) over the picture's width on
+/// the screen (the quad's width / factor). Below 0 when not known.
+float NaturalLeaning(const HeadLocked& solved, float eye_per_far);
+
+/// The leaning scale where the game's eyes cannot be read: 10^multiplier x 5 game units per
+/// metre (CitraVR's scale at its default 3D Depth of 50; the multiplier is the old Depth Factor
+/// Multiplier, kept as this fallback's starting value, presets included).
+float FixedLeaning(uint32_t multiplier);
+
+/// Settings::values.vr_immersive_leaning: how the leaning scale follows the screen.
+inline constexpr uint32_t kLeaningFollow = 0; ///< live: follows the screen's size and distance
+inline constexpr uint32_t kLeaningFixed = 1;  ///< measured once per game, then held
+
+/// The leaning scale the game camera moves by (game units per metre), never jumping: it moves
+/// towards its target at most kMaxRatePerS in ratio a second (a factor 2 a second: the fallback
+/// of 50 to a measured 11 takes about 2 s), eased by kTauS. The target: Follow, the measured
+/// scale every frame (NaturalLeaning) or the fallback while there is none; Fixed, the first
+/// measured scale once the game's eyes were read in kFixAfter frames, then held for the game
+/// (Reset when another game starts) whatever the screen does. XR thread; pure (unit tested).
+class LeaningScale {
+public:
+    static constexpr float kMaxRatePerS = 0.6931472f; ///< ln 2
+    static constexpr float kTauS = 0.25f;
+    static constexpr int kFixAfter = 9;
+
+    /// `measured` below 0: not read; `samples`: the game's frames read so far (EyePerFar).
+    float Update(uint32_t mode, float measured, int samples, float fallback, int64_t now_ms);
+    float Value() const {
+        return value_;
+    }
+    float Target() const {
+        return target_;
+    }
+    /// 0 measured (following), 1 the fallback, 2 held (Fixed).
+    int Source() const {
+        return source_;
+    }
+    void Reset() {
+        *this = LeaningScale{};
+    }
+
+private:
+    float value_ = -1.0f, eased_ = -1.0f, target_ = -1.0f, held_ = -1.0f;
+    int64_t last_ms_ = 0;
+    int source_ = 1;
+};
+
+/// Mode 2's slider: 3D Depth `f` (0 to 1) x the natural limit, without jitter: the limit counts
+/// lower at once and higher only once it is kRise above the one in use; the slider follows
+/// f x limit down at once (never past parallel) and eases up to it (kUpTauS); a change of `f`
+/// and the first known limit go through at once. Before the limit is known, f x kProbe (small, so it does not double on a big
+/// screen, and above 0 so the game draws two eyes to be measured). At most 1 (the 3DS's
+/// slider): Clamped() says so. XR thread; pure (unit tested).
+class NaturalSlider {
+public:
+    static constexpr float kRise = 0.01f; ///< relative
+    static constexpr float kUpTauS = 0.25f;
+    static constexpr float kProbe = 0.03f;
+
+    /// `limit` below 0: not known (the last known one holds once there was one).
+    float Update(float f, float limit, int64_t now_ms);
+    float Limit() const {
+        return limit_;
+    }
+    bool Clamped() const {
+        return clamped_;
+    }
+    void Reset() {
+        *this = NaturalSlider{};
+    }
+
+private:
+    float out_ = -1.0f, limit_ = -1.0f, last_f_ = -1.0f;
+    int64_t last_ms_ = 0;
+    bool clamped_ = false;
+};
+
+/// Mode 3's own stereo with the geometry mode 2 has at the same 3D Depth: each eye's camera
+/// `f x leaning x IPD / 2` to its side (game units, rasterizer GameEyeOffset's scaler f x
+/// leaning) and the eye quads `quad_half` from the middle instead of on the eyes: f x half the
+/// IPD, less half the game's own far scenery apart on the screen (`game_far_m`, its slider of
+/// 0.01), so the far scenery is exactly parallel at f = 1 and comes in to distance / (1 - f)
+/// below, the game's screen plane at the screen.
+struct Mode3Stereo {
+    float eye_scaler = 0.0f; ///< game units per metre of IPD (GameEyeOffset's scaler)
+    float quad_half = 0.0f;  ///< each eye quad's distance from the middle (m)
+};
+Mode3Stereo Mode3Natural(float f, float leaning, float half_ipd, float game_far_m);
+
+/// The game's own far scenery apart on the quad (m), for its far width share `far_width`.
+float GameFarOnQuad(const HeadLocked& solved, float far_width);
+
 /// AzaharFrame turns2: the Full modes' quad eye `eye` sees, in the head's (VIEW) space: in mode 3
 /// centred on that eye, in mode 2 one quad for both (centred between them).
-Input::Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd);
+/// AzaharFrame natural: in mode 3 `quad_half` from the middle when 0 or more (Mode3Natural).
+Input::Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                            float quad_half = -1.0f);
 
 /// AzaharFrame turns: the head-locked quad (`in_view`, in the head's frame) placed for the
 /// picture drawn with the head at `picture`, while the head is at `now` (LOCAL space), for the
@@ -767,7 +884,7 @@ float AnchorFollow(float distance, float scaler, float depth_units, float gain);
 /// AnchoredQuadPose of FullQuadInView about EyeX.
 Input::Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
                               const Input::Posef& picture, const Input::Posef& now,
-                              bool follow_eye);
+                              bool follow_eye, float quad_half = -1.0f);
 
 /// AzaharFrame heldquad: the head-locked quad `in_view` (head frame), held on a display refresh
 /// after its picture's, as the game would draw that picture now. The picture is magnified: the
@@ -808,8 +925,13 @@ HeldQuadPose HeldQuad(const Input::Posef& in_view, float eye_x, float distance, 
 
 /// AzaharFrame heldquad: HeldQuad's `eye_share` for mode 2 from the game's far scenery
 /// (StereoFarOnQuad's separation on the quad over the IPD): 0 with no far width known (below 0)
-/// or none (one camera), 1 at parallel; kept from 0 to 2. Mode 3: 1.
-float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width);
+/// or none (one camera), 1 at parallel; kept from 0 to 2. Mode 3: 1 (each quad on its eye).
+/// AzaharFrame natural: mode 3 with its eye quads `quad_half` from the middle (0 or more,
+/// Mode3Natural): the rays come from where the game's own far scenery (its slider of 0.01,
+/// GameFarOnQuad) puts straight ahead, half of it outwards from the quad's middle, so the share
+/// is that over the eye's distance from the quad's middle (1 when the quad is on the eye).
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width,
+                     float quad_half = -1.0f);
 
 /// AzaharFrame heldquad: one display frame's head pose, as the game camera was made from it
 /// (Immersive OnFrame, with VideoCore::Immersive::VRData): its time (XrContentPose::time, the
@@ -862,7 +984,8 @@ private:
 /// from `now` (relative to `rest`, the game camera's rest pose) through the picture's own solved
 /// screen; nullptr: rigid (AnchoredQuadPose). Either way the eye's move since the picture is
 /// followed by `follow`, as in AnchoredQuadPose, and the quad's shape is `solved`'s (the live
-/// placement).
+/// placement). AzaharFrame natural: `quad_half`, mode 3's eye quads from the middle
+/// (FullQuadInView); the eye stays at EyeX.
 struct HeldScreen {
     Input::Posef pose;
     float width = 0.0f;
@@ -870,7 +993,8 @@ struct HeldScreen {
 };
 HeldScreen HeldFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
                         const Input::Posef& picture, const Input::Posef& now, float follow,
-                        const HeldPose* held, const Input::Quatf& rest, float eye_share = 1.0f);
+                        const HeldPose* held, const Input::Quatf& rest, float eye_share = 1.0f,
+                        float quad_half = -1.0f);
 
 /// AzaharFrame turns2: how far far scenery at the middle of `placed` (a quad in LOCAL space),
 /// seen from `eye_now` (LOCAL), is from where that eye saw it when the picture was drawn (the

@@ -409,8 +409,18 @@ struct State {
     bool view_raw_valid = false;
     int view_fov_changes = 0; ///< the settled view's changes (the log line's note)
     L::HeadLocked solved;
-    /// AzaharFrame stereo: mode 2's cap on the game's 3D slider (UpdateStereoCap).
+    /// AzaharFrame stereo: mode 2's cap on the game's 3D slider (replaced by natural 3D).
     L::StereoCap stereo_cap;
+    /// AzaharFrame natural: mode 2's slider (3D Depth x the natural limit), the leaning scale
+    /// (eased), mode 3's own stereo, and what was logged last.
+    L::NaturalSlider natural;
+    L::LeaningScale leaning;
+    L::Mode3Stereo mode3;
+    float quad_half = -1.0f; ///< mode 3's eye quads from the middle (below 0: on the eyes)
+    float natural_logged_limit = -1.0f;
+    uint32_t natural_logged_depth = 1000;
+    int natural_logged_source = -1; ///< 0 measured, 1 fallback, 2 fixed
+    float natural_logged_leaning = -1.0f;
     /// AzaharFrame oot: mode 2's menu rule (L::MenuExact), and whether it was last on (the log).
     L::MenuExact menu_exact;
     bool menu_exact_on = false;
@@ -816,50 +826,112 @@ void StopStereoCap() {
     g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
 }
 
-// AzaharFrame stereo: in mode 2 the game's own two eyes are on one screen: its far scenery is
-// kept from being farther apart than the eyes (L::StereoSliderLimit, with the game's far width per
-// slider unit measured live from its two projections, the screen's size, distance and factor and
-// the IPD, every frame). The game is shown min(3D Depth / 100, that), without jitter
-// (L::StereoCap); 3D Depth itself, and the head-motion scale made from it, stay as set. While the
-// in-game menu shows (not engaged) the cap holds as it is.
-void UpdateStereoCap(u32 mode) {
-    const u32 depth = Settings::values.factor_3d.GetValue();
-    if (mode != 2 || depth == 0) {
-        if (Settings::frame_vr_stereo_cap.load(std::memory_order_relaxed) >= 0.0f ||
-            g.stereo_cap.Target() >= 0.0f) {
-            StopStereoCap();
+// AzaharFrame natural: 3D Depth in the Full modes, percent of the natural 3D.
+uint32_t NaturalDepth() {
+    const auto& v = Settings::values;
+    return L::NaturalDepthPercent(!v.vr_immersive_depth.UsingGlobal(), v.vr_immersive_depth.GetValue(),
+                                  !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue());
+}
+
+// AzaharFrame natural: the leaning scale in game units per metre (L::LeaningScale: never a jump):
+// from the game's own 3D (L::NaturalLeaning) where its eyes could be read, following the screen
+// or held once measured (Settings::values.vr_immersive_leaning), else the fixed fallback of the
+// old multiplier; `source`: 0 measured, 1 the fallback, 2 held.
+float NaturalLeaningNow(int& source) {
+    const auto& v = Settings::values;
+    const float measured = L::NaturalLeaning(
+        g.solved, VideoCore::Immersive::g_stereo_eye_per_far.load(std::memory_order_relaxed));
+    const float value = g.leaning.Update(
+        v.vr_immersive_leaning.GetValue(), measured,
+        VideoCore::Immersive::g_stereo_eye_samples.load(std::memory_order_relaxed),
+        L::FixedLeaning(v.vr_immersive_positional_game_scaler.GetValue()),
+        VideoCore::Immersive::SteadyMs());
+    source = g.leaning.Source();
+    return value;
+}
+
+// AzaharFrame natural: mode 2 shows the game 3D Depth x the natural limit (the slider at which its
+// far scenery is parallel on this screen, from its far width per slider unit measured live, the
+// screen's size, distance and factor and the IPD, every frame); mode 3 makes the same geometry
+// with its own eyes (L::Mode3Natural). Both lean by the same scale. While the in-game menu shows
+// (not engaged) the slider holds as it is.
+void UpdateNatural(u32 mode) {
+    if (mode != 2 && mode != 3) {
+        if (Settings::frame_vr_natural_slider.load(std::memory_order_relaxed) >= 0.0f) {
+            Settings::frame_vr_natural_slider.store(-1.0f, std::memory_order_relaxed);
         }
         g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
+        g.natural.Reset();
+        g.quad_half = -1.0f;
+        g.natural_logged_limit = -1.0f;
+        g.natural_logged_depth = 1000;
         return;
     }
-    if (!g.engaged) {
-        return;
-    }
-    // The slider the game would be shown without the cap (FrameVrSlider: 1 in the Full modes).
-    const float user = static_cast<float>(std::min<u32>(depth, 100)) / 100.0f *
-                       Settings::frame_vr_depth_scale.load(std::memory_order_relaxed);
+    Settings::frame_vr_stereo_cap.store(-1.0f, std::memory_order_relaxed); // replaced by this
+    const u32 depth = NaturalDepth();
+    const float f = static_cast<float>(depth) / 100.0f;
+    int source = 0;
+    const float leaning = NaturalLeaningNow(source);
     const float per = VideoCore::Immersive::g_stereo_far_per_slider.load(std::memory_order_relaxed);
-    const float limit = L::StereoSliderLimit(g.solved, g.half_ipd, per);
-    const float sent = g.stereo_cap.Update(user, limit, VideoCore::Immersive::SteadyMs());
-    Settings::frame_vr_stereo_cap.store(g.stereo_cap.Target() >= 0.0f ? sent : -1.0f,
-                                        std::memory_order_relaxed);
-    g_depth_cap_limit.store(g.stereo_cap.Target(), std::memory_order_relaxed); // AzaharFrame integ8
-    // The log: when the cap takes effect, moves by half a percent or more, or lifts.
-    if (g.stereo_cap.Limited()) {
-        const float target = g.stereo_cap.Target();
-        if (g.stereo_cap_logged < 0.0f || std::abs(target - g.stereo_cap_logged) >= 0.005f) {
-            g.stereo_cap_logged = target;
-            LOG_INFO(Frontend,
-                     "xr: 3D Depth {} % limited to {:.1f} % so far scenery never diverges (the "
-                     "game's far scenery {:.4f} % of its width per percent, screen {:.0f} degrees "
-                     "wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm)",
-                     depth, 100.0f * target, per, Deg(2 * std::atan(g.solved.tan_half_y *
-                                                                     g.solved.aspect)),
-                     g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd);
+    if (mode == 2) {
+        if (g.engaged) {
+            const float limit = L::StereoSliderLimit(g.solved, g.half_ipd, per);
+            const float sent = g.natural.Update(f, limit, VideoCore::Immersive::SteadyMs());
+            Settings::frame_vr_natural_slider.store(sent, std::memory_order_relaxed);
         }
-    } else if (g.stereo_cap_logged >= 0.0f) {
-        g.stereo_cap_logged = -1.0f;
-        LOG_INFO(Frontend, "xr: 3D Depth {} % no longer limited", depth);
+        g.quad_half = -1.0f;
+    } else {
+        Settings::frame_vr_natural_slider.store(-1.0f, std::memory_order_relaxed);
+        const float far_width =
+            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed);
+        g.mode3 = L::Mode3Natural(f, leaning, g.half_ipd, L::GameFarOnQuad(g.solved, far_width));
+        g.quad_half = g.mode3.quad_half;
+    }
+    // The log: a new 3D Depth or source of the leaning, the limit 2 % or the leaning 10 % away.
+    const float limit = g.natural.Limit();
+    const bool limit_moved =
+        mode == 2 && limit >= 0.0f &&
+        (g.natural_logged_limit < 0.0f || std::abs(limit - g.natural_logged_limit) > 0.02f * limit);
+    const bool leaning_moved =
+        g.natural_logged_leaning < 0.0f ||
+        std::abs(leaning - g.natural_logged_leaning) > 0.1f * g.natural_logged_leaning;
+    if (depth != g.natural_logged_depth || source != g.natural_logged_source || limit_moved ||
+        leaning_moved) {
+        g.natural_logged_depth = depth;
+        g.natural_logged_source = source;
+        g.natural_logged_leaning = leaning;
+        if (mode == 2) {
+            g.natural_logged_limit = limit;
+        }
+        static constexpr const char* kSource[] = {
+            "from the game's own 3D, following the screen",
+            "the fallback (the game's eyes not read yet)",
+            "from the game's own 3D, held since it was measured"};
+        const float screen_deg = Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect));
+        if (mode == 2) {
+            LOG_INFO(Frontend,
+                     "xr: natural 3D: 3D Depth {} % = the game's 3D at {} (natural {} for the "
+                     "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm{}); "
+                     "leaning {:.1f} game units per metre, {}",
+                     depth,
+                     limit >= 0.0f ? fmt::format("{:.2f} %", 100.0f * std::min(f * limit, 1.0f))
+                                   : fmt::format("{:.2f} % (probing)",
+                                                 100.0f * f * L::NaturalSlider::kProbe),
+                     limit >= 0.0f ? fmt::format("{:.2f} %", 100.0f * limit)
+                                   : std::string("not measured yet"),
+                     screen_deg, g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
+                     g.natural.Clamped() ? "; above the 3DS's full 3D, so 100 % of it" : "",
+                     leaning, kSource[source]);
+        } else {
+            LOG_INFO(Frontend,
+                     "xr: natural 3D: 3D Depth {} %, mode 3's eyes {:.4f} game units apart "
+                     "({:.1f} per metre of IPD), eye quads {:.1f} mm from the middle (the screen "
+                     "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm); leaning "
+                     "{:.1f} game units per metre, {}",
+                     depth, g.mode3.eye_scaler * 2.0f * g.half_ipd, g.mode3.eye_scaler,
+                     1000.0f * g.mode3.quad_half, screen_deg, g.solved.distance, g.solved.factor,
+                     2000.0f * g.half_ipd, leaning, kSource[source]);
+        }
     }
 }
 
@@ -885,6 +957,12 @@ void OnFrame(const FrameInfo& info) {
             VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
             VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
             StopStereoCap();
+            // AzaharFrame natural: the game's eyes are measured afresh, the slider and leaning too.
+            VideoCore::Immersive::g_stereo_eye_per_far.store(-1.0f, std::memory_order_relaxed);
+            VideoCore::Immersive::g_stereo_eye_samples.store(0, std::memory_order_relaxed);
+            g.natural.Reset();
+            g.leaning.Reset();
+            g.natural_logged_leaning = -1.0f;
         }
         VideoCore::Immersive::g_world_once.store(false, std::memory_order_relaxed); // AzaharFrame oot
         g.menu_exact.Reset(); // AzaharFrame oot
@@ -1137,10 +1215,10 @@ void OnFrame(const FrameInfo& info) {
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
     }
-    // AzaharFrame stereo: without a game on view the cap holds (a quick save loading); another
-    // game resets it as it starts (above).
+    // AzaharFrame stereo: without a game on view the slider holds (a quick save loading); another
+    // game resets it as it starts (above). AzaharFrame natural: UpdateNatural (was UpdateStereoCap).
     if (info.screens_live) {
-        UpdateStereoCap(mode);
+        UpdateNatural(mode);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -1193,15 +1271,15 @@ void OnFrame(const FrameInfo& info) {
             }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
-            // CitraVR: 10^multiplier x (the 3D slider / 10, an integer). AzaharFrame stereo:
-            // from the user's 3D Depth, never the capped slider the game is shown.
-            const float scaler = L::GamePositionScale(
-                static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
-                Settings::values.factor_3d.GetValue());
+            // AzaharFrame natural: leaning by its own scale (UpdateNatural: from the game's own
+            // 3D, else the fixed one), no longer 3D Depth's; mode 3's eyes 3D Depth x that.
+            int source = 0;
+            const float leaning = g.leaning.Value() > 0.0f ? g.leaning.Value()
+                                                           : NaturalLeaningNow(source);
             // AzaharFrame integ9: POSITION_SCALE moves the head position's share only; the
             // game's two eyes (game_pos_scaler, 3D Depth) stay as they are.
-            FillInverseView(q, p, scaler * g.tuning.position_scale, data.inv_view);
-            data.game_pos_scaler = -scaler;
+            FillInverseView(q, p, leaning * g.tuning.position_scale, data.inv_view);
+            data.game_pos_scaler = -(mode == 3 ? g.mode3.eye_scaler : leaning);
         }
     }
     VideoCore::Immersive::Publish(data);
@@ -1292,7 +1370,8 @@ void OnFrame(const FrameInfo& info) {
             const float far_width =
                 VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed);
             if (far_width >= 0.0f) {
-                const L::StereoFar st = L::StereoFarOnQuad(g.solved, mode, g.half_ipd, far_width);
+                const L::StereoFar st = L::StereoFarOnQuad(g.solved, mode, g.half_ipd, far_width,
+                                                             g.quad_half);
                 // AzaharFrame integ8: on a meaningful change (the far angle 0.1 degrees, what the
                 // eyes allow 0.05 degrees, doubling or not), else every 10 s with the range since.
                 if (g.far_secs == 0) {
@@ -1396,18 +1475,19 @@ std::string DepthChangeToast(unsigned depth) {
         Settings::frame_vr_depth_scale.load(std::memory_order_relaxed));
 }
 
-// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_POSITION_SCALE and what it gives now. Under 10 % 3D
-// Depth the game camera takes no head position at all (L::GamePositionScale is 0), so the
-// factor has nothing to multiply: the log says so.
+// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_POSITION_SCALE and what it gives now. AzaharFrame
+// natural: the game camera's head position scale is the leaning scale (UpdateNatural), not known
+// before a Full mode's first frame: the log says so.
 static std::string PositionScaleLine() {
-    const float base = L::GamePositionScale(
-        static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
-        Settings::values.factor_3d.GetValue());
+    const float base = g.leaning.Value();
+    if (!(base > 0.0f)) {
+        return fmt::format("head position x{:.2f} (of the leaning scale, not known yet)",
+                           g.tuning.position_scale);
+    }
     return fmt::format("head position x{:.2f} (the game camera's head position scale {:.2f} x "
-                       "{:.2f} = {:.2f}{})",
+                       "{:.2f} = {:.2f})",
                        g.tuning.position_scale, base, g.tuning.position_scale,
-                       base * g.tuning.position_scale,
-                       base == 0.0f ? "; none under 10% 3D Depth, so no effect" : "");
+                       base * g.tuning.position_scale);
 }
 
 void ReloadTestSwitches() {
@@ -1515,7 +1595,7 @@ void NoteSlip(bool anchored, const XrPosef& picture, const XrPosef (&top_pose)[2
                 : Add(g.view.head.position,
                       Rotate(g.view.head.orientation, {L::EyeX(eye, g.half_ipd), 0.0f, 0.0f}));
         const Input::Vec2f e =
-            L::FarSceneryError(ToIn(picture), L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd),
+            L::FarSceneryError(ToIn(picture), L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd, g.quad_half),
                                L::EyeX(eye, g.half_ipd), ToIn(top_pose[eye]),
                                {from.x, from.y, from.z});
         err[eye][0] = Deg(e.x);
@@ -1551,9 +1631,8 @@ float AnchorFollowNow(bool follow_eye) {
     if (depth >= 0.0f) {
         return depth == 0.0f ? 0.0f : std::clamp(1.0f - g.solved.distance / depth, -20.0f, 1.0f);
     }
-    const float scaler = L::GamePositionScale(
-        static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
-        Settings::values.factor_3d.GetValue()) * g.tuning.position_scale; // AzaharFrame integ9
+    // AzaharFrame natural: the head moves the game camera by the leaning scale.
+    const float scaler = std::max(g.leaning.Value(), 0.0f) * g.tuning.position_scale; // integ9
     const float focus = L::AnchorFollow(
         g.solved.distance, scaler,
         VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
@@ -1633,16 +1712,19 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
             anchored && g.tuning.hold_warp && g.view.valid ? held : nullptr;
         // Mode 2's pictures come from the game's own two cameras: their far scenery says where
         // on the quad each eye's rays come from (the eye at parallel, the middle at 3D Depth 0).
+        // AzaharFrame natural: mode 3's eye quads off its eyes (Mode3Natural) likewise.
         const float eye_share = L::EyeShareOnQuad(
             g.solved, g.mode, g.half_ipd,
-            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed));
+            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed),
+            g.quad_half);
         for (int eye = 0; eye < 2; eye++) {
-            const Input::Posef in_view = L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd);
+            const Input::Posef in_view =
+                L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd, g.quad_half);
             if (anchored) {
                 out.top_space = local_space;
                 const L::HeldScreen h = L::HeldFullQuad(
                     g.solved, g.mode, eye, g.half_ipd, ToIn(anchor_head), ToIn(g.view.head),
-                    follow, hold, ToIn(g.ref).orientation, eye_share);
+                    follow, hold, ToIn(g.ref).orientation, eye_share, g.quad_half);
                 out.top_pose[eye] = ToXr(h.pose);
                 out.top_size[eye] = {h.width, h.height};
             } else if (g.tuning.local_space && g.view.valid) {

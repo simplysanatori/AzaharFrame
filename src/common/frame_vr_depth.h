@@ -26,9 +26,17 @@ inline std::atomic<float> frame_vr_stereo_cap{-1.0f};
 // the game's far scenery per slider unit (video_core/vr_immersive.h).
 inline std::atomic<float> frame_vr_slider_shown{0.0f};
 
+// AzaharFrame natural: the slider mode 2 shows the game, set by frame_xr every frame (immersive.cpp
+// UpdateNatural: 3D Depth x the natural limit); below 0 when not set (another mode, no game yet).
+inline std::atomic<float> frame_vr_natural_slider{-1.0f};
+
 /// The slider a game in VR is shown in modes 0 to 2: the 3D Depth (0 to 1) times the depth
-/// scale, at most `cap` when that is 0 or more.
-inline float FrameVrSlider(float depth, float depth_scale, float cap) {
+/// scale, at most `cap` when that is 0 or more. AzaharFrame natural: `natural` instead when it is
+/// 0 or more (mode 2).
+inline float FrameVrSlider(float depth, float depth_scale, float cap, float natural = -1.0f) {
+    if (natural >= 0.0f) {
+        return natural < 1.0f ? natural : 1.0f;
+    }
     const float s = depth * depth_scale;
     return cap >= 0.0f && s > cap ? cap : s;
 }

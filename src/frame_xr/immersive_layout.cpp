@@ -501,13 +501,13 @@ float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_i
 }
 
 StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
-                          float far_width) {
+                          float far_width, float quad_half) {
     StereoFar out;
     const float d = std::max(solved.distance, 1e-3f);
     const float factor = std::max(solved.factor, 1e-3f);
     // The game's share, on the quad; mode 3's quads are each on their eye, IPD apart already.
     const float game_m = far_width / factor * solved.width();
-    const float quads_m = mode == 3 ? 2.0f * half_ipd : 0.0f;
+    const float quads_m = mode == 3 ? 2.0f * (quad_half >= 0.0f ? quad_half : half_ipd) : 0.0f;
     out.separation_m = game_m + quads_m;
     out.far_deg = 2.0f * std::atan(out.separation_m / (2.0f * d)) * kRadToDeg;
     out.allow_deg = 2.0f * std::atan(half_ipd / d) * kRadToDeg;
@@ -591,8 +591,120 @@ float GamePositionScale(int multiplier, uint32_t depth_percent) {
            static_cast<float>(depth_percent / 10);
 }
 
-Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd) {
-    return HeadLockedQuadPose(solved, mode == 3 ? EyeX(eye, half_ipd) : 0.0f);
+uint32_t NaturalDepthPercent(bool depth_own, uint32_t depth, bool factor_3d_own,
+                             uint32_t factor_3d) {
+    if (!depth_own && factor_3d_own && factor_3d == 0) {
+        return 0;
+    }
+    return std::min<uint32_t>(depth, 100);
+}
+
+float NaturalLeaning(const HeadLocked& solved, float eye_per_far) {
+    if (!(eye_per_far > 0.0f) || !std::isfinite(eye_per_far)) {
+        return -1.0f;
+    }
+    const float width = solved.width();
+    if (!(width > 0.0f)) {
+        return -1.0f;
+    }
+    // The picture is 1 / factor of the quad's width: the far width share x that is the far
+    // scenery apart in metres, and the eyes per that is game units per metre.
+    return eye_per_far * std::max(solved.factor, 1e-3f) / width;
+}
+
+float FixedLeaning(uint32_t multiplier) {
+    return std::pow(10.0f, static_cast<float>(std::min<uint32_t>(multiplier, 2))) * 5.0f;
+}
+
+float LeaningScale::Update(uint32_t mode, float measured, int samples, float fallback,
+                           int64_t now_ms) {
+    const float dt_s =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
+                      : 0.0f;
+    last_ms_ = now_ms;
+    const bool have = measured > 0.0f && std::isfinite(measured);
+    if (mode == kLeaningFixed && held_ < 0.0f && have && samples >= kFixAfter) {
+        held_ = measured;
+    }
+    if (mode == kLeaningFixed && held_ > 0.0f) {
+        target_ = held_;
+        source_ = 2;
+    } else if (have) {
+        target_ = measured;
+        source_ = 0;
+    } else if (source_ == 0 && target_ > 0.0f) {
+        // Measured before, not this frame (a menu): the last measure holds.
+    } else if (fallback > 0.0f && std::isfinite(fallback)) {
+        target_ = fallback;
+        source_ = 1;
+    }
+    if (!(target_ > 0.0f)) {
+        return value_;
+    }
+    if (value_ <= 0.0f) {
+        value_ = eased_ = target_;
+        return value_;
+    }
+    // Eased, then rate limited in ratio: never a jump, whatever the target does.
+    eased_ += (target_ - eased_) * (1.0f - std::exp(-dt_s / kTauS));
+    const float step = std::exp(kMaxRatePerS * dt_s);
+    value_ = std::clamp(eased_, value_ / step, value_ * step);
+    return value_;
+}
+
+float NaturalSlider::Update(float f, float limit, int64_t now_ms) {
+    const float dt_s =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
+                      : 0.0f;
+    last_ms_ = now_ms;
+    if (!std::isfinite(f)) {
+        f = 0.0f;
+    }
+    f = std::clamp(f, 0.0f, 1.0f);
+    bool jump = f != last_f_;
+    last_f_ = f;
+    if (limit >= 0.0f && std::isfinite(limit)) {
+        if (limit_ < 0.0f) {
+            jump = true;
+            limit_ = limit;
+        } else if (limit < limit_ || limit > limit_ * (1.0f + kRise)) {
+            limit_ = limit;
+        }
+    }
+    const float target = limit_ >= 0.0f ? f * limit_ : f * kProbe;
+    if (jump || out_ < 0.0f || target <= out_) {
+        // Lower at once: the far scenery is never past parallel while the screen grows.
+        out_ = target;
+    } else {
+        out_ += (target - out_) * (1.0f - std::exp(-dt_s / kUpTauS));
+        if (target - out_ <= 1e-4f * target) {
+            out_ = target;
+        }
+    }
+    clamped_ = out_ > 1.0f;
+    return std::min(out_, 1.0f);
+}
+
+Mode3Stereo Mode3Natural(float f, float leaning, float half_ipd, float game_far_m) {
+    Mode3Stereo out;
+    f = std::clamp(std::isfinite(f) ? f : 0.0f, 0.0f, 1.0f);
+    out.eye_scaler = f * std::max(leaning, 0.0f);
+    const float game = std::isfinite(game_far_m) ? std::max(game_far_m, 0.0f) : 0.0f;
+    out.quad_half = std::max(0.0f, f * half_ipd - game / 2.0f);
+    return out;
+}
+
+float GameFarOnQuad(const HeadLocked& solved, float far_width) {
+    if (!(far_width > 0.0f) || !std::isfinite(far_width)) {
+        return 0.0f;
+    }
+    return far_width / std::max(solved.factor, 1e-3f) * solved.width();
+}
+
+Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                     float quad_half) {
+    return HeadLockedQuadPose(
+        solved, mode == 3 ? EyeX(eye, quad_half >= 0.0f ? quad_half : half_ipd) : 0.0f);
 }
 
 Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_view,
@@ -628,8 +740,8 @@ float AnchorFollow(float distance, float scaler, float depth_units, float gain) 
 }
 
 Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
-                       const Posef& picture, const Posef& now, bool follow_eye) {
-    return AnchoredQuadPose(picture, now, FullQuadInView(solved, mode, eye, half_ipd),
+                       const Posef& picture, const Posef& now, bool follow_eye, float quad_half) {
+    return AnchoredQuadPose(picture, now, FullQuadInView(solved, mode, eye, half_ipd, quad_half),
                             EyeX(eye, half_ipd), follow_eye);
 }
 
@@ -811,7 +923,12 @@ void PoseRing::Keep(uint32_t mode, const Posef& rest) {
     rest_ = rest;
 }
 
-float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width) {
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width,
+                     float quad_half) {
+    if (mode == 3 && quad_half >= 0.0f && half_ipd - quad_half > 1e-6f) {
+        const float share = GameFarOnQuad(solved, far_width) / 2.0f / (half_ipd - quad_half);
+        return std::isfinite(share) ? std::clamp(share, 0.0f, 2.0f) : 1.0f;
+    }
     if (mode != 2) {
         return 1.0f;
     }
@@ -825,8 +942,9 @@ float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, fl
 
 HeldScreen HeldFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
                         const Posef& picture, const Posef& now, float follow,
-                        const HeldPose* held, const Quatf& rest, float eye_share) {
-    const Posef in_view = FullQuadInView(solved, mode, eye, half_ipd);
+                        const HeldPose* held, const Quatf& rest, float eye_share,
+                        float quad_half) {
+    const Posef in_view = FullQuadInView(solved, mode, eye, half_ipd, quad_half);
     const float eye_x = EyeX(eye, half_ipd);
     HeldScreen out{AnchoredQuadPose(picture, now, in_view, eye_x, follow), solved.width(),
                    solved.height()};

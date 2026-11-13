@@ -336,6 +336,9 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
                 Settings::frame_vr_depth_scale.load(), // AzaharFrame vrsize
                 Settings::values.vr_immersive_mode.GetValue() == 2
                     ? Settings::frame_vr_stereo_cap.load(std::memory_order_relaxed)
+                    : -1.0f,
+                Settings::values.vr_immersive_mode.GetValue() == 2 // AzaharFrame natural
+                    ? Settings::frame_vr_natural_slider.load(std::memory_order_relaxed)
                     : -1.0f) :
             0.01f;
     Settings::frame_vr_slider_shown.store(mem->pad.sliderstate_3d, std::memory_order_relaxed);

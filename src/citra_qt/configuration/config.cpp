@@ -526,6 +526,8 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     ReadGlobalSetting(Settings::values.vr_si_mode_register_offset);
     ReadGlobalSetting(Settings::values.vr_immersive_eye_indicator);
+    ReadGlobalSetting(Settings::values.vr_immersive_depth);   // AzaharFrame natural
+    ReadGlobalSetting(Settings::values.vr_immersive_leaning);
     ReadGlobalSetting(Settings::values.vr_hide_bottom_screen);
     ReadGlobalSetting(Settings::values.vr_top_aspect);
     ReadGlobalSetting(Settings::values.vr_immersive_game_fov);
@@ -1275,6 +1277,8 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     WriteGlobalSetting(Settings::values.vr_si_mode_register_offset);
     WriteGlobalSetting(Settings::values.vr_immersive_eye_indicator);
+    WriteGlobalSetting(Settings::values.vr_immersive_depth);   // AzaharFrame natural
+    WriteGlobalSetting(Settings::values.vr_immersive_leaning);
     WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
     WriteGlobalSetting(Settings::values.vr_top_aspect);
     WriteGlobalSetting(Settings::values.vr_immersive_game_fov);
