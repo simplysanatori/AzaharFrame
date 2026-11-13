@@ -57,7 +57,9 @@ float TopAspect();
 struct ScreenLayers {
     XrSpace top_space = XR_NULL_HANDLE;
     XrPosef top_pose[2]{}; ///< left eye, right eye
-    XrExtent2Df top_size{};
+    /// AzaharFrame heldquad: per eye too: a picture held on a later refresh is resized with the
+    /// game camera's turn since it was drawn (Layout::HeldQuad), about each eye.
+    XrExtent2Df top_size[2]{};
     bool show_top = true;
     /// The top screen is in LOCAL space and is not the immersive screen: it can be aimed at and
     /// grabbed.

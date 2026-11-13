@@ -32,6 +32,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_LOCAL",          "AZAHARFRAME_IMMERSIVE_WORLD_TAG",
         "AZAHARFRAME_IMMERSIVE_TAG_OFFSET",     "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
+        "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_IMMERSIVE_ANCHOR_LAG",
     };
     return std::find(std::begin(kLive), std::end(kLive), name) != std::end(kLive) ? Apply::Live
                                                                                   : Apply::Restart;
@@ -101,6 +102,23 @@ inline float PositionScaleFrom(const std::optional<std::string>& v) {
         return 1.0f;
     }
     return std::clamp(f, 0.0f, kPositionScaleMax);
+}
+
+/// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_HOLD: how a picture shown on a second display
+/// refresh is held: "warp" (the default: as the game would draw it for the head now, through the
+/// screen's gains, Layout::HeldQuad) or "rigid" (fixed in the room where it was drawn, as up to
+/// 1.2). Anything else, or unset: warp.
+inline bool HoldWarpFrom(const std::optional<std::string>& v) {
+    return !(v && *v == "rigid");
+}
+
+/// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG: -1, 0 or +1 (anything else, or unset:
+/// 0). -1: a new picture's anchor one refresh after its image (its first refresh keeps the
+/// anchor of the picture before); +1: one refresh before it (a picture's last refresh takes the
+/// next one's anchor, foreseen from the head poses). A test of a one-refresh skew between image
+/// and pose in the compositor.
+inline int AnchorLagFrom(const std::optional<std::string>& v) {
+    return TagOffsetFrom(v);
 }
 
 /// A switch that is on with "1" (AZAHARFRAME_XR_SINGLE_FLASH).

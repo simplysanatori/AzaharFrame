@@ -680,6 +680,8 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
     }
     std::scoped_lock lock{content_mutex};
     shown_content = content;
+    shown_pictures[shown_next] = {serial, content}; // AzaharFrame heldquad
+    shown_next = (shown_next + 1) % shown_pictures.size();
 }
 
 bool Runtime::PackedTop() const {

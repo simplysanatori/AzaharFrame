@@ -1319,8 +1319,8 @@ void VrUi::StepScreenCurve(int dir) {
 VrUi::ScreenDraw VrUi::ScreenDrawFor(const Immersive::ScreenLayers& shown) const {
     // The slots as immersive.cpp draws them (only their visibility matters when not swapped;
     // swapped, immersive is paused and both are in the LOCAL space).
-    const Input::PanelQuad main_slot{ToInput(shown.top_pose[0]), shown.top_size.width,
-                                     shown.top_size.height, shown.show_top};
+    const Input::PanelQuad main_slot{ToInput(shown.top_pose[0]), shown.top_size[0].width,
+                                     shown.top_size[0].height, shown.show_top};
     const Input::PanelQuad secondary_slot{ToInput(shown.bottom_pose), shown.bottom_size.width,
                                           shown.bottom_size.height, shown.show_bottom};
     Input::ScreenQuads quads =
@@ -1528,8 +1528,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool managed = Immersive::CanToggleBottom();
     const Immersive::ScreenLayers shown =
         Immersive::Screens(info.local_space, info.view_space, place);
-    const Input::PanelQuad main_slot{ToInput(shown.top_pose[0]), shown.top_size.width,
-                                     shown.top_size.height, shown.show_top && shown.top_pointable};
+    const Input::PanelQuad main_slot{ToInput(shown.top_pose[0]), shown.top_size[0].width,
+                                     shown.top_size[0].height, shown.show_top && shown.top_pointable};
     const Input::PanelQuad secondary_slot{ToInput(shown.bottom_pose), shown.bottom_size.width,
                                           shown.bottom_size.height, shown.show_bottom};
     Input::ScreenQuads quads = screen_view.Layout(main_slot, secondary_slot, managed);
@@ -1554,7 +1554,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             top = {Input::Normalized(Input::Multiply(head.orientation, top.orientation)),
                    Input::Transform(head, top.position)};
         }
-        stats_screens.push_back({top, shown.top_size.width, shown.top_size.height, true});
+        stats_screens.push_back({top, shown.top_size[0].width, shown.top_size[0].height, true});
     }
     // While the immersive screen is on view the grips move it, not the mapper. The bottom
     // screen in focus pauses immersive mode (SetBottomFocused below), so the grips move the

@@ -138,6 +138,13 @@ struct Tuning {
     float position_scale = 1.0f;
     /// AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_WORLD_TAG (0: tag by the latch, as up to 1.2).
     bool world_tag = true;
+    /// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_HOLD (a test switch, live): "warp" (default)
+    /// holds a picture shown again as the game would draw it now (L::HeldQuad), "rigid" fixed in
+    /// the room where it was drawn (L::AnchoredQuadPose), as up to 1.2.
+    bool hold_warp = true;
+    /// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG (a test switch, live): -1, 0, +1
+    /// (TestSwitches::AnchorLagFrom).
+    int anchor_lag = 0;
 };
 
 // AzaharFrame integ9: through the live test-switch file (common/frame_test_switches.h), so a
@@ -203,6 +210,8 @@ Tuning ReadTuning() {
         TestSwitches::PositionScaleFrom(Switch("AZAHARFRAME_IMMERSIVE_POSITION_SCALE"));
     const std::optional<std::string> world_tag = Switch("AZAHARFRAME_IMMERSIVE_WORLD_TAG");
     t.world_tag = !(world_tag && !world_tag->empty() && (*world_tag)[0] == '0');
+    t.hold_warp = TestSwitches::HoldWarpFrom(Switch("AZAHARFRAME_IMMERSIVE_HOLD"));
+    t.anchor_lag = TestSwitches::AnchorLagFrom(Switch("AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"));
     return t;
 }
 
@@ -323,8 +332,9 @@ float Deg(float rad) {
 
 // AzaharFrame doubling: the picture's head pose when the immersive screen may be anchored to it
 // now: a Full mode is engaged, the picture was drawn in it, after the last recenter, and it is
-// not older than the limit (`display` is this frame's display time).
-bool AnchorPose(XrTime display, XrPosef& head);
+// not older than the limit (`display` is this frame's display time). AzaharFrame heldquad:
+// `held`, when given, gets that pose's game camera from the pose ring (nullptr: not in it).
+bool AnchorPose(XrTime display, XrPosef& head, const Layout::HeldPose** held = nullptr);
 
 // The title id of the game being started (SetGameTitleId, GUI thread).
 std::atomic<uint64_t> g_title_id{0};
@@ -446,10 +456,27 @@ struct State {
         float head_yaw[2]{1e9f, -1e9f}, head_pitch[2]{1e9f, -1e9f};
         float cam_yaw[2]{1e9f, -1e9f}, cam_pitch[2]{1e9f, -1e9f};
         uint32_t cam_frames = 0;
+        /// AzaharFrame heldquad: anchored frames whose picture's camera was in the pose ring
+        /// (held as the game would draw it now), and those whose was not (held rigid).
+        uint32_t held = 0, held_missed = 0;
     } age;
     /// AzaharFrame turns: the last anchored frame's offsets (degrees across, up; per eye).
     bool slip_prev_valid = false;
     float slip_prev[2][2]{};
+    /// AzaharFrame heldquad: each display frame's head pose and game camera (OnFrame), for
+    /// holding a picture shown again as the game would draw it now (Screens, L::HeldQuad).
+    L::PoseRing poses;
+    /// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG's count of the refreshes each
+    /// picture (its release serial) was on view: the display frame last seen and the picture it
+    /// showed at its last look (Screens runs more than once a frame; the frame loop's, under the
+    /// release lock, is the last), and up to the frame before it, the picture counted, its
+    /// refreshes and those of the picture before it.
+    struct Lag {
+        int64_t frame = 0;
+        uint64_t frame_serial = 0;
+        uint64_t serial = 0;
+        uint32_t run = 0, last_run = 0;
+    } lag;
 };
 
 State g;
@@ -686,11 +713,78 @@ void TestResolutionHook() {
     }
 }
 
-bool AnchorPose(XrTime display, XrPosef& head) {
+// AzaharFrame heldquad: the picture the screen is anchored to on this display frame: the one on
+// view; with AZAHARFRAME_IMMERSIVE_ANCHOR_LAG=-1 on its first refresh the one before it, with +1
+// on its last refresh (as long as the one before was on view) the next one, foreseen from the
+// pose ring: the head pose as long after this picture's as this one's was after the one before
+// (a picture's tag spacing). `held_time`: the pose ring's key for it (0: none).
+VideoCore::XrContentPose AnchorContent(int64_t& held_time) {
+    const std::array<ShownPicture, kShownPictures> pics = ShownPictures();
+    const ShownPicture& on = pics[0];
+    held_time = on.content.time;
+    auto& l = g.lag;
+    if (l.frame != g.view.time) {
+        // The display frame before is over: count the picture it showed.
+        if (l.frame != 0 && l.frame_serial != 0) {
+            if (l.frame_serial == l.serial) {
+                l.run++;
+            } else {
+                l.last_run = l.run;
+                l.run = 1;
+                l.serial = l.frame_serial;
+            }
+        }
+        l.frame = g.view.time;
+    }
+    l.frame_serial = on.serial;
+    if (g.tuning.anchor_lag == 0) {
+        return on.content;
+    }
+    // This frame's count of the picture on view, and the refreshes of the one before.
+    const bool same = on.serial == l.serial;
+    const uint32_t run = same ? l.run + 1 : 1;
+    const uint32_t last_run = same ? l.last_run : l.run;
+    const ShownPicture& before = pics[1];
+    const bool have_before = before.serial != 0 && before.serial + 1 == on.serial &&
+                             before.content.valid && on.content.valid;
+    if (!have_before) {
+        return on.content;
+    }
+    if (g.tuning.anchor_lag < 0 && run == 1) {
+        held_time = before.content.time;
+        return before.content;
+    }
+    if (g.tuning.anchor_lag > 0 && last_run >= 2 && run >= last_run) {
+        const int64_t next = on.content.time + (on.content.time - before.content.time);
+        const L::HeldPose* p = g.poses.Nearest(next);
+        // Within half a 120 Hz refresh of the foreseen time, and not after this frame.
+        if (p && std::abs(p->time - next) <= 4'200'000 && p->time <= g.view.time) {
+            VideoCore::XrContentPose c;
+            c.valid = true;
+            c.orientation[0] = p->head.orientation.x;
+            c.orientation[1] = p->head.orientation.y;
+            c.orientation[2] = p->head.orientation.z;
+            c.orientation[3] = p->head.orientation.w;
+            c.position[0] = p->head.position.x;
+            c.position[1] = p->head.position.y;
+            c.position[2] = p->head.position.z;
+            c.time = p->time;
+            held_time = p->time;
+            return c;
+        }
+    }
+    return on.content;
+}
+
+bool AnchorPose(XrTime display, XrPosef& head, const Layout::HeldPose** held) {
+    if (held) {
+        *held = nullptr;
+    }
     if (!g.engaged || !IsViewMode(g.mode)) {
         return false;
     }
-    const VideoCore::XrContentPose shown = ShownContentPose();
+    int64_t held_time = 0;
+    const VideoCore::XrContentPose shown = AnchorContent(held_time);
     if (!shown.valid || shown.time < g.recentre_time) {
         return false;
     }
@@ -699,6 +793,9 @@ bool AnchorPose(XrTime display, XrPosef& head) {
         return false;
     }
     head = ToXr(shown);
+    if (held) {
+        *held = g.poses.Find(held_time);
+    }
     return true;
 }
 
@@ -938,6 +1035,8 @@ void OnFrame(const FrameInfo& info) {
             LOG_INFO(Frontend, "xr: immersive: view re-centred");
         }
     }
+    // AzaharFrame heldquad: the poses kept are about this mode and rest pose only.
+    g.poses.Keep(mode, ToIn(g.ref));
 
     if (g.view.valid) {
         const XrVector3f between = Rotate(Conj(g.view.head.orientation),
@@ -1086,6 +1185,11 @@ void OnFrame(const FrameInfo& info) {
                 q = {c.x, c.y, c.z, c.w};
                 note(q, g.age.cam_yaw, g.age.cam_pitch);
                 g.age.cam_frames++;
+                // AzaharFrame heldquad: this frame's camera, kept for the picture drawn with it
+                // (keyed by the pose's time, which the picture carries back with it).
+                if (data.pose.valid) {
+                    g.poses.Push({data.pose.time, ToIn(g.view.head), c, g.solved});
+                }
             }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
@@ -1132,8 +1236,10 @@ void OnFrame(const FrameInfo& info) {
             }
             a.run++;
             XrPosef unused;
-            if (g.tuning.anchor && AnchorPose(g.view.time, unused)) {
+            const L::HeldPose* held = nullptr;
+            if (g.tuning.anchor && AnchorPose(g.view.time, unused, &held)) {
                 a.anchored++;
+                (held ? a.held : a.held_missed)++; // AzaharFrame heldquad
             }
         } else {
             a.no_pose++;
@@ -1156,6 +1262,13 @@ void OnFrame(const FrameInfo& info) {
                      a.mid_min_deg <= a.mid_max_deg ? a.mid_min_deg : 0.0f,
                      a.mid_min_deg <= a.mid_max_deg ? a.mid_max_deg : 0.0f,
                      Deg(L::ViewMiddlePitch(g.view_fov)), a.view_off, L::kViewSettleChangeDeg);
+            if (a.anchored > 0) { // AzaharFrame heldquad
+                LOG_INFO(Frontend,
+                         "xr: immersive: a picture shown again held {} (AZAHARFRAME_IMMERSIVE_HOLD) "
+                         "in {} anchored frames, its camera not found in {}; anchor lag {:+d}",
+                         g.tuning.hold_warp ? "as drawn for the head now" : "rigid", a.held,
+                         a.held_missed, g.tuning.anchor_lag);
+            }
             if (a.cam_frames > 0) {
                 LOG_INFO(Frontend,
                          "xr: immersive: head {:.0f} to {:.0f} degrees across from straight "
@@ -1311,13 +1424,16 @@ void ReloadTestSwitches() {
     g.tuning.tag_offset = t.tag_offset;
     g.tuning.position_scale = t.position_scale;
     g.tuning.world_tag = t.world_tag;
+    g.tuning.hold_warp = t.hold_warp;   // AzaharFrame heldquad
+    g.tuning.anchor_lag = t.anchor_lag; // AzaharFrame heldquad
     VideoCore::Immersive::g_content.SetFollowWorld(t.world_tag);
     VideoCore::Immersive::g_content.SetTagOffset(t.tag_offset);
     LOG_INFO(Frontend,
              "xr: immersive: test switches now: anchor {}, max {:.0f} ms, about the eye {}, anchor "
-             "depth {:.2f}, world tag {}, tag offset {:+d}, {}",
+             "depth {:.2f}, world tag {}, tag offset {:+d}, {}, hold {}, anchor lag {:+d}",
              t.anchor ? "on" : "off", t.anchor_max_ms, t.anchor_eye ? "on" : "off",
-             t.anchor_depth_m, t.world_tag ? "on" : "off", t.tag_offset, PositionScaleLine());
+             t.anchor_depth_m, t.world_tag ? "on" : "off", t.tag_offset, PositionScaleLine(),
+             t.hold_warp ? "warp" : "rigid", t.anchor_lag);
 }
 
 void Install() {
@@ -1357,6 +1473,12 @@ void Install() {
              "xr: immersive: the anchored screen {} (AZAHARFRAME_IMMERSIVE_ANCHOR_EYE)",
              g.tuning.anchor_eye ? "keeps its picture's direction about where the eye is now"
                                  : "stays at its picture's head pose, position too");
+    LOG_INFO(Frontend,
+             "xr: immersive: a picture shown again is held {} (AZAHARFRAME_IMMERSIVE_HOLD), "
+             "anchor lag {:+d} refresh (AZAHARFRAME_IMMERSIVE_ANCHOR_LAG)",
+             g.tuning.hold_warp ? "as the game would draw it now, through the screen's gains"
+                                : "rigid in the room where it was drawn",
+             g.tuning.anchor_lag);
 }
 
 void Uninstall() {
@@ -1459,7 +1581,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     ScreenLayers out;
     out.top_space = local_space;
     out.top_pose[0] = out.top_pose[1] = placement.top_pose;
-    out.top_size = placement.top_size;
+    out.top_size[0] = out.top_size[1] = placement.top_size;
     out.bottom_pose = placement.bottom_pose;
     out.bottom_size = placement.bottom_size;
     out.show_bottom = BottomShown();
@@ -1478,7 +1600,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         const float yaw = -g.offset.right_deg * L::kDegToRad;
         const Input::Posef rest = ToIn(g.ref);
         out.top_pose[0] = out.top_pose[1] = ToXr(L::WideQuadPose(rest, pitch, p.distance, yaw));
-        out.top_size = {width, width / TopAspect()};
+        out.top_size[0] = out.top_size[1] = {width, width / TopAspect()};
         out.top_pointable = false;
         // The bottom screen (when shown) below the wide screen's middle and nearer than it,
         // so it is drawn over it and never through it.
@@ -1489,7 +1611,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         // Modes 2 and 3: head-locked. Mode 3 centres each eye's screen on that eye (CitraVR
         // GameSurfaceLayer.cpp GetTopPanelFromHeadPose), mode 2 uses one pose for both. The
         // size, pitch and distance come from the placement (immersive_layout.h).
-        out.top_size = {g.solved.width(), g.solved.height()};
+        out.top_size[0] = out.top_size[1] = {g.solved.width(), g.solved.height()};
         // AzaharFrame doubling: where the head was when the picture on view was drawn. The game
         // camera followed that pose, so the screen placed there keeps the world where it is
         // while the head moves on; head-locked, the world swung with the head until the next
@@ -1498,16 +1620,31 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         // AzaharFrame turns: about the eye where it is now (AnchoredQuadPose), so the eyes moving
         // with a turn do not slide the screen against its scenery.
         XrPosef anchor_head{{0, 0, 0, 1}, {0, 0, 0}};
-        const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head);
+        const L::HeldPose* held = nullptr;
+        const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head, &held);
         const bool follow_eye = g.tuning.anchor_eye && g.view.valid;
         const float follow = AnchorFollowNow(follow_eye);
+        // AzaharFrame heldquad: held as the game would draw the picture for the head now (the
+        // picture is magnified, so held rigid only its middle stays with the scenery: the rest
+        // stepped at the next picture, a double image while turning). The game camera now with
+        // the picture's own gains and screen (the pose ring), so only the head's turn counts;
+        // not in the ring (or AZAHARFRAME_IMMERSIVE_HOLD=rigid): rigid, as before.
+        const L::HeldPose* hold =
+            anchored && g.tuning.hold_warp && g.view.valid ? held : nullptr;
+        // Mode 2's pictures come from the game's own two cameras: their far scenery says where
+        // on the quad each eye's rays come from (the eye at parallel, the middle at 3D Depth 0).
+        const float eye_share = L::EyeShareOnQuad(
+            g.solved, g.mode, g.half_ipd,
+            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed));
         for (int eye = 0; eye < 2; eye++) {
             const Input::Posef in_view = L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd);
             if (anchored) {
                 out.top_space = local_space;
-                out.top_pose[eye] = ToXr(L::AnchoredQuadPose(ToIn(anchor_head), ToIn(g.view.head),
-                                                             in_view, L::EyeX(eye, g.half_ipd),
-                                                             follow));
+                const L::HeldScreen h = L::HeldFullQuad(
+                    g.solved, g.mode, eye, g.half_ipd, ToIn(anchor_head), ToIn(g.view.head),
+                    follow, hold, ToIn(g.ref).orientation, eye_share);
+                out.top_pose[eye] = ToXr(h.pose);
+                out.top_size[eye] = {h.width, h.height};
             } else if (g.tuning.local_space && g.view.valid) {
                 out.top_space = local_space;
                 out.top_pose[eye] = Compose(g.view.head, ToXr(in_view));
@@ -1657,6 +1794,7 @@ std::optional<float> SavedHeadSize(uint64_t title_id) {
 
 void OnRecentred(XrTime change_time) {
     g.recentre_time = change_time; // AzaharFrame doubling: older pictures are not anchored
+    g.poses.Clear();               // AzaharFrame heldquad
     // AzaharFrame immersive: SteamVR's recenter only re-centres. The screen keeps its size,
     // distance and pitch (the owner's report: each recenter after a resize put the screen back
     // to the default size, "farther away"); the rest pose is taken from the first head pose
@@ -1671,6 +1809,7 @@ bool OnResetPanels(bool stick_hold) {
     // as SteamVR's recenter does (the owner: a hold after a resize lost the size). Reset
     // Position also puts the Immersive Offset back to the middle: everything to the defaults.
     g.rest.Recentre(0);
+    g.poses.Clear(); // AzaharFrame heldquad
     bool offset_changed = false;
     if (!stick_hold && !(g.offset == L::LensOffset{})) {
         g.offset = {};

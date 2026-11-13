@@ -222,6 +222,11 @@ public:
     /// written under screens_mutex too with set releases.
     mutable std::mutex content_mutex;
     VideoCore::XrContentPose shown_content{};
+    /// AzaharFrame heldquad: the last pictures released, with their release serial (the
+    /// chains' frame_serial), newest at shown_next - 1; guarded by content_mutex
+    /// (ShownPictures, AZAHARFRAME_IMMERSIVE_ANCHOR_LAG).
+    std::array<ShownPicture, kShownPictures> shown_pictures{};
+    std::size_t shown_next = 0;
     /// AzaharFrame pacing: the parity gate and the release phase (pacing.h).
     Pacing pacing;
 

@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -140,6 +142,15 @@ ViewPose LatestViewPose();
 /// AzaharFrame doubling: the head pose the game picture released last was drawn with (immersive
 /// modes 2 and 3; invalid otherwise). Any thread.
 VideoCore::XrContentPose ShownContentPose();
+/// AzaharFrame heldquad: a picture released, its release serial (ScreenChain::frame_serial) and
+/// the head pose it was drawn with.
+struct ShownPicture {
+    uint64_t serial = 0; ///< 0: none
+    VideoCore::XrContentPose content{};
+};
+inline constexpr std::size_t kShownPictures = 4;
+/// The last kShownPictures pictures released, newest first. Any thread.
+std::array<ShownPicture, kShownPictures> ShownPictures();
 
 /// Where the game screens are (LOCAL space; sizes in metres).
 struct ScreenPlacement {

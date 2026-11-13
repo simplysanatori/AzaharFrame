@@ -841,7 +841,7 @@ void Runtime::FrameLoop() {
             label_top_ok = !draw.swapped && shown.show_top && shown.top_pointable &&
                            shown.top_space == local_space;
             label_top_pose = shown.top_pose[0];
-            label_top_size = shown.top_size;
+            label_top_size = shown.top_size[0];
             // AzaharFrame shaderbadge: the screen in the main slot (the bottom one while it is in
             // focus), else the immersive top screen.
             // AzaharFrame fixes7: and whether that screen is on view with a picture (the badge
@@ -864,7 +864,7 @@ void Runtime::FrameLoop() {
                 badge_anchor.pictures = has_picture(VideoCore::XrScreen::TopLeft);
                 badge_anchor.screen = true;
                 badge_anchor.screen_pose = shown.top_pose[0];
-                badge_anchor.screen_size = shown.top_size;
+                badge_anchor.screen_size = shown.top_size[0];
                 badge_anchor.curve = draw.top_curve;
             } else if (shown.show_top) {
                 badge_anchor.pictures = has_picture(VideoCore::XrScreen::TopLeft);
@@ -872,7 +872,7 @@ void Runtime::FrameLoop() {
                 badge_anchor.immersive_in_view = shown.top_space == view_space;
                 badge_anchor.immersive_pose[0] = shown.top_pose[0];
                 badge_anchor.immersive_pose[1] = shown.top_pose[1];
-                badge_anchor.immersive_size = shown.top_size;
+                badge_anchor.immersive_size = shown.top_size[0]; // AzaharFrame heldquad: eye 0
             }
             // AzaharFrame vrsize: a normal top screen bigger than its normal size gets that much
             // less 3D depth (common/frame_vr_depth.h); the immersive and the swapped one do not.
@@ -907,10 +907,12 @@ void Runtime::FrameLoop() {
                 }
                 if (shown.show_top) {
                     // AzaharFrame curve: draw.top_curve is 0 for the immersive screen.
+                    // AzaharFrame heldquad: each eye's pose and size (a held picture is resized
+                    // about each eye); the toast takes eye 0's first.
                     add_screen(VideoCore::XrScreen::TopLeft, shown.top_space, shown.top_pose[0],
-                               shown.top_size, XR_EYE_VISIBILITY_LEFT, draw.top_curve);
+                               shown.top_size[0], XR_EYE_VISIBILITY_LEFT, draw.top_curve);
                     add_screen(VideoCore::XrScreen::TopRight, shown.top_space, shown.top_pose[1],
-                               shown.top_size, XR_EYE_VISIBILITY_RIGHT, draw.top_curve);
+                               shown.top_size[1], XR_EYE_VISIBILITY_RIGHT, draw.top_curve);
                 }
                 if (!shown.bottom_first) {
                     add_bottom();
@@ -1217,6 +1219,17 @@ VideoCore::XrContentPose ShownContentPose() {
         return rt->shown_content;
     }
     return {};
+}
+
+std::array<ShownPicture, kShownPictures> ShownPictures() { // AzaharFrame heldquad
+    std::array<ShownPicture, kShownPictures> out{};
+    if (auto* rt = GetRuntime()) {
+        std::scoped_lock lock{rt->content_mutex};
+        for (std::size_t i = 0; i < kShownPictures; i++) {
+            out[i] = rt->shown_pictures[(rt->shown_next + kShownPictures - 1 - i) % kShownPictures];
+        }
+    }
+    return out;
 }
 
 ViewPose LatestViewPose() {
