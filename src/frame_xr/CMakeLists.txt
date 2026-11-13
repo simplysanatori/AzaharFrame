@@ -24,6 +24,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     pacing.h
     session.cpp
     session.h
+    toast_depth.h # AzaharFrame kiu2
     toast_fit.h # AzaharFrame menuux
     ui_sound.cpp # AzaharFrame menuux
     ui_sound.h

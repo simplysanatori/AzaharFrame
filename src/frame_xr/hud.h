@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/input/geometry.h" // AzaharFrame kiu2: the toast in front of the screens
 #include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
 #include "frame_xr/ui/ui_ttf.h" // AzaharFrame shaderbadge
@@ -67,7 +68,10 @@ public:
     /// are drawn as arrows), at `pose` (LOCAL space), `width_m` wide, for three seconds.
     void ShowHint(const std::string& text, const XrPosef& pose, float width_m);
     /// XR thread, each frame: the toast quad while one shows. `time` is the display time.
-    bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad);
+    /// AzaharFrame kiu2: `screens` (LOCAL space, as drawn this frame): the toast comes nearer
+    /// than every one it is over (toast_depth.h).
+    bool ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
+                   const std::vector<Input::PanelQuad>* screens = nullptr);
     /// XR thread, each frame after ToastQuad: the hint chip while it shows.
     bool HintQuad(XrTime time, Quad& quad);
     /// AzaharFrame autosave: any thread. "Autosaved" over the top screen's corner (vis/
@@ -115,6 +119,7 @@ private:
     XrTime shown_since = 0;
     XrTime shown_ns = ToastFit::kShortNs; ///< AzaharFrame ui3: how long the one on view stays
     XrPosef shown_pose{{0, 0, 0, 1}, {0, 0, 0}};
+    bool toast_nearer_logged = false; ///< AzaharFrame kiu2
 
     std::mutex text_mutex;
     std::string text_request; ///< ShowToastText not yet taken (text_requested)

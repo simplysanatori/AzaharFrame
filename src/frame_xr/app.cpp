@@ -508,6 +508,7 @@ void Runtime::FrameLoop() {
     auto exit_deadline = Clock::time_point::max();
     double flat_seconds = 0.0;
     std::vector<ScreenOrQuadLayer> quad_layers; // AzaharFrame curve: the screens may be cylinders
+    std::vector<Input::PanelQuad> toast_screens; // AzaharFrame kiu2: the screens, for the toast
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
@@ -702,6 +703,7 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("layers");
         quad_layers.clear();
+        toast_screens.clear();
         // AzaharFrame doubling: the two eyes' top images of separate swapchains from different
         // game frames (a release of the set came between); never with set releases or packed.
         if (!packed_top && screens_live) {
@@ -754,6 +756,26 @@ void Runtime::FrameLoop() {
                 q.pose = pose;
                 q.size = size;
                 q.eye = eye;
+                {
+                    // AzaharFrame kiu2: where it is in LOCAL space, for the toast (toast_depth.h).
+                    Input::PanelQuad tq;
+                    tq.pose = {{pose.orientation.x, pose.orientation.y, pose.orientation.z,
+                                pose.orientation.w},
+                               {pose.position.x, pose.position.y, pose.position.z}};
+                    if (space == view_space) {
+                        const XrPosef h = LatestViewPose().head;
+                        const Input::Posef head{
+                            {h.orientation.x, h.orientation.y, h.orientation.z, h.orientation.w},
+                            {h.position.x, h.position.y, h.position.z}};
+                        tq.pose = {Input::Multiply(head.orientation, tq.pose.orientation),
+                                   Input::Transform(head, tq.pose.position)};
+                    }
+                    tq.width_m = size.width;
+                    tq.height_m = size.height;
+                    tq.visible = space == view_space || space == local_space;
+                    tq.curve_radius = curve;
+                    toast_screens.push_back(tq);
+                }
                 if (curve > 0.0f) {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
                 } else {
@@ -861,7 +883,7 @@ void Runtime::FrameLoop() {
             }
             // AzaharFrame vrqol: a toast (Quick Saved ...) in front of everything.
             Quad toast;
-            if (hud.ToastQuad(LatestViewPose(), fs.predictedDisplayTime, toast)) {
+            if (hud.ToastQuad(LatestViewPose(), fs.predictedDisplayTime, toast, &toast_screens)) {
                 quad_layers.push_back(MakeQuad(local_space, toast));
             }
             // AzaharFrame controls: the grip hint chip under the held screen.
