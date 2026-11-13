@@ -188,3 +188,25 @@ TEST_CASE("Shader badge: fades in and out over 150 ms in four steps", "[frame_xr
     REQUIRE(Level(0.01f) == 1);
     REQUIRE(Fade(0.3f, true, -5) == 0.3f); // a clock going back changes nothing
 }
+
+// AzaharFrame fixes7: not on a black view at boot; only kGraceNs after the game screen shows.
+TEST_CASE("Badge: waits for the game screen and a grace", "[frame_xr][shaderbadge]") {
+    Gate gate;
+    constexpr int64_t s = 1'000'000'000;
+    // Booting: no screens yet, then screens live but no picture.
+    REQUIRE_FALSE(gate.Allow(false, false, 1 * s));
+    REQUIRE_FALSE(gate.Allow(true, false, 2 * s));
+    REQUIRE_FALSE(gate.Allow(true, false, 9 * s));
+    // The screen shows at 10 s: hidden until 13 s.
+    REQUIRE_FALSE(gate.Allow(true, true, 10 * s));
+    REQUIRE_FALSE(gate.Allow(true, true, 12 * s));
+    REQUIRE_FALSE(gate.Allow(true, true, 10 * s + kGraceNs - 1));
+    REQUIRE(gate.Allow(true, true, 10 * s + kGraceNs));
+    // Hidden while the screen is not on view; back at once (no new grace) while the game runs.
+    REQUIRE_FALSE(gate.Allow(true, false, 20 * s));
+    REQUIRE(gate.Allow(true, true, 21 * s));
+    // The next game waits again.
+    REQUIRE_FALSE(gate.Allow(false, false, 30 * s));
+    REQUIRE_FALSE(gate.Allow(true, true, 31 * s));
+    REQUIRE(gate.Allow(true, true, 31 * s + kGraceNs));
+}
