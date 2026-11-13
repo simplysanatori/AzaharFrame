@@ -633,6 +633,253 @@ Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float h
                             EyeX(eye, half_ipd), follow_eye);
 }
 
+namespace {
+// AzaharFrame heldquad: HeldQuad's sums in double, so gain 1 matches AnchoredQuadPose to well
+// under a ten-thousandth of a degree.
+struct D3 {
+    double x = 0, y = 0, z = 0;
+};
+D3 operator+(const D3& a, const D3& b) {
+    return {a.x + b.x, a.y + b.y, a.z + b.z};
+}
+D3 operator-(const D3& a, const D3& b) {
+    return {a.x - b.x, a.y - b.y, a.z - b.z};
+}
+D3 operator*(const D3& a, double k) {
+    return {a.x * k, a.y * k, a.z * k};
+}
+double Dot(const D3& a, const D3& b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+D3 Cross(const D3& a, const D3& b) {
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+double Len(const D3& a) {
+    return std::sqrt(Dot(a, a));
+}
+struct D4 {
+    double x = 0, y = 0, z = 0, w = 1;
+};
+D4 ToD(const Quatf& q) {
+    const double n = std::sqrt(double(q.x) * q.x + double(q.y) * q.y + double(q.z) * q.z +
+                               double(q.w) * q.w);
+    return n > 0 ? D4{q.x / n, q.y / n, q.z / n, q.w / n} : D4{};
+}
+D4 Mul(const D4& a, const D4& b) {
+    return {a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+            a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+            a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+            a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z};
+}
+D4 Conj(const D4& q) {
+    return {-q.x, -q.y, -q.z, q.w};
+}
+// The rotation's matrix, m[row][column].
+void Matrix(const D4& q, double m[3][3]) {
+    const double x = q.x, y = q.y, z = q.z, w = q.w;
+    m[0][0] = 1 - 2 * (y * y + z * z);
+    m[0][1] = 2 * (x * y - z * w);
+    m[0][2] = 2 * (x * z + y * w);
+    m[1][0] = 2 * (x * y + z * w);
+    m[1][1] = 1 - 2 * (x * x + z * z);
+    m[1][2] = 2 * (y * z - x * w);
+    m[2][0] = 2 * (x * z - y * w);
+    m[2][1] = 2 * (y * z + x * w);
+    m[2][2] = 1 - 2 * (x * x + y * y);
+}
+D3 Apply(const double m[3][3], const D3& v) {
+    return {m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
+            m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
+            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z};
+}
+D3 ApplyT(const double m[3][3], const D3& v) {
+    return {m[0][0] * v.x + m[1][0] * v.y + m[2][0] * v.z,
+            m[0][1] * v.x + m[1][1] * v.y + m[2][1] * v.z,
+            m[0][2] * v.x + m[1][2] * v.y + m[2][2] * v.z};
+}
+// The rotation whose matrix has the columns x, y, z (orthonormal, right-handed).
+D4 FromAxes(const D3& x, const D3& y, const D3& z) {
+    const double tr = x.x + y.y + z.z;
+    D4 q;
+    if (tr > 0) {
+        const double s = std::sqrt(tr + 1.0) * 2;
+        q = {(y.z - z.y) / s, (z.x - x.z) / s, (x.y - y.x) / s, 0.25 * s};
+    } else if (x.x > y.y && x.x > z.z) {
+        const double s = std::sqrt(1.0 + x.x - y.y - z.z) * 2;
+        q = {0.25 * s, (y.x + x.y) / s, (z.x + x.z) / s, (y.z - z.y) / s};
+    } else if (y.y > z.z) {
+        const double s = std::sqrt(1.0 + y.y - x.x - z.z) * 2;
+        q = {(y.x + x.y) / s, 0.25 * s, (z.y + y.z) / s, (z.x - x.z) / s};
+    } else {
+        const double s = std::sqrt(1.0 + z.z - x.x - y.y) * 2;
+        q = {(z.x + x.z) / s, (z.y + y.z) / s, 0.25 * s, (x.y - y.x) / s};
+    }
+    const double n = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+    return {q.x / n, q.y / n, q.z / n, q.w / n};
+}
+} // namespace
+
+HeldQuadPose HeldQuad(const Posef& in_view, float eye_x, float distance, float eye_share,
+                      const Quatf& q_cam_then, const Quatf& q_cam_now, float gain_x,
+                      float gain_y) {
+    HeldQuadPose out;
+    out.pose = in_view;
+    const double gx = std::isfinite(gain_x) && gain_x > 0.0f ? gain_x : 1.0;
+    const double gy = std::isfinite(gain_y) && gain_y > 0.0f ? gain_y : 1.0;
+    const double d = std::isfinite(distance) && distance > 1e-3f ? distance : 1e-3;
+    const double share = std::isfinite(eye_share) ? eye_share : 1.0;
+    // R, the game camera's turn since the picture, in the quad's frame; A = M R M^-1.
+    double r[3][3];
+    Matrix(Mul(Conj(ToD(q_cam_now)), ToD(q_cam_then)), r);
+    const double m[3] = {1.0 / gx, 1.0 / gy, 1.0};
+    double a[3][3];
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            a[i][j] = m[i] * r[i][j] / m[j];
+        }
+    }
+    // In the quad's own frame: the quad's axis (its centre `d` behind it), the eye, and the
+    // point the picture's rays come from, `eye_share` of the way from the axis to the eye.
+    const D4 qv = ToD(in_view.orientation);
+    double b[3][3]; // the quad's axes in the head's frame (columns)
+    Matrix(qv, b);
+    const D3 eye_h{eye_x, 0.0, 0.0};
+    const D3 centre_h{in_view.position.x, in_view.position.y, in_view.position.z};
+    const D3 c0 = ApplyT(b, centre_h - eye_h);       // the centre from the eye
+    const D3 axis_e = c0 + D3{0.0, 0.0, d};          // the axis from the eye
+    const D3 from_e = axis_e * (1.0 - share);        // the rays' point from the eye
+    const D3 centre_from = c0 - from_e;              // the centre from the rays' point
+    // A point s of the picture (from the rays' point) shows the game ray M^-1 s; the camera
+    // turned, the fresh picture shows that ray along t = A s from the rays' point, on the quad's
+    // plane (`h` in front of that point) at from_e + t h / t_z from the eye. Times t_z / h (> 0):
+    // G s = A s + from_e t_z / h, linear in s, so the held quad is the parallelogram G makes of
+    // the picture: its centre G(centre_from), its edges G of the picture's axes.
+    const double h = centre_from.z;
+    if (!(h < -1e-6)) {
+        return out;
+    }
+    const auto g = [&](const D3& v) {
+        const D3 t = Apply(a, v);
+        return t + from_e * (t.z / h);
+    };
+    const D3 g3 = g(centre_from);
+    const D3 g1 = g(D3{1, 0, 0});
+    const D3 g2 = g(D3{0, 1, 0});
+    const double l1 = Len(g1), l2 = Len(g2), l3 = Len(g3);
+    if (!(l1 > 1e-12) || !(l2 > 1e-12) || !(l3 > 1e-12) || !std::isfinite(l1 + l2 + l3)) {
+        return out;
+    }
+    // The rectangle nearest the parallelogram: in its plane, the pair of right angles symmetric
+    // about its edges (the skew split evenly between them; corners, which see both, hold best).
+    const D3 n1 = g1 * (1.0 / l1), n2 = g2 * (1.0 / l2);
+    D3 sum = n1 + n2, dif = n1 - n2;
+    const double ls = Len(sum), ld = Len(dif);
+    if (!(ls > 1e-12) || !(ld > 1e-12)) {
+        return out;
+    }
+    sum = sum * (1.0 / ls);
+    dif = dif * (1.0 / ld);
+    D3 x = sum + dif, y = sum - dif;
+    x = x * (1.0 / Len(x));
+    y = y * (1.0 / Len(y));
+    const D3 z = Cross(x, y);
+    // Back to the quad's distance from the eye, about the eye.
+    const double k = Len(c0) / l3;
+    const D3 centre = eye_h + Apply(b, g3 * k);
+    const D4 q = Mul(qv, FromAxes(x, y, z));
+    out.pose.orientation = {static_cast<float>(q.x), static_cast<float>(q.y),
+                            static_cast<float>(q.z), static_cast<float>(q.w)};
+    out.pose.position = {static_cast<float>(centre.x), static_cast<float>(centre.y),
+                         static_cast<float>(centre.z)};
+    out.width_scale = static_cast<float>(Dot(g1, x) * k);
+    out.height_scale = static_cast<float>(Dot(g2, y) * k);
+    return out;
+}
+
+void PoseRing::Keep(uint32_t mode, const Posef& rest) {
+    const auto same = [](const Posef& a, const Posef& b) {
+        return a.orientation.x == b.orientation.x && a.orientation.y == b.orientation.y &&
+               a.orientation.z == b.orientation.z && a.orientation.w == b.orientation.w &&
+               a.position.x == b.position.x && a.position.y == b.position.y &&
+               a.position.z == b.position.z;
+    };
+    if (kept_ && (mode != mode_ || !same(rest, rest_))) {
+        Clear();
+    }
+    kept_ = true;
+    mode_ = mode;
+    rest_ = rest;
+}
+
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width) {
+    if (mode != 2) {
+        return 1.0f;
+    }
+    if (!(far_width > 0.0f) || !(half_ipd > 0.0f)) {
+        return 0.0f;
+    }
+    const float share = StereoFarOnQuad(solved, mode, half_ipd, far_width).separation_m /
+                        (2.0f * half_ipd);
+    return std::isfinite(share) ? std::clamp(share, 0.0f, 2.0f) : 0.0f;
+}
+
+HeldScreen HeldFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                        const Posef& picture, const Posef& now, float follow,
+                        const HeldPose* held, const Quatf& rest, float eye_share) {
+    const Posef in_view = FullQuadInView(solved, mode, eye, half_ipd);
+    const float eye_x = EyeX(eye, half_ipd);
+    HeldScreen out{AnchoredQuadPose(picture, now, in_view, eye_x, follow), solved.width(),
+                   solved.height()};
+    if (!held) {
+        return out;
+    }
+    const Quatf head_rel =
+        Input::Normalized(Input::Multiply(Input::Conjugate(rest), now.orientation));
+    const Quatf cam_now = GameCameraRotation(head_rel, held->solved);
+    const HeldQuadPose h = HeldQuad(in_view, eye_x, solved.distance, eye_share, held->q_cam,
+                                    cam_now, held->solved.gain_x, held->solved.gain);
+    out.pose = Compose(now, h.pose);
+    // The eye's move since the picture followed by `follow` (1: none of it undone).
+    const Vec3f e{eye_x, 0.0f, 0.0f};
+    const Vec3f eye_then = picture.position + Input::Rotate(picture.orientation, e);
+    const Vec3f eye_now = now.position + Input::Rotate(now.orientation, e);
+    const float f = std::isfinite(follow) ? follow : 1.0f;
+    out.pose.position = out.pose.position + (eye_then - eye_now) * (1.0f - f);
+    out.width = solved.width() * h.width_scale;
+    out.height = solved.height() * h.height_scale;
+    return out;
+}
+
+void PoseRing::Push(const HeldPose& p) {
+    poses_[next_] = p;
+    next_ = (next_ + 1) % kSize;
+    count_ = std::min(count_ + 1, kSize);
+}
+
+const HeldPose* PoseRing::Find(int64_t time) const {
+    for (std::size_t i = 0; i < count_; i++) {
+        const HeldPose& p = poses_[(next_ + kSize - 1 - i) % kSize];
+        if (p.time == time) {
+            return &p;
+        }
+    }
+    return nullptr;
+}
+
+const HeldPose* PoseRing::Nearest(int64_t time) const {
+    const HeldPose* best = nullptr;
+    int64_t best_d = 0;
+    for (std::size_t i = 0; i < count_; i++) {
+        const HeldPose& p = poses_[(next_ + kSize - 1 - i) % kSize];
+        const int64_t d = p.time > time ? p.time - time : time - p.time;
+        if (!best || d < best_d) {
+            best = &p;
+            best_d = d;
+        }
+    }
+    return best;
+}
+
 Input::Vec2f FarSceneryError(const Posef& picture, const Posef& in_view, float eye_x,
                              const Posef& placed, const Vec3f& eye_now) {
     // Both directions in the frame of the quad as the picture placed it.

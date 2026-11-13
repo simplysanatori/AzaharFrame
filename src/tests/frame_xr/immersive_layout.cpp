@@ -1656,6 +1656,397 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for an
     REQUIRE(worst_head_pivot > 0.1);
 }
 
+// AzaharFrame heldquad: a picture shown on a later display refresh, held as the game would draw it
+// for the head now (HeldFullQuad, what Immersive::Screens shows), for any settings. Random but
+// valid settings (mode, pitch, Immersive Offset, Screen Shape, Render Margin, both Scales, IPD 55
+// to 75 mm) go through SolveHeadLocked; then the distance is drawn from 0.3 to 5 m and the two
+// gains separately from 0.4 to 2.0 (a measured camera, a zoom, both Scales: any pair can happen),
+// and in mode 2 where each eye's rays come from (from the middle, 3D Depth 0, to past the eye).
+// The head turns up to 10 degrees since the picture about a neck behind and below the eyes: a
+// pure yaw, a pure pitch, both at once, or any turn with a roll and a lean.
+//
+// The truth needs no model of the warp: for each of 9 x 9 points of a fresh picture drawn for
+// the head now, its game ray (the screen's angles from the rays' point times the gains, through
+// GameCameraRotation now) is followed back into the picture drawn for the head then, to the
+// point of that picture that shows it; the held quad must show that point in the direction from
+// the eye in which the fresh quad shows the ray. A pure yaw or pitch of the game camera (in the
+// quad's frame) is exact in mode 3, and a yaw in mode 2; anything else leaves the skew no
+// rectangle can show (a camera roll with unequal gains is a shear; a pitched camera's yaw has a
+// roll in it; mode 2's eye off the rays' line sees a nod skewed), at most about half of it. At
+// gains 1 with the rays from the eye it is the rigid anchor (AnchoredFullQuad) unchanged. The
+// rigid anchor on the same cases shows the fault it fixes.
+TEST_CASE("FrameXr immersive: a picture shown again is held as the game would draw it now",
+          "[frame_xr]") {
+    std::mt19937 rng(20261114);
+    const auto uni = [&rng](float lo, float hi) {
+        return std::uniform_real_distribution<float>(lo, hi)(rng);
+    };
+    const auto pick = [&rng](uint32_t n) { return static_cast<uint32_t>(rng() % n); };
+    const auto compose = [](const Posef& a, const Posef& b) {
+        return Posef{In::Normalized(In::Multiply(a.orientation, b.orientation)),
+                     a.position + In::Rotate(a.orientation, b.position)};
+    };
+    const auto angle = [](const Vec3f& a, const Vec3f& b) { // degrees, accurate near 0
+        const double ax = a.x, ay = a.y, az = a.z, bx = b.x, by = b.y, bz = b.z;
+        const double cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+        return std::atan2(std::sqrt(cx * cx + cy * cy + cz * cz), ax * bx + ay * by + az * bz) *
+               180.0 / 3.14159265358979;
+    };
+    const auto ypr = [](float yaw, float pitch, float roll) {
+        const Quatf r{0.0f, 0.0f, std::sin(roll / 2), std::cos(roll / 2)};
+        return In::Normalized(In::Multiply(In::Multiply(YawRotation(yaw), PitchRotation(pitch)), r));
+    };
+    const float shapes[] = {400.0f / 240.0f, 16.0f / 9.0f, 21.0f / 9.0f,
+                            4.0f / 3.0f,     3.0f / 2.0f,  16.0f / 10.0f};
+    const ViewFov view = Symmetric(50.0f);
+    enum Kind { Yaw, Pitch, YawPitch, Any, kKinds };
+    const char* kind_names[] = {"pure yaw", "pure pitch", "yaw and pitch", "any turn and lean"};
+    constexpr int kCases = 600; // 75 of each kind in each mode
+    // Worst errors, degrees: [kind][mode 2, 3] for the held quad and the rigid one; per case
+    // the held quad's against the rigid one's.
+    double held_worst[kKinds][2]{}, rigid_worst[kKinds][2]{}, ratio_worst[kKinds][2]{};
+    double gain1_worst = 0.0, gain1_rigid = 0.0;
+    double turn_worst[kKinds][2]{}, eye_worst[kKinds][2]{};
+    double skew_ratio[kKinds][2]{}, skew_worst[kKinds][2]{};
+    int counted[kKinds][2]{};
+    long points = 0, skipped = 0;
+    // The held error stays under this share of the turn's skew (degrees per degree of skew), and
+    // each kind's worst under this share of the rigid anchor's worst.
+    constexpr double kSkewShare = 0.55;
+    constexpr double kWorstShare = 0.6;
+    double held_per_deg[kKinds][2]{}, rigid_per_deg[kKinds][2]{};
+    // Only printed: the magnified screens (both gains under 1.2) whose gains are within 1.5 times
+    // of each other, as most settings give.
+    double near_held[kKinds][2]{}, near_rigid[kKinds][2]{};
+    int near_count[kKinds][2]{};
+    const auto fmt_eye = [](double deg) {
+        char b[96];
+        std::snprintf(b, sizeof(b), "; rays always from the eye %.4f degrees", deg);
+        return std::string(b);
+    };
+    for (int c = 0; c < kCases; c++) {
+        const uint32_t mode = 2 + static_cast<uint32_t>(c % 2);
+        const Kind kind = static_cast<Kind>((c / 2) % kKinds);
+        const float half_ipd = uni(0.0275f, 0.0375f);
+        Placement p{uni(kMinPitchDeg, kMaxPitchDeg), uni(kMinDistance, kMaxDistance),
+                    uni(kMinSize, kMaxSize)};
+        Options o;
+        o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        LensOffset offset{uni(-kMaxOffsetDeg, kMaxOffsetDeg), uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
+        if (kind == Yaw) { // a yaw in the quad's frame: the screen level
+            offset.up_deg = 0.0f;
+        }
+        if (kind == Pitch) { // a pitch in the quad's frame: the screen not turned aside
+            offset.right_deg = 0.0f;
+        }
+        HeadLocked s = SolveHeadLocked(p, uni(30, 110), shapes[pick(6)], view,
+                                       SharedQuadEyeShift(mode, p, half_ipd), o, offset);
+        if (kind == Yaw) {
+            s.pitch_rad = 0.0f;
+        }
+        s.distance = uni(0.3f, 5.0f);
+        s.gain_x = uni(kMinGain, kMaxGain);
+        s.gain = uni(kMinGain, kMaxGain);
+        const Quatf rest = YawRotation(Rad(uni(-180, 180)));
+        // The head when the picture was drawn, relative to the rest pose, and its turn since (in
+        // the head's own frame for a pitch, about the vertical for a yaw), up to 10 degrees.
+        const float t_deg = uni(-10.0f, 10.0f);
+        Quatf rel_then, rel_now;
+        if (kind == Yaw) {
+            rel_then = YawRotation(Rad(uni(-60, 60)));
+            rel_now = In::Multiply(YawRotation(Rad(t_deg)), rel_then);
+        } else if (kind == Pitch) {
+            const float yaw = Rad(uni(-60, 60)), pitch = Rad(uni(-35, 35));
+            rel_then = ypr(yaw, pitch, 0.0f);
+            rel_now = ypr(yaw, pitch + Rad(t_deg), 0.0f);
+        } else if (kind == YawPitch) {
+            // No roll, then or since: the head turns aside and nods at once.
+            const float yaw = Rad(uni(-60, 60)), pitch = Rad(uni(-35, 35));
+            const float share_yaw = uni(-1, 1);
+            const float dy = Rad(t_deg) * share_yaw;
+            const float dp = Rad(t_deg) * std::sqrt(1.0f - share_yaw * share_yaw);
+            rel_then = ypr(yaw, pitch, 0.0f);
+            rel_now = ypr(yaw + dy, pitch + dp, 0.0f);
+        } else {
+            rel_then = ypr(Rad(uni(-60, 60)), Rad(uni(-35, 35)), Rad(uni(-10, 10)));
+            // A turn about a random axis, up to 10 degrees.
+            Vec3f axis{uni(-1, 1), uni(-1, 1), uni(-1, 1)};
+            axis = In::Normalized(axis);
+            const float h = Rad(t_deg) / 2;
+            const Quatf turn{axis.x * std::sin(h), axis.y * std::sin(h), axis.z * std::sin(h),
+                             std::cos(h)};
+            rel_now = In::Normalized(In::Multiply(rel_then, turn));
+        }
+        // About a neck behind and below the eyes, and a lean.
+        Posef picture{In::Normalized(In::Multiply(rest, rel_then)),
+                      Vec3f{uni(-1, 1), uni(1, 2), uni(-1, 1)}};
+        const Vec3f neck_in_head{0.0f, -uni(0, 0.1f), uni(0, 0.12f)};
+        const Vec3f neck = picture.position + In::Rotate(picture.orientation, neck_in_head);
+        Posef now;
+        now.orientation = In::Normalized(In::Multiply(rest, rel_now));
+        now.position = neck - In::Rotate(now.orientation, neck_in_head) +
+                       (kind == Any ? Vec3f{uni(-0.03f, 0.03f), uni(-0.03f, 0.03f),
+                                            uni(-0.03f, 0.03f)}
+                                    : Vec3f{});
+        const Quatf cam_then = GameCameraRotation(rel_then, s);
+        const Quatf cam_now = GameCameraRotation(rel_now, s);
+        const HeldPose held{1, picture, cam_then, s};
+        const int mi = mode == 3 ? 1 : 0;
+        // Mode 2: where each eye's rays come from, from the middle (3D Depth 0) to past the eye.
+        const float share = mode == 3 ? 1.0f : (c % 10 == 0 ? 0.0f : c % 10 == 2 ? 1.0f : uni(0, 1.2f));
+        // The skew of the game camera's turn as the screen shows it: the angle between the
+        // picture's two axes through M R M^-1, away from a right angle (the error the rectangle
+        // has to leave), radians.
+        const auto mrm = [&](const Vec3f& axis) {
+            const Vec3f t = In::Rotate(In::Conjugate(cam_now),
+                                       In::Rotate(cam_then, Vec3f{axis.x * s.gain_x,
+                                                                  axis.y * s.gain, axis.z}));
+            return Vec3f{t.x / s.gain_x, t.y / s.gain, t.z};
+        };
+        const Vec3f sx = mrm({1, 0, 0}), sy = mrm({0, 1, 0});
+        double skew = std::abs(std::asin(std::clamp<double>(
+            In::Dot(sx, sy) / (In::Length(sx) * In::Length(sy)), -1.0, 1.0)));
+        // Mode 2: an eye off the line the rays come from sees a nod of the picture skewed as
+        // well, up to (that offset / distance) x the larger gain x sin(the camera's turn).
+        if (mode == 2) {
+            const Quatf turned = In::Normalized(In::Multiply(In::Conjugate(cam_now), cam_then));
+            const double sin_turn =
+                std::sin(2.0 * std::acos(std::min(1.0, std::abs(double(turned.w)))));
+            skew += std::abs(1.0 - share) * half_ipd / s.distance * std::max(s.gain_x, s.gain) *
+                    sin_turn;
+        }
+        const float hx = s.width() / 2, hy = s.height() / 2;
+        double case_held = 0.0, case_rigid = 0.0, case_eye = 0.0;
+        for (int eye = 0; eye < 2; eye++) {
+            const float x = EyeX(eye, half_ipd);
+            const Vec3f eye_now = now.position + In::Rotate(now.orientation, Vec3f{x, 0, 0});
+            const Posef in_view = FullQuadInView(s, mode, eye, half_ipd);
+            const Posef fresh = compose(now, in_view);
+            // The rays' point in the quad's own frame (from its centre): on the line from the
+            // quad's axis to the eye.
+            const Vec3f axis_h = in_view.position + In::Rotate(in_view.orientation,
+                                                               Vec3f{0, 0, s.distance});
+            const Vec3f from_h = axis_h + (Vec3f{x, 0, 0} - axis_h) * share;
+            const Vec3f pc = In::Rotate(In::Conjugate(in_view.orientation), from_h - in_view.position);
+            const HeldScreen h =
+                HeldFullQuad(s, mode, eye, half_ipd, picture, now, 1.0f, &held, rest, share);
+            const HeldScreen r =
+                HeldFullQuad(s, mode, eye, half_ipd, picture, now, 1.0f, nullptr, rest, share);
+            // Mode 2 with the rays taken from the eye whatever the game's stereo (the plan's first
+            // form): what knowing the share is worth.
+            const HeldScreen e1 =
+                HeldFullQuad(s, mode, eye, half_ipd, picture, now, 1.0f, &held, rest, 1.0f);
+            REQUIRE(In::Length(r.pose.position -
+                               AnchoredFullQuad(s, mode, eye, half_ipd, picture, now, true).position) <
+                    1e-5f);
+            for (int i = 0; i < 9; i++) {
+                for (int j = 0; j < 9; j++) {
+                    const float u = -1.0f + 0.25f * i, v = -1.0f + 0.25f * j;
+                    // The fresh picture's point (u, v), where the eye sees it, and its game ray:
+                    // the screen's angles from the rays' point times the gains, in the camera now.
+                    const Vec3f f{u * hx, v * hy, 0.0f};
+                    const Vec3f on_fresh = fresh.position + In::Rotate(fresh.orientation, f);
+                    const Vec3f q = f - pc;
+                    const Vec3f ray = In::Rotate(cam_now, Vec3f{q.x * s.gain_x, q.y * s.gain, q.z});
+                    // The same ray in the picture drawn then: from the rays' point to its plane.
+                    // A gain of 2 on a wide screen asks the game for more than it can draw: rays
+                    // past 80 degrees off either camera are left out (counted).
+                    const Vec3f in_then = In::Rotate(In::Conjugate(cam_then), ray);
+                    const Vec3f in_now{q.x * s.gain_x, q.y * s.gain, q.z};
+                    const float cos80 = std::cos(Rad(80.0f));
+                    if (-in_then.z < cos80 * In::Length(in_then) ||
+                        -in_now.z < cos80 * In::Length(in_now)) {
+                        skipped++;
+                        continue;
+                    }
+                    points++;
+                    const Vec3f m{in_then.x / s.gain_x, in_then.y / s.gain, in_then.z};
+                    const float t = -pc.z / m.z;
+                    const float u2 = (pc.x + t * m.x) / hx, v2 = (pc.y + t * m.y) / hy;
+                    const auto shown = [&](const HeldScreen& sc) {
+                        return sc.pose.position +
+                               In::Rotate(sc.pose.orientation,
+                                          Vec3f{u2 * sc.width / 2, v2 * sc.height / 2, 0});
+                    };
+                    const Vec3f want = on_fresh - eye_now;
+                    case_held = std::max(case_held, angle(shown(h) - eye_now, want));
+                    case_rigid = std::max(case_rigid, angle(shown(r) - eye_now, want));
+                    case_eye = std::max(case_eye, angle(shown(e1) - eye_now, want));
+                }
+            }
+        }
+        held_worst[kind][mi] = std::max(held_worst[kind][mi], case_held);
+        if (std::max(s.gain_x, s.gain) < 1.2f &&
+            std::max(s.gain_x, s.gain) < 1.5f * std::min(s.gain_x, s.gain)) {
+            near_held[kind][mi] = std::max(near_held[kind][mi], case_held);
+            near_rigid[kind][mi] = std::max(near_rigid[kind][mi], case_rigid);
+            near_count[kind][mi]++;
+        }
+        if (std::abs(t_deg) > 0.5f) {
+            held_per_deg[kind][mi] = std::max(held_per_deg[kind][mi], case_held / std::abs(t_deg));
+            rigid_per_deg[kind][mi] =
+                std::max(rigid_per_deg[kind][mi], case_rigid / std::abs(t_deg));
+        }
+        rigid_worst[kind][mi] = std::max(rigid_worst[kind][mi], case_rigid);
+        eye_worst[kind][mi] = std::max(eye_worst[kind][mi], case_eye);
+        turn_worst[kind][mi] = std::max<double>(turn_worst[kind][mi], std::abs(t_deg));
+        counted[kind][mi]++;
+        if (case_rigid > 0.01) {
+            ratio_worst[kind][mi] = std::max(ratio_worst[kind][mi], case_held / case_rigid);
+        }
+        // What the skew leaves: the held error over the skew (degrees per degree).
+        skew_ratio[kind][mi] =
+            std::max(skew_ratio[kind][mi], case_held / std::max(skew / kDegToRad, 1e-3));
+        skew_worst[kind][mi] = std::max(skew_worst[kind][mi], skew / kDegToRad);
+        // A pure yaw or pitch of the game camera in the quad's frame: exact, both modes.
+        if (kind == Yaw || kind == Pitch) {
+            INFO("case " << c << " mode " << mode << " " << kind_names[kind] << " gains "
+                         << s.gain_x << ", " << s.gain << " turn " << t_deg << " share " << share);
+            REQUIRE(case_held < (mode == 3 || kind == Yaw ? 0.001 : 0.001 + kSkewShare * skew / kDegToRad));
+        }
+        // Other turns: within what the skew can leave.
+        {
+            INFO("case " << c << " mode " << mode << " gains " << s.gain_x << ", " << s.gain
+                         << " turn " << t_deg << " skew " << skew / kDegToRad);
+            REQUIRE(case_held < 0.001 + kSkewShare * skew / kDegToRad);
+        }
+        // Gains 1, the rays from the eye: the rigid anchor, unchanged.
+        HeadLocked s1 = s;
+        s1.gain_x = s1.gain = 1.0f;
+        const HeldPose held1{1, picture, GameCameraRotation(rel_then, s1), s1};
+        for (int eye = 0; eye < 2; eye++) {
+            const Vec3f eye_now = now.position + In::Rotate(now.orientation,
+                                                            Vec3f{EyeX(eye, half_ipd), 0, 0});
+            const HeldScreen h1 =
+                HeldFullQuad(s1, mode, eye, half_ipd, picture, now, 1.0f, &held1, rest, 1.0f);
+            const Posef a = AnchoredFullQuad(s1, mode, eye, half_ipd, picture, now, true);
+            REQUIRE(h1.width == Approx(s1.width()).epsilon(1e-5));
+            REQUIRE(h1.height == Approx(s1.height()).epsilon(1e-5));
+            for (const float u : {-1.0f, 0.0f, 1.0f}) {
+                for (const float v : {-1.0f, 0.0f, 1.0f}) {
+                    const Vec3f l{u * s1.width() / 2, v * s1.height() / 2, 0};
+                    const Vec3f ph = h1.pose.position + In::Rotate(h1.pose.orientation, l);
+                    const Vec3f pa = a.position + In::Rotate(a.orientation, l);
+                    gain1_worst = std::max(gain1_worst, angle(ph - eye_now, pa - eye_now));
+                }
+            }
+        }
+    }
+    for (int k = 0; k < kKinds; k++) {
+        for (int m = 0; m < 2; m++) {
+            std::printf("held picture sweep, mode %d, %s (%d cases, turns up to %.1f degrees, skew "
+                        "up to %.2f degrees): worst %.5f degrees held as drawn now (%.3f of the "
+                        "skew at most), %.4f degrees held rigid; per degree of head turn %.5f "
+                        "held, %.4f rigid; on one case held at most %.2f %% of rigid%s\n",
+                        m + 2, kind_names[k], counted[k][m], turn_worst[k][m], skew_worst[k][m],
+                        held_worst[k][m], skew_ratio[k][m], rigid_worst[k][m],
+                        held_per_deg[k][m], rigid_per_deg[k][m], 100.0 * ratio_worst[k][m],
+                        m == 0 ? fmt_eye(eye_worst[k][m]).c_str() : "");
+        }
+    }
+    for (int k = 0; k < kKinds; k++) {
+        for (int m = 0; m < 2; m++) {
+            std::printf("held picture sweep, gains under 1.2 and within 1.5 times, mode %d, %s (%d "
+                        "cases): worst %.5f degrees held as drawn now, %.4f held rigid\n",
+                        m + 2, kind_names[k], near_count[k][m], near_held[k][m], near_rigid[k][m]);
+        }
+    }
+    std::printf("held picture sweep, gains 1: %.6f degrees from the rigid anchor; %ld points "
+                "compared, %ld past 80 degrees left out\n",
+                gain1_worst, points, skipped);
+    REQUIRE(skipped * 20 < points);
+    REQUIRE(gain1_worst < 0.0001);
+    // The case set can see the fault: rigid is off by tenths of a degree, the held quad is not.
+    for (int k = 0; k < kKinds; k++) {
+        for (int m = 0; m < 2; m++) {
+            REQUIRE(counted[k][m] == kCases / 2 / kKinds);
+            REQUIRE(rigid_worst[k][m] > 0.3);
+            REQUIRE(held_worst[k][m] < kWorstShare * rigid_worst[k][m]);
+        }
+    }
+}
+
+// AzaharFrame heldquad: the pose ring. A picture's camera is found by its pose's time while it is
+// among the last 64 display frames; an older or unknown one is not (Screens then holds it rigid);
+// a new rest pose (a recentre, a pause) or another mode clears it.
+TEST_CASE("FrameXr immersive: the pose ring keeps each frame's camera for its picture",
+          "[frame_xr]") {
+    PoseRing ring;
+    const Posef rest{YawRotation(Rad(20.0f)), Vec3f{0.0f, 1.6f, 0.0f}};
+    const auto pose = [](int64_t t) {
+        HeldPose p;
+        p.time = t;
+        p.q_cam = YawRotation(Rad(0.1f * static_cast<float>(t % 1000)));
+        p.solved.gain_x = 0.5f + 0.001f * static_cast<float>(t % 100);
+        return p;
+    };
+    const int64_t period = 8'333'333;
+    ring.Keep(3, rest);
+    for (int i = 1; i <= 100; i++) {
+        ring.Keep(3, rest); // the same mode and rest pose: kept
+        ring.Push(pose(i * period));
+    }
+    REQUIRE(ring.Count() == PoseRing::kSize);
+    // The last 64 are found, with what they were pushed with.
+    for (int i = 100 - static_cast<int>(PoseRing::kSize) + 1; i <= 100; i++) {
+        const HeldPose* p = ring.Find(i * period);
+        REQUIRE(p != nullptr);
+        REQUIRE(p->time == i * period);
+        REQUIRE(p->solved.gain_x == pose(i * period).solved.gain_x);
+    }
+    // Older ones and times that were never pushed: a miss.
+    REQUIRE(ring.Find((100 - static_cast<int>(PoseRing::kSize)) * period) == nullptr);
+    REQUIRE(ring.Find(period) == nullptr);
+    REQUIRE(ring.Find(50 * period + 1) == nullptr);
+    REQUIRE(ring.Find(0) == nullptr);
+    // The nearest one either side.
+    REQUIRE(ring.Nearest(50 * period + 3'000'000)->time == 50 * period);
+    REQUIRE(ring.Nearest(50 * period + 5'000'000)->time == 51 * period);
+    REQUIRE(ring.Nearest(1000 * period)->time == 100 * period);
+    // A miss holds the picture rigid (HeldFullQuad without a camera is the rigid anchor).
+    const ViewFov view = Symmetric(45.0f);
+    Placement pl;
+    pl.size = 1.6f;
+    const HeadLocked s = SolveHeadLocked(pl, 52.0f, kAspect3ds, view, 0.0f);
+    const Posef picture{rest.orientation, rest.position};
+    const Posef now{In::Multiply(rest.orientation, YawRotation(Rad(3.0f))), rest.position};
+    const HeldScreen miss = HeldFullQuad(s, 3, 0, 0.032f, picture, now, 1.0f,
+                                         ring.Find(period), rest.orientation);
+    const Posef rigid = AnchoredFullQuad(s, 3, 0, 0.032f, picture, now, true);
+    REQUIRE(In::Length(miss.pose.position - rigid.position) < 1e-6f);
+    REQUIRE(miss.width == s.width());
+    REQUIRE(miss.height == s.height());
+    // A found one is held as drawn now: with a gain other than 1 it differs from rigid.
+    const HeldPose found{7, picture, GameCameraRotation(Quatf{}, s), s};
+    const HeldScreen hit = HeldFullQuad(s, 3, 0, 0.032f, picture, now, 1.0f, &found,
+                                        rest.orientation);
+    REQUIRE(s.gain_x != Approx(1.0f).margin(0.05));
+    const float turned = std::acos(std::min(
+        1.0f, In::Dot(In::Rotate(hit.pose.orientation, Vec3f{1, 0, 0}),
+                      In::Rotate(rigid.orientation, Vec3f{1, 0, 0}))));
+    REQUIRE(turned > Rad(0.5f));
+    // A new rest pose clears it (a recentre, immersive mode resumed after a pause) ...
+    ring.Keep(3, {rest.orientation, Vec3f{0.0f, 1.6f, 0.01f}});
+    REQUIRE(ring.Count() == 0);
+    REQUIRE(ring.Find(100 * period) == nullptr);
+    ring.Push(pose(101 * period));
+    ring.Keep(3, {rest.orientation, Vec3f{0.0f, 1.6f, 0.01f}});
+    REQUIRE(ring.Find(101 * period) != nullptr);
+    ring.Keep(3, {YawRotation(Rad(25.0f)), Vec3f{0.0f, 1.6f, 0.01f}});
+    REQUIRE(ring.Count() == 0);
+    // ... and so does another mode.
+    ring.Push(pose(102 * period));
+    ring.Keep(2, {YawRotation(Rad(25.0f)), Vec3f{0.0f, 1.6f, 0.01f}});
+    REQUIRE(ring.Find(102 * period) == nullptr);
+    // Clear itself, and an empty ring.
+    ring.Push(pose(103 * period));
+    ring.Clear();
+    REQUIRE(ring.Count() == 0);
+    REQUIRE(ring.Nearest(103 * period) == nullptr);
+}
+
 // ---- AzaharFrame fovonce: Match Game Camera's Set Once (FovEstimate) and Always (FovFollow,
 // FovEase), on made-up measurement sequences, four a second as ProjectionTracker gives them.
 namespace {

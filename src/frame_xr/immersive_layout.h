@@ -769,6 +769,109 @@ Input::Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, 
                               const Input::Posef& picture, const Input::Posef& now,
                               bool follow_eye);
 
+/// AzaharFrame heldquad: the head-locked quad `in_view` (head frame), held on a display refresh
+/// after its picture's, as the game would draw that picture now. The picture is magnified: the
+/// game camera turns `gain` times the head, and the screen shows its angles 1 / gain times as
+/// large, so a picture held rigid in the room (AnchoredQuadPose) is right only at its middle. Off
+/// the middle a fresh picture moves its scenery with the head by (1 - gain^2) sin^2(e) of the
+/// turn (e: the angle off the middle), and the rigid one, shown again, catches up in one jump at
+/// the next picture: what the eye follows is seen twice.
+///
+/// For a point p of the quad, relative to the point the picture's rays come from, in the quad's
+/// frame, the game ray is M^-1 p, M = diag(1 / gain_x, 1 / gain_y, 1). With the game camera
+/// turned by R since the picture (conj(q_cam_now) x q_cam_then, both GameCameraRotation, so R is
+/// in the quad's frame), the same scenery belongs along A p, A = M R M^-1. Seen from the eye at
+/// `eye_x` that is a linear map of the picture (A, plus the rays' point's offset from the eye
+/// carried along: exact for a planar picture), so the held quad is a parallelogram. A pure yaw or
+/// a pure pitch of the game camera (in the quad's frame) makes it a rectangle. Its roll does not
+/// with unequal gains: the picture's axes are magnified differently, so a roll is shown sheared,
+/// which no rectangle can; a yaw of a pitched camera has some roll in it. The rectangle nearest
+/// the parallelogram is used, the skew split evenly between its edges.
+/// The result is scaled about the eye back to the quad's distance from it, so nothing changes as
+/// seen from the eye and the layer order holds.
+///   - `distance`: the quad's centre this far along its axis (HeadLocked::distance).
+///   - `eye_share`: where the picture's rays come from, this share of the way from the quad's
+///     axis to the eye. Mode 3 centres each eye's quad on its eye (any value: the eye). Mode 2's
+///     one picture per eye on the shared quad comes from the game's own two cameras: 0 when they
+///     are one (3D Depth 0), 1 when its far scenery is IPD apart on the quad (parallel), as the
+///     stereo cap keeps it (EyeShareOnQuad).
+/// Gains 1 and the rays from the eye: A = R, exactly the pose of AnchoredQuadPose (follow 1) for
+/// the same turn.
+struct HeldQuadPose {
+    Input::Posef pose;        ///< in the head's frame now (as `in_view`)
+    float width_scale = 1.0f; ///< the quad's width times this
+    float height_scale = 1.0f;
+};
+HeldQuadPose HeldQuad(const Input::Posef& in_view, float eye_x, float distance, float eye_share,
+                      const Input::Quatf& q_cam_then, const Input::Quatf& q_cam_now, float gain_x,
+                      float gain_y);
+
+/// AzaharFrame heldquad: HeldQuad's `eye_share` for mode 2 from the game's far scenery
+/// (StereoFarOnQuad's separation on the quad over the IPD): 0 with no far width known (below 0)
+/// or none (one camera), 1 at parallel; kept from 0 to 2. Mode 3: 1.
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width);
+
+/// AzaharFrame heldquad: one display frame's head pose, as the game camera was made from it
+/// (Immersive OnFrame, with VideoCore::Immersive::VRData): its time (XrContentPose::time, the
+/// key the picture drawn with it carries), the head in LOCAL space, the game camera's rotation
+/// (GameCameraRotation) and the solved screen it used (the gains, the quad's rotation). A picture
+/// shown later is held with these, so a camera angle that slewed (Detect Game FOV), a zoom or a
+/// size change since it was drawn is never taken for a head turn.
+struct HeldPose {
+    int64_t time = 0;
+    Input::Posef head;
+    Input::Quatf q_cam;
+    HeadLocked solved;
+};
+
+/// AzaharFrame heldquad: the last kSize HeldPoses (120 Hz times the anchor's 250 ms, doubled).
+/// Cleared when the game camera's rest pose changes (a recentre, a pause) or the mode does, as
+/// the old cameras no longer compare with the new ones. XR thread; pure.
+class PoseRing {
+public:
+    static constexpr std::size_t kSize = 64;
+
+    /// Every frame, before Push: the mode and the game camera's rest pose in use. A change of
+    /// either clears the ring.
+    void Keep(uint32_t mode, const Input::Posef& rest);
+    void Push(const HeldPose& p);
+    /// The pose of `time`, newest first; nullptr when it is not (or no longer) in the ring.
+    const HeldPose* Find(int64_t time) const;
+    /// The pose nearest to `time` (either side), nullptr when empty.
+    const HeldPose* Nearest(int64_t time) const;
+    void Clear() {
+        count_ = 0;
+        next_ = 0;
+    }
+    std::size_t Count() const {
+        return count_;
+    }
+
+private:
+    std::array<HeldPose, kSize> poses_{};
+    std::size_t next_ = 0;
+    std::size_t count_ = 0;
+    bool kept_ = false;
+    uint32_t mode_ = 0;
+    Input::Posef rest_{};
+};
+
+/// AzaharFrame heldquad: the Full modes' anchored quad for eye `eye` (Immersive::Screens), in
+/// LOCAL space, with its size. `held` (the shown picture's camera from the PoseRing) given:
+/// HeldQuad about the eye (rays from `eye_share`, EyeShareOnQuad), with the game camera now made
+/// from `now` (relative to `rest`, the game camera's rest pose) through the picture's own solved
+/// screen; nullptr: rigid (AnchoredQuadPose). Either way the eye's move since the picture is
+/// followed by `follow`, as in AnchoredQuadPose, and the quad's shape is `solved`'s (the live
+/// placement).
+struct HeldScreen {
+    Input::Posef pose;
+    float width = 0.0f;
+    float height = 0.0f;
+};
+HeldScreen HeldFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
+                        const Input::Posef& picture, const Input::Posef& now, float follow,
+                        const HeldPose* held, const Input::Quatf& rest, float eye_share = 1.0f);
+
 /// AzaharFrame turns2: how far far scenery at the middle of `placed` (a quad in LOCAL space),
 /// seen from `eye_now` (LOCAL), is from where that eye saw it when the picture was drawn (the
 /// quad `in_view` in the head frame `picture`, seen from the eye at `eye_x` in it): radians
