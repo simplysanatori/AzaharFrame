@@ -65,8 +65,9 @@ struct ReticleSample {
     bool on = false;   ///< live: a game running, the menu closed, the controller tracked
     Vec2f point;       ///< 0..1 from the top left
     bool down = false; ///< its trigger
-    /// AzaharFrame kiu: C-Stick at Edge's band (off: zero). AzaharFrame kiu2: InputBridge hands
-    /// the held touch to the C-Stick while the point is in it (ReticleEdgeHandover).
+    /// AzaharFrame kiu: C-Stick at Edge's band (off: zero). AzaharFrame kiu2: while the held
+    /// point is in it, TouchpadTouch hands the touch to the C-Stick (ReticleEdgeHandoff): the
+    /// touch lifts and TouchpadResult::edge_stick pushes.
     ReticleEdgeBand edge_band;
 };
 
@@ -104,6 +105,10 @@ struct TouchpadResult {
     /// The dot of the pad or the mouse; never shown while the beam owns the touch (the beam has
     /// its own dot).
     TouchpadCursor cursor;
+    /// AzaharFrame kiu2: C-Stick at Edge's push for the C-Stick this frame (zero when none) and
+    /// whether its hand-over changed state (ReticleEdgeHandoff).
+    Vec2f edge_stick;
+    bool edge_changed = false;
 };
 
 class TouchpadTouch {
@@ -130,6 +135,10 @@ public:
     bool touching() const {
         return touching_;
     }
+    /// AzaharFrame kiu2: C-Stick at Edge's hand-over (reticle.h ReticleEdgeHandoff).
+    ReticleEdgeHandoff::State edge_state() const {
+        return edge_.state();
+    }
 
     /// AzaharFrame padsui: what a cursor source gives the shared cursor pipeline (CursorStep): a
     /// touchpad its finger's point (absolute), the mouse its counts (relative).
@@ -147,6 +156,7 @@ public:
     };
 
 private:
+    ReticleEdgeHandoff edge_; ///< AzaharFrame kiu2
     struct Source {
         bool engaged_prev = false;
         bool stale = true; ///< down when the arbiter (re)started: needs a release first

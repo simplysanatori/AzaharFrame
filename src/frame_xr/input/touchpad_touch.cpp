@@ -208,12 +208,26 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
     bool reticle_hover = false;
     {
         const ReticleSample& rs = frame.reticle;
+        // AzaharFrame kiu2: C-Stick at Edge: in the edge band the held touch is handed to the
+        // C-Stick (ReticleEdgeHandoff); not while another source holds the touch.
+        bool reticle_touch = true;
+        const bool other = touching_ && owner_ != TouchSource::Reticle;
+        if (rs.on && !other) {
+            const ReticleEdgeHandoff::Out h =
+                edge_.Update(rs.point, rs.down, rs.edge_band, frame.time_ns);
+            reticle_touch = h.touch;
+            out.edge_stick = h.stick;
+            out.edge_changed = h.changed;
+        } else if (edge_.state() != ReticleEdgeHandoff::State::Touch) {
+            edge_.Reset();
+            out.edge_changed = true;
+        }
         CursorInput in;
         in.live = rs.on;
         in.absolute = true;
         in.has_point = rs.on;
         in.point = rs.point;
-        in.down = rs.down;
+        in.down = rs.down && reticle_touch;
         CursorStep(out, reticle_, in, TouchSource::Reticle, frame.time_ns);
         reticle_hover = rs.on && (frame.time_ns - reticle_.move_ns < kMouseIdleNs || rs.down);
     }
@@ -292,6 +306,7 @@ bool TouchpadTouch::Reset() {
     mouse_seen_ = false;
     cursor_ = CursorTrack{};
     reticle_ = CursorTrack{};
+    edge_.Reset(); // AzaharFrame kiu2
     return was;
 }
 

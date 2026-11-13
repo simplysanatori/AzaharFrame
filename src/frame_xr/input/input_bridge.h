@@ -46,13 +46,13 @@ public:
     }
 
     /// AzaharFrame kiu: C-Stick at Edge's push added to the C-Stick in the last Process (zero
-    /// when none). AzaharFrame kiu2: the reticle's touch is lifted meanwhile.
+    /// when none).
     Vec2f edge_stick() const {
         return edge_stick_;
     }
-    /// AzaharFrame kiu2: the reticle's touch is handed to the C-Stick (lifted) this frame.
-    bool edge_handover() const {
-        return edge_handover_.active();
+    /// AzaharFrame kiu2: C-Stick at Edge's hand-over state after the last Process.
+    ReticleEdgeHandoff::State edge_state() const {
+        return touchpad_.edge_state();
     }
 
 private:
@@ -61,7 +61,6 @@ private:
     TouchpadTouch touchpad_;
     TouchpadCursor touchpad_cursor_;
     Vec2f edge_stick_; ///< AzaharFrame kiu
-    ReticleEdgeHandover edge_handover_; ///< AzaharFrame kiu2
     MapperOutput last_;
 };
 

@@ -68,27 +68,15 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
                         // AzaharFrame fixes7: Aim Only While Pressed, as the reticle's
                         Settings::values.vr_reticle_center_until_pressed.GetValue()};
     }
-    edge_stick_ = {};
     if (reticle) {
         touch.reticle = *reticle; // AzaharFrame mouse
-        // AzaharFrame kiu2: C-Stick at Edge: while the reticle's held touch is in an edge band,
-        // the touch is lifted and the C-Stick (the right stick's, after its dead zone and the
-        // other gamepads) is pushed toward that edge instead: the game drops the C-Stick while a
-        // touch is held (reticle.h ReticleEdgeHandover). Not while another source holds the touch.
-        const bool other_touch =
-            touchpad_.touching() && touchpad_.owner() != TouchSource::Reticle;
-        const ReticleEdgeHandover::Out h = edge_handover_.Update(
-            touch.reticle.on, touch.reticle.point, touch.reticle.down, touch.reticle.edge_band,
-            other_touch);
-        if (h.lift) {
-            touch.reticle.down = false;
-        }
-        edge_stick_ = h.push;
-    } else {
-        edge_handover_.Reset();
     }
     const TouchpadResult result = touchpad_.Update(touch);
     touchpad_cursor_ = result.cursor;
+    // AzaharFrame kiu: C-Stick at Edge: the push goes onto the C-Stick (the right stick's, after
+    // its dead zone and the other gamepads). AzaharFrame kiu2: the touch pipeline hands the
+    // reticle's touch over to it in the edge band (reticle.h ReticleEdgeHandoff).
+    edge_stick_ = result.edge_stick;
     if (edge_stick_.x != 0.0f || edge_stick_.y != 0.0f) {
         last_.controls.SetStick(AnalogControl::StickR,
                                 AddStick(last_.controls.GetStick(AnalogControl::StickR), edge_stick_));
@@ -118,7 +106,6 @@ void InputBridge::Release() {
     }
     touchpad_cursor_ = {};
     edge_stick_ = {}; // AzaharFrame kiu
-    edge_handover_.Reset(); // AzaharFrame kiu2
     InputCommon::FrameXr::GetPad().ReleaseAll();
     Devices::Hub().Release(); // AzaharFrame pads: what is held stays away until let go
     motion_.Reset();

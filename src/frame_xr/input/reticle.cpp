@@ -135,30 +135,94 @@ Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band) 
     return AddStick({EdgeDepth(point.x, band.x), -EdgeDepth(point.y, band.y)}, {});
 }
 
-ReticleEdgeHandover::Out ReticleEdgeHandover::Update(bool on, Vec2f point, bool down,
-                                                    const ReticleEdgeBand& band,
-                                                    bool other_touch) {
-    if (!on || !down || !band.On() || other_touch || !(point.x == point.x) ||
-        !(point.y == point.y)) {
-        active_ = false;
-        return {};
+namespace {
+/// -1 at the low end of 0..1, +1 at the high end, 0 outside a band of `band`; `depth` how far in
+/// (0 at the band's start, 1 at the edge).
+int EdgeSide(float v, float band, float& depth) {
+    v = std::clamp(v, 0.0f, 1.0f);
+    depth = 0.0f;
+    if (v < band) {
+        depth = std::min((band - v) / band, 1.0f);
+        return -1;
     }
+    if (v > 1.0f - band) {
+        depth = std::min((v - (1.0f - band)) / band, 1.0f);
+        return 1;
+    }
+    return 0;
+}
+} // namespace
+
+ReticleEdgeHandoff::Out ReticleEdgeHandoff::Update(Vec2f point, bool down,
+                                                   const ReticleEdgeBand& band, int64_t now) {
     Out out;
-    out.push = ReticleEdgeStick(point, true, band);
-    const bool in_band = out.push.x != 0.0f || out.push.y != 0.0f ||
-                         point.x <= 0.0f || point.x >= 1.0f || point.y <= 0.0f || point.y >= 1.0f;
-    if (!active_) {
-        active_ = in_band;
-    } else if (!in_band) {
-        // Leaves only once it is kEdgeExit of the band further in than the band's inner edge.
-        const ReticleEdgeBand wider{std::min(band.x * (1.0f + kEdgeExit), 0.5f),
-                                    std::min(band.y * (1.0f + kEdgeExit), 0.5f)};
-        const Vec2f near = ReticleEdgeStick(point, true, wider);
-        active_ = near.x != 0.0f || near.y != 0.0f;
+    const State before = state_;
+    const bool valid = point.x == point.x && point.y == point.y;
+    if (!down || !band.On() || !valid) {
+        state_ = State::Touch;
+        out.changed = state_ != before;
+        return out;
     }
-    out.lift = active_;
-    if (!active_) {
-        out.push = {};
+    float dx = 0.0f, dy = 0.0f;
+    const int sx = EdgeSide(point.x, band.x, dx);
+    const int sy = EdgeSide(point.y, band.y, dy);
+    const bool in_band = sx != 0 || sy != 0;
+    // The band and its hysteresis strip.
+    float wx = 0.0f, wy = 0.0f;
+    const int hx = EdgeSide(point.x, std::min(band.x * (1.0f + kHandoffHysteresis), 0.5f), wx);
+    const int hy = EdgeSide(point.y, std::min(band.y * (1.0f + kHandoffHysteresis), 0.5f), wy);
+    const bool near = hx != 0 || hy != 0;
+    switch (state_) {
+    case State::Touch:
+        if (in_band) {
+            state_ = State::Lead;
+            since_ns_ = now;
+        }
+        break;
+    case State::Lead:
+        if (!in_band) {
+            state_ = State::Touch;
+        } else if (now - since_ns_ >= kHandoffLeadNs) {
+            state_ = State::Stick;
+            since_ns_ = now;
+        }
+        break;
+    case State::Stick:
+        if (!near) {
+            state_ = State::Return;
+            since_ns_ = now;
+        }
+        break;
+    case State::Return:
+        if (in_band) {
+            state_ = State::Stick; // back into the band before the stick let go
+            since_ns_ = now;
+        } else if (now - since_ns_ >= kHandoffLagNs) {
+            state_ = State::Touch;
+        }
+        break;
+    }
+    out.changed = state_ != before;
+    out.touch = state_ != State::Stick;
+    if (state_ != State::Touch) {
+        // Each axis in its band or strip pushes toward its edge, at least the floor; the point's
+        // y grows downward, the stick's up. In Return (out of the strip) the axis that was
+        // pushing keeps the floor until the touch is back.
+        const auto axis = [](int side_band, float depth, int side_near) {
+            const int side = side_band != 0 ? side_band : side_near;
+            return side == 0 ? 0.0f
+                             : static_cast<float>(side) *
+                                   (kEdgeStickFloor + (1.0f - kEdgeStickFloor) * depth);
+        };
+        Vec2f s{axis(sx, dx, hx), -axis(sy, dy, hy)};
+        if (state_ == State::Return && s.x == 0.0f && s.y == 0.0f) {
+            s = last_push_;
+        }
+        out.stick = AddStick(s, {});
+        last_push_ = {out.stick.x == 0.0f ? 0.0f : std::copysign(kEdgeStickFloor, out.stick.x),
+                      out.stick.y == 0.0f ? 0.0f : std::copysign(kEdgeStickFloor, out.stick.y)};
+    } else {
+        last_push_ = {};
     }
     return out;
 }
@@ -269,9 +333,7 @@ ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, floa
     float dp = fp - ref_pitch_;
     // Snap to Middle: past an edge (and not just after the last snap), the middle is where it
     // points now; a touch held lifts first.
-    // AzaharFrame kiu2: not while C-Stick at Edge has the edge (the trigger touching).
-    const bool edge_is_cstick = modes.edge_cstick && trigger_;
-    if (edge == ReticleEdge::SnapToMiddle && !edge_is_cstick && !lifting_ && now >= snap_ready_ &&
+    if (edge == ReticleEdge::SnapToMiddle && !lifting_ && now >= snap_ready_ &&
         (std::fabs(dy) > hw || std::fabs(dp) > hh)) {
         f.snapped = true;
         ref_yaw_ = fy;
