@@ -2041,3 +2041,58 @@ TEST_CASE("FrameXr immersive: the picture's pose is the one its world was drawn 
         }
     }
 }
+
+// AzaharFrame oot: Wider View Off asks every game for exactly its own picture: no padding either
+// way, the screen in the picture's shape, for every game shape, both Full modes (mode 2's shared
+// quad with each eye's shift, mode 3's quad on each eye) and any view, the Frame's included.
+TEST_CASE("FrameXr immersive: Wider View Off is exactly the game's picture", "[frame_xr]") {
+    ViewFov frame;
+    frame.left = Rad(-50.3f);
+    frame.right = Rad(50.4f);
+    frame.down = Rad(-59.6f);
+    frame.up = Rad(49.5f);
+    frame.outer_left = Rad(-59.1f);
+    frame.outer_right = Rad(59.2f);
+    frame.outer_down = Rad(-60.0f);
+    frame.outer_up = Rad(49.9f);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    std::vector<ViewFov> views{frame};
+    for (int i = 0; i < 40; ++i) {
+        ViewFov v;
+        v.left = Rad(-(30.0f + 35.0f * u(rng)));
+        v.right = Rad(30.0f + 35.0f * u(rng));
+        v.down = Rad(-(30.0f + 35.0f * u(rng)));
+        v.up = Rad(30.0f + 35.0f * u(rng));
+        v.outer_left = v.left - Rad(10.0f * u(rng));
+        v.outer_right = v.right + Rad(10.0f * u(rng));
+        v.outer_down = v.down;
+        v.outer_up = v.up;
+        views.push_back(v);
+    }
+    std::vector<float> shapes{4.0f / 3.0f, kAspect3ds, 1.6f, 16.0f / 9.0f, 21.0f / 9.0f};
+    for (int i = 0; i < 10; ++i) {
+        shapes.push_back(1.1f + 1.5f * u(rng));
+    }
+    int checked = 0;
+    for (const ViewFov& v : views) {
+        for (const float a : shapes) {
+            for (const float shift : {0.0f, 0.032f / 3.0f, 0.035f / kMinDistance}) {
+                for (const float fov : {35.0f, 55.0f, 75.0f, 100.0f}) {
+                    for (const float size : {kMinSize, 1.0f, kMaxSize}) {
+                        Placement p;
+                        p.size = size;
+                        Options o; // Off: o.wider is kFactorMin
+                        REQUIRE(o.wider == WiderFactor(0));
+                        const HeadLocked s = SolveHeadLocked(p, fov, a, v, shift, o);
+                        REQUIRE(s.factor == 1.0f);
+                        REQUIRE(s.factor_y == Approx(1.0f).epsilon(1e-5));
+                        REQUIRE(s.aspect == Approx(a).epsilon(1e-5));
+                        ++checked;
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(checked == 41 * 15 * 3 * 4 * 3);
+}

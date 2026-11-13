@@ -82,9 +82,6 @@ inline constexpr float kMaxSize = 2.5f;
 /// degrees (ViewFov::outer_*), and its half height at least this, degrees.
 inline constexpr float kFillMarginDeg = 1.0f;
 inline constexpr float kMinFillHalfHeightDeg = 35.0f;
-/// AzaharFrame immersive: the game draws at most this much further up and down than its own
-/// frame (`factor_y`); a taller view leaves the screen's top and bottom edges in it.
-inline constexpr float kMaxFactorY = 2.0f;
 /// The rotation gain stays within these (past them the screen keeps its size and the world drifts
 /// a little). At the screen's edge, angle e, a head turn moves the picture by
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.

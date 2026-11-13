@@ -202,13 +202,17 @@ default magnified a 55 degree game 1.6 to 2.5 times (gain 0.4 to 0.6): a perspec
 only right at its middle, and 35 degrees to the side it was drawn 1.4 to 1.6 times taller than
 wide. Majora's Mask 3D with the owner's own settings (gain 1.03, Wider View 1.4x, Narrow Screen 10 %,
 3 m, mode 2) was "perfect"; those are the defaults now (`kDefaultHeadDistance`, the settings'
-defaults). The screen takes the view's shape, not the picture's (`DefaultCover`: what either eye
-sees, from the runtime's per-eye FOV, logged once as `xr: immersive: both eyes see ..., either
-eye ...`; on the Frame about 126 x 112 degrees), so the game draws further up and down to match
-(`HeadLocked::factor_y` = factor x picture aspect x screen height / width, at least the factor and
-at most `kMaxFactorY`, 2.0; 1.26 times the factor on the Frame for 5:3): the picture has the same
-scale both ways and is not stretched. The vertex shader divides clip x by `factor_y` and clip y by
-the factor (the top screen is drawn turned by 90 degrees, so clip x is up and down). A 2D vertex
+defaults). The screen has the picture's own shape (AzaharFrame oot), and Wider View widens the
+game's picture by the same factor both ways (`HeadLocked::factor_y` = factor): at Off the game is
+asked for exactly its own picture, whatever the game's shape, mode or view. From AzaharFrame
+immersive2 until then the screen took the view's shape (`DefaultCover`; on the Frame about 126 x
+112 degrees), so the game drew 1.25 times further up and down than across at every level, Off
+included: a 5:3 game came out as a 4:3 picture ("it says 5:3, but it is not 5:3"), and full-screen
+2D (below) was stretched up and down against the HUD drawn on it (Ocarina of Time 3D's item screen
+with the Single Screen Experience mod). The screen now leaves the view's top and bottom edges
+showing where the picture is wider than the view. The vertex shader divides clip x by `factor_y`
+and clip y by the factor (the top screen is drawn turned by 90 degrees, so clip x is up and down),
+so the picture has the same scale both ways and is not stretched. A 2D vertex
 (w = 1) on or past the edge of the view keeps its place: full-screen 2D passes cover the whole
 picture. Shrunk with the rest, a full-screen mask cut Ocarina of Time 3D's world off at the game's
 own frame and Majora's Mask 3D's copy of the last frame nested smaller copies of itself; the HUD,
@@ -431,13 +435,14 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 
 | Game | Screen Shape | Narrow Screen | Wider View | Up and down | Distance | Size |
 | --- | --- | --- | --- | --- | --- | --- |
-| Any game (default) | 3DS (5:3), or as measured | Off (10 % before AzaharFrame oot) | 1.4x | 1.76x (1.26x Wider View) | 3 m | 1 (95 x 85 degrees at 55) |
-| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | Off (1 % before) | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
-| Majora's Mask 3D | 3DS (5:3) | Off (1 % before) | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
-| Super Mario 3D Land | 3DS (5:3) | Off (10 % before) | 1.4x | 1.77x | 3 m | 1 (82 x 73) |
-| Mario Kart 7 | 3DS (5:3) | Off | 1.4x | 1.77x | 3 m | 0.9 (91 x 76, gain 1.11) |
+| Any game (default) | 3DS (5:3), or as measured | Off (10 % before AzaharFrame oot) | 1.4x | 1.4x (1.76x before AzaharFrame oot) | 3 m | 1 (95 x 85 degrees at 55) |
+| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | Off (1 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
+| Majora's Mask 3D | 3DS (5:3) | Off (1 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
+| Super Mario 3D Land | 3DS (5:3) | Off (10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
+| Mario Kart 7 | 3DS (5:3) | Off | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
 
-The widths in the Size column were worked out at Narrow Screen 10 %, the default before
+The Size column's heights are from before AzaharFrame oot (the view's shape); the screen is now
+as high as the picture's shape gives at that width. The widths were worked out at Narrow Screen 10 %, the default before
 AzaharFrame oot; at Off (now the default, and the Zelda presets no longer set 1 %, the 10 % step)
 the screen is about a tenth wider.
 
@@ -552,6 +557,25 @@ largest error is 0.0001 degrees, and with the head where the picture was drawn t
 one before (`the anchored screen keeps far scenery still for any settings`). The per-second line
 measures from each eye as located against where that eye saw the picture's middle when it was
 drawn; before, mode 2 measured from the middle of the head, which hid that error.
+
+AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
+frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's
+single-screen mod, which still has to be shown to draw a new world at each. A game that draws its
+world every other frame and only its HUD in between, or copies the last picture into the
+framebuffer before it draws the next world, got the pose of the latch before on pictures whose
+world was drawn one game frame earlier: on a head turn the anchored world stepped by one game
+frame's turn and back, a double image the far-scenery line could not see, as it trusts the tag.
+`ContentTrack` now notes the pose of every draw through the patched world camera (`OnWorldDraw`,
+from the rasterizers' draws), which pose's world each display transfer or texture copy took to its
+address (`OnTransfer`, `GPU::MemoryTransfer`), and at the top screen's swap tags the picture with
+the newest copy into the framebuffer shown (`OnTopScreenSwap`). Where nothing was copied into it in
+the last three latches (a game that draws straight into its framebuffer) or at the VBlank fallback,
+the earlier rule stays. It needs no setting or game value. Once a second the log says
+`xr: immersive: N top screen swaps, ... without a world draw, ... without a copy into a
+framebuffer; the picture's world drawn with the latch's pose ..., an earlier one ... (the head ...
+degrees on ...)`. `AZAHARFRAME_IMMERSIVE_WORLD_TAG=0` tags by the latch again (A/B runs);
+`AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1` adds the world draws of each swap in order and the distinct
+world projections each second.
 
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
