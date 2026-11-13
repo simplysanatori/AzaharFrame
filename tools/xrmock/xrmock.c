@@ -1502,8 +1502,11 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
             static int poseTrace = -1;
             if (poseTrace < 0) poseTrace = getenv("MOCK_XR_TRACE_POSE") != NULL;
             if (poseTrace) {
-                snprintf(t, sizeof(t), " pos=%.2f,%.2f,%.2f q=%.2f,%.2f,%.2f,%.2f", q->pose.position.x, q->pose.position.y, q->pose.position.z,
-                         q->pose.orientation.x, q->pose.orientation.y, q->pose.orientation.z, q->pose.orientation.w);
+                // AzaharFrame dbl: MOCK_XR_TRACE_POSE=5 gives 5 decimals (per-refresh slips are hundredths of a degree).
+                const int dp = getenv("MOCK_XR_TRACE_POSE")[0] == '5' ? 5 : 2;
+                snprintf(t, sizeof(t), " pos=%.*f,%.*f,%.*f q=%.*f,%.*f,%.*f,%.*f", dp, q->pose.position.x, dp, q->pose.position.y, dp,
+                         q->pose.position.z, dp, q->pose.orientation.x, dp, q->pose.orientation.y, dp, q->pose.orientation.z, dp,
+                         q->pose.orientation.w);
                 strcat(buf, t);
             }
             strcat(buf, "]");
@@ -1565,7 +1568,16 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     gSec.cyls += cyls;
     if ((int)ei->layerCount < gSec.layersMin) gSec.layersMin = (int)ei->layerCount;
     if ((int)ei->layerCount > gSec.layersMax) gSec.layersMax = (int)ei->layerCount;
-    trace("endFrame layers=%u%s", ei->layerCount, buf);
+    // AzaharFrame dbl: with MOCK_XR_TRACE_POSE=5 the frame's display time and the head's yaw at it too.
+    static int poseTraceE = -1;
+    if (poseTraceE < 0) poseTraceE = getenv("MOCK_XR_TRACE_POSE") && getenv("MOCK_XR_TRACE_POSE")[0] == '5';
+    if (poseTraceE) {
+        const XrPosef hp = headAt(ei->displayTime);
+        trace("endFrame layers=%u t=%.6f yaw=%.6f%s", ei->layerCount, (double)(ei->displayTime - gT0) / 1e9,
+              2.0 * atan2((double)hp.orientation.y, (double)hp.orientation.w) * 57.29577951308232, buf);
+    } else {
+        trace("endFrame layers=%u%s", ei->layerCount, buf);
+    }
     const double since = (nowNs() - gT0) * 1e-9;
     if (gDumpDir && gShownNext < gShownCount && since >= gShownTimes[gShownNext]) {
         trace("shown f%d t=%.2f: %d quad swapchains", gFrame, since, nshown);
