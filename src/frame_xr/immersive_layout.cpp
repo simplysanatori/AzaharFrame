@@ -599,6 +599,26 @@ Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_v
             eye_now + Input::Rotate(picture.orientation, in_view.position - eye)};
 }
 
+Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_view, float eye_x,
+                       float follow) {
+    const Vec3f eye{eye_x, 0.0f, 0.0f};
+    const Vec3f eye_then = picture.position + Input::Rotate(picture.orientation, eye);
+    const Vec3f eye_now = now.position + Input::Rotate(now.orientation, eye);
+    const float f = std::isfinite(follow) ? follow : 1.0f;
+    return {Input::Normalized(Input::Multiply(picture.orientation, in_view.orientation)),
+            eye_then + (eye_now - eye_then) * f +
+                Input::Rotate(picture.orientation, in_view.position - eye)};
+}
+
+float AnchorFollow(float distance, float scaler, float depth_units, float gain) {
+    if (!(distance > 0.0f) || !(std::abs(scaler) > 0.0f) || !(depth_units > 0.0f) ||
+        !(gain > 0.0f) || !std::isfinite(distance * scaler * depth_units * gain)) {
+        return 1.0f;
+    }
+    const float parallax = std::abs(scaler) / depth_units / gain;
+    return std::clamp(1.0f - parallax * distance, -20.0f, 1.0f);
+}
+
 Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
                        const Posef& picture, const Posef& now, bool follow_eye) {
     return AnchoredQuadPose(picture, now, FullQuadInView(solved, mode, eye, half_ipd),

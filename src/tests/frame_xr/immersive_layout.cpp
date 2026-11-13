@@ -1416,6 +1416,64 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps its scenery still when t
     REQUIRE(In::Length(a.position - b.position) == Approx(0.0f).margin(1e-6));
 }
 
+// AzaharFrame dbl: the anchored screen keeps the scenery of any one depth still while the eyes
+// move (AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH): following the eyes' move x (1 - distance / z), every
+// point of the screen is seen from the eye now in the direction of the point z / distance as far
+// along its ray from the eye then (the scenery at z the picture shows there). 1 and 0 are the
+// two placements above.
+TEST_CASE("FrameXr immersive: the anchored screen keeps the scenery at a chosen depth still",
+          "[frame_xr]") {
+    std::mt19937 rng(20261120);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    const ViewFov view = Symmetric(45.0f);
+    for (int run = 0; run < 2000; ++run) {
+        Placement p;
+        p.distance = uni(0.3f, 3.0f);
+        const HeadLocked s = SolveHeadLocked(p, uni(30.0f, 70.0f), kAspect3ds, view, 0.0f);
+        const float turn = Rad(uni(-8.0f, 8.0f)), neck = uni(0.0f, 0.12f);
+        const Posef picture{YawRotation(Rad(uni(-30.0f, 30.0f))),
+                            Vec3f{uni(-0.2f, 0.2f), 1.6f, uni(-0.2f, 0.2f)}};
+        const Posef now{In::Multiply(picture.orientation, YawRotation(turn)),
+                        picture.position + In::Rotate(picture.orientation,
+                                                      Vec3f{-neck * std::sin(turn) + uni(-0.01f, 0.01f),
+                                                            uni(-0.01f, 0.01f),
+                                                            neck - neck * std::cos(turn)})};
+        const float z = uni(0.1f, 50.0f);
+        const float x = uni(-0.035f, 0.035f);
+        INFO("run " << run << " distance " << p.distance << " z " << z);
+        const Posef in_view = HeadLockedQuadPose(s, x);
+        const float follow = 1.0f - p.distance / z;
+        const Posef placed = AnchoredQuadPose(picture, now, in_view, x, follow);
+        const Vec3f eye_then = picture.position + In::Rotate(picture.orientation, Vec3f{x, 0, 0});
+        const Vec3f eye_now = now.position + In::Rotate(now.orientation, Vec3f{x, 0, 0});
+        for (const Vec3f corner : {Vec3f{0, 0, 0}, Vec3f{0.5f, 0.5f, 0}, Vec3f{-0.5f, 0.3f, 0}}) {
+            const Vec3f local{corner.x * s.width(), corner.y * s.height(), 0.0f};
+            // The point on the screen as placed, and where the picture drew it (from the eye then).
+            const Vec3f on = placed.position + In::Rotate(placed.orientation, local);
+            const Vec3f drawn = picture.position +
+                                In::Rotate(picture.orientation,
+                                           in_view.position + In::Rotate(in_view.orientation, local));
+            const Vec3f scenery = eye_then + (drawn - eye_then) * (z / p.distance);
+            REQUIRE(In::Dot(In::Normalized(on - eye_now), In::Normalized(scenery - eye_now)) ==
+                    Approx(1.0f).margin(2e-6));
+        }
+        // 1: as following the eye; 0: as at the picture's head pose.
+        const Posef far = AnchoredQuadPose(picture, now, in_view, x, 1.0f);
+        const Posef near = AnchoredQuadPose(picture, now, in_view, x, 0.0f);
+        REQUIRE(In::Length(far.position - AnchoredQuadPose(picture, now, in_view, x, true).position) ==
+                Approx(0.0f).margin(1e-5));
+        REQUIRE(In::Length(near.position -
+                           AnchoredQuadPose(picture, now, in_view, x, false).position) ==
+                Approx(0.0f).margin(1e-5));
+    }
+    // The follow for the game's plane: Mario Kart 7 (45 units ahead, head motion x90, yaw gain
+    // 0.72) on a 3 m screen: as 0.36 m away. Not known: 1 (far, as before).
+    CHECK(AnchorFollow(3.0f, 90.0f, 45.0f, 0.72f) == Approx(1.0f - 3.0f * 90.0f / 45.0f / 0.72f).epsilon(1e-5));
+    CHECK(AnchorFollow(3.0f, 90.0f, -1.0f, 0.72f) == 1.0f);
+    CHECK(AnchorFollow(3.0f, 0.0f, 45.0f, 0.72f) == 1.0f);
+    CHECK(AnchorFollow(3.0f, 90.0f, 0.01f, 0.72f) == -20.0f);
+}
+
 // AzaharFrame turns2: the anchored screen for any settings, not only a preset's. Random but valid
 // settings (mode, distance, size, pitch, Immersive Game FOV and Screen Shape or a measured camera,
 // Render Margin, Horizontal and Vertical Scale, a zoom, the Immersive Offset, the view and the eyes) go

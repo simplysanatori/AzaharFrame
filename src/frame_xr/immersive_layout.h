@@ -746,6 +746,17 @@ Input::Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, fl
 /// eye was off by half the IPD / distance of the turn: 1 % at 3 m, 11 % at 0.3 m).
 Input::Posef AnchoredQuadPose(const Input::Posef& picture, const Input::Posef& now,
                               const Input::Posef& in_view, float eye_x, bool follow_eye);
+/// AzaharFrame dbl: the same with the eye's move since the picture followed by `follow` (1: as
+/// `follow_eye` true, what the picture shows behaves as far away; 0: as false, as at the quad's
+/// distance; 1 - distance / z: as `z` metres away, below 0 for nearer than the quad). A picture
+/// shown on two display refreshes is right, while the head moves, only for scenery at that
+/// depth; the rest steps by its parallax when the next picture comes (a double image).
+Input::Posef AnchoredQuadPose(const Input::Posef& picture, const Input::Posef& now,
+                              const Input::Posef& in_view, float eye_x, float follow);
+/// AzaharFrame dbl: `follow` for scenery that moves `parallax` radians a metre of the eye's move
+/// (the game's camera moves `scaler` units a metre, the scenery `depth` units ahead, the screen
+/// shows `1 / gain` of its angles): 1 - parallax x distance, kept from -20 to 1; 1 when not known.
+float AnchorFollow(float distance, float scaler, float depth_units, float gain);
 
 /// AzaharFrame turns2: the Full modes' anchored quad for eye `eye` (Immersive::Screens):
 /// AnchoredQuadPose of FullQuadInView about EyeX.
