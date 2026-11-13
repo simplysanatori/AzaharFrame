@@ -6,6 +6,7 @@
 #include <QFileDialog>
 #include <QUrl>
 #include "citra_qt/configuration/configure_storage.h"
+#include "citra_qt/frame_open_folder.h" // AzaharFrame qtfiles
 #include "common/file_util.h"
 #include "common/settings.h"
 #include "ui_configure_storage.h"
@@ -15,9 +16,9 @@ ConfigureStorage::ConfigureStorage(bool is_powered_on_, QWidget* parent)
     ui->setupUi(this);
     SetConfiguration();
 
-    connect(ui->open_nand_dir, &QPushButton::clicked, []() {
+    connect(ui->open_nand_dir, &QPushButton::clicked, this, [this]() {
         QString path = QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::NANDDir));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        FrameOpenFolder::Open(this, path, tr("NAND")); // AzaharFrame qtfiles
     });
 
     connect(ui->change_nand_dir, &QPushButton::clicked, this, [this]() {
@@ -33,9 +34,9 @@ ConfigureStorage::ConfigureStorage(bool is_powered_on_, QWidget* parent)
         ui->change_nand_dir->setEnabled(true);
     });
 
-    connect(ui->open_sdmc_dir, &QPushButton::clicked, []() {
+    connect(ui->open_sdmc_dir, &QPushButton::clicked, this, [this]() {
         QString path = QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        FrameOpenFolder::Open(this, path, tr("SDMC")); // AzaharFrame qtfiles
     });
 
     connect(ui->change_sdmc_dir, &QPushButton::clicked, this, [this]() {

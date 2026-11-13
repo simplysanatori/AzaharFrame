@@ -38,6 +38,9 @@ QApplication& App() {
     static char arg0[] = "frame_qt_tests";
     static char* argv[] = {arg0, nullptr};
     static QApplication* app = nullptr; // (kept to the end: Qt does not outlive static teardown)
+    if (!app) { // (tests/frame_xr/open_folder.cpp may have made it)
+        app = qobject_cast<QApplication*>(QApplication::instance());
+    }
     if (!app) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
         app = new QApplication(argc, argv);

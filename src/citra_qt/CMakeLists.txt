@@ -327,6 +327,7 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     target_sources(citra_qt PRIVATE frame_texture_layers.cpp frame_texture_layers.h) # AzaharFrame texlayers
     target_sources(citra_qt PRIVATE frame_crash_guard.cpp frame_crash_guard.h) # AzaharFrame compat
     target_sources(citra_qt PRIVATE frame_crash_dialog.cpp frame_crash_dialog.h) # AzaharFrame crashreport
+    target_sources(citra_qt PRIVATE frame_open_folder.cpp frame_open_folder.h) # AzaharFrame qtfiles
     if (AZAHARFRAME_RELEASE) # AzaharFrame crashreport: no test drivers or test crash in a release
         target_compile_definitions(citra_qt PRIVATE AZAHARFRAME_RELEASE_BUILD=1)
     endif()
@@ -371,7 +372,9 @@ if (ENABLE_FRAME_XR AND ENABLE_TESTS AND NOT WIN32)
     add_executable(frame_qt_tests ../tests/frame_xr/offscreen_modal.cpp frame_offscreen.cpp
                                   frame_offscreen.h
                                   ../tests/frame_xr/per_game_ini.cpp # AzaharFrame useglobal
-                                  configuration/frame_per_game_ini.h)
+                                  configuration/frame_per_game_ini.h
+                                  ../tests/frame_xr/open_folder.cpp # AzaharFrame qtfiles
+                                  frame_open_folder.cpp frame_open_folder.h)
     target_link_libraries(frame_qt_tests PRIVATE citra_common catch2 Qt6::Widgets)
     if (TARGET Qt6::GuiPrivate)
         target_link_libraries(frame_qt_tests PRIVATE Qt6::GuiPrivate)

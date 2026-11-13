@@ -7,6 +7,7 @@
 #include <QUrl>
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_debug.h"
+#include "citra_qt/frame_open_folder.h" // AzaharFrame qtfiles
 #include "citra_qt/debugger/console.h"
 #include "citra_qt/uisettings.h"
 #include "common/file_util.h"
@@ -45,9 +46,9 @@ ConfigureDebug::ConfigureDebug(bool is_powered_on_, QWidget* parent)
         }
     });
 
-    connect(ui->open_log_button, &QPushButton::clicked, []() {
+    connect(ui->open_log_button, &QPushButton::clicked, this, [this]() {
         QString path = QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::LogDir));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        FrameOpenFolder::Open(this, path, tr("Log")); // AzaharFrame qtfiles
     });
 
 #ifdef ENABLE_VULKAN

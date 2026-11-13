@@ -128,6 +128,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
 - While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view. I made it fade in and out and stay up through short gaps between stalls, so it no longer pops up in the middle of your view every few seconds when async shaders are off. In Flat it is in the status bar.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
+- In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.
 - I made long lists in the VR menu, like a game's cheats, much quicker to get through. The stick scrolls faster the further you push it and speeds up as you hold it, you can grab the scrollbar and drag it or click above or below it to jump a page, and you can drag the list itself with the trigger.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
