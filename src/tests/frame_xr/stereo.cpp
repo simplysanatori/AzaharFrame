@@ -584,3 +584,68 @@ TEST_CASE("Menu rule: the screen at factor 1 is the game's frame, any settings",
         CHECK(s.factor_y == Approx(1.0f).epsilon(1e-5));
     }
 }
+
+// AzaharFrame kiu2: while the menu rule draws factor 1 the screen keeps the padded size, so the
+// game's own frame (an item screen) fills what the padded picture filled, with the game's shape;
+// all the way through the ease, for any settings. The head turns the game as with the smaller
+// screen (the same gain).
+TEST_CASE("Menu rule: the menu fills the padded screen's area", "[frame_xr][stereo][kiu2]") {
+    std::mt19937 rng(20261113);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    for (int run = 0; run < 2000; ++run) {
+        const uint32_t level = static_cast<uint32_t>(uni(0.0f, 4.99f));
+        const float wider = WiderFactor(level);
+        Options pad;
+        pad.wider = wider;
+        pad.squeeze = uni(-0.3f, 0.3f);
+        pad.squeeze_y = uni(-0.3f, 0.3f);
+        Placement p;
+        p.size = uni(0.6f, 1.6f);
+        p.distance = uni(0.3f, 3.0f);
+        const float fov = uni(40.0f, 70.0f);
+        const float aspect = uni(1.3f, 2.0f);
+        ViewFov view;
+        view.left = -0.9f;
+        view.right = 0.9f;
+        view.down = -0.95f;
+        view.up = 0.8f;
+        view.outer_left = -0.95f;
+        view.outer_right = 0.75f;
+        view.outer_down = -0.95f;
+        view.outer_up = 0.8f;
+        const HeadLocked padded = SolveHeadLocked(p, fov, aspect, view, 0.0f, pad, {});
+        INFO("run " << run << " level " << level << " fov " << fov << " aspect " << aspect);
+        for (const float weight : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+            Options menu = pad;
+            menu.size_wider = wider;
+            menu.wider = MenuExact::Factor(wider, weight);
+            const HeadLocked s = SolveHeadLocked(p, fov, aspect, view, 0.0f, menu, {});
+            // The screen stays where and as big as it was: the picture grows into it.
+            CHECK(s.width() == Approx(padded.width()).epsilon(1e-5));
+            CHECK(s.height() == Approx(padded.height()).epsilon(1e-5));
+            CHECK(s.aspect == Approx(padded.aspect).epsilon(1e-5));
+            CHECK(s.factor == Approx(menu.wider).epsilon(1e-6));
+            // The game's shape: the same factor both ways.
+            CHECK(s.factor_y == Approx(s.factor).epsilon(1e-5));
+            if (weight == 1.0f) {
+                CHECK(s.factor == 1.0f);
+            }
+            // The gain as the screen sized with the drawn factor had it.
+            Options small = menu;
+            small.size_wider = 0.0f;
+            const HeadLocked was = SolveHeadLocked(p, fov, aspect, view, 0.0f, small, {});
+            const float fit_pad = padded.height() / (p.size * p.distance * 2.0f * wider);
+            const float fit_was = was.height() / (p.size * p.distance * 2.0f * menu.wider);
+            if (fit_pad == Approx(fit_was).epsilon(1e-5)) { // neither clipped by the view
+                CHECK(s.gain == Approx(was.gain).epsilon(1e-4));
+                CHECK(s.gain_x == Approx(was.gain_x).epsilon(1e-4));
+            }
+        }
+        // Not given (0): as before.
+        Options none = pad;
+        none.size_wider = 0.0f;
+        const HeadLocked same = SolveHeadLocked(p, fov, aspect, view, 0.0f, none, {});
+        CHECK(same.width() == padded.width());
+        CHECK(same.gain == padded.gain);
+    }
+}

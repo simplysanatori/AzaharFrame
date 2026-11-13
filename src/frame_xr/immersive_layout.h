@@ -213,6 +213,11 @@ Placement Clamped(Placement p);
 /// The per-game options of the head-locked screen.
 struct Options {
     float wider = kFactorMin; ///< Wider View: the periphery factor (kFactorMin to kFactorMax)
+    /// AzaharFrame kiu2: the factor the screen is sized with, when it differs from `wider` (0:
+    /// `wider`). Mode 2's menu rule draws with factor 1 but keeps the padded screen's size, so the
+    /// game's own frame fills what the padded picture filled (MenuExact); the gain stays as if
+    /// sized with `wider`, so the head turns the game as before.
+    float size_wider = 0.0f;
     /// The quad this much narrower than the picture (AzaharFrame kiu: -0.3 to 0.3, negative is
     /// wider: SqueezeForScale of Horizontal Scale).
     float squeeze = 0.0f;

@@ -978,6 +978,9 @@ void OnFrame(const FrameInfo& info) {
                          Names::kRenderMargin, options.wider);
             }
         }
+        // AzaharFrame kiu2: the screen keeps the padded size meanwhile, so the game's own frame
+        // (the menu) fills the same area, as big as gameplay; eased with the factor.
+        options.size_wider = options.wider;
         options.wider = L::MenuExact::Factor(options.wider, g.menu_exact.Update(menu, now));
         if (MatchMode() != Settings::MatchGameCamera::Off) {
             if (g.tuning.fov_trace) {
