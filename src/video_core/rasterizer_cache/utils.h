@@ -99,19 +99,41 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
                    std::span<u8> source, std::span<u8> dest, bool convert = false);
 
 /// AzaharFrame feshimmer: whether a transfer's output [out, out + out_size) overlaps its
-/// input [in, in + in_size) in guest memory, as an in-place downscale does. The hardware works
-/// through memory in order, which the surfaces of the cache can't follow (see
+/// input [in, in + in_size) in guest memory, as an in-place downscale does (see
 /// AccelerateDisplayTransfer).
 [[nodiscard]] constexpr bool TransferOverlaps(u32 in, u32 in_size, u32 out, u32 out_size) {
     return in_size != 0 && out_size != 0 && out < in + in_size && in < out + out_size;
 }
 
 /// AzaharFrame accxfer: whether a display transfer takes the software path: always with
-/// Accurate Image Copies on (Settings::values.accurate_image_copies), else when its output
-/// overlaps its input (TransferOverlaps).
+/// Accurate Image Copies on (Settings::values.accurate_image_copies).
+/// AzaharFrame xfergpu: an output that overlaps its input stays on the GPU when it keeps the
+/// input's pixel format and tiling and lands in another surface of the cache (the cache then
+/// moves the data between the two strides with ValidateByRestride); otherwise it takes the
+/// software path too.
 [[nodiscard]] constexpr bool DisplayTransferInSoftware(bool accurate_copies, u32 in, u32 in_size,
-                                                       u32 out, u32 out_size) {
-    return accurate_copies || TransferOverlaps(in, in_size, out, out_size);
+                                                       u32 out, u32 out_size,
+                                                       bool gpu_can_overlap) {
+    return accurate_copies || (TransferOverlaps(in, in_size, out, out_size) && !gpu_can_overlap);
+}
+
+/// AzaharFrame xfergpu: splits [start, end) into pieces that each lie within one row of tiles
+/// (8 pixel rows; one pixel row for a linear surface) both of a surface at dst_addr with rows of
+/// dst_row_bytes and of one at src_addr with rows of src_row_bytes. Each piece is then a
+/// rectangle one row of tiles high in both surfaces, whatever their strides, so the data moves
+/// from one to the other with an image copy at the scaled resolution, as the guest sees the
+/// same memory with another stride. start must not lie before either address.
+template <typename Func>
+constexpr void ForEachRestrideChunk(u32 start, u32 end, u32 dst_addr, u32 dst_row_bytes,
+                                    u32 src_addr, u32 src_row_bytes, Func&& func) {
+    for (u32 pos = start; pos < end;) {
+        const u32 dst_row_end = dst_addr + ((pos - dst_addr) / dst_row_bytes + 1) * dst_row_bytes;
+        const u32 src_row_end = src_addr + ((pos - src_addr) / src_row_bytes + 1) * src_row_bytes;
+        u32 chunk_end = end < dst_row_end ? end : dst_row_end;
+        chunk_end = chunk_end < src_row_end ? chunk_end : src_row_end;
+        func(pos, chunk_end);
+        pos = chunk_end;
+    }
 }
 
 } // namespace VideoCore
