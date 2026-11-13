@@ -42,7 +42,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Every](#autosave) | **1**, **2**, **5**, **10**, **15** minutes | 5 | global and per game | at once |
 | [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
-| [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
+| [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% (Full modes: 100%) | global and per game | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -51,7 +51,8 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Render Margin](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
 | [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
-| [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
+| [World Scale](#world-scale) | 10% to 400%, **Automatic** at 100% | Automatic | global and per game | eased in |
+| [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
@@ -168,9 +169,9 @@ Match the shape the game or mod draws, or the picture stretches. A change shows 
 
 How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
 
-In **Full (6DoF): Ocarina of Time, Majora's Mask**, the 3D is never shown deeper than keeps far scenery from splitting into a double image on the big screen. The limit follows the screen's size and distance and your IPD. Your setting stays as it is. When you change 3D Depth there and the limit applies, the message says so, for example **3D Depth: 30% (Limited to 8%)**; the tooltip says it too.
+A screen you make bigger than its start size gets less depth on top of this.
 
-A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the game's own 3D is off and the two eyes are set apart in the game by your own eye distance times this setting (with the [Depth Factor Multiplier](#depth-factor-multiplier)), so it still sets how deep the 3D looks. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
+In the Full modes, 3D Depth is a setting of its own (**Immersive 3D Depth** in Azahar's window; the same slider in the in-game menu while a Full mode is on). It is how much relief you see, from 0% (flat) to 100%, where the farthest scenery looks truly far away. It never goes past that, so faraway scenery never doubles, whatever the screen's size or distance. In **Full (6DoF): Ocarina of Time, Majora's Mask** lower values bring the faraway scenery nearer; in **Full (6DoF): Other Games** it stays far away and everything gets flatter. A game you had set to 0% stays at 0%; every other value starts at 100%.
 
 ## Immersive Mode
 
@@ -205,9 +206,15 @@ Called Wider View in earlier versions. Renders extra picture around the 3DS scre
 
 Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or shorter (**Vertical Scale**) than the game's picture. Full modes only. Above 0% the screen is larger, below 0% smaller: a narrower screen brings the side HUD into view, and the game looks that much thinner. Turning your head still moves the world as much as the screen, so the middle of the picture stays in place. In VR, hold the immersive screen with both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label shows the value, for example **Horizontal Scale: -10%**. Each is kept for the game. They replace Narrow Screen and Narrow Height: a game where you set those keeps its screen, so Narrow Screen 10% is now Horizontal Scale -10%. Mario Kart 7's preset starts at -30% and -15%.
 
-## Depth Factor Multiplier
+## World Scale
 
-Full modes only. The game's world scale: how far the game camera moves when you move your head and, in **Full (6DoF): Other Games**, how far apart your eyes are in the game, together with the 3D depth. A game with a large world needs a larger value. Mario Kart 7 and Super Mario 3D Land start at 10x (their presets).
+Full modes only. How big the game world feels: below 100% a small world in front of you, like a diorama, above it a giant world where you feel small. **Automatic** (100%) matches the game's own 3D with the screen at its usual distance. In VR, hold the immersive screen with a grip and push the stick forward or back: the screen moves farther or nearer, keeping its size in your view, and the world grows or shrinks with it. A message shows the new value. It is kept for the game.
+
+At every value, moving your head moves the game camera by exactly as much as the 3D shows, so the world stays solid when you lean. Each game keeps the look and head movement it had before 1.2.1. Earlier versions called this setting **Depth Factor Multiplier**.
+
+## Follow Screen Size
+
+Full modes only. When you resize the immersive screen (grip and stick left or right), the world grows or shrinks with it. Off keeps the world's size: a bigger screen then moves nearer.
 
 ## View Matrix Register
 
@@ -221,6 +228,6 @@ Full modes only. The game's world scale: how far the game camera moves when you 
 
 - Azahar for Frame starts with the **Dark** theme. **Emulation > Configure > General > UI > Theme** changes it.
 - The first time VR starts, the current controls profile gets the Frame layout. After that your changes stay. See [CONTROLS.md](CONTROLS.md#changing-the-layout).
-- In VR, the Single Screen and Separate Windows layouts change to Default, and a global 3D depth of 0 becomes 50%. A game's own 3D Depth stays as you set it, 0% too.
+- In VR, the Single Screen and Separate Windows layouts change to Default, and a global 3D depth of 0 becomes 50%. A game's own 3D Depth stays as you set it, 0% too. The Full modes have their own 3D Depth (100% unless the game's was 0%).
 - Fast Forward runs at **Turbo Speed Limit** in **Emulation > Configure > General**.
 - Flat mode has its own screen layout, **Large Screen** at first, in a 16:9 window. See [CONTROLS.md](CONTROLS.md#playing-in-a-window-flat).

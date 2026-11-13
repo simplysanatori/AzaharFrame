@@ -18,10 +18,12 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.1x to 1.4x wider with Render Margin, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 3 m ahead, both eyes on one quad, the world at its own scale (see Placement) |
 | 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye, fitted into the view. The game is shown a 3D depth of about 0: the two eyes come from your head |
 
-The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
-Multiplier: 0 = 1x, 1 = 10x, 2 = 100x; how far the camera moves with your head, times the 3D
-slider / 10, and in mode 3 how far apart the two eyes are in the game's units: the game's world
-scale), `vr_si_mode_register_offset` (View Matrix Register, -1 = Auto, mode 3 only),
+The other keys, also per application: `vr_immersive_world_scale` (World Scale, percent, 10 to
+400, 100 = Automatic), `vr_immersive_follow_screen` (Follow Screen Size), `vr_immersive_depth`
+(the Full modes' 3D Depth, percent of the natural 3D), all in "Natural 3D and World Scale"
+below; `vr_immersive_positional_game_scaler` (1.2.0's Depth Factor Multiplier, 0 = 1x, 1 = 10x,
+2 = 100x: now only the fallback scale and the migration's input, not shown),
+`vr_si_mode_register_offset` (View Matrix Register, -1 = Auto, mode 3 only),
 `vr_immersive_eye_indicator` (Eye Indicator Register, e.g. `87,2`, empty = Auto, mode 3 only).
 
 While the setting is not 0, the internal resolution is two steps higher (CitraVR
@@ -416,7 +418,8 @@ Measured in mock runs of each game's play (AzaharFrame depth, 1.2.0) with the un
 dumped: the camera's angle and shape from its projection, and the 3DS's own eye distance at full
 3D (the difference between the two eyes' view matrices, in the game's units). In mode 3 the eye
 distance here is your IPD x 3D Depth / 10 x 10^multiplier game units, and the head moves the camera
-by the same scale, so the **Depth Factor Multiplier** is the game's world scale. It is picked so
+by the same scale, so the **Depth Factor Multiplier** (1.2.0; World Scale since 1.2.1, which
+migrates each game to the same scale) is the game's world scale. It is picked so
 that at a 3D Depth of 90 the eyes are about as far apart as the 3DS's at full 3D, the depth the
 game was made for; 3D Depth then turns it down. The presets (`frame_xr/presets.cpp`) set these
 for a game whose properties have no value of their own. The presets were tuned with a 65 mm IPD;
@@ -696,6 +699,47 @@ too. The log says `xr: immersive: the game shows a screen of its own (its world 
 its own size, Render Margin N eased to 1.0x` and `the game's world in both eyes again`.
 `AZAHARFRAME_IMMERSIVE_MENU_EXACT=0` turns it off (always the margin, as before), for A/B tests.
 
+## Natural 3D and World Scale (AzaharFrame natural, 1.2.1)
+
+The design and its derivation: lane natural's design.md. In short (symbols: `K` the game's eye
+separation per picture width of far scenery, read from its two cameras by
+`video_core/vr_view_matrix.h` `EyePerFar`, the same at any slider; `W` the picture's width on
+the screen in metres; `d` its distance; `f` 3D Depth / 100):
+
+- At the natural slider (mode 2's far scenery exactly the IPD apart, `StereoSliderLimit` with no
+  margin) the picture is a true-scale copy of the game's world at `W / K` metres a game unit.
+  Leaning moves the camera `L = K / W` game units per metre (`NaturalLeaning`): one game eye
+  separation per IPD of head movement, at any 3D Depth and IPD. Mode 3 builds the same with its
+  own eyes (`Mode3Natural`: each camera `f x L x IPD / 2` aside, the quads the IPD apart less the
+  game's own far scenery at its 0.01 slider), so at 100 % both modes show every point at the same
+  place.
+- **3D Depth** in the Full modes (`vr_immersive_depth`, default 100): mode 2 sends `f x` the live
+  natural limit (`NaturalSlider`, on the stereo cap's smoothing), so infinity comes in to
+  `d / (1 - f)` and the screen plane keeps its parallax; mode 3 scales its eye offset by `f`
+  (infinity stays parallel). Never past parallel. Migrated: a game's own 3DS 3D Depth of 0 stays
+  0, every other value is 100.
+- **World Scale** (`vr_immersive_world_scale`): the world's size is `W / K`, and `W` grows with
+  the distance at a fixed angle, so World Scale is the screen's distance in both Full modes:
+  `d = ws x 3 m` (`FullDistance`; `/ size` with Follow Screen Size off), eased at most a factor 4
+  a second; the leaning follows it. The grips' stick forward/back changes it (the Adjuster's
+  `world_ratio`) with the toast "World Scale: 45%". The placement file's distance is no longer
+  moved in the Full modes (it is the 1.2.0 distance, the fallback's and the migration's input).
+- **The fallback** where `K` cannot be read: the `K` saved from an earlier run
+  (`vr_immersive_eye_per_far`), else 1.2.0's `GamePositionScale` at the saved screen
+  (`EyePerFarFor`). `EyePerFarInUse` eases any change of `K` (a factor 2 a second).
+- **Migration** (once a game, `vr_immersive_world_set`): mode 2 keeps the saved distance
+  (`MigrateWorldScaleMode2`; the leaning becomes matched, e.g. Ocarina of Time 3D from 30 to
+  about 11 units per metre at 3 m); mode 3 waits for `K` and picks the World Scale at which the
+  leaning and eye offset are exactly 1.2.0's (`MigrateWorldScaleMode3`; the distance moves where
+  nobody sees it: the quads are on the eyes). Mario Kart 7 at 0.371 m, 50 units per metre: about
+  42 %.
+- The gain stretches depth against width (a point appears `g` times deeper than wide); only the
+  screen's size changes that.
+- Log lines: `xr: natural 3D: ...` (3D Depth, the slider sent, World Scale, the distance, the
+  leaning and where `K` came from), `xr: World Scale migrated for mode N: ...`,
+  `xr: World Scale N % by the grip`. Test drivers: `AZAHARFRAME_TEST_NATURAL="20:50"` (3D
+  Depth) and `AZAHARFRAME_TEST_WORLD_SCALE="20:45"` (World Scale) at those seconds.
+
 ## Trying it
 
 Set the mode in the Qt window: Properties of a game, **Graphics** tab, **VR** group, **Immersive Mode**
@@ -713,9 +757,10 @@ What to look for:
   put. The log line `game camera measured ... degrees high` shows the angle in use. Before it
   shows, **Immersive Game FOV** is used: if the world swims along with your head then, raise it;
   against your head, lower it.
-- Leaning and crouching move the camera a little (Depth Factor Multiplier 1x).
+- Leaning and crouching move the camera a little (World Scale; Depth Factor Multiplier 1x in 1.2.0).
 - Squeeze a grip and move the hand down: the screen goes lower and the world stays where it was.
-  Push the stick of that hand up: the screen goes farther (mode 2) without changing size. Push it
+  Push the stick of that hand up: the screen goes farther without changing size (World Scale: the
+  world gets bigger, and the leaning follows). Push it
   right: bigger. Let go, stop the game, start it again: the screen is where you left it.
 - Left Bumper + Right Bumper + View brings the normal screens and touch back; the chord again returns to immersive mode.
   Right Stick Click, held for 1 s, while looking 45 degrees to the side makes that direction straight ahead.

@@ -197,13 +197,17 @@ TEST_CASE("Natural: 3D Depth percent and its default", "[frame_xr][natural]") {
 }
 
 TEST_CASE("Natural: the fallback scale", "[frame_xr][natural]") {
-    CHECK(FixedLeaning(0) == Approx(5.0f));
-    CHECK(FixedLeaning(1) == Approx(50.0f));
-    CHECK(FixedLeaning(2) == Approx(500.0f));
-    CHECK(FixedLeaning(7) == Approx(500.0f));
+    // 1.2.0's scale: 10^multiplier x (3D Depth / 10, an integer).
+    CHECK(GamePositionScale(1, 30) == Approx(30.0f));
+    CHECK(GamePositionScale(1, 50) == Approx(50.0f));
+    CHECK(GamePositionScale(2, 100) == Approx(1000.0f));
+    CHECK(GamePositionScale(1, 9) == 0.0f);
     const HeadLocked s = Screen(1.4f, 0.8f, 1.6f, 3.0f);
     CHECK(NaturalLeaning(s, -1.0f) < 0.0f);
     CHECK(NaturalLeaning(s, 0.0f) < 0.0f);
+    CHECK(EyePerFarFor(s, 0.0f) < 0.0f);
+    // The fallback's K leans exactly by 1.2.0's scale on the screen it is made for.
+    CHECK(NaturalLeaning(s, EyePerFarFor(s, 30.0f)) == Approx(30.0f));
 }
 
 TEST_CASE("Natural: Ocarina of Time 3D on the owner's screen", "[frame_xr][natural]") {
@@ -272,20 +276,158 @@ TEST_CASE("Natural: the geometry, any settings", "[frame_xr][natural]") {
         const Seen at = SeenMode2(s, h, g, natural, x, z);
         CHECK(at.x == Approx(x / leaning).epsilon(1e-3).margin(1e-6));
         CHECK(-at.z == Approx(z * gain / leaning).epsilon(1e-3));
-        // Mode 3 with its own eyes: the same point where mode 2 shows it, at every 3D Depth.
+        // Mode 3 with its own eyes at 100 %: the same point where mode 2 shows it.
         const float game_far_m = 0.0f; // the game's own 0.01 slider: tested below
+        const Mode3Stereo full = Mode3Natural(1.0f, leaning, h, game_far_m);
+        const Seen three = SeenMode3(s, h, g, full, x, z);
+        CHECK(three.x == Approx(at.x).epsilon(1e-3).margin(1e-6));
+        CHECK(three.z == Approx(at.z).epsilon(1e-3));
+        // Below 100 % (the owner's decision 2): our eyes f x as far apart, the quads still the
+        // IPD apart, so infinity stays parallel and the relief is f times less.
         const Mode3Stereo m3 = Mode3Natural(static_cast<float>(f), leaning, h, game_far_m);
-        if (f > 0.02) {
-            const Seen two = SeenMode2(s, h, g, slider, x, z);
-            const Seen three = SeenMode3(s, h, g, m3, x, z);
-            CHECK(three.x == Approx(two.x).epsilon(1e-3).margin(1e-6));
-            CHECK(three.z == Approx(two.z).epsilon(1e-3));
-        }
-        // And 3D Depth 0 is a flat picture on the screen in both.
+        CHECK(m3.eye_scaler == Approx(f * leaning).margin(1e-6));
+        CHECK(m3.quad_half == Approx(h));
+        CHECK(StereoFarOnQuad(s, 3, h, 0.0f, m3.quad_half).vergence_deg ==
+              Approx(0.0f).margin(1e-4));
+        // And 3D Depth 0: no eye offset at all.
         const Mode3Stereo flat = Mode3Natural(0.0f, leaning, h, game_far_m);
         CHECK(flat.eye_scaler == 0.0f);
-        CHECK(flat.quad_half == 0.0f);
     }
+}
+
+TEST_CASE("Natural: World Scale's stops and names", "[frame_xr][natural]") {
+    CHECK(kWorldScaleStops.front() == kWorldScaleMin);
+    CHECK(kWorldScaleStops.back() == kWorldScaleMax);
+    CHECK(kWorldScaleStops[static_cast<std::size_t>(WorldScaleStop(100.0f))] == 100.0f);
+    CHECK(WorldScaleStop(12.0f) == 2); // small values are one stop each
+    for (std::size_t i = 1; i < kWorldScaleStops.size(); ++i) {
+        const float ratio = kWorldScaleStops[i] / kWorldScaleStops[i - 1];
+        CHECK(ratio > 1.07f);
+        CHECK(ratio < 1.17f);
+        CHECK(WorldScaleStop(kWorldScaleStops[i]) == static_cast<int>(i));
+    }
+    CHECK(WorldScaleStop(1000.0f) == static_cast<int>(kWorldScaleStops.size()) - 1);
+    CHECK(WorldScaleStop(1.0f) == 0);
+    CHECK(WorldScaleText(100.0f) == "Automatic");
+    CHECK(WorldScaleText(100.4f) == "Automatic");
+    CHECK(WorldScaleText(12.0f) == "12%");
+    CHECK(WorldScaleText(5.0f) == "10%");
+    CHECK(WorldScaleText(std::nanf("")) == "Automatic");
+    CHECK(WorldScaleToast(45.0f) == "World Scale: 45%");
+    CHECK(WorldScaleToast(100.0f) == "World Scale: Automatic");
+    // The distance: 100 % is the default 3 m; Follow off divides by the screen's size.
+    CHECK(FullDistance(100.0f, 1.7f, true) == Approx(kWorldRefDistance));
+    CHECK(FullDistance(10.0f, 1.0f, true) == Approx(0.3f));
+    CHECK(FullDistance(400.0f, 1.0f, true) == Approx(12.0f));
+    CHECK(FullDistance(100.0f, 2.0f, false) == Approx(1.5f));
+    CHECK(FullDistance(10.0f, 2.5f, false) == Approx(kFullMinDistance));
+    CHECK(WorldScaleForDistance(FullDistance(37.0f, 1.3f, false), 1.3f, false) ==
+          Approx(37.0f));
+}
+
+TEST_CASE("Natural: World Scale, any settings", "[frame_xr][natural]") {
+    // World Scale sets the screen's distance at the angle as set; the head and the 3D follow it.
+    std::mt19937 rng(1113);
+    auto uni = [&](double a, double b) { return std::uniform_real_distribution<double>(a, b)(rng); };
+    for (int run = 0; run < 3000; ++run) {
+        const float size = static_cast<float>(uni(0.6, 2.5));
+        const bool follow = run % 2 == 0;
+        // The screen at size 1 and at this size (tan grows with the size).
+        const float tan1 = static_cast<float>(uni(0.15, 0.55));
+        const float aspect = static_cast<float>(uni(1.2, 2.4));
+        const float factor = static_cast<float>(uni(1.0, 1.6));
+        const float percent = static_cast<float>(std::exp(uni(std::log(10.0), std::log(400.0))));
+        const float d = FullDistance(percent, size, follow);
+        const HeadLocked s = Screen(factor, tan1 * size, aspect, d);
+        const float h = static_cast<float>(uni(0.0225, 0.0425));
+        const Game g{uni(0.6, 3.0), uni(5.0, 800.0), uni(0.05, 80.0)};
+        const double f = run % 3 == 0 ? 1.0 : uni(0.0, 1.0);
+        INFO("run " << run << " size " << size << " follow " << follow << " percent " << percent
+                    << " d " << d << " f " << f);
+        const float leaning = NaturalLeaning(s, g.EyePerFar());
+        REQUIRE(leaning > 0.0f);
+        // Matched: one IPD of head = the game's eyes at its natural slider on this screen.
+        const float natural = StereoSliderLimit(s, h, g.FarPerSlider(), kNaturalMarginDeg);
+        CHECK(leaning * 2.0f * h == Approx(g.e_full * natural).epsilon(1e-3));
+        // The world's size (metres a unit = 1 / leaning) is World Scale x Automatic's, times
+        // the size with Follow on and whatever the size with it off.
+        const HeadLocked automatic =
+            Screen(factor, tan1 * (follow ? size : 1.0f), aspect, kWorldRefDistance);
+        const float auto_leaning = NaturalLeaning(automatic, g.EyePerFar());
+        if (d > kFullMinDistance && d < kFullMaxDistance) {
+            CHECK(auto_leaning / leaning == Approx(percent / 100.0f).epsilon(1e-4));
+        }
+        // Mode 2 never diverges at any 3D Depth; mode 3's far scenery is parallel at any.
+        CHECK(FarVergenceMode2(s, h, g, f * natural) >= -1e-3);
+        const Mode3Stereo m3 = Mode3Natural(static_cast<float>(f), leaning, h, 0.0f);
+        CHECK_FALSE(StereoFarOnQuad(s, 3, h, 0.0f, m3.quad_half).diverges);
+        // At 100 % both modes show each point at the same place, at 1 / leaning metres a unit.
+        const double z = uni(0.2, 20.0) * g.zero;
+        const double x = uni(-0.5, 0.5) * z;
+        const Seen two = SeenMode2(s, h, g, natural, x, z);
+        const Seen three = SeenMode3(s, h, g, Mode3Natural(1.0f, leaning, h, 0.0f), x, z);
+        CHECK(two.x == Approx(x / leaning).epsilon(1e-3).margin(1e-6));
+        CHECK(three.x == Approx(two.x).epsilon(1e-3).margin(1e-6));
+        CHECK(three.z == Approx(two.z).epsilon(1e-3));
+    }
+}
+
+TEST_CASE("Natural: the migration keeps 1.2.0's look and leaning", "[frame_xr][natural]") {
+    std::mt19937 rng(4242);
+    auto uni = [&](double a, double b) { return std::uniform_real_distribution<double>(a, b)(rng); };
+    int in_range = 0;
+    for (int run = 0; run < 3000; ++run) {
+        const float size = static_cast<float>(uni(0.6, 2.5));
+        const bool follow = run % 2 == 0;
+        const float old_distance = static_cast<float>(uni(0.3, 3.0));
+        const HeadLocked saved = Screen(static_cast<float>(uni(1.0, 1.6)),
+                                        static_cast<float>(uni(0.15, 0.55)) * size,
+                                        static_cast<float>(uni(1.2, 2.4)), old_distance);
+        const float k = static_cast<float>(std::exp(uni(std::log(2.0), std::log(2000.0))));
+        const float old = GamePositionScale(static_cast<int>(run % 3),
+                                            static_cast<uint32_t>(uni(10.0, 100.0)));
+        INFO("run " << run << " size " << size << " follow " << follow << " K " << k
+                    << " old " << old << " d " << old_distance);
+        // Mode 3: today's leaning and eye offset, exactly, wherever the screen ends up.
+        const float p3 = MigrateWorldScaleMode3(saved, k, old, size, follow);
+        CHECK(p3 >= kWorldScaleMin);
+        CHECK(p3 <= kWorldScaleMax);
+        HeadLocked moved = saved;
+        moved.distance = FullDistance(p3, size, follow);
+        const float raw = WorldScaleForDistance(
+            k / (old * saved.width() / saved.factor / saved.distance), size, follow);
+        if (raw > kWorldScaleMin && raw < kWorldScaleMax &&
+            moved.distance > kFullMinDistance && moved.distance < kFullMaxDistance) {
+            ++in_range;
+            const float leaning = NaturalLeaning(moved, k);
+            CHECK(leaning == Approx(old).epsilon(1e-4));
+            CHECK(Mode3Natural(1.0f, leaning, 0.032f, 0.0f).eye_scaler ==
+                  Approx(old).epsilon(1e-4)); // 1.2.0: scaler x half the IPD
+        }
+        // Mode 2: today's screen, exactly.
+        const float p2 = MigrateWorldScaleMode2(old_distance, size, follow);
+        const float back = FullDistance(p2, size, follow);
+        if (WorldScaleForDistance(old_distance, size, follow) >= kWorldScaleMin &&
+            WorldScaleForDistance(old_distance, size, follow) <= kWorldScaleMax &&
+            back > kFullMinDistance) {
+            CHECK(back == Approx(old_distance).epsilon(1e-5));
+        }
+    }
+    CHECK(in_range > 1000);
+    // 1.2.0 did not move the camera (3D Depth under 10 %): Automatic.
+    CHECK(MigrateWorldScaleMode3(Screen(1.3f, 0.45f, 1.67f, 0.371f), 73.0f, 0.0f, 1.0f, true) ==
+          kWorldScaleAuto);
+    CHECK(MigrateWorldScaleMode3(Screen(1.3f, 0.45f, 1.67f, 0.371f), -1.0f, 50.0f, 1.0f, true) ==
+          kWorldScaleAuto);
+    // Mario Kart 7 (K 73 measured) on a screen like the owner's at 0.371 m, 1.2.0's 50 units per
+    // metre: a small world, about 42 %.
+    const HeadLocked mk7 = Screen(1.3f, 0.45f, 1.67f, 0.371f);
+    const float p = MigrateWorldScaleMode3(mk7, 73.0f, 50.0f, 1.0f, true);
+    WARN("Mario Kart 7 migrates to World Scale " << p << " %, screen at "
+                                                 << FullDistance(p, 1.0f, true) << " m");
+    CHECK(p == Approx(42.0f).margin(2.0f));
+    // Ocarina of Time 3D at 3 m: Automatic.
+    CHECK(MigrateWorldScaleMode2(3.0f, 1.0f, true) == Approx(100.0f));
 }
 
 TEST_CASE("Natural: mode 3 takes the game's own 0.01 slider back out", "[frame_xr][natural]") {
@@ -302,10 +444,12 @@ TEST_CASE("Natural: mode 3 takes the game's own 0.01 slider back out", "[frame_x
     // The eyes on their quads before: 0.05 to 0.08 degrees past parallel.
     CHECK(StereoFarOnQuad(s, 3, h, 0.0005f).vergence_deg < -0.03f);
     CHECK(m.eye_scaler == Approx(50.0f));
-    // Half the depth: half our eyes' distance, the quads half as far from the middle.
+    // Half the depth: half our eyes' distance, the quads where they were (infinity parallel).
     const Mode3Stereo half = Mode3Natural(0.5f, 50.0f, h, game_m);
     CHECK(half.eye_scaler == Approx(25.0f));
-    CHECK(half.quad_half == Approx(0.5f * h - game_m / 2.0f));
+    CHECK(half.quad_half == Approx(h - game_m / 2.0f));
+    CHECK(StereoFarOnQuad(s, 3, h, 0.0005f, half.quad_half).vergence_deg ==
+          Approx(0.0f).margin(1e-4));
 }
 
 TEST_CASE("Natural: mode 2's slider without jitter", "[frame_xr][natural]") {
@@ -362,43 +506,57 @@ TEST_CASE("Natural: the slider over a resize sweep never diverges", "[frame_xr][
     }
 }
 
-TEST_CASE("Natural: the leaning scale never jumps", "[frame_xr][natural]") {
-    for (const uint32_t mode : {kLeaningFollow, kLeaningFixed}) {
-        LeaningScale l;
+TEST_CASE("Natural: the game's K and the distance never jump", "[frame_xr][natural]") {
+    using S = EyePerFarInUse;
+    {
+        S k;
         int64_t t = 100;
-        // Not measured yet: the fallback, at once (nothing to move from).
-        CHECK(l.Update(mode, -1.0f, 0, 50.0f, t) == Approx(50.0f));
-        CHECK(l.Source() == 1);
+        // Nothing measured: the fallback, at once (nothing to move from).
+        CHECK(k.Update(-1.0f, 0, -1.0f, 400.0f, t) == Approx(400.0f));
+        CHECK(k.From() == S::kFallback);
+        // Read in fewer frames than kSaveAfter: not yet.
+        CHECK(k.Update(80.0f, S::kSaveAfter - 1, -1.0f, 400.0f, t += 11) == Approx(400.0f));
         // Measured: towards it, at most a factor 2 a second, never a step.
-        float prev = l.Value();
-        float v = prev;
+        float prev = k.Value(), v = prev;
         int frames = 0;
-        for (; frames < 2000 && std::abs(v - 11.0f) > 0.01f; ++frames) {
-            v = l.Update(mode, 11.0f, 9 + frames, 50.0f, t += 11);
-            CHECK(v <= prev + 1e-4f);
-            CHECK(v >= prev / std::exp(LeaningScale::kMaxRatePerS * 0.011f) - 1e-4f);
+        for (; frames < 3000 && std::abs(v - 80.0f) > 0.01f; ++frames) {
+            v = k.Update(80.0f, S::kSaveAfter + frames, -1.0f, 400.0f, t += 11);
+            CHECK(v <= prev + 1e-3f);
+            CHECK(v >= prev / std::exp(RatioRamp::kMaxRatePerS * 0.011f) - 1e-3f);
             prev = v;
         }
-        CHECK(v == Approx(11.0f).margin(0.01f));
-        // 50 to 11: a little over 2 s (ln 4.5 / ln 2 s), plus the easing's tail.
-        CHECK(frames * 11 >= 2100);
-        CHECK(frames * 11 <= 4000);
-        // The screen made twice as big: Follow halves it (smoothly), Fixed holds it.
-        for (int i = 0; i < 1000; ++i) {
-            v = l.Update(mode, 5.5f, 2000, 50.0f, t += 11);
-        }
-        CHECK(v == Approx(mode == kLeaningFixed ? 11.0f : 5.5f).margin(0.01f));
-        CHECK(l.Source() == (mode == kLeaningFixed ? 2 : 0));
-        // A frame without the game's eyes (a menu) changes nothing in either.
-        CHECK(l.Update(mode, -1.0f, 2000, 50.0f, t += 11) == Approx(v).margin(0.01f));
+        CHECK(k.From() == S::kMeasured);
+        CHECK(v == Approx(80.0f).margin(0.01f));
+        CHECK(frames * 11 >= 2300); // ln 5 / ln 2 s and the easing's tail
+        // A frame without the game's eyes (a menu, 3D Depth 0): the last measure holds.
+        CHECK(k.Update(-1.0f, 0, 70.0f, 400.0f, t += 11) == Approx(80.0f).margin(0.01f));
+        CHECK(k.From() == S::kMeasured);
     }
-    // Fixed waits for enough frames before it holds.
-    LeaningScale f;
-    int64_t t = 0;
-    f.Update(kLeaningFixed, 30.0f, 1, 50.0f, t += 11);
-    CHECK(f.Source() == 0);
-    f.Update(kLeaningFixed, 12.0f, LeaningScale::kFixAfter, 50.0f, t += 11);
-    CHECK(f.Source() == 2);
-    CHECK(f.Target() == Approx(12.0f));
+    {
+        // An earlier run's K beats the fallback; Set takes a value at once.
+        S k;
+        CHECK(k.Update(-1.0f, 0, 70.0f, 400.0f, 100) == Approx(70.0f));
+        CHECK(k.From() == S::kSaved);
+        k.Set(90.0f);
+        CHECK(k.Value() == 90.0f);
+        CHECK(k.Update(90.0f, 50, 70.0f, 400.0f, 111) == Approx(90.0f));
+    }
+    {
+        // The distance (World Scale, Follow Screen Size, a resize with it off): at most a
+        // factor 4 a second, whatever the target does.
+        RatioRamp d{1.3862944f};
+        int64_t t = 0;
+        CHECK(d.Update(3.0f, t) == 3.0f);
+        float prev = d.Value();
+        std::mt19937 rng(9);
+        for (int i = 0; i < 3000; ++i) {
+            const float target = i % 400 < 200 ? 0.3f : 12.0f;
+            const float v = d.Update(target * std::uniform_real_distribution<float>(0.9f, 1.1f)(rng),
+                                     t += 11);
+            CHECK(v <= prev * std::exp(1.3862944f * 0.011f) + 1e-5f);
+            CHECK(v >= prev / std::exp(1.3862944f * 0.011f) - 1e-5f);
+            prev = v;
+        }
+    }
 }
 

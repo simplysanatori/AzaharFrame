@@ -309,13 +309,14 @@ void RasterizerAccelerated::SetVRData(const int32_t &vrImmersiveMode, const floa
     std::memcpy(vr_inv_view, inv_view, sizeof(float) * 16);
 }
 
-// AzaharFrame ipd: the headset's IPD for mode 3's eye separation (the Depth Factor x it), from
-// the XR thread's measurement (frame_xr/ipd_smoother.h); VR_IPD until it is known.
+// AzaharFrame ipd: the headset's IPD for mode 3's eye separation (the eye scale x it; natural:
+// 3D Depth x the leaning), from the XR thread's measurement (frame_xr/ipd_smoother.h); VR_IPD
+// until it is known.
 void RasterizerAccelerated::SetVRIpd(float ipd_m) {
     vr_ipd = VideoCore::Immersive::UsableIpd(ipd_m, VR_IPD);
     if (vr_immersive_mode == 3 && std::abs(vr_ipd - vr_ipd_logged) > 0.0005f) {
         vr_ipd_logged = vr_ipd;
-        LOG_INFO(Render, "immersive mode 3: game eyes {:+.5f} / {:+.5f} (Depth Factor {:.4f} x "
+        LOG_INFO(Render, "immersive mode 3: game eyes {:+.5f} / {:+.5f} (eye scale {:.4f} x "
                          "IPD {:.1f} mm / 2)",
                  VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, true),
                  VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, false),

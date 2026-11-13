@@ -507,7 +507,7 @@ StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ip
     const float factor = std::max(solved.factor, 1e-3f);
     // The game's share, on the quad; mode 3's quads are each on their eye, IPD apart already.
     const float game_m = far_width / factor * solved.width();
-    const float quads_m = mode == 3 ? 2.0f * (quad_half >= 0.0f ? quad_half : half_ipd) : 0.0f;
+    const float quads_m = mode == 3 ? 2.0f * (std::isnan(quad_half) ? half_ipd : quad_half) : 0.0f;
     out.separation_m = game_m + quads_m;
     out.far_deg = 2.0f * std::atan(out.separation_m / (2.0f * d)) * kRadToDeg;
     out.allow_deg = 2.0f * std::atan(half_ipd / d) * kRadToDeg;
@@ -604,7 +604,7 @@ float NaturalLeaning(const HeadLocked& solved, float eye_per_far) {
         return -1.0f;
     }
     const float width = solved.width();
-    if (!(width > 0.0f)) {
+    if (!(width > 0.0f) || !std::isfinite(width)) {
         return -1.0f;
     }
     // The picture is 1 / factor of the quad's width: the far width share x that is the far
@@ -612,44 +612,84 @@ float NaturalLeaning(const HeadLocked& solved, float eye_per_far) {
     return eye_per_far * std::max(solved.factor, 1e-3f) / width;
 }
 
-float FixedLeaning(uint32_t multiplier) {
-    return std::pow(10.0f, static_cast<float>(std::min<uint32_t>(multiplier, 2))) * 5.0f;
+float EyePerFarFor(const HeadLocked& solved, float leaning) {
+    if (!(leaning > 0.0f) || !std::isfinite(leaning)) {
+        return -1.0f;
+    }
+    return leaning * solved.width() / std::max(solved.factor, 1e-3f);
 }
 
-float LeaningScale::Update(uint32_t mode, float measured, int samples, float fallback,
-                           int64_t now_ms) {
+float FullDistance(float percent, float size, bool follow) {
+    const float s = std::isfinite(size) && size > 0.0f ? size : 1.0f;
+    const float d = ClampWorldScale(percent) / 100.0f * kWorldRefDistance / (follow ? 1.0f : s);
+    return std::clamp(d, kFullMinDistance, kFullMaxDistance);
+}
+
+float WorldScaleForDistance(float distance, float size, bool follow) {
+    const float s = std::isfinite(size) && size > 0.0f ? size : 1.0f;
+    return distance / kWorldRefDistance * (follow ? 1.0f : s) * 100.0f;
+}
+
+float MigrateWorldScaleMode3(const HeadLocked& solved, float eye_per_far, float leaning,
+                             float size, bool follow) {
+    if (!(leaning > 0.0f) || !std::isfinite(leaning) || !(eye_per_far > 0.0f) ||
+        !std::isfinite(eye_per_far) || !(solved.distance > 0.0f)) {
+        return kWorldScaleAuto;
+    }
+    // The picture's width per metre of distance (its angular size): the distance at which K
+    // over the picture's width is `leaning`.
+    const float per_m = solved.width() / std::max(solved.factor, 1e-3f) / solved.distance;
+    if (!(per_m > 0.0f) || !std::isfinite(per_m)) {
+        return kWorldScaleAuto;
+    }
+    return ClampWorldScale(WorldScaleForDistance(eye_per_far / (leaning * per_m), size, follow));
+}
+
+float MigrateWorldScaleMode2(float distance, float size, bool follow) {
+    if (!(distance > 0.0f) || !std::isfinite(distance)) {
+        return kWorldScaleAuto;
+    }
+    return ClampWorldScale(WorldScaleForDistance(distance, size, follow));
+}
+
+float RatioRamp::Update(float target, int64_t now_ms) {
     const float dt_s =
         last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
                       : 0.0f;
     last_ms_ = now_ms;
-    const bool have = measured > 0.0f && std::isfinite(measured);
-    if (mode == kLeaningFixed && held_ < 0.0f && have && samples >= kFixAfter) {
-        held_ = measured;
-    }
-    if (mode == kLeaningFixed && held_ > 0.0f) {
-        target_ = held_;
-        source_ = 2;
-    } else if (have) {
-        target_ = measured;
-        source_ = 0;
-    } else if (source_ == 0 && target_ > 0.0f) {
-        // Measured before, not this frame (a menu): the last measure holds.
-    } else if (fallback > 0.0f && std::isfinite(fallback)) {
-        target_ = fallback;
-        source_ = 1;
-    }
-    if (!(target_ > 0.0f)) {
+    if (!(target > 0.0f) || !std::isfinite(target)) {
         return value_;
     }
     if (value_ <= 0.0f) {
-        value_ = eased_ = target_;
+        value_ = eased_ = target;
         return value_;
     }
     // Eased, then rate limited in ratio: never a jump, whatever the target does.
-    eased_ += (target_ - eased_) * (1.0f - std::exp(-dt_s / kTauS));
-    const float step = std::exp(kMaxRatePerS * dt_s);
+    eased_ += (target - eased_) * (1.0f - std::exp(-dt_s / kTauS));
+    const float step = std::exp(rate_ * dt_s);
     value_ = std::clamp(eased_, value_ / step, value_ * step);
     return value_;
+}
+
+float EyePerFarInUse::Update(float measured, int samples, float saved, float fallback,
+                             int64_t now_ms) {
+    const auto ok = [](float k) { return k > 0.0f && std::isfinite(k); };
+    if (ok(measured) && samples >= kSaveAfter) {
+        target_ = measured;
+        source_ = kMeasured;
+    } else if (source_ == kMeasured) {
+        // Measured before, not now (a menu, 3D Depth 0): the last measure holds.
+    } else if (ok(saved)) {
+        target_ = saved;
+        source_ = kSaved;
+    } else if (ok(fallback)) {
+        target_ = fallback;
+        source_ = kFallback;
+    }
+    if (!ok(target_)) {
+        return ramp_.Value();
+    }
+    return ramp_.Update(target_, now_ms);
 }
 
 float NaturalSlider::Update(float f, float limit, int64_t now_ms) {
@@ -688,9 +728,9 @@ float NaturalSlider::Update(float f, float limit, int64_t now_ms) {
 Mode3Stereo Mode3Natural(float f, float leaning, float half_ipd, float game_far_m) {
     Mode3Stereo out;
     f = std::clamp(std::isfinite(f) ? f : 0.0f, 0.0f, 1.0f);
-    out.eye_scaler = f * std::max(leaning, 0.0f);
+    out.eye_scaler = f * (std::isfinite(leaning) ? std::max(leaning, 0.0f) : 0.0f);
     const float game = std::isfinite(game_far_m) ? std::max(game_far_m, 0.0f) : 0.0f;
-    out.quad_half = std::max(0.0f, f * half_ipd - game / 2.0f);
+    out.quad_half = half_ipd - game / 2.0f;
     return out;
 }
 
@@ -704,7 +744,7 @@ float GameFarOnQuad(const HeadLocked& solved, float far_width) {
 Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd,
                      float quad_half) {
     return HeadLockedQuadPose(
-        solved, mode == 3 ? EyeX(eye, quad_half >= 0.0f ? quad_half : half_ipd) : 0.0f);
+        solved, mode == 3 ? EyeX(eye, std::isnan(quad_half) ? half_ipd : quad_half) : 0.0f);
 }
 
 Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_view,
@@ -925,7 +965,7 @@ void PoseRing::Keep(uint32_t mode, const Posef& rest) {
 
 float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width,
                      float quad_half) {
-    if (mode == 3 && quad_half >= 0.0f && half_ipd - quad_half > 1e-6f) {
+    if (mode == 3 && std::isfinite(quad_half) && std::abs(half_ipd - quad_half) > 1e-6f) {
         const float share = GameFarOnQuad(solved, far_width) / 2.0f / (half_ipd - quad_half);
         return std::isfinite(share) ? std::clamp(share, 0.0f, 2.0f) : 1.0f;
     }
@@ -1057,7 +1097,7 @@ ScreenDecision Decide(const ScreenState& s) {
 // ---- Adjuster ----
 
 Adjuster::Result Adjuster::Update(const Input::InputFrame& in, const Posef& head, float dt,
-                                  bool enabled, Placement& placement) {
+                                  bool enabled, Placement& placement, float* world_ratio) {
     Result r;
     bool edge[2]{};
     for (int h = 0; h < 2; h++) {
@@ -1083,7 +1123,12 @@ Adjuster::Result Adjuster::Update(const Input::InputFrame& in, const Posef& head
         placement.pitch_deg = start_pitch_deg_ + (elevation - start_elevation_) / kDegToRad;
         const float dts = std::clamp(dt, 0.0f, 0.1f);
         if (std::abs(hand.stick.y) > kStickThreshold) {
-            placement.distance *= std::exp(hand.stick.y * kDistanceRate * dts);
+            const float step = std::exp(hand.stick.y * kDistanceRate * dts);
+            if (world_ratio) {
+                *world_ratio *= step; // AzaharFrame natural: World Scale
+            } else {
+                placement.distance *= step;
+            }
         }
         if (std::abs(hand.stick.x) > kStickThreshold) {
             placement.size *= std::exp(hand.stick.x * kSizeRate * dts);

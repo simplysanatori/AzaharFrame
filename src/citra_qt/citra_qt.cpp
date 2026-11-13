@@ -1973,10 +1973,10 @@ GMainWindow::GMainWindow(Core::System& system_)
             }
 
             // Test driver (AzaharFrame natural): AZAHARFRAME_TEST_NATURAL="20:50,26:100" sets the
-            // Full modes' 3D Depth (vr_immersive_depth) and AZAHARFRAME_TEST_LEANING="20:2" the
-            // Leaning choice at those seconds after start, as the menu would.
-            for (const char* env : {"AZAHARFRAME_TEST_NATURAL", "AZAHARFRAME_TEST_LEANING"}) {
-                const bool leaning = std::string_view{env}.ends_with("LEANING");
+            // Full modes' 3D Depth (vr_immersive_depth) and AZAHARFRAME_TEST_WORLD_SCALE="20:45"
+            // World Scale (percent) at those seconds after start, as the menu would.
+            for (const char* env : {"AZAHARFRAME_TEST_NATURAL", "AZAHARFRAME_TEST_WORLD_SCALE"}) {
+                const bool leaning = std::string_view{env}.ends_with("WORLD_SCALE");
                 for (const QString& step :
                      FrameTestEnv(env).split(QLatin1Char(','), Qt::SkipEmptyParts)) {
                     const auto parts = step.split(QLatin1Char(':'));
@@ -1984,13 +1984,17 @@ GMainWindow::GMainWindow(Core::System& system_)
                         continue;
                     }
                     const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
-                    const u32 value = std::min(parts[1].toUInt(), leaning ? 3u : 100u);
+                    const u32 value = leaning ? std::clamp(parts[1].toUInt(), 10u, 400u)
+                                              : std::min(parts[1].toUInt(), 100u);
                     QTimer::singleShot(ms, this, [ms, value, leaning] {
                         LOG_INFO(Frontend, "xr test: {} {} at {} ms",
-                                 leaning ? "Leaning" : "Immersive 3D Depth", value, ms);
-                        (leaning ? Settings::values.vr_immersive_leaning
-                                 : Settings::values.vr_immersive_depth)
-                            .SetValue(value);
+                                 leaning ? "World Scale" : "Immersive 3D Depth", value, ms);
+                        if (leaning) {
+                            Settings::values.vr_immersive_world_scale.SetValue(
+                                static_cast<float>(value));
+                        } else {
+                            Settings::values.vr_immersive_depth.SetValue(value);
+                        }
                     });
                 }
             }
@@ -4903,7 +4907,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     using C = FrameXr::MenuCommand;
     using S = FrameXr::MenuSetting;
     // AzaharFrame fovonce: Match Game Camera's Set Once value comes while the game plays.
-    const bool measured_fov = r.command == C::SetSetting && r.setting == S::MeasuredGameFov;
+    // AzaharFrame natural: and World Scale set by the grips or the migration, while it plays.
+    const bool measured_fov = r.command == C::SetSetting && (r.setting == S::MeasuredGameFov ||
+                                                             r.setting == S::WorldScaleSaved);
     if (!emulation_running ||
         (!measured_fov && (!g_frame_mirror || !g_frame_mirror->MenuOpen()))) {
         return;
@@ -5215,15 +5221,45 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ScaleY:
         set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
         break;
-    case S::DepthFactor:
-        set(v.vr_immersive_positional_game_scaler, u);
+    case S::WorldScale: // AzaharFrame natural: World Scale, hundredths of a percent
+        set(v.vr_immersive_world_scale, std::clamp(static_cast<float>(r.value) / 100.0f, 10.0f,
+                                                   400.0f));
         break;
-    case S::Depth3d: { // AzaharFrame depth3d
-        set(v.factor_3d, std::min<u32>(u, 100));
-        // AzaharFrame integ8: in mode 2, when the stereo cap limits it, the toast says to what
-        const std::string toast = FrameXr::Immersive::DepthChangeToast(v.factor_3d.GetValue());
-        if (!toast.empty()) {
-            FrameXr::ShowToastText(toast);
+    case S::FollowScreen: // AzaharFrame natural
+        set(v.vr_immersive_follow_screen, r.value != 0);
+        break;
+    case S::WorldScaleSaved: { // AzaharFrame natural: the game's own file, while it plays
+        if (r.value > 0) {
+            v.vr_immersive_world_scale.SetGlobal(false);
+            v.vr_immersive_world_scale.SetValue(
+                std::clamp(static_cast<float>(r.value) / 100.0f, 10.0f, 400.0f));
+            v.vr_immersive_world_set.SetGlobal(false);
+            v.vr_immersive_world_set.SetValue(true);
+        }
+        const auto k_at = r.text.find("k=");
+        if (k_at != std::string::npos) {
+            const float k = std::strtof(r.text.c_str() + k_at + 2, nullptr);
+            if (k > 0.0f && std::isfinite(k)) {
+                v.vr_immersive_eye_per_far.SetGlobal(false);
+                v.vr_immersive_eye_per_far.SetValue(k);
+            }
+        }
+        LOG_INFO(Frontend, "xr: World Scale {} {}saved for {}",
+                 r.value > 0 ? fmt::format("{:.2f} %", r.value / 100.0) : std::string("unchanged"),
+                 r.text.empty() ? "" : "(" + r.text + ") ", g_frame_game_config_name);
+        per_game_setting = true;
+        break;
+    }
+    case S::Depth3d: { // AzaharFrame depth3d; natural: the Full modes' own 3D Depth in them
+        if (v.vr_immersive_mode.GetValue() >= 2) {
+            set(v.vr_immersive_depth, std::min<u32>(u, 100));
+        } else {
+            set(v.factor_3d, std::min<u32>(u, 100));
+            // AzaharFrame integ8: in mode 2, when the stereo cap limits it, the toast says to what
+            const std::string toast = FrameXr::Immersive::DepthChangeToast(v.factor_3d.GetValue());
+            if (!toast.empty()) {
+                FrameXr::ShowToastText(toast);
+            }
         }
         break;
     }
@@ -5318,6 +5354,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     // the settings, so the VR ones are kept across that.
     FrameKeepSetting keep_mode{v.vr_immersive_mode};
     FrameKeepSetting keep_scaler{v.vr_immersive_positional_game_scaler};
+    FrameKeepSetting keep_world_scale{v.vr_immersive_world_scale}; // AzaharFrame natural
+    FrameKeepSetting keep_immersive_depth{v.vr_immersive_depth};
+    FrameKeepSetting keep_follow_screen{v.vr_immersive_follow_screen};
+    FrameKeepSetting keep_world_set{v.vr_immersive_world_set};
+    FrameKeepSetting keep_eye_per_far{v.vr_immersive_eye_per_far};
     FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
     FrameKeepSetting keep_shape{v.vr_top_aspect};
     FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
@@ -5341,6 +5382,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
     keep_mode.Restore();
     keep_scaler.Restore();
+    keep_world_scale.Restore();
+    keep_immersive_depth.Restore();
+    keep_follow_screen.Restore();
+    keep_world_set.Restore();
+    keep_eye_per_far.Restore();
     keep_hide.Restore();
     keep_shape.Restore();
     keep_fov.Restore();

@@ -778,16 +778,21 @@ struct Values {
     SwitchableSetting<u32> vr_immersive_positional_game_scaler{
         0, "vr_immersive_positional_game_scaler"};
     SwitchableSetting<std::string> vr_immersive_eye_indicator{"", "vr_immersive_eye_indicator"};
-    // AzaharFrame natural: 3D Depth in the Full modes, percent of the natural 3D (100: the
-    // farthest scenery at infinity for the screen's size, distance and the IPD; 0: flat), and
-    // how the leaning scale (made from the game's own 3D) follows the screen: 0 live, 1 measured
-    // once per game and held (kFrameLeaningDefault picks the default). Where the game's 3D cannot
-    // be read, leaning uses vr_immersive_positional_game_scaler's fixed scale.
-    // frame_xr/immersive_layout.h "natural".
-    static constexpr u32 kFrameLeaningDefault = 0; // 0 Follow Screen, 1 Fixed
+    // AzaharFrame natural: in the Full modes, 3D Depth (percent of the natural 3D: 100 puts the
+    // farthest scenery at infinity for the screen's size, distance and the IPD; 0 flat), World
+    // Scale (percent; 100 Automatic: the screen at 3 m, the world true to the game's own 3D; the
+    // screen's distance follows it, and the head moves the camera to match) and Follow Screen
+    // Size (the world grows with the screen when it is resized; off: it keeps its size). Hidden,
+    // per game: World Scale migrated from 1.2.0 (vr_immersive_world_set) and the game's own 3D
+    // last measured (vr_immersive_eye_per_far, game units per picture width of far scenery;
+    // 0 none). Where the game's 3D cannot be read, 1.2.0's scale (factor_3d with
+    // vr_immersive_positional_game_scaler) is the fallback. frame_xr/immersive_layout.h "natural".
     SwitchableSetting<u32, true> vr_immersive_depth{100, 0, 100, "vr_immersive_depth"};
-    SwitchableSetting<u32, true> vr_immersive_leaning{kFrameLeaningDefault, 0, 1,
-                                                      "vr_immersive_leaning"};
+    SwitchableSetting<float, true> vr_immersive_world_scale{100.0f, 10.0f, 400.0f,
+                                                            "vr_immersive_world_scale"};
+    SwitchableSetting<bool> vr_immersive_follow_screen{true, "vr_immersive_follow_screen"};
+    SwitchableSetting<bool> vr_immersive_world_set{false, "vr_immersive_world_set"};
+    SwitchableSetting<float> vr_immersive_eye_per_far{0.0f, "vr_immersive_eye_per_far"};
     // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper
     // chord, see frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};

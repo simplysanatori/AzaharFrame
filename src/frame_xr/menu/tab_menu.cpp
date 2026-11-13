@@ -11,6 +11,7 @@
 #include "frame_xr/immersive_names.h" // AzaharFrame kiu
 #include "frame_xr/menu/ds_drawing.h"
 #include "frame_xr/menu/md3_fonts.h"
+#include "frame_xr/immersive_layout.h" // AzaharFrame natural: World Scale's stops
 
 namespace FrameXr::Menu {
 
@@ -77,6 +78,12 @@ std::string SliderText(Id id, float value) {
     }
     if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu: "+10%", "0%", "-10%"
         return Format(value > 0.5f ? "+%.0f%%" : "%.0f%%", value);
+    }
+    if (id == Id::WorldScale) { // AzaharFrame natural: the stop's percent, "Automatic" at 100
+        const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
+                                 static_cast<int>(Immersive::Layout::kWorldScaleStops.size()) - 1);
+        return Immersive::Layout::WorldScaleText(
+            Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
         return Format("%.1fx", value / 10.0f);
@@ -202,7 +209,15 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         };
         scale(Id::ScaleX, m.scale_x);
         scale(Id::ScaleY, m.scale_y);
-        rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
+        // AzaharFrame natural: World Scale, a slider over its stops (10 % to 400 %, Automatic
+        // at 100 %), and Follow Screen Size.
+        Row world = full(row(Id::WorldScale, RowKind::Slider));
+        const SliderRange wr = SliderFor(Id::WorldScale);
+        world.t = (static_cast<float>(m.world_scale_stop) - wr.min) / (wr.max - wr.min);
+        world.stops = static_cast<int>(wr.max - wr.min);
+        world.value = SliderText(Id::WorldScale, static_cast<float>(m.world_scale_stop));
+        rows.push_back(world);
+        rows.push_back(full(row(Id::FollowScreen, RowKind::Switch, 0, m.follow_screen)));
     }
     return rows;
 }
@@ -225,7 +240,8 @@ SettingsSection SectionOf(Id id) {
     case Id::MatchCamera:
     case Id::ScaleX:
     case Id::ScaleY:
-    case Id::DepthFactor:
+    case Id::WorldScale:
+    case Id::FollowScreen: // AzaharFrame natural
         return SettingsSection::Immersive;
     default:
         return SettingsSection::General;
@@ -242,7 +258,8 @@ bool PerGameSetting(Id id) {
     case Id::MatchCamera: // AzaharFrame depth
     case Id::ScaleX:
     case Id::ScaleY:
-    case Id::DepthFactor:
+    case Id::WorldScale:
+    case Id::FollowScreen: // AzaharFrame natural
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
     case Id::TextureFilter:
@@ -330,7 +347,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
                                                 "Full (6DoF): Other Games"};
     static const std::vector<std::string> kWider{"Off", "1.1x", "1.2x", "1.3x", "1.4x"};
-    static const std::vector<std::string> kDepth{"1x", "10x", "100x"};
     // AzaharFrame menuux
     static const std::vector<std::string> kResolution{
         "1x (400x240)",   "2x (800x480)",   "3x (1200x720)",  "4x (1600x960)",
@@ -394,8 +410,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMode;
     case Id::WiderView:
         return kWider;
-    case Id::DepthFactor:
-        return kDepth;
     default:
         return kNone;
     }
@@ -488,7 +502,7 @@ std::string LabelFor(Id id) {
     case Id::WindowScale:
         return "Window Scale";
     case Id::Depth3d:
-        return "3D Depth";
+        return Immersive::Names::kDepth3d; // AzaharFrame natural
     case Id::InternalResolution: // AzaharFrame menuux
         return "Internal Resolution";
     case Id::DynamicResolution:
@@ -515,8 +529,10 @@ std::string LabelFor(Id id) {
         return ::FrameXr::Immersive::Names::kHorizontalScale;
     case Id::ScaleY:
         return ::FrameXr::Immersive::Names::kVerticalScale;
-    case Id::DepthFactor:
-        return "Depth Factor Multiplier";
+    case Id::WorldScale:
+        return Immersive::Names::kWorldScale; // AzaharFrame natural
+    case Id::FollowScreen:
+        return Immersive::Names::kFollowScreen;
     case Id::MoreSettings:
         return "More Settings";
     case Id::SavesHeader: // AzaharFrame autosave
@@ -682,8 +698,8 @@ std::string ExplainFor(Id id) {
         return "Shows the controllers in VR.";
     case Id::WindowScale:
         return "Makes text and buttons in Azahar's window bigger.";
-    case Id::Depth3d: // AzaharFrame integ8: and the stereo cap
-        return ::FrameXr::Immersive::Names::kDepth3dTip;
+    case Id::Depth3d:
+        return Immersive::Names::kDepth3dTip; // AzaharFrame natural
     case Id::InternalResolution: // AzaharFrame menuux
         return "How sharp the game is drawn. Higher needs more of the GPU.";
     case Id::DynamicResolution:
@@ -710,8 +726,10 @@ std::string ExplainFor(Id id) {
         return ::FrameXr::Immersive::Names::kHorizontalScaleTip;
     case Id::ScaleY:
         return ::FrameXr::Immersive::Names::kVerticalScaleTip;
-    case Id::DepthFactor:
-        return "How far the game camera moves with your head.";
+    case Id::WorldScale:
+        return Immersive::Names::kWorldScaleTip; // AzaharFrame natural
+    case Id::FollowScreen:
+        return Immersive::Names::kFollowScreenTip;
     case Id::Autosave: // AzaharFrame autosave
         return "Saves on its own as you play, when this menu opens and when the game closes.";
     case Id::AutosaveEvery:
@@ -775,6 +793,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu
         return {-30.0f, 30.0f, 5.0f};
+    }
+    if (id == Id::WorldScale) { // AzaharFrame natural: Layout::kWorldScaleStops' indexes
+        return {0.0f, static_cast<float>(Immersive::Layout::kWorldScaleStops.size() - 1), 1.0f};
     }
     if (id == Id::CursorSpeed) { // AzaharFrame padsui: five steps, Normal in the middle
         return {0.0f, 4.0f, 1.0f};

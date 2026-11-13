@@ -15,6 +15,7 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QSlider;
 class QSpinBox;
 class QWidget;
 
@@ -73,8 +74,16 @@ private:
     QComboBox* scale_x_combo;
     QWidget* scale_y_row; ///< Vertical Scale
     QComboBox* scale_y_combo;
-    QWidget* depth_row;
-    QComboBox* depth_combo;
+    QWidget* depth_row;     ///< AzaharFrame natural: World Scale (vr_immersive_world_scale)
+    QComboBox* world_scope; ///< per application only: global / this application
+    QSlider* world_slider;  ///< Names::kWorldScaleStops' indexes
+    QLabel* world_label;
+    float world_value = 100.0f; ///< percent: as set, or the stop the slider was moved to
+    QCheckBox* follow_check; ///< AzaharFrame natural: Follow Screen Size
+    ConfigurationShared::CheckState follow_state = ConfigurationShared::CheckState::Global;
+    QWidget* immersive_depth_row; ///< AzaharFrame natural: the Full modes' 3D Depth
+    QComboBox* immersive_depth_scope; ///< per application only: global / this application
+    QSpinBox* immersive_depth_spin;
     QWidget* register_row;
     QComboBox* register_scope; ///< per application only: global / this application
     QSpinBox* register_spin;

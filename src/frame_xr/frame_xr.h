@@ -289,7 +289,12 @@ enum class MenuSetting {
                  ///< (vr_immersive_match_camera_mode); Set Once clears vr_immersive_fov_measured
     ScaleX, ///< AzaharFrame kiu: `value` percent, -30 to 30 (vr_immersive_scale_x)
     ScaleY, ///< vr_immersive_scale_y
-    DepthFactor,
+    WorldScale,   ///< AzaharFrame natural: `value` hundredths of a percent (vr_immersive_world_scale)
+    FollowScreen, ///< AzaharFrame natural: `value` 0 or 1 (vr_immersive_follow_screen)
+    /// AzaharFrame natural: set while the game plays (Immersive::TakeWorldScaleSave), for its own
+    /// file: `value` World Scale in hundredths of a percent (below 0: unchanged; `text` "migrated"
+    /// sets vr_immersive_world_set too), `text` also "k=<eye per far>" for vr_immersive_eye_per_far.
+    WorldScaleSaved,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)
     TouchpadTouch, ///< AzaharFrame menu: `value` 1 Tap for Input, 2 Click for Input (0 Off)

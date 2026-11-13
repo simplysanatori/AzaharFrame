@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -411,16 +412,27 @@ struct State {
     L::HeadLocked solved;
     /// AzaharFrame stereo: mode 2's cap on the game's 3D slider (replaced by natural 3D).
     L::StereoCap stereo_cap;
-    /// AzaharFrame natural: mode 2's slider (3D Depth x the natural limit), the leaning scale
-    /// (eased), mode 3's own stereo, and what was logged last.
+    /// AzaharFrame natural: mode 2's slider (3D Depth x the natural limit); the game's K in use
+    /// (eased); the Full modes' screen distance from World Scale (eased, at most a factor 4 a
+    /// second); the leaning made from both; mode 3's own stereo.
     L::NaturalSlider natural;
-    L::LeaningScale leaning;
+    L::EyePerFarInUse eye_k;
+    L::RatioRamp full_distance{1.3862944f}; // ln 4
+    float leaning = -1.0f; ///< game units per metre, this frame
+    /// World Scale's migration from 1.2.0 this game run: 0 not looked at yet, 1 done (or not
+    /// needed), 2 mode 3 waiting for the game's eyes (the saved distance and 1.2.0's scale hold).
+    int world_migration = 0;
+    bool k_saved = false;        ///< the game's K went to its file this run
+    bool grab_active = false;    ///< the grips hold the immersive screen
+    float grab_size = -1.0f;     ///< the screen's size when they took it
+    long world_toasted = -1;     ///< the World Scale the grip's toast shows (rounded)
     L::Mode3Stereo mode3;
-    float quad_half = -1.0f; ///< mode 3's eye quads from the middle (below 0: on the eyes)
+    float quad_half = L::kQuadsOnEyes; ///< mode 3's eye quads from the middle (NaN: on the eyes)
     float natural_logged_limit = -1.0f;
     uint32_t natural_logged_depth = 1000;
-    int natural_logged_source = -1; ///< 0 measured, 1 fallback, 2 fixed
+    int natural_logged_source = -1; ///< L::EyePerFarInUse::Source
     float natural_logged_leaning = -1.0f;
+    float natural_logged_world = -1.0f;
     /// AzaharFrame oot: mode 2's menu rule (L::MenuExact), and whether it was last on (the log).
     L::MenuExact menu_exact;
     bool menu_exact_on = false;
@@ -833,28 +845,158 @@ uint32_t NaturalDepth() {
                                   !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue());
 }
 
-// AzaharFrame natural: the leaning scale in game units per metre (L::LeaningScale: never a jump):
-// from the game's own 3D (L::NaturalLeaning) where its eyes could be read, following the screen
-// or held once measured (Settings::values.vr_immersive_leaning), else the fixed fallback of the
-// old multiplier; `source`: 0 measured, 1 the fallback, 2 held.
-float NaturalLeaningNow(int& source) {
+// AzaharFrame natural: what goes to the game's file while it plays (TakeWorldScaleSave).
+std::mutex g_world_save_mutex;
+std::optional<WorldScaleSave> g_world_save;
+
+void QueueWorldScaleSave(const WorldScaleSave& save) {
+    std::scoped_lock lock{g_world_save_mutex};
+    if (g_world_save) { // one waiting already: merge
+        if (save.world_scale > 0.0f) {
+            g_world_save->world_scale = save.world_scale;
+            g_world_save->migrated = g_world_save->migrated || save.migrated;
+        }
+        if (save.eye_per_far > 0.0f) {
+            g_world_save->eye_per_far = save.eye_per_far;
+        }
+        return;
+    }
+    g_world_save = save;
+}
+
+// AzaharFrame natural: World Scale, percent (10 to 400; 100 Automatic).
+float WorldScaleSetting() {
+    return L::ClampWorldScale(Settings::values.vr_immersive_world_scale.GetValue());
+}
+
+// AzaharFrame natural: World Scale set while the game plays (the grips, the migration): this
+// game's own value at once, its file through Qt.
+void SetWorldScale(float percent, bool migrated) {
+    auto& s = Settings::values.vr_immersive_world_scale;
+    const float p = L::ClampWorldScale(percent);
+    if (g.title_id) {
+        s.SetGlobal(false);
+    }
+    s.SetValue(p);
+    if (g.title_id) {
+        Settings::values.vr_immersive_world_set.SetGlobal(false);
+        Settings::values.vr_immersive_world_set.SetValue(true);
+        QueueWorldScaleSave({p, -1.0f, migrated});
+    }
+}
+
+// AzaharFrame natural: 1.2.0's head-motion scale from the old settings: the fallback where the
+// game's 3D cannot be read, and what the migration reproduces in mode 3.
+float OldLeaning() {
     const auto& v = Settings::values;
-    const float measured = L::NaturalLeaning(
-        g.solved, VideoCore::Immersive::g_stereo_eye_per_far.load(std::memory_order_relaxed));
-    const float value = g.leaning.Update(
-        v.vr_immersive_leaning.GetValue(), measured,
-        VideoCore::Immersive::g_stereo_eye_samples.load(std::memory_order_relaxed),
-        L::FixedLeaning(v.vr_immersive_positional_game_scaler.GetValue()),
-        VideoCore::Immersive::SteadyMs());
-    source = g.leaning.Source();
-    return value;
+    return L::GamePositionScale(
+        static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2)),
+        v.factor_3d.GetValue());
+}
+
+// AzaharFrame natural: World Scale's migration, once a game (immersive_layout.h, design: the
+// look and the head movement as in 1.2.0). Mode 2 keeps the saved distance; mode 3 waits for
+// the game's eyes and keeps 1.2.0's leaning and eye offset (the screen's distance changes, on
+// the eyes, so the picture does not).
+void MigrateWorldScale(u32 mode) {
+    const auto& v = Settings::values;
+    if (g.world_migration == 1) {
+        return;
+    }
+    const bool follow = v.vr_immersive_follow_screen.GetValue();
+    const float size = L::Clamped(g.head_place).size;
+    if (g.world_migration == 0) {
+        const bool done = !g.title_id || (v.vr_immersive_world_set.GetValue() &&
+                                          !v.vr_immersive_world_set.UsingGlobal()) ||
+                          !v.vr_immersive_world_scale.UsingGlobal();
+        if (done) {
+            g.world_migration = 1;
+            return;
+        }
+        if (mode == 2) {
+            const float p =
+                L::MigrateWorldScaleMode2(L::Clamped(g.head_place).distance, size, follow);
+            LOG_INFO(Frontend,
+                     "xr: World Scale migrated for mode 2: {:.1f} % keeps the screen at {:.2f} m "
+                     "(1.2.0 leaned {:.1f} game units per metre; now matched to the game's 3D)",
+                     p, L::Clamped(g.head_place).distance, OldLeaning());
+            SetWorldScale(p, true);
+            g.world_migration = 1;
+            return;
+        }
+        LOG_INFO(Frontend, "xr: World Scale: migrating mode 3 once the game's eyes are read; "
+                           "until then 1.2.0's {:.1f} game units per metre at {:.2f} m",
+                 OldLeaning(), L::Clamped(g.head_place).distance);
+        g.world_migration = 2;
+        return;
+    }
+    // Mode 3 waiting: the game's own eyes, read.
+    if (mode != 3) {
+        return; // mode 2 now: its own rule on the next game start
+    }
+    const float k = VideoCore::Immersive::g_stereo_eye_per_far.load(std::memory_order_relaxed);
+    const int samples = VideoCore::Immersive::g_stereo_eye_samples.load(std::memory_order_relaxed);
+    if (!(k > 0.0f) || samples < L::EyePerFarInUse::kSaveAfter) {
+        return;
+    }
+    const float old = OldLeaning();
+    const float p = L::MigrateWorldScaleMode3(g.solved, k, old, size, follow);
+    // At once, both: the leaning and our eyes stay exactly as they were.
+    g.full_distance.Set(L::FullDistance(p, size, follow));
+    g.eye_k.Set(k);
+    LOG_INFO(Frontend,
+             "xr: World Scale migrated for mode 3: {:.1f} % (the screen from {:.2f} to {:.2f} m) "
+             "keeps 1.2.0's {:.1f} game units per metre (game K {:.1f}){}",
+             p, L::Clamped(g.head_place).distance, L::FullDistance(p, size, follow), old, k,
+             old > 0.0f ? "" : "; 1.2.0 did not move the camera, so Automatic");
+    SetWorldScale(p, true);
+    g.world_migration = 1;
+}
+
+// AzaharFrame natural: the Full modes' screen distance: World Scale's (eased), or the saved one
+// while mode 3's migration waits.
+float FullScreenDistance(u32 mode) {
+    const auto& v = Settings::values;
+    const L::Placement p = L::Clamped(g.head_place);
+    const float target = g.world_migration == 2 && mode == 3
+                             ? p.distance
+                             : L::FullDistance(WorldScaleSetting(), p.size,
+                                               v.vr_immersive_follow_screen.GetValue());
+    return g.full_distance.Update(target, VideoCore::Immersive::SteadyMs());
+}
+
+// AzaharFrame natural: the leaning scale in game units per metre: the game's K (measured, saved
+// from an earlier run, or 1.2.0's scale at the screen as saved; L::EyePerFarInUse, eased) over
+// the picture's width at the World Scale distance. The game's K goes to its file once measured.
+float NaturalLeaningNow() {
+    const auto& v = Settings::values;
+    const float measured =
+        VideoCore::Immersive::g_stereo_eye_per_far.load(std::memory_order_relaxed);
+    const int samples = VideoCore::Immersive::g_stereo_eye_samples.load(std::memory_order_relaxed);
+    const float saved = v.vr_immersive_eye_per_far.UsingGlobal()
+                            ? -1.0f
+                            : v.vr_immersive_eye_per_far.GetValue();
+    L::HeadLocked at_saved = g.solved;
+    at_saved.distance = L::Clamped(g.head_place).distance;
+    const float k = g.eye_k.Update(measured, samples, saved, L::EyePerFarFor(at_saved, OldLeaning()),
+                                   VideoCore::Immersive::SteadyMs());
+    if (g.eye_k.From() == L::EyePerFarInUse::kMeasured && !g.k_saved && g.title_id &&
+        g.world_migration != 2) {
+        g.k_saved = true;
+        if (!(saved > 0.0f) || std::abs(g.eye_k.Target() / saved - 1.0f) > 0.02f) {
+            Settings::values.vr_immersive_eye_per_far.SetGlobal(false);
+            Settings::values.vr_immersive_eye_per_far.SetValue(g.eye_k.Target());
+            QueueWorldScaleSave({-1.0f, g.eye_k.Target(), false});
+        }
+    }
+    return L::NaturalLeaning(g.solved, k);
 }
 
 // AzaharFrame natural: mode 2 shows the game 3D Depth x the natural limit (the slider at which its
 // far scenery is parallel on this screen, from its far width per slider unit measured live, the
-// screen's size, distance and factor and the IPD, every frame); mode 3 makes the same geometry
-// with its own eyes (L::Mode3Natural). Both lean by the same scale. While the in-game menu shows
-// (not engaged) the slider holds as it is.
+// screen's size, distance and factor and the IPD, every frame); mode 3 makes the same with its
+// own eyes (L::Mode3Natural). Both lean by the same scale. While the in-game menu shows (not
+// engaged) the slider holds as it is.
 void UpdateNatural(u32 mode) {
     if (mode != 2 && mode != 3) {
         if (Settings::frame_vr_natural_slider.load(std::memory_order_relaxed) >= 0.0f) {
@@ -862,7 +1004,7 @@ void UpdateNatural(u32 mode) {
         }
         g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
         g.natural.Reset();
-        g.quad_half = -1.0f;
+        g.quad_half = L::kQuadsOnEyes;
         g.natural_logged_limit = -1.0f;
         g.natural_logged_depth = 1000;
         return;
@@ -870,8 +1012,9 @@ void UpdateNatural(u32 mode) {
     Settings::frame_vr_stereo_cap.store(-1.0f, std::memory_order_relaxed); // replaced by this
     const u32 depth = NaturalDepth();
     const float f = static_cast<float>(depth) / 100.0f;
-    int source = 0;
-    const float leaning = NaturalLeaningNow(source);
+    const float leaning = NaturalLeaningNow();
+    g.leaning = leaning;
+    const int source = static_cast<int>(g.eye_k.From());
     const float per = VideoCore::Immersive::g_stereo_far_per_slider.load(std::memory_order_relaxed);
     if (mode == 2) {
         if (g.engaged) {
@@ -879,7 +1022,7 @@ void UpdateNatural(u32 mode) {
             const float sent = g.natural.Update(f, limit, VideoCore::Immersive::SteadyMs());
             Settings::frame_vr_natural_slider.store(sent, std::memory_order_relaxed);
         }
-        g.quad_half = -1.0f;
+        g.quad_half = L::kQuadsOnEyes;
     } else {
         Settings::frame_vr_natural_slider.store(-1.0f, std::memory_order_relaxed);
         const float far_width =
@@ -887,32 +1030,38 @@ void UpdateNatural(u32 mode) {
         g.mode3 = L::Mode3Natural(f, leaning, g.half_ipd, L::GameFarOnQuad(g.solved, far_width));
         g.quad_half = g.mode3.quad_half;
     }
-    // The log: a new 3D Depth or source of the leaning, the limit 2 % or the leaning 10 % away.
+    // The log: a new 3D Depth, World Scale or source, the limit 2 % or the leaning 10 % away.
     const float limit = g.natural.Limit();
+    const float world = WorldScaleSetting();
     const bool limit_moved =
         mode == 2 && limit >= 0.0f &&
         (g.natural_logged_limit < 0.0f || std::abs(limit - g.natural_logged_limit) > 0.02f * limit);
     const bool leaning_moved =
-        g.natural_logged_leaning < 0.0f ||
-        std::abs(leaning - g.natural_logged_leaning) > 0.1f * g.natural_logged_leaning;
+        leaning > 0.0f &&
+        (g.natural_logged_leaning < 0.0f ||
+         std::abs(leaning - g.natural_logged_leaning) > 0.1f * g.natural_logged_leaning);
     if (depth != g.natural_logged_depth || source != g.natural_logged_source || limit_moved ||
-        leaning_moved) {
+        leaning_moved || std::abs(world - g.natural_logged_world) > 0.5f) {
         g.natural_logged_depth = depth;
         g.natural_logged_source = source;
         g.natural_logged_leaning = leaning;
+        g.natural_logged_world = world;
         if (mode == 2) {
             g.natural_logged_limit = limit;
         }
         static constexpr const char* kSource[] = {
-            "from the game's own 3D, following the screen",
-            "the fallback (the game's eyes not read yet)",
-            "from the game's own 3D, held since it was measured"};
+            "from the game's own 3D", "from the game's own 3D as measured in an earlier run",
+            "1.2.0's scale (the game's eyes not read yet)", "none yet"};
         const float screen_deg = Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect));
+        const std::string world_text = fmt::format(
+            "World Scale {:.1f} %{} (screen at {:.2f} m, Follow Screen Size {})", world,
+            g.world_migration == 2 ? " waiting for the migration" : "", g.solved.distance,
+            Settings::values.vr_immersive_follow_screen.GetValue() ? "on" : "off");
         if (mode == 2) {
             LOG_INFO(Frontend,
                      "xr: natural 3D: 3D Depth {} % = the game's 3D at {} (natural {} for the "
                      "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm{}); "
-                     "leaning {:.1f} game units per metre, {}",
+                     "{}: the head moves the camera {:.1f} game units per metre, {}",
                      depth,
                      limit >= 0.0f ? fmt::format("{:.2f} %", 100.0f * std::min(f * limit, 1.0f))
                                    : fmt::format("{:.2f} % (probing)",
@@ -921,16 +1070,16 @@ void UpdateNatural(u32 mode) {
                                    : std::string("not measured yet"),
                      screen_deg, g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
                      g.natural.Clamped() ? "; above the 3DS's full 3D, so 100 % of it" : "",
-                     leaning, kSource[source]);
+                     world_text, leaning, kSource[source]);
         } else {
             LOG_INFO(Frontend,
                      "xr: natural 3D: 3D Depth {} %, mode 3's eyes {:.4f} game units apart "
                      "({:.1f} per metre of IPD), eye quads {:.1f} mm from the middle (the screen "
-                     "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm); leaning "
-                     "{:.1f} game units per metre, {}",
+                     "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm); {}: the "
+                     "head moves the camera {:.1f} game units per metre, {}",
                      depth, g.mode3.eye_scaler * 2.0f * g.half_ipd, g.mode3.eye_scaler,
                      1000.0f * g.mode3.quad_half, screen_deg, g.solved.distance, g.solved.factor,
-                     2000.0f * g.half_ipd, leaning, kSource[source]);
+                     2000.0f * g.half_ipd, world_text, leaning, kSource[source]);
         }
     }
 }
@@ -961,8 +1110,13 @@ void OnFrame(const FrameInfo& info) {
             VideoCore::Immersive::g_stereo_eye_per_far.store(-1.0f, std::memory_order_relaxed);
             VideoCore::Immersive::g_stereo_eye_samples.store(0, std::memory_order_relaxed);
             g.natural.Reset();
-            g.leaning.Reset();
+            g.eye_k.Reset();
+            g.full_distance.Reset();
+            g.leaning = -1.0f;
+            g.world_migration = 0;
+            g.k_saved = false;
             g.natural_logged_leaning = -1.0f;
+            g.natural_logged_world = -1.0f;
         }
         VideoCore::Immersive::g_world_once.store(false, std::memory_order_relaxed); // AzaharFrame oot
         g.menu_exact.Reset(); // AzaharFrame oot
@@ -1148,7 +1302,11 @@ void OnFrame(const FrameInfo& info) {
     }
     if (IsViewMode(mode)) {
         // Mode 2 shows one quad to both eyes: each eye sees it from half the IPD to the side.
-        const float eye_shift = L::SharedQuadEyeShift(mode, g.head_place, g.half_ipd);
+        // AzaharFrame natural: at World Scale's distance (last frame's, eased).
+        const float eye_shift =
+            mode == 2 && g.full_distance.Value() > 0.0f
+                ? g.half_ipd / g.full_distance.Value()
+                : L::SharedQuadEyeShift(mode, g.head_place, g.half_ipd);
         // AzaharFrame depth: the game's own angle and shape when its projection was found
         // (each change logged), else the settings. AzaharFrame immersive: the screen is sized
         // and shaped with the settled camera; a zoom only changes the gain.
@@ -1214,6 +1372,12 @@ void OnFrame(const FrameInfo& info) {
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
+        // AzaharFrame natural: World Scale is the screen's distance at the angle as set (eased),
+        // so the game's own 3D, its natural limit and the leaning all follow it.
+        if (info.screens_live) {
+            MigrateWorldScale(mode);
+            g.solved.distance = FullScreenDistance(mode);
+        }
     }
     // AzaharFrame stereo: without a game on view the slider holds (a quick save loading); another
     // game resets it as it starts (above). AzaharFrame natural: UpdateNatural (was UpdateStereoCap).
@@ -1271,11 +1435,10 @@ void OnFrame(const FrameInfo& info) {
             }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
-            // AzaharFrame natural: leaning by its own scale (UpdateNatural: from the game's own
-            // 3D, else the fixed one), no longer 3D Depth's; mode 3's eyes 3D Depth x that.
-            int source = 0;
-            const float leaning = g.leaning.Value() > 0.0f ? g.leaning.Value()
-                                                           : NaturalLeaningNow(source);
+            // AzaharFrame natural: leaning by the scale the 3D shows (UpdateNatural: the game's
+            // own 3D over the picture's width at World Scale's distance, else 1.2.0's scale),
+            // no longer 3D Depth's; mode 3's eyes 3D Depth x that.
+            const float leaning = std::max(g.leaning, 0.0f);
             // AzaharFrame integ9: POSITION_SCALE moves the head position's share only; the
             // game's two eyes (game_pos_scaler, 3D Depth) stay as they are.
             FillInverseView(q, p, leaning * g.tuning.position_scale, data.inv_view);
@@ -1479,7 +1642,7 @@ std::string DepthChangeToast(unsigned depth) {
 // natural: the game camera's head position scale is the leaning scale (UpdateNatural), not known
 // before a Full mode's first frame: the log says so.
 static std::string PositionScaleLine() {
-    const float base = g.leaning.Value();
+    const float base = g.leaning;
     if (!(base > 0.0f)) {
         return fmt::format("head position x{:.2f} (of the leaning scale, not known yet)",
                            g.tuning.position_scale);
@@ -1632,7 +1795,7 @@ float AnchorFollowNow(bool follow_eye) {
         return depth == 0.0f ? 0.0f : std::clamp(1.0f - g.solved.distance / depth, -20.0f, 1.0f);
     }
     // AzaharFrame natural: the head moves the game camera by the leaning scale.
-    const float scaler = std::max(g.leaning.Value(), 0.0f) * g.tuning.position_scale; // integ9
+    const float scaler = std::max(g.leaning, 0.0f) * g.tuning.position_scale; // integ9
     const float focus = L::AnchorFollow(
         g.solved.distance, scaler,
         VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
@@ -1928,7 +2091,51 @@ void OnGameInput(Input::InputFrame& in) {
     L::Placement& place = wide ? g.wide_place : g.head_place;
     // Modes 2 and 3 move with the head; mode 1 is fixed around the rest pose.
     const Input::Posef frame = ToIn(wide ? g.ref : g.view.head);
-    const L::Adjuster::Result r = g.adjuster.Update(in, frame, dt, enabled, place);
+    // AzaharFrame natural: in the Full modes the stick forward/back is World Scale (the screen's
+    // distance at the same angle, and the world's size with it).
+    float world_ratio = 1.0f;
+    const L::Adjuster::Result r =
+        g.adjuster.Update(in, frame, dt, enabled, place, wide ? nullptr : &world_ratio);
+    if (!wide && r.active && world_ratio != 1.0f) {
+        const L::Placement saved = L::Clamped(place);
+        const float before =
+            g.world_migration == 2
+                ? L::ClampWorldScale(L::WorldScaleForDistance(
+                      saved.distance, saved.size,
+                      Settings::values.vr_immersive_follow_screen.GetValue()))
+                : WorldScaleSetting();
+        const float after = L::ClampWorldScale(before * world_ratio);
+        if (after != before) {
+            auto& ws = Settings::values.vr_immersive_world_scale;
+            if (g.title_id) {
+                ws.SetGlobal(false);
+            }
+            ws.SetValue(after);
+            g.world_migration = 1; // the player's own value from now on
+        }
+        const long shown = std::lround(after);
+        if (shown != g.world_toasted) {
+            g.world_toasted = shown;
+            ShowToastText(L::WorldScaleToast(after));
+        }
+    }
+    if (!wide && r.active && !g.grab_active) {
+        g.grab_size = place.size;
+        g.world_toasted = -1;
+    }
+    const bool grabbed = g.grab_active;
+    g.grab_active = r.active;
+    if (!wide && r.released && grabbed) {
+        if (g.world_toasted >= 0) {
+            SetWorldScale(WorldScaleSetting(), false); // to the game's file
+            LOG_INFO(Frontend, "xr: World Scale {:.1f} % by the grip (screen at {:.2f} m)",
+                     WorldScaleSetting(), g.solved.distance);
+        } else if (g.grab_size > 0.0f && std::abs(place.size / g.grab_size - 1.0f) > 0.02f &&
+                   Settings::values.vr_immersive_follow_screen.GetValue()) {
+            ShowToastText(Names::kWorldScaleFollowsToast);
+        }
+        g.world_toasted = -1;
+    }
     if (enabled) {
         for (auto& hand : in.hand) {
             hand.grip = 0.0f; // the mapper grabs nothing
@@ -1948,6 +2155,13 @@ void OnGameInput(Input::InputFrame& in) {
 
 void MeasureCameraAgain() { // AzaharFrame fovonce
     g_remeasure++;
+}
+
+std::optional<WorldScaleSave> TakeWorldScaleSave() { // AzaharFrame natural
+    std::scoped_lock lock{g_world_save_mutex};
+    std::optional<WorldScaleSave> out = g_world_save;
+    g_world_save.reset();
+    return out;
 }
 
 std::optional<int> TakeMeasuredFov() { // AzaharFrame fovonce

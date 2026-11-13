@@ -1114,6 +1114,13 @@ std::string SettingsSummary() {
     s += fmt::format("{}: {} %\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
     s += fmt::format("Screen Layout: {}\n", v.vr_screen_layout.GetValue());
     s += fmt::format("Screen Curve: {}\n", v.vr_screen_curve.GetValue());
+    // AzaharFrame natural: World Scale, Follow Screen Size and the Full modes' 3D Depth.
+    s += fmt::format("{}: {:.0f} %\n", FrameXr::Immersive::Names::kWorldScale,
+                     v.vr_immersive_world_scale.GetValue());
+    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kFollowScreen,
+                     on(v.vr_immersive_follow_screen.GetValue()));
+    s += fmt::format("{}: {} %\n", FrameXr::Immersive::Names::kImmersiveDepth,
+                     v.vr_immersive_depth.GetValue());
     s += fmt::format("Window Scale: {} %\n", v.vr_window_scale.GetValue());
     s += fmt::format("Background: {}\n",
                      v.vr_background.GetValue() == 1 ? "Passthrough" : "Black");

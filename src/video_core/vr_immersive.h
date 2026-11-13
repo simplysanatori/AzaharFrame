@@ -60,7 +60,8 @@ inline float UsableIpd(float ipd_m, float fallback_m) {
 }
 
 /// AzaharFrame ipd: mode 3's shift of the game camera for one eye (the view matrix's x
-/// translation): the Depth Factor (game_pos_scaler) x half the IPD, left eye negative.
+/// translation): the eye scale (game_pos_scaler: 3D Depth x the leaning, units per metre) x
+/// half the IPD, left eye negative.
 inline float GameEyeOffset(float game_pos_scaler, float ipd_m, bool left_eye) {
     return game_pos_scaler * (left_eye ? -1.0f : 1.0f) * (ipd_m / 2.0f);
 }

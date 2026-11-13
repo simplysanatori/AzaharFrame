@@ -293,7 +293,10 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_positional_game_scaler.SetGlobal(true);
     values.vr_immersive_eye_indicator.SetGlobal(true);
     values.vr_immersive_depth.SetGlobal(true);   // AzaharFrame natural
-    values.vr_immersive_leaning.SetGlobal(true);
+    values.vr_immersive_world_scale.SetGlobal(true);
+    values.vr_immersive_follow_screen.SetGlobal(true);
+    values.vr_immersive_world_set.SetGlobal(true);
+    values.vr_immersive_eye_per_far.SetGlobal(true);
     values.vr_hide_bottom_screen.SetGlobal(true);
     values.vr_top_aspect.SetGlobal(true);
     values.vr_immersive_game_fov.SetGlobal(true);

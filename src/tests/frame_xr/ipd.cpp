@@ -222,7 +222,7 @@ TEST_CASE("FrameXr ipd: the rasterizer gets the measured IPD", "[frame_xr]") {
     REQUIRE(r.ipd_calls == 1);
     REQUIRE(r.mode == 3);
     REQUIRE(r.ipd == Approx(0.0612f));
-    // The game's eyes: the Depth Factor x half the measured IPD each way.
+    // The game's eyes: the eye scale x half the measured IPD each way.
     CHECK(GameEyeOffset(r.game_pos_scaler, r.ipd, true) == Approx(10.0f * 0.0306f));
     CHECK(GameEyeOffset(r.game_pos_scaler, r.ipd, false) == Approx(-10.0f * 0.0306f));
     // A dial change reaches it at the next latch.

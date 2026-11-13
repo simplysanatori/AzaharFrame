@@ -2902,7 +2902,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
                   Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
-                  Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::DepthFactor, Id::Autosave,
+                  Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::WorldScale, Id::FollowScreen,
+                  Id::Autosave,
                   Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
                   Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
                   Id::ReticleAtEdge, Id::MotionControls, Id::ReticleEdgeCStick}) {
@@ -3195,7 +3196,7 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
     kit.Begin(canvas);
     const std::vector<std::vector<std::string>> rows{
         OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
-        OptionsFor(Id::DepthFactor), OptionsFor(Id::WiderView)};
+        {"1x", "10x", "100x"}, OptionsFor(Id::WiderView)};
     for (const auto& opts : rows) {
         const float w = kit.SegmentedWidth(opts);
         for (float x1 = 300.0f; x1 < kPanelW; x1 += 1.37f) {

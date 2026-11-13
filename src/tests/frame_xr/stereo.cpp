@@ -409,12 +409,15 @@ TEST_CASE("Stereo cap: the 3D Depth toast says the limit", "[frame_xr][stereo][i
     }
 }
 
-TEST_CASE("Stereo cap: the 3D Depth tooltips say it is limited", "[frame_xr][stereo][integ8]") {
+// AzaharFrame natural: the Full modes' 3D Depth is a share of the natural 3D (never past
+// infinity), so the tooltips no longer speak of a limit.
+TEST_CASE("3D Depth tooltips: the Full modes' own 3D Depth", "[frame_xr][stereo][natural]") {
     using namespace FrameXr::Immersive::Names;
-    const std::string note = kDepth3dCapNote;
-    CHECK(note == "In Full (6DoF), it's limited so faraway scenery never goes past infinity.");
-    CHECK(std::string(kDepth3dTip) == "How deep the 3D looks in this game. " + note);
-    CHECK(std::string(kDepth3dWindowTip) == "How deep the 3D looks. " + note);
+    CHECK(std::string(kDepth3dTip) ==
+          "How deep the 3D looks. In the Full modes, 100% makes faraway scenery look truly far "
+          "away.");
+    CHECK(std::string(kDepth3dWindowTip) ==
+          "How deep the 3D looks. The Full modes use Immersive 3D Depth.");
 }
 
 TEST_CASE("Stereo cap: the game's 3D per slider unit, measured", "[frame_xr][stereo]") {

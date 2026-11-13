@@ -1662,6 +1662,24 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             hooks.menu_request(r);
         }
     }
+    // AzaharFrame natural: World Scale set by the grips or the migration, and the game's own 3D
+    // once measured: its file gets them.
+    if (const std::optional<Immersive::WorldScaleSave> ws = Immersive::TakeWorldScaleSave()) {
+        MenuRequest r;
+        r.command = MenuCommand::SetSetting;
+        r.setting = MenuSetting::WorldScaleSaved;
+        r.value = ws->world_scale > 0.0f ? static_cast<int>(std::lround(ws->world_scale * 100.0f))
+                                         : -1;
+        r.text = ws->migrated ? "migrated" : "";
+        if (ws->eye_per_far > 0.0f) {
+            r.text += fmt::format(" k={:.5f}", ws->eye_per_far);
+        }
+        r.per_game = true;
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.menu_request) {
+            hooks.menu_request(r);
+        }
+    }
     // AzaharFrame vrsize: while a grip holds a screen the D-pad nudges it (the immersive screen:
     // the global Immersive Offset; the normal pair: a step about the head) and never reaches
     // the game. The normal pair's drag is the mapper's, as of the last frame.

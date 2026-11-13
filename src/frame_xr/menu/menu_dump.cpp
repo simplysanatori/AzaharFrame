@@ -83,7 +83,8 @@ Menu::MenuModel SampleModel() {
     m.game_fov = 60;
     m.scale_x = 0;
     m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
-    m.depth_factor = 0;
+    m.world_scale_stop = 20;
+    m.follow_screen = true;
     return m;
 }
 

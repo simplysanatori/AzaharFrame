@@ -253,7 +253,9 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Hold Right Stick Click (1 s)", "Reset Screens and View");
     Row(g, "Grip on a Screen", With("Move Screens", Grips(b)));
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
-    Row(g, "Hold Grip + Stick Up or Down", "Nearer or Farther");
+    // AzaharFrame natural: in the Full modes the distance is World Scale.
+    Row(g, "Hold Grip + Stick Up or Down",
+        std::string("Nearer or Farther (Full Modes: ") + ImNames::kWorldScale + ")");
     Row(g, "Hold Grip + Stick Sideways", "Screen Size");
     Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
     // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales
@@ -352,7 +354,9 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
            Line("Hold Click (1 s)", "Reset Screens and View")});
     Label(g, kBoth, {CtrlPart::Grip},
           {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("Hold Grip +"),
-           Sub("Stick Up or Down", "Nearer or Farther"), Sub("Stick Sideways", "Screen Size"),
+           // AzaharFrame natural: in the Full modes, World Scale
+           Sub("Stick Up or Down", std::string("Nearer / ") + ImNames::kWorldScale),
+           Sub("Stick Sideways", "Screen Size"),
            Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
            // AzaharFrame kiu: "/", as wide as fits between the stick labels
            Sub("D-Pad Up or Down", std::string("Curve / ") + ImNames::kRenderMargin)}); // curve

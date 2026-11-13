@@ -156,4 +156,15 @@ void MeasureCameraAgain();
 /// (the settings have it; its file should get it), once. XR thread.
 std::optional<int> TakeMeasuredFov();
 
+/// AzaharFrame natural: World Scale or the game's own 3D, set while the game plays (the grips,
+/// the migration from 1.2.0, the first measure of the game's eyes), for the game's own file:
+/// `world_scale` percent (below 0: unchanged; with `migrated`, vr_immersive_world_set too) and
+/// `eye_per_far` (vr_immersive_eye_per_far; below 0: unchanged). The Qt side saves it.
+struct WorldScaleSave {
+    float world_scale = -1.0f;
+    float eye_per_far = -1.0f;
+    bool migrated = false;
+};
+std::optional<WorldScaleSave> TakeWorldScaleSave();
+
 } // namespace FrameXr::Immersive

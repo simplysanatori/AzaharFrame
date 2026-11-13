@@ -42,11 +42,18 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ScaleY:
         f(v.vr_immersive_scale_y);
         return true;
-    case Id::DepthFactor:
-        f(v.vr_immersive_positional_game_scaler);
+    case Id::WorldScale: // AzaharFrame natural: World Scale
+        f(v.vr_immersive_world_scale);
         return true;
-    case Id::Depth3d:
-        f(v.factor_3d);
+    case Id::FollowScreen: // AzaharFrame natural
+        f(v.vr_immersive_follow_screen);
+        return true;
+    case Id::Depth3d: // AzaharFrame natural: the Full modes' own in them
+        if (v.vr_immersive_mode.GetValue() >= 2) {
+            f(v.vr_immersive_depth);
+        } else {
+            f(v.factor_3d);
+        }
         return true;
     case Id::InternalResolution:
         f(v.resolution_factor);

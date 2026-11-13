@@ -187,10 +187,11 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
         fill(v.vr_immersive_match_camera_mode, static_cast<u32>(preset.match_camera),
              "Detect Game FOV"); // AzaharFrame fovonce: 0 Off, 1 Once, 2 Always
     }
-    // AzaharFrame depth: the game's world scale (the eye distance in mode 3).
+    // AzaharFrame depth: the game's world scale (the eye distance in mode 3). AzaharFrame
+    // natural: 1.2.0's multiplier, which World Scale's migration turns into the same world.
     if (preset.depth_multiplier != 0 && fits) {
         fill(v.vr_immersive_positional_game_scaler, static_cast<u32>(preset.depth_multiplier),
-             "Depth Factor Multiplier");
+             "World Scale (1.2.0 multiplier)");
     }
     if (preset.game_fov != 0 && fits) {
         fill(v.vr_immersive_game_fov, preset.game_fov, "Immersive Game FOV");

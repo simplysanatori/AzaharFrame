@@ -250,8 +250,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ScaleX;
     case Id::ScaleY:
         return MenuSetting::ScaleY;
-    case Id::DepthFactor:
-        return MenuSetting::DepthFactor;
+    case Id::WorldScale:
+        return MenuSetting::WorldScale;
+    case Id::FollowScreen: // AzaharFrame natural
+        return MenuSetting::FollowScreen;
     case Id::Depth3d:
         return MenuSetting::Depth3d;
     case Id::InternalResolution:
@@ -937,7 +939,13 @@ void MenuPanel::BuildModel(const Host& host) {
     m.motion_controls = static_cast<int>(std::min<u32>(v.vr_motion_controls.GetValue(), 3));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
-    m.depth_3d = static_cast<int>(std::min<u32>(v.factor_3d.GetValue(), 100)); // depth3d
+    // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
+    m.depth_3d = static_cast<int>(
+        v.vr_immersive_mode.GetValue() >= 2
+            ? Immersive::Layout::NaturalDepthPercent(
+                  !v.vr_immersive_depth.UsingGlobal(), v.vr_immersive_depth.GetValue(),
+                  !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue())
+            : std::min<u32>(v.factor_3d.GetValue(), 100));
     // AzaharFrame menuux: the renderer's settings.
     m.internal_resolution = static_cast<int>(std::min<u32>(v.resolution_factor.GetValue(), 18));
     m.dynamic_resolution = v.vr_dynamic_resolution.GetValue();
@@ -1047,8 +1055,9 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame kiu: signed percent
     m.scale_x = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_x.GetValue());
     m.scale_y = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_y.GetValue());
-    m.depth_factor =
-        static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2));
+    // AzaharFrame natural: World Scale's nearest stop, Follow Screen Size.
+    m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
+    m.follow_screen = v.vr_immersive_follow_screen.GetValue();
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
     m.autosave = v.autosave_enabled.GetValue();
     m.autosave_every = 0;
@@ -1297,12 +1306,26 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_immersive_scale_y, static_cast<s32>(r.value), per_game);
         r.setting = MenuSetting::ScaleY;
         break;
-    case Id::DepthFactor:
-        Apply(v.vr_immersive_positional_game_scaler, u, per_game);
-        r.setting = MenuSetting::DepthFactor;
+    case Id::WorldScale: { // AzaharFrame natural: `value` the slider's stop; eased in
+        const auto& stops = Immersive::Layout::kWorldScaleStops;
+        const float percent = stops[std::min<std::size_t>(u, stops.size() - 1)];
+        Apply(v.vr_immersive_world_scale, percent, per_game);
+        r.value = static_cast<int>(std::lround(percent * 100.0f));
+        r.setting = MenuSetting::WorldScale;
+        ShowToastText(Immersive::Layout::WorldScaleToast(percent));
+        break;
+    }
+    case Id::FollowScreen: // AzaharFrame natural
+        Apply(v.vr_immersive_follow_screen, value != 0, per_game);
+        r.setting = MenuSetting::FollowScreen;
         break;
     case Id::Depth3d: // AzaharFrame depth3d: the HID's 3D slider reads it on every pad update
-        Apply(v.factor_3d, std::min<u32>(u, 100), per_game);
+        // AzaharFrame natural: in the Full modes their own 3D Depth (percent of the natural 3D).
+        if (v.vr_immersive_mode.GetValue() >= 2) {
+            Apply(v.vr_immersive_depth, std::min<u32>(u, 100), per_game);
+        } else {
+            Apply(v.factor_3d, std::min<u32>(u, 100), per_game);
+        }
         r.setting = MenuSetting::Depth3d;
         break;
     default:
@@ -1912,6 +1935,9 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DynamicResolution: // AzaharFrame menuux
         SetSetting(t.id, model.dynamic_resolution ? 0 : 1, host);
         break;
+    case Id::FollowScreen: // AzaharFrame natural
+        SetSetting(t.id, model.follow_screen ? 0 : 1, host);
+        break;
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);
         break;
@@ -1956,7 +1982,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
-    case Id::DepthFactor:
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:

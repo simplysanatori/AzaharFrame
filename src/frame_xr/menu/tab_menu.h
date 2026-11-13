@@ -128,7 +128,8 @@ enum class Id : int {
     MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
     ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -30 to +30 % (5 % steps), per game
     ScaleY, ///< AzaharFrame kiu: Vertical Scale, as ScaleX
-    DepthFactor,
+    WorldScale, ///< AzaharFrame natural: World Scale (vr_immersive_world_scale), per game
+    FollowScreen, ///< AzaharFrame natural: Follow Screen Size (vr_immersive_follow_screen), per game
     MoreSettings,
     HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
     ReportProblem, ///< AzaharFrame crashreport: Report a Problem (a dialog in Azahar's window)
@@ -314,7 +315,10 @@ struct MenuModel {
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     int scale_x = 0; ///< AzaharFrame kiu: percent, -30 to 30
     int scale_y = 0;
-    int depth_factor = 0;
+    /// AzaharFrame natural: World Scale's slider stop (Layout::kWorldScaleStops; 20 = 100 %,
+    /// Automatic) and Follow Screen Size.
+    int world_scale_stop = 20;
+    bool follow_screen = true;
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;
     int autosave_every = 2; ///< index into kAutosaveEvery
