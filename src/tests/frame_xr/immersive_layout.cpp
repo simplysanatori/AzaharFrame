@@ -183,10 +183,10 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
                 // Inside what fills the view, centred on its middle.
                 REQUIRE(CoverSpareDeg(frame, s) <= kFillMarginDeg + 0.01f);
                 REQUIRE(s.pitch_rad == Approx(ViewMiddlePitch(frame)));
-                // The view is taller than the picture: the game draws further up and down.
+                // AzaharFrame oot: the game's own shape, widened evenly by Wider View.
                 REQUIRE(s.factor == Approx(o.wider));
-                REQUIRE(s.factor_y > s.factor);
-                REQUIRE(s.factor_y <= kMaxFactorY);
+                REQUIRE(s.factor_y == Approx(s.factor));
+                REQUIRE(s.aspect == Approx(aspect));
                 // Not stretched: the same scale both ways.
                 REQUIRE(s.factor * t * aspect / (s.tan_half_y * s.aspect) == Approx(s.gain));
                 REQUIRE(s.factor_y * t / s.tan_half_y == Approx(s.gain));
@@ -207,9 +207,13 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         const auto at_gain_1 = [](float deg) {
             return 2.0f * std::atan(std::tan(Rad(deg / 2.0f)) * 1.03f) / Rad(1.0f);
         };
+        // AzaharFrame oot: as wide as before, and as high as the game's own shape (the screen took
+        // the view's shape before: 83 degrees high, the game drawing 1.75 times its height).
         REQUIRE(across == Approx(at_gain_1(94.0f)).margin(1.0f));
-        REQUIRE(high == Approx(at_gain_1(83.0f)).margin(1.0f));
-        REQUIRE(s.factor_y == Approx(1.75f).margin(0.03f));
+        const float high_own = 2.0f * std::atan(1.4f * std::tan(Rad(27.5f)) / 1.03f) / Rad(1.0f);
+        REQUIRE(high == Approx(at_gain_1(high_own)).margin(1.0f));
+        REQUIRE(high < 83.0f - 5.0f);
+        REQUIRE(s.factor_y == Approx(1.4f));
         REQUIRE(s.gain == Approx(1.0f));
         REQUIRE(s.gain_x == Approx(1.0f / 0.9f));
     }
@@ -245,7 +249,7 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         REQUIRE(s.aspect == Approx(kAspect3ds));
         REQUIRE(s.factor_y == Approx(s.factor));
     }
-    SECTION("the game draws at most kMaxFactorY times its height") {
+    SECTION("a view much taller than the picture: still the picture's own shape") {
         ViewFov tall = Symmetric(60);
         tall.outer_left = Rad(-30.0f);
         tall.outer_right = Rad(30.0f);
@@ -254,8 +258,9 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         Options wider;
         wider.wider = WiderFactor(4);
         const HeadLocked s = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, tall, 0.0f, wider);
-        REQUIRE(s.factor_y == Approx(kMaxFactorY));
-        REQUIRE(s.gain < kMaxGain);
+        REQUIRE(s.factor_y == Approx(s.factor));
+        REQUIRE(s.aspect == Approx(kAspect3ds));
+        REQUIRE(s.gain <= kMaxGain);
         REQUIRE(s.factor_y * std::tan(Rad(20)) / s.tan_half_y == Approx(s.gain));
     }
     SECTION("what fills the view: at least kMinFillHalfHeightDeg high, wider for mode 2") {
@@ -1327,7 +1332,9 @@ TEST_CASE("FrameXr immersive: views that change each frame refit the screen each
     const HeadLocked up = SolveMk7(FrameView(1.9f));
     const HeadLocked down = SolveMk7(FrameView(-1.9f));
     REQUIRE(std::abs(up.pitch_rad - down.pitch_rad) > Rad(1.5f));
-    REQUIRE(std::abs(up.factor_y - down.factor_y) > 0.05f);
+    // AzaharFrame oot: the game's up-and-down factor is Wider View's own now, whatever the view.
+    REQUIRE(up.factor_y == Approx(down.factor_y));
+    REQUIRE(up.factor_y == Approx(up.factor));
 }
 
 TEST_CASE("FrameXr immersive: the screen is fitted to a settled view", "[frame_xr]") {
@@ -1823,3 +1830,70 @@ TEST_CASE("FrameXr immersive: Off and Set Once hand the angles over as before",
     CHECK(a.screen_deg < 50.0f);
     CHECK(a.screen_deg >= 50.0f - FovSlew::kMaxStepDeg);
 }
+
+// AzaharFrame oot: the owner's headset test of Ocarina of Time 3D with a single-screen mod ("it
+// says 5:3, but it is not 5:3", the item screen off kilter): at Wider View Off the game still
+// drew 1.25 times its height on the Frame, and more up and down than across at every level.
+// Wider View now widens the game's own picture evenly. For any settings: Off is exactly the
+// game's frame, every level pads both ways by the same factor, the screen has the picture's own
+// shape (over the narrowings), the scale is the same both ways and the gains are the padded
+// game tangent over the screen's on each axis. Nothing here is fitted to a game or a preset.
+TEST_CASE("FrameXr immersive: Wider View pads the game's own shape evenly for any settings",
+          "[frame_xr]") {
+    std::mt19937 rng(20261113);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    const auto lerp = [&](float a, float b) { return a + (b - a) * u(rng); };
+    int checked = 0;
+    for (int i = 0; i < 2000; ++i) {
+        ViewFov v;
+        v.left = Rad(-lerp(35.0f, 60.0f));
+        v.right = Rad(lerp(35.0f, 60.0f));
+        v.down = Rad(-lerp(35.0f, 65.0f));
+        v.up = Rad(lerp(30.0f, 60.0f));
+        v.outer_left = v.left - Rad(lerp(0.0f, 10.0f));
+        v.outer_right = v.right + Rad(lerp(0.0f, 10.0f));
+        v.outer_down = v.down - Rad(lerp(0.0f, 2.0f));
+        v.outer_up = v.up + Rad(lerp(0.0f, 2.0f));
+        const uint32_t level = static_cast<uint32_t>(i % 5);
+        const float aspect = lerp(1.2f, 2.4f);
+        const float fov = lerp(30.0f, 110.0f);
+        Placement p;
+        p.size = lerp(kMinSize, kMaxSize);
+        p.pitch_deg = lerp(-20.0f, 10.0f);
+        p.distance = lerp(kMinDistance, kMaxDistance);
+        Options o;
+        o.wider = WiderFactor(level);
+        o.squeeze = static_cast<float>(5 * (i % 7)) / 100.0f;
+        o.squeeze_y = static_cast<float>(5 * ((i / 7) % 4)) / 100.0f;
+        if (i % 3 == 0) {
+            o.live_fov_y_deg = fov * lerp(0.7f, 1.2f); // a zoom
+        }
+        const float shift = (i % 2) ? lerp(0.0f, 0.035f / kMinDistance) : 0.0f;
+        const HeadLocked s = SolveHeadLocked(p, fov, aspect, v, shift, o);
+        const float t = std::tan(Rad(fov / 2.0f));
+        const float live = o.live_fov_y_deg > 0.0f ? std::tan(Rad(o.live_fov_y_deg / 2.0f)) : t;
+        // Even padding; Off is the game's own frame.
+        REQUIRE(s.factor == Approx(WiderFactor(level)));
+        REQUIRE(s.factor_y == Approx(s.factor));
+        if (level == 0) {
+            REQUIRE(s.factor == 1.0f);
+            REQUIRE(s.factor_y == Approx(1.0f));
+        }
+        // The screen's shape: the picture's, over the narrowings.
+        REQUIRE(s.aspect == Approx(aspect * (1.0f - o.squeeze) / (1.0f - o.squeeze_y)));
+        // The same scale both ways before narrowing: the screen's tangents over the game's.
+        const float qx = s.tan_half_y * s.aspect / (1.0f - o.squeeze);
+        const float qy = s.tan_half_y / (1.0f - o.squeeze_y);
+        REQUIRE(qx / (s.factor * aspect * t) == Approx(qy / (s.factor_y * t)));
+        // A point of the game's frame (its corner, at w = 1 inside the view) lands where the
+        // frame gives it: the frame is 1 / factor of the screen both ways.
+        REQUIRE((qx / s.factor) / qy == Approx(aspect));
+        // The gains: the padded game tangent over the screen's, per axis, within the limits.
+        const float base = s.factor_y * live / qy;
+        REQUIRE(s.gain == Approx(std::clamp(base / (1.0f - o.squeeze_y), kMinGain, kMaxGain)));
+        REQUIRE(s.gain_x == Approx(std::clamp(base / (1.0f - o.squeeze), kMinGain, kMaxGain)));
+        ++checked;
+    }
+    REQUIRE(checked == 2000);
+}
+

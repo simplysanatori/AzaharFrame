@@ -376,11 +376,12 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // What fills the view, fitted at its middle, so moving the screen up or down never resizes it.
     const Cover cover = DefaultCover(view, ViewMiddlePitch(view), eye_shift);
     float qx = s.factor * a * t;
-    // The view's shape (the Frame's is taller than 5:3), never shorter than the picture's own
-    // (the game would be cut off at the top and bottom); the game draws at most kMaxFactorY times
-    // its own height.
-    float qy = qx * cover.tan_y / cover.tan_x;
-    qy = std::clamp(qy, qx / a, kMaxFactorY * qx / (s.factor * a));
+    // AzaharFrame oot: the game's own shape. Wider View widens the picture by the same factor
+    // both ways (Off: exactly the game's frame). The screen used to take the view's shape, so
+    // the game drew 1.25 times its height on the Frame even at Off (a 4:3 picture from a 5:3
+    // game), and full-screen 2D (a 2D vertex at the edge keeps its place) was stretched up and
+    // down against the HUD drawn on it.
+    float qy = qx / a;
     // Never bigger than filling the view (a very wide game camera): smaller, gain above 1.
     const float fit = std::min({1.0f, cover.tan_x / qx, cover.tan_y / qy});
     qx *= fit * p.size;
