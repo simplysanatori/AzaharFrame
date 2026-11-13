@@ -5142,7 +5142,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::MeasuredGameFov: // AzaharFrame fovonce: the game's own value, and measured
         set(v.vr_immersive_game_fov, static_cast<s32>(std::clamp(r.value, 30, 110)));
         set(v.vr_immersive_fov_measured, true);
-        LOG_INFO(Frontend, "xr: Match Game Camera Set Once: Immersive Game FOV {} saved for {}",
+        LOG_INFO(Frontend, "xr: Detect Game FOV Once: Immersive Game FOV {} saved for {}",
                  r.value, g_frame_game_config_name);
         break;
     case S::NarrowScreen:

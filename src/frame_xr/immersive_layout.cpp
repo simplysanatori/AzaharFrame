@@ -875,10 +875,9 @@ void FovFollow::Add(int64_t t_ms, float fov_deg) {
         return;
     }
     window_.emplace_back(t_ms, fov_deg);
-    window_.erase(window_.begin(),
-                  std::find_if(window_.begin(), window_.end(), [t_ms](const auto& m) {
-                      return m.first > t_ms - kWindowMs;
-                  }));
+    if (window_.size() > kCount) {
+        window_.erase(window_.begin(), window_.end() - kCount);
+    }
     std::vector<float> v;
     v.reserve(window_.size());
     for (const auto& m : window_) {
@@ -925,6 +924,74 @@ float FovEase::Update(float target, int64_t now_ms) {
         speed_ = 0.0f;
     }
     return value_;
+}
+
+// AzaharFrame fovonce: a step-limited, ramped follow (a trapezoid in speed). Each frame the
+// step toward the target is the largest of (speed up, keep, slow down) that still leaves room to
+// brake at kStepChangeDeg a frame; the last step lands on the target. A target that comes back
+// past the value while it moves: it slows down, turns and comes back the same way.
+float FovSlew::Update(float target) {
+    if (!std::isfinite(target)) {
+        return value_;
+    }
+    if (!have_) {
+        have_ = true;
+        value_ = target;
+        step_ = 0.0f;
+        moving_ = false;
+        return value_;
+    }
+    constexpr float a = kStepChangeDeg;
+    const float e = target - value_;
+    const float dist = std::abs(e);
+    if (dist < 1e-4f && std::abs(step_) <= a) {
+        value_ = target;
+        step_ = 0.0f;
+        moving_ = false;
+        return value_;
+    }
+    const float dir = e > 0.0f ? 1.0f : -1.0f;
+    const float v = step_ * dir; // the speed toward the target (negative: moving away)
+    // Braking from step s at a a frame covers (s - a) + (s - 2a) + ... = s (s - a) / (2a).
+    const auto brake = [](float s) { return s > a ? s * (s - a) / (2.0f * a) : 0.0f; };
+    float next;
+    if (v < 0.0f) {
+        next = v + a; // slow down, then turn
+    } else {
+        next = std::max(v - a, 0.0f);
+        for (const float s : {std::min(v + a, kMaxStepDeg), std::min(v, kMaxStepDeg)}) {
+            if (dist - s >= brake(s)) {
+                next = s;
+                break;
+            }
+        }
+        if (next <= 0.0f) {
+            next = std::min(a, dist); // creep the last bit
+        }
+        if (next > dist && v - a <= dist) {
+            next = dist; // land on it
+        }
+    }
+    step_ = next * dir;
+    value_ += step_;
+    moving_ = true;
+    return value_;
+}
+
+CameraAngles::Out CameraAngles::Update(unsigned mode, float screen_deg, float live_deg,
+                                       int64_t now_ms) {
+    if (mode == 1) {
+        slew_screen_.Reset();
+        slew_live_.Reset();
+        return {ease_screen_.Update(screen_deg, now_ms), ease_live_.Update(live_deg, now_ms)};
+    }
+    if (mode == 2) {
+        ease_screen_.Reset();
+        ease_live_.Reset();
+        return {slew_screen_.Update(screen_deg), slew_live_.Update(live_deg)};
+    }
+    Reset();
+    return {screen_deg, live_deg};
 }
 
 } // namespace FrameXr::Immersive::Layout

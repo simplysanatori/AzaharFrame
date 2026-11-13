@@ -319,7 +319,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
     static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
-    static const std::vector<std::string> kMatchCamera{"Off", "Set Once", "Always"}; // fovonce
+    static const std::vector<std::string> kMatchCamera{"Off", "Once", "Always"}; // fovonce
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
     switch (id) {
@@ -488,8 +488,8 @@ std::string LabelFor(Id id) {
         return "Wider View";
     case Id::GameFov:
         return "Immersive Game FOV";
-    case Id::MatchCamera: // AzaharFrame depth
-        return "Match Game Camera";
+    case Id::MatchCamera: // AzaharFrame depth, fovonce
+        return "Detect Game FOV";
     case Id::NarrowScreen:
         return "Narrow Screen";
     case Id::DepthFactor:
@@ -597,10 +597,9 @@ std::string ExplainOption(Id id, int index) {
         case 0:
             return "Uses Immersive Game FOV as set.";
         case 1:
-            return "Measures the game's camera once and sets Immersive Game FOV to match. Choose "
-                   "again to remeasure.";
+            return "Measures it once while you play and saves it. Choose again to remeasure.";
         case 2:
-            return "Follows the game's camera smoothly as it changes.";
+            return "Keeps measuring and eases into changes.";
         default:
             break;
         }
@@ -681,7 +680,7 @@ std::string ExplainFor(Id id) {
     case Id::GameFov:
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce
-        return "Matches the screen to the game's own camera.";
+        return "Reads the game's field of view so the world lines up with your head.";
     case Id::NarrowScreen:
         return "Narrows the screen so the side HUD moves into view.";
     case Id::DepthFactor:

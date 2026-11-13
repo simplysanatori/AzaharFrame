@@ -1243,25 +1243,37 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     }
 }
 
-// AzaharFrame fovonce: Match Game Camera is Off | Set Once | Always on the Immersive section, per
+// AzaharFrame fovonce: Detect Game FOV (Match Game Camera) is Off | Once | Always on the Immersive section, per
 // game, each choice with its own tooltip; its label keeps the row's.
-TEST_CASE("Tab menu: Match Game Camera is Off, Set Once or Always", "[frame_xr][tabmenu]") {
-    CHECK(LabelFor(Id::MatchCamera) == "Match Game Camera");
+TEST_CASE("Tab menu: Detect Game FOV is Off, Once or Always", "[frame_xr][tabmenu]") {
+    CHECK(LabelFor(Id::MatchCamera) == "Detect Game FOV");
     CHECK(SectionOf(Id::MatchCamera) == SettingsSection::Immersive);
     CHECK(PerGameSetting(Id::MatchCamera));
-    CHECK(OptionsFor(Id::MatchCamera) == std::vector<std::string>{"Off", "Set Once", "Always"});
-    CHECK(ExplainFor(Id::MatchCamera) == "Matches the screen to the game's own camera.");
+    CHECK(OptionsFor(Id::MatchCamera) == std::vector<std::string>{"Off", "Once", "Always"});
+    CHECK(ExplainFor(Id::MatchCamera) ==
+          "Reads the game's field of view so the world lines up with your head.");
     CHECK(HasOptionTips(Id::MatchCamera));
     CHECK(ExplainOption(Id::MatchCamera, 0) == "Uses Immersive Game FOV as set.");
     CHECK(ExplainOption(Id::MatchCamera, 1) ==
-          "Measures the game's camera once and sets Immersive Game FOV to match. Choose again "
-          "to remeasure.");
-    CHECK(ExplainOption(Id::MatchCamera, 2) == "Follows the game's camera smoothly as it changes.");
+          "Measures it once while you play and saves it. Choose again to remeasure.");
+    CHECK(ExplainOption(Id::MatchCamera, 2) == "Keeps measuring and eases into changes.");
     CHECK(ExplainOption(Id::MatchCamera, 3).empty());
     CHECK(ExplainOption(Id::MatchCamera, kLabelIndex).empty());
     CHECK(MenuModel{}.match_camera == 2); // Always, the earlier "on"
 
-    // Each choice is a segment of the row, whichever is picked (Set Once can be picked again).
+    // Every tooltip fits the Settings pane on one line (DrawTooltip centres it within the pane;
+    // older builds aborted on one wider than the pane).
+    {
+        Kit kit{1.0f};
+        for (const std::string& text :
+             {ExplainFor(Id::MatchCamera), ExplainOption(Id::MatchCamera, 0),
+              ExplainOption(Id::MatchCamera, 1), ExplainOption(Id::MatchCamera, 2)}) {
+            INFO(text);
+            CHECK(kit.TextWidth(Type::Tooltip, text) + 28.0f <= kPanelW * 0.7f);
+        }
+    }
+
+    // Each choice is a segment of the row, whichever is picked (Once can be picked again).
     for (int pick = 0; pick < 3; pick++) {
         Drawn d;
         MenuModel m = Sample();

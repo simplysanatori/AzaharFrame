@@ -1566,6 +1566,7 @@ namespace {
 using FrameXr::Immersive::Layout::FovEase;
 using FrameXr::Immersive::Layout::FovEstimate;
 using FrameXr::Immersive::Layout::FovFollow;
+using FrameXr::Immersive::Layout::FovSlew;
 
 // A little measurement noise, the same every run (+-0.4 degrees).
 struct Noise {
@@ -1668,91 +1669,157 @@ TEST_CASE("FrameXr immersive: Set Once with no camera, or none steady, gives up"
     CHECK(paused.MeasuringMs() == 0);
 }
 
-TEST_CASE("FrameXr immersive: Always ignores a cut that is back within a second",
+TEST_CASE("FrameXr immersive: Always ignores a reading that is back within half a second",
           "[frame_xr][fovonce]") {
     Noise noise;
     FovFollow f;
-    FovEase screen;
-    std::vector<float> eased;
+    FovSlew screen;
+    std::vector<float> shown;
     int64_t t = 0;
-    // 52 degrees for 5 s, a cut to 80 for 1 s (measured at 5.00 to 5.75 s), 52 again.
+    // 52 degrees for 5 s; a flash to 80 for two measurements (5.00 and 5.25 s), 52 again; at
+    // 7 s a single reading at 30.
     for (; t < 10000; t += 250) {
-        const bool cut = t >= 5000 && t < 6000;
-        f.Add(t, (cut ? 80.0f : 52.0f) + (cut ? 0.0f : noise() * 0.1f));
+        const bool flash = t >= 5000 && t < 5500;
+        f.Add(t, flash ? 80.0f : t == 7000 ? 30.0f : 52.0f + noise() * 0.1f);
         CHECK(std::abs(f.Target() - 52.0f) < 0.1f);
-        for (int64_t frame = t; frame < t + 250; frame += 8) { // the frames in between
-            eased.push_back(screen.Update(f.Target(), frame));
+        for (int64_t frame = t; frame < t + 250; frame += 8) { // 120 Hz frames in between
+            shown.push_back(screen.Update(f.Target()));
         }
     }
-    for (float v : eased) {
+    for (float v : shown) {
         CHECK(std::abs(v - 52.0f) < 0.1f);
     }
-    // A shorter flash, a single measurement, does nothing either.
-    f.Add(t, 30.0f);
-    CHECK(std::abs(f.Target() - 52.0f) < 0.1f);
 }
 
-TEST_CASE("FrameXr immersive: Always follows a lasting change about a second later, eased",
-          "[frame_xr][fovonce]") {
+namespace {
+// A cut from `from` to `to` (held), frame by frame at 120 Hz with measurements every 250 ms
+// through FovFollow and FovSlew. Checks every step and every change of step against the limits;
+// returns the frames from the cut until the value settled on `to`.
+int SlewedCut(float from, float to) {
     FovFollow f;
-    FovEase screen;
-    int64_t t = 0;
-    for (; t < 5000; t += 250) {
-        f.Add(t, 52.0f);
-        screen.Update(f.Target(), t);
-    }
-    // A new scene at 80 degrees from 5 s on.
-    int64_t switched = -1;
-    for (; t < 9000; t += 250) {
-        f.Add(t, 80.0f);
-        if (switched < 0 && f.Target() == 80.0f) {
-            switched = t;
+    FovSlew slew;
+    float last = 0.0f, last_step = 0.0f;
+    int frames_after = -1;
+    int frame = 0;
+    const int cut_frame = 5 * 120;
+    for (; frame < 20 * 120; frame++) {
+        const int64_t ms = static_cast<int64_t>(frame) * 1000 / 120;
+        if (frame % 30 == 0) { // every 250 ms
+            f.Add(ms, frame >= cut_frame ? to : from);
         }
-    }
-    INFO("followed at " << switched);
-    CHECK(switched >= 5750); // held about a second first
-    CHECK(switched <= 6250);
-    // Eased: frame by frame (8 ms), never a step of more than a few degrees, never past it,
-    // 95 % there after FovEase::kEaseMs and all the way after a little over a second.
-    float last = screen.Update(52.0f, 5990);
-    CHECK(last == 52.0f);
-    float biggest = 0.0f;
-    float at_ease = 0.0f;
-    for (int64_t frame = 6000; frame <= 7250; frame += 8) {
-        const float v = screen.Update(80.0f, frame);
-        CHECK(v >= last);
-        CHECK(v <= 80.0f);
-        biggest = std::max(biggest, v - last);
-        if (frame <= 6000 + FovEase::kEaseMs) {
-            at_ease = v;
+        const float v = slew.Update(f.Target());
+        if (frame > 0) {
+            const float step = v - last;
+            INFO("frame " << frame << " value " << v << " step " << step);
+            CHECK(std::abs(step) <= FovSlew::kMaxStepDeg + 1e-5f);
+            CHECK(std::abs(step - last_step) <= FovSlew::kStepChangeDeg + 1e-5f);
+            // never past the target
+            CHECK(std::min(from, to) - 1e-4f <= v);
+            CHECK(v <= std::max(from, to) + 1e-4f);
+            last_step = step;
         }
         last = v;
+        if (frame > cut_frame && frames_after < 0 && v == to && !slew.Moving()) {
+            frames_after = frame - cut_frame;
+        }
     }
-    CHECK(biggest < 2.0f);
-    CHECK(at_ease >= 80.0f - 0.05f * 28.0f - 0.2f);
-    CHECK(last == Catch::Approx(80.0f).margin(0.01f));
-    CHECK(!screen.Moving());
+    CHECK(last == to);
+    return frames_after;
+}
+} // namespace
 
-    // A gradual change (Mario Kart 7 widening with speed, 52 to 62 over 5 s): followed all the
-    // way, smoothly, about a second behind.
-    FovFollow g;
-    FovEase live;
-    float prev = 0.0f, max_step = 0.0f;
-    for (int64_t ms = 0; ms <= 9000; ms += 8) {
-        if (ms % 250 == 0) {
-            g.Add(ms, 52.0f + 10.0f * std::clamp((ms - 1000) / 5000.0f, 0.0f, 1.0f));
-        }
-        const float v = live.Update(g.Target(), ms);
-        if (ms > 0) {
-            max_step = std::max(max_step, std::abs(v - prev));
-            CHECK(v >= prev - 0.001f);
-        }
-        prev = v;
-        if (ms == 4000) {
-            CHECK(v > 54.0f); // following: 58 measured now
-            CHECK(v < 58.0f); // about a second behind
+TEST_CASE("FrameXr immersive: Always slews a cut at most 0.1 degrees a frame, ramped both ends",
+          "[frame_xr][fovonce]") {
+    for (const float size : {5.0f, 10.0f, 40.0f}) {
+        for (const float sign : {1.0f, -1.0f}) {
+            const float from = 55.0f, to = 55.0f + sign * size;
+            INFO("cut " << from << " to " << to);
+            const int frames = SlewedCut(from, to);
+            WARN("cut " << from << " to " << to << ": settled " << frames << " frames after it");
+            // Half a second to win, then about size / 0.1 frames plus the ramps.
+            const int slew = frames - 60;
+            CHECK(slew >= static_cast<int>(size / FovSlew::kMaxStepDeg));
+            CHECK(slew <= static_cast<int>(size / FovSlew::kMaxStepDeg) + 3 * FovSlew::kRampFrames);
         }
     }
-    CHECK(prev == Catch::Approx(62.0f).margin(0.05f));
-    CHECK(max_step < 0.5f);
+    // A 10 degree cut takes about a second once it won: 100 frames at 0.1 degrees, plus the ramps.
+    const int ten = SlewedCut(52.0f, 62.0f) - 60;
+    WARN("10 degree cut: " << ten << " frames after it won");
+    CHECK(ten <= 100 + 2 * FovSlew::kRampFrames);
+
+    // Slowly back when the camera returns half way: it slows down, turns and comes back, with
+    // the same limits.
+    FovSlew slew;
+    slew.Update(50.0f);
+    float last = 50.0f, last_step = 0.0f, highest = 50.0f;
+    for (int frame = 1; frame < 600; frame++) {
+        const float v = slew.Update(frame < 60 ? 70.0f : 50.0f);
+        const float step = v - last;
+        CHECK(std::abs(step) <= FovSlew::kMaxStepDeg + 1e-5f);
+        CHECK(std::abs(step - last_step) <= FovSlew::kStepChangeDeg + 1e-5f);
+        highest = std::max(highest, v);
+        last = v;
+        last_step = step;
+    }
+    CHECK(highest < 70.0f);
+    CHECK(last == 50.0f);
+    CHECK(!slew.Moving());
+}
+
+TEST_CASE("FrameXr immersive: Always keeps up with a gradual change",
+          "[frame_xr][fovonce]") {
+    // Mario Kart 7 widening with speed: 52 to 62 degrees over 3 s (3.3 degrees a second), then
+    // back to 52 over 3 s, measured every 250 ms, shown at 120 Hz.
+    FovFollow f;
+    FovSlew live;
+    float worst = 0.0f, last = 0.0f;
+    const auto measured = [](int64_t ms) {
+        const float up = std::clamp((ms - 1000) / 3000.0f, 0.0f, 1.0f);
+        const float down = std::clamp((ms - 6000) / 3000.0f, 0.0f, 1.0f);
+        return 52.0f + 10.0f * (up - down);
+    };
+    for (int frame = 0; frame < 12 * 120; frame++) {
+        const int64_t ms = static_cast<int64_t>(frame) * 1000 / 120;
+        if (frame % 30 == 0) {
+            f.Add(ms, measured(ms));
+        }
+        const float v = live.Update(f.Target());
+        if (frame > 0) {
+            CHECK(std::abs(v - last) <= FovSlew::kMaxStepDeg + 1e-5f);
+        }
+        last = v;
+        worst = std::max(worst, std::abs(v - measured(ms)));
+    }
+    INFO("worst lag " << worst << " degrees");
+    CHECK(worst < 3.0f); // about 0.6 s behind at 3.3 degrees a second
+    CHECK(last == Catch::Approx(52.0f).margin(0.01f));
+}
+
+TEST_CASE("FrameXr immersive: Off and Set Once hand the angles over as before",
+          "[frame_xr][fovonce]") {
+    using FrameXr::Immersive::Layout::CameraAngles;
+    // Off: exactly as given, every frame, also after a change.
+    CameraAngles off;
+    for (int64_t ms = 0; ms < 2000; ms += 8) {
+        const float screen = ms < 1000 ? 55.0f : 40.0f, live = ms < 1000 ? 50.0f : 45.0f;
+        const auto out = off.Update(0, screen, live, ms);
+        CHECK(out.screen_deg == screen);
+        CHECK(out.live_deg == live);
+    }
+    // Set Once: the value it wrote is eased in (FovEase), the same as before.
+    CameraAngles once;
+    FovEase ref_screen, ref_live;
+    for (int64_t ms = 0; ms < 3000; ms += 8) {
+        const float screen = ms < 1000 ? 50.0f : 40.0f;
+        const auto out = once.Update(1, screen, screen, ms);
+        CHECK(out.screen_deg == ref_screen.Update(screen, ms));
+        CHECK(out.live_deg == ref_live.Update(screen, ms));
+    }
+    CHECK(once.Update(1, 40.0f, 40.0f, 3000).screen_deg == 40.0f);
+    // Always: slewed.
+    CameraAngles always;
+    always.Update(2, 50.0f, 50.0f, 0);
+    const auto a = always.Update(2, 40.0f, 40.0f, 8);
+    CHECK(a.screen_deg < 50.0f);
+    CHECK(a.screen_deg >= 50.0f - FovSlew::kMaxStepDeg);
 }

@@ -308,8 +308,7 @@ struct State {
     u32 match_seen = 0;          ///< the choice last frame (Set Once chosen: measure anew)
     uint32_t remeasure_seen = 0; ///< g_remeasure handled
     L::FovFollow follow;
-    L::FovEase ease_screen;
-    L::FovEase ease_live;
+    L::CameraAngles angles; ///< what the solver gets: Off as is, Set Once eased, Always slewed
     float traced[4]{}; ///< the trace's last line (AZAHARFRAME_IMMERSIVE_FOV_TRACE)
     int64_t game_start_ms = 0;
     bool shape_logged = false; ///< both logged for this game
@@ -448,18 +447,18 @@ void FinishSetOnce() {
         measured.SetValue(true);
         g_fov_written = fov;
         LOG_INFO(Frontend,
-                 "xr: immersive: Match Game Camera Set Once: the game camera is {} degrees high "
+                 "xr: immersive: Detect Game FOV Once: the game camera is {} degrees high "
                  "({:.0f} % of {:.1f} s that held, after {} s); Immersive Game FOV set to {} "
                  "for this game, nothing measured from now on",
                  fov, 100.0f * g.estimate.Share(), g.estimate.CountedMs() / 1000.0, secs, fov);
-        ShowToastText(fmt::format("Immersive Game FOV: Set to {}°", fov), ToastTime::Long);
+        ShowToastText(fmt::format("Game FOV Detected: {}°", fov), ToastTime::Long);
     } else {
         const int fov = static_cast<int>(std::lround(g.game_fov_y_deg));
         LOG_INFO(Frontend,
-                 "xr: immersive: Match Game Camera Set Once: no steady game camera in {} s "
+                 "xr: immersive: Detect Game FOV Once: no steady game camera in {} s "
                  "({:.1f} s held, the most at one angle {:.0f} %); Immersive Game FOV stays {}",
                  secs, g.estimate.CountedMs() / 1000.0, 100.0f * g.estimate.Share(), fov);
-        ShowToastText(fmt::format("Immersive Game FOV: Not Measured, Kept {}°", fov),
+        ShowToastText(fmt::format("Couldn't Detect Game FOV \u00b7 Kept {}°", fov),
                       ToastTime::Long);
     }
 }
@@ -649,8 +648,7 @@ void OnFrame(const FrameInfo& info) {
         g.camera.Reset();
         g.estimate.Reset(); // AzaharFrame fovonce
         g.follow.Reset();
-        g.ease_screen.Reset();
-        g.ease_live.Reset();
+        g.angles.Reset();
         g.hide_bottom = Settings::values.vr_hide_bottom_screen.GetValue();
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
@@ -804,7 +802,7 @@ void OnFrame(const FrameInfo& info) {
             L::CameraInUse(MatchCamera(), g.camera.ScreenFovDeg(), g.camera.ScreenAspect(),
                            g.game_fov_y_deg, TopAspect());
         L::Options options = g.options;
-        // AzaharFrame fovonce: Always follows the angle that held about a second (FovFollow),
+        // AzaharFrame fovonce: Always follows the angle that held half a second (FovFollow),
         // not each measurement.
         options.live_fov_y_deg = MatchCamera() && g.follow.Target() > 0.0f ? g.follow.Target()
                                                                            : cam.fov_y_deg;
@@ -815,27 +813,26 @@ void OnFrame(const FrameInfo& info) {
         const bool own_fov =
             g.tuning.fov_from_env || !Settings::values.vr_immersive_game_fov.UsingGlobal();
         float screen_fov = own_fov ? g.game_fov_y_deg : cam.fov_y_deg;
-        // AzaharFrame fovonce: with Set Once or Always a new angle (a measurement followed, the
-        // value Set Once wrote) is eased in over about half a second, never in one step. Off
-        // uses the settings exactly as they are.
+        // AzaharFrame fovonce: never in one step: Always moves both angles at most 0.1 degrees a
+        // displayed frame, ramped at both ends (FovSlew); Set Once eases in the value it wrote;
+        // Off uses the settings exactly as they are (L::CameraAngles).
+        const int64_t now = VideoCore::Immersive::SteadyMs();
+        const L::CameraAngles::Out angles = g.angles.Update(
+            static_cast<unsigned>(MatchMode()), screen_fov, options.live_fov_y_deg, now);
+        screen_fov = angles.screen_deg;
+        options.live_fov_y_deg = angles.live_deg;
         if (MatchMode() != Settings::MatchGameCamera::Off) {
-            const int64_t now = VideoCore::Immersive::SteadyMs();
-            screen_fov = g.ease_screen.Update(screen_fov, now);
-            options.live_fov_y_deg = g.ease_live.Update(options.live_fov_y_deg, now);
             if (g.tuning.fov_trace) {
                 const float row[4]{g.follow.Target(), screen_fov, options.live_fov_y_deg,
                                    cam.fov_y_deg};
                 if (!std::equal(row, row + 4, g.traced)) {
                     std::copy(row, row + 4, g.traced);
                     LOG_INFO(Frontend,
-                             "xr: immersive: fov trace: at {} ms followed {:.2f}, screen {:.2f}, "
-                             "live {:.2f} (settled camera {:.2f})",
+                             "xr: immersive: fov trace: at {} ms followed {:.4f}, screen {:.4f}, "
+                             "live {:.4f} (settled camera {:.2f})",
                              now - g.game_start_ms, row[0], row[1], row[2], row[3]);
                 }
             }
-        } else {
-            g.ease_screen.Reset();
-            g.ease_live.Reset();
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
