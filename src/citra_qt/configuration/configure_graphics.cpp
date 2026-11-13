@@ -2,6 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
+#include <array>
 #include <QColorDialog>
 #include <QStandardItemModel>
 #include "citra_qt/configuration/configuration_shared.h"
@@ -162,8 +164,17 @@ void ConfigureGraphics::SetConfiguration() {
             Settings::values.use_display_refresh_rate_detection.GetValue());
     }
     ui->simulate_3ds_gpu_timings->setChecked(Settings::values.simulate_3ds_gpu_timings.GetValue());
-    ui->toggle_accurate_image_copies->setChecked(
-        Settings::values.accurate_image_copies.GetValue()); // AzaharFrame accxfer
+    // AzaharFrame accxfer, xfergpu: Accurate Image Copies, Off | Automatic | On
+    if (!Settings::IsConfiguringGlobal()) {
+        ConfigurationShared::SetPerGameSetting(ui->image_copy_accuracy_combobox,
+                                               &Settings::values.image_copy_accuracy);
+        ConfigurationShared::SetHighlight(ui->widget_image_copy_accuracy,
+                                          !Settings::values.image_copy_accuracy.UsingGlobal());
+    } else {
+        ui->image_copy_accuracy_combobox->setCurrentIndex(
+            static_cast<int>(Settings::values.image_copy_accuracy.GetValue()));
+    }
+    SetImageCopyAccuracyTips();
     if (frame_vr) { // AzaharFrame
         frame_vr->SetConfiguration();
     }
@@ -201,10 +212,10 @@ void ConfigureGraphics::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.simulate_3ds_gpu_timings,
                                              ui->simulate_3ds_gpu_timings,
                                              simulate_3ds_gpu_timings);
-    // AzaharFrame accxfer: global, or this game's own value (never the box into the global one)
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.accurate_image_copies,
-                                             ui->toggle_accurate_image_copies,
-                                             accurate_image_copies);
+    // AzaharFrame accxfer, xfergpu: global, or this game's own value (never the game's choice
+    // into the global one)
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.image_copy_accuracy,
+                                             ui->image_copy_accuracy_combobox);
 
     if (Settings::IsConfiguringGlobal()) {
         Settings::values.use_shader_jit = ui->toggle_shader_jit->isChecked();
@@ -243,8 +254,8 @@ void ConfigureGraphics::SetupPerGameUI() {
             Settings::values.delay_game_render_thread_us.UsingGlobal());
         ui->simulate_3ds_gpu_timings->setEnabled(
             Settings::values.simulate_3ds_gpu_timings.UsingGlobal());
-        ui->toggle_accurate_image_copies->setEnabled(
-            Settings::values.accurate_image_copies.UsingGlobal()); // AzaharFrame accxfer
+        ui->widget_image_copy_accuracy->setEnabled(
+            Settings::values.image_copy_accuracy.UsingGlobal()); // AzaharFrame accxfer
         return;
     }
 
@@ -293,9 +304,35 @@ void ConfigureGraphics::SetupPerGameUI() {
     ConfigurationShared::SetColoredTristate(ui->simulate_3ds_gpu_timings,
                                             Settings::values.simulate_3ds_gpu_timings,
                                             simulate_3ds_gpu_timings);
-    ConfigurationShared::SetColoredTristate(ui->toggle_accurate_image_copies,
-                                            Settings::values.accurate_image_copies,
-                                            accurate_image_copies); // AzaharFrame accxfer
+    ConfigurationShared::SetColoredComboBox(
+        ui->image_copy_accuracy_combobox, ui->widget_image_copy_accuracy,
+        static_cast<int>(Settings::values.image_copy_accuracy.GetValue(true))); // accxfer
+}
+
+void ConfigureGraphics::SetImageCopyAccuracyTips() { // AzaharFrame xfergpu
+    const std::array<QString, 3> tips{
+        tr("No effect on performance, but graphical glitches may occur."),
+        tr("Fixes glitches only where a game needs it. Little to no effect on performance."),
+        tr("Makes every image copy exact. Substantially lowers performance."),
+    };
+    QComboBox* box = ui->image_copy_accuracy_combobox;
+    const bool per_game = !Settings::IsConfiguringGlobal();
+    const int first = per_game ? ConfigurationShared::USE_GLOBAL_OFFSET : 0;
+    for (int i = 0; i < static_cast<int>(tips.size()); i++) {
+        box->setItemData(first + i, tips[static_cast<std::size_t>(i)], Qt::ToolTipRole);
+    }
+    if (per_game) { // "Use global configuration (Automatic)": the global choice's tip
+        const auto global =
+            static_cast<std::size_t>(Settings::values.image_copy_accuracy.GetValue(true));
+        box->setItemData(ConfigurationShared::USE_GLOBAL_INDEX, tips[std::min<std::size_t>(global, 2)],
+                         Qt::ToolTipRole);
+    }
+    const auto follow = [box] { box->setToolTip(box->currentData(Qt::ToolTipRole).toString()); };
+    follow();
+    if (!box->property("frame_tips").toBool()) {
+        box->setProperty("frame_tips", true);
+        connect(box, qOverload<int>(&QComboBox::currentIndexChanged), box, follow);
+    }
 }
 
 void ConfigureGraphics::SetPhysicalDeviceComboVisibility(int index) {

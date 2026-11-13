@@ -856,6 +856,25 @@ int main(int argc, char** argv) {
     v.hover = {Id::DynamicResolution, kLabelIndex};
     v.tooltip = Id::DynamicResolution;
     ok &= shot("5h-settings-dynamic-at-1x", rm, v);
+    // AzaharFrame xfergpu: Accurate Image Copies, Off | Automatic | On, each choice's tooltip
+    // with the beam on it, and the label's.
+    {
+        MenuModel ic = pg;
+        ic.internal_resolution = 3;
+        ic.accurate_image_copies = 1;
+        v = settings(SettingsSection::Graphics);
+        static constexpr const char* kNames[] = {"off", "automatic", "on"};
+        for (int i = 0; i < 3; i++) {
+            v.hover = {Id::AccurateImageCopies, i};
+            v.tooltip = Id::AccurateImageCopies;
+            v.tooltip_index = i;
+            ok &= shot(std::string("xg-image-copies-tip-") + kNames[i], ic, v);
+        }
+        v.hover = {Id::AccurateImageCopies, kLabelIndex};
+        v.tooltip_index = kLabelIndex;
+        ok &= shot("xg-image-copies-tip-label", ic, v);
+        v = settings(SettingsSection::Graphics);
+    }
     // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the
     // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.
     {

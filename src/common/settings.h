@@ -142,6 +142,20 @@ enum class TextureFilter : u32 {
     MMPX = 5,
 };
 
+/// AzaharFrame xfergpu: Accurate Image Copies (image_copy_accuracy). Off: every display
+/// transfer and texture copy is a blit between the rasterizer cache's surfaces, as upstream.
+/// Automatic: only what a game needs is fixed: memory a surface of another stride holds is
+/// copied between the strides on the GPU (Fire Emblem's glow), and an overlapping transfer the
+/// GPU path can't do goes to software. On: every display transfer and texture copy takes the
+/// software path (in guest memory, as the 3DS does).
+enum class ImageCopyAccuracy : u32 {
+    Off = 0,
+    Automatic = 1,
+    On = 2,
+};
+/// AzaharFrame xfergpu: "Off", "Automatic", "On" (the log and the crash report)
+std::string_view GetImageCopyAccuracyName(ImageCopyAccuracy accuracy);
+
 enum class TextureSampling : u32 {
     GameControlled = 0,
     NearestNeighbor = 1,
@@ -663,11 +677,11 @@ struct Values {
     SwitchableSetting<bool> preload_textures{false, Keys::preload_textures};
     SwitchableSetting<bool> async_custom_loading{true, Keys::async_custom_loading};
     SwitchableSetting<bool> disable_right_eye_render{false, Keys::disable_right_eye_render};
-    // AzaharFrame accxfer: Accurate Image Copies: every display transfer and texture copy takes
-    // the software path (in guest memory, as the 3DS does) instead of a blit between the cache's
-    // surfaces. A fallback for glitches; it costs GPU readbacks and the picture comes from
-    // memory at 1x. Read at each transfer (rasterizer_cache.h), so it applies at once.
-    SwitchableSetting<bool> accurate_image_copies{false, Keys::accurate_image_copies};
+    // AzaharFrame accxfer, xfergpu: Accurate Image Copies (ImageCopyAccuracy). On costs GPU
+    // readbacks and the picture comes from memory at 1x. Read at each transfer and validation
+    // (rasterizer_cache.h), so it applies at once.
+    SwitchableSetting<ImageCopyAccuracy> image_copy_accuracy{ImageCopyAccuracy::Automatic,
+                                                             Keys::image_copy_accuracy};
 
     // Audio
     bool audio_muted;

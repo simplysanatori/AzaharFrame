@@ -35,6 +35,9 @@ public:
 
 private:
     void SetupPerGameUI();
+    /// AzaharFrame xfergpu: each Accurate Image Copies choice's tooltip (Qt::ToolTipRole), and
+    /// the box's own for the current one
+    void SetImageCopyAccuracyTips();
     void SetPhysicalDeviceComboVisibility(int index);
 
     ConfigurationShared::CheckState use_hw_shader;
@@ -48,7 +51,6 @@ private:
     ConfigurationShared::CheckState spirv_shader_gen;
     ConfigurationShared::CheckState disable_spirv_optimizer;
     ConfigurationShared::CheckState simulate_3ds_gpu_timings;
-    ConfigurationShared::CheckState accurate_image_copies; // AzaharFrame accxfer
     std::unique_ptr<Ui::ConfigureGraphics> ui;
     QColor bg_color;
     ConfigureFrameVr* frame_vr = nullptr; // AzaharFrame: the VR group (immersive mode)

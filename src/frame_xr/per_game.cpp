@@ -55,7 +55,7 @@ bool WithSetting(Menu::Id id, F&& f) {
         f(v.async_shader_compilation);
         return true;
     case Id::AccurateImageCopies: // AzaharFrame accxfer
-        f(v.accurate_image_copies);
+        f(v.image_copy_accuracy);
         return true;
     case Id::Autosave:
         f(v.autosave_enabled);

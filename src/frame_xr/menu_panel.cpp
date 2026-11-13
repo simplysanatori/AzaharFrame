@@ -854,7 +854,8 @@ void MenuPanel::BuildModel(const Host& host) {
         }
     }
     m.async_shaders = v.async_shader_compilation.GetValue();
-    m.accurate_image_copies = v.accurate_image_copies.GetValue(); // AzaharFrame accxfer
+    m.accurate_image_copies = // AzaharFrame accxfer, xfergpu: 0 Off, 1 Automatic, 2 On
+        std::min(static_cast<int>(v.image_copy_accuracy.GetValue()), 2);
     m.fast_forward_speed = 0;
     {
         const double ff = v.turbo_limit.GetValue();
@@ -1048,8 +1049,9 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.setting = MenuSetting::AsyncShaders;
         ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
         break;
-    case Id::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
-        Apply(v.accurate_image_copies, value != 0, per_game);
+    case Id::AccurateImageCopies: // AzaharFrame accxfer, xfergpu: from the next image copy
+        r.value = static_cast<int>(std::min<u32>(u, 2));
+        Apply(v.image_copy_accuracy, static_cast<Settings::ImageCopyAccuracy>(r.value), per_game);
         r.setting = MenuSetting::AccurateImageCopies;
         break;
     case Id::FastForwardSpeed:
@@ -1776,9 +1778,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);
         break;
-    case Id::AccurateImageCopies: // AzaharFrame accxfer
-        SetSetting(t.id, model.accurate_image_copies ? 0 : 1, host);
-        break;
     case Id::ImmersiveOffsetReset:
         SetSetting(t.id, 0, host);
         break;
@@ -1821,6 +1820,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::NarrowScreen:
     case Id::DepthFactor:
     case Id::TextureFilter:    // AzaharFrame menuux
+    case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:
         if (t.index >= 0) {
             SetSetting(t.id, t.index, host);
@@ -2034,7 +2034,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                          rest == Id::PartUp || rest == Id::PartDown ||      // AzaharFrame texparts
                          rest == Id::LayerUp || rest == Id::LayerDown ||    // AzaharFrame texlayers
                          rest == Id::UseGlobal || // AzaharFrame useglobal: which row's chip
-                         rest == Id::Scope;       // AzaharFrame reticle: Per-Game's count
+                         rest == Id::Scope ||     // AzaharFrame reticle: Per-Game's count
+                         Menu::HasOptionTips(rest); // AzaharFrame xfergpu: a choice's own
     const int rest_idx = indexed ? hover.index : -1; // AzaharFrame modcat, modcat2
     if (rest != rest_id || rest_idx != rest_index) {
         rest_id = rest;
@@ -2070,6 +2071,9 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         } else if (rest == Id::Scope) { // AzaharFrame reticle: Per-Game, while picked
             row_text = rest_idx == 1 && model.scope == 1 &&
                        model.locked[static_cast<std::size_t>(Id::Scope)] == Lock::None;
+        } else if (Menu::HasOptionTips(rest)) { // AzaharFrame xfergpu: a segment, or the label
+            row_text = rest_idx >= 0 ? !Menu::ExplainOption(rest, rest_idx).empty()
+                                     : !Menu::ExplainFor(rest).empty();
         }
         const bool has_text =
             row_text || (!indexed && !Menu::ExplainFor(rest).empty()) ||

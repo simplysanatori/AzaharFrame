@@ -200,9 +200,9 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
     const DebugScope scope{runtime, Common::Vec4f{0.f, 0.f, 1.f, 1.f},
                            "RasterizerCache::AccelerateTextureCopy ({})", config.DebugName()};
 
-    // AzaharFrame accxfer: Accurate Image Copies: texture copies take the software path too
+    // AzaharFrame accxfer: Accurate Image Copies On: texture copies take the software path too
     // (SwBlitter::TextureCopy, the same fallback as a copy the cache can't do).
-    if (Settings::values.accurate_image_copies.GetValue()) {
+    if (TextureCopyInSoftware(Settings::values.image_copy_accuracy.GetValue())) {
         return false;
     }
 
@@ -336,8 +336,8 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
                            Pica::BytesPerPixel(config.output_format);
     }
 
-    // AzaharFrame accxfer: with Accurate Image Copies on, every display transfer takes the
-    // software path.
+    // AzaharFrame accxfer: with Accurate Image Copies On, every display transfer takes the
+    // software path; Off, none (upstream).
     // AzaharFrame xfergpu: Fire Emblem Echoes and Fates halve their glow buffer with transfers
     // whose output overlaps the input in memory: 128x208 at 0x18108D00 into 64x104 at the same
     // address, then 64x128 there into 0x1810F500. The blits themselves were right; the garbage
@@ -349,9 +349,11 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
     // that data between the strides on the GPU, so an overlapping transfer stays a blit at the
     // raised resolution, with no readback. One that changes the pixel format or tiling, or whose
     // output lands in the input's own surface, still takes the software path (feshimmer).
-    const bool overlaps =
-        TransferOverlaps(src_params.addr, src_params.size, dst_params.addr, dst_params.size);
-    if (DisplayTransferInSoftware(Settings::values.accurate_image_copies.GetValue(),
+    const Settings::ImageCopyAccuracy accuracy = Settings::values.image_copy_accuracy.GetValue();
+    const bool overlaps = accuracy != Settings::ImageCopyAccuracy::Off &&
+                          TransferOverlaps(src_params.addr, src_params.size, dst_params.addr,
+                                           dst_params.size);
+    if (DisplayTransferInSoftware(accuracy,
                                   src_params.addr, src_params.size, dst_params.addr,
                                   dst_params.size,
                                   src_params.pixel_format == dst_params.pixel_format &&
@@ -1079,7 +1081,10 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
         // halved output over the buffer it came from, a texture over a render target): copy it
         // between the strides here, at the scaled resolution, instead of the readback below or
         // the skip in ValidateByReinterpretation, which left the surface's old contents.
-        if (const SurfaceRegions restrided = ValidateByRestride(surface_id, interval);
+        if (const SurfaceRegions restrided =
+                RestrideOnGpu(Settings::values.image_copy_accuracy.GetValue())
+                    ? ValidateByRestride(surface_id, interval)
+                    : SurfaceRegions{};
             !restrided.empty()) {
             for (const SurfaceInterval& part : restrided) {
                 notify_validated(part);

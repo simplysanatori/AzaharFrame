@@ -2,8 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame feshimmer: display transfers whose output overlaps their input in memory take
-// the software path (rasterizer_cache.h AccelerateDisplayTransfer).
+// AzaharFrame feshimmer, xfergpu: display transfers whose output overlaps their input in memory
+// (rasterizer_cache.h AccelerateDisplayTransfer, ValidateByRestride).
 
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
@@ -24,28 +24,49 @@ TEST_CASE("TransferOverlaps finds Fire Emblem's in-place glow downscales", "[vid
     REQUIRE_FALSE(TransferOverlaps(0x1000, 0, 0x1000, 0x100));
 }
 
-// AzaharFrame accxfer: Accurate Image Copies sends every display transfer to the software path.
-// AzaharFrame xfergpu: off, an overlapping one goes there only when the GPU path can't do it.
-TEST_CASE("Accurate Image Copies sends every display transfer to the software path",
-          "[video_core]") {
+// AzaharFrame accxfer, xfergpu: Accurate Image Copies. On: every display transfer and texture
+// copy in software. Automatic: an overlapping transfer only when the GPU path can't do it, and
+// the cache copies between strides on the GPU. Off: none, and no copies between strides
+// (upstream).
+TEST_CASE("Accurate Image Copies picks the path of each image copy", "[video_core]") {
+    using Settings::ImageCopyAccuracy;
     using VideoCore::DisplayTransferInSoftware;
-    // the frame's own transfer: hardware when off, software when on
-    REQUIRE_FALSE(DisplayTransferInSoftware(false, 0x18000000, 256 * 400 * 4, 0x18108D00,
-                                            128 * 200 * 4, true));
-    REQUIRE(DisplayTransferInSoftware(true, 0x18000000, 256 * 400 * 4, 0x18108D00,
-                                      128 * 200 * 4, true));
-    // an in-place downscale that keeps its format and tiling stays on the GPU when off
-    REQUIRE_FALSE(
-        DisplayTransferInSoftware(false, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 4, true));
-    REQUIRE(DisplayTransferInSoftware(true, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 4,
+    constexpr auto Off = ImageCopyAccuracy::Off;
+    constexpr auto Automatic = ImageCopyAccuracy::Automatic;
+    constexpr auto On = ImageCopyAccuracy::On;
+    // the frame's own transfer, no overlap: software only with On
+    for (const bool gpu_ok : {true, false}) {
+        REQUIRE_FALSE(DisplayTransferInSoftware(Off, 0x18000000, 256 * 400 * 4, 0x18108D00,
+                                                128 * 200 * 4, gpu_ok));
+        REQUIRE_FALSE(DisplayTransferInSoftware(Automatic, 0x18000000, 256 * 400 * 4, 0x18108D00,
+                                                128 * 200 * 4, gpu_ok));
+        REQUIRE(DisplayTransferInSoftware(On, 0x18000000, 256 * 400 * 4, 0x18108D00,
+                                          128 * 200 * 4, gpu_ok));
+    }
+    // Fire Emblem's in-place downscale, the same format and tiling: the GPU in Automatic
+    REQUIRE_FALSE(DisplayTransferInSoftware(Off, 0x18108D00, 128 * 208 * 4, 0x18108D00,
+                                            64 * 104 * 4, true));
+    REQUIRE_FALSE(DisplayTransferInSoftware(Automatic, 0x18108D00, 128 * 208 * 4, 0x18108D00,
+                                            64 * 104 * 4, true));
+    REQUIRE(DisplayTransferInSoftware(On, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 4,
                                       true));
-    // one that changes the format or tiling in place goes to software
-    REQUIRE(DisplayTransferInSoftware(false, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 2,
+    // one that changes the format or tiling in place: software in Automatic, a blit in Off
+    REQUIRE_FALSE(DisplayTransferInSoftware(Off, 0x18108D00, 128 * 208 * 4, 0x18108D00,
+                                            64 * 104 * 2, false));
+    REQUIRE(DisplayTransferInSoftware(Automatic, 0x18108D00, 128 * 208 * 4, 0x18108D00,
+                                      64 * 104 * 2, false));
+    REQUIRE(DisplayTransferInSoftware(On, 0x18108D00, 128 * 208 * 4, 0x18108D00, 64 * 104 * 2,
                                       false));
-    // the GPU path's condition does not matter without an overlap
-    REQUIRE_FALSE(DisplayTransferInSoftware(false, 0x1000, 0x100, 0x2000, 0x100, false));
-    static_assert(DisplayTransferInSoftware(true, 0x1000, 0x100, 0x2000, 0x100, true));
-    static_assert(!DisplayTransferInSoftware(false, 0x1000, 0x100, 0x2000, 0x100, true));
+    // texture copies: software with On only
+    STATIC_REQUIRE_FALSE(VideoCore::TextureCopyInSoftware(Off));
+    STATIC_REQUIRE_FALSE(VideoCore::TextureCopyInSoftware(Automatic));
+    STATIC_REQUIRE(VideoCore::TextureCopyInSoftware(On));
+    // copies between strides on the GPU: not in Off
+    STATIC_REQUIRE_FALSE(VideoCore::RestrideOnGpu(Off));
+    STATIC_REQUIRE(VideoCore::RestrideOnGpu(Automatic));
+    STATIC_REQUIRE(VideoCore::RestrideOnGpu(On));
+    // the default is Automatic
+    REQUIRE(Settings::values.image_copy_accuracy.GetDefault() == Automatic);
 }
 
 namespace {

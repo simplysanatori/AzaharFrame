@@ -170,7 +170,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(dynamic);
             rows.push_back(row(Id::TextureFilter, RowKind::Segmented, m.texture_filter));
             rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
-            rows.push_back(row(Id::AccurateImageCopies, RowKind::Switch, 0, // AzaharFrame accxfer
+            rows.push_back(row(Id::AccurateImageCopies, RowKind::Segmented, // accxfer, xfergpu
                                m.accurate_image_copies));
             return rows;
         }
@@ -310,6 +310,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
                                                      "MMPX"};
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
+    static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
     switch (id) {
@@ -319,6 +320,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kTexFilter;
     case Id::FastForwardSpeed:
         return kFastForward;
+    case Id::AccurateImageCopies: // AzaharFrame xfergpu
+        return kImageCopies;
     case Id::ScreenShape:
         return kShape;
     case Id::ScreenCurve:
@@ -565,6 +568,26 @@ std::string LabelFor(Id id) {
     default:
         return {};
     }
+}
+
+std::string ExplainOption(Id id, int index) {
+    if (id == Id::AccurateImageCopies) { // AzaharFrame xfergpu: the owner's words
+        switch (index) {
+        case 0:
+            return "No effect on performance, but graphical glitches may occur.";
+        case 1:
+            return "Fixes glitches only where a game needs it. Little to no effect on performance.";
+        case 2:
+            return "Makes every image copy exact. Substantially lowers performance.";
+        default:
+            break;
+        }
+    }
+    return "";
+}
+
+bool HasOptionTips(Id id) {
+    return id == Id::AccurateImageCopies;
 }
 
 std::string ExplainFor(Id id) {
@@ -1575,6 +1598,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             for (int i = 0; i < static_cast<int>(opts.size()); i++) {
                 AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
                        {id, i}, pane);
+                if (HasOptionTips(id)) { // AzaharFrame xfergpu: a choice's own tooltip
+                    anchors.push_back({id, c.x0, row.y0 + 6.0f, lock, i,
+                                       (e[static_cast<std::size_t>(i)] +
+                                        e[static_cast<std::size_t>(i + 1)]) *
+                                           0.5f,
+                                       ExplainOption(id, i)});
+                }
             }
         }
         return row;
@@ -1827,6 +1857,15 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
                     AddHit({e[static_cast<std::size_t>(i)], seg.y0, e[static_cast<std::size_t>(i + 1)],
                             seg.y1},
                            {r.id, i}, list);
+                    // AzaharFrame xfergpu: a choice's own tooltip, over its segment
+                    if (HasOptionTips(r.id) && row.y1 > list.y0 && row.y0 < list.y1) {
+                        anchors.push_back({r.id, c.x0, std::max(row.y0, list.y0) + 6.0f, r.lock,
+                                           i,
+                                           (e[static_cast<std::size_t>(i)] +
+                                            e[static_cast<std::size_t>(i + 1)]) *
+                                               0.5f,
+                                           ExplainOption(r.id, i)});
+                    }
                 }
             }
             break;
@@ -1944,10 +1983,23 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
     if (view.tooltip == Id::None || view.open_menu != Id::None) {
         return;
     }
+    // AzaharFrame xfergpu: the anchor of the index the beam rests on (a segment's own tooltip)
+    // wins over the row's.
+    const Anchor* found = nullptr;
     for (const Anchor& a : anchors) {
-        if (a.id != view.tooltip || (a.index >= 0 && a.index != view.tooltip_index)) {
+        if (a.id != view.tooltip) {
             continue;
         }
+        if (a.index >= 0 && a.index == view.tooltip_index) {
+            found = &a;
+            break;
+        }
+        if (a.index < 0 && !found) {
+            found = &a;
+        }
+    }
+    if (found) {
+        const Anchor& a = *found;
         const std::string text = !a.text.empty()       ? a.text
                                  : a.lock != Lock::None ? ExplainLock(a.lock)
                                                         : ExplainFor(a.id);

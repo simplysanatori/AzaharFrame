@@ -6,6 +6,7 @@
 
 #include <span>
 #include "common/math_util.h"
+#include "common/settings.h" // AzaharFrame xfergpu: ImageCopyAccuracy
 #include "common/vector_math.h"
 
 namespace VideoCore {
@@ -105,16 +106,36 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
     return in_size != 0 && out_size != 0 && out < in + in_size && in < out + out_size;
 }
 
-/// AzaharFrame accxfer: whether a display transfer takes the software path: always with
-/// Accurate Image Copies on (Settings::values.accurate_image_copies).
-/// AzaharFrame xfergpu: an output that overlaps its input stays on the GPU when it keeps the
-/// input's pixel format and tiling and lands in another surface of the cache (the cache then
-/// moves the data between the two strides with ValidateByRestride); otherwise it takes the
-/// software path too.
-[[nodiscard]] constexpr bool DisplayTransferInSoftware(bool accurate_copies, u32 in, u32 in_size,
-                                                       u32 out, u32 out_size,
+/// AzaharFrame accxfer, xfergpu: whether a display transfer takes the software path, by
+/// Accurate Image Copies (Settings::values.image_copy_accuracy). On: always. Off: never, as
+/// upstream. Automatic: when its output overlaps its input and the GPU path can't do it: the
+/// GPU path keeps the input's pixel format and tiling (the cache then moves the data between
+/// the strides with ValidateByRestride); AccelerateDisplayTransfer also sends an output that
+/// lands in the input's own surface here.
+[[nodiscard]] constexpr bool DisplayTransferInSoftware(Settings::ImageCopyAccuracy accuracy, u32 in,
+                                                       u32 in_size, u32 out, u32 out_size,
                                                        bool gpu_can_overlap) {
-    return accurate_copies || (TransferOverlaps(in, in_size, out, out_size) && !gpu_can_overlap);
+    switch (accuracy) {
+    case Settings::ImageCopyAccuracy::Off:
+        return false;
+    case Settings::ImageCopyAccuracy::On:
+        return true;
+    case Settings::ImageCopyAccuracy::Automatic:
+        break;
+    }
+    return TransferOverlaps(in, in_size, out, out_size) && !gpu_can_overlap;
+}
+
+/// AzaharFrame accxfer, xfergpu: texture copies take the software path with Accurate Image
+/// Copies On only.
+[[nodiscard]] constexpr bool TextureCopyInSoftware(Settings::ImageCopyAccuracy accuracy) {
+    return accuracy == Settings::ImageCopyAccuracy::On;
+}
+
+/// AzaharFrame xfergpu: whether the cache copies memory between strides on the GPU
+/// (ValidateByRestride): not with Accurate Image Copies Off, which keeps upstream's skip.
+[[nodiscard]] constexpr bool RestrideOnGpu(Settings::ImageCopyAccuracy accuracy) {
+    return accuracy != Settings::ImageCopyAccuracy::Off;
 }
 
 /// AzaharFrame xfergpu: splits [start, end) into pieces that each lie within one row of tiles

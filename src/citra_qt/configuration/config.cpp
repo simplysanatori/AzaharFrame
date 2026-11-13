@@ -859,7 +859,7 @@ void QtConfig::ReadRendererValues() {
 
     ReadGlobalSetting(Settings::values.delay_game_render_thread_us);
     ReadGlobalSetting(Settings::values.disable_right_eye_render);
-    ReadGlobalSetting(Settings::values.accurate_image_copies); // AzaharFrame accxfer
+    ReadGlobalSetting(Settings::values.image_copy_accuracy); // AzaharFrame accxfer, xfergpu
 
     ReadGlobalSetting(Settings::values.simulate_3ds_gpu_timings);
 
@@ -1487,7 +1487,7 @@ void QtConfig::SaveRendererValues() {
 
     WriteGlobalSetting(Settings::values.delay_game_render_thread_us);
     WriteGlobalSetting(Settings::values.disable_right_eye_render);
-    WriteGlobalSetting(Settings::values.accurate_image_copies); // AzaharFrame accxfer
+    WriteGlobalSetting(Settings::values.image_copy_accuracy); // AzaharFrame accxfer, xfergpu
 
     WriteGlobalSetting(Settings::values.simulate_3ds_gpu_timings);
 
