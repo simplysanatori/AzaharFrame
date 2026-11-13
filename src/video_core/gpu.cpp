@@ -355,9 +355,12 @@ void GPU::SetBufferSwap(u32 screen_id, const Service::GSP::FrameBufferInfo& info
         // all of its draws (both eyes) the same one (vr_immersive.h FrameLatch).
         // AzaharFrame oot: and which framebuffer it shows, so the picture is tagged with the
         // pose its world was drawn with (vr_immersive.h ContentTrack).
-        VideoCore::Immersive::OnTopScreenSwap(impl->rasterizer, framebuffer.active_fb == 0
-                                                                    ? framebuffer.address_left1
-                                                                    : framebuffer.address_left2);
+        // AzaharFrame stereo: and whether it is in the 3D format (the frame trace's stereo line).
+        VideoCore::Immersive::OnTopScreenSwap(impl->rasterizer,
+                                              framebuffer.active_fb == 0
+                                                  ? framebuffer.address_left1
+                                                  : framebuffer.address_left2,
+                                              (framebuffer.format & 0x70) == 0x20);
     }
 }
 

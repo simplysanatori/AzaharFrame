@@ -1944,6 +1944,23 @@ GMainWindow::GMainWindow(Core::System& system_)
                 });
             }
 
+            // Test driver (AzaharFrame stereo): AZAHARFRAME_TEST_DEPTH="20:10,26:30" sets 3D Depth
+            // (factor_3d, this game's value) at those seconds after start, as the menu's slider.
+            for (const QString& step :
+                 FrameTestEnv("AZAHARFRAME_TEST_DEPTH").split(QLatin1Char(','),
+                                                                     Qt::SkipEmptyParts)) {
+                const auto parts = step.split(QLatin1Char(':'));
+                if (parts.size() != 2) {
+                    continue;
+                }
+                const int ms = static_cast<int>(parts[0].toDouble() * 1000.0);
+                const u32 depth = std::min(parts[1].toUInt(), 100u);
+                QTimer::singleShot(ms, this, [ms, depth] {
+                    LOG_INFO(Frontend, "xr test: 3D Depth {} at {} ms", depth, ms);
+                    Settings::values.factor_3d.SetValue(depth);
+                });
+            }
+
             // Test driver (AzaharFrame memguard): AZAHARFRAME_TEST_STATES="12:save0,16:load0,..."
             // saves (saveN) or loads (loadN) state slot N (0: the quick save) that many seconds
             // after start, and logs the custom texture uploads so far (they go on after a load

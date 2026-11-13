@@ -581,6 +581,27 @@ Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' 
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
 
+## The game's own 3D on the screen (AzaharFrame stereo)
+
+Mode 2 shows the game's own two eyes on one screen: the game shears each eye's projection by the
+3D slider it is shown (3D Depth / 100), so its far scenery is that far apart in the two pictures,
+and the screen magnifies it. The rasterizer reads where each world draw's projection puts a point
+at infinity across the picture (`FarAcrossFromRows`, `video_core/vr_view_matrix.h`); each top
+screen frame's draws fall in one group per eye (`StereoFrame`): two with the game's 3D on, one
+when it draws its world once (Ocarina of Time 3D's item screen: the paused world, mono, behind
+it). Once a second the emulation thread logs `xr: immersive stereo: N top screen swaps with the
+game's two eyes, ... with its world drawn once, ... with no world camera; ... in the 3D format;
+far scenery X % of the picture's width apart`, and the XR thread puts that on the screen
+(`StereoFarOnQuad`, `immersive_layout.h`: the picture is 1/factor of the screen's width, mode 3's
+eye quads are already the IPD apart): `xr: stereo far N deg, eyes allow M deg (...)`, with a
+warning when the eyes would have to diverge (more than 0.1 degrees past parallel). Nothing is
+changed by it yet. Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
+degrees wide at 3 m, IPD 64 mm): 3D Depth 10, 30 and 50 give 1.17, 3.44 and 5.86 % (the far
+scenery 1.8, 5.2 and 8.9 degrees apart against 1.22 allowed); the game reads the slider live (a
+change shows within a second). Majora's Mask 3D at 50 %: 3.78 %, 3.9 degrees. In mode 3 (slider
+0.01) Mario Kart 7 and Kid Icarus show 0.05 to 0.07 %. `AZAHARFRAME_TEST_DEPTH="17:10,19:50"`
+sets 3D Depth at those seconds (mocks).
+
 ## Trying it
 
 Set the mode in the Qt window: Properties of a game, **Graphics** tab, **VR** group, **Immersive Mode**

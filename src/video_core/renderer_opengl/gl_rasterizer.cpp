@@ -637,7 +637,8 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     UploadUniforms(accelerate);
     // AzaharFrame oot: a draw through the game's patched world camera (vr_immersive.h).
     if (accelerate && vr_world_uniforms) {
-        VideoCore::Immersive::OnWorldDraw(vr_world_tan_half_y, vr_world_aspect);
+        VideoCore::Immersive::OnWorldDraw(vr_world_tan_half_y, vr_world_aspect,
+                                          vr_world_far_valid, vr_world_far_ndc);
     }
 
     // Draw the vertex batch

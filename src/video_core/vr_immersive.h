@@ -372,8 +372,15 @@ inline ContentTrack g_content{FollowWorldFromEnv()};
 /// was drawn with the latch's pose, an earlier one (and how far the head had turned between
 /// them), or could not be told. With AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1 also the world draws of
 /// each swap in order (the first 24 of each second) and the distinct world projections.
+/// AzaharFrame stereo: the game's far scenery, the two eyes' far points apart as a share of its
+/// picture's width (StereoFrame), the median of the last second's frames with two eyes; below 0
+/// when the last second had none. Written by the emulation thread once a second (FrameTrace),
+/// read by the XR thread (frame_xr/immersive.cpp, its stereo line).
+inline std::atomic<float> g_stereo_far_width{-1.0f};
+
 class FrameTrace {
 public:
+    static constexpr int kFarSamples = 64;
     static constexpr int kSequence = 24;
     static constexpr int kProjections = 6;
 
@@ -399,15 +406,30 @@ public:
     void Transfer() noexcept {
         ++copies_;
     }
+    /// AzaharFrame stereo: a world draw's far point across (FarAcrossFromRows).
+    void Far(float ndc) noexcept {
+        stereo_.Draw(ndc);
+    }
     /// AzaharFrame oot (traced): one world upload's game uniforms, before the patch.
     void WorldUniforms(u64 hash) noexcept {
         frame_sum_ += hash;
         ++frame_uploads_;
     }
     /// A latch with a swap (`swap`) or the VBlank fallback; `track` after its Latch.
-    void Latch(bool swap, const ContentTrack& track, bool full_mode, int64_t now_ms) {
+    /// `shown_3d`: the swap's framebuffer is in the 3DS's stereoscopic format.
+    void Latch(bool swap, const ContentTrack& track, bool full_mode, int64_t now_ms,
+               bool shown_3d = false) {
         if (swap) {
             ++swaps_;
+            // AzaharFrame stereo: the game's eyes in this frame (its world draws' far points).
+            const StereoFrame::Result st = stereo_.End();
+            ++eyes_[std::clamp(st.eyes, 0, 2)];
+            if (shown_3d) {
+                ++shown_3d_;
+            }
+            if (st.eyes == 2 && far_len_ < kFarSamples) {
+                far_[far_len_++] = st.far_ndc / 2.0f;
+            }
             if (world_draws_ == 0) {
                 ++swaps_without_world_;
             }
@@ -448,7 +470,20 @@ public:
         if (now_ms - start_ms_ < 1000) {
             return;
         }
+        float far_width = -1.0f;
+        if (far_len_ > 0) {
+            std::nth_element(far_.begin(), far_.begin() + far_len_ / 2, far_.begin() + far_len_);
+            far_width = far_[far_len_ / 2];
+        }
+        g_stereo_far_width.store(far_width, std::memory_order_relaxed);
         if (full_mode && swaps_ > 0) {
+            LOG_INFO(HW_GPU,
+                     "xr: immersive stereo: {} top screen swaps with the game's two eyes, {} with "
+                     "its world drawn once, {} with no world camera; {} in the 3D format; far "
+                     "scenery {} of the picture's width apart",
+                     eyes_[2], eyes_[1], eyes_[0], shown_3d_,
+                     far_width >= 0.0f ? fmt::format("{:.2f} %", far_width * 100.0f)
+                                       : std::string("not seen"));
             LOG_INFO(HW_GPU,
                      "xr: immersive: {} top screen swaps, {} without a world draw, {} without a "
                      "copy into a framebuffer; the picture's world drawn with the latch's pose "
@@ -480,7 +515,9 @@ public:
         }
         const u64 keep_sum = last_sum_;
         const bool keep_have = have_last_sum_;
+        const StereoFrame keep_stereo = stereo_;
         *this = FrameTrace{};
+        stereo_ = keep_stereo;
         start_ms_ = now_ms;
         last_sum_ = keep_sum;
         have_last_sum_ = keep_have;
@@ -506,6 +543,11 @@ private:
     std::array<u32, kSequence> sequence_{};
     int sequence_len_ = 0;
     std::array<Proj, kProjections> proj_{};
+    StereoFrame stereo_;               ///< AzaharFrame stereo: this frame's world far points
+    std::array<u32, 3> eyes_{};        ///< swaps with 0, 1, 2 eyes this second
+    u32 shown_3d_ = 0;                 ///< swaps in the 3D format this second
+    std::array<float, kFarSamples> far_{};
+    int far_len_ = 0;
     int projections_ = 0;
     u32 other_proj_ = 0;
     u64 frame_sum_ = 0, last_sum_ = 0;
@@ -527,9 +569,14 @@ inline FrameTrace g_frame_trace;
 
 /// AzaharFrame oot: a draw through the game's patched world camera (emulation thread), with the
 /// projection in the four registers before the view matrix (0: not read).
-inline void OnWorldDraw(float tan_half_y = 0.0f, float aspect = 0.0f) {
+/// AzaharFrame stereo: and where it puts the far scenery across (`far_valid`: read).
+inline void OnWorldDraw(float tan_half_y = 0.0f, float aspect = 0.0f, bool far_valid = false,
+                        float far_ndc = 0.0f) {
     g_content.WorldDraw();
     g_frame_trace.WorldDraw(tan_half_y, aspect, tan_half_y > 0.0f);
+    if (far_valid) {
+        g_frame_trace.Far(far_ndc);
+    }
 }
 
 /// AzaharFrame oot: GPU::MemoryTransfer copied a picture to `out` (physical; emulation thread).
@@ -564,9 +611,10 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
 
 /// AzaharFrame doubling: a game frame ended (a latch): its draws used the pose applied so far.
 /// `shown`: the top framebuffer the game shows from now on (0: no swap, the VBlank fallback).
-inline void LatchFrame(RasterizerInterface* rasterizer, u32 shown = 0) {
+/// `shown_3d`: that framebuffer is in the 3D (stereoscopic) format.
+inline void LatchFrame(RasterizerInterface* rasterizer, u32 shown = 0, bool shown_3d = false) {
     g_content.Latch(shown);
-    g_frame_trace.Latch(shown != 0, g_content, g_content.Drawn().valid, SteadyMs());
+    g_frame_trace.Latch(shown != 0, g_content, g_content.Drawn().valid, SteadyMs(), shown_3d);
     ApplyPending(rasterizer);
 }
 
@@ -612,9 +660,10 @@ inline FrameLatch g_frame_latch;
 
 /// GPU::SetBufferSwap for the top screen (emulation thread): a game frame ended.
 /// `shown`: the physical address of the left framebuffer the game shows from now on.
-inline void OnTopScreenSwap(RasterizerInterface* rasterizer, u32 shown = 0) {
+inline void OnTopScreenSwap(RasterizerInterface* rasterizer, u32 shown = 0,
+                            bool shown_3d = false) {
     if (g_frame_latch.OnTopSwap()) {
-        LatchFrame(rasterizer, shown);
+        LatchFrame(rasterizer, shown, shown_3d);
     }
 }
 

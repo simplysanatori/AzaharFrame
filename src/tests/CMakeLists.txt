@@ -30,6 +30,7 @@ add_executable(tests
     ../frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/ipd.cpp # AzaharFrame ipd
+    frame_xr/stereo.cpp # AzaharFrame stereo
     frame_xr/input_motion.cpp # AzaharFrame
     ../frame_xr/vis/beam.cpp # AzaharFrame vrvis
     ../frame_xr/vis/controller_diagram.cpp # AzaharFrame ctrldiag

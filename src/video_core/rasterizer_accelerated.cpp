@@ -728,19 +728,26 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
             f[viewMatrixIndex + 2][3] += vr_inv_view[14];
 
             // AzaharFrame oot: the world camera, patched with the pose applied now
-            // (vr_immersive.h ContentTrack); its projection only for the frame trace.
+            // (vr_immersive.h ContentTrack); its projection's shape only for the frame trace.
+            // AzaharFrame stereo: and where it puts the far scenery across (the game's own 3D
+            // shears each eye's projection), so the XR thread can tell how far apart the two
+            // eyes' far scenery is on the screen (vr_view_matrix.h StereoFrame).
             vr_world_uniforms = true;
             vr_world_tan_half_y = 0.0f;
             vr_world_aspect = 0.0f;
-            if (viewMatrixIndex >= 4 && VideoCore::Immersive::FrameTrace::Traced()) {
+            vr_world_far_valid = false;
+            if (viewMatrixIndex >= 4) {
                 float rows[4][4];
                 for (int i = 0; i < 4; ++i) {
                     for (int j = 0; j < 4; ++j) {
                         rows[i][j] = f[viewMatrixIndex - 4 + i][j];
                     }
                 }
+                vr_world_far_valid =
+                    VideoCore::Immersive::FarAcrossFromRows(rows, vr_world_far_ndc);
                 VideoCore::Immersive::Projection p;
-                if (VideoCore::Immersive::ProjectionFromRows(rows, p)) {
+                if (VideoCore::Immersive::FrameTrace::Traced() &&
+                    VideoCore::Immersive::ProjectionFromRows(rows, p)) {
                     vr_world_tan_half_y = p.tan_half_y;
                     vr_world_aspect = p.aspect;
                 }

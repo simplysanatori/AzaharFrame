@@ -476,6 +476,25 @@ float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_i
     return mode == 2 ? half_ipd / Clamped(placement).distance : 0.0f;
 }
 
+StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
+                          float far_width) {
+    StereoFar out;
+    const float d = std::max(solved.distance, 1e-3f);
+    const float factor = std::max(solved.factor, 1e-3f);
+    // The game's share, on the quad; mode 3's quads are each on their eye, IPD apart already.
+    const float game_m = far_width / factor * solved.width();
+    const float quads_m = mode == 3 ? 2.0f * half_ipd : 0.0f;
+    out.separation_m = game_m + quads_m;
+    out.far_deg = 2.0f * std::atan(out.separation_m / (2.0f * d)) * kRadToDeg;
+    out.allow_deg = 2.0f * std::atan(half_ipd / d) * kRadToDeg;
+    out.vergence_deg = 2.0f * std::atan((half_ipd - out.separation_m / 2.0f) / d) * kRadToDeg;
+    out.diverges = out.vergence_deg < -kDivergeToleranceDeg;
+    if (game_m > 1e-6f) {
+        out.natural_scale = (2.0f * half_ipd - quads_m) / game_m;
+    }
+    return out;
+}
+
 Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd) {
     return HeadLockedQuadPose(solved, mode == 3 ? EyeX(eye, half_ipd) : 0.0f);
 }

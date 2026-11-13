@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -132,6 +133,89 @@ inline bool ProjectionFromRows(const float r[4][4], Projection& out) {
     out = {tan_half_y, aspect};
     return true;
 }
+
+/// AzaharFrame stereo: where a top screen camera's projection (`r`, as ProjectionFromRows) puts
+/// a point straight ahead at infinity, across the picture: -1 to 1 over its width, 0 without a
+/// stereo shear. The game's own 3D gives each eye's projection an opposite shear (the eye's
+/// shift itself moves nothing at infinity), so the two eyes' values are the far scenery's
+/// disparity. False when `r` is not a top screen camera.
+inline bool FarAcrossFromRows(const float r[4][4], float& ndc) {
+    Projection p;
+    if (!ProjectionFromRows(r, p)) {
+        return false;
+    }
+    const bool first_is_x = std::abs(r[0][0]) > std::abs(r[0][1]);
+    const float* hr = first_is_x ? r[0] : r[1];
+    ndc = hr[2] / r[3][2];
+    return std::isfinite(ndc) && std::abs(ndc) < 1.0f;
+}
+
+/// AzaharFrame stereo: the far points (FarAcrossFromRows) of one top screen frame's world draws,
+/// grouped: the game's eyes are the groups (one per eye with its 3D on, one when it draws its
+/// world once). Emulation thread; pure, unit tested in src/tests/frame_xr/stereo.cpp.
+class StereoFrame {
+public:
+    static constexpr int kGroups = 4;
+    /// Two far points in one group: this close (NDC) or this share of the larger one.
+    static constexpr float kTolerance = 2e-4f;
+    static constexpr float kShare = 0.01f;
+    /// A group counts as an eye with at least this share of the largest group's draws.
+    static constexpr float kEyeShare = 0.2f;
+
+    struct Result {
+        uint32_t draws = 0;    ///< world draws with a top screen camera
+        int eyes = 0;          ///< 0 (none), 1 (drawn once), 2 (two eyes)
+        float far_ndc = 0.0f;  ///< the two eyes' far points apart (NDC, 0 to 2); 0 below 2 eyes
+    };
+
+    void Draw(float ndc) noexcept {
+        ++draws_;
+        for (int i = 0; i < groups_; ++i) {
+            const float tol = std::max(kTolerance, kShare * std::abs(group_[i].ndc));
+            if (std::abs(group_[i].ndc - ndc) <= tol) {
+                ++group_[i].draws;
+                return;
+            }
+        }
+        if (groups_ < kGroups) {
+            group_[groups_++] = {ndc, 1};
+        }
+    }
+
+    /// The frame ended: what it held, and a fresh start.
+    Result End() noexcept {
+        Result r;
+        r.draws = draws_;
+        int a = -1, b = -1; // the two largest groups
+        for (int i = 0; i < groups_; ++i) {
+            if (a < 0 || group_[i].draws > group_[a].draws) {
+                b = a;
+                a = i;
+            } else if (b < 0 || group_[i].draws > group_[b].draws) {
+                b = i;
+            }
+        }
+        if (a >= 0) {
+            r.eyes = 1;
+            if (b >= 0 && static_cast<float>(group_[b].draws) >=
+                              kEyeShare * static_cast<float>(group_[a].draws)) {
+                r.eyes = 2;
+                r.far_ndc = std::abs(group_[a].ndc - group_[b].ndc);
+            }
+        }
+        *this = StereoFrame{};
+        return r;
+    }
+
+private:
+    struct Group {
+        float ndc = 0.0f;
+        uint32_t draws = 0;
+    };
+    Group group_[kGroups]{};
+    int groups_ = 0;
+    uint32_t draws_ = 0;
+};
 
 /// AzaharFrame depth: the projection most world draws used in each window of time (a quarter
 /// of a second), so a draw with another camera (a menu's, a model on the HUD) does not flicker

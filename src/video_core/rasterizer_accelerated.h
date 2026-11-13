@@ -90,6 +90,8 @@ protected:
     bool vr_world_uniforms = false;
     float vr_world_tan_half_y = 0.0f;
     float vr_world_aspect = 0.0f;
+    bool vr_world_far_valid = false; ///< AzaharFrame stereo: vr_world_far_ndc read
+    float vr_world_far_ndc = 0.0f;   ///< AzaharFrame stereo: FarAcrossFromRows
 
     struct HeuristicResult {
         int32_t view_matrixregister = -1;

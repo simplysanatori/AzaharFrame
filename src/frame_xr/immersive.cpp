@@ -1007,6 +1007,28 @@ void OnFrame(const FrameInfo& info) {
                          g.tuning.anchor_eye ? "about the eye now, AZAHARFRAME_IMMERSIVE_ANCHOR_EYE on"
                                              : "at the picture's head pose, ANCHOR_EYE off");
             }
+            // AzaharFrame stereo: the game's own 3D on this screen (no change, only the log).
+            const float far_width =
+                VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed);
+            if (far_width >= 0.0f) {
+                const L::StereoFar st = L::StereoFarOnQuad(g.solved, mode, g.half_ipd, far_width);
+                LOG_INFO(Frontend,
+                         "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
+                         "scenery {:.2f} % of its picture's width apart, {:.3f} m on the screen "
+                         "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm; the eyes "
+                         "{:.2f} degrees inwards; the game's 3D x {:.2f} would be parallel)",
+                         st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
+                         Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
+                         g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
+                         st.vergence_deg, st.natural_scale);
+                if (st.diverges) {
+                    LOG_WARNING(Frontend,
+                                "xr: stereo: the far scenery needs the eyes to diverge {:.2f} "
+                                "degrees, which they cannot: it doubles (the game's 3D, 3D "
+                                "Depth {} %, is too deep for this screen)",
+                                -st.vergence_deg, Settings::values.factor_3d.GetValue());
+                }
+            }
             const int64_t keep_picture = a.last_picture;
             const uint32_t keep_run = a.run;
             a = {};
