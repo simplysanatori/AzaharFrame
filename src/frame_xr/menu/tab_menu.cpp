@@ -680,8 +680,8 @@ std::string ExplainFor(Id id) {
         return "Shows the controllers in VR.";
     case Id::WindowScale:
         return "Makes text and buttons in Azahar's window bigger.";
-    case Id::Depth3d:
-        return "How deep the 3D looks in this game.";
+    case Id::Depth3d: // AzaharFrame integ8: and the stereo cap
+        return ::FrameXr::Immersive::Names::kDepth3dTip;
     case Id::InternalResolution: // AzaharFrame menuux
         return "How sharp the game is drawn. Higher needs more of the GPU.";
     case Id::DynamicResolution:

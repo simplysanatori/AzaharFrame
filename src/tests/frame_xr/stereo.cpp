@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "common/frame_vr_depth.h"
 #include "frame_xr/immersive_layout.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame integ8
 #include "video_core/vr_view_matrix.h"
 
 // AzaharFrame stereo: the game's own 3D, read from its two eyes' projections, on the Full
@@ -369,6 +370,51 @@ TEST_CASE("Stereo cap: smooth, and the user's own changes at once", "[frame_xr][
     cap.Reset();
     CHECK(cap.Update(0.50f, -1.0f, t) == 0.50f);
     CHECK(cap.Target() < 0.0f);
+}
+
+// AzaharFrame integ8: the toast when 3D Depth changes in mode 2 and the cap applies.
+TEST_CASE("Stereo cap: the 3D Depth toast says the limit", "[frame_xr][stereo][integ8]") {
+    using FrameXr::Immersive::Names::DepthLimitedToast;
+    CHECK(DepthLimitedToast(30, 0.0766f) == "3D Depth: 30% (Limited to 8%)");
+    CHECK(DepthLimitedToast(100, 0.074f) == "3D Depth: 100% (Limited to 7%)");
+    CHECK(DepthLimitedToast(30, 0.04f, 0.5f) == "3D Depth: 30% (Limited to 8%)"); // half the share
+    // Not limited, no limit known, 3D Depth 0, or the same whole percent: nothing new shows.
+    CHECK(DepthLimitedToast(30, 0.40f).empty());
+    CHECK(DepthLimitedToast(30, 0.30f).empty());
+    CHECK(DepthLimitedToast(30, -1.0f).empty());
+    CHECK(DepthLimitedToast(0, 0.05f).empty());
+    CHECK(DepthLimitedToast(8, 0.078f).empty());
+    CHECK(DepthLimitedToast(30, std::nanf("")).empty());
+    // For any slider and limit, it says "Limited" only when the cap limits the slider, always
+    // when the two differ by a whole percent, and the percent is the cap's own, rounded.
+    std::mt19937 rng(20261113);
+    std::uniform_real_distribution<float> u(0.0f, 1.2f);
+    for (int i = 0; i < 5000; ++i) {
+        const unsigned depth = 1 + static_cast<unsigned>(i % 100);
+        const float scale = (i % 3 == 0) ? 0.5f + 0.5f * u(rng) / 1.2f : 1.0f;
+        StereoCap cap;
+        const float user = static_cast<float>(depth) / 100.0f * scale;
+        cap.Update(user, u(rng) * scale, 1000);
+        const std::string t = DepthLimitedToast(depth, cap.Target(), scale);
+        INFO("depth " << depth << " limit " << cap.Target() << " scale " << scale << ": " << t);
+        if (!t.empty()) {
+            CHECK(cap.Limited());
+            const long pct = std::lround(100.0f * cap.Target() / scale);
+            CHECK(t == "3D Depth: " + std::to_string(depth) + "% (Limited to " +
+                           std::to_string(pct) + "%)");
+            CHECK(pct < static_cast<long>(depth));
+        } else if (cap.Limited()) {
+            CHECK(std::lround(100.0f * cap.Target() / scale) >= static_cast<long>(depth));
+        }
+    }
+}
+
+TEST_CASE("Stereo cap: the 3D Depth tooltips say it is limited", "[frame_xr][stereo][integ8]") {
+    using namespace FrameXr::Immersive::Names;
+    const std::string note = kDepth3dCapNote;
+    CHECK(note == "In Full (6DoF), it's limited so faraway scenery never goes past infinity.");
+    CHECK(std::string(kDepth3dTip) == "How deep the 3D looks in this game. " + note);
+    CHECK(std::string(kDepth3dWindowTip) == "How deep the 3D looks. " + note);
 }
 
 TEST_CASE("Stereo cap: the game's 3D per slider unit, measured", "[frame_xr][stereo]") {

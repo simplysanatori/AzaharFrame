@@ -38,6 +38,7 @@
 #include "frame_xr/menu/tab_menu.h"
 #include "frame_xr/menu/texparts_dump.h" // AzaharFrame texparts
 #include "frame_xr/toast_fit.h"          // AzaharFrame menuux
+#include "frame_xr/immersive_names.h"    // AzaharFrame integ8
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/menu_diagram.h"
@@ -418,6 +419,11 @@ int main(int argc, char** argv) {
         ok &= toast_shot("homebrew-no-updates-toast.png", {"No Updates Available"});
         ok &= toast_shot("homebrew-update-available-toast.png", {"Update Available"});
         ok &= toast_shot("homebrew-check-failed-toast.png", {"Couldn't Check for Updates"});
+        // AzaharFrame integ8: 3D Depth changed in mode 2 while the stereo cap limits it
+        ok &= toast_shot("depth-limited-toast.png",
+                         {Immersive::Names::DepthLimitedToast(30, 0.0766f),
+                          Immersive::Names::DepthLimitedToast(100, 0.074f),
+                          Immersive::Names::DepthLimitedToast(55, 0.123f)});
     }
     MenuView v;
     v.tab = Tab::Main;
@@ -1077,6 +1083,11 @@ int main(int argc, char** argv) {
         v.tooltip_index = 1;
         ok &= shot("sc0a-settings-per-game-tooltip-none", own(ug, {}, 1), v);
         ok &= shot("sc1a-settings-per-game-tooltip", own(ug, gfx, 1), v);
+        // AzaharFrame integ8: 3D Depth's tooltip, with the stereo cap's line
+        v = settings(SettingsSection::Graphics);
+        v.hover = {Id::Depth3d, kLabelIndex};
+        v.tooltip = Id::Depth3d;
+        ok &= shot("sc1b-settings-3d-depth-tooltip", own(ug, gfx, 1), v);
         v = settings(SettingsSection::Graphics);
         ok &= shot("sc2-settings-graphics-global", own(ug, gfx, 0), v);
         v.hover = {Id::Depth3d, kLabelIndex};

@@ -7,6 +7,7 @@
 #include "citra_qt/configuration/configure_enhancements.h"
 #ifdef ENABLE_FRAME_XR
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#include "frame_xr/immersive_names.h"         // AzaharFrame integ8: 3D Depth's tooltip
 #endif
 #include "common/settings.h"
 #include "ui_configure_enhancements.h"
@@ -20,6 +21,12 @@ ConfigureEnhancements::ConfigureEnhancements(QWidget* parent)
 
     SetupPerGameUI();
     SetConfiguration();
+
+#ifdef ENABLE_FRAME_XR
+    // AzaharFrame integ8: 3D Depth's tooltip, with mode 2's stereo cap (frame_xr/immersive_names.h)
+    ui->factor_3d->setToolTip(QString::fromUtf8(FrameXr::Immersive::Names::kDepth3dWindowTip));
+    ui->label_3->setToolTip(ui->factor_3d->toolTip());
+#endif
 
     const auto graphics_api = Settings::GetWorkingGraphicsAPI();
     const bool res_scale_enabled = graphics_api != Settings::GraphicsAPI::Software;

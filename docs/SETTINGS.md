@@ -168,7 +168,7 @@ Match the shape the game or mod draws, or the picture stretches. A change shows 
 
 How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
 
-In **Full (6DoF): Ocarina of Time, Majora's Mask**, the 3D is never shown deeper than keeps far scenery from splitting into a double image on the big screen. The limit follows the screen's size and distance. Your setting stays as it is.
+In **Full (6DoF): Ocarina of Time, Majora's Mask**, the 3D is never shown deeper than keeps far scenery from splitting into a double image on the big screen. The limit follows the screen's size and distance and your IPD. Your setting stays as it is. When you change 3D Depth there and the limit applies, the message says so, for example **3D Depth: 30% (Limited to 8%)**; the tooltip says it too.
 
 A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the game's own 3D is off and the two eyes are set apart in the game by your own eye distance times this setting (with the [Depth Factor Multiplier](#depth-factor-multiplier)), so it still sets how deep the 3D looks. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
 

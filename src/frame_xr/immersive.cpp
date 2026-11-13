@@ -662,6 +662,10 @@ bool AnchorPose(XrTime display, XrPosef& head) {
     return true;
 }
 
+// AzaharFrame integ8: the cap's limit in slider units for DepthChangeToast (any thread); below 0
+// while no cap applies (another mode, 3D Depth 0, no game, not yet measured).
+std::atomic<float> g_depth_cap_limit{-1.0f};
+
 // AzaharFrame stereo: no cap (another mode, 3D Depth 0, no game): the game sees the user's
 // slider again.
 void StopStereoCap() {
@@ -672,6 +676,7 @@ void StopStereoCap() {
     g.stereo_cap.Reset();
     g.stereo_cap_logged = -1.0f;
     Settings::frame_vr_stereo_cap.store(-1.0f, std::memory_order_relaxed);
+    g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
 }
 
 // AzaharFrame stereo: in mode 2 the game's own two eyes are on one screen: its far scenery is
@@ -687,6 +692,7 @@ void UpdateStereoCap(u32 mode) {
             g.stereo_cap.Target() >= 0.0f) {
             StopStereoCap();
         }
+        g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
         return;
     }
     if (!g.engaged) {
@@ -700,6 +706,7 @@ void UpdateStereoCap(u32 mode) {
     const float sent = g.stereo_cap.Update(user, limit, VideoCore::Immersive::SteadyMs());
     Settings::frame_vr_stereo_cap.store(g.stereo_cap.Target() >= 0.0f ? sent : -1.0f,
                                         std::memory_order_relaxed);
+    g_depth_cap_limit.store(g.stereo_cap.Target(), std::memory_order_relaxed); // AzaharFrame integ8
     // The log: when the cap takes effect, moves by half a percent or more, or lifts.
     if (g.stereo_cap.Limited()) {
         const float target = g.stereo_cap.Target();
@@ -1224,6 +1231,12 @@ float DistanceTo(const XrPosef& pose) {
 }
 
 } // namespace
+
+std::string DepthChangeToast(unsigned depth) {
+    return Names::DepthLimitedToast(
+        depth, g_depth_cap_limit.load(std::memory_order_relaxed),
+        Settings::frame_vr_depth_scale.load(std::memory_order_relaxed));
+}
 
 void Install() {
     g = State{};

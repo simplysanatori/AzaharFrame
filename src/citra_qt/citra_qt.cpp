@@ -183,6 +183,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "common/frame_flat.h" // AzaharFrame flat3: flat mode's own screen layout
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/immersive.h" // AzaharFrame integ8: DepthChangeToast
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
 #include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
@@ -2551,6 +2552,19 @@ void GMainWindow::InitializeSaveStateMenuActions() {
     UpdateSaveStates();
 }
 
+// AzaharFrame integ8: 3D Depth changed by a shortcut: in VR, in mode 2, when the stereo cap
+// limits it, the toast says to what (FrameXr::Immersive::DepthChangeToast); nothing otherwise.
+static void ShowFrameDepthToast() {
+    if (!FrameXr::IsStarted()) {
+        return;
+    }
+    const std::string toast =
+        FrameXr::Immersive::DepthChangeToast(Settings::values.factor_3d.GetValue());
+    if (!toast.empty()) {
+        FrameXr::ShowToastText(toast);
+    }
+}
+
 void GMainWindow::InitializeHotkeys() {
     hotkey_registry.LoadHotkeys();
     hotkey_registry.buttonMonitor.start(16);
@@ -2673,6 +2687,7 @@ void GMainWindow::InitializeHotkeys() {
                 Settings::values.factor_3d = factor_3d - FACTOR_3D_STEP;
             }
             UpdateStatusBar();
+            ShowFrameDepthToast(); // AzaharFrame integ8
         }
     });
     connect_shortcut(QStringLiteral("Increase 3D Factor"), [this] {
@@ -2685,6 +2700,7 @@ void GMainWindow::InitializeHotkeys() {
                 Settings::values.factor_3d = factor_3d + FACTOR_3D_STEP;
             }
             UpdateStatusBar();
+            ShowFrameDepthToast(); // AzaharFrame integ8
         }
     });
 
@@ -5179,9 +5195,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::DepthFactor:
         set(v.vr_immersive_positional_game_scaler, u);
         break;
-    case S::Depth3d: // AzaharFrame depth3d
+    case S::Depth3d: { // AzaharFrame depth3d
         set(v.factor_3d, std::min<u32>(u, 100));
+        // AzaharFrame integ8: in mode 2, when the stereo cap limits it, the toast says to what
+        const std::string toast = FrameXr::Immersive::DepthChangeToast(v.factor_3d.GetValue());
+        if (!toast.empty()) {
+            FrameXr::ShowToastText(toast);
+        }
         break;
+    }
     case S::MoveScreens: // AzaharFrame menu
         set(v.vr_move_screens, std::min<u32>(u, 2));
         break;
