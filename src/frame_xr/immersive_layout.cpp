@@ -890,7 +890,7 @@ float FovEase::Update(float target, int64_t now_ms) {
     const float e1 = (e + c * dt) * k;
     speed_ = (speed_ - w * c * dt) * k;
     value_ = target + e1;
-    moving_ = std::abs(e1) > 0.01f || std::abs(speed_) > 0.01f;
+    moving_ = std::abs(e1) > 0.02f || std::abs(speed_) > 0.1f; // degrees, degrees a second
     if (!moving_) {
         value_ = target;
         speed_ = 0.0f;

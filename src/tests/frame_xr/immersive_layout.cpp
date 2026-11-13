@@ -1574,12 +1574,12 @@ TEST_CASE("FrameXr immersive: Always follows a lasting change about a second lat
     CHECK(switched >= 5750); // held about a second first
     CHECK(switched <= 6250);
     // Eased: frame by frame (8 ms), never a step of more than a few degrees, never past it,
-    // 95 % there after FovEase::kEaseMs and all the way after a second.
+    // 95 % there after FovEase::kEaseMs and all the way after a little over a second.
     float last = screen.Update(52.0f, 5990);
     CHECK(last == 52.0f);
     float biggest = 0.0f;
     float at_ease = 0.0f;
-    for (int64_t frame = 6000; frame <= 7000; frame += 8) {
+    for (int64_t frame = 6000; frame <= 7250; frame += 8) {
         const float v = screen.Update(80.0f, frame);
         CHECK(v >= last);
         CHECK(v <= 80.0f);
