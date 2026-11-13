@@ -25,6 +25,7 @@
 #include <array>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -137,6 +138,10 @@ private:
     float press_s = 0.0f; ///< seconds the press has held (the drag's clock)
     Menu::Tab scroll_tab = Menu::Tab::Main;
     float scroll_seen = 0.0f; ///< the scroll as the last frame left it
+    /// The Cheats list's For Another Version section, open or not, per game (by title) for
+    /// this session only (never saved).
+    std::map<std::string, bool> cheats_other_open;
+    std::string cheats_other_game;
     Menu::Id rest_id = Menu::Id::None; ///< what the beam rests on, for the tooltip
     int rest_index = -1; ///< AzaharFrame modcat: the resting target's index (ModVersion)
     long long catalog_ask_ms = -1; ///< AzaharFrame jsoncrash: when Install Mods last asked for its list

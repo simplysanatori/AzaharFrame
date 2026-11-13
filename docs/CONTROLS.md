@@ -163,7 +163,7 @@ To go back to the game, select **Continue**, press **B**, or hold **Menu** for 1
 
 ## Cheats, mods and textures
 
-The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheats and fixes carry a verified badge after their name. Point and pull the trigger, as in the rest of the menu; the right stick scrolls.
+The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheats and fixes carry a verified badge after their name. Point and pull the trigger, as in the rest of the menu; the right stick scrolls. Cheats made for another version of the game are in **For Another Version** at the end of the Cheats list; point at it and pull the trigger to open or close it.
 
 | List | What is there |
 |---|---|

@@ -1387,6 +1387,10 @@ void MenuPanel::Click(Target t, Host& host) {
         view.scroll[static_cast<std::size_t>(view.tab)] = 0.0f;
         ask(MenuCommand::InstallFromZip, static_cast<int>(Menu::ZipTarget::Cheats));
         break;
+    case Id::CheatsOtherVersion: // AzaharFrame scroll: opens or closes, kept per game this session
+        view.cheats_other_open = !view.cheats_other_open;
+        cheats_other_open[model.game_title] = view.cheats_other_open;
+        break;
     case Id::Cheat:
         if (t.index >= 0) {
             // AzaharFrame compat: a cheat for another version asks before it turns on
@@ -1834,6 +1838,12 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     last_time = now;
     chain.Poll();
     BuildModel(host);
+    if (model.game_title != cheats_other_game) {
+        // AzaharFrame scroll: another game: its own For Another Version section (closed at first)
+        cheats_other_game = model.game_title;
+        const auto it = cheats_other_open.find(cheats_other_game);
+        view.cheats_other_open = it != cheats_other_open.end() && it->second;
+    }
 
     // ---- The beams ----
     const Input::PanelQuad quad{ToInput(pose), width_m, Height(), true};

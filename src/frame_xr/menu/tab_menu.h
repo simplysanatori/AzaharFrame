@@ -202,6 +202,7 @@ enum class Id : int {
     RemoveOriginal, ///< AzaharFrame ui3: the optimized pack's original, deleted after a dialog
     DialogExtra,    ///< AzaharFrame memwarn: a notice's third button (ModsDialog::extra), first
     Scrollbar,      ///< AzaharFrame scroll: a long list's scrollbar (MenuLayout::bar)
+    CheatsOtherVersion, ///< AzaharFrame scroll: the Cheats list's "For Another Version" section
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -371,6 +372,9 @@ struct MenuView {
     ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
     TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
     std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
+    /// AzaharFrame scroll: the Cheats list's "For Another Version" section is open (per game,
+    /// for the session: MenuPanel)
+    bool cheats_other_open = false;
     RemapView remap; ///< AzaharFrame remap: Edit Controls
     /// AzaharFrame compat: "This May Not Work" asked before ModInstall, PackDownload or turning a
     /// Cheat on (`index` the row, `key` its id or name, checked again on the answer).

@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <string>
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/menu/list_scroll.h"
@@ -445,4 +446,113 @@ TEST_CASE("List scroll: a long list draws a scrollbar a beam can take; a short o
     REQUIRE(d.menu.MaxScroll() > 0.0f);
     CHECK(d.menu.Layout().bar.Valid());
     CHECK(d.Find(Id::Scrollbar) != nullptr);
+}
+
+// AzaharFrame scroll: the Cheats list's "For Another Version" section.
+TEST_CASE("Cheats: cheats for another version go last, in a section that starts closed",
+          "[frame_xr][scroll][cheats]") {
+    CHECK(OtherVersionHeader(119, 0) == "For Another Version (119)");
+    CHECK(OtherVersionHeader(119, 2) == "For Another Version (119 · 2 On)");
+    CHECK(OtherVersionHeader(1, 1) == "For Another Version (1 · 1 On)");
+    CHECK(std::string(kAllOtherVersionNote) == "All Cheats Are for Another Version");
+
+    CheatsModel m;
+    m.cheats = {{"A"}, {"B", CheatSource::Sharkive, true, "for v1.5, this game is v1.0"},
+                {"C"}, {"D", CheatSource::Sharkive, false, "for Rev0, this cartridge is Rev1"},
+                {"E"}};
+    CHECK_FALSE(CheatForOtherVersion(m.cheats[0]));
+    CHECK(CheatForOtherVersion(m.cheats[1]));
+    CHECK(CheatForOtherVersion(m.cheats[3]));
+    using K = CheatRow::Kind;
+    CHECK(CheatRows(m, false) ==
+          std::vector<CheatRow>{{K::Cheat, 0}, {K::Cheat, 2}, {K::Cheat, 4}, {K::Header}});
+    CHECK(CheatRows(m, true) == std::vector<CheatRow>{{K::Cheat, 0}, {K::Cheat, 2},
+                                                      {K::Cheat, 4}, {K::Header},
+                                                      {K::Cheat, 1}, {K::Cheat, 3}});
+    // None for another version: no section.
+    CheatsModel plain;
+    plain.cheats = {{"A"}, {"B"}};
+    CHECK(CheatRows(plain, false) == std::vector<CheatRow>{{K::Cheat, 0}, {K::Cheat, 1}});
+    // All of them: the note, the section (still closed).
+    CheatsModel all;
+    all.cheats = {m.cheats[1], m.cheats[3]};
+    CHECK(CheatRows(all, false) == std::vector<CheatRow>{{K::Note}, {K::Header}});
+    CHECK(CheatRows(all, true) ==
+          std::vector<CheatRow>{{K::Note}, {K::Header}, {K::Cheat, 0}, {K::Cheat, 1}});
+    CHECK(CheatRows({}, false).empty());
+}
+
+TEST_CASE("Cheats: Pokémon X 1.0's 125 cheats, 119 for v1.5", "[frame_xr][scroll][cheats]") {
+    MenuModel m = LongCheats(125);
+    for (int i = 0; i < 125; i++) {
+        CheatItem& c = m.mods.cheats.cheats[static_cast<std::size_t>(i)];
+        c.version_note = i < 6 ? "" : "for v1.5, this game is v1.0";
+        c.enabled = i == 2 || i == 40 || i == 77;
+    }
+    Kit kit{1.0f};
+    frame_xr::ui::Canvas canvas;
+    TabMenu menu;
+    std::vector<DrawnText> texts;
+    const auto draw = [&](const MenuView& v) {
+        canvas.Init(static_cast<int>(kPanelW), static_cast<int>(kPanelH));
+        kit.Begin(canvas);
+        texts.clear();
+        kit.RecordText(&texts);
+        menu.Draw(kit, m, v);
+        kit.RecordText(nullptr);
+    };
+    const auto drew = [&](const std::string& s) {
+        for (const auto& t : texts) {
+            if (t.text == s) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto hit = [&](Id id, int index) -> const MenuLayout::Hit* {
+        for (const auto& h : menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return &h;
+            }
+        }
+        return nullptr;
+    };
+    MenuView v;
+    v.tab = Tab::Mods;
+    draw(v);
+    // Closed: the six for 1.0 on top, then the section; it fits, nothing scrolls.
+    CHECK(drew("For Another Version (119 · 2 On)")); // cheat 2 is for 1.0: not counted
+    REQUIRE(hit(Id::CheatsOtherVersion, -1) != nullptr);
+    CHECK(hit(Id::CheatsOtherVersion, -1)->r.H() >= 48.0f);
+    for (int i = 0; i < 6; i++) {
+        REQUIRE(hit(Id::Cheat, i) != nullptr);
+        CHECK(hit(Id::Cheat, i)->r.y1 <= hit(Id::CheatsOtherVersion, -1)->r.y0 + 0.01f);
+    }
+    CHECK(hit(Id::Cheat, 6) == nullptr);
+    CHECK(menu.MaxScroll() == 0.0f);
+    CHECK_FALSE(menu.Layout().bar.Valid());
+
+    // Open: the 119 under the header, in file order, each with its own (file) index.
+    v.cheats_other_open = true;
+    draw(v);
+    REQUIRE(hit(Id::Cheat, 6) != nullptr);
+    CHECK(hit(Id::Cheat, 6)->r.y0 >= hit(Id::CheatsOtherVersion, -1)->r.y1 - 0.01f);
+    CHECK(menu.MaxScroll() > 100.0f * 48.0f);
+    CHECK(menu.Layout().bar.Valid());
+    v.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
+    draw(v);
+    CHECK(hit(Id::Cheat, 124) != nullptr); // the last one at the end
+    CHECK(hit(Id::Cheat, 5) == nullptr);
+
+    // Every cheat for another version: the note over the section, still closed.
+    for (CheatItem& c : m.mods.cheats.cheats) {
+        c.version_note = "for v1.5, this game is v1.0";
+    }
+    v = {};
+    v.tab = Tab::Mods;
+    draw(v);
+    CHECK(drew(kAllOtherVersionNote));
+    CHECK(drew("For Another Version (125 · 3 On)"));
+    CHECK(hit(Id::Cheat, 0) == nullptr);
+    CHECK(LabelFor(Id::CheatsOtherVersion) == "For Another Version");
 }

@@ -1024,6 +1024,7 @@ int main(int argc, char** argv) {
         };
         MenuView sv;
         sv.tab = Tab::Mods;
+        sv.cheats_other_open = true; // the whole list
         sv.scroll[static_cast<int>(Tab::Mods)] = 1234.0f; // mid-list: a part row at the top
         ok &= shot("scroll-cheats-idle", lm, sv);
         const Scrolling::Bar bar = menu.Layout().bar;
@@ -1038,6 +1039,32 @@ int main(int argc, char** argv) {
         sv.scroll[static_cast<int>(Tab::Mods)] = 3700.0f; // dragged on down the track
         ok &= shot("scroll-cheats-dragged", lm, sv, {},
                    dot(hx + 10.0f, Scrolling::ThumbRect(bar, 3700.0f, true).Cy() + 6.0f));
+        // The cheats for another version in their own section, as Pokémon X 1.0 with Sharkive's
+        // 125 (119 for v1.5, two of them on): closed, with the beam on it; open, scrolled to it;
+        // and every cheat for another version (the note over the section).
+        MenuModel xm = lm;
+        for (int i = 0; i < 125; i++) {
+            CheatItem& ch = xm.mods.cheats.cheats[static_cast<std::size_t>(i)];
+            ch.version_note = i < 6 ? "" : "for v1.5, this game is v1.0";
+            ch.enabled = i == 2 || i == 40 || i == 77;
+        }
+        xm.mods.cheats.status = "125 cheats added, 119 for another version";
+        MenuView xv;
+        xv.tab = Tab::Mods;
+        xv.hover = {Id::CheatsOtherVersion};
+        ok &= shot("cheats-other-closed", xm, xv);
+        xv.hover = {};
+        xv.cheats_other_open = true;
+        xv.scroll[static_cast<int>(Tab::Mods)] = 4.0f * 48.0f;
+        ok &= shot("cheats-other-open", xm, xv);
+        MenuModel am = xm;
+        for (CheatItem& ch : am.mods.cheats.cheats) {
+            ch.version_note = "for v1.5, this game is v1.0";
+        }
+        am.mods.cheats.status = "125 cheats added, 125 for another version";
+        xv = {};
+        xv.tab = Tab::Mods;
+        ok &= shot("cheats-other-all", am, xv);
         // The same bar on the Settings tab (a short overflow: a long thumb).
         MenuView gv;
         gv.tab = Tab::Settings;

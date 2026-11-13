@@ -23,7 +23,9 @@
 //             (citra_qt.cpp). Cheats: ToggleCheat (`value` = index), DownloadCheats, Cheats
 //             (Azahar's window), handled by FrameCheats (citra_qt/frame_cheats.cpp).
 //
-// The Cheats segment: one flat list of the game's cheats in file order, no subheaders. The
+// The Cheats segment: the game's cheats in file order, those made for another version of the game
+// last, in a section of their own that starts closed ("For Another Version (119)"; AzaharFrame
+// scroll). The
 // developer's own (github.com/simplysanatori/3ds-game-fixes) have Material's verified badge after
 // the name; Sharkive's and the player's have no marker. A cheat made for another version has an
 // outlined chip in the error colour ("v1.0"). Each row's switch applies at once. Patches are not
@@ -68,6 +70,23 @@ struct CheatsModel {
 
 /// The chip's text from a version note: "for v1.0, this game is v1.1" gives "v1.0".
 std::string VersionChip(const std::string& version_note);
+
+/// AzaharFrame scroll: a cheat made for another version of the game (it has a version chip).
+bool CheatForOtherVersion(const CheatItem& cheat);
+/// The section's header: "For Another Version (119)", "For Another Version (119 · 2 On)".
+std::string OtherVersionHeader(int count, int on);
+/// The line over the section when every cheat is for another version.
+constexpr const char* kAllOtherVersionNote = "All Cheats Are for Another Version";
+/// One row of the Cheats list, in the order drawn.
+struct CheatRow {
+    enum class Kind : uint8_t { Cheat, Note, Header } kind = Kind::Cheat;
+    int index = -1; ///< a Cheat's index in CheatsModel::cheats
+    bool operator==(const CheatRow&) const = default;
+};
+/// The list: the cheats for this version (or with no version) in file order; then, when any
+/// are for another version, the note (only when all are), the section's header and, while
+/// `other_open`, those cheats in file order.
+std::vector<CheatRow> CheatRows(const CheatsModel& m, bool other_open);
 
 /// AzaharFrame compat: the "This May Not Work" body for turning on a cheat made for another
 /// version: "This cheat was made for version 1.1, and your game is version 1.0. It may not work."

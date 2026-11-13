@@ -554,6 +554,8 @@ std::string LabelFor(Id id) {
         return "Optimize";
     case Id::AddCheat: // AzaharFrame ui2
         return "Add Cheat";
+    case Id::CheatsOtherVersion: // AzaharFrame scroll
+        return "For Another Version";
     case Id::InstallCheatFile:
         return "Install from File";
     default:
