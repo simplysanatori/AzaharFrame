@@ -42,8 +42,9 @@ inline constexpr const char* kImmersiveDepthTip =
 
 /// Settings::values.vr_immersive_world_scale (was the Depth Factor Multiplier).
 inline constexpr const char* kWorldScale = "World Scale";
-/// Its value at 100 %.
+/// Its value at 100 %, and that on the VR menu's slider (as Internal Resolution's "Auto").
 inline constexpr const char* kWorldScaleAutomatic = "Automatic";
+inline constexpr const char* kWorldScaleAutoShort = "Auto";
 inline constexpr const char* kWorldScaleTip =
     "How big the game world feels. Automatic matches the game's own 3D. Grip and push the stick "
     "to change it while you play.";
@@ -81,6 +82,11 @@ inline std::string WorldScaleText(float percent) {
     const long rounded = std::lround(ClampWorldScale(percent));
     return rounded == static_cast<long>(kWorldScaleAuto) ? std::string(kWorldScaleAutomatic)
                                                           : std::to_string(rounded) + "%";
+}
+/// The VR menu slider's value: "Auto" at 100 % (its value column is narrow), else "45%".
+inline std::string WorldScaleShortText(float percent) {
+    const std::string t = WorldScaleText(percent);
+    return t == kWorldScaleAutomatic ? std::string(kWorldScaleAutoShort) : t;
 }
 /// "World Scale: 45%", "World Scale: Automatic" (the grip's toast and the menu's).
 inline std::string WorldScaleToast(float percent) {

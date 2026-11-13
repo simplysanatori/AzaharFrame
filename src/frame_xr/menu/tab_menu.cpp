@@ -79,10 +79,11 @@ std::string SliderText(Id id, float value) {
     if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu: "+10%", "0%", "-10%"
         return Format(value > 0.5f ? "+%.0f%%" : "%.0f%%", value);
     }
-    if (id == Id::WorldScale) { // AzaharFrame natural: the stop's percent, "Automatic" at 100
+    if (id == Id::WorldScale) { // AzaharFrame natural: the stop's percent, "Auto" at 100 (as
+        // Internal Resolution's; the value column has no room for "Automatic")
         const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
                                  static_cast<int>(Immersive::Layout::kWorldScaleStops.size()) - 1);
-        return Immersive::Layout::WorldScaleText(
+        return Immersive::Names::WorldScaleShortText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
@@ -214,7 +215,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         Row world = full(row(Id::WorldScale, RowKind::Slider));
         const SliderRange wr = SliderFor(Id::WorldScale);
         world.t = (static_cast<float>(m.world_scale_stop) - wr.min) / (wr.max - wr.min);
-        world.stops = static_cast<int>(wr.max - wr.min);
+        // No tick marks: 33 stops would be a row of dots; it still snaps to them.
         world.value = SliderText(Id::WorldScale, static_cast<float>(m.world_scale_stop));
         rows.push_back(world);
         rows.push_back(full(row(Id::FollowScreen, RowKind::Switch, 0, m.follow_screen)));

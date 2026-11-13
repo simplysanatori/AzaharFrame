@@ -254,8 +254,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Grip on a Screen", With("Move Screens", Grips(b)));
     Row(g, "Grip (Immersive)", "Move Immersive Screen");
     // AzaharFrame natural: in the Full modes the distance is World Scale.
-    Row(g, "Hold Grip + Stick Up or Down",
-        std::string("Nearer or Farther (Full Modes: ") + ImNames::kWorldScale + ")");
+    Row(g, "Hold Grip + Stick Up or Down", std::string("Nearer / ") + ImNames::kWorldScale);
     Row(g, "Hold Grip + Stick Sideways", "Screen Size");
     Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
     // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales

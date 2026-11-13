@@ -313,6 +313,8 @@ TEST_CASE("Natural: World Scale's stops and names", "[frame_xr][natural]") {
     CHECK(WorldScaleText(12.0f) == "12%");
     CHECK(WorldScaleText(5.0f) == "10%");
     CHECK(WorldScaleText(std::nanf("")) == "Automatic");
+    CHECK(FrameXr::Immersive::Names::WorldScaleShortText(100.0f) == "Auto");
+    CHECK(FrameXr::Immersive::Names::WorldScaleShortText(400.0f) == "400%");
     CHECK(WorldScaleToast(45.0f) == "World Scale: 45%");
     CHECK(WorldScaleToast(100.0f) == "World Scale: Automatic");
     // The distance: 100 % is the default 3 m; Follow off divides by the screen's size.
@@ -320,7 +322,9 @@ TEST_CASE("Natural: World Scale's stops and names", "[frame_xr][natural]") {
     CHECK(FullDistance(10.0f, 1.0f, true) == Approx(0.3f));
     CHECK(FullDistance(400.0f, 1.0f, true) == Approx(12.0f));
     CHECK(FullDistance(100.0f, 2.0f, false) == Approx(1.5f));
-    CHECK(FullDistance(10.0f, 2.5f, false) == Approx(kFullMinDistance));
+    CHECK(FullDistance(10.0f, 2.5f, false) == Approx(0.12f));
+    CHECK(FullDistance(400.0f, 0.6f, false) == Approx(kFullMaxDistance));
+    CHECK(FullDistance(400.0f, 0.5f, false) == Approx(kFullMaxDistance)); // clamped
     CHECK(WorldScaleForDistance(FullDistance(37.0f, 1.3f, false), 1.3f, false) ==
           Approx(37.0f));
 }

@@ -216,9 +216,9 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
 // AzaharFrame depth3d
 TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::Depth3d) == "3D Depth");
-    CHECK(ExplainFor(Id::Depth3d) == std::string("How deep the 3D looks in this game. In Full (6DoF), "
-                                                 "it's limited so faraway scenery never goes past "
-                                                 "infinity.")); // AzaharFrame integ8
+    CHECK(ExplainFor(Id::Depth3d) == // AzaharFrame natural: both meanings
+          "How deep the 3D looks. In the Full modes, 100% makes faraway scenery look truly far "
+          "away.");
     const SliderRange r = SliderFor(Id::Depth3d);
     CHECK(r.min == 0.0f);
     CHECK(r.max == 100.0f);
@@ -2575,6 +2575,7 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
                     id == Id::Scrollbar) { // AzaharFrame kiu: Immersive scrolls now
                     continue;
                 }
+                INFO("id " << static_cast<int>(id));
                 CHECK(static_cast<int>(SectionOf(id)) == sec); // only its own rows
             }
             if (scroll >= d.menu.MaxScroll()) {
