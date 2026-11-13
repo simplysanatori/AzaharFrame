@@ -315,6 +315,8 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_bottom_screen_reticle.SetGlobal(true); // AzaharFrame reticle: per game now
     values.vr_reticle_at_edge.SetGlobal(true);
     values.vr_reticle_speed.SetGlobal(true);
+    values.vr_reticle_center_until_pressed.SetGlobal(true); // AzaharFrame fixes7
+    values.vr_reticle_stick_moves.SetGlobal(true);
     values.vr_dynamic_resolution.SetGlobal(true); // AzaharFrame menuux
     values.autosave_enabled.SetGlobal(true);      // AzaharFrame autosave
     values.autosave_every.SetGlobal(true);

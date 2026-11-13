@@ -81,6 +81,12 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ReticleAtEdge:
         f(v.vr_reticle_at_edge);
         return true;
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        f(v.vr_reticle_center_until_pressed);
+        return true;
+    case Id::ReticleStick:
+        f(v.vr_reticle_stick_moves);
+        return true;
     default:
         return false;
     }

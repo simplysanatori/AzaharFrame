@@ -94,6 +94,24 @@ struct ReticleAim {
     Quatf orientation;   ///< points along its -Z
     float trigger = 0.0f;
     float grip = 0.0f; ///< a press re-zeroes (0 for the head)
+    /// AzaharFrame fixes7: the right stick (-1..1, right and up positive) while Stick Moves
+    /// Reticle is on, else zero.
+    Vec2f stick;
+};
+
+/// AzaharFrame fixes7: the reticle's two switches on the Controls tab (per game too).
+///   - Aim Only While Pressed (Settings::values.vr_reticle_center_until_pressed): the point stays
+///     in the middle of the bottom screen and only moves while the trigger touches; let go, it
+///     is back in the middle. The middle is where it aims when the trigger goes down, so a touch
+///     always starts at the middle.
+///   - Stick Moves Reticle (Settings::values.vr_reticle_stick_moves): the right stick moves the
+///     point too (its turn and the stick's add up into one touch), and does not reach the game
+///     as the C-Stick. Made for Kid Icarus: Uprising, which aims only by touch: the stick aims
+///     as the head does, during a touch too. Full tilt crosses the screen in 1 / kStickScreensPerSec
+///     seconds, the tilt squared (fine moves near the middle), past a dead zone of kStickDeadzone.
+struct ReticleModes {
+    bool center_until_pressed = false;
+    bool stick_moves = false;
 };
 ReticleAim ReticleAimOf(const HandInput& hand);
 /// The head aims; the touch is the larger of the two triggers (either one held touches).
@@ -168,12 +186,15 @@ public:
     /// Snap to Middle: no other snap for this long after the touch comes back (or the snap,
     /// with no touch).
     static constexpr int64_t kSnapCooldownNs = 200'000'000;
+    /// AzaharFrame fixes7: Stick Moves Reticle (ReticleModes).
+    static constexpr float kStickDeadzone = 0.15f;
+    static constexpr float kStickScreensPerSec = 1.0f;
 
     /// One frame. `live`: on, a game running, the menu closed. `aim`: the chosen controller or
     /// the head as read; `half_width_deg` its cone (ReticleHalfWidthDeg). Not tracked gives `on`
     /// false; when it comes back it starts at the middle.
     ReticleFrame Update(const ReticleAim& aim, bool live, float half_width_deg, int64_t now_ns,
-                        ReticleEdge edge = ReticleEdge::Follow);
+                        ReticleEdge edge = ReticleEdge::Follow, ReticleModes modes = {});
     /// The next frame puts the reference where the controller points (Recenter).
     void Rezero() {
         rezero_ = true;

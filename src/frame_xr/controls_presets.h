@@ -19,12 +19,17 @@ struct ControlsPreset {
     const char* name;
     /// Settings::values.vr_bottom_screen_reticle (0 = none: keep the setting).
     uint32_t bottom_screen_reticle = 0;
+    /// AzaharFrame fixes7: Settings::values.vr_reticle_stick_moves on (false: keep the setting).
+    bool stick_moves_reticle = false;
 };
 
 /// Kid Icarus: Uprising aims with the stylus on the bottom screen while the left hand moves
 /// and fires: the head aims the reticle (Headset) and either trigger touches.
-inline constexpr ControlsPreset kKidIcarusUprisingControls{.name = "Kid Icarus: Uprising",
-                                                           .bottom_screen_reticle = 3};
+/// AzaharFrame fixes7: and the right stick moves the reticle too (Stick Moves Reticle): with the
+/// C-Stick & Gyro patch the stick aims only while the screen is not touched ("Touchscreen input
+/// retains priority", its INSTALLATION.md), so the stick and the head add up into the touch.
+inline constexpr ControlsPreset kKidIcarusUprisingControls{
+    .name = "Kid Icarus: Uprising", .bottom_screen_reticle = 3, .stick_moves_reticle = true};
 
 struct ControlsPresetTitle {
     uint64_t title_id;

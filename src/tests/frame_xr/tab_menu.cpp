@@ -2848,7 +2848,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(PerGameSetting(id));
     }
     CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
-                                                 Id::ReticleSpeed, Id::ReticleAtEdge});
+                                                 Id::ReticleSpeed, Id::ReticleAtEdge,
+                                                 Id::ReticleCenter, Id::ReticleStick});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3009,6 +3010,49 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::ReticleSpeed, -1));
     CHECK(HasHit(d, Id::ReticleSpeed, kLabelIndex));
+}
+
+// AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, switch rows under At Edge
+// while the reticle is on, per game; greyed in Global while the game has its own value.
+TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
+    CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
+    CHECK(LabelFor(Id::ReticleStick) == "Stick Moves Reticle");
+    CHECK(!ExplainFor(Id::ReticleCenter).empty());
+    CHECK(!ExplainFor(Id::ReticleStick).empty());
+    CHECK(PerGameSetting(Id::ReticleCenter));
+    CHECK(PerGameSetting(Id::ReticleStick));
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Controls;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleCenter, -1)); // the reticle is off
+    CHECK(!HasHit(d, Id::ReticleStick, -1));
+    for (const int source : {1, 2, 3}) {
+        m.bottom_screen_reticle = source;
+        m.reticle_center = source == 2;
+        m.reticle_stick = source == 3;
+        d.Draw(m, v);
+        const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
+        const MenuLayout::Hit* center = FindHit(d, Id::ReticleCenter, -1);
+        const MenuLayout::Hit* stick = FindHit(d, Id::ReticleStick, -1);
+        REQUIRE(edge != nullptr);
+        REQUIRE(center != nullptr);
+        REQUIRE(stick != nullptr);
+        CHECK(center->r.y0 >= edge->r.y1 - 0.01f); // under At Edge
+        CHECK(stick->r.y0 >= center->r.y1 - 0.01f);
+        Audit a;
+        a.Draw(m, v);
+        a.Check("Controls, reticle switches");
+        CHECK(a.Drew("Aim Only While Pressed"));
+        CHECK(a.Drew("Stick Moves Reticle"));
+    }
+    m.scope = 0;
+    m.locked[static_cast<std::size_t>(Id::ReticleStick)] = Lock::GameValue;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleStick, -1));
+    CHECK(HasHit(d, Id::ReticleStick, kLabelIndex));
+    CHECK(HasHit(d, Id::ReticleCenter, -1));
 }
 
 // AzaharFrame ffaudio

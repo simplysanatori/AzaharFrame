@@ -293,6 +293,8 @@ enum class MenuSetting {
     ReticleSpeed,  ///< AzaharFrame reticle: `value` tenths of 1x, 5 to 40 (vr_reticle_speed)
     AccurateImageCopies, ///< AzaharFrame accxfer, xfergpu: `value` 0 Off, 1 Automatic, 2 On
                          ///< (image_copy_accuracy)
+    ReticleCenter, ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_center_until_pressed)
+    ReticleStick,  ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_stick_moves)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

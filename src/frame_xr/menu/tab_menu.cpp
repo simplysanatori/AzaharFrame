@@ -236,6 +236,8 @@ bool PerGameSetting(Id id) {
     case Id::BottomScreenReticle:
     case Id::ReticleSpeed:
     case Id::ReticleAtEdge:
+    case Id::ReticleCenter: // AzaharFrame fixes7
+    case Id::ReticleStick:
         return true;
     default:
         return false;
@@ -244,8 +246,9 @@ bool PerGameSetting(Id id) {
 
 // AzaharFrame reticle
 const std::vector<Id>& ControlsScopeRows() {
-    static const std::vector<Id> kRows{Id::TouchpadTouch, Id::BottomScreenReticle,
-                                       Id::ReticleSpeed, Id::ReticleAtEdge};
+    static const std::vector<Id> kRows{Id::TouchpadTouch,  Id::BottomScreenReticle,
+                                       Id::ReticleSpeed,   Id::ReticleAtEdge,
+                                       Id::ReticleCenter, Id::ReticleStick}; // fixes7
     return kRows;
 }
 
@@ -418,6 +421,10 @@ std::string LabelFor(Id id) {
         return "At Edge";
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "Reticle Speed";
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        return "Aim Only While Pressed";
+    case Id::ReticleStick:
+        return "Stick Moves Reticle";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -605,6 +612,10 @@ std::string ExplainFor(Id id) {
         return "Use Global Value";
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        return "Keeps the reticle centered on the bottom screen. It moves only while you hold the trigger and returns to the center when you let go.";
+    case Id::ReticleStick:
+        return "The right stick moves the reticle too, instead of the C-Stick.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -1646,11 +1657,29 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
+    // AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, switch rows (the whole
+    // row toggles it), as Show Stats.
+    const auto switch_row = [&](Id id, float y0, bool on) {
+        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        const State st = StateOf(view, {id}, enabled);
+        if (enabled) {
+            kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
+        }
+        kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        kit.Switch({c.x0, row.y0, c.x1, row.y1}, on, st);
+        AddHit(row, {id, enabled ? -1 : kLabelIndex}, pane);
+        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        return row;
+    };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge and Reticle Speed only while the reticle is on.
+    // At Edge, Reticle Speed, Aim Only While Pressed and Stick Moves Reticle only while the
+    // reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 2.0f * kChoiceH : 0.0f);
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 4.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
     const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
@@ -1666,7 +1695,9 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
-        choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
+        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
+        const Rect center_row = switch_row(Id::ReticleCenter, edge_row.y1, model.reticle_center);
+        switch_row(Id::ReticleStick, center_row.y1, model.reticle_stick);
     }
     DrawScopeMenu(kit, model, view, pane);
 }

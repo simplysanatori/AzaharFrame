@@ -846,6 +846,12 @@ struct Values {
     // the controller, times the base mapping (0.5 to 4; frame_xr/input/reticle.h). One value
     // for every aim source; per game too.
     SwitchableSetting<float, true> vr_reticle_speed{2.0f, 0.5f, 4.0f, "vr_reticle_speed"};
+    // AzaharFrame fixes7: the reticle's Aim Only While Pressed (it stays in the middle of the
+    // bottom screen until the trigger touches) and Stick Moves Reticle (the right stick moves it
+    // too, instead of being the C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
+    SwitchableSetting<bool> vr_reticle_center_until_pressed{false,
+                                                            "vr_reticle_center_until_pressed"};
+    SwitchableSetting<bool> vr_reticle_stick_moves{false, "vr_reticle_stick_moves"};
     // AzaharFrame mouse: one-time toasts, shown once per install: the reticle's controls when it
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};
