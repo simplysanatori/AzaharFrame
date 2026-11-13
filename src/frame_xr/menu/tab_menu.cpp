@@ -126,7 +126,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
             rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
-            rows.push_back(row(Id::FastForwardAudio, RowKind::Segmented, m.fast_forward_audio)); // ffaudio
+            // AzaharFrame kiu2: a menu button, as Normal Speed (Experimental) does not fit a
+            // segment (four choices beside the label).
+            rows.push_back(row(Id::FastForwardAudio, RowKind::MenuButton, m.fast_forward_audio)); // ffaudio
             // AzaharFrame autosave: the Saves group (the game's values in Per-Game); Every and
             // Keep greyed while Autosave is off.
             rows.push_back(row(Id::SavesHeader, RowKind::Header));
@@ -336,7 +338,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
                                                      "MMPX"};
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
-    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"};
+    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed (Experimental)", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
     static const std::vector<std::string> kMatchCamera{"Off", "Once", "Always"}; // fovonce
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
@@ -695,7 +697,7 @@ std::string ExplainFor(Id id) {
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::FastForwardAudio:
-        return "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed plays at real speed.";
+        return "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed (Experimental) plays at real speed.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:

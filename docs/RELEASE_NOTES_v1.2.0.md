@@ -10,7 +10,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Preload Custom Textures** is off by default, and turning it on now asks first.
 - Save states from 1.1.1 are dimmed. They still load with **Load Anyway**.
 - Azahar runs under a memory limit. If a texture pack fills memory, Azahar closes instead of freezing the Frame.
-- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Normal Speed**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game. **Normal Speed** plays the sound at its real speed and skips ahead to keep up.
+- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Normal Speed (Experimental)**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game. **Normal Speed (Experimental)** plays the sound at its real speed and skips ahead to keep up; the sound can rise and fall in volume as it does.
 
 ### Mods tab
 
@@ -94,7 +94,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
 - **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
-- **C-Stick at Edge**: hold the reticle's touch near an edge of the bottom screen and the C-Stick pushes that way too. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming reaches the edge.
+- **C-Stick at Edge**: hold the reticle near an edge of the bottom screen and the touch lifts while the C-Stick pushes that way. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming pushes past its aiming box.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
 ### Mouse and Pointer Controls

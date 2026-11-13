@@ -3142,10 +3142,11 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
 TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]") {
     CHECK(LabelFor(Id::FastForwardAudio) == "Fast Forward Audio");
     CHECK(OptionsFor(Id::FastForwardAudio) ==
-          std::vector<std::string>{"Sped Up", "Normal Pitch", "Normal Speed", "Muted"});
+          std::vector<std::string>{"Sped Up", "Normal Pitch", "Normal Speed (Experimental)",
+                                   "Muted"});
     CHECK(ExplainFor(Id::FastForwardAudio) ==
           "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed "
-          "plays at real speed.");
+          "(Experimental) plays at real speed.");
     CHECK(PerGameSetting(Id::FastForwardAudio));
     CHECK(SectionOf(Id::FastForwardAudio) == SettingsSection::General);
     MenuModel m = Sample();
@@ -3154,6 +3155,24 @@ TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]"
     CHECK(GameValueRows(m, Tab::Settings, SettingsSection::General) ==
           std::vector<Id>{Id::FastForwardAudio});
     CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Graphics).empty());
+    // AzaharFrame kiu2: a menu button, whose value shows whole (420 wide less its padding and
+    // arrow), and whose menu's items set the choice.
+    Drawn d;
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::General;
+    v.scroll[static_cast<int>(Tab::Settings)] = 300.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::FastForwardAudio, -1));
+    CHECK(!HasHit(d, Id::FastForwardAudio, 2));
+    v.open_menu = Id::FastForwardAudio;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::FastForwardAudio, 2));
+    Kit kit(1.0f);
+    for (const std::string& o : OptionsFor(Id::FastForwardAudio)) {
+        INFO(o);
+        CHECK(kit.Fit(Type::Label, o, 420.0f - 64.0f) == o);
+    }
 }
 
 // AzaharFrame fixes7: Screen Shape: Automatic, the last choice (vr_top_aspect 6).
