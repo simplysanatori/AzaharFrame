@@ -18,6 +18,15 @@ public:
 
     void ReportEndFrame();
 
+    /// AzaharFrame: whether the disabler may skip the right eye this frame. It is for the flat
+    /// screen only. In VR the right eye is the 3DS's own right image, so a skipped right eye
+    /// shows a stale picture to one eye (a shimmer in Fire Emblem Fates' 3D scenes): while an XR
+    /// session shows the game it never runs, whatever the setting says, and the saved setting
+    /// is left alone for the flat screen.
+    static constexpr bool WantedForFrame(bool setting, bool xr_active) {
+        return setting && !xr_active;
+    }
+
     void SetEnabled(bool enable) {
         enabled = enable;
     }
