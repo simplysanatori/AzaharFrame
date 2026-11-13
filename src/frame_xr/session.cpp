@@ -6,7 +6,10 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <thread>
+#include <vector>
+#include <fmt/format.h>
 
 #include "common/logging/log.h"
 #include "common/frame_flat.h"
@@ -334,6 +337,33 @@ bool Runtime::CreateSession() {
         LOG_ERROR(Frontend, "xr: xrCreateSession: {}", ResultName(r));
         session = XR_NULL_HANDLE;
         return false;
+    }
+    // AzaharFrame dbl: the display refresh rates the runtime offers (XR_FB_display_refresh_rate),
+    // logged; AZAHARFRAME_XR_REFRESH_RATE=<Hz> (a test switch) asks for one of them.
+    if (xr.xrEnumerateDisplayRefreshRatesFB && xr.xrGetDisplayRefreshRateFB) {
+        uint32_t n = 0;
+        std::vector<float> rates;
+        if (XR_SUCCEEDED(xr.xrEnumerateDisplayRefreshRatesFB(session, 0, &n, nullptr)) && n > 0) {
+            rates.resize(n);
+            if (XR_FAILED(xr.xrEnumerateDisplayRefreshRatesFB(session, n, &n, rates.data()))) {
+                rates.clear();
+            }
+        }
+        float now = 0.0f;
+        xr.xrGetDisplayRefreshRateFB(session, &now);
+        std::string list;
+        for (const float hz : rates) {
+            list += fmt::format("{}{:.1f}", list.empty() ? "" : " ", hz);
+        }
+        LOG_INFO(Frontend, "xr: display refresh rates offered: {} Hz (now {:.1f} Hz)",
+                 list.empty() ? "none listed" : list, now);
+        const char* want = std::getenv("AZAHARFRAME_XR_REFRESH_RATE");
+        if (want && *want && xr.xrRequestDisplayRefreshRateFB) {
+            const float hz = static_cast<float>(std::atof(want));
+            const XrResult rr = xr.xrRequestDisplayRefreshRateFB(session, hz);
+            LOG_INFO(Frontend, "xr: AZAHARFRAME_XR_REFRESH_RATE: asked for {:.1f} Hz: {}", hz,
+                     ResultName(rr));
+        }
     }
 
     XrReferenceSpaceCreateInfo rs{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
