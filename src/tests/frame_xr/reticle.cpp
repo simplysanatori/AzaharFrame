@@ -757,48 +757,259 @@ TEST_CASE("Reticle: C-Stick at Edge", "[frame_xr][reticle][kiu]") {
     CHECK(small.y == Approx(0.1f));
 }
 
-// AzaharFrame kiu: through the touch pipeline as the bridge runs it: the push starts when the held
-// touch enters the band, follows it, and is gone the frame the touch leaves the band or lifts;
-// another source's touch (the mouse) pushes nothing.
-TEST_CASE("Reticle: C-Stick at Edge follows the reticle's own touch", "[frame_xr][reticle][kiu]") {
+// AzaharFrame kiu2: C-Stick at Edge's hand-over (ReticleEdgeHandoff, reports/30/kiuadv/plan.md):
+// Touch -> Lead -> Stick in the band, Stick -> Return -> Touch out of it past the margin.
+namespace {
+using HState = ReticleEdgeHandoff::State;
+struct EdgeCase {
+    Vec2f at;    ///< the point on the edge
+    Vec2f in;    ///< a unit step toward the middle
+    Vec2f sign;  ///< the push's direction there
+    bool on_x;   ///< the edge is across (the band's x)
+};
+constexpr EdgeCase kEdges[] = {{{1.0f, 0.5f}, {-1.0f, 0.0f}, {1.0f, 0.0f}, true},
+                               {{0.0f, 0.5f}, {1.0f, 0.0f}, {-1.0f, 0.0f}, true},
+                               {{0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 1.0f}, false},
+                               {{0.5f, 1.0f}, {0.0f, -1.0f}, {0.0f, -1.0f}, false}};
+Vec2f Into(const EdgeCase& e, float from_edge) {
+    return {e.at.x + e.in.x * from_edge, e.at.y + e.in.y * from_edge};
+}
+} // namespace
+
+TEST_CASE("Reticle: C-Stick at Edge hands the touch to the C-Stick", "[frame_xr][reticle][kiu]") {
+    const int64_t lead = ReticleEdgeHandoff::kHandoffLeadNs;
+    const int64_t lag = ReticleEdgeHandoff::kHandoffLagNs;
+    const float floor = ReticleEdgeHandoff::kEdgeStickFloor;
+    const float hys = ReticleEdgeHandoff::kHandoffHysteresis;
+    for (const ReticleHand src : {ReticleHand::Left, ReticleHand::Right, ReticleHand::Headset}) {
+        for (float speed = kReticleSpeedMin; speed <= kReticleSpeedMax + 0.001f; speed += 0.1f) {
+            const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(src, speed));
+            REQUIRE(band.On());
+            // The middle, held: the touch, no stick.
+            ReticleEdgeHandoff m;
+            for (int i = 0; i < 20; i++) {
+                const auto o = m.Update({0.5f, 0.5f}, true, band, i * 11 * kMs);
+                CHECK(o.touch);
+                CHECK(o.stick.x == 0.0f);
+                CHECK(o.stick.y == 0.0f);
+            }
+            for (const EdgeCase& e : kEdges) {
+                const float b = e.on_x ? band.x : band.y;
+                ReticleEdgeHandoff h;
+                int64_t now = 0;
+                h.Update({0.5f, 0.5f}, true, band, now);
+                // Into the band: the stick at once, at least the floor; the touch for the lead.
+                now += 11 * kMs;
+                auto o = h.Update(Into(e, b * 0.5f), true, band, now);
+                CHECK(h.state() == HState::Lead);
+                CHECK(o.touch);
+                const float want = floor + (1.0f - floor) * 0.5f;
+                CHECK(o.stick.x == Approx(e.sign.x * want).margin(1e-4));
+                CHECK(o.stick.y == Approx(e.sign.y * want).margin(1e-4));
+                const int64_t entered = now;
+                while (now - entered < lead) {
+                    now += 11 * kMs;
+                    o = h.Update(e.at, true, band, now);
+                    CHECK(o.touch == (now - entered < lead));
+                }
+                CHECK(h.state() == HState::Stick);
+                CHECK_FALSE(o.touch);
+                CHECK(o.stick.x == Approx(e.sign.x).margin(1e-4)); // on the edge: full tilt
+                CHECK(o.stick.y == Approx(e.sign.y).margin(1e-4));
+                // Wobbling across the band's inner line, within the margin: no change.
+                for (int i = 0; i < 20; i++) {
+                    now += 11 * kMs;
+                    const float f = (i % 2) ? b * 0.98f : b * (1.0f + hys * 0.8f);
+                    o = h.Update(Into(e, f), true, band, now);
+                    CHECK_FALSE(o.touch);
+                    CHECK(std::fabs(o.stick.x + o.stick.y) >= floor - 1e-4f); // the floor holds
+                }
+                // Out past the margin: the touch first, the stick a lag later.
+                now += 11 * kMs;
+                o = h.Update(Into(e, b * (1.0f + hys * 1.5f)), true, band, now);
+                CHECK(h.state() == HState::Return);
+                CHECK(o.touch);
+                CHECK(std::fabs(o.stick.x + o.stick.y) == Approx(floor).margin(1e-4));
+                const int64_t left = now;
+                while (h.state() == HState::Return) {
+                    now += 11 * kMs;
+                    o = h.Update({0.5f, 0.5f}, true, band, now);
+                    CHECK(o.touch);
+                }
+                CHECK(now - left >= lag);
+                CHECK(o.stick.x == 0.0f);
+                CHECK(o.stick.y == 0.0f);
+                // Let go in Stick: no stick and the touch allowed in the same call; band off too.
+                for (int how = 0; how < 2; how++) {
+                    ReticleEdgeHandoff g;
+                    g.Update(e.at, true, band, 0);
+                    g.Update(e.at, true, band, lead);
+                    REQUIRE(g.state() == HState::Stick);
+                    o = how == 0 ? g.Update(e.at, false, band, lead + 11 * kMs)
+                                 : g.Update(e.at, true, ReticleEdgeBand{}, lead + 11 * kMs);
+                    CHECK(o.touch);
+                    CHECK(o.stick.x == 0.0f);
+                    CHECK(o.stick.y == 0.0f);
+                    CHECK(g.state() == HState::Touch);
+                }
+                // Out of the band during the lead: back to the touch, never lifted.
+                ReticleEdgeHandoff t;
+                t.Update(e.at, true, band, 0);
+                o = t.Update({0.5f, 0.5f}, true, band, 11 * kMs);
+                CHECK(t.state() == HState::Touch);
+                CHECK(o.touch);
+                CHECK(o.stick.x == 0.0f);
+            }
+            // Depth 0 to 1 gives the floor to full tilt, rising.
+            float last = 0.0f;
+            for (int i = 0; i <= 20; i++) {
+                ReticleEdgeHandoff h;
+                const float d = static_cast<float>(i) / 20.0f;
+                const auto o = h.Update({1.0f - band.x + band.x * d + 1e-6f, 0.5f}, true, band, 0);
+                CHECK(o.stick.x >= floor - 1e-4f);
+                CHECK(o.stick.x >= last - 1e-5f);
+                CHECK(o.stick.x <= 1.0f + 1e-5f);
+                last = o.stick.x;
+            }
+            CHECK(last == Approx(1.0f));
+            // Corners: both ways, never past full tilt.
+            for (const Vec2f c : {Vec2f{0.0f, 0.0f}, Vec2f{1.0f, 0.0f}, Vec2f{0.0f, 1.0f},
+                                  Vec2f{1.0f, 1.0f}}) {
+                ReticleEdgeHandoff h;
+                const auto o = h.Update(c, true, band, 0);
+                CHECK(std::sqrt(o.stick.x * o.stick.x + o.stick.y * o.stick.y) <= 1.0f + 1e-5f);
+                CHECK(o.stick.x != 0.0f);
+                CHECK(o.stick.y != 0.0f);
+            }
+        }
+    }
+    // A NaN point: no stick, the touch allowed.
+    ReticleEdgeHandoff n;
+    const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f));
+    const auto o = n.Update({std::nanf(""), 0.5f}, true, band, 0);
+    CHECK(o.touch);
+    CHECK(o.stick.x == 0.0f);
+    CHECK(o.stick.y == 0.0f);
+}
+
+// AzaharFrame kiu2: through TouchpadTouch: a drag into the band gives Pressed, Moved..., one
+// Released after the lead; back out, one Pressed where the point is (no Moved first). With the
+// band off the events are as before; another source's touch gets no stick.
+TEST_CASE("Reticle: C-Stick at Edge through the touch pipeline", "[frame_xr][reticle][kiu]") {
+    const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f));
+    const auto run = [&](const ReticleEdgeBand& b, std::vector<TouchEvent>& all,
+                         std::vector<Vec2f>* sticks) {
+        TouchpadTouch t;
+        TouchpadFrame fr;
+        fr.bottom_visible = true;
+        fr.time_ns = 1'000 * kMs;
+        const auto step = [&](Vec2f p, bool down) {
+            fr.time_ns += 11 * kMs;
+            fr.reticle = {true, p, down, b};
+            const TouchpadResult r = t.Update(fr);
+            all.insert(all.end(), r.events.begin(), r.events.begin() + r.event_count);
+            if (sticks) {
+                sticks->push_back(r.edge_stick);
+            }
+        };
+        step({0.5f, 0.5f}, false);
+        step({0.5f, 0.5f}, true);
+        for (int i = 1; i <= 25; i++) {
+            step({0.5f + 0.02f * static_cast<float>(i), 0.5f}, true); // to the edge, then held
+        }
+        for (int i = 0; i < 20; i++) {
+            step({1.0f, 0.5f}, true);
+        }
+        all.push_back({TouchEventType::Moved, -1.0f, -1.0f}); // a marker: back out from here
+        step({0.6f, 0.5f}, true);
+        for (int i = 0; i < 10; i++) {
+            step({0.6f - 0.01f * static_cast<float>(i), 0.5f}, true);
+        }
+        step({0.5f, 0.5f}, false);
+    };
+    std::vector<TouchEvent> with, without;
+    std::vector<Vec2f> sticks;
+    run(band, with, &sticks);
+    run(ReticleEdgeBand{}, without, nullptr);
+    // Without the band: one press, moves, one release at the end (as before kiu2).
+    int presses = 0, releases = 0;
+    for (const TouchEvent& e : without) {
+        presses += e.type == TouchEventType::Pressed;
+        releases += e.type == TouchEventType::Released;
+    }
+    CHECK(presses == 1);
+    CHECK(releases == 1);
+    // With it: Pressed, Moved..., Released (in the band), then after the marker Pressed at the
+    // point, Moved..., Released.
+    std::vector<TouchEventType> kinds;
+    std::size_t marker = 0;
+    for (std::size_t i = 0; i < with.size(); i++) {
+        if (with[i].x < 0.0f) {
+            marker = i;
+            continue;
+        }
+        if (kinds.empty() || kinds.back() != with[i].type || with[i].type != TouchEventType::Moved) {
+            kinds.push_back(with[i].type);
+        }
+    }
+    const std::vector<TouchEventType> want = {
+        TouchEventType::Pressed, TouchEventType::Moved,    TouchEventType::Released,
+        TouchEventType::Pressed, TouchEventType::Moved,    TouchEventType::Released};
+    CHECK(kinds == want);
+    REQUIRE(marker + 1 < with.size());
+    CHECK(with[marker + 1].type == TouchEventType::Pressed); // no Moved jump before it
+    CHECK(with[marker + 1].x == Approx(0.6f * 320.0f).margin(1.0f));
+    // The release came while the point was in the band, after the stick started.
+    bool pushed = false;
+    for (const Vec2f& s : sticks) {
+        pushed = pushed || s.x >= ReticleEdgeHandoff::kEdgeStickFloor;
+    }
+    CHECK(pushed);
+    CHECK(sticks.back().x == 0.0f);
+    // Another source (the mouse) holds the touch: the reticle at the edge gets no stick.
     TouchpadTouch t;
     TouchpadFrame fr;
-    fr.time_ns = 1'000 * kMs;
+    fr.mode = TouchpadMode::Touch;
     fr.bottom_visible = true;
-    const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f));
-    fr.reticle = {true, {0.5f, 0.5f}, false, band};
-    const auto step = [&](Vec2f p, bool down) {
-        fr.reticle.point = p;
-        fr.reticle.down = down;
+    fr.time_ns = 1'000 * kMs;
+    fr.mouse = {true, false, 0.5f, 0.5f};
+    t.Update(fr);
+    fr.time_ns += 11 * kMs;
+    fr.mouse.down = true;
+    t.Update(fr);
+    REQUIRE(t.owner() == TouchSource::Mouse);
+    for (int i = 0; i < 10; i++) {
         fr.time_ns += 11 * kMs;
-        t.Update(fr);
-        return ReticleEdgeStickFor(fr.reticle, t.owner(), t.touching());
-    };
-    Vec2f s = step({0.95f, 0.5f}, false); // hovering at the edge: no touch, no push
-    CHECK(s.x == 0.0f);
-    s = step({0.5f, 0.5f}, true); // touching in the middle
-    CHECK(s.x == 0.0f);
-    s = step({0.90f, 0.5f}, true); // into the band, held
-    CHECK(s.x == Approx((0.90f - 0.85f) / 0.15f).margin(1e-4));
-    s = step({1.0f, 0.5f}, true); // at the edge
-    CHECK(s.x == Approx(1.0f));
-    s = step({0.80f, 0.5f}, true); // out of the band, still held
-    CHECK(s.x == 0.0f);
-    s = step({1.0f, 0.5f}, true);
-    CHECK(s.x == Approx(1.0f));
-    s = step({1.0f, 0.5f}, false); // lifted at the edge: released in that frame
-    CHECK(s.x == 0.0f);
-    CHECK(s.y == 0.0f);
-    // The switch off (no band): never a push.
-    fr.reticle.edge_band = {};
-    s = step({1.0f, 0.5f}, true);
-    CHECK(t.owner() == TouchSource::Reticle);
-    CHECK(s.x == 0.0f);
-    // Another source holds the touch: the reticle's point at the edge pushes nothing.
-    CHECK(ReticleEdgeStickFor({true, {1.0f, 0.5f}, true, band}, TouchSource::Mouse, true).x ==
-          0.0f);
-    CHECK(ReticleEdgeStickFor({true, {1.0f, 0.5f}, true, band}, TouchSource::Reticle, false).x ==
-          0.0f);
-    CHECK(ReticleEdgeStickFor({false, {1.0f, 0.5f}, true, band}, TouchSource::Reticle, true).x ==
-          0.0f);
+        fr.reticle = {true, {1.0f, 0.5f}, false, band};
+        const TouchpadResult r = t.Update(fr);
+        CHECK(r.edge_stick.x == 0.0f);
+    }
+}
+
+// AzaharFrame kiu2: as controls.cpp runs it with the switch on: Follow whatever At Edge says, so
+// the point stays on the edge (Snap to Middle never takes it out of the band), and the C-Stick
+// pushes there for as long as it is held.
+TEST_CASE("Reticle: C-Stick at Edge holds the edge with Snap to Middle stored",
+          "[frame_xr][reticle][kiu]") {
+    for (const bool center : {false, true}) {
+        Rig t;
+        t.edge = ReticleEdge::Follow; // what controls.cpp passes while the switch is on
+        t.half = ReticleHalfWidthDeg(ReticleHand::Right, 2.0f);
+        t.modes.center_until_pressed = center;
+        const ReticleEdgeBand band = ReticleEdgeBandFor(t.half);
+        ReticleEdgeHandoff h;
+        t.Step(Aim(0.0f, 0.0f));
+        float yaw = 0.0f;
+        int lifted = 0;
+        ReticleEdgeHandoff::Out o;
+        for (int i = 0; i < 200; i++) {
+            yaw = std::max(yaw - 1.0f, -t.half - 8.0f);
+            const ReticleFrame& f = t.Step(Aim(yaw, 0.0f, 1.0f));
+            CHECK_FALSE(f.snapped);
+            o = h.Update(f.point, f.down, band, t.now);
+            lifted += o.touch ? 0 : 1;
+        }
+        CHECK(lifted > 150);
+        CHECK(o.stick.x > 0.95f); // the dead zone holds the point a hair short of the edge
+    }
 }

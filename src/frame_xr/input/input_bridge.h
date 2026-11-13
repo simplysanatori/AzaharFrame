@@ -50,6 +50,10 @@ public:
     Vec2f edge_stick() const {
         return edge_stick_;
     }
+    /// AzaharFrame kiu2: C-Stick at Edge's hand-over state after the last Process.
+    ReticleEdgeHandoff::State edge_state() const {
+        return touchpad_.edge_state();
+    }
 
 private:
     Mapper mapper_;

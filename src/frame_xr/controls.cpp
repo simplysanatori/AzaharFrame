@@ -1604,17 +1604,21 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             const bool holding = Immersive::HoldingScreen() || bridge.mapper().DragActive();
             const bool stick_on = Settings::values.vr_reticle_stick_moves.GetValue();
             modes.stick_moves = stick_on && !holding;
+            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
+            // AzaharFrame kiu2: while it is on the point follows the edges (Follow) whatever At
+            // Edge says, so Snap to Middle never pulls it out of the band; the setting is kept.
+            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            const Input::ReticleEdge at_edge =
+                edge_on ? Input::ReticleEdge::Follow
+                        : Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue());
             Input::HandInput& right = game_in.hand[static_cast<std::size_t>(
                 Input::HandIndex(Input::Hand::Right))];
             aim.stick = Input::SplitReticleStick(modes.stick_moves, true, right.stick).to_reticle;
             const float half_width = Input::ReticleHalfWidthDeg(
                 source, Settings::values.vr_reticle_speed.GetValue()); // AzaharFrame reticle
             const Input::ReticleFrame rf = reticle.Update(
-                aim, true, half_width, in.time_ns,
-                Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()), modes);
+                aim, true, half_width, in.time_ns, at_edge, modes);
             right.stick = Input::SplitReticleStick(modes.stick_moves, rf.on, right.stick).to_game;
-            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
-            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
             const int modes_now =
                 (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0) | (edge_on ? 4 : 0);
             if (modes_now != reticle_modes_logged) {
@@ -1691,12 +1695,17 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
     bridge_live = true;
     {
-        // AzaharFrame kiu: C-Stick at Edge starts and stops pushing (one line each).
-        const Input::Vec2f edge = bridge.edge_stick();
-        const bool pushing = edge.x != 0.0f || edge.y != 0.0f;
-        if (pushing != edge_stick_logged) {
-            edge_stick_logged = pushing;
-            LOG_INFO(Frontend, "xr: C-Stick at Edge: {}", pushing ? "pushing" : "released");
+        // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:
+        // the touch is handed to the C-Stick and back.
+        // Logged on entering Stick (the touch lifted) and on getting back to Touch, with the point.
+        const bool stick = bridge.edge_state() == Input::ReticleEdgeHandoff::State::Stick;
+        const bool touch = bridge.edge_state() == Input::ReticleEdgeHandoff::State::Touch;
+        if ((stick && !edge_stick_logged) || (touch && edge_stick_logged)) {
+            edge_stick_logged = stick;
+            const Input::Vec2f e = bridge.edge_stick();
+            LOG_INFO(Frontend, "xr: C-Stick at Edge: {} at {:.3f}, {:.3f} (C-Stick {:+.2f}, {:+.2f})",
+                     stick ? "stick" : "touch", reticle_sample.point.x, reticle_sample.point.y,
+                     e.x, e.y);
         }
     }
 
@@ -1812,8 +1821,19 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // shapes the screen (AzaharFrame kiu: Horizontal Scale, Vertical Scale) instead of the offset
     // and Render Margin. The raw grips: a Bottom Screen Reticle hand's grip is taken out of
     // game_in.
-    const bool both_grips = holding_immersive && in.hand[0].grip > Immersive::Layout::kGripPress &&
-                            in.hand[1].grip > Immersive::Layout::kGripPress;
+    // AzaharFrame kiu2: with the Adjuster's hysteresis (down past kGripPress, up only under
+    // kGripRelease), so the holding hand's grip easing off while the thumb finds the D-pad does
+    // not drop back to the offset and Render Margin.
+    for (std::size_t h = 0; h < 2; h++) {
+        const float g = in.hand[h].grip;
+        scale_grip_down[h] = scale_grip_down[h] ? g > Immersive::Layout::kGripRelease
+                                                : g > Immersive::Layout::kGripPress;
+    }
+    const bool both_grips = holding_immersive && scale_grip_down[0] && scale_grip_down[1];
+    if (both_grips != both_grips_logged) {
+        both_grips_logged = both_grips;
+        LOG_INFO(Frontend, "xr: immersive: both grips {}", both_grips ? "down" : "up");
+    }
     if (nudge.Any() && both_grips) {
         // Right wider, left narrower; up taller, down shorter. Held, they repeat.
         bool changed = false;

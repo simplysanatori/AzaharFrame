@@ -40,7 +40,7 @@ Hold **View**, then press the right bumper to Quick Save, or hold the left bumpe
 
 ## Fast Forward
 
-Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you, and doing it again shows "Normal Speed". The sound stays at its normal pitch while it runs. **Fast Forward Audio**, on the VR **Settings** tab (General) and in **Emulation > Configure > Audio**, picks **Sped Up** (the game's own sound, faster and higher), **Normal Pitch** (the default), **Normal Speed** (real speed, skipping ahead to keep up) or **Muted**. It also goes off when the game stops, when a menu opens and when you switch between VR and Flat. In Flat the speed in the status bar shows it.
+Hold **View**, then pull and let go of the right trigger to turn Fast Forward on. The game runs at Azahar's turbo speed: **Turbo Speed Limit** in **Emulation > Configure > General**, 200 % unless you changed it. "Fast Forward" shows in front of you, and doing it again shows "Normal Speed". The sound stays at its normal pitch while it runs. **Fast Forward Audio**, on the VR **Settings** tab (General) and in **Emulation > Configure > Audio**, picks **Sped Up** (the game's own sound, faster and higher), **Normal Pitch** (the default), **Normal Speed (Experimental)** (real speed, skipping ahead to keep up; the sound can rise and fall in volume) or **Muted**. It also goes off when the game stops, when a menu opens and when you switch between VR and Flat. In Flat the speed in the status bar shows it.
 
 ## Pointing
 
@@ -212,7 +212,7 @@ Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touc
 - **Reticle Speed**, under it, sets how far the dot moves for a turn of your head or the controller: 0.5x to 4.0x, one value for both. At the default 2.0x your head turns about 15 degrees from edge to edge and 11 from top to bottom (30 and 22.5 at 1.0x); a controller turns 20 and 15.
 - **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and the switches below can be set per game with the **Global | Per-Game** switch at the top of the tab. Kid Icarus: Uprising starts with **Headset** and **C-Stick at Edge** on unless you set them yourself.
 - **At Edge**, under it: **Follow** (the default) keeps the dot on the edge. **Snap to Middle** lifts the touch at the edge and touches again in the middle, like a stylus swipe.
-- **C-Stick at Edge**: while the trigger touches near an edge, the C-Stick pushes toward it too, more the closer you are to the edge. It lets go when you lift the trigger or move away from the edge. In Kid Icarus: Uprising with the C-Stick & Gyro mod this turns the camera, as the mod does when C-Stick aiming reaches the edge.
+- **C-Stick at Edge**: while the trigger touches near an edge, the touch lifts and the C-Stick pushes toward that edge, more the closer you are to it. Move back from the edge and the touch comes back; lift the trigger and both let go. In Kid Icarus: Uprising with the C-Stick & Gyro mod this turns the camera, as the mod does when C-Stick aiming pushes past its aiming box.
 - **Aim Only While Pressed**: the dot stays in the middle until the trigger touches, and goes back when you let go.
 - **Right Stick Moves Touch**: the right stick moves the touch point too, and is not the C-Stick while the reticle aims. Off, the right stick stays the C-Stick.
 

@@ -959,6 +959,12 @@ int main(int argc, char** argv) {
             ok &= shot(pick == 2 ? "5a7-ff-audio-normal-speed-tooltip"
                                  : (pick == 1 ? "5a7-ff-audio-normal-pitch" : "5a7-ff-audio-muted"),
                        fa, v);
+            if (pick == 2) { // AzaharFrame kiu2: its menu open
+                v.hover = {Id::FastForwardAudio, 2};
+                v.tooltip = Id::None;
+                v.open_menu = Id::FastForwardAudio;
+                ok &= shot("5a7-ff-audio-menu-open", fa, v);
+            }
         }
     }
     v = settings(SettingsSection::Immersive);

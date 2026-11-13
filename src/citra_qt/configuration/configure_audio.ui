@@ -79,7 +79,7 @@
          <item>
           <widget class="QLabel" name="label_ff_audio">
            <property name="toolTip">
-            <string>How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch. Normal Speed plays at real speed and skips ahead to keep up.</string>
+            <string>How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch. Normal Speed (Experimental) plays at real speed and skips ahead to keep up.</string>
            </property>
            <property name="text">
             <string>Fast Forward Audio</string>
@@ -103,7 +103,7 @@
            </item>
            <item>
             <property name="text">
-             <string>Normal Speed</string>
+             <string>Normal Speed (Experimental)</string>
             </property>
            </item>
            <item>

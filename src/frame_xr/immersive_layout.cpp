@@ -390,7 +390,13 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     const float a = std::isfinite(aspect) && aspect > 0.1f ? aspect : 5.0f / 3.0f;
     // What fills the view, fitted at its middle, so moving the screen up or down never resizes it.
     const Cover cover = DefaultCover(view, ViewMiddlePitch(view), eye_shift);
-    float qx = s.factor * a * t;
+    // AzaharFrame kiu2: sized with `size_wider` when given (the menu rule keeps the padded size).
+    const float size_factor =
+        std::isfinite(options.size_wider) && options.size_wider > 0.0f
+            ? std::clamp(options.size_wider, kFactorMin, kFactorMax)
+            : s.factor;
+    const float drawn_over_sized = s.factor / size_factor;
+    float qx = size_factor * a * t;
     // AzaharFrame oot: the game's own shape. Render Margin widens the picture by the same factor
     // both ways (Off: exactly the game's frame). The screen used to take the view's shape, so
     // the game drew 1.25 times its height on the Frame even at Off (a 4:3 picture from a 5:3
@@ -414,7 +420,9 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     const float live = std::isfinite(options.live_fov_y_deg) && options.live_fov_y_deg > 0.0f
                            ? GameTan(options.live_fov_y_deg)
                            : t;
-    const float base = s.factor_y * live / qy;
+    // AzaharFrame kiu2: over the height the drawn factor would have been sized with, so a screen
+    // kept at a larger size (size_wider) turns the game as the smaller one did.
+    const float base = s.factor_y * live / (qy * drawn_over_sized);
     s.gain = std::clamp(base / (1.0f - squeeze_y), kMinGain, kMaxGain);
     s.gain_x = std::clamp(base / (1.0f - squeeze), kMinGain, kMaxGain);
     // The Immersive Offset last: it turns the screen fitted above, never resizes it.

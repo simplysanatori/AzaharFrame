@@ -73,11 +73,10 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     }
     const TouchpadResult result = touchpad_.Update(touch);
     touchpad_cursor_ = result.cursor;
-    // AzaharFrame kiu: C-Stick at Edge: while the reticle's touch is the one the game gets and it
-    // sits in an edge band, the C-Stick (the right stick's, after its dead zone and the other
-    // gamepads) is pushed toward that edge too. Nothing is added otherwise, so it lets go in the
-    // frame the touch lifts or leaves the band.
-    edge_stick_ = ReticleEdgeStickFor(touch.reticle, touchpad_.owner(), touchpad_.touching());
+    // AzaharFrame kiu: C-Stick at Edge: the push goes onto the C-Stick (the right stick's, after
+    // its dead zone and the other gamepads). AzaharFrame kiu2: the touch pipeline hands the
+    // reticle's touch over to it in the edge band (reticle.h ReticleEdgeHandoff).
+    edge_stick_ = result.edge_stick;
     if (edge_stick_.x != 0.0f || edge_stick_.y != 0.0f) {
         last_.controls.SetStick(AnalogControl::StickR,
                                 AddStick(last_.controls.GetStick(AnalogControl::StickR), edge_stick_));

@@ -135,9 +135,11 @@ ReticleStickSplit SplitReticleStick(bool stick_moves, bool reticle_live, Vec2f s
 /// out of the band, or switched off: nothing is added, so the C-Stick is the stick's own again
 /// in the same frame (nothing to release later).
 /// Why: the C-Stick & Gyro mod for Kid Icarus: Uprising aims with the C-Stick and turns the
-/// camera when that aim reaches the edge of the screen (its touch keeps priority over the
-/// stick: "Touchscreen input retains priority"). A touch held at the edge did nothing like it:
-/// the stick pushed outward is the mod's own turn.
+/// camera when that aim reaches the edge of its box. AzaharFrame kiu2, measured in a ground
+/// battle (reports/30/kiu2): the C-Stick alone turns the camera (yaw, and pitch up to its
+/// limit) once its cursor reaches the box's edge; while any touch is held the mod ignores the
+/// C-Stick, and a touch held still at the edge turns nothing. So the push alone did nothing: the
+/// touch is lifted while the point is in the band (ReticleEdgeHandoff) and the C-Stick turns.
 /// The band is an aim angle (kEdgeBandDeg) in the reticle's cone (ReticleHalfWidthDeg, from the
 /// source and Reticle Speed), as a fraction of the screen's width and height: the same turn of
 /// the head or the controller enters it at any Reticle Speed and any screen size or shape,
@@ -159,6 +161,54 @@ ReticleEdgeBand ReticleEdgeBandFor(float half_width_deg);
 Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band);
 /// Two stick values added, no longer than full tilt (1).
 Vec2f AddStick(Vec2f a, Vec2f b);
+
+/// AzaharFrame kiu2: C-Stick at Edge hands the reticle's touch over to the C-Stick while its
+/// point is in the edge band (the Kid Icarus: Uprising C-Stick & Gyro mod reads no C-Stick in a
+/// frame with a touch held, and turns its camera when the C-Stick's cursor runs past its box;
+/// reports/30/kiu2, reports/30/kiuadv/plan.md). One call a frame, in the touch pipeline:
+///   Touch  -> Lead:   the trigger touches, the band is on and the point is in it (either axis).
+///   Lead   -> Stick:  after kHandoffLeadNs (the stick pushes, the touch still down); back to
+///                     Touch if the point leaves the band first (a tap at the edge still lands).
+///   Stick  -> Return: the point is out of the band by kHandoffHysteresis of its width more.
+///   Return -> Touch:  after kHandoffLagNs (the touch down again, the stick still pushed).
+///   The trigger let go or the band off: Touch at once (no stick, nothing held).
+/// `touch` is false only in Stick; `stick` is pushed in Lead, Stick and Return: per axis toward
+/// its edge, kEdgeStickFloor + (1 - kEdgeStickFloor) * the depth into the band (0 in the
+/// hysteresis strip, so that axis holds the floor), through AddStick so a corner stays within full
+/// tilt. The lead and the lag overlap the stick and the touch, so the game never sees a frame with
+/// neither (with the cursor outside its box that gave a single jump of the camera). The band
+/// comes from the reticle's cone and Reticle Speed (ReticleEdgeBandFor); the timings are tied to
+/// the game's frames, not to a setup.
+class ReticleEdgeHandoff {
+public:
+    /// More than one game frame at 30 fps (33 ms).
+    static constexpr int64_t kHandoffLeadNs = 50'000'000;
+    static constexpr int64_t kHandoffLagNs = 50'000'000;
+    /// Above the mod's C-Stick dead zone (6 of 100) with room for Azahar's own.
+    static constexpr float kEdgeStickFloor = 0.15f;
+    /// Out of the band by this much more of its width before the touch comes back (tremor at
+    /// the band's inner edge does not lift and touch again).
+    static constexpr float kHandoffHysteresis = 0.25f;
+    enum class State { Touch, Lead, Stick, Return };
+    struct Out {
+        bool touch = true; ///< the reticle's touch may be down (false: lifted)
+        Vec2f stick;       ///< added to the C-Stick (-1..1, right and up positive)
+        bool changed = false; ///< the state changed in this call
+    };
+    Out Update(Vec2f point, bool down, const ReticleEdgeBand& band, int64_t time_ns);
+    void Reset() {
+        state_ = State::Touch;
+    }
+    State state() const {
+        return state_;
+    }
+
+private:
+    State state_ = State::Touch;
+    int64_t since_ns_ = 0;
+    Vec2f last_push_; ///< the floor toward the edge that pushed last (Return)
+};
+
 ReticleAim ReticleAimOf(const HandInput& hand);
 /// The head aims; the touch is the larger of the two triggers (either one held touches).
 ReticleAim ReticleHeadAim(bool head_active, const Quatf& head, const HandInput& left,

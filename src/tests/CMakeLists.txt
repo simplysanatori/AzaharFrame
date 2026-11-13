@@ -61,6 +61,7 @@ add_executable(tests
     frame_xr/ui_sound.cpp # AzaharFrame menuux
     ../frame_xr/ui_sound_wav.cpp # AzaharFrame menuux
     frame_xr/toast_fit.cpp # AzaharFrame menuux
+    frame_xr/toast_depth.cpp # AzaharFrame kiu2
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

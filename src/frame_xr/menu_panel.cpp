@@ -1922,6 +1922,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ScreenCurve:
     case Id::ImmersiveMode:
     case Id::InternalResolution: // AzaharFrame menuux
+    case Id::FastForwardAudio:   // AzaharFrame kiu2
         view.open_menu = t.id; // a menu button: its menu
         break;
     case Id::ControlsPage:
@@ -1959,7 +1960,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:
-    case Id::FastForwardAudio: // AzaharFrame ffaudio
         if (t.index >= 0) {
             SetSetting(t.id, t.index, host);
         }

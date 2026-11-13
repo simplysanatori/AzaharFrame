@@ -978,6 +978,9 @@ void OnFrame(const FrameInfo& info) {
                          Names::kRenderMargin, options.wider);
             }
         }
+        // AzaharFrame kiu2: the screen keeps the padded size meanwhile, so the game's own frame
+        // (the menu) fills the same area, as big as gameplay; eased with the factor.
+        options.size_wider = options.wider;
         options.wider = L::MenuExact::Factor(options.wider, g.menu_exact.Update(menu, now));
         if (MatchMode() != Settings::MatchGameCamera::Off) {
             if (g.tuning.fov_trace) {
@@ -1495,6 +1498,8 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     const int after = L::SteppedScale(before, vertical ? taller_steps : wider_steps);
     ShowToastText(L::ScaleToast(after, vertical)); // also at the ends, so the press shows
     if (after == before && setting.GetValue() == after) {
+        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit", // AzaharFrame kiu2
+                 L::ScaleToast(after, vertical));
         return WiderStep::None;
     }
     if (setting.UsingGlobal()) {
