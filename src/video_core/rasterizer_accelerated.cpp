@@ -685,6 +685,13 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                     vr_world_across = across;
                 }
             }
+            // AzaharFrame natural: the eye's camera as the game set it (3 rows, before the
+            // patch), so the two eyes' difference gives the game's eye separation.
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    vr_world_eye[i][j] = f[viewMatrixIndex + i][j];
+                }
+            }
             if (matrixMode == 2)
             {
                 f[viewMatrixIndex][0] = vr_inv_view[0];
@@ -768,8 +775,8 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                         rows[i][j] = f[viewMatrixIndex - 4 + i][j];
                     }
                 }
-                vr_world_far_valid =
-                    VideoCore::Immersive::FarAcrossFromRows(rows, vr_world_far_ndc);
+                vr_world_far_valid = VideoCore::Immersive::FarAcrossFromRows(
+                    rows, vr_world_far_ndc, vr_world_p00);
                 VideoCore::Immersive::Projection p;
                 if (VideoCore::Immersive::FrameTrace::Traced() &&
                     VideoCore::Immersive::ProjectionFromRows(rows, p)) {

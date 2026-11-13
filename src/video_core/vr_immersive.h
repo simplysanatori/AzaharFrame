@@ -460,6 +460,11 @@ inline std::atomic<float> g_stereo_zero_distance{-1.0f};
 /// rasterizer gives the game's two eyes, from the XR thread (StereoEyeLimit, EyeScale); the
 /// head-motion scale never changes with it.
 inline std::atomic<float> g_eye_scale{1.0f};
+/// AzaharFrame natural: the game's eye separation per unit of its far width (EyePerFar: game
+/// units per picture width), every swap; below 0 until measured. The XR thread's leaning scale
+/// is made from it (frame_xr/immersive.cpp, UpdateNatural).
+inline std::atomic<float> g_stereo_eye_per_far{-1.0f};
+inline std::atomic<int> g_stereo_eye_samples{0}; ///< frames read so far (EyePerFar::Count)
 /// AzaharFrame stereo: the XR thread adds one when another game starts (not a quick save loaded
 /// in the same one), so the measures (and the menu rule's "two eyes earlier") start afresh.
 inline std::atomic<u32> g_stereo_generation{0};
@@ -541,8 +546,11 @@ public:
     }
     /// AzaharFrame stereo: a world draw's far point across (FarAcrossFromRows).
     /// AzaharFrame dbl: and its near term and horizontal scale (NearTermFromRows; NaN: not read).
-    void Far(float ndc, float k = std::nanf(""), float across = 0.0f) noexcept {
-        stereo_.Draw(ndc, k, across);
+    /// AzaharFrame natural: and the eye's camera matrix before the patch (`m`, 3 rows), the
+    /// projection's scale across (`p00`).
+    void Far(float ndc, float k = std::nanf(""), float across = 0.0f,
+             const float (*m)[4] = nullptr, float p00 = 0.0f) noexcept {
+        stereo_.Draw(ndc, k, across, m, p00);
     }
     /// AzaharFrame oot (traced): one world upload's game uniforms, before the patch.
     void WorldUniforms(u64 hash) noexcept {
@@ -561,6 +569,7 @@ public:
             if (gen != generation_) {
                 generation_ = gen;
                 far_per_slider_.Reset();
+                eye_per_far_.Reset();
                 world_once_.Reset();
                 zero_.Reset();
             }
@@ -571,6 +580,17 @@ public:
             zero_.Swap(st);
             g_stereo_near_per_unit.store(zero_.PerUnit(), std::memory_order_relaxed);
             g_stereo_zero_distance.store(zero_.Distance(), std::memory_order_relaxed);
+            // AzaharFrame natural: the game's eyes apart, per its far width.
+            eye_per_far_.Swap(st.eyes, st.far_ndc, st.eye_apart, st.p00);
+            g_stereo_eye_per_far.store(eye_per_far_.Value(), std::memory_order_relaxed);
+            g_stereo_eye_samples.store(eye_per_far_.Count(), std::memory_order_relaxed);
+            if (st.have_m) {
+                last_pair_ = st;
+                ++pairs_;
+                if (st.eye_apart > 0.0f) {
+                    ++pairs_apart_;
+                }
+            }
             // AzaharFrame oot: a menu of the game's own (its world drawn once).
             g_world_once.store(world_once_.Swap(st.eyes, slider), std::memory_order_relaxed);
             ++eyes_[std::clamp(st.eyes, 0, 2)];
@@ -662,6 +682,28 @@ public:
                              ? fmt::format("{:.1f} units ahead", zero_.Distance())
                              : std::string("not measured"),
                          lg.secs, Common::FrameLog::Why(say));
+                // AzaharFrame natural: the game's eye separation (its camera matrices' difference).
+                const auto& ma = last_pair_.ma;
+                const auto& mb = last_pair_.mb;
+                LOG_INFO(HW_GPU,
+                         "xr: immersive eyes: {} of {} two-eye swaps read the eyes apart; last {} "
+                         "units (far {:.5f} NDC, P00 {:.3f}); {} units per picture width, zero "
+                         "parallax at {} units; eye matrices [{:.4f} {:.4f} {:.4f} {:.4f} | {:.4f} "
+                         "{:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f}] and [{:.4f} {:.4f} "
+                         "{:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f}]",
+                         pairs_apart_, pairs_,
+                         last_pair_.eye_apart >= 0.0f ? fmt::format("{:.4f}", last_pair_.eye_apart)
+                                                      : std::string("not"),
+                         last_pair_.far_ndc, last_pair_.p00,
+                         eye_per_far_.Value() >= 0.0f ? fmt::format("{:.2f}", eye_per_far_.Value())
+                                                      : std::string("not measured"),
+                         eye_per_far_.ZeroParallax() >= 0.0f
+                             ? fmt::format("{:.1f}", eye_per_far_.ZeroParallax())
+                             : std::string("not measured"),
+                         ma[0][0], ma[0][1], ma[0][2], ma[0][3], ma[1][0], ma[1][1], ma[1][2],
+                         ma[1][3], ma[2][0], ma[2][1], ma[2][2], ma[2][3], mb[0][0], mb[0][1],
+                         mb[0][2], mb[0][3], mb[1][0], mb[1][1], mb[1][2], mb[1][3], mb[2][0],
+                         mb[2][1], mb[2][2], mb[2][3]);
                 lg.eyes = {};
                 lg.shown_3d = lg.swaps = 0;
                 lg.secs = 0;
@@ -731,6 +773,7 @@ public:
         const bool keep_have = have_last_sum_;
         const StereoFrame keep_stereo = stereo_;
         const FarPerSlider keep_per_slider = far_per_slider_;
+        const EyePerFar keep_eye_per_far = eye_per_far_;
         const WorldOnceRun keep_world_once = world_once_;
         const ZeroParallaxMeasure keep_zero = zero_;
         const u32 keep_generation = generation_;
@@ -739,6 +782,7 @@ public:
         lg_generation_ = keep_lg_generation;
         stereo_ = keep_stereo;
         far_per_slider_ = keep_per_slider;
+        eye_per_far_ = keep_eye_per_far;
         world_once_ = keep_world_once;
         zero_ = keep_zero;
         generation_ = keep_generation;
@@ -769,6 +813,9 @@ private:
     std::array<Proj, kProjections> proj_{};
     StereoFrame stereo_;               ///< AzaharFrame stereo: this frame's world far points
     FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
+    EyePerFar eye_per_far_;            ///< AzaharFrame natural: its eyes apart per far width
+    StereoFrame::Result last_pair_;    ///< the last swap whose two eyes' matrices were read
+    u32 pairs_ = 0, pairs_apart_ = 0;  ///< this second: swaps with both read, with eyes apart
     WorldOnceRun world_once_;          ///< AzaharFrame oot: a menu of the game's own
     ZeroParallaxMeasure zero_;         ///< AzaharFrame dbl: where the game's two eyes agree
     u32 generation_ = 0;               ///< g_stereo_generation it was reset for
@@ -800,13 +847,16 @@ inline FrameTrace g_frame_trace;
 /// projection in the four registers before the view matrix (0: not read).
 /// AzaharFrame stereo: and where it puts the far scenery across (`far_valid`: read).
 /// AzaharFrame dbl: and its near term and horizontal scale (NearTermFromRows; NaN: not read).
+/// AzaharFrame natural: and the eye's camera before the patch (`eye_m`, 3 rows; null: not read)
+/// and the projection's scale across (`p00`).
 inline void OnWorldDraw(float tan_half_y = 0.0f, float aspect = 0.0f, bool far_valid = false,
                         float far_ndc = 0.0f, float near_k = std::nanf(""),
-                        float across = 0.0f) {
+                        float across = 0.0f, const float (*eye_m)[4] = nullptr,
+                        float p00 = 0.0f) {
     g_content.WorldDraw();
     g_frame_trace.WorldDraw(tan_half_y, aspect, tan_half_y > 0.0f);
     if (far_valid) {
-        g_frame_trace.Far(far_ndc, near_k, across);
+        g_frame_trace.Far(far_ndc, near_k, across, eye_m, p00);
     }
 }
 

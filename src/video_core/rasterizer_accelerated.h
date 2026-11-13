@@ -94,6 +94,8 @@ protected:
     float vr_world_far_ndc = 0.0f;   ///< AzaharFrame stereo: FarAcrossFromRows
     float vr_world_near_k = 0.0f;    ///< AzaharFrame dbl: NearTermFromRows (NaN: not read)
     float vr_world_across = 0.0f;    ///< AzaharFrame dbl: its horizontal scale
+    float vr_world_p00 = 0.0f;       ///< AzaharFrame natural: the projection's scale across
+    float vr_world_eye[3][4]{};      ///< AzaharFrame natural: the eye's camera before the patch
 
     struct HeuristicResult {
         int32_t view_matrixregister = -1;

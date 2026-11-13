@@ -617,7 +617,8 @@ bool RasterizerVulkan::Draw(bool accelerate, bool is_indexed) {
     if (accelerate && vr_world_uniforms) {
         VideoCore::Immersive::OnWorldDraw(vr_world_tan_half_y, vr_world_aspect,
                                           vr_world_far_valid, vr_world_far_ndc,
-                                          vr_world_near_k, vr_world_across);
+                                          vr_world_near_k, vr_world_across, vr_world_eye,
+                                          vr_world_p00);
     }
 
     // Begin rendering

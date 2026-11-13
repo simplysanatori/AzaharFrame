@@ -185,6 +185,21 @@ inline bool NearTermFromRows(const float r[4][4], const float view_t[3], float& 
     return std::isfinite(k) && across > 0.0f;
 }
 
+/// AzaharFrame natural: FarAcrossFromRows, and the projection's scale across (`p00`: NDC per unit
+/// of camera x over depth), for the log's zero-parallax distance.
+inline bool FarAcrossFromRows(const float r[4][4], float& ndc, float& p00) {
+    if (!FarAcrossFromRows(r, ndc)) {
+        return false;
+    }
+    const bool first_is_x = std::abs(r[0][0]) > std::abs(r[0][1]);
+    const float* hr = first_is_x ? r[0] : r[1];
+    p00 = std::max(std::abs(hr[0]), std::abs(hr[1])) / std::abs(r[3][2]);
+    if (!std::isfinite(p00)) {
+        p00 = 0.0f;
+    }
+    return true;
+}
+
 /// AzaharFrame stereo: the far points (FarAcrossFromRows) of one top screen frame's world draws,
 /// grouped: the game's eyes are the groups (one per eye with its 3D on, one when it draws its
 /// world once). Emulation thread; pure, unit tested in src/tests/frame_xr/stereo.cpp.
@@ -211,23 +226,34 @@ public:
         float zero_distance = 0.0f;
         /// The horizontal scale of the eyes' projection (1 / tan of half the angle across).
         float across_scale = 0.0f;
+        /// AzaharFrame natural: the game's two eyes apart in its camera's units (EyeApart, the
+        /// two eyes' camera matrices before the patch); below 0 when it could not be read.
+        float eye_apart = -1.0f;
+        float p00 = 0.0f; ///< the projection's scale across (FarAcrossFromRows), 0: not read
+        float ma[3][4]{}, mb[3][4]{}; ///< the two eyes' matrices (the log), when eye_apart read
+        bool have_m = false;
     };
 
     /// `k`, `across`: the draw's near term and horizontal scale (NearTermFromRows); NaN when
-    /// not read.
-    void Draw(float ndc, float k = std::nanf(""), float across = 0.0f) noexcept {
+    /// not read. `m`: the patched register's 3 rows before the patch (AzaharFrame natural: the
+    /// eye's camera, its translation in column 3), null when not read; `p00`: the projection's
+    /// scale across.
+    void Draw(float ndc, float k = std::nanf(""), float across = 0.0f,
+              const float (*m)[4] = nullptr, float p00 = 0.0f) noexcept {
         ++draws_;
         for (int i = 0; i < groups_; ++i) {
             const float tol = std::max(kTolerance, kShare * std::abs(group_[i].ndc));
             if (std::abs(group_[i].ndc - ndc) <= tol) {
                 Note(group_[i], k, across);
                 ++group_[i].draws;
+                Note(group_[i], m, p00);
                 return;
             }
         }
         if (groups_ < kGroups) {
             group_[groups_] = {ndc, 0};
             Note(group_[groups_], k, across);
+            Note(group_[groups_], m, p00);
             group_[groups_++].draws = 1;
         }
     }
@@ -252,10 +278,50 @@ public:
                 r.eyes = 2;
                 r.far_ndc = std::abs(group_[a].ndc - group_[b].ndc);
                 ZeroParallax(group_[a], group_[b], r);
+                const Group& ga = group_[a];
+                const Group& gb = group_[b];
+                if (ga.have_m && gb.have_m) {
+                    r.eye_apart = EyeApart(ga.m, gb.m);
+                    r.p00 = ga.p00;
+                    r.have_m = true;
+                    std::copy(&ga.m[0][0], &ga.m[0][0] + 12, &r.ma[0][0]);
+                    std::copy(&gb.m[0][0], &gb.m[0][0] + 12, &r.mb[0][0]);
+                }
             }
         }
         *this = StereoFrame{};
         return r;
+    }
+
+    /// AzaharFrame natural: how far apart two eyes' camera matrices (3 rows, the translation in
+    /// column 3) put the eyes: the length of the translations' difference, when the rotations
+    /// agree (the eyes look the same way) and the difference is across, not along the view
+    /// (its z under kAlongView of it). Below 0 otherwise; 0 when they are the same matrix.
+    static constexpr float kRotationTolerance = 1e-3f;
+    static constexpr float kAlongView = 0.05f;
+    static float EyeApart(const float (&a)[3][4], const float (&b)[3][4]) noexcept {
+        float scale = 1.0f;
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                scale = std::max(scale, std::abs(a[i][j]));
+            }
+        }
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                if (std::abs(a[i][j] - b[i][j]) > kRotationTolerance * scale) {
+                    return -1.0f;
+                }
+            }
+        }
+        const float dx = a[0][3] - b[0][3], dy = a[1][3] - b[1][3], dz = a[2][3] - b[2][3];
+        const float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (!std::isfinite(len)) {
+            return -1.0f;
+        }
+        if (len > 0.0f && std::abs(dz) > kAlongView * len) {
+            return -1.0f;
+        }
+        return len;
     }
 
 private:
@@ -265,7 +331,22 @@ private:
         float k[kNearDraws]{};
         int nk = 0;
         float across = 0.0f;
+        bool have_m = false; ///< AzaharFrame natural: m is the group's first camera matrix
+        float m[3][4]{};
+        float p00 = 0.0f;
     };
+    static void Note(Group& g, const float (*m)[4], float p00) noexcept {
+        if (m == nullptr || g.have_m) {
+            return;
+        }
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                g.m[i][j] = m[i][j];
+            }
+        }
+        g.p00 = p00;
+        g.have_m = true;
+    }
     static void Note(Group& g, float k, float across) noexcept {
         if (std::isfinite(k) && g.nk < kNearDraws) {
             g.k[g.nk++] = k;
@@ -394,6 +475,63 @@ private:
     }
     float per_unit_[kSamples]{};
     float distance_[kSamples]{};
+    int count_ = 0, next_ = 0;
+};
+
+/// AzaharFrame natural: the game's eye separation per unit of its far width (StereoFrame's
+/// eye_apart over far_ndc / 2: game units per picture width), from frames with both eyes and
+/// both read; the median of the last kSamples. Both grow with the 3D slider together, so this is
+/// the same at any slider (the 0.01 of mode 3 too) and needs no settled slider. With the size of
+/// the picture on the screen it gives the leaning scale (frame_xr/immersive_layout.h
+/// NaturalLeaning). Also the median of the zero-parallax distance P00 x eye / far, for the log.
+class EyePerFar {
+public:
+    static constexpr int kSamples = 9;
+    /// Far scenery this little apart (NDC) is too little to divide by.
+    static constexpr float kMinFarNdc = 2e-4f;
+
+    void Swap(int eyes, float far_ndc, float eye_apart, float p00) noexcept {
+        if (eyes < 2 || !(far_ndc >= kMinFarNdc) || !(eye_apart > 0.0f)) {
+            return;
+        }
+        const float v = eye_apart / (far_ndc / 2.0f);
+        if (!std::isfinite(v)) {
+            return;
+        }
+        samples_[next_] = v;
+        zero_[next_] = p00 > 0.0f ? p00 * eye_apart / far_ndc : -1.0f;
+        next_ = (next_ + 1) % kSamples;
+        count_ = count_ < kSamples ? count_ + 1 : kSamples;
+    }
+    /// Below 0 until a frame was measured.
+    float Value() const noexcept {
+        return Median(samples_);
+    }
+    /// The game's zero-parallax distance (its units), below 0 when not known.
+    float ZeroParallax() const noexcept {
+        return Median(zero_);
+    }
+    int Count() const noexcept {
+        return count_;
+    }
+    void Reset() noexcept {
+        *this = EyePerFar{};
+    }
+
+private:
+    float Median(const float (&s)[kSamples]) const noexcept {
+        if (count_ == 0) {
+            return -1.0f;
+        }
+        float v[kSamples];
+        for (int i = 0; i < count_; ++i) {
+            v[i] = s[i];
+        }
+        std::nth_element(v, v + count_ / 2, v + count_);
+        return v[count_ / 2];
+    }
+    float samples_[kSamples]{};
+    float zero_[kSamples]{};
     int count_ = 0, next_ = 0;
 };
 
