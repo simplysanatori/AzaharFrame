@@ -646,6 +646,17 @@ int main(int argc, char** argv) {
     v.hover = {Id::ScreenShape, 3};
     v.open_menu = Id::ScreenShape;
     ok &= shot("2b-position-shape-menu", m, v);
+    { // AzaharFrame fixes7: Screen Shape: Automatic chosen, its menu open, and the tooltip
+        MenuModel ma = m;
+        ma.screen_shape = 6;
+        v.hover = {Id::ScreenShape, 6};
+        ok &= shot("2d-position-shape-automatic-menu", ma, v);
+        v.open_menu = Id::None;
+        v.hover = {Id::ScreenShape, kLabelIndex};
+        v.tooltip = Id::ScreenShape;
+        ok &= shot("2e-position-shape-automatic-tooltip", ma, v);
+        v.tooltip = Id::None;
+    }
 
     v = {};
     v.tab = Tab::Stats;
@@ -678,6 +689,24 @@ int main(int argc, char** argv) {
         v.hover = {Id::ReticleSpeed, kLabelIndex};
         v.tooltip = Id::ReticleSpeed;
         ok &= shot("4e-controls-reticle-speed-tooltip", mr, v);
+        // AzaharFrame fixes7: Aim Only While Pressed on, Stick Moves Reticle off; each tooltip
+        mr.reticle_center = true;
+        v = {};
+        v.tab = Tab::Controls;
+        ok &= shot("4f-controls-reticle-switches", mr, v);
+        v.hover = {Id::ReticleCenter, -1};
+        v.tooltip = Id::ReticleCenter;
+        ok &= shot("4g-controls-aim-only-while-pressed-tooltip", mr, v);
+        v.hover = {Id::ReticleStick, -1};
+        v.tooltip = Id::ReticleStick;
+        ok &= shot("4h-controls-stick-moves-reticle-tooltip", mr, v);
+        MenuModel mk = mr; // the Right Controller, as the owner plays Kid Icarus: Uprising
+        mk.bottom_screen_reticle = 2;
+        mk.reticle_center = false;
+        mk.reticle_stick = true;
+        v = {};
+        v.tab = Tab::Controls;
+        ok &= shot("4i-controls-reticle-right-stick-on", mk, v);
     }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a

@@ -904,3 +904,63 @@ TEST_CASE("Mouse: the Left and Right chord lifts the touch and holds none", "[fr
         frame(200);
     }
 }
+
+// AzaharFrame fixes7: Aim Only While Pressed: the cursor waits at the middle, its motion
+// ignored; the click touches there and drags from there; let go, it is back at the middle.
+// Recentre at Edge still works during the drag.
+TEST_CASE("Mouse: Aim Only While Pressed", "[frame_xr][reticle]") {
+    TouchpadTouch t;
+    int64_t now = 1'000 * kMs;
+    TouchpadFrame f;
+    f.bottom_visible = true;
+    f.cursor = {true, {}, 1.0f, false, true, true};
+    const auto step = [&](float dx, float dy, bool down, int64_t ms = 10) {
+        now += ms * kMs;
+        f.time_ns = now;
+        f.cursor.motion = {dx, dy};
+        f.cursor.down = down;
+        return t.Update(f);
+    };
+    TouchpadResult r = step(0, 0, false);
+    CHECK(r.cursor.px == Approx(160.0f));
+    CHECK(r.cursor.py == Approx(120.0f));
+    // Moving without the click: still at the middle, no touch.
+    r = step(-80, 40, false);
+    CHECK(r.event_count == 0);
+    CHECK(r.cursor.px == Approx(160.0f));
+    CHECK(r.cursor.py == Approx(120.0f));
+    // The click touches at the middle, even with motion in that frame.
+    r = step(30, 30, true);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Pressed);
+    CHECK(r.events[0].x == Approx(160.0f));
+    CHECK(r.events[0].y == Approx(120.0f));
+    // Held: it drags from there.
+    r = step(10, -5, true);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Moved);
+    CHECK(r.events[0].x == Approx(170.0f));
+    CHECK(r.events[0].y == Approx(115.0f));
+    // Recentre at Edge still lifts at the edge and touches again at the middle.
+    r = step(200, 0, true);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Released);
+    step(0, 0, true, 20);
+    r = step(0, 0, true, 40);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Pressed);
+    CHECK(r.events[0].x == Approx(160.0f));
+    r = step(-20, 0, true);
+    CHECK(r.events[0].x == Approx(140.0f));
+    // Let go: lifted, and back at the middle.
+    r = step(-20, 0, false);
+    REQUIRE(r.event_count == 1);
+    CHECK(r.events[0].type == TouchEventType::Released);
+    CHECK(r.cursor.px == Approx(160.0f));
+    CHECK(r.cursor.py == Approx(120.0f));
+    // Off: the mouse moves the cursor as before.
+    f.cursor.center_until_pressed = false;
+    r = step(-20, 10, false);
+    CHECK(r.cursor.px == Approx(140.0f));
+    CHECK(r.cursor.py == Approx(130.0f));
+}

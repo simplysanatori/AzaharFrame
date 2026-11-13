@@ -303,8 +303,9 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         MenuView v;
         v.tab = Tab::Controls;
         d.Draw(m, v);
-        // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on
-        REQUIRE(picture.H() > (reticle != 0 ? 180.0f : 200.0f));
+        // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on;
+        // AzaharFrame fixes7: three (the switches' row)
+        REQUIRE(picture.H() > (reticle != 0 ? 120.0f : 200.0f));
         Rect edit{}, pages{};
         float rows_y0 = 1e9f, rows_y1 = 0.0f;
         for (const auto& h : d.menu.Hits()) {
@@ -315,7 +316,8 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
                 pages.y1 = std::max(pages.y1, h.r.y1);
             }
             if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
-                h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge) {
+                h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge ||
+                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick) { // fixes7
                 rows_y0 = std::min(rows_y0, h.r.y0);
                 rows_y1 = std::max(rows_y1, h.r.y1);
             }
@@ -3039,8 +3041,9 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
         REQUIRE(edge != nullptr);
         REQUIRE(center != nullptr);
         REQUIRE(stick != nullptr);
-        CHECK(center->r.y0 >= edge->r.y1 - 0.01f); // under At Edge
-        CHECK(stick->r.y0 >= center->r.y1 - 0.01f);
+        CHECK(center->r.y0 >= edge->r.y1 - 0.01f); // under At Edge, side by side
+        CHECK(stick->r.y0 == center->r.y0);
+        CHECK(stick->r.x0 >= center->r.x1 - 0.01f);
         Audit a;
         a.Draw(m, v);
         a.Check("Controls, reticle switches");

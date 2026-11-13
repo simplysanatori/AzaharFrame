@@ -630,7 +630,7 @@ TEST_CASE("Reticle: Stick Moves Reticle", "[frame_xr][reticle]") {
     // Into the edge: it stays on the edge (the edges drift as with the aim).
     t.stick = {1.0f, 0.0f};
     f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 120);
-    CHECK(f.point.x == Approx(1.0f));
+    CHECK(f.point.x == Approx(1.0f).margin(0.005)); // the dead zone trails by 0.08 degrees
     t.stick = {-1.0f, 0.0f};
     f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 23);
     CHECK(f.point.x == Approx(0.75f).margin(0.02));
