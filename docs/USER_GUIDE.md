@@ -450,7 +450,7 @@ If you find a bug that also happens in Azahar on a PC, report it to [Azahar](htt
 - [astcenc](https://github.com/ARM-software/astc-encoder) by Arm: the texture pack encoder, part of the program
 - [Frametop](https://github.com/Frametop/frametop) by DeeJanuz (MIT): the 3D mouse pointer is adapted from its pointer helper
 - [Sharkive](https://github.com/FlagBrew/Sharkive) by FlagBrew (GPL-3.0), with the 3DS codes kept by JourneyOver and its contributors, and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) (MIT): the cheats
-- Mods and texture packs come from their authors' own pages, under their own licenses: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, Single Screen Experience by M-1, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name
+- Mods and texture packs come from their authors' own pages, under their own licences: Ocarina ReFramed by OTPR26, Project Restoration by leoetlino, Single Screen Experience by M-1, packs by Henriko Magnifico, DeathWrench, Gray-Rice, Ullr8 and Volya, and others the lists name
 - Valve: SteamVR and the Frame
 
 Full list: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Artwork sources: [steam-frame/art/CREDITS.md](../steam-frame/art/CREDITS.md). CitraVR's README: [README.upstream.md](../README.upstream.md). Unofficial fan project, not affiliated with Nintendo, Valve, the Azahar team or the CitraVR author. Nintendo 3DS is a trademark of Nintendo.
