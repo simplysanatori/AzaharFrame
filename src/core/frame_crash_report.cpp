@@ -21,6 +21,7 @@
 #include <fmt/format.h>
 
 #include "common/settings.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu: header only
 
 #if defined(__linux__)
 #include <pwd.h>

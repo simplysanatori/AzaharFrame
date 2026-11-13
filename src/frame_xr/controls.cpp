@@ -54,8 +54,9 @@ constexpr uint32_t kDimSize = 8;
 constexpr const char* kStoppingText = "Stopping...";
 constexpr const char* kHintNormal = "D-Pad \xE2\x86\x95 Curve   \xE2\x86\x94 Nudge\nStick: Size, Distance";
 constexpr const char* kHintSecond = "D-Pad \xE2\x86\x94 Nudge\nStick: Size, Distance"; // AzaharFrame move
+// AzaharFrame kiu: Render Margin was Wider View (Immersive::Names::kRenderMargin; keep in step).
 constexpr const char* kHintImmersive =
-    "D-Pad \xE2\x86\x95 Wider View   \xE2\x86\x94 Offset\nStick: Size, Distance";
+    "D-Pad \xE2\x86\x95 Render Margin   \xE2\x86\x94 Offset\nStick: Size, Distance";
 constexpr int64_t kHintQuietNs = 10'000'000'000;
 constexpr uint8_t kDimAlpha = 150;
 constexpr XrTime kMenuHoldNs = 1'000'000'000;
@@ -1829,7 +1830,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
     } else if (nudge.Any()) {
         if (holding_immersive) {
-            // Left and right: the lens offset; up and down: Wider View (AzaharFrame widerview;
+            // Left and right: the lens offset; up and down: Render Margin (AzaharFrame widerview;
             // the vertical offset stays in the settings). Both show their own toast.
             if (nudge.right != 0 && Immersive::NudgeOffset(nudge.right, 0)) {
                 std::scoped_lock lock{hooks_mutex};

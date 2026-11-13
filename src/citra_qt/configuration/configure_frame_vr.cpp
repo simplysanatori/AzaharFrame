@@ -18,6 +18,7 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
 #include "common/settings.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 
 namespace {
 

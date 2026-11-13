@@ -26,6 +26,7 @@
 #include "frame_xr/auto_shape.h" // AzaharFrame fixes7
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 #include "frame_xr/ipd_smoother.h" // AzaharFrame ipd
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/presets.h" // AzaharFrame immersive: preset screen sizes
@@ -1273,7 +1274,7 @@ WiderStep StepWiderView(int dir) {
         return WiderStep::None;
     }
     if (!IsViewMode(g.mode)) {
-        ShowToastText("Wider View: Full Modes Only", ToastTime::Long);
+        ShowToastText(std::string(Names::kRenderMargin) + ": Full Modes Only", ToastTime::Long);
         return WiderStep::None;
     }
     const u32 before = g.wider_level;
@@ -1294,7 +1295,7 @@ WiderStep StepWiderView(int dir) {
         level.SetGlobal(false); // per game, as in the game's Properties
     }
     level.SetValue(after);
-    LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x by the D-pad, size {:.2f}", to,
+    LOG_INFO(Frontend, "xr: immersive: Render Margin {:.1f}x by the D-pad, size {:.2f}", to,
              g.head_place.size);
     return WiderStep::Changed;
 }

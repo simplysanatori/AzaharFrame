@@ -356,9 +356,9 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
                 Approx(kFactorMax));
     }
     SECTION("Wider View: the toast and the old switch") {
-        REQUIRE(WiderToast(0) == "Wider View: Off");
-        REQUIRE(WiderToast(2) == "Wider View: 1.2x");
-        REQUIRE(WiderToast(4) == "Wider View: 1.4x");
+        REQUIRE(WiderToast(0) == "Render Margin: Off"); // AzaharFrame kiu: was Wider View
+        REQUIRE(WiderToast(2) == "Render Margin: 1.2x");
+        REQUIRE(WiderToast(4) == "Render Margin: 1.4x");
         // The old switch let the factor follow the size (about 0.78 x size): the nearest level.
         REQUIRE(LevelForOldWiderView(std::nullopt) == kMaxWiderLevel);
         REQUIRE(LevelForOldWiderView(1.0f) == 0u);

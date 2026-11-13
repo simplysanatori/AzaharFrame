@@ -156,7 +156,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(centre(Id::ScreenShape, 3) == Target{Id::ScreenShape, 3});
 
-    // The Wider View row in an Off immersive mode: only its tooltip.
+    // The Render Margin row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive; // AzaharFrame autosave

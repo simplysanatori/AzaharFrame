@@ -178,7 +178,8 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
                  preset.register_offset);
     }
     if (preset.wider_level >= 0 && fits) {
-        fill(v.vr_immersive_wider_view_level, static_cast<u32>(preset.wider_level), "Wider View");
+        fill(v.vr_immersive_wider_view_level, static_cast<u32>(preset.wider_level),
+             "Render Margin"); // AzaharFrame kiu: was Wider View
     }
     if (preset.match_camera >= 0 && fits) {
         fill(v.vr_immersive_match_camera_mode, static_cast<u32>(preset.match_camera),

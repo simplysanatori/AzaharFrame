@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 #include "frame_xr/menu/ds_drawing.h"
 #include "frame_xr/menu/md3_fonts.h"
 
@@ -106,7 +107,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         offset.on = m.immersive_offset_set;
         rows.push_back(offset);
     } else if (tab == Tab::Settings) {
-        // Wider View and on: the Full (6DoF) modes only.
+        // Render Margin and on: the Full (6DoF) modes only.
         const auto full = [&](Row r) {
             if (r.lock == Lock::None && m.immersive_mode < 2) {
                 r.lock = Lock::FullOnly;
@@ -490,7 +491,7 @@ std::string LabelFor(Id id) {
     case Id::ImmersiveMode:
         return "Immersive Mode";
     case Id::WiderView:
-        return "Wider View";
+        return ::FrameXr::Immersive::Names::kRenderMargin; // AzaharFrame kiu
     case Id::GameFov:
         return "Immersive Game FOV";
     case Id::MatchCamera: // AzaharFrame depth, fovonce
@@ -683,7 +684,7 @@ std::string ExplainFor(Id id) {
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
-        return "Shows more of the game around the edges. Some games leave them empty.";
+        return ::FrameXr::Immersive::Names::kRenderMarginTip;
     case Id::GameFov:
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce

@@ -283,7 +283,8 @@ Cover DefaultCover(const ViewFov& view, float pitch_rad, float eye_shift);
 inline constexpr uint32_t kMaxWiderLevel = 4;
 /// The periphery factor of a level (others are clamped).
 float WiderFactor(uint32_t level);
-/// "Wider View: Off", "Wider View: 1.2x".
+/// "Render Margin: Off", "Render Margin: 1.2x" (AzaharFrame kiu: was Wider View; the name is
+/// Names::kRenderMargin).
 std::string WiderToast(uint32_t level);
 /// The level for a game that had the old Wider View switch on, which let the factor follow the
 /// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.

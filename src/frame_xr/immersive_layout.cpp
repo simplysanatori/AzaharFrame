@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "frame_xr/immersive_layout.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 
 namespace FrameXr::Immersive::Layout {
 
@@ -307,11 +308,12 @@ float WiderFactor(uint32_t level) {
 
 std::string WiderToast(uint32_t level) {
     level = std::min(level, kMaxWiderLevel);
+    char buf[48];
     if (level == 0) {
-        return "Wider View: Off";
+        std::snprintf(buf, sizeof(buf), "%s: Off", Names::kRenderMargin);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%s: %.1fx", Names::kRenderMargin, WiderFactor(level));
     }
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "Wider View: %.1fx", WiderFactor(level));
     return buf;
 }
 
