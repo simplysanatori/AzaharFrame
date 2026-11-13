@@ -3,7 +3,7 @@
 # what the menu draws and embedded as base64, so nothing has to be found on the system.
 #
 #   Google Sans Flex (SIL Open Font License 1.1, no Reserved Font Name): static instances at
-#     weight 400 (body) and 500 (labels, titles), Latin text only.
+#     weight 400 (body), 500 (labels, titles) and 700 (the VR canvas text fallback, next to Inter Bold), Latin text only.
 #   Material Symbols Rounded (Apache License 2.0): static instances unfilled (FILL 0) and filled
 #     (FILL 1) at weight 400, grade 0, optical size 24, only the icons in ICONS.
 #
@@ -39,9 +39,11 @@ ICONS = [
 ]
 
 # Text: printable ASCII, the Latin-1 Supplement (game and homebrew titles: "Pokémon", accents of
-# the European languages; AzaharFrame emerald) and the few other characters the labels use.
-TEXT = ("".join(chr(c) for c in range(0x20, 0x7F)) + "".join(chr(c) for c in range(0xA0, 0x100)) +
-        "–—…‘’“”•")
+# the European languages; AzaharFrame emerald), Latin Extended-A (Polish, Czech, Turkish, Hungarian
+# titles; AzaharFrame utf8: the canvas text of the VR UI falls back to this face for anything its
+# baked ASCII atlas lacks) and the few other characters the labels use.
+TEXT = ("".join(chr(c) for c in range(0x20, 0x7F)) + "".join(chr(c) for c in range(0xA0, 0x180)) +
+        "–—…‘’‚“”„•™€")
 
 
 def cut(font, unicodes, features):
@@ -100,6 +102,7 @@ def main():
         "#pragma once\n\nnamespace FrameXr::Menu::Fonts {\n\n",
         blob("kSans400", text_font(sans, 400)), "\n",
         blob("kSans500", text_font(sans, 500)), "\n",
+        blob("kSans700", text_font(sans, 700)), "\n",  # AzaharFrame utf8: the canvas fallback
         blob("kSymbols", icon_font(symbols, 0, codes)), "\n",
         blob("kSymbolsFilled", icon_font(symbols, 1, codes)), "\n",
         "} // namespace FrameXr::Menu::Fonts\n\nnamespace FrameXr::Menu::Icon {\n",

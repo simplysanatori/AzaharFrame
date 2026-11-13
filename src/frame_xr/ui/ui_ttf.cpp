@@ -37,17 +37,114 @@ int Base64Value(char c) {
 
 } // namespace
 
-char32_t NextUtf8(const std::string& s, std::size_t& i) {
-    const uint8_t c = static_cast<uint8_t>(s[i++]);
+char32_t NextUtf8(const char*& s, const char* end) {
+    const uint8_t c = static_cast<uint8_t>(*s++);
     if (c < 0x80) {
         return c;
     }
-    const int extra = c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : 1;
-    char32_t cp = c & (0x3Fu >> extra);
-    for (int k = 0; k < extra && i < s.size() && (static_cast<uint8_t>(s[i]) & 0xC0) == 0x80; k++) {
-        cp = (cp << 6) | (static_cast<uint8_t>(s[i++]) & 0x3Fu);
+    // A malformed sequence is read as Latin-1 (one byte, U+0080..U+00FF) rather than "?": text
+    // from an old Latin-1 source still shows its accents.
+    const int extra = c >= 0xF8 ? -1 : c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : c >= 0xC2 ? 1 : -1;
+    if (extra < 0 || end - s < extra) {
+        return c;
     }
+    char32_t cp = c & (0x3Fu >> extra);
+    for (int k = 0; k < extra; k++) {
+        if ((static_cast<uint8_t>(s[k]) & 0xC0) != 0x80) {
+            return c;
+        }
+        cp = (cp << 6) | (static_cast<uint8_t>(s[k]) & 0x3Fu);
+    }
+    s += extra;
     return cp;
+}
+
+char32_t NextUtf8(const std::string& s, std::size_t& i) {
+    const char* p = s.data() + i;
+    const char32_t cp = NextUtf8(p, s.data() + s.size());
+    i = static_cast<std::size_t>(p - s.data());
+    return cp;
+}
+
+std::string FoldedText(char32_t cp) {
+    switch (cp) {
+    case 0x2018:
+    case 0x2019:
+    case 0x201A:
+    case 0x2032:
+        return "'";
+    case 0x201C:
+    case 0x201D:
+    case 0x201E:
+    case 0x2033:
+        return "\"";
+    case 0x2010:
+    case 0x2011:
+    case 0x2012:
+    case 0x2013:
+    case 0x2014:
+    case 0x2015:
+        return "-";
+    case 0x2026:
+        return "...";
+    case 0x00A0:
+    case 0x2002:
+    case 0x2003:
+    case 0x2009:
+    case 0x202F:
+        return " ";
+    case 0x2122:
+        return "TM";
+    case 0x00D7:
+        return "x";
+    case 0x00C6:
+        return "AE";
+    case 0x00E6:
+        return "ae";
+    case 0x0152:
+        return "OE";
+    case 0x0153:
+        return "oe";
+    case 0x00DF:
+        return "ss";
+    default:
+        break;
+    }
+    // Latin-1 letters with an accent, by U+00C0..U+00FF: the base letter.
+    static const char kBase[] = "AAAAAAACEEEEIIII"  // C0
+                                "DNOOOOO*OUUUUYTs"   // D0
+                                "aaaaaaaceeeeiiii"   // E0
+                                "dnooooo/ouuuuyty";  // F0
+    if (cp >= 0xC0 && cp <= 0xFF && kBase[cp - 0xC0] != '*' && kBase[cp - 0xC0] != '/') {
+        return std::string(1, kBase[cp - 0xC0]);
+    }
+    // Latin Extended-A (U+0100..U+017F): the base letter.
+    static const char kExtA[] = "AaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs";
+    if (cp >= 0x100 && cp <= 0x17F && kExtA[cp - 0x100] != '?') {
+        return std::string(1, kExtA[cp - 0x100]);
+    }
+    return "?";
+}
+
+// The UTF-8 of one code point.
+std::string Utf8Of(char32_t cp) {
+    std::string s;
+    if (cp < 0x80) {
+        s += static_cast<char>(cp);
+    } else if (cp < 0x800) {
+        s += static_cast<char>(0xC0 | (cp >> 6));
+        s += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        s += static_cast<char>(0xE0 | (cp >> 12));
+        s += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        s += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        s += static_cast<char>(0xF0 | (cp >> 18));
+        s += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        s += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        s += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+    return s;
 }
 
 struct TtfFont::Impl {
@@ -74,6 +171,26 @@ struct TtfFont::Impl {
         cache.clear();
         ok = true;
         return true;
+    }
+
+    // `s` with each character this face lacks replaced by FoldedText, so a missing glyph never
+    // draws as the empty box. ASCII goes through untouched.
+    std::string Usable(const std::string& s) const {
+        std::size_t i = 0;
+        while (i < s.size() && static_cast<uint8_t>(s[i]) < 0x80) {
+            i++;
+        }
+        if (i == s.size()) {
+            return s;
+        }
+        std::string out = s.substr(0, i);
+        while (i < s.size()) {
+            const char32_t cp = NextUtf8(s, i);
+            out += cp < 0x80 || stbtt_FindGlyphIndex(&info, static_cast<int>(cp)) != 0
+                       ? Utf8Of(cp)
+                       : FoldedText(cp);
+        }
+        return out;
     }
 
     float Scale(float px) const {
@@ -162,10 +279,11 @@ bool TtfFont::HasGlyph(char32_t cp) const { // AzaharFrame emerald
     return impl->ok && stbtt_FindGlyphIndex(&impl->info, static_cast<int>(cp)) != 0;
 }
 
-float TtfFont::Width(float px, const std::string& s) const {
+float TtfFont::Width(float px, const std::string& text) const {
     if (!impl->ok) {
         return 0.0f;
     }
+    const std::string s = impl->Usable(text);
     const float scale = impl->Scale(px);
     float x = 0.0f;
     int prev = 0;
@@ -213,10 +331,11 @@ std::string TtfFont::Fit(float px, const std::string& s, float width) const {
 }
 
 float TtfFont::Draw(Canvas& cv, float x, float baseline, float px, const Color& c,
-                    const std::string& s, int align) {
-    if (!impl->ok || s.empty()) {
+                    const std::string& text, int align) {
+    if (!impl->ok || text.empty()) {
         return 0.0f;
     }
+    const std::string s = impl->Usable(text);
     const float width = Width(px, s);
     float pen = x - (align == 1 ? width * 0.5f : align == 2 ? width : 0.0f);
     const float scale = impl->Scale(px);
