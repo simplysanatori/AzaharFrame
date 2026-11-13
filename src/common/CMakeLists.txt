@@ -80,6 +80,7 @@ add_library(citra_common STATIC EXCLUDE_FROM_ALL
     settings.h
     slot_vector.h
     stall_telemetry.h
+    xr_pacer.h # AzaharFrame pacing
     serialization/atomic.h
     serialization/boost_discrete_interval.hpp
     serialization/boost_flat_set.h

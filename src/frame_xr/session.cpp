@@ -71,6 +71,7 @@ Runtime::Runtime() {
     LOG_INFO(Frontend, "xr: eye images: {}, {} (AZAHARFRAME_XR_PACKED, AZAHARFRAME_XR_SET_RELEASE)",
              packed_top ? "both in one swapchain" : "a swapchain each",
              set_release ? "released together" : "released one by one");
+    pacing.Configure(set_release); // AzaharFrame pacing
 }
 
 Runtime::~Runtime() {
@@ -586,6 +587,10 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     if (!gpu_finished) {
         stats.unfinished[i]++;
     }
+}
+
+void Runtime::WaitPresentSlot() {
+    pacing.WaitSlot(release_serial); // AzaharFrame pacing (release_serial: this thread's)
 }
 
 void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) {

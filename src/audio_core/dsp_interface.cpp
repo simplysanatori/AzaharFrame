@@ -3,6 +3,7 @@
 // Refer to the LICENSE.txt file included.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -15,6 +16,7 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "common/xr_pacer.h"
 #include "core/core.h"
 #include "core/dumping/backend.h"
 
@@ -43,7 +45,12 @@ void DspInterface::SetSink(AudioCore::SinkType sink_type, std::string_view audio
     // Dispose of the current sink first to avoid contention.
     sink.reset();
 
-    sink = AudioCore::GetSinkDetails(sink_type).create_sink(audio_device);
+    SetSink(AudioCore::GetSinkDetails(sink_type).create_sink(audio_device));
+}
+
+void DspInterface::SetSink(std::unique_ptr<Sink> new_sink) {
+    sink.reset();
+    sink = std::move(new_sink);
     sink->SetCallback(
         [this](s16* buffer, std::size_t num_frames) { OutputCallback(buffer, num_frames); });
     time_stretcher.SetOutputSampleRate(sink->GetNativeSampleRate());
@@ -147,7 +154,16 @@ void DspInterface::DrainFifoBacklog(std::size_t num_frames) {
     if (fifo_low_fill > 2 * kept_frames) {
         const std::size_t excess = fifo_low_fill - kept_frames;
         fifo.Pop(excess);
-        LOG_DEBUG(Audio, "Dropped {} frames of audio backlog", excess);
+        // AzaharFrame pacing: counted for the VR pacing line; while the lock runs a drop means
+        // the rate trim missed, worth seeing in the log.
+        auto& pace = Common::XrPacer::Get();
+        pace.audio_drops.fetch_add(1, std::memory_order_relaxed);
+        pace.audio_dropped_frames.fetch_add(static_cast<u32>(excess), std::memory_order_relaxed);
+        if (pace.audio_ratio.load(std::memory_order_relaxed) != 1.0) {
+            LOG_INFO(Audio, "Dropped {} frames of audio backlog (VR frame pacing lock on)", excess);
+        } else {
+            LOG_DEBUG(Audio, "Dropped {} frames of audio backlog", excess);
+        }
     }
     fifo_low_fill = std::numeric_limits<std::size_t>::max();
     backlog_window_frames = 0;
@@ -187,7 +203,7 @@ void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
         1000.0 * static_cast<double>(fifo.Size() + time_stretcher.PendingFrames()) / native_sample_rate;
     std::fprintf(stat_file,
                  "t=%.2f limit=%.0f stretch=%d ratio=%.3f queue_ms=%.1f fifo=%zu pending=%zu out=%zu in=%zu "
-                 "underruns=%llu callbacks=%llu pushed=%llu gain=%.2f mode=%u cpu_ns=%llu\n",
+                 "underruns=%llu callbacks=%llu pushed=%llu gain=%.2f mode=%u cpu_ns=%llu trim=%.4f\n",
                  static_cast<double>(stat_frames) / rate, Settings::GetFrameLimit(),
                  stretched ? 1 : 0, time_stretcher.GetStretchRatio(), queue_ms, fifo.Size(),
                  time_stretcher.PendingFrames(), time_stretcher.OutputQueued(),
@@ -195,7 +211,8 @@ void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
                  static_cast<unsigned long long>(stat_callbacks),
                  static_cast<unsigned long long>(pushed_frames.load()), ff_gain,
                  static_cast<unsigned>(Settings::values.fast_forward_audio.GetValue()),
-                 static_cast<unsigned long long>(stat_cpu_ns));
+                 static_cast<unsigned long long>(stat_cpu_ns),
+                 Common::XrPacer::Get().audio_ratio.load(std::memory_order_relaxed)); // pacing
     std::fflush(stat_file);
 }
 
@@ -217,9 +234,10 @@ void DspInterface::OutputCallback(s16* buffer, std::size_t num_frames) {
 
 void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
     // AzaharFrame ffaudio, below: Normal Pitch stretches while fast forwarding, Muted fades out.
+    const double frame_limit = Settings::GetFrameLimit();
     const FastForwardAudioPlan plan =
-        PlanFastForwardAudio(Settings::values.fast_forward_audio.GetValue(),
-                             Settings::GetFrameLimit(), enable_time_stretching.load());
+        PlanFastForwardAudio(Settings::values.fast_forward_audio.GetValue(), frame_limit,
+                             enable_time_stretching.load());
     bool want_stretching = plan.stretch;
     bool low_latency = plan.low_latency;
     if (plan.low_latency) {
@@ -250,7 +268,18 @@ void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
 
     std::size_t frames_written = 0;
     if (performing_time_stretching) {
-        const std::vector<s16> in{fifo.Pop()};
+        std::vector<s16> in{fifo.Pop()};
+        // AzaharFrame pacing + ffaudio: a fast forward straight from the pacing lock: the two or
+        // three frames the rate trim still holds go to the stretcher first, so none are left over.
+        if (!rate_trim.Idle()) {
+            std::vector<s16> held;
+            std::array<s16, 2 * 16> part{};
+            while (!rate_trim.Idle()) {
+                const std::size_t n = rate_trim.Flush(part.data(), 16);
+                held.insert(held.end(), part.begin(), part.begin() + static_cast<std::ptrdiff_t>(2 * n));
+            }
+            in.insert(in.begin(), held.begin(), held.end());
+        }
         const std::size_t num_in{in.size() / 2};
         frames_written = time_stretcher.Process(in.data(), num_in, buffer, num_frames);
     } else {
@@ -263,8 +292,22 @@ void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
             // so that they do not bleed into the next time the stretcher is enabled.
             time_stretcher.Clear();
         }
+        // AzaharFrame pacing: while the VR frame pacing lock runs the game fast (x1.0028 at
+        // 120 Hz) the backlog is read that much faster, so it does not grow (rate_trim.h). Never
+        // while fast forwarding (PlainReadRatio): ffaudio's Sped Up and Muted play it as it is.
+        const double ratio =
+            PlainReadRatio(Common::XrPacer::Get().audio_ratio.load(std::memory_order_relaxed),
+                           frame_limit);
+        if (ratio != 1.0) {
+            frames_written += rate_trim.Process(
+                ratio, buffer + 2 * frames_written, num_frames - frames_written,
+                [this](RateTrim::Frame* dst, std::size_t max) { return fifo.Pop(dst, max); });
+        } else if (!rate_trim.Idle()) {
+            frames_written +=
+                rate_trim.Flush(buffer + 2 * frames_written, num_frames - frames_written);
+        }
         frames_written += fifo.Pop(buffer + 2 * frames_written, num_frames - frames_written);
-        if (plan.mute) {
+        if (plan.mute) { // AzaharFrame ffaudio
             fifo.Pop(fifo.Size()); // nothing of the fast forward is kept for after it
         }
         DrainFifoBacklog(num_frames);

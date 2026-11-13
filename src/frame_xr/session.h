@@ -27,6 +27,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/hud.h" // AzaharFrame vrqol
 #include "frame_xr/instance_policy.h" // AzaharFrame flat2
+#include "frame_xr/pacing.h" // AzaharFrame pacing
 #include "frame_xr/vulkan_bridge.h"
 
 namespace FrameXr {
@@ -167,6 +168,7 @@ public:
     int32_t Acquire(VideoCore::XrScreen screen) override;
     void Release(VideoCore::XrScreen screen, bool gpu_finished) override;
     void ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) override;
+    void WaitPresentSlot() override; // AzaharFrame pacing
     bool PackedTop() const override;
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
@@ -216,6 +218,8 @@ public:
     /// written under screens_mutex too with set releases.
     mutable std::mutex content_mutex;
     VideoCore::XrContentPose shown_content{};
+    /// AzaharFrame pacing: the parity gate and the release phase (pacing.h).
+    Pacing pacing;
 
     QueueLock queue_lock;
     std::chrono::steady_clock::time_point last_emu_frame{}; // emu thread only

@@ -690,6 +690,7 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("the screens lock");
         std::scoped_lock screens_lock{screens_mutex};
+        pacing.NoteLatchTime(); // AzaharFrame pacing: releases from now on are for the next frame
         phases.screens_lock_ms = Ms(Clock::now() - mark);
         mark = Clock::now();
         Watchdog::Beat("layers");
@@ -919,11 +920,23 @@ void Runtime::FrameLoop() {
             }
         }
         stats.display_frames++;
+        {
+            // AzaharFrame pacing: the game frame this frame showed (the parity gate, the log).
+            uint64_t shown_serial = 0;
+            for (const ScreenChain& chain : screens) {
+                if (chain.handle && chain.has_image) {
+                    shown_serial = std::max(shown_serial, chain.frame_serial);
+                }
+            }
+            pacing.NoteLatch(shown_serial, fs.predictedDisplayPeriod,
+                             fs.shouldRender && screens_live && XR_SUCCEEDED(r));
+        }
 
         const auto log_now = Clock::now();
         const double since = std::chrono::duration<double>(log_now - last_log).count();
         if (since >= 1.0) {
             LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
+            pacing.Second(since); // AzaharFrame pacing
             last_log = log_now;
             wait_sum_ms = wait_max_ms = 0.0;
             wait_count = 0;

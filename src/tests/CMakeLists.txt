@@ -58,6 +58,7 @@ add_executable(tests
     common/file_util.cpp
     common/param_package.cpp
     common/slot_vector.cpp
+    common/xr_pacer.cpp # AzaharFrame pacing
     core/core_timing.cpp
     core/sharkive.cpp # AzaharFrame cheats
     core/game_version.cpp # AzaharFrame versions
@@ -100,6 +101,8 @@ add_executable(tests
     audio_core/decoder_tests.cpp
     audio_core/mic_queue_tests.cpp # AzaharFrame fixes11
     audio_core/ff_audio_tests.cpp # AzaharFrame ffaudio
+    audio_core/rate_trim.cpp # AzaharFrame pacing
+    audio_core/dsp_output_tests.cpp # AzaharFrame pacing + ffaudio
     video_core/pica_types.cpp
     video_core/shader.cpp
     video_core/right_eye_disabler.cpp # AzaharFrame feshimmer

@@ -11,6 +11,7 @@
 #include <span>
 #include <boost/serialization/access.hpp>
 #include "audio_core/audio_types.h"
+#include "audio_core/rate_trim.h"
 #include "audio_core/time_stretch.h"
 #include "common/common_types.h"
 #include "common/ring_buffer.h"
@@ -55,6 +56,15 @@ constexpr FastForwardAudioPlan PlanFastForwardAudio(Settings::FastForwardAudio m
         }
     }
     return plan;
+}
+
+/// AzaharFrame pacing + ffaudio: the read speed of the plain (unstretched) output path. While the
+/// VR frame pacing lock runs (only at a 100% speed limit) the backlog is read at the game's speed
+/// (`pacer_ratio`, rate_trim.h); at any other limit (fast forward, a slowed game) it plays as it
+/// is. The lock turns itself off at those limits; this also covers the callback or two between a
+/// limit change and the limiter's next frame.
+constexpr double PlainReadRatio(double pacer_ratio, double frame_limit) {
+    return frame_limit == 100.0 ? pacer_ratio : 1.0;
 }
 
 class DspInterface {
@@ -129,6 +139,8 @@ public:
 
     /// Select the sink to use based on sink type.
     void SetSink(SinkType sink_type, std::string_view audio_device);
+    /// Uses this sink (AzaharFrame: the audio tests drive the output callback through their own).
+    void SetSink(std::unique_ptr<Sink> new_sink);
     /// Get the current sink
     Sink& GetSink();
     /// Enable/Disable audio stretching.
@@ -174,6 +186,7 @@ private:
     std::FILE* stat_file = nullptr;
     std::FILE* capture_file = nullptr;
     bool stat_init = false;
+    RateTrim rate_trim; ///< AzaharFrame pacing: the backlog read at the game's speed while locked
     std::unique_ptr<Sink> sink;
 
     std::mutex csnd_mutex;

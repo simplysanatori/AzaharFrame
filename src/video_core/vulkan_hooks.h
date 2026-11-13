@@ -88,6 +88,11 @@ public:
     /// screens' releases, so both eyes always show the same game frame. Takes the queue lock.
     virtual void ReleaseFrame(bool gpu_finished, const XrContentPose& content) = 0;
 
+    /// AzaharFrame pacing: called right before ReleaseFrame (the release thread). At 120 Hz it
+    /// holds the release until the game frame on view has been shown for two refreshes, so none is
+    /// on view for one (frame_xr/pacing.h). Returns at once otherwise.
+    virtual void WaitPresentSlot() {}
+
     /// AzaharFrame doubling: the two top screen images share one swapchain (AZAHARFRAME_XR_PACKED):
     /// the left eye's swapchain is made kXrPackedGap + twice as high, the right eye's is never
     /// made, and the right eye is drawn into the lower half. Fixed for the sink's life.

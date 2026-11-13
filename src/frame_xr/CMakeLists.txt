@@ -18,6 +18,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     presets.h # AzaharFrame vrqol
     flat_fit.h # AzaharFrame flatdialog
     overlays.cpp
+    pacing.cpp # AzaharFrame pacing
+    pacing.h
     session.cpp
     session.h
     toast_fit.h # AzaharFrame menuux
