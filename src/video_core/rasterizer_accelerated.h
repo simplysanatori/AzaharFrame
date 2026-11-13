@@ -92,6 +92,8 @@ protected:
     float vr_world_aspect = 0.0f;
     bool vr_world_far_valid = false; ///< AzaharFrame stereo: vr_world_far_ndc read
     float vr_world_far_ndc = 0.0f;   ///< AzaharFrame stereo: FarAcrossFromRows
+    float vr_world_near_k = 0.0f;    ///< AzaharFrame dbl: NearTermFromRows (NaN: not read)
+    float vr_world_across = 0.0f;    ///< AzaharFrame dbl: its horizontal scale
 
     struct HeuristicResult {
         int32_t view_matrixregister = -1;

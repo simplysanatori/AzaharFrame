@@ -150,6 +150,41 @@ inline bool FarAcrossFromRows(const float r[4][4], float& ndc) {
     return std::isfinite(ndc) && std::abs(ndc) < 1.0f;
 }
 
+/// AzaharFrame dbl: the near term of a world draw across. The projection `r` (as
+/// ProjectionFromRows) puts a point of the draw at x = N / w, N its across row and w its last row
+/// applied to the point; for the draw's origin (the view matrix's translation column `view_t`)
+/// that is k / w + far, far being FarAcrossFromRows (its across row's depth term over the last
+/// row's) and k the rest: what an eye's shift moves. With the far points it gives where the
+/// game's two eyes agree (StereoFrame::Result::zero_distance, in w: the distance ahead).
+/// `across`: the projection's horizontal scale. False when `r` is not a top screen camera.
+inline bool NearTermFromRows(const float r[4][4], const float view_t[3], float& k,
+                             float& across) {
+    Projection p;
+    if (!ProjectionFromRows(r, p)) {
+        return false;
+    }
+    if (!(std::abs(r[3][2]) > 0.0f)) {
+        return false;
+    }
+    for (int j = 0; j < 3; ++j) {
+        if (!std::isfinite(view_t[j])) {
+            return false;
+        }
+    }
+    const bool first_is_x = std::abs(r[0][0]) > std::abs(r[0][1]);
+    const float* hr = first_is_x ? r[0] : r[1];
+    const double far = static_cast<double>(hr[2]) / r[3][2];
+    // N = hr . (t, 1) and w = r3 . (t, 1); N - far x w leaves the depth out of it.
+    double sum = 0.0;
+    for (int j = 0; j < 4; ++j) {
+        const double t = j < 3 ? static_cast<double>(view_t[j]) : 1.0;
+        sum += (static_cast<double>(hr[j]) - far * r[3][j]) * t;
+    }
+    k = static_cast<float>(sum);
+    across = std::abs(hr[0]);
+    return std::isfinite(k) && across > 0.0f;
+}
+
 /// AzaharFrame stereo: the far points (FarAcrossFromRows) of one top screen frame's world draws,
 /// grouped: the game's eyes are the groups (one per eye with its 3D on, one when it draws its
 /// world once). Emulation thread; pure, unit tested in src/tests/frame_xr/stereo.cpp.
@@ -162,23 +197,38 @@ public:
     /// A group counts as an eye with at least this share of the largest group's draws.
     static constexpr float kEyeShare = 0.2f;
 
+    /// AzaharFrame dbl: the draws of each eye whose near term (`k`, NearTermFromRows) is kept,
+    /// in order, to pair the two eyes' draws of the same object.
+    static constexpr int kNearDraws = 32;
+
     struct Result {
         uint32_t draws = 0;    ///< world draws with a top screen camera
         int eyes = 0;          ///< 0 (none), 1 (drawn once), 2 (two eyes)
         float far_ndc = 0.0f;  ///< the two eyes' far points apart (NDC, 0 to 2); 0 below 2 eyes
+        /// AzaharFrame dbl: the game's own zero-parallax plane, in its camera's units ahead (where
+        /// its two eyes' pictures agree: what the 3DS shows at the screen's depth); 0 when it
+        /// cannot be told (fewer than two eyes, no near terms, no own 3D).
+        float zero_distance = 0.0f;
+        /// The horizontal scale of the eyes' projection (1 / tan of half the angle across).
+        float across_scale = 0.0f;
     };
 
-    void Draw(float ndc) noexcept {
+    /// `k`, `across`: the draw's near term and horizontal scale (NearTermFromRows); NaN when
+    /// not read.
+    void Draw(float ndc, float k = std::nanf(""), float across = 0.0f) noexcept {
         ++draws_;
         for (int i = 0; i < groups_; ++i) {
             const float tol = std::max(kTolerance, kShare * std::abs(group_[i].ndc));
             if (std::abs(group_[i].ndc - ndc) <= tol) {
+                Note(group_[i], k, across);
                 ++group_[i].draws;
                 return;
             }
         }
         if (groups_ < kGroups) {
-            group_[groups_++] = {ndc, 1};
+            group_[groups_] = {ndc, 0};
+            Note(group_[groups_], k, across);
+            group_[groups_++].draws = 1;
         }
     }
 
@@ -201,6 +251,7 @@ public:
                               kEyeShare * static_cast<float>(group_[a].draws)) {
                 r.eyes = 2;
                 r.far_ndc = std::abs(group_[a].ndc - group_[b].ndc);
+                ZeroParallax(group_[a], group_[b], r);
             }
         }
         *this = StereoFrame{};
@@ -211,7 +262,40 @@ private:
     struct Group {
         float ndc = 0.0f;
         uint32_t draws = 0;
+        float k[kNearDraws]{};
+        int nk = 0;
+        float across = 0.0f;
     };
+    static void Note(Group& g, float k, float across) noexcept {
+        if (std::isfinite(k) && g.nk < kNearDraws) {
+            g.k[g.nk++] = k;
+            if (g.across == 0.0f && std::isfinite(across) && across > 0.0f) {
+                g.across = across;
+            }
+        }
+    }
+    /// AzaharFrame dbl: where the two eyes' pictures agree. A point `z` ahead of an eye's camera
+    /// lands at (k + far x z) / z across (NDC) for its near term k and far point far, so the two
+    /// eyes agree at z = -(k_b - k_a) / (far_b - far_a). The near terms differ by object (a model
+    /// matrix in the register), so the eyes' draws are paired in order (the game draws the same
+    /// objects for each eye) and the median difference taken.
+    static void ZeroParallax(const Group& a, const Group& b, Result& r) noexcept {
+        const int n = std::min(a.nk, b.nk);
+        const float dfar = b.ndc - a.ndc;
+        if (n == 0 || !(std::abs(dfar) > 1e-7f) || !(a.across > 0.0f)) {
+            return;
+        }
+        float d[kNearDraws];
+        for (int i = 0; i < n; ++i) {
+            d[i] = b.k[i] - a.k[i];
+        }
+        std::nth_element(d, d + n / 2, d + n);
+        const float z = -d[n / 2] / dfar;
+        if (std::isfinite(z) && z > 0.0f) {
+            r.zero_distance = z;
+            r.across_scale = a.across;
+        }
+    }
     Group group_[kGroups]{};
     int groups_ = 0;
     uint32_t draws_ = 0;
@@ -264,6 +348,53 @@ private:
     float samples_[kSamples]{};
     int count_ = 0, next_ = 0, stable_ = 0;
     float last_slider_ = -1.0f;
+};
+
+/// AzaharFrame dbl: the game's zero-parallax plane, measured: the horizontal scale of its
+/// projection over that plane's distance (StereoFrame::Result), the share of the picture's
+/// half-width (NDC) a unit of eye distance between two parallel cameras shifts that plane;
+/// the median of the last kSamples frames with both eyes. Mode 3 bounds its eye distance with it
+/// (frame_xr/immersive_layout.h StereoEyeLimit).
+class ZeroParallaxMeasure {
+public:
+    static constexpr int kSamples = 9;
+
+    void Swap(const StereoFrame::Result& r) noexcept {
+        if (r.eyes < 2 || !(r.zero_distance > 0.0f) || !(r.across_scale > 0.0f)) {
+            return;
+        }
+        per_unit_[next_] = r.across_scale / r.zero_distance;
+        distance_[next_] = r.zero_distance;
+        next_ = (next_ + 1) % kSamples;
+        count_ = count_ < kSamples ? count_ + 1 : kSamples;
+    }
+    /// NDC per unit of eye distance at the zero-parallax plane; below 0 until measured.
+    float PerUnit() const noexcept {
+        return Median(per_unit_);
+    }
+    /// The plane's distance ahead, in the game's units; below 0 until measured.
+    float Distance() const noexcept {
+        return Median(distance_);
+    }
+    void Reset() noexcept {
+        *this = ZeroParallaxMeasure{};
+    }
+
+private:
+    float Median(const float (&s)[kSamples]) const noexcept {
+        if (count_ == 0) {
+            return -1.0f;
+        }
+        float v[kSamples];
+        for (int i = 0; i < count_; ++i) {
+            v[i] = s[i];
+        }
+        std::nth_element(v, v + count_ / 2, v + count_);
+        return v[count_ / 2];
+    }
+    float per_unit_[kSamples]{};
+    float distance_[kSamples]{};
+    int count_ = 0, next_ = 0;
 };
 
 /// AzaharFrame oot: a screen of the game's own in front of its world (Ocarina of Time 3D's item

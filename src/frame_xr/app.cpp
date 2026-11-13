@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <string>
 #include <utility>
 #include <vector>
@@ -728,11 +729,32 @@ void Runtime::FrameLoop() {
             place = WithSecondSlot(place); // AzaharFrame layout: as GetScreenPlacement
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
+            // AzaharFrame dbl: AZAHARFRAME_XR_SINGLE_FLASH=1 (a test switch): each game picture of
+            // the top screen on one display refresh only; the refreshes after it that would
+            // show it again show no top screen (black, or the room with passthrough). Dim and
+            // flickering, but no game picture is ever seen twice: an A/B for double images
+            // that come from a picture held on two refreshes.
+            static const bool single_flash = [] {
+                const char* v = std::getenv("AZAHARFRAME_XR_SINGLE_FLASH");
+                return v && v[0] == '1';
+            }();
+            static uint64_t flashed_serial = 0;
+            bool hide_top = false;
+            if (single_flash) {
+                const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
+                if (t.has_image) {
+                    hide_top = t.frame_serial == flashed_serial;
+                    flashed_serial = t.frame_serial;
+                }
+            }
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
                 // the upper half and the right eye in the lower one (kXrPackedGap between).
                 const bool top = s != VideoCore::XrScreen::Bottom;
+                if (top && hide_top) {
+                    return; // AzaharFrame dbl: shown once already
+                }
                 const ScreenChain& chain =
                     screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
                                                                        : s)];

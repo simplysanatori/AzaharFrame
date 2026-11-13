@@ -6,6 +6,7 @@
 
 #include "citra_cli/citra_cli.h"
 #include "common/detached_tasks.h"
+#include "common/frame_test_switches.h" // AzaharFrame dbl
 #include "common/scope_exit.h"
 
 #if !defined(ENABLE_QT)
@@ -54,6 +55,7 @@ static bool CheckAndReportSSE42() {
 #endif
 
 int main(int argc, char* argv[]) {
+    Common::FrameTestSwitches::Load(); // AzaharFrame dbl: before any thread reads a switch
     Common::DetachedTasks detached_tasks;
     SCOPE_EXIT({ detached_tasks.WaitForAllTasks(); });
 

@@ -23,6 +23,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/frame_log_gate.h" // AzaharFrame integ8
+#include "common/frame_test_switches.h" // AzaharFrame dbl
 #include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "frame_xr/auto_shape.h" // AzaharFrame fixes7
@@ -112,6 +113,13 @@ struct Tuning {
     /// moving with a head turn (about the neck) no longer slide it against the scenery; 0: at the
     /// picture's head pose, position too.
     bool anchor_eye = true;
+    /// AzaharFrame dbl: AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH (a test switch): the depth whose
+    /// scenery the anchored screen keeps still while a picture is shown again as the eyes move
+    /// (L::AnchorFollow): "far" (default, as ANCHOR_EYE on), "screen" (as ANCHOR_EYE off),
+    /// "focus" (the game's zero-parallax plane, measured: Mario Kart 7's kart, Link), "mid"
+    /// (halfway between far and focus: each steps by half), or metres.
+    /// anchor_depth_m: -1 far, 0 screen, -2 focus, -3 mid, else metres.
+    float anchor_depth_m = -1.0f;
     /// AzaharFrame fovonce: AZAHARFRAME_IMMERSIVE_FOV_TRACE=1 logs each frame's camera angles
     /// while they move (a measurement, the angle followed, the eased ones), for mocks.
     bool fov_trace = false;
@@ -154,6 +162,15 @@ Tuning ReadTuning() {
     t.anchor_max_ms = EnvFloat("AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS", 250.0f, 50.0f, 2000.0f);
     const char* anchor_eye = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR_EYE");
     t.anchor_eye = !(anchor_eye && std::string(anchor_eye) == "0");
+    if (const char* depth = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH"); depth && *depth) {
+        const std::string v = depth;
+        t.anchor_depth_m = v == "far"    ? -1.0f
+                           : v == "screen" ? 0.0f
+                           : v == "focus"  ? -2.0f
+                           : v == "mid"    ? -3.0f
+                                           : std::clamp(static_cast<float>(std::atof(depth)), 0.05f,
+                                                        1000.0f);
+    }
     const char* fov_trace = std::getenv("AZAHARFRAME_IMMERSIVE_FOV_TRACE");
     t.fov_trace = fov_trace && std::string(fov_trace) == "1";
     const char* menu_exact = std::getenv("AZAHARFRAME_IMMERSIVE_MENU_EXACT");
@@ -1245,6 +1262,11 @@ void Install() {
     g = State{};
     g_top_aspect = kAspect3ds;
     g.tuning = ReadTuning();
+    // AzaharFrame dbl: the test switches in effect (common/frame_test_switches.h).
+    for (const std::string& sw : Common::FrameTestSwitches::InEffect()) {
+        LOG_INFO(Frontend, "xr: test switch {}", sw);
+    }
+    VideoCore::Immersive::g_content.SetFollowWorld(VideoCore::Immersive::FollowWorldFromEnv());
     g.game_fov_y_deg = g.tuning.game_fov_y_deg;
     g.wide_place = DefaultPlacement();
     g.head_place = DefaultHeadPlacement();
@@ -1327,6 +1349,45 @@ void NoteSlip(bool anchored, const XrPosef& picture, const XrPosef (&top_pose)[2
     g.slip_prev_valid = true;
 }
 
+// AzaharFrame dbl: how much of the eyes' move the anchored screen follows while its picture is
+// shown again (L::AnchorFollow), from AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH and the live terms.
+float AnchorFollowNow(bool follow_eye) {
+    if (!follow_eye) {
+        return 0.0f;
+    }
+    const float depth = g.tuning.anchor_depth_m;
+    if (depth == -1.0f) {
+        return 1.0f;
+    }
+    if (depth >= 0.0f) {
+        return depth == 0.0f ? 0.0f : std::clamp(1.0f - g.solved.distance / depth, -20.0f, 1.0f);
+    }
+    const float scaler = L::GamePositionScale(
+        static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
+        Settings::values.factor_3d.GetValue());
+    const float focus = L::AnchorFollow(
+        g.solved.distance, scaler,
+        VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
+        g.solved.gain_x);
+    // "mid": far scenery and the plane each step by half the plane's parallax.
+    const float follow = depth == -3.0f ? 0.5f * (1.0f + focus) : focus;
+    static float said = 2.0f;
+    static int64_t said_ms = 0;
+    const int64_t now = VideoCore::Immersive::SteadyMs();
+    if (std::abs(follow - said) > 0.1f * std::max(1.0f, std::abs(said)) && now - said_ms > 5000) {
+        said = follow;
+        said_ms = now;
+        LOG_INFO(Frontend,
+                 "xr: anchor depth {}: the screen follows the eyes' move x{:.2f} (the game's "
+                 "zero-parallax plane {:.1f} units ahead, head motion x{:.1f}, yaw gain {:.2f}, "
+                 "screen at {:.2f} m)",
+                 depth == -3.0f ? "mid" : "focus", follow,
+                 VideoCore::Immersive::g_stereo_zero_distance.load(std::memory_order_relaxed),
+                 scaler, g.solved.gain_x, g.solved.distance);
+    }
+    return follow;
+}
+
 ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacement& placement) {
     ScreenLayers out;
     out.top_space = local_space;
@@ -1372,13 +1433,14 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         XrPosef anchor_head{{0, 0, 0, 1}, {0, 0, 0}};
         const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head);
         const bool follow_eye = g.tuning.anchor_eye && g.view.valid;
+        const float follow = AnchorFollowNow(follow_eye);
         for (int eye = 0; eye < 2; eye++) {
             const Input::Posef in_view = L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd);
             if (anchored) {
                 out.top_space = local_space;
-                out.top_pose[eye] = ToXr(L::AnchoredFullQuad(g.solved, g.mode, eye, g.half_ipd,
-                                                             ToIn(anchor_head), ToIn(g.view.head),
-                                                             follow_eye));
+                out.top_pose[eye] = ToXr(L::AnchoredQuadPose(ToIn(anchor_head), ToIn(g.view.head),
+                                                             in_view, L::EyeX(eye, g.half_ipd),
+                                                             follow));
             } else if (g.tuning.local_space && g.view.valid) {
                 out.top_space = local_space;
                 out.top_pose[eye] = Compose(g.view.head, ToXr(in_view));

@@ -316,6 +316,11 @@ public:
     bool FollowsWorld() const noexcept {
         return follow_world_;
     }
+    /// AzaharFrame dbl: the switch read again once the test-switch file is in the environment
+    /// (g_content is made before main).
+    void SetFollowWorld(bool follow) noexcept {
+        follow_world_ = follow;
+    }
 
     /// The angle between two head orientations, in degrees.
     static float TurnDeg(const XrContentPose& a, const XrContentPose& b) noexcept {
@@ -382,6 +387,15 @@ inline std::atomic<float> g_stereo_far_width{-1.0f};
 /// AzaharFrame stereo: the game's far width per slider unit (FarPerSlider), every swap; below 0
 /// until measured. The XR thread's stereo cap is made from it (frame_xr/immersive.cpp).
 inline std::atomic<float> g_stereo_far_per_slider{-1.0f};
+/// AzaharFrame dbl: the game's zero-parallax plane (ZeroParallaxMeasure), every swap: NDC per
+/// unit of eye distance there, and its distance in the game's units; below 0 until measured.
+/// The XR thread bounds mode 3's eye distance with it (frame_xr/immersive.cpp).
+inline std::atomic<float> g_stereo_near_per_unit{-1.0f};
+inline std::atomic<float> g_stereo_zero_distance{-1.0f};
+/// AzaharFrame dbl: the share (0 to 1) of mode 3's eye distance (Depth Factor x IPD) the
+/// rasterizer gives the game's two eyes, from the XR thread (StereoEyeLimit, EyeScale); the
+/// head-motion scale never changes with it.
+inline std::atomic<float> g_eye_scale{1.0f};
 /// AzaharFrame stereo: the XR thread adds one when another game starts (not a quick save loaded
 /// in the same one), so the measures (and the menu rule's "two eyes earlier") start afresh.
 inline std::atomic<u32> g_stereo_generation{0};
@@ -462,8 +476,9 @@ public:
         ++copies_;
     }
     /// AzaharFrame stereo: a world draw's far point across (FarAcrossFromRows).
-    void Far(float ndc) noexcept {
-        stereo_.Draw(ndc);
+    /// AzaharFrame dbl: and its near term and horizontal scale (NearTermFromRows; NaN: not read).
+    void Far(float ndc, float k = std::nanf(""), float across = 0.0f) noexcept {
+        stereo_.Draw(ndc, k, across);
     }
     /// AzaharFrame oot (traced): one world upload's game uniforms, before the patch.
     void WorldUniforms(u64 hash) noexcept {
@@ -483,10 +498,15 @@ public:
                 generation_ = gen;
                 far_per_slider_.Reset();
                 world_once_.Reset();
+                zero_.Reset();
             }
             const float slider = Settings::frame_vr_slider_shown.load(std::memory_order_relaxed);
             far_per_slider_.Swap(st.eyes, st.far_ndc / 2.0f, slider);
             g_stereo_far_per_slider.store(far_per_slider_.Value(), std::memory_order_relaxed);
+            // AzaharFrame dbl: where the game's own two eyes agree.
+            zero_.Swap(st);
+            g_stereo_near_per_unit.store(zero_.PerUnit(), std::memory_order_relaxed);
+            g_stereo_zero_distance.store(zero_.Distance(), std::memory_order_relaxed);
             // AzaharFrame oot: a menu of the game's own (its world drawn once).
             g_world_once.store(world_once_.Swap(st.eyes, slider), std::memory_order_relaxed);
             ++eyes_[std::clamp(st.eyes, 0, 2)];
@@ -567,12 +587,17 @@ public:
                          "xr: immersive stereo: {} top screen swaps with the game's two eyes, {} "
                          "with its world drawn once, {} with no world camera; {} in the 3D "
                          "format; far scenery {} of the picture's width apart ({} per percent of "
-                         "the slider, shown {:.1f} %) (over {} s, {})",
+                         "the slider, shown {:.1f} %); the game's zero-parallax plane {} (over {} "
+                         "s, {})",
                          lg.eyes[2], lg.eyes[1], lg.eyes[0], lg.shown_3d,
                          far_width >= 0.0f ? fmt::format("{:.2f} %", far_width * 100.0f)
                                            : std::string("not seen"),
                          per >= 0.0f ? fmt::format("{:.4f} %", per) : std::string("not measured"),
-                         100.0f * slider, lg.secs, Common::FrameLog::Why(say));
+                         100.0f * slider,
+                         zero_.Distance() > 0.0f
+                             ? fmt::format("{:.1f} units ahead", zero_.Distance())
+                             : std::string("not measured"),
+                         lg.secs, Common::FrameLog::Why(say));
                 lg.eyes = {};
                 lg.shown_3d = lg.swaps = 0;
                 lg.secs = 0;
@@ -643,6 +668,7 @@ public:
         const StereoFrame keep_stereo = stereo_;
         const FarPerSlider keep_per_slider = far_per_slider_;
         const WorldOnceRun keep_world_once = world_once_;
+        const ZeroParallaxMeasure keep_zero = zero_;
         const u32 keep_generation = generation_;
         const u32 keep_lg_generation = lg_generation_;
         *this = FrameTrace{};
@@ -650,6 +676,7 @@ public:
         stereo_ = keep_stereo;
         far_per_slider_ = keep_per_slider;
         world_once_ = keep_world_once;
+        zero_ = keep_zero;
         generation_ = keep_generation;
         start_ms_ = now_ms;
         last_sum_ = keep_sum;
@@ -679,6 +706,7 @@ private:
     StereoFrame stereo_;               ///< AzaharFrame stereo: this frame's world far points
     FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
     WorldOnceRun world_once_;          ///< AzaharFrame oot: a menu of the game's own
+    ZeroParallaxMeasure zero_;         ///< AzaharFrame dbl: where the game's two eyes agree
     u32 generation_ = 0;               ///< g_stereo_generation it was reset for
     u32 lg_generation_ = 0;            ///< AzaharFrame integ8: the one g_frame_trace_log is for
     std::array<u32, 3> eyes_{};        ///< swaps with 0, 1, 2 eyes this second
@@ -707,12 +735,14 @@ inline FrameTrace g_frame_trace;
 /// AzaharFrame oot: a draw through the game's patched world camera (emulation thread), with the
 /// projection in the four registers before the view matrix (0: not read).
 /// AzaharFrame stereo: and where it puts the far scenery across (`far_valid`: read).
+/// AzaharFrame dbl: and its near term and horizontal scale (NearTermFromRows; NaN: not read).
 inline void OnWorldDraw(float tan_half_y = 0.0f, float aspect = 0.0f, bool far_valid = false,
-                        float far_ndc = 0.0f) {
+                        float far_ndc = 0.0f, float near_k = std::nanf(""),
+                        float across = 0.0f) {
     g_content.WorldDraw();
     g_frame_trace.WorldDraw(tan_half_y, aspect, tan_half_y > 0.0f);
     if (far_valid) {
-        g_frame_trace.Far(far_ndc);
+        g_frame_trace.Far(far_ndc, near_k, across);
     }
 }
 
