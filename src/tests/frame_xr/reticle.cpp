@@ -1013,3 +1013,26 @@ TEST_CASE("Reticle: C-Stick at Edge holds the edge with Snap to Middle stored",
         CHECK(o.stick.x > 0.95f); // the dead zone holds the point a hair short of the edge
     }
 }
+
+TEST_CASE("Reticle: C-Stick at Edge's Reset forgets the last push", "[frame_xr][reticle][kiu]") {
+    ReticleEdgeBand band;
+    band.x = 0.1f;
+    band.y = 0.1f;
+    REQUIRE(band.On());
+    ReticleEdgeHandoff h;
+    int64_t now = 0;
+    h.Update({0.5f, 0.5f}, true, band, now);
+    now += 11'000'000;
+    h.Update({0.99f, 0.5f}, true, band, now); // into the right edge's band: Lead, pushing
+    CHECK(h.state() == ReticleEdgeHandoff::State::Lead);
+    CHECK(h.last_push().x > 0.0f);
+    h.Reset();
+    CHECK(h.state() == ReticleEdgeHandoff::State::Touch);
+    CHECK(h.last_push().x == 0.0f);
+    CHECK(h.last_push().y == 0.0f);
+    // After a Reset the hand-over starts again from the touch, with the lead.
+    now += 11'000'000;
+    const auto o = h.Update({0.99f, 0.5f}, true, band, now);
+    CHECK(h.state() == ReticleEdgeHandoff::State::Lead);
+    CHECK(o.touch);
+}

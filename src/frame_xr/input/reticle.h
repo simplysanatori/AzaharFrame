@@ -196,11 +196,18 @@ public:
         bool changed = false; ///< the state changed in this call
     };
     Out Update(Vec2f point, bool down, const ReticleEdgeBand& band, int64_t time_ns);
+    /// Back to Touch, with nothing remembered (AzaharFrame integ9: the last push and the time
+    /// too, so a stale push can never carry into the next hand-over).
     void Reset() {
         state_ = State::Touch;
+        since_ns_ = 0;
+        last_push_ = {};
     }
     State state() const {
         return state_;
+    }
+    Vec2f last_push() const {
+        return last_push_;
     }
 
 private:
