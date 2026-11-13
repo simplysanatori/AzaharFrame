@@ -16,6 +16,7 @@
 #include "common/param_package.h"
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
+#include "frame_xr/immersive.h"          // AzaharFrame fovonce: MeasureCameraAgain
 #include "frame_xr/immersive_layout.h"   // AzaharFrame immersive2: Narrow Screen percent
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
@@ -951,7 +952,9 @@ void MenuPanel::BuildModel(const Host& host) {
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
     m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
-    m.match_camera = v.vr_immersive_match_camera.GetValue(); // AzaharFrame depth
+    // AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
+    m.match_camera =
+        static_cast<int>(std::min<u32>(v.vr_immersive_match_camera_mode.GetValue(), 2));
     // AzaharFrame immersive2: percent; a 5 % step between two segments shows the lower one.
     m.narrow_screen = static_cast<int>(
         FrameXr::Immersive::Layout::NarrowPercent(v.vr_immersive_squeeze.GetValue()) / 10);
@@ -1170,9 +1173,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_immersive_game_fov, static_cast<s32>(value), per_game);
         r.setting = MenuSetting::GameFov;
         break;
-    case Id::MatchCamera: // AzaharFrame depth: live
-        Apply(v.vr_immersive_match_camera, value != 0, per_game);
+    case Id::MatchCamera: // AzaharFrame depth, fovonce: live; Off, Set Once, Always
+        r.value = static_cast<int>(std::min<u32>(u, 2));
+        Apply(v.vr_immersive_match_camera_mode, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::MatchCamera;
+        // Set Once chosen, also again: the game on view measures its camera anew.
+        if (r.value == static_cast<int>(Settings::MatchGameCamera::SetOnce)) {
+            v.vr_immersive_fov_measured.SetGlobal(true);
+            Immersive::MeasureCameraAgain();
+        }
         break;
     case Id::NarrowScreen:
         // AzaharFrame immersive2: the setting is in percent (Off, 10 %, 20 %, 30 % here; both grips
@@ -1784,9 +1793,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
         break;
-    case Id::MatchCamera: // AzaharFrame depth
-        SetSetting(t.id, model.match_camera ? 0 : 1, host);
-        break;
     case Id::DynamicResolution: // AzaharFrame menuux
         SetSetting(t.id, model.dynamic_resolution ? 0 : 1, host);
         break;
@@ -1832,6 +1838,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MotionControls:
     case Id::WindowScale:
     case Id::WiderView:
+    case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
     case Id::NarrowScreen:
     case Id::DepthFactor:
     case Id::TextureFilter:    // AzaharFrame menuux

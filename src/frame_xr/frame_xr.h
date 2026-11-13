@@ -271,7 +271,8 @@ enum class MenuSetting {
     ImmersiveMode,
     WiderView,
     GameFov, ///< `value`: degrees
-    MatchCamera, ///< AzaharFrame depth: `value` 0 or 1 (vr_immersive_match_camera)
+    MatchCamera, ///< AzaharFrame depth, fovonce: `value` 0 Off, 1 Set Once, 2 Always
+                 ///< (vr_immersive_match_camera_mode); Set Once clears vr_immersive_fov_measured
     NarrowScreen,
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
@@ -293,6 +294,9 @@ enum class MenuSetting {
     ReticleSpeed,  ///< AzaharFrame reticle: `value` tenths of 1x, 5 to 40 (vr_reticle_speed)
     AccurateImageCopies, ///< AzaharFrame accxfer, xfergpu: `value` 0 Off, 1 Automatic, 2 On
                          ///< (image_copy_accuracy)
+    /// AzaharFrame fovonce: Match Game Camera's Set Once measured the game on view: `value` its
+    /// Immersive Game FOV (degrees), with vr_immersive_fov_measured, in the game's own file.
+    MeasuredGameFov,
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

@@ -125,13 +125,13 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
     SECTION("switches (Async Shader Compilation, Match Game Camera, Autosave) and Accurate Image "
             "Copies") {
         Keep k1{v.async_shader_compilation};
-        Keep k2{v.vr_immersive_match_camera};
+        Keep k2{v.vr_immersive_match_camera_mode}; // AzaharFrame fovonce
         Keep k3{v.autosave_enabled};
         Keep k4{v.image_copy_accuracy}; // AzaharFrame accxfer, xfergpu
         SetGlobalValue(v.async_shader_compilation, false);
         SetGameValue(v.async_shader_compilation, true);
-        SetGlobalValue(v.vr_immersive_match_camera, true);
-        SetGameValue(v.vr_immersive_match_camera, false);
+        SetGlobalValue(v.vr_immersive_match_camera_mode, 2u);
+        SetGameValue(v.vr_immersive_match_camera_mode, 1u);
         SetGlobalValue(v.autosave_enabled, false);
         SetGameValue(v.autosave_enabled, true);
         using Settings::ImageCopyAccuracy;
@@ -146,7 +146,7 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
             CHECK(!Marked(id));
         }
         CHECK(!v.async_shader_compilation.GetValue());
-        CHECK(v.vr_immersive_match_camera.GetValue());
+        CHECK(v.vr_immersive_match_camera_mode.GetValue() == 2u);
         CHECK(!v.autosave_enabled.GetValue());
         CHECK(v.image_copy_accuracy.GetValue() == ImageCopyAccuracy::Automatic);
         SetGlobalValue(v.autosave_enabled, true);

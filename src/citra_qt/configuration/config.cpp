@@ -529,6 +529,19 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_top_aspect);
     ReadGlobalSetting(Settings::values.vr_immersive_game_fov);
     ReadGlobalSetting(Settings::values.vr_immersive_match_camera); // AzaharFrame depth
+    // AzaharFrame fovonce: Off | Set Once | Always; a config with only the old switch keeps its
+    // choice (on is Always, off is Off).
+    ReadGlobalSetting(Settings::values.vr_immersive_match_camera_mode);
+    if (const auto migrated = FrameConfig::MigratedMatchCamera(*qt_config, global)) {
+        auto& match = Settings::values.vr_immersive_match_camera_mode;
+        if (!global) {
+            match.SetGlobal(false);
+        }
+        match.SetValue(*migrated);
+    }
+    if (!global) {
+        ReadGlobalSetting(Settings::values.vr_immersive_fov_measured); // per game only
+    }
     ReadGlobalSetting(Settings::values.vr_immersive_wider_view);
     ReadGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     {
@@ -1240,7 +1253,10 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
     WriteGlobalSetting(Settings::values.vr_top_aspect);
     WriteGlobalSetting(Settings::values.vr_immersive_game_fov);
-    WriteGlobalSetting(Settings::values.vr_immersive_match_camera); // AzaharFrame depth
+    WriteGlobalSetting(Settings::values.vr_immersive_match_camera_mode); // AzaharFrame fovonce
+    if (!global) {
+        WriteGlobalSetting(Settings::values.vr_immersive_fov_measured); // per game only
+    }
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze);
     WriteGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2

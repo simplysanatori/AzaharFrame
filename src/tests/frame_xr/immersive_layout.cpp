@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
@@ -1019,8 +1020,9 @@ TEST_CASE("FrameXr immersive: Match Game Camera off measures nothing, on measure
     using VideoCore::Immersive::MeasuredProjection;
     using VideoCore::Immersive::ProjectionTracker;
 
-    // The setting: on by default, global and per game.
-    REQUIRE(Settings::values.vr_immersive_match_camera.GetDefault());
+    // The setting: Always by default (the earlier "on"), global and per game (AzaharFrame
+    // fovonce: Off, Set Once, Always).
+    REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetDefault() == 2);
 
     // XR side: the settings untouched when off (also with a measurement in hand), the measured
     // camera when on, the settings again on while nothing was measured.
@@ -1556,4 +1558,201 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for an
     // The sweep can see a slip: the old placement and mode 2 about the head are off.
     REQUIRE(worst_fixed > 1.0);
     REQUIRE(worst_head_pivot > 0.1);
+}
+
+// ---- AzaharFrame fovonce: Match Game Camera's Set Once (FovEstimate) and Always (FovFollow,
+// FovEase), on made-up measurement sequences, four a second as ProjectionTracker gives them.
+namespace {
+using FrameXr::Immersive::Layout::FovEase;
+using FrameXr::Immersive::Layout::FovEstimate;
+using FrameXr::Immersive::Layout::FovFollow;
+
+// A little measurement noise, the same every run (+-0.4 degrees).
+struct Noise {
+    uint32_t s = 12345;
+    float operator()() {
+        s = s * 1664525u + 1013904223u;
+        return (static_cast<float>(s >> 8) / 16777216.0f - 0.5f) * 0.8f;
+    }
+};
+
+// Feeds `deg(t)` (0 or less: no camera) every 250 ms until the estimate stops or `max_ms`.
+template <typename F>
+int64_t RunEstimate(FovEstimate& e, F&& deg, int64_t max_ms = 90000) {
+    int64_t t = 0;
+    for (; t < max_ms && e.GetState() == FovEstimate::State::Measuring; t += 250) {
+        e.Tick(250);
+        const float d = deg(t);
+        if (d > 0.0f) {
+            e.Add(t, d);
+        }
+    }
+    return t;
+}
+} // namespace
+
+TEST_CASE("FrameXr immersive: Set Once finds a steady camera through cuts and cutscenes",
+          "[frame_xr][fovonce]") {
+    Noise noise;
+    FovEstimate e;
+    // Majora's Mask 3D-like: 52 degrees in play; every 5 s a cut, Z-targeting or flash to 30 or
+    // 80 degrees for 1.5 s; and from 8 s a 5 s cutscene at 80 degrees (it holds, and counts).
+    const int64_t took = RunEstimate(e, [&](int64_t t) {
+        if (t >= 8000 && t < 13000) {
+            return 80.0f + noise();
+        }
+        const int64_t in = t % 5000;
+        if (in >= 3500) {
+            return ((t / 5000) % 2 ? 30.0f : 80.0f) + noise();
+        }
+        return 52.0f + noise();
+    });
+    REQUIRE(e.GetState() == FovEstimate::State::Done);
+    CHECK(e.Value() == 52);
+    CHECK(took <= 60000);
+    INFO("took " << took << " ms, counted " << e.CountedMs() << " ms, share " << e.Share());
+    CHECK(e.CountedMs() >= FovEstimate::kEnoughMs);
+
+    // Steady play only: done after about kEnoughMs of it (plus the first run's kHoldMs).
+    FovEstimate steady;
+    const int64_t quick = RunEstimate(steady, [&](int64_t) { return 47.3f + noise(); });
+    REQUIRE(steady.GetState() == FovEstimate::State::Done);
+    CHECK(steady.Value() == 47);
+    CHECK(quick >= 10000);
+    CHECK(quick <= 20000);
+
+    // Spikes shorter than kHoldMs never count, however often: only the steady angle does.
+    FovEstimate spiky;
+    RunEstimate(spiky, [&](int64_t t) {
+        return (t % 4000) < 1750 ? (t / 4000 % 2 ? 31.0f : 79.0f) : 60.0f + noise();
+    });
+    REQUIRE(spiky.GetState() == FovEstimate::State::Done);
+    CHECK(spiky.Value() == 60);
+}
+
+TEST_CASE("FrameXr immersive: Set Once on a slow drift takes the angle it held most",
+          "[frame_xr][fovonce]") {
+    Noise noise;
+    FovEstimate e;
+    // 50 to 56 degrees over 30 s (a camera slowly pulling back), then 56.
+    RunEstimate(e, [&](int64_t t) {
+        return 50.0f + 6.0f * std::min(static_cast<float>(t) / 30000.0f, 1.0f) + noise();
+    });
+    REQUIRE(e.GetState() == FovEstimate::State::Done);
+    CHECK(e.Value() >= 50);
+    CHECK(e.Value() <= 56);
+}
+
+TEST_CASE("FrameXr immersive: Set Once with no camera, or none steady, gives up",
+          "[frame_xr][fovonce]") {
+    // No camera at all (a 2D game, the projection never found): 60 s, then nothing.
+    FovEstimate none;
+    const int64_t t = RunEstimate(none, [](int64_t) { return 0.0f; });
+    CHECK(none.GetState() == FovEstimate::State::Failed);
+    CHECK(t == FovEstimate::kGiveUpMs);
+    CHECK(none.CountedMs() == 0);
+    // A camera that never holds an angle for 2 s.
+    FovEstimate restless;
+    RunEstimate(restless, [](int64_t t) { return 35.0f + static_cast<float>((t / 1000) % 9) * 7.0f; });
+    CHECK(restless.GetState() == FovEstimate::State::Failed);
+    // Out of the setting's range (a 10 degree close-up): never counts.
+    FovEstimate close;
+    RunEstimate(close, [](int64_t) { return 12.0f; });
+    CHECK(close.GetState() == FovEstimate::State::Failed);
+    // Measuring time only counts while a game is on view (the caller ticks): measurements alone
+    // never give up, and a Reset starts over.
+    FovEstimate paused;
+    paused.Tick(59000);
+    CHECK(paused.GetState() == FovEstimate::State::Measuring);
+    paused.Reset();
+    CHECK(paused.MeasuringMs() == 0);
+}
+
+TEST_CASE("FrameXr immersive: Always ignores a cut that is back within a second",
+          "[frame_xr][fovonce]") {
+    Noise noise;
+    FovFollow f;
+    FovEase screen;
+    std::vector<float> eased;
+    int64_t t = 0;
+    // 52 degrees for 5 s, a cut to 80 for 1 s (measured at 5.00 to 5.75 s), 52 again.
+    for (; t < 10000; t += 250) {
+        const bool cut = t >= 5000 && t < 6000;
+        f.Add(t, (cut ? 80.0f : 52.0f) + (cut ? 0.0f : noise() * 0.1f));
+        CHECK(std::abs(f.Target() - 52.0f) < 0.1f);
+        for (int64_t frame = t; frame < t + 250; frame += 8) { // the frames in between
+            eased.push_back(screen.Update(f.Target(), frame));
+        }
+    }
+    for (float v : eased) {
+        CHECK(std::abs(v - 52.0f) < 0.1f);
+    }
+    // A shorter flash, a single measurement, does nothing either.
+    f.Add(t, 30.0f);
+    CHECK(std::abs(f.Target() - 52.0f) < 0.1f);
+}
+
+TEST_CASE("FrameXr immersive: Always follows a lasting change about a second later, eased",
+          "[frame_xr][fovonce]") {
+    FovFollow f;
+    FovEase screen;
+    int64_t t = 0;
+    for (; t < 5000; t += 250) {
+        f.Add(t, 52.0f);
+        screen.Update(f.Target(), t);
+    }
+    // A new scene at 80 degrees from 5 s on.
+    int64_t switched = -1;
+    for (; t < 9000; t += 250) {
+        f.Add(t, 80.0f);
+        if (switched < 0 && f.Target() == 80.0f) {
+            switched = t;
+        }
+    }
+    INFO("followed at " << switched);
+    CHECK(switched >= 5750); // held about a second first
+    CHECK(switched <= 6250);
+    // Eased: frame by frame (8 ms), never a step of more than a few degrees, never past it,
+    // 95 % there after FovEase::kEaseMs and all the way after a little over a second.
+    float last = screen.Update(52.0f, 5990);
+    CHECK(last == 52.0f);
+    float biggest = 0.0f;
+    float at_ease = 0.0f;
+    for (int64_t frame = 6000; frame <= 7250; frame += 8) {
+        const float v = screen.Update(80.0f, frame);
+        CHECK(v >= last);
+        CHECK(v <= 80.0f);
+        biggest = std::max(biggest, v - last);
+        if (frame <= 6000 + FovEase::kEaseMs) {
+            at_ease = v;
+        }
+        last = v;
+    }
+    CHECK(biggest < 2.0f);
+    CHECK(at_ease >= 80.0f - 0.05f * 28.0f - 0.2f);
+    CHECK(last == Catch::Approx(80.0f).margin(0.01f));
+    CHECK(!screen.Moving());
+
+    // A gradual change (Mario Kart 7 widening with speed, 52 to 62 over 5 s): followed all the
+    // way, smoothly, about a second behind.
+    FovFollow g;
+    FovEase live;
+    float prev = 0.0f, max_step = 0.0f;
+    for (int64_t ms = 0; ms <= 9000; ms += 8) {
+        if (ms % 250 == 0) {
+            g.Add(ms, 52.0f + 10.0f * std::clamp((ms - 1000) / 5000.0f, 0.0f, 1.0f));
+        }
+        const float v = live.Update(g.Target(), ms);
+        if (ms > 0) {
+            max_step = std::max(max_step, std::abs(v - prev));
+            CHECK(v >= prev - 0.001f);
+        }
+        prev = v;
+        if (ms == 4000) {
+            CHECK(v > 54.0f); // following: 58 measured now
+            CHECK(v < 58.0f); // about a second behind
+        }
+    }
+    CHECK(prev == Catch::Approx(62.0f).margin(0.05f));
+    CHECK(max_step < 0.5f);
 }

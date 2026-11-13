@@ -1598,6 +1598,18 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
     }
     Immersive::OnGameInput(game_in); // immersive.cpp
+    // AzaharFrame fovonce: Set Once wrote the game's Immersive Game FOV: its file gets it.
+    if (const std::optional<int> fov = Immersive::TakeMeasuredFov()) {
+        MenuRequest r;
+        r.command = MenuCommand::SetSetting;
+        r.setting = MenuSetting::MeasuredGameFov;
+        r.value = *fov;
+        r.per_game = true;
+        std::scoped_lock lock{hooks_mutex};
+        if (hooks.menu_request) {
+            hooks.menu_request(r);
+        }
+    }
     // AzaharFrame vrsize: while a grip holds a screen the D-pad nudges it (the immersive screen:
     // the global Immersive Offset; the normal pair: a step about the head) and never reaches
     // the game. The normal pair's drag is the mapper's, as of the last frame.

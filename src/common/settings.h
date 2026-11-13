@@ -160,6 +160,13 @@ enum class ImageCopyAccuracy : u32 {
     Automatic = 1,
     On = 2,
 };
+/// AzaharFrame fovonce: Match Game Camera (vr_immersive_match_camera_mode).
+enum class MatchGameCamera : u32 {
+    Off = 0,
+    SetOnce = 1,
+    Always = 2,
+};
+
 /// AzaharFrame xfergpu: "Off", "Automatic", "On" (the log and the crash report)
 std::string_view GetImageCopyAccuracyName(ImageCopyAccuracy accuracy);
 
@@ -765,7 +772,18 @@ struct Values {
     // game camera's angle and shape, measured from its projection while it runs, instead of
     // Immersive Game FOV and Screen Shape. Off: nothing is measured. Read every frame
     // (frame_xr/immersive.cpp); AZAHARFRAME_IMMERSIVE_MEASURE=0 forces it off.
+    // AzaharFrame fovonce: the switch of earlier builds, read only to convert a config that has
+    // nothing else (QtConfig::ReadVrValues: on is Always, off is Off); never written.
     SwitchableSetting<bool> vr_immersive_match_camera{true, "vr_immersive_match_camera"};
+    // AzaharFrame fovonce: what replaces it (MatchGameCamera): Off, the two settings as they are;
+    // Set Once, the game camera is measured for a while once, written into the game's own
+    // Immersive Game FOV (vr_immersive_fov_measured), and the settings are used from then on;
+    // Always, the earlier "on" (followed, held and eased). Read every frame.
+    SwitchableSetting<u32, true> vr_immersive_match_camera_mode{2, 0, 2,
+                                                                "vr_immersive_match_camera_mode"};
+    // AzaharFrame fovonce: per game only: Set Once has measured this game's camera and written its
+    // Immersive Game FOV. Choosing Set Once again clears it (the game measures again).
+    SwitchableSetting<bool> vr_immersive_fov_measured{false, "vr_immersive_fov_measured"};
     // AzaharFrame: Full (6DoF) only. Wider View: a bigger immersive screen also widens the game's
     // view (periphery factor 1.0 to 1.4) instead of only enlarging its picture. Off by default:
     // past its own view a game's culling and scenery run out. Read when a game starts.

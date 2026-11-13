@@ -34,7 +34,7 @@ bool WithSetting(Menu::Id id, F&& f) {
         f(v.vr_immersive_game_fov);
         return true;
     case Id::MatchCamera:
-        f(v.vr_immersive_match_camera);
+        f(v.vr_immersive_match_camera_mode); // AzaharFrame fovonce
         return true;
     case Id::NarrowScreen:
         f(v.vr_immersive_squeeze);

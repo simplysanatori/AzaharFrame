@@ -38,7 +38,8 @@ struct ImmersivePreset {
     /// AzaharFrame immersive: the immersive screen's default size, times the true-scale default
     /// (0 = 1; immersive_layout.h). A placement the player saved wins.
     float screen_size = 0.0f;
-    /// AzaharFrame immersive2: Settings::values.vr_immersive_match_camera (-1 = the default, on).
+    /// AzaharFrame immersive2, fovonce: Settings::values.vr_immersive_match_camera_mode, 0 Off,
+    /// 1 Set Once, 2 Always (-1 = the default, Always).
     int32_t match_camera = -1;
     /// AzaharFrame presets: Settings::values.factor_3d (3D Depth, 0 to 100; -1 = keep).
     int32_t factor_3d = -1;

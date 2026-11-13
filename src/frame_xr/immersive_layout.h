@@ -47,10 +47,13 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
@@ -368,6 +371,130 @@ private:
     float shape_pending_ = 0.0f;
     int shape_count_ = 0;
 };
+// ---- AzaharFrame fovonce: Match Game Camera's Set Once and Always ----
+// Times, not frame counts or angles fitted to a game: the measurements come about four times a
+// second (ProjectionTracker), the frames at whatever rate the headset runs.
+
+/// Set Once: the game camera's usual vertical angle, from its measurements over a while of play.
+/// A value counts only once it held for kHoldMs (each measurement within kStepDeg of the one
+/// before, none missing for kGapMs): cuts, Z-targeting, menus and flashes that last less are left
+/// out. Of what counts, the 3-degree band that holds the most time is the game's angle, taken
+/// once kEnoughMs counted with it holding kShareEarly of that time, or kPlentyMs with kShareLate
+/// (a game with long cutscenes at other angles). The value is the band's time-weighted mean,
+/// rounded to a degree, within the setting's 30 to 110. Measuring for kGiveUpMs with no value:
+/// Failed (no camera found, or none steady).
+class FovEstimate {
+public:
+    static constexpr int64_t kHoldMs = 2000;
+    static constexpr int64_t kGapMs = 1000;
+    static constexpr float kStepDeg = 1.5f;
+    static constexpr int64_t kSampleMs = 250; ///< the time a measurement stands for at most
+    static constexpr int64_t kEnoughMs = 12000;
+    static constexpr int64_t kPlentyMs = 20000;
+    static constexpr float kShareEarly = 0.6f;
+    static constexpr float kShareLate = 0.4f;
+    static constexpr int64_t kGiveUpMs = 60000;
+    static constexpr int kMinDeg = 30;
+    static constexpr int kMaxDeg = 110;
+    enum class State { Measuring, Done, Failed };
+
+    /// One measurement, made at `t_ms` (steady clock, rising): the vertical angle in degrees.
+    void Add(int64_t t_ms, float fov_deg);
+    /// Time spent measuring (a game in a Full mode on view, the menu closed), with or without
+    /// measurements. Gives up after kGiveUpMs.
+    void Tick(int64_t dt_ms);
+    void Reset() {
+        *this = FovEstimate{};
+    }
+    State GetState() const {
+        return state_;
+    }
+    /// Done: the angle, whole degrees.
+    int Value() const {
+        return value_;
+    }
+    /// The time that counted, and the band's share of it (the log line).
+    int64_t CountedMs() const {
+        return counted_ms_;
+    }
+    float Share() const {
+        return share_;
+    }
+    int64_t MeasuringMs() const {
+        return measuring_ms_;
+    }
+
+private:
+    void Count(float fov_deg, int64_t ms);
+    void Evaluate();
+
+    State state_ = State::Measuring;
+    int value_ = 0;
+    float share_ = 0.0f;
+    int64_t measuring_ms_ = 0;
+    int64_t counted_ms_ = 0;
+    std::array<int64_t, kMaxDeg - kMinDeg + 1> bin_ms_{}; ///< per whole degree
+    std::array<double, kMaxDeg - kMinDeg + 1> bin_sum_{}; ///< degrees x ms, for the mean
+    // The run being followed: its start, its last measurement, and while it is shorter than
+    // kHoldMs its measurements (they count once it held).
+    bool in_run_ = false;
+    bool run_counts_ = false;
+    int64_t run_start_ms_ = 0;
+    int64_t last_ms_ = 0;
+    float last_deg_ = 0.0f;
+    std::vector<std::pair<float, int64_t>> pending_;
+};
+
+/// Always: the angle to follow, from the measurements: the median of the last kWindowMs (an even
+/// count takes the middle one nearer the angle followed so far). A new angle wins once it held
+/// for more than half the window (about 1.1 s), so a cut or a spike that is back sooner changes
+/// nothing; a gradual change (Mario Kart 7 widening with speed) is followed about a second late.
+class FovFollow {
+public:
+    static constexpr int64_t kWindowMs = 2250;
+
+    void Add(int64_t t_ms, float fov_deg);
+    void Reset() {
+        *this = FovFollow{};
+    }
+    /// 0 before the first measurement.
+    float Target() const {
+        return target_;
+    }
+
+private:
+    std::vector<std::pair<int64_t, float>> window_;
+    float target_ = 0.0f;
+};
+
+/// Eases a value toward its target, so a new camera angle never changes the screen or the gain in
+/// one step: critically damped (no overshoot), about 95 % of the way in kEaseMs, and the speed
+/// carries on smoothly when the target moves again before it arrived (a gradual change, Mario
+/// Kart 7's speed). The first value is taken as it is.
+class FovEase {
+public:
+    static constexpr int64_t kEaseMs = 500;
+
+    float Update(float target, int64_t now_ms);
+    void Reset() {
+        *this = FovEase{};
+    }
+    /// Still on its way to the target.
+    bool Moving() const {
+        return moving_;
+    }
+    float Value() const {
+        return value_;
+    }
+
+private:
+    bool have_ = false;
+    bool moving_ = false;
+    float value_ = 0.0f;
+    float speed_ = 0.0f; ///< per second
+    int64_t last_ms_ = 0;
+};
+
 /// Match Game Camera on and a measurement made (`measured_fov_deg` > 0): the measured angle and
 /// shape. Otherwise the settings' (Immersive Game FOV, Screen Shape), exactly as given.
 CameraShape CameraInUse(bool match_camera, float measured_fov_deg, float measured_aspect,

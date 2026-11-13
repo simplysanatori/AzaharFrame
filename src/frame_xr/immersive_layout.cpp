@@ -781,4 +781,150 @@ unsigned CameraFilter::Add(float tan_half_y, float aspect) {
     return change;
 }
 
+// AzaharFrame fovonce
+void FovEstimate::Add(int64_t t_ms, float fov_deg) {
+    if (state_ != State::Measuring || !std::isfinite(fov_deg)) {
+        return;
+    }
+    // Outside the setting's range (a close-up in a cutscene): no Game FOV can hold it, and it
+    // ends the run.
+    if (fov_deg < kMinDeg - 0.5f || fov_deg >= kMaxDeg + 0.5f) {
+        in_run_ = false;
+        pending_.clear();
+        return;
+    }
+    const bool continues = in_run_ && t_ms >= last_ms_ && t_ms - last_ms_ <= kGapMs &&
+                           std::abs(fov_deg - last_deg_) <= kStepDeg;
+    int64_t ms = kSampleMs;
+    if (continues) {
+        ms = std::clamp<int64_t>(t_ms - last_ms_, 1, kSampleMs);
+    } else {
+        in_run_ = true;
+        run_counts_ = false;
+        run_start_ms_ = t_ms;
+        pending_.clear();
+    }
+    last_ms_ = t_ms;
+    last_deg_ = fov_deg;
+    if (run_counts_) {
+        Count(fov_deg, ms);
+    } else {
+        pending_.emplace_back(fov_deg, ms);
+        if (t_ms - run_start_ms_ + kSampleMs >= kHoldMs) {
+            run_counts_ = true;
+            for (const auto& [deg, held] : pending_) {
+                Count(deg, held);
+            }
+            pending_.clear();
+        }
+    }
+    Evaluate();
+}
+
+void FovEstimate::Count(float fov_deg, int64_t ms) {
+    const int bin = std::clamp(static_cast<int>(std::lround(fov_deg)) - kMinDeg, 0,
+                               static_cast<int>(bin_ms_.size()) - 1);
+    bin_ms_[static_cast<std::size_t>(bin)] += ms;
+    bin_sum_[static_cast<std::size_t>(bin)] += static_cast<double>(fov_deg) * ms;
+    counted_ms_ += ms;
+}
+
+void FovEstimate::Evaluate() {
+    if (counted_ms_ < kEnoughMs) {
+        return;
+    }
+    // The 3-degree band (a whole degree and its two neighbours) that held the most time.
+    const int n = static_cast<int>(bin_ms_.size());
+    int best = 0;
+    int64_t best_ms = -1;
+    for (int i = 0; i < n; i++) {
+        int64_t ms = 0;
+        for (int j = std::max(i - 1, 0); j <= std::min(i + 1, n - 1); j++) {
+            ms += bin_ms_[static_cast<std::size_t>(j)];
+        }
+        if (ms > best_ms) {
+            best_ms = ms;
+            best = i;
+        }
+    }
+    share_ = static_cast<float>(best_ms) / static_cast<float>(counted_ms_);
+    if (share_ < kShareEarly && !(counted_ms_ >= kPlentyMs && share_ >= kShareLate)) {
+        return;
+    }
+    double sum = 0.0;
+    int64_t ms = 0;
+    for (int j = std::max(best - 1, 0); j <= std::min(best + 1, n - 1); j++) {
+        sum += bin_sum_[static_cast<std::size_t>(j)];
+        ms += bin_ms_[static_cast<std::size_t>(j)];
+    }
+    value_ = std::clamp(static_cast<int>(std::lround(sum / static_cast<double>(ms))), kMinDeg,
+                        kMaxDeg);
+    state_ = State::Done;
+}
+
+void FovEstimate::Tick(int64_t dt_ms) {
+    measuring_ms_ += std::max<int64_t>(dt_ms, 0);
+    if (state_ == State::Measuring && measuring_ms_ >= kGiveUpMs) {
+        state_ = State::Failed;
+    }
+}
+
+// AzaharFrame fovonce
+void FovFollow::Add(int64_t t_ms, float fov_deg) {
+    if (!std::isfinite(fov_deg) || fov_deg <= 0.0f) {
+        return;
+    }
+    window_.emplace_back(t_ms, fov_deg);
+    window_.erase(window_.begin(),
+                  std::find_if(window_.begin(), window_.end(), [t_ms](const auto& m) {
+                      return m.first > t_ms - kWindowMs;
+                  }));
+    std::vector<float> v;
+    v.reserve(window_.size());
+    for (const auto& m : window_) {
+        v.push_back(m.second);
+    }
+    std::sort(v.begin(), v.end());
+    const std::size_t n = v.size();
+    if (n % 2 == 1 || target_ <= 0.0f) {
+        target_ = v[n / 2 - (n % 2 == 0 ? 1 : 0)];
+        return;
+    }
+    const float a = v[n / 2 - 1];
+    const float b = v[n / 2];
+    target_ = std::abs(a - target_) <= std::abs(b - target_) ? a : b;
+}
+
+// AzaharFrame fovonce: a critically damped spring, solved exactly over each step (any frame
+// time): the offset e and the speed v after dt are (e + (v + w e) dt) exp(-w dt) and
+// (v - w (v + w e) dt) exp(-w dt). w = 4.74 / kEaseMs leaves 5 % of a step after kEaseMs.
+float FovEase::Update(float target, int64_t now_ms) {
+    if (!std::isfinite(target)) {
+        return value_;
+    }
+    if (!have_) {
+        have_ = true;
+        value_ = target;
+        speed_ = 0.0f;
+        last_ms_ = now_ms;
+        moving_ = false;
+        return value_;
+    }
+    const float dt = static_cast<float>(std::max<int64_t>(now_ms - last_ms_, 0)) / 1000.0f;
+    last_ms_ = now_ms;
+    constexpr float w = 4.74f * 1000.0f / static_cast<float>(kEaseMs);
+    const float e = value_ - target;
+    const float k = std::exp(-w * dt);
+    const float c = speed_ + w * e;
+    const float e1 = (e + c * dt) * k;
+    speed_ = (speed_ - w * c * dt) * k;
+    value_ = target + e1;
+    moving_ = std::abs(e1) > 0.02f || std::abs(speed_) > 0.1f; // degrees, degrees a second
+    if (!moving_) {
+        value_ = target;
+        speed_ = 0.0f;
+    }
+    return value_;
+}
+
 } // namespace FrameXr::Immersive::Layout

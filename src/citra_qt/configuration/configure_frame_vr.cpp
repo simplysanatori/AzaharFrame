@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <QCheckBox>
@@ -239,11 +240,18 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                       {fov_scope, fov_spin});
     layout->addWidget(fov_row);
 
-    // AzaharFrame depth: Settings::values.vr_immersive_match_camera, live.
-    match_camera_check = new QCheckBox(tr("Match Game Camera"), this);
-    match_camera_check->setObjectName(QStringLiteral("frame_vr_match_camera_check"));
-    match_camera_check->setToolTip(tr("Reads the game's camera angle and shape while it runs."));
-    layout->addWidget(match_camera_check);
+    // AzaharFrame depth, fovonce: values 0..2 are Settings::values.vr_immersive_match_camera_mode
+    // (Off, Set Once, Always), live.
+    match_camera_combo = new QComboBox(this);
+    match_camera_combo->setObjectName(QStringLiteral("frame_vr_match_camera_combo"));
+    match_camera_combo->addItem(tr("Off"));
+    match_camera_combo->addItem(tr("Set Once"));
+    match_camera_combo->addItem(tr("Always"));
+    match_camera_row = MakeRow(this, QStringLiteral("frame_vr_match_camera_row"),
+                               tr("Match Game Camera"),
+                               tr("Matches the screen to the game's own camera."),
+                               {match_camera_combo});
+    layout->addWidget(match_camera_row);
 
     // AzaharFrame widerview: values 0..4 are Settings::values.vr_immersive_wider_view_level
     // (frame_xr/immersive_layout.h).
@@ -334,7 +342,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
         lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
         lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
-        lock(match_camera_check, Settings::values.vr_immersive_match_camera.UsingGlobal());
+        lock(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
         lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
         lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
         lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
@@ -346,9 +354,10 @@ void ConfigureFrameVr::SetupPerGameUI() {
 
     ConfigurationShared::SetColoredTristate(
         hide_bottom_check, Settings::values.vr_hide_bottom_screen, hide_bottom_state);
-    ConfigurationShared::SetColoredTristate(match_camera_check,
-                                            Settings::values.vr_immersive_match_camera,
-                                            match_camera_state); // AzaharFrame depth
+    ConfigurationShared::SetColoredComboBox(
+        match_camera_combo, match_camera_row,
+        static_cast<int>(std::min<u32>(
+            Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2))); // fovonce
     ConfigurationShared::SetColoredComboBox(
         shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -389,8 +398,7 @@ void ConfigureFrameVr::SetConfiguration() {
     // it), OK would then have saved that value as the global one.
     const bool global = Settings::IsConfiguringGlobal();
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
-    match_camera_check->setChecked(
-        Settings::values.vr_immersive_match_camera.GetValue(global)); // AzaharFrame depth
+    SetMatchCameraTips(); // AzaharFrame fovonce
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
     eye_edit->setText(QString::fromStdString(eye.GetValue(global)));
@@ -403,6 +411,8 @@ void ConfigureFrameVr::SetConfiguration() {
         wider_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
+        match_camera_combo->setCurrentIndex(static_cast<int>(
+            std::min<u32>(Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
         motion_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
@@ -443,6 +453,10 @@ void ConfigureFrameVr::SetConfiguration() {
                                       !Settings::values.vr_immersive_game_fov.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(mode_combo, &mode);
     ConfigurationShared::SetHighlight(mode_row, !mode.UsingGlobal());
+    ConfigurationShared::SetPerGameSetting(match_camera_combo,
+                                           &Settings::values.vr_immersive_match_camera_mode);
+    ConfigurationShared::SetHighlight(
+        match_camera_row, !Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(depth_combo, &depth);
     ConfigurationShared::SetHighlight(depth_row, !depth.UsingGlobal());
 
@@ -467,6 +481,38 @@ void ConfigureFrameVr::ShowOffset(float right_deg, float up_deg) {
     }
     offset_label->setText(parts.isEmpty() ? tr("None") : parts.join(QStringLiteral(", ")));
     offset_reset->setEnabled(!parts.isEmpty());
+}
+
+// AzaharFrame fovonce: each choice's tooltip (shown for the item pointed at in the open list, and
+// for the box itself while it is picked); "Use global configuration" shows the global choice's.
+void ConfigureFrameVr::SetMatchCameraTips() {
+    const std::array<QString, 3> tips{
+        tr("Uses Immersive Game FOV as set."),
+        tr("Measures the game's camera once and sets Immersive Game FOV to match. Choose again "
+           "to remeasure."),
+        tr("Follows the game's camera smoothly as it changes."),
+    };
+    QComboBox* box = match_camera_combo;
+    const bool per_game = !Settings::IsConfiguringGlobal();
+    const int first = per_game ? ConfigurationShared::USE_GLOBAL_OFFSET : 0;
+    for (int i = 0; i < static_cast<int>(tips.size()); i++) {
+        box->setItemData(first + i, tips[static_cast<std::size_t>(i)], Qt::ToolTipRole);
+    }
+    if (per_game) {
+        const auto global = std::min<std::size_t>(
+            Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2);
+        box->setItemData(ConfigurationShared::USE_GLOBAL_INDEX, tips[global], Qt::ToolTipRole);
+    }
+    const auto follow = [box] {
+        if (box->isEnabled()) { // a locked box keeps the lock's tooltip
+            box->setToolTip(box->currentData(Qt::ToolTipRole).toString());
+        }
+    };
+    follow();
+    if (!box->property("frame_tips").toBool()) {
+        box->setProperty("frame_tips", true);
+        connect(box, qOverload<int>(&QComboBox::currentIndexChanged), box, follow);
+    }
 }
 
 void ConfigureFrameVr::ApplyConfiguration() {
@@ -501,8 +547,16 @@ void ConfigureFrameVr::ApplyConfiguration() {
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_match_camera,
-                                             match_camera_check, match_camera_state);
+    {
+        // AzaharFrame fovonce: Set Once newly chosen for this game: it measures its camera again.
+        auto& match = Settings::values.vr_immersive_match_camera_mode;
+        const u32 before = match.GetValue();
+        ConfigurationShared::ApplyPerGameSetting(&match, match_camera_combo);
+        if (!Settings::IsConfiguringGlobal() && before != match.GetValue() &&
+            match.GetValue() == static_cast<u32>(Settings::MatchGameCamera::SetOnce)) {
+            Settings::values.vr_immersive_fov_measured.SetGlobal(true);
+        }
+    }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });

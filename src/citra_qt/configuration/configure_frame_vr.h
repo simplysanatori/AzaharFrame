@@ -31,12 +31,14 @@ public:
 private:
     void SetupPerGameUI();
     void ShowOffset(float right_deg, float up_deg);
+    void SetMatchCameraTips(); ///< AzaharFrame fovonce: each choice's own tooltip
 
     QCheckBox* hide_bottom_check;
     /// Per application: the tristate tracker (Use global / on / off).
     ConfigurationShared::CheckState hide_bottom_state = ConfigurationShared::CheckState::Global;
-    QCheckBox* match_camera_check; ///< AzaharFrame depth: Match Game Camera, global and per game
-    ConfigurationShared::CheckState match_camera_state = ConfigurationShared::CheckState::Global;
+    /// AzaharFrame depth, fovonce: Match Game Camera, Off | Set Once | Always, global and per game
+    QWidget* match_camera_row;
+    QComboBox* match_camera_combo;
     /// Global settings only (hidden in a game's properties).
     QWidget* face_row;
     QComboBox* face_combo;

@@ -133,4 +133,12 @@ void OnRecentred(XrTime change_time);
 /// saved). XR thread.
 bool OnResetPanels(bool stick_hold);
 
+/// AzaharFrame fovonce: Match Game Camera's Set Once was chosen (again): the game on view
+/// measures its camera anew (the caller clears vr_immersive_fov_measured). Any thread.
+void MeasureCameraAgain();
+
+/// AzaharFrame fovonce: the Immersive Game FOV Set Once has just written for the game on view
+/// (the settings have it; its file should get it), once. XR thread.
+std::optional<int> TakeMeasuredFov();
+
 } // namespace FrameXr::Immersive

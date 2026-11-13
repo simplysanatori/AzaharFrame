@@ -182,7 +182,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         fov.t = (static_cast<float>(m.game_fov) - fr.min) / (fr.max - fr.min);
         fov.value = SliderText(Id::GameFov, static_cast<float>(m.game_fov));
         rows.push_back(fov);
-        rows.push_back(full(row(Id::MatchCamera, RowKind::Switch, 0, m.match_camera))); // depth
+        // AzaharFrame depth, fovonce: Off | Set Once | Always
+        rows.push_back(full(row(Id::MatchCamera, RowKind::Segmented, m.match_camera)));
         rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
     }
@@ -314,6 +315,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
     static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
+    static const std::vector<std::string> kMatchCamera{"Off", "Set Once", "Always"}; // fovonce
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
     switch (id) {
@@ -327,6 +329,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kFastForwardAudio;
     case Id::AccurateImageCopies: // AzaharFrame xfergpu
         return kImageCopies;
+    case Id::MatchCamera: // AzaharFrame fovonce
+        return kMatchCamera;
     case Id::ScreenShape:
         return kShape;
     case Id::ScreenCurve:
@@ -580,6 +584,19 @@ std::string LabelFor(Id id) {
 }
 
 std::string ExplainOption(Id id, int index) {
+    if (id == Id::MatchCamera) { // AzaharFrame fovonce
+        switch (index) {
+        case 0:
+            return "Uses Immersive Game FOV as set.";
+        case 1:
+            return "Measures the game's camera once and sets Immersive Game FOV to match. Choose "
+                   "again to remeasure.";
+        case 2:
+            return "Follows the game's camera smoothly as it changes.";
+        default:
+            break;
+        }
+    }
     if (id == Id::AccurateImageCopies) { // AzaharFrame xfergpu: the owner's words
         switch (index) {
         case 0:
@@ -596,7 +613,7 @@ std::string ExplainOption(Id id, int index) {
 }
 
 bool HasOptionTips(Id id) {
-    return id == Id::AccurateImageCopies;
+    return id == Id::AccurateImageCopies || id == Id::MatchCamera;
 }
 
 std::string ExplainFor(Id id) {
@@ -651,8 +668,8 @@ std::string ExplainFor(Id id) {
         return "Shows more of the game around the edges. Some games leave them empty.";
     case Id::GameFov:
         return "The game camera's vertical field of view.";
-    case Id::MatchCamera:
-        return "Reads the game's camera angle and shape while it runs.";
+    case Id::MatchCamera: // AzaharFrame fovonce
+        return "Matches the screen to the game's own camera.";
     case Id::NarrowScreen:
         return "Narrows the screen so the side HUD moves into view.";
     case Id::DepthFactor:
