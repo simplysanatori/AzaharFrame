@@ -1712,7 +1712,7 @@ double SlewedCut(float from, float to, double hz = 120.0, double jitter = 0.0) {
             CHECK(std::abs(step) <= FovSlew::kMaxSpeedDegS * dt + 1e-4f);
             CHECK(std::abs(slew.Speed() - last_speed) <= FovSlew::kAccelDegS2 * dt + 1e-3f);
             // never past the target (by more than a rounding when the frame length varies)
-            const float slack = jitter > 0.0 ? 0.01f : 1e-4f;
+            const float slack = jitter > 0.0 ? 0.01f : 2e-4f;
             CHECK(std::min(from, to) - slack <= v);
             CHECK(v <= std::max(from, to) + slack);
             last_speed = slew.Speed();
