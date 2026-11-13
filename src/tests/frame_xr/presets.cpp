@@ -50,15 +50,15 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     REQUIRE(sm3dl->game_fov == 45);
     REQUIRE(std::string(sm3dl->eye_indicator) == "87,2");
     // AzaharFrame presets: the owner's tuned Mario Kart 7 and Super Mario 3D Land.
-    REQUIRE(mk7->narrow == 30);
-    REQUIRE(mk7->narrow_y == 15);
+    REQUIRE(mk7->scale_x == -30); // AzaharFrame kiu: was Narrow Screen 30 %
+    REQUIRE(mk7->scale_y == -15); // and Narrow Height 15 %
     REQUIRE(mk7->screen_size == 2.022f);
     REQUIRE(mk7->resolution == 3);
     REQUIRE(mk7->texture_filter == 3);
     REQUIRE(sm3dl->factor_3d == 100);
     REQUIRE(sm3dl->resolution == 4);
     REQUIRE(sm3dl->screen_size == 0.0f);
-    REQUIRE(sm3dl->narrow == -1);
+    REQUIRE(sm3dl->scale_x == 0);
     // Ocarina of Time 3D and Majora's Mask 3D: mode 2, its own register (no register preset).
     for (const uint64_t id : {0x0004000000033500ull, 0x0004000000033600ull, 0x0004000000033400ull,
                               0x0004000000125500ull, 0x0004000000125600ull,
@@ -88,8 +88,8 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     for (std::size_t i = 0; i < count; ++i) {
         const ImmersivePreset& p = *titles[i].preset;
         REQUIRE((p.wider_level >= -1 && p.wider_level <= 4));
-        REQUIRE((p.narrow >= -1 && p.narrow <= 30));
-        REQUIRE((p.narrow_y >= -1 && p.narrow_y <= 30));
+        REQUIRE((p.scale_x >= -30 && p.scale_x <= 30 && p.scale_x % 5 == 0)); // AzaharFrame kiu
+        REQUIRE((p.scale_y >= -30 && p.scale_y <= 30 && p.scale_y % 5 == 0));
         REQUIRE((p.factor_3d >= -1 && p.factor_3d <= 100));
         REQUIRE((p.resolution >= -1 && p.resolution <= 18));
         REQUIRE((p.texture_filter >= -1 && p.texture_filter <= 5));
@@ -125,7 +125,7 @@ TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[f
         REQUIRE(kiu->depth_multiplier == 0);
         REQUIRE(kiu->game_fov == 0);
         REQUIRE(kiu->wider_level == -1);
-        REQUIRE(kiu->narrow == -1);
+        REQUIRE(kiu->scale_x == 0);
         REQUIRE(kiu->match_camera == -1);
         // Graphics only; Immersive stays the player's to turn on.
         REQUIRE(kiu->resolution == 4);
@@ -148,8 +148,8 @@ void ResetPresetSettings() {
     v.vr_immersive_positional_game_scaler.SetGlobal(true);
     v.vr_immersive_game_fov.SetGlobal(true);
     v.vr_immersive_eye_indicator.SetGlobal(true);
-    v.vr_immersive_squeeze.SetGlobal(true);
-    v.vr_immersive_squeeze_y.SetGlobal(true);
+    v.vr_immersive_scale_x.SetGlobal(true); // AzaharFrame kiu
+    v.vr_immersive_scale_y.SetGlobal(true);
     v.factor_3d.SetGlobal(true);
     v.resolution_factor.SetGlobal(true);
     v.texture_filter.SetGlobal(true);
@@ -158,8 +158,8 @@ void ResetPresetSettings() {
     v.vr_immersive_positional_game_scaler.SetValue(0);
     v.vr_immersive_game_fov.SetValue(v.vr_immersive_game_fov.GetDefault());
     v.vr_immersive_eye_indicator.SetValue("");
-    v.vr_immersive_squeeze.SetValue(v.vr_immersive_squeeze.GetDefault());
-    v.vr_immersive_squeeze_y.SetValue(v.vr_immersive_squeeze_y.GetDefault());
+    v.vr_immersive_scale_x.SetValue(v.vr_immersive_scale_x.GetDefault());
+    v.vr_immersive_scale_y.SetValue(v.vr_immersive_scale_y.GetDefault());
     v.vr_si_mode_register_offset.SetValue(-1);
     v.factor_3d.SetValue(v.factor_3d.GetDefault());
     v.resolution_factor.SetValue(v.resolution_factor.GetDefault());
@@ -182,7 +182,9 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
         REQUIRE(v.vr_immersive_game_fov.GetValue() == 55);
         REQUIRE(v.vr_immersive_match_camera_mode.GetValue() == 0); // Off
         REQUIRE(v.vr_immersive_positional_game_scaler.GetValue() == 1);
-        REQUIRE(v.vr_immersive_squeeze.GetValue() == 1);
+        // AzaharFrame kiu: no Horizontal Scale any more (was Narrow Screen 10 %): 0, global.
+        REQUIRE(v.vr_immersive_scale_x.GetValue() == 0);
+        REQUIRE(v.vr_immersive_scale_x.UsingGlobal());
         REQUIRE(v.factor_3d.GetValue() == 30);
         REQUIRE(v.vr_si_mode_register_offset.GetValue() == -1);
     }
@@ -191,7 +193,8 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
     REQUIRE(Settings::values.vr_immersive_mode.GetValue() == 3);
     REQUIRE(Settings::values.vr_si_mode_register_offset.GetValue() == 90);
     REQUIRE(Settings::values.resolution_factor.GetValue() == 3);
-    REQUIRE(Settings::values.vr_immersive_squeeze.GetValue() == 30);
+    REQUIRE(Settings::values.vr_immersive_scale_x.GetValue() == -30); // was Narrow Screen 30 %
+    REQUIRE(Settings::values.vr_immersive_scale_y.GetValue() == -15); // and Narrow Height 15 %
     REQUIRE(Settings::values.vr_immersive_eye_indicator.GetValue() == "87,2");
     // AzaharFrame jump: the owner's tuning had Match Game Camera off (the gain from 40 degrees).
     REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 0); // Off
@@ -207,20 +210,21 @@ TEST_CASE("FrameXr presets: the player's own values win", "[frame_xr]") {
     auto& v = Settings::values;
     ResetPresetSettings();
     v.vr_immersive_mode.SetValue(0); // global Off, never touched: preset applies (above)
-    // This game's own Immersive Mode (even Off), 3D Depth and squeeze.
+    // This game's own Immersive Mode (even Off), 3D Depth and Horizontal Scale (even 0).
     v.vr_immersive_mode.SetGlobal(false);
     v.vr_immersive_mode.SetValue(3);
     v.factor_3d.SetGlobal(false);
     v.factor_3d.SetValue(77);
-    v.vr_immersive_squeeze.SetGlobal(false);
-    v.vr_immersive_squeeze.SetValue(0);
+    v.vr_immersive_scale_x.SetGlobal(false);
+    v.vr_immersive_scale_x.SetValue(0);
     // A global value the player changed.
     v.resolution_factor.SetValue(7);
     ApplyPresetSettings(*FindImmersivePreset(0x0004000000033500ull));
     REQUIRE(v.vr_immersive_mode.GetValue() == 3);
     REQUIRE(v.factor_3d.GetValue() == 77);
-    REQUIRE(v.vr_immersive_squeeze.GetValue() == 0);
-    ApplyPresetSettings(*FindImmersivePreset(0x0004000000030800ull));
+    REQUIRE(v.vr_immersive_scale_x.GetValue() == 0);
+    ApplyPresetSettings(*FindImmersivePreset(0x0004000000030800ull)); // MK7: scale -30
+    REQUIRE(v.vr_immersive_scale_x.GetValue() == 0); // still the game's own 0
     REQUIRE(v.resolution_factor.GetValue() == 7);
     REQUIRE(v.resolution_factor.UsingGlobal());
     ResetPresetSettings();

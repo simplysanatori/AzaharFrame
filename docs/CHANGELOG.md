@@ -118,14 +118,16 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Immersive View upgrades
 
 - **Detect Game FOV** reads the game camera's field of view, so cutscenes, zooms and widescreen mods stay correct. I gave it three choices: **Always** follows the camera while you play, **Once** measures it once and saves it for that game, and **Off** uses the Immersive Game FOV you set. You can change it in the VR menu or in Azahar's settings.
-- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Narrow Screen, Wider View and where the screen sits. A value you set yourself always wins.
+- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
 - The immersive screen now fills your view, top to bottom too, so there is no black border around it. The game draws further up and down to fill it without stretching the picture. When a game zooms in to aim, the screen keeps its size and shape.
 - Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
-- Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
+- Render Margin (Wider View) no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
+- I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -30% to +30% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at 0%. A game where you set Narrow Screen keeps its screen: Narrow Screen 10% becomes Horizontal Scale -10%. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
+- **Wider View** is now called **Render Margin**. It works as before.
 
 ### Smaller changes
 

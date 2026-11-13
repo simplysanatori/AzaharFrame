@@ -75,6 +75,9 @@ std::string SliderText(Id id, float value) {
     if (id == Id::Depth3d) {
         return Format("%.0f%%", value);
     }
+    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu: "+10%", "0%", "-10%"
+        return Format(value > 0.5f ? "+%.0f%%" : "%.0f%%", value);
+    }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
         return Format("%.1fx", value / 10.0f);
     }
@@ -185,7 +188,18 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         rows.push_back(fov);
         // AzaharFrame depth, fovonce: Off | Set Once | Always
         rows.push_back(full(row(Id::MatchCamera, RowKind::Segmented, m.match_camera)));
-        rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
+        // AzaharFrame kiu: Horizontal and Vertical Scale, -30 to +30 % around 0
+        const auto scale = [&](Id id, int value) {
+            Row r = full(row(id, RowKind::Slider));
+            const SliderRange sr = SliderFor(id);
+            const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
+            r.t = (v - sr.min) / (sr.max - sr.min);
+            r.stops = static_cast<int>((sr.max - sr.min) / sr.step);
+            r.value = SliderText(id, v);
+            rows.push_back(r);
+        };
+        scale(Id::ScaleX, m.scale_x);
+        scale(Id::ScaleY, m.scale_y);
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
     }
     return rows;
@@ -207,7 +221,8 @@ SettingsSection SectionOf(Id id) {
     case Id::WiderView:
     case Id::GameFov:
     case Id::MatchCamera:
-    case Id::NarrowScreen:
+    case Id::ScaleX:
+    case Id::ScaleY:
     case Id::DepthFactor:
         return SettingsSection::Immersive;
     default:
@@ -223,7 +238,8 @@ bool PerGameSetting(Id id) {
     case Id::WiderView:
     case Id::GameFov:
     case Id::MatchCamera: // AzaharFrame depth
-    case Id::NarrowScreen:
+    case Id::ScaleX:
+    case Id::ScaleY:
     case Id::DepthFactor:
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
@@ -312,7 +328,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
                                                 "Full (6DoF): Other Games"};
     static const std::vector<std::string> kWider{"Off", "1.1x", "1.2x", "1.3x", "1.4x"};
-    static const std::vector<std::string> kNarrow{"Off", "10%", "20%", "30%"};
     static const std::vector<std::string> kDepth{"1x", "10x", "100x"};
     // AzaharFrame menuux
     static const std::vector<std::string> kResolution{
@@ -377,8 +392,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMode;
     case Id::WiderView:
         return kWider;
-    case Id::NarrowScreen:
-        return kNarrow;
     case Id::DepthFactor:
         return kDepth;
     default:
@@ -496,8 +509,10 @@ std::string LabelFor(Id id) {
         return "Immersive Game FOV";
     case Id::MatchCamera: // AzaharFrame depth, fovonce
         return "Detect Game FOV";
-    case Id::NarrowScreen:
-        return "Narrow Screen";
+    case Id::ScaleX:
+        return ::FrameXr::Immersive::Names::kHorizontalScale;
+    case Id::ScaleY:
+        return ::FrameXr::Immersive::Names::kVerticalScale;
     case Id::DepthFactor:
         return "Depth Factor Multiplier";
     case Id::MoreSettings:
@@ -689,8 +704,10 @@ std::string ExplainFor(Id id) {
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce
         return "Reads the game's field of view so the world lines up with your head.";
-    case Id::NarrowScreen:
-        return "Narrows the screen so the side HUD moves into view.";
+    case Id::ScaleX:
+        return ::FrameXr::Immersive::Names::kHorizontalScaleTip;
+    case Id::ScaleY:
+        return ::FrameXr::Immersive::Names::kVerticalScaleTip;
     case Id::DepthFactor:
         return "How far the game camera moves with your head.";
     case Id::Autosave: // AzaharFrame autosave
@@ -753,6 +770,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::Depth3d) {
         return {0.0f, 100.0f, 5.0f};
+    }
+    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu
+        return {-30.0f, 30.0f, 5.0f};
     }
     if (id == Id::CursorSpeed) { // AzaharFrame padsui: five steps, Normal in the middle
         return {0.0f, 4.0f, 1.0f};

@@ -276,7 +276,8 @@ enum class MenuSetting {
     GameFov, ///< `value`: degrees
     MatchCamera, ///< AzaharFrame depth, fovonce: `value` 0 Off, 1 Set Once, 2 Always
                  ///< (vr_immersive_match_camera_mode); Set Once clears vr_immersive_fov_measured
-    NarrowScreen,
+    ScaleX, ///< AzaharFrame kiu: `value` percent, -30 to 30 (vr_immersive_scale_x)
+    ScaleY, ///< vr_immersive_scale_y
     DepthFactor,
     Depth3d, ///< AzaharFrame depth3d: `value` 0 to 100 (Settings::values.factor_3d)
     MoveScreens,   ///< AzaharFrame menu: `value` 0 Off, 1 Secondary, 2 Both (Detach Screens)

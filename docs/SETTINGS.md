@@ -48,8 +48,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Detect Game FOV](#detect-game-fov) | **Off**, **Once**, **Always** | Always | global and per game | at once |
-| [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
-| [Narrow Screen](#narrow-screen) | **Off** to **30%** in 5% steps (the VR menu: **Off**, **10%**, **20%**, **30%**) | 10% | global and per game | at once |
+| [Render Margin](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
+| [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
+| [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -194,13 +195,13 @@ The game camera's vertical field of view, in degrees. In the Full modes with Det
 
 Called Match Game Camera in earlier versions. Full modes only. **Always** reads the game camera's angle and shape from the game while it runs. A new angle is followed once it has held for half a second, and the view eases into it a little at a time, so a camera cut never makes it jump. **Once** measures the game's camera once while you play, for about 15 seconds, leaving out cuts and cutscenes, and sets that game's Immersive Game FOV to match. A message shows the value. From then on that value is used as if you had set it, and you can change it. Choose Once again to measure again. If no steady angle is found within a minute, the value stays as it was and a message says so. **Off** uses Immersive Game FOV as set and reads no angle from the game. With **Screen Shape** on **Automatic**, the shape is still read from the game. Settings from earlier versions keep their choice: on is Always, off is Off.
 
-## Wider View
+## Render Margin
 
-Shows more of the game around the edges. Some games leave them empty. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it.
+Called Wider View in earlier versions. Renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty. **Off** shows exactly the game's own picture. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it. A label shows the value, for example **Render Margin: 1.2x**.
 
-## Narrow Screen
+## Horizontal Scale and Vertical Scale
 
-Narrows the screen so the side HUD moves into view. Full modes only. The game looks that much thinner. In VR, hold the immersive screen with both grips and press D-pad right (narrower) or left (wider); down and up make it lower or taller (**Narrow Height**, only there). Each is kept for the game.
+Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or shorter (**Vertical Scale**) than the game's picture. Full modes only. Above 0% the screen is larger, below 0% smaller: a narrower screen brings the side HUD into view, and the game looks that much thinner. Turning your head still moves the world as much as the screen, so the middle of the picture stays in place. In VR, hold the immersive screen with both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label shows the value, for example **Horizontal Scale: -10%**. Each is kept for the game. They replace Narrow Screen and Narrow Height: a game where you set those keeps its screen, so Narrow Screen 10% is now Horizontal Scale -10%. Mario Kart 7's preset starts at -30% and -15%.
 
 ## Depth Factor Multiplier
 

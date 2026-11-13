@@ -15,5 +15,11 @@ inline constexpr const char* kRenderMargin = "Render Margin";
 inline constexpr const char* kRenderMarginTip =
     "Renders extra picture around the 3DS screen's edges so more of the game shows. Off shows "
     "exactly the game's own picture.";
+/// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
+inline constexpr const char* kHorizontalScale = "Horizontal Scale";
+inline constexpr const char* kHorizontalScaleTip =
+    "Makes the immersive screen wider or narrower. Narrower brings the side HUD into view.";
+inline constexpr const char* kVerticalScale = "Vertical Scale";
+inline constexpr const char* kVerticalScaleTip = "Makes the immersive screen taller or shorter.";
 
 } // namespace FrameXr::Immersive::Names

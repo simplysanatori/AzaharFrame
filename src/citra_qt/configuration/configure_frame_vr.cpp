@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <initializer_list>
+#include <utility>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -50,15 +51,24 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
 // 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
-// AzaharFrame immersive2: Narrow Screen (Settings::values.vr_immersive_squeeze) is in percent,
-// 5 % steps up to 30 % (frame_xr/immersive_layout.h); 1, 2 and 3 are the 10 % steps of earlier
-// builds (Layout::NarrowPercent). The combo's item n is n x 5 %.
-constexpr u32 kNarrowStep = 5;
-constexpr u32 kNarrowMax = 30;
-int NarrowIndex(u32 setting) {
-    const u32 percent =
-        (setting >= 1 && setting <= 3) ? setting * 10 : std::min(setting, kNarrowMax);
-    return static_cast<int>((percent + kNarrowStep / 2) / kNarrowStep);
+// AzaharFrame kiu: Horizontal and Vertical Scale (Settings::values.vr_immersive_scale_x and _y)
+// are signed percent, -30 to +30 in 5 % steps (frame_xr/immersive_layout.h ScalePercent). The
+// combo's item n is -30 + n x 5 %, so item 6 is 0 %.
+constexpr s32 kScaleStep = 5;
+constexpr s32 kScaleMax = 30;
+int ScaleIndex(s32 percent) {
+    const s32 p = std::clamp(percent, -kScaleMax, kScaleMax) + kScaleMax;
+    return static_cast<int>((p + kScaleStep / 2) / kScaleStep);
+}
+s32 ScaleOfIndex(s32 index) {
+    return std::clamp(index, 0, 2 * kScaleMax / kScaleStep) * kScaleStep - kScaleMax;
+}
+QComboBox* MakeScaleCombo(QWidget* parent) {
+    auto* combo = new QComboBox(parent);
+    for (s32 p = -kScaleMax; p <= kScaleMax; p += kScaleStep) {
+        combo->addItem(p > 0 ? QStringLiteral("+%1%").arg(p) : QStringLiteral("%1%").arg(p));
+    }
+    return combo;
 }
 
 int CurveIndex(u32 deg) {
@@ -265,23 +275,22 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     for (const char* step : {"1.1x", "1.2x", "1.3x", "1.4x"}) {
         wider_combo->addItem(QString::fromLatin1(step));
     }
-    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr("Wider View"),
-                        tr("Shows more of the game around the edges. Some games leave them empty."),
-                        {wider_combo});
+    // AzaharFrame kiu: Render Margin (was Wider View); the names are in frame_xr/immersive_names.h.
+    namespace Names = FrameXr::Immersive::Names;
+    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr(Names::kRenderMargin),
+                        tr(Names::kRenderMarginTip), {wider_combo});
     layout->addWidget(wider_row);
 
-    // AzaharFrame immersive2: item n is n x 5 % of Settings::values.vr_immersive_squeeze
-    // (percent; Layout::NarrowPercent reads the steps of earlier builds).
-    squeeze_combo = new QComboBox(this);
-    squeeze_combo->addItem(tr("Off"));
-    for (u32 percent = kNarrowStep; percent <= kNarrowMax; percent += kNarrowStep) {
-        squeeze_combo->addItem(QStringLiteral("%1%").arg(percent));
-    }
-    squeeze_row = MakeRow(
-        this, QStringLiteral("frame_vr_squeeze_row"), tr("Narrow Screen"),
-        tr("Narrows the screen so the side HUD moves into view."),
-        {squeeze_combo});
-    layout->addWidget(squeeze_row);
+    // AzaharFrame kiu: Horizontal and Vertical Scale (ScaleIndex).
+    scale_x_combo = MakeScaleCombo(this);
+    scale_x_row = MakeRow(this, QStringLiteral("frame_vr_scale_x_row"),
+                          tr(Names::kHorizontalScale), tr(Names::kHorizontalScaleTip),
+                          {scale_x_combo});
+    layout->addWidget(scale_x_row);
+    scale_y_combo = MakeScaleCombo(this);
+    scale_y_row = MakeRow(this, QStringLiteral("frame_vr_scale_y_row"), tr(Names::kVerticalScale),
+                          tr(Names::kVerticalScaleTip), {scale_y_combo});
+    layout->addWidget(scale_y_row);
 
     // Values 0..2 are 10^n (Settings::values.vr_immersive_positional_game_scaler).
     depth_combo = new QComboBox(this);
@@ -349,7 +358,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
         lock(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
         lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
-        lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
+        lock(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
+        lock(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
         lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
         lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
         lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
@@ -375,8 +385,11 @@ void ConfigureFrameVr::SetupPerGameUI() {
         wider_combo, wider_row,
         static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
-        squeeze_combo, squeeze_row,
-        NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        scale_x_combo, scale_x_row,
+        ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox(
+        scale_y_combo, scale_y_row,
+        ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
@@ -417,8 +430,10 @@ void ConfigureFrameVr::SetConfiguration() {
     if (global) {
         shape_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
-        squeeze_combo->setCurrentIndex(
-            NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        scale_x_combo->setCurrentIndex(
+            ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
+        scale_y_combo->setCurrentIndex(
+            ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
         wider_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
@@ -447,17 +462,22 @@ void ConfigureFrameVr::SetConfiguration() {
 
     ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
     ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
-    squeeze_combo->setCurrentIndex(
-        Settings::values.vr_immersive_squeeze.UsingGlobal()
-            ? ConfigurationShared::USE_GLOBAL_INDEX
-            : NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue()) +
-                  ConfigurationShared::USE_GLOBAL_OFFSET);
+    for (auto [combo, setting] :
+         {std::pair{scale_x_combo, &Settings::values.vr_immersive_scale_x},
+          std::pair{scale_y_combo, &Settings::values.vr_immersive_scale_y}}) {
+        combo->setCurrentIndex(setting->UsingGlobal()
+                                   ? ConfigurationShared::USE_GLOBAL_INDEX
+                                   : ScaleIndex(setting->GetValue()) +
+                                         ConfigurationShared::USE_GLOBAL_OFFSET);
+    }
     ConfigurationShared::SetPerGameSetting(wider_combo,
                                            &Settings::values.vr_immersive_wider_view_level);
     ConfigurationShared::SetHighlight(
         wider_row, !Settings::values.vr_immersive_wider_view_level.UsingGlobal());
-    ConfigurationShared::SetHighlight(squeeze_row,
-                                      !Settings::values.vr_immersive_squeeze.UsingGlobal());
+    ConfigurationShared::SetHighlight(scale_x_row,
+                                      !Settings::values.vr_immersive_scale_x.UsingGlobal());
+    ConfigurationShared::SetHighlight(scale_y_row,
+                                      !Settings::values.vr_immersive_scale_y.UsingGlobal());
     fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
     fov_spin->setEnabled(!Settings::values.vr_immersive_game_fov.UsingGlobal());
     ConfigurationShared::SetHighlight(fov_row,
@@ -576,9 +596,10 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              [this](s32) { return fov_spin->value(); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
                                              wider_combo);
-    ConfigurationShared::ApplyPerGameSetting(
-        &Settings::values.vr_immersive_squeeze, squeeze_combo,
-        [](s32 index) { return static_cast<u32>(std::max(index, 0)) * kNarrowStep; });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_x, scale_x_combo,
+                                             [](s32 index) { return ScaleOfIndex(index); });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_y, scale_y_combo,
+                                             [](s32 index) { return ScaleOfIndex(index); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);

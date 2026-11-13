@@ -51,12 +51,12 @@ constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .game_fov = 40,
                                       .eye_indicator = "87,2",
                                       .wider_level = 3,
-                                      .narrow = 30,
+                                      .scale_x = -30, // AzaharFrame kiu: was Narrow Screen 30 %
                                       .screen_size = 2.022f,
                                       .match_camera = 0,
                                       .resolution = 3,
                                       .texture_filter = 3,
-                                      .narrow_y = 15,
+                                      .scale_y = -15, // and Narrow Height 15 %
                                       .own_placement = true,
                                       .place_pitch_deg = -4.95f,
                                       .place_distance = 0.371f};
@@ -82,14 +82,14 @@ constexpr ImmersivePreset kSuperMario3DLand{.name = "Super Mario 3D Land",
 // (the default) a little more. About 55 degrees in play (35 to 70 in cutscenes).
 // AzaharFrame presets: Ocarina of Time 3D has exactly Majora's Mask 3D's values (the owner's
 // request). Its measured angle swings between 30 and 55 degrees in play, so Match Game Camera is
-// off and the 55 degrees hold; Narrow Screen 1 %, 3D Depth 30, the screen 9.21 degrees below the
-// view's middle, 3 m away.
+// off and the 55 degrees hold; 3D Depth 30, the screen 9.21 degrees below the view's middle, 3 m
+// away. AzaharFrame kiu: no Horizontal Scale (it had Narrow Screen 10 %; the owner wants the
+// default, 0, here too; a value a player saved stays).
 constexpr ImmersivePreset kZelda3D{.name = "Ocarina of Time 3D / Majora's Mask 3D",
                                    .mode = 2,
                                    .register_offset = -1,
                                    .depth_multiplier = 1,
                                    .game_fov = 55,
-                                   .narrow = 1,
                                    .match_camera = 0,
                                    .factor_3d = 30,
                                    .own_placement = true,
@@ -200,11 +200,11 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
         LOG_INFO(Frontend, "xr: {}: Eye Indicator Register preset {}", preset.name,
                  preset.eye_indicator);
     }
-    if (preset.narrow >= 0 && fits) {
-        fill(v.vr_immersive_squeeze, static_cast<u32>(preset.narrow), "Narrow Screen");
+    if (preset.scale_x != 0 && fits) { // AzaharFrame kiu: was Narrow Screen
+        fill(v.vr_immersive_scale_x, static_cast<s32>(preset.scale_x), "Horizontal Scale");
     }
-    if (preset.narrow_y >= 0 && fits) {
-        fill(v.vr_immersive_squeeze_y, static_cast<u32>(preset.narrow_y), "Narrow Height");
+    if (preset.scale_y != 0 && fits) { // and Narrow Height
+        fill(v.vr_immersive_scale_y, static_cast<s32>(preset.scale_y), "Vertical Scale");
     }
     if (preset.hide_bottom >= 0) {
         fill(v.vr_hide_bottom_screen, preset.hide_bottom != 0, "Hide Bottom Screen");

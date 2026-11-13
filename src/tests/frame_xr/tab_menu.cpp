@@ -2569,7 +2569,8 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
             for (const auto& h : d.menu.Hits()) {
                 const Id id = h.t.id;
                 if (id == Id::Scope || id == Id::ScopeMore || id == Id::SettingsSection ||
-                    id == Id::TabButton || id == Id::None) {
+                    id == Id::TabButton || id == Id::None ||
+                    id == Id::Scrollbar) { // AzaharFrame kiu: Immersive scrolls now
                     continue;
                 }
                 CHECK(static_cast<int>(SectionOf(id)) == sec); // only its own rows
@@ -2899,7 +2900,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
                   Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
-                  Id::MatchCamera, Id::NarrowScreen, Id::DepthFactor, Id::Autosave,
+                  Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::DepthFactor, Id::Autosave,
                   Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
                   Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
                   Id::ReticleAtEdge, Id::MotionControls, Id::ReticleEdgeCStick}) {
@@ -3172,7 +3173,7 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
     canvas.Init(static_cast<int>(kPanelW), static_cast<int>(kPanelH));
     kit.Begin(canvas);
     const std::vector<std::vector<std::string>> rows{
-        OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, OptionsFor(Id::NarrowScreen),
+        OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
         OptionsFor(Id::DepthFactor), OptionsFor(Id::WiderView)};
     for (const auto& opts : rows) {
         const float w = kit.SegmentedWidth(opts);

@@ -182,12 +182,12 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
     }
     SECTION("only that row") {
         Keep k1{v.texture_filter};
-        Keep k2{v.vr_immersive_squeeze};
+        Keep k2{v.vr_immersive_scale_x};
         SetGameValue(v.texture_filter, Settings::TextureFilter::Bicubic);
-        SetGameValue(v.vr_immersive_squeeze, 20u);
+        SetGameValue(v.vr_immersive_scale_x, -20);
         CHECK(PerGame::UseGlobalValue(Id::TextureFilter));
         CHECK(!Marked(Id::TextureFilter));
-        CHECK(Marked(Id::NarrowScreen));
-        CHECK(v.vr_immersive_squeeze.GetValue() == 20u);
+        CHECK(Marked(Id::ScaleX));
+        CHECK(v.vr_immersive_scale_x.GetValue() == -20);
     }
 }

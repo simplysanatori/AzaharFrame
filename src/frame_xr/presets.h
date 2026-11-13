@@ -32,9 +32,9 @@ struct ImmersivePreset {
     /// AzaharFrame immersive2: Settings::values.vr_immersive_wider_view_level (0 Off to 4 = 1.4x;
     /// -1 = the default, 1.4x).
     int32_t wider_level = -1;
-    /// AzaharFrame immersive2: Settings::values.vr_immersive_squeeze, Narrow Screen in percent
-    /// (-1 = the default, 10 %).
-    int32_t narrow = -1;
+    /// AzaharFrame kiu: Settings::values.vr_immersive_scale_x, Horizontal Scale in percent
+    /// (-30 to 30; 0 = keep: the default). Was Narrow Screen: Narrow Screen 30 % is -30.
+    int32_t scale_x = 0;
     /// AzaharFrame immersive: the immersive screen's default size, times the true-scale default
     /// (0 = 1; immersive_layout.h). A placement the player saved wins.
     float screen_size = 0.0f;
@@ -48,9 +48,9 @@ struct ImmersivePreset {
     int32_t resolution = -1;
     /// AzaharFrame presets: Settings::values.texture_filter (Settings::TextureFilter; -1 = keep).
     int32_t texture_filter = -1;
-    /// AzaharFrame presets: Settings::values.vr_immersive_squeeze_y, Narrow Height in percent
-    /// (-1 = keep).
-    int32_t narrow_y = -1;
+    /// AzaharFrame kiu: Settings::values.vr_immersive_scale_y, Vertical Scale in percent (0 =
+    /// keep). Was Narrow Height.
+    int32_t scale_y = 0;
     /// AzaharFrame presets: Settings::values.vr_hide_bottom_screen (-1 = keep).
     int32_t hide_bottom = -1;
     /// AzaharFrame presets: Settings::values.vr_top_aspect (-1 = keep).

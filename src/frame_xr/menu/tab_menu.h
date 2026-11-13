@@ -125,8 +125,9 @@ enum class Id : int {
     ImmersiveMode,
     WiderView,
     GameFov,
-    MatchCamera, ///< AzaharFrame depth: Match Game Camera, per game
-    NarrowScreen,
+    MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
+    ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -30 to +30 % (5 % steps), per game
+    ScaleY, ///< AzaharFrame kiu: Vertical Scale, as ScaleX
     DepthFactor,
     MoreSettings,
     HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
@@ -311,7 +312,8 @@ struct MenuModel {
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
-    int narrow_screen = 0;
+    int scale_x = 0; ///< AzaharFrame kiu: percent, -30 to 30
+    int scale_y = 0;
     int depth_factor = 0;
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;

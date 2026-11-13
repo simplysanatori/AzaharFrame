@@ -315,12 +315,12 @@ struct State {
     float traced[4]{}; ///< the trace's last line (AZAHARFRAME_IMMERSIVE_FOV_TRACE)
     int64_t game_start_ms = 0;
     bool shape_logged = false; ///< both logged for this game
-    /// "Wider View", "Narrow Screen" and "Narrow Height", per game, every frame (AzaharFrame
-    /// immersive2: Narrow Screen was read only when the game started).
+    /// Render Margin (was Wider View), Horizontal Scale and Vertical Scale (AzaharFrame kiu: were
+    /// Narrow Screen and Narrow Height), per game, every frame.
     L::Options options;
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
-    u32 narrow_x = 0;    ///< AzaharFrame immersive2: the percentages options.squeeze(_y) are
-    u32 narrow_y = 0;
+    int scale_x = 0;     ///< AzaharFrame kiu: the scales (percent) options.squeeze(_y) are
+    int scale_y = 0;
     bool screens_were_live = false;
     /// AzaharFrame immersive: when `ref` is taken (Layout::RestPose; SteamVR's recenter moves the
     /// LOCAL space at its change time, and a head pose located before it is still in the old
@@ -665,13 +665,13 @@ void OnFrame(const FrameInfo& info) {
         g.shape_logged = false;
         g.wider_level = WiderLevel();
         g.options.wider = L::WiderFactor(g.wider_level);
-        g.narrow_x = L::NarrowPercent(Settings::values.vr_immersive_squeeze.GetValue());
-        g.narrow_y = L::NarrowPercent(Settings::values.vr_immersive_squeeze_y.GetValue());
-        g.options.squeeze = L::SqueezeFor(g.narrow_x);
-        g.options.squeeze_y = L::SqueezeFor(g.narrow_y);
+        g.scale_x = L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue());
+        g.scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
+        g.options.squeeze = L::SqueezeForScale(g.scale_x);
+        g.options.squeeze_y = L::SqueezeForScale(g.scale_y);
         LOG_INFO(Frontend,
-                 "xr: immersive: Wider View {:.1f}x, Narrow Screen {}%, Narrow Height {}%",
-                 g.options.wider, g.narrow_x, g.narrow_y);
+                 "xr: immersive: Render Margin {:.1f}x, Horizontal Scale {}%, Vertical Scale {}%",
+                 g.options.wider, g.scale_x, g.scale_y);
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
@@ -713,20 +713,20 @@ void OnFrame(const FrameInfo& info) {
         if (wider != g.wider_level) {
             g.wider_level = wider;
             g.options.wider = L::WiderFactor(wider);
-            LOG_INFO(Frontend, "xr: immersive: Wider View {:.1f}x (changed)", g.options.wider);
+            LOG_INFO(Frontend, "xr: immersive: Render Margin {:.1f}x (changed)", g.options.wider);
         }
         // AzaharFrame immersive2: Narrow Screen and Narrow Height are live too (the menu, the
-        // game's Properties, or both grips and the D-pad in StepNarrow): only the quad's shape
+        // game's Properties, or both grips and the D-pad in StepScale): only the quad's shape
         // and the gains change, nothing in the game.
-        const u32 narrow_x = L::NarrowPercent(Settings::values.vr_immersive_squeeze.GetValue());
-        const u32 narrow_y = L::NarrowPercent(Settings::values.vr_immersive_squeeze_y.GetValue());
-        if (narrow_x != g.narrow_x || narrow_y != g.narrow_y) {
-            g.narrow_x = narrow_x;
-            g.narrow_y = narrow_y;
-            g.options.squeeze = L::SqueezeFor(narrow_x);
-            g.options.squeeze_y = L::SqueezeFor(narrow_y);
-            LOG_INFO(Frontend, "xr: immersive: Narrow Screen {}%, Narrow Height {}% (changed)",
-                     narrow_x, narrow_y);
+        const int scale_x = L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue());
+        const int scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
+        if (scale_x != g.scale_x || scale_y != g.scale_y) {
+            g.scale_x = scale_x;
+            g.scale_y = scale_y;
+            g.options.squeeze = L::SqueezeForScale(scale_x);
+            g.options.squeeze_y = L::SqueezeForScale(scale_y);
+            LOG_INFO(Frontend, "xr: immersive: Horizontal Scale {}%, Vertical Scale {}% (changed)",
+                     scale_x, scale_y);
         }
     }
     if (info.screens_live) {
@@ -1300,22 +1300,24 @@ WiderStep StepWiderView(int dir) {
     return WiderStep::Changed;
 }
 
-WiderStep StepNarrow(int narrower_steps, int taller_steps) {
-    if (!g.adjuster.Active() || !g.engaged || (narrower_steps == 0 && taller_steps == 0)) {
+WiderStep StepScale(int wider_steps, int taller_steps) {
+    if (!g.adjuster.Active() || !g.engaged || (wider_steps == 0 && taller_steps == 0)) {
         return WiderStep::None;
     }
+    const bool vertical = wider_steps == 0;
     if (!IsViewMode(g.mode)) {
-        ShowToastText("Narrow Screen: Full Modes Only", ToastTime::Long);
+        ShowToastText(std::string(vertical ? Names::kVerticalScale : Names::kHorizontalScale) +
+                          ": Full Modes Only",
+                      ToastTime::Long);
         return WiderStep::None;
     }
-    // AzaharFrame immersive2: both grips + D-pad. Right narrower, left wider; up taller (less
-    // Narrow Height), down lower. Per game, live (OnFrame reads them every frame).
-    const bool height = narrower_steps == 0;
+    // AzaharFrame kiu: both grips + D-pad: right wider, left narrower (Horizontal Scale); up
+    // taller, down shorter (Vertical Scale). Per game, live (OnFrame reads them every frame).
     auto& setting =
-        height ? Settings::values.vr_immersive_squeeze_y : Settings::values.vr_immersive_squeeze;
-    const u32 before = L::NarrowPercent(setting.GetValue());
-    const u32 after = L::SteppedNarrow(before, height ? -taller_steps : narrower_steps);
-    ShowToastText(L::NarrowToast(after, height)); // also at the ends, so the press shows
+        vertical ? Settings::values.vr_immersive_scale_y : Settings::values.vr_immersive_scale_x;
+    const int before = L::ScalePercent(setting.GetValue());
+    const int after = L::SteppedScale(before, vertical ? taller_steps : wider_steps);
+    ShowToastText(L::ScaleToast(after, vertical)); // also at the ends, so the press shows
     if (after == before && setting.GetValue() == after) {
         return WiderStep::None;
     }
@@ -1323,9 +1325,9 @@ WiderStep StepNarrow(int narrower_steps, int taller_steps) {
         setting.SetGlobal(false); // per game, as in the game's Properties
     }
     setting.SetValue(after);
-    (height ? g.narrow_y : g.narrow_x) = after;
-    (height ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeFor(after);
-    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::NarrowToast(after, height));
+    (vertical ? g.scale_y : g.scale_x) = after;
+    (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
+    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
     return WiderStep::Changed;
 }
 

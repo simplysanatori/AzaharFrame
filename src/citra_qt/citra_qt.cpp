@@ -1294,20 +1294,19 @@ GMainWindow::GMainWindow(Core::System& system_)
                             if (!emulation_running || g_frame_game_config_name.empty()) {
                                 return;
                             }
-                            // AzaharFrame immersive2: Narrow Screen and Narrow Height too
-                            // (both grips + D-pad).
+                            // AzaharFrame kiu: Horizontal and Vertical Scale too (both grips
+                            // + D-pad).
                             FrameKeepSetting keep_wider{
                                 Settings::values.vr_immersive_wider_view_level};
-                            FrameKeepSetting keep_squeeze{Settings::values.vr_immersive_squeeze};
-                            FrameKeepSetting keep_squeeze_y{
-                                Settings::values.vr_immersive_squeeze_y};
+                            FrameKeepSetting keep_scale_x{Settings::values.vr_immersive_scale_x};
+                            FrameKeepSetting keep_scale_y{Settings::values.vr_immersive_scale_y};
                             FrameKeepControls keep_controls; // AzaharFrame reticle
                             QtConfig game_config(g_frame_game_config_name,
                                                  QtConfig::ConfigType::PerGameConfig);
                             keep_controls.Restore();
                             keep_wider.Restore();
-                            keep_squeeze.Restore();
-                            keep_squeeze_y.Restore();
+                            keep_scale_x.Restore();
+                            keep_scale_y.Restore();
                             game_config.Save();
                         });
                     },
@@ -5143,8 +5142,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         LOG_INFO(Frontend, "xr: Detect Game FOV Once: Immersive Game FOV {} saved for {}",
                  r.value, g_frame_game_config_name);
         break;
-    case S::NarrowScreen:
-        set(v.vr_immersive_squeeze, u);
+    case S::ScaleX: // AzaharFrame kiu: signed percent
+        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -30, 30)));
+        break;
+    case S::ScaleY:
+        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
         break;
     case S::DepthFactor:
         set(v.vr_immersive_positional_game_scaler, u);
@@ -5249,8 +5251,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_match{v.vr_immersive_match_camera_mode}; // AzaharFrame depth, fovonce
     FrameKeepSetting keep_measured{v.vr_immersive_fov_measured};  // AzaharFrame fovonce
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
-    FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
-    FrameKeepSetting keep_squeeze_y{v.vr_immersive_squeeze_y}; // AzaharFrame immersive2
+    FrameKeepSetting keep_scale_x{v.vr_immersive_scale_x}; // AzaharFrame kiu
+    FrameKeepSetting keep_scale_y{v.vr_immersive_scale_y};
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
@@ -5272,8 +5274,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_match.Restore();
     keep_measured.Restore();
     keep_wider.Restore();
-    keep_squeeze.Restore();
-    keep_squeeze_y.Restore();
+    keep_scale_x.Restore();
+    keep_scale_y.Restore();
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();

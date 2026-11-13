@@ -1108,7 +1108,10 @@ std::string SettingsSummary() {
     s += fmt::format("CPU Clock: {} %\n", v.cpu_clock_percentage.GetValue());
     s += fmt::format("New 3DS: {}\n", on(v.is_new_3ds.GetValue()));
     s += fmt::format("Immersive Mode: {}\n", v.vr_immersive_mode.GetValue());
-    s += fmt::format("Wider View: {}\n", v.vr_immersive_wider_view_level.GetValue());
+    namespace Names = FrameXr::Immersive::Names; // AzaharFrame kiu
+    s += fmt::format("{}: {}\n", Names::kRenderMargin, v.vr_immersive_wider_view_level.GetValue());
+    s += fmt::format("{}: {} %\n", Names::kHorizontalScale, v.vr_immersive_scale_x.GetValue());
+    s += fmt::format("{}: {} %\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
     s += fmt::format("Screen Layout: {}\n", v.vr_screen_layout.GetValue());
     s += fmt::format("Screen Curve: {}\n", v.vr_screen_curve.GetValue());
     s += fmt::format("Window Scale: {} %\n", v.vr_window_scale.GetValue());

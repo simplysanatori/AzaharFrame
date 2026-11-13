@@ -13,6 +13,7 @@
 #include "citra_qt/configuration/config.h"
 #include "citra_qt/setting_qkeys.h"
 #include "common/file_util.h"
+#include "common/logging/log.h" // AzaharFrame kiu
 #include "common/settings.h"
 #include "core/hle/service/service.h"
 #include "input_common/main.h"
@@ -581,8 +582,24 @@ void QtConfig::ReadVrValues() {
             }
         }
     }
-    ReadGlobalSetting(Settings::values.vr_immersive_squeeze);
-    ReadGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
+    // AzaharFrame kiu: Horizontal and Vertical Scale; a file with only Narrow Screen or Narrow
+    // Height keeps its choice once (FrameConfig::MigratedScale), then the old keys go on save.
+    for (auto* scale : {&Settings::values.vr_immersive_scale_x,
+                        &Settings::values.vr_immersive_scale_y}) {
+        ReadGlobalSetting(*scale);
+        const bool y = scale == &Settings::values.vr_immersive_scale_y;
+        const QString old = y ? QStringLiteral("vr_immersive_squeeze_y")
+                              : QStringLiteral("vr_immersive_squeeze");
+        const QString now = QString::fromStdString(scale->GetLabel());
+        if (const auto migrated = FrameConfig::MigratedScale(*qt_config, global, old, now)) {
+            if (!global) {
+                scale->SetGlobal(false);
+            }
+            scale->SetValue(*migrated);
+            LOG_INFO(Config, "{} {} became {} {}%", global ? "Global" : "Per-game",
+                     old.toStdString(), now.toStdString(), *migrated);
+        }
+    }
     // AzaharFrame autosave: a global value and, for a game, its own (Per-Game)
     ReadGlobalSetting(Settings::values.autosave_enabled);
     ReadGlobalSetting(Settings::values.autosave_every);
@@ -1266,8 +1283,11 @@ void QtConfig::SaveVrValues() {
         WriteGlobalSetting(Settings::values.vr_immersive_fov_measured); // per game only
     }
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
-    WriteGlobalSetting(Settings::values.vr_immersive_squeeze);
-    WriteGlobalSetting(Settings::values.vr_immersive_squeeze_y); // AzaharFrame immersive2
+    WriteGlobalSetting(Settings::values.vr_immersive_scale_x); // AzaharFrame kiu
+    WriteGlobalSetting(Settings::values.vr_immersive_scale_y);
+    // Narrow Screen and Narrow Height, read once into the scales above
+    qt_config->remove(QStringLiteral("vr_immersive_squeeze"));
+    qt_config->remove(QStringLiteral("vr_immersive_squeeze_y"));
     // AzaharFrame autosave: a global value and, for a game, its own (Per-Game)
     WriteGlobalSetting(Settings::values.autosave_enabled);
     WriteGlobalSetting(Settings::values.autosave_every);

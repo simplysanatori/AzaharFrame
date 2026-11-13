@@ -220,22 +220,34 @@ float SqueezeFor(uint32_t setting) {
     return static_cast<float>(NarrowPercent(setting)) / 100.0f;
 }
 
-uint32_t SteppedNarrow(uint32_t setting, int steps) {
-    const int now = static_cast<int>(NarrowPercent(setting));
-    const int next = now + steps * static_cast<int>(kNarrowStepPercent);
-    return static_cast<uint32_t>(std::clamp(next, 0, static_cast<int>(kMaxNarrowPercent)));
+// AzaharFrame kiu: Horizontal Scale and Vertical Scale.
+int ScalePercent(int setting) {
+    const int c = std::clamp(setting, -kMaxScalePercent, kMaxScalePercent);
+    // To the nearest step, halves away from 0 (the same either side).
+    const int half = kScaleStepPercent / 2;
+    return c >= 0 ? (c + half) / kScaleStepPercent * kScaleStepPercent
+                  : -((-c + half) / kScaleStepPercent * kScaleStepPercent);
 }
 
-std::string NarrowToast(uint32_t percent, bool height) {
-    const char* what = height ? "Narrow Height" : "Narrow Screen";
-    percent = NarrowPercent(percent);
-    char buf[40];
-    if (percent == 0) {
-        std::snprintf(buf, sizeof(buf), "%s: Off", what);
-    } else {
-        std::snprintf(buf, sizeof(buf), "%s: %u%%", what, percent);
-    }
+float SqueezeForScale(int setting) {
+    return -static_cast<float>(ScalePercent(setting)) / 100.0f;
+}
+
+int SteppedScale(int setting, int steps) {
+    return std::clamp(ScalePercent(setting) + steps * kScaleStepPercent, -kMaxScalePercent,
+                      kMaxScalePercent);
+}
+
+std::string ScaleToast(int percent, bool vertical) {
+    const char* what = vertical ? Names::kVerticalScale : Names::kHorizontalScale;
+    percent = ScalePercent(percent);
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), percent > 0 ? "%s: +%d%%" : "%s: %d%%", what, percent);
     return buf;
+}
+
+int ScaleFromNarrow(uint32_t old_setting) {
+    return -static_cast<int>(NarrowPercent(old_setting));
 }
 
 namespace {
@@ -360,10 +372,11 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const ViewFov& view, float eye_shift, const Options& options,
                            const LensOffset& offset_in) {
     const Placement p = Clamped(placement);
+    // AzaharFrame kiu: negative too (Horizontal or Vertical Scale above 0: a larger screen).
     const float squeeze =
-        std::isfinite(options.squeeze) ? std::clamp(options.squeeze, 0.0f, 0.5f) : 0.0f;
+        std::isfinite(options.squeeze) ? std::clamp(options.squeeze, -0.5f, 0.5f) : 0.0f;
     const float squeeze_y =
-        std::isfinite(options.squeeze_y) ? std::clamp(options.squeeze_y, 0.0f, 0.5f) : 0.0f;
+        std::isfinite(options.squeeze_y) ? std::clamp(options.squeeze_y, -0.5f, 0.5f) : 0.0f;
     HeadLocked s;
     s.distance = p.distance;
     s.pitch_rad = PlacementPitch(p, view);

@@ -41,4 +41,27 @@ inline std::optional<unsigned> MigratedMatchCamera(const QSettings& ini, bool gl
     return ini.value(old, true).toBool() ? 2u : 0u;
 }
 
+/// AzaharFrame kiu: Narrow Screen and Narrow Height (`vr_immersive_squeeze`, `_y`: percent
+/// narrower, 0 to 30; 1, 2 and 3 were the 10 % steps of earlier builds) are now Horizontal and
+/// Vertical Scale (`vr_immersive_scale_x`, `_y`: signed percent, negative is smaller). For a file
+/// (its "VR" group open) with no new key, the old value as a scale: Narrow Screen 10 % is -10
+/// (frame_xr Layout::ScaleFromNarrow). Nothing when the file has the new key (so this runs once:
+/// the next save writes it), or the old value was never set (`/default=true` in the global file,
+/// `/use_global=true` in a game's): those start at the new default, 0.
+inline std::optional<int> MigratedScale(const QSettings& ini, bool global, const QString& old,
+                                        const QString& now) {
+    if (ini.contains(now) || ini.contains(now + QStringLiteral("/use_global")) ||
+        !ini.contains(old)) {
+        return std::nullopt;
+    }
+    const bool unset = global ? ini.value(old + QStringLiteral("/default"), true).toBool()
+                              : ini.value(old + QStringLiteral("/use_global"), true).toBool();
+    if (unset) {
+        return std::nullopt;
+    }
+    const unsigned v = ini.value(old, 0u).toUInt();
+    const unsigned percent = (v >= 1 && v <= 3) ? v * 10 : (v < 30 ? v : 30);
+    return -static_cast<int>(percent);
+}
+
 } // namespace FrameConfig

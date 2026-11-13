@@ -107,19 +107,18 @@ bool NudgeOffset(int right_steps, int up_steps);
 bool TakeIpdSaved();
 
 /// AzaharFrame widerview: grip + D-pad up (+1) or down (-1) while a grip holds the immersive
-/// screen (Full modes): one Wider View step (Settings::values.vr_immersive_wider_view_level, set
+/// screen (Full modes): one Render Margin step (Settings::values.vr_immersive_wider_view_level, set
 /// for this game; the default size grows with it, so the picture keeps its scale) and the
 /// toast. Changed: the caller has the game's config saved. XR thread.
 enum class WiderStep { None, Changed };
 WiderStep StepWiderView(int dir);
 
-/// AzaharFrame immersive2: both grips + D-pad while a grip holds the immersive screen (Full
-/// modes): `narrower_steps` (D-pad right +1, left -1) steps Narrow Screen
-/// (Settings::values.vr_immersive_squeeze), else `taller_steps` (up +1, down -1) steps Narrow
-/// Height (vr_immersive_squeeze_y) the other way, Layout::kNarrowStepPercent each, set for this
-/// game and live; the toast shows the value. Changed: the caller has the game's config saved.
-/// XR thread.
-WiderStep StepNarrow(int narrower_steps, int taller_steps);
+/// AzaharFrame immersive2, kiu: both grips + D-pad while a grip holds the immersive screen (Full
+/// modes): `wider_steps` (D-pad right +1, left -1) steps Horizontal Scale
+/// (Settings::values.vr_immersive_scale_x), else `taller_steps` (up +1, down -1) steps Vertical
+/// Scale (vr_immersive_scale_y), Layout::kScaleStepPercent each, set for this game and live; the
+/// toast shows the value. Changed: the caller has the game's config saved. XR thread.
+WiderStep StepScale(int wider_steps, int taller_steps);
 
 /// AzaharFrame widerview: the saved head-locked size of a game (immersive-placement.txt), for
 /// converting the old Wider View switch (QtConfig). Nothing when none is saved. Any thread.

@@ -80,7 +80,7 @@ Menu::MenuModel SampleModel() {
     m.immersive_mode = 2;
     m.wider_view = 2;
     m.game_fov = 60;
-    m.narrow_screen = 0;
+    m.scale_x = 0;
     m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
     m.depth_factor = 0;
     return m;
@@ -958,9 +958,27 @@ int main(int argc, char** argv) {
     v = settings(SettingsSection::Immersive);
     v.hover = {Id::GameFov};
     ok &= shot("5b-settings-immersive", pg, v);
-    v.hover = {Id::NarrowScreen, kLabelIndex};
-    v.tooltip = Id::NarrowScreen;
+    v.hover = {Id::ScaleX, kLabelIndex};
+    v.tooltip = Id::ScaleX;
     ok &= shot("5c-settings-tooltip-option", pg, v);
+    {
+        // AzaharFrame kiu: Horizontal and Vertical Scale, both signs and 0; Render Margin's tip
+        MenuModel sc = pg;
+        sc.scale_x = -10;
+        sc.scale_y = 15;
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ok &= shot("5c2-settings-scales", sc, v);
+        v.hover = {Id::ScaleY, kLabelIndex};
+        v.tooltip = Id::ScaleY;
+        ok &= shot("5c3-settings-vertical-scale-tooltip", sc, v);
+        sc.scale_x = 30;
+        sc.scale_y = 0;
+        v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
+        v.hover = {Id::WiderView, kLabelIndex};
+        v.tooltip = Id::WiderView;
+        ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
+    }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
     v = settings(SettingsSection::Immersive);

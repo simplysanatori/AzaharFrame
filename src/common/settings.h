@@ -816,15 +816,15 @@ struct Values {
     // immersive2: 1.4x by default (the owner's Majora's Mask 3D settings).
     SwitchableSetting<u32, true> vr_immersive_wider_view_level{4, 0, 4,
                                                                "vr_immersive_wider_view_level"};
-    // AzaharFrame: Full (6DoF) only. Narrow Screen: the immersive screen this many percent
-    // narrower at the same height, so the HUD at the sides moves in (frame_xr/immersive_layout.h).
-    // AzaharFrame immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame;
-    // 1, 2 and 3 are the 10 % steps of earlier builds (Layout::NarrowPercent). Both grips + D-pad
-    // left or right set it for the game on view.
-    SwitchableSetting<u32, true> vr_immersive_squeeze{10, 0, 30, "vr_immersive_squeeze"};
-    // AzaharFrame immersive2: Narrow Height, the same up and down (percent, 0 to 30, read every
-    // frame). Both grips + D-pad up or down set it for the game on view.
-    SwitchableSetting<u32, true> vr_immersive_squeeze_y{0, 0, 30, "vr_immersive_squeeze_y"};
+    // AzaharFrame kiu: Horizontal Scale and Vertical Scale (Full (6DoF) only): the immersive
+    // screen this many percent larger (positive) or smaller (negative) than the picture on that
+    // axis, -30 to +30 in 5 % steps, 0 by default, read every frame (frame_xr/immersive_layout.h
+    // ScalePercent). Both grips + D-pad left or right (up or down) set it for the game on view.
+    // They replace Narrow Screen and Narrow Height (vr_immersive_squeeze, _y, percent narrower):
+    // a file with only those is converted once when read (FrameConfig::MigratedScale), so Narrow
+    // Screen 10 % is -10 here.
+    SwitchableSetting<s32, true> vr_immersive_scale_x{0, -30, 30, "vr_immersive_scale_x"};
+    SwitchableSetting<s32, true> vr_immersive_scale_y{0, -30, 30, "vr_immersive_scale_y"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).
