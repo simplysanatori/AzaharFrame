@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <utility>
 
 #include <fmt/format.h>
 #include "common/test_hooks.h"
@@ -329,6 +330,11 @@ struct State {
     float half_ipd = kDefaultHalfIpd;
     /// AzaharFrame ipd: the headset's IPD, from the located eyes; half_ipd is half of it.
     Ipd::Smoother ipd;
+    Ipd::Notice ipd_notice;
+    bool ipd_started = false;   ///< the saved IPD read (the first frame)
+    bool ipd_had_saved = false; ///< an IPD was saved before this run: never a toast
+    Ipd::Saver ipd_saver;
+    bool ipd_saved_now = false; ///< TakeIpdSaved
     bool hw_shader_warned = false;
     // The placement (immersive_layout.h): per game, head-locked (modes 2, 3) and wide (mode 1).
     uint64_t title_id = 0;
@@ -753,6 +759,15 @@ void OnFrame(const FrameInfo& info) {
     // AzaharFrame ipd: the IPD from the eyes SteamVR located (the dial), for the screens and the
     // game's eyes alike; frames whose eye positions are not tracked are ignored.
     {
+        if (!g.ipd_started) { // the last IPD read (an earlier run) until the headset's is
+            g.ipd_started = true;
+            const float saved = Ipd::SavedM(Settings::values.vr_last_ipd_mm.GetValue());
+            g.ipd_had_saved = saved > 0.0f;
+            g.ipd_saver = Ipd::Saver(saved);
+            g.ipd.SetFallback(saved);
+            LOG_INFO(Frontend, "xr: IPD {:.1f} mm until the headset's is read ({})",
+                     g.ipd.Value() * 1000.0f, g.ipd_had_saved ? "saved" : "default");
+        }
         const XrVector3f d = Sub(g.view.eye[1].position, g.view.eye[0].position);
         g.half_ipd = g.ipd.Add(g.view.time, std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z),
                                g.view.views_valid && g.view.eye_positions_tracked) /
@@ -760,6 +775,17 @@ void OnFrame(const FrameInfo& info) {
         float ipd_m = 0.0f;
         if (g.ipd.TakeLog(ipd_m)) {
             LOG_INFO(Frontend, "xr: IPD {:.1f} mm (from the headset)", ipd_m * 1000.0f);
+        }
+        if (g.ipd_saver.Want(g.ipd, ipd_m)) { // the first value, then moves over 0.5 mm
+            Settings::values.vr_last_ipd_mm.SetValue(ipd_m * 1000.0f);
+            g.ipd_saved_now = true;
+        }
+        // Only when no IPD was ever saved and SteamVR gave no eye positions for 10 s: say so,
+        // then say when it did.
+        const std::string toast = g.ipd_notice.Update(g.view.time, g.ipd, g.ipd_had_saved);
+        if (!toast.empty()) {
+            LOG_INFO(Frontend, "xr: IPD toast \"{}\"", toast);
+            ShowToastText(toast, ToastTime::Long);
         }
     }
 
@@ -1236,6 +1262,10 @@ bool NudgeOffset(int right_steps, int up_steps) {
     LOG_INFO(Frontend, "xr: immersive offset nudged to {:.1f} degrees right, {:.1f} up",
              after.right_deg, after.up_deg);
     return true;
+}
+
+bool TakeIpdSaved() { // AzaharFrame ipd
+    return std::exchange(g.ipd_saved_now, false);
 }
 
 WiderStep StepWiderView(int dir) {
