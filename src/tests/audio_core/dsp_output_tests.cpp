@@ -107,7 +107,11 @@ struct Game {
             const bool counted = static_cast<double>(c * kChunk) >= skip_s * kRate;
             for (std::size_t i = 0; i < kChunk; i++) {
                 const s16 r = out[2 * i + 1];
-                if (counted && (i > 0 || last_right >= 0)) {
+                // Steps next to the ramp's wrap are left out: read between frames (the trim
+                // interpolates), 29999 then 0 gives any value in between.
+                const bool near_wrap = r < 100 || r > kRamp - 100 || last_right < 100 ||
+                                       last_right > kRamp - 100;
+                if (counted && !near_wrap && (i > 0 || last_right >= 0)) {
                     const int step = ((r - last_right) % kRamp + kRamp) % kRamp;
                     if (i == 0) {
                         p.edge_jumps += (step == 1 || step == 2) ? 0 : 1;
