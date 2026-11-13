@@ -386,6 +386,9 @@ inline std::atomic<u32> g_stereo_generation{0};
 /// AzaharFrame oot: the game shows a screen of its own in front of its world (WorldOnceRun),
 /// every swap. The XR thread's menu rule reads it (frame_xr/immersive.cpp).
 inline std::atomic<bool> g_world_once{false};
+/// AzaharFrame oot: the XR thread adds one when another game starts (not a quick save loaded in
+/// the same one), so the menu rule's "two eyes earlier" starts afresh.
+inline std::atomic<u32> g_world_generation{0};
 
 class FrameTrace {
 public:
@@ -436,6 +439,10 @@ public:
             if (gen != generation_) {
                 generation_ = gen;
                 far_per_slider_.Reset();
+            }
+            const u32 world_gen = g_world_generation.load(std::memory_order_relaxed);
+            if (world_gen != world_generation_) {
+                world_generation_ = world_gen;
                 world_once_.Reset();
             }
             const float slider = Settings::frame_vr_slider_shown.load(std::memory_order_relaxed);
@@ -544,11 +551,13 @@ public:
         const FarPerSlider keep_per_slider = far_per_slider_;
         const WorldOnceRun keep_world_once = world_once_;
         const u32 keep_generation = generation_;
+        const u32 keep_world_generation = world_generation_;
         *this = FrameTrace{};
         stereo_ = keep_stereo;
         far_per_slider_ = keep_per_slider;
         world_once_ = keep_world_once;
         generation_ = keep_generation;
+        world_generation_ = keep_world_generation;
         start_ms_ = now_ms;
         last_sum_ = keep_sum;
         have_last_sum_ = keep_have;
@@ -577,6 +586,7 @@ private:
     StereoFrame stereo_;               ///< AzaharFrame stereo: this frame's world far points
     FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
     WorldOnceRun world_once_;          ///< AzaharFrame oot: a menu of the game's own
+    u32 world_generation_ = 0;         ///< g_world_generation it was reset for
     u32 generation_ = 0;               ///< g_stereo_generation it was reset for
     std::array<u32, 3> eyes_{};        ///< swaps with 0, 1, 2 eyes this second
     u32 shown_3d_ = 0;                 ///< swaps in the 3D format this second

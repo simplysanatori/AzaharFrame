@@ -621,7 +621,8 @@ Time 3D's limit is 7.7 %.
 game draw past its frame, and its own full-screen 2D (Ocarina of Time 3D's item screen) is then
 shown smaller, with the margin's world around it. While all of these hold, the game draws with
 factor 1 (no margin), eased in and out over 250 ms (`MenuExact`, `immersive_layout.h`): mode 2;
-the slider the game is shown is above 0; the game drew two eyes earlier in this session; and for
+the slider the game is shown is above 0; the game drew two eyes earlier since it started (a quick
+save loaded in it keeps that; another game starts afresh); and for
 4 top screen swaps in a row its world is drawn for one eye only, or not at all (`WorldOnceRun`,
 `video_core/vr_view_matrix.h`). Measured: Ocarina of Time 3D's item screen draws its paused world
 once, while gameplay, standing still included, draws two eyes in every frame; Mario Kart 7, Kid

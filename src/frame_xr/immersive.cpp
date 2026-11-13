@@ -749,6 +749,12 @@ void OnFrame(const FrameInfo& info) {
                  "xr: immersive: Wider View {:.1f}x, Narrow Screen {}%, Narrow Height {}%",
                  g.options.wider, g.narrow_x, g.narrow_y);
         // The saved placement of this game.
+        // AzaharFrame oot: the menu rule's "two eyes earlier" holds for the session of a game,
+        // a quick save loaded in it too (the screens go off for a moment then); another game
+        // starts afresh.
+        if (g_title_id.load() != g.title_id) {
+            VideoCore::Immersive::g_world_generation.fetch_add(1, std::memory_order_relaxed);
+        }
         g.title_id = g_title_id.load();
         LoadStore();
         const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
