@@ -724,11 +724,16 @@ void OnFrame(const FrameInfo& info) {
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
         g.game_start_ms = VideoCore::Immersive::SteadyMs(); // AzaharFrame depth
-        // AzaharFrame stereo: the game's 3D is measured afresh, the cap starts from nothing.
-        VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
-        VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
+        // AzaharFrame stereo: another game's 3D is measured afresh and its cap starts from
+        // nothing. A quick save loaded in the same game (the screens go off for a moment) keeps
+        // both, so the cap never lifts for the frames it takes to measure again. AzaharFrame oot:
+        // the menu rule's "two eyes earlier" likewise.
+        if (g_title_id.load() != g.title_id) {
+            VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
+            VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
+            StopStereoCap();
+        }
         VideoCore::Immersive::g_world_once.store(false, std::memory_order_relaxed); // AzaharFrame oot
-        StopStereoCap();
         g.menu_exact.Reset(); // AzaharFrame oot
         g.menu_exact_on = false;
         g.camera.Reset();
@@ -749,12 +754,6 @@ void OnFrame(const FrameInfo& info) {
                  "xr: immersive: Wider View {:.1f}x, Narrow Screen {}%, Narrow Height {}%",
                  g.options.wider, g.narrow_x, g.narrow_y);
         // The saved placement of this game.
-        // AzaharFrame oot: the menu rule's "two eyes earlier" holds for the session of a game,
-        // a quick save loaded in it too (the screens go off for a moment then); another game
-        // starts afresh.
-        if (g_title_id.load() != g.title_id) {
-            VideoCore::Immersive::g_world_generation.fetch_add(1, std::memory_order_relaxed);
-        }
         g.title_id = g_title_id.load();
         LoadStore();
         const auto head = g.title_id ? g.store.Get(g.title_id, false) : std::nullopt;
@@ -978,7 +977,11 @@ void OnFrame(const FrameInfo& info) {
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
     }
-    UpdateStereoCap(info.screens_live ? mode : 0u);
+    // AzaharFrame stereo: without a game on view the cap holds (a quick save loading); another
+    // game resets it as it starts (above).
+    if (info.screens_live) {
+        UpdateStereoCap(mode);
+    }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
     data.ipd = g.ipd.Value(); // AzaharFrame ipd
