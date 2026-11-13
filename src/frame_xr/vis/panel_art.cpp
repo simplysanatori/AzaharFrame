@@ -12,6 +12,7 @@
 #include "common/logging/log.h"
 #include "frame_xr/keyboard/stb_truetype.h" // the implementation is in keyboard/stb_truetype.cpp
 #include "frame_xr/picker/logo_loader.h"    // FindArtFile
+#include "frame_xr/ui/ui_ttf.h"
 #include "frame_xr/vis/panel_art.h"
 
 namespace FrameXr::Vis {
@@ -23,24 +24,9 @@ frame_xr::ui::Color ToColor(uint32_t argb) {
             static_cast<float>(argb & 0xFF), static_cast<float>(argb >> 24) / 255.0f};
 }
 
-// The next code point of a UTF-8 string (invalid bytes come out as '?').
+// The next code point of a UTF-8 string (a malformed byte is its Latin-1 character).
 uint32_t NextCodePoint(const std::string& s, std::size_t& i) {
-    const auto c = static_cast<uint8_t>(s[i++]);
-    if (c < 0x80) {
-        return c;
-    }
-    int extra = c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : c >= 0xC0 ? 1 : -1;
-    if (extra < 0) {
-        return '?';
-    }
-    uint32_t cp = c & (0x3Fu >> extra);
-    while (extra-- > 0) {
-        if (i >= s.size() || (static_cast<uint8_t>(s[i]) & 0xC0) != 0x80) {
-            return '?';
-        }
-        cp = (cp << 6) | (static_cast<uint8_t>(s[i++]) & 0x3Fu);
-    }
-    return cp;
+    return frame_xr::ui::NextUtf8(s, i);
 }
 
 // Text coverage a little heavier, as the keyboard's (art.cpp kTextGamma).
@@ -69,7 +55,30 @@ public:
         return ok;
     }
 
-    float Width(float size, const std::string& s) const {
+    // `s` with each character this face lacks replaced by its plain form (ui::FoldedText), so a
+    // missing glyph never draws as the font's empty box. ASCII goes through untouched.
+    std::string Usable(const std::string& s) const {
+        std::size_t i = 0;
+        while (i < s.size() && static_cast<uint8_t>(s[i]) < 0x80) {
+            i++;
+        }
+        if (i == s.size()) {
+            return s;
+        }
+        std::string out = s.substr(0, i);
+        while (i < s.size()) {
+            const uint32_t cp = NextCodePoint(s, i);
+            if (cp < 0x80 || stbtt_FindGlyphIndex(&info, static_cast<int>(cp)) != 0) {
+                out += frame_xr::ui::Utf8Of(cp);
+            } else {
+                out += frame_xr::ui::FoldedText(cp);
+            }
+        }
+        return out;
+    }
+
+    float Width(float size, const std::string& text) const {
+        const std::string s = Usable(text);
         const float scale = stbtt_ScaleForMappingEmToPixels(&info, size);
         float x = 0.0f;
         int prev = 0;
@@ -93,7 +102,8 @@ public:
     }
 
     template <typename Plot>
-    void Draw(float size, float x, float baseline, const std::string& s, Plot&& plot) {
+    void Draw(float size, float x, float baseline, const std::string& text, Plot&& plot) {
+        const std::string s = Usable(text);
         const float scale = stbtt_ScaleForMappingEmToPixels(&info, size);
         const int by = static_cast<int>(std::floor(baseline + 0.5f));
         float pen = x;

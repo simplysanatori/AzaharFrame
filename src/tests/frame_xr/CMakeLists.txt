@@ -6,6 +6,7 @@ add_executable(frame_xr_picker_tests
     tab_menu.cpp # AzaharFrame tabmenu
     remap.cpp # AzaharFrame remap
     cheat_entry.cpp # AzaharFrame ui2
+    utf8_text.cpp # AzaharFrame utf8
 )
 target_link_libraries(frame_xr_picker_tests PRIVATE frame_xr_picker_core frame_xr_menu catch2)
 add_test(NAME frame_xr_picker_tests COMMAND frame_xr_picker_tests)

@@ -51,6 +51,14 @@ private:
 };
 
 /// The next code point of UTF-8 `s` from byte `i` (advanced past it).
+/// A byte that does not start a valid sequence comes out as the Latin-1 character of that value.
 char32_t NextUtf8(const std::string& s, std::size_t& i);
+/// One code point as UTF-8.
+std::string Utf8Of(char32_t cp);
+/// What to draw for a character no face has: a curly quote as the straight one, a dash as "-",
+/// "…" as "...", an accented Latin-1 letter as its base, a no-break space as " ", else "?".
+std::string FoldedText(char32_t cp);
+/// The same over [s, end), `s` advanced past the code point.
+char32_t NextUtf8(const char*& s, const char* end);
 
 } // namespace frame_xr::ui

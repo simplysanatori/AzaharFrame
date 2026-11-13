@@ -7,8 +7,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
+#include "frame_xr/menu/md3_fonts.h" // the fallback face (46 KB already in the binary)
 #include "frame_xr/ui/ui_font.h"
+#include "frame_xr/ui/ui_ttf.h"
 
 namespace frame_xr::ui {
 
@@ -17,6 +20,17 @@ namespace {
 struct Font {
     const font::Face* face = nullptr;
     std::vector<uint8_t> coverage; // face->width x face->height
+    bool has(uint32_t code) const {
+        if (code >= 32 && code < 127) {
+            return true;
+        }
+        for (int i = 95; i < face->count; i++) {
+            if (face->glyphs[i].code == code) {
+                return true;
+            }
+        }
+        return false;
+    }
     const font::Glyph* glyph(uint32_t code) const {
         if (code >= 32 && code < 127) {
             return &face->glyphs[code - 32];
@@ -45,17 +59,46 @@ int Base64Value(char c) {
     return -1;
 }
 
-// Next code point of UTF-8 text.
+// Next code point of UTF-8 text (a malformed byte is its Latin-1 character, ui_ttf.h).
 uint32_t NextCode(const char*& s) {
-    const uint8_t c = static_cast<uint8_t>(*s++);
-    if (c < 0x80)
-        return c;
-    const int extra = c >= 0xF0 ? 3 : c >= 0xE0 ? 2 : 1;
-    uint32_t code = c & (0x3F >> extra);
-    for (int i = 0; i < extra && (*s & 0xC0) == 0x80; i++) {
-        code = (code << 6) | (static_cast<uint8_t>(*s++) & 0x3F);
+    return NextUtf8(s, s + std::strlen(s));
+}
+
+// The baked atlases hold ASCII and a few symbols only. Any other character is drawn from the
+// menu's TrueType face (Google Sans Flex Medium, Latin subset: Latin-1 Supplement, Latin
+// Extended-A, general punctuation) at the atlas's size; one it lacks too is folded to something
+// plain (a curly quote to the straight one, an accented letter to its base, else "?").
+// Memory: no atlas growth; the face's 35 KB are decoded once, on the first InitFonts().
+TtfFont& Fallback() {
+    static TtfFont face;
+    static const bool loaded = face.LoadBase64(FrameXr::Menu::Fonts::kSans500);
+    (void)loaded;
+    return face;
+}
+
+// For text with a character beyond ASCII: `out` is `s` with every character the atlas and the
+// face both lack replaced (FoldedCode), true. False (out untouched) for plain ASCII.
+bool Normalise(const Font& f, const char* s, std::string& out) {
+    const char* p = s;
+    while (*p && static_cast<uint8_t>(*p) < 0x80) {
+        p++;
     }
-    return code;
+    if (!*p) {
+        return false;
+    }
+    TtfFont& ttf = Fallback();
+    out.assign(s, p);
+    while (*p) {
+        const char* start = p;
+        const uint32_t cp = NextCode(p);
+        if (cp < 0x80 || f.has(cp) || (ttf.Ok() && ttf.HasGlyph(cp))) {
+            out += Utf8Of(cp); // also repairs a malformed byte
+        } else {
+            out += FoldedText(cp);
+        }
+        (void)start;
+    }
+    return true;
 }
 
 // Signed distance shapes, anti-aliased over a pixel.
@@ -131,10 +174,28 @@ void InitFonts() {
     }
 }
 
+// Width in quarter pixels of one code point: the atlas's, else the fallback face's.
+static float Advance(const Font& f, uint32_t cp) {
+    if (cp < 0x80 || f.has(cp)) {
+        return f.glyph(cp)->advance * 0.25f;
+    }
+    return Fallback().Width(static_cast<float>(f.face->size), Utf8Of(cp));
+}
+
 float TextWidth(int font, const char* s) {
+    const Font& f = g_fonts[font];
+    std::string norm;
+    if (Normalise(f, s, norm)) {
+        s = norm.c_str();
+        float w = 0.0f;
+        while (*s) {
+            w += Advance(f, NextCode(s));
+        }
+        return w;
+    }
     float w = 0.0f;
     while (*s) {
-        w += g_fonts[font].glyph(NextCode(s))->advance * 0.25f;
+        w += f.glyph(NextCode(s))->advance * 0.25f;
     }
     return w;
 }
@@ -398,12 +459,24 @@ void Canvas::BlitRGBA(const uint8_t* src, int sw, int sh, float x0, float y0, fl
 
 void Canvas::Text(float x, float baseline, int font, const char* s, const Color& c, int align) {
     const Font& f = g_fonts[font];
+    std::string norm;
+    if (Normalise(f, s, norm)) {
+        s = norm.c_str(); // `norm` outlives the loop; TextWidth below normalises the same text
+    }
     float pen = x - (align == 1   ? TextWidth(font, s) * 0.5f
                      : align == 2 ? TextWidth(font, s)
                                   : 0.0f);
     const int by = static_cast<int>(std::lround(baseline));
     while (*s) {
-        const font::Glyph* g = f.glyph(NextCode(s));
+        const uint32_t cp = NextCode(s);
+        if (cp >= 0x80 && !f.has(cp)) {
+            // From the fallback face (Normalise made sure it has the glyph).
+            const std::string one = Utf8Of(cp);
+            Fallback().Draw(*this, pen, baseline, static_cast<float>(f.face->size), c, one, 0);
+            pen += Advance(f, cp);
+            continue;
+        }
+        const font::Glyph* g = f.glyph(cp);
         const int gx0 = static_cast<int>(std::lround(pen)) + g->left, gy0 = by - g->top;
         for (int gy = 0; gy < g->h; gy++) {
             const int y = gy0 + gy;

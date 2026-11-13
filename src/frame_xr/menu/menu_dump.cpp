@@ -544,6 +544,11 @@ int main(int argc, char** argv) {
                           "Autosave Off for The Legend of Zelda: Maj...", "Couldn't Autosave",
                           "Couldn't Autosave: Not Enough Space",
                           "Couldn't Autosave: Couldn't Write the File"});
+        // AzaharFrame utf8: titles and text with accents and typographic punctuation
+        ok &= toast_shot("utf8-toasts.png",
+                         {"Autosave Off for Pokémon X", "Autosave On for Pokémon Y",
+                          "Super Mario 3D Land – München ñandú",
+                          "Kid Icarus’s “Uprising” — Łódź…"});
     }
     { // AzaharFrame savestate: slots from another build, the mismatch and About notices
         MenuModel sm = m;
