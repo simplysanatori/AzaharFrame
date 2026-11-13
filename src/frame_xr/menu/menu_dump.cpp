@@ -1244,6 +1244,31 @@ int main(int argc, char** argv) {
         mp.mods.mods.spin = 9;
         v.hover = {Id::ModCancel, 0};
         ok &= shot("mods-installing", mp, v);
+        { // AzaharFrame fixes7: Install Mods: the recommended badge (first), the size while it
+          // downloads, Resume after a Cancel, a rate limit
+            MenuModel mr = mi;
+            auto& list = mr.mods.mods.available;
+            list[0].recommended = true;
+            MenuView rv = v;
+            rv.hover = {};
+            ok &= shot("fixes7-mods-install-recommended", mr, rv);
+            mr.mods.mods.busy = true;
+            list[0].state = OfferState::Installing;
+            list[0].note = "Downloading 40% \u00b7 " + ProgressSizeText(12ull << 20, 30ull << 20);
+            mr.mods.mods.spin = 9;
+            rv.hover = {Id::ModCancel, 0};
+            ok &= shot("fixes7-mods-install-progress", mr, rv);
+            mr.mods.mods.busy = false;
+            list[0].state = OfferState::Install;
+            list[0].note.clear();
+            list[0].resume = ResumeText(12ull << 20, 30ull << 20); // "12 of 30 MB Downloaded"
+            rv.hover = {Id::ModInstall, 0};
+            ok &= shot("fixes7-mods-install-resume", mr, rv);
+            list[0].resume.clear();
+            list[0].note = "GameBanana is limiting downloads from this network. Try again later.";
+            list[0].error = true;
+            ok &= shot("fixes7-mods-install-rate-limited", mr, rv);
+        }
         MenuModel mc = mi; // Dual Screen in, Single Screen asked for
         mc.mods.mods.available[1].state = OfferState::Installed;
         mc.mods.mods.dialog = {ModsDialogKind::Replace, "Ocarina ReFramed (Single Screen)",
@@ -1390,6 +1415,13 @@ int main(int argc, char** argv) {
             pp.optimize.permille = 534;
             ov.hover = {};
             ok &= shot("optimize-converting", om, ov);
+            // AzaharFrame fixes7: the line by size, the percent of the same (the copy's estimate)
+            pp.optimize.done = 137;
+            pp.optimize.total = 1624;
+            pp.optimize.permille = 491;
+            pp.optimize.done_bytes = 3ull << 30;
+            pp.optimize.total_bytes = (61ull << 30) / 10;
+            ok &= shot("fixes7-optimize-progress-size", om, ov);
             pp.optimize = {OptimizeState::Stopped, "4.7 GB"};
             ok &= shot("optimize-stopped", om, ov);
             pp.optimize = {OptimizeState::Failed, "4.7 GB", 0, 0, -1, {}, "Not Enough Space"};
@@ -1474,6 +1506,53 @@ int main(int argc, char** argv) {
         dd.mods.textures.downloads[0].note = "Downloading";
         v.hover = {Id::PackCancel, 0};
         ok &= shot("downloading", dd, v);
+        { // AzaharFrame fixes7: Majora's Mask 3D 4K (3.4 GB, a Drive folder): Preparing while the
+          // file is found, then the size moving with the percent, and Resume after a Cancel
+            MenuModel mm = dm;
+            mm.game_title = "The Legend of Zelda: Majora's Mask 3D";
+            PackOffer o;
+            o.id = "mm3d-4k-henriko";
+            o.name = "Majora's Mask 3D 4K";
+            o.author = "Henriko Magnifico";
+            o.url = "https://www.henrikomagnifico.com/zelda-majoras-mask-3d-4k";
+            o.size_text = "3.4 GB";
+            o.updated = "Updated Jan 2026";
+            o.recommended = true;
+            PackOffer o2 = o;
+            o2.id = "mm3d-1080p-henriko";
+            o2.name = "Majora's Mask 3D 1080p";
+            o2.size_text = "1.1 GB";
+            mm.mods.textures.downloads = {o, o2};
+            mm.mods.textures.downloading = true;
+            mm.mods.textures.spin = 9;
+            PackOffer& row = mm.mods.textures.downloads[0];
+            row.state = PackOfferState::Downloading;
+            row.percent = -1;
+            row.note = "Preparing";
+            v.hover = {Id::PackCancel, 0};
+            ok &= shot("fixes7-download-preparing", mm, v);
+            row.percent = 3;
+            row.note = ProgressSizeText(120ull << 20, (34ull << 30) / 10); // "120 MB of 3.4 GB"
+            ok &= shot("fixes7-download-progress", mm, v);
+            mm.mods.textures.downloading = false;
+            row.state = PackOfferState::Download;
+            row.percent = -1;
+            row.note.clear();
+            row.resume = ResumeText((12ull << 30) / 10, (34ull << 30) / 10); // "1.2 of 3.4 GB Downloaded"
+            v.hover = {Id::PackDownload, 0};
+            ok &= shot("fixes7-download-resume", mm, v);
+            // the badge: recommended packs first (no row is busy)
+            row.resume.clear();
+            v.hover = {};
+            ok &= shot("fixes7-download-recommended", mm, v);
+            // a site that limits downloads
+            MenuModel rl = dm;
+            rl.mods.textures.downloads[0].state = PackOfferState::Failed;
+            rl.mods.textures.downloads[0].note =
+                "GameBanana is limiting downloads from this network. Try again in 10 minutes.";
+            v.hover = {Id::PackDownload, 0};
+            ok &= shot("fixes7-download-rate-limited", rl, v);
+        }
         MenuModel df = dm;
         df.mods.textures.downloads[0].state = PackOfferState::Failed;
         df.mods.textures.downloads[0].note = "Not enough free space: 4.6 GB needed, 1.1 GB free";

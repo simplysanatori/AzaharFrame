@@ -6,7 +6,8 @@
 // only. TabMenu::DrawModsList and TabMenu::DrawTextures (mods_segments.cpp) draw them.
 //
 // Mods: one flat list of what is loaded for the game (core/mods/library.h ListLoaded): the
-// developer's own mods carry the verified badge after the name; a managed mod has a switch (on:
+// recommended mods (AzaharFrame fixes7: the catalog's "recommended": we recommend them with the
+// game) carry the badge after the name and come first; a managed mod has a switch (on:
 // in the mods folder, off: kept in the library) and every row a Remove. Install Mods opens the
 // list of mods for this title (ListAvailable). A conflict asks before anything is replaced.
 //
@@ -41,7 +42,7 @@ struct ModRow {
     std::string author; ///< "Created by <author>" ("" for your own files)
     std::string url;    ///< the author's repository, https://github.com/<owner>/<repo> ("" = no link)
     std::string detail; ///< after the author: "v1.5.9"; your own files: "214 Files"
-    bool verified = false; ///< the developer's: the verified badge after the name
+    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended": the badge after the name
     bool managed = false;  ///< installed by the menu: has a switch (unmanaged: Remove only)
     bool active = true;    ///< in the mods folder (managed and off: in the library only)
     bool operator==(const ModRow&) const = default;
@@ -61,7 +62,7 @@ struct ModOffer {
     std::string name;
     std::string author;
     std::string url; ///< as ModRow::url
-    bool verified = false;
+    bool recommended = false; ///< AzaharFrame fixes7: the badge (ModRow::recommended)
     OfferState state = OfferState::Install;
     std::string note;   ///< after the author: why it cannot install, the phase, or what failed
     bool error = false; ///< `note` is a failure (the error colour)
@@ -84,6 +85,9 @@ struct ModOffer {
     /// AzaharFrame ui3: the mod's own version ("v172", "v1.5.9"; the catalog's "version", a GitHub
     /// release tag or GameBanana's), after "Created by <author>"; "" unknown
     std::string mod_version;
+    /// AzaharFrame fixes7: a cancelled download's parts are kept: Install says Resume, and the line
+    /// "12 of 300 MB Downloaded" (ResumeText); "" none
+    std::string resume;
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -218,6 +222,9 @@ struct PackOptimize {
     std::string original_size; ///< its size ("4.7 GB"), "" unknown
     bool original_removed = false; ///< it is gone: no Use Original
     bool can_remove = false;       ///< Remove Original (not what the game reads now)
+    /// AzaharFrame fixes7: Converting: the optimized copy's bytes written of its estimated size
+    /// (the Optimize dialog's "About 6.1 GB"); the percent follows them. 0 not known
+    uint64_t done_bytes = 0, total_bytes = 0;
     bool operator==(const PackOptimize&) const = default;
 };
 
@@ -249,7 +256,8 @@ struct TexturePartsModel {
 /// What a downloadable pack's row ends with.
 enum class PackOfferState : uint8_t {
     Download,    ///< the Download button
-    Downloading, ///< a progress ring, the percent and Cancel
+    Downloading, ///< a progress ring, the percent and Cancel (AzaharFrame fixes7: a spinning ring and
+                 ///< "Preparing" until the file's bytes start; then "1.2 of 3.4 GB")
     Installed,   ///< in the pack list
     Failed,      ///< `note` is the error, the button is Try Again
 };
@@ -263,9 +271,9 @@ struct PackOffer {
     std::string size_text; ///< "2.1 GB", "" unknown
     PackOfferState state = PackOfferState::Download;
     int percent = -1;      ///< Downloading: 0 to 100, -1 unknown
-    std::string note;      ///< Downloading: the phase ("Unpacking"); Failed: why
+    std::string note;      ///< Downloading: the phase ("Preparing", "Unpacking") or "1.2 of 3.4 GB"; Failed: why
     std::string updated;   ///< AzaharFrame zipinstall: "Updated Sep 2026" ("" unknown)
-    bool verified = false; ///< AzaharFrame zipinstall: known to work: the verified badge
+    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended": the badge
     std::string notes;     ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
     bool mismatch = false;       ///< AzaharFrame compat: as ModOffer (Download asks first)
     std::string region_chip;
@@ -273,6 +281,9 @@ struct PackOffer {
     std::string mismatch_body;
     std::string downloads; ///< AzaharFrame compat: "10K+ Downloads" (DownloadsText), "" unknown
     bool unscanned = false; ///< AzaharFrame compat: as ModOffer (PackInfo::unscanned)
+    /// AzaharFrame fixes7: a kept partial download: Download says Resume, and the line
+    /// "1.2 of 3.4 GB Downloaded" (ResumeText); "" none
+    std::string resume;
     bool operator==(const PackOffer&) const = default;
 };
 
@@ -387,6 +398,20 @@ std::string BylineText(const std::string& author, const std::vector<std::string>
 
 /// "a · b · c" of the parts that are not empty.
 std::string JoinDetail(const std::vector<std::string>& parts);
+
+/// AzaharFrame fixes7: progress by size: "1.2 of 3.4 GB", "120 MB of 3.4 GB" (SizeText's units),
+/// "120 MB" when the total is not known (0).
+std::string ProgressSizeText(uint64_t done, uint64_t total);
+/// AzaharFrame fixes7: a kept partial download: "1.2 of 3.4 GB Downloaded" ("1.2 GB Downloaded"
+/// with no total); "" when nothing is kept.
+std::string ResumeText(uint64_t done, uint64_t total);
+/// AzaharFrame fixes7: the button of an Install Mods row in Install / Unavailable ("Install", or
+/// "Resume" with a kept partial download) and of a Download Packs row in Download / Failed
+/// ("Download", "Resume", "Try Again").
+std::string OfferButtonLabel(const ModOffer& offer);
+std::string PackButtonLabel(const PackOffer& offer);
+/// AzaharFrame fixes7: the button that carries on a kept partial download.
+constexpr const char* kResumeLabel = "Resume";
 
 /// AzaharFrame ui3: Optimize for Frame's strings (the Flat ones, shortened).
 inline constexpr const char* kOptimizeLine =
