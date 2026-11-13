@@ -13,7 +13,7 @@ While a game with its own value runs, that row is greyed out in **Configure**.
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu, and so is **Motion Controls** for one game. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -84,7 +84,7 @@ Makes one controller, or your head, the 3DS's gyroscope and accelerometer, for g
 
 The same controller still points at the screens. If that gets in the way, choose the hand you don't point with. **Off** leaves the 3DS lying flat and still. Going from **Off** to another choice takes effect the next time VR starts.
 
-It can be set for one game on the in-game menu's **Settings** tab, in **General**, with **Per-Game** picked. Kid Icarus: Uprising starts with **Off**, because its C-Stick & Gyro mod aims with the gyroscope and the reticle moved whenever you did. Turn it on for that game if you want gyro aiming.
+It can be set for one game on the in-game menu's **Settings** tab, in **General**, with **Per-Game** picked, or in the game's **Properties**. In the global settings it sets the value the other games use; a game with its own value keeps it. Kid Icarus: Uprising starts with **Off**, because its C-Stick & Gyro mod aims with the gyroscope and the reticle moved whenever you did. Turn it on for that game if you want gyro aiming.
 
 ## Show Controllers
 
