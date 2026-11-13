@@ -3072,3 +3072,14 @@ TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]"
           std::vector<Id>{Id::FastForwardAudio});
     CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Graphics).empty());
 }
+
+// AzaharFrame fixes7: Screen Shape: Automatic, the last choice (vr_top_aspect 6).
+TEST_CASE("Tab menu: Screen Shape has Automatic", "[frame_xr][tabmenu][autoshape]") {
+    const auto& opts = OptionsFor(Id::ScreenShape);
+    REQUIRE(opts.size() == 7);
+    CHECK(opts[0] == "3DS (5:3)");
+    CHECK(opts[6] == "Automatic");
+    CHECK(ExplainFor(Id::ScreenShape) ==
+          "The top screen's shape, for games or mods that change it. Automatic follows the "
+          "game's camera.");
+}

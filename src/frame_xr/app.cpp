@@ -23,6 +23,7 @@
 #include "common/settings.h" // AzaharFrame vrqol: Background
 #include "common/stall_telemetry.h"
 #include "common/thread.h"
+#include "frame_xr/auto_shape.h" // AzaharFrame fixes7
 #include "frame_xr/controls.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
@@ -668,6 +669,9 @@ void Runtime::FrameLoop() {
                        state.load(),
                        fs.shouldRender == XR_TRUE,
                        screens_live.load()};
+        // AzaharFrame fixes7: Screen Shape: Automatic, before the callbacks read the shape.
+        AutoShape::Frame(info.screens_live,
+                         Settings::values.vr_top_aspect.GetValue() == AutoShape::kAutomatic);
         {
             std::vector<FrameCallback> callbacks;
             {

@@ -9,6 +9,7 @@
 #include "core/memory.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/rasterizer_accelerated.h"
+#include "video_core/vr_auto_shape.h" // AzaharFrame fixes7
 #include "video_core/vr_immersive.h" // AzaharFrame depth
 #include "video_core/vr_view_matrix.h" // AzaharFrame
 
@@ -338,6 +339,13 @@ static void MatrixMultiply(float m[16], const float a[16], const float b[16]) {
 
 void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator::VSPicaUniformData &vs_uniforms)
 {
+    // AzaharFrame fixes7: Screen Shape: Automatic samples the game camera's projection here, in
+    // any view, before immersive mode patches anything (vr_auto_shape.h).
+    if (VideoCore::Immersive::g_measure_shape.load(std::memory_order_relaxed)) {
+        static VideoCore::Immersive::ShapeSampler sampler;
+        sampler.Sample(vs_uniforms.f, vs_uniforms.f.size(), VideoCore::Immersive::SteadyUs(),
+                       VideoCore::Immersive::g_measured_shape);
+    }
     if (vr_immersive_mode)
     {
         auto &f = vs_uniforms.f;

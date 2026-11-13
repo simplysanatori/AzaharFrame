@@ -186,7 +186,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                 {screen_layout_combo});
     layout->addWidget(screen_layout_row);
 
-    // Values 0..5 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
+    // Values 0..6 are Settings::values.vr_top_aspect (frame_xr/immersive.h).
     shape_combo = new QComboBox(this);
     shape_combo->addItem(tr("3DS (5:3)"));
     shape_combo->addItem(tr("Widescreen (16:9)"));
@@ -194,9 +194,11 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     shape_combo->addItem(tr("Standard (4:3)"));
     shape_combo->addItem(tr("3:2"));
     shape_combo->addItem(tr("16:10"));
+    shape_combo->addItem(tr("Automatic")); // AzaharFrame fixes7: 6, frame_xr/auto_shape.h
     shape_row = MakeRow(
         this, QStringLiteral("frame_vr_shape_row"), tr("Screen Shape"),
-        tr("The shape of the top screen in VR, for games or mods that change the aspect."),
+        tr("The shape of the top screen in VR, for games or mods that change the aspect. "
+           "Automatic follows the shape the game's camera draws with."),
         {shape_combo});
     layout->addWidget(shape_row);
 

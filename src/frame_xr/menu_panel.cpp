@@ -739,7 +739,7 @@ void MenuPanel::BuildModel(const Host& host) {
                              66);
     }
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
-    m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
+    m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 6)); // fixes7
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
@@ -1015,7 +1015,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
         break;
     case Id::ScreenShape:
-        Apply(v.vr_top_aspect, u, per_game);
+        Apply(v.vr_top_aspect, std::min<u32>(u, 6), per_game); // AzaharFrame fixes7: 6 Automatic
         r.setting = MenuSetting::ScreenShape;
         break;
     case Id::ScreenCurve:

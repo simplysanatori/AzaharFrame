@@ -95,6 +95,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/async_overlay.h
     vis/autosave_label.cpp # AzaharFrame autosave
     vis/autosave_label.h
+    auto_shape.cpp # AzaharFrame fixes7
+    auto_shape.h
     vis/shader_badge.cpp # AzaharFrame shaderbadge
     vis/shader_badge.h
     vis/beam.cpp

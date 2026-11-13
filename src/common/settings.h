@@ -756,8 +756,9 @@ struct Values {
     SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};
     // AzaharFrame: the shape of the top screen in VR (0 = 3DS 5:3, 1 = Widescreen 16:9,
     // 2 = Ultrawide 21:9, 3 = 4:3, 4 = 3:2, 5 = 16:10) for games and mods that render widescreen into the 400x240 frame.
-    // Read when a game starts (frame_xr/immersive.h).
-    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 5, "vr_top_aspect"};
+    // Read when a game starts (frame_xr/immersive.h). AzaharFrame fixes7: 6 = Automatic, the shape
+    // the game camera draws with, measured while the game runs (frame_xr/auto_shape.h).
+    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 6, "vr_top_aspect"};
     // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
     // immersive screen (frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};

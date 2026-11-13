@@ -283,7 +283,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kNone;
     static const std::vector<std::string> kShape{"3DS (5:3)",       "Widescreen (16:9)",
                                                  "Ultrawide (21:9)", "Standard (4:3)",
-                                                 "3:2",             "16:10"};
+                                                 "3:2",             "16:10",
+                                                 "Automatic"}; // AzaharFrame fixes7
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
@@ -619,7 +620,7 @@ std::string ExplainFor(Id id) {
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
-        return "The top screen's shape, for games or mods that change it.";
+        return "The top screen's shape, for games or mods that change it. Automatic follows the game's camera.";
     case Id::ScreenCurve:
         return "Bends the Primary Screen so its sides come toward you.";
     case Id::ScreenLayout:
