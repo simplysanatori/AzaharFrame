@@ -1210,8 +1210,12 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         AddHit(reset, {Id::RemapReset}, pane);
         bar_x1 = reset.x0 - 8.0f;
     }
-    // The device's own setting at the start of the bar, else the title.
-    if (!HasPointer(dev)) {
+    // The device's own setting at the start of the bar, else the title. AzaharFrame keys: the
+    // keyboard's Open Menu and Modifier chips (drawn with the others, below).
+    const bool keyboard_page = dev.kind == DeviceKind::Keyboard;
+    if (keyboard_page) {
+        // No title: the chips take its place.
+    } else if (!HasPointer(dev)) {
         kit.TextMid(c.x0, c.y0 + bar_h * 0.5f, Type::Title, Tok::kOnSurface, LabelFor(Id::EditControls));
     } else {
         // A touchpad: Touchpad Touch (global). The mouse: its Mouse Mode (AzaharFrame padsui).
@@ -1269,15 +1273,21 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     };
     std::vector<Chip> chips;
     const auto text_of = [&](int t) {
-        if (Remap::IsExtra(t)) { // AzaharFrame padsui: the mouse's Touch Screen, Open Menu
-            const std::string name =
-                SourceName(dev.names, dev.extras[static_cast<std::size_t>(t - DsButton::Touch)]);
+        // AzaharFrame padsui: the mouse's Touch Screen, Open Menu (keys: the keyboard's Open
+        // Menu and Modifier).
+        if (Remap::HasTarget(SourceOf(dev.kind), t)) {
+            const int8_t input = t == DsButton::Modifier
+                                     ? dev.keys[kModifierSlot]
+                                     : dev.extras[static_cast<std::size_t>(t - DsButton::Touch)];
+            const std::string name = SourceName(dev.names, input);
             // Chips of their own, out of the columns: they say what they are.
-            return std::string(t == DsButton::OpenMenu ? "Open Menu: " : "Touch Screen: ") +
+            return std::string(t == DsButton::OpenMenu  ? "Open Menu: "
+                               : t == DsButton::Touch   ? "Touch Screen: "
+                                                        : "Modifier: ") +
                    (name.empty() ? std::string("None") : name);
         }
         if (IsStick(t)) {
-            return StickRouteName(dev.sticks[t == kDsCirclePad ? 0 : 1]);
+            return StickSourceName(dev, t == kDsCirclePad ? 0 : 1);
         }
         return SourceName(dev.names, dev.mapping[static_cast<std::size_t>(t)], by_position);
     };
@@ -1369,6 +1379,20 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
             const Rect ts{under.x0, under.y0, under.x0 + tw, under.y1};
             chips.push_back({DsButton::Touch, ts, {ts.x1, ts.Cy()}});
             row_x = ts.x1 + kChipGap;
+        } else if (keyboard_page) {
+            // AzaharFrame keys: in the bar, where the mouse has Mouse Mode: Open Menu, then
+            // Modifier (chips like the others, editable, no leaders: neither is one button
+            // of the 3DS). The drawing and its columns stay the gamepad's.
+            const float room = bar_x1 - 16.0f - c.x0;
+            float ow = chip_w(DsButton::OpenMenu, c.W());
+            float mw = chip_w(DsButton::Modifier, c.W());
+            ow = std::min(ow, room);
+            mw = std::max(0.0f, std::min(mw, room - ow - kChipGap));
+            const float y0 = c.y0 + (bar_h - kChipH) * 0.5f;
+            const Rect om{c.x0, y0, c.x0 + ow, y0 + kChipH};
+            chips.push_back({DsButton::OpenMenu, om, {om.Cx(), om.y1}});
+            const Rect mod{om.x1 + kChipGap, y0, om.x1 + kChipGap + mw, y0 + kChipH};
+            chips.push_back({DsButton::Modifier, mod, {mod.Cx(), mod.y1}});
         } else if (HasRecentre(dev)) {
             row_x = filter_chip(row_x, under, Id::RecentreAtEdge, dev.recentre);
         }
@@ -1403,7 +1427,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         const Rect bs = ds.BottomScreen();
         const DsPoint touch_at{bs.x0 + 6.0f, bs.y0 + bs.H() * 0.8f};
         for (const Chip& ch : chips) {
-            if (ch.target == DsButton::OpenMenu) {
+            if (ch.target == DsButton::OpenMenu || ch.target == DsButton::Modifier) {
                 continue;
             }
             const DsPoint to = ch.target == DsButton::Touch ? touch_at : ds.Anchor(ch.target);
@@ -1416,7 +1440,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
                     kit.Dot(touch_at.x, touch_at.y, 7.0f, Tok::kPrimary, 0.3f);
                 }
                 kit.Dot(touch_at.x, touch_at.y, on ? 4.5f : 3.5f, Tok::kPrimary);
-            } else if (ch.target != DsButton::OpenMenu) {
+            } else if (ch.target != DsButton::OpenMenu && ch.target != DsButton::Modifier) {
                 DrawDsDot(kit, ds, ch.target, ch.target == lit);
             }
         }
@@ -1479,6 +1503,15 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         std::string prompt = !IsStick(view.remap.listening) ? "Press a Button\xE2\x80\xA6"
                              : view.remap.step == 0       ? "Push the Stick Up\xE2\x80\xA6"
                                                           : "Push the Stick Right\xE2\x80\xA6";
+        if (keyboard_page) {
+            // AzaharFrame keys: a key, or a stick's four keys in turn.
+            static constexpr std::array<const char*, 4> kKeyFor{
+                "Press a Key for Up\xE2\x80\xA6", "Press a Key for Down\xE2\x80\xA6",
+                "Press a Key for Left\xE2\x80\xA6", "Press a Key for Right\xE2\x80\xA6"};
+            prompt = !IsStick(view.remap.listening)
+                         ? "Press a Key\xE2\x80\xA6"
+                         : kKeyFor[static_cast<std::size_t>(std::clamp(view.remap.step, 0, 3))];
+        }
         if (view.remap.countdown > 0) {
             // AzaharFrame input2: 3, 2, 1, then it closes and the binding stays as it was.
             prompt += " " + std::to_string(view.remap.countdown);

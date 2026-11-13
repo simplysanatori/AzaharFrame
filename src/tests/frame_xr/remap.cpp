@@ -11,6 +11,7 @@
 #include <set>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "frame_xr/input/key_names.h"
 #include "frame_xr/input/mouse.h"
 #include "frame_xr/menu/ds_drawing.h"
 #include "frame_xr/menu/edit_devices.h"
@@ -664,4 +665,148 @@ TEST_CASE("Edit Controls: a listening stick asks for up, then right", "[frame_xr
     s.v.remap.step = 1;
     s.Draw();
     CHECK(s.Has(Id::RemapCancel, -1));
+}
+
+// AzaharFrame keys: the keyboard in Edit Controls.
+namespace {
+namespace Key = FrameXr::Input::Key;
+
+RemapTable KeyboardTable() {
+    RemapTable t = kNoMapping;
+    t[B::A] = Key::A;
+    t[B::B] = Key::S;
+    t[B::Up] = Key::T;
+    return t;
+}
+constexpr RemapKeys kKeyboardKeys{Key::Up, Key::Down, Key::Left, Key::Right,
+                                  Key::I,  Key::K,    Key::J,    Key::L, Key::D};
+} // namespace
+
+TEST_CASE("Remap: the keyboard's keys swap with each other and Open Menu", "[frame_xr]") {
+    Remap r;
+    r.Begin(KeyboardTable(), KeyboardTable(), RemapSource::Keyboard, {-1, -1}, {-1, -1},
+            {-1, Key::Esc}, {-1, Key::Esc}, kKeyboardKeys, kKeyboardKeys);
+    CHECK(Remap::Listenable(Key::Space, RemapSource::Keyboard));
+    CHECK_FALSE(Remap::Listenable(0, RemapSource::Keyboard));
+    CHECK_FALSE(Remap::Listenable(115, RemapSource::Keyboard)); // Volume Up
+    // A takes S: B gets A's old key.
+    REQUIRE(r.Choose(B::A) == Remap::Event::Listening);
+    CHECK(r.Press(Key::S) == Remap::Event::Swapped);
+    CHECK(r.Table()[B::A] == Key::S);
+    CHECK(r.Table()[B::B] == Key::A);
+    // A takes Esc: Open Menu gets S.
+    REQUIRE(r.Choose(B::A) == Remap::Event::Listening);
+    CHECK(r.Press(Key::Esc) == Remap::Event::Swapped);
+    CHECK(r.Extras()[1] == Key::S);
+    // The modifier takes I (the C-Stick's up): the C-Stick's up gets D.
+    REQUIRE(r.Choose(B::Modifier) == Remap::Event::Listening);
+    CHECK(r.Press(Key::I) == Remap::Event::Swapped);
+    CHECK(r.Keys()[kModifierSlot] == Key::I);
+    CHECK(r.Keys()[4] == Key::D);
+    CHECK(r.Reset() == Remap::Event::Reset);
+    CHECK(r.Keys() == kKeyboardKeys);
+    CHECK(r.Extras()[1] == Key::Esc);
+    // The keyboard has no Touch Screen; the mouse has no modifier.
+    CHECK(r.Choose(B::Touch) == Remap::Event::None);
+    Remap mouse;
+    mouse.Begin(kNoMapping, kNoMapping, RemapSource::Mouse);
+    CHECK(mouse.Choose(B::Modifier) == Remap::Event::None);
+}
+
+TEST_CASE("Remap: a keyboard's stick takes four keys in turn", "[frame_xr]") {
+    Remap r;
+    r.Begin(KeyboardTable(), KeyboardTable(), RemapSource::Keyboard, {-1, -1}, {-1, -1},
+            {-1, Key::Esc}, {-1, Key::Esc}, kKeyboardKeys, kKeyboardKeys);
+    REQUIRE(r.Choose(B::CirclePad) == Remap::Event::Listening);
+    CHECK(r.View().step == 0);
+    CHECK(r.Stick(0, {0.0f, 1.0f}) == Remap::Event::None); // sticks are not its answer
+    CHECK(r.Press(Key::W) == Remap::Event::Next);
+    CHECK(r.View().step == 1);
+    CHECK(r.Press(Key::S) == Remap::Event::Next); // S was B's: B gets Down Arrow
+    CHECK(r.Table()[B::B] == Key::Down);
+    CHECK(r.Press(Key::A) == Remap::Event::Next);
+    CHECK(r.Listening() == B::CirclePad);
+    CHECK(r.Press(Key::D) == Remap::Event::Swapped); // D was the modifier's
+    CHECK(r.Listening() == -1);
+    CHECK(r.Keys()[0] == Key::W);
+    CHECK(r.Keys()[1] == Key::S);
+    CHECK(r.Keys()[2] == Key::A);
+    CHECK(r.Keys()[3] == Key::D);
+    CHECK(r.Table()[B::A] == Key::Left);
+    CHECK(r.Keys()[kModifierSlot] == Key::Right);
+
+    // Half done, then Cancel (or the time running out): all as it was.
+    const RemapKeys keys = r.Keys();
+    const RemapTable table = r.Table();
+    REQUIRE(r.Choose(B::CStick) == Remap::Event::Listening);
+    CHECK(r.Press(Key::W) == Remap::Event::Next);
+    CHECK(r.Keys()[0] != Key::W);
+    CHECK(r.Cancel() == Remap::Event::Cancelled);
+    CHECK(r.Keys() == keys);
+    CHECK(r.Table() == table);
+    REQUIRE(r.Choose(B::CStick) == Remap::Event::Listening);
+    CHECK(r.Press(Key::Space) == Remap::Event::Next);
+    for (int i = 0; i < 100 && r.Listening() >= 0; i++) {
+        r.Tick(0.1f);
+    }
+    CHECK(r.Keys() == keys);
+    // The same four again: nothing changed.
+    REQUIRE(r.Choose(B::CStick) == Remap::Event::Listening);
+    for (const int k : {Key::I, Key::K, Key::J}) {
+        CHECK(r.Press(k) == Remap::Event::Next);
+    }
+    CHECK(r.Press(Key::L) == Remap::Event::Cancelled);
+}
+
+TEST_CASE("Remap: the keyboard's page: keys, Open Menu, Modifier", "[frame_xr]") {
+    CHECK(SourceName(ButtonNames::Keyboard, Key::A) == "A");
+    CHECK(SourceName(ButtonNames::Keyboard, Key::Esc) == "Esc");
+    CHECK(SourceName(ButtonNames::Keyboard, -1).empty());
+    EditDevice kb;
+    kb.name = "Keyboard";
+    kb.kind = DeviceKind::Keyboard;
+    kb.names = ButtonNames::Keyboard;
+    kb.sticks = {-1, -1};
+    kb.mapping = KeyboardTable();
+    kb.extras = {-1, Key::Esc};
+    kb.keys = kKeyboardKeys;
+    CHECK(StickSourceName(kb, 0) == "Arrow Keys");
+    CHECK(StickSourceName(kb, 1) == "I J K L");
+    CHECK(SourceOf(DeviceKind::Keyboard) == RemapSource::Keyboard);
+    CHECK(HasSticks(kb));
+    CHECK_FALSE(HasPointer(kb));
+    CHECK_FALSE(HasRecentre(kb));
+
+    EditScreen s;
+    s.m.devices.list.push_back(kb);
+    s.m.devices.selected = 3;
+    s.Draw();
+    CHECK(s.Has(Id::RemapChip, B::CirclePad));
+    CHECK(s.Has(Id::RemapChip, B::CStick));
+    CHECK(s.Has(Id::RemapChip, B::Home));
+    CHECK(s.Has(Id::RemapChip, B::OpenMenu));
+    CHECK(s.Has(Id::RemapChip, B::Modifier));
+    CHECK_FALSE(s.Has(Id::RemapChip, B::Touch));
+    CHECK(s.Has(Id::UseDevice, -1));
+    CHECK(s.Has(Id::RemapReset, -1));
+    CHECK_FALSE(s.Has(Id::CursorSpeed, -1));
+    CHECK_FALSE(s.Has(Id::MouseMode, -1));
+    CHECK(s.Has(Id::EditDevice, 3));
+    // Every chip keeps a 48 dp target, and none overlaps another.
+    std::vector<Rect> chips;
+    for (const auto& h : s.menu.Hits()) {
+        if (h.t.id == Id::RemapChip) {
+            CHECK(h.r.H() >= 47.9f);
+            chips.push_back(h.r);
+        }
+    }
+    for (std::size_t i = 0; i < chips.size(); i++) {
+        for (std::size_t j = i + 1; j < chips.size(); j++) {
+            const Rect& a = chips[i];
+            const Rect& b = chips[j];
+            const bool overlap = a.x0 < b.x1 - 0.5f && b.x0 < a.x1 - 0.5f && a.y0 < b.y1 - 0.5f &&
+                                 b.y0 < a.y1 - 0.5f;
+            CHECK_FALSE(overlap);
+        }
+    }
 }

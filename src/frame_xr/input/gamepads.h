@@ -15,6 +15,7 @@
 #include "frame_xr/input/controls.h"
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/input_frame.h"
+#include "frame_xr/input/key_device.h"
 #include "frame_xr/input/mouse.h"
 #include "frame_xr/input/profile_routes.h"
 #include "frame_xr/input/stick_route.h"
@@ -136,6 +137,16 @@ struct GamepadMapping {
     /// Use This Device: off, the device reaches nothing (Edit Controls still edits it). The
     /// Frame's is always on.
     bool enabled = true;
+    /// AzaharFrame keys: the keyboard's (its buttons hold key codes, key_names.h; open_menu a
+    /// key too): the Circle Pad's keys (up, down, left, right), then the C-Stick's, and the
+    /// modifier key that tilts both halfway (Azahar's analog from buttons). -1 none.
+    std::array<int8_t, 8> stick_keys{-1, -1, -1, -1, -1, -1, -1, -1};
+    int8_t modifier = -1;
+    /// The four keys of a 3DS stick (`analog`: 0 Circle Pad, 1 C-Stick).
+    std::array<int8_t, 4> StickKeys(int analog) const {
+        const std::size_t at = analog == 1 ? 4 : 0;
+        return {stick_keys[at], stick_keys[at + 1], stick_keys[at + 2], stick_keys[at + 3]};
+    }
     bool operator==(const GamepadMapping&) const = default;
 };
 /// An empty mapping (every entry -1).
@@ -156,6 +167,16 @@ GamepadMapping DefaultMouseMapping();
 /// buttons).
 ThreeDsPadState ApplyMouseMapping(const std::array<bool, kNumMouseInputs>& held,
                                   const GamepadMapping& mapping);
+/// AzaharFrame keys: the keyboard's default, Azahar's own (citra_qt's default_buttons and
+/// default_analogs, so it plays as the desktop app does): A A, S B, Z X, X Y, T F G H the D-pad,
+/// Q L, W R, 1 ZL, 2 ZR, M Start, N Select, B Home; the arrows the Circle Pad, I K J L the
+/// C-Stick, D the modifier; Esc Open Menu. (Azahar's Debug, Gpio14 and Power keys are left out:
+/// nothing in VR reaches those.)
+GamepadMapping DefaultKeyboardMapping();
+/// The 3DS buttons and sticks the keyboard's held keys press under `mapping` (Open Menu is not
+/// a button).
+ThreeDsPadState ApplyKeyboardMapping(const std::array<bool, kNumKeys>& held,
+                                     const GamepadMapping& mapping);
 /// The 3DS buttons and sticks a pad's inputs press under `mapping`.
 ThreeDsPadState ApplyGamepadMapping(const PadInputs& pad, const GamepadMapping& mapping);
 
@@ -243,6 +264,31 @@ std::vector<MouseInfo> ParseRelayMice(const std::string& text);
 std::vector<MouseInfo> UsableMice(const std::vector<MouseInfo>& candidates,
                                   const std::vector<std::string>& moved_groups);
 
+// ---- Keyboards ----------------------------------------------------------------------------
+
+/// AzaharFrame keys: a keyboard node in /proc/bus/input/devices.
+struct KeyboardInfo {
+    std::string name;
+    std::string event; ///< "event7"
+    uint16_t bus = 0;
+    uint16_t vendor = 0;
+    uint16_t product = 0;
+    std::string group; ///< as MouseInfo::group (never logged)
+    /// No LEDs (no Caps Lock): a mouse's own keyboard node (Logitech's, for its programmable
+    /// buttons) looks like this. It counts as a keyboard only once a key goes down on it.
+    bool needs_key = false;
+};
+/// The keyboards of the text, found as the game's keyboard finds them (phys_keyboard.h's
+/// ParseKeyboards): an event handler and a keyboard's keys (A to Z, Space, Enter, Backspace),
+/// not Valve's (the Frame's and Steam's own: a controller in its keyboard mode is not a
+/// keyboard). A keyboard's mouse interface (a Keychron's "Mouse") is a separate node and stays
+/// the mouse's (ClassifyInputDevices).
+std::vector<KeyboardInfo> ClassifyKeyboards(const std::string& text);
+/// The ones that count: every one but those that need a key and have had none
+/// (`pressed_groups`: KeyboardInfo::group of the nodes a key went down on).
+std::vector<KeyboardInfo> UsableKeyboards(const std::vector<KeyboardInfo>& candidates,
+                                          const std::vector<std::string>& pressed_groups);
+
 // ---- Telling the Frame's own pad from a real one -------------------------------------------
 
 /// Under Steam Input the Frame controllers may also show up as an SDL pad (Flat reads them that
@@ -296,6 +342,12 @@ std::array<bool, kNumPadInputs> FrameAsPad(const InputFrame& frame);
 /// turns Recentre at Edge off, use=0 Use This Device. Each is written only when it is not the
 /// plain value (touch and menu -1, mode 0, speed 2, recentre and use 1), and a line without them
 /// reads as those, so older files read the same.
+/// AzaharFrame keys: the keyboard is the line "keyboard" with only what differs from
+/// DefaultKeyboardMapping, so a later default reaches every key the owner never changed:
+///   keyboard a=57 zl=-1 circle=17,31,30,32 c_stick=... modifier= menu= use=0 name=Keyboard
+/// a 3DS button by its name (a b x y up down left right l r start select debug gpio14 zl zr
+/// home power), a stick's keys up, down, left, right; key codes, -1 none. A keyboard with the
+/// default mapping has no line. (Builds before it skip the line, having no buttons= in it.)
 struct MappingEntry {
     GamepadMapping mapping;
     uint16_t vendor = 0;
@@ -320,6 +372,9 @@ public:
     }
 
 private:
+    void ParseKeyboardLine(std::string rest); ///< AzaharFrame keys
+    static std::string FormatKeyboardLine(const MappingEntry& e);
+
     std::map<std::string, MappingEntry> entries_;
 };
 
@@ -344,6 +399,13 @@ public:
     virtual MouseRaw Mouse() {
         return {};
     }
+    /// AzaharFrame keys: the keyboards that count now (UsableKeyboards), and their keys.
+    virtual std::vector<KeyboardInfo> Keyboards() {
+        return UsableKeyboards(ClassifyKeyboards(InputDevices()), {});
+    }
+    virtual KeyboardRaw Keyboard() {
+        return {};
+    }
 };
 
 /// Where the mapping file lives (user/controller-mappings.txt in the program).
@@ -352,15 +414,16 @@ struct GamepadStorage {
     std::function<bool(const std::string&)> save;
 };
 
-enum class DeviceKind : int { Frame = 0, Gamepad = 1, Mouse = 2 };
+enum class DeviceKind : int { Frame = 0, Gamepad = 1, Mouse = 2, Keyboard = 3 };
 
 /// One entry of the menu's device list.
 struct DeviceInfo {
     DeviceKind kind = DeviceKind::Gamepad;
-    /// Unique in the list and stable while the program runs: "frame", "mouse", or a gamepad's
+    /// Unique in the list and stable while the program runs: "frame", "mouse", "keyboard", or a
+    /// gamepad's
     /// GamepadKey (with "#2", "#3"... for a second pad of the same model).
     std::string id;
-    /// "Frame Controllers", the gamepad's name ("8BitDo Pro 2"), the mouse's name.
+    /// "Frame Controllers", the gamepad's name ("8BitDo Pro 2"), the mouse's name, "Keyboard".
     std::string name;
     PadType type = PadType::Unknown;
     uint16_t vendor = 0;
@@ -377,6 +440,7 @@ struct DeviceInfo {
 
 inline constexpr const char* kFrameDeviceId = "frame";
 inline constexpr const char* kMouseDeviceId = "mouse";
+inline constexpr const char* kKeyboardDeviceId = "keyboard"; ///< AzaharFrame keys
 
 /// What the hub gives the touch for a frame.
 struct TouchpadPick {
@@ -391,13 +455,14 @@ public:
     GamepadHub(GamepadSource& source, GamepadStorage storage);
 
     /// Frame Controllers first, then the gamepads (connected first, in the order they came),
-    /// then Mouse when a mouse exists (read again at most every 2 s, `now_ns`).
+    /// then Mouse when a mouse exists, then Keyboard when a keyboard does (both read again at
+    /// most every 2 s, `now_ns`).
     std::vector<DeviceInfo> Devices(int64_t now_ns);
     /// Counts changes of the list and of the mappings.
     uint32_t Revision();
 
     /// The mapping in use for a device (a gamepad's own, else its default; the Frame's from
-    /// `routes`, in the Frame's terms). Empty for the mouse and unknown ids.
+    /// `routes`, in the Frame's terms; the mouse's and the keyboard's own). Empty for unknown ids.
     GamepadMapping Mapping(const std::string& id, const ProfileRoutes& routes);
     GamepadMapping DefaultMapping(const std::string& id);
     /// Saves a gamepad's own mapping (a mapping equal to its default removes it). False for the
@@ -408,13 +473,15 @@ public:
 
     /// Listening for the next input of one gamepad (the menu's "press a button"): inputs held
     /// when it starts count only once let go. Poll returns the first new press, once.
+    /// AzaharFrame keys: "keyboard": its next key (a key code; a key held when it starts counts
+    /// once pressed again).
     /// AzaharFrame input2: `ignore` (a PadInput, for "mouse" a MouseInput, -1 none) is never
     /// reported and never kept from anything: the pointer's select, which works the menu.
     bool BeginListen(const std::string& id, int ignore = -1);
     void CancelListen();
     struct ListenResult {
         enum class State { Idle, Listening, Pressed, Gone } state = State::Idle;
-        int input = -1; ///< Pressed: a PadInput (the mouse: a MouseInput)
+        int input = -1; ///< Pressed: a PadInput (the mouse: a MouseInput; the keyboard: a key)
         /// AzaharFrame padsui: Listening: where the pad's sticks are (a 3DS stick listening).
         std::array<Vec2f, kNumPadSticks> sticks{};
     };
@@ -449,6 +516,14 @@ public:
     /// The mouse frame of the last PollMouse.
     MouseFrame LastMouse();
 
+    /// AzaharFrame keys: the keyboard, once a display frame (the XR thread): its frame, Open
+    /// Menu included. With `typing` (the game's keyboard is open and takes the keys) nothing is
+    /// held and the menu does not open, and what is held stays away from the game until let go;
+    /// the same while Edit Controls listens to the keyboard. Merge then gives the game its 3DS
+    /// buttons and sticks.
+    KeyboardFrame PollKeyboard(int64_t now_ns, bool typing);
+    KeyboardFrame LastKeyboard();
+
 private:
     struct Pad {
         InputCommon::SDLPadInfo info;
@@ -478,6 +553,8 @@ private:
     TouchpadPick PickTouchpadLocked();
     GamepadMapping MouseMappingLocked();
     bool SetMouseMappingLocked(const GamepadMapping& mapping);
+    GamepadMapping KeyboardMappingLocked(); ///< AzaharFrame keys
+    bool SetKeyboardMappingLocked(const GamepadMapping& mapping);
 
     std::mutex mutex_;
     GamepadSource& source_;
@@ -504,6 +581,12 @@ private:
     MouseFrame mouse_frame_;
     MouseRaw listen_mouse_;
     bool listen_is_mouse_ = false;
+    // AzaharFrame keys: the keyboard.
+    std::vector<KeyboardInfo> keyboards_;
+    KeyboardLogic keyboard_logic_;
+    KeyboardFrame keyboard_frame_;
+    KeyboardRaw listen_keys_;
+    bool listen_is_keyboard_ = false;
     // Listening.
     std::string listen_id_;
     bool listening_ = false;

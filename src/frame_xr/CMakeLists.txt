@@ -43,6 +43,9 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/devices.h
     input/gamepads.cpp
     input/gamepads.h
+    input/key_device.cpp # AzaharFrame keys
+    input/key_device.h
+    input/key_names.h
     input/mouse.cpp # AzaharFrame padsui
     input/mouse.h
     input/mouse_pointer.cpp # AzaharFrame padsui: adapted from Frametop (MIT)

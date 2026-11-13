@@ -757,9 +757,10 @@ TEST_CASE("Mouse: a keyboard's mouse node is no mouse until it moves", "[frame_x
     // With the MX Master paired too, the Mouse shows under its name.
     src.devices = kFrameDevices;
     const std::vector<DeviceInfo> list = hub.Devices(2'000'000'000);
-    REQUIRE(list.size() == 2);
+    REQUIRE(list.size() == 3); // and the Keychron's Keyboard (AzaharFrame keys)
     CHECK(list[1].kind == DeviceKind::Mouse);
     CHECK(list[1].name == "MX Master 3 Mouse");
+    CHECK(list[2].kind == DeviceKind::Keyboard);
     CHECK(list[1].vendor == 0x046d);
 }
 
