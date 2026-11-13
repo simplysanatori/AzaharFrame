@@ -16,7 +16,8 @@
 // - the value handed out eases to the new one with a time constant of kEaseS, so a dial turn
 //   shows as a quick glide, not a snap.
 // A dial step settles in about 0.4 s (half a window, the confirm time, three time
-// constants). kFallbackM (CitraVR's VR_IPD) is used until the first good window.
+// constants). The first value is eased to the same way. Until the first good window the last IPD saved (vr_last_ipd_mm, Saver) is used,
+// else kFallbackM (CitraVR's VR_IPD).
 // Header only, no XR types: XR thread only; frame_xr hands the value to video_core.
 
 #pragma once
@@ -25,6 +26,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <string>
 
 namespace FrameXr::Ipd {
 
@@ -41,8 +43,21 @@ inline constexpr double kEaseS = 0.05;        ///< the ease's time constant
 inline constexpr float kLogStepM = 0.0005f;   ///< a change logged when it is more than this
 inline constexpr double kMaxStepS = 0.1;      ///< a longer gap between frames counts as this
 
+/// A saved IPD in millimetres (vr_last_ipd_mm, 0 = none) in metres, or 0 when it is not one.
+inline float SavedM(float saved_mm) {
+    const float m = saved_mm / 1000.0f;
+    return std::isfinite(m) && m >= kMinM && m <= kMaxM ? m : 0.0f;
+}
+
 class Smoother {
 public:
+    /// The value until the headset's is known (the saved IPD); ignored once one is.
+    void SetFallback(float ipd_m) {
+        if (!known_ && std::isfinite(ipd_m) && ipd_m >= kMinM && ipd_m <= kMaxM) {
+            target_ = value_ = ipd_m;
+        }
+    }
+
     /// One XR frame: its display time (ns), the distance between the located eyes (m) and
     /// whether both eye positions were valid and tracked. Returns Value().
     float Add(int64_t time_ns, float ipd_m, bool valid) {
@@ -72,7 +87,7 @@ public:
         return value_;
     }
 
-    /// The IPD to use now (m): the eased value, kFallbackM until known.
+    /// The IPD to use now (m): the eased value, the fallback until known.
     float Value() const {
         return value_;
     }
@@ -109,9 +124,9 @@ private:
     }
 
     void Settle(float mean, int64_t time_ns) {
-        if (!known_) { // the first good window: used at once (nothing shown with it yet)
+        if (!known_) { // the first good window: eased to from the fallback, as any change
             known_ = true;
-            target_ = value_ = mean;
+            target_ = mean;
             follow_until_ = time_ns + static_cast<int64_t>(kFollowS * 1e9);
             return;
         }
@@ -148,6 +163,69 @@ private:
     int64_t last_ns_ = 0;
     bool logged_ = false;
     float logged_m_ = 0.0f;
+};
+
+inline constexpr double kNoticeAfterS = 10.0; ///< no IPD this long after the session began
+inline constexpr const char* kNotReadText =
+    "Couldn't Read Your IPD \xC2\xB7 Turn the IPD Dial to Set It";
+
+/// The IPD's toasts, effectively once ever and never when the IPD is read normally: only when no
+/// IPD has ever been saved (`have_saved` false) and none is known kNoticeAfterS after the first
+/// frame (65 mm is used meanwhile), kNotReadText once, then "IPD Set: 63 mm" once when one
+/// arrives after that. With a saved IPD (a later run) nothing is ever shown.
+class Notice {
+public:
+    /// One XR frame: its time (ns), the smoother, and whether an IPD was saved before this run.
+    /// Returns the toast to show now, or "".
+    std::string Update(int64_t time_ns, const Smoother& ipd, bool have_saved) {
+        if (have_saved && !warned_) {
+            return {};
+        }
+        if (!started_) {
+            started_ = true;
+            start_ns_ = time_ns;
+        }
+        if (!warned_) {
+            if (!ipd.Known() && (time_ns - start_ns_) / 1e9 >= kNoticeAfterS) {
+                warned_ = true;
+                return kNotReadText;
+            }
+            return {};
+        }
+        if (!set_shown_ && ipd.Known()) {
+            set_shown_ = true;
+            return "IPD Set: " +
+                   std::to_string(static_cast<int>(std::lround(ipd.Target() * 1000.0f))) + " mm";
+        }
+        return {};
+    }
+
+private:
+    bool started_ = false;
+    int64_t start_ns_ = 0;
+    bool warned_ = false;
+    bool set_shown_ = false;
+};
+
+/// When to save the settled IPD (vr_last_ipd_mm): the first one known, then only when it has
+/// moved more than kSaveStepM from the one saved, so the config is not written every frame.
+inline constexpr float kSaveStepM = 0.0005f;
+class Saver {
+public:
+    /// `saved_m`: what the config holds now (SavedM; 0 = none).
+    Saver() = default;
+    explicit Saver(float saved_m) : saved_m_(saved_m) {}
+    /// True when `ipd`'s settled value should be saved now; `m` is it (and becomes the saved one).
+    bool Want(const Smoother& ipd, float& m) {
+        if (!ipd.Known() || (saved_m_ > 0.0f && std::abs(ipd.Target() - saved_m_) <= kSaveStepM)) {
+            return false;
+        }
+        saved_m_ = m = ipd.Target();
+        return true;
+    }
+
+private:
+    float saved_m_ = 0.0f;
 };
 
 } // namespace FrameXr::Ipd

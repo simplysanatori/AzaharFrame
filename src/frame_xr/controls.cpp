@@ -1350,6 +1350,9 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         Immersive::SetBottomFocused(false);
     }
     WatchPlacement(info.screens_live); // AzaharFrame move
+    if (Immersive::TakeIpdSaved()) {   // AzaharFrame ipd
+        SaveVrSettingSoon();
+    }
     const bool focused = info.state == XR_SESSION_STATE_FOCUSED;
     Input::InputFrame in;
     in.time_ns = info.display_time;

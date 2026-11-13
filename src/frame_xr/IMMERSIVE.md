@@ -347,8 +347,11 @@ fields; that race is gone.
   Depth Factor), not a fixed 32.5 mm, and the head-locked screens use the same value. It follows
   the IPD dial during play: a change settles in about 0.4 s and glides there, while frame-to-frame
   jitter and frames without tracked eyes are ignored (`frame_xr/ipd_smoother.h`). The log says
-  `xr: IPD 63.4 mm (from the headset)` once, then on each change of more than 0.5 mm; 65 mm is
-  used until the first value is known.
+  `xr: IPD 63.4 mm (from the headset)` once, then on each change of more than 0.5 mm. The settled
+  value is saved globally (`vr_last_ipd_mm`, only when it moves more than 0.5 mm) and used at the
+  next start until SteamVR gives the eyes again, else 65 mm. Only when nothing was ever saved and
+  no value arrives within 10 s of the session's start does a toast say "Couldn't Read Your IPD ·
+  Turn the IPD Dial to Set It", then "IPD Set: 63 mm" once one arrives; read normally, nothing.
 - **Reference pose.** CitraVR used Quest's LOCAL space, whose origin is the head at start. SteamVR's
   LOCAL origin can be anywhere, and the head position is multiplied by 5 or more, so the pose is
   taken relative to the head when the game starts (and at each re-centre).

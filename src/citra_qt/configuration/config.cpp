@@ -605,6 +605,7 @@ void QtConfig::ReadVrValues() {
         ReadGlobalSetting(Settings::values.vr_window_scale);
         ReadGlobalSetting(Settings::values.vr_immersive_offset_x); // AzaharFrame vrsize
         ReadGlobalSetting(Settings::values.vr_immersive_offset_y);
+        ReadGlobalSetting(Settings::values.vr_last_ipd_mm); // AzaharFrame ipd
         ReadGlobalSetting(Settings::values.vr_screen_curve); // AzaharFrame curve
         ReadGlobalSetting(Settings::values.vr_screen_layout); // AzaharFrame layout
         ReadGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
@@ -1284,6 +1285,7 @@ void QtConfig::SaveVrValues() {
         WriteGlobalSetting(Settings::values.vr_window_scale);
         WriteGlobalSetting(Settings::values.vr_immersive_offset_x); // AzaharFrame vrsize
         WriteGlobalSetting(Settings::values.vr_immersive_offset_y);
+        WriteGlobalSetting(Settings::values.vr_last_ipd_mm); // AzaharFrame ipd
         WriteGlobalSetting(Settings::values.vr_screen_curve); // AzaharFrame curve
         WriteGlobalSetting(Settings::values.vr_screen_layout); // AzaharFrame layout
         WriteGlobalSetting(Settings::values.vr_move_screens);  // AzaharFrame menu
