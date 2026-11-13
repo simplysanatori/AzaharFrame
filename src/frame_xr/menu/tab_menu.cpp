@@ -608,7 +608,7 @@ std::string ExplainFor(Id id) {
     case Id::AsyncShaders:
         return "Fewer stutters while new effects load. From the next start.";
     case Id::AccurateImageCopies: // AzaharFrame accxfer
-        return "Fixes some flickering, shimmering or glow glitches. May lower performance.";
+        return "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.";
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
     case Id::ImmersiveMode:

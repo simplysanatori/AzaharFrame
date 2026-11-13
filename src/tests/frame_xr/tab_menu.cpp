@@ -1183,7 +1183,7 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     CHECK(SectionOf(Id::AccurateImageCopies) == SettingsSection::Graphics);
     CHECK(LabelFor(Id::AccurateImageCopies) == "Accurate Image Copies");
     CHECK(ExplainFor(Id::AccurateImageCopies) ==
-          "Fixes some flickering, shimmering or glow glitches. May lower performance.");
+          "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.");
     CHECK(seen_ff);
     CHECK(OptionsFor(Id::InternalResolution).size() == static_cast<std::size_t>(kMaxResolution));
     CHECK(OptionsFor(Id::InternalResolution).front() == "1x (400x240)");
