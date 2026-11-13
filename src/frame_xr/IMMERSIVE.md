@@ -594,13 +594,28 @@ game's two eyes, ... with its world drawn once, ... with no world camera; ... in
 far scenery X % of the picture's width apart`, and the XR thread puts that on the screen
 (`StereoFarOnQuad`, `immersive_layout.h`: the picture is 1/factor of the screen's width, mode 3's
 eye quads are already the IPD apart): `xr: stereo far N deg, eyes allow M deg (...)`, with a
-warning when the eyes would have to diverge (more than 0.1 degrees past parallel). Nothing is
-changed by it yet. Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
+warning when the eyes would have to diverge (more than 0.1 degrees past parallel). Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
 degrees wide at 3 m, IPD 64 mm): 3D Depth 10, 30 and 50 give 1.17, 3.44 and 5.86 % (the far
 scenery 1.8, 5.2 and 8.9 degrees apart against 1.22 allowed); the game reads the slider live (a
 change shows within a second). Majora's Mask 3D at 50 %: 3.78 %, 3.9 degrees. In mode 3 (slider
 0.01) Mario Kart 7 and Kid Icarus show 0.05 to 0.07 %. `AZAHARFRAME_TEST_DEPTH="17:10,19:50"`
 sets 3D Depth at those seconds (mocks).
+
+**The stereo cap (mode 2 only, while 3D Depth is above 0).** The game's 3D is linear in the
+slider, so the emulation thread also measures its far width per slider unit (`FarPerSlider`: frames
+with two eyes, the slider held for 4 swaps, the median of the last 9). Each displayed frame the XR
+thread works out the largest slider at which the far scenery is still 0.05 degrees inwards of
+parallel (`StereoSliderLimit`), from the live terms only: that measure, the screen's width
+(its angle and the factor), its distance and the IPD. The game is shown min(3D Depth / 100,
+that limit) (`StereoCap`, `common/frame_vr_depth.h` `frame_vr_stereo_cap`, read by HID and the
+shared page): a higher limit counts only once it is half a percent above the one in use, and the
+slider follows a moved limit at most 4 (down) or 0.25 (up) a second, so it never jitters; a change
+of 3D Depth itself goes through at once, up to the limit. The 3D Depth setting is never rewritten,
+and the head-motion scale (10^multiplier x (3D Depth / 10)) keeps using it, never the capped
+slider. Modes 0, 1 and 3 are unchanged. The log says `xr: 3D Depth N % limited to M % so far
+scenery never diverges (...)` when it takes effect or moves by half a percent, and `no longer
+limited` when it lifts. With the owner's screen (105 degrees wide at 3 m, IPD 69.9 mm) Ocarina of
+Time 3D's limit is 7.7 %.
 
 ## Trying it
 

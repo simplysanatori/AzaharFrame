@@ -495,6 +495,64 @@ StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ip
     return out;
 }
 
+float StereoSliderLimit(const HeadLocked& solved, float half_ipd, float far_per_slider,
+                        float margin_deg) {
+    if (!(far_per_slider > 0.0f) || !std::isfinite(far_per_slider)) {
+        return -1.0f;
+    }
+    const float d = std::max(solved.distance, 1e-3f);
+    // StereoFarOnQuad's vergence = margin: 2 atan((h - s / 2) / d) = margin.
+    const float s_max = 2.0f * (half_ipd - d * std::tan(margin_deg * kDegToRad / 2.0f));
+    if (s_max <= 0.0f) {
+        return 0.0f;
+    }
+    const float width = solved.width();
+    if (!(width > 0.0f)) {
+        return -1.0f;
+    }
+    // s = far_per_slider x slider / factor x width.
+    return s_max * std::max(solved.factor, 1e-3f) / width / far_per_slider;
+}
+
+float StereoCap::Update(float user, float limit, int64_t now_ms) {
+    const float dt_s =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
+                      : 0.0f;
+    last_ms_ = now_ms;
+    if (!std::isfinite(user) || user < 0.0f) {
+        user = 0.0f;
+    }
+    if (limit >= 0.0f && std::isfinite(limit)) {
+        const float lim = std::max(limit, kMinSlider);
+        // Lower at once (never above the limit for long), higher only by more than a step.
+        if (limit_ < 0.0f || lim < limit_ || lim > limit_ + kStep) {
+            limit_ = lim;
+        }
+    }
+    if (limit_ < 0.0f) {
+        limited_ = false;
+        last_user_ = user;
+        return user;
+    }
+    const float target = std::min(user, limit_);
+    if (out_ < 0.0f || user != last_user_) {
+        // The first limit, or the user moved the slider: as it is (up to the limit), at once.
+        out_ = target;
+    } else if (out_ > target) {
+        out_ = std::max(target, out_ - kDownPerS * dt_s);
+    } else if (out_ < target) {
+        out_ = std::min(target, out_ + kUpPerS * dt_s);
+    }
+    last_user_ = user;
+    limited_ = limit_ < user;
+    return std::min(out_, user);
+}
+
+float GamePositionScale(int multiplier, uint32_t depth_percent) {
+    return std::pow(10.0f, static_cast<float>(multiplier)) *
+           static_cast<float>(depth_percent / 10);
+}
+
 Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd) {
     return HeadLockedQuadPose(solved, mode == 3 ? EyeX(eye, half_ipd) : 0.0f);
 }

@@ -28,6 +28,7 @@
 
 #include "common/common_types.h"
 #include "common/logging/log.h" // AzaharFrame oot
+#include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/vr_view_matrix.h" // AzaharFrame depth
@@ -377,6 +378,11 @@ inline ContentTrack g_content{FollowWorldFromEnv()};
 /// when the last second had none. Written by the emulation thread once a second (FrameTrace),
 /// read by the XR thread (frame_xr/immersive.cpp, its stereo line).
 inline std::atomic<float> g_stereo_far_width{-1.0f};
+/// AzaharFrame stereo: the game's far width per slider unit (FarPerSlider), every swap; below 0
+/// until measured. The XR thread's stereo cap is made from it (frame_xr/immersive.cpp).
+inline std::atomic<float> g_stereo_far_per_slider{-1.0f};
+/// AzaharFrame stereo: the XR thread adds one when a game starts, so the measures start afresh.
+inline std::atomic<u32> g_stereo_generation{0};
 
 class FrameTrace {
 public:
@@ -423,6 +429,14 @@ public:
             ++swaps_;
             // AzaharFrame stereo: the game's eyes in this frame (its world draws' far points).
             const StereoFrame::Result st = stereo_.End();
+            const u32 gen = g_stereo_generation.load(std::memory_order_relaxed);
+            if (gen != generation_) {
+                generation_ = gen;
+                far_per_slider_.Reset();
+            }
+            const float slider = Settings::frame_vr_slider_shown.load(std::memory_order_relaxed);
+            far_per_slider_.Swap(st.eyes, st.far_ndc / 2.0f, slider);
+            g_stereo_far_per_slider.store(far_per_slider_.Value(), std::memory_order_relaxed);
             ++eyes_[std::clamp(st.eyes, 0, 2)];
             if (shown_3d) {
                 ++shown_3d_;
@@ -480,10 +494,15 @@ public:
             LOG_INFO(HW_GPU,
                      "xr: immersive stereo: {} top screen swaps with the game's two eyes, {} with "
                      "its world drawn once, {} with no world camera; {} in the 3D format; far "
-                     "scenery {} of the picture's width apart",
+                     "scenery {} of the picture's width apart ({} per percent of the slider, "
+                     "shown {:.1f} %)",
                      eyes_[2], eyes_[1], eyes_[0], shown_3d_,
                      far_width >= 0.0f ? fmt::format("{:.2f} %", far_width * 100.0f)
-                                       : std::string("not seen"));
+                                       : std::string("not seen"),
+                     far_per_slider_.Value() >= 0.0f
+                         ? fmt::format("{:.4f} %", far_per_slider_.Value())
+                         : std::string("not measured"),
+                     100.0f * Settings::frame_vr_slider_shown.load(std::memory_order_relaxed));
             LOG_INFO(HW_GPU,
                      "xr: immersive: {} top screen swaps, {} without a world draw, {} without a "
                      "copy into a framebuffer; the picture's world drawn with the latch's pose "
@@ -516,8 +535,12 @@ public:
         const u64 keep_sum = last_sum_;
         const bool keep_have = have_last_sum_;
         const StereoFrame keep_stereo = stereo_;
+        const FarPerSlider keep_per_slider = far_per_slider_;
+        const u32 keep_generation = generation_;
         *this = FrameTrace{};
         stereo_ = keep_stereo;
+        far_per_slider_ = keep_per_slider;
+        generation_ = keep_generation;
         start_ms_ = now_ms;
         last_sum_ = keep_sum;
         have_last_sum_ = keep_have;
@@ -544,6 +567,8 @@ private:
     int sequence_len_ = 0;
     std::array<Proj, kProjections> proj_{};
     StereoFrame stereo_;               ///< AzaharFrame stereo: this frame's world far points
+    FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
+    u32 generation_ = 0;               ///< g_stereo_generation it was reset for
     std::array<u32, 3> eyes_{};        ///< swaps with 0, 1, 2 eyes this second
     u32 shown_3d_ = 0;                 ///< swaps in the 3D format this second
     std::array<float, kFarSamples> far_{};

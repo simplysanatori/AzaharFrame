@@ -217,6 +217,55 @@ private:
     uint32_t draws_ = 0;
 };
 
+/// AzaharFrame stereo: the game's far scenery per unit of the 3D slider it is shown (its far
+/// width, StereoFrame's far_ndc / 2, over the slider), from frames with both eyes drawn while the
+/// slider had held for kStableSwaps swaps (the game reads it once a frame, so a frame just after
+/// a change may still have the old one); the median of the last kSamples. The game's own 3D is
+/// linear in the slider (Ocarina of Time 3D: 0.117 % of the width per percent, at 10, 30 and 50).
+class FarPerSlider {
+public:
+    static constexpr int kStableSwaps = 4;
+    static constexpr int kSamples = 9;
+    static constexpr float kMinSlider = 0.001f;
+
+    void Swap(int eyes, float far_width, float slider) noexcept {
+        if (slider != last_slider_) {
+            last_slider_ = slider;
+            stable_ = 0;
+            return;
+        }
+        if (stable_ < kStableSwaps) {
+            ++stable_;
+        }
+        if (stable_ < kStableSwaps || eyes < 2 || slider < kMinSlider || !(far_width > 0.0f)) {
+            return;
+        }
+        samples_[next_] = far_width / slider;
+        next_ = (next_ + 1) % kSamples;
+        count_ = count_ < kSamples ? count_ + 1 : kSamples;
+    }
+    /// Below 0 until a frame was measured.
+    float Value() const noexcept {
+        if (count_ == 0) {
+            return -1.0f;
+        }
+        float v[kSamples];
+        for (int i = 0; i < count_; ++i) {
+            v[i] = samples_[i];
+        }
+        std::nth_element(v, v + count_ / 2, v + count_);
+        return v[count_ / 2];
+    }
+    void Reset() noexcept {
+        *this = FarPerSlider{};
+    }
+
+private:
+    float samples_[kSamples]{};
+    int count_ = 0, next_ = 0, stable_ = 0;
+    float last_slider_ = -1.0f;
+};
+
 /// AzaharFrame depth: the projection most world draws used in each window of time (a quarter
 /// of a second), so a draw with another camera (a menu's, a model on the HUD) does not flicker
 /// the screen's size. Emulation thread only.

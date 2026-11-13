@@ -6,6 +6,7 @@
 #include <random>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "common/frame_vr_depth.h"
 #include "frame_xr/immersive_layout.h"
 #include "video_core/vr_view_matrix.h"
 
@@ -197,5 +198,223 @@ TEST_CASE("Stereo: the far scenery on the screen, any settings", "[frame_xr][ste
         HeadLocked wider = s;
         wider.factor = s.factor * 1.2f;
         CHECK(StereoFarOnQuad(wider, mode, h, w).separation_m <= st.separation_m + 1e-7f);
+    }
+}
+
+// ---- The stereo cap (mode 2): the slider the game is shown so its far scenery never diverges.
+
+namespace {
+
+// A game whose own 3D is linear in the slider (as measured: Ocarina of Time 3D 0.117 of its width
+// per slider unit): the far width it draws at slider `slider`.
+float GameFarWidth(float per, float slider) {
+    return per * slider;
+}
+
+} // namespace
+
+TEST_CASE("Stereo cap: Ocarina of Time 3D on the owner's screen", "[frame_xr][stereo]") {
+    const float tan_half_y = std::tan(41.0f * kDegToRad);
+    const float aspect = std::tan(52.5f * kDegToRad) / tan_half_y;
+    const HeadLocked s = Screen(1.0f, tan_half_y, aspect, 3.0f);
+    const float h = 0.0699f / 2.0f;
+    const float per = 67.0f / 2000.0f / 0.30f; // 3D Depth 30: 67 of 2000 pixels
+    const float limit = StereoSliderLimit(s, h, per);
+    // 8 % puts it at parallel (the natural scale above); the 0.05 degree margin is 2.6 mm of
+    // the 69.9 at 3 m: 7.7 %.
+    CHECK(limit == Approx(0.0771f).margin(0.0005f));
+    const StereoFar at = StereoFarOnQuad(s, 2, h, GameFarWidth(per, limit));
+    CHECK(at.vergence_deg == Approx(kStereoMarginDeg).margin(1e-3));
+    CHECK_FALSE(at.diverges);
+    // Not known yet: no limit.
+    CHECK(StereoSliderLimit(s, h, -1.0f) < 0.0f);
+    CHECK(StereoSliderLimit(s, h, 0.0f) < 0.0f);
+}
+
+TEST_CASE("Stereo cap: the limit, any settings", "[frame_xr][stereo]") {
+    std::mt19937 rng(20261114);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    for (int run = 0; run < 5000; ++run) {
+        const HeadLocked s =
+            Screen(uni(1.0f, 1.6f), uni(0.2f, 1.4f), uni(1.2f, 2.4f), uni(0.4f, 5.0f));
+        const float h = uni(0.0225f, 0.0425f);
+        const float per = uni(0.005f, 0.4f);
+        INFO("run " << run << " factor " << s.factor << " tan " << s.tan_half_y << " aspect "
+                    << s.aspect << " d " << s.distance << " h " << h << " per " << per);
+        const float limit = StereoSliderLimit(s, h, per);
+        REQUIRE(limit >= 0.0f);
+        // At the limit the eyes are the margin inwards of parallel: never diverging.
+        const StereoFar at = StereoFarOnQuad(s, 2, h, GameFarWidth(per, limit));
+        CHECK(at.vergence_deg == Approx(kStereoMarginDeg).margin(2e-3));
+        CHECK_FALSE(at.diverges);
+        CHECK(at.vergence_deg >= 0.0f);
+        // Any slider under it is nearer still; any above it, past the margin.
+        const float under = limit * uni(0.0f, 1.0f);
+        CHECK(StereoFarOnQuad(s, 2, h, GameFarWidth(per, under)).vergence_deg >=
+              at.vergence_deg - 1e-4f);
+        CHECK(StereoFarOnQuad(s, 2, h, GameFarWidth(per, limit * 1.05f + 1e-3f)).vergence_deg <
+              kStereoMarginDeg);
+        // Live terms: a wider margin (render factor) or a deeper game changes it as it should.
+        CHECK(StereoSliderLimit(s, h, 2.0f * per) == Approx(limit / 2.0f).epsilon(1e-4));
+        HeadLocked nearer = s;
+        nearer.distance = s.distance * 0.5f; // the same angles nearer: smaller in metres
+        CHECK(StereoSliderLimit(nearer, h, per) >= limit - 1e-5f);
+    }
+}
+
+TEST_CASE("Stereo cap: the slider sent, any settings", "[frame_xr][stereo]") {
+    std::mt19937 rng(20261115);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    for (int run = 0; run < 5000; ++run) {
+        const HeadLocked s =
+            Screen(uni(1.0f, 1.6f), uni(0.2f, 1.4f), uni(1.2f, 2.4f), uni(0.4f, 5.0f));
+        const float h = uni(0.0225f, 0.0425f);
+        const float per = uni(0.005f, 0.4f);
+        const uint32_t depth = static_cast<uint32_t>(uni(1.0f, 100.99f));
+        const float user = static_cast<float>(depth) / 100.0f;
+        const int multiplier = static_cast<int>(uni(0.0f, 3.99f));
+        INFO("run " << run << " factor " << s.factor << " tan " << s.tan_half_y << " aspect "
+                    << s.aspect << " d " << s.distance << " h " << h << " per " << per
+                    << " depth " << depth);
+        StereoCap cap;
+        int64_t t = 1000;
+        // Not measured yet: the user's slider, so the game's 3D can be measured.
+        CHECK(cap.Update(user, -1.0f, t) == user);
+        CHECK_FALSE(cap.Limited());
+        // Each frame (90 a second) the limit from a measure with a little noise.
+        float sent = user, last = -1.0f;
+        float biggest_step = 0.0f;
+        for (int frame = 0; frame < 180; ++frame) {
+            t += 11;
+            const float noisy = per * (1.0f + uni(-0.002f, 0.002f));
+            const float limit = StereoSliderLimit(s, h, noisy);
+            sent = cap.Update(user, limit, t);
+            if (last >= 0.0f) {
+                biggest_step = std::max(biggest_step, std::abs(sent - last));
+            }
+            last = sent;
+            // Never diverging, from the first known limit on.
+            CHECK_FALSE(StereoFarOnQuad(s, 2, h, GameFarWidth(per, sent)).diverges);
+            CHECK(sent <= user);
+            // The Full modes' head motion: the user's 3D Depth, whatever is sent.
+            CHECK(GamePositionScale(multiplier, depth) ==
+                  std::pow(10.0f, static_cast<float>(multiplier)) *
+                      static_cast<float>(depth / 10));
+        }
+        const float limit = StereoSliderLimit(s, h, per);
+        if (user <= limit * (1.0f - 0.003f)) {
+            // Under the limit: exactly the user's slider, never limited.
+            CHECK(sent == user);
+            CHECK_FALSE(cap.Limited());
+        } else if (user > limit * (1.0f + 0.003f) + StereoCap::kStep) {
+            // Over it: the limit (within the noise and a step), and said so.
+            CHECK(cap.Limited());
+            CHECK(sent == Approx(limit).margin(limit * 0.003f + StereoCap::kStep));
+        }
+        // No jitter: after the first limit, the measure's noise (0.4 % from end to end) moves the
+        // slider by at most that, downwards only (a higher limit needs a whole step).
+        CHECK(biggest_step <= 0.0041f * limit + 1e-6f);
+        // The shared page and HID make the slider the game sees the same way.
+        CHECK(Settings::FrameVrSlider(user, 1.0f, -1.0f) == user);
+        CHECK(Settings::FrameVrSlider(user, 1.0f, sent) == Approx(sent));
+        CHECK(Settings::FrameVrSlider(user, 1.0f, user + 0.1f) == user);
+    }
+}
+
+TEST_CASE("Stereo cap: smooth, and the user's own changes at once", "[frame_xr][stereo]") {
+    StereoCap cap;
+    int64_t t = 1000;
+    // The first limit at once.
+    CHECK(cap.Update(0.30f, 0.08f, t) == Approx(0.08f));
+    CHECK(cap.Limited());
+    CHECK(cap.Target() == Approx(0.08f));
+    // A higher limit by less than a step: nothing changes.
+    t += 11;
+    CHECK(cap.Update(0.30f, 0.084f, t) == Approx(0.08f));
+    // By more: the slider climbs to it at kUpPerS, not in one frame.
+    t += 11;
+    const float up = cap.Update(0.30f, 0.12f, t);
+    CHECK(up == Approx(0.08f + StereoCap::kUpPerS * 0.011f).margin(1e-5));
+    for (int i = 0; i < 40; ++i) {
+        t += 11;
+        cap.Update(0.30f, 0.12f, t);
+    }
+    CHECK(cap.Update(0.30f, 0.12f, t + 11) == Approx(0.12f));
+    t += 11;
+    // A lower limit: down at kDownPerS (a quarter of a second for the whole slider at most).
+    t += 11;
+    const float down = cap.Update(0.30f, 0.06f, t);
+    CHECK(down == Approx(0.12f - StereoCap::kDownPerS * 0.011f).margin(1e-5));
+    for (int i = 0; i < 2; ++i) {
+        t += 11;
+        cap.Update(0.30f, 0.06f, t);
+    }
+    t += 11;
+    CHECK(cap.Update(0.30f, 0.06f, t) == Approx(0.06f));
+    // The user lowers 3D Depth under the limit: through at once, and no longer limited.
+    t += 11;
+    CHECK(cap.Update(0.04f, 0.06f, t) == 0.04f);
+    CHECK_FALSE(cap.Limited());
+    // And raises it again, under the limit: at once too.
+    t += 11;
+    CHECK(cap.Update(0.05f, 0.06f, t) == 0.05f);
+    // Over it: the limit at once.
+    t += 11;
+    CHECK(cap.Update(0.50f, 0.06f, t) == Approx(0.06f));
+    CHECK(cap.Limited());
+    // Not measured for a while (a menu, a load): the last limit holds.
+    t += 11;
+    CHECK(cap.Update(0.50f, -1.0f, t) == Approx(0.06f));
+    // Reset (a new game, another mode): the user's slider.
+    cap.Reset();
+    CHECK(cap.Update(0.50f, -1.0f, t) == 0.50f);
+    CHECK(cap.Target() < 0.0f);
+}
+
+TEST_CASE("Stereo cap: the game's 3D per slider unit, measured", "[frame_xr][stereo]") {
+    VI::FarPerSlider m;
+    CHECK(m.Value() < 0.0f);
+    // A change of the slider is not measured until it held kStableSwaps swaps.
+    for (int i = 0; i < VI::FarPerSlider::kStableSwaps; ++i) {
+        m.Swap(2, 0.117f * 0.3f, 0.3f);
+    }
+    CHECK(m.Value() < 0.0f);
+    m.Swap(2, 0.117f * 0.3f, 0.3f);
+    CHECK(m.Value() == Approx(0.117f));
+    // Another slider, the same game: the same per unit (it is linear).
+    for (int i = 0; i < 20; ++i) {
+        m.Swap(2, 0.117f * 0.08f, 0.08f);
+    }
+    CHECK(m.Value() == Approx(0.117f));
+    // The frame just after a change (the game read the old slider) does not count.
+    m.Swap(2, 0.117f * 0.08f, 0.5f);
+    CHECK(m.Value() == Approx(0.117f));
+    // One eye, no 3D or no far point: not measured.
+    for (int i = 0; i < 20; ++i) {
+        m.Swap(1, 0.0f, 0.5f);
+        m.Swap(2, 0.0f, 0.5f);
+    }
+    CHECK(m.Value() == Approx(0.117f));
+    // A few odd frames are out-voted (the median).
+    for (int i = 0; i < 3; ++i) {
+        m.Swap(2, 0.3f, 0.5f);
+    }
+    CHECK(m.Value() == Approx(0.117f));
+    m.Reset();
+    CHECK(m.Value() < 0.0f);
+}
+
+TEST_CASE("Stereo cap: the slider shown", "[frame_xr][stereo]") {
+    for (int d = 0; d <= 100; ++d) {
+        const float depth = static_cast<float>(d) / 100.0f;
+        CHECK(Settings::FrameVrSlider(depth, 1.0f, -1.0f) == depth);
+        CHECK(Settings::FrameVrSlider(depth, 0.5f, -1.0f) == depth * 0.5f);
+        CHECK(Settings::FrameVrSlider(depth, 1.0f, 0.08f) == std::min(depth, 0.08f));
+        CHECK(Settings::FrameVrSlider(depth, 1.0f, 0.0f) == 0.0f);
+        // Head motion: CitraVR's 10^m x (3D Depth / 10, an integer).
+        for (int m = 0; m < 4; ++m) {
+            CHECK(GamePositionScale(m, static_cast<uint32_t>(d)) ==
+                  std::pow(10.0f, static_cast<float>(m)) * static_cast<float>(d / 10));
+        }
     }
 }

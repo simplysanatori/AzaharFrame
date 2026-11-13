@@ -328,11 +328,17 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
 
     // TODO(xperia64): How the 3D Slider is updated by the HID module needs to be RE'd
     // and possibly moved to its own Core::Timing event.
+    // AzaharFrame stereo: in mode 2 at most the stereo cap (common/frame_vr_depth.h).
     mem->pad.sliderstate_3d = Settings::frame_flat_mono ? 0.0f : // AzaharFrame: flat, one eye
             Settings::values.vr_immersive_mode.GetValue() < 3 ?
-            (Settings::values.factor_3d.GetValue() / 100.0f) *
-                Settings::frame_vr_depth_scale.load() : // AzaharFrame vrsize
+            Settings::FrameVrSlider(
+                Settings::values.factor_3d.GetValue() / 100.0f,
+                Settings::frame_vr_depth_scale.load(), // AzaharFrame vrsize
+                Settings::values.vr_immersive_mode.GetValue() == 2
+                    ? Settings::frame_vr_stereo_cap.load(std::memory_order_relaxed)
+                    : -1.0f) :
             0.01f;
+    Settings::frame_vr_slider_shown.store(mem->pad.sliderstate_3d, std::memory_order_relaxed);
     system.Kernel().GetSharedPageHandler().Set3DSlider(mem->pad.sliderstate_3d);
 
     // Reschedule recurrent event

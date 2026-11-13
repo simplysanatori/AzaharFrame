@@ -615,6 +615,54 @@ inline constexpr float kDivergeToleranceDeg = 0.1f;
 StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
                           float far_width);
 
+/// AzaharFrame stereo: the cap keeps the eyes at least this far from parallel at the far scenery.
+inline constexpr float kStereoMarginDeg = 0.05f;
+
+/// AzaharFrame stereo: the largest slider (0 to 1) at which mode 2's screen shows the game's far
+/// scenery with the eyes `margin_deg` inwards of parallel, for the game's far width per slider
+/// unit `far_per_slider` (video_core/vr_view_matrix.h FarPerSlider). Below 0 when that is not
+/// known; 0 when even a flat picture is too near parallel.
+float StereoSliderLimit(const HeadLocked& solved, float half_ipd, float far_per_slider,
+                        float margin_deg = kStereoMarginDeg);
+
+/// AzaharFrame stereo: the slider mode 2 sends the game: the user's (3D Depth / 100) when the
+/// limit allows it (exactly that), else the limit. Without jitter: the limit counts lower at
+/// once, higher only once it is kStep above the one in use; the slider sent follows a change of
+/// the limit at most kDownPerS (down) or kUpPerS (up) a second. A change of the user's own slider
+/// goes through at once (up to the limit). The first known limit is taken at once. XR thread;
+/// pure (unit tested).
+class StereoCap {
+public:
+    static constexpr float kStep = 0.005f;
+    static constexpr float kDownPerS = 4.0f;
+    static constexpr float kUpPerS = 0.25f;
+    static constexpr float kMinSlider = 0.001f;
+
+    /// `limit` below 0: not known yet (the user's slider goes through, so it can be measured;
+    /// once known, the last limit holds until it is measured again).
+    float Update(float user, float limit, int64_t now_ms);
+    /// The limit in use is below the user's slider.
+    bool Limited() const {
+        return limited_;
+    }
+    /// The limit in use (with the step above), below 0 before one was known.
+    float Target() const {
+        return limit_;
+    }
+    void Reset() {
+        *this = StereoCap{};
+    }
+
+private:
+    float out_ = -1.0f, limit_ = -1.0f, last_user_ = -1.0f;
+    int64_t last_ms_ = 0;
+    bool limited_ = false;
+};
+
+/// AzaharFrame stereo: CitraVR's head-motion scale in the Full modes, 10^multiplier x (3D Depth
+/// / 10, an integer), from the user's 3D Depth: the stereo cap never changes it.
+float GamePositionScale(int multiplier, uint32_t depth_percent);
+
 /// AzaharFrame turns2: the Full modes' quad eye `eye` sees, in the head's (VIEW) space: in mode 3
 /// centred on that eye, in mode 2 one quad for both (centred between them).
 Input::Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd);
