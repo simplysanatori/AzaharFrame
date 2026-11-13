@@ -90,8 +90,10 @@ public:
 
     /// AzaharFrame pacing: called right before ReleaseFrame (the release thread). At 120 Hz it
     /// holds the release until the game frame on view has been shown for two refreshes, so none is
-    /// on view for one (frame_xr/pacing.h). Returns at once otherwise.
-    virtual void WaitPresentSlot() {}
+    /// on view for one (frame_xr/pacing.h). Returns at once otherwise. `game_swaps`: the game's
+    /// top screen swaps so far when the frame was drawn (the same as the frame before: the same
+    /// picture again, which never waits).
+    virtual void WaitPresentSlot(uint64_t /*game_swaps*/) {}
 
     /// AzaharFrame doubling: the two top screen images share one swapchain (AZAHARFRAME_XR_PACKED):
     /// the left eye's swapchain is made kXrPackedGap + twice as high, the right eye's is never

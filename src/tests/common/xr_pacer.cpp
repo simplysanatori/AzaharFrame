@@ -422,3 +422,214 @@ TEST_CASE("XrPacer: the lock holds releases in the middle of the window", "[xr_p
     CHECK(std::abs(still_gated.mean_error_us - P::kGatedTarget * kPeriodUs) < 100);
     CHECK(still_gated.holds == 0);
 }
+
+// AzaharFrame pacing2: games at 30 pictures a second (every other release the same picture again).
+
+TEST_CASE("XrPacer: the gate counts game pictures; the same picture again goes at once",
+          "[xr_pacer]") {
+    P::Gate g;
+    CHECK(g.PictureNeeded(0, true, 1) == 0); // nothing released yet
+    g.Latch(1, 1);
+    CHECK(g.PictureNeeded(1, true, 1) == 1); // on view once
+    CHECK(g.PictureNeeded(1, false, 1) == 0); // a repeat of it never waits
+    CHECK(g.PictureNeeded(1, true, 2) == 3);  // at 30 a second it wants 4
+    g.Latch(2, 1); // the repeat went up: the same picture, still counting
+    CHECK(g.PictureNeeded(1, true, 1) == 0);
+    CHECK(g.PictureNeeded(1, true, 2) == 2);
+    CHECK(g.PictureNeeded(2, true, 2) == 4); // not yet on view: all four
+    g.Latch(2, 1);
+    g.Latch(2, 1);
+    CHECK(g.PictureNeeded(1, true, 2) == 0);
+    g.Latch(3, 2);
+    g.Latch(3, 2);
+    g.Latch(0, 0); // nothing shown: ends 2's run
+    uint32_t pics[6], rel[4];
+    g.TakePictureRuns(pics);
+    g.TakeRuns(rel);
+    CHECK(pics[3] == 1); // picture 1: four frames over two releases
+    CHECK(pics[1] == 1); // picture 2: two
+    CHECK(rel[0] == 1);  // release 1 on view once, release 2 three times, release 3 twice
+    CHECK(rel[1] == 1);
+    CHECK(rel[2] == 1);
+    // Each release its own picture (the one-argument Latch): the same as the release counts.
+    P::Gate h;
+    h.Latch(1);
+    h.Latch(1);
+    CHECK(h.PictureNeeded(1, true, 1) == 0);
+    CHECK(h.Open(1));
+}
+
+TEST_CASE("XrPacer: the picture cadence from the game's swaps", "[xr_pacer]") {
+    const auto feed = [](P::PictureCadence& c, int every, int releases) {
+        for (int i = 0; i < releases; i++) {
+            c.Note(i % every == 0);
+        }
+    };
+    P::PictureCadence c60, c30, c20, none;
+    feed(c60, 1, 40);
+    feed(c30, 2, 40);
+    feed(c20, 3, 40);
+    for (int i = 0; i < 40; i++) {
+        none.Note(false);
+    }
+    CHECK(c60.Cadence() == 1);
+    CHECK(c30.Cadence() == 2);
+    CHECK(c20.Cadence() == 3);
+    CHECK(c30.Swapping());
+    CHECK_FALSE(none.Swapping()); // never swaps: every release is a new picture
+    CHECK(none.Cadence() == 1);
+    // One picture that took three VBlanks (a slow game frame) keeps 30; a run of 60s ends it.
+    c30.Note(true);
+    c30.Note(false);
+    c30.Note(false);
+    feed(c30, 2, 6);
+    CHECK(c30.Cadence() == 2);
+    feed(c30, 1, 6);
+    CHECK(c30.Cadence() == 1);
+    feed(c30, 2, 16);
+    CHECK(c30.Cadence() == 2);
+    // A still screen (no swap for kNoSwap releases) counts every release as new again.
+    for (uint32_t i = 0; i < P::PictureCadence::kNoSwap; i++) {
+        c30.Note(false);
+    }
+    CHECK_FALSE(c30.Swapping());
+    CHECK(c30.Cadence() == 1);
+}
+
+namespace {
+
+struct PictureResult {
+    uint32_t pictures[6]{}; ///< game pictures on view 1 .. 6+ frames
+    uint32_t releases[4]{}; ///< releases on view 1 .. 4+ frames
+    uint32_t waits = 0, timeouts = 0;
+};
+
+/// A game at 30 pictures a second, run at the lock's rate: a new picture every four display
+/// periods (two 60.000 Hz frames), ready `new_us` into its
+/// pair with jitter (and every `late_every`-th one `late_us` -3..+5 ms later still: a 4K texture
+/// pack's slow frame), the same picture again `repeat_gap_us` after its usual time. Latches every period. `by_picture`:
+/// the pacing2 gate (a repeat goes at once, a new picture waits for 2 x cadence frames of the one
+/// on view, PictureCadence from the swaps); else the release gate it replaces (each release waits
+/// for two frames of the one before, at most P + 2 ms). One release thread: none overtakes.
+PictureResult SimulatePictures(bool by_picture, double new_us, double repeat_gap_us,
+                               double jitter_us, int pairs, unsigned seed, int late_every = 0,
+                               double late_us = 0) {
+    std::mt19937 rng{seed};
+    std::uniform_real_distribution<double> jitter{-jitter_us, jitter_us};
+    std::uniform_real_distribution<double> late{-3000, 5000};
+    P::Gate gate;
+    P::PictureCadence cadence;
+    PictureResult out;
+    double next_latch = kPeriodUs;
+    double last_release = 0;
+    uint64_t released = 0, released_picture = 0;
+    const auto latch_until = [&](double t) {
+        while (next_latch <= t) {
+            gate.Latch(released, released_picture);
+            next_latch += kPeriodUs;
+        }
+    };
+    uint64_t picture = 0;
+    for (int k = 0; k < pairs; k++) {
+        const double on_time = 4 * k * kPeriodUs + new_us + jitter(rng);
+        double new_ready = on_time;
+        if (late_every && k % late_every == late_every - 1) {
+            new_ready += late_us + late(rng); // the repeat after it comes on time
+        }
+        for (int r = 0; r < 2; r++) {
+            const bool is_new = r == 0;
+            cadence.Note(is_new);
+            if (is_new) {
+                picture++;
+            }
+            double ready = std::max(last_release, is_new ? new_ready : on_time + repeat_gap_us);
+            latch_until(ready);
+            const uint32_t c = cadence.Cadence();
+            const auto open = [&] {
+                return by_picture ? gate.PictureNeeded(released_picture, is_new, c) == 0
+                                  : gate.Open(released);
+            };
+            if (!open()) {
+                out.waits++;
+                const uint32_t needed = gate.PictureNeeded(released_picture, is_new, c);
+                const double hold =
+                    by_picture && c > 1 ? needed * kPeriodUs + 2000 : kPeriodUs + 2000;
+                const double deadline = ready + hold;
+                while (!open() && next_latch <= deadline) {
+                    latch_until(next_latch);
+                }
+                if (!open()) {
+                    out.timeouts++;
+                    latch_until(deadline);
+                    ready = deadline;
+                } else {
+                    ready = next_latch - kPeriodUs + 1; // just after the latch that opened it
+                }
+            }
+            released++;
+            released_picture = picture;
+            last_release = ready;
+        }
+    }
+    latch_until(last_release + 6 * kPeriodUs);
+    gate.TakePictureRuns(out.pictures);
+    gate.TakeRuns(out.releases);
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("XrPacer: a 30-a-second game's repeat right after its picture never times out",
+          "[xr_pacer]") {
+    // Kid Icarus Uprising in the owner's log: the same picture again 0 to 1.5 ms after the new
+    // one, both 3 to 6 ms before a latch. The release gate held the repeat for two frames of
+    // the new picture, timed out at P + 2 ms, and left releases on view 1/3/1/3 (29/2/29 a
+    // second, timeouts 29); the picture gate lets the repeat go and keeps each picture four.
+    for (unsigned seed = 1; seed <= 3; seed++) {
+        const double new_us = 2 * kPeriodUs - 4500; // 4.5 ms before a latch
+        const PictureResult before = SimulatePictures(false, new_us, 800, 600, 60 * 30, seed);
+        const PictureResult after = SimulatePictures(true, new_us, 800, 600, 60 * 30, seed);
+        INFO("seed " << seed << ": before releases 1/2/3/4+ " << before.releases[0] << "/"
+                     << before.releases[1] << "/" << before.releases[2] << "/"
+                     << before.releases[3] << " timeouts " << before.timeouts
+                     << "; after pictures 1..6+ " << after.pictures[0] << "/"
+                     << after.pictures[1] << "/" << after.pictures[2] << "/"
+                     << after.pictures[3] << "/" << after.pictures[4] << "/"
+                     << after.pictures[5] << " timeouts " << after.timeouts);
+        CHECK(before.timeouts > 60 * 25); // nearly every pair
+        CHECK(before.releases[0] > 60 * 25);
+        CHECK(after.timeouts == 0);
+        CHECK(after.pictures[3] >= 60 * 30 - 2); // every picture on view four frames
+        CHECK(after.pictures[0] + after.pictures[1] + after.pictures[2] == 0);
+    }
+}
+
+TEST_CASE("XrPacer: a 30-a-second game's slow pictures keep four frames each", "[xr_pacer]") {
+    // Majora's Mask 3D with a 4K pack: the new picture usually just after a latch, the same
+    // picture again a 3DS frame later, and every 7th new picture 7.5 to 15.5 ms late (GPU
+    // behind up to 11 ms, texture loads). The release gate protects the repeat and lets the late
+    // picture end up on view for 3 (or less); the picture gate keeps every picture at four or
+    // more (the one before a late one five).
+    for (unsigned seed = 1; seed <= 3; seed++) {
+        const double new_us = 2 * kPeriodUs + 1500;
+        const PictureResult before =
+            SimulatePictures(false, new_us, 2 * kPeriodUs, 1500, 60 * 30, seed, 7, 10500);
+        const PictureResult after =
+            SimulatePictures(true, new_us, 2 * kPeriodUs, 1500, 60 * 30, seed, 7, 10500);
+        const auto off = [](const PictureResult& r) {
+            return r.pictures[0] + r.pictures[1] + r.pictures[2] + r.pictures[4] + r.pictures[5];
+        };
+        INFO("seed " << seed << ": pictures 1..6+ before " << before.pictures[0] << "/"
+                     << before.pictures[1] << "/" << before.pictures[2] << "/"
+                     << before.pictures[3] << "/" << before.pictures[4] << "/"
+                     << before.pictures[5] << ", after " << after.pictures[0] << "/"
+                     << after.pictures[1] << "/" << after.pictures[2] << "/"
+                     << after.pictures[3] << "/" << after.pictures[4] << "/"
+                     << after.pictures[5]);
+        // None short once the cadence is known (the first eight pictures are taken as 60 a
+        // second, and the 7th of them is a late one), and far fewer off four than before.
+        CHECK(after.pictures[0] + after.pictures[1] + after.pictures[2] <= 1);
+        CHECK(before.pictures[2] >= 8);
+        CHECK(off(after) * 4 < off(before));
+    }
+}

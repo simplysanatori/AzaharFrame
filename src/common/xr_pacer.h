@@ -12,7 +12,9 @@
 //
 // Two parts, both only at 120 Hz:
 // - the gate (frame_xr/pacing.cpp, AZAHARFRAME_XR_PACE_GATE): the release thread holds a picture
-//   until the one on view has been in two ended frames, so no picture is ever shown for one;
+//   until the one on view has been in two ended frames, so no picture is ever shown for one (four
+//   for a game at 30 pictures a second, whose every other release is the same picture again:
+//   Gate, PictureCadence);
 // - the lock (FrameLimiter, AZAHARFRAME_XR_PACE_LOCK): the game runs at exactly half the display
 //   rate (60.000 at 120 Hz, 0.28 % fast) and the frame limiter nudges its sleeps so frames are
 //   ready at a set place between two latches, measured against the frame loop's own latch times:
@@ -169,37 +171,148 @@ private:
 };
 
 /// The parity gate's bookkeeping. The XR loop calls Latch after each xrEndFrame with the game
-/// frame (release serial) that frame showed; the release thread asks Open before releasing the
-/// next one. Keyed on ended frames, not on the clock: once a late picture moves the cadence to
-/// the other parity, the pictures after it wait for that parity too instead of flipping back
-/// (3/1/3/1); the next one is let through only after the one on view was in two ended frames.
+/// frame (release serial) that frame showed and the game picture it holds; the release thread asks
+/// before releasing the next one. Keyed on ended frames, not on the clock: once a late picture
+/// moves the cadence to the other parity, the pictures after it wait for that parity too instead
+/// of flipping back (3/1/3/1); the next one is let through only after the one on view was in two
+/// ended frames.
+///
+/// AzaharFrame pacing2: by game picture, not by release. A game at 30 pictures a second (Majora's
+/// Mask 3D, Ocarina of Time 3D, Kid Icarus Uprising) swaps its top screen every other VBlank, so
+/// every other release is the same picture again. Holding that repeat until the release before it
+/// was in two ended frames is no use (the picture on view does not change), and when it came right
+/// after it (the emulator catching up) the hold ran into its timeout every other frame: releases
+/// on view 1/3/1/3, gate timeouts 30 a second. Now a repeat goes at once, and a new picture waits
+/// until the picture on view has been in 2 x cadence ended frames (PictureCadence): 2 at 60 a
+/// second, 4 at 30, 6 at 20.
 struct Gate {
     uint64_t latches = 0; ///< frames ended
     uint64_t shown = 0;   ///< the game frame in the last ended frame (0: none)
     uint32_t count = 0;   ///< how many ended frames in a row it was in
-    uint32_t runs[4]{};   ///< pictures on view for 1, 2, 3, 4 or more frames (TakeRuns)
+    uint32_t runs[4]{};   ///< releases on view for 1, 2, 3, 4 or more frames (TakeRuns)
+    uint64_t shown_picture = 0;    ///< the game picture in the last ended frame (0: none)
+    uint32_t picture_count = 0;    ///< how many ended frames in a row it was in
+    uint32_t picture_runs[6]{};    ///< pictures on view for 1 .. 5, 6 or more (TakePictureRuns)
 
+    /// Each release its own picture (a game that never shows one twice; the tests).
     void Latch(uint64_t serial) {
+        Latch(serial, serial);
+    }
+    void Latch(uint64_t serial, uint64_t picture) {
         latches++;
         if (serial != 0 && serial == shown) {
             count++;
+        } else {
+            if (shown != 0 && count > 0) {
+                runs[std::min<uint32_t>(count, 4) - 1]++;
+            }
+            shown = serial;
+            count = serial != 0 ? 1 : 0;
+        }
+        if (serial == 0) {
+            picture = 0;
+        }
+        if (picture != 0 && picture == shown_picture) {
+            picture_count++;
             return;
         }
-        if (shown != 0 && count > 0) {
-            runs[std::min<uint32_t>(count, 4) - 1]++;
+        if (shown_picture != 0 && picture_count > 0) {
+            picture_runs[std::min<uint32_t>(picture_count, 6) - 1]++;
         }
-        shown = serial;
-        count = serial != 0 ? 1 : 0;
+        shown_picture = picture;
+        picture_count = picture != 0 ? 1 : 0;
     }
     /// The game frame released last (`released`) has been on view in two ended frames: the next
     /// may replace it. Not yet on view (0 frames) or on view once: wait.
     bool Open(uint64_t released) const {
         return released == 0 || (released == shown && count >= 2) || released < shown;
     }
+    /// Ended frames the next release has to wait for: 0 for a repeat (`next_new` false: the
+    /// picture on view stays) or once the picture released last (`released_picture`) has been on
+    /// view in 2 x `cadence` of them; all of them while it is not on view yet.
+    uint32_t PictureNeeded(uint64_t released_picture, bool next_new, uint32_t cadence) const {
+        if (!next_new || released_picture == 0 || released_picture < shown_picture) {
+            return 0;
+        }
+        const uint32_t want = 2 * std::max<uint32_t>(cadence, 1);
+        if (released_picture == shown_picture) {
+            return want - std::min(picture_count, want);
+        }
+        return want;
+    }
     void TakeRuns(uint32_t out[4]) {
         std::copy(runs, runs + 4, out);
         std::fill(runs, runs + 4, 0u);
     }
+    void TakePictureRuns(uint32_t out[6]) {
+        std::copy(picture_runs, picture_runs + 6, out);
+        std::fill(picture_runs, picture_runs + 6, 0u);
+    }
+};
+
+/// AzaharFrame pacing2: how many releases (VBlanks) each of the game's pictures spans, from the
+/// game's top screen swaps: 1 at 60 pictures a second, 2 at 30, 3 at 20. Taken as 2 or 3 once 7 of
+/// the last 8 pictures spanned that many, kept while 5 of 8 still do; else 1. A game that has not
+/// swapped for kNoSwap releases (one that never swaps, a still screen) counts every release as a
+/// new picture, as before.
+class PictureCadence {
+public:
+    static constexpr uint32_t kHistory = 8;
+    static constexpr uint32_t kEnter = 7, kStay = 5;
+    static constexpr uint32_t kNoSwap = 30;
+
+    /// One release; `swapped`: the game handed over a new top screen since the one before.
+    void Note(bool swapped) {
+        if (swapped) {
+            if (since != 0) {
+                history[next] = std::min<uint32_t>(since, 7);
+                next = (next + 1) % kHistory;
+                filled = std::min(filled + 1, kHistory);
+            }
+            since = 1;
+            no_swap = 0;
+        } else {
+            if (since != 0 && since < 1000) {
+                since++;
+            }
+            if (no_swap < kNoSwap) {
+                no_swap++;
+            }
+        }
+        if (!Swapping()) {
+            cadence = 1;
+            return;
+        }
+        if (filled < kHistory) {
+            return;
+        }
+        const auto with = [&](uint32_t k) {
+            return static_cast<uint32_t>(std::count(history, history + kHistory, k));
+        };
+        if (cadence > 1 && with(cadence) >= kStay) {
+            return;
+        }
+        cadence = 1;
+        for (uint32_t k = 2; k <= 3; k++) {
+            if (with(k) >= kEnter) {
+                cadence = k;
+            }
+        }
+    }
+    /// The game swaps: a release without a swap shows the picture before it again.
+    bool Swapping() const {
+        return since != 0 && no_swap < kNoSwap;
+    }
+    uint32_t Cadence() const {
+        return cadence;
+    }
+
+private:
+    uint32_t history[kHistory]{};
+    uint32_t next = 0, filled = 0;
+    uint32_t since = 0;   ///< releases since the last swap (0: none seen yet)
+    uint32_t no_swap = 0; ///< releases in a row without one
+    uint32_t cadence = 1;
 };
 
 /// Why the lock is off (None: on).
@@ -329,6 +442,8 @@ private:
 /// Shared between the XR side (writes the session, the period and the phase), the frame limiter
 /// (the lock) and the audio output (the ratio). Process-wide.
 struct Shared {
+    // Emulation thread (video_core/gpu.cpp): the game's top screen swaps so far (pacing2).
+    std::atomic<uint64_t> game_swaps{0};
     // XR side.
     std::atomic<bool> lock_switch{true};  ///< AZAHARFRAME_XR_PACE_LOCK (not 0)
     std::atomic<bool> file_off{false};    ///< user/xr_pace_off exists

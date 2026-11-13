@@ -12,6 +12,7 @@
 #include "common/debug_stall.h"
 #include "common/logging/log.h"
 #include "common/thread.h"
+#include "common/xr_pacer.h" // AzaharFrame pacing2
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -515,6 +516,7 @@ bool XrPresentTarget::BeginFrame(std::array<Target, kScreens>& targets,
         std::scoped_lock lock{mutex};
         frame = handoff.BeginFrame(SpillReady());
         frame_content = content;
+        frame_swaps = Common::XrPacer::Get().game_swaps.load(std::memory_order_relaxed);
         if (frame.path == XrHandoff::Path::Direct) {
             fill([](const Screen& screen) {
                 return screen.framebuffers[static_cast<std::size_t>(screen.armed)];
@@ -545,8 +547,10 @@ void XrPresentTarget::EndFrame(u64 tick) {
     std::scoped_lock lock{mutex};
     if (frame.path == XrHandoff::Path::Direct) {
         direct_content = frame_content;
+        direct_swaps = frame_swaps;
     } else if (frame.path == XrHandoff::Path::Spill) {
         slot_content[frame.slot] = frame_content; // a replaced frame's pose goes with it
+        slot_swaps[frame.slot] = frame_swaps;
     }
     handoff.EndFrame(frame, tick);
     frame = {};
@@ -598,12 +602,14 @@ void XrPresentTarget::RunReleaseDirect(u64 tick) {
     const bool finished = master->IsFree(tick);
     Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
     VideoCore::XrContentPose content;
+    u64 swaps = 0;
     {
         std::scoped_lock lock{mutex};
         content = direct_content;
+        swaps = direct_swaps;
     }
     // AzaharFrame doubling: the screens of one game frame go together (Runtime::ReleaseFrame).
-    sink.WaitPresentSlot(); // AzaharFrame pacing: never a picture on view for one refresh
+    sink.WaitPresentSlot(swaps); // AzaharFrame pacing: never a picture on view for one refresh
     sink.ReleaseFrame(finished, content);
     std::scoped_lock lock{mutex};
     for (Screen& screen : screens) {
@@ -716,11 +722,13 @@ void XrPresentTarget::RunCopySpill(std::size_t slot, u64 tick) {
     copy_cmdbuf.reset();
     Common::DebugStall::Maybe(Common::DebugStall::Where::Release); // test only
     VideoCore::XrContentPose content;
+    u64 swaps = 0;
     {
         std::scoped_lock lock{mutex};
         content = slot_content[slot];
+        swaps = slot_swaps[slot];
     }
-    sink.WaitPresentSlot(); // AzaharFrame pacing: never a picture on view for one refresh
+    sink.WaitPresentSlot(swaps); // AzaharFrame pacing: never a picture on view for one refresh
     sink.ReleaseFrame(finished, content); // AzaharFrame doubling: one game frame together
     sink.NoteSpillShown();
     std::scoped_lock lock{mutex};
