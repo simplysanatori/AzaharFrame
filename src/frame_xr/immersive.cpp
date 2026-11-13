@@ -23,6 +23,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/frame_log_gate.h" // AzaharFrame integ8
+#include "common/frame_test_switches.h" // AzaharFrame dbl
 #include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "frame_xr/auto_shape.h" // AzaharFrame fixes7
@@ -1242,6 +1243,11 @@ void Install() {
     g = State{};
     g_top_aspect = kAspect3ds;
     g.tuning = ReadTuning();
+    // AzaharFrame dbl: the test switches in effect (common/frame_test_switches.h).
+    for (const std::string& sw : Common::FrameTestSwitches::InEffect()) {
+        LOG_INFO(Frontend, "xr: test switch {}", sw);
+    }
+    VideoCore::Immersive::g_content.SetFollowWorld(VideoCore::Immersive::FollowWorldFromEnv());
     g.game_fov_y_deg = g.tuning.game_fov_y_deg;
     g.wide_place = DefaultPlacement();
     g.head_place = DefaultHeadPlacement();

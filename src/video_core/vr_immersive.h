@@ -316,6 +316,11 @@ public:
     bool FollowsWorld() const noexcept {
         return follow_world_;
     }
+    /// AzaharFrame dbl: the switch read again once the test-switch file is in the environment
+    /// (g_content is made before main).
+    void SetFollowWorld(bool follow) noexcept {
+        follow_world_ = follow;
+    }
 
     /// The angle between two head orientations, in degrees.
     static float TurnDeg(const XrContentPose& a, const XrContentPose& b) noexcept {
