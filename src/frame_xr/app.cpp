@@ -707,6 +707,7 @@ void Runtime::FrameLoop() {
         bool label_top_ok = false;
         XrPosef label_top_pose{{0, 0, 0, 1}, {0, 0, 0}};
         XrExtent2Df label_top_size{0.0f, 0.0f};
+        Hud::BadgeAnchor badge_anchor; // AzaharFrame shaderbadge: the main screen, if any
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
             {
@@ -758,6 +759,25 @@ void Runtime::FrameLoop() {
                            shown.top_space == local_space;
             label_top_pose = shown.top_pose[0];
             label_top_size = shown.top_size;
+            // AzaharFrame shaderbadge: the screen in the main slot (the bottom one while it is in
+            // focus), else the immersive top screen.
+            if (draw.swapped) {
+                badge_anchor.screen = true;
+                badge_anchor.screen_pose = draw.bottom_pose;
+                badge_anchor.screen_size = draw.bottom_size;
+                badge_anchor.curve = draw.bottom_curve;
+            } else if (shown.show_top && shown.top_pointable && shown.top_space == local_space) {
+                badge_anchor.screen = true;
+                badge_anchor.screen_pose = shown.top_pose[0];
+                badge_anchor.screen_size = shown.top_size;
+                badge_anchor.curve = draw.top_curve;
+            } else if (shown.show_top) {
+                badge_anchor.immersive = true;
+                badge_anchor.immersive_in_view = shown.top_space == view_space;
+                badge_anchor.immersive_pose[0] = shown.top_pose[0];
+                badge_anchor.immersive_pose[1] = shown.top_pose[1];
+                badge_anchor.immersive_size = shown.top_size;
+            }
             // AzaharFrame vrsize: a normal top screen bigger than its normal size gets that much
             // less 3D depth (common/frame_vr_depth.h); the immersive and the swapped one do not.
             // AzaharFrame move: swapped, the top screen is in the second slot at its own scale.
@@ -833,6 +853,13 @@ void Runtime::FrameLoop() {
             if (hud.LabelQuad(LatestViewPose(), label_top_ok, label_top_pose, label_top_size,
                               fs.predictedDisplayTime, label)) {
                 quad_layers.push_back(MakeQuad(local_space, label));
+            }
+            // AzaharFrame shaderbadge: "Preparing Shaders 3 / 9" in the main screen's corner
+            Quad badge;
+            bool badge_in_view = false;
+            if (hud.BadgeQuad(LatestViewPose(), badge_anchor, fs.predictedDisplayTime, badge,
+                              badge_in_view)) {
+                quad_layers.push_back(MakeQuad(badge_in_view ? view_space : local_space, badge));
             }
         }
         // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
@@ -1100,6 +1127,12 @@ void ShowToast(Toast kind) {
 void ShowAutosaved() { // AzaharFrame autosave
     if (auto* rt = GetRuntime()) {
         rt->hud.ShowAutosaved();
+    }
+}
+
+void SetShaderBadge(const std::string& text, float progress) { // AzaharFrame shaderbadge
+    if (auto* rt = GetRuntime()) {
+        rt->hud.SetShaderBadge(text, progress);
     }
 }
 

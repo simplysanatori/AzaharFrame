@@ -17,6 +17,10 @@
 //    AzaharFrame vrsize: a toast of any text ("Offset Right 1.5°", ShowToastText) is drawn into
 //    one of two spare rows of the atlas when asked for, and the swapchain copy never waits for
 //    the GPU (vis/async_overlay.h); it shows once that copy is done, until then the toast before.
+//  - AzaharFrame shaderbadge: the "Preparing Shaders 3 / 9" badge in the main screen's top-right
+//    corner, or head-locked at the top right of what is in view (vis/shader_badge.h). Drawn into
+//    the atlas at its opacities when its text changes (at most every kBadgeRedrawNs), with its own
+//    copy of the menu's font (the menu's glyph caches belong to the menu's thread).
 
 #pragma once
 
@@ -28,6 +32,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
+#include "frame_xr/ui/ui_ttf.h" // AzaharFrame shaderbadge
 #include "frame_xr/vis/async_overlay.h"
 
 namespace FrameXr {
@@ -72,6 +77,27 @@ public:
     bool LabelQuad(const ViewPose& head, bool top_ok, const XrPosef& top_pose, XrExtent2Df top_size,
                    XrTime time, Quad& quad);
 
+    /// AzaharFrame shaderbadge: any thread. The badge's line and its ring's progress (0 to 1);
+    /// "" fades it out.
+    void SetShaderBadge(const std::string& text, float progress);
+    /// Where the badge may go this frame (app.cpp).
+    struct BadgeAnchor {
+        /// The normal main screen, in LOCAL space (`curve` above 0: a cylinder of that radius).
+        bool screen = false;
+        XrPosef screen_pose{{0, 0, 0, 1}, {0, 0, 0}};
+        XrExtent2Df screen_size{0.0f, 0.0f};
+        float curve = 0.0f;
+        /// Else the immersive top screen, one pose per eye, in VIEW space or (false) LOCAL space.
+        bool immersive = false;
+        bool immersive_in_view = false;
+        XrPosef immersive_pose[2]{{{0, 0, 0, 1}, {0, 0, 0}}, {{0, 0, 0, 1}, {0, 0, 0}}};
+        XrExtent2Df immersive_size{0.0f, 0.0f};
+    };
+    /// XR thread, each frame: the badge while it shows. `in_view_space`: the quad's pose is in
+    /// VIEW space (head-locked), else LOCAL.
+    bool BadgeQuad(const ViewPose& head, const BadgeAnchor& anchor, XrTime time, Quad& quad,
+                   bool& in_view_space);
+
 private:
     /// The toasts and the passthrough layer's transparent square.
     Vis::AsyncOverlay toast_chain;
@@ -109,6 +135,23 @@ private:
     std::atomic<bool> label_requested{false};
     bool label_shown = false;
     XrTime label_since = 0;
+    // AzaharFrame shaderbadge: requested under text_mutex, then on the XR thread.
+    std::string badge_request;
+    float badge_request_progress = 0.0f;
+    bool badge_requested = false;
+    frame_xr::ui::TtfFont badge_font;
+    std::string badge_want; ///< the line wanted ("" hidden)
+    float badge_want_progress = 0.0f;
+    std::string badge_drawn; ///< the line in the atlas (on view, or being copied)
+    float badge_drawn_progress = -1.0f;
+    XrTime badge_drawn_at = 0;
+    bool badge_waiting = false; ///< uploaded, on view once the copy is done
+    int badge_waiting_px = 0;
+    bool badge_ready = false; ///< the badge's pixels are on view
+    int badge_box_px = 0;     ///< their width
+    float badge_opacity = 0.0f;
+    XrTime badge_time = 0;   ///< the last frame's time (the fade's step)
+    bool badge_head = false; ///< this showing is head-locked (chosen when it appears)
 };
 
 } // namespace FrameXr

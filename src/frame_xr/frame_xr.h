@@ -485,6 +485,11 @@ void HideToastText(const std::string& text);
 /// AzaharFrame controls: the grip hint chip (two short lines, '\n'; "↕" and "↔" are drawn as
 /// arrows) at `pose` in LOCAL space, `width_m` wide, for three seconds (any thread; VR only).
 void ShowHint(const std::string& text, const XrPosef& pose, float width_m);
+/// AzaharFrame shaderbadge: the "Preparing Shaders 3 / 9" badge (frame_xr/shader_notice.h says
+/// when): a small pill with a progress ring (`progress` 0 to 1) just inside the main screen's
+/// top-right corner, or head-locked at the top right of what is in view in the immersive modes
+/// (vis/shader_badge.h). It fades in and out; "" fades it out. Any thread; VR only.
+void SetShaderBadge(const std::string& text, float progress);
 /// Fast forward turned on or off: the "Fast Forward" or "Normal Speed" toast (VR only). Any thread.
 void SetFastForwardShown(bool on);
 

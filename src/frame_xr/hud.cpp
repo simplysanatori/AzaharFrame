@@ -5,16 +5,21 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <string>
 
 #include "common/logging/log.h"
 #include "common/settings.h"
 #include "frame_xr/hud.h"
+#include "frame_xr/immersive_layout.h" // AzaharFrame shaderbadge: BothEyes
+#include "frame_xr/menu/md3.h"         // AzaharFrame shaderbadge: the menu's colours
+#include "frame_xr/menu/md3_fonts.h"   // AzaharFrame shaderbadge: the badge's own font
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: DrawAutosavedLabel
 #include "frame_xr/session.h"
 #include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
 #include "frame_xr/vis/autosave_label.h" // AzaharFrame autosave
+#include "frame_xr/vis/shader_badge.h"   // AzaharFrame shaderbadge
 
 namespace FrameXr {
 
@@ -38,10 +43,19 @@ constexpr int kLabelRow = kHintRow + 1;
 constexpr int kLabelRows = (Vis::kLabelLevels + 1) / 2;
 constexpr int kAtlasRows = kToastKinds + kTextRows + 1 + kLabelRows;
 constexpr XrTime kHintNs = 3'000'000'000;
+// AzaharFrame shaderbadge: below the rows, the badge at Vis::Badge::kLevels opacities, two to a
+// band (kBadgePxW x kBadgePxH each), drawn again when its line changes, at most every
+// kBadgeRedrawNs (each change uploads the whole atlas).
+constexpr int kBadgePxW = 512;
+constexpr int kBadgePxH = 64;
+constexpr int kBadgeY = static_cast<int>(kToastHeight) * kAtlasRows;
+constexpr int kBadgeBands = (Vis::Badge::kLevels + 1) / 2;
+constexpr XrTime kBadgeRedrawNs = 250'000'000;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
-constexpr uint32_t kAtlasHeight = kToastHeight * kAtlasRows + kPassthroughSize;
+constexpr uint32_t kAtlasHeight =
+    kToastHeight * kAtlasRows + kBadgePxH * kBadgeBands + kPassthroughSize;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
 constexpr float kToastDrop = 0.25f;     // metres below eye level
 
@@ -237,6 +251,85 @@ void DrawLabels(frame_xr::ui::Canvas& atlas) {
     }
 }
 
+// AzaharFrame shaderbadge: the badge once into `one` (kBadgePxW x kBadgePxH): a dark pill as the
+// "Autosaved" label's, a determinate progress ring in the menu's primary colour on its track, and
+// the line in the menu's font (Medium). Returns the pill's width.
+int DrawBadge(frame_xr::ui::Canvas& one, frame_xr::ui::TtfFont& font, const std::string& text,
+              float progress) {
+    namespace ui = frame_xr::ui;
+    namespace Tok = Menu::Tok;
+    const auto color = [](uint32_t rgb, float a = 1.0f) {
+        return ui::rgb(static_cast<int>(rgb >> 16 & 0xFF), static_cast<int>(rgb >> 8 & 0xFF),
+                       static_cast<int>(rgb & 0xFF), a);
+    };
+    constexpr float kH = static_cast<float>(kBadgePxH);
+    constexpr float kPadL = 18.0f, kPadR = 24.0f, kRing = 30.0f, kRingW = 4.5f, kGap = 12.0f;
+    constexpr float kTextPx = 27.0f;
+    const float text_x = kPadL + kRing + kGap;
+    const float max_text = static_cast<float>(kBadgePxW) - 2.0f - text_x - kPadR;
+    const std::string line = font.Ok() ? font.Fit(kTextPx, text, max_text) : text;
+    const float tw = font.Ok() ? font.Width(kTextPx, line) : 0.0f;
+    const float w = std::min(static_cast<float>(kBadgePxW) - 2.0f, std::ceil(text_x + tw + kPadR));
+    one.Clear(ui::rgb(0, 0, 0, 0.0f));
+    one.RoundRect(1.0f, 1.0f, w, kH - 1.0f, (kH - 2.0f) * 0.5f, color(0x1C1C22, 0.88f));
+    // The ring: its track, and the arc clockwise from the top for `progress`.
+    const float cx = kPadL + kRing * 0.5f, cy = kH * 0.5f, r = (kRing - kRingW) * 0.5f;
+    const float sweep = std::clamp(progress, 0.0f, 1.0f) * 6.2831853f;
+    const ui::Color track = color(Tok::kSecondaryContainer), arc = color(Tok::kPrimary);
+    for (int y = static_cast<int>(cy - kRing); y <= static_cast<int>(cy + kRing); y++) {
+        for (int x = static_cast<int>(cx - kRing); x <= static_cast<int>(cx + kRing); x++) {
+            const float dx = static_cast<float>(x) + 0.5f - cx,
+                        dy = static_cast<float>(y) + 0.5f - cy;
+            const float cover =
+                std::clamp(kRingW * 0.5f + 0.5f - std::abs(std::hypot(dx, dy) - r), 0.0f, 1.0f);
+            if (cover <= 0.0f) {
+                continue;
+            }
+            float angle = std::atan2(dx, -dy); // 0 at the top, clockwise
+            if (angle < 0.0f) {
+                angle += 6.2831853f;
+            }
+            one.Blend(x, y, angle <= sweep ? arc : track, cover);
+        }
+    }
+    if (font.Ok()) {
+        font.Draw(one, text_x, cy + font.CapHeight(kTextPx) * 0.5f, kTextPx, color(0xF0F0F5), line);
+    }
+    return static_cast<int>(w) + 1;
+}
+
+// Copies `one` into the atlas at each level of opacity (premultiplied: every channel scales).
+void CopyBadgeLevels(const frame_xr::ui::Canvas& one, frame_xr::ui::Canvas& atlas) {
+    for (int level = 1; level <= Vis::Badge::kLevels; level++) {
+        const float a = static_cast<float>(level) / Vis::Badge::kLevels;
+        const int x0 = ((level - 1) % 2) * kBadgePxW;
+        const int y0 = kBadgeY + ((level - 1) / 2) * kBadgePxH;
+        for (int y = 0; y < kBadgePxH; y++) {
+            for (int x = 0; x < kBadgePxW; x++) {
+                const uint32_t p = one.px[static_cast<std::size_t>(y * one.w + x)];
+                uint32_t out = 0;
+                for (int c = 0; c < 4; c++) {
+                    const float v = static_cast<float>((p >> (c * 8)) & 0xFF) * a;
+                    out |= static_cast<uint32_t>(std::lround(v)) << (c * 8);
+                }
+                atlas.px[static_cast<std::size_t>((y0 + y) * atlas.w + x0 + x)] = out;
+            }
+        }
+    }
+}
+
+Input::Posef ToInput(const XrPosef& p) {
+    Input::Posef q;
+    q.orientation = {p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w};
+    q.position = {p.position.x, p.position.y, p.position.z};
+    return q;
+}
+
+XrPosef ToXrPose(const Input::Posef& p) {
+    return {{p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w},
+            {p.position.x, p.position.y, p.position.z}};
+}
+
 } // namespace
 
 void Hud::Create(Runtime& rt) {
@@ -247,7 +340,14 @@ void Hud::Create(Runtime& rt) {
     {
         std::scoped_lock lock{text_mutex};
         text_requested = false;
+        badge_requested = true; // AzaharFrame shaderbadge: the last request again, in this atlas
     }
+    badge_drawn.clear();
+    badge_drawn_progress = -1.0f;
+    badge_waiting = false;
+    badge_ready = false;
+    badge_opacity = 0.0f;
+    badge_time = 0;
 
     if (toast_chain.Create(rt.session, rt.vulkan->Device(), rt.vulkan->PhysicalDevice(),
                            rt.vulkan->QueueFamily(), rt.queue_lock, rt.swapchain_format,
@@ -260,6 +360,9 @@ void Hud::Create(Runtime& rt) {
             row_boxes[static_cast<std::size_t>(kind)] = DrawRow(atlas, kind, ToastText(kind));
         }
         DrawLabels(atlas); // AzaharFrame autosave
+        if (!badge_font.Ok()) { // AzaharFrame shaderbadge: decoded once, used on the XR thread only
+            badge_font.LoadBase64(Menu::Fonts::kSans500);
+        }
         toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
         toast_chain.Poll(); // starts the copy; released on a later frame
     }
@@ -269,6 +372,8 @@ void Hud::Destroy() {
     toast_chain.Destroy();
     shown_kind = -1;
     text_row_waiting = -1;
+    badge_ready = false; // AzaharFrame shaderbadge
+    badge_waiting = false;
 }
 
 bool Hud::PassthroughActive(const Runtime& rt) {
@@ -435,6 +540,153 @@ bool Hud::LabelQuad(const ViewPose& head, bool top_ok, const XrPosef& top_pose,
                              label.orientation.w};
     quad.pose.position = {label.position.x, label.position.y, label.position.z};
     quad.size = {Vis::kLabelW, Vis::kLabelW * kToastHeight / kLabelPx};
+    quad.eye = XR_EYE_VISIBILITY_BOTH;
+    quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    return true;
+}
+
+// AzaharFrame shaderbadge
+void Hud::SetShaderBadge(const std::string& text, float progress) {
+    std::scoped_lock lock{text_mutex};
+    badge_request = text;
+    badge_request_progress = progress;
+    badge_requested = true;
+}
+
+bool Hud::BadgeQuad(const ViewPose& head, const BadgeAnchor& anchor, XrTime time, Quad& quad,
+                    bool& in_view_space) {
+    namespace B = Vis::Badge;
+    in_view_space = false;
+    {
+        std::scoped_lock lock{text_mutex};
+        if (badge_requested) {
+            badge_requested = false;
+            badge_want = badge_request;
+            badge_want_progress = badge_request_progress;
+        }
+    }
+    const XrTime dt = badge_time == 0 ? 0 : std::min<XrTime>(time - badge_time, 100'000'000);
+    badge_time = time;
+    if (!toast_chain.HasImage()) {
+        return false;
+    }
+    // A new line (or ring) is drawn and copied; the one on view stays until the copy is done.
+    const bool changed =
+        badge_want != badge_drawn || std::abs(badge_want_progress - badge_drawn_progress) > 0.005f;
+    if (!badge_want.empty() && changed && !badge_waiting &&
+        (badge_opacity == 0.0f || time - badge_drawn_at >= kBadgeRedrawNs)) {
+        frame_xr::ui::Canvas one;
+        one.Init(kBadgePxW, kBadgePxH);
+        badge_waiting_px = DrawBadge(one, badge_font, badge_want, badge_want_progress);
+        CopyBadgeLevels(one, atlas);
+        toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
+        badge_waiting = true;
+        badge_drawn = badge_want;
+        badge_drawn_progress = badge_want_progress;
+        badge_drawn_at = time;
+    }
+    if (badge_waiting && !toast_chain.Busy()) {
+        badge_waiting = false;
+        badge_ready = true;
+        badge_box_px = badge_waiting_px;
+    }
+    // Not faded in with the last showing's line while the new one is still being copied.
+    const bool show =
+        !badge_want.empty() && badge_ready && !(badge_opacity == 0.0f && badge_waiting);
+    const float aspect = static_cast<float>(badge_box_px) / static_cast<float>(kBadgePxH);
+    const auto on_screen = [&] {
+        return B::OnScreen(ToInput(anchor.screen_pose), anchor.screen_size.width,
+                           anchor.screen_size.height, anchor.curve, aspect);
+    };
+    if (show && badge_opacity == 0.0f) {
+        // It appears: on the normal screen's corner when that is well in view, else head-locked.
+        bool corner_in_view = false;
+        if (anchor.screen && head.valid) {
+            const B::Placed p = on_screen();
+            Vis::EyeFov eyes[2];
+            for (int e = 0; e < 2; e++) {
+                eyes[e].pose = ToInput(head.eye[e]);
+                eyes[e].left = head.fov[e].angleLeft;
+                eyes[e].right = head.fov[e].angleRight;
+                eyes[e].up = head.fov[e].angleUp;
+                eyes[e].down = head.fov[e].angleDown;
+            }
+            // The badge is not the label's size: its own corners, at a smaller margin.
+            corner_in_view = true;
+            for (const float sx : {-0.5f, 0.5f}) {
+                for (const float sy : {-0.5f, 0.5f}) {
+                    const Input::Vec3f c =
+                        Input::Transform(p.pose, {sx * p.width, sy * p.height, 0});
+                    corner_in_view = corner_in_view && Vis::PointInView(eyes[0], c, 5.0f) &&
+                                     Vis::PointInView(eyes[1], c, 5.0f);
+                }
+            }
+        }
+        badge_head = !corner_in_view;
+        LOG_INFO(Frontend, "xr: shader badge: {} ({})",
+                 corner_in_view     ? "in the main screen's corner"
+                 : anchor.screen    ? "head-locked (the screen's corner is not in view)"
+                 : anchor.immersive ? "head-locked on the immersive screen"
+                                    : "head-locked (no game screen)",
+                 badge_want);
+    }
+    badge_opacity = B::Fade(badge_opacity, show, dt);
+    const int level = B::Level(badge_opacity);
+    if (level == 0 || !badge_ready || !head.valid) {
+        return false;
+    }
+    B::Placed placed;
+    if (!badge_head && anchor.screen) {
+        placed = on_screen();
+    } else {
+        // Head-locked: what both eyes see, and the part of the immersive screen in it.
+        Immersive::Layout::ViewFov view;
+        if (head.views_valid) {
+            const Input::Quatf head_inv = Input::Conjugate(ToInput(head.head).orientation);
+            Immersive::Layout::EyeFov eyes[2];
+            for (int e = 0; e < 2; e++) {
+                const Input::Vec3f f = Input::Rotate(
+                    head_inv, Input::Rotate(ToInput(head.eye[e]).orientation, {0.0f, 0.0f, -1.0f}));
+                eyes[e] = {head.fov[e].angleLeft, head.fov[e].angleRight, head.fov[e].angleUp,
+                           head.fov[e].angleDown};
+                eyes[e].yaw = std::atan2(-f.x, -f.z);
+                eyes[e].pitch = std::atan2(f.y, std::hypot(f.x, f.z));
+            }
+            view = Immersive::Layout::BothEyes(eyes[0], eyes[1]);
+        }
+        std::optional<B::Angles> screen;
+        if (anchor.immersive) {
+            const Input::Posef head_from_local = Input::Inverse(ToInput(head.head));
+            for (int e = 0; e < 2; e++) {
+                Input::Posef p = ToInput(anchor.immersive_pose[e]);
+                if (!anchor.immersive_in_view) {
+                    p.orientation = Input::Multiply(head_from_local.orientation, p.orientation);
+                    p.position = Input::Transform(head_from_local, p.position);
+                }
+                const auto a =
+                    B::ScreenAngles(p, anchor.immersive_size.width, anchor.immersive_size.height);
+                if (!a) {
+                    screen.reset();
+                    break;
+                }
+                if (!screen) {
+                    screen = a;
+                } else { // the part both eyes' screens cover
+                    screen->left = std::max(screen->left, a->left);
+                    screen->right = std::min(screen->right, a->right);
+                    screen->up = std::min(screen->up, a->up);
+                    screen->down = std::max(screen->down, a->down);
+                }
+            }
+        }
+        placed = B::HeadLocked({view.left, view.right, view.up, view.down}, screen, aspect);
+        in_view_space = true;
+    }
+    quad.swapchain = toast_chain.Handle();
+    quad.image_rect = {{((level - 1) % 2) * kBadgePxW, kBadgeY + ((level - 1) / 2) * kBadgePxH},
+                       {badge_box_px, kBadgePxH}};
+    quad.pose = ToXrPose(placed.pose);
+    quad.size = {placed.width, placed.height};
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;

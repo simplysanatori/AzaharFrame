@@ -86,6 +86,8 @@ add_executable(tests
     frame_xr/use_global.cpp # AzaharFrame useglobal
     ../frame_xr/per_game.cpp # AzaharFrame useglobal
     ../frame_xr/vis/autosave_label.cpp # AzaharFrame autosave
+    ../frame_xr/vis/shader_badge.cpp # AzaharFrame shaderbadge
+    frame_xr/shader_badge.cpp # AzaharFrame shaderbadge
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

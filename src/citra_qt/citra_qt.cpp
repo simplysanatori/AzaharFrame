@@ -3489,7 +3489,8 @@ void GMainWindow::BootGame(const QString& filename) {
         Qt::QueuedConnection);
 #ifdef ENABLE_FRAME_XR
     // AzaharFrame stall: in VR the loading screen cannot be seen (the window is see-through), so
-    // its line ("Loading Vertex Shader 12 / 40", "Preparing Shaders 3 / 9") shows as a toast.
+    // its line shows there: the shader steps ("Loading Vertex Shader 12 / 40", "Preparing Shaders
+    // 3 / 9") in the shader badge (AzaharFrame shaderbadge), the textures' preloading as a toast.
     connect(emu_thread.get(), &EmuThread::LoadProgress, this,
             [this](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total,
                    const std::string& object) { FrameLoadToast(stage, value, total, object); },
@@ -7484,7 +7485,26 @@ void GMainWindow::OnEmulatorUpdateAvailable() {
 #endif
 
 #ifdef ENABLE_FRAME_XR
-// AzaharFrame stall: the loading screen's line as a VR toast, a few times a second at most.
+namespace {
+// AzaharFrame shaderbadge: when "Preparing Shaders n / m" shows (frame_xr/shader_notice.h). GUI
+// thread: the loading screen's steps (FrameLoadToast) and the poll (StartFrameShaderNotice).
+FrameXr::ShaderNotice& FrameShaderNotice() {
+    static FrameXr::ShaderNotice notice;
+    return notice;
+}
+
+std::int64_t FrameSteadyUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+} // namespace
+
+// AzaharFrame stall: in VR the loading screen cannot be seen, so its line shows there.
+// AzaharFrame shaderbadge: the disk shader cache's steps ("Preparing Shaders 3 / 9", "Loading
+// Vertex Shader 12 / 40") in the shader badge, which StartFrameShaderNotice's poll shows; the
+// custom textures' preloading ("Preloading Textures 5 / 80") stays a toast, a few times a second
+// at most.
 void GMainWindow::FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t value,
                                  std::size_t total, const std::string& object) {
     static QElapsedTimer since;
@@ -7494,16 +7514,23 @@ void GMainWindow::FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t
             FrameXr::HideToastText(shown.toStdString());
             shown.clear();
         }
+        FrameShaderNotice().LoadDone(FrameSteadyUs());
         return;
     }
     if (!FrameXr::VrShowing() || stage == VideoCore::LoadCallbackStage::Prepare) {
+        return;
+    }
+    const QString text = loading_screen->GetStageTranslation(stage, value, total, object);
+    if (stage != VideoCore::LoadCallbackStage::Preload) {
+        if (!text.isEmpty()) {
+            FrameShaderNotice().Loading(FrameSteadyUs(), text.toStdString(), value, total);
+        }
         return;
     }
     // AzaharFrame memguard: the "not preloaded" notice stays on view for its 5 s (ui3's long toast)
     if (g_frame_preload_notice.isValid() && g_frame_preload_notice.elapsed() < 5000) {
         return;
     }
-    const QString text = loading_screen->GetStageTranslation(stage, value, total, object);
     if (text.isEmpty() || (since.isValid() && since.elapsed() < 250 && value + 1 < total)) {
         return;
     }
@@ -7513,51 +7540,59 @@ void GMainWindow::FrameLoadToast(VideoCore::LoadCallbackStage stage, std::size_t
 }
 
 // AzaharFrame stall: while the game stands for shaders and pipelines built as it runs (a first
-// run, or the first after the shader cache was made again), "Preparing Shaders n / m": a VR toast,
-// or the status bar's shader line in flat (frame_xr/shader_notice.h).
+// run, or the first after the shader cache was made again), "Preparing Shaders n / m".
+// AzaharFrame shaderbadge: in VR the badge in the main screen's corner (FrameXr::SetShaderBadge),
+// in flat the status bar's shader line; frame_xr/shader_notice.h says when (no flicker: a minimum
+// time on view, short gaps bridged). Polled ten times a second.
 void GMainWindow::StartFrameShaderNotice() {
     static QTimer* timer = nullptr;
     if (timer) {
         return;
     }
     timer = new QTimer(this);
-    timer->setInterval(250);
-    auto notice = std::make_shared<FrameXr::ShaderNotice>();
-    auto in_vr = std::make_shared<bool>(false);
-    connect(timer, &QTimer::timeout, this, [this, notice, in_vr, notice_logged = false]() mutable {
-        const auto& t = Common::StallTelemetry::Get();
-        const std::int64_t now = std::chrono::duration_cast<std::chrono::microseconds>(
-                                     std::chrono::steady_clock::now().time_since_epoch())
-                                     .count();
-        const bool running = emulation_running && emu_thread && emu_thread->IsRunning();
-        const auto out = notice->Update(now, t.shader_builds_queued.load(std::memory_order_relaxed),
-                                        t.shader_builds_done.load(std::memory_order_relaxed),
-                                        t.emu_frame_end_steady_us.load(std::memory_order_relaxed),
-                                        running);
-        if (!out.hide.empty()) {
-            LOG_INFO(Frontend, "xr: shaders: the game goes on ({})", out.hide);
-            notice_logged = false;
-            if (*in_vr) {
-                FrameXr::HideToastText(out.hide);
-            } else if (loading_shaders_label->text() == QString::fromStdString(out.hide)) {
-                loading_shaders_label->setVisible(false);
-            }
-        }
-        if (!out.show.empty()) {
-            if (!notice_logged) {
-                LOG_INFO(Frontend, "xr: shaders: the game stands while they are built ({})",
-                         out.show);
-                notice_logged = true;
-            }
-            *in_vr = FrameXr::VrShowing();
-            if (*in_vr) {
-                FrameXr::ShowToastText(out.show);
-            } else {
-                loading_shaders_label->setText(QString::fromStdString(out.show));
-                loading_shaders_label->setVisible(true);
-            }
-        }
-    });
+    timer->setInterval(100);
+    enum class Shown { None, Vr, Flat };
+    connect(timer, &QTimer::timeout, this,
+            [this, shown = Shown::None, last = FrameXr::ShaderNotice::State{},
+             flat_text = QString{}]() mutable {
+                const auto& t = Common::StallTelemetry::Get();
+                const bool running = emulation_running && emu_thread && emu_thread->IsRunning();
+                const FrameXr::ShaderNotice::State& state = FrameShaderNotice().Update(
+                    FrameSteadyUs(), t.shader_builds_queued.load(std::memory_order_relaxed),
+                    t.shader_builds_done.load(std::memory_order_relaxed),
+                    t.emu_frame_end_steady_us.load(std::memory_order_relaxed), running);
+                const Shown want = !state.visible         ? Shown::None
+                                   : FrameXr::VrShowing() ? Shown::Vr
+                                                          : Shown::Flat;
+                if (state == last && want == shown) {
+                    return;
+                }
+                if (state.visible != last.visible) {
+                    if (state.visible) {
+                        LOG_INFO(Frontend, "xr: shaders: the game stands while they are built ({})",
+                                 state.text);
+                    } else {
+                        LOG_INFO(Frontend, "xr: shaders: the game goes on ({})", last.text);
+                    }
+                }
+                last = state;
+                // Taken back where it showed when it moves between VR and flat, or goes (the
+                // status bar's line only if ours: the disk cache's loading uses it too).
+                if (shown == Shown::Vr && want != Shown::Vr) {
+                    FrameXr::SetShaderBadge("", 0.0f);
+                } else if (shown == Shown::Flat && want != Shown::Flat &&
+                           loading_shaders_label->text() == flat_text) {
+                    loading_shaders_label->setVisible(false);
+                }
+                shown = want;
+                if (want == Shown::Vr) {
+                    FrameXr::SetShaderBadge(state.text, state.progress);
+                } else if (want == Shown::Flat) {
+                    flat_text = QString::fromStdString(state.text);
+                    loading_shaders_label->setText(flat_text);
+                    loading_shaders_label->setVisible(true);
+                }
+            });
     timer->start();
 }
 #endif
