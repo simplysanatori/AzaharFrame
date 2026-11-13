@@ -536,7 +536,8 @@ the frame that ended at a latch was drawn with the pose applied at the latch bef
 tags the XR images with it (`XrPresentTarget::BeginFrame`), the release hands it back
 (`Runtime::ReleaseFrame`, `ShownContentPose`), and `Immersive::Screens` places the screen in LOCAL
 space where the head was (`AnchorPose`). SteamVR re-projects that layer for the head at display time,
-so the world stays where it is between pictures; only the screen's edges move. A picture drawn
+so the world stays where it is between pictures, all over the screen at gain 1; at any other gain
+only its middle does, and the rest needs the hold below (AzaharFrame heldquad). A picture drawn
 before SteamVR's last recentre, or more than `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` behind, goes back
 to the head. Once a second while a Full mode is on, the log says how old the pictures were, how far
 the head turned since, how many frames the screen was anchored, and how many display frames each
@@ -551,10 +552,11 @@ now (`AZAHARFRAME_IMMERSIVE_ANCHOR_EYE`, default 1): far scenery is seen exactly
 as in a rotational reprojection, and the game camera follows the head's position on the next picture
 as before. A second line each second says how far far scenery on the anchored screen was from where
 its picture was drawn, and how far it moved from one display frame to the next
-(`xr: immersive: far scenery on the anchored screen ...`). The rest of a fast turn's slip is the
-gain: the game camera turns `gain` times the head, which keeps the world still at the screen's middle
-only when the gain is the game's real angle over the screen's (Detect Game FOV Always, or an
-Immersive Game FOV that is the game's real angle, such as the one Once measured).
+(`xr: immersive: far scenery on the anchored screen ...`). The gain keeps the world still at the
+screen's middle only when it is the game's real angle over the screen's (Detect Game FOV Always,
+or an Immersive Game FOV that is the game's real angle, such as the one Once measured). Away from
+the middle a gain other than 1 moves the world with the head in every turn, slow or fast, and on
+the whole screen but its middle (below).
 
 AzaharFrame turns2: the same for any settings. In mode 2 the one quad both eyes see was kept about
 the middle of the head, so each eye, half the IPD to the side, was off by half the IPD / distance of
@@ -569,6 +571,42 @@ largest error is 0.0001 degrees, and with the head where the picture was drawn t
 one before (`the anchored screen keeps far scenery still for any settings`). The per-second line
 measures from each eye as located against where that eye saw the picture's middle when it was
 drawn; before, mode 2 measured from the middle of the head, which hid that error.
+
+AzaharFrame heldquad: a picture held as the game would draw it now. Each picture is shown on two
+display refreshes (60 a second at 120 Hz) or four (30 a second). Held rigid in the room, as above,
+it is right only at gain 1: the picture is magnified by 1 / gain, so a picture drawn fresh moves
+scenery `e` from the middle with the head by `(1 - gain^2) sin^2 e` of the turn (the formula under
+Size, rewritten). The eye follows that movement; the rigid picture stood still on its second
+refresh and caught up in one jump at the next picture, so the eye saw it twice, `that x the head's
+speed / 120` apart: 0.1 to 0.3 degrees at 100 degrees a second, 30 to 45 degrees off the middle, at
+the owner's gains of 0.5 to 0.72. Every head turn doubled the world, in both Full modes, with one
+eye shut and at 3D Depth 0, and it was gone with each picture shown only once (the owner's headset
+test of 2026-11-13, `AZAHARFRAME_XR_SINGLE_FLASH=1`). Now every refresh places the picture where a
+fresh one would put its scenery (`Layout::HeldQuad`): for a point `p` of the screen the game's ray
+is `M^-1 p` with `M = diag(1 / gain_x, 1 / gain_y, 1)`, the game camera has turned by `R` since the
+picture, so that scenery belongs along `A p = M R M^-1 p`. Seen from the eye that is a linear map
+of the picture, so it needs only the quad's pose and size each refresh (no GPU pass): a pure yaw or
+pitch gives a rectangle exactly, a mix leaves a small skew. The picture's own camera and gains come
+from a ring of the last 64 display frames' head poses (`Layout::PoseRing`, on the XR thread, keyed by
+the pose time the picture carries), so a Detect Game FOV slew, a zoom or a size change between draw
+and display is never taken for a head turn; a picture not found there (after a recentre or a mode
+change, which clear it) is held rigid. Mode 3 holds each eye's quad about its eye; mode 2's
+pictures come from the game's own two cameras, so each eye's rays come from a point between the
+head's middle (3D Depth 0) and the eye (far scenery at parallel, as the stereo cap keeps it), found
+from the game's measured far scenery (`Layout::EyeShareOnQuad`). At gain 1, with the rays from the
+eye, it is the rigid placement above. What it cannot do: the swim itself (it becomes smooth, not
+stepped; only gain 1 has none), the HUD and anything else fixed in the picture (still stepped once
+a picture), near scenery with 3D Depth above 0 (its parallax needs depth), the screen's edges (they
+step once a picture, as before), and a head roll with unequal gains, which a magnified picture shows
+sheared, as no rectangle can (split evenly between its edges). A unit test sweeps 600 random
+settings (both modes, the two gains drawn apart from 0.4 to 2.0, 0.3 to 5 m, pitch, offsets, Screen
+Shape, IPD 55 to 75 mm, mode 2's ray point, turns up to 10 degrees about a neck, with a lean) against
+pictures traced fresh for the head now (`a picture shown again is held as the game would draw it
+now`): a pure yaw or pitch in mode 3 and a yaw in mode 2 within 0.0001 degrees where rigid is off
+by up to 16 degrees, any other turn under about half its skew, and at gain 1 the rigid placement to
+0.0001 degrees. `AZAHARFRAME_IMMERSIVE_HOLD=rigid` (a live test switch) holds it rigid again; the
+per-second line says in how many frames the picture's camera was found
+(`xr: immersive: a picture shown again held ...`).
 
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's
