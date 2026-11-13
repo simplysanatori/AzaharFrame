@@ -753,6 +753,12 @@ std::string RemoveOriginalBody(const std::string& size, bool catalog) {
            (catalog ? "download" : "add") + " it again.";
 }
 
+std::string DeletePackBody(bool both, bool zip) { // AzaharFrame texrow
+    const std::string again = zip ? "You can install it again from its zip."
+                                  : "You can download it again.";
+    return both ? "Deletes the optimized pack and the original PNG pack. " + again : again;
+}
+
 std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
     if (!version.empty() && version.front() >= '0' && version.front() <= '9') {
         return "v" + version;
@@ -865,8 +871,8 @@ std::string SizeText(uint64_t bytes) {
     static constexpr const char* kUnits[] = {"B", "KB", "MB", "GB", "TB"};
     double v = static_cast<double>(bytes);
     int unit = 0;
-    while (v >= 1000.0 && unit < 4) {
-        v /= 1000.0;
+    while (v >= 1024.0 && unit < 4) { // AzaharFrame texrow: 1024s
+        v /= 1024.0;
         unit++;
     }
     char buf[32];
@@ -1632,9 +1638,14 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
     for (std::size_t n = 0; n < items.size(); n++) {
         const Item& it = items[n];
         const float y = top + s.tops[n] - s.scroll;
-        if (y + it.h <= list.y0 || y + it.h > list.y1 + 0.01f) {
+        // AzaharFrame texrow: a row cut by the list's bottom shows its top part (clipped), as
+        // Material lists do: Enabled Textures under the packs never looks empty, and its first
+        // row says the list goes on
+        if (y + it.h <= list.y0 || y >= list.y1 - 0.01f) {
             continue;
         }
+        // ... and takes no clicks until it is scrolled into view (whole rows are the targets)
+        const Rect hits = y + it.h > list.y1 + 0.01f ? Rect{0.0f, 0.0f, 0.0f, 0.0f} : list;
         if (it.kind == Item::Kind::Divider) {
             kit.Fill({c.x0, y + 8.0f, c.x1, y + 9.0f}, 0.0f, Tok::kOutlineVariant);
             continue;
@@ -1665,7 +1676,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
             const float op = enabled ? 1.0f : kDisabledContent;
             if (box) {
                 kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
-                AddHit(row, enabled ? t : Target{it.id, kLabelIndex}, list);
+                AddHit(row, enabled ? t : Target{it.id, kLabelIndex}, hits);
                 Checkbox(kit, c.x0 + 12.0f, cy, r.value, enabled);
             } else {
                 // A whole pack, or variants: on with its pack; changed on its Customize page
@@ -1680,7 +1691,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 const bool can = enabled && (up ? r.up : r.down);
                 ArrowButton(kit, bx, cy, up, can, StateOf(view, at, can));
                 if (can) {
-                    AddHit({bx - kBtn * 0.5f, cy - 24.0f, bx + kBtn * 0.5f, cy + 24.0f}, at, list);
+                    AddHit({bx - kBtn * 0.5f, cy - 24.0f, bx + kBtn * 0.5f, cy + 24.0f}, at, hits);
                 }
                 if (view.tooltip == at.id && view.tooltip_index == it.index) {
                     const bool first = y - kRow1 < list.y0;
@@ -1695,7 +1706,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
         const State st = StateOf(view, t, enabled);
         const float op = enabled ? 1.0f : kDisabledContent;
         kit.StateLayer(row, 16.0f, Tok::kOnSurface, st);
-        AddHit(row, enabled ? t : Target{it.id, kLabelIndex}, list);
+        AddHit(row, enabled ? t : Target{it.id, kLabelIndex}, hits);
         if (it.kind == Item::Kind::Switch) {
             const bool value = it.id == Id::CustomTextures ? m.custom_textures : m.preload;
             kit.Switch({c.x1 - kSwitchW, row.y0, c.x1, row.y1}, value, st);
@@ -1718,7 +1729,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 const Target dt{Id::PackDelete, it.index};
                 kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, dt, can));
                 if (can) {
-                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, dt, list);
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, dt, hits);
                 }
                 right = b.x0 + 12.0f - kNameGap;
                 trail = b.x0 - 8.0f;
@@ -1731,7 +1742,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 const Target ct{Id::PackCustomize, it.index};
                 kit.Button(b, ButtonStyle::Text, Sym::kTune, label, StateOf(view, ct, !m.busy));
                 if (!m.busy) {
-                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, ct, list);
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, ct, hits);
                 }
                 right = b.x0 + 12.0f - kNameGap;
             }

@@ -261,8 +261,8 @@ TEST_CASE("texparts: texts", "[texparts]") {
     State s;
     CHECK(CountText(1, "Texture", "Textures") == "1 Texture");
     CHECK(CountText(1434, "Texture", "Textures") == "1,434 Textures");
-    CHECK(SizeText(4496484836ull) == "4.5 GB");
-    CHECK(SizeText(73494804) == "73 MB");
+    CHECK(SizeText(4496484836ull) == "4.2 GB"); // AzaharFrame texrow: 1024s, as the menu's sizes
+    CHECK(SizeText(73494804) == "70 MB");
     CHECK(PartDetail(l, *l.FindPart("EFFECTS")) == "1 Texture · 100 B · Conflicts with Main");
     CHECK(GroupDetail(l, *l.FindGroup("AI Upscaled or WIP")) == "2 Textures · 200 B");
     CHECK(ConflictNames(l, *l.FindPart("[Main]")) == "Effects");

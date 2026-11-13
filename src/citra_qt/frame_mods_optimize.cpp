@@ -8,8 +8,9 @@
 // (nice 19, idle I/O), two while a game runs, that only read the pack and write its copy
 // "<pack>-astc4x4" (never the folder the game reads). It goes on when the menu closes; Stop ends it, and Optimize carries on from there. When
 // it is done, the copy becomes the game's pack at the next start (ApplyPendingPack, from the
-// emulator's shutdown and boot), with the Customize choices carried over; Use Original does the
-// same the other way.
+// emulator's shutdown and boot), with the Customize choices carried over (when it is chosen); Use
+// Original does the same the other way. AzaharFrame texrow: a switch waits for each pair, and the
+// menu shows them as done (the pack row, Enabled Textures) while the disk keeps what the game reads.
 
 #include <algorithm>
 #include <filesystem>
@@ -288,11 +289,42 @@ void FrameMods::UseOriginal(const std::string& pack_id) {
     RefreshPacks();
 }
 
+const FrameMods::PendingSwitch* FrameMods::PendingFor(u64 tid, const std::string& path) const {
+    const std::string c = Canon(path);
+    for (const PendingSwitch& s : pending_switches) {
+        if (s.title == tid && !c.empty() && (s.path == c || s.carry_from == c)) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+void FrameMods::DropPending(u64 tid, const std::string& path) {
+    const std::string c = Canon(path);
+    std::erase_if(pending_switches, [&](const PendingSwitch& s) {
+        return s.title == tid && !c.empty() && (s.path == c || s.carry_from == c);
+    });
+    if (layers && tid == title_id) {
+        std::erase_if(layers->waiting, [&](const CustomTex::Layers::Switch& s) {
+            return s.from == c || s.to == c;
+        });
+    }
+}
+
 void FrameMods::ChoosePack(u64 tid, const std::string& path, const std::string& carry_from) {
     if (tid == 0) {
         return;
     }
-    pending_switch = PendingSwitch{tid, Canon(path), Canon(carry_from)};
+    // AzaharFrame texrow: the Customize choices go to the chosen copy now (the game reads only its
+    // own copy's, at boot), so what is changed on its page while the switch waits stays
+    if (!carry_from.empty() && !Opt::CarryParts(carry_from, path)) {
+        LOG_WARNING(Frontend, "xr: optimize: the Customize choices of {} did not carry over",
+                    carry_from);
+    }
+    // One switch a pair (texrow: the switches of other pairs stay)
+    DropPending(tid, path);
+    DropPending(tid, carry_from);
+    pending_switches.push_back(PendingSwitch{tid, Canon(path), Canon(carry_from)});
     if (game_running_source && game_running_source()) {
         // The running game reads its pack through load/textures/<TID> as it goes: switched when it stops.
         LOG_INFO(Frontend, "xr: optimize: {} from the next start", path);
@@ -305,33 +337,32 @@ void FrameMods::ChoosePack(u64 tid, const std::string& path, const std::string& 
 }
 
 void FrameMods::ApplyPendingPack() {
-    if (!pending_switch) {
-        return;
+    const std::vector<PendingSwitch> all = std::exchange(pending_switches, {});
+    if (layers) {
+        layers->waiting.clear(); // AzaharFrame texrow: the disk has them now; Save keeps them
     }
-    const PendingSwitch s = *std::exchange(pending_switch, std::nullopt);
     const CustomTex::Paths paths = CustomTex::DefaultPaths();
-    for (const CustomTex::Pack& p : CustomTex::ListPacks(paths, s.title)) {
-        if (p.id != s.path && Canon(p.path) != s.path) {
-            continue;
+    for (const PendingSwitch& s : all) { // AzaharFrame texrow: every pair that switches
+        bool found = false;
+        for (const CustomTex::Pack& p : CustomTex::ListPacks(paths, s.title)) {
+            if (p.id != s.path && Canon(p.path) != s.path) {
+                continue;
+            }
+            found = true;
+            // AzaharFrame texlayers: in its pair's place in the game's list (on top when the pair
+            // was off); the Customize choices were carried when it was chosen (ChoosePack)
+            namespace L = CustomTex::Layers;
+            L::State list = L::Current(paths, s.title);
+            L::ApplySwitch(list, {s.carry_from, p.id});
+            const CustomTex::Result r = L::Apply(paths, s.title, list);
+            LOG_INFO(Frontend, "xr: optimize: {:016X} uses {}{}", s.title, p.path,
+                     r.ok ? "" : " (failed: " + r.error + ")");
+            break;
         }
-        if (!s.carry_from.empty() && !Opt::CarryParts(s.carry_from, p.path)) {
-            LOG_WARNING(Frontend, "xr: optimize: the Customize choices of {} did not carry over",
-                        s.carry_from);
+        if (!found) {
+            LOG_WARNING(Frontend, "xr: optimize: {} is gone; the pack stays as it was", s.path);
         }
-        // AzaharFrame texlayers: in its pair's place in the game's list (on top when the pair was off)
-        namespace L = CustomTex::Layers;
-        L::State list = L::Current(paths, s.title);
-        if (!s.carry_from.empty() && L::Has(list, s.carry_from)) {
-            L::Replace(list, s.carry_from, p.id);
-        } else {
-            L::Add(list, p.id, {std::string{}});
-        }
-        const CustomTex::Result r = L::Apply(paths, s.title, list);
-        LOG_INFO(Frontend, "xr: optimize: {:016X} uses {}{}", s.title, p.path,
-                 r.ok ? "" : " (failed: " + r.error + ")");
-        return;
     }
-    LOG_WARNING(Frontend, "xr: optimize: {} is gone; the pack stays as it was", s.path);
 }
 
 void FrameMods::UpdateOptimizeRow() {
@@ -354,8 +385,12 @@ void FrameMods::UpdateOptimizeRow() {
     // The one chosen: waiting for the next start, else the one of the pair that is on
     // (AzaharFrame texlayers: other packs may be on too).
     std::string chosen;
-    if (pending_switch && pending_switch->title == title_id) {
-        chosen = pending_switch->path;
+    const PendingSwitch* waiting_switch = copy.empty() ? nullptr : PendingFor(title_id, copy);
+    if (!waiting_switch && !png.empty()) {
+        waiting_switch = PendingFor(title_id, png);
+    }
+    if (waiting_switch) { // AzaharFrame texrow: this pair's
+        chosen = waiting_switch->path;
     } else {
         for (const CustomTex::Pack& p : packs) {
             if (p.active && (p.id == png || p.id == copy || Canon(p.path) == png ||
@@ -379,8 +414,7 @@ void FrameMods::UpdateOptimizeRow() {
         row.original_removed = png.empty();
         if (!png.empty()) {
             row.original_size = size_of(png);
-            const bool waiting = pending_switch && pending_switch->title == title_id;
-            row.can_remove = !waiting && Canon(ActiveLink()) != png;
+            row.can_remove = !waiting_switch && Canon(ActiveLink()) != png;
         }
         return;
     } else if (const auto it = optimize_states.find(png); !png.empty() && it != optimize_states.end()) {
@@ -432,11 +466,11 @@ void FrameMods::RemoveOriginalDo(const std::string& optimized) {
         return;
     }
     // The game reads the original until the waiting switch happens: never then.
-    if (pending_switch && pending_switch->title == title_id) {
+    const std::string png = Canon(Opt::PairOf(optimized, false).png);
+    if (PendingFor(title_id, optimized) || (!png.empty() && PendingFor(title_id, png))) {
         FrameXr::ShowToastText("Original Is in Use", FrameXr::ToastTime::Long);
         return;
     }
-    const std::string png = Canon(Opt::PairOf(optimized, false).png);
     textures.busy = true;
     PublishTextures();
     const std::vector<std::string> roots = Opt::ManagedRoots(LoadDir());
