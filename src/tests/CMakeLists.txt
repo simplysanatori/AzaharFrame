@@ -12,6 +12,7 @@ add_executable(tests
     frame_xr/presets.cpp # AzaharFrame vrqol
     frame_xr/shader_notice.cpp # AzaharFrame stall
     ../frame_xr/presets.cpp # AzaharFrame vrqol
+    ../frame_xr/controls_presets.cpp # AzaharFrame kiu
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame
     ../frame_xr/input/screen_rig.cpp # AzaharFrame vrsize

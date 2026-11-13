@@ -1594,9 +1594,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 rh >= 0 ? Input::ReticleAimOf(game_in.hand[static_cast<std::size_t>(rh)])
                         : Input::ReticleHeadAim(head_view.valid, head, game_in.hand[0],
                                                 game_in.hand[1]);
-            // AzaharFrame fixes7: Aim Only While Pressed, Stick Moves Reticle (reticle.h). The
-            // right stick is the reticle's then, not the C-Stick; not while a grip holds a
-            // screen (the stick moves and sizes it then).
+            // AzaharFrame fixes7: Aim Only While Pressed, Right Stick Moves Touch (reticle.h).
+            // The right stick is the reticle's then, not the C-Stick; not while a grip holds a
+            // screen (the stick moves and sizes it then). AzaharFrame kiu: off, the C-Stick is
+            // the stick as it is (SplitReticleStick).
             Input::ReticleModes modes;
             modes.center_until_pressed = Settings::values.vr_reticle_center_until_pressed.GetValue();
             const bool holding = Immersive::HoldingScreen() || bridge.mapper().DragActive();
@@ -1604,30 +1605,32 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             modes.stick_moves = stick_on && !holding;
             Input::HandInput& right = game_in.hand[static_cast<std::size_t>(
                 Input::HandIndex(Input::Hand::Right))];
-            if (modes.stick_moves) {
-                aim.stick = right.stick;
-            }
+            aim.stick = Input::SplitReticleStick(modes.stick_moves, true, right.stick).to_reticle;
+            const float half_width = Input::ReticleHalfWidthDeg(
+                source, Settings::values.vr_reticle_speed.GetValue()); // AzaharFrame reticle
             const Input::ReticleFrame rf = reticle.Update(
-                aim, true,
-                Input::ReticleHalfWidthDeg(source,
-                                           Settings::values.vr_reticle_speed.GetValue()), // reticle
-                in.time_ns,
+                aim, true, half_width, in.time_ns,
                 Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()), modes);
-            if (rf.on && modes.stick_moves) {
-                right.stick = {};
-            }
-            const int modes_now = (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0);
+            right.stick = Input::SplitReticleStick(modes.stick_moves, rf.on, right.stick).to_game;
+            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
+            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            const int modes_now =
+                (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0) | (edge_on ? 4 : 0);
             if (modes_now != reticle_modes_logged) {
                 reticle_modes_logged = modes_now;
                 LOG_INFO(Frontend,
-                         "xr: Bottom Screen Reticle: Aim Only While Pressed {}, Stick Moves "
-                         "Reticle {}",
-                         modes.center_until_pressed ? "on" : "off", stick_on ? "on" : "off");
+                         "xr: Bottom Screen Reticle: Aim Only While Pressed {}, Right Stick Moves "
+                         "Touch {}, C-Stick at Edge {}",
+                         modes.center_until_pressed ? "on" : "off", stick_on ? "on" : "off",
+                         edge_on ? "on" : "off");
             }
             if (rf.rezeroed) {
                 LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");
             }
             reticle_sample = {rf.on, rf.point, rf.down};
+            if (edge_on && !holding) {
+                reticle_sample.edge_band = Input::ReticleEdgeBandFor(half_width);
+            }
             if (rf.on && rh >= 0) {
                 Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(rh)];
                 hand.trigger = 0.0f;
@@ -1686,6 +1689,15 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::MapperOutput& out =
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
     bridge_live = true;
+    {
+        // AzaharFrame kiu: C-Stick at Edge starts and stops pushing (one line each).
+        const Input::Vec2f edge = bridge.edge_stick();
+        const bool pushing = edge.x != 0.0f || edge.y != 0.0f;
+        if (pushing != edge_stick_logged) {
+            edge_stick_logged = pushing;
+            LOG_INFO(Frontend, "xr: C-Stick at Edge: {}", pushing ? "pushing" : "released");
+        }
+    }
 
     const auto& cmd = out.commands;
     {

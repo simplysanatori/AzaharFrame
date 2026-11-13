@@ -96,6 +96,55 @@ float ReticleHalfWidthDeg(ReticleHand source, float speed) {
     }
 }
 
+// AzaharFrame kiu
+ReticleStickSplit SplitReticleStick(bool stick_moves, bool reticle_live, Vec2f stick) {
+    ReticleStickSplit split;
+    split.to_reticle = stick_moves ? stick : Vec2f{};
+    split.to_game = stick_moves && reticle_live ? Vec2f{} : stick;
+    return split;
+}
+
+ReticleEdgeBand ReticleEdgeBandFor(float half_width_deg) {
+    if (!(half_width_deg > 0.0f)) {
+        return {};
+    }
+    const float hh = half_width_deg * kHeightOverWidth;
+    return {std::clamp(kEdgeBandDeg / (2.0f * half_width_deg), kEdgeBandMin, kEdgeBandMax),
+            std::clamp(kEdgeBandDeg / (2.0f * hh), kEdgeBandMin, kEdgeBandMax)};
+}
+
+namespace {
+/// How far into the band at the low (negative) or the high (positive) end of 0..1.
+float EdgeDepth(float v, float band) {
+    v = std::clamp(v, 0.0f, 1.0f);
+    if (v < band) {
+        return -std::min((band - v) / band, 1.0f);
+    }
+    if (v > 1.0f - band) {
+        return std::min((v - (1.0f - band)) / band, 1.0f);
+    }
+    return 0.0f;
+}
+} // namespace
+
+Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band) {
+    if (!touching || !band.On() || !(point.x == point.x) || !(point.y == point.y)) {
+        return {};
+    }
+    // The point's y grows downward, the stick's up.
+    return AddStick({EdgeDepth(point.x, band.x), -EdgeDepth(point.y, band.y)}, {});
+}
+
+Vec2f AddStick(Vec2f a, Vec2f b) {
+    Vec2f s{a.x + b.x, a.y + b.y};
+    const float len = std::sqrt(s.x * s.x + s.y * s.y);
+    if (len > 1.0f) {
+        s.x /= len;
+        s.y /= len;
+    }
+    return s;
+}
+
 Vec2f ReticlePoint(float yaw_deg, float pitch_deg, float half_width_deg) {
     const float hw = std::max(half_width_deg, 0.1f);
     const float hh = hw * kHeightOverWidth;
@@ -177,7 +226,7 @@ ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, floa
         out_ = {};
         lifting_ = false;
     } else if (modes.stick_moves) {
-        // AzaharFrame fixes7: Stick Moves Reticle: the stick turns the reference the other way,
+        // AzaharFrame fixes7: Right Stick Moves Touch: the stick turns the reference the other way,
         // so the point moves with the stick (right is right, up is up).
         const float len = std::sqrt(hand.stick.x * hand.stick.x + hand.stick.y * hand.stick.y);
         if (len > kStickDeadzone) {

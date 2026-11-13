@@ -94,8 +94,8 @@ struct ReticleAim {
     Quatf orientation;   ///< points along its -Z
     float trigger = 0.0f;
     float grip = 0.0f; ///< a press re-zeroes (0 for the head)
-    /// AzaharFrame fixes7: the right stick (-1..1, right and up positive) while Stick Moves
-    /// Reticle is on, else zero.
+    /// AzaharFrame fixes7: the right stick (-1..1, right and up positive) while Right Stick
+    /// Moves Touch is on, else zero.
     Vec2f stick;
 };
 
@@ -104,15 +104,61 @@ struct ReticleAim {
 ///     in the middle of the bottom screen and only moves while the trigger touches; let go, it
 ///     is back in the middle. The middle is where it aims when the trigger goes down, so a touch
 ///     always starts at the middle.
-///   - Stick Moves Reticle (Settings::values.vr_reticle_stick_moves): the right stick moves the
-///     point too (its turn and the stick's add up into one touch), and does not reach the game
-///     as the C-Stick. Made for Kid Icarus: Uprising, which aims only by touch: the stick aims
-///     as the head does, during a touch too. Full tilt crosses the screen in 1 / kStickScreensPerSec
-///     seconds, the tilt squared (fine moves near the middle), past a dead zone of kStickDeadzone.
+///   - Right Stick Moves Touch (Settings::values.vr_reticle_stick_moves; AzaharFrame kiu: was
+///     Stick Moves Reticle): the right stick moves the point too (its turn and the stick's add
+///     up into one touch point, touching or not), and does not reach the game as the C-Stick
+///     while the reticle is live (SplitReticleStick). A touch input like any other, for any
+///     game; made for Kid Icarus: Uprising without the C-Stick & Gyro mod, which aims only by
+///     touch. Full tilt crosses the screen in 1 / kStickScreensPerSec seconds, the tilt squared
+///     (fine moves near the middle), past a dead zone of kStickDeadzone.
 struct ReticleModes {
     bool center_until_pressed = false;
     bool stick_moves = false;
 };
+
+/// AzaharFrame kiu: where the right stick goes with the reticle on. `stick_moves`: Right Stick
+/// Moves Touch is on and no grip holds a screen (the stick moves and sizes the screen then).
+///   - to_reticle: the stick for ReticleAim::stick (zero unless `stick_moves`);
+///   - to_game: the stick the game gets (its C-Stick): zero only while `stick_moves` and the
+///     reticle is live this frame (`reticle_live`, ReticleFrame::on). Off, the C-Stick is the
+///     stick as it is: nothing is swallowed.
+struct ReticleStickSplit {
+    Vec2f to_reticle;
+    Vec2f to_game;
+};
+ReticleStickSplit SplitReticleStick(bool stick_moves, bool reticle_live, Vec2f stick);
+
+/// AzaharFrame kiu: C-Stick at Edge (Settings::values.vr_reticle_edge_cstick). While the
+/// reticle touches the bottom screen within a band along an edge, the C-Stick is pushed toward
+/// that edge too, by how far into the band the point is (0 where the band starts, full tilt at
+/// the edge), each axis on its own; a corner pushes both (no more than full tilt in all). Lifted,
+/// out of the band, or switched off: nothing is added, so the C-Stick is the stick's own again
+/// in the same frame (nothing to release later).
+/// Why: the C-Stick & Gyro mod for Kid Icarus: Uprising aims with the C-Stick and turns the
+/// camera when that aim reaches the edge of the screen (its touch keeps priority over the
+/// stick: "Touchscreen input retains priority"). A touch held at the edge did nothing like it:
+/// the stick pushed outward is the mod's own turn.
+/// The band is an aim angle (kEdgeBandDeg) in the reticle's cone (ReticleHalfWidthDeg, from the
+/// source and Reticle Speed), as a fraction of the screen's width and height: the same turn of
+/// the head or the controller enters it at any Reticle Speed and any screen size or shape,
+/// clamped to kEdgeBandMin..kEdgeBandMax of the screen.
+struct ReticleEdgeBand {
+    float x = 0.0f; ///< fraction of the width at the left and the right edge (0: off)
+    float y = 0.0f; ///< fraction of the height at the top and the bottom edge (0: off)
+    bool On() const {
+        return x > 0.0f && y > 0.0f;
+    }
+};
+inline constexpr float kEdgeBandDeg = 3.0f;
+inline constexpr float kEdgeBandMin = 0.05f;
+inline constexpr float kEdgeBandMax = 0.25f;
+/// The band for a cone (ReticleHalfWidthDeg); off (zero) for a cone of 0 (Off).
+ReticleEdgeBand ReticleEdgeBandFor(float half_width_deg);
+/// The C-Stick push (-1..1, right and up positive) for a touch point (0..1 from the top left).
+/// Zero when `touching` is false or the band is off.
+Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band);
+/// Two stick values added, no longer than full tilt (1).
+Vec2f AddStick(Vec2f a, Vec2f b);
 ReticleAim ReticleAimOf(const HandInput& hand);
 /// The head aims; the touch is the larger of the two triggers (either one held touches).
 ReticleAim ReticleHeadAim(bool head_active, const Quatf& head, const HandInput& left,
@@ -186,7 +232,7 @@ public:
     /// Snap to Middle: no other snap for this long after the touch comes back (or the snap,
     /// with no touch).
     static constexpr int64_t kSnapCooldownNs = 200'000'000;
-    /// AzaharFrame fixes7: Stick Moves Reticle (ReticleModes).
+    /// AzaharFrame fixes7: Right Stick Moves Touch (ReticleModes).
     static constexpr float kStickDeadzone = 0.15f;
     static constexpr float kStickScreensPerSec = 1.0f;
 

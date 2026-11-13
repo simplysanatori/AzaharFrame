@@ -594,10 +594,15 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_reticle_speed);
     ReadGlobalSetting(Settings::values.vr_reticle_center_until_pressed); // AzaharFrame fixes7
     ReadGlobalSetting(Settings::values.vr_reticle_stick_moves);
+    ReadGlobalSetting(Settings::values.vr_reticle_edge_cstick); // AzaharFrame kiu
+    ReadGlobalSetting(Settings::values.vr_motion_controls);     // AzaharFrame kiu: per game too
+    if (!global) {
+        // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
+        ReadGlobalSetting(Settings::values.vr_controls_preset_done);
+    }
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
-        ReadGlobalSetting(Settings::values.vr_motion_controls);
         ReadGlobalSetting(Settings::values.vr_background);
         ReadGlobalSetting(Settings::values.vr_show_controllers); // AzaharFrame vrvis
         ReadGlobalSetting(Settings::values.vr_show_stats);       // AzaharFrame vrvis
@@ -1274,10 +1279,14 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_reticle_speed);
     WriteGlobalSetting(Settings::values.vr_reticle_center_until_pressed); // AzaharFrame fixes7
     WriteGlobalSetting(Settings::values.vr_reticle_stick_moves);
+    WriteGlobalSetting(Settings::values.vr_reticle_edge_cstick); // AzaharFrame kiu
+    WriteGlobalSetting(Settings::values.vr_motion_controls);     // AzaharFrame kiu: per game too
+    if (!global) {
+        WriteGlobalSetting(Settings::values.vr_controls_preset_done); // AzaharFrame kiu
+    }
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);
-        WriteGlobalSetting(Settings::values.vr_motion_controls);
         WriteGlobalSetting(Settings::values.vr_background);
         WriteGlobalSetting(Settings::values.vr_show_controllers); // AzaharFrame vrvis
         WriteGlobalSetting(Settings::values.vr_show_stats);       // AzaharFrame vrvis

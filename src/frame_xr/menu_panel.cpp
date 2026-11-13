@@ -278,6 +278,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ReticleCenter;
     case Id::ReticleStick:
         return MenuSetting::ReticleStick;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        return MenuSetting::ReticleEdgeCStick;
+    case Id::MotionControls:
+        return MenuSetting::MotionControls;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -817,6 +821,7 @@ void MenuPanel::BuildModel(const Host& host) {
         Input::ClampReticleSpeed(v.vr_reticle_speed.GetValue()) * 10.0f));
     m.reticle_center = v.vr_reticle_center_until_pressed.GetValue(); // AzaharFrame fixes7
     m.reticle_stick = v.vr_reticle_stick_moves.GetValue();
+    m.reticle_edge_cstick = v.vr_reticle_edge_cstick.GetValue(); // AzaharFrame kiu
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -1200,7 +1205,12 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ReticleStick:
         Apply(v.vr_reticle_stick_moves, value != 0, per_game);
         r.setting = MenuSetting::ReticleStick;
-        LOG_INFO(Frontend, "xr: in-game menu: Stick Moves Reticle = {}", value != 0);
+        LOG_INFO(Frontend, "xr: in-game menu: Right Stick Moves Touch = {}", value != 0);
+        break;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        Apply(v.vr_reticle_edge_cstick, value != 0, per_game);
+        r.setting = MenuSetting::ReticleEdgeCStick;
+        LOG_INFO(Frontend, "xr: in-game menu: C-Stick at Edge = {}", value != 0);
         break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
@@ -1240,8 +1250,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_face_buttons, u, false);
         r.setting = MenuSetting::FaceButtons;
         break;
-    case Id::MotionControls:
-        Apply(v.vr_motion_controls, u, false);
+    case Id::MotionControls: // AzaharFrame kiu: per game in Per-Game
+        Apply(v.vr_motion_controls, std::min<u32>(u, 3), per_game);
         r.setting = MenuSetting::MotionControls;
         break;
     case Id::ShowControllers:
@@ -1887,6 +1897,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ReticleStick:
         SetSetting(t.id, model.reticle_stick ? 0 : 1, host);
+        break;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        SetSetting(t.id, model.reticle_edge_cstick ? 0 : 1, host);
         break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);

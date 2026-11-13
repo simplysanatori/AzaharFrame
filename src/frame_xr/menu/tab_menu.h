@@ -92,7 +92,8 @@ enum class Id : int {
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     ReticleSpeed,        ///< AzaharFrame reticle: a slider, 5 to 40 (tenths of 1x)
     ReticleCenter,       ///< AzaharFrame fixes7: Aim Only While Pressed (a switch)
-    ReticleStick,        ///< AzaharFrame fixes7: Stick Moves Reticle (a switch)
+    ReticleStick,        ///< AzaharFrame fixes7: Right Stick Moves Touch (a switch)
+    ReticleEdgeCStick,   ///< AzaharFrame kiu: C-Stick at Edge (a switch)
     // Settings
     /// AzaharFrame reticle: the scope toggle on the Settings, Controls and Position tabs, index:
     /// 0 Global, 1 Per-Game (DrawScope); pointing at Per-Game while picked shows the count.
@@ -288,7 +289,8 @@ struct MenuModel {
     int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     int reticle_speed = 20;        ///< AzaharFrame reticle: tenths of 1x (5 to 40)
     bool reticle_center = false;   ///< AzaharFrame fixes7: Aim Only While Pressed
-    bool reticle_stick = false;    ///< AzaharFrame fixes7: Stick Moves Reticle
+    bool reticle_stick = false;    ///< AzaharFrame fixes7: Right Stick Moves Touch
+    bool reticle_edge_cstick = false; ///< AzaharFrame kiu: C-Stick at Edge
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game (AzaharFrame autosave: the menu opens on Per-Game)

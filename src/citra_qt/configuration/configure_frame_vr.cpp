@@ -122,7 +122,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {window_scale_combo});
     layout->addWidget(window_scale_row);
 
-    // Global only. Values 0..3 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
+    // Values 0..3 are Settings::values.vr_motion_controls (frame_xr/input/motion.h). Shown in
+    // the global settings only; AzaharFrame kiu: a game's own value is set in the VR menu.
     motion_combo = new QComboBox(this);
     motion_combo->addItem(tr("Off"));
     motion_combo->addItem(tr("Right Controller"));
@@ -352,6 +353,12 @@ void ConfigureFrameVr::SetupPerGameUI() {
         lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
         lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
         lock(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
+        // AzaharFrame kiu: Motion Controls has a game's own value only from the VR menu.
+        motion_combo->setEnabled(Settings::values.vr_motion_controls.UsingGlobal());
+        if (!Settings::values.vr_motion_controls.UsingGlobal()) {
+            motion_combo->setToolTip(tr("The running game has its own setting for this. Change "
+                                        "it in the in-game menu."));
+        }
         return;
     }
 
@@ -417,8 +424,8 @@ void ConfigureFrameVr::SetConfiguration() {
         match_camera_combo->setCurrentIndex(static_cast<int>(
             std::min<u32>(Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
-        motion_combo->setCurrentIndex(
-            static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
+        motion_combo->setCurrentIndex( // AzaharFrame kiu: the global value, not a game's
+            static_cast<int>(Settings::values.vr_motion_controls.GetValue(true)));
         background_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
@@ -525,8 +532,12 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_immersive_offset_y.SetValue(0.0f);
         }
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
-        Settings::values.vr_motion_controls.SetValue(
-            static_cast<u32>(motion_combo->currentIndex()));
+        // AzaharFrame kiu: per game too: the global value only while no game value is in use
+        // (as ApplyPerGameSetting does for the other per-game rows).
+        if (Settings::values.vr_motion_controls.UsingGlobal()) {
+            Settings::values.vr_motion_controls.SetValue(
+                static_cast<u32>(motion_combo->currentIndex()));
+        }
         Settings::values.vr_background.SetValue(
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());

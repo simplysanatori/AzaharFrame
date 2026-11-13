@@ -829,9 +829,9 @@ struct Values {
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).
     SwitchableSetting<u32, true> vr_face_buttons{0, 0, 1, "vr_face_buttons"};
-    // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer (global only):
-    // 0 = off, 1 = right controller, 2 = left controller. Read every frame
-    // (frame_xr/input/motion.h).
+    // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer: 0 = off,
+    // 1 = right controller, 2 = left controller, 3 = headset. Read every frame
+    // (frame_xr/input/motion.h). AzaharFrame kiu: per game too (was global only).
     SwitchableSetting<u32, true> vr_motion_controls{1, 0, 3, "vr_motion_controls"};
     // AzaharFrame: what is behind the screens in VR (global only): 0 = Black, 1 = Passthrough (the
     // room, when the runtime offers it). Read every frame (frame_xr/hud.h).
@@ -890,11 +890,21 @@ struct Values {
     // for every aim source; per game too.
     SwitchableSetting<float, true> vr_reticle_speed{2.0f, 0.5f, 4.0f, "vr_reticle_speed"};
     // AzaharFrame fixes7: the reticle's Aim Only While Pressed (it stays in the middle of the
-    // bottom screen until the trigger touches) and Stick Moves Reticle (the right stick moves it
-    // too, instead of being the C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
+    // bottom screen until the trigger touches) and Right Stick Moves Touch (AzaharFrame kiu:
+    // was Stick Moves Reticle; the right stick moves the touch point too, instead of being the
+    // C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
     SwitchableSetting<bool> vr_reticle_center_until_pressed{false,
                                                             "vr_reticle_center_until_pressed"};
     SwitchableSetting<bool> vr_reticle_stick_moves{false, "vr_reticle_stick_moves"};
+    // AzaharFrame kiu: C-Stick at Edge: while the reticle touches near an edge of the bottom
+    // screen, the C-Stick is pushed toward that edge too (frame_xr/input/reticle.h
+    // ReticleEdgeStick), so a game that turns its camera when the C-Stick aim reaches the edge
+    // (Kid Icarus: Uprising with the C-Stick & Gyro mod) turns. Per game too.
+    SwitchableSetting<bool> vr_reticle_edge_cstick{false, "vr_reticle_edge_cstick"};
+    // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
+    // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
+    // already had, is never given again, so a later choice (Use Global Value too) stays.
+    SwitchableSetting<u32> vr_controls_preset_done{0, "vr_controls_preset_done"};
     // AzaharFrame mouse: one-time toasts, shown once per install: the reticle's controls when it
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};

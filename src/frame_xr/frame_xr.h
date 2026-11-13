@@ -302,6 +302,7 @@ enum class MenuSetting {
     MeasuredGameFov,
     ReticleCenter, ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_center_until_pressed)
     ReticleStick,  ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_stick_moves)
+    ReticleEdgeCStick, ///< AzaharFrame kiu: `value` 0 or 1 (vr_reticle_edge_cstick)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

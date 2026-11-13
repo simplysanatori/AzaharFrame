@@ -87,6 +87,12 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ReticleStick:
         f(v.vr_reticle_stick_moves);
         return true;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        f(v.vr_reticle_edge_cstick);
+        return true;
+    case Id::MotionControls: // AzaharFrame kiu: per game too
+        f(v.vr_motion_controls);
+        return true;
     default:
         return false;
     }

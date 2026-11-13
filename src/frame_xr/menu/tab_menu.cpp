@@ -239,6 +239,8 @@ bool PerGameSetting(Id id) {
     case Id::ReticleAtEdge:
     case Id::ReticleCenter: // AzaharFrame fixes7
     case Id::ReticleStick:
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+    case Id::MotionControls:    // AzaharFrame kiu: per game too (a Controls preset gives it)
         return true;
     default:
         return false;
@@ -247,9 +249,10 @@ bool PerGameSetting(Id id) {
 
 // AzaharFrame reticle
 const std::vector<Id>& ControlsScopeRows() {
-    static const std::vector<Id> kRows{Id::TouchpadTouch,  Id::BottomScreenReticle,
-                                       Id::ReticleSpeed,   Id::ReticleAtEdge,
-                                       Id::ReticleCenter, Id::ReticleStick}; // fixes7
+    static const std::vector<Id> kRows{Id::TouchpadTouch,     Id::BottomScreenReticle,
+                                       Id::ReticleSpeed,      Id::ReticleAtEdge,
+                                       Id::ReticleEdgeCStick, // AzaharFrame kiu
+                                       Id::ReticleCenter,     Id::ReticleStick}; // fixes7
     return kRows;
 }
 
@@ -428,8 +431,10 @@ std::string LabelFor(Id id) {
         return "Reticle Speed";
     case Id::ReticleCenter: // AzaharFrame fixes7
         return "Aim Only While Pressed";
-    case Id::ReticleStick:
-        return "Stick Moves Reticle";
+    case Id::ReticleStick: // AzaharFrame kiu: was Stick Moves Reticle
+        return "Right Stick Moves Touch";
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        return "C-Stick at Edge";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -631,8 +636,10 @@ std::string ExplainFor(Id id) {
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
         return "Keeps the reticle centered on the bottom screen. It moves only while you hold the trigger or click, and returns to the center when you let go.";
-    case Id::ReticleStick:
-        return "The right stick moves the reticle too, instead of the C-Stick.";
+    case Id::ReticleStick: // AzaharFrame kiu
+        return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
+    case Id::ReticleEdgeCStick:
+        return "Touching near an edge of the bottom screen pushes the C-Stick that way, for games that turn the camera with it.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -1707,8 +1714,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
-    // AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, two switches side by
-    // side in one row (each half toggles its own), so the controller picture keeps its room.
+    // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, two switches side
+    // by side in one row (each half toggles its own), so the controller picture keeps its room.
+    // AzaharFrame kiu: C-Stick at Edge the same way, in the left half of a row of its own under
+    // At Edge (its switch lines up with the pair's left one).
     const auto switch_half = [&](Id id, const Rect& half, bool on) {
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
@@ -1725,10 +1734,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge, Reticle Speed, Aim Only While Pressed and Stick Moves Reticle only while the
-    // reticle is on.
+    // At Edge, Reticle Speed, C-Stick at Edge, Aim Only While Pressed and Right Stick Moves
+    // Touch only while the reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 4.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
     const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
@@ -1746,7 +1755,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
         const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
         const float mid = (c.x0 + c.x1) * 0.5f;
-        const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
+        const Rect cstick{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
+        switch_half(Id::ReticleEdgeCStick, {cstick.x0, cstick.y0, mid - 12.0f, cstick.y1},
+                    model.reticle_edge_cstick); // AzaharFrame kiu
+        const Rect pair{c.x0 - 12.0f, cstick.y1, c.x1 + 12.0f, cstick.y1 + kChoiceH};
         switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
                     model.reticle_center);
         switch_half(Id::ReticleStick, {mid + 12.0f, pair.y0, pair.x1, pair.y1},
