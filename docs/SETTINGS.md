@@ -9,7 +9,7 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab.
 - **Global** settings are in **Emulation > Configure**. They apply to every game, also when you open it from the in-game menu.
 - **Per game** settings are also in a game's **Properties**: right-click the game in the list. A value set there wins over the global one for that game.
 
-While a game with its own value runs, that row is greyed out in **Configure**.
+While a game with its own value runs, **Configure** still changes that row's global value; the game keeps its own, and pointing at the box says so.
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 

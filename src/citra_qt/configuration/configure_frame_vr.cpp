@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <initializer_list>
 #include <utility>
+#include <vector>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -344,31 +346,27 @@ void ConfigureFrameVr::SetupPerGameUI() {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
         fov_scope->setVisible(false);
-        // A running application that overrides them blocks the global values.
-        const auto lock = [this](QWidget* widget, bool using_global) {
-            widget->setEnabled(using_global);
+        // AzaharFrame kiu: never locked. While the running game has its own value, a row still
+        // edits the global value (ApplyConfiguration), the game keeps its own, and a plain hint
+        // says so.
+        const auto hint = [this](QWidget* widget, bool using_global) {
             if (!using_global) {
-                widget->setToolTip(tr("The running game has its own setting for this. Change it "
-                                      "in the game's Properties."));
+                widget->setToolTip(
+                    tr("The running game has its own value. This sets the one for other games."));
             }
         };
-        lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
-        lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
-        lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
-        lock(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
-        lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
-        lock(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
-        lock(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
-        lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
-        lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
-        lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
-        lock(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
-        // AzaharFrame kiu: Motion Controls stays editable: with a game's own value in use it
-        // sets the global value, for the other games, and says so.
-        if (!Settings::values.vr_motion_controls.UsingGlobal()) {
-            motion_combo->setToolTip(
-                tr("The running game has its own value. This sets the one for other games."));
-        }
+        hint(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
+        hint(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
+        hint(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
+        hint(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
+        hint(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
+        hint(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
+        hint(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
+        hint(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
+        hint(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
+        hint(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
+        hint(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
+        hint(motion_combo, Settings::values.vr_motion_controls.UsingGlobal());
         return;
     }
 
@@ -559,15 +557,6 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_immersive_offset_y.SetValue(0.0f);
         }
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
-        // AzaharFrame kiu: per game too: here always the global value. While the running game
-        // has its own value, SetValue would change that one, so the global one is set around it.
-        {
-            auto& motion = Settings::values.vr_motion_controls;
-            const bool game_value = !motion.UsingGlobal();
-            motion.SetGlobal(true);
-            motion.SetValue(static_cast<u32>(motion_combo->currentIndex()));
-            motion.SetGlobal(!game_value);
-        }
         Settings::values.vr_background.SetValue(
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
@@ -588,6 +577,29 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_window_scale.SetValue(static_cast<u32>(percent));
         }
     }
+    // AzaharFrame kiu: in the global settings every row edits the global value, also while the
+    // running game has its own: ApplyPerGameSetting writes only a setting that uses the global
+    // value there (SetValue would change the game's), so each is switched to it for the writes
+    // and back after, and the game keeps its value.
+    std::vector<std::function<void()>> game_values;
+    const auto as_global = [&game_values](auto& setting) {
+        if (Settings::IsConfiguringGlobal() && !setting.UsingGlobal()) {
+            setting.SetGlobal(true);
+            game_values.push_back([&setting] { setting.SetGlobal(false); });
+        }
+    };
+    as_global(Settings::values.vr_hide_bottom_screen);
+    as_global(Settings::values.vr_immersive_match_camera_mode);
+    as_global(Settings::values.vr_top_aspect);
+    as_global(Settings::values.vr_motion_controls);
+    as_global(Settings::values.vr_immersive_game_fov);
+    as_global(Settings::values.vr_immersive_wider_view_level);
+    as_global(Settings::values.vr_immersive_scale_x);
+    as_global(Settings::values.vr_immersive_scale_y);
+    as_global(Settings::values.vr_immersive_mode);
+    as_global(Settings::values.vr_immersive_positional_game_scaler);
+    as_global(Settings::values.vr_si_mode_register_offset);
+    as_global(Settings::values.vr_immersive_eye_indicator);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
     {
@@ -601,10 +613,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
         }
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
-    if (!Settings::IsConfiguringGlobal()) { // AzaharFrame kiu: the game's own, or Use global
-        ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_controls,
-                                                 motion_combo);
-    }
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_controls,
+                                             motion_combo); // AzaharFrame kiu
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
@@ -622,4 +632,7 @@ void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.vr_immersive_eye_indicator, eye_scope,
         [this](s32) { return eye_edit->text().trimmed().toStdString(); });
+    for (const auto& back : game_values) {
+        back(); // AzaharFrame kiu: the running game's own values again
+    }
 }

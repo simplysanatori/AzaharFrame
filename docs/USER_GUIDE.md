@@ -247,7 +247,7 @@ In Flat the window is 16:9, so it fills the big screen. Games start in the **Lar
 
 Everything is in the Azahar window, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar. Azahar for Frame starts with the **Dark** theme, which is easier on the eyes in the headset; **Emulation > Configure > General > UI > Theme** changes it.
 
-**Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row is greyed out in **Configure** and shows the value for all games.
+**Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row in **Configure** still shows and changes the value for all games; the game keeps its own.
 
 In the in-game menu, the **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right. While a game runs the menu opens on **Per-Game**, so a change is for that game only; **Global** changes every game. Point at **Per-Game** while it is picked to see how many values on the tab this game has of its own, for example "2 Per-Game Values Set". **Use Global Values for All**, in the **⋮** menu next to the switch, removes them, so the game follows the global values again. On **Settings** it counts and clears the section you are in. In **Global**, a row the game has its own value for is greyed out.
 
