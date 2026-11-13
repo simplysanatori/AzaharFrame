@@ -20,6 +20,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 
 #include "common/common_types.h"
@@ -42,7 +43,21 @@ struct VRData {
     /// AzaharFrame doubling: the head pose inv_view was made from (not for the rasterizer):
     /// the XR thread places the immersive screen where the head was when a picture was drawn.
     XrContentPose pose{};
+    /// AzaharFrame ipd: the headset's IPD in metres (frame_xr/ipd_smoother.h), CitraVR's 0.065
+    /// until it is known: mode 3 puts the game's eyes vr_game_pos_scaler x this apart.
+    float ipd = 0.065f;
 };
+
+/// AzaharFrame ipd: the IPD the rasterizer uses: `ipd_m` when it is one, else `fallback_m`.
+inline float UsableIpd(float ipd_m, float fallback_m) {
+    return std::isfinite(ipd_m) && ipd_m >= 0.045f && ipd_m <= 0.085f ? ipd_m : fallback_m;
+}
+
+/// AzaharFrame ipd: mode 3's shift of the game camera for one eye (the view matrix's x
+/// translation): the Depth Factor (game_pos_scaler) x half the IPD, left eye negative.
+inline float GameEyeOffset(float game_pos_scaler, float ipd_m, bool left_eye) {
+    return game_pos_scaler * (left_eye ? -1.0f : 1.0f) * (ipd_m / 2.0f);
+}
 
 /// One writer (the XR thread), any number of readers. A reader never blocks the writer; a
 /// read that overlaps a write is retried a few times and otherwise skipped (the next guest
@@ -69,6 +84,7 @@ public:
             pose_p[i].store(data.pose.position[i], std::memory_order_relaxed);
         }
         pose_time.store(data.pose.time, std::memory_order_relaxed);
+        ipd.store(data.ipd, std::memory_order_relaxed);
         seq.store(s + 2, std::memory_order_release);
     }
 
@@ -100,6 +116,7 @@ public:
                 d.pose.position[i] = pose_p[i].load(std::memory_order_relaxed);
             }
             d.pose.time = pose_time.load(std::memory_order_relaxed);
+            d.ipd = ipd.load(std::memory_order_relaxed);
             std::atomic_thread_fence(std::memory_order_acquire);
             if (seq.load(std::memory_order_relaxed) == s0) {
                 out = d;
@@ -122,6 +139,7 @@ private:
     std::array<std::atomic<float>, 4> pose_q{};
     std::array<std::atomic<float>, 3> pose_p{};
     std::atomic<int64_t> pose_time{0};
+    std::atomic<float> ipd{0.065f};
 };
 
 inline Mailbox g_mailbox;
@@ -255,6 +273,7 @@ inline void ApplyPending(RasterizerInterface* rasterizer) {
     last_rasterizer = rasterizer;
     rasterizer->SetVRData(d.mode, d.factor, d.uoffset, d.game_pos_scaler, d.inv_view.data());
     rasterizer->SetVRFactorY(d.factor_y);
+    rasterizer->SetVRIpd(d.ipd);
     g_content.Applied(d.pose);
 }
 

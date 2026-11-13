@@ -28,6 +28,10 @@
 //                             either way (default 40), instead of the slow sway
 //   MOCK_XR_NECK=<m>          the head turns about a neck this far behind the eyes (0: about
 //                             the eyes), so a turn moves the eyes as a real head does
+//   MOCK_XR_IPD=<m>[,<m>@<s>] the distance between the eyes (0.064), and optionally the one it
+//                             changes to at <s> seconds after the session began (a dial turn)
+//   MOCK_XR_IPD_JITTER=<m>    the eyes this much further apart and closer, alternating each
+//                             display frame (eye positions that jitter)
 //   MOCK_XR_SPACEWARP=1       offer XR_FB_space_warp
 //   MOCK_XR_EXTENSIONS=a,b    replace the list of extensions offered
 //   MOCK_XR_SKIP=1            a frame begun late loses refreshes (the display
@@ -149,6 +153,10 @@ static int gSway = 1;
 static float gEyeWobbleRad = 0.0f; // MOCK_XR_EYE_WOBBLE, in radians
 // AzaharFrame turns: MOCK_XR_TURN (speed in degrees a second, how far either way) and MOCK_XR_NECK.
 static double gTurnRate = 0.0, gTurnAmp = 40.0, gNeck = 0.0;
+// AzaharFrame ipd: MOCK_XR_IPD (the distance between the eyes, and the one after the step) and
+// MOCK_XR_IPD_JITTER.
+static double gIpd = 0.064, gIpd2 = 0.0, gIpdAt = 0.0, gIpdJitter = 0.0;
+static int gIpdStepSaid = 0;
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
 // Sessions begun so far. A later session (an app that ended its session and made a new one)
 // keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
@@ -1593,7 +1601,15 @@ static XrResult XRAPI_CALL mLocateViews(XrSession s, const XrViewLocateInfo* li,
             const float a = ((li->displayTime / gPeriod) & 1) ? gEyeWobbleRad : -gEyeWobbleRad;
             tilt = (XrQuaternionf){sinf(a / 2), 0, 0, cosf(a / 2)};
         }
-        XrPosef eye = pmul(head, (XrPosef){tilt, {e ? 0.032f : -0.032f, 0, 0}});
+        const int stepped = gIpd2 > 0.0 && (li->displayTime - gT0) / 1e9 >= gIpdAt;
+        if (stepped && e == 0 && !gIpdStepSaid) {
+            gIpdStepSaid = 1;
+            trace("ipd %.4f from t=%.3f", gIpd2, (li->displayTime - gT0) / 1e9);
+        }
+        double ipd = stepped ? gIpd2 : gIpd;
+        if (gIpdJitter != 0.0) ipd += ((li->displayTime / gPeriod) & 1) ? gIpdJitter : -gIpdJitter;
+        const float half = (float)(ipd / 2.0);
+        XrPosef eye = pmul(head, (XrPosef){tilt, {e ? half : -half, 0, 0}});
         v[e].pose = pmul(inv, eye);
         v[e].fov = (XrFovf){-0.84f, 0.84f, 0.84f, -0.84f};
         gLocates[gLocateNext].pose[e] = v[e].pose;
@@ -1710,6 +1726,18 @@ static void init(void) {
     }
     const char* neck = getenv("MOCK_XR_NECK");
     if (neck && *neck) gNeck = atof(neck);
+    const char* ipdEnv = getenv("MOCK_XR_IPD");
+    if (ipdEnv && *ipdEnv) {
+        if (atof(ipdEnv) > 0.0) gIpd = atof(ipdEnv);
+        const char* comma = strchr(ipdEnv, ',');
+        const char* at = comma ? strchr(comma, '@') : NULL;
+        if (comma && at) {
+            gIpd2 = atof(comma + 1);
+            gIpdAt = atof(at + 1);
+        }
+    }
+    const char* ipdJitter = getenv("MOCK_XR_IPD_JITTER");
+    if (ipdJitter && *ipdJitter) gIpdJitter = atof(ipdJitter);
     gDumpDir = getenv("MOCK_XR_DUMP_DIR");
     if (gDumpDir) {
         mkdir(gDumpDir, 0755);

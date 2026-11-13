@@ -353,6 +353,9 @@ void Runtime::LocateViews(XrTime time) {
         }
         // AzaharFrame jump: views without a valid orientation are not a view to fit a screen to.
         pose.views_valid = (vs.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) != 0;
+        constexpr XrViewStateFlags kTracked =
+            XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_POSITION_TRACKED_BIT;
+        pose.eye_positions_tracked = (vs.viewStateFlags & kTracked) == kTracked;
     }
     XrSpaceLocation loc{XR_TYPE_SPACE_LOCATION};
     if (XR_SUCCEEDED(xr.xrLocateSpace(view_space, local_space, time, &loc)) &&

@@ -24,6 +24,7 @@
 #include "common/settings.h"
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h"
+#include "frame_xr/ipd_smoother.h" // AzaharFrame ipd
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/presets.h" // AzaharFrame immersive: preset screen sizes
 #include "video_core/vr_immersive.h"
@@ -45,8 +46,8 @@ constexpr float kDefaultDistance = L::kDefaultDistance;
 constexpr float kDefaultGameFovY = 60.0f;
 // The file the placement is saved in, per game, in the user directory.
 constexpr const char* kPlacementFile = "immersive-placement.txt";
-// Half of rasterizer_accelerated.cpp's VR_IPD, used when the eye poses are not known.
-constexpr float kDefaultHalfIpd = 0.065f / 2.0f;
+// Half of rasterizer_accelerated.cpp's VR_IPD, used until the headset's IPD is known (Ipd).
+constexpr float kDefaultHalfIpd = Ipd::kFallbackM / 2.0f;
 // The top screen's width over its height: the 3DS's 400x240, and the other shapes of "VR
 // Screen Shape" (vr_top_aspect 0 to 5).
 constexpr float kAspect3ds = 400.0f / 240.0f;
@@ -305,6 +306,8 @@ struct State {
     XrPosef ref{{0, 0, 0, 1}, {0, 0, 0}}; ///< head position and heading when immersive began
     ViewPose view;
     float half_ipd = kDefaultHalfIpd;
+    /// AzaharFrame ipd: the headset's IPD, from the located eyes; half_ipd is half of it.
+    Ipd::Smoother ipd;
     bool hw_shader_warned = false;
     // The placement (immersive_layout.h): per game, head-locked (modes 2, 3) and wide (mode 1).
     uint64_t title_id = 0;
@@ -627,6 +630,18 @@ void OnFrame(const FrameInfo& info) {
                                                      MatchCamera(),
                                                  std::memory_order_relaxed);
     g.view = LatestViewPose();
+    // AzaharFrame ipd: the IPD from the eyes SteamVR located (the dial), for the screens and the
+    // game's eyes alike; frames whose eye positions are not tracked are ignored.
+    {
+        const XrVector3f d = Sub(g.view.eye[1].position, g.view.eye[0].position);
+        g.half_ipd = g.ipd.Add(g.view.time, std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z),
+                               g.view.views_valid && g.view.eye_positions_tracked) /
+                     2.0f;
+        float ipd_m = 0.0f;
+        if (g.ipd.TakeLog(ipd_m)) {
+            LOG_INFO(Frontend, "xr: IPD {:.1f} mm (from the headset)", ipd_m * 1000.0f);
+        }
+    }
 
     const bool was_engaged = g.engaged;
     g.engaged = Decision().immersive;
@@ -652,7 +667,6 @@ void OnFrame(const FrameInfo& info) {
         if (g.view_raw_valid && g.view_settle.Add(g.view_raw, (half > 0.02f && half < 0.045f) ? half
                                                                             : kDefaultHalfIpd)) {
             g.view_fov = g.view_settle.View();
-            g.half_ipd = g.view_settle.HalfIpd();
             LOG_INFO(Frontend,
                      "xr: immersive: both eyes see {:.1f} to {:.1f} degrees across, {:.1f} to "
                      "{:.1f} up, either eye {:.1f} to {:.1f} across, {:.1f} to {:.1f} up, eyes "
@@ -696,6 +710,7 @@ void OnFrame(const FrameInfo& info) {
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
+    data.ipd = g.ipd.Value(); // AzaharFrame ipd
     // AzaharFrame doubling: the pose the game camera is made from goes with it (the immersive
     // screen is placed at it once the picture drawn with it is on view).
     if (g.engaged && IsViewMode(mode) && g.view.valid) {

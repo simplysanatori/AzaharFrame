@@ -32,7 +32,7 @@ static Common::Vec3f LightColor(const Pica::LightingRegs::LightColor& color) {
     return Common::Vec3u{color.r, color.g, color.b} / 255.0f;
 }
 
-constexpr float VR_IPD  = 0.065f;
+constexpr float VR_IPD  = 0.065f; // AzaharFrame ipd: only until the headset's is known (SetVRIpd)
 
 RasterizerAccelerated::HardwareVertex::HardwareVertex(const Pica::OutputVertex& v,
                                                       bool flip_quaternion) {
@@ -306,6 +306,20 @@ void RasterizerAccelerated::SetVRData(const int32_t &vrImmersiveMode, const floa
     vr_immersive_mode = vrImmersiveMode;
     vr_game_pos_scaler = gamePosScaler;
     std::memcpy(vr_inv_view, inv_view, sizeof(float) * 16);
+}
+
+// AzaharFrame ipd: the headset's IPD for mode 3's eye separation (the Depth Factor x it), from
+// the XR thread's measurement (frame_xr/ipd_smoother.h); VR_IPD until it is known.
+void RasterizerAccelerated::SetVRIpd(float ipd_m) {
+    vr_ipd = VideoCore::Immersive::UsableIpd(ipd_m, VR_IPD);
+    if (vr_immersive_mode == 3 && std::abs(vr_ipd - vr_ipd_logged) > 0.0005f) {
+        vr_ipd_logged = vr_ipd;
+        LOG_INFO(Render, "immersive mode 3: game eyes {:+.5f} / {:+.5f} (Depth Factor {:.4f} x "
+                         "IPD {:.1f} mm / 2)",
+                 VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, true),
+                 VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, false),
+                 vr_game_pos_scaler, vr_ipd * 1000.0f);
+    }
 }
 
 // AzaharFrame immersive: see shader_uniforms.h.
@@ -688,7 +702,7 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
                 {
                     const bool isLeftEye = (f[eye_indicator_register][eye_indicator_reg_index] < 0.f);
                     f[viewMatrixIndex][3] +=
-                            vr_game_pos_scaler * (isLeftEye ? -1 : 1) * (VR_IPD / 2.f);
+                            VideoCore::Immersive::GameEyeOffset(vr_game_pos_scaler, vr_ipd, isLeftEye);
                 }
             }
 

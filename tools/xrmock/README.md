@@ -54,6 +54,8 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_SWAY=0` | keep the head still |
 | `MOCK_XR_TURN=<deg/s>[,<deg>]` | the head turns from side to side at this speed all the way, this far either way (default 40 degrees), instead of the slow sway (a fast head turn) |
 | `MOCK_XR_NECK=<m>` | the head turns about a neck this far behind the eyes (default 0: about the eyes), so a turn also moves the eyes sideways, as a real head's do |
+| `MOCK_XR_IPD=<m>[,<m>@<s>]` | the distance between the eyes (default 0.064), and optionally the one it changes to at `<s>` seconds after the session began, as a turn of the IPD dial: `0.063,0.068@20` |
+| `MOCK_XR_IPD_JITTER=<m>` | the eyes this much further apart and closer, alternating each display frame |
 | `MOCK_XR_EYE_WOBBLE=<deg>` | the right eye's view pitched up and down by this much relative to the head, the sign alternating each display frame (eye views that change from frame to frame, as the Frame's did in the Mario Kart 7 report) |
 | `MOCK_XR_SKIP=1` | a frame begun late loses refreshes |
 | `MOCK_XR_EXTENSIONS=a,b` | replace the list of extensions offered |

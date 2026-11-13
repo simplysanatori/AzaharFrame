@@ -300,7 +300,12 @@ fields; that race is gone.
   width and placed lower, without losing the world lock (see Placement), and the grips move it.
   The game draws its own view, not CitraVR's 1.4x wider one, unless Wider View is on.
   The Immersive Game FOV setting sets the game camera's angle, and `AZAHARFRAME_IMMERSIVE_FOV` overrides it.
-- **Mode 3 eye offset** from the located eye poses (half your IPD), not a fixed 32.5 mm.
+- **Mode 3 eye offset** from your IPD as SteamVR locates the eyes (half of it each way, times the
+  Depth Factor), not a fixed 32.5 mm, and the head-locked screens use the same value. It follows
+  the IPD dial during play: a change settles in about 0.4 s and glides there, while frame-to-frame
+  jitter and frames without tracked eyes are ignored (`frame_xr/ipd_smoother.h`). The log says
+  `xr: IPD 63.4 mm (from the headset)` once, then on each change of more than 0.5 mm; 65 mm is
+  used until the first value is known.
 - **Reference pose.** CitraVR used Quest's LOCAL space, whose origin is the head at start. SteamVR's
   LOCAL origin can be anywhere, and the head position is multiplied by 5 or more, so the pose is
   taken relative to the head when the game starts (and at each re-centre).
@@ -348,11 +353,13 @@ fields; that race is gone.
 Measured in mock runs of each game's play (AzaharFrame depth, 1.2.0) with the uniform registers
 dumped: the camera's angle and shape from its projection, and the 3DS's own eye distance at full
 3D (the difference between the two eyes' view matrices, in the game's units). In mode 3 the eye
-distance here is 6.5 cm x 3D Depth / 10 x 10^multiplier game units, and the head moves the camera
+distance here is your IPD x 3D Depth / 10 x 10^multiplier game units, and the head moves the camera
 by the same scale, so the **Depth Factor Multiplier** is the game's world scale. It is picked so
 that at a 3D Depth of 90 the eyes are about as far apart as the 3DS's at full 3D, the depth the
 game was made for; 3D Depth then turns it down. The presets (`frame_xr/presets.cpp`) set these
-for a game whose properties have no value of their own.
+for a game whose properties have no value of their own. The presets were tuned with a 65 mm IPD;
+at another IPD the eyes are that IPD x the same factor apart, so the world's scale is true to your
+headset rather than to the 65 mm the numbers below assume.
 
 | Game | Mode, registers | Camera (measured) | 3DS eyes at full 3D | Multiplier | Notes |
 | --- | --- | --- | --- | --- | --- |

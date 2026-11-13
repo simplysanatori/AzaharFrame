@@ -36,6 +36,7 @@ protected:
 
     void SetVRData(const int32_t  &vrImmersiveMode, const float& immersiveModeFactor, int uoffset, const float& gamePosScaler, const float inv_view[16]) override;
     void SetVRFactorY(float factor_y) override; // AzaharFrame immersive
+    void SetVRIpd(float ipd_m) override;         // AzaharFrame ipd
 
 protected:
     /// Structure that the hardware rendered vertices are composed of
@@ -81,6 +82,8 @@ protected:
     u32 vr_uoffset = 0;
     u32 vr_immersive_mode = 0;
     float vr_game_pos_scaler = 0.f;
+    float vr_ipd = 0.065f;        ///< AzaharFrame ipd: the headset's IPD (SetVRIpd)
+    float vr_ipd_logged = 0.0f;   ///< the separation last logged (0: none yet)
     float vr_inv_view[16] = {};
 
     struct HeuristicResult {
