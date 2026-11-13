@@ -124,8 +124,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Faraway scenery no longer doubles in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
-- SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
-- Immersive mode recenters on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
+- SteamVR's recentre and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
+- Immersive mode recentres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
@@ -236,7 +236,7 @@ The first release of Azahar for Frame: Nintendo 3DS games in VR, running nativel
 
 - Grip the immersive screen and move your hand to raise or lower it. The stick of that hand moves it nearer or farther, and makes it bigger or smaller.
 - The screen position is remembered for each game.
-- SteamVR's recenter (hold the Steam button) also re-centres the immersive view.
+- SteamVR's recentre (hold the Steam button) also re-centres the immersive view.
 - The default size keeps the HUD within the clear centre of the lenses. You can make the screen up to 2.5 times bigger.
 - While you hold it, the D-pad shifts it half a degree at a time. **Immersive Offset** is global, since it corrects for small differences in each user's IPD.
 - **Wider View**, per game, shows more of the game around a bigger screen.
@@ -263,7 +263,7 @@ The first release of Azahar for Frame: Nintendo 3DS games in VR, running nativel
 ### VR and Flat
 
 - Press both bumpers, View and Menu to switch between VR and a flat window. The game keeps running.
-- In Flat, Azahar's window sits on SteamVR's big screen, the theater. It stays there when you close the dashboard.
+- In Flat, Azahar's window sits on SteamVR's big screen, the theatre. It stays there when you close the dashboard.
 - In Flat the controllers work as in VR, with the same holds and combos. A tap of View or Menu is still Select or Start.
 - In Flat the window is 16:9, so it fills the big screen with no bars at the sides.
 - In Flat, hold Menu for a second to open the Flat menu: the game pauses and the window leaves Fullscreen with its menu bar, so the pointer reaches Azahar's menus and settings. Hold Menu again, press B or select Emulation > Continue to go back.

@@ -31,7 +31,7 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for 
 
 - Grip the immersive screen and move your hand to raise or lower it. The stick of that hand moves it nearer or farther, and makes it bigger or smaller.
 - The screen position is remembered for each game.
-- SteamVR's recenter (hold the Steam button) also re-centres the immersive view.
+- SteamVR's recentre (hold the Steam button) also re-centres the immersive view.
 - The default size keeps the HUD within the clear centre of the lenses. You can make the screen up to 2.5 times bigger.
 - While you hold it, the D-pad shifts it half a degree at a time. **Immersive Offset** is global, since it corrects for small differences in each user's IPD.
 - **Wider View**, per game, shows more of the game around a bigger screen.
@@ -58,7 +58,7 @@ Nintendo 3DS games in VR, running natively on the Valve Steam Frame. Azahar for 
 ### VR and Flat
 
 - Press both bumpers, View and Menu to switch between VR and a flat window. The game keeps running.
-- In Flat, Azahar's window sits on SteamVR's big screen, the theater. It stays there when you close the dashboard.
+- In Flat, Azahar's window sits on SteamVR's big screen, the theatre. It stays there when you close the dashboard.
 - In Flat the controllers work as in VR, with the same holds and combos. A tap of View or Menu is still Select or Start.
 - In Flat the window is 16:9, so it fills the big screen with no bars at the sides.
 - In Flat, hold Menu for a second to open the Flat menu: the game pauses and the window leaves Fullscreen with its menu bar, so the pointer reaches Azahar's menus and settings. Hold Menu again, press B or select Emulation > Continue to go back.

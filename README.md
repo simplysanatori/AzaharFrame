@@ -134,7 +134,7 @@ If you would like more Steam Frame ports, you can also [buy me a coffee](https:/
 
 Full list: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Not affiliated with Nintendo or Valve.
 
-## Licence
+## License
 
 GPLv3 or any later version. See [LICENSE.txt](LICENSE.txt).
 
