@@ -358,7 +358,7 @@ Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. I
 ## Performance
 
 The 3DS runs at 60 frames a second, and every one is shown on each refresh of the headset.
-The first time a game draws a new effect, the emulator compiles its shaders and the picture can hitch. They are kept in `~/.local/share/AzaharFrame/user/shaders`, so it happens once. While a game waits for them, **Preparing Shaders** shows.
+The first time a game draws a new effect, the emulator compiles its shaders and the picture can hitch. They are kept in `~/.local/share/AzaharFrame/user/shaders`, so it happens once. While a game waits for them, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen (in immersive view, at the top right of what you see; in Flat, in the status bar). It stays for a moment after the wait, so a game that stops for shaders again soon after keeps the same badge.
 If a game drops frames, lower the internal resolution under **Emulation > Configure > Graphics**.
 **Show Stats**, or the **Stats** button above Azahar's window, shows the game's frame rate and the headset's late frames while you play.
 Keep other heavy work off the Frame while you play.

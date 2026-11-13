@@ -7,6 +7,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib> // AzaharFrame shaderbadge: the test delay
+#include <thread>
 
 namespace Common {
 
@@ -83,6 +85,16 @@ struct StallTelemetry {
 /// AzaharFrame stall: a shader or pipeline build queued at run time, and one finished.
 inline void NoteShaderBuildQueued() {
     StallTelemetry::Get().shader_builds_queued.fetch_add(1, std::memory_order_relaxed);
+    // AzaharFrame shaderbadge: AZAHARFRAME_TEST_SHADER_BUILD_MS=N holds the thread that asks for
+    // a build N ms (the emulation thread: the game stands with the build waiting), for mock runs
+    // on a GPU that builds too fast to make the game stand. Never set otherwise.
+    static const int test_ms = [] {
+        const char* v = std::getenv("AZAHARFRAME_TEST_SHADER_BUILD_MS");
+        return v ? std::atoi(v) : 0;
+    }();
+    if (test_ms > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(test_ms));
+    }
 }
 inline void NoteShaderBuildDone() {
     StallTelemetry::Get().shader_builds_done.fetch_add(1, std::memory_order_relaxed);
