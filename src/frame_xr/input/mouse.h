@@ -18,7 +18,7 @@
 // Two modes (the mouse's mapping, Edit Controls' Mouse Mode):
 //   Bottom Screen  the mouse moves a cursor on the bottom screen (relative, clamped to it); the
 //                  touch input (Left Click by default) touches there, held it drags; with
-//                  Recentre at Edge, a drag that runs into an edge lifts and touches again at
+//                  Recenter at Edge, a drag that runs into an edge lifts and touches again at
 //                  the middle, so a turn or an aim can go on (touchpad_touch.h).
 //   Pointer        the mouse turns a ray about you (yaw and pitch, fixed in the room) that
 //                  works the menu, the screens and the grab bars as a controller's beam does:

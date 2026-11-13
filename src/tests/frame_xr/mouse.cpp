@@ -328,7 +328,7 @@ TEST_CASE("Mouse: Bottom Screen cursor: clamped, a click touches, held it drags"
     CHECK(r.event_count == 0);
 }
 
-TEST_CASE("Mouse: Recentre at Edge lifts, waits, touches again at the middle", "[frame_xr]") {
+TEST_CASE("Mouse: Recenter at Edge lifts, waits, touches again at the middle", "[frame_xr]") {
     TouchpadTouch t;
     int64_t now = 1'000 * kMs;
     TouchpadFrame f;
@@ -370,7 +370,7 @@ TEST_CASE("Mouse: Recentre at Edge lifts, waits, touches again at the middle", "
     CHECK(r.event_count == 0); // clamped: no move, no lift
 }
 
-TEST_CASE("Touchpad: Recentre at Edge carries the drag on from the middle", "[frame_xr]") {
+TEST_CASE("Touchpad: Recenter at Edge carries the drag on from the middle", "[frame_xr]") {
     TouchpadTouch t;
     int64_t now = 1'000 * kMs;
     TouchpadFrame f;
@@ -908,7 +908,7 @@ TEST_CASE("Mouse: the Left and Right chord lifts the touch and holds none", "[fr
 
 // AzaharFrame fixes7: Aim Only While Pressed: the cursor waits at the middle, its motion
 // ignored; the click touches there and drags from there; let go, it is back at the middle.
-// Recentre at Edge still works during the drag.
+// Recenter at Edge still works during the drag.
 TEST_CASE("Mouse: Aim Only While Pressed", "[frame_xr][reticle]") {
     TouchpadTouch t;
     int64_t now = 1'000 * kMs;
@@ -942,7 +942,7 @@ TEST_CASE("Mouse: Aim Only While Pressed", "[frame_xr][reticle]") {
     CHECK(r.events[0].type == TouchEventType::Moved);
     CHECK(r.events[0].x == Approx(170.0f));
     CHECK(r.events[0].y == Approx(115.0f));
-    // Recentre at Edge still lifts at the edge and touches again at the middle.
+    // Recenter at Edge still lifts at the edge and touches again at the middle.
     r = step(200, 0, true);
     REQUIRE(r.event_count == 1);
     CHECK(r.events[0].type == TouchEventType::Released);

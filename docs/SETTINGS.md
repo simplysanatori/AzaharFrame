@@ -13,7 +13,7 @@ While a game with its own value runs, **Configure** still changes that row's glo
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu. **Mouse Mode** and **Recenter at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -37,7 +37,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
 | [Right Stick Moves Touch](#right-stick-moves-touch) | on or off | off | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
-| [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
+| [Recenter at Edge](#recenter-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
 | [Every](#autosave) | **1**, **2**, **5**, **10**, **15** minutes | 5 | global and per game | at once |
 | [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
@@ -98,7 +98,7 @@ Shows a small panel while a game runs: the game's frame rate, the emulation spee
 
 Where the stats show. The in-game menu has the same choice on its **Stats** tab, under **Show Stats**.
 
-- **In Front**: the panel appears about 1 m ahead of where you look, a little below eye level, and stays there. It is never placed behind a screen: if a screen is nearer, it goes just in front of it. Grab it with a grip to move it; while you hold it, that hand's stick moves it nearer or farther (up or down) and makes it bigger or smaller (sideways). Turning the stats off and on, a new game or a re-centre puts it in front of you again. It hides while the in-game menu is open.
+- **In Front**: the panel appears about 1 m ahead of where you look, a little below eye level, and stays there. It is never placed behind a screen: if a screen is nearer, it goes just in front of it. Grab it with a grip to move it; while you hold it, that hand's stick moves it nearer or farther (up or down) and makes it bigger or smaller (sideways). Turning the stats off and on, a new game or a recenter puts it in front of you again. It hides while the in-game menu is open.
 - **On Wrist**: the panel sits on the left controller like a watch. It shows only when you turn your wrist toward your face, and hides when the left controller loses tracking.
 
 ## Screen Layout
@@ -115,11 +115,11 @@ How a gamepad's touchpad touches the bottom screen in VR. The pad covers the who
 
 ## Bottom Screen Reticle
 
-A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recenters. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 ## Reticle Speed
 
-How far the reticle moves when you turn your head or the controller, from where aiming started or was re-centred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Bottom Screen Reticle** while it is on.
+How far the reticle moves when you turn your head or the controller, from where aiming started or was recentered. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Bottom Screen Reticle** while it is on.
 
 ## At Edge
 
@@ -145,7 +145,7 @@ Save states made while you play, separate from the 10 slots and Quick Save. **Ev
 
 What a mouse does in VR. **Bottom Screen**: it moves a cursor on the bottom screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
 
-## Recentre at Edge
+## Recenter at Edge
 
 For the mouse in **Bottom Screen** mode and for touchpads. A drag that runs into an edge of the bottom screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
 
@@ -183,7 +183,7 @@ Puts you inside the game instead of in front of a floating screen.
 
 Many games show graphical glitches in immersive mode. Set it per game, in **Properties**. Mario Kart 7, Super Mario 3D Land and Asphalt 3D start in **Full (6DoF): Other Games** unless you set something else.
 
-The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second re-centres the view, and so does SteamVR's own recenter (hold the Steam button). Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
+The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second recenters the view, and so does SteamVR's own recenter (hold the Steam button). Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
 
 ## Immersive Offset
 

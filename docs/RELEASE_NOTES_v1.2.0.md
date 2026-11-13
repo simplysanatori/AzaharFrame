@@ -125,7 +125,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Both eyes now always see the same moment of the game.
 - Every picture now stays on view for exactly two of the headset's refreshes. The 3DS runs at 59.83 frames a second against the Frame's 120 Hz, so about every three seconds some pictures showed for one refresh and others for three, which doubled the HUD, the screen's edges and the game's own motion on fast head turns. In VR I now run games at exactly 60 frames a second, in step with the headset, and never let a picture go after a single refresh. Games that draw 30 pictures a second, such as Majora's Mask 3D, Ocarina of Time 3D and Kid Icarus Uprising, keep each picture for four refreshes.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
-- Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
+- Immersive mode recenters on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.

@@ -128,7 +128,7 @@ struct GamepadMapping {
     AnalogTable analogs{};
     /// AzaharFrame padsui: the mouse's (its buttons and analogs above hold MouseInputs): the
     /// input that touches the bottom screen (Pointer: clicks), the one that opens the menu, its
-    /// Mouse Mode and speed. Recentre at Edge is the mouse's and a touchpad's.
+    /// Mouse Mode and speed. Recenter at Edge is the mouse's and a touchpad's.
     int8_t touch = -1;
     int8_t open_menu = -1;
     uint8_t mode = 0;  ///< MouseMode
@@ -161,7 +161,7 @@ GamepadMapping EmptyMapping();
 GamepadMapping DefaultGamepadMapping(PadType type, bool by_position);
 
 /// AzaharFrame padsui: the mouse's default: Right Click A, Back L, Forward R, Left Click the
-/// touch, Middle Click Open Menu, Bottom Screen, Normal speed, Recentre at Edge on.
+/// touch, Middle Click Open Menu, Bottom Screen, Normal speed, Recenter at Edge on.
 GamepadMapping DefaultMouseMapping();
 /// The 3DS buttons a mouse's held inputs press under `mapping` (the touch and Open Menu are not
 /// buttons).
@@ -339,7 +339,7 @@ std::array<bool, kNumPadInputs> FrameAsPad(const InputFrame& frame);
 /// values comma separated (PadInput / PadStick numbers), -1 for none; the name runs to the end
 /// of the line. Lines starting with # are comments. AzaharFrame padsui: the mouse is the line
 /// "mouse" (MouseInputs), with touch=, menu=, mode=, speed= (Cursor Speed, 0 to 4); recentre=0
-/// turns Recentre at Edge off, use=0 Use This Device. Each is written only when it is not the
+/// turns Recenter at Edge off, use=0 Use This Device. Each is written only when it is not the
 /// plain value (touch and menu -1, mode 0, speed 2, recentre and use 1), and a line without them
 /// reads as those, so older files read the same.
 /// AzaharFrame keys: the keyboard is the line "keyboard" with only what differs from
@@ -446,7 +446,7 @@ inline constexpr const char* kKeyboardDeviceId = "keyboard"; ///< AzaharFrame ke
 struct TouchpadPick {
     PadSample pad;
     std::string id; ///< the device it came from, "" none
-    bool recentre = true; ///< AzaharFrame padsui: its Recentre at Edge
+    bool recentre = true; ///< AzaharFrame padsui: its Recenter at Edge
 };
 
 /// The registry and the merge. Thread-safe: every call locks.
@@ -510,7 +510,7 @@ public:
     void Release();
 
     /// AzaharFrame padsui: the mouse, once a display frame (the XR thread): its frame, with
-    /// its mapping's mode, speed, Recentre at Edge and touch input. The chord switching the
+    /// its mapping's mode, speed, Recenter at Edge and touch input. The chord switching the
     /// mode saves the new mode. Merge then gives the game its buttons.
     MouseFrame PollMouse(int64_t now_ns);
     /// The mouse frame of the last PollMouse.

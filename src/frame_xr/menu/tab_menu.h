@@ -85,7 +85,7 @@ enum class Id : int {
     RemapDone,           ///< AzaharFrame remap: Done
     EditDevice,          ///< AzaharFrame padsui, index: the device in MenuModel::devices
     MouseMode,           ///< AzaharFrame padsui, index: 0 Bottom Screen, 1 Pointer
-    RecentreAtEdge,      ///< AzaharFrame padsui: the selected device's Recentre at Edge
+    RecentreAtEdge,      ///< AzaharFrame padsui: the selected device's Recenter at Edge
     UseDevice,           ///< AzaharFrame padsui: the selected device's Use This Device
     CursorSpeed,         ///< AzaharFrame padsui: the mouse's Cursor Speed (a slider, 0 to 4)
     BottomScreenReticle, ///< AzaharFrame mouse, index: 0 Off, 1 Left, 2 Right, 3 Headset

@@ -45,7 +45,7 @@
 //      - "keyboard" (AzaharFrame keys): buttons and open_menu hold key codes (key_names.h);
 //        stick_keys (the Circle Pad's and the C-Stick's up, down, left, right) and modifier are
 //        its own. DefaultKeyboardMapping is Azahar's desktop default.
-//      - recentre (Recentre at Edge) and enabled (Use This Device: off, the device reaches
+//      - recentre (Recenter at Edge) and enabled (Use This Device: off, the device reaches
 //        nothing) are every device's but the Frame's.
 //    ResetMapping(id)          back to the default; saves.
 //    Mappings are per model (two DualShock 4s share one), kept in user/controller-mappings.txt.

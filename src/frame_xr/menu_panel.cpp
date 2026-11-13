@@ -537,7 +537,7 @@ void MenuPanel::EditChanged(Menu::Remap::Event e, Host& host) {
     if (edit_device != Input::kFrameDeviceId) {
         if (edit_device == Input::kMouseDeviceId) {
             // AzaharFrame padsui: the mouse's buttons, Touch Screen and Open Menu; Reset to
-            // Default leaves its Mouse Mode and Recentre at Edge as they are.
+            // Default leaves its Mouse Mode and Recenter at Edge as they are.
             const Input::GamepadMapping cur = Input::Devices::GetMapping(edit_device);
             Input::GamepadMapping m = cur;
             for (std::size_t i = 0; i < m.buttons.size() && i < remap.Table().size(); i++) {

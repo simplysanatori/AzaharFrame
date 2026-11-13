@@ -80,7 +80,7 @@ struct TouchpadFrame {
     /// AzaharFrame mouse: touches whether the bottom screen is shown or not (the game is aimed,
     /// not the panel); its dot shows only on a shown one.
     ReticleSample reticle;
-    bool pad_recentre = false; ///< AzaharFrame padsui: the pad's Recentre at Edge
+    bool pad_recentre = false; ///< AzaharFrame padsui: the pad's Recenter at Edge
     bool bottom_visible = false;
     int64_t time_ns = 0;
     /// The mapper's touch events of this frame (the controller beam).
@@ -118,7 +118,7 @@ public:
     static constexpr int64_t kMouseIdleNs = 2'000'000'000;
     /// A touch only moves when it changed by at least this many 3DS pixels (as the mapper's).
     static constexpr float kMoveEpsilonPx = 0.25f;
-    /// AzaharFrame padsui: Recentre at Edge: a drag that runs into an edge lifts for this long
+    /// AzaharFrame padsui: Recenter at Edge: a drag that runs into an edge lifts for this long
     /// (so the game sees the lift) and touches again at the middle.
     static constexpr int64_t kRecentreGapNs = 50'000'000;
     /// A touchpad's point this near an edge (a fraction of the screen) is at it.
@@ -146,7 +146,7 @@ public:
         Vec2f point;
         Vec2f delta;           ///< 3DS pixels this frame (counts times the speed's gain)
         bool down = false;     ///< touching (click = touch, held = drag)
-        bool recentre = false; ///< Recentre at Edge
+        bool recentre = false; ///< Recenter at Edge
         /// AzaharFrame fixes7: relative only: not touching, at the middle and still; the frame
         /// it touches, at the middle (that frame's motion is not taken).
         bool center_idle = false;
@@ -160,18 +160,18 @@ private:
         float py = 0.0f;
     };
     /// AzaharFrame padsui: one cursor of the shared pipeline: its point, clamped to the screen,
-    /// and Recentre at Edge's state.
+    /// and Recenter at Edge's state.
     struct CursorTrack {
         Source src;
         bool started = false;
         Vec2f offset;          ///< absolute: added to the point after a recentre
-        bool gap = false;      ///< lifted by Recentre at Edge, touching again at gap_until
+        bool gap = false;      ///< lifted by Recenter at Edge, touching again at gap_until
         int64_t gap_until = 0;
         bool at_edge = false;  ///< absolute: was at an edge last frame
         int64_t move_ns = 0;   ///< last moved
     };
     /// The pipeline: moves the cursor, clamps it, touches with `down` (and drags while held),
-    /// and with Recentre at Edge lifts a drag that runs into an edge and touches again at the
+    /// and with Recenter at Edge lifts a drag that runs into an edge and touches again at the
     /// middle after kRecentreGapNs.
     void CursorStep(TouchpadResult& out, CursorTrack& t, const CursorInput& in, TouchSource who,
                     int64_t now);

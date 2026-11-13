@@ -62,7 +62,7 @@ struct EditDevice {
     /// AzaharFrame keys: the keyboard's stick keys and modifier (RemapKeys).
     RemapKeys keys = kNoKeys;
     int mouse_mode = 0;   ///< the mouse: 0 Bottom Screen, 1 Pointer
-    bool recentre = true; ///< the mouse and a touchpad: Recentre at Edge
+    bool recentre = true; ///< the mouse and a touchpad: Recenter at Edge
     int speed = 2;        ///< the mouse: Cursor Speed, 0 to 4
     bool connected = true; ///< shown with a dot in the device row
     bool enabled = true;  ///< Use This Device (the Frame Controllers are always used)
@@ -119,7 +119,7 @@ inline bool HasButtons(const EditDevice&) {
 inline bool HasSticks(const EditDevice& d) {
     return d.kind != DeviceKind::Mouse;
 }
-/// Recentre at Edge shows: the mouse in Bottom Screen mode, a touchpad.
+/// Recenter at Edge shows: the mouse in Bottom Screen mode, a touchpad.
 inline bool HasRecentre(const EditDevice& d) {
     return d.kind == DeviceKind::Mouse ? d.mouse_mode == 0 : d.has_touchpad;
 }

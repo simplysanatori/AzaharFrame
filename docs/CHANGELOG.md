@@ -125,7 +125,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
-- Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
+- Immersive mode recenters on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.

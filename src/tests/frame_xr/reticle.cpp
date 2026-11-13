@@ -193,7 +193,7 @@ TEST_CASE("Reticle: touches through the cursor pipeline, the bottom screen hidde
     REQUIRE(r.event_count == 1);
     CHECK(r.events[0].type == TouchEventType::Moved);
     CHECK(r.events[0].x == Approx(160.0f));
-    // At the edge it stays down (no Recentre at Edge: the reticle's edges drift).
+    // At the edge it stays down (no Recenter at Edge: the reticle's edges drift).
     fr.reticle.point = {0.0f, 0.5f};
     fr.time_ns += 11 * kMs;
     r = t.Update(fr);
