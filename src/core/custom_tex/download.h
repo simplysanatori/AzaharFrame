@@ -54,6 +54,7 @@
 #include "common/common_types.h"
 #include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/compat.h" // AzaharFrame compat
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 
 namespace CustomTex::Download {
 
@@ -97,7 +98,11 @@ struct Entry {
     std::string notes;
     std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown);
                            // catalog3: the catalog's own value may be "YYYY-MM"
-    bool verified = false; // AzaharFrame zipinstall: known to work (the menu's verified badge)
+    bool verified = false; // AzaharFrame zipinstall: known to work (internal since fixes7: no badge)
+    bool recommended = false; // AzaharFrame fixes7: "recommended": we recommend it with the game: the
+                              // menu's badge, listed first
+    std::string aspect;    // AzaharFrame fixes7: "aspect": the picture shape the pack is made for
+                           // ("16:9"), "" not given
     Parts::Hints customize; // AzaharFrame texparts: "customize", written into the pack at install
     std::string layer_on;   // AzaharFrame texlayers: the catalog id of the pack this one goes on top of
 
@@ -116,6 +121,8 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error = 
                                     std::vector<std::string>* warnings = nullptr);
 const char* DefaultCatalogJson();
 Catalog DefaultCatalog();
+/// AzaharFrame fixes7: the catalog a Downloader was last given (the fetched one), else the default.
+Catalog LatestCatalog();
 
 constexpr const char* kOwnerRepo = "simplysanatori/3ds-game-fixes";
 constexpr const char* kCatalogPath = "catalog/textures.json";
@@ -211,11 +218,17 @@ struct PackInfo {
     std::string updated;            // AzaharFrame zipinstall: "YYYY-MM-DD": the installed copy's
                                     // source date when it was downloaded, else the catalog's
     bool verified = false;          // AzaharFrame zipinstall: the catalog's "verified"
+    bool recommended = false;       // AzaharFrame fixes7: the catalog's "recommended" (the badge)
+    u64 partial_bytes = 0;          // AzaharFrame fixes7: the kept partial download's size (Resume)
     u64 downloads = 0;              // AzaharFrame catalog3: lifetime downloads (Entry::downloads), 0 unknown
     bool unscanned = false;         // AzaharFrame catalog3: a GameBanana file of it has no scan result yet (known
                                     // after Start was refused for it, or went ahead with allow_unscanned)
     Mods::Compat::Verdict compat;   // AzaharFrame compat: made for another region or release
 };
+
+/// AzaharFrame fixes7: State::text while the file is being found and the host has not started
+/// sending it (the folder read, Drive's confirm page): no percent yet.
+constexpr const char* kPreparing = "Preparing";
 
 struct State {
     enum class Phase { Idle, Resolving, Downloading, Verifying, Extracting, Done, Failed, Cancelled };
@@ -237,6 +250,34 @@ struct Result {
     bool ok = false;
     std::string error;
 };
+
+// AzaharFrame fixes7: one GET into the part file (exposed for the Cancel tests).
+struct Step {
+    int status = 0; // 0: no reply
+    std::string location;
+    std::string error;
+    std::string html;        // a body that is not the file (capped): Drive's pages, an error page
+    bool is_file = false;    // body was written to the part file
+    bool cancelled = false;
+    u64 start = 0;           // first byte of the file this reply began at (resume point or 0)
+    std::optional<u64> total; // whole file size when the host said
+    std::string retry_after; // AzaharFrame fixes7: the Retry-After header ("" none)
+};
+
+struct StepIo {
+    std::string part_path;
+    u64 resume_from = 0;
+    const std::atomic_bool* cancel = nullptr;
+    std::atomic<u64>* done = nullptr;
+    std::atomic<u64>* total = nullptr;
+    std::function<std::string(u64 total, u64 resume)> check_space; // "" = fine
+    Mods::Transfer::Stopper* stopper = nullptr; // AzaharFrame fixes7: Cancel shuts the socket down
+    std::atomic_bool* receiving = nullptr;      // AzaharFrame fixes7: set when the file's bytes start
+};
+
+/// `host` is "https://name" (tests: "http://127.0.0.1:port"). Returns soon after `io.stopper` is
+/// stopped, in any state (lookup, connect, handshake, a stalled read).
+Step GetStep(const std::string& host, const std::string& path, const StepIo& io);
 
 class Downloader {
 public:
@@ -283,6 +324,10 @@ private:
     Catalog catalog_;
     State state_;
     std::atomic_bool cancel_{false};
+    Mods::Transfer::Stopper stopper_{cancel_}; // AzaharFrame fixes7: Cancel also shuts the socket down
+    std::atomic_bool refresh_cancel_{false};   // the catalog fetch's own (it runs beside a download)
+    Mods::Transfer::Stopper refresh_stopper_{refresh_cancel_};
+    std::atomic_bool receiving_{false}; // AzaharFrame fixes7: the file's bytes have started
     std::thread worker_;
     std::thread refresher_;
     bool refreshing_ = false;
@@ -327,7 +372,10 @@ bool IsTextureFileName(std::string_view base);
 std::optional<std::string> MarkerId(const std::string& folder);
 /// Writes the marker (`source`: "github", "gdrive", "https", "zip"), which makes the folder deletable.
 /// `updated`: the source's date of the download ("YYYY-MM-DD", "" unknown), for Download Packs.
+/// AzaharFrame fixes7: `aspect` the catalog's "aspect" ("" none), read back by MarkerAspect.
 bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source,
-                 const std::string& updated = {});
+                 const std::string& updated = {}, const std::string& aspect = {});
+/// AzaharFrame fixes7: the "aspect" a pack folder's marker keeps ("16:9"), "" none.
+std::string MarkerAspect(const std::string& folder);
 
 } // namespace CustomTex::Download

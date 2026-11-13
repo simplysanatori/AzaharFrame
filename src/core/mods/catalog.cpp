@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 #include "core/custom_tex/download.h" // AzaharFrame catalog3: Drive ids and https links
 #include "core/mods/archive.h"
+#include "core/mods/aspect.h" // AzaharFrame fixes7
 #include "core/mods/catalog.h"
 #include "core/mods/mega.h" // AzaharFrame mega
 
@@ -287,6 +288,13 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     e.verified = j.value("verified", false) &&
                  (s.type == Source::Type::OwnerRepoPath || s.type == Source::Type::Gamebanana);
     // (a MEGA mod is never verified here: the owner marks one by testing it, not the catalog)
+    // AzaharFrame fixes7: "recommended" (any source): we recommend it with the game: the menu's badge,
+    // listed first; "verified" stays an internal flag. "aspect": the picture shape it makes ("16:9");
+    // a value this build does not know is left out (not an error)
+    if (const auto rec = j.find("recommended"); rec != j.end() && rec->is_boolean()) {
+        e.recommended = rec->get<bool>();
+    }
+    e.aspect = NormalizeAspect(Str(j, "aspect"));
     const auto chip = j.find("version_chip"); // AzaharFrame modcat
     if (chip != j.end() && chip->is_object()) {
         e.chip = Str(*chip, "label");
