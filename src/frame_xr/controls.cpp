@@ -1604,6 +1604,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             const bool holding = Immersive::HoldingScreen() || bridge.mapper().DragActive();
             const bool stick_on = Settings::values.vr_reticle_stick_moves.GetValue();
             modes.stick_moves = stick_on && !holding;
+            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
+            // AzaharFrame kiu2: Snap to Middle leaves the edge to it while the trigger touches.
+            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            modes.edge_cstick = edge_on && !holding;
             Input::HandInput& right = game_in.hand[static_cast<std::size_t>(
                 Input::HandIndex(Input::Hand::Right))];
             aim.stick = Input::SplitReticleStick(modes.stick_moves, true, right.stick).to_reticle;
@@ -1613,8 +1617,6 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 aim, true, half_width, in.time_ns,
                 Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()), modes);
             right.stick = Input::SplitReticleStick(modes.stick_moves, rf.on, right.stick).to_game;
-            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
-            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
             const int modes_now =
                 (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0) | (edge_on ? 4 : 0);
             if (modes_now != reticle_modes_logged) {
@@ -1691,12 +1693,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
     bridge_live = true;
     {
-        // AzaharFrame kiu: C-Stick at Edge starts and stops pushing (one line each).
-        const Input::Vec2f edge = bridge.edge_stick();
-        const bool pushing = edge.x != 0.0f || edge.y != 0.0f;
+        // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:
+        // the touch is handed to the C-Stick and back.
+        const bool pushing = bridge.edge_handover();
         if (pushing != edge_stick_logged) {
             edge_stick_logged = pushing;
-            LOG_INFO(Frontend, "xr: C-Stick at Edge: {}", pushing ? "pushing" : "released");
+            LOG_INFO(Frontend, "xr: C-Stick at Edge: {}",
+                     pushing ? "the touch lifted, the C-Stick pushed" : "back to the touch");
         }
     }
 

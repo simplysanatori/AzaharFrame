@@ -135,6 +135,34 @@ Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band) 
     return AddStick({EdgeDepth(point.x, band.x), -EdgeDepth(point.y, band.y)}, {});
 }
 
+ReticleEdgeHandover::Out ReticleEdgeHandover::Update(bool on, Vec2f point, bool down,
+                                                    const ReticleEdgeBand& band,
+                                                    bool other_touch) {
+    if (!on || !down || !band.On() || other_touch || !(point.x == point.x) ||
+        !(point.y == point.y)) {
+        active_ = false;
+        return {};
+    }
+    Out out;
+    out.push = ReticleEdgeStick(point, true, band);
+    const bool in_band = out.push.x != 0.0f || out.push.y != 0.0f ||
+                         point.x <= 0.0f || point.x >= 1.0f || point.y <= 0.0f || point.y >= 1.0f;
+    if (!active_) {
+        active_ = in_band;
+    } else if (!in_band) {
+        // Leaves only once it is kEdgeExit of the band further in than the band's inner edge.
+        const ReticleEdgeBand wider{std::min(band.x * (1.0f + kEdgeExit), 0.5f),
+                                    std::min(band.y * (1.0f + kEdgeExit), 0.5f)};
+        const Vec2f near = ReticleEdgeStick(point, true, wider);
+        active_ = near.x != 0.0f || near.y != 0.0f;
+    }
+    out.lift = active_;
+    if (!active_) {
+        out.push = {};
+    }
+    return out;
+}
+
 Vec2f AddStick(Vec2f a, Vec2f b) {
     Vec2f s{a.x + b.x, a.y + b.y};
     const float len = std::sqrt(s.x * s.x + s.y * s.y);
@@ -241,7 +269,9 @@ ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, floa
     float dp = fp - ref_pitch_;
     // Snap to Middle: past an edge (and not just after the last snap), the middle is where it
     // points now; a touch held lifts first.
-    if (edge == ReticleEdge::SnapToMiddle && !lifting_ && now >= snap_ready_ &&
+    // AzaharFrame kiu2: not while C-Stick at Edge has the edge (the trigger touching).
+    const bool edge_is_cstick = modes.edge_cstick && trigger_;
+    if (edge == ReticleEdge::SnapToMiddle && !edge_is_cstick && !lifting_ && now >= snap_ready_ &&
         (std::fabs(dy) > hw || std::fabs(dp) > hh)) {
         f.snapped = true;
         ref_yaw_ = fy;

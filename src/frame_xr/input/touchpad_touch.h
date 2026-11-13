@@ -65,8 +65,8 @@ struct ReticleSample {
     bool on = false;   ///< live: a game running, the menu closed, the controller tracked
     Vec2f point;       ///< 0..1 from the top left
     bool down = false; ///< its trigger
-    /// AzaharFrame kiu: C-Stick at Edge's band (off: zero); InputBridge pushes the C-Stick
-    /// while this touch is the one the game gets (ReticleEdgeStick).
+    /// AzaharFrame kiu: C-Stick at Edge's band (off: zero). AzaharFrame kiu2: InputBridge hands
+    /// the held touch to the C-Stick while the point is in it (ReticleEdgeHandover).
     ReticleEdgeBand edge_band;
 };
 
@@ -105,12 +105,6 @@ struct TouchpadResult {
     /// its own dot).
     TouchpadCursor cursor;
 };
-
-/// AzaharFrame kiu: C-Stick at Edge's push for this frame: ReticleEdgeStick of the reticle's
-/// point, only while the reticle's touch is the one the game gets (TouchpadTouch's owner() is
-/// the reticle and touching(), after this frame's Update; with the bottom screen hidden too),
-/// never for the beam's, the pad's or the mouse's touch.
-Vec2f ReticleEdgeStickFor(const ReticleSample& reticle, TouchSource owner, bool touching);
 
 class TouchpadTouch {
 public:

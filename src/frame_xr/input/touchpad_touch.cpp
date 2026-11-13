@@ -283,13 +283,6 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
     return out;
 }
 
-Vec2f ReticleEdgeStickFor(const ReticleSample& reticle, TouchSource owner, bool touching) {
-    if (!reticle.on || !touching || owner != TouchSource::Reticle) {
-        return {};
-    }
-    return ReticleEdgeStick(reticle.point, reticle.down, reticle.edge_band);
-}
-
 bool TouchpadTouch::Reset() {
     const bool was = touching_;
     owner_ = TouchSource::None;

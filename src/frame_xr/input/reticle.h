@@ -114,6 +114,11 @@ struct ReticleAim {
 struct ReticleModes {
     bool center_until_pressed = false;
     bool stick_moves = false;
+    /// AzaharFrame kiu2: C-Stick at Edge is on (and no grip holds a screen): while the trigger
+    /// touches, Snap to Middle does not snap at an edge (the edge is where the C-Stick turns the
+    /// camera then, ReticleEdgeHandover); the point stays on the edge as with Follow. Off, or
+    /// not touching, Snap to Middle is as it was.
+    bool edge_cstick = false;
 };
 
 /// AzaharFrame kiu: where the right stick goes with the reticle on. `stick_moves`: Right Stick
@@ -135,9 +140,11 @@ ReticleStickSplit SplitReticleStick(bool stick_moves, bool reticle_live, Vec2f s
 /// out of the band, or switched off: nothing is added, so the C-Stick is the stick's own again
 /// in the same frame (nothing to release later).
 /// Why: the C-Stick & Gyro mod for Kid Icarus: Uprising aims with the C-Stick and turns the
-/// camera when that aim reaches the edge of the screen (its touch keeps priority over the
-/// stick: "Touchscreen input retains priority"). A touch held at the edge did nothing like it:
-/// the stick pushed outward is the mod's own turn.
+/// camera when that aim reaches the edge of its box. AzaharFrame kiu2, measured in a ground
+/// battle (reports/30/kiu2): the C-Stick alone turns the camera (yaw, and pitch up to its
+/// limit) once its cursor reaches the box's edge; while any touch is held the mod ignores the
+/// C-Stick, and a touch held still at the edge turns nothing. So the push alone did nothing: the
+/// touch is lifted while the point is in the band (ReticleEdgeHandover) and the C-Stick turns.
 /// The band is an aim angle (kEdgeBandDeg) in the reticle's cone (ReticleHalfWidthDeg, from the
 /// source and Reticle Speed), as a fraction of the screen's width and height: the same turn of
 /// the head or the controller enters it at any Reticle Speed and any screen size or shape,
@@ -159,6 +166,36 @@ ReticleEdgeBand ReticleEdgeBandFor(float half_width_deg);
 Vec2f ReticleEdgeStick(Vec2f point, bool touching, const ReticleEdgeBand& band);
 /// Two stick values added, no longer than full tilt (1).
 Vec2f AddStick(Vec2f a, Vec2f b);
+
+/// AzaharFrame kiu2: C-Stick at Edge hands the reticle's touch over to the C-Stick. While the
+/// trigger touches and the point is in the edge band, the touch is lifted (`lift`: the touch
+/// pipeline gets the reticle as not pressed) and the C-Stick gets `push` (ReticleEdgeStick), so
+/// the game's own C-Stick aim turns the camera as the stick does. Back out of the band (by
+/// kEdgeExit of the band's width further in, so a tremor at its inner edge does not lift and
+/// touch again each frame), the touch comes back where the point is; the game's touch aim is
+/// relative (a touch going down does not move its cursor), so the aim carries on from where the
+/// C-Stick left it. The trigger let go, the switch off (no band) or another source's touch
+/// held (`other_touch`): nothing lifted, nothing pushed, and it starts again from outside.
+/// Every value comes from the band (the cone, Reticle Speed) and the point: any settings, any
+/// screen size or shape.
+class ReticleEdgeHandover {
+public:
+    static constexpr float kEdgeExit = 0.25f;
+    struct Out {
+        bool lift = false;
+        Vec2f push;
+    };
+    Out Update(bool on, Vec2f point, bool down, const ReticleEdgeBand& band, bool other_touch);
+    bool active() const {
+        return active_;
+    }
+    void Reset() {
+        active_ = false;
+    }
+
+private:
+    bool active_ = false;
+};
 ReticleAim ReticleAimOf(const HandInput& hand);
 /// The head aims; the touch is the larger of the two triggers (either one held touches).
 ReticleAim ReticleHeadAim(bool head_active, const Quatf& head, const HandInput& left,
