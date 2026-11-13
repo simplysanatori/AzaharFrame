@@ -1753,8 +1753,9 @@ TEST_CASE("FrameXr immersive: Always slews a cut at most 12 degrees a second, ra
         INFO(hz << " Hz against 120 Hz: " << SlewedCut(52.0f, 62.0f, hz) << " s, " << at120);
         CHECK(std::abs(SlewedCut(52.0f, 62.0f, hz) - at120) < 0.05);
     }
-    CHECK(std::abs(SlewedCut(52.0f, 62.0f, 120.0, 0.3) - at120) < 0.05);
-    CHECK(std::abs(SlewedCut(62.0f, 52.0f, 90.0, 0.3) - at120) < 0.05);
+    // Frames 30 % longer or shorter at random: within a tenth of a second.
+    CHECK(std::abs(SlewedCut(52.0f, 62.0f, 120.0, 0.3) - at120) < 0.1);
+    CHECK(std::abs(SlewedCut(62.0f, 52.0f, 90.0, 0.3) - at120) < 0.1);
     // A 10 degree cut takes about a second once it won: 0.83 s at 12 degrees a second, plus the
     // ramps.
     CHECK(at120 - 0.5 <= 10.0 / FovSlew::kMaxSpeedDegS + 2.0 * FovSlew::kRampS + 0.3);

@@ -1085,8 +1085,10 @@ float FovSlew::Update(float target, int64_t now_ns) {
                 break;
             }
         }
-        if (next <= 0.0f) {
-            next = std::min(a, dist / dt); // creep the last bit
+        if (next < a) {
+            // Creep the last bit (never slower than one frame's change: a speed left tiny by
+            // braking would keep it short of the target for ever).
+            next = std::min(a, dist / dt);
         }
         if (next * dt > dist && v - a <= dist / dt) {
             next = dist / dt; // land on it
