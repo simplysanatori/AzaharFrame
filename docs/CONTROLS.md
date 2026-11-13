@@ -155,7 +155,7 @@ Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the 
 - **Homebrew**: Pokémon Emerald 3DS. **Install** asks for your Pokémon Emerald ROM in Azahar's window and builds the game from it. Once it is installed, **Play** starts it, and **Update** shows when a newer release is out. Otherwise **Check for Updates** asks GitHub at once, and **Reinstall** builds the game again. The progress shows on the row.
 - **Settings**: the VR settings, in three sections: **General** (Background, Window Scale, Face Buttons, Motion Controls, Show Controllers, Fast Forward Speed, the **Saves** group with **Autosave**, **Every** and **Keep**, **More Settings** and **Switch to Flat**), **Graphics** (3D Depth, Internal Resolution, Dynamic Resolution, Texture Filter, Async Shader Compilation) and **Immersive** (Immersive Mode, Wider View, Immersive Game FOV, Match Game Camera, Narrow Screen, Depth Factor Multiplier). The **Global | Per-Game** switch at the top right (on **Controls** and **Position** too) picks this game only or every game. The menu opens on **Per-Game** each time while a game runs, so a change is for that game unless you pick **Global**; the first change makes the game's own settings. Settings that are the same in every game, such as **Background** and **Dynamic Resolution**, always change for every game. Pointing at **Per-Game** while it is picked shows how many values on the tab (on **Settings**, the section) are set for this game. **Use Global Values for All**, in the **⋮** menu next to the switch, puts them back on the global values. A greyed-out row tells you why when you point at it. The menu remembers the last section until the app closes. **More Settings** opens **Emulation > Configure...**.
 
-Point and pull the trigger or press **A**. Either stick scrolls a long list. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.
+Point and pull the trigger or press **A**. Either stick scrolls a long list, faster the further you push it and the longer you hold it; a quick tap moves one row. You can also hold the trigger on a list and drag it, or grab the scrollbar on the right and drag it, or click above or below it to jump a page. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.
 
 **Azahar's Window** shows the window itself, with the same controls as above, for everything else: the game's **Properties**, the **Emulation** menu and any dialog, which also brings the window up by itself. Press **B** with nothing open there to go back to the menu.
 
@@ -163,7 +163,7 @@ To go back to the game, select **Continue**, press **B**, or hold **Menu** for 1
 
 ## Cheats, mods and textures
 
-The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheats and fixes carry a verified badge after their name. Point and pull the trigger, as in the rest of the menu; the right stick scrolls.
+The in-game menu's **Mods** tab has three lists, chosen at its top. My own cheats and fixes carry a verified badge after their name. Point and pull the trigger, as in the rest of the menu; the right stick scrolls. Cheats made for another version of the game are in **For Another Version** at the end of the Cheats list; point at it and pull the trigger to open or close it.
 
 | List | What is there |
 |---|---|

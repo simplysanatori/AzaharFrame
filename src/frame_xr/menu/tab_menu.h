@@ -23,6 +23,7 @@
 
 #include "frame_xr/menu/edit_devices.h"
 #include "frame_xr/menu/homebrew_tab.h" // AzaharFrame emerald
+#include "frame_xr/menu/list_scroll.h"  // AzaharFrame scroll
 #include "frame_xr/menu/mods_tab.h" // AzaharFrame cheatstab
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/remap.h"
@@ -200,6 +201,8 @@ enum class Id : int {
     OptimizeNudge,  ///< the "Optimize <Pack> for Frame?" snackbar's Optimize: the pack's page
     RemoveOriginal, ///< AzaharFrame ui3: the optimized pack's original, deleted after a dialog
     DialogExtra,    ///< AzaharFrame memwarn: a notice's third button (ModsDialog::extra), first
+    Scrollbar,      ///< AzaharFrame scroll: a long list's scrollbar (MenuLayout::bar)
+    CheatsOtherVersion, ///< AzaharFrame scroll: the Cheats list's "For Another Version" section
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -369,6 +372,9 @@ struct MenuView {
     ModsPage mods_page = ModsPage::Loaded;          ///< AzaharFrame texui: the Mods segment's page
     TexturesPage textures_page = TexturesPage::Packs; ///< AzaharFrame texui
     std::string open_link; ///< AzaharFrame texui: the link "Open GitHub?" asks about ("" = none)
+    /// AzaharFrame scroll: the Cheats list's "For Another Version" section is open (per game,
+    /// for the session: MenuPanel)
+    bool cheats_other_open = false;
     RemapView remap; ///< AzaharFrame remap: Edit Controls
     /// AzaharFrame compat: "This May Not Work" asked before ModInstall, PackDownload or turning a
     /// Cheat on (`index` the row, `key` its id or name, checked again on the answer).
@@ -423,9 +429,12 @@ struct MenuLayout {
     std::vector<Hit> hits;
     std::vector<SliderTrack> sliders;
     float max_scroll = 0.0f; ///< how far the current tab can scroll (dp)
-    /// AzaharFrame cheatstab: one row of the scrolling list (dp): a stick step, and where a beam
-    /// drag settles. A multiple of it is max_scroll.
+    /// AzaharFrame cheatstab: one row of the scrolling list (dp): what a stick's tap moves.
     float scroll_step = kRowH;
+    /// AzaharFrame scroll: the list's scrollbar as drawn (Valid only while the list overflows),
+    /// and whether a dialog over the list holds it still (its scroll is kept for after).
+    Scrolling::Bar bar;
+    bool scroll_locked = false;
 
     /// What is at (x, y) dp.
     Target HitTest(float x, float y) const;
@@ -514,6 +523,11 @@ private:
                     const Rect& pane);
     void DrawScopeMenu(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane);
     void DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane);
+    /// AzaharFrame scroll: the scrollbar of the list in `list` (hanging off `right`), only when
+    /// it overflows: slim at rest, wider with a beam on it, the primary colour while held. Its
+    /// hit strip goes in as Id::Scrollbar and the bar in layout.bar.
+    void DrawScrollbar(Kit& kit, const MenuView& view, const Rect& list, float right,
+                       float content_h, float max_scroll, float scroll);
     State StateOf(const MenuView& view, Target t, bool enabled = true) const;
     void AddHit(const Rect& r, Target t, const Rect& clip);
 

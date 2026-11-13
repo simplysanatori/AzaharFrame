@@ -554,6 +554,8 @@ std::string LabelFor(Id id) {
         return "Optimize";
     case Id::AddCheat: // AzaharFrame ui2
         return "Add Cheat";
+    case Id::CheatsOtherVersion: // AzaharFrame scroll
+        return "For Another Version";
     case Id::InstallCheatFile:
         return "Install from File";
     default:
@@ -1900,14 +1902,7 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         y += kRowH;
     }
     kit.ClearClip();
-    if (max_scroll > 0.0f) {
-        // A thin scroll indicator at the pane's right edge.
-        const float track_h = list.y1 - list.y0 - 16.0f;
-        const float thumb_h = std::max(40.0f, track_h * (list.y1 - list.y0) / content_h);
-        const float ty = list.y0 + 8.0f + (track_h - thumb_h) * (scroll / max_scroll);
-        kit.Fill({pane.x1 - 10.0f, ty, pane.x1 - 6.0f, ty + thumb_h}, 2.0f, Tok::kOnSurfaceVariant,
-                 0.38f);
-    }
+    DrawScrollbar(kit, view, list, pane.x1, content_h, max_scroll, scroll); // AzaharFrame scroll
     // An open menu goes over everything, its items before the rest in hit testing.
     if (view.open_menu != Id::None && open_anchor.W() > 0.0f) {
         const std::vector<std::string>& opts = OptionsFor(view.open_menu);
@@ -1932,6 +1927,27 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
 }
 
 // The tooltip (owner option A: after the beam rests on a row) over the row's label.
+// AzaharFrame scroll: one scrollbar for every list (it was a thin indicator only).
+void TabMenu::DrawScrollbar(Kit& kit, const MenuView& view, const Rect& list, float right,
+                            float content_h, float max_scroll, float scroll) {
+    const Scrolling::Bar bar{list, right, content_h, max_scroll};
+    if (!bar.Valid()) {
+        return;
+    }
+    layout.bar = bar;
+    const bool held = view.pressed.id == Id::Scrollbar;
+    const bool wide = held || view.hover.id == Id::Scrollbar;
+    if (wide) {
+        // Material 3: the track shows with a beam on the bar; the thumb widens.
+        kit.Fill(Scrolling::TrackRect(bar, true), Scrolling::kBarHoverW * 0.5f, Tok::kOnSurface, 0.08f);
+    }
+    const Rect thumb = Scrolling::ThumbRect(bar, scroll, wide);
+    kit.Fill(thumb, thumb.W() * 0.5f, held ? Tok::kPrimary : Tok::kOnSurfaceVariant,
+             held ? 1.0f : wide ? 0.72f : 0.38f);
+    const Rect everything{0.0f, 0.0f, kPanelW, kPanelH};
+    AddHit(Scrolling::HitRect(bar), {Id::Scrollbar}, everything);
+}
+
 void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
     if (view.tooltip == Id::None || view.open_menu != Id::None) {
         return;

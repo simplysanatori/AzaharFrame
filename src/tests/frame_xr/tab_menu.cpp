@@ -404,13 +404,14 @@ TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(has(Id::DownloadCheats, -1));
 
-    // A list: one row per cheat in file order (no subheaders, no patch row), targets at least
-    // 48 dp, the list scrolls to its end.
+    // A list: one row per cheat in file order (no patch row), targets at least 48 dp, the list
+    // scrolls to its end. AzaharFrame scroll: the one for another version (1) is in the closed
+    // section at the end, shown when it opens.
     m.mods.cheats = SampleCheats();
     d.Draw(m, v);
     CHECK(has(Id::DownloadCheats, -1));
     CHECK(has(Id::Cheat, 0));
-    CHECK(has(Id::Cheat, 1));
+    CHECK(!has(Id::Cheat, 1));
     CHECK(has(Id::Cheat, 2));
     REQUIRE(d.menu.MaxScroll() > 0.0f);
     {
@@ -419,12 +420,18 @@ TEST_CASE("Tab menu: the Mods tab", "[frame_xr][tabmenu]") {
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == Id::Cheat && h.t.index == 0) {
                 y0 = h.r.y0;
-            } else if (h.t.id == Id::Cheat && h.t.index == 1) {
+            } else if (h.t.id == Id::Cheat && h.t.index == 2) {
                 y1 = h.r.y0;
             }
         }
         CHECK(y1 - y0 == 48.0f);
     }
+    v.cheats_other_open = true;
+    v.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(has(Id::Cheat, 1));
+    CHECK(has(Id::CheatsOtherVersion, -1));
+    v.cheats_other_open = false;
     v.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
     d.Draw(m, v);
     CHECK(has(Id::Cheat, static_cast<int>(m.mods.cheats.cheats.size()) - 1));
@@ -513,8 +520,20 @@ MenuModel AllOwn(MenuModel m) {
 } // namespace
 
 void CheckTargets(const Drawn& d) {
+    // AzaharFrame scroll: a list scrolls smoothly, so a row can show cut at its top or bottom
+    const MenuLayout& layout = d.menu.Layout();
+    const auto cut = [&layout](const Rect& r) {
+        return layout.bar.Valid() && (r.y0 <= layout.bar.list.y0 + 0.01f ||
+                                      r.y1 >= layout.bar.list.y1 - 0.01f);
+    };
     for (const auto& h : d.menu.Hits()) {
         if (h.t.index == kLabelIndex || h.t.index == kMenuAreaIndex) {
+            continue;
+        }
+        if (h.t.id == Id::Scrollbar) {
+            continue; // a strip down the list's edge (list_scroll.cpp checks it)
+        }
+        if (h.r.H() < 48.0f && cut(h.r)) {
             continue;
         }
         INFO("id " << static_cast<int>(h.t.id) << " index " << h.t.index << " " << h.r.W()
@@ -2114,7 +2133,11 @@ TEST_CASE("Tab menu: texture pack parts", "[frame_xr][tabmenu]") {
     for (const int i : {0, 1, 2, 4}) {
         CHECK(HasHit(d, Id::TexturePart, i));
     }
-    CHECK(!HasHit(d, Id::TexturePart, 5)); // under the list's end: whole rows only
+    {
+        // under the list's end: cut by it (AzaharFrame scroll: a part row shows)
+        const MenuLayout::Hit* h = FindHit(d, Id::TexturePart, 5);
+        CHECK((h == nullptr || h->r.y1 >= d.menu.Layout().bar.list.y1 - 0.01f));
+    }
     v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
     d.Draw(m, v);
     CHECK(HasHit(d, Id::TexturePart, 5));

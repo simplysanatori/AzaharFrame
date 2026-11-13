@@ -15,14 +15,17 @@
 //
 // Controls: Trigger or A clicks (on release, where it was pressed); a held slider follows the
 // beam. B closes an open drop-down menu, then a slot list, then the menu (Continue). Either
-// stick up or down scrolls a list by a row. A beam that rests 0.6 s on a setting shows a
-// one-line tooltip.
+// stick up or down scrolls a list (faster the further it is pushed and the longer it is held; a
+// tap moves a row); a press that moves drags the list, and the scrollbar can be held and dragged
+// or clicked to page (AzaharFrame scroll, menu/list_scroll.h). A beam that rests 0.6 s on a
+// setting shows a one-line tooltip.
 
 #pragma once
 
 #include <array>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -127,11 +130,18 @@ private:
     bool a_down = false, b_down = false;
     int active_hand = 1;
     int press_hand = -1; ///< the hand that holds a press (-1: none)
-    float drag_y0 = 0.0f, drag_scroll0 = 0.0f; ///< AzaharFrame cheatstab: a press's start
-    bool beam_drag = false;                    ///< the press scrolls the list
-    float stick_hold = 0.0f;  ///< seconds a stick has been held up or down
-    float stick_repeat = 0.0f;
-    int stick_dir = 0;
+    // AzaharFrame scroll: the lists' scrolling (menu/list_scroll.h): the sticks, the scrollbar
+    // held, the list dragged by a press (and its fling); the same in every list.
+    Menu::Scrolling::StickScroll stick_scroll;
+    Menu::Scrolling::BarPress bar_press;
+    Menu::Scrolling::DragScroll list_drag;
+    float press_s = 0.0f; ///< seconds the press has held (the drag's clock)
+    Menu::Tab scroll_tab = Menu::Tab::Main;
+    float scroll_seen = 0.0f; ///< the scroll as the last frame left it
+    /// The Cheats list's For Another Version section, open or not, per game (by title) for
+    /// this session only (never saved).
+    std::map<std::string, bool> cheats_other_open;
+    std::string cheats_other_game;
     Menu::Id rest_id = Menu::Id::None; ///< what the beam rests on, for the tooltip
     int rest_index = -1; ///< AzaharFrame modcat: the resting target's index (ModVersion)
     long long catalog_ask_ms = -1; ///< AzaharFrame jsoncrash: when Install Mods last asked for its list

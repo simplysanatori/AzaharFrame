@@ -17,6 +17,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
 - Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
 - Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
+- I put cheats for another version of the game in a **For Another Version** section at the end of the list, closed until you open it. Its header says how many there are and how many are on.
 - Code patches are matched to the game's own code. the European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
 - **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' pages on GitHub, GameBanana, MEGA or Google Drive.
@@ -128,6 +129,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Preparing Shaders** shows while a game waits for its shaders.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - Messages in the headset stay for 5 seconds.
+- I made long lists in the VR menu, like a game's cheats, much quicker to get through. The stick scrolls faster the further you push it and speeds up as you hold it, you can grab the scrollbar and drag it or click above or below it to jump a page, and you can drag the list itself with the trigger.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 

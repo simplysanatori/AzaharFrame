@@ -6,10 +6,12 @@
 //
 //   [Download] [Add Cheat]           Azahar's Window [Install from File]  top bar (ui2)
 //   12 cheats added, 3 for another version                             status (after a download)
-//   No Bloom (USA) (v)                                       ( o)      one flat list, 48 dp rows
+//   No Bloom (USA) (v)                                       ( o)      48 dp rows, file order
 //   Infinite HP in Battle                                    (o )
-//   Max EXP After Battle                              [v1.0] (o )      made for another version
 //   Max Money                                                (o )      the player's own
+//   ------------------------------------------------------------
+//   For Another Version (1)                                   v        closed by default (scroll)
+//   Max EXP After Battle                              [v1.0] (o )      open: made for another version
 //
 // With nothing in the list the segment shows one centred state instead: No Cheats (with
 // Download), Downloading (a progress ring) or Download Failed (the reason, Try Again).
@@ -107,6 +109,43 @@ std::string VersionChip(const std::string& note) {
         v = v.substr(0, 8); // a chip, not a sentence
     }
     return v;
+}
+
+bool CheatForOtherVersion(const CheatItem& cheat) {
+    return !VersionChip(cheat.version_note).empty();
+}
+
+std::string OtherVersionHeader(int count, int on) {
+    std::string s = "For Another Version (" + std::to_string(count);
+    if (on > 0) {
+        s += " · " + std::to_string(on) + " On"; // as the menu's detail lines
+    }
+    return s + ")";
+}
+
+std::vector<CheatRow> CheatRows(const CheatsModel& m, bool other_open) {
+    std::vector<CheatRow> rows;
+    std::vector<int> other;
+    for (int i = 0; i < static_cast<int>(m.cheats.size()); i++) {
+        if (CheatForOtherVersion(m.cheats[static_cast<std::size_t>(i)])) {
+            other.push_back(i);
+        } else {
+            rows.push_back({CheatRow::Kind::Cheat, i});
+        }
+    }
+    if (other.empty()) {
+        return rows;
+    }
+    if (rows.empty()) {
+        rows.push_back({CheatRow::Kind::Note});
+    }
+    rows.push_back({CheatRow::Kind::Header});
+    if (other_open) {
+        for (const int i : other) {
+            rows.push_back({CheatRow::Kind::Cheat, i});
+        }
+    }
+    return rows;
 }
 
 std::string CheatMismatchBody(const std::string& note) {
@@ -260,23 +299,54 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
         top += kStatusH + 4.0f;
     }
 
-    // ---- The list: one flat list in file order, scrolled by the beam or the stick ----
+    // ---- The list: file order, scrolled by the beam or the stick; AzaharFrame scroll: the
+    // cheats for another version last, in a section that opens and closes ----
     const Rect list{area.x0, top, area.x1, area.y1 - 8.0f};
-    const float content_h = kItemH * static_cast<float>(m.cheats.size());
+    const std::vector<CheatRow> rows = CheatRows(m, view.cheats_other_open);
+    const float content_h = kItemH * static_cast<float>(rows.size());
     // In whole rows, as the Settings tab: at the end the top row shows whole.
     const float max_scroll = std::max(0.0f, std::ceil((content_h - list.H()) / kItemH) * kItemH);
     layout.max_scroll = max_scroll;
     layout.scroll_step = kItemH;
     const float scroll = std::clamp(view.scroll[static_cast<int>(Tab::Mods)], 0.0f, max_scroll);
     kit.Clip(list);
-    for (int i = 0; i < static_cast<int>(m.cheats.size()); i++) {
-        const float y = list.y0 - scroll + kItemH * static_cast<float>(i);
+    for (std::size_t n = 0; n < rows.size(); n++) {
+        const float y = list.y0 - scroll + kItemH * static_cast<float>(n);
         if (y + kItemH <= list.y0 || y >= list.y1) {
             continue;
         }
-        const CheatItem& cheat = m.cheats[static_cast<std::size_t>(i)];
         const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kItemH};
         const float cy = row.Cy();
+        if (rows[n].kind == CheatRow::Kind::Note) {
+            kit.TextSized(c.x0, cy + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall, false,
+                          Tok::kOnSurfaceVariant, kAllOtherVersionNote);
+            continue;
+        }
+        if (rows[n].kind == CheatRow::Kind::Header) {
+            // An expandable list section: a divider over it (when rows are above), its title in
+            // the primary colour, and a chevron where the switches are (down: opens).
+            int count = 0, on = 0;
+            for (const CheatItem& ch : m.cheats) {
+                if (CheatForOtherVersion(ch)) {
+                    count++;
+                    on += ch.enabled ? 1 : 0;
+                }
+            }
+            if (n > 0 && rows[n - 1].kind == CheatRow::Kind::Cheat) {
+                kit.Line(c.x0, y, c.x1, y, 1.0f, Tok::kOutlineVariant);
+            }
+            const Target t{Id::CheatsOtherVersion};
+            kit.StateLayer(row, 12.0f, Tok::kOnSurface, StateOf(view, t));
+            AddHit(row, t, list);
+            kit.TextMid(c.x0, cy, Type::Label, Tok::kPrimary,
+                        kit.Fit(Type::Label, OtherVersionHeader(count, on), c.W() - 48.0f));
+            const float vx = c.x1 - kSwitchW * 0.5f, d = view.cheats_other_open ? -1.0f : 1.0f;
+            kit.Line(vx - 6.0f, cy - 3.0f * d, vx, cy + 3.0f * d, 2.0f, Tok::kOnSurfaceVariant);
+            kit.Line(vx, cy + 3.0f * d, vx + 6.0f, cy - 3.0f * d, 2.0f, Tok::kOnSurfaceVariant);
+            continue;
+        }
+        const int i = rows[n].index;
+        const CheatItem& cheat = m.cheats[static_cast<std::size_t>(i)];
         const Target t{Id::Cheat, i};
         const State st = StateOf(view, t);
         kit.StateLayer(row, 12.0f, Tok::kOnSurface, st);
@@ -304,14 +374,7 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
         }
     }
     kit.ClearClip();
-    if (max_scroll > 0.0f) {
-        // The scroll indicator, as the other long tabs.
-        const float track_h = list.H() - 16.0f;
-        const float thumb_h = std::max(40.0f, track_h * list.H() / content_h);
-        const float ty = list.y0 + 8.0f + (track_h - thumb_h) * (scroll / max_scroll);
-        kit.Fill({area.x1 - 10.0f, ty, area.x1 - 6.0f, ty + thumb_h}, 2.0f, Tok::kOnSurfaceVariant,
-                 0.38f);
-    }
+    DrawScrollbar(kit, view, list, area.x1, content_h, max_scroll, scroll); // AzaharFrame scroll
     // AzaharFrame compat: "This May Not Work" before a cheat for another version turns on
     DrawModsDialog(kit, CompatConfirmDialog(model, view), view);
 }

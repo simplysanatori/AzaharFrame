@@ -12,6 +12,8 @@ add_library(frame_xr_menu STATIC
     edit_devices.h
     homebrew_tab.cpp # AzaharFrame emerald
     homebrew_tab.h
+    list_scroll.cpp # AzaharFrame scroll
+    list_scroll.h
     md3.cpp
     md3.h
     md3_fonts.h
