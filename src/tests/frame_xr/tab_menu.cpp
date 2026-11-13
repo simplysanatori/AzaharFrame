@@ -1018,9 +1018,23 @@ TEST_CASE("Mods segments: supporting lines", "[frame_xr][tabmenu]") {
     CHECK(JoinDetail({"OTPR26", "", "v1.5.9"}) == "OTPR26 · v1.5.9");
     CHECK(JoinDetail({"", ""}) == "");
     CHECK(SizeText(512) == "512 B");
-    CHECK(SizeText(640'000'000) == "640 MB");
-    CHECK(SizeText(2'100'000'000) == "2.1 GB");
+    // AzaharFrame texrow: 1024s, as the download sizes and the free space lines
+    CHECK(SizeText(640ull << 20) == "640 MB");
+    CHECK(SizeText(2'254'857'830) == "2.1 GB");
     CHECK(SizeText(12'345) == "12 KB");
+    CHECK(SizeText(435'611'336) == "415 MB"); // an optimized 5X Redrawn UI: 415 MiB
+    CHECK(SizeText(61'865'984) == "59 MB");   // its PNG original: 59 MiB
+    CHECK(SizeText(1000ull << 20) == "1000 MB");
+    CHECK(SizeText(1ull << 30) == "1.0 GB");
+}
+
+TEST_CASE("texrow: Delete's text for a pack and an Optimize for Frame pair", "[texrow]") {
+    CHECK(DeletePackBody(false, false) == "You can download it again.");
+    CHECK(DeletePackBody(false, true) == "You can install it again from its zip.");
+    CHECK(DeletePackBody(true, false) ==
+          "Deletes the optimized pack and the original PNG pack. You can download it again.");
+    CHECK(DeletePackBody(true, true) ==
+          "Deletes the optimized pack and the original PNG pack. You can install it again from its zip.");
 }
 
 // AzaharFrame menuux: Switch to Flat, the Settings tab's renderer rows, the Touchpad row's line,
@@ -2012,6 +2026,45 @@ TEST_CASE("Tab menu: enabled textures", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::TextureLayer, 0));
     CHECK(!HasHit(d, Id::LayerDown, 0));
+}
+
+// AzaharFrame texrow: the owner's page (two packs on, the snackbar, seven entries): the entry cut
+// by the list's bottom shows its top part, so Enabled Textures never looks empty.
+TEST_CASE("Tab menu: enabled textures under the fold", "[frame_xr][tabmenu][texrow]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = kModsTab;
+    v.mods_segment = ModsSegment::Textures;
+    m.mods.textures = Packs(2);
+    m.mods.textures.packs[0].active = true;
+    m.mods.textures.packs[1].active = true;
+    m.mods.textures.needs_restart = true;
+    for (int g = 1; g <= 6; g++) {
+        m.mods.textures.layers.push_back({"Gen " + std::to_string(g), "Modern Pokemon Sprites", 2,
+                                          g > 1, true});
+    }
+    m.mods.textures.layers.push_back({"5X Redrawn UI HD", "2,012 Textures", -1, true, false});
+    d.Draw(m, v);
+    CheckTargets(d);
+    Audit a;
+    a.Draw(m, v);
+    a.Check("enabled textures under the fold");
+    // The entry under the last whole one is drawn, cut by the list's bottom; it takes clicks once
+    // scrolled into view
+    int whole = -1;
+    for (int i = 0; i < 7; i++) {
+        if (HasHit(d, Id::TextureLayer, i)) {
+            whole = i;
+        }
+    }
+    REQUIRE(whole < 5);
+    CHECK(a.Drew("Gen " + std::to_string(whole + 2)));
+    CHECK(!HasHit(d, Id::TextureLayer, whole + 1));
+    CHECK_FALSE(a.Drew("Gen " + std::to_string(whole + 3)));
+    v.scroll[static_cast<int>(kModsTab)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(HasHit(d, Id::TextureLayer, 5));
 }
 
 // AzaharFrame texparts: Customize on a pack row, and the pack's Customize page.

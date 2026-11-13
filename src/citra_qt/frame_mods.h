@@ -91,9 +91,10 @@ public:
     /// AzaharFrame ui3: whether a game runs now (GUI thread): a pack switch Optimize for Frame
     /// or Use Original asks for then waits for ApplyPendingPack.
     void SetGameRunningSource(std::function<bool()> source);
-    /// AzaharFrame ui3: the switch that waited (the game stopped, or the next one boots, before
-    /// its loader reads the folders): load/textures/<TID> points at the chosen pack of the pair,
-    /// the Customize choices carried over. GUI thread; quick (a listing and a symlink).
+    /// AzaharFrame ui3: the switches that waited (the game stopped, or the next one boots, before
+    /// its loader reads the folders): each pair's chosen pack takes its place in the game's list
+    /// (the Customize choices went with it when it was chosen). GUI thread; quick (a listing and
+    /// a symlink).
     void ApplyPendingPack();
     /// AzaharFrame integ3: the game `tid`'s texture pack was too large to preload (memguard): the
     /// next pack list for it offers Optimize for Frame on its active PNG pack (ui3's snackbar),
@@ -121,6 +122,7 @@ private:
                           RemoveOriginal /* AzaharFrame ui3: the optimized copy's path */ };
         Kind kind = Kind::None;
         std::string id;
+        std::string other; ///< AzaharFrame texrow: Delete: the pair's other folder ("" none)
     };
 
     void AllowAnyway(const std::string& id, int value); // AzaharFrame compat
@@ -131,6 +133,9 @@ private:
     void ListAvailable(bool network);
     void SetAvailable(const std::vector<Mods::AvailableMod>& list);
     void RefreshPacks();
+    /// AzaharFrame texrow: textures.packs from `packs` and the list: a pair is one row (the copy in
+    /// use, or in use from the next start), with that copy's format and size.
+    void FillPackRows();
     void ComputeSizes();
     void Install(const std::string& id, bool replace, bool confirmed = false);
     void Deactivate(const std::string& id);
@@ -173,7 +178,8 @@ private:
     void LoadPackDownloads();
     void ListPackDownloads();
     void StartDownload(const std::string& id);
-    void DeletePack(const std::string& folder);
+    /// Deletes the folder (and `other`, AzaharFrame texrow: the pair's other copy, "" none).
+    void DeletePack(const std::string& folder, const std::string& other = {});
     void PollDownload();
     void SetOffers(const std::vector<CustomTex::Download::PackInfo>& list);
     FrameXr::Menu::PackOffer* PackOffer(const std::string& id);
@@ -228,7 +234,12 @@ private:
         std::string path;       ///< the pack to use (canonical)
         std::string carry_from; ///< its pair's other pack
     };
-    std::optional<PendingSwitch> pending_switch;
+    /// AzaharFrame texrow: one for each pair that switches (a second Optimize no longer drops the
+    /// first's switch)
+    std::vector<PendingSwitch> pending_switches;
+    /// The switch of the game `tid` that `path` (either copy of a pair) is in, nullptr none.
+    const PendingSwitch* PendingFor(u64 tid, const std::string& path) const;
+    void DropPending(u64 tid, const std::string& path);
     /// Packs that became active (id) or were downloaded ("folder:" + folder name): the nudge's
     /// candidates, checked once their size is known.
     std::set<std::string> nudge_candidates;

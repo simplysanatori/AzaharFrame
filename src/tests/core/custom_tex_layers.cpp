@@ -7,6 +7,9 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
@@ -359,4 +362,160 @@ TEST_CASE("texlayers: on disk, the loader's files and the link", "[texlayers]") 
     REQUIRE(TurnOff(paths, kTitle, sprites).ok);
     CHECK(Linked(paths, kTitle) == ui);
     CHECK(Packs(Current(paths, kTitle)) == std::vector<std::string>{ui});
+}
+
+// ---- AzaharFrame texrow: an Optimize for Frame pair in the pack list and in Enabled Textures ----
+
+TEST_CASE("texrow: a switch that waits, on the list and back", "[texlayers][texrow]") {
+    const State on{{{"S", "Gen 1"}, {"S", "Gen 2"}, {"png", ""}, {"A", ""}}};
+    State s = on;
+    ApplySwitch(s, {"png", "png-astc4x4"});
+    CHECK(Keys(s) == std::vector<std::string>{"S/Gen 1", "S/Gen 2", "png-astc4x4/", "A/"});
+    UndoSwitch(s, {"png", "png-astc4x4"});
+    CHECK(s == on);
+    // The pair off when it was optimized: the copy goes on top, as the switch does at the next start
+    State off{{{"A", ""}}};
+    ApplySwitch(off, {"png", "png-astc4x4"});
+    CHECK(Keys(off) == std::vector<std::string>{"png-astc4x4/", "A/"});
+    // Already switched: nothing changes
+    State done{{{"png-astc4x4", ""}}};
+    ApplySwitch(done, {"png", "png-astc4x4"});
+    CHECK(Keys(done) == std::vector<std::string>{"png-astc4x4/"});
+}
+
+TEST_CASE("texrow: a pair is one row, the copy in use", "[texlayers][texrow]") {
+    std::vector<Pack> packs(4);
+    packs[0].id = "5x";
+    packs[0].name = "5X Redrawn UI HD";
+    packs[0].format = Format::Png;
+    packs[0].size_bytes = 59ull << 20;
+    packs[1].id = "5x-astc4x4";
+    packs[1].name = "5X Redrawn UI HD";
+    packs[1].format = Format::Ktx;
+    packs[1].size_bytes = 415ull << 20;
+    packs[2].id = "sprites";
+    packs[2].name = "Modern Pokemon Sprites";
+    packs[3].id = "small";
+    packs[3].name = "Small Test Pack";
+    const std::map<std::string, std::string> partners{{"5x", "5x-astc4x4"}, {"5x-astc4x4", "5x"}};
+    const std::set<std::string> copies{"5x-astc4x4"};
+    const auto rows = [&](const State& s) { return PackRows(packs, s, partners, copies); };
+
+    // The PNG pack on (before Optimize): its row, the copy under it
+    State s{{{"sprites", "Gen 1"}, {"5x", ""}}};
+    auto r = rows(s);
+    REQUIRE(r.size() == 3);
+    CHECK(r[0] == PackRow{0, 1, true});
+    CHECK(r[1] == PackRow{2, std::nullopt, true});
+    CHECK(r[2] == PackRow{3, std::nullopt, false});
+    // After Optimize, the switch waiting for the next start: the copy's row (ASTC, 415 MB)
+    ApplySwitch(s, {"5x", "5x-astc4x4"});
+    r = rows(s);
+    REQUIRE(r.size() == 3);
+    CHECK(r[0] == PackRow{1, 0, true});
+    CHECK(packs[r[0].shown].format == Format::Ktx);
+    CHECK(*packs[r[0].shown].size_bytes == 415ull << 20);
+    // Use Original: the PNG's row again
+    ApplySwitch(s, {"5x-astc4x4", "5x"});
+    CHECK(rows(s)[0] == PackRow{0, 1, true});
+    // The pair off: the optimized copy (the one turned on)
+    CHECK(rows(State{})[0] == PackRow{1, 0, false});
+    // The original removed: the copy alone
+    std::vector<Pack> alone{packs[1], packs[2]};
+    CHECK(PackRows(alone, State{{{"5x-astc4x4", ""}}}, partners, copies)[0] ==
+          PackRow{0, std::nullopt, true});
+}
+
+TEST_CASE("texrow: Enabled Textures after Optimize, and the list on disk", "[texlayers][texrow]") {
+    Temp t;
+    Paths paths{(t.dir / "load").generic_string(), {}};
+    const fs::path rel = fs::path("load/texture-packs") / TitleFolder(kTitle);
+    const fs::path lib = t.dir / rel;
+    for (const std::string& f : SpritesFiles()) {
+        t.Write(rel / "Sprites" / f);
+    }
+    for (const std::string& f : UiFiles()) {
+        t.Write(rel / "UI" / f);
+        std::string ktx = f;
+        ktx.replace(ktx.size() - 3, 3, "ktx");
+        t.Write(rel / "UI-astc4x4" / ktx);
+    }
+    for (const char* folder : {"UI", "UI-astc4x4"}) {
+        t.Write(rel / folder / "pack.json", R"({"name": "5X Redrawn UI HD"})");
+    }
+    t.Write(rel / "UI-astc4x4" / ".azaharframe-ktx.json", R"({"format": "ASTC 4x4", "source": "../UI"})");
+    t.Write(rel / "Sprites" / "pack.json", R"({"name": "Modern Pokemon Sprites"})");
+    const std::string sprites = fs::weakly_canonical(lib / "Sprites").generic_string();
+    const std::string ui = fs::weakly_canonical(lib / "UI").generic_string();
+    const std::string copy = fs::weakly_canonical(lib / "UI-astc4x4").generic_string();
+
+    // Both packs on, Modern Sprites' six groups above 5X (the owner's list)
+    REQUIRE(TurnOn(paths, kTitle, ui).ok);
+    REQUIRE(TurnOn(paths, kTitle, sprites).ok);
+    Game g = Game::Load(paths, kTitle);
+    CHECK(g.partners.at(ui) == copy);
+    CHECK(g.partners.at(copy) == ui);
+    CHECK(g.copies == std::set<std::string>{copy});
+    REQUIRE(g.Rows().size() == 7);
+
+    // Optimize done while the game runs: the switch waits; the rows show the copy at once
+    g.Wait({ui, copy});
+    auto rows = g.Rows();
+    REQUIRE(rows.size() == 7);
+    CHECK(rows[0].name == "Gen 1");
+    CHECK(rows[6].pack == copy);
+    CHECK(rows[6].name == "5X Redrawn UI HD");
+    CHECK(rows[6].detail == "24 Textures");
+    auto packs = g.PackRows();
+    REQUIRE(packs.size() == 2);
+    CHECK(g.packs[packs[0].shown].id == copy);
+    CHECK(packs[0].on);
+    CHECK(g.packs[*packs[0].other].id == ui);
+
+    // Another pack's group toggled: saved, but the disk keeps what the game reads (the PNG pack);
+    // the switch still waits
+    REQUIRE(g.Toggle(0));
+    REQUIRE(g.Save(paths, kTitle).ok);
+    CHECK(Packs(Current(paths, kTitle)) == std::vector<std::string>{sprites, ui});
+    CHECK(g.waiting.size() == 1);
+    CHECK(g.Rows()[6].pack == copy);
+    // The same after a reload (the menu opens again): the switch is applied again
+    Game again = Game::Load(paths, kTitle);
+    again.Wait({ui, copy});
+    CHECK(again.list == g.list);
+
+    // The packs of the title's folder are saved by folder name; old absolute paths read too
+    const std::string saved = [&] {
+        std::ifstream in(StatePath(paths.load_dir, kTitle));
+        std::stringstream ss;
+        ss << in.rdbuf();
+        return ss.str();
+    }();
+    CHECK(saved.find("\"pack\": \"Sprites\"") != std::string::npos);
+    CHECK(saved.find("\"pack\": \"UI\"") != std::string::npos);
+    CHECK(saved.find(t.dir.generic_string()) == std::string::npos);
+    CHECK(Packs(*ReadSaved(paths.load_dir, kTitle)) == std::vector<std::string>{sprites, ui});
+    t.Write(fs::path(StatePath(paths.load_dir, kTitle)).lexically_relative(t.dir),
+            StateJson(State{{{ui, ""}, {sprites, "Gen 1"}, {"Sprites", "Gen 1"}}}));
+    CHECK(ReadSaved(paths.load_dir, kTitle)->entries == std::vector<Entry>{{ui, ""}, {sprites, "Gen 1"}});
+
+    // The game stopped: the switch happens on disk; the copy is in the PNG pack's place
+    REQUIRE(TurnOn(paths, kTitle, sprites).ok);
+    State now = Current(paths, kTitle);
+    ApplySwitch(now, {ui, copy});
+    REQUIRE(Apply(paths, kTitle, now).ok);
+    const auto files = LoaderFiles(paths.load_dir, kTitle);
+    REQUIRE(files.has_value());
+    CHECK(files->packs == std::vector<std::string>{copy, sprites});
+
+    // The row's checkbox off: both copies off, no switch waits
+    Game g2 = Game::Load(paths, kTitle);
+    g2.Wait({copy, ui}); // Use Original, waiting
+    CHECK(g2.IsOn(ui));
+    g2.SetOn(ui, false);
+    CHECK_FALSE(g2.IsOn(ui));
+    CHECK_FALSE(g2.IsOn(copy));
+    CHECK(g2.waiting.empty());
+    CHECK(g2.PackRows()[0].on == false);
+    CHECK(g2.packs[g2.PackRows()[0].shown].id == copy);
 }

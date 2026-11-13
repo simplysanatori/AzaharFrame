@@ -957,8 +957,8 @@ std::string SizeText(u64 bytes) {
     static constexpr const char* kUnits[] = {"B", "KB", "MB", "GB", "TB"};
     double v = static_cast<double>(bytes);
     int unit = 0;
-    while (v >= 1000.0 && unit < 4) {
-        v /= 1000.0;
+    while (v >= 1024.0 && unit < 4) { // AzaharFrame texrow: 1024s, as the VR menu's sizes
+        v /= 1024.0;
         unit++;
     }
     char buf[32];

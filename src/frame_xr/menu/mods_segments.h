@@ -111,7 +111,7 @@ enum class ModsDialogKind : uint8_t {
     OpenLink, ///< "Open GitHub?" (or "Open <host>?", `mod` = the host), "This opens <other> in
               ///< Steam's browser.": Cancel, Open
     BigDownload, ///< "Download <other>?" (the size), `mod` = the pack: Cancel, Download
-    DeletePack,  ///< "Delete <mod>?", "You can download it again.": Cancel, Delete
+    DeletePack,  ///< "Delete <mod>?", `other` = DeletePackBody ("" "You can download it again."): Cancel, Delete
     Mismatch,    ///< AzaharFrame compat: "This May Not Work", `mod` = the body, `other` = the
                  ///< confirming button ("Install Anyway", "Download Anyway", "Turn On Anyway"): Cancel
     Unscanned,   ///< AzaharFrame compat: "GameBanana Hasn't Scanned This File Yet", kUnscannedBody:
@@ -401,6 +401,9 @@ inline constexpr const char* kRemoveOriginalTitle = "Remove the Original Pack?";
 /// "Frees 4.7 GB. The optimized pack keeps working. To go back to the original, you'd need to
 /// download it again." (`catalog`; else "add it again"); no size known: no first sentence.
 std::string RemoveOriginalBody(const std::string& size, bool catalog);
+/// AzaharFrame texrow: Delete's supporting text. `both`: the row is an Optimize for Frame pair and
+/// both copies go; `zip`: the pack came from a zip (install it again), else from a download.
+std::string DeletePackBody(bool both, bool zip);
 /// "Optimize 4K (PNG) for Frame?"
 std::string OptimizeNudgeText(const std::string& pack);
 /// "2,308"
@@ -417,7 +420,8 @@ std::vector<std::string> OfferParts(const ModOffer& offer);
 /// "Updated Oct 2026".
 std::vector<std::string> PackOfferParts(const PackOffer& offer);
 
-/// "2.1 GB", "640 MB", "12 KB": a size the way Android's file manager shows it (1000s).
+/// "2.1 GB", "640 MB", "12 KB" (AzaharFrame texrow: 1024s, as Steam, the download sizes and the
+/// free space lines count them, so a pack's size reads the same everywhere).
 std::string SizeText(uint64_t bytes);
 
 } // namespace FrameXr::Menu

@@ -248,6 +248,58 @@ void Replace(State& state, const std::string& from, const std::string& to) {
     }
 }
 
+void ApplySwitch(State& state, const Switch& s) {
+    if (s.from.empty() || s.to.empty() || s.from == s.to) {
+        return;
+    }
+    if (Has(state, s.from)) {
+        Replace(state, s.from, s.to);
+    } else {
+        Add(state, s.to, {std::string{}});
+    }
+}
+
+void UndoSwitch(State& state, const Switch& s) {
+    if (!s.from.empty() && !s.to.empty()) {
+        Replace(state, s.to, s.from);
+    }
+}
+
+std::vector<PackRow> PackRows(const std::vector<Pack>& packs, const State& list,
+                              const std::map<std::string, std::string>& partners,
+                              const std::set<std::string>& copies) {
+    std::map<std::string, std::size_t, std::less<>> index;
+    for (std::size_t i = 0; i < packs.size(); i++) {
+        index.emplace(packs[i].id, i);
+    }
+    std::vector<PackRow> rows;
+    std::vector<bool> done(packs.size(), false);
+    for (std::size_t i = 0; i < packs.size(); i++) {
+        if (done[i]) {
+            continue;
+        }
+        done[i] = true;
+        PackRow r;
+        r.shown = i;
+        r.on = Has(list, packs[i].id);
+        if (const auto p = partners.find(packs[i].id); p != partners.end()) {
+            if (const auto o = index.find(p->second); o != index.end() && !done[o->second]) {
+                const std::size_t j = o->second;
+                done[j] = true;
+                const bool j_on = Has(list, packs[j].id);
+                // The copy in the list; neither: the optimized copy (the one turned on)
+                const bool show_j = j_on ? !r.on || copies.count(packs[j].id) != 0
+                                         : !r.on && copies.count(packs[j].id) != 0;
+                r.other = show_j ? i : j;
+                r.shown = show_j ? j : i;
+                r.on = r.on || j_on;
+            }
+        }
+        rows.push_back(r);
+    }
+    return rows;
+}
+
 bool Move(State& state, std::size_t index, int delta) {
     const std::ptrdiff_t to = static_cast<std::ptrdiff_t>(index) + delta;
     if (index >= state.entries.size() || to < 0 ||
@@ -471,14 +523,35 @@ std::optional<State> ReadSaved(const std::string& load_dir, u64 title_id) {
     if (!fs::is_regular_file(path, ec)) {
         return std::nullopt;
     }
-    return ParseState(ReadText(path));
+    State saved = ParseState(ReadText(path));
+    // AzaharFrame texrow: a folder name is a pack of this folder (Pack::id: the canonical path)
+    const std::string base = Canonical(path.parent_path());
+    State out;
+    for (Entry e : saved.entries) {
+        if (!fs::path(e.pack).is_absolute()) {
+            e.pack = Canonical(fs::path(base) / e.pack);
+        }
+        if (std::find(out.entries.begin(), out.entries.end(), e) == out.entries.end()) {
+            out.entries.push_back(std::move(e));
+        }
+    }
+    return out;
 }
 
 bool WriteSaved(const std::string& load_dir, u64 title_id, const State& state) {
     const fs::path path = StatePath(load_dir, title_id);
     std::error_code ec;
     fs::create_directories(path.parent_path(), ec);
-    return Common::WriteFileAtomic(path.string(), StateJson(state));
+    // AzaharFrame texrow: the packs of this folder by folder name (ids are canonical paths)
+    const std::string base = Canonical(path.parent_path());
+    State out = state;
+    for (Entry& e : out.entries) {
+        const fs::path p(e.pack);
+        if (p.is_absolute() && p.has_filename() && p.parent_path().generic_string() == base) {
+            e.pack = p.filename().generic_string();
+        }
+    }
+    return Common::WriteFileAtomic(path.string(), StateJson(out));
 }
 
 std::string Linked(const Paths& paths, u64 title_id) {
@@ -629,6 +702,16 @@ Game Game::Load(const Paths& paths, u64 title_id, const std::atomic_bool* cancel
         g.catalog_ids[p.id] = CatalogId(p.path);
         g.bases[p.id] = BaseOf(p.path);
     }
+    for (const Pack& p : g.packs) { // AzaharFrame texrow: the Optimize for Frame pairs
+        if (Optimize::IsOptimized(p.path)) {
+            g.copies.insert(p.id);
+        }
+        const std::string other = Partner(p.path);
+        if (!other.empty() && other != p.id && g.data.count(other) != 0) {
+            g.partners[p.id] = other;
+            g.partners[other] = p.id;
+        }
+    }
     g.list = Current(paths, title_id);
     for (const std::string& id : Packs(g.list)) {
         const auto it = g.data.find(id);
@@ -665,6 +748,8 @@ void Game::SetOn(const std::string& pack, bool on) {
         if (!partner.empty() && IsOn(partner)) {
             Replace(list, partner, pack); // one of a pair: the other goes, in its place
             Fit(list, pack, keys);
+            // AzaharFrame texrow: chosen now; a switch that waited the other way goes
+            std::erase_if(waiting, [&](const Switch& s) { return s.from == pack || s.to == partner; });
         } else {
             std::vector<std::string> above;
             const std::string id = catalog_ids[pack];
@@ -677,10 +762,39 @@ void Game::SetOn(const std::string& pack, bool on) {
         }
     } else if (!on) {
         Remove(list, pack);
+        // AzaharFrame texrow: the pair is one row: both copies off, and no switch waits for it
+        const auto it = partners.find(pack);
+        const std::string other = it != partners.end() ? it->second : Partner(pack);
+        if (!other.empty()) {
+            Remove(list, other);
+        }
+        std::erase_if(waiting, [&](const Switch& s) {
+            return s.from == pack || s.to == pack || (!other.empty() && (s.from == other || s.to == other));
+        });
     }
     for (Pack& p : packs) {
         p.active = Has(list, p.id);
     }
+}
+
+void Game::Wait(const Switch& s) {
+    if (data.find(s.to) == data.end()) {
+        return; // the copy is gone
+    }
+    std::erase_if(waiting, [&](const Switch& w) {
+        return w.from == s.from || w.to == s.from || w.from == s.to || w.to == s.to;
+    });
+    waiting.push_back(s);
+    ApplySwitch(list, s);
+    const PackData& d = data.at(s.to);
+    Fit(list, s.to, PackKeys(d.layout, d.state));
+    for (Pack& p : packs) {
+        p.active = Has(list, p.id);
+    }
+}
+
+std::vector<PackRow> Game::PackRows() const {
+    return Layers::PackRows(packs, list, partners, copies);
 }
 
 bool Game::Move(std::size_t index, int delta) {
@@ -792,7 +906,11 @@ Result Game::Save(const Paths& paths, u64 title_id) {
         }
     }
     dirty.clear();
-    return Apply(paths, title_id, list);
+    State now = list; // AzaharFrame texrow: the game reads `from` until the next start
+    for (auto it = waiting.rbegin(); it != waiting.rend(); ++it) {
+        UndoSwitch(now, *it);
+    }
+    return Apply(paths, title_id, std::move(now));
 }
 
 } // namespace CustomTex::Layers
