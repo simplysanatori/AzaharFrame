@@ -86,6 +86,32 @@ void Remove(State& state, std::string_view pack);
 /// The pack `from` becomes `to` where it is (an Optimize for Frame pair); `to` already in the
 /// list: `from` just goes.
 void Replace(State& state, const std::string& from, const std::string& to);
+/// AzaharFrame texrow: an Optimize for Frame switch that waits for the next start (the running
+/// game reads `from` until then; FrameMods applies it when the game stops).
+struct Switch {
+    std::string from, to;
+    bool operator==(const Switch&) const = default;
+};
+/// The list from the next start: `to` in `from`'s place (on top, whole, when `from` is off).
+void ApplySwitch(State& state, const Switch& s);
+/// The list as it is until then (what goes to disk while the switch waits): `to` back to `from`.
+void UndoSwitch(State& state, const Switch& s);
+
+/// AzaharFrame texrow: a row of the menu's pack list. An Optimize for Frame pair (a PNG pack and its
+/// optimized copy) is one row: the copy the game uses, or will use from the next start, or (the
+/// pair off) the optimized copy, which is the one turned on.
+struct PackRow {
+    std::size_t shown = 0;            ///< index into the packs
+    std::optional<std::size_t> other; ///< the pair's other copy, when it is there
+    bool on = false;
+    bool operator==(const PackRow&) const = default;
+};
+/// One row a pack (a pair: one row, where its first copy is). `list` with the waiting switches
+/// applied; `partners`: the pairs, both ways; `copies`: the optimized copies.
+std::vector<PackRow> PackRows(const std::vector<Pack>& packs, const State& list,
+                              const std::map<std::string, std::string>& partners,
+                              const std::set<std::string>& copies);
+
 /// Up (-1) or down (+1) one entry. False when it cannot.
 bool Move(State& state, std::size_t index, int delta);
 /// The pack's keys in the list's order.
@@ -129,6 +155,8 @@ State Resolve(const std::optional<State>& saved, const std::string& linked,
 // ---- File system ----
 
 std::string StatePath(const std::string& load_dir, u64 title_id);
+/// AzaharFrame texrow: packs in the title's texture-packs folder are saved by folder name (moving
+/// the user folder keeps the list); absolute paths (other places, older lists) are read too.
 std::optional<State> ReadSaved(const std::string& load_dir, u64 title_id);
 bool WriteSaved(const std::string& load_dir, u64 title_id, const State& state);
 /// The canonical folder load/textures/<TID> resolves to, "" when there is none.
@@ -174,21 +202,31 @@ struct Game {
     std::vector<Pack> packs;              ///< ListPacks; `active` = on in the list
     std::map<std::string, PackData> data; ///< by pack id
     std::map<std::string, std::string> catalog_ids, bases; ///< by pack id ("" none)
-    State list;                           ///< fitted
+    State list;                           ///< fitted; with the waiting switches applied
     std::set<std::string> dirty;          ///< packs whose Customize state changed
+    /// AzaharFrame texrow: the Optimize for Frame pairs, both ways, and the optimized copies (Load)
+    std::map<std::string, std::string> partners;
+    std::set<std::string> copies;
+    std::vector<Switch> waiting; ///< switches for the next start: in `list`, not on disk yet
 
     static Game Load(const Paths& paths, u64 title_id, const std::atomic_bool* cancel = nullptr);
     bool IsOn(std::string_view pack) const;
     const Pack* Find(std::string_view pack) const;
-    /// On: at its default place, its pair's other pack off. Off: its entries go.
+    /// On: at its default place, its pair's other pack off. Off: its entries go, and its pair's
+    /// other pack's (AzaharFrame texrow: a pair is one row; its waiting switch goes too).
     void SetOn(const std::string& pack, bool on);
+    /// AzaharFrame texrow: a switch that waits for the next start shows in the list (ApplySwitch).
+    void Wait(const Switch& s);
+    /// AzaharFrame texrow: the pack list's rows (Layers::PackRows).
+    std::vector<PackRow> PackRows() const;
     bool Move(std::size_t index, int delta);
     /// The entry's checkbox (a group's parts on or off).
     bool Toggle(std::size_t index);
     /// The pack's Customize state changed (its page): the list follows its order.
     void PackChanged(const std::string& pack, const Parts::State& state);
     std::vector<Row> Rows() const;
-    /// Writes the changed Customize states and the list, and points the link at the top pack.
+    /// Writes the changed Customize states and the list (the waiting switches undone), and points
+    /// the link at the top pack.
     Result Save(const Paths& paths, u64 title_id);
 };
 
