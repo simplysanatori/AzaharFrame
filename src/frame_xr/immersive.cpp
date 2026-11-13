@@ -1498,6 +1498,8 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     const int after = L::SteppedScale(before, vertical ? taller_steps : wider_steps);
     ShowToastText(L::ScaleToast(after, vertical)); // also at the ends, so the press shows
     if (after == before && setting.GetValue() == after) {
+        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit", // AzaharFrame kiu2
+                 L::ScaleToast(after, vertical));
         return WiderStep::None;
     }
     if (setting.UsingGlobal()) {

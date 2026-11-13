@@ -1821,8 +1821,19 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // shapes the screen (AzaharFrame kiu: Horizontal Scale, Vertical Scale) instead of the offset
     // and Render Margin. The raw grips: a Bottom Screen Reticle hand's grip is taken out of
     // game_in.
-    const bool both_grips = holding_immersive && in.hand[0].grip > Immersive::Layout::kGripPress &&
-                            in.hand[1].grip > Immersive::Layout::kGripPress;
+    // AzaharFrame kiu2: with the Adjuster's hysteresis (down past kGripPress, up only under
+    // kGripRelease), so the holding hand's grip easing off while the thumb finds the D-pad does
+    // not drop back to the offset and Render Margin.
+    for (std::size_t h = 0; h < 2; h++) {
+        const float g = in.hand[h].grip;
+        scale_grip_down[h] = scale_grip_down[h] ? g > Immersive::Layout::kGripRelease
+                                                : g > Immersive::Layout::kGripPress;
+    }
+    const bool both_grips = holding_immersive && scale_grip_down[0] && scale_grip_down[1];
+    if (both_grips != both_grips_logged) {
+        both_grips_logged = both_grips;
+        LOG_INFO(Frontend, "xr: immersive: both grips {}", both_grips ? "down" : "up");
+    }
     if (nudge.Any() && both_grips) {
         // Right wider, left narrower; up taller, down shorter. Held, they repeat.
         bool changed = false;
