@@ -353,7 +353,14 @@ void GPU::SetBufferSwap(u32 screen_id, const Service::GSP::FrameBufferInfo& info
         right_eye_disabler->ReportEndFrame();
         // AzaharFrame immersive: a game frame ended; the next one gets the newest head pose,
         // all of its draws (both eyes) the same one (vr_immersive.h FrameLatch).
-        VideoCore::Immersive::OnTopScreenSwap(impl->rasterizer);
+        // AzaharFrame oot: and which framebuffer it shows, so the picture is tagged with the
+        // pose its world was drawn with (vr_immersive.h ContentTrack).
+        // AzaharFrame stereo: and whether it is in the 3D format (the frame trace's stereo line).
+        VideoCore::Immersive::OnTopScreenSwap(impl->rasterizer,
+                                              framebuffer.active_fb == 0
+                                                  ? framebuffer.address_left1
+                                                  : framebuffer.address_left2,
+                                              (framebuffer.format & 0x70) == 0x20);
     }
 }
 
@@ -567,6 +574,9 @@ void GPU::MemoryTransfer() {
             DelayGenerator::GetCopyMode(config.IsInputVRAM(), config.IsOutputVRAM()), true,
             config.input_width * config.input_height * BytesPerPixel(config.input_format));
     }
+
+    // AzaharFrame oot: the picture now at the output address has the world drawn last.
+    VideoCore::Immersive::OnTransfer(config.GetPhysicalOutputAddress());
 
     // Complete transfer.
     config.trigger.Assign(0);

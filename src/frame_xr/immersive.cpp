@@ -22,6 +22,7 @@
 #include "common/atomic_file.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/frame_vr_depth.h" // AzaharFrame stereo
 #include "common/settings.h"
 #include "frame_xr/auto_shape.h" // AzaharFrame fixes7
 #include "frame_xr/immersive.h"
@@ -113,6 +114,10 @@ struct Tuning {
     /// AzaharFrame fovonce: AZAHARFRAME_IMMERSIVE_FOV_TRACE=1 logs each frame's camera angles
     /// while they move (a measurement, the angle followed, the eased ones), for mocks.
     bool fov_trace = false;
+    /// AzaharFrame oot: AZAHARFRAME_IMMERSIVE_MENU_EXACT (default 1): mode 2 shows a screen of
+    /// the game's own in front of its world (an item screen) without the Render Margin
+    /// (L::MenuExact); 0: always with it, as before.
+    bool menu_exact = true;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -150,6 +155,8 @@ Tuning ReadTuning() {
     t.anchor_eye = !(anchor_eye && std::string(anchor_eye) == "0");
     const char* fov_trace = std::getenv("AZAHARFRAME_IMMERSIVE_FOV_TRACE");
     t.fov_trace = fov_trace && std::string(fov_trace) == "1";
+    const char* menu_exact = std::getenv("AZAHARFRAME_IMMERSIVE_MENU_EXACT");
+    t.menu_exact = !(menu_exact && std::string(menu_exact) == "0");
     const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
     if (wider && *wider) {
         t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
@@ -351,6 +358,12 @@ struct State {
     bool view_raw_valid = false;
     int view_fov_changes = 0; ///< the settled view's changes (the log line's note)
     L::HeadLocked solved;
+    /// AzaharFrame stereo: mode 2's cap on the game's 3D slider (UpdateStereoCap).
+    L::StereoCap stereo_cap;
+    /// AzaharFrame oot: mode 2's menu rule (L::MenuExact), and whether it was last on (the log).
+    L::MenuExact menu_exact;
+    bool menu_exact_on = false;
+    float stereo_cap_logged = -1.0f; ///< the cap last logged (below 0: none)
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
     L::LensOffset offset;
@@ -641,6 +654,63 @@ bool AnchorPose(XrTime display, XrPosef& head) {
     return true;
 }
 
+// AzaharFrame stereo: no cap (another mode, 3D Depth 0, no game): the game sees the user's
+// slider again.
+void StopStereoCap() {
+    if (g.stereo_cap_logged >= 0.0f) {
+        LOG_INFO(Frontend, "xr: 3D Depth {} % no longer limited",
+                 Settings::values.factor_3d.GetValue());
+    }
+    g.stereo_cap.Reset();
+    g.stereo_cap_logged = -1.0f;
+    Settings::frame_vr_stereo_cap.store(-1.0f, std::memory_order_relaxed);
+}
+
+// AzaharFrame stereo: in mode 2 the game's own two eyes are on one screen: its far scenery is
+// kept from being farther apart than the eyes (L::StereoSliderLimit, with the game's far width per
+// slider unit measured live from its two projections, the screen's size, distance and factor and
+// the IPD, every frame). The game is shown min(3D Depth / 100, that), without jitter
+// (L::StereoCap); 3D Depth itself, and the head-motion scale made from it, stay as set. While the
+// in-game menu shows (not engaged) the cap holds as it is.
+void UpdateStereoCap(u32 mode) {
+    const u32 depth = Settings::values.factor_3d.GetValue();
+    if (mode != 2 || depth == 0) {
+        if (Settings::frame_vr_stereo_cap.load(std::memory_order_relaxed) >= 0.0f ||
+            g.stereo_cap.Target() >= 0.0f) {
+            StopStereoCap();
+        }
+        return;
+    }
+    if (!g.engaged) {
+        return;
+    }
+    // The slider the game would be shown without the cap (FrameVrSlider: 1 in the Full modes).
+    const float user = static_cast<float>(std::min<u32>(depth, 100)) / 100.0f *
+                       Settings::frame_vr_depth_scale.load(std::memory_order_relaxed);
+    const float per = VideoCore::Immersive::g_stereo_far_per_slider.load(std::memory_order_relaxed);
+    const float limit = L::StereoSliderLimit(g.solved, g.half_ipd, per);
+    const float sent = g.stereo_cap.Update(user, limit, VideoCore::Immersive::SteadyMs());
+    Settings::frame_vr_stereo_cap.store(g.stereo_cap.Target() >= 0.0f ? sent : -1.0f,
+                                        std::memory_order_relaxed);
+    // The log: when the cap takes effect, moves by half a percent or more, or lifts.
+    if (g.stereo_cap.Limited()) {
+        const float target = g.stereo_cap.Target();
+        if (g.stereo_cap_logged < 0.0f || std::abs(target - g.stereo_cap_logged) >= 0.005f) {
+            g.stereo_cap_logged = target;
+            LOG_INFO(Frontend,
+                     "xr: 3D Depth {} % limited to {:.1f} % so far scenery never diverges (the "
+                     "game's far scenery {:.4f} % of its width per percent, screen {:.0f} degrees "
+                     "wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm)",
+                     depth, 100.0f * target, per, Deg(2 * std::atan(g.solved.tan_half_y *
+                                                                     g.solved.aspect)),
+                     g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd);
+        }
+    } else if (g.stereo_cap_logged >= 0.0f) {
+        g.stereo_cap_logged = -1.0f;
+        LOG_INFO(Frontend, "xr: 3D Depth {} % no longer limited", depth);
+    }
+}
+
 void OnFrame(const FrameInfo& info) {
     const u32 mode = ModeInUse(); // AzaharFrame immersive
     TestResolutionHook();
@@ -655,6 +725,18 @@ void OnFrame(const FrameInfo& info) {
     } else if (!g.screens_were_live) {
         // A game just started: its per-game settings are loaded; read "Hide Bottom Screen" now.
         g.game_start_ms = VideoCore::Immersive::SteadyMs(); // AzaharFrame depth
+        // AzaharFrame stereo: another game's 3D is measured afresh and its cap starts from
+        // nothing. A quick save loaded in the same game (the screens go off for a moment) keeps
+        // both, so the cap never lifts for the frames it takes to measure again. AzaharFrame oot:
+        // the menu rule's "two eyes earlier" likewise.
+        if (g_title_id.load() != g.title_id) {
+            VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
+            VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
+            StopStereoCap();
+        }
+        VideoCore::Immersive::g_world_once.store(false, std::memory_order_relaxed); // AzaharFrame oot
+        g.menu_exact.Reset(); // AzaharFrame oot
+        g.menu_exact_on = false;
         g.camera.Reset();
         g.estimate.Reset(); // AzaharFrame fovonce
         g.follow.Reset();
@@ -862,6 +944,24 @@ void OnFrame(const FrameInfo& info) {
             static_cast<unsigned>(MatchMode()), screen_fov, options.live_fov_y_deg, now);
         screen_fov = angles.screen_deg;
         options.live_fov_y_deg = angles.live_deg;
+        // AzaharFrame oot: mode 2's menu rule: a screen of the game's own in front of its world
+        // (its world drawn once after two eyes) is drawn without the Render Margin.
+        const bool menu = g.tuning.menu_exact && mode == 2 &&
+                          VideoCore::Immersive::g_world_once.load(std::memory_order_relaxed);
+        if (menu != g.menu_exact_on) {
+            g.menu_exact_on = menu;
+            if (menu) {
+                LOG_INFO(Frontend,
+                         "xr: immersive: the game shows a screen of its own (its world drawn "
+                         "once): at its own size, {} {:.1f}x eased to 1.0x",
+                         Names::kRenderMargin, options.wider);
+            } else {
+                LOG_INFO(Frontend,
+                         "xr: immersive: the game's world in both eyes again: {} {:.1f}x",
+                         Names::kRenderMargin, options.wider);
+            }
+        }
+        options.wider = L::MenuExact::Factor(options.wider, g.menu_exact.Update(menu, now));
         if (MatchMode() != Settings::MatchGameCamera::Off) {
             if (g.tuning.fov_trace) {
                 const float row[4]{g.follow.Target(), screen_fov, options.live_fov_y_deg,
@@ -877,6 +977,11 @@ void OnFrame(const FrameInfo& info) {
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
+    }
+    // AzaharFrame stereo: without a game on view the cap holds (a quick save loading); another
+    // game resets it as it starts (above).
+    if (info.screens_live) {
+        UpdateStereoCap(mode);
     }
 
     VideoCore::Immersive::VRData data; // CitraVR's "off" values
@@ -924,11 +1029,11 @@ void OnFrame(const FrameInfo& info) {
             }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
-            // CitraVR: 10^multiplier x (the 3D slider / 10, an integer).
-            const float scaler =
-                std::pow(10.0f, static_cast<float>(
-                                    Settings::values.vr_immersive_positional_game_scaler.GetValue())) *
-                static_cast<float>(Settings::values.factor_3d.GetValue() / 10);
+            // CitraVR: 10^multiplier x (the 3D slider / 10, an integer). AzaharFrame stereo:
+            // from the user's 3D Depth, never the capped slider the game is shown.
+            const float scaler = L::GamePositionScale(
+                static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue()),
+                Settings::values.factor_3d.GetValue());
             FillInverseView(q, p, scaler, data.inv_view);
             data.game_pos_scaler = -scaler;
         }
@@ -1007,6 +1112,28 @@ void OnFrame(const FrameInfo& info) {
                          a.slip_frames,
                          g.tuning.anchor_eye ? "about the eye now, AZAHARFRAME_IMMERSIVE_ANCHOR_EYE on"
                                              : "at the picture's head pose, ANCHOR_EYE off");
+            }
+            // AzaharFrame stereo: the game's own 3D on this screen (no change, only the log).
+            const float far_width =
+                VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed);
+            if (far_width >= 0.0f) {
+                const L::StereoFar st = L::StereoFarOnQuad(g.solved, mode, g.half_ipd, far_width);
+                LOG_INFO(Frontend,
+                         "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
+                         "scenery {:.2f} % of its picture's width apart, {:.3f} m on the screen "
+                         "{:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm; the eyes "
+                         "{:.2f} degrees inwards; the game's 3D x {:.2f} would be parallel)",
+                         st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
+                         Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
+                         g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
+                         st.vergence_deg, st.natural_scale);
+                if (st.diverges) {
+                    LOG_WARNING(Frontend,
+                                "xr: stereo: the far scenery needs the eyes to diverge {:.2f} "
+                                "degrees, which they cannot: it doubles (the game's 3D, 3D "
+                                "Depth {} %, is too deep for this screen)",
+                                -st.vergence_deg, Settings::values.factor_3d.GetValue());
+                }
             }
             const int64_t keep_picture = a.last_picture;
             const uint32_t keep_run = a.run;

@@ -183,10 +183,10 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
                 // Inside what fills the view, centred on its middle.
                 REQUIRE(CoverSpareDeg(frame, s) <= kFillMarginDeg + 0.01f);
                 REQUIRE(s.pitch_rad == Approx(ViewMiddlePitch(frame)));
-                // The view is taller than the picture: the game draws further up and down.
+                // AzaharFrame oot: the game's own shape, widened evenly by Render Margin.
                 REQUIRE(s.factor == Approx(o.wider));
-                REQUIRE(s.factor_y > s.factor);
-                REQUIRE(s.factor_y <= kMaxFactorY);
+                REQUIRE(s.factor_y == Approx(s.factor));
+                REQUIRE(s.aspect == Approx(aspect));
                 // Not stretched: the same scale both ways.
                 REQUIRE(s.factor * t * aspect / (s.tan_half_y * s.aspect) == Approx(s.gain));
                 REQUIRE(s.factor_y * t / s.tan_half_y == Approx(s.gain));
@@ -207,9 +207,13 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         const auto at_gain_1 = [](float deg) {
             return 2.0f * std::atan(std::tan(Rad(deg / 2.0f)) * 1.03f) / Rad(1.0f);
         };
+        // AzaharFrame oot: as wide as before, and as high as the game's own shape (the screen took
+        // the view's shape before: 83 degrees high, the game drawing 1.75 times its height).
         REQUIRE(across == Approx(at_gain_1(94.0f)).margin(1.0f));
-        REQUIRE(high == Approx(at_gain_1(83.0f)).margin(1.0f));
-        REQUIRE(s.factor_y == Approx(1.75f).margin(0.03f));
+        const float high_own = 2.0f * std::atan(1.4f * std::tan(Rad(27.5f)) / 1.03f) / Rad(1.0f);
+        REQUIRE(high == Approx(at_gain_1(high_own)).margin(1.0f));
+        REQUIRE(high < 83.0f - 5.0f);
+        REQUIRE(s.factor_y == Approx(1.4f));
         REQUIRE(s.gain == Approx(1.0f));
         REQUIRE(s.gain_x == Approx(1.0f / 0.9f));
     }
@@ -227,7 +231,10 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         Options wider;
         wider.wider = WiderFactor(4);
         const HeadLocked s = SolveHeadLocked(Placement{}, 110.0f, 16.0f / 9.0f, frame, 0.0f, wider);
-        REQUIRE(CoverSpareDeg(frame, s) == Approx(kFillMarginDeg).margin(0.05f));
+        // AzaharFrame oot: in the picture's own shape it fills the view across, at most.
+        const Cover cover = DefaultCover(frame, ViewMiddlePitch(frame), 0.0f);
+        REQUIRE(s.tan_half_y * s.aspect == Approx(cover.tan_x));
+        REQUIRE(s.tan_half_y <= cover.tan_y);
         REQUIRE(s.gain > 1.0f);
         REQUIRE(s.gain <= kMaxGain);
         REQUIRE(s.factor_y * std::tan(Rad(55)) / s.tan_half_y == Approx(s.gain));
@@ -245,7 +252,7 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         REQUIRE(s.aspect == Approx(kAspect3ds));
         REQUIRE(s.factor_y == Approx(s.factor));
     }
-    SECTION("the game draws at most kMaxFactorY times its height") {
+    SECTION("a view much taller than the picture: still the picture's own shape") {
         ViewFov tall = Symmetric(60);
         tall.outer_left = Rad(-30.0f);
         tall.outer_right = Rad(30.0f);
@@ -254,8 +261,9 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         Options wider;
         wider.wider = WiderFactor(4);
         const HeadLocked s = SolveHeadLocked(Placement{}, 40.0f, kAspect3ds, tall, 0.0f, wider);
-        REQUIRE(s.factor_y == Approx(kMaxFactorY));
-        REQUIRE(s.gain < kMaxGain);
+        REQUIRE(s.factor_y == Approx(s.factor));
+        REQUIRE(s.aspect == Approx(kAspect3ds));
+        REQUIRE(s.gain <= kMaxGain);
         REQUIRE(s.factor_y * std::tan(Rad(20)) / s.tan_half_y == Approx(s.gain));
     }
     SECTION("what fills the view: at least kMinFillHalfHeightDeg high, wider for mode 2") {
@@ -1310,7 +1318,9 @@ TEST_CASE("FrameXr immersive: views that change each frame refit the screen each
     const HeadLocked up = SolveMk7(FrameView(1.9f));
     const HeadLocked down = SolveMk7(FrameView(-1.9f));
     REQUIRE(std::abs(up.pitch_rad - down.pitch_rad) > Rad(1.5f));
-    REQUIRE(std::abs(up.factor_y - down.factor_y) > 0.05f);
+    // AzaharFrame oot: the game's up-and-down factor is Render Margin's own now, whatever the view.
+    REQUIRE(up.factor_y == Approx(down.factor_y));
+    REQUIRE(up.factor_y == Approx(up.factor));
 }
 
 TEST_CASE("FrameXr immersive: the screen is fitted to a settled view", "[frame_xr]") {
@@ -1805,4 +1815,272 @@ TEST_CASE("FrameXr immersive: Off and Set Once hand the angles over as before",
     const auto a = always.Update(2, 40.0f, 40.0f, 8);
     CHECK(a.screen_deg < 50.0f);
     CHECK(a.screen_deg >= 50.0f - FovSlew::kMaxStepDeg);
+}
+
+// AzaharFrame oot: the owner's headset test of Ocarina of Time 3D with a single-screen mod ("it
+// says 5:3, but it is not 5:3", the item screen off kilter): at Render Margin Off the game still
+// drew 1.25 times its height on the Frame, and more up and down than across at every level.
+// Render Margin (was Wider View) now widens the game's own picture evenly. For any settings
+// (Horizontal and Vertical Scale of either sign too): Off is exactly the
+// game's frame, every level pads both ways by the same factor, the screen has the picture's own
+// shape (over the scales), the scale is the same both ways and the gains are the padded
+// game tangent over the screen's on each axis. Nothing here is fitted to a game or a preset.
+TEST_CASE("FrameXr immersive: Render Margin pads the game's own shape evenly for any settings",
+          "[frame_xr]") {
+    std::mt19937 rng(20261113);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    const auto lerp = [&](float a, float b) { return a + (b - a) * u(rng); };
+    int checked = 0;
+    for (int i = 0; i < 2000; ++i) {
+        ViewFov v;
+        v.left = Rad(-lerp(35.0f, 60.0f));
+        v.right = Rad(lerp(35.0f, 60.0f));
+        v.down = Rad(-lerp(35.0f, 65.0f));
+        v.up = Rad(lerp(30.0f, 60.0f));
+        v.outer_left = v.left - Rad(lerp(0.0f, 10.0f));
+        v.outer_right = v.right + Rad(lerp(0.0f, 10.0f));
+        v.outer_down = v.down - Rad(lerp(0.0f, 2.0f));
+        v.outer_up = v.up + Rad(lerp(0.0f, 2.0f));
+        const uint32_t level = static_cast<uint32_t>(i % 5);
+        const float aspect = lerp(1.2f, 2.4f);
+        const float fov = lerp(30.0f, 110.0f);
+        Placement p;
+        p.size = lerp(kMinSize, kMaxSize);
+        p.pitch_deg = lerp(-20.0f, 10.0f);
+        p.distance = lerp(kMinDistance, kMaxDistance);
+        Options o;
+        o.wider = WiderFactor(level);
+        // Horizontal and Vertical Scale, -30 % to +30 % (AzaharFrame kiu: larger above 0).
+        o.squeeze = SqueezeForScale(5 * (i % 13) - kMaxScalePercent);
+        o.squeeze_y = SqueezeForScale(5 * ((i / 13) % 13) - kMaxScalePercent);
+        if (i % 3 == 0) {
+            o.live_fov_y_deg = fov * lerp(0.7f, 1.2f); // a zoom
+        }
+        const float shift = (i % 2) ? lerp(0.0f, 0.035f / kMinDistance) : 0.0f;
+        const HeadLocked s = SolveHeadLocked(p, fov, aspect, v, shift, o);
+        const float t = std::tan(Rad(fov / 2.0f));
+        const float live = o.live_fov_y_deg > 0.0f ? std::tan(Rad(o.live_fov_y_deg / 2.0f)) : t;
+        // Even padding; Off is the game's own frame.
+        REQUIRE(s.factor == Approx(WiderFactor(level)));
+        REQUIRE(s.factor_y == Approx(s.factor));
+        if (level == 0) {
+            REQUIRE(s.factor == 1.0f);
+            REQUIRE(s.factor_y == Approx(1.0f));
+        }
+        // The screen's shape: the picture's, times the scales.
+        REQUIRE(s.aspect == Approx(aspect * (1.0f - o.squeeze) / (1.0f - o.squeeze_y)));
+        // The same scale both ways before Horizontal and Vertical Scale: the screen's tangents over the game's.
+        const float qx = s.tan_half_y * s.aspect / (1.0f - o.squeeze);
+        const float qy = s.tan_half_y / (1.0f - o.squeeze_y);
+        REQUIRE(qx / (s.factor * aspect * t) == Approx(qy / (s.factor_y * t)));
+        // A point of the game's frame (its corner, at w = 1 inside the view) lands where the
+        // frame gives it: the frame is 1 / factor of the screen both ways.
+        REQUIRE((qx / s.factor) / (qy / s.factor_y) == Approx(aspect));
+        // The gains: the padded game tangent over the screen's, per axis, within the limits.
+        const float base = s.factor_y * live / qy;
+        REQUIRE(s.gain == Approx(std::clamp(base / (1.0f - o.squeeze_y), kMinGain, kMaxGain)));
+        REQUIRE(s.gain_x == Approx(std::clamp(base / (1.0f - o.squeeze), kMinGain, kMaxGain)));
+        ++checked;
+    }
+    REQUIRE(checked == 2000);
+}
+
+// AzaharFrame oot: the picture is tagged with the pose its world was drawn with, followed through
+// the copies into the framebuffer the game shows, not with the pose applied at the latch before.
+namespace {
+VideoCore::XrContentPose YawPose(int64_t time, float yaw_deg) {
+    VideoCore::XrContentPose p;
+    p.valid = true;
+    const float h = yaw_deg * 3.14159265f / 360.0f;
+    p.orientation[1] = std::sin(h);
+    p.orientation[3] = std::cos(h);
+    p.time = time;
+    return p;
+}
+} // namespace
+
+TEST_CASE("FrameXr immersive: the picture's pose is the one its world was drawn with",
+          "[frame_xr]") {
+    using VideoCore::Immersive::ContentTrack;
+    using Kind = ContentTrack::Kind;
+    constexpr u32 A = 0x18000000, B = 0x18046500;
+    SECTION("a game drawing its world every frame: as before") {
+        ContentTrack track, old(false);
+        for (int f = 1; f < 40; ++f) {
+            const u32 fb = f % 2 ? A : B;
+            for (ContentTrack* t : {&track, &old}) {
+                t->Applied(YawPose(f, 2.0f * f));
+                t->WorldDraw();
+                t->Transfer(fb);
+                t->Latch(fb);
+            }
+            REQUIRE(track.Drawn().time == f);
+            REQUIRE(track.Drawn().time == old.Drawn().time);
+            REQUIRE(track.LastKind() == Kind::Same);
+        }
+    }
+    SECTION("the world every other frame, the HUD in between (30 world pictures in 60 swaps)") {
+        ContentTrack track, old(false);
+        float worst_new = 0.0f, worst_old = 0.0f;
+        int world_frame = 0;
+        for (int f = 1; f < 60; ++f) {
+            const u32 fb = f % 2 ? A : B;
+            for (ContentTrack* t : {&track, &old}) {
+                t->Applied(YawPose(f, 3.0f * f)); // a steady head turn, 3 degrees a frame
+                if (f % 2) {
+                    t->WorldDraw();
+                }
+                t->Transfer(fb); // the HUD composited over the last world, copied in
+                t->Latch(fb);
+            }
+            if (f % 2) {
+                world_frame = f;
+            }
+            const VideoCore::XrContentPose truth = YawPose(world_frame, 3.0f * world_frame);
+            worst_new = std::max(worst_new, ContentTrack::TurnDeg(track.Drawn(), truth));
+            worst_old = std::max(worst_old, ContentTrack::TurnDeg(old.Drawn(), truth));
+            REQUIRE(track.Drawn().time == world_frame);
+            REQUIRE(track.LastKind() == (f % 2 ? Kind::Same : Kind::Earlier));
+            if (!(f % 2)) {
+                REQUIRE(track.LastTurnDeg() == Approx(3.0f).margin(0.01f));
+            }
+        }
+        REQUIRE(worst_new == Approx(0.0f).margin(0.01f));
+        REQUIRE(worst_old == Approx(3.0f).margin(0.01f)); // a frame's turn: the double image
+    }
+    SECTION("the picture copied in before the next frame's world is drawn") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        for (int f = 2; f < 20; ++f) {
+            track.Applied(YawPose(f, 2.0f * f));
+            track.Transfer(A); // frame f - 1's world into the framebuffer
+            track.WorldDraw(); // then frame f's world
+            track.Latch(A);
+            REQUIRE(track.Drawn().time == f - 1);
+            REQUIRE(track.LastKind() == Kind::Earlier);
+        }
+    }
+    SECTION("nothing copied into the framebuffer shown lately: the earlier rule") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        track.Transfer(A);
+        track.Latch(A);
+        for (int f = 2; f < 10; ++f) {
+            track.Applied(YawPose(f, 1.0f * f));
+            track.WorldDraw();
+            track.Latch(B); // drawn straight into B
+            REQUIRE(track.Drawn().time == f);
+            REQUIRE(track.LastKind() == Kind::Untraced);
+        }
+        // An old copy into A no longer counts after kTransferLatches latches.
+        track.Applied(YawPose(10, 10.0f));
+        track.Latch(A);
+        REQUIRE(track.Drawn().time == 10);
+        // The VBlank fallback (no swap): the earlier rule.
+        track.Applied(YawPose(11, 11.0f));
+        track.Transfer(A);
+        track.Latch();
+        REQUIRE(track.Drawn().time == 11);
+    }
+    SECTION("outside the Full modes: no pose, nothing kept") {
+        ContentTrack track;
+        track.Applied(YawPose(1, 0.0f));
+        track.WorldDraw();
+        track.Transfer(A);
+        track.Latch(A);
+        track.Applied(VideoCore::XrContentPose{}); // immersive mode off
+        track.Transfer(A);
+        track.Latch(A);
+        REQUIRE_FALSE(track.Drawn().valid);
+    }
+    SECTION("any turn rate and swap pattern: the tag is the world's pose") {
+        std::mt19937 rng(7);
+        for (int run = 0; run < 200; ++run) {
+            ContentTrack track;
+            const int every = 1 + static_cast<int>(rng() % 4); // world every 1 to 4 swaps
+            const bool copy_first = rng() % 2;
+            const float rate = static_cast<float>(rng() % 600) / 100.0f; // up to 6 deg a frame
+            int world_frame = -1, copied_frame = -1;
+            for (int f = 0; f < 80; ++f) {
+                const u32 fb = (f % 2) ? A : B;
+                track.Applied(YawPose(f, rate * f));
+                const bool world = f % every == 0;
+                if (copy_first) {
+                    track.Transfer(fb);
+                    copied_frame = world_frame;
+                }
+                if (world) {
+                    track.WorldDraw();
+                    world_frame = f;
+                }
+                if (!copy_first) {
+                    track.Transfer(fb);
+                    copied_frame = world_frame;
+                }
+                track.Latch(fb);
+                if (copied_frame < 0) {
+                    continue;
+                }
+                const VideoCore::XrContentPose truth = YawPose(copied_frame, rate * copied_frame);
+                REQUIRE(ContentTrack::TurnDeg(track.Drawn(), truth) <= 0.01f);
+            }
+        }
+    }
+}
+
+// AzaharFrame oot: Render Margin Off asks every game for exactly its own picture: no padding either
+// way, the screen in the picture's shape, for every game shape, both Full modes (mode 2's shared
+// quad with each eye's shift, mode 3's quad on each eye) and any view, the Frame's included.
+TEST_CASE("FrameXr immersive: Render Margin Off is exactly the game's picture", "[frame_xr]") {
+    ViewFov frame;
+    frame.left = Rad(-50.3f);
+    frame.right = Rad(50.4f);
+    frame.down = Rad(-59.6f);
+    frame.up = Rad(49.5f);
+    frame.outer_left = Rad(-59.1f);
+    frame.outer_right = Rad(59.2f);
+    frame.outer_down = Rad(-60.0f);
+    frame.outer_up = Rad(49.9f);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> u(0.0f, 1.0f);
+    std::vector<ViewFov> views{frame};
+    for (int i = 0; i < 40; ++i) {
+        ViewFov v;
+        v.left = Rad(-(30.0f + 35.0f * u(rng)));
+        v.right = Rad(30.0f + 35.0f * u(rng));
+        v.down = Rad(-(30.0f + 35.0f * u(rng)));
+        v.up = Rad(30.0f + 35.0f * u(rng));
+        v.outer_left = v.left - Rad(10.0f * u(rng));
+        v.outer_right = v.right + Rad(10.0f * u(rng));
+        v.outer_down = v.down;
+        v.outer_up = v.up;
+        views.push_back(v);
+    }
+    std::vector<float> shapes{4.0f / 3.0f, kAspect3ds, 1.6f, 16.0f / 9.0f, 21.0f / 9.0f};
+    for (int i = 0; i < 10; ++i) {
+        shapes.push_back(1.1f + 1.5f * u(rng));
+    }
+    int checked = 0;
+    for (const ViewFov& v : views) {
+        for (const float a : shapes) {
+            for (const float shift : {0.0f, 0.032f / 3.0f, 0.035f / kMinDistance}) {
+                for (const float fov : {35.0f, 55.0f, 75.0f, 100.0f}) {
+                    for (const float size : {kMinSize, 1.0f, kMaxSize}) {
+                        Placement p;
+                        p.size = size;
+                        Options o; // Off: o.wider is kFactorMin
+                        REQUIRE(o.wider == WiderFactor(0));
+                        const HeadLocked s = SolveHeadLocked(p, fov, a, v, shift, o);
+                        REQUIRE(s.factor == 1.0f);
+                        REQUIRE(s.factor_y == Approx(1.0f).epsilon(1e-5));
+                        REQUIRE(s.aspect == Approx(a).epsilon(1e-5));
+                        ++checked;
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(checked == 41 * 15 * 3 * 4 * 3);
 }

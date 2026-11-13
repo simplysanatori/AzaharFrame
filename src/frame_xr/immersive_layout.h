@@ -82,9 +82,6 @@ inline constexpr float kMaxSize = 2.5f;
 /// degrees (ViewFov::outer_*), and its half height at least this, degrees.
 inline constexpr float kFillMarginDeg = 1.0f;
 inline constexpr float kMinFillHalfHeightDeg = 35.0f;
-/// AzaharFrame immersive: the game draws at most this much further up and down than its own
-/// frame (`factor_y`); a taller view leaves the screen's top and bottom edges in it.
-inline constexpr float kMaxFactorY = 2.0f;
 /// The rotation gain stays within these (past them the screen keeps its size and the world drifts
 /// a little). At the screen's edge, angle e, a head turn moves the picture by
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
@@ -109,6 +106,7 @@ inline constexpr float kGripPress = 0.60f;
 inline constexpr float kGripRelease = 0.40f;
 
 inline constexpr float kDegToRad = 3.14159265f / 180.0f;
+inline constexpr float kRadToDeg = 180.0f / 3.14159265f; ///< AzaharFrame stereo
 
 // ---- Immersive Offset (global: it is about the player's lenses, not the game) ----
 
@@ -614,6 +612,101 @@ float EyeX(int eye, float half_ipd);
 /// AzaharFrame turns2: mode 2's shared quad is seen from half the IPD to the side, that over its
 /// distance (SolveHeadLocked's `eye_shift`); 0 in mode 3, whose quads are each on their eye.
 float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_ipd);
+
+/// AzaharFrame stereo: the game's far scenery on the Full modes' screen. The game's own 3D puts
+/// each eye's far scenery `far_width` of its picture's width apart (the right eye's to the
+/// right: uncrossed); the picture is 1/factor of the quad's width, so on the quad they are
+/// `separation_m` apart, plus the eye quads' own distance apart in mode 3. The eyes, half the
+/// IPD each side of the middle, look at them `vergence_deg` inwards (0: parallel, as at
+/// infinity); below 0 they would have to diverge, which they cannot (the far scenery doubles).
+struct StereoFar {
+    float separation_m = 0.0f; ///< the two eyes' far points apart on the quad (with the quads')
+    float far_deg = 0.0f;      ///< that, as seen from between the eyes
+    float allow_deg = 0.0f;    ///< the most it may be: the eyes parallel (IPD apart)
+    float vergence_deg = 0.0f; ///< the eyes' angle inwards at the far scenery
+    bool diverges = false;     ///< vergence below -kDivergeToleranceDeg
+    /// The game's 3D times this would put the far scenery at infinity (eyes parallel); 0 when
+    /// the game shows no far disparity of its own.
+    float natural_scale = 0.0f;
+};
+/// Divergence this small is not counted (nor warned about): the eyes fuse it with ease, and mode
+/// 3's slider of 0.01 leaves Mario Kart 7 and Kid Icarus 0.05 to 0.08 degrees past parallel.
+inline constexpr float kDivergeToleranceDeg = 0.1f;
+StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
+                          float far_width);
+
+/// AzaharFrame stereo: the cap keeps the eyes at least this far from parallel at the far scenery.
+inline constexpr float kStereoMarginDeg = 0.05f;
+
+/// AzaharFrame stereo: the largest slider (0 to 1) at which mode 2's screen shows the game's far
+/// scenery with the eyes `margin_deg` inwards of parallel, for the game's far width per slider
+/// unit `far_per_slider` (video_core/vr_view_matrix.h FarPerSlider). Below 0 when that is not
+/// known; 0 when even a flat picture is too near parallel.
+float StereoSliderLimit(const HeadLocked& solved, float half_ipd, float far_per_slider,
+                        float margin_deg = kStereoMarginDeg);
+
+/// AzaharFrame stereo: the slider mode 2 sends the game: the user's (3D Depth / 100) when the
+/// limit allows it (exactly that), else the limit. Without jitter: the limit counts lower at
+/// once, higher only once it is kStep above the one in use; the slider sent follows a change of
+/// the limit at most kDownPerS (down) or kUpPerS (up) a second. A change of the user's own slider
+/// goes through at once (up to the limit). The first known limit is taken at once. XR thread;
+/// pure (unit tested).
+class StereoCap {
+public:
+    static constexpr float kStep = 0.005f;
+    static constexpr float kDownPerS = 4.0f;
+    static constexpr float kUpPerS = 0.25f;
+    static constexpr float kMinSlider = 0.001f;
+
+    /// `limit` below 0: not known yet (the user's slider goes through, so it can be measured;
+    /// once known, the last limit holds until it is measured again).
+    float Update(float user, float limit, int64_t now_ms);
+    /// The limit in use is below the user's slider.
+    bool Limited() const {
+        return limited_;
+    }
+    /// The limit in use (with the step above), below 0 before one was known.
+    float Target() const {
+        return limit_;
+    }
+    void Reset() {
+        *this = StereoCap{};
+    }
+
+private:
+    float out_ = -1.0f, limit_ = -1.0f, last_user_ = -1.0f;
+    int64_t last_ms_ = 0;
+    bool limited_ = false;
+};
+
+/// AzaharFrame oot: mode 2's menu rule. While the game shows a screen of its own in front of its
+/// world (video_core/vr_view_matrix.h WorldOnceRun: its world drawn for one eye only, or not at
+/// all, after it drew two), the game draws no Render Margin (factor 1): the screen is the
+/// game's own picture at its own size, as it laid it out. Eased in and out over kEaseMs
+/// (smoothstep), so the screen never jumps. XR thread; pure (unit tested).
+class MenuExact {
+public:
+    static constexpr float kEaseMs = 250.0f;
+
+    /// `on`: the rule holds now. The weight: 0 the Render Margin factor, 1 factor 1.
+    float Update(bool on, int64_t now_ms);
+    float Weight() const;
+    /// The factor at weight `weight` between the Render Margin factor `wider` and 1.
+    static float Factor(float wider, float weight) {
+        return wider + (1.0f - wider) * weight;
+    }
+    void Reset() {
+        *this = MenuExact{};
+    }
+
+private:
+    float progress_ = 0.0f;
+    int64_t last_ms_ = 0;
+};
+
+/// AzaharFrame stereo: CitraVR's head-motion scale in the Full modes, 10^multiplier x (3D Depth
+/// / 10, an integer), from the user's 3D Depth: the stereo cap never changes it.
+float GamePositionScale(int multiplier, uint32_t depth_percent);
 
 /// AzaharFrame turns2: the Full modes' quad eye `eye` sees, in the head's (VIEW) space: in mode 3
 /// centred on that eye, in mode 2 one quad for both (centred between them).

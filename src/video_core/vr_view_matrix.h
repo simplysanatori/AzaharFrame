@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -132,6 +133,181 @@ inline bool ProjectionFromRows(const float r[4][4], Projection& out) {
     out = {tan_half_y, aspect};
     return true;
 }
+
+/// AzaharFrame stereo: where a top screen camera's projection (`r`, as ProjectionFromRows) puts
+/// a point straight ahead at infinity, across the picture: -1 to 1 over its width, 0 without a
+/// stereo shear. The game's own 3D gives each eye's projection an opposite shear (the eye's
+/// shift itself moves nothing at infinity), so the two eyes' values are the far scenery's
+/// disparity. False when `r` is not a top screen camera.
+inline bool FarAcrossFromRows(const float r[4][4], float& ndc) {
+    Projection p;
+    if (!ProjectionFromRows(r, p)) {
+        return false;
+    }
+    const bool first_is_x = std::abs(r[0][0]) > std::abs(r[0][1]);
+    const float* hr = first_is_x ? r[0] : r[1];
+    ndc = hr[2] / r[3][2];
+    return std::isfinite(ndc) && std::abs(ndc) < 1.0f;
+}
+
+/// AzaharFrame stereo: the far points (FarAcrossFromRows) of one top screen frame's world draws,
+/// grouped: the game's eyes are the groups (one per eye with its 3D on, one when it draws its
+/// world once). Emulation thread; pure, unit tested in src/tests/frame_xr/stereo.cpp.
+class StereoFrame {
+public:
+    static constexpr int kGroups = 4;
+    /// Two far points in one group: this close (NDC) or this share of the larger one.
+    static constexpr float kTolerance = 2e-4f;
+    static constexpr float kShare = 0.01f;
+    /// A group counts as an eye with at least this share of the largest group's draws.
+    static constexpr float kEyeShare = 0.2f;
+
+    struct Result {
+        uint32_t draws = 0;    ///< world draws with a top screen camera
+        int eyes = 0;          ///< 0 (none), 1 (drawn once), 2 (two eyes)
+        float far_ndc = 0.0f;  ///< the two eyes' far points apart (NDC, 0 to 2); 0 below 2 eyes
+    };
+
+    void Draw(float ndc) noexcept {
+        ++draws_;
+        for (int i = 0; i < groups_; ++i) {
+            const float tol = std::max(kTolerance, kShare * std::abs(group_[i].ndc));
+            if (std::abs(group_[i].ndc - ndc) <= tol) {
+                ++group_[i].draws;
+                return;
+            }
+        }
+        if (groups_ < kGroups) {
+            group_[groups_++] = {ndc, 1};
+        }
+    }
+
+    /// The frame ended: what it held, and a fresh start.
+    Result End() noexcept {
+        Result r;
+        r.draws = draws_;
+        int a = -1, b = -1; // the two largest groups
+        for (int i = 0; i < groups_; ++i) {
+            if (a < 0 || group_[i].draws > group_[a].draws) {
+                b = a;
+                a = i;
+            } else if (b < 0 || group_[i].draws > group_[b].draws) {
+                b = i;
+            }
+        }
+        if (a >= 0) {
+            r.eyes = 1;
+            if (b >= 0 && static_cast<float>(group_[b].draws) >=
+                              kEyeShare * static_cast<float>(group_[a].draws)) {
+                r.eyes = 2;
+                r.far_ndc = std::abs(group_[a].ndc - group_[b].ndc);
+            }
+        }
+        *this = StereoFrame{};
+        return r;
+    }
+
+private:
+    struct Group {
+        float ndc = 0.0f;
+        uint32_t draws = 0;
+    };
+    Group group_[kGroups]{};
+    int groups_ = 0;
+    uint32_t draws_ = 0;
+};
+
+/// AzaharFrame stereo: the game's far scenery per unit of the 3D slider it is shown (its far
+/// width, StereoFrame's far_ndc / 2, over the slider), from frames with both eyes drawn while the
+/// slider had held for kStableSwaps swaps (the game reads it once a frame, so a frame just after
+/// a change may still have the old one); the median of the last kSamples. The game's own 3D is
+/// linear in the slider (Ocarina of Time 3D: 0.117 % of the width per percent, at 10, 30 and 50).
+class FarPerSlider {
+public:
+    static constexpr int kStableSwaps = 4;
+    static constexpr int kSamples = 9;
+    static constexpr float kMinSlider = 0.001f;
+
+    void Swap(int eyes, float far_width, float slider) noexcept {
+        if (slider != last_slider_) {
+            last_slider_ = slider;
+            stable_ = 0;
+            return;
+        }
+        if (stable_ < kStableSwaps) {
+            ++stable_;
+        }
+        if (stable_ < kStableSwaps || eyes < 2 || slider < kMinSlider || !(far_width > 0.0f)) {
+            return;
+        }
+        samples_[next_] = far_width / slider;
+        next_ = (next_ + 1) % kSamples;
+        count_ = count_ < kSamples ? count_ + 1 : kSamples;
+    }
+    /// Below 0 until a frame was measured.
+    float Value() const noexcept {
+        if (count_ == 0) {
+            return -1.0f;
+        }
+        float v[kSamples];
+        for (int i = 0; i < count_; ++i) {
+            v[i] = samples_[i];
+        }
+        std::nth_element(v, v + count_ / 2, v + count_);
+        return v[count_ / 2];
+    }
+    void Reset() noexcept {
+        *this = FarPerSlider{};
+    }
+
+private:
+    float samples_[kSamples]{};
+    int count_ = 0, next_ = 0, stable_ = 0;
+    float last_slider_ = -1.0f;
+};
+
+/// AzaharFrame oot: a screen of the game's own in front of its world (Ocarina of Time 3D's item
+/// screen): with the game's 3D on (slider above 0) its world is drawn for one eye only, or not at
+/// all, for kSwaps top screen swaps in a row, after the game drew both eyes earlier (so a game or
+/// a screen that never draws two eyes is never taken for one). The world's draws are still there
+/// (the paused world behind it), so "no world draw" alone would miss it; a game that draws its
+/// world on every other swap only (Super Mario 3D Land's title) never has kSwaps in a row.
+/// Gameplay draws both eyes in every frame, standing still too (measured: Ocarina of Time 3D,
+/// Majora's Mask 3D, Mario Kart 7, Kid Icarus: Uprising). A heuristic: the Full mode 2 uses it to
+/// show such a screen at the game's own size (frame_xr/immersive.cpp, IMMERSIVE.md).
+class WorldOnceRun {
+public:
+    static constexpr int kSwaps = 4;
+
+    /// One top screen swap: its eyes (StereoFrame) and the slider the game was shown. True while
+    /// the run holds.
+    bool Swap(int eyes, float slider) noexcept {
+        if (!(slider > 0.0f)) {
+            run_ = 0;
+            return on_ = false;
+        }
+        if (eyes >= 2) {
+            seen_two_ = true;
+            run_ = 0;
+            return on_ = false;
+        }
+        if (run_ < kSwaps) {
+            ++run_;
+        }
+        return on_ = seen_two_ && run_ >= kSwaps;
+    }
+    bool On() const noexcept {
+        return on_;
+    }
+    void Reset() noexcept {
+        *this = WorldOnceRun{};
+    }
+
+private:
+    int run_ = 0;
+    bool seen_two_ = false;
+    bool on_ = false;
+};
 
 /// AzaharFrame depth: the projection most world draws used in each window of time (a quarter
 /// of a second), so a draw with another camera (a menu's, a model on the HUD) does not flicker

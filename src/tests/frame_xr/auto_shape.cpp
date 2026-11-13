@@ -52,7 +52,13 @@ TEST_CASE("Auto shape: the nearest shape", "[frame_xr][autoshape]") {
     CHECK(NearestShape(2.33f)->value == 2);
     CHECK(NearestShape(1.6f)->value == 5);
     CHECK(NearestShape(1.71f)->value == 0); // 2.6 % over 5:3
-    CHECK_FALSE(NearestShape(4.0f / 3.0f)); // not a shape Automatic picks
+    // AzaharFrame oot: 4:3 and 3:2 are shapes too (the owner's Ocarina of Time 3D measured 1.321).
+    CHECK(NearestShape(4.0f / 3.0f)->value == 3);
+    CHECK(NearestShape(1.321f)->value == 3);
+    CHECK(NearestShape(1.5f)->value == 4);
+    CHECK(NearestShape(1.695f)->value == 0); // the owner's play camera: 5:3
+    CHECK_FALSE(NearestShape(1.41f));        // between 4:3 and 3:2
+    CHECK_FALSE(NearestShape(1.2f));
     CHECK_FALSE(NearestShape(2.0f));
     CHECK_FALSE(NearestShape(0.0f));
 }
@@ -92,7 +98,7 @@ TEST_CASE("Auto shape: short cameras, gaps and wobble do not switch", "[frame_xr
         t += 1500;
     }
     CHECK_FALSE(changed);
-    // Something that is no shape (a 4:3 close-up) breaks the run too.
+    // Another shape for a moment (a 4:3 close-up) breaks the run too.
     t = Feed(d, 1.778f, t, 1500, &changed);
     t = Feed(d, 1.333f, t, 250, &changed);
     t = Feed(d, 1.778f, t, 1500, &changed);
@@ -218,4 +224,26 @@ TEST_CASE("Auto shape: measures in every Match Game Camera mode", "[frame_xr][au
     top.SetValue(top_before);
     match.SetValue(match_before);
     measured.SetValue(measured_before);
+}
+
+// AzaharFrame oot: a mod drawing 4:3 (or 3:2) switches Automatic after 2 s; a 4:3 camera shorter
+// than that, as at the boot of the owner's Ocarina of Time 3D, does not.
+TEST_CASE("Auto shape: 4:3 and 3:2 after 2 s", "[frame_xr][autoshape]") {
+    Decider d;
+    d.Reset();
+    std::int64_t t = 10'000;
+    bool changed = false;
+    t = Feed(d, 1.321f, t, 1500, &changed);
+    t = Feed(d, 1.69f, t, 3000, &changed);
+    CHECK_FALSE(changed);
+    CHECK(d.Current().value == 0);
+    t = Feed(d, 1.321f, t, 2250, &changed);
+    CHECK(changed);
+    CHECK(d.Current().value == 3);
+    CHECK(d.AspectAt(t + Decider::kEaseMs) == Approx(4.0f / 3.0f));
+    changed = false;
+    t = Feed(d, 1.5f, t, 2250, &changed);
+    CHECK(changed);
+    CHECK(d.Current().value == 4);
+    CHECK(d.AspectAt(t + Decider::kEaseMs) == Approx(1.5f));
 }

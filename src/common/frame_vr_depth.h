@@ -15,4 +15,21 @@
 
 namespace Settings {
 inline std::atomic<float> frame_vr_depth_scale{1.0f};
+
+// AzaharFrame stereo: in immersive mode 2 the game's own two eyes are shown on one big screen,
+// where its far scenery can end up farther apart than the eyes (they would have to diverge: a
+// double image). frame_xr (immersive.cpp, the stereo cap) sets the most the slider may be so it
+// never does; below 0, no limit. Only the slider the game is shown: the 3D Depth setting itself,
+// and the head-motion scale made from it, stay as they are.
+inline std::atomic<float> frame_vr_stereo_cap{-1.0f};
+// The slider the game was shown last (HID's pad update), for the emulation thread's measure of
+// the game's far scenery per slider unit (video_core/vr_immersive.h).
+inline std::atomic<float> frame_vr_slider_shown{0.0f};
+
+/// The slider a game in VR is shown in modes 0 to 2: the 3D Depth (0 to 1) times the depth
+/// scale, at most `cap` when that is 0 or more.
+inline float FrameVrSlider(float depth, float depth_scale, float cap) {
+    const float s = depth * depth_scale;
+    return cap >= 0.0f && s > cap ? cap : s;
+}
 } // namespace Settings

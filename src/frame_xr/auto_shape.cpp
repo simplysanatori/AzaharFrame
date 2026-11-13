@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 
 #include "common/logging/log.h"
 #include "frame_xr/auto_shape.h"
@@ -13,7 +14,9 @@
 namespace FrameXr::AutoShape {
 
 namespace {
-constexpr std::array<Shape, 4> kShapes{{
+constexpr std::array<Shape, 6> kShapes{{
+    {3, 4.0f / 3.0f}, // AzaharFrame oot: 4:3 and 3:2 too (a mod's Standard shape)
+    {4, 3.0f / 2.0f},
     {0, kAspect3ds},
     {5, 16.0f / 10.0f},
     {1, 16.0f / 9.0f},
@@ -26,6 +29,10 @@ const char* NameOf(std::uint32_t value) {
         return "16:9";
     case 2:
         return "21:9";
+    case 3:
+        return "4:3";
+    case 4:
+        return "3:2";
     case 5:
         return "16:10";
     default:
@@ -110,6 +117,14 @@ struct State {
     std::int64_t start_ms = 0;
     std::int64_t stamp = 0;
 };
+/// AzaharFrame oot: AZAHARFRAME_AUTO_SHAPE_TRACE=1 logs every measurement (mocks).
+bool Traced() {
+    static const bool on = [] {
+        const char* v = std::getenv("AZAHARFRAME_AUTO_SHAPE_TRACE");
+        return v && v[0] == '1';
+    }();
+    return on;
+}
 State& S() {
     static State s;
     return s;
@@ -160,6 +175,10 @@ void Frame(bool screens_live, bool automatic) {
                 LOG_INFO(Frontend,
                          "xr: Screen Shape Automatic: game camera measured {:.3f} wide, {:.1f} "
                          "degrees high",
+                         aspect, 2.0f * std::atan(tan_half_y) * 57.29578f);
+            }
+            if (Traced()) {
+                LOG_INFO(Frontend, "xr: Screen Shape Automatic trace: {:.3f} wide, {:.1f} degrees high",
                          aspect, 2.0f * std::atan(tan_half_y) * 57.29578f);
             }
             const std::uint32_t before = s.decider.Current().value;

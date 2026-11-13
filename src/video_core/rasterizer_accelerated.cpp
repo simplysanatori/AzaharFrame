@@ -353,6 +353,8 @@ static void MatrixMultiply(float m[16], const float a[16], const float b[16]) {
 
 void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator::VSPicaUniformData &vs_uniforms)
 {
+    // AzaharFrame oot: whether the draws with these uniforms go through the patched world camera.
+    vr_world_uniforms = false;
     // AzaharFrame fixes7: Screen Shape: Automatic samples the game camera's projection here, in
     // any view, before immersive mode patches anything (vr_auto_shape.h).
     if (VideoCore::Immersive::g_measure_shape.load(std::memory_order_relaxed)) {
@@ -656,6 +658,13 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
 
         if (viewMatrixIndex != -1 && vs_uniforms.f.size() > viewMatrixIndex)
         {
+            // AzaharFrame oot (frame trace only): the game's own uniforms of this world upload,
+            // before the patch, so the trace can tell whether the game moved anything since the
+            // swap before (a world redrawn at 60 with its logic at 30 repeats every other swap).
+            if (VideoCore::Immersive::FrameTrace::Traced()) {
+                VideoCore::Immersive::g_frame_trace.WorldUniforms(
+                    VideoCore::Immersive::HashBytes(f.data(), sizeof(f[0]) * f.size()));
+            }
             if (matrixMode == 2)
             {
                 f[viewMatrixIndex][0] = vr_inv_view[0];
@@ -717,6 +726,32 @@ void RasterizerAccelerated::ApplyVRDataToPicaVSUniforms(Pica::Shader::Generator:
             f[viewMatrixIndex][3] += vr_inv_view[12];
             f[viewMatrixIndex + 1][3] += vr_inv_view[13];
             f[viewMatrixIndex + 2][3] += vr_inv_view[14];
+
+            // AzaharFrame oot: the world camera, patched with the pose applied now
+            // (vr_immersive.h ContentTrack); its projection's shape only for the frame trace.
+            // AzaharFrame stereo: and where it puts the far scenery across (the game's own 3D
+            // shears each eye's projection), so the XR thread can tell how far apart the two
+            // eyes' far scenery is on the screen (vr_view_matrix.h StereoFrame).
+            vr_world_uniforms = true;
+            vr_world_tan_half_y = 0.0f;
+            vr_world_aspect = 0.0f;
+            vr_world_far_valid = false;
+            if (viewMatrixIndex >= 4) {
+                float rows[4][4];
+                for (int i = 0; i < 4; ++i) {
+                    for (int j = 0; j < 4; ++j) {
+                        rows[i][j] = f[viewMatrixIndex - 4 + i][j];
+                    }
+                }
+                vr_world_far_valid =
+                    VideoCore::Immersive::FarAcrossFromRows(rows, vr_world_far_ndc);
+                VideoCore::Immersive::Projection p;
+                if (VideoCore::Immersive::FrameTrace::Traced() &&
+                    VideoCore::Immersive::ProjectionFromRows(rows, p)) {
+                    vr_world_tan_half_y = p.tan_half_y;
+                    vr_world_aspect = p.aspect;
+                }
+            }
         }
     }
 }

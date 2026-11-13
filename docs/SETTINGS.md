@@ -160,13 +160,15 @@ The shape of the top screen in VR, and of the screen in immersive mode. The scre
 - **3DS (5:3)**: the 3DS's own shape. Right for almost every game.
 - **Widescreen (16:9)** and **Ultrawide (21:9)**: for mods that draw a widescreen picture.
 - **Standard (4:3)**, **3:2** and **16:10**: for cheats and mods that change the game's own aspect.
-- **Automatic**: follows the shape the game's camera draws with: 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
+- **Automatic**: follows the shape the game's camera draws with: 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
 
 Match the shape the game or mod draws, or the picture stretches. A change shows at once, also from the in-game menu, so you can match a mod's setting while you play.
 
 ## 3D Depth
 
 How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
+
+In **Full (6DoF): Ocarina of Time, Majora's Mask**, the 3D is never shown deeper than keeps far scenery from splitting into a double image on the big screen. The limit follows the screen's size and distance. Your setting stays as it is.
 
 A screen you make bigger than its start size gets less depth on top of this. In **Full (6DoF): Other Games** the game's own 3D is off and the two eyes are set apart in the game by your own eye distance times this setting (with the [Depth Factor Multiplier](#depth-factor-multiplier)), so it still sets how deep the 3D looks. In both Full modes it also sets how far the game camera moves with your head, with the [Depth Factor Multiplier](#depth-factor-multiplier), in 10% steps: below 10% the camera stays still when you move your head.
 
@@ -197,7 +199,7 @@ Called Match Game Camera in earlier versions. Full modes only. **Always** reads 
 
 ## Render Margin
 
-Called Wider View in earlier versions. Renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty. **Off** shows exactly the game's own picture. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it. A label shows the value, for example **Render Margin: 1.2x**.
+Called Wider View in earlier versions. Renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty. **Off** shows exactly the game's own picture. Full modes only. The margin is the same on every side. In **Full (6DoF): Ocarina of Time, Majora's Mask**, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without the margin. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it. A label shows the value, for example **Render Margin: 1.2x**.
 
 ## Horizontal Scale and Vertical Scale
 

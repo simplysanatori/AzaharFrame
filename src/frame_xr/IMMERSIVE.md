@@ -15,7 +15,7 @@ Setting `vr_immersive_mode` (CitraVR's key, section `VR`), per application in th
 | --- | --- | --- | --- |
 | 0 | Off | normal | the normal screens |
 | 1 | Wide (3DoF) | draws 3x wider and higher (`gl_Position.xy /= 3`) | 0.75 m ahead, fixed in the room, 1.88 x 1.13 m for the 3DS screen shape. Its middle third (the game's own frame) has the angular size of the normal top screen |
-| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.1x to 1.4x wider with Wider View, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 3 m ahead, both eyes on one quad, the world at its own scale (see Placement) |
+| 2 | Full (6DoF): Ocarina of Time, Majora's Mask | the game's own view (1.1x to 1.4x wider with Render Margin, see Placement); view matrix register 4 follows the head (rotation and position) | head-locked, 3 m ahead, both eyes on one quad, the world at its own scale (see Placement) |
 | 3 | Full (6DoF): Other Games | as 2, register found by CitraVR's heuristic (or `vr_si_mode_register_offset`); stereo from the eye indicator register | head-locked, each eye's quad centred on that eye, fitted into the view. The game is shown a 3D depth of about 0: the two eyes come from your head |
 
 The other keys, also per application: `vr_immersive_positional_game_scaler` (Depth Factor
@@ -36,8 +36,8 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Left Stick Click, tap | Shows or hides the bottom screen, the same switch as the chord (screen focus, [docs/CONTROLS.md](../../docs/CONTROLS.md#swapping-the-screens)). |
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. Stick Click taps do nothing meanwhile (`Immersive::HoldingScreen`). A grab shows the hint chip low in front of you (`VrUi::ShowGripHint`, at most once per 10 s). |
-| D-Pad, while both grips are down and one holds the screen | AzaharFrame immersive2. Right makes the screen narrower, left wider (Narrow Screen); down makes it lower, up taller (Narrow Height); 5 % per press, held: again after 0.4 s, then every 0.1 s, 0 to 30 %. Live, saved for this game, toast "Narrow Screen: 15%" or "Narrow Height: 5%" (`Immersive::StepNarrow`). Grip + D-pad with one grip keeps the offset and Wider View below; the second grip only chooses which. |
-| D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Wider View for this game (Full modes), "Wider View: 1.2x". The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
+| D-Pad, while both grips are down and one holds the screen | AzaharFrame immersive2 (AzaharFrame kiu: signed). Right makes the screen wider, left narrower (Horizontal Scale); up makes it taller, down shorter (Vertical Scale); 5 % per press, held: again after 0.4 s, then every 0.1 s, -30 % to +30 % (positive is larger). Live, saved for this game, toast "Horizontal Scale: -10%" or "Vertical Scale: +5%" (`Immersive::StepScale`). Grip + D-pad with one grip keeps the offset and Render Margin below; the second grip only chooses which. |
+| D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Render Margin for this game (Full modes), "Render Margin: 1.2x". The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
 | Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen keeps its size, distance and pitch unless a grip holds it; then it goes back to its default placement and its saved one is forgotten (`Immersive::OnResetPanels`). **Reset Position** in the menu always puts it back. SteamVR's own recenter (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
 
@@ -184,8 +184,8 @@ camera turned. Each of the three things a grip changes keeps that:
   game are scaled by `gain` = game angle / screen angle (tangents; `ScaleYawPitch`: the head
   rotation split into yaw, pitch and roll, the roll kept, since a picture turned in its plane keeps
   its angle at any scale). That keeps the picture moving with the head at the middle of the screen.
-  The game draws past its own frame only by the periphery factors (Wider View across, and up and
-  down as much as the screen's shape needs, below); past them the picture is magnified. Where a
+  The game draws past its own frame only by the periphery factor (Render Margin, the same both
+  ways, below); past them the picture is magnified. Where a
   game's scenery runs out, that part is black (below the floor of a Super Mario 3D Land level). The cost of a gain other than 1: a big head turn turns the game camera `gain` times
   as far, and away from the middle the planar picture moves a little against the head: at an angle
   `e` from the middle, by `(1 + gain^2 tan^2 e) / (1 + tan^2 e)` times the turn (1.25 at gain 1.3
@@ -196,19 +196,23 @@ camera turned. Each of the three things a grip changes keeps that:
 **The default is the world at its own scale** (AzaharFrame immersive2, after the owner's headset
 test of the view-filling default of the 1.2.0 test builds: "way too close", and Mario Kart 7
 "stretched"). At size 1 the screen is as many degrees across as the game draws: its camera's
-width times the Wider View factor, so the gain is 1, nothing is magnified, and a head turn moves
+width times the Render Margin factor, so the gain is 1, nothing is magnified, and a head turn moves
 the picture exactly with the head everywhere on it, not only at its middle. The view-filling
 default magnified a 55 degree game 1.6 to 2.5 times (gain 0.4 to 0.6): a perspective picture is
 only right at its middle, and 35 degrees to the side it was drawn 1.4 to 1.6 times taller than
 wide. Majora's Mask 3D with the owner's own settings (gain 1.03, Wider View 1.4x, Narrow Screen 10 %,
-3 m, mode 2) was "perfect"; those are the defaults now (`kDefaultHeadDistance`, the settings'
-defaults). The screen takes the view's shape, not the picture's (`DefaultCover`: what either eye
-sees, from the runtime's per-eye FOV, logged once as `xr: immersive: both eyes see ..., either
-eye ...`; on the Frame about 126 x 112 degrees), so the game draws further up and down to match
-(`HeadLocked::factor_y` = factor x picture aspect x screen height / width, at least the factor and
-at most `kMaxFactorY`, 2.0; 1.26 times the factor on the Frame for 5:3): the picture has the same
-scale both ways and is not stretched. The vertex shader divides clip x by `factor_y` and clip y by
-the factor (the top screen is drawn turned by 90 degrees, so clip x is up and down). A 2D vertex
+3 m, mode 2; now Render Margin 1.4x and Horizontal Scale -10 %) was "perfect"; those are the defaults now (`kDefaultHeadDistance`, the settings'
+defaults). The screen has the picture's own shape (AzaharFrame oot), and Render Margin widens the
+game's picture by the same factor both ways (`HeadLocked::factor_y` = factor): at Off the game is
+asked for exactly its own picture, whatever the game's shape, mode or view. From AzaharFrame
+immersive2 until then the screen took the view's shape (`DefaultCover`; on the Frame about 126 x
+112 degrees), so the game drew 1.25 times further up and down than across at every level, Off
+included: a 5:3 game came out as a 4:3 picture ("it says 5:3, but it is not 5:3"), and full-screen
+2D (below) was stretched up and down against the HUD drawn on it (Ocarina of Time 3D's item screen
+with the Single Screen Experience mod). The screen now leaves the view's top and bottom edges
+showing where the picture is wider than the view. The vertex shader divides clip x by `factor_y`
+and clip y by the factor (the top screen is drawn turned by 90 degrees, so clip x is up and down),
+so the picture has the same scale both ways and is not stretched. A 2D vertex
 (w = 1) on or past the edge of the view keeps its place: full-screen 2D passes cover the whole
 picture. Shrunk with the rest, a full-screen mask cut Ocarina of Time 3D's world off at the game's
 own frame and Majora's Mask 3D's copy of the last frame nested smaller copies of itself; the HUD,
@@ -225,10 +229,11 @@ through cutscenes and menus while the gain follows the measured angle; otherwise
 measurement (Detect Game FOV Always) or the setting. Always slews it in, Once eases in the value
 it wrote.
 
-Two per-game settings change this (**VR** group, logged as
-`xr: immersive: Wider View ..., Narrow Screen ..., Narrow Height ...`):
+Three per-game settings change this (**VR** group, logged as
+`xr: immersive: Render Margin ...x, Horizontal Scale ...%, Vertical Scale ...%`):
 
-- **Wider View** (`vr_immersive_wider_view_level`, per game: Off, 1.1x to 1.4x, 1.4x by default;
+- **Render Margin** (called Wider View before 1.2.0; `vr_immersive_wider_view_level`, per game:
+  Off, 1.1x to 1.4x, 1.4x by default;
   read every frame): the periphery factor across (`gl_Position.y /= factor`) is the level (up and
   down `factor_y`, which grows with it). The default size grows with the factor, so a level
   changed by grip + D-pad up or down or in Properties keeps the picture's scale and the gain: only
@@ -237,23 +242,31 @@ Two per-game settings change this (**VR** group, logged as
   (0.78 x size, 1.4x when no size is saved), off becomes Off; a global switch never set keeps the
   default. Mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
   Land draw correctly, but Super Mario 3D Land's levels are black below the floor.
-- **Narrow Screen** (`vr_immersive_squeeze`, called Squeeze Width in 1.0.0; AzaharFrame
-  immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame; 1, 2 and 3 are the
-  10 % steps of earlier builds, `Layout::NarrowPercent`): the quad keeps its height and is that much
-  narrower than the picture, and the yaw gets its own gain, `gain_x = base gain / (1 - narrow)`, so
-  the middle stays locked both ways. The HUD at the sides moves in without changing the vertical
-  size. The cost: the world looks that much thinner, a left-right turn turns the game camera more
-  than an up-down turn (a diagonal turn is a little off), the stereo depth in mode 3 is that much
-  flatter, a head roll cannot be matched exactly in a squeezed picture (kept 1:1), and the edges
-  move a little more against the head (the formula above with `gain_x`). `gain_x` is clamped to
-  `kMaxGain` (2.0) like the gain. It costs nothing to draw, and needs no restart: only the quad's
-  shape and the gains change, nothing in the game (earlier builds read it when the game started).
-  The VR menu's row offers Off, 10 %, 20 % and 30 %; the Qt window every 5 %; both grips + D-pad
-  left or right every 5 %.
-- **Narrow Height** (`vr_immersive_squeeze_y`, AzaharFrame immersive2, per game, percent, 0 by
-  default, live; both grips + D-pad up or down only): the same up and down. The quad is that much
-  lower at the same width, the pitch gain is `base gain / (1 - narrow height)`; the world looks
-  that much flatter.
+- **Horizontal Scale** (`vr_immersive_scale_x`, AzaharFrame kiu; it replaces Narrow Screen,
+  `vr_immersive_squeeze`, called Squeeze Width in 1.0.0): signed percent, -30 to +30 in 5 % steps,
+  0 by default, read every frame (`Layout::ScalePercent`). Positive means larger: the quad keeps
+  its height and is that much wider than the picture; negative, that much narrower
+  (`Options::squeeze` = -scale / 100, `Layout::SqueezeForScale`). The yaw gets its own gain,
+  `gain_x = base gain / (1 + scale)`, so the middle stays locked both ways. The scale applies to
+  the quad after Render Margin's even padding, never to what the game draws: at Render Margin
+  Off the game still draws exactly its own picture, only shown wider or narrower. Below 0 the HUD
+  at the sides moves in without changing the vertical size; the world looks that much thinner,
+  and above 0 that much broader. The cost: a left-right turn turns the game camera more (below 0)
+  or less (above 0) than an up-down turn (a diagonal turn is a little off), the stereo depth in
+  mode 3 changes the same way, a head roll cannot be matched exactly in a scaled picture (kept
+  1:1), and the edges move a little more against the head (the formula above with `gain_x`).
+  `gain_x` is clamped to `kMinGain` and `kMaxGain` like the gain. It costs nothing to draw and
+  needs no restart: only the quad's shape and the gains change, nothing in the game. The VR
+  menu's row is a slider from -30 % to +30 %; the Qt window offers every 5 %; both grips + D-pad
+  right (wider) or left (narrower) step 5 %. A config with only the old key is converted once
+  when read (`FrameConfig::MigratedScale`, `Layout::ScaleFromNarrow`): Narrow Screen 10 % is
+  Horizontal Scale -10 % (1, 2 and 3 are the 10 % steps of earlier builds,
+  `Layout::NarrowPercent`), so a game keeps exactly its screen. Narrow Screen was 10 % by default
+  before 1.2.0.
+- **Vertical Scale** (`vr_immersive_scale_y`, AzaharFrame kiu; it replaces Narrow Height,
+  `vr_immersive_squeeze_y`): the same up and down. Positive is taller at the same width, negative
+  shorter, the pitch gain is `base gain / (1 + scale)`; both grips + D-pad up (taller) or down
+  (shorter).
 
 Saved sizes are relative to that default. The file's `world` lines are written by this build;
 `screen` and `view` lines (1.2.0 test builds) and `head` lines (1.0, 1.1) had sizes against other
@@ -304,7 +317,7 @@ Three threads, and the rasterizer is only touched by the one that draws:
    `vr_main.cpp` `UpdateImmersiveModeIfNeeded` did: the inverse of the camera rotation (the head's,
    with the screen's pitch and gain, see Placement), the inverse head position rotated into the
    camera frame times `10^multiplier x (3D slider / 10)`, factor 3.0 (mode 1), 1.0 (modes 2, 3) or
-   1.0 to 1.4 with Wider View. Not immersive (setting 0, no game, bottom screen shown in modes 2/3): CitraVR's "off"
+   1.0 to 1.4 with Render Margin. Not immersive (setting 0, no game, bottom screen shown in modes 2/3): CitraVR's "off"
    values (mode 1, factor 1, identity). It publishes them into a seqlock of atomics
    (`video_core/vr_immersive.h`, one writer).
 2. **Emulation thread**, once per game frame (AzaharFrame immersive, `FrameLatch` in
@@ -341,7 +354,7 @@ fields; that race is gone.
   the full 107 x 78 degrees to keep the world still, which is more than the Frame shows: the top of
   the picture and the HUD were cut off, and the screen sat high. Here it is fitted to a comfortable
   width and placed lower, without losing the world lock (see Placement), and the grips move it.
-  The game draws its own view, not CitraVR's 1.4x wider one, unless Wider View is on.
+  The game draws its own view, not CitraVR's 1.4x wider one, unless Render Margin is on.
   The Immersive Game FOV setting sets the game camera's angle, and `AZAHARFRAME_IMMERSIVE_FOV` overrides it.
 - **Mode 3 eye offset** from your IPD as SteamVR locates the eyes (half of it each way, times the
   Depth Factor), not a fixed 32.5 mm, and the head-locked screens use the same value. It follows
@@ -409,7 +422,7 @@ headset rather than to the 65 mm the numbers below assume.
 
 | Game | Mode, registers | Camera (measured) | 3DS eyes at full 3D | Multiplier | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Super Mario 3D Land | 3, view 90, eye 87,2 | 45 degrees, 5:3, title and levels | 58 units in a level | 100x (58.5) | at Wider View 1.4x black below the floor in mock runs; the owner plays it at 1.4x |
+| Super Mario 3D Land | 3, view 90, eye 87,2 | 45 degrees, 5:3, title and levels | 58 units in a level | 100x (58.5) | at Render Margin 1.4x black below the floor in mock runs; the owner plays it at 1.4x |
 | Mario Kart 7 | 3, view 90, eye 87,2 | 52 racing, 55 in the fly-by before a race, 40 and 16 in menus | 3.4 | 10x (5.9) | menus stay odd in the Full modes (Differences from CitraVR) |
 | Ocarina of Time 3D | 2 (view 4) | 55 in play (54.6 to 55.4: Jabu-Jabu's Belly wobbles), 35 to 70 in cutscenes, 5:3 without mods | (one flat picture) | 10x | leaning moves the camera; Link is about 56 units tall, so 10x at 3D Depth 30 is life size |
 | Majora's Mask 3D | 2 (view 4) | 7 to 70 in the opening cutscenes, 30 to 55 measured in play (the owner's headset log; the real camera stays at 55), 5:3 | (one flat picture) | 10x | same engine and scale as Ocarina of Time 3D; the Project Restoration mod keeps the camera; Detect Game FOV Off in its preset |
@@ -418,31 +431,33 @@ headset rather than to the 65 mm the numbers below assume.
 AzaharFrame presets: the table above is what was measured. The values the presets ship are the
 owner's own tuned per-game settings of 2026-11-12 (`frame_xr/presets.cpp`; each applies only
 where a game has no value of its own and the global one is still the default): Mario Kart 7 FOV
-40, Wider View 1.3x, Narrow Screen 30 % and Height 15 %, Internal Resolution 3x, ScaleForce, the
+40, Render Margin 1.3x, Horizontal Scale -30 % and Vertical Scale -15 %, Internal Resolution 3x, ScaleForce, the
 screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
 4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view; Immersive stays Off by default, the player can turn it on) Internal Resolution 4x and Bicubic only; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
-Game Camera off, Narrow Screen 1 %, 3D Depth 30, screen 9.21 degrees below the middle, 3 m.
+Game Camera off, 3D Depth 30 (no Horizontal Scale of their own since AzaharFrame oot), screen 9.21 degrees below the middle, 3 m.
 
 ### The immersive screen per game
 
 AzaharFrame immersive2, on the Frame (its view from the headset log), at the defaults and presets
-(a game's own values win). Narrow Height is Off and the screen's pitch is the middle of the view
+(a game's own values win). Vertical Scale is 0 % (but in Mario Kart 7's preset) and the screen's pitch is the middle of the view
 in all of them. Size 1 is the world at its own scale; the angles are the screen's.
 
-| Game | Screen Shape | Narrow Screen | Wider View | Up and down | Distance | Size |
+| Game | Screen Shape | Horizontal Scale | Render Margin | Up and down | Distance | Size |
 | --- | --- | --- | --- | --- | --- | --- |
-| Any game (default) | 3DS (5:3), or as measured | 10 % | 1.4x | 1.76x (1.26x Wider View) | 3 m | 1 (95 x 85 degrees at 55) |
-| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 1 % | 1.4x | 1.76x; 16:9 1.88x; widest 2.0x | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
-| Majora's Mask 3D | 3DS (5:3) | 1 % | 1.4x | 1.76x | 3 m | 1 (95 x 85) |
-| Super Mario 3D Land | 3DS (5:3) | 10 % | 1.4x | 1.77x | 3 m | 1 (82 x 73) |
-| Mario Kart 7 | 3DS (5:3) | Off | 1.4x | 1.77x | 3 m | 0.9 (91 x 76, gain 1.11) |
+| Any game (default) | 3DS (5:3), or as measured | 0 % (Narrow Screen 10 % before AzaharFrame oot) | 1.4x | 1.4x (1.76x before AzaharFrame oot) | 3 m | 1 (95 x 85 degrees at 55) |
+| Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
+| Majora's Mask 3D | 3DS (5:3) | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
+| Super Mario 3D Land | 3DS (5:3) | 0 % (Narrow Screen 10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
+| Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at -30 %, Vertical Scale -15 %) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
 
-The two Zelda rows use their preset's Narrow Screen 1 %, so the screen is about a tenth wider than
-the widths in the Size column, which were worked out at 10 %.
+The Size column's heights are from before AzaharFrame oot (the view's shape); the screen is now
+as high as the picture's shape gives at that width. The widths were worked out at Narrow Screen 10 %, the default before
+AzaharFrame oot; at Horizontal Scale 0 % (now the default, and the Zelda presets no longer set the
+10 % step) the screen is about a tenth wider.
 
 Mario Kart 7 looked stretched at the view-filling size (gain 0.40 to 0.53) and with Narrow
-Screen 20 %; the vertical extension itself is not a stretch (the same scale both ways). Its
-preset puts the HUD where Narrow Screen 10 % did (about 36 degrees to each side) by making the
+Screen 20 % (Horizontal Scale -20 % now); the vertical extension itself is not a stretch (the same scale both ways). Its
+preset puts the HUD where Narrow Screen 10 % (Horizontal Scale -10 %) did (about 36 degrees to each side) by making the
 whole screen 10 % smaller instead, so the world keeps its shape. In mode 3 the distance changes
 nothing visible; in mode 2 it is the flat picture's stereo depth.
 
@@ -496,7 +511,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_IMMERSIVE_DISTANCE` | 3 (0.75 in mode 1) | the default distance in metres (0.3..3) for a game without a saved placement, all modes; sizes scale with it, so only stereo depth changes |
 | `AZAHARFRAME_IMMERSIVE_LOCAL` | 0 | 1: place the head-locked screen in LOCAL space from the located head pose each frame, as CitraVR did (fallback if VIEW-space quads misbehave) |
 | `AZAHARFRAME_TEST_RESOLUTION` | unset | `<seconds>:<factor>`: sets Internal Resolution that long after the game started, once (mock runs) |
-| `AZAHARFRAME_IMMERSIVE_WIDER` | unset | 0 to 4: the Wider View level, over the setting (comparing levels in mock runs) |
+| `AZAHARFRAME_IMMERSIVE_WIDER` | unset | 0 to 4: the Render Margin level, over the setting (comparing levels in mock runs) |
 | `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
 | `AZAHARFRAME_IMMERSIVE_ANCHOR` | 1 | 0: the Full modes' screen locked to the head at display time, as up to 1.2 (see below) |
 | `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` | 250 | 50..2000: a picture further behind the display than this (the game stopped drawing) goes back to the head |
@@ -544,7 +559,7 @@ the turn: 1 % at 3 m, the presets' distance, but 11 % at 0.3 m. Each eye's quad 
 that eye in both Full modes (`Layout::AnchoredFullQuad`, the quad `Immersive::Screens` shows), so
 each eye sees its screen exactly as when the picture was drawn, in the same directions. Nothing in it
 depends on the distance, size, pitch, Immersive Offset, Immersive Game FOV or Screen Shape, Match Game
-Camera, Wider View, Narrow Screen or Height, a zoom, the view or the IPD: a unit test sweeps 600 random
+Camera, Render Margin, Horizontal or Vertical Scale, a zoom, the view or the IPD: a unit test sweeps 600 random
 combinations of them (both Full modes) with four random head turns each (yaw, pitch, roll about a
 neck behind and below the eyes, and a lean) and checks every point of the screen from each eye: the
 largest error is 0.0001 degrees, and with the head where the picture was drawn the placement is the
@@ -552,9 +567,81 @@ one before (`the anchored screen keeps far scenery still for any settings`). The
 measures from each eye as located against where that eye saw the picture's middle when it was
 drawn; before, mode 2 measured from the middle of the head, which hid that error.
 
+AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
+frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's
+single-screen mod, which still has to be shown to draw a new world at each. A game that draws its
+world every other frame and only its HUD in between, or copies the last picture into the
+framebuffer before it draws the next world, got the pose of the latch before on pictures whose
+world was drawn one game frame earlier: on a head turn the anchored world stepped by one game
+frame's turn and back, a double image the far-scenery line could not see, as it trusts the tag.
+`ContentTrack` now notes the pose of every draw through the patched world camera (`OnWorldDraw`,
+from the rasterizers' draws), which pose's world each display transfer or texture copy took to its
+address (`OnTransfer`, `GPU::MemoryTransfer`), and at the top screen's swap tags the picture with
+the newest copy into the framebuffer shown (`OnTopScreenSwap`). Where nothing was copied into it in
+the last three latches (a game that draws straight into its framebuffer) or at the VBlank fallback,
+the earlier rule stays. It needs no setting or game value. Once a second the log says
+`xr: immersive: N top screen swaps, ... without a world draw, ... without a copy into a
+framebuffer; the picture's world drawn with the latch's pose ..., an earlier one ... (the head ...
+degrees on ...)`. `AZAHARFRAME_IMMERSIVE_WORLD_TAG=0` tags by the latch again (A/B runs);
+`AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1` adds the world draws of each swap in order and the distinct
+world projections each second.
+
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
+
+## The game's own 3D on the screen (AzaharFrame stereo)
+
+Mode 2 shows the game's own two eyes on one screen: the game shears each eye's projection by the
+3D slider it is shown (3D Depth / 100), so its far scenery is that far apart in the two pictures,
+and the screen magnifies it. The rasterizer reads where each world draw's projection puts a point
+at infinity across the picture (`FarAcrossFromRows`, `video_core/vr_view_matrix.h`); each top
+screen frame's draws fall in one group per eye (`StereoFrame`): two with the game's 3D on, one
+when it draws its world once (Ocarina of Time 3D's item screen: the paused world, mono, behind
+it). Once a second the emulation thread logs `xr: immersive stereo: N top screen swaps with the
+game's two eyes, ... with its world drawn once, ... with no world camera; ... in the 3D format;
+far scenery X % of the picture's width apart`, and the XR thread puts that on the screen
+(`StereoFarOnQuad`, `immersive_layout.h`: the picture is 1/factor of the screen's width, mode 3's
+eye quads are already the IPD apart): `xr: stereo far N deg, eyes allow M deg (...)`, with a
+warning when the eyes would have to diverge (more than 0.1 degrees past parallel). Measured in mocks with the owner's settings (Ocarina of Time 3D: screen 105
+degrees wide at 3 m, IPD 64 mm): 3D Depth 10, 30 and 50 give 1.17, 3.44 and 5.86 % (the far
+scenery 1.8, 5.2 and 8.9 degrees apart against 1.22 allowed); the game reads the slider live (a
+change shows within a second). Majora's Mask 3D at 50 %: 3.78 %, 3.9 degrees. In mode 3 (slider
+0.01) Mario Kart 7 and Kid Icarus show 0.05 to 0.07 %. `AZAHARFRAME_TEST_DEPTH="17:10,19:50"`
+sets 3D Depth at those seconds (mocks).
+
+**The stereo cap (mode 2 only, while 3D Depth is above 0).** The game's 3D is linear in the
+slider, so the emulation thread also measures its far width per slider unit (`FarPerSlider`: frames
+with two eyes, the slider held for 4 swaps, the median of the last 9). Each displayed frame the XR
+thread works out the largest slider at which the far scenery is still 0.05 degrees inwards of
+parallel (`StereoSliderLimit`), from the live terms only: that measure, the screen's width
+(its angle and the factor), its distance and the IPD. The game is shown min(3D Depth / 100,
+that limit) (`StereoCap`, `common/frame_vr_depth.h` `frame_vr_stereo_cap`, read by HID and the
+shared page): a higher limit counts only once it is half a percent above the one in use, and the
+slider follows a moved limit at most 4 (down) or 0.25 (up) a second, so it never jitters; a change
+of 3D Depth itself goes through at once, up to the limit. The 3D Depth setting is never rewritten,
+and the head-motion scale (10^multiplier x (3D Depth / 10)) keeps using it, never the capped
+slider. Modes 0, 1 and 3 are unchanged. The log says `xr: 3D Depth N % limited to M % so far
+scenery never diverges (...)` when it takes effect or moves by half a percent, and `no longer
+limited` when it lifts. With the owner's screen (105 degrees wide at 3 m, IPD 69.9 mm) Ocarina of
+Time 3D's limit is 7.7 %.
+
+**Menu screens at the game's own size (mode 2, a heuristic).** Render Margin makes the
+game draw past its frame, and its own full-screen 2D (Ocarina of Time 3D's item screen) is then
+shown smaller, with the margin's world around it. While all of these hold, the game draws with
+factor 1 (no margin), eased in and out over 250 ms (`MenuExact`, `immersive_layout.h`): mode 2;
+the slider the game is shown is above 0; the game drew two eyes earlier since it started (a quick
+save loaded in it keeps that; another game starts afresh); and for
+4 top screen swaps in a row its world is drawn for one eye only, or not at all (`WorldOnceRun`,
+`video_core/vr_view_matrix.h`). Measured: Ocarina of Time 3D's item screen draws its paused world
+once, while gameplay, standing still included, draws two eyes in every frame; Mario Kart 7, Kid
+Icarus: Uprising and Majora's Mask 3D (its title and cutscenes) never trigger it (Mario Kart 7's
+menus draw one eye but never after two; Super Mario 3D Land's title draws its world on every other
+swap only). It reads the game's draws, not its screens, so a game could show something else with
+its world drawn once (a 2D cutscene over a paused world); then that is shown at the game's size
+too. The log says `xr: immersive: the game shows a screen of its own (its world drawn once): at
+its own size, Render Margin N eased to 1.0x` and `the game's world in both eyes again`.
+`AZAHARFRAME_IMMERSIVE_MENU_EXACT=0` turns it off (always the margin, as before), for A/B tests.
 
 ## Trying it
 

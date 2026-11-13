@@ -380,7 +380,7 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     HeadLocked s;
     s.distance = p.distance;
     s.pitch_rad = PlacementPitch(p, view);
-    // The game draws its own frame times the Wider View factor across. Up and down it draws as
+    // The game draws its own frame times the Render Margin factor across. Up and down it draws as
     // much more as the screen's shape needs (factor_y below).
     s.factor = std::isfinite(options.wider) ? std::clamp(options.wider, kFactorMin, kFactorMax)
                                             : kFactorMin;
@@ -391,11 +391,12 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // What fills the view, fitted at its middle, so moving the screen up or down never resizes it.
     const Cover cover = DefaultCover(view, ViewMiddlePitch(view), eye_shift);
     float qx = s.factor * a * t;
-    // The view's shape (the Frame's is taller than 5:3), never shorter than the picture's own
-    // (the game would be cut off at the top and bottom); the game draws at most kMaxFactorY times
-    // its own height.
-    float qy = qx * cover.tan_y / cover.tan_x;
-    qy = std::clamp(qy, qx / a, kMaxFactorY * qx / (s.factor * a));
+    // AzaharFrame oot: the game's own shape. Render Margin widens the picture by the same factor
+    // both ways (Off: exactly the game's frame). The screen used to take the view's shape, so
+    // the game drew 1.25 times its height on the Frame even at Off (a 4:3 picture from a 5:3
+    // game), and full-screen 2D (a 2D vertex at the edge keeps its place) was stretched up and
+    // down against the HUD drawn on it.
+    float qy = qx / a;
     // Never bigger than filling the view (a very wide game camera): smaller, gain above 1.
     const float fit = std::min({1.0f, cover.tan_x / qx, cover.tan_y / qy});
     qx *= fit * p.size;
@@ -403,7 +404,8 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // The game draws factor_y times its own height into the screen's height, so the picture
     // has the same scale both ways: factor x a / qx = factor_y / qy.
     s.factor_y = s.factor * a * qy / qx;
-    // Narrow Screen and Narrow Height: the quad is that much narrower (lower) than the picture.
+    // Horizontal Scale and Vertical Scale (AzaharFrame kiu): the quad is that much narrower
+    // (lower) than the picture below 0 %, wider (taller) above, the padding above still even.
     s.tan_half_y = qy * (1.0f - squeeze_y);
     s.aspect = qx * (1.0f - squeeze) / s.tan_half_y;
     // The gain follows the camera right now (a zoom): the game's half height (tan) at that
@@ -488,6 +490,97 @@ float EyeX(int eye, float half_ipd) {
 
 float SharedQuadEyeShift(uint32_t mode, const Placement& placement, float half_ipd) {
     return mode == 2 ? half_ipd / Clamped(placement).distance : 0.0f;
+}
+
+StereoFar StereoFarOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd,
+                          float far_width) {
+    StereoFar out;
+    const float d = std::max(solved.distance, 1e-3f);
+    const float factor = std::max(solved.factor, 1e-3f);
+    // The game's share, on the quad; mode 3's quads are each on their eye, IPD apart already.
+    const float game_m = far_width / factor * solved.width();
+    const float quads_m = mode == 3 ? 2.0f * half_ipd : 0.0f;
+    out.separation_m = game_m + quads_m;
+    out.far_deg = 2.0f * std::atan(out.separation_m / (2.0f * d)) * kRadToDeg;
+    out.allow_deg = 2.0f * std::atan(half_ipd / d) * kRadToDeg;
+    out.vergence_deg = 2.0f * std::atan((half_ipd - out.separation_m / 2.0f) / d) * kRadToDeg;
+    out.diverges = out.vergence_deg < -kDivergeToleranceDeg;
+    if (game_m > 1e-6f) {
+        out.natural_scale = (2.0f * half_ipd - quads_m) / game_m;
+    }
+    return out;
+}
+
+float StereoSliderLimit(const HeadLocked& solved, float half_ipd, float far_per_slider,
+                        float margin_deg) {
+    if (!(far_per_slider > 0.0f) || !std::isfinite(far_per_slider)) {
+        return -1.0f;
+    }
+    const float d = std::max(solved.distance, 1e-3f);
+    // StereoFarOnQuad's vergence = margin: 2 atan((h - s / 2) / d) = margin.
+    const float s_max = 2.0f * (half_ipd - d * std::tan(margin_deg * kDegToRad / 2.0f));
+    if (s_max <= 0.0f) {
+        return 0.0f;
+    }
+    const float width = solved.width();
+    if (!(width > 0.0f)) {
+        return -1.0f;
+    }
+    // s = far_per_slider x slider / factor x width.
+    return s_max * std::max(solved.factor, 1e-3f) / width / far_per_slider;
+}
+
+float StereoCap::Update(float user, float limit, int64_t now_ms) {
+    const float dt_s =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
+                      : 0.0f;
+    last_ms_ = now_ms;
+    if (!std::isfinite(user) || user < 0.0f) {
+        user = 0.0f;
+    }
+    if (limit >= 0.0f && std::isfinite(limit)) {
+        const float lim = std::max(limit, kMinSlider);
+        // Lower at once (never above the limit for long), higher only by more than a step.
+        if (limit_ < 0.0f || lim < limit_ || lim > limit_ + kStep) {
+            limit_ = lim;
+        }
+    }
+    if (limit_ < 0.0f) {
+        limited_ = false;
+        last_user_ = user;
+        return user;
+    }
+    const float target = std::min(user, limit_);
+    if (out_ < 0.0f || user != last_user_) {
+        // The first limit, or the user moved the slider: as it is (up to the limit), at once.
+        out_ = target;
+    } else if (out_ > target) {
+        out_ = std::max(target, out_ - kDownPerS * dt_s);
+    } else if (out_ < target) {
+        out_ = std::min(target, out_ + kUpPerS * dt_s);
+    }
+    last_user_ = user;
+    limited_ = limit_ < user;
+    return std::min(out_, user);
+}
+
+float MenuExact::Update(bool on, int64_t now_ms) {
+    const float dt_ms =
+        last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_), 0.0f, 100.0f) : 0.0f;
+    last_ms_ = now_ms;
+    const float step = dt_ms / kEaseMs;
+    progress_ = std::clamp(progress_ + (on ? step : -step), 0.0f, 1.0f);
+    return Weight();
+}
+
+float MenuExact::Weight() const {
+    const float p = progress_;
+    return p * p * (3.0f - 2.0f * p);
+}
+
+float GamePositionScale(int multiplier, uint32_t depth_percent) {
+    return std::pow(10.0f, static_cast<float>(multiplier)) *
+           static_cast<float>(depth_percent / 10);
 }
 
 Posef FullQuadInView(const HeadLocked& solved, uint32_t mode, int eye, float half_ipd) {
