@@ -1657,8 +1657,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // bottom of the pane, under the picture (owner's report 14).
     // AzaharFrame reticle: in Global, a row the game has its own value for is greyed (its
     // tooltip says why), as on the Settings tab.
-    const auto choice_row = [&](Id id, float y0, int value) {
-        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+    // AzaharFrame kiu: `right`, the row's right end when it shares its row (At Edge).
+    const auto choice_row = [&](Id id, float y0, int value, float right = 0.0f) {
+        const bool shared = right > 0.0f;
+        if (!shared) {
+            right = c.x1;
+        }
+        const Rect row{c.x0 - 12.0f, y0, right + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
         AddHit(row, {id, kLabelIndex}, pane);
@@ -1667,8 +1672,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
                     enabled ? 1.0f : kDisabledContent);
         const auto& opts = OptionsFor(id);
         // AzaharFrame input2: up to 0.64 of the width (the reticle's four choices need it).
-        const float tw = kit.SegmentedWidth(opts, c.W() * 0.64f);
-        const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
+        const float room = shared ? right - c.x0 - kit.TextWidth(Type::Body, LabelFor(id)) - 16.0f
+                                  : c.W() * 0.64f;
+        const float tw = kit.SegmentedWidth(opts, room);
+        const Rect ts{right - tw, row.Cy() - kControlH * 0.5f, right, row.Cy() + kControlH * 0.5f};
         const int th = view.hover.id == id ? view.hover.index : -1;
         const int tpr = view.pressed.id == id ? view.pressed.index : -1;
         kit.Segmented(ts, opts, value, th, tpr, !enabled);
@@ -1716,8 +1723,9 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, two switches side
     // by side in one row (each half toggles its own), so the controller picture keeps its room.
-    // AzaharFrame kiu: C-Stick at Edge the same way, in the left half of a row of its own under
-    // At Edge (its switch lines up with the pair's left one).
+    // AzaharFrame kiu: C-Stick at Edge the same way, in the right half of At Edge's row (At Edge
+    // in the left half), so the picture keeps its room; its switch lines up with Right Stick
+    // Moves Touch's under it.
     const auto switch_half = [&](Id id, const Rect& half, bool on) {
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
@@ -1737,7 +1745,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // At Edge, Reticle Speed, C-Stick at Edge, Aim Only While Pressed and Right Stick Moves
     // Touch only while the reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 4.0f * kChoiceH : 0.0f);
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
     const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
@@ -1753,12 +1761,12 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
-        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
         const float mid = (c.x0 + c.x1) * 0.5f;
-        const Rect cstick{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
-        switch_half(Id::ReticleEdgeCStick, {cstick.x0, cstick.y0, mid - 12.0f, cstick.y1},
+        const Rect edge_row =
+            choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge, mid - 12.0f);
+        switch_half(Id::ReticleEdgeCStick, {mid + 12.0f, edge_row.y0, c.x1 + 12.0f, edge_row.y1},
                     model.reticle_edge_cstick); // AzaharFrame kiu
-        const Rect pair{c.x0 - 12.0f, cstick.y1, c.x1 + 12.0f, cstick.y1 + kChoiceH};
+        const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
         switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
                     model.reticle_center);
         switch_half(Id::ReticleStick, {mid + 12.0f, pair.y0, pair.x1, pair.y1},

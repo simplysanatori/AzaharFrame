@@ -304,7 +304,8 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         v.tab = Tab::Controls;
         d.Draw(m, v);
         // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on;
-        // AzaharFrame fixes7: three (the switches' row); kiu: four (C-Stick at Edge's)
+        // AzaharFrame fixes7: three (the switches' row); kiu: still three (C-Stick at Edge shares
+        // At Edge's row)
         REQUIRE(picture.H() > (reticle != 0 ? 90.0f : 200.0f));
         Rect edit{}, pages{};
         float rows_y0 = 1e9f, rows_y1 = 0.0f;
@@ -3106,10 +3107,17 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
         REQUIRE(cstick != nullptr);
         REQUIRE(center != nullptr);
         REQUIRE(stick != nullptr);
-        CHECK(cstick->r.y0 >= edge->r.y1 - 0.01f); // under At Edge
-        CHECK(center->r.y0 >= cstick->r.y1 - 0.01f); // then the pair, side by side
-        CHECK(cstick->r.x0 == center->r.x0);
-        CHECK(cstick->r.x1 == center->r.x1);
+        // In At Edge's row, at its right (kiu), then the pair, side by side
+        CHECK(std::fabs(cstick->r.Cy() - edge->r.Cy()) < 0.5f);
+        CHECK(cstick->r.x0 >= edge->r.x1 + 12.0f);
+        CHECK(center->r.y0 >= cstick->r.y1 - 0.01f);
+        CHECK(cstick->r.x0 == stick->r.x0);
+        CHECK(cstick->r.x1 == stick->r.x1);
+        for (int i = 0; i < 2; i++) { // At Edge's choices whole, left of the middle
+            const MenuLayout::Hit* seg = FindHit(d, Id::ReticleAtEdge, i);
+            REQUIRE(seg != nullptr);
+            CHECK(seg->r.x1 <= center->r.x1 + 0.01f);
+        }
         CHECK(stick->r.y0 == center->r.y0);
         CHECK(stick->r.x0 >= center->r.x1 - 0.01f);
         Audit a;
