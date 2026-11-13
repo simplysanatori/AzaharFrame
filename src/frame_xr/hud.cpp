@@ -591,8 +591,10 @@ bool Hud::BadgeQuad(const ViewPose& head, const BadgeAnchor& anchor, XrTime time
         badge_box_px = badge_waiting_px;
     }
     // Not faded in with the last showing's line while the new one is still being copied.
-    const bool show =
-        !badge_want.empty() && badge_ready && !(badge_opacity == 0.0f && badge_waiting);
+    // AzaharFrame fixes7: and only once the game screen has been on view for a moment.
+    const bool screen_ok = badge_gate.Allow(anchor.live, anchor.pictures, time);
+    const bool show = screen_ok && !badge_want.empty() && badge_ready &&
+                      !(badge_opacity == 0.0f && badge_waiting);
     const float aspect = static_cast<float>(badge_box_px) / static_cast<float>(kBadgePxH);
     const auto on_screen = [&] {
         return B::OnScreen(ToInput(anchor.screen_pose), anchor.screen_size.width,

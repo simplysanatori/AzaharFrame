@@ -184,7 +184,9 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
+#include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
+#include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
@@ -489,17 +491,23 @@ struct FrameKeepControls {
     FrameKeepControls()
         : touchpad{Settings::values.vr_touchpad_touch},
           reticle{Settings::values.vr_bottom_screen_reticle},
-          edge{Settings::values.vr_reticle_at_edge}, speed{Settings::values.vr_reticle_speed} {}
+          edge{Settings::values.vr_reticle_at_edge}, speed{Settings::values.vr_reticle_speed},
+          center{Settings::values.vr_reticle_center_until_pressed}, // AzaharFrame fixes7
+          stick{Settings::values.vr_reticle_stick_moves} {}
     void Restore() {
         touchpad.Restore();
         reticle.Restore();
         edge.Restore();
         speed.Restore();
+        center.Restore();
+        stick.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
     FrameKeepSetting<u32, true> reticle;
     FrameKeepSetting<u32, true> edge;
     FrameKeepSetting<float, true> speed;
+    FrameKeepSetting<bool, false> center;
+    FrameKeepSetting<bool, false> stick;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
 // "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
@@ -3390,12 +3398,25 @@ void GMainWindow::BootGame(const QString& filename) {
                 LOG_INFO(Frontend, "xr: {}: Bottom Screen Reticle preset {}", cp->name,
                          cp->bottom_screen_reticle);
             }
+            // AzaharFrame fixes7: Stick Moves Reticle, the same way (only over the default).
+            auto& stick = Settings::values.vr_reticle_stick_moves;
+            if (cp->stick_moves_reticle && stick.UsingGlobal() &&
+                stick.GetValue() == stick.GetDefault()) {
+                stick.SetGlobal(false);
+                stick.SetValue(true);
+                LOG_INFO(Frontend, "xr: {}: Stick Moves Reticle preset on", cp->name);
+            }
         }
 #endif
     }
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: the immersive screen's placement is saved per title id.
     FrameXr::SetGameTitleId(Loader::ResultStatus::Success == res ? title_id : 0);
+    // AzaharFrame fixes7: Screen Shape: Automatic starts at the shape the game's turned-on mods
+    // are made for (their catalog "aspect"), until the game camera is measured.
+    FrameXr::AutoShape::SetHint(Loader::ResultStatus::Success == res
+                                    ? Mods::EnabledModsAspectHint(title_id).value_or(0.0f)
+                                    : 0.0f);
     FrameHomebrew::ApplyBootSettings(filename); // AzaharFrame emerald: e.g. HLE audio
 #endif
 
@@ -5168,6 +5189,12 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::ReticleSpeed: // AzaharFrame reticle: tenths of 1x
         set(v.vr_reticle_speed, static_cast<float>(std::clamp<u32>(u, 5, 40)) / 10.0f);
+        break;
+    case S::ReticleCenter: // AzaharFrame fixes7
+        set(v.vr_reticle_center_until_pressed, r.value != 0);
+        break;
+    case S::ReticleStick:
+        set(v.vr_reticle_stick_moves, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

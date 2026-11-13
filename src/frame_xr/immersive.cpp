@@ -22,6 +22,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "frame_xr/auto_shape.h" // AzaharFrame fixes7
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h"
 #include "frame_xr/input/input_frame.h"
@@ -71,6 +72,8 @@ float AspectFor(u32 shape) {
         return kAspect3x2;
     case 5:
         return kAspect16x10;
+    case AutoShape::kAutomatic: // AzaharFrame fixes7: the measured shape (auto_shape.h)
+        return AutoShape::Aspect();
     default:
         return kAspect3ds;
     }
@@ -732,6 +735,9 @@ void OnFrame(const FrameInfo& info) {
                      shape, g_top_aspect.load(), g.game_fov_y_deg,
                      g.shape_logged ? " (changed)" : "");
             g.shape_logged = true;
+        }
+        if (shape == AutoShape::kAutomatic) { // AzaharFrame fixes7: eased, every frame
+            g_top_aspect = AutoShape::Aspect();
         }
     }
     g.mode = mode;

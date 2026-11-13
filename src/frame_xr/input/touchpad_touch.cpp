@@ -84,6 +84,12 @@ void TouchpadTouch::CursorStep(TouchpadResult& out, CursorTrack& t, const Cursor
         t.offset = {};
         t.gap = false;
     }
+    // AzaharFrame fixes7: Aim Only While Pressed: still at the middle until it touches.
+    const bool hold_centre = in.center_idle && (!engaged || !t.src.engaged_prev);
+    if (hold_centre) {
+        t.src.px = kBottomScreenWidthPx * 0.5f;
+        t.src.py = kBottomScreenHeightPx * 0.5f;
+    }
     // Where it is, and whether it ran into an edge this frame.
     bool hit_edge = false;
     bool at_edge = false;
@@ -101,7 +107,7 @@ void TouchpadTouch::CursorStep(TouchpadResult& out, CursorTrack& t, const Cursor
                       uy >= 1.0f - kPadEdge;
             hit_edge = at_edge && !t.at_edge;
         }
-    } else if (in.live && (in.delta.x != 0.0f || in.delta.y != 0.0f)) {
+    } else if (in.live && !hold_centre && (in.delta.x != 0.0f || in.delta.y != 0.0f)) {
         const float nx = t.src.px + in.delta.x;
         const float ny = t.src.py + in.delta.y;
         hit_edge = nx < 0.0f || nx > max_x || ny < 0.0f || ny > max_y;
@@ -191,6 +197,7 @@ TouchpadResult TouchpadTouch::Update(const TouchpadFrame& frame) {
         in.delta = {c.motion.x * c.gain, c.motion.y * c.gain};
         in.down = c.down;
         in.recentre = c.recentre;
+        in.center_idle = c.center_until_pressed; // AzaharFrame fixes7
         CursorStep(out, cursor_, in, TouchSource::Cursor, frame.time_ns);
         cursor_hover =
             cursor_on && (frame.time_ns - cursor_.move_ns < kMouseIdleNs || (in.live && in.down));

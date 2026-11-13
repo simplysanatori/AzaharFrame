@@ -32,6 +32,7 @@
 #include "core/mods/archive.h"
 #include "core/mods/catalog.h"
 #include "core/mods/catalog_schema.h" // AzaharFrame harden
+#include "core/mods/aspect.h" // AzaharFrame fixes7
 #include "core/mods/multipart.h" // AzaharFrame catalog3
 
 namespace CustomTex::Download {
@@ -377,6 +378,15 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
                 }
             }
             e.verified = p.contains("verified") && p["verified"].is_boolean() && p["verified"].get<bool>();
+            // AzaharFrame fixes7: "recommended" drives the badge and the order; "aspect" the shape it is made for
+            e.recommended =
+                p.contains("recommended") && p["recommended"].is_boolean() && p["recommended"].get<bool>();
+            if (p.contains("aspect")) {
+                e.aspect = p["aspect"].is_string() ? Mods::NormalizeAspect(p["aspect"].get<std::string>()) : "";
+                if (e.aspect.empty()) {
+                    warn(e.id, "bad aspect (ignored)");
+                }
+            }
             bool ids_ok = p.contains("title_ids") && p["title_ids"].is_array() && !p["title_ids"].empty();
             if (ids_ok) {
                 for (const auto& t : p["title_ids"]) {
@@ -955,6 +965,20 @@ std::string MarkerUpdated(const fs::path& folder) {
 
 } // namespace
 
+std::string MarkerAspect(const std::string& folder) { // AzaharFrame fixes7
+    std::ifstream in(fs::path(folder) / kMarker);
+    if (!in) {
+        return {};
+    }
+    try {
+        const auto j = nlohmann::json::parse(in);
+        const auto it = j.find("aspect");
+        return it != j.end() && it->is_string() ? Mods::NormalizeAspect(it->get<std::string>()) : std::string{};
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
 std::string UnpackArchive(const std::string& archive_path, const std::string& work_dir,
                           const std::atomic_bool* cancel, std::string* root_out,
                           const std::string& tool_override, std::uint64_t max_total) {
@@ -1038,12 +1062,15 @@ std::optional<std::string> MarkerId(const std::string& folder) {
 }
 
 bool WriteMarker(const std::string& folder, const std::string& id, const std::string& source,
-                 const std::string& updated) {
+                 const std::string& updated, const std::string& aspect) {
     nlohmann::json m;
     m["id"] = id;
     m["source"] = source;
     if (!updated.empty()) {
         m["updated"] = updated;
+    }
+    if (!aspect.empty()) {
+        m["aspect"] = aspect; // AzaharFrame fixes7
     }
     return Common::WriteFileAtomic((fs::path(folder) / kMarker).string(), m.dump()); // AzaharFrame harden
 }
@@ -1102,7 +1129,7 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
                     : entry.source.type == Source::Type::Gdrive      ? "gdrive"
                     : entry.source.type == Source::Type::Gamebanana  ? "gamebanana"
                                                                      : "https",
-                    entry.updated);
+                    entry.updated, entry.aspect);
         if (!fs::exists(dst / "pack.json", ec)) {
             nlohmann::json pj;
             pj["name"] = pf.name.empty() ? entry.name : entry.name + " - " + pf.name;
@@ -1126,27 +1153,7 @@ std::string InstallArchive(const std::string& archive_path, const Entry& entry, 
 // ---------------------------------------------------------------------------------------------
 // Transfer
 
-namespace {
-
-struct Step {
-    int status = 0; // 0: no reply
-    std::string location;
-    std::string error;
-    std::string html;        // a text/html body (capped)
-    bool is_file = false;    // body was written to the part file
-    bool cancelled = false;
-    u64 start = 0;           // first byte of the file this reply began at (resume point or 0)
-    std::optional<u64> total; // whole file size when the host said
-};
-
-struct StepIo {
-    std::string part_path;
-    u64 resume_from = 0;
-    const std::atomic_bool* cancel = nullptr;
-    std::atomic<u64>* done = nullptr;
-    std::atomic<u64>* total = nullptr;
-    std::function<std::string(u64 total, u64 resume)> check_space; // "" = fine
-};
+// AzaharFrame fixes7: Step, StepIo and GetStep are in download.h (the Cancel tests call GetStep)
 
 Step GetStep(const std::string& host, const std::string& path, const StepIo& io) {
     Step step;
@@ -1158,13 +1165,20 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
     FILE* file = nullptr;
     try {
         httplib::Client client(host);
-        client.set_connection_timeout(15);
-        client.set_read_timeout(60);
         client.set_write_timeout(30);
         client.set_follow_location(false);
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
         client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
+        // AzaharFrame fixes7: a 10 s connect, a 30 s stall, the lookup and the socket stopped by Cancel
+        if (const std::string why = Mods::Transfer::Prepare(client, host, io.stopper); !why.empty()) {
+            if (why == "Cancelled") {
+                step.cancelled = true;
+            } else {
+                step.error = why;
+            }
+            return step;
+        }
         httplib::Headers headers{{"Accept-Encoding", "identity"}};
         if (io.resume_from > 0) {
             headers.emplace("Range", fmt::format("bytes={}-", io.resume_from));
@@ -1175,6 +1189,7 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
             [&](const httplib::Response& r) {
                 step.status = r.status;
                 step.location = r.get_header_value("Location");
+                step.retry_after = r.get_header_value("Retry-After"); // AzaharFrame fixes7
                 const std::string type = Lower(r.get_header_value("Content-Type"));
                 const bool html = type.rfind("text/html", 0) == 0;
                 if ((r.status == 200 || r.status == 206) && !html) {
@@ -1219,6 +1234,9 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
                     }
                     step.is_file = true;
                     io.done->store(start);
+                    if (io.receiving != nullptr) {
+                        io.receiving->store(true); // AzaharFrame fixes7: Preparing ends, the percent shows
+                    }
                 }
                 return true;
             },
@@ -1238,9 +1256,13 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
                 }
                 return true;
             });
+        Mods::Transfer::Finish(io.stopper);
         if (file != nullptr) {
             std::fclose(file);
             file = nullptr;
+        }
+        if (!res && io.cancel != nullptr && io.cancel->load()) {
+            step.cancelled = true; // AzaharFrame fixes7: the socket was shut down by Cancel
         }
         if (!res && step.error.empty() && !step.cancelled) {
             step.error = httplib::to_string(res.error());
@@ -1248,6 +1270,7 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
             // step.error already set
         }
     } catch (const std::exception& e) {
+        Mods::Transfer::Finish(io.stopper);
         if (file != nullptr) {
             std::fclose(file);
         }
@@ -1255,6 +1278,8 @@ Step GetStep(const std::string& host, const std::string& path, const StepIo& io)
     }
     return step;
 }
+
+namespace {
 
 std::string HexSha256(const std::string& path, const std::atomic_bool* cancel, bool* cancelled) {
     std::ifstream in(path, std::ios::binary);
@@ -1294,7 +1319,10 @@ Downloader::Downloader(std::string load_dir, Catalog catalog) : load_dir_(std::m
 }
 
 Downloader::~Downloader() {
-    cancel_ = true;
+    // AzaharFrame fixes7: quitting mid-download: the socket is shut down, so this joins at once;
+    // the part file stays for Resume
+    stopper_.Stop();
+    refresh_stopper_.Stop();
     if (worker_.joinable()) {
         worker_.join();
     }
@@ -1303,7 +1331,21 @@ Downloader::~Downloader() {
     }
 }
 
+namespace {
+std::mutex g_latest_mutex; // AzaharFrame fixes7: LatestCatalog
+std::optional<Catalog> g_latest;
+} // namespace
+
+Catalog LatestCatalog() {
+    std::lock_guard lock{g_latest_mutex};
+    return g_latest ? *g_latest : DefaultCatalog();
+}
+
 void Downloader::SetCatalog(Catalog catalog) {
+    {
+        std::lock_guard lock{g_latest_mutex};
+        g_latest = catalog;
+    }
     std::lock_guard lock{mutex_};
     catalog_ = std::move(catalog);
 }
@@ -1320,7 +1362,8 @@ void Downloader::RefreshCatalogAsync() {
     refresher_ = std::thread([this] {
         // AzaharFrame harden: 8 MB (textures.json is about 70 KB); past it the fetch fails, it is not cut
         const auto r = Cheats::Online::HttpsGetRaw(
-            "https://raw.githubusercontent.com", fmt::format("/{}/main/{}", kOwnerRepo, kCatalogPath), kMaxCatalogBytes);
+            "https://raw.githubusercontent.com", fmt::format("/{}/main/{}", kOwnerRepo, kCatalogPath), kMaxCatalogBytes,
+            &refresh_stopper_);
         ApplyFetchedCatalog(r.status, r.error, r.body);
         std::lock_guard lock{mutex_};
         refreshing_ = false;
@@ -1389,7 +1432,13 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id, const Mods::Compat:
         info.size = e.size;
         info.size_text = SizeText(e.size);
         info.partial = fs::exists(fs::path(load_dir_) / "texture-downloads" / (e.id + ".part"), ec);
+        if (info.partial) { // AzaharFrame fixes7: Resume says how much is there
+            const auto size = fs::file_size(fs::path(load_dir_) / "texture-downloads" / (e.id + ".part"), ec);
+            info.partial_bytes = ec ? 0 : static_cast<u64>(size);
+            info.partial = info.partial_bytes > 0;
+        }
         info.verified = e.verified;
+        info.recommended = e.recommended;
         info.updated = e.updated;
         info.downloads = e.downloads; // AzaharFrame catalog3
         {
@@ -1418,6 +1467,9 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id, const Mods::Compat:
         if (a.compat.Fits() != b.compat.Fits()) {
             return a.compat.Fits();
         }
+        if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
+            return a.recommended;
+        }
         if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
             return a.downloads > 0;
         }
@@ -1436,6 +1488,12 @@ State Downloader::GetState() const {
     if (s.Busy()) {
         s.bytes_done = parts_base_.load() + done_.load();
         s.bytes_total = parts_total_.load() != 0 ? parts_total_.load() : total_.load();
+        // AzaharFrame fixes7: until the file's bytes start (the folder read, Drive's confirm page,
+        // the host's reply) it says Preparing: no percent that sits at 0
+        if (s.phase == State::Phase::Downloading && !receiving_.load()) {
+            s.phase = State::Phase::Resolving;
+            s.text = kPreparing;
+        }
     }
     return s;
 }
@@ -1460,7 +1518,7 @@ void Downloader::Fail(const std::string& error) {
 }
 
 void Downloader::Cancel() {
-    cancel_ = true;
+    stopper_.Stop(); // AzaharFrame fixes7: also ends a lookup, connect or stalled read at once
 }
 
 void Downloader::DiscardPartial(const std::string& pack_id) {
@@ -1487,13 +1545,14 @@ bool Downloader::Start(const std::string& pack_id, u64 title_id, bool allow_unsc
         state_ = State{};
         state_.phase = State::Phase::Resolving;
         state_.pack_id = pack_id;
-        state_.text = "Looking Up";
+        state_.text = kPreparing;
         state_.bytes_total = entry.size;
     }
     if (worker_.joinable()) {
         worker_.join();
     }
-    cancel_ = false;
+    stopper_.Reset();
+    receiving_ = false;
     allow_unscanned_ = allow_unscanned;
     hit_unscanned_ = false;
     done_ = 0;
@@ -1524,9 +1583,9 @@ bool Retryable(const std::string& error) {
     return false;
 }
 
-std::optional<std::vector<DriveItem>> ListDriveFolder(const std::string& folder_id) {
+std::optional<std::vector<DriveItem>> ListDriveFolder(const std::string& folder_id, Mods::Transfer::Stopper* stop) {
     const auto r = Cheats::Online::HttpsGetRaw("https://drive.google.com", "/embeddedfolderview?id=" + folder_id,
-                                               2 * 1024 * 1024);
+                                               2 * 1024 * 1024, stop);
     if (r.status != 200 || !r.error.empty()) {
         return std::nullopt;
     }
@@ -1546,7 +1605,8 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
     case Source::Type::GithubRelease: {
         const std::string api_path = fmt::format("/repos/{}/releases/{}", source.repo,
                                                  source.tag == "latest" ? "latest" : "tags/" + source.tag);
-        const auto r = Cheats::Online::HttpsGetRaw("https://api.github.com", api_path, 4 * 1024 * 1024);
+        SetState(State::Phase::Resolving, kPreparing);
+        const auto r = Cheats::Online::HttpsGetRaw("https://api.github.com", api_path, 4 * 1024 * 1024, &stopper_);
         if (cancel_) {
             return "Cancelled";
         }
@@ -1585,9 +1645,10 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         break;
     }
     case Source::Type::Gamebanana: { // AzaharFrame modcat2: the newest clean file of the mod
-        SetState(State::Phase::Resolving, "Looking Up");
+        SetState(State::Phase::Resolving, kPreparing);
         const auto r = Cheats::Online::HttpsGetRaw(
-            "https://gamebanana.com", fmt::format("/apiv11/Mod/{}/ProfilePage", source.gb_mod), 4 * 1024 * 1024);
+            "https://gamebanana.com", fmt::format("/apiv11/Mod/{}/ProfilePage", source.gb_mod), 4 * 1024 * 1024,
+            &stopper_);
         if (cancel_) {
             return "Cancelled";
         }
@@ -1662,9 +1723,10 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         url = DriveUrl(source.file_id);
         break;
     case Source::Type::GdriveFolder: {
-        SetState(State::Phase::Resolving, "Looking Up");
+        SetState(State::Phase::Resolving, kPreparing);
         std::string error;
-        const auto item = PickDriveFile(ListDriveFolder, source.folder_id, source.file_pattern, &error);
+        const DriveLister lister = [this](const std::string& id) { return ListDriveFolder(id, &stopper_); };
+        const auto item = PickDriveFile(lister, source.folder_id, source.file_pattern, &error);
         if (cancel_) {
             return "Cancelled";
         }
@@ -1692,6 +1754,9 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
             return problem;
         }
     }
+    if (parts_base_ == 0) {
+        receiving_ = false; // AzaharFrame fixes7: Preparing until the file's bytes start
+    }
     SetState(State::Phase::Downloading, "Downloading");
     total_ = expected;
     done_ = existing;
@@ -1704,10 +1769,18 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
         if (!SplitUrl(url, host, path) || !HostAllowed(host, extra)) {
             return "Download refused: not an allowed host";
         }
-        StepIo io{part, resume, &cancel_, &done_, &total_, check_space};
+        StepIo io{part, resume, &cancel_, &done_, &total_, check_space, &stopper_, &receiving_};
         const Step step = GetStep(host, path, io);
         if (step.cancelled || cancel_) {
             return "Cancelled";
+        }
+        // AzaharFrame fixes7: a site that limits downloads says so (and nothing retries against it)
+        if (const auto limit = Mods::Transfer::DetectLimit(step.is_file ? 200 : step.status, step.html,
+                                                           step.retry_after, std::time(nullptr));
+            !step.is_file && limit.limited) {
+            LOG_WARNING(Frontend, "Textures: GET {}{} answered {} (Retry-After \"{}\"): rate limited", host, path,
+                        step.status, step.retry_after);
+            return Mods::Transfer::LimitText(Mods::Transfer::SiteName(host), limit.retry_after_s);
         }
         if (step.is_file) {
             if (!step.error.empty()) {
@@ -1753,11 +1826,7 @@ std::string Downloader::FetchSource(const Entry& entry, const Source& source, co
             // a short wait, then report it as before
             retried_empty = true;
             LOG_WARNING(Frontend, "Textures: GET {}{} answered 200 with no body; retrying once", host, path);
-            const auto end = std::chrono::steady_clock::now() + empty_retry_delay_;
-            while (std::chrono::steady_clock::now() < end && !cancel_) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-            if (cancel_) {
+            if (!Mods::Transfer::SleepUnlessStopped(empty_retry_delay_, &cancel_)) {
                 return "Cancelled";
             }
             continue;
@@ -1799,7 +1868,8 @@ void Downloader::Run(Entry entry, u64 title_id) {
             const std::string file = (dl_dir / fmt::format("{}.part{:03}", entry.id, i + 1)).string();
             for (int attempt = 0; attempt < 2; ++attempt) {
                 error = FetchSource(entry, entry.parts[i], file);
-                if (error.empty() || cancel_ || error == "Cancelled" || error.rfind("Not Enough Space", 0) == 0) {
+                if (error.empty() || cancel_ || error == "Cancelled" || error.rfind("Not Enough Space", 0) == 0 ||
+                    Mods::Transfer::IsLimitError(error)) { // AzaharFrame fixes7: never again against a limit
                     break;
                 }
                 LOG_WARNING(Frontend, "Textures: {} part {} failed ({}){}", entry.id, i + 1, error,

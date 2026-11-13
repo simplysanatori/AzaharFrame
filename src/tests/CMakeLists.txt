@@ -69,6 +69,7 @@ add_executable(tests
     core/mods_running.cpp # AzaharFrame catalog3
     core/mods_compat.cpp # AzaharFrame compat
     core/harden.cpp # AzaharFrame harden
+    core/mods_transfer.cpp # AzaharFrame fixes7
     core/cpp_helpers.cpp # AzaharFrame cpphelpers
     core/emerald_fallback.cpp # AzaharFrame emfallback
     core/custom_tex_packs.cpp # AzaharFrame texdata
@@ -89,6 +90,8 @@ add_executable(tests
     ../frame_xr/vis/autosave_label.cpp # AzaharFrame autosave
     ../frame_xr/vis/shader_badge.cpp # AzaharFrame shaderbadge
     frame_xr/shader_badge.cpp # AzaharFrame shaderbadge
+    ../frame_xr/auto_shape.cpp # AzaharFrame fixes7
+    frame_xr/auto_shape.cpp # AzaharFrame fixes7
     core/file_sys/path_parser.cpp
     core/hle/kernel/hle_ipc.cpp
     core/memory/memory.cpp

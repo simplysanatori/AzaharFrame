@@ -257,6 +257,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ReticleAtEdge;
     case Id::ReticleSpeed:
         return MenuSetting::ReticleSpeed;
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        return MenuSetting::ReticleCenter;
+    case Id::ReticleStick:
+        return MenuSetting::ReticleStick;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -736,7 +740,7 @@ void MenuPanel::BuildModel(const Host& host) {
                              66);
     }
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
-    m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 5));
+    m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 6)); // fixes7
     m.screen_curve = NearestStep(kCurveSteps, v.vr_screen_curve.GetValue());
     m.screen_layout = static_cast<int>(std::min<u32>(v.vr_screen_layout.GetValue(), 1));
     m.move_screens = static_cast<int>(std::min<u32>(v.vr_move_screens.GetValue(), 2)); // menu
@@ -746,6 +750,8 @@ void MenuPanel::BuildModel(const Host& host) {
     m.reticle_at_edge = static_cast<int>(std::min<u32>(v.vr_reticle_at_edge.GetValue(), 1));
     m.reticle_speed = static_cast<int>(std::lround( // AzaharFrame reticle: tenths
         Input::ClampReticleSpeed(v.vr_reticle_speed.GetValue()) * 10.0f));
+    m.reticle_center = v.vr_reticle_center_until_pressed.GetValue(); // AzaharFrame fixes7
+    m.reticle_stick = v.vr_reticle_stick_moves.GetValue();
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -1012,7 +1018,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
         break;
     case Id::ScreenShape:
-        Apply(v.vr_top_aspect, u, per_game);
+        Apply(v.vr_top_aspect, std::min<u32>(u, 6), per_game); // AzaharFrame fixes7: 6 Automatic
         r.setting = MenuSetting::ScreenShape;
         break;
     case Id::ScreenCurve:
@@ -1110,6 +1116,16 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
                  static_cast<float>(r.value) / 10.0f);
         break;
     }
+    case Id::ReticleCenter: // AzaharFrame fixes7: per game
+        Apply(v.vr_reticle_center_until_pressed, value != 0, per_game);
+        r.setting = MenuSetting::ReticleCenter;
+        LOG_INFO(Frontend, "xr: in-game menu: Aim Only While Pressed = {}", value != 0);
+        break;
+    case Id::ReticleStick:
+        Apply(v.vr_reticle_stick_moves, value != 0, per_game);
+        r.setting = MenuSetting::ReticleStick;
+        LOG_INFO(Frontend, "xr: in-game menu: Stick Moves Reticle = {}", value != 0);
+        break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
         Apply(v.custom_textures, value != 0, r.per_game);
@@ -1789,6 +1805,12 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ShowStats:
         SetSetting(t.id, model.show_stats ? 0 : 1, host);
+        break;
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        SetSetting(t.id, model.reticle_center ? 0 : 1, host);
+        break;
+    case Id::ReticleStick:
+        SetSetting(t.id, model.reticle_stick ? 0 : 1, host);
         break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);

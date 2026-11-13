@@ -53,6 +53,10 @@ struct CursorSample {
     float gain = 0.3f; ///< 3DS pixels per count
     bool down = false; ///< the touch input held
     bool recentre = true;
+    /// AzaharFrame fixes7: Aim Only While Pressed (reticle.h ReticleModes): the cursor waits at
+    /// the middle, its motion ignored, until the touch input is held; it touches there, drags
+    /// from there, and goes back to the middle when let go.
+    bool center_until_pressed = false;
 };
 
 /// AzaharFrame mouse: Bottom Screen Reticle (reticle.h): a controller's absolute point.
@@ -133,6 +137,9 @@ public:
         Vec2f delta;           ///< 3DS pixels this frame (counts times the speed's gain)
         bool down = false;     ///< touching (click = touch, held = drag)
         bool recentre = false; ///< Recentre at Edge
+        /// AzaharFrame fixes7: relative only: not touching, at the middle and still; the frame
+        /// it touches, at the middle (that frame's motion is not taken).
+        bool center_idle = false;
     };
 
 private:

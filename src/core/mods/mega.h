@@ -25,6 +25,10 @@
 #include <vector>
 #include "common/common_types.h"
 
+namespace Mods::Transfer {
+class Stopper; // AzaharFrame fixes7: core/mods/transfer.h
+}
+
 namespace Mods::Mega {
 
 constexpr const char* kNotFound = "MEGA Link Not Found";
@@ -104,7 +108,8 @@ struct Net {
     /// GET of bytes [first, last] (inclusive) of host+path.
     std::function<Reply(const std::string& host, const std::string& path, u64 first, u64 last)> range;
 };
-Net DefaultNet();
+/// AzaharFrame fixes7: `stopper` (optional) ends a request at once on Cancel.
+Net DefaultNet(Transfer::Stopper* stopper = nullptr);
 
 /// Link -> the file to download. A folder link needs `file_pattern` (a name or path glob; the first
 /// match in path order) unless the link names one file. `error` explains a failure.

@@ -4,6 +4,7 @@ add_executable(frame_xr_picker_tests
     picker_library.cpp
     picker_layout.cpp
     tab_menu.cpp # AzaharFrame tabmenu
+    mods_rows.cpp # AzaharFrame fixes7
     remap.cpp # AzaharFrame remap
     cheat_entry.cpp # AzaharFrame ui2
     list_scroll.cpp # AzaharFrame scroll

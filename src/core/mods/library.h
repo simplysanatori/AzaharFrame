@@ -35,6 +35,8 @@
 #pragma once
 
 #include <atomic>
+#include <thread> // AzaharFrame fixes7
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 #include <chrono>
 #include <functional>
 #include <map>
@@ -101,6 +103,8 @@ struct ModInfo {
     std::string licence;
     std::string source;   // "github.com/owner/repo", "" when unmanaged
     bool verified = false; // the maintainer's own mod
+    bool recommended = false; // AzaharFrame fixes7: the catalog entry's "recommended" (the badge)
+    std::string aspect;       // AzaharFrame fixes7: the shape it makes ("16:9"), "" not given
     bool managed = false;
     ModState state = ModState::Active;
     std::vector<std::string> files; // paths relative to the mods folder
@@ -139,6 +143,8 @@ struct AvailableMod {
     std::string chip_tip;   // its tooltip
     bool matches_game = false; // made for the game's own code
     bool verified = false;
+    bool recommended = false; // AzaharFrame fixes7: the badge, listed first
+    u64 partial_bytes = 0;    // AzaharFrame fixes7: a cancelled download's kept parts (Resume)
     bool installable = true; // false: a 7z or rar download and no bsdtar
     bool active = false;     // installed and in the mods folder
     bool in_library = false; // downloaded, not active
@@ -255,7 +261,12 @@ public:
     int ApplyPending();
     /// AzaharFrame mega: stops the running download soon (the install fails with "Cancelled"; nothing
     /// is installed). Does nothing when idle.
-    void Cancel() { cancel_ = true; }
+    /// AzaharFrame fixes7: also shuts down the socket in use, so a lookup, connect, stalled read or
+    /// retry wait ends at once; a multipart or big download keeps its parts for Resume.
+    void Cancel() { stopper_.Stop(); }
+    /// AzaharFrame fixes7: bytes of a cancelled (or cut off) download kept for the mod (its parts in
+    /// WorkDir), 0 none. Install goes on from there.
+    u64 PartialBytes(const std::string& mod_id) const;
     /// AzaharFrame catalog3: where multipart downloads are written (tests replace it).
     /// AzaharFrame harden: the wait before the one retry of a download the host answers with a bare 200
     /// and no body (tests shorten it).
@@ -304,7 +315,8 @@ private:
     bool DownloadParts(const CatalogEntry& entry, u64 title_id, std::string& root, std::string& version,
                        std::string& error);
     bool FetchToFile(const std::string& url, const std::string& dest, const Multipart::Progress& progress,
-                     std::string& error, const std::vector<std::string>& extra_hosts = {});
+                     std::string& error, const std::vector<std::string>& extra_hosts = {},
+                     u64 resume_from = 0); // AzaharFrame fixes7: the rest of a kept part
     bool DownloadBig(const CatalogEntry& entry, u64 title_id, std::string& version, std::string& error);
     std::string WorkDir(const std::string& mod_id) const;
     bool DownloadSource(const CatalogEntry& entry, u64 title_id, std::vector<ArchiveFile>& files,
@@ -341,8 +353,11 @@ private:
     State state_;
     bool busy_ = false;
     std::atomic_bool cancel_{false}; // AzaharFrame mega
-    Mega::Net mega_net_ = Mega::DefaultNet();
-    Multipart::FileTransport file_transport_ = Multipart::StreamGet; // AzaharFrame catalog3
+    Transfer::Stopper stopper_{cancel_}; // AzaharFrame fixes7
+    std::atomic<std::thread::id> install_thread_{}; // AzaharFrame fixes7: the install's own thread
+    bool OnInstallThread() const { return std::this_thread::get_id() == install_thread_.load(); }
+    Mega::Net mega_net_ = Mega::DefaultNet(&stopper_);
+    Multipart::FileTransport file_transport_; // AzaharFrame catalog3; fixes7: StreamGet with stopper_
     FreeSpaceFn free_space_ = Multipart::FreeBytes;
     std::atomic<u64> running_title_{0}; // AzaharFrame catalog3
     std::string big_root_; // AzaharFrame catalog3: where DownloadBig unpacked (install thread only)

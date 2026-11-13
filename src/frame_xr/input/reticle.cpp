@@ -131,7 +131,7 @@ void BottomScreenReticle::Reset() {
 }
 
 ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, float half_width_deg,
-                                         int64_t now, ReticleEdge edge) {
+                                         int64_t now, ReticleEdge edge, ReticleModes modes) {
     ReticleFrame f;
     if (!live || !hand.active) {
         Reset();
@@ -169,9 +169,27 @@ ReticleFrame BottomScreenReticle::Update(const ReticleAim& hand, bool live, floa
     // while pointing 40 degrees down turns the aim by about 7.7). `ys` is fixed for the frame, so
     // the edge drift below stays exact.
     const float ys = std::max(std::cos(ref_pitch_ * kRad), kMinYawScale);
+    trigger_ = hand.trigger > (trigger_ ? kTriggerRelease : kTriggerPress);
+    if (modes.center_until_pressed && !trigger_) {
+        // AzaharFrame fixes7: Aim Only While Pressed: not touching, the middle is where it aims.
+        ref_yaw_ = fy;
+        ref_pitch_ = fp;
+        out_ = {};
+        lifting_ = false;
+    } else if (modes.stick_moves) {
+        // AzaharFrame fixes7: Stick Moves Reticle: the stick turns the reference the other way,
+        // so the point moves with the stick (right is right, up is up).
+        const float len = std::sqrt(hand.stick.x * hand.stick.x + hand.stick.y * hand.stick.y);
+        if (len > kStickDeadzone) {
+            const float t = std::min((len - kStickDeadzone) / (1.0f - kStickDeadzone), 1.0f);
+            const float k = t * t / len;
+            const float step = std::clamp(dt, 0.0f, 0.1f) * kStickScreensPerSec * 2.0f;
+            ref_yaw_ += hand.stick.x * k * step * hw / ys;
+            ref_pitch_ -= hand.stick.y * k * step * hh;
+        }
+    }
     float dy = (fy - ref_yaw_) * ys;
     float dp = fp - ref_pitch_;
-    trigger_ = hand.trigger > (trigger_ ? kTriggerRelease : kTriggerPress);
     // Snap to Middle: past an edge (and not just after the last snap), the middle is where it
     // points now; a touch held lifts first.
     if (edge == ReticleEdge::SnapToMiddle && !lifting_ && now >= snap_ready_ &&

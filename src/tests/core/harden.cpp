@@ -186,7 +186,7 @@ TEST_CASE("Harden: a bare 200 with no body is retried once", "[harden]") {
         return true;
     });
     lib.SetFileTransport([&](const std::string&, const std::string&, const std::string& dest,
-                             const std::atomic_bool*, const Multipart::Progress&) {
+                             const std::atomic_bool*, const Multipart::Progress&, u64) {
         ++calls;
         Multipart::FileReply r;
         r.status = 200;

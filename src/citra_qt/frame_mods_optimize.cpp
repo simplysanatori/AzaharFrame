@@ -30,6 +30,8 @@
 #include "core/custom_tex/layers.h" // AzaharFrame texlayers
 #include "core/custom_tex/optimize.h"
 #include "core/custom_tex/packs.h"
+#include "core/custom_tex/download.h" // AzaharFrame fixes7
+#include "core/mods/library.h" // AzaharFrame fixes7
 #include "frame_xr/frame_xr.h"
 
 namespace Menu = FrameXr::Menu;
@@ -76,6 +78,14 @@ std::string LoadDir() {
 } // namespace
 
 FrameMods::~FrameMods() {
+    // AzaharFrame fixes7: quitting mid-download stops it at once (the socket is shut down, nothing
+    // waits for a timeout); the partial download stays and its row offers Resume next time
+    if (downloader) {
+        downloader->Cancel();
+    }
+    if (!installing.empty()) {
+        Mods::Default().Cancel();
+    }
     if (optimize_converter) {
         // A KTX cut off by a kill could look done to the next run: the converter stops itself
         // (the texture in hand is abandoned, the done ones stay).
@@ -206,6 +216,8 @@ void FrameMods::OptimizeStart(const std::string& png) {
                     row.done = p.done;
                     row.total = p.total;
                     row.permille = p.permille;
+                    row.done_bytes = p.done_bytes; // AzaharFrame fixes7: "3.0 of 6.1 GB · 50%"
+                    row.total_bytes = p.total_bytes;
                     guard->UpdateOptimizeRow();
                     guard->PublishTextures();
                 },

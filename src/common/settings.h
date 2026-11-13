@@ -763,8 +763,9 @@ struct Values {
     SwitchableSetting<bool> vr_hide_bottom_screen{false, "vr_hide_bottom_screen"};
     // AzaharFrame: the shape of the top screen in VR (0 = 3DS 5:3, 1 = Widescreen 16:9,
     // 2 = Ultrawide 21:9, 3 = 4:3, 4 = 3:2, 5 = 16:10) for games and mods that render widescreen into the 400x240 frame.
-    // Read when a game starts (frame_xr/immersive.h).
-    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 5, "vr_top_aspect"};
+    // Read when a game starts (frame_xr/immersive.h). AzaharFrame fixes7: 6 = Automatic, the shape
+    // the game camera draws with, measured while the game runs (frame_xr/auto_shape.h).
+    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 6, "vr_top_aspect"};
     // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
     // immersive screen (frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};
@@ -864,6 +865,12 @@ struct Values {
     // the controller, times the base mapping (0.5 to 4; frame_xr/input/reticle.h). One value
     // for every aim source; per game too.
     SwitchableSetting<float, true> vr_reticle_speed{2.0f, 0.5f, 4.0f, "vr_reticle_speed"};
+    // AzaharFrame fixes7: the reticle's Aim Only While Pressed (it stays in the middle of the
+    // bottom screen until the trigger touches) and Stick Moves Reticle (the right stick moves it
+    // too, instead of being the C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
+    SwitchableSetting<bool> vr_reticle_center_until_pressed{false,
+                                                            "vr_reticle_center_until_pressed"};
+    SwitchableSetting<bool> vr_reticle_stick_moves{false, "vr_reticle_stick_moves"};
     // AzaharFrame mouse: one-time toasts, shown once per install: the reticle's controls when it
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};

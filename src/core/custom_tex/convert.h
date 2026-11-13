@@ -75,6 +75,9 @@ struct Request {
 
 struct Progress {
     int done = 0, total = 0, permille = 0;
+    /// AzaharFrame fixes7: the copy's bytes done of all (KTX sizes, as EstimatePack's total_bytes);
+    /// permille follows them
+    u64 done_bytes = 0, total_bytes = 0;
 };
 using ProgressFn = std::function<void(const Progress&)>;
 

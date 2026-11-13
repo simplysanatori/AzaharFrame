@@ -3,6 +3,7 @@
 // Refer to the misc/licenses/gplv2.txt file included.
 
 #include <array>
+#include <ctime>
 #include <map>
 #include <mutex>
 #include <set>
@@ -20,6 +21,7 @@
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/mods/library.h"
+#include "core/mods/transfer.h" // AzaharFrame fixes7
 
 namespace Cheats::Online {
 
@@ -263,7 +265,8 @@ HttpResult HttpsGet(const std::string& host, const std::string& path) {
     return out;
 }
 
-RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size_t max_body) {
+RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size_t max_body,
+                     Mods::Transfer::Stopper* stopper) {
     RawReply out;
     const char* ca = CaBundle();
     if (ca == nullptr) {
@@ -279,6 +282,12 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
         client.set_url_encode(false); // AzaharFrame emerald: common/request_path.h
+        if (stopper != nullptr) { // AzaharFrame fixes7: Cancel ends the lookup, connect and reads at once
+            if (std::string why = Mods::Transfer::Prepare(client, host, stopper); !why.empty()) {
+                out.error = std::move(why);
+                return out;
+            }
+        }
         httplib::Headers headers;
         if (host == kApiHost) {
             headers.emplace("Accept", "application/vnd.github+json");
@@ -295,18 +304,27 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
                 body.append(data, len);
                 return true;
             });
+        Mods::Transfer::Finish(stopper);
         if (too_large) {
             out.error = "Download too large";
             return out;
         }
         if (!res) {
-            out.error = httplib::to_string(res.error());
+            out.error = stopper != nullptr && stopper->Stopped() ? std::string("Cancelled")
+                                                                 : httplib::to_string(res.error());
             LOG_WARNING(Frontend, "Mods: GET {}{} failed: {}", host, path, out.error);
             return out;
         }
         out.status = res->status;
+        // AzaharFrame fixes7: a site that limits downloads (429, Cloudflare's error 1015) says so
+        const auto limit = Mods::Transfer::DetectLimit(res->status, body, res->get_header_value("Retry-After"),
+                                                       std::time(nullptr));
         if ((res->status == 403 || res->status == 429) && host == kApiHost) {
             out.error = "GitHub rate limit reached, try again later";
+        } else if (limit.limited) {
+            out.error = Mods::Transfer::LimitText(Mods::Transfer::SiteName(host), limit.retry_after_s);
+            LOG_WARNING(Frontend, "Mods: GET {}{}: {} (status {}, Retry-After \"{}\")", host, path, out.error,
+                        res->status, res->get_header_value("Retry-After"));
         } else if (res->status >= 300 && res->status < 400) {
             out.location = res->get_header_value("Location");
         } else if (res->status != 200 && res->status != 404) {
@@ -315,6 +333,7 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
             out.body = std::move(body);
         }
     } catch (const std::exception& e) {
+        Mods::Transfer::Finish(stopper);
         out.error = e.what();
     }
     return out;
@@ -322,7 +341,7 @@ RawReply HttpsGetRaw(const std::string& host, const std::string& path, std::size
 
 // AzaharFrame mega
 RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const RawRequest& request,
-                         std::size_t max_body) {
+                         std::size_t max_body, Mods::Transfer::Stopper* stopper) {
     RawReply out;
     const char* ca = CaBundle();
     if (ca == nullptr) {
@@ -338,6 +357,13 @@ RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const
         client.set_ca_cert_path(ca);
         client.enable_server_certificate_verification(true);
         client.set_url_encode(false);
+        if (stopper != nullptr) { // AzaharFrame fixes7
+            if (std::string why = Mods::Transfer::Prepare(client, host, stopper); !why.empty()) {
+                out.error = std::move(why);
+                return out;
+            }
+            client.set_read_timeout(60); // a MEGA chunk may take a while to start
+        }
         httplib::Headers headers;
         for (const auto& [k, v] : request.headers) {
             headers.emplace(k, v);
@@ -376,12 +402,14 @@ RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const
                     return true;
                 });
         }
+        Mods::Transfer::Finish(stopper);
         if (too_large) {
             out.error = "Download too large";
             return out;
         }
         if (!res) {
-            out.error = httplib::to_string(res.error());
+            out.error = stopper != nullptr && stopper->Stopped() ? std::string("Cancelled")
+                                                                 : httplib::to_string(res.error());
             return out;
         }
         out.status = res->status;
@@ -390,6 +418,7 @@ RawReply HttpsRequestRaw(const std::string& host, const std::string& path, const
             out.location = res->get_header_value("Location");
         }
     } catch (const std::exception& e) {
+        Mods::Transfer::Finish(stopper);
         out.error = e.what();
     }
     return out;

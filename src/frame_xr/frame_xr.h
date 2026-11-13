@@ -297,6 +297,8 @@ enum class MenuSetting {
     /// AzaharFrame fovonce: Match Game Camera's Set Once measured the game on view: `value` its
     /// Immersive Game FOV (degrees), with vr_immersive_fov_measured, in the game's own file.
     MeasuredGameFov,
+    ReticleCenter, ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_center_until_pressed)
+    ReticleStick,  ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_stick_moves)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

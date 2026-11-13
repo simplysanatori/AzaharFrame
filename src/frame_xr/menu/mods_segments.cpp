@@ -182,7 +182,8 @@ void RowText(Kit& kit, float x, float right, float cy, const std::string& name, 
     const float drawn =
         kit.TextMid(x, ny, Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, name, nw), 0, op);
     if (verified) {
-        // Material's verified badge after the name: made for Azahar for Frame.
+        // Material's verified badge after the name (AzaharFrame fixes7: the catalog recommends it with
+        // the game).
         kit.Icon(x + drawn + 6.0f + kBadge * 0.5f, ny, kBadge, Sym::kVerified, true, Tok::kPrimary,
                  op);
     }
@@ -705,7 +706,13 @@ OptimizeRowText OptimizeText(const PackOptimize& o) {
     case OptimizeState::Converting:
         t.bar = true;
         t.button = 2;
-        if (o.total > 0 && o.permille >= 0) {
+        if (o.total_bytes > 0 && o.permille >= 0) {
+            // AzaharFrame fixes7: one measure: the optimized copy's size written of its estimate, the
+            // percent of the same ("3.0 of 6.1 GB · 50%"); the texture count went by files while the
+            // percent went by size, so the two disagreed ("137 of 1,624 Textures · 50%")
+            t.line = ProgressSizeText(o.done_bytes, o.total_bytes) + " \u00b7 " +
+                     std::to_string(o.permille / 10) + "%";
+        } else if (o.total > 0 && o.permille >= 0) {
             t.line = CountWithCommas(static_cast<uint64_t>(o.done)) + " of " +
                      CountWithCommas(static_cast<uint64_t>(o.total)) + " Textures \u00b7 " +
                      std::to_string(o.permille / 10) + "%";
@@ -760,6 +767,9 @@ std::vector<std::string> OfferParts(const ModOffer& offer) {
     if (!offer.note.empty()) {
         return {ModVersionText(offer.mod_version), offer.note};
     }
+    if (!offer.resume.empty() && offer.state == OfferState::Install) { // AzaharFrame fixes7
+        return {ModVersionText(offer.mod_version), offer.resume};
+    }
     return {ModVersionText(offer.mod_version), offer.version_match ? "Matches Your Game" : "",
             offer.downloads, offer.updated};
 }
@@ -768,7 +778,45 @@ std::vector<std::string> PackOfferParts(const PackOffer& offer) {
     if (offer.state == PackOfferState::Failed || offer.state == PackOfferState::Downloading) {
         return {offer.note};
     }
+    if (!offer.resume.empty() && offer.state == PackOfferState::Download) { // AzaharFrame fixes7
+        return {offer.resume};
+    }
     return {offer.downloads, offer.updated};
+}
+
+std::string ProgressSizeText(uint64_t done, uint64_t total) { // AzaharFrame fixes7
+    const std::string d = SizeText(done);
+    if (total == 0) {
+        return d;
+    }
+    const std::string t = SizeText(std::max(total, done));
+    if (done == 0) {
+        return "0 of " + t;
+    }
+    const auto unit = [](const std::string& s) { return s.substr(s.rfind(' ') + 1); };
+    if (unit(d) == unit(t)) {
+        return d.substr(0, d.rfind(' ')) + " of " + t;
+    }
+    return d + " of " + t;
+}
+
+std::string ResumeText(uint64_t done, uint64_t total) { // AzaharFrame fixes7
+    if (done == 0) {
+        return {};
+    }
+    return ProgressSizeText(done, total > done ? total : 0) + " Downloaded";
+}
+
+std::string OfferButtonLabel(const ModOffer& offer) { // AzaharFrame fixes7
+    return !offer.resume.empty() && offer.state == OfferState::Install ? std::string(kResumeLabel)
+                                                                       : LabelFor(Id::ModInstall);
+}
+
+std::string PackButtonLabel(const PackOffer& offer) { // AzaharFrame fixes7
+    if (offer.state == PackOfferState::Failed) {
+        return "Try Again";
+    }
+    return !offer.resume.empty() ? std::string(kResumeLabel) : LabelFor(Id::PackDownload);
 }
 
 std::string BylineText(const std::string& author, const std::vector<std::string>& parts,
@@ -793,7 +841,7 @@ float OfferTextRight(const Kit& kit, const ModOffer& o, float x1) {
     switch (o.state) {
     case OfferState::Install:
     case OfferState::Unavailable:
-        right = x1 - ButtonWidth(kit, LabelFor(Id::ModInstall), false, 24.0f);
+        right = x1 - ButtonWidth(kit, OfferButtonLabel(o), false, 24.0f); // AzaharFrame fixes7
         break;
     case OfferState::Installing:
         right = x1 - ButtonWidth(kit, LabelFor(Id::ModCancel), false, 12.0f) - 32.0f;
@@ -818,10 +866,7 @@ float PackTextRight(const Kit& kit, const PackOffer& o, float x1) {
     switch (o.state) {
     case PackOfferState::Download:
     case PackOfferState::Failed:
-        right = x1 - ButtonWidth(kit,
-                                 o.state == PackOfferState::Failed ? std::string("Try Again")
-                                                                   : LabelFor(Id::PackDownload),
-                                 false, 24.0f);
+        right = x1 - ButtonWidth(kit, PackButtonLabel(o), false, 24.0f); // AzaharFrame fixes7
         break;
     case PackOfferState::Downloading: {
         float x = x1 - ButtonWidth(kit, LabelFor(Id::PackCancel), false, 12.0f) - 4.0f;
@@ -1298,7 +1343,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                 switch (o.state) {
                 case OfferState::Install:
                 case OfferState::Unavailable: {
-                    const std::string label = LabelFor(Id::ModInstall);
+                    const std::string label = OfferButtonLabel(o); // AzaharFrame fixes7: or Resume
                     const float w = ButtonWidth(kit, label, false, 24.0f);
                     const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
                     const bool on = o.state == OfferState::Install && !m.busy;
@@ -1384,7 +1429,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
                 // " · v172 · Matches Your Game · 10K+ Downloads · Updated Sep 2026" (the phase or the
                 // failure while it installs or when it failed): OfferParts
                 const bool link = !LinkText(o.url).empty();
-                const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.verified, o.author,
+                const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.recommended, o.author,
                                               link, StateOf(view, {Id::ModLink, idx}), OfferParts(o),
                                               !o.note.empty() && o.error ? 1 : std::string::npos);
                 if (l.W() > 0.0f) {
@@ -1487,7 +1532,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         const float op = enabled ? 1.0f : kDisabledContent;
         const float text_right = b.x0 + 12.0f - kNameGap;
         if (r.author.empty()) {
-            RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
+            RowText(kit, c.x0, text_right, cy, r.name, r.recommended, r.detail, false, op);
         } else {
             const bool link = !LinkText(r.url).empty(); // AzaharFrame modcat: GameBanana pages too
             // AzaharFrame ui3: "Created by <author> · v1.5.9", going on to a second line when it
@@ -1496,9 +1541,9 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             const bool wraps = f.Wraps();
             const float by_y = wraps ? row.y0 + kCatalogByY : cy + kLinkLineDy + 13.0f;
             if (wraps) {
-                RowText(kit, c.x0, text_right, row.y0 + kCatalogNameY, r.name, r.verified, "", false, op);
+                RowText(kit, c.x0, text_right, row.y0 + kCatalogNameY, r.name, r.recommended, "", false, op);
             } else {
-                RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
+                RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.recommended, "", false, op, true);
             }
             const Rect l = DrawByline(kit, c.x0, text_right, by_y, row.y0 + kCatalogWrapY, f, link,
                                       StateOf(view, {Id::ModLink, idx}, enabled), std::string::npos, op);
@@ -1795,8 +1840,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         switch (o.state) {
         case PackOfferState::Download:
         case PackOfferState::Failed: {
-            const std::string label = o.state == PackOfferState::Failed ? std::string("Try Again")
-                                                                        : LabelFor(Id::PackDownload);
+            const std::string label = PackButtonLabel(o); // AzaharFrame fixes7: or Resume
             const float w = ButtonWidth(kit, label, false, 24.0f);
             const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
             const bool on = !m.downloading;
@@ -1851,7 +1895,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
             text_right = x0 - kNameGap;
         }
         names_right = std::min(names_right, text_right);
-        // AzaharFrame zipinstall: the verified badge; "<author> · Updated Sep 2026" (the phase
+        // AzaharFrame zipinstall: the badge (fixes7: recommended); "<author> · Updated Sep 2026" (the phase
         // while it downloads, the error when it failed)
         AddHit({row.x0, y, text_right, y + rh}, {Id::PackNote, idx}, list); // AzaharFrame modcat2
         if (view.tooltip == Id::PackNote && view.tooltip_index == idx) {
@@ -1862,7 +1906,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         // Updated Sep 2026" (the phase while it downloads, the error when it failed)
         const bool failed = o.state == PackOfferState::Failed;
         const bool link = !LinkText(o.url).empty();
-        const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, o.verified, o.author, link,
+        const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, o.recommended, o.author, link,
                                       StateOf(view, {Id::PackLink, idx}), PackOfferParts(o),
                                       failed ? 0 : std::string::npos);
         if (l.W() > 0.0f) {

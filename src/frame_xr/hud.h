@@ -34,6 +34,7 @@
 #include "frame_xr/ui/ui_canvas.h"
 #include "frame_xr/ui/ui_ttf.h" // AzaharFrame shaderbadge
 #include "frame_xr/vis/async_overlay.h"
+#include "frame_xr/vis/shader_badge.h" // AzaharFrame fixes7: Vis::Badge::Gate
 
 namespace FrameXr {
 
@@ -92,6 +93,10 @@ public:
         bool immersive_in_view = false;
         XrPosef immersive_pose[2]{{{0, 0, 0, 1}, {0, 0, 0}}, {{0, 0, 0, 1}, {0, 0, 0}}};
         XrExtent2Df immersive_size{0.0f, 0.0f};
+        /// AzaharFrame fixes7: a game's screens are live, and the screen above is on view with a
+        /// picture (Vis::Badge::Gate).
+        bool live = false;
+        bool pictures = false;
     };
     /// XR thread, each frame: the badge while it shows. `in_view_space`: the quad's pose is in
     /// VIEW space (head-locked), else LOCAL.
@@ -152,6 +157,7 @@ private:
     float badge_opacity = 0.0f;
     XrTime badge_time = 0;   ///< the last frame's time (the fade's step)
     bool badge_head = false; ///< this showing is head-locked (chosen when it appears)
+    Vis::Badge::Gate badge_gate; ///< AzaharFrame fixes7: not before the game screen is on view
 };
 
 } // namespace FrameXr

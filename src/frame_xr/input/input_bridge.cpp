@@ -65,7 +65,9 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     // AzaharFrame padsui: the mouse in Bottom Screen mode, a game running and the menu closed.
     if (mouse_here && gamepads && mouse->mode == MouseMode::BottomScreen) {
         touch.cursor = {true, mouse->motion, MouseScreenGain(mouse->speed), mouse->Touch(),
-                        mouse->recentre};
+                        mouse->recentre,
+                        // AzaharFrame fixes7: Aim Only While Pressed, as the reticle's
+                        Settings::values.vr_reticle_center_until_pressed.GetValue()};
     }
     if (reticle) {
         touch.reticle = *reticle; // AzaharFrame mouse

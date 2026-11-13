@@ -18,6 +18,8 @@
 //     is never outside what both eyes see.
 // The choice is made when it appears and kept until it has faded out.
 // It fades in and out over kFadeNs, in kLevels pre-drawn opacities.
+// AzaharFrame fixes7: never before the game screen is in front of the user (Gate): not while the
+// view is still black at boot, only kGraceNs after the screen first shows pictures.
 
 #pragma once
 
@@ -43,6 +45,30 @@ constexpr float kHeadInsetDeg = 1.5f;
 constexpr int64_t kFadeNs = 150'000'000;
 /// The opacities drawn into the atlas (the fade steps through them).
 constexpr int kLevels = 4;
+
+/// AzaharFrame fixes7: how long the game screen shows pictures before the badge may show.
+constexpr int64_t kGraceNs = 3'000'000'000;
+
+/// AzaharFrame fixes7: whether the badge may show. `live`: the game's screens are live (a game
+/// runs); `shown`: the screen the badge goes on (the main one, or the immersive top screen) is
+/// on view with a picture. The grace starts when that first happens in a game and is not
+/// started again while the game runs; the badge shows only while the screen does.
+class Gate {
+public:
+    bool Allow(bool live, bool shown, int64_t now_ns) {
+        if (!live) {
+            since_ = 0;
+            return false;
+        }
+        if (shown && since_ == 0) {
+            since_ = now_ns != 0 ? now_ns : 1;
+        }
+        return shown && since_ != 0 && now_ns - since_ >= kGraceNs;
+    }
+
+private:
+    int64_t since_ = 0; ///< when the screen first showed pictures (0: not yet)
+};
 
 /// The badge's quad: its centre pose and size (metres).
 struct Placed {

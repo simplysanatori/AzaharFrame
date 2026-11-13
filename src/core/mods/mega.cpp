@@ -404,20 +404,21 @@ std::optional<std::vector<FolderFile>> ParseFolderReply(std::string_view body, s
     return out;
 }
 
-Net DefaultNet() {
+Net DefaultNet(Transfer::Stopper* stopper) {
     Net net;
-    net.post = [](const std::string& host, const std::string& path, const std::string& body) {
+    net.post = [stopper](const std::string& host, const std::string& path, const std::string& body) {
         Cheats::Online::RawRequest req;
         req.method = "POST";
         req.body = body;
         req.content_type = "application/json";
-        const auto r = Cheats::Online::HttpsRequestRaw(host, path, req, 4 * 1024 * 1024);
+        const auto r = Cheats::Online::HttpsRequestRaw(host, path, req, 4 * 1024 * 1024, stopper);
         return Reply{r.status, r.body, r.error};
     };
-    net.range = [](const std::string& host, const std::string& path, u64 first, u64 last) {
+    net.range = [stopper](const std::string& host, const std::string& path, u64 first, u64 last) {
         Cheats::Online::RawRequest req;
         const auto r = Cheats::Online::HttpsRequestRaw(
-            host, fmt::format("{}/{}-{}", path, first, last), req, static_cast<std::size_t>(last - first + 1));
+            host, fmt::format("{}/{}-{}", path, first, last), req, static_cast<std::size_t>(last - first + 1),
+            stopper);
         return Reply{r.status, r.body, r.error};
     };
     return net;

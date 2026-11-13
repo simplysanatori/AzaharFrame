@@ -1570,16 +1570,40 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (source != Input::ReticleHand::Off) {
             const ViewPose head_view = LatestViewPose();
             const Input::Quatf head = ToInput(head_view.head).orientation;
-            const Input::ReticleAim aim =
+            Input::ReticleAim aim =
                 rh >= 0 ? Input::ReticleAimOf(game_in.hand[static_cast<std::size_t>(rh)])
                         : Input::ReticleHeadAim(head_view.valid, head, game_in.hand[0],
                                                 game_in.hand[1]);
+            // AzaharFrame fixes7: Aim Only While Pressed, Stick Moves Reticle (reticle.h). The
+            // right stick is the reticle's then, not the C-Stick; not while a grip holds a
+            // screen (the stick moves and sizes it then).
+            Input::ReticleModes modes;
+            modes.center_until_pressed = Settings::values.vr_reticle_center_until_pressed.GetValue();
+            const bool holding = Immersive::HoldingScreen() || bridge.mapper().DragActive();
+            const bool stick_on = Settings::values.vr_reticle_stick_moves.GetValue();
+            modes.stick_moves = stick_on && !holding;
+            Input::HandInput& right = game_in.hand[static_cast<std::size_t>(
+                Input::HandIndex(Input::Hand::Right))];
+            if (modes.stick_moves) {
+                aim.stick = right.stick;
+            }
             const Input::ReticleFrame rf = reticle.Update(
                 aim, true,
                 Input::ReticleHalfWidthDeg(source,
                                            Settings::values.vr_reticle_speed.GetValue()), // reticle
                 in.time_ns,
-                Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()));
+                Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()), modes);
+            if (rf.on && modes.stick_moves) {
+                right.stick = {};
+            }
+            const int modes_now = (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0);
+            if (modes_now != reticle_modes_logged) {
+                reticle_modes_logged = modes_now;
+                LOG_INFO(Frontend,
+                         "xr: Bottom Screen Reticle: Aim Only While Pressed {}, Stick Moves "
+                         "Reticle {}",
+                         modes.center_until_pressed ? "on" : "off", stick_on ? "on" : "off");
+            }
             if (rf.rezeroed) {
                 LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");
             }

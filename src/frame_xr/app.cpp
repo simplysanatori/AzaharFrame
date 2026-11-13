@@ -23,6 +23,7 @@
 #include "common/settings.h" // AzaharFrame vrqol: Background
 #include "common/stall_telemetry.h"
 #include "common/thread.h"
+#include "frame_xr/auto_shape.h" // AzaharFrame fixes7
 #include "frame_xr/controls.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
@@ -668,6 +669,9 @@ void Runtime::FrameLoop() {
                        state.load(),
                        fs.shouldRender == XR_TRUE,
                        screens_live.load()};
+        // AzaharFrame fixes7: Screen Shape: Automatic, before the callbacks read the shape.
+        AutoShape::Frame(info.screens_live,
+                         Settings::values.vr_top_aspect.GetValue() == AutoShape::kAutomatic);
         {
             std::vector<FrameCallback> callbacks;
             {
@@ -762,17 +766,30 @@ void Runtime::FrameLoop() {
             label_top_size = shown.top_size;
             // AzaharFrame shaderbadge: the screen in the main slot (the bottom one while it is in
             // focus), else the immersive top screen.
+            // AzaharFrame fixes7: and whether that screen is on view with a picture (the badge
+            // waits for it, never floating in a black view at boot).
+            const auto has_picture = [&](VideoCore::XrScreen s) {
+                const bool top = s != VideoCore::XrScreen::Bottom;
+                const ScreenChain& chain =
+                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
+                                                                       : s)];
+                return chain.handle != XR_NULL_HANDLE && chain.has_image;
+            };
+            badge_anchor.live = true;
             if (draw.swapped) {
+                badge_anchor.pictures = has_picture(VideoCore::XrScreen::Bottom);
                 badge_anchor.screen = true;
                 badge_anchor.screen_pose = draw.bottom_pose;
                 badge_anchor.screen_size = draw.bottom_size;
                 badge_anchor.curve = draw.bottom_curve;
             } else if (shown.show_top && shown.top_pointable && shown.top_space == local_space) {
+                badge_anchor.pictures = has_picture(VideoCore::XrScreen::TopLeft);
                 badge_anchor.screen = true;
                 badge_anchor.screen_pose = shown.top_pose[0];
                 badge_anchor.screen_size = shown.top_size;
                 badge_anchor.curve = draw.top_curve;
             } else if (shown.show_top) {
+                badge_anchor.pictures = has_picture(VideoCore::XrScreen::TopLeft);
                 badge_anchor.immersive = true;
                 badge_anchor.immersive_in_view = shown.top_space == view_space;
                 badge_anchor.immersive_pose[0] = shown.top_pose[0];

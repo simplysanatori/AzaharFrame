@@ -237,6 +237,8 @@ bool PerGameSetting(Id id) {
     case Id::BottomScreenReticle:
     case Id::ReticleSpeed:
     case Id::ReticleAtEdge:
+    case Id::ReticleCenter: // AzaharFrame fixes7
+    case Id::ReticleStick:
         return true;
     default:
         return false;
@@ -245,8 +247,9 @@ bool PerGameSetting(Id id) {
 
 // AzaharFrame reticle
 const std::vector<Id>& ControlsScopeRows() {
-    static const std::vector<Id> kRows{Id::TouchpadTouch, Id::BottomScreenReticle,
-                                       Id::ReticleSpeed, Id::ReticleAtEdge};
+    static const std::vector<Id> kRows{Id::TouchpadTouch,  Id::BottomScreenReticle,
+                                       Id::ReticleSpeed,   Id::ReticleAtEdge,
+                                       Id::ReticleCenter, Id::ReticleStick}; // fixes7
     return kRows;
 }
 
@@ -281,7 +284,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kNone;
     static const std::vector<std::string> kShape{"3DS (5:3)",       "Widescreen (16:9)",
                                                  "Ultrawide (21:9)", "Standard (4:3)",
-                                                 "3:2",             "16:10"};
+                                                 "3:2",             "16:10",
+                                                 "Automatic"}; // AzaharFrame fixes7
     static const std::vector<std::string> kCurve{"Off", "15°", "30°", "45°",
                                                 "60°", "75°", "90°"};
     static const std::vector<std::string> kLayout{"Stacked", "Side by Side"};
@@ -422,6 +426,10 @@ std::string LabelFor(Id id) {
         return "At Edge";
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "Reticle Speed";
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        return "Aim Only While Pressed";
+    case Id::ReticleStick:
+        return "Stick Moves Reticle";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -622,10 +630,14 @@ std::string ExplainFor(Id id) {
         return "Use Global Value";
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
+    case Id::ReticleCenter: // AzaharFrame fixes7
+        return "Keeps the reticle centered on the bottom screen. It moves only while you hold the trigger or click, and returns to the center when you let go.";
+    case Id::ReticleStick:
+        return "The right stick moves the reticle too, instead of the C-Stick.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
-        return "The top screen's shape, for games or mods that change it.";
+        return "The top screen's shape, for games or mods that change it. Automatic follows the game's camera.";
     case Id::ScreenCurve:
         return "Bends the Primary Screen so its sides come toward you.";
     case Id::ScreenLayout:
@@ -1663,11 +1675,28 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
+    // AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, two switches side by
+    // side in one row (each half toggles its own), so the controller picture keeps its room.
+    const auto switch_half = [&](Id id, const Rect& half, bool on) {
+        const Lock lock = model.locked[static_cast<std::size_t>(id)];
+        const bool enabled = lock == Lock::None;
+        const State st = StateOf(view, {id}, enabled);
+        if (enabled) {
+            kit.StateLayer(half, 16.0f, Tok::kOnSurface, st);
+        }
+        const float label_x = half.x0 + 12.0f;
+        kit.TextMid(label_x, half.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                    enabled ? 1.0f : kDisabledContent);
+        kit.Switch({label_x, half.y0, half.x1 - 12.0f, half.y1}, on, st);
+        AddHit(half, {id, enabled ? -1 : kLabelIndex}, pane);
+        anchors.push_back({id, label_x, half.y0 + 6.0f, lock});
+    };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge and Reticle Speed only while the reticle is on.
+    // At Edge, Reticle Speed, Aim Only While Pressed and Stick Moves Reticle only while the
+    // reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 2.0f * kChoiceH : 0.0f);
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
     const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
@@ -1683,7 +1712,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
-        choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
+        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
+        const float mid = (c.x0 + c.x1) * 0.5f;
+        const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
+        switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
+                    model.reticle_center);
+        switch_half(Id::ReticleStick, {mid + 12.0f, pair.y0, pair.x1, pair.y1},
+                    model.reticle_stick);
     }
     DrawScopeMenu(kit, model, view, pane);
 }
@@ -2048,16 +2083,28 @@ void TabMenu::DrawTooltip(Kit& kit, const MenuView& view, const Rect& pane) {
         if (text.empty()) {
             return;
         }
-        const float half = kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
+        // AzaharFrame fixes7: a line wider than the pane allows wraps (two lines at most for
+        // the texts here), at most 0.8 of the pane wide.
+        const float wrap_w = pane.W() * 0.8f;
+        const bool wrap = kit.TextWidth(Type::Tooltip, text) + 20.0f > wrap_w;
+        const float half =
+            wrap ? wrap_w * 0.5f : kit.TextWidth(Type::Tooltip, text) * 0.5f + 10.0f;
         const float lx = a.cx >= 0.0f ? a.cx : a.x + kit.TextWidth(Type::Body, LabelFor(a.id)) * 0.5f;
         const float cx = std::clamp(lx, pane.x0 + half + 4.0f, pane.x1 - half - 4.0f);
+        const auto tip = [&](float y, bool above) {
+            if (wrap) {
+                kit.TooltipWrapped(cx, y, text, above, wrap_w);
+            } else {
+                kit.Tooltip(cx, y, text, above);
+            }
+        };
         if (a.below) { // AzaharFrame reticle: under the scope toggle
-            kit.Tooltip(cx, a.y, text, false);
+            tip(a.y, false);
             return;
         }
         // Above the row; under it when the row is the first one shown.
         const bool above = a.y - 40.0f > pane.y0;
-        kit.Tooltip(cx, above ? a.y : a.y + kRowH - 16.0f, text, above);
+        tip(above ? a.y : a.y + kRowH - 16.0f, above);
         return;
     }
 }

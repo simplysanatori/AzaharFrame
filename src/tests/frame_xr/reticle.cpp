@@ -9,6 +9,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/input/mouse_pointer.h"
+#include "frame_xr/controls_presets.h" // AzaharFrame fixes7
 #include "frame_xr/input/reticle.h"
 #include "frame_xr/input/touchpad_touch.h"
 
@@ -37,10 +38,14 @@ struct Rig {
     ReticleFrame f;
     ReticleEdge edge = ReticleEdge::Follow;
     float half = kHalf;
+    ReticleModes modes; ///< AzaharFrame fixes7
+    Vec2f stick;        ///< AzaharFrame fixes7: the right stick (Stick Moves Reticle)
     ReticleFrame& Step(const HandInput& h, int frames = 1) {
         for (int i = 0; i < frames; i++) {
             now += 11 * kMs;
-            f = r.Update(ReticleAimOf(h), true, half, now, edge);
+            ReticleAim aim = ReticleAimOf(h);
+            aim.stick = stick;
+            f = r.Update(aim, true, half, now, edge, modes);
         }
         return f;
     }
@@ -564,4 +569,99 @@ TEST_CASE("Reticle: the default speed halves the turn across the screen", "[fram
     CHECK(2.0f * to_edge(ReticleHand::Right, 1.0f, false) == Approx(40.0f).margin(0.4));
     CHECK(2.0f * to_edge(ReticleHand::Right, kReticleSpeedDefault, false) ==
           Approx(20.0f).margin(0.4));
+}
+
+// AzaharFrame fixes7: Aim Only While Pressed: in the middle until the trigger touches; while it is
+// held the aim moves it from the middle; let go, it is back in the middle.
+TEST_CASE("Reticle: Aim Only While Pressed", "[frame_xr][reticle]") {
+    Rig t;
+    t.modes.center_until_pressed = true;
+    ReticleFrame f = t.Step(Aim(0.0f, 0.0f));
+    CHECK(f.point.x == Approx(0.5f));
+    // Turning without the trigger: still the middle, not touching.
+    f = t.Step(Aim(-10.0f, 5.0f), 90);
+    CHECK(f.point.x == Approx(0.5f));
+    CHECK(f.point.y == Approx(0.5f));
+    CHECK_FALSE(f.down);
+    // The trigger goes down: the touch starts in the middle, whatever it aimed at before.
+    f = t.Step(Aim(-10.0f, 5.0f, 0.9f));
+    CHECK(f.down);
+    CHECK(f.point.x == Approx(0.5f));
+    CHECK(f.point.y == Approx(0.5f));
+    // Held, 7.5 degrees right: three quarters across.
+    f = t.Step(Aim(-17.5f, 5.0f, 0.9f), 90);
+    CHECK(f.down);
+    CHECK(f.point.x == Approx(0.75f).margin(0.01));
+    // Let go: back in the middle at once.
+    f = t.Step(Aim(-17.5f, 5.0f, 0.0f));
+    CHECK_FALSE(f.down);
+    CHECK(f.point.x == Approx(0.5f));
+    CHECK(f.point.y == Approx(0.5f));
+    // Off: the aim moves it as before (absolute from where it was re-centred).
+    t.modes.center_until_pressed = false;
+    f = t.Step(Aim(-25.0f, 5.0f), 90);
+    CHECK(f.point.x == Approx(0.75f).margin(0.01));
+}
+
+// AzaharFrame fixes7: Stick Moves Reticle: the right stick moves the point (with the aim, during
+// a touch too); full tilt crosses the screen in a second.
+TEST_CASE("Reticle: Stick Moves Reticle", "[frame_xr][reticle]") {
+    Rig t;
+    t.modes.stick_moves = true;
+    t.Step(Aim(0.0f, 0.0f));
+    // Inside the dead zone: nothing.
+    t.stick = {0.1f, 0.1f};
+    ReticleFrame f = t.Step(Aim(0.0f, 0.0f), 50);
+    CHECK(f.point.x == Approx(0.5f).margin(0.002));
+    // Full tilt right for a quarter of a second: a quarter of the way across.
+    t.stick = {1.0f, 0.0f};
+    f = t.Step(Aim(0.0f, 0.0f, 0.9f), 23); // 253 ms
+    CHECK(f.down);
+    CHECK(f.point.x == Approx(0.75f).margin(0.02));
+    CHECK(f.point.y == Approx(0.5f).margin(0.002));
+    // Up moves it up; the head's turn adds to the stick's.
+    t.stick = {0.0f, 1.0f};
+    f = t.Step(Aim(0.0f, 0.0f, 0.9f), 9); // 99 ms: a tenth of the height
+    CHECK(f.point.y == Approx(0.4f).margin(0.02));
+    t.stick = {};
+    const float x_before = f.point.x;
+    f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 90); // 3 degrees right: a tenth of the 30 degree cone
+    CHECK(f.point.x == Approx(x_before + 0.1f).margin(0.01));
+    // Into the edge: it stays on the edge (the edges drift as with the aim).
+    t.stick = {1.0f, 0.0f};
+    f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 120);
+    CHECK(f.point.x == Approx(1.0f).margin(0.005)); // the dead zone trails by 0.08 degrees
+    t.stick = {-1.0f, 0.0f};
+    f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 23);
+    CHECK(f.point.x == Approx(0.75f).margin(0.02));
+    // Off: the stick does nothing.
+    t.modes.stick_moves = false;
+    const float x_off = f.point.x;
+    f = t.Step(Aim(-3.0f, 0.0f, 0.9f), 50);
+    CHECK(f.point.x == Approx(x_off).margin(0.002));
+}
+
+// AzaharFrame fixes7: both on: the stick does nothing while the reticle waits in the middle,
+// and moves it during a touch.
+TEST_CASE("Reticle: Aim Only While Pressed with Stick Moves Reticle", "[frame_xr][reticle]") {
+    Rig t;
+    t.modes = {true, true};
+    t.stick = {1.0f, 0.0f};
+    ReticleFrame f = t.Step(Aim(0.0f, 0.0f), 30);
+    CHECK(f.point.x == Approx(0.5f));
+    f = t.Step(Aim(0.0f, 0.0f, 0.9f), 23);
+    CHECK(f.point.x == Approx(0.75f).margin(0.03));
+    f = t.Step(Aim(0.0f, 0.0f, 0.0f));
+    CHECK(f.point.x == Approx(0.5f));
+}
+
+// AzaharFrame fixes7: Kid Icarus: Uprising starts with Stick Moves Reticle (every region).
+TEST_CASE("Reticle: Kid Icarus: Uprising's Controls preset", "[frame_xr][reticle]") {
+    for (const uint64_t id : {0x0004000000030100ULL, 0x0004000000030200ULL, 0x0004000000030300ULL}) {
+        const FrameXr::ControlsPreset* p = FrameXr::FindControlsPreset(id);
+        REQUIRE(p != nullptr);
+        CHECK(p->bottom_screen_reticle == 3);
+        CHECK(p->stick_moves_reticle);
+    }
+    CHECK(FrameXr::FindControlsPreset(0x0004000000033500ULL) == nullptr);
 }

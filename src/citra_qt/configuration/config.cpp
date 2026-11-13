@@ -592,6 +592,8 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_bottom_screen_reticle);
     ReadGlobalSetting(Settings::values.vr_reticle_at_edge);
     ReadGlobalSetting(Settings::values.vr_reticle_speed);
+    ReadGlobalSetting(Settings::values.vr_reticle_center_until_pressed); // AzaharFrame fixes7
+    ReadGlobalSetting(Settings::values.vr_reticle_stick_moves);
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
@@ -1269,6 +1271,8 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_bottom_screen_reticle);
     WriteGlobalSetting(Settings::values.vr_reticle_at_edge);
     WriteGlobalSetting(Settings::values.vr_reticle_speed);
+    WriteGlobalSetting(Settings::values.vr_reticle_center_until_pressed); // AzaharFrame fixes7
+    WriteGlobalSetting(Settings::values.vr_reticle_stick_moves);
     // AzaharFrame: global only (see ReadVrValues).
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);

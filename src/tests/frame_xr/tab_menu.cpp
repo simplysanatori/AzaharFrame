@@ -303,8 +303,9 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         MenuView v;
         v.tab = Tab::Controls;
         d.Draw(m, v);
-        // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on
-        REQUIRE(picture.H() > (reticle != 0 ? 180.0f : 200.0f));
+        // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on;
+        // AzaharFrame fixes7: three (the switches' row)
+        REQUIRE(picture.H() > (reticle != 0 ? 120.0f : 200.0f));
         Rect edit{}, pages{};
         float rows_y0 = 1e9f, rows_y1 = 0.0f;
         for (const auto& h : d.menu.Hits()) {
@@ -315,7 +316,8 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
                 pages.y1 = std::max(pages.y1, h.r.y1);
             }
             if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
-                h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge) {
+                h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge ||
+                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick) { // fixes7
                 rows_y0 = std::min(rows_y0, h.r.y0);
                 rows_y1 = std::max(rows_y1, h.r.y1);
             }
@@ -2889,7 +2891,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(PerGameSetting(id));
     }
     CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
-                                                 Id::ReticleSpeed, Id::ReticleAtEdge});
+                                                 Id::ReticleSpeed, Id::ReticleAtEdge,
+                                                 Id::ReticleCenter, Id::ReticleStick});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3052,6 +3055,50 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
     CHECK(HasHit(d, Id::ReticleSpeed, kLabelIndex));
 }
 
+// AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, switch rows under At Edge
+// while the reticle is on, per game; greyed in Global while the game has its own value.
+TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
+    CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
+    CHECK(LabelFor(Id::ReticleStick) == "Stick Moves Reticle");
+    CHECK(!ExplainFor(Id::ReticleCenter).empty());
+    CHECK(!ExplainFor(Id::ReticleStick).empty());
+    CHECK(PerGameSetting(Id::ReticleCenter));
+    CHECK(PerGameSetting(Id::ReticleStick));
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Controls;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleCenter, -1)); // the reticle is off
+    CHECK(!HasHit(d, Id::ReticleStick, -1));
+    for (const int source : {1, 2, 3}) {
+        m.bottom_screen_reticle = source;
+        m.reticle_center = source == 2;
+        m.reticle_stick = source == 3;
+        d.Draw(m, v);
+        const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
+        const MenuLayout::Hit* center = FindHit(d, Id::ReticleCenter, -1);
+        const MenuLayout::Hit* stick = FindHit(d, Id::ReticleStick, -1);
+        REQUIRE(edge != nullptr);
+        REQUIRE(center != nullptr);
+        REQUIRE(stick != nullptr);
+        CHECK(center->r.y0 >= edge->r.y1 - 0.01f); // under At Edge, side by side
+        CHECK(stick->r.y0 == center->r.y0);
+        CHECK(stick->r.x0 >= center->r.x1 - 0.01f);
+        Audit a;
+        a.Draw(m, v);
+        a.Check("Controls, reticle switches");
+        CHECK(a.Drew("Aim Only While Pressed"));
+        CHECK(a.Drew("Stick Moves Reticle"));
+    }
+    m.scope = 0;
+    m.locked[static_cast<std::size_t>(Id::ReticleStick)] = Lock::GameValue;
+    d.Draw(m, v);
+    CHECK(!HasHit(d, Id::ReticleStick, -1));
+    CHECK(HasHit(d, Id::ReticleStick, kLabelIndex));
+    CHECK(HasHit(d, Id::ReticleCenter, -1));
+}
+
 // AzaharFrame ffaudio
 TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]") {
     CHECK(LabelFor(Id::FastForwardAudio) == "Fast Forward Audio");
@@ -3068,4 +3115,15 @@ TEST_CASE("Tab menu: the Fast Forward Audio row", "[frame_xr][tabmenu][ffaudio]"
     CHECK(GameValueRows(m, Tab::Settings, SettingsSection::General) ==
           std::vector<Id>{Id::FastForwardAudio});
     CHECK(GameValueRows(m, Tab::Settings, SettingsSection::Graphics).empty());
+}
+
+// AzaharFrame fixes7: Screen Shape: Automatic, the last choice (vr_top_aspect 6).
+TEST_CASE("Tab menu: Screen Shape has Automatic", "[frame_xr][tabmenu][autoshape]") {
+    const auto& opts = OptionsFor(Id::ScreenShape);
+    REQUIRE(opts.size() == 7);
+    CHECK(opts[0] == "3DS (5:3)");
+    CHECK(opts[6] == "Automatic");
+    CHECK(ExplainFor(Id::ScreenShape) ==
+          "The top screen's shape, for games or mods that change it. Automatic follows the "
+          "game's camera.");
 }
