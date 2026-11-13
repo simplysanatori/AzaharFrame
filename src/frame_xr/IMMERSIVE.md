@@ -537,7 +537,7 @@ tags the XR images with it (`XrPresentTarget::BeginFrame`), the release hands it
 (`Runtime::ReleaseFrame`, `ShownContentPose`), and `Immersive::Screens` places the screen in LOCAL
 space where the head was (`AnchorPose`). SteamVR re-projects that layer for the head at display time,
 so the world stays where it is between pictures; only the screen's edges move. A picture drawn
-before SteamVR's last recenter, or more than `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` behind, goes back
+before SteamVR's last recentre, or more than `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` behind, goes back
 to the head. Once a second while a Full mode is on, the log says how old the pictures were, how far
 the head turned since, how many frames the screen was anchored, and how many display frames each
 picture stayed (`xr: immersive: 121 frames, 30 pictures, picture drawn 62.4 ms ...`).

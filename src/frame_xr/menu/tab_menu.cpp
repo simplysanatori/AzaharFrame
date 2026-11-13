@@ -454,7 +454,7 @@ std::string LabelFor(Id id) {
     case Id::MouseMode: // AzaharFrame padsui
         return "Mouse Mode";
     case Id::RecentreAtEdge:
-        return "Recenter at Edge";
+        return "Recentre at Edge";
     case Id::UseDevice:
         return "Use This Device";
     case Id::CursorSpeed:
@@ -651,7 +651,7 @@ std::string ExplainFor(Id id) {
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
-        return "Keeps the reticle centered on the bottom screen. It moves only while you hold the trigger or click, and returns to the center when you let go.";
+        return "Keeps the reticle centred on the bottom screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
     case Id::ReticleEdgeCStick:
@@ -1280,7 +1280,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
     // ---- Middle: the 3DS, the chips round it ----
     const Rect slot{c.x0, c.y1 - kControlH, c.x1, c.y1};
     // AzaharFrame padsui: the mouse (no sticks, six chips a column) has a settings row over the
-    // device row: Open Menu, Recenter at Edge, Cursor Speed. Its drawing is a little smaller.
+    // device row: Open Menu, Recentre at Edge, Cursor Speed. Its drawing is a little smaller.
     const bool mouse_page = dev.kind == DeviceKind::Mouse;
     const Rect settings{c.x0, slot.y0 - kChipGap - kChipH, c.x1, slot.y0 - kChipGap};
     const Rect area{c.x0, c.y0 + bar_h + 8.0f, c.x1, (mouse_page ? settings.y0 : slot.y0) - 8.0f};
@@ -1348,7 +1348,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
             column(kMouseLeftChips, true);
             column(kMouseRightChips, false);
         }
-        // AzaharFrame padsui: a filter chip (Recenter at Edge) at `x` in the row `row`.
+        // AzaharFrame padsui: a filter chip (Recentre at Edge) at `x` in the row `row`.
         const auto filter_chip = [&](float x, const Rect& row, Id id, bool on) {
             const std::string& label = LabelFor(id);
             constexpr float kCheckW = 18.0f + 8.0f;
@@ -1375,7 +1375,7 @@ void TabMenu::DrawEditControls(Kit& kit, const MenuModel& model, const MenuView&
         const Rect under{c.x0, area.y1 - kChipH, c.x1, area.y1}; // the row under the drawing
         float row_x = c.x0;
         if (mouse_page) {
-            // The settings row: Open Menu (a chip like the others, editable), Recenter at Edge
+            // The settings row: Open Menu (a chip like the others, editable), Recentre at Edge
             // (Bottom Screen mode), Cursor Speed at the end.
             const float w = chip_w(DsButton::OpenMenu, c.W());
             const Rect om{settings.x0, settings.y0, settings.x0 + w, settings.y1};
