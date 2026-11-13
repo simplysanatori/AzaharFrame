@@ -39,7 +39,7 @@ struct Rig {
     ReticleEdge edge = ReticleEdge::Follow;
     float half = kHalf;
     ReticleModes modes; ///< AzaharFrame fixes7
-    Vec2f stick;        ///< AzaharFrame fixes7: the right stick (Stick Moves Reticle)
+    Vec2f stick;        ///< AzaharFrame fixes7: the right stick (Right Stick Moves Touch)
     ReticleFrame& Step(const HandInput& h, int frames = 1) {
         for (int i = 0; i < frames; i++) {
             now += 11 * kMs;
@@ -603,9 +603,9 @@ TEST_CASE("Reticle: Aim Only While Pressed", "[frame_xr][reticle]") {
     CHECK(f.point.x == Approx(0.75f).margin(0.01));
 }
 
-// AzaharFrame fixes7: Stick Moves Reticle: the right stick moves the point (with the aim, during
-// a touch too); full tilt crosses the screen in a second.
-TEST_CASE("Reticle: Stick Moves Reticle", "[frame_xr][reticle]") {
+// AzaharFrame fixes7: Right Stick Moves Touch (was Stick Moves Reticle): the right stick moves the
+// point (with the aim, during a touch too); full tilt crosses the screen in a second.
+TEST_CASE("Reticle: Right Stick Moves Touch", "[frame_xr][reticle]") {
     Rig t;
     t.modes.stick_moves = true;
     t.Step(Aim(0.0f, 0.0f));
@@ -643,7 +643,7 @@ TEST_CASE("Reticle: Stick Moves Reticle", "[frame_xr][reticle]") {
 
 // AzaharFrame fixes7: both on: the stick does nothing while the reticle waits in the middle,
 // and moves it during a touch.
-TEST_CASE("Reticle: Aim Only While Pressed with Stick Moves Reticle", "[frame_xr][reticle]") {
+TEST_CASE("Reticle: Aim Only While Pressed with Right Stick Moves Touch", "[frame_xr][reticle]") {
     Rig t;
     t.modes = {true, true};
     t.stick = {1.0f, 0.0f};
@@ -655,13 +655,149 @@ TEST_CASE("Reticle: Aim Only While Pressed with Stick Moves Reticle", "[frame_xr
     CHECK(f.point.x == Approx(0.5f));
 }
 
-// AzaharFrame fixes7: Kid Icarus: Uprising starts with Stick Moves Reticle (every region).
+// AzaharFrame fixes7, kiu: Kid Icarus: Uprising's Controls preset (every region): Headset,
+// C-Stick at Edge on, Motion Controls Off; Right Stick Moves Touch is not given (the global
+// default, off).
 TEST_CASE("Reticle: Kid Icarus: Uprising's Controls preset", "[frame_xr][reticle]") {
     for (const uint64_t id : {0x0004000000030100ULL, 0x0004000000030200ULL, 0x0004000000030300ULL}) {
         const FrameXr::ControlsPreset* p = FrameXr::FindControlsPreset(id);
         REQUIRE(p != nullptr);
         CHECK(p->bottom_screen_reticle == 3);
-        CHECK(p->stick_moves_reticle);
+        CHECK(p->edge_cstick);
+        CHECK(p->motion_controls == 0);
     }
     CHECK(FrameXr::FindControlsPreset(0x0004000000033500ULL) == nullptr);
+}
+
+// AzaharFrame kiu: Right Stick Moves Touch off never swallows the C-Stick; on, the stick is the
+// reticle's and the game gets none of it while the reticle is live.
+TEST_CASE("Reticle: where the right stick goes", "[frame_xr][reticle][kiu]") {
+    const Vec2f stick{0.6f, -0.3f};
+    for (const bool live : {false, true}) {
+        const ReticleStickSplit off = SplitReticleStick(false, live, stick);
+        CHECK(off.to_reticle.x == 0.0f);
+        CHECK(off.to_reticle.y == 0.0f);
+        CHECK(off.to_game.x == stick.x); // the C-Stick as it is
+        CHECK(off.to_game.y == stick.y);
+    }
+    const ReticleStickSplit on = SplitReticleStick(true, true, stick);
+    CHECK(on.to_reticle.x == stick.x);
+    CHECK(on.to_reticle.y == stick.y);
+    CHECK(on.to_game.x == 0.0f);
+    CHECK(on.to_game.y == 0.0f);
+    // On, but the reticle not live (the controller untracked): the game keeps its C-Stick.
+    const ReticleStickSplit idle = SplitReticleStick(true, false, stick);
+    CHECK(idle.to_game.x == stick.x);
+    CHECK(idle.to_game.y == stick.y);
+}
+
+// AzaharFrame kiu: C-Stick at Edge: the band follows the cone (any source, any Reticle Speed),
+// the push grows from 0 at the band's start to full tilt at the edge, and there is none outside
+// the band, lifted, or switched off.
+TEST_CASE("Reticle: C-Stick at Edge", "[frame_xr][reticle][kiu]") {
+    // The band is kEdgeBandDeg of aim at every speed and source, within its clamp.
+    for (const ReticleHand src : {ReticleHand::Left, ReticleHand::Right, ReticleHand::Headset}) {
+        for (float speed = kReticleSpeedMin; speed <= kReticleSpeedMax + 0.001f; speed += 0.1f) {
+            const float hw = ReticleHalfWidthDeg(src, speed);
+            const ReticleEdgeBand b = ReticleEdgeBandFor(hw);
+            REQUIRE(b.On());
+            CHECK(b.x >= kEdgeBandMin);
+            CHECK(b.x <= kEdgeBandMax);
+            CHECK(b.y >= kEdgeBandMin);
+            CHECK(b.y <= kEdgeBandMax);
+            const float want_x = kEdgeBandDeg / (2.0f * hw);
+            if (want_x > kEdgeBandMin && want_x < kEdgeBandMax) {
+                CHECK(b.x * 2.0f * hw == Approx(kEdgeBandDeg)); // the same turn enters it
+            }
+            CHECK(b.y >= b.x); // the screen is shorter: a larger share of its height
+        }
+    }
+    CHECK_FALSE(ReticleEdgeBandFor(0.0f).On()); // Off
+    const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f));
+    CHECK(band.x == Approx(0.15f)); // a controller at 2x: 3 of its 20 degrees
+    CHECK(band.y == Approx(0.2f));
+    // The middle and anywhere inside the band's inner edge: nothing.
+    for (const Vec2f p : {Vec2f{0.5f, 0.5f}, Vec2f{band.x + 0.001f, 0.5f},
+                          Vec2f{1.0f - band.x - 0.001f, 0.5f}, Vec2f{0.5f, band.y + 0.001f}}) {
+        const Vec2f s = ReticleEdgeStick(p, true, band);
+        CHECK(s.x == 0.0f);
+        CHECK(s.y == 0.0f);
+    }
+    // Into the band: outward, by how far in (linear), full tilt at the edge.
+    for (int i = 0; i <= 10; i++) {
+        const float t = static_cast<float>(i) / 10.0f;
+        const Vec2f right = ReticleEdgeStick({1.0f - band.x + t * band.x, 0.5f}, true, band);
+        const Vec2f left = ReticleEdgeStick({band.x - t * band.x, 0.5f}, true, band);
+        const Vec2f top = ReticleEdgeStick({0.5f, band.y - t * band.y}, true, band);
+        const Vec2f bottom = ReticleEdgeStick({0.5f, 1.0f - band.y + t * band.y}, true, band);
+        CHECK(right.x == Approx(t).margin(1e-4));
+        CHECK(left.x == Approx(-t).margin(1e-4));
+        CHECK(top.y == Approx(t).margin(1e-4)); // the top is up on the stick
+        CHECK(bottom.y == Approx(-t).margin(1e-4));
+        CHECK(right.y == 0.0f);
+        CHECK(top.x == 0.0f);
+    }
+    // A corner pushes both ways, no further than full tilt.
+    const Vec2f corner = ReticleEdgeStick({1.0f, 0.0f}, true, band);
+    CHECK(corner.x > 0.0f);
+    CHECK(corner.y > 0.0f);
+    CHECK(std::sqrt(corner.x * corner.x + corner.y * corner.y) == Approx(1.0f));
+    // Lifted or off: nothing, at the edge too.
+    const Vec2f lifted = ReticleEdgeStick({1.0f, 0.5f}, false, band);
+    CHECK(lifted.x == 0.0f);
+    const Vec2f off = ReticleEdgeStick({1.0f, 0.5f}, true, ReticleEdgeBand{});
+    CHECK(off.x == 0.0f);
+    CHECK(off.y == 0.0f);
+    // Added to the stick: capped at full tilt.
+    const Vec2f sum = AddStick({0.8f, 0.0f}, {0.8f, 0.0f});
+    CHECK(sum.x == Approx(1.0f));
+    const Vec2f small = AddStick({0.2f, 0.1f}, {0.1f, 0.0f});
+    CHECK(small.x == Approx(0.3f));
+    CHECK(small.y == Approx(0.1f));
+}
+
+// AzaharFrame kiu: through the touch pipeline as the bridge runs it: the push starts when the held
+// touch enters the band, follows it, and is gone the frame the touch leaves the band or lifts;
+// another source's touch (the mouse) pushes nothing.
+TEST_CASE("Reticle: C-Stick at Edge follows the reticle's own touch", "[frame_xr][reticle][kiu]") {
+    TouchpadTouch t;
+    TouchpadFrame fr;
+    fr.time_ns = 1'000 * kMs;
+    fr.bottom_visible = true;
+    const ReticleEdgeBand band = ReticleEdgeBandFor(ReticleHalfWidthDeg(ReticleHand::Right, 2.0f));
+    fr.reticle = {true, {0.5f, 0.5f}, false, band};
+    const auto step = [&](Vec2f p, bool down) {
+        fr.reticle.point = p;
+        fr.reticle.down = down;
+        fr.time_ns += 11 * kMs;
+        t.Update(fr);
+        return ReticleEdgeStickFor(fr.reticle, t.owner(), t.touching());
+    };
+    Vec2f s = step({0.95f, 0.5f}, false); // hovering at the edge: no touch, no push
+    CHECK(s.x == 0.0f);
+    s = step({0.5f, 0.5f}, true); // touching in the middle
+    CHECK(s.x == 0.0f);
+    s = step({0.90f, 0.5f}, true); // into the band, held
+    CHECK(s.x == Approx((0.90f - 0.85f) / 0.15f).margin(1e-4));
+    s = step({1.0f, 0.5f}, true); // at the edge
+    CHECK(s.x == Approx(1.0f));
+    s = step({0.80f, 0.5f}, true); // out of the band, still held
+    CHECK(s.x == 0.0f);
+    s = step({1.0f, 0.5f}, true);
+    CHECK(s.x == Approx(1.0f));
+    s = step({1.0f, 0.5f}, false); // lifted at the edge: released in that frame
+    CHECK(s.x == 0.0f);
+    CHECK(s.y == 0.0f);
+    // The switch off (no band): never a push.
+    fr.reticle.edge_band = {};
+    s = step({1.0f, 0.5f}, true);
+    CHECK(t.owner() == TouchSource::Reticle);
+    CHECK(s.x == 0.0f);
+    // Another source holds the touch: the reticle's point at the edge pushes nothing.
+    CHECK(ReticleEdgeStickFor({true, {1.0f, 0.5f}, true, band}, TouchSource::Mouse, true).x ==
+          0.0f);
+    CHECK(ReticleEdgeStickFor({true, {1.0f, 0.5f}, true, band}, TouchSource::Reticle, false).x ==
+          0.0f);
+    CHECK(ReticleEdgeStickFor({false, {1.0f, 0.5f}, true, band}, TouchSource::Reticle, true).x ==
+          0.0f);
 }

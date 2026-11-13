@@ -695,7 +695,8 @@ int main(int argc, char** argv) {
         v.hover = {Id::ReticleSpeed, kLabelIndex};
         v.tooltip = Id::ReticleSpeed;
         ok &= shot("4e-controls-reticle-speed-tooltip", mr, v);
-        // AzaharFrame fixes7: Aim Only While Pressed on, Stick Moves Reticle off; each tooltip
+        // AzaharFrame fixes7: Aim Only While Pressed on, Right Stick Moves Touch off; each
+        // tooltip. AzaharFrame kiu: C-Stick at Edge off here, its tooltip too.
         mr.reticle_center = true;
         v = {};
         v.tab = Tab::Controls;
@@ -705,7 +706,10 @@ int main(int argc, char** argv) {
         ok &= shot("4g-controls-aim-only-while-pressed-tooltip", mr, v);
         v.hover = {Id::ReticleStick, -1};
         v.tooltip = Id::ReticleStick;
-        ok &= shot("4h-controls-stick-moves-reticle-tooltip", mr, v);
+        ok &= shot("4h-controls-right-stick-moves-touch-tooltip", mr, v);
+        v.hover = {Id::ReticleEdgeCStick, -1};
+        v.tooltip = Id::ReticleEdgeCStick;
+        ok &= shot("4j-controls-cstick-at-edge-tooltip", mr, v);
         MenuModel mk = mr; // the Right Controller, as the owner plays Kid Icarus: Uprising
         mk.bottom_screen_reticle = 2;
         mk.reticle_center = false;
@@ -713,6 +717,11 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = Tab::Controls;
         ok &= shot("4i-controls-reticle-right-stick-on", mk, v);
+        // AzaharFrame kiu: Kid Icarus: Uprising's starting values with the owner's Right
+        // Controller: C-Stick at Edge on, Right Stick Moves Touch off.
+        mk.reticle_stick = false;
+        mk.reticle_edge_cstick = true;
+        ok &= shot("4k-controls-kiu-cstick-at-edge-on", mk, v);
     }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
@@ -888,6 +897,20 @@ int main(int argc, char** argv) {
     v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
     ok &= shot("5a-settings-general-end-saves", pg, v);
     {
+        // AzaharFrame kiu: Motion Controls is per game too: Kid Icarus: Uprising's Off, in
+        // Per-Game, then greyed in Global with its tooltip.
+        MenuModel mo = pg;
+        mo.motion_controls = 0;
+        mo.game_value[static_cast<std::size_t>(Id::MotionControls)] = true;
+        MenuView mv = settings(SettingsSection::General);
+        ok &= shot("5m-settings-motion-controls-per-game", mo, mv);
+        mo.scope = 0;
+        mo.locked[static_cast<std::size_t>(Id::MotionControls)] = Lock::GameValue;
+        mv.hover = {Id::MotionControls, kLabelIndex};
+        mv.tooltip = Id::MotionControls;
+        ok &= shot("5n-settings-motion-controls-global-locked", mo, mv);
+    }
+    {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
         so.autosave = false;
         so.locked[static_cast<std::size_t>(Id::AutosaveEvery)] = Lock::AutosaveOff;
@@ -1003,6 +1026,11 @@ int main(int argc, char** argv) {
         v.tooltip_index = kLabelIndex;
         ok &= shot("fo-detect-fov-tip-label", mc, v);
         v = settings(SettingsSection::Immersive);
+        // AzaharFrame kiu: each choice picked, nothing under the beam: the check mark on each.
+        for (int i = 0; i < 3; i++) {
+            mc.match_camera = i;
+            ok &= shot(std::string("fo-detect-fov-selected-") + kNames[i], mc, v);
+        }
     }
     // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the
     // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.

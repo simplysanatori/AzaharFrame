@@ -6,6 +6,7 @@
 #include <string>
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
+#include "frame_xr/controls_presets.h" // AzaharFrame kiu
 #include "frame_xr/presets.h"
 
 // AzaharFrame
@@ -223,4 +224,99 @@ TEST_CASE("FrameXr presets: the player's own values win", "[frame_xr]") {
     REQUIRE(v.resolution_factor.GetValue() == 7);
     REQUIRE(v.resolution_factor.UsingGlobal());
     ResetPresetSettings();
+}
+
+// AzaharFrame kiu: the Controls preset gives starting values only: never over the game's own
+// value or a global value the player chose, and once per game (vr_controls_preset_done), so what
+// the player chooses afterwards stays, Use Global Value too.
+namespace {
+void ResetControlsSettings() {
+    auto& v = Settings::values;
+    v.vr_bottom_screen_reticle.SetGlobal(true);
+    v.vr_bottom_screen_reticle.SetValue(0);
+    v.vr_motion_controls.SetGlobal(true);
+    v.vr_motion_controls.SetValue(1);
+    v.vr_reticle_edge_cstick.SetGlobal(true);
+    v.vr_reticle_edge_cstick.SetValue(false);
+    v.vr_reticle_stick_moves.SetGlobal(true);
+    v.vr_reticle_stick_moves.SetValue(false);
+    v.vr_controls_preset_done.SetGlobal(true);
+    v.vr_controls_preset_done.SetValue(0);
+}
+} // namespace
+
+TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
+    auto& v = Settings::values;
+    const ControlsPreset& kiu = *FindControlsPreset(0x0004000000030200ull);
+    SECTION("a fresh game gets them, Right Stick Moves Touch stays off") {
+        ResetControlsSettings();
+        CHECK(ApplyControlsPreset(kiu) ==
+              (kPresetReticle | kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
+        CHECK(v.vr_motion_controls.GetValue() == 0);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+        CHECK(!v.vr_reticle_stick_moves.GetValue());
+        CHECK(v.vr_reticle_stick_moves.UsingGlobal());
+        // The game's values, not the global ones.
+        CHECK(!v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue(true) == 1);
+        CHECK(v.vr_reticle_edge_cstick.GetValue(true) == false);
+        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+        // Booting again changes nothing.
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+    }
+    SECTION("a value the player saved for the game is never overwritten") {
+        ResetControlsSettings();
+        // The owner's file: Right Controller, Motion Controls Right Controller, C-Stick at Edge
+        // off, all saved for this game before the preset had them.
+        v.vr_bottom_screen_reticle.SetGlobal(false);
+        v.vr_bottom_screen_reticle.SetValue(2);
+        v.vr_motion_controls.SetGlobal(false);
+        v.vr_motion_controls.SetValue(1);
+        v.vr_reticle_edge_cstick.SetGlobal(false);
+        v.vr_reticle_edge_cstick.SetValue(false);
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+        CHECK(v.vr_motion_controls.GetValue() == 1);
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        // Marked: a later Use Global Value for them stays too.
+        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+    }
+    SECTION("a global value the player chose is left alone, and not marked") {
+        ResetControlsSettings();
+        v.vr_motion_controls.SetValue(3); // global Headset
+        v.vr_reticle_edge_cstick.SetValue(true); // global on (the preset's own value)
+        v.vr_bottom_screen_reticle.SetValue(1); // global Left Controller
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue() == 3);
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 1);
+        CHECK(v.vr_controls_preset_done.GetValue() == 0u);
+    }
+    SECTION("after the preset, the player's choice stays: a new value, or Use Global Value") {
+        ResetControlsSettings();
+        ApplyControlsPreset(kiu);
+        // Use Global Value for Motion Controls and C-Stick at Edge, a new value for the reticle
+        // (what the game's file keeps, with the marker).
+        v.vr_motion_controls.SetGlobal(true);
+        v.vr_reticle_edge_cstick.SetGlobal(true);
+        v.vr_bottom_screen_reticle.SetValue(2);
+        // The next start reads the same file back: nothing is given again.
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue() == 1);
+        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+    }
+    SECTION("a value added to the preset later is given once, the old ones stay decided") {
+        ResetControlsSettings();
+        v.vr_controls_preset_done.SetGlobal(false);
+        v.vr_controls_preset_done.SetValue(kPresetReticle); // an earlier build gave the reticle
+        CHECK(ApplyControlsPreset(kiu) == (kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(v.vr_bottom_screen_reticle.UsingGlobal()); // Use Global Value chosen back then
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+    }
+    ResetControlsSettings();
 }
