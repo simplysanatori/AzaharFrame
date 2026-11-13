@@ -65,13 +65,13 @@ uint32_t NextCode(const char*& s) {
 }
 
 // The baked atlases hold ASCII and a few symbols only. Any other character is drawn from the
-// menu's TrueType face (Google Sans Flex Medium, Latin subset: Latin-1 Supplement, Latin
+// menu's TrueType face (Google Sans Flex Bold, Latin subset: Latin-1 Supplement, Latin
 // Extended-A, general punctuation) at the atlas's size; one it lacks too is folded to something
 // plain (a curly quote to the straight one, an accented letter to its base, else "?").
-// Memory: no atlas growth; the face's 35 KB are decoded once, on the first InitFonts().
+// Memory: no atlas growth; the face (about 60 KB) is decoded once, lazily, when text beyond ASCII is first drawn or measured.
 TtfFont& Fallback() {
     static TtfFont face;
-    static const bool loaded = face.LoadBase64(FrameXr::Menu::Fonts::kSans500);
+    static const bool loaded = face.LoadBase64(FrameXr::Menu::Fonts::kSans700);
     (void)loaded;
     return face;
 }

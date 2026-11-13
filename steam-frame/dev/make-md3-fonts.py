@@ -3,7 +3,7 @@
 # what the menu draws and embedded as base64, so nothing has to be found on the system.
 #
 #   Google Sans Flex (SIL Open Font License 1.1, no Reserved Font Name): static instances at
-#     weight 400 (body) and 500 (labels, titles), Latin text only.
+#     weight 400 (body), 500 (labels, titles) and 700 (the VR canvas text fallback, next to Inter Bold), Latin text only.
 #   Material Symbols Rounded (Apache License 2.0): static instances unfilled (FILL 0) and filled
 #     (FILL 1) at weight 400, grade 0, optical size 24, only the icons in ICONS.
 #
@@ -102,6 +102,7 @@ def main():
         "#pragma once\n\nnamespace FrameXr::Menu::Fonts {\n\n",
         blob("kSans400", text_font(sans, 400)), "\n",
         blob("kSans500", text_font(sans, 500)), "\n",
+        blob("kSans700", text_font(sans, 700)), "\n",  # AzaharFrame utf8: the canvas fallback
         blob("kSymbols", icon_font(symbols, 0, codes)), "\n",
         blob("kSymbolsFilled", icon_font(symbols, 1, codes)), "\n",
         "} // namespace FrameXr::Menu::Fonts\n\nnamespace FrameXr::Menu::Icon {\n",

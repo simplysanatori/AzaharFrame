@@ -52,7 +52,7 @@ TEST_CASE("UI text: é is drawn, not '?'", "[frame_xr][utf8]") {
 
 TEST_CASE("UI text: Latin-1 and Latin Extended-A have glyphs", "[frame_xr][utf8]") {
     TtfFont face;
-    REQUIRE(face.LoadBase64(FrameXr::Menu::Fonts::kSans500));
+    REQUIRE(face.LoadBase64(FrameXr::Menu::Fonts::kSans700));
     for (char32_t cp = 0xC0; cp <= 0x17F; cp++) {
         INFO("U+" << std::hex << static_cast<unsigned>(cp));
         if (cp == 0xD7 || cp == 0xF7) {
