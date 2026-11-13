@@ -137,7 +137,9 @@ constexpr ImmersivePresetTitle kTitles[] = {
     // Asphalt 3D
     {0x0004000000034C00, &kAsphalt3D},
     // Kid Icarus: Uprising: Japan (compatibility list), the USA (the owner's copy) and Europe
-    // (not in the compatibility list)
+    // (not in the compatibility list). AzaharFrame kiu: and 0004000000030000, Japan as the
+    // C-Stick & Gyro mod lists it.
+    {0x0004000000030000, &kKidIcarusUprising},
     {0x0004000000030100, &kKidIcarusUprising},
     {0x0004000000030200, &kKidIcarusUprising},
     {0x0004000000030300, &kKidIcarusUprising},

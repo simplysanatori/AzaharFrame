@@ -55,8 +55,10 @@ struct ControlsPresetTitle {
     const ControlsPreset* preset;
 };
 
-/// Title ids as presets.cpp has them for the game: Japan, the USA and Europe.
+/// Title ids as presets.cpp has them for the game: Japan (0004000000030000, as the C-Stick & Gyro
+/// mod lists it, AzaharFrame kiu), then the three of the compatibility list.
 inline constexpr ControlsPresetTitle kControlsPresetTitles[] = {
+    {0x0004000000030000, &kKidIcarusUprisingControls},
     {0x0004000000030100, &kKidIcarusUprisingControls},
     {0x0004000000030200, &kKidIcarusUprisingControls},
     {0x0004000000030300, &kKidIcarusUprisingControls},

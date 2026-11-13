@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include "common/settings.h"
 #include "frame_xr/controls_presets.h" // AzaharFrame kiu
 #include "frame_xr/presets.h"
@@ -118,7 +119,9 @@ TEST_CASE("FrameXr presets: other games have none, ids are unique", "[frame_xr]"
 // AzaharFrame immersive: Kid Icarus: Uprising starts in the normal view, in every region: its
 // preset keeps Immersive Mode Off, so the player can still turn it on.
 TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[frame_xr]") {
-    for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull, 0x0004000000030300ull}) {
+    // AzaharFrame kiu: 0004000000030000 too (Japan, as the C-Stick & Gyro mod lists it).
+    for (const uint64_t id : {0x0004000000030000ull, 0x0004000000030100ull, 0x0004000000030200ull,
+                              0x0004000000030300ull}) {
         const auto* kiu = FindImmersivePreset(id);
         REQUIRE(kiu != nullptr);
         REQUIRE(kiu->mode == 0);
@@ -230,6 +233,32 @@ TEST_CASE("FrameXr presets: the player's own values win", "[frame_xr]") {
     ResetPresetSettings();
 }
 
+// AzaharFrame kiu: Kid Icarus: Uprising's graphics preset in Japan's 0004000000030000 too, only
+// as starting values: a fresh game gets them, the game's own value and a changed global one
+// stay, and Immersive Mode is never set.
+TEST_CASE("FrameXr presets: Kid Icarus: Uprising (Japan, 30000) gives starting values only",
+          "[frame_xr][kiu]") {
+    auto& v = Settings::values;
+    const ImmersivePreset& kiu = *FindImmersivePreset(0x0004000000030000ull);
+    ResetPresetSettings();
+    ApplyPresetSettings(kiu);
+    CHECK(v.resolution_factor.GetValue() == 4);
+    CHECK(!v.resolution_factor.UsingGlobal()); // the game's, the global value untouched
+    CHECK(v.resolution_factor.GetValue(true) == v.resolution_factor.GetDefault());
+    CHECK(static_cast<int>(v.texture_filter.GetValue()) == 2);
+    CHECK(v.vr_immersive_mode.UsingGlobal());
+    CHECK(v.vr_immersive_mode.GetValue() == 0u);
+    ResetPresetSettings();
+    v.resolution_factor.SetGlobal(false); // this game's own value
+    v.resolution_factor.SetValue(2);
+    v.texture_filter.SetValue(Settings::TextureFilter::Anime4K); // a global value chosen
+    ApplyPresetSettings(kiu);
+    CHECK(v.resolution_factor.GetValue() == 2);
+    CHECK(v.texture_filter.UsingGlobal());
+    CHECK(static_cast<int>(v.texture_filter.GetValue()) == 1);
+    ResetPresetSettings();
+}
+
 // AzaharFrame kiu: the Controls preset gives starting values only: never over the game's own
 // value or a global value the player chose, and once per game (vr_controls_preset_done), so what
 // the player chooses afterwards stays, Use Global Value too.
@@ -251,7 +280,12 @@ void ResetControlsSettings() {
 
 TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
     auto& v = Settings::values;
-    const ControlsPreset& kiu = *FindControlsPreset(0x0004000000030200ull);
+    // Every region, Japan's 0004000000030000 too: the same starting-values path.
+    const uint64_t id = GENERATE(0x0004000000030000ull, 0x0004000000030100ull,
+                                 0x0004000000030200ull, 0x0004000000030300ull);
+    INFO("title " << std::hex << id);
+    REQUIRE(FindControlsPreset(id) != nullptr);
+    const ControlsPreset& kiu = *FindControlsPreset(id);
     SECTION("a fresh game gets them, Right Stick Moves Touch stays off") {
         ResetControlsSettings();
         CHECK(ApplyControlsPreset(kiu) ==

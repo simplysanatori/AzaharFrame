@@ -659,7 +659,8 @@ TEST_CASE("Reticle: Aim Only While Pressed with Right Stick Moves Touch", "[fram
 // C-Stick at Edge on, Motion Controls Off; Right Stick Moves Touch is not given (the global
 // default, off).
 TEST_CASE("Reticle: Kid Icarus: Uprising's Controls preset", "[frame_xr][reticle]") {
-    for (const uint64_t id : {0x0004000000030100ULL, 0x0004000000030200ULL, 0x0004000000030300ULL}) {
+    for (const uint64_t id : {0x0004000000030000ULL, 0x0004000000030100ULL, 0x0004000000030200ULL,
+                              0x0004000000030300ULL}) { // kiu: 30000, Japan in the mod's list
         const FrameXr::ControlsPreset* p = FrameXr::FindControlsPreset(id);
         REQUIRE(p != nullptr);
         CHECK(p->bottom_screen_reticle == 3);
