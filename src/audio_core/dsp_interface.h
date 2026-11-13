@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstdio>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -13,6 +14,7 @@
 #include "audio_core/time_stretch.h"
 #include "common/common_types.h"
 #include "common/ring_buffer.h"
+#include "common/settings.h"
 #include "core/memory.h"
 
 namespace Core {
@@ -27,6 +29,33 @@ namespace AudioCore {
 
 class Sink;
 enum class SinkType : u32;
+
+/// AzaharFrame ffaudio: what the audio does for a fast forward audio mode and the frame limit.
+struct FastForwardAudioPlan {
+    bool stretch = false;     ///< run the time stretcher
+    bool low_latency = false; ///< ...with the small queue of the fast forward profile
+    bool mute = false;        ///< fade out and keep the fifo empty
+};
+
+/// A frame limit above 100% (or none, 0) is fast forwarding.
+constexpr bool IsFastForwarding(double frame_limit) {
+    return frame_limit == 0.0 || frame_limit > 100.0;
+}
+
+constexpr FastForwardAudioPlan PlanFastForwardAudio(Settings::FastForwardAudio mode,
+                                                    double frame_limit, bool user_stretching) {
+    FastForwardAudioPlan plan;
+    plan.stretch = user_stretching;
+    if (IsFastForwarding(frame_limit)) {
+        if (mode == Settings::FastForwardAudio::NormalPitch) {
+            plan.stretch = true;
+            plan.low_latency = true;
+        } else if (mode == Settings::FastForwardAudio::Muted) {
+            plan.mute = true;
+        }
+    }
+    return plan;
+}
 
 class DspInterface {
 public:
@@ -118,7 +147,10 @@ protected:
 
 private:
     void FlushResidualStretcherAudio();
+    void WriteAudioStats(const s16* buffer, std::size_t num_frames, std::size_t frames_written,
+                         bool stretched);
     void OutputCallback(s16* buffer, std::size_t num_frames);
+    void OutputCallbackImpl(s16* buffer, std::size_t num_frames);
     void DrainFifoBacklog(std::size_t num_frames);
     void MixCsnd(std::span<std::array<s16, 2>> samples);
     void PushSamples(std::span<const std::array<s16, 2>> samples);
@@ -133,6 +165,15 @@ private:
     std::size_t fifo_low_fill = std::numeric_limits<std::size_t>::max();
     std::size_t backlog_window_frames = 0;
     TimeStretcher time_stretcher;
+    // AzaharFrame ffaudio (the audio thread's, but stats' counters)
+    std::size_t ff_settle_frames = 0; ///< output frames since fast forward ended, still stretching
+    float ff_gain = 1.0f;             ///< the fast forward mute fade, 0 to 1
+    std::atomic<u64> pushed_frames{0};
+    u64 stat_cpu_ns = 0; ///< the audio callback's CPU time (stats only)
+    u64 stat_callbacks = 0, stat_underruns = 0, stat_frames = 0, stat_window = 0;
+    std::FILE* stat_file = nullptr;
+    std::FILE* capture_file = nullptr;
+    bool stat_init = false;
     std::unique_ptr<Sink> sink;
 
     std::mutex csnd_mutex;

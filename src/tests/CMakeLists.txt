@@ -99,6 +99,7 @@ add_executable(tests
     audio_core/audio_fixures.h
     audio_core/decoder_tests.cpp
     audio_core/mic_queue_tests.cpp # AzaharFrame fixes11
+    audio_core/ff_audio_tests.cpp # AzaharFrame ffaudio
     video_core/pica_types.cpp
     video_core/shader.cpp
     video_core/right_eye_disabler.cpp # AzaharFrame feshimmer

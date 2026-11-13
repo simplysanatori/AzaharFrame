@@ -9,6 +9,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Changes on the in-game menu's **Settings**, **Controls** and **Position** tabs now apply to the running game by default. Choose **Global** to change them for every game.
 - **Settings** is in three sections: **General**, **Graphics** and **Immersive**.
 - Homebrew has its own tab in the in-game menu.
+- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game.
 - **Preload Custom Textures** is off by default, and turning it on now asks first.
 - Save states from 1.1.1 are dimmed. They still load with **Load Anyway**.
 - Azahar runs under a memory limit. If a texture pack fills memory, Azahar closes instead of freezing the Frame.

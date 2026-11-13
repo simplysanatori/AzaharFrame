@@ -118,6 +118,7 @@ enum class Id : int {
     AsyncShaders,       ///< AzaharFrame menuux: async_shader_compilation, per game
     AccurateImageCopies, ///< AzaharFrame accxfer: accurate_image_copies, per game
     FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
+    FastForwardAudio,   ///< AzaharFrame ffaudio: fast_forward_audio, per game (Sped Up, Normal Pitch, Muted)
     ImmersiveMode,
     WiderView,
     GameFov,
@@ -299,6 +300,7 @@ struct MenuModel {
     bool async_shaders = false;
     bool accurate_image_copies = false; ///< AzaharFrame accxfer
     int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
+    int fast_forward_audio = 1;  ///< Settings::FastForwardAudio, an index of OptionsFor(Id::FastForwardAudio)
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees

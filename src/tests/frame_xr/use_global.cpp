@@ -149,6 +149,16 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
         SetGlobalValue(v.autosave_enabled, true);
         CHECK(v.autosave_enabled.GetValue());
     }
+    SECTION("Fast Forward Audio (an enum)") {
+        Keep keep{v.fast_forward_audio};
+        SetGlobalValue(v.fast_forward_audio, Settings::FastForwardAudio::NormalPitch);
+        SetGameValue(v.fast_forward_audio, Settings::FastForwardAudio::Muted);
+        CHECK(Marked(Id::FastForwardAudio));
+        CHECK(v.fast_forward_audio.GetValue() == Settings::FastForwardAudio::Muted);
+        CHECK(PerGame::UseGlobalValue(Id::FastForwardAudio));
+        CHECK(!Marked(Id::FastForwardAudio));
+        CHECK(v.fast_forward_audio.GetValue() == Settings::FastForwardAudio::NormalPitch);
+    }
     SECTION("only that row") {
         Keep k1{v.texture_filter};
         Keep k2{v.vr_immersive_squeeze};

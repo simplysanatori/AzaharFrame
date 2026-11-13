@@ -3,7 +3,11 @@
 // Refer to the LICENSE.txt file included.
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <vector>
 #include "audio_core/dsp_interface.h"
 #include "audio_core/sink.h"
@@ -26,7 +30,14 @@ constexpr std::size_t MaxCsndPendingSamples = samples_per_frame * 4;
 
 DspInterface::DspInterface(Core::System& system_) : system(system_) {}
 
-DspInterface::~DspInterface() = default;
+DspInterface::~DspInterface() {
+    if (stat_file) {
+        std::fclose(stat_file);
+    }
+    if (capture_file) {
+        std::fclose(capture_file);
+    }
+}
 
 void DspInterface::SetSink(AudioCore::SinkType sink_type, std::string_view audio_device) {
     // Dispose of the current sink first to avoid contention.
@@ -105,6 +116,7 @@ void DspInterface::PushSamples(std::span<const std::array<s16, 2>> samples) {
         return;
     }
 
+    pushed_frames += samples.size();
     if (sink->ImmediateSubmission()) {
         sink->PushSamples(samples.data(), samples.size());
     } else {
@@ -141,15 +153,100 @@ void DspInterface::DrainFifoBacklog(std::size_t num_frames) {
     backlog_window_frames = 0;
 }
 
+// AzaharFrame ffaudio: a developer aid for the mocks: AZAHARFRAME_AUDIO_STATS=FILE logs the queue
+// once a second, AZAHARFRAME_AUDIO_CAPTURE=FILE keeps the raw output (s16 stereo at the sink rate).
+void DspInterface::WriteAudioStats(const s16* buffer, std::size_t num_frames,
+                                   std::size_t frames_written, bool stretched) {
+    if (!stat_init) {
+        stat_init = true;
+        if (const char* path = std::getenv("AZAHARFRAME_AUDIO_STATS"); path && *path) {
+            stat_file = std::fopen(path, "w");
+        }
+        if (const char* path = std::getenv("AZAHARFRAME_AUDIO_CAPTURE"); path && *path) {
+            capture_file = std::fopen(path, "wb");
+        }
+    }
+    if (capture_file) {
+        std::fwrite(buffer, sizeof(s16), num_frames * 2, capture_file);
+    }
+    if (!stat_file) {
+        return;
+    }
+    stat_callbacks++;
+    stat_frames += num_frames;
+    if (frames_written < num_frames) {
+        stat_underruns++;
+    }
+    const unsigned rate = sink ? sink->GetNativeSampleRate() : native_sample_rate;
+    stat_window += num_frames;
+    if (stat_window < rate) {
+        return;
+    }
+    stat_window = 0;
+    const double queue_ms =
+        1000.0 * static_cast<double>(fifo.Size() + time_stretcher.PendingFrames()) / native_sample_rate;
+    std::fprintf(stat_file,
+                 "t=%.2f limit=%.0f stretch=%d ratio=%.3f queue_ms=%.1f fifo=%zu pending=%zu out=%zu in=%zu "
+                 "underruns=%llu callbacks=%llu pushed=%llu gain=%.2f mode=%u cpu_ns=%llu\n",
+                 static_cast<double>(stat_frames) / rate, Settings::GetFrameLimit(),
+                 stretched ? 1 : 0, time_stretcher.GetStretchRatio(), queue_ms, fifo.Size(),
+                 time_stretcher.PendingFrames(), time_stretcher.OutputQueued(),
+                 time_stretcher.InputQueued(), static_cast<unsigned long long>(stat_underruns),
+                 static_cast<unsigned long long>(stat_callbacks),
+                 static_cast<unsigned long long>(pushed_frames.load()), ff_gain,
+                 static_cast<unsigned>(Settings::values.fast_forward_audio.GetValue()),
+                 static_cast<unsigned long long>(stat_cpu_ns));
+    std::fflush(stat_file);
+}
+
+namespace {
+u64 ThreadCpuNs() {
+    timespec ts{};
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return static_cast<u64>(ts.tv_sec) * 1000000000ull + static_cast<u64>(ts.tv_nsec);
+}
+} // namespace
+
 void DspInterface::OutputCallback(s16* buffer, std::size_t num_frames) {
+    const u64 cpu_start = stat_file ? ThreadCpuNs() : 0;
+    OutputCallbackImpl(buffer, num_frames);
+    if (stat_file) {
+        stat_cpu_ns += ThreadCpuNs() - cpu_start;
+    }
+}
+
+void DspInterface::OutputCallbackImpl(s16* buffer, std::size_t num_frames) {
+    // AzaharFrame ffaudio, below: Normal Pitch stretches while fast forwarding, Muted fades out.
+    const FastForwardAudioPlan plan =
+        PlanFastForwardAudio(Settings::values.fast_forward_audio.GetValue(),
+                             Settings::GetFrameLimit(), enable_time_stretching.load());
+    bool want_stretching = plan.stretch;
+    bool low_latency = plan.low_latency;
+    if (plan.low_latency) {
+        ff_settle_frames = 0;
+        time_stretcher.SetDraining(false);
+    } else if (performing_time_stretching && time_stretcher.IsLowLatency()) {
+        // Fast forward just ended: carry on stretching until the tempo is back to 1 and the queue
+        // is nearly empty (a few tenths of a second), so the switch back drops nothing and clicks not.
+        const bool settled = std::abs(time_stretcher.GetStretchRatio() - 1.0) < 0.06 &&
+                             time_stretcher.BacklogFullness() < 0.12;
+        if (!settled && ff_settle_frames < native_sample_rate) {
+            time_stretcher.SetDraining(true);
+            ff_settle_frames += num_frames;
+            want_stretching = true;
+            low_latency = true;
+        }
+    }
+    time_stretcher.SetLowLatency(low_latency);
+
     // Determine if we should stretch based on the current emulation speed.
     // TODO: Only activate audio stretching when emulation speed goes below 95% threshold
     //       (see #2487) -OS
-    if (performing_time_stretching && !enable_time_stretching) {
+    if (performing_time_stretching && !want_stretching) {
         // If we just stopped stretching, flush the stretcher before returning to normal output.
         flushing_time_stretcher = true;
     }
-    performing_time_stretching = enable_time_stretching.load();
+    performing_time_stretching = want_stretching;
 
     std::size_t frames_written = 0;
     if (performing_time_stretching) {
@@ -166,7 +263,10 @@ void DspInterface::OutputCallback(s16* buffer, std::size_t num_frames) {
             // so that they do not bleed into the next time the stretcher is enabled.
             time_stretcher.Clear();
         }
-        frames_written += fifo.Pop(buffer, num_frames - frames_written);
+        frames_written += fifo.Pop(buffer + 2 * frames_written, num_frames - frames_written);
+        if (plan.mute) {
+            fifo.Pop(fifo.Size()); // nothing of the fast forward is kept for after it
+        }
         DrainFifoBacklog(num_frames);
     }
 
@@ -178,6 +278,23 @@ void DspInterface::OutputCallback(s16* buffer, std::size_t num_frames) {
     for (std::size_t i = frames_written; i < num_frames; i++) {
         std::memcpy(buffer + 2 * i, &last_frame[0], 2 * sizeof(s16));
     }
+
+    // AzaharFrame ffaudio: the Muted fade (30 ms) so the start and the end of a fast forward do not click
+    {
+        const float target = plan.mute ? 0.0f : 1.0f;
+        if (ff_gain != target || target != 1.0f) {
+            const unsigned rate = sink ? sink->GetNativeSampleRate() : native_sample_rate;
+            const float step = 1.0f / (0.03f * static_cast<float>(rate));
+            for (std::size_t i = 0; i < num_frames; i++) {
+                ff_gain = ff_gain < target ? std::min(target, ff_gain + step)
+                                           : std::max(target, ff_gain - step);
+                buffer[i * 2 + 0] = static_cast<s16>(buffer[i * 2 + 0] * ff_gain);
+                buffer[i * 2 + 1] = static_cast<s16>(buffer[i * 2 + 1] * ff_gain);
+            }
+        }
+    }
+
+    WriteAudioStats(buffer, num_frames, frames_written, performing_time_stretching);
 
     // Implementation of the hardware volume slider
     // A cubic curve is used to approximate a linear change in human-perceived loudness

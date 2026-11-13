@@ -36,7 +36,7 @@ std::size_t TimeStretcher::Process(const s16* in, std::size_t num_in, s16* out,
     const double time_delta = static_cast<double>(num_out) / native_sample_rate; // seconds
     double current_ratio = static_cast<double>(num_in) / static_cast<double>(num_out);
 
-    const double max_latency = 0.25; // seconds
+    const double max_latency = low_latency ? 0.08 : 0.25; // seconds
     const double max_backlog = native_sample_rate * max_latency;
     const double backlog_fullness = sound_touch->numSamples() / max_backlog;
     if (backlog_fullness > 4.0) {
@@ -47,13 +47,14 @@ std::size_t TimeStretcher::Process(const s16* in, std::size_t num_in, s16* out,
     // We ideally want the backlog to be about 50% full.
     // This gives some headroom both ways to prevent underflow and overflow.
     // We tweak current_ratio to encourage this.
-    constexpr double tweak_time_scale = 0.050; // seconds
-    const double tweak_correction = (backlog_fullness - 0.5) * (time_delta / tweak_time_scale);
+    const double tweak_time_scale = low_latency ? 0.15 : 0.050; // seconds
+    const double target_fullness = (low_latency && draining) ? 0.1 : 0.5;
+    const double tweak_correction = (backlog_fullness - target_fullness) * (time_delta / tweak_time_scale);
     current_ratio *= std::pow(1.0 + 2.0 * tweak_correction, tweak_correction < 0 ? 3.0 : 1.0);
 
     // This low-pass filter smoothes out variance in the calculated stretch ratio.
     // The time-scale determines how responsive this filter is.
-    constexpr double lpf_time_scale = 0.712; // seconds
+    const double lpf_time_scale = low_latency ? 0.25 : 0.712; // seconds
     const double lpf_gain = 1.0 - std::exp(-time_delta / lpf_time_scale);
     stretch_ratio += lpf_gain * (current_ratio - stretch_ratio);
 
@@ -103,6 +104,37 @@ std::size_t TimeStretcher::Process(const s16* in, std::size_t num_in, s16* out,
         UNREACHABLE_MSG("Invalid SAMPLETYPE {}", typeid(soundtouch::SAMPLETYPE).name());
         return 0;
     }
+}
+
+// AzaharFrame ffaudio
+void TimeStretcher::SetLowLatency(bool enable) {
+    if (low_latency == enable) {
+        return;
+    }
+    low_latency = enable;
+    // 0 restores the library's automatic windows.
+    sound_touch->setSetting(SETTING_SEQUENCE_MS, enable ? 30 : 0);
+    sound_touch->setSetting(SETTING_SEEKWINDOW_MS, enable ? 12 : 0);
+}
+
+std::size_t TimeStretcher::OutputQueued() const {
+    return sound_touch->numSamples();
+}
+
+std::size_t TimeStretcher::InputQueued() const {
+    return sound_touch->numUnprocessedSamples();
+}
+
+std::size_t TimeStretcher::PendingFrames() const {
+    // In output time: the waiting input plays at the tempo, so it is shorter than it is long.
+    return static_cast<std::size_t>(sound_touch->numUnprocessedSamples() /
+                                    std::max(stretch_ratio, 1.0)) +
+           static_cast<std::size_t>(sound_touch->numSamples());
+}
+
+double TimeStretcher::BacklogFullness() const {
+    const double max_latency = low_latency ? 0.08 : 0.25;
+    return sound_touch->numSamples() / (native_sample_rate * max_latency);
 }
 
 void TimeStretcher::Clear() {

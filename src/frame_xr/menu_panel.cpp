@@ -242,6 +242,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::AsyncShaders;
     case Id::AccurateImageCopies: // AzaharFrame accxfer
         return MenuSetting::AccurateImageCopies;
+    case Id::FastForwardAudio: // AzaharFrame ffaudio
+        return MenuSetting::FastForwardAudio;
     case Id::Autosave:
         return MenuSetting::Autosave;
     case Id::AutosaveEvery:
@@ -857,6 +859,8 @@ void MenuPanel::BuildModel(const Host& host) {
     }
     m.async_shaders = v.async_shader_compilation.GetValue();
     m.accurate_image_copies = v.accurate_image_copies.GetValue(); // AzaharFrame accxfer
+    m.fast_forward_audio = static_cast<int>(std::min<u32>(
+        static_cast<u32>(v.fast_forward_audio.GetValue()), 2)); // AzaharFrame ffaudio
     m.fast_forward_speed = 0;
     {
         const double ff = v.turbo_limit.GetValue();
@@ -1053,6 +1057,11 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
         Apply(v.accurate_image_copies, value != 0, per_game);
         r.setting = MenuSetting::AccurateImageCopies;
+        break;
+    case Id::FastForwardAudio: // AzaharFrame ffaudio: from the next sound block
+        r.value = static_cast<int>(std::min<u32>(u, 2));
+        Apply(v.fast_forward_audio, static_cast<Settings::FastForwardAudio>(r.value), per_game);
+        r.setting = MenuSetting::FastForwardAudio;
         break;
     case Id::FastForwardSpeed:
         r.value =
@@ -1326,7 +1335,7 @@ void MenuPanel::Click(Target t, Host& host) {
         view.tab = Menu::Tab::Settings;
         view.page = Menu::Page::Tabs;
         view.section = Menu::SettingsSection::General;
-        view.scroll[static_cast<std::size_t>(Menu::Tab::Settings)] = 6.0f * Menu::kRowH;
+        view.scroll[static_cast<std::size_t>(Menu::Tab::Settings)] = 7.0f * Menu::kRowH;
         break;
     case Id::UndoLoad:
         ask(MenuCommand::UndoLoad);
@@ -1828,6 +1837,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DepthFactor:
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::FastForwardSpeed:
+    case Id::FastForwardAudio: // AzaharFrame ffaudio
         if (t.index >= 0) {
             SetSetting(t.id, t.index, host);
         }

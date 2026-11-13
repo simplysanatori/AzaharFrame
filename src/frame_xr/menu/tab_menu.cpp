@@ -122,6 +122,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
             rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
+            rows.push_back(row(Id::FastForwardAudio, RowKind::Segmented, m.fast_forward_audio)); // ffaudio
             // AzaharFrame autosave: the Saves group (the game's values in Per-Game); Every and
             // Keep greyed while Autosave is off.
             rows.push_back(row(Id::SavesHeader, RowKind::Header));
@@ -227,6 +228,7 @@ bool PerGameSetting(Id id) {
     case Id::TextureFilter:
     case Id::AccurateImageCopies: // AzaharFrame accxfer
     case Id::AsyncShaders:
+    case Id::FastForwardAudio: // AzaharFrame ffaudio
     case Id::Autosave: // AzaharFrame autosave: the Saves rows (General's only per-game ones)
     case Id::AutosaveEvery:
     case Id::AutosaveKeep:
@@ -310,6 +312,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kTexFilter{"None", "Bicubic", "ScaleForce", "xBRZ",
                                                      "MMPX"};
     static const std::vector<std::string> kFastForward{"150%", "200%", "300%", "400%"};
+    static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Muted"};
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
     switch (id) {
@@ -319,6 +322,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kTexFilter;
     case Id::FastForwardSpeed:
         return kFastForward;
+    case Id::FastForwardAudio:
+        return kFastForwardAudio;
     case Id::ScreenShape:
         return kShape;
     case Id::ScreenCurve:
@@ -460,6 +465,8 @@ std::string LabelFor(Id id) {
         return "Accurate Image Copies";
     case Id::FastForwardSpeed:
         return "Fast Forward Speed";
+    case Id::FastForwardAudio:
+        return "Fast Forward Audio";
     case Id::ImmersiveMode:
         return "Immersive Mode";
     case Id::WiderView:
@@ -613,6 +620,8 @@ std::string ExplainFor(Id id) {
         return "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.";
     case Id::FastForwardSpeed:
         return "How fast View + Right Trigger runs the game.";
+    case Id::FastForwardAudio:
+        return "How the sound plays while fast forwarding. Normal Pitch keeps voices and music at their usual pitch.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:

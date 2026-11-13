@@ -57,6 +57,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::AccurateImageCopies: // AzaharFrame accxfer
         f(v.accurate_image_copies);
         return true;
+    case Id::FastForwardAudio: // AzaharFrame ffaudio
+        f(v.fast_forward_audio);
+        return true;
     case Id::Autosave:
         f(v.autosave_enabled);
         return true;

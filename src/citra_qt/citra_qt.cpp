@@ -62,6 +62,7 @@
 #include "citra_qt/citra_qt.h"
 #include "citra_qt/compatibility_list.h"
 #include "citra_qt/configuration/config.h"
+#include "citra_qt/configuration/configure_audio.h"
 #include "citra_qt/configuration/configure_dialog.h"
 #include "citra_qt/configuration/configure_general.h"
 #include "citra_qt/configuration/configure_graphics.h" // AzaharFrame accxfer: test pictures
@@ -2038,6 +2039,13 @@ GMainWindow::GMainWindow(Core::System& system_)
                                 graphics.grab().save(
                                     dir + (global ? QStringLiteral("/qt-configure-graphics.png")
                                                   : QStringLiteral("/qt-properties-graphics.png")));
+                            }
+                            for (const bool global : {true, false}) { // AzaharFrame ffaudio
+                                Settings::SetConfiguringGlobal(global);
+                                ConfigureAudio audio(true);
+                                audio.resize(audio.sizeHint().expandedTo(QSize(560, 0)));
+                                audio.grab().save(dir + (global ? QStringLiteral("/qt-configure-audio.png")
+                                                                : QStringLiteral("/qt-properties-audio.png")));
                             }
                             Settings::SetConfiguringGlobal(true);
                             LOG_INFO(Frontend, "autosave test: Qt pictures saved in {}",
@@ -5081,6 +5089,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
         set(v.accurate_image_copies, r.value != 0);
         break;
+    case S::FastForwardAudio: // AzaharFrame ffaudio: the audio thread reads it each block
+        set(v.fast_forward_audio, static_cast<Settings::FastForwardAudio>(std::min<u32>(u, 2)));
+        break;
     case S::FastForwardSpeed:
         set(v.turbo_limit, static_cast<double>(std::clamp<u32>(u, 100, 1000)));
         break;
@@ -5153,6 +5164,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_texture_filter{v.texture_filter};
     FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
     FrameKeepSetting keep_accurate_copies{v.accurate_image_copies}; // AzaharFrame accxfer
+    FrameKeepSetting keep_ff_audio{v.fast_forward_audio}; // AzaharFrame ffaudio
     FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
     FrameKeepSetting keep_autosave_every{v.autosave_every};
     FrameKeepSetting keep_autosave_keep{v.autosave_keep};
@@ -5174,6 +5186,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_texture_filter.Restore();
     keep_async_shaders.Restore();
     keep_accurate_copies.Restore();
+    keep_ff_audio.Restore();
     keep_autosave.Restore();
     keep_autosave_every.Restore();
     keep_autosave_keep.Restore();
