@@ -1241,6 +1241,47 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     }
 }
 
+// AzaharFrame fovonce: Match Game Camera is Off | Set Once | Always on the Immersive section, per
+// game, each choice with its own tooltip; its label keeps the row's.
+TEST_CASE("Tab menu: Match Game Camera is Off, Set Once or Always", "[frame_xr][tabmenu]") {
+    CHECK(LabelFor(Id::MatchCamera) == "Match Game Camera");
+    CHECK(SectionOf(Id::MatchCamera) == SettingsSection::Immersive);
+    CHECK(PerGameSetting(Id::MatchCamera));
+    CHECK(OptionsFor(Id::MatchCamera) == std::vector<std::string>{"Off", "Set Once", "Always"});
+    CHECK(ExplainFor(Id::MatchCamera) == "Matches the screen to the game's own camera.");
+    CHECK(HasOptionTips(Id::MatchCamera));
+    CHECK(ExplainOption(Id::MatchCamera, 0) == "Uses Immersive Game FOV as set.");
+    CHECK(ExplainOption(Id::MatchCamera, 1) ==
+          "Measures the game's camera once and sets Immersive Game FOV to match. Choose again "
+          "to remeasure.");
+    CHECK(ExplainOption(Id::MatchCamera, 2) == "Follows the game's camera smoothly as it changes.");
+    CHECK(ExplainOption(Id::MatchCamera, 3).empty());
+    CHECK(ExplainOption(Id::MatchCamera, kLabelIndex).empty());
+    CHECK(MenuModel{}.match_camera == 2); // Always, the earlier "on"
+
+    // Each choice is a segment of the row, whichever is picked (Set Once can be picked again).
+    for (int pick = 0; pick < 3; pick++) {
+        Drawn d;
+        MenuModel m = Sample();
+        m.match_camera = pick;
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = SettingsSection::Immersive;
+        bool seen[3] = {};
+        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            for (int i = 0; i < 3; i++) {
+                seen[i] |= FindHit(d, Id::MatchCamera, i) != nullptr;
+            }
+        }
+        INFO("picked " << pick);
+        CHECK(seen[0]);
+        CHECK(seen[1]);
+        CHECK(seen[2]);
+    }
+}
+
 // AzaharFrame xfergpu: Accurate Image Copies is Off | Automatic | On, each choice with its own
 // tooltip over its segment (the owner's words); its label keeps the row's.
 TEST_CASE("Tab menu: a segmented row's choices have their own tooltips", "[frame_xr][tabmenu]") {

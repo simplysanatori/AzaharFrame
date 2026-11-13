@@ -95,7 +95,7 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
         REQUIRE((!p.own_placement || (p.place_distance >= 0.3f && p.place_distance <= 3.0f)));
         REQUIRE(p.game_fov <= 110); // the setting's range
         REQUIRE((p.screen_size == 0.0f || (p.screen_size >= 0.6f && p.screen_size <= 2.5f)));
-        REQUIRE((p.match_camera >= -1 && p.match_camera <= 1));
+        REQUIRE((p.match_camera >= -1 && p.match_camera <= 2)); // AzaharFrame fovonce
     }
 }
 
@@ -143,7 +143,7 @@ void ResetPresetSettings() {
     v.vr_immersive_mode.SetValue(0);
     v.vr_si_mode_register_offset.SetGlobal(true);
     v.vr_immersive_wider_view_level.SetGlobal(true);
-    v.vr_immersive_match_camera.SetGlobal(true);
+    v.vr_immersive_match_camera_mode.SetGlobal(true);
     v.vr_immersive_positional_game_scaler.SetGlobal(true);
     v.vr_immersive_game_fov.SetGlobal(true);
     v.vr_immersive_eye_indicator.SetGlobal(true);
@@ -153,7 +153,7 @@ void ResetPresetSettings() {
     v.resolution_factor.SetGlobal(true);
     v.texture_filter.SetGlobal(true);
     v.vr_immersive_wider_view_level.SetValue(v.vr_immersive_wider_view_level.GetDefault());
-    v.vr_immersive_match_camera.SetValue(v.vr_immersive_match_camera.GetDefault());
+    v.vr_immersive_match_camera_mode.SetValue(v.vr_immersive_match_camera_mode.GetDefault());
     v.vr_immersive_positional_game_scaler.SetValue(0);
     v.vr_immersive_game_fov.SetValue(v.vr_immersive_game_fov.GetDefault());
     v.vr_immersive_eye_indicator.SetValue("");
@@ -179,7 +179,7 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
         REQUIRE(v.vr_immersive_mode.GetValue() == 2);
         REQUIRE(!v.vr_immersive_mode.UsingGlobal());
         REQUIRE(v.vr_immersive_game_fov.GetValue() == 55);
-        REQUIRE(v.vr_immersive_match_camera.GetValue() == false);
+        REQUIRE(v.vr_immersive_match_camera_mode.GetValue() == 0); // Off
         REQUIRE(v.vr_immersive_positional_game_scaler.GetValue() == 1);
         REQUIRE(v.vr_immersive_squeeze.GetValue() == 1);
         REQUIRE(v.factor_3d.GetValue() == 30);
@@ -193,7 +193,11 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
     REQUIRE(Settings::values.vr_immersive_squeeze.GetValue() == 30);
     REQUIRE(Settings::values.vr_immersive_eye_indicator.GetValue() == "87,2");
     // AzaharFrame jump: the owner's tuning had Match Game Camera off (the gain from 40 degrees).
-    REQUIRE(Settings::values.vr_immersive_match_camera.GetValue() == false);
+    REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 0); // Off
+    // AzaharFrame fovonce: Super Mario 3D Land keeps its "on": Always.
+    ResetPresetSettings();
+    ApplyPresetSettings(*FindImmersivePreset(0x0004000000054100ull));
+    REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 2);
     ResetPresetSettings();
 }
 

@@ -6,6 +6,8 @@
 // frame_per_game_ini.h, QtConfig::WriteGlobalSetting): the key goes, only use_global=true stays,
 // the global value is never written there, and the rest of the file is kept.
 
+#include <initializer_list>
+#include <utility>
 #include <QDir>
 #include <QFile>
 #include <QSettings>
@@ -60,4 +62,73 @@ TEST_CASE("Use Global Value: the key goes from the game's file", "[frame_xr][use
     // Nothing else left in the folder (QSettings writes through a temporary file and a rename)
     CHECK(QDir(dir.path()).entryList(QDir::Files) ==
           QStringList{QStringLiteral("0004000000033500.ini")});
+}
+
+// AzaharFrame fovonce: Match Game Camera's old switch becomes Off | Set Once | Always: on is
+// Always, off is Off; nothing to convert when the file has the new key or never set the switch.
+TEST_CASE("Match Game Camera: the old switch converts", "[frame_xr][fovonce]") {
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const auto migrated = [&dir](const QString& name, bool global,
+                                 const std::initializer_list<std::pair<const char*, QVariant>>&
+                                     values) {
+        const QString path = dir.filePath(name);
+        {
+            QSettings ini(path, QSettings::IniFormat);
+            ini.beginGroup(QStringLiteral("VR"));
+            for (const auto& [key, value] : values) {
+                ini.setValue(QString::fromLatin1(key), value);
+            }
+            ini.endGroup();
+            ini.sync();
+        }
+        QSettings ini(path, QSettings::IniFormat);
+        ini.beginGroup(QStringLiteral("VR"));
+        return FrameConfig::MigratedMatchCamera(ini, global);
+    };
+    // The global file: a value the player set
+    CHECK(migrated(QStringLiteral("g1.ini"), true,
+                   {{"vr_immersive_match_camera/default", false},
+                    {"vr_immersive_match_camera", false}}) == 0u);
+    CHECK(migrated(QStringLiteral("g2.ini"), true,
+                   {{"vr_immersive_match_camera/default", false},
+                    {"vr_immersive_match_camera", true}}) == 2u);
+    // Never changed: the new default
+    CHECK(!migrated(QStringLiteral("g3.ini"), true,
+                    {{"vr_immersive_match_camera/default", true},
+                     {"vr_immersive_match_camera", true}}));
+    // Already converted
+    CHECK(!migrated(QStringLiteral("g4.ini"), true,
+                    {{"vr_immersive_match_camera/default", false},
+                     {"vr_immersive_match_camera", false},
+                     {"vr_immersive_match_camera_mode/default", false},
+                     {"vr_immersive_match_camera_mode", 1}}));
+    // No switch at all (a new user)
+    CHECK(!migrated(QStringLiteral("g5.ini"), true, {{"vr_immersive_game_fov", 60}}));
+    // A game's file: its own value
+    CHECK(migrated(QStringLiteral("0004000000125600.ini"), false,
+                   {{"vr_immersive_match_camera/use_global", false},
+                    {"vr_immersive_match_camera", false}}) == 0u);
+    CHECK(migrated(QStringLiteral("0004000000053F00.ini"), false,
+                   {{"vr_immersive_match_camera/use_global", false},
+                    {"vr_immersive_match_camera", true}}) == 2u);
+    // Following the global value, or already converted (also to "use global")
+    CHECK(!migrated(QStringLiteral("0004000000030800.ini"), false,
+                    {{"vr_immersive_match_camera/use_global", true}}));
+    CHECK(!migrated(QStringLiteral("0004000000033500.ini"), false,
+                    {{"vr_immersive_match_camera/use_global", false},
+                     {"vr_immersive_match_camera", true},
+                     {"vr_immersive_match_camera_mode/use_global", true}}));
+    // A file as Azahar writes it (subkeys with a backslash)
+    {
+        const QString path = dir.filePath(QStringLiteral("0004000000086300.ini"));
+        QFile f(path);
+        REQUIRE(f.open(QIODevice::WriteOnly));
+        f.write("[VR]\nvr_immersive_match_camera\\use_global=false\n"
+                "vr_immersive_match_camera=true\nvr_immersive_game_fov\\use_global=true\n");
+        f.close();
+        QSettings ini(path, QSettings::IniFormat);
+        ini.beginGroup(QStringLiteral("VR"));
+        CHECK(FrameConfig::MigratedMatchCamera(ini, false) == 2u);
+    }
 }

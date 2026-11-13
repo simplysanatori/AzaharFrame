@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <optional>
 #include <QSettings>
 #include <QString>
 
@@ -17,6 +18,27 @@ namespace FrameConfig {
 inline void WriteUsesGlobal(QSettings& ini, const QString& name) {
     ini.remove(name);
     ini.setValue(name + QStringLiteral("/use_global"), true);
+}
+
+/// AzaharFrame fovonce: Match Game Camera was a switch (`vr_immersive_match_camera`) and is now
+/// Off (0), Set Once (1) or Always (2) (`vr_immersive_match_camera_mode`). For a file (its "VR"
+/// group open) with no new key, the old switch's choice: on is Always, off is Off. Nothing
+/// (std::nullopt) when the file has the new key, or the old switch was never set: the global file
+/// marks a value never changed with `/default=true`, a game's file one that follows the global
+/// value with `/use_global=true`.
+inline std::optional<unsigned> MigratedMatchCamera(const QSettings& ini, bool global) {
+    const QString now = QStringLiteral("vr_immersive_match_camera_mode");
+    const QString old = QStringLiteral("vr_immersive_match_camera");
+    if (ini.contains(now) || ini.contains(now + QStringLiteral("/use_global")) ||
+        !ini.contains(old)) {
+        return std::nullopt;
+    }
+    const bool unset = global ? ini.value(old + QStringLiteral("/default"), true).toBool()
+                              : ini.value(old + QStringLiteral("/use_global"), true).toBool();
+    if (unset) {
+        return std::nullopt;
+    }
+    return ini.value(old, true).toBool() ? 2u : 0u;
 }
 
 } // namespace FrameConfig

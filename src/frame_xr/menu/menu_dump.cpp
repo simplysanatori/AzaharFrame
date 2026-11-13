@@ -880,6 +880,25 @@ int main(int argc, char** argv) {
         ok &= shot("xg-image-copies-tip-label", ic, v);
         v = settings(SettingsSection::Graphics);
     }
+    // AzaharFrame fovonce: Match Game Camera, Off | Set Once | Always, each choice picked with its
+    // tooltip under the beam, and the label's.
+    {
+        MenuModel mc = pg;
+        mc.game_fov = 52;
+        v = settings(SettingsSection::Immersive);
+        static constexpr const char* kNames[] = {"off", "set-once", "always"};
+        for (int i = 0; i < 3; i++) {
+            mc.match_camera = i;
+            v.hover = {Id::MatchCamera, i};
+            v.tooltip = Id::MatchCamera;
+            v.tooltip_index = i;
+            ok &= shot(std::string("fo-match-camera-tip-") + kNames[i], mc, v);
+        }
+        v.hover = {Id::MatchCamera, kLabelIndex};
+        v.tooltip_index = kLabelIndex;
+        ok &= shot("fo-match-camera-tip-label", mc, v);
+        v = settings(SettingsSection::Immersive);
+    }
     // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the
     // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.
     {

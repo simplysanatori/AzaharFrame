@@ -304,7 +304,7 @@ struct MenuModel {
     int immersive_mode = 0;
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
-    bool match_camera = true; ///< AzaharFrame depth: Match Game Camera
+    int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     int narrow_screen = 0;
     int depth_factor = 0;
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)

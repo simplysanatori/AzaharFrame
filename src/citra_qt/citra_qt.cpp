@@ -4817,7 +4817,10 @@ bool GMainWindow::WindowFullscreen() const {
 void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     using C = FrameXr::MenuCommand;
     using S = FrameXr::MenuSetting;
-    if (!emulation_running || !g_frame_mirror || !g_frame_mirror->MenuOpen()) {
+    // AzaharFrame fovonce: Match Game Camera's Set Once value comes while the game plays.
+    const bool measured_fov = r.command == C::SetSetting && r.setting == S::MeasuredGameFov;
+    if (!emulation_running ||
+        (!measured_fov && (!g_frame_mirror || !g_frame_mirror->MenuOpen()))) {
         return;
     }
     const auto close_menu = [] {
@@ -5102,8 +5105,24 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::GameFov:
         set(v.vr_immersive_game_fov, static_cast<s32>(r.value));
         break;
-    case S::MatchCamera: // AzaharFrame depth
-        set(v.vr_immersive_match_camera, r.value != 0);
+    case S::MatchCamera: // AzaharFrame depth, fovonce: Off, Set Once, Always
+        set(v.vr_immersive_match_camera_mode, std::min<u32>(u, 2));
+        // Set Once chosen (again): the game on view measures its camera anew (the menu has
+        // cleared it in the settings too). Its own file says so; a global choice is saved first.
+        if (!use_global && u == static_cast<u32>(Settings::MatchGameCamera::SetOnce) &&
+            !g_frame_game_config_name.empty()) {
+            if (!r.per_game) {
+                config->Save();
+            }
+            v.vr_immersive_fov_measured.SetGlobal(true);
+            per_game_setting = true;
+        }
+        break;
+    case S::MeasuredGameFov: // AzaharFrame fovonce: the game's own value, and measured
+        set(v.vr_immersive_game_fov, static_cast<s32>(std::clamp(r.value, 30, 110)));
+        set(v.vr_immersive_fov_measured, true);
+        LOG_INFO(Frontend, "xr: Match Game Camera Set Once: Immersive Game FOV {} saved for {}",
+                 r.value, g_frame_game_config_name);
         break;
     case S::NarrowScreen:
         set(v.vr_immersive_squeeze, u);
@@ -5199,7 +5218,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
     FrameKeepSetting keep_shape{v.vr_top_aspect};
     FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
-    FrameKeepSetting keep_match{v.vr_immersive_match_camera}; // AzaharFrame depth
+    FrameKeepSetting keep_match{v.vr_immersive_match_camera_mode}; // AzaharFrame depth, fovonce
+    FrameKeepSetting keep_measured{v.vr_immersive_fov_measured};  // AzaharFrame fovonce
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
     FrameKeepSetting keep_squeeze_y{v.vr_immersive_squeeze_y}; // AzaharFrame immersive2
@@ -5222,6 +5242,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_shape.Restore();
     keep_fov.Restore();
     keep_match.Restore();
+    keep_measured.Restore();
     keep_wider.Restore();
     keep_squeeze.Restore();
     keep_squeeze_y.Restore();
