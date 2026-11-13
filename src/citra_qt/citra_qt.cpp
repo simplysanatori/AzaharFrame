@@ -493,7 +493,10 @@ struct FrameKeepControls {
           reticle{Settings::values.vr_bottom_screen_reticle},
           edge{Settings::values.vr_reticle_at_edge}, speed{Settings::values.vr_reticle_speed},
           center{Settings::values.vr_reticle_center_until_pressed}, // AzaharFrame fixes7
-          stick{Settings::values.vr_reticle_stick_moves} {}
+          stick{Settings::values.vr_reticle_stick_moves},
+          edge_cstick{Settings::values.vr_reticle_edge_cstick}, // AzaharFrame kiu
+          motion{Settings::values.vr_motion_controls},
+          preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
         reticle.Restore();
@@ -501,6 +504,9 @@ struct FrameKeepControls {
         speed.Restore();
         center.Restore();
         stick.Restore();
+        edge_cstick.Restore();
+        motion.Restore();
+        preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
     FrameKeepSetting<u32, true> reticle;
@@ -508,6 +514,9 @@ struct FrameKeepControls {
     FrameKeepSetting<float, true> speed;
     FrameKeepSetting<bool, false> center;
     FrameKeepSetting<bool, false> stick;
+    FrameKeepSetting<bool, false> edge_cstick; // AzaharFrame kiu
+    FrameKeepSetting<u32, true> motion;
+    FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
 // "Fast Forward" label in the headset; off when the game stops, the in-game menu opens or the
@@ -1125,7 +1134,9 @@ GMainWindow::GMainWindow(Core::System& system_)
             }
             // AzaharFrame: a Frame controller as the 3DS gyroscope and accelerometer (Motion
             // Controls), unless the profile has another motion device.
-            if (Settings::values.vr_motion_controls.GetValue() != 0 &&
+            // AzaharFrame kiu: per game too: the global value or the game's.
+            if ((Settings::values.vr_motion_controls.GetValue(true) != 0 ||
+                 Settings::values.vr_motion_controls.GetValue() != 0) &&
                 InputCommon::FrameXr::UseFrameMotionDevice(
                     Settings::values.current_input_profile)) {
                 system.ApplySettings();
@@ -1283,20 +1294,19 @@ GMainWindow::GMainWindow(Core::System& system_)
                             if (!emulation_running || g_frame_game_config_name.empty()) {
                                 return;
                             }
-                            // AzaharFrame immersive2: Narrow Screen and Narrow Height too
-                            // (both grips + D-pad).
+                            // AzaharFrame kiu: Horizontal and Vertical Scale too (both grips
+                            // + D-pad).
                             FrameKeepSetting keep_wider{
                                 Settings::values.vr_immersive_wider_view_level};
-                            FrameKeepSetting keep_squeeze{Settings::values.vr_immersive_squeeze};
-                            FrameKeepSetting keep_squeeze_y{
-                                Settings::values.vr_immersive_squeeze_y};
+                            FrameKeepSetting keep_scale_x{Settings::values.vr_immersive_scale_x};
+                            FrameKeepSetting keep_scale_y{Settings::values.vr_immersive_scale_y};
                             FrameKeepControls keep_controls; // AzaharFrame reticle
                             QtConfig game_config(g_frame_game_config_name,
                                                  QtConfig::ConfigType::PerGameConfig);
                             keep_controls.Restore();
                             keep_wider.Restore();
-                            keep_squeeze.Restore();
-                            keep_squeeze_y.Restore();
+                            keep_scale_x.Restore();
+                            keep_scale_y.Restore();
                             game_config.Save();
                         });
                     },
@@ -3389,23 +3399,10 @@ void GMainWindow::BootGame(const QString& filename) {
         }
 #endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame reticle: Controls presets (controls_presets.h)
+        // AzaharFrame kiu: starting values only: never over the game's own value, a global one
+        // the player set, or a value the preset gave the game before (ApplyControlsPreset).
         if (const FrameXr::ControlsPreset* cp = FrameXr::FindControlsPreset(title_id)) {
-            auto& reticle = Settings::values.vr_bottom_screen_reticle;
-            if (cp->bottom_screen_reticle != 0 && reticle.UsingGlobal() &&
-                reticle.GetValue() == reticle.GetDefault()) {
-                reticle.SetGlobal(false);
-                reticle.SetValue(cp->bottom_screen_reticle);
-                LOG_INFO(Frontend, "xr: {}: Bottom Screen Reticle preset {}", cp->name,
-                         cp->bottom_screen_reticle);
-            }
-            // AzaharFrame fixes7: Stick Moves Reticle, the same way (only over the default).
-            auto& stick = Settings::values.vr_reticle_stick_moves;
-            if (cp->stick_moves_reticle && stick.UsingGlobal() &&
-                stick.GetValue() == stick.GetDefault()) {
-                stick.SetGlobal(false);
-                stick.SetValue(true);
-                LOG_INFO(Frontend, "xr: {}: Stick Moves Reticle preset on", cp->name);
-            }
+            FrameXr::ApplyControlsPreset(*cp);
         }
 #endif
     }
@@ -5145,8 +5142,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         LOG_INFO(Frontend, "xr: Detect Game FOV Once: Immersive Game FOV {} saved for {}",
                  r.value, g_frame_game_config_name);
         break;
-    case S::NarrowScreen:
-        set(v.vr_immersive_squeeze, u);
+    case S::ScaleX: // AzaharFrame kiu: signed percent
+        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -30, 30)));
+        break;
+    case S::ScaleY:
+        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
         break;
     case S::DepthFactor:
         set(v.vr_immersive_positional_game_scaler, u);
@@ -5195,6 +5195,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::ReticleStick:
         set(v.vr_reticle_stick_moves, r.value != 0);
+        break;
+    case S::ReticleEdgeCStick: // AzaharFrame kiu
+        set(v.vr_reticle_edge_cstick, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
@@ -5248,8 +5251,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_match{v.vr_immersive_match_camera_mode}; // AzaharFrame depth, fovonce
     FrameKeepSetting keep_measured{v.vr_immersive_fov_measured};  // AzaharFrame fovonce
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
-    FrameKeepSetting keep_squeeze{v.vr_immersive_squeeze};
-    FrameKeepSetting keep_squeeze_y{v.vr_immersive_squeeze_y}; // AzaharFrame immersive2
+    FrameKeepSetting keep_scale_x{v.vr_immersive_scale_x}; // AzaharFrame kiu
+    FrameKeepSetting keep_scale_y{v.vr_immersive_scale_y};
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
@@ -5271,8 +5274,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_match.Restore();
     keep_measured.Restore();
     keep_wider.Restore();
-    keep_squeeze.Restore();
-    keep_squeeze_y.Restore();
+    keep_scale_x.Restore();
+    keep_scale_y.Restore();
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();

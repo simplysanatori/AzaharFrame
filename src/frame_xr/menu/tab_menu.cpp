@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 #include "frame_xr/menu/ds_drawing.h"
 #include "frame_xr/menu/md3_fonts.h"
 
@@ -74,6 +75,9 @@ std::string SliderText(Id id, float value) {
     if (id == Id::Depth3d) {
         return Format("%.0f%%", value);
     }
+    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu: "+10%", "0%", "-10%"
+        return Format(value > 0.5f ? "+%.0f%%" : "%.0f%%", value);
+    }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
         return Format("%.1fx", value / 10.0f);
     }
@@ -106,7 +110,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         offset.on = m.immersive_offset_set;
         rows.push_back(offset);
     } else if (tab == Tab::Settings) {
-        // Wider View and on: the Full (6DoF) modes only.
+        // Render Margin and on: the Full (6DoF) modes only.
         const auto full = [&](Row r) {
             if (r.lock == Lock::None && m.immersive_mode < 2) {
                 r.lock = Lock::FullOnly;
@@ -184,7 +188,18 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         rows.push_back(fov);
         // AzaharFrame depth, fovonce: Off | Set Once | Always
         rows.push_back(full(row(Id::MatchCamera, RowKind::Segmented, m.match_camera)));
-        rows.push_back(full(row(Id::NarrowScreen, RowKind::Segmented, m.narrow_screen)));
+        // AzaharFrame kiu: Horizontal and Vertical Scale, -30 to +30 % around 0
+        const auto scale = [&](Id id, int value) {
+            Row r = full(row(id, RowKind::Slider));
+            const SliderRange sr = SliderFor(id);
+            const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
+            r.t = (v - sr.min) / (sr.max - sr.min);
+            r.stops = static_cast<int>((sr.max - sr.min) / sr.step);
+            r.value = SliderText(id, v);
+            rows.push_back(r);
+        };
+        scale(Id::ScaleX, m.scale_x);
+        scale(Id::ScaleY, m.scale_y);
         rows.push_back(full(row(Id::DepthFactor, RowKind::Segmented, m.depth_factor)));
     }
     return rows;
@@ -206,7 +221,8 @@ SettingsSection SectionOf(Id id) {
     case Id::WiderView:
     case Id::GameFov:
     case Id::MatchCamera:
-    case Id::NarrowScreen:
+    case Id::ScaleX:
+    case Id::ScaleY:
     case Id::DepthFactor:
         return SettingsSection::Immersive;
     default:
@@ -222,7 +238,8 @@ bool PerGameSetting(Id id) {
     case Id::WiderView:
     case Id::GameFov:
     case Id::MatchCamera: // AzaharFrame depth
-    case Id::NarrowScreen:
+    case Id::ScaleX:
+    case Id::ScaleY:
     case Id::DepthFactor:
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
@@ -239,6 +256,8 @@ bool PerGameSetting(Id id) {
     case Id::ReticleAtEdge:
     case Id::ReticleCenter: // AzaharFrame fixes7
     case Id::ReticleStick:
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+    case Id::MotionControls:    // AzaharFrame kiu: per game too (a Controls preset gives it)
         return true;
     default:
         return false;
@@ -247,9 +266,10 @@ bool PerGameSetting(Id id) {
 
 // AzaharFrame reticle
 const std::vector<Id>& ControlsScopeRows() {
-    static const std::vector<Id> kRows{Id::TouchpadTouch,  Id::BottomScreenReticle,
-                                       Id::ReticleSpeed,   Id::ReticleAtEdge,
-                                       Id::ReticleCenter, Id::ReticleStick}; // fixes7
+    static const std::vector<Id> kRows{Id::TouchpadTouch,     Id::BottomScreenReticle,
+                                       Id::ReticleSpeed,      Id::ReticleAtEdge,
+                                       Id::ReticleEdgeCStick, // AzaharFrame kiu
+                                       Id::ReticleCenter,     Id::ReticleStick}; // fixes7
     return kRows;
 }
 
@@ -308,7 +328,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
                                                 "Full (6DoF): Other Games"};
     static const std::vector<std::string> kWider{"Off", "1.1x", "1.2x", "1.3x", "1.4x"};
-    static const std::vector<std::string> kNarrow{"Off", "10%", "20%", "30%"};
     static const std::vector<std::string> kDepth{"1x", "10x", "100x"};
     // AzaharFrame menuux
     static const std::vector<std::string> kResolution{
@@ -373,8 +392,6 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMode;
     case Id::WiderView:
         return kWider;
-    case Id::NarrowScreen:
-        return kNarrow;
     case Id::DepthFactor:
         return kDepth;
     default:
@@ -428,8 +445,10 @@ std::string LabelFor(Id id) {
         return "Reticle Speed";
     case Id::ReticleCenter: // AzaharFrame fixes7
         return "Aim Only While Pressed";
-    case Id::ReticleStick:
-        return "Stick Moves Reticle";
+    case Id::ReticleStick: // AzaharFrame kiu: was Stick Moves Reticle
+        return "Right Stick Moves Touch";
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        return "C-Stick at Edge";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -485,13 +504,15 @@ std::string LabelFor(Id id) {
     case Id::ImmersiveMode:
         return "Immersive Mode";
     case Id::WiderView:
-        return "Wider View";
+        return ::FrameXr::Immersive::Names::kRenderMargin; // AzaharFrame kiu
     case Id::GameFov:
         return "Immersive Game FOV";
     case Id::MatchCamera: // AzaharFrame depth, fovonce
         return "Detect Game FOV";
-    case Id::NarrowScreen:
-        return "Narrow Screen";
+    case Id::ScaleX:
+        return ::FrameXr::Immersive::Names::kHorizontalScale;
+    case Id::ScaleY:
+        return ::FrameXr::Immersive::Names::kVerticalScale;
     case Id::DepthFactor:
         return "Depth Factor Multiplier";
     case Id::MoreSettings:
@@ -631,8 +652,10 @@ std::string ExplainFor(Id id) {
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
         return "Keeps the reticle centered on the bottom screen. It moves only while you hold the trigger or click, and returns to the center when you let go.";
-    case Id::ReticleStick:
-        return "The right stick moves the reticle too, instead of the C-Stick.";
+    case Id::ReticleStick: // AzaharFrame kiu
+        return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
+    case Id::ReticleEdgeCStick:
+        return "Touching near an edge of the bottom screen pushes the C-Stick that way, for games that turn the camera with it.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -676,13 +699,15 @@ std::string ExplainFor(Id id) {
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
     case Id::WiderView:
-        return "Shows more of the game around the edges. Some games leave them empty.";
+        return ::FrameXr::Immersive::Names::kRenderMarginTip;
     case Id::GameFov:
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce
         return "Reads the game's field of view so the world lines up with your head.";
-    case Id::NarrowScreen:
-        return "Narrows the screen so the side HUD moves into view.";
+    case Id::ScaleX:
+        return ::FrameXr::Immersive::Names::kHorizontalScaleTip;
+    case Id::ScaleY:
+        return ::FrameXr::Immersive::Names::kVerticalScaleTip;
     case Id::DepthFactor:
         return "How far the game camera moves with your head.";
     case Id::Autosave: // AzaharFrame autosave
@@ -745,6 +770,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::Depth3d) {
         return {0.0f, 100.0f, 5.0f};
+    }
+    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu
+        return {-30.0f, 30.0f, 5.0f};
     }
     if (id == Id::CursorSpeed) { // AzaharFrame padsui: five steps, Normal in the middle
         return {0.0f, 4.0f, 1.0f};
@@ -1650,8 +1678,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // bottom of the pane, under the picture (owner's report 14).
     // AzaharFrame reticle: in Global, a row the game has its own value for is greyed (its
     // tooltip says why), as on the Settings tab.
-    const auto choice_row = [&](Id id, float y0, int value) {
-        const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
+    // AzaharFrame kiu: `right`, the row's right end when it shares its row (At Edge).
+    const auto choice_row = [&](Id id, float y0, int value, float right = 0.0f) {
+        const bool shared = right > 0.0f;
+        if (!shared) {
+            right = c.x1;
+        }
+        const Rect row{c.x0 - 12.0f, y0, right + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
         AddHit(row, {id, kLabelIndex}, pane);
@@ -1660,8 +1693,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
                     enabled ? 1.0f : kDisabledContent);
         const auto& opts = OptionsFor(id);
         // AzaharFrame input2: up to 0.64 of the width (the reticle's four choices need it).
-        const float tw = kit.SegmentedWidth(opts, c.W() * 0.64f);
-        const Rect ts{c.x1 - tw, row.Cy() - kControlH * 0.5f, c.x1, row.Cy() + kControlH * 0.5f};
+        const float room = shared ? right - c.x0 - kit.TextWidth(Type::Body, LabelFor(id)) - 16.0f
+                                  : c.W() * 0.64f;
+        const float tw = kit.SegmentedWidth(opts, room);
+        const Rect ts{right - tw, row.Cy() - kControlH * 0.5f, right, row.Cy() + kControlH * 0.5f};
         const int th = view.hover.id == id ? view.hover.index : -1;
         const int tpr = view.pressed.id == id ? view.pressed.index : -1;
         kit.Segmented(ts, opts, value, th, tpr, !enabled);
@@ -1707,8 +1742,11 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         return row;
     };
-    // AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, two switches side by
-    // side in one row (each half toggles its own), so the controller picture keeps its room.
+    // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, two switches side
+    // by side in one row (each half toggles its own), so the controller picture keeps its room.
+    // AzaharFrame kiu: C-Stick at Edge the same way, in the right half of At Edge's row (At Edge
+    // in the left half), so the picture keeps its room; its switch lines up with Right Stick
+    // Moves Touch's under it.
     const auto switch_half = [&](Id id, const Rect& half, bool on) {
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
@@ -1725,8 +1763,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge, Reticle Speed, Aim Only While Pressed and Stick Moves Reticle only while the
-    // reticle is on.
+    // At Edge, Reticle Speed, C-Stick at Edge, Aim Only While Pressed and Right Stick Moves
+    // Touch only while the reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
     const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
@@ -1744,8 +1782,11 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         choice_row(Id::BottomScreenReticle, support_y + 10.0f, model.bottom_screen_reticle);
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
-        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
         const float mid = (c.x0 + c.x1) * 0.5f;
+        const Rect edge_row =
+            choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge, mid - 12.0f);
+        switch_half(Id::ReticleEdgeCStick, {mid + 12.0f, edge_row.y0, c.x1 + 12.0f, edge_row.y1},
+                    model.reticle_edge_cstick); // AzaharFrame kiu
         const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
         switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
                     model.reticle_center);

@@ -54,8 +54,9 @@ constexpr uint32_t kDimSize = 8;
 constexpr const char* kStoppingText = "Stopping...";
 constexpr const char* kHintNormal = "D-Pad \xE2\x86\x95 Curve   \xE2\x86\x94 Nudge\nStick: Size, Distance";
 constexpr const char* kHintSecond = "D-Pad \xE2\x86\x94 Nudge\nStick: Size, Distance"; // AzaharFrame move
+// AzaharFrame kiu: Render Margin was Wider View (Immersive::Names::kRenderMargin; keep in step).
 constexpr const char* kHintImmersive =
-    "D-Pad \xE2\x86\x95 Wider View   \xE2\x86\x94 Offset\nStick: Size, Distance";
+    "D-Pad \xE2\x86\x95 Render Margin   \xE2\x86\x94 Offset\nStick: Size, Distance";
 constexpr int64_t kHintQuietNs = 10'000'000'000;
 constexpr uint8_t kDimAlpha = 150;
 constexpr XrTime kMenuHoldNs = 1'000'000'000;
@@ -1350,6 +1351,9 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
         Immersive::SetBottomFocused(false);
     }
     WatchPlacement(info.screens_live); // AzaharFrame move
+    if (Immersive::TakeIpdSaved()) {   // AzaharFrame ipd
+        SaveVrSettingSoon();
+    }
     const bool focused = info.state == XR_SESSION_STATE_FOCUSED;
     Input::InputFrame in;
     in.time_ns = info.display_time;
@@ -1591,9 +1595,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 rh >= 0 ? Input::ReticleAimOf(game_in.hand[static_cast<std::size_t>(rh)])
                         : Input::ReticleHeadAim(head_view.valid, head, game_in.hand[0],
                                                 game_in.hand[1]);
-            // AzaharFrame fixes7: Aim Only While Pressed, Stick Moves Reticle (reticle.h). The
-            // right stick is the reticle's then, not the C-Stick; not while a grip holds a
-            // screen (the stick moves and sizes it then).
+            // AzaharFrame fixes7: Aim Only While Pressed, Right Stick Moves Touch (reticle.h).
+            // The right stick is the reticle's then, not the C-Stick; not while a grip holds a
+            // screen (the stick moves and sizes it then). AzaharFrame kiu: off, the C-Stick is
+            // the stick as it is (SplitReticleStick).
             Input::ReticleModes modes;
             modes.center_until_pressed = Settings::values.vr_reticle_center_until_pressed.GetValue();
             const bool holding = Immersive::HoldingScreen() || bridge.mapper().DragActive();
@@ -1601,30 +1606,32 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             modes.stick_moves = stick_on && !holding;
             Input::HandInput& right = game_in.hand[static_cast<std::size_t>(
                 Input::HandIndex(Input::Hand::Right))];
-            if (modes.stick_moves) {
-                aim.stick = right.stick;
-            }
+            aim.stick = Input::SplitReticleStick(modes.stick_moves, true, right.stick).to_reticle;
+            const float half_width = Input::ReticleHalfWidthDeg(
+                source, Settings::values.vr_reticle_speed.GetValue()); // AzaharFrame reticle
             const Input::ReticleFrame rf = reticle.Update(
-                aim, true,
-                Input::ReticleHalfWidthDeg(source,
-                                           Settings::values.vr_reticle_speed.GetValue()), // reticle
-                in.time_ns,
+                aim, true, half_width, in.time_ns,
                 Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue()), modes);
-            if (rf.on && modes.stick_moves) {
-                right.stick = {};
-            }
-            const int modes_now = (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0);
+            right.stick = Input::SplitReticleStick(modes.stick_moves, rf.on, right.stick).to_game;
+            // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
+            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            const int modes_now =
+                (modes.center_until_pressed ? 1 : 0) | (stick_on ? 2 : 0) | (edge_on ? 4 : 0);
             if (modes_now != reticle_modes_logged) {
                 reticle_modes_logged = modes_now;
                 LOG_INFO(Frontend,
-                         "xr: Bottom Screen Reticle: Aim Only While Pressed {}, Stick Moves "
-                         "Reticle {}",
-                         modes.center_until_pressed ? "on" : "off", stick_on ? "on" : "off");
+                         "xr: Bottom Screen Reticle: Aim Only While Pressed {}, Right Stick Moves "
+                         "Touch {}, C-Stick at Edge {}",
+                         modes.center_until_pressed ? "on" : "off", stick_on ? "on" : "off",
+                         edge_on ? "on" : "off");
             }
             if (rf.rezeroed) {
                 LOG_INFO(Frontend, "xr: Bottom Screen Reticle: re-zeroed");
             }
             reticle_sample = {rf.on, rf.point, rf.down};
+            if (edge_on && !holding) {
+                reticle_sample.edge_band = Input::ReticleEdgeBandFor(half_width);
+            }
             if (rf.on && rh >= 0) {
                 Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(rh)];
                 hand.trigger = 0.0f;
@@ -1683,6 +1690,15 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::MapperOutput& out =
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
     bridge_live = true;
+    {
+        // AzaharFrame kiu: C-Stick at Edge starts and stops pushing (one line each).
+        const Input::Vec2f edge = bridge.edge_stick();
+        const bool pushing = edge.x != 0.0f || edge.y != 0.0f;
+        if (pushing != edge_stick_logged) {
+            edge_stick_logged = pushing;
+            LOG_INFO(Frontend, "xr: C-Stick at Edge: {}", pushing ? "pushing" : "released");
+        }
+    }
 
     const auto& cmd = out.commands;
     {
@@ -1793,18 +1809,19 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         SetScreenPlacement(place);
     }
     // AzaharFrame immersive2: both grips down while one holds the immersive screen: the D-pad
-    // shapes the screen (Narrow Screen, Narrow Height) instead of the offset and Wider View. The
-    // raw grips: a Bottom Screen Reticle hand's grip is taken out of game_in.
+    // shapes the screen (AzaharFrame kiu: Horizontal Scale, Vertical Scale) instead of the offset
+    // and Render Margin. The raw grips: a Bottom Screen Reticle hand's grip is taken out of
+    // game_in.
     const bool both_grips = holding_immersive && in.hand[0].grip > Immersive::Layout::kGripPress &&
                             in.hand[1].grip > Immersive::Layout::kGripPress;
     if (nudge.Any() && both_grips) {
-        // Right narrower, left wider; up taller, down lower. Held, they repeat.
+        // Right wider, left narrower; up taller, down shorter. Held, they repeat.
         bool changed = false;
         if (nudge.right != 0) {
-            changed |= Immersive::StepNarrow(nudge.right, 0) == Immersive::WiderStep::Changed;
+            changed |= Immersive::StepScale(nudge.right, 0) == Immersive::WiderStep::Changed;
         }
         if (nudge.up != 0) {
-            changed |= Immersive::StepNarrow(0, nudge.up) == Immersive::WiderStep::Changed;
+            changed |= Immersive::StepScale(0, nudge.up) == Immersive::WiderStep::Changed;
         }
         if (changed) {
             std::scoped_lock lock{hooks_mutex};
@@ -1814,7 +1831,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
     } else if (nudge.Any()) {
         if (holding_immersive) {
-            // Left and right: the lens offset; up and down: Wider View (AzaharFrame widerview;
+            // Left and right: the lens offset; up and down: Render Margin (AzaharFrame widerview;
             // the vertical offset stays in the settings). Both show their own toast.
             if (nudge.right != 0 && Immersive::NudgeOffset(nudge.right, 0)) {
                 std::scoped_lock lock{hooks_mutex};

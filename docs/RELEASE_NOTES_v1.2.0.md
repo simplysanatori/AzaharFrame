@@ -70,7 +70,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and **Touchpad** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**, **C-Stick at Edge** on and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
 - **Accurate Image Copies**, in **Graphics**, has three choices. **Automatic**, the default, fixes glitches only where a game needs it. **On** makes every image copy exact but lowers performance a lot, and **Off** works the way Azahar always has. Pointing at each choice in the headset or in Azahar's window explains it.
 
 ### Crash reports
@@ -93,6 +93,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
 - **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
+- **C-Stick at Edge**: hold the reticle's touch near an edge of the bottom screen and the C-Stick pushes that way too. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming reaches the edge.
+- **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
 ### Mouse and Pointer Controls
 
@@ -113,16 +115,18 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Immersive View upgrades
 
-- **Match Game Camera** follows the game's camera while it runs, so cutscenes, zooms and widescreen mods stay correct. You can turn it off in the VR menu or in Azahar's settings if it causes problems.
-- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Narrow Screen, Wider View and where the screen sits. A value you set yourself always wins.
+- **Detect Game FOV** reads the game camera's field of view, so cutscenes, zooms and widescreen mods stay correct. I gave it three choices: **Always** follows the camera while you play, **Once** measures it once and saves it for that game, and **Off** uses the Immersive Game FOV you set. You can change it in the VR menu or in Azahar's settings.
+- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
 - The immersive screen now fills your view, top to bottom too, so there is no black border around it. The game draws further up and down to fill it without stretching the picture. When a game zooms in to aim, the screen keeps its size and shape.
 - Both eyes now always see the same moment of the game, which fixes doubled objects in 30 fps games such as Ocarina of Time 3D.
 - Every picture now stays on view for exactly two of the headset's refreshes. The 3DS runs at 59.83 frames a second against the Frame's 120 Hz, so about every three seconds some pictures showed for one refresh and others for three, which doubled the HUD, the screen's edges and the game's own motion on fast head turns. In VR I now run games at exactly 60 frames a second, in step with the headset, and never let a picture go after a single refresh. Games that draw 30 pictures a second, such as Majora's Mask 3D, Ocarina of Time 3D and Kid Icarus Uprising, keep each picture for four refreshes.
 - SteamVR's recenter and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode re-centres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
-- Wider View no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
+- Render Margin (Wider View) no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
+- I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -30% to +30% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at 0%. A game where you set Narrow Screen keeps its screen: Narrow Screen 10% becomes Horizontal Scale -10%. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
+- **Wider View** is now called **Render Margin**. It works as before.
 - Immersive view no longer bobs up and down when the headset reports a slightly different lens view from frame to frame; I fit the screen to a steady view and only refit when it really changes.
 
 ### Smaller changes

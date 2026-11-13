@@ -4,6 +4,8 @@
 
 #include <cmath>
 #include <random>
+#include <string>
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/ipd_smoother.h"
@@ -50,9 +52,11 @@ TEST_CASE("FrameXr ipd: 65 mm until the headset's is known", "[frame_xr]") {
     REQUIRE_FALSE(s.Known());
     REQUIRE(s.Value() == FrameXr::Ipd::kFallbackM);
     REQUIRE_FALSE(s.TakeLog(logged));
-    // The first full window of tracked frames is the value, at once, logged once.
+    // The first full window of tracked frames is the value, eased to from 65 mm, logged once.
     f = Run(s, f, FrameXr::Ipd::kWindow / 120.0, [](int) { return 0.0634f; });
     REQUIRE(s.Known());
+    REQUIRE(s.Target() == Approx(0.0634f));
+    f = Run(s, f, 0.5, [](int) { return 0.0634f; });
     REQUIRE(s.Value() == Approx(0.0634f));
     REQUIRE(s.TakeLog(logged));
     REQUIRE(logged == Approx(0.0634f));
@@ -206,7 +210,7 @@ TEST_CASE("FrameXr ipd: the rasterizer gets the measured IPD", "[frame_xr]") {
     using namespace VideoCore::Immersive;
     // What the XR thread publishes each frame: the smoother's value.
     Smoother s;
-    Run(s, 0, 0.5, [](int) { return 0.0612f; });
+    Run(s, 0, 1.0, [](int) { return 0.0612f; });
     VRData d;
     REQUIRE(d.ipd == FrameXr::Ipd::kFallbackM); // nothing measured yet: 65 mm
     d.mode = 3;
@@ -231,4 +235,113 @@ TEST_CASE("FrameXr ipd: the rasterizer gets the measured IPD", "[frame_xr]") {
     CHECK(UsableIpd(0.0f, 0.065f) == 0.065f);
     CHECK(UsableIpd(NAN, 0.065f) == 0.065f);
     CHECK(UsableIpd(0.5f, 0.065f) == 0.065f);
+}
+
+TEST_CASE("FrameXr ipd: the saved IPD is the fallback at start", "[frame_xr]") {
+    using FrameXr::Ipd::SavedM;
+    CHECK(SavedM(0.0f) == 0.0f); // never saved
+    CHECK(SavedM(63.4f) == Approx(0.0634f));
+    CHECK(SavedM(200.0f) == 0.0f);
+    CHECK(SavedM(NAN) == 0.0f);
+    Smoother s;
+    s.SetFallback(SavedM(63.4f));
+    CHECK(s.Value() == Approx(0.0634f)); // before anything is read
+    CHECK_FALSE(s.Known());
+    Run(s, 0, 2.0, [](int) { return 0.0f; }, false); // no eyes: still the saved value
+    CHECK(s.Value() == Approx(0.0634f));
+    Run(s, 240, 1.0, [](int) { return 0.0660f; }); // the headset's replaces it
+    CHECK(s.Value() == Approx(0.0660f));
+    s.SetFallback(0.060f); // ignored once known
+    CHECK(s.Value() == Approx(0.0660f));
+    Smoother none;
+    none.SetFallback(SavedM(0.0f)); // nothing saved: 65 mm
+    CHECK(none.Value() == FrameXr::Ipd::kFallbackM);
+}
+
+TEST_CASE("FrameXr ipd: the toasts, only the first time ever", "[frame_xr]") {
+    using FrameXr::Ipd::Notice;
+    const auto toasts = [](Smoother& s, Notice& n, bool saved, int from, double secs,
+                           float ipd, bool valid, std::vector<std::string>& out) {
+        return Run(
+            s, from, secs, [&](int) { return ipd; },
+            [&](int f, float) {
+                const std::string t = n.Update(f * kPeriodNs, s, saved);
+                if (!t.empty()) {
+                    out.push_back(t + " @" + std::to_string(f));
+                }
+            },
+            valid);
+    };
+    SECTION("read normally: nothing") {
+        Smoother s;
+        Notice n;
+        std::vector<std::string> shown;
+        int f = toasts(s, n, false, 0, 30.0, 0.0634f, true, shown);
+        // Tracking lost for a while later on: still nothing.
+        f = toasts(s, n, false, f, 20.0, 0.0f, false, shown);
+        CHECK(shown.empty());
+    }
+    SECTION("read late, first time: the warning at 10 s, then the value once") {
+        Smoother s;
+        Notice n;
+        std::vector<std::string> shown;
+        int f = toasts(s, n, false, 0, 15.0, 0.0f, false, shown);
+        REQUIRE(shown.size() == 1);
+        // 10 s after the first frame (frame 1201 at 120 Hz).
+        CHECK(shown[0] == std::string(FrameXr::Ipd::kNotReadText) + " @1201");
+        CHECK(s.Value() == FrameXr::Ipd::kFallbackM); // 65 mm meanwhile
+        f = toasts(s, n, false, f, 5.0, 0.0634f, true, shown);
+        f = toasts(s, n, false, f, 5.0, 0.0680f, true, shown); // the dial: no more toasts
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[1].rfind("IPD Set: 63 mm @", 0) == 0);
+    }
+    SECTION("an IPD saved before: never a toast") {
+        Smoother s;
+        s.SetFallback(0.0634f);
+        Notice n;
+        std::vector<std::string> shown;
+        int f = toasts(s, n, true, 0, 30.0, 0.0f, false, shown);
+        f = toasts(s, n, true, f, 5.0, 0.0634f, true, shown);
+        CHECK(shown.empty());
+    }
+}
+
+TEST_CASE("FrameXr ipd: the IPD is saved when it changes, not every frame", "[frame_xr]") {
+    using FrameXr::Ipd::Saver;
+    std::mt19937 rng(3);
+    std::uniform_real_distribution<float> noise(-0.0004f, 0.0004f);
+    const auto saves = [&](Smoother& s, Saver& v, int& f, double secs, float ipd,
+                           std::vector<float>& out) {
+        f = Run(
+            s, f, secs, [&](int) { return ipd + noise(rng); },
+            [&](int, float) {
+                float m = 0.0f;
+                if (v.Want(s, m)) {
+                    out.push_back(m);
+                }
+            });
+    };
+    SECTION("first run: saved once when read, then on each dial change over 0.5 mm") {
+        Smoother s;
+        Saver v; // nothing saved
+        std::vector<float> saved;
+        int f = 0;
+        saves(s, v, f, 20.0, 0.0634f, saved); // 2400 frames of jitter: one write
+        REQUIRE(saved.size() == 1);
+        CHECK(saved[0] == Approx(0.0634f).margin(0.0003));
+        saves(s, v, f, 5.0, 0.0636f, saved); // 0.2 mm: not saved
+        CHECK(saved.size() == 1);
+        saves(s, v, f, 5.0, 0.0680f, saved); // the dial
+        REQUIRE(saved.size() == 2);
+        CHECK(saved[1] == Approx(0.0680f).margin(0.0003));
+    }
+    SECTION("a later run reading the saved IPD again writes nothing") {
+        Smoother s;
+        s.SetFallback(0.0634f);
+        Saver v(0.0634f);
+        std::vector<float> saved;
+        int f = 0;
+        saves(s, v, f, 20.0, 0.0634f, saved);
+        CHECK(saved.empty());
+    }
 }

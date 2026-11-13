@@ -356,9 +356,9 @@ TEST_CASE("FrameXr immersive: size, factor and gain", "[frame_xr]") {
                 Approx(kFactorMax));
     }
     SECTION("Wider View: the toast and the old switch") {
-        REQUIRE(WiderToast(0) == "Wider View: Off");
-        REQUIRE(WiderToast(2) == "Wider View: 1.2x");
-        REQUIRE(WiderToast(4) == "Wider View: 1.4x");
+        REQUIRE(WiderToast(0) == "Render Margin: Off"); // AzaharFrame kiu: was Wider View
+        REQUIRE(WiderToast(2) == "Render Margin: 1.2x");
+        REQUIRE(WiderToast(4) == "Render Margin: 1.4x");
         // The old switch let the factor follow the size (about 0.78 x size): the nearest level.
         REQUIRE(LevelForOldWiderView(std::nullopt) == kMaxWiderLevel);
         REQUIRE(LevelForOldWiderView(1.0f) == 0u);
@@ -401,25 +401,8 @@ TEST_CASE("FrameXr immersive: Narrow Screen's setting", "[frame_xr]") {
     REQUIRE(SqueezeFor(1) == Approx(0.1f));
     REQUIRE(SqueezeFor(3) == Approx(0.3f));
     REQUIRE(SqueezeFor(15) == Approx(0.15f));
-    // A press is 5 %, within 0 to 30 %; an old step is read first.
-    REQUIRE(SteppedNarrow(10, 1) == 15u);
-    REQUIRE(SteppedNarrow(10, -2) == 0u);
-    REQUIRE(SteppedNarrow(0, -1) == 0u);
-    REQUIRE(SteppedNarrow(30, 1) == 30u);
-    REQUIRE(SteppedNarrow(2, 1) == 25u);
-    // Never writes an old step.
-    for (uint32_t v = 0; v <= 30; ++v) {
-        for (const int steps : {-1, 1}) {
-            const uint32_t next = SteppedNarrow(v, steps);
-            REQUIRE((next == 0 || next >= 5));
-            REQUIRE(next % kNarrowStepPercent == 0);
-        }
-    }
-    REQUIRE(NarrowToast(0, false) == "Narrow Screen: Off");
-    REQUIRE(NarrowToast(15, false) == "Narrow Screen: 15%");
-    REQUIRE(NarrowToast(2, false) == "Narrow Screen: 20%");
-    REQUIRE(NarrowToast(5, true) == "Narrow Height: 5%");
-    REQUIRE(NarrowToast(0, true) == "Narrow Height: Off");
+    // AzaharFrame kiu: the steps and toasts are Horizontal and Vertical Scale's now
+    // (immersive_scale.cpp).
 }
 
 TEST_CASE("FrameXr immersive: Narrow Height", "[frame_xr]") {

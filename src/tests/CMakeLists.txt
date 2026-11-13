@@ -12,6 +12,7 @@ add_executable(tests
     frame_xr/presets.cpp # AzaharFrame vrqol
     frame_xr/shader_notice.cpp # AzaharFrame stall
     ../frame_xr/presets.cpp # AzaharFrame vrqol
+    ../frame_xr/controls_presets.cpp # AzaharFrame kiu
     ../frame_xr/input/geometry.cpp # AzaharFrame
     ../frame_xr/input/mapper.cpp # AzaharFrame
     ../frame_xr/input/screen_rig.cpp # AzaharFrame vrsize
@@ -29,6 +30,7 @@ add_executable(tests
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_layout.cpp # AzaharFrame
+    frame_xr/immersive_scale.cpp # AzaharFrame kiu
     frame_xr/ipd.cpp # AzaharFrame ipd
     frame_xr/input_motion.cpp # AzaharFrame
     ../frame_xr/vis/beam.cpp # AzaharFrame vrvis

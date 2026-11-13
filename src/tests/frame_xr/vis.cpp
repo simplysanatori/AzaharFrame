@@ -79,7 +79,9 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Grip on a Screen") == "3DS L, Move Screens");
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
         REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") ==
-                "Screen Curve or Wider View");
+                "Screen Curve or Render Margin"); // AzaharFrame kiu
+        REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Left or Right") == "Horizontal Scale");
+        REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Up or Down") == "Vertical Scale");
         REQUIRE(ActionFor(page.game, "D-Pad Up") == "Nothing");
         REQUIRE(ActionFor(page.game, "D-Pad Down") == "3DS D-Pad Down");
         REQUIRE(page.footer.find("Profile: Mine") != std::string::npos);
@@ -400,7 +402,20 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         // One label for both grips.
         REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Grip) == FindDiagramLabel(g, 1, CtrlPart::Grip));
         REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") == "Move Screens");
-        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") == "Curve or Wider View");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") ==
+                "Curve / Render Margin"); // AzaharFrame kiu
+        // AzaharFrame kiu: both grips' D-pad, a label of its own at the right grip
+        const DiagramLabel* both_grips = nullptr;
+        for (const DiagramLabel& l : g.labels) {
+            if (l.hand == 1 && std::find(l.parts.begin(), l.parts.end(), CtrlPart::Grip) !=
+                                   l.parts.end()) {
+                both_grips = &l;
+            }
+        }
+        REQUIRE(LineFor(both_grips, "Hold Both Grips +"));
+        REQUIRE(LineFor(both_grips, "Hold Both Grips +")->heading);
+        REQUIRE(LineFor(both_grips, "D-Pad Left or Right")->action == "Horizontal Scale");
+        REQUIRE(LineFor(both_grips, "D-Pad Up or Down")->action == "Vertical Scale");
         // The window's page.
         const DiagramPage& w = d.pages[1];
         REQUIRE(DiagramAction(w, 1, CtrlPart::A, "A") == "Click");
@@ -480,6 +495,9 @@ TEST_CASE("FrameXr vis: the diagram's labels fit and their lines are clear", "[f
                         continue;
                     }
                     const DiagramPlaced& q = placed[j];
+                    INFO("and " << q.label->lines.front().key << " at " << q.x0 << "," << q.y0
+                                << " " << q.x1 << "," << q.y1 << "; it at " << p.x0 << ","
+                                << p.y0 << " " << p.x1 << "," << p.y1);
                     // No two labels overlap, and no line runs through another label.
                     REQUIRE((p.x1 <= q.x0 || q.x1 <= p.x0 || p.y1 <= q.y0 || q.y1 <= p.y0));
                     for (const DiagramLeader& l : p.leaders) {

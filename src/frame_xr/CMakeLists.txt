@@ -15,6 +15,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     hud.cpp # AzaharFrame vrqol
     hud.h # AzaharFrame vrqol
     presets.cpp # AzaharFrame vrqol
+    controls_presets.cpp # AzaharFrame kiu
     controls_presets.h # AzaharFrame reticle
     presets.h # AzaharFrame vrqol
     flat_fit.h # AzaharFrame flatdialog

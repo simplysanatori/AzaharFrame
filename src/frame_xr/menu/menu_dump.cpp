@@ -80,7 +80,7 @@ Menu::MenuModel SampleModel() {
     m.immersive_mode = 2;
     m.wider_view = 2;
     m.game_fov = 60;
-    m.narrow_screen = 0;
+    m.scale_x = 0;
     m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
     m.depth_factor = 0;
     return m;
@@ -695,7 +695,8 @@ int main(int argc, char** argv) {
         v.hover = {Id::ReticleSpeed, kLabelIndex};
         v.tooltip = Id::ReticleSpeed;
         ok &= shot("4e-controls-reticle-speed-tooltip", mr, v);
-        // AzaharFrame fixes7: Aim Only While Pressed on, Stick Moves Reticle off; each tooltip
+        // AzaharFrame fixes7: Aim Only While Pressed on, Right Stick Moves Touch off; each
+        // tooltip. AzaharFrame kiu: C-Stick at Edge off here, its tooltip too.
         mr.reticle_center = true;
         v = {};
         v.tab = Tab::Controls;
@@ -705,7 +706,10 @@ int main(int argc, char** argv) {
         ok &= shot("4g-controls-aim-only-while-pressed-tooltip", mr, v);
         v.hover = {Id::ReticleStick, -1};
         v.tooltip = Id::ReticleStick;
-        ok &= shot("4h-controls-stick-moves-reticle-tooltip", mr, v);
+        ok &= shot("4h-controls-right-stick-moves-touch-tooltip", mr, v);
+        v.hover = {Id::ReticleEdgeCStick, -1};
+        v.tooltip = Id::ReticleEdgeCStick;
+        ok &= shot("4j-controls-cstick-at-edge-tooltip", mr, v);
         MenuModel mk = mr; // the Right Controller, as the owner plays Kid Icarus: Uprising
         mk.bottom_screen_reticle = 2;
         mk.reticle_center = false;
@@ -713,6 +717,11 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = Tab::Controls;
         ok &= shot("4i-controls-reticle-right-stick-on", mk, v);
+        // AzaharFrame kiu: Kid Icarus: Uprising's starting values with the owner's Right
+        // Controller: C-Stick at Edge on, Right Stick Moves Touch off.
+        mk.reticle_stick = false;
+        mk.reticle_edge_cstick = true;
+        ok &= shot("4k-controls-kiu-cstick-at-edge-on", mk, v);
     }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
@@ -888,6 +897,20 @@ int main(int argc, char** argv) {
     v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
     ok &= shot("5a-settings-general-end-saves", pg, v);
     {
+        // AzaharFrame kiu: Motion Controls is per game too: Kid Icarus: Uprising's Off, in
+        // Per-Game, then greyed in Global with its tooltip.
+        MenuModel mo = pg;
+        mo.motion_controls = 0;
+        mo.game_value[static_cast<std::size_t>(Id::MotionControls)] = true;
+        MenuView mv = settings(SettingsSection::General);
+        ok &= shot("5m-settings-motion-controls-per-game", mo, mv);
+        mo.scope = 0;
+        mo.locked[static_cast<std::size_t>(Id::MotionControls)] = Lock::GameValue;
+        mv.hover = {Id::MotionControls, kLabelIndex};
+        mv.tooltip = Id::MotionControls;
+        ok &= shot("5n-settings-motion-controls-global-locked", mo, mv);
+    }
+    {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
         so.autosave = false;
         so.locked[static_cast<std::size_t>(Id::AutosaveEvery)] = Lock::AutosaveOff;
@@ -935,9 +958,27 @@ int main(int argc, char** argv) {
     v = settings(SettingsSection::Immersive);
     v.hover = {Id::GameFov};
     ok &= shot("5b-settings-immersive", pg, v);
-    v.hover = {Id::NarrowScreen, kLabelIndex};
-    v.tooltip = Id::NarrowScreen;
+    v.hover = {Id::ScaleX, kLabelIndex};
+    v.tooltip = Id::ScaleX;
     ok &= shot("5c-settings-tooltip-option", pg, v);
+    {
+        // AzaharFrame kiu: Horizontal and Vertical Scale, both signs and 0; Render Margin's tip
+        MenuModel sc = pg;
+        sc.scale_x = -10;
+        sc.scale_y = 15;
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ok &= shot("5c2-settings-scales", sc, v);
+        v.hover = {Id::ScaleY, kLabelIndex};
+        v.tooltip = Id::ScaleY;
+        ok &= shot("5c3-settings-vertical-scale-tooltip", sc, v);
+        sc.scale_x = 30;
+        sc.scale_y = 0;
+        v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
+        v.hover = {Id::WiderView, kLabelIndex};
+        v.tooltip = Id::WiderView;
+        ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
+    }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
     v = settings(SettingsSection::Immersive);
@@ -1003,6 +1044,11 @@ int main(int argc, char** argv) {
         v.tooltip_index = kLabelIndex;
         ok &= shot("fo-detect-fov-tip-label", mc, v);
         v = settings(SettingsSection::Immersive);
+        // AzaharFrame kiu: each choice picked, nothing under the beam: the check mark on each.
+        for (int i = 0; i < 3; i++) {
+            mc.match_camera = i;
+            ok &= shot(std::string("fo-detect-fov-selected-") + kNames[i], mc, v);
+        }
     }
     // AzaharFrame reticle: the scope control (Global | Per-Game, ⋮, Per-Game's count tooltip) on the
     // Settings, Controls and Position tabs, in Per-Game and Global, the ⋮ menu open, and no game.

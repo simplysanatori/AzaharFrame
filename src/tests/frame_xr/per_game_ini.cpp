@@ -132,3 +132,91 @@ TEST_CASE("Match Game Camera: the old switch converts", "[frame_xr][fovonce]") {
         CHECK(FrameConfig::MigratedMatchCamera(ini, false) == 2u);
     }
 }
+
+// AzaharFrame kiu: Narrow Screen and Narrow Height become Horizontal and Vertical Scale, once:
+// Narrow Screen 10 % is -10 % (1 to 3 were 10 % steps); nothing when the file has the new key or
+// never set the old one (a new default of 0).
+TEST_CASE("Narrow Screen and Narrow Height convert to the scales", "[frame_xr][kiu]") {
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString old_x = QStringLiteral("vr_immersive_squeeze");
+    const QString now_x = QStringLiteral("vr_immersive_scale_x");
+    const QString old_y = QStringLiteral("vr_immersive_squeeze_y");
+    const QString now_y = QStringLiteral("vr_immersive_scale_y");
+    const auto migrated = [&dir](const QString& name, bool global, const QString& old,
+                                 const QString& now,
+                                 const std::initializer_list<std::pair<const char*, QVariant>>&
+                                     values) {
+        const QString path = dir.filePath(name);
+        {
+            QSettings ini(path, QSettings::IniFormat);
+            ini.beginGroup(QStringLiteral("VR"));
+            for (const auto& [key, value] : values) {
+                ini.setValue(QString::fromLatin1(key), value);
+            }
+            ini.endGroup();
+            ini.sync();
+        }
+        QSettings ini(path, QSettings::IniFormat);
+        ini.beginGroup(QStringLiteral("VR"));
+        return FrameConfig::MigratedScale(ini, global, old, now);
+    };
+    // A game's own values: Ocarina of Time 3D's old step 1 (10 %), Mario Kart 7's 30 and 15
+    CHECK(migrated(QStringLiteral("0004000000033500.ini"), false, old_x, now_x,
+                   {{"vr_immersive_squeeze/use_global", false}, {"vr_immersive_squeeze", 1}}) ==
+          -10);
+    CHECK(migrated(QStringLiteral("0004000000030800.ini"), false, old_x, now_x,
+                   {{"vr_immersive_squeeze/use_global", false},
+                    {"vr_immersive_squeeze", 30},
+                    {"vr_immersive_squeeze_y/use_global", false},
+                    {"vr_immersive_squeeze_y", 15}}) == -30);
+    CHECK(migrated(QStringLiteral("0004000000030800.ini"), false, old_y, now_y, {}) == -15);
+    CHECK(migrated(QStringLiteral("0004000000125600.ini"), false, old_x, now_x,
+                   {{"vr_immersive_squeeze/use_global", false}, {"vr_immersive_squeeze", 0}}) ==
+          0);
+    CHECK(migrated(QStringLiteral("0004000000125500.ini"), false, old_x, now_x,
+                   {{"vr_immersive_squeeze/use_global", false}, {"vr_immersive_squeeze", 99}}) ==
+          -30);
+    // Following the global value: nothing of its own
+    CHECK(!migrated(QStringLiteral("0004000000054100.ini"), false, old_x, now_x,
+                    {{"vr_immersive_squeeze/use_global", true}}));
+    // Converted already (its own value, or following the global one): the old key is ignored
+    CHECK(!migrated(QStringLiteral("0004000000086300.ini"), false, old_x, now_x,
+                    {{"vr_immersive_squeeze/use_global", false},
+                     {"vr_immersive_squeeze", 20},
+                     {"vr_immersive_scale_x/use_global", false},
+                     {"vr_immersive_scale_x", 5}}));
+    CHECK(!migrated(QStringLiteral("0004000000086400.ini"), false, old_x, now_x,
+                    {{"vr_immersive_squeeze/use_global", false},
+                     {"vr_immersive_squeeze", 20},
+                     {"vr_immersive_scale_x/use_global", true}}));
+    // The global file: a value the player set, or never changed (the new default, 0)
+    CHECK(migrated(QStringLiteral("g1.ini"), true, old_x, now_x,
+                   {{"vr_immersive_squeeze/default", false}, {"vr_immersive_squeeze", 20}}) ==
+          -20);
+    CHECK(migrated(QStringLiteral("g2.ini"), true, old_x, now_x,
+                   {{"vr_immersive_squeeze/default", false}, {"vr_immersive_squeeze", 0}}) == 0);
+    CHECK(!migrated(QStringLiteral("g3.ini"), true, old_x, now_x,
+                    {{"vr_immersive_squeeze/default", true}, {"vr_immersive_squeeze", 10}}));
+    CHECK(!migrated(QStringLiteral("g4.ini"), true, old_x, now_x,
+                    {{"vr_immersive_squeeze/default", false},
+                     {"vr_immersive_squeeze", 20},
+                     {"vr_immersive_scale_x/default", true},
+                     {"vr_immersive_scale_x", 0}}));
+    CHECK(!migrated(QStringLiteral("g5.ini"), true, old_x, now_x, {{"vr_immersive_game_fov", 60}}));
+    // A game's file as the app writes it (a u32 QVariant, subkeys with a backslash)
+    {
+        const QString path = dir.filePath(QStringLiteral("0004000000030900.ini"));
+        QFile f(path);
+        REQUIRE(f.open(QIODevice::WriteOnly));
+        f.write("[VR]\nvr_immersive_squeeze=@Variant(\\0\\0\\0\\x84\\0\\0\\0\\0\\0\\0\\0\\x1e)\n"
+                "vr_immersive_squeeze\\use_global=false\n"
+                "vr_immersive_squeeze_y=@Variant(\\0\\0\\0\\x84\\0\\0\\0\\0\\0\\0\\0\\xf)\n"
+                "vr_immersive_squeeze_y\\use_global=false\n");
+        f.close();
+        QSettings ini(path, QSettings::IniFormat);
+        ini.beginGroup(QStringLiteral("VR"));
+        CHECK(FrameConfig::MigratedScale(ini, false, old_x, now_x) == -30);
+        CHECK(FrameConfig::MigratedScale(ini, false, old_y, now_y) == -15);
+    }
+}

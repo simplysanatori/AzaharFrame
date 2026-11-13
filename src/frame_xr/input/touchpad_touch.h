@@ -8,6 +8,7 @@
 #include <cstdint>
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/mapper.h"
+#include "frame_xr/input/reticle.h" // AzaharFrame kiu: ReticleEdgeBand
 #include "frame_xr/input/types.h"
 
 // AzaharFrame touchpad
@@ -64,6 +65,9 @@ struct ReticleSample {
     bool on = false;   ///< live: a game running, the menu closed, the controller tracked
     Vec2f point;       ///< 0..1 from the top left
     bool down = false; ///< its trigger
+    /// AzaharFrame kiu: C-Stick at Edge's band (off: zero); InputBridge pushes the C-Stick
+    /// while this touch is the one the game gets (ReticleEdgeStick).
+    ReticleEdgeBand edge_band;
 };
 
 enum class TouchSource : int { None = 0, Beam, Pad, Mouse, Cursor, Reticle };
@@ -101,6 +105,12 @@ struct TouchpadResult {
     /// its own dot).
     TouchpadCursor cursor;
 };
+
+/// AzaharFrame kiu: C-Stick at Edge's push for this frame: ReticleEdgeStick of the reticle's
+/// point, only while the reticle's touch is the one the game gets (TouchpadTouch's owner() is
+/// the reticle and touching(), after this frame's Update; with the bottom screen hidden too),
+/// never for the beam's, the pad's or the mouse's touch.
+Vec2f ReticleEdgeStickFor(const ReticleSample& reticle, TouchSource owner, bool touching);
 
 class TouchpadTouch {
 public:

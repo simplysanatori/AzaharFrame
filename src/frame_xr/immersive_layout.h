@@ -214,22 +214,41 @@ Placement Clamped(Placement p);
 /// The per-game options of the head-locked screen.
 struct Options {
     float wider = kFactorMin; ///< Wider View: the periphery factor (kFactorMin to kFactorMax)
-    float squeeze = 0.0f;    ///< the quad this much narrower than the picture (0 to 0.3)
-    float squeeze_y = 0.0f;  ///< AzaharFrame immersive2: and this much lower (0 to 0.3)
+    /// The quad this much narrower than the picture (AzaharFrame kiu: -0.3 to 0.3, negative is
+    /// wider: SqueezeForScale of Horizontal Scale).
+    float squeeze = 0.0f;
+    float squeeze_y = 0.0f;  ///< AzaharFrame immersive2: and this much lower (Vertical Scale)
     /// AzaharFrame immersive: the game camera's vertical angle right now (Match Game Camera: a
     /// zoom), degrees; 0 = the angle the screen is sized with. Only the gain follows it.
     float live_fov_y_deg = 0.0f;
 };
 
-/// AzaharFrame immersive2: Narrow Screen's or Narrow Height's setting in percent (0 to 30, on the
-/// 5 % grid). 1, 2 and 3 are the steps of builds before 1.2.0 (10, 20, 30 %), never written now.
+/// AzaharFrame immersive2: the old Narrow Screen's or Narrow Height's setting in percent (0 to 30,
+/// on the 5 % grid). 1, 2 and 3 are the steps of builds before 1.2.0 (10, 20, 30 %). AzaharFrame
+/// kiu: read only to migrate them (ScaleFromNarrow).
 uint32_t NarrowPercent(uint32_t setting);
-/// The setting as a fraction (NarrowPercent / 100).
+/// The setting as a fraction (NarrowPercent / 100): Options::squeeze.
 float SqueezeFor(uint32_t setting);
-/// The setting after `steps` presses (positive = narrower), clamped to 0 to kMaxNarrowPercent.
-uint32_t SteppedNarrow(uint32_t setting, int steps);
-/// "Narrow Screen: 15%", "Narrow Screen: Off"; `height`: "Narrow Height: 5%".
-std::string NarrowToast(uint32_t percent, bool height);
+
+/// AzaharFrame kiu: Horizontal Scale and Vertical Scale (Settings::values.vr_immersive_scale_x,
+/// _y), signed percent: the immersive screen that much larger (positive) or smaller (negative)
+/// than the picture on that axis, -kMaxScalePercent to +kMaxScalePercent in kScaleStepPercent
+/// steps, 0 by default. They replace Narrow Screen and Narrow Height: Narrow Screen 10 % is
+/// Horizontal Scale -10 %. The axis's gain is the base gain over (1 + scale): the middle stays
+/// locked at both signs (at -30 % a base gain of 1.4 reaches kMaxGain; at +30 % it is / 1.3).
+inline constexpr int kScaleStepPercent = 5;
+inline constexpr int kMaxScalePercent = 30;
+/// The setting clamped and on the 5 % grid (a hand-edited value too).
+int ScalePercent(int setting);
+/// The setting as Options::squeeze (squeeze_y): -ScalePercent / 100.
+float SqueezeForScale(int setting);
+/// The setting after `steps` presses (positive = larger), clamped.
+int SteppedScale(int setting, int steps);
+/// "Horizontal Scale: -10%", "Horizontal Scale: 0%", "Vertical Scale: +5%".
+std::string ScaleToast(int percent, bool vertical);
+/// The old Narrow Screen or Narrow Height value as a scale: -NarrowPercent (the legacy 1 to 3 =
+/// 10 % steps rule kept), so a game keeps exactly its screen.
+int ScaleFromNarrow(uint32_t old_setting);
 
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
@@ -283,7 +302,8 @@ Cover DefaultCover(const ViewFov& view, float pitch_rad, float eye_shift);
 inline constexpr uint32_t kMaxWiderLevel = 4;
 /// The periphery factor of a level (others are clamped).
 float WiderFactor(uint32_t level);
-/// "Wider View: Off", "Wider View: 1.2x".
+/// "Render Margin: Off", "Render Margin: 1.2x" (AzaharFrame kiu: was Wider View; the name is
+/// Names::kRenderMargin).
 std::string WiderToast(uint32_t level);
 /// The level for a game that had the old Wider View switch on, which let the factor follow the
 /// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.

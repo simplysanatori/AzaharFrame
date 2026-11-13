@@ -45,11 +45,18 @@ public:
         return touchpad_cursor_;
     }
 
+    /// AzaharFrame kiu: C-Stick at Edge's push added to the C-Stick in the last Process (zero
+    /// when none).
+    Vec2f edge_stick() const {
+        return edge_stick_;
+    }
+
 private:
     Mapper mapper_;
     MotionTracker motion_;
     TouchpadTouch touchpad_;
     TouchpadCursor touchpad_cursor_;
+    Vec2f edge_stick_; ///< AzaharFrame kiu
     MapperOutput last_;
 };
 

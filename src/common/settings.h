@@ -816,22 +816,22 @@ struct Values {
     // immersive2: 1.4x by default (the owner's Majora's Mask 3D settings).
     SwitchableSetting<u32, true> vr_immersive_wider_view_level{4, 0, 4,
                                                                "vr_immersive_wider_view_level"};
-    // AzaharFrame: Full (6DoF) only. Narrow Screen: the immersive screen this many percent
-    // narrower at the same height, so the HUD at the sides moves in (frame_xr/immersive_layout.h).
-    // AzaharFrame immersive2: percent, 0 to 30 in 5 % steps, 10 by default, read every frame;
-    // 1, 2 and 3 are the 10 % steps of earlier builds (Layout::NarrowPercent). Both grips + D-pad
-    // left or right set it for the game on view.
-    SwitchableSetting<u32, true> vr_immersive_squeeze{10, 0, 30, "vr_immersive_squeeze"};
-    // AzaharFrame immersive2: Narrow Height, the same up and down (percent, 0 to 30, read every
-    // frame). Both grips + D-pad up or down set it for the game on view.
-    SwitchableSetting<u32, true> vr_immersive_squeeze_y{0, 0, 30, "vr_immersive_squeeze_y"};
+    // AzaharFrame kiu: Horizontal Scale and Vertical Scale (Full (6DoF) only): the immersive
+    // screen this many percent larger (positive) or smaller (negative) than the picture on that
+    // axis, -30 to +30 in 5 % steps, 0 by default, read every frame (frame_xr/immersive_layout.h
+    // ScalePercent). Both grips + D-pad left or right (up or down) set it for the game on view.
+    // They replace Narrow Screen and Narrow Height (vr_immersive_squeeze, _y, percent narrower):
+    // a file with only those is converted once when read (FrameConfig::MigratedScale), so Narrow
+    // Screen 10 % is -10 here.
+    SwitchableSetting<s32, true> vr_immersive_scale_x{0, -30, 30, "vr_immersive_scale_x"};
+    SwitchableSetting<s32, true> vr_immersive_scale_y{0, -30, 30, "vr_immersive_scale_y"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).
     SwitchableSetting<u32, true> vr_face_buttons{0, 0, 1, "vr_face_buttons"};
-    // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer (global only):
-    // 0 = off, 1 = right controller, 2 = left controller. Read every frame
-    // (frame_xr/input/motion.h).
+    // AzaharFrame: which controller drives the 3DS gyroscope and accelerometer: 0 = off,
+    // 1 = right controller, 2 = left controller, 3 = headset. Read every frame
+    // (frame_xr/input/motion.h). AzaharFrame kiu: per game too (was global only).
     SwitchableSetting<u32, true> vr_motion_controls{1, 0, 3, "vr_motion_controls"};
     // AzaharFrame: what is behind the screens in VR (global only): 0 = Black, 1 = Passthrough (the
     // room, when the runtime offers it). Read every frame (frame_xr/hud.h).
@@ -853,6 +853,10 @@ struct Values {
     // VR sets it; read every frame (frame_xr/immersive_layout.h).
     SwitchableSetting<float, true> vr_immersive_offset_x{0.f, -10.f, 10.f, "vr_immersive_offset_x"};
     SwitchableSetting<float, true> vr_immersive_offset_y{0.f, -10.f, 10.f, "vr_immersive_offset_y"};
+    // AzaharFrame ipd (global only): the headset's IPD in mm as last read from SteamVR (0 = never),
+    // the fallback at the next start until it is read again (frame_xr/ipd_smoother.h). Written by
+    // the XR thread only when the settled IPD moves more than 0.5 mm.
+    SwitchableSetting<float, true> vr_last_ipd_mm{0.f, 0.f, 100.f, "vr_last_ipd_mm"};
     // AzaharFrame curve (global only): the normal (not immersive) screens bent into cylinder
     // layers, as the angle in degrees the main screen's width spans (0 = flat quads). The steps
     // are 15, 30, 45 and 60; grip + D-pad up or down in VR changes it. Read every frame
@@ -886,11 +890,21 @@ struct Values {
     // for every aim source; per game too.
     SwitchableSetting<float, true> vr_reticle_speed{2.0f, 0.5f, 4.0f, "vr_reticle_speed"};
     // AzaharFrame fixes7: the reticle's Aim Only While Pressed (it stays in the middle of the
-    // bottom screen until the trigger touches) and Stick Moves Reticle (the right stick moves it
-    // too, instead of being the C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
+    // bottom screen until the trigger touches) and Right Stick Moves Touch (AzaharFrame kiu:
+    // was Stick Moves Reticle; the right stick moves the touch point too, instead of being the
+    // C-Stick); frame_xr/input/reticle.h ReticleModes. Per game too.
     SwitchableSetting<bool> vr_reticle_center_until_pressed{false,
                                                             "vr_reticle_center_until_pressed"};
     SwitchableSetting<bool> vr_reticle_stick_moves{false, "vr_reticle_stick_moves"};
+    // AzaharFrame kiu: C-Stick at Edge: while the reticle touches near an edge of the bottom
+    // screen, the C-Stick is pushed toward that edge too (frame_xr/input/reticle.h
+    // ReticleEdgeStick), so a game that turns its camera when the C-Stick aim reaches the edge
+    // (Kid Icarus: Uprising with the C-Stick & Gyro mod) turns. Per game too.
+    SwitchableSetting<bool> vr_reticle_edge_cstick{false, "vr_reticle_edge_cstick"};
+    // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
+    // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
+    // already had, is never given again, so a later choice (Use Global Value too) stays.
+    SwitchableSetting<u32> vr_controls_preset_done{0, "vr_controls_preset_done"};
     // AzaharFrame mouse: one-time toasts, shown once per install: the reticle's controls when it
     // is first set to a controller, and the mouse's when one is first found.
     SwitchableSetting<bool> vr_hint_reticle_shown{false, "vr_hint_reticle_shown"};

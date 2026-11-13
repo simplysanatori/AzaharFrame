@@ -5,7 +5,9 @@
 #include <set>
 #include <string>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include "common/settings.h"
+#include "frame_xr/controls_presets.h" // AzaharFrame kiu
 #include "frame_xr/presets.h"
 
 // AzaharFrame
@@ -49,15 +51,15 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     REQUIRE(sm3dl->game_fov == 45);
     REQUIRE(std::string(sm3dl->eye_indicator) == "87,2");
     // AzaharFrame presets: the owner's tuned Mario Kart 7 and Super Mario 3D Land.
-    REQUIRE(mk7->narrow == 30);
-    REQUIRE(mk7->narrow_y == 15);
+    REQUIRE(mk7->scale_x == -30); // AzaharFrame kiu: was Narrow Screen 30 %
+    REQUIRE(mk7->scale_y == -15); // and Narrow Height 15 %
     REQUIRE(mk7->screen_size == 2.022f);
     REQUIRE(mk7->resolution == 3);
     REQUIRE(mk7->texture_filter == 3);
     REQUIRE(sm3dl->factor_3d == 100);
     REQUIRE(sm3dl->resolution == 4);
     REQUIRE(sm3dl->screen_size == 0.0f);
-    REQUIRE(sm3dl->narrow == -1);
+    REQUIRE(sm3dl->scale_x == 0);
     // Ocarina of Time 3D and Majora's Mask 3D: mode 2, its own register (no register preset).
     for (const uint64_t id : {0x0004000000033500ull, 0x0004000000033600ull, 0x0004000000033400ull,
                               0x0004000000125500ull, 0x0004000000125600ull,
@@ -87,8 +89,8 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     for (std::size_t i = 0; i < count; ++i) {
         const ImmersivePreset& p = *titles[i].preset;
         REQUIRE((p.wider_level >= -1 && p.wider_level <= 4));
-        REQUIRE((p.narrow >= -1 && p.narrow <= 30));
-        REQUIRE((p.narrow_y >= -1 && p.narrow_y <= 30));
+        REQUIRE((p.scale_x >= -30 && p.scale_x <= 30 && p.scale_x % 5 == 0)); // AzaharFrame kiu
+        REQUIRE((p.scale_y >= -30 && p.scale_y <= 30 && p.scale_y % 5 == 0));
         REQUIRE((p.factor_3d >= -1 && p.factor_3d <= 100));
         REQUIRE((p.resolution >= -1 && p.resolution <= 18));
         REQUIRE((p.texture_filter >= -1 && p.texture_filter <= 5));
@@ -117,14 +119,16 @@ TEST_CASE("FrameXr presets: other games have none, ids are unique", "[frame_xr]"
 // AzaharFrame immersive: Kid Icarus: Uprising starts in the normal view, in every region: its
 // preset keeps Immersive Mode Off, so the player can still turn it on.
 TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[frame_xr]") {
-    for (const uint64_t id : {0x0004000000030100ull, 0x0004000000030200ull, 0x0004000000030300ull}) {
+    // AzaharFrame kiu: 0004000000030000 too (Japan, as the C-Stick & Gyro mod lists it).
+    for (const uint64_t id : {0x0004000000030000ull, 0x0004000000030100ull, 0x0004000000030200ull,
+                              0x0004000000030300ull}) {
         const auto* kiu = FindImmersivePreset(id);
         REQUIRE(kiu != nullptr);
         REQUIRE(kiu->mode == 0);
         REQUIRE(kiu->depth_multiplier == 0);
         REQUIRE(kiu->game_fov == 0);
         REQUIRE(kiu->wider_level == -1);
-        REQUIRE(kiu->narrow == -1);
+        REQUIRE(kiu->scale_x == 0);
         REQUIRE(kiu->match_camera == -1);
         // Graphics only; Immersive stays the player's to turn on.
         REQUIRE(kiu->resolution == 4);
@@ -147,8 +151,8 @@ void ResetPresetSettings() {
     v.vr_immersive_positional_game_scaler.SetGlobal(true);
     v.vr_immersive_game_fov.SetGlobal(true);
     v.vr_immersive_eye_indicator.SetGlobal(true);
-    v.vr_immersive_squeeze.SetGlobal(true);
-    v.vr_immersive_squeeze_y.SetGlobal(true);
+    v.vr_immersive_scale_x.SetGlobal(true); // AzaharFrame kiu
+    v.vr_immersive_scale_y.SetGlobal(true);
     v.factor_3d.SetGlobal(true);
     v.resolution_factor.SetGlobal(true);
     v.texture_filter.SetGlobal(true);
@@ -157,8 +161,8 @@ void ResetPresetSettings() {
     v.vr_immersive_positional_game_scaler.SetValue(0);
     v.vr_immersive_game_fov.SetValue(v.vr_immersive_game_fov.GetDefault());
     v.vr_immersive_eye_indicator.SetValue("");
-    v.vr_immersive_squeeze.SetValue(v.vr_immersive_squeeze.GetDefault());
-    v.vr_immersive_squeeze_y.SetValue(v.vr_immersive_squeeze_y.GetDefault());
+    v.vr_immersive_scale_x.SetValue(v.vr_immersive_scale_x.GetDefault());
+    v.vr_immersive_scale_y.SetValue(v.vr_immersive_scale_y.GetDefault());
     v.vr_si_mode_register_offset.SetValue(-1);
     v.factor_3d.SetValue(v.factor_3d.GetDefault());
     v.resolution_factor.SetValue(v.resolution_factor.GetDefault());
@@ -181,7 +185,9 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
         REQUIRE(v.vr_immersive_game_fov.GetValue() == 55);
         REQUIRE(v.vr_immersive_match_camera_mode.GetValue() == 0); // Off
         REQUIRE(v.vr_immersive_positional_game_scaler.GetValue() == 1);
-        REQUIRE(v.vr_immersive_squeeze.GetValue() == 1);
+        // AzaharFrame kiu: no Horizontal Scale any more (was Narrow Screen 10 %): 0, global.
+        REQUIRE(v.vr_immersive_scale_x.GetValue() == 0);
+        REQUIRE(v.vr_immersive_scale_x.UsingGlobal());
         REQUIRE(v.factor_3d.GetValue() == 30);
         REQUIRE(v.vr_si_mode_register_offset.GetValue() == -1);
     }
@@ -190,7 +196,8 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
     REQUIRE(Settings::values.vr_immersive_mode.GetValue() == 3);
     REQUIRE(Settings::values.vr_si_mode_register_offset.GetValue() == 90);
     REQUIRE(Settings::values.resolution_factor.GetValue() == 3);
-    REQUIRE(Settings::values.vr_immersive_squeeze.GetValue() == 30);
+    REQUIRE(Settings::values.vr_immersive_scale_x.GetValue() == -30); // was Narrow Screen 30 %
+    REQUIRE(Settings::values.vr_immersive_scale_y.GetValue() == -15); // and Narrow Height 15 %
     REQUIRE(Settings::values.vr_immersive_eye_indicator.GetValue() == "87,2");
     // AzaharFrame jump: the owner's tuning had Match Game Camera off (the gain from 40 degrees).
     REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 0); // Off
@@ -206,21 +213,148 @@ TEST_CASE("FrameXr presets: the player's own values win", "[frame_xr]") {
     auto& v = Settings::values;
     ResetPresetSettings();
     v.vr_immersive_mode.SetValue(0); // global Off, never touched: preset applies (above)
-    // This game's own Immersive Mode (even Off), 3D Depth and squeeze.
+    // This game's own Immersive Mode (even Off), 3D Depth and Horizontal Scale (even 0).
     v.vr_immersive_mode.SetGlobal(false);
     v.vr_immersive_mode.SetValue(3);
     v.factor_3d.SetGlobal(false);
     v.factor_3d.SetValue(77);
-    v.vr_immersive_squeeze.SetGlobal(false);
-    v.vr_immersive_squeeze.SetValue(0);
+    v.vr_immersive_scale_x.SetGlobal(false);
+    v.vr_immersive_scale_x.SetValue(0);
     // A global value the player changed.
     v.resolution_factor.SetValue(7);
     ApplyPresetSettings(*FindImmersivePreset(0x0004000000033500ull));
     REQUIRE(v.vr_immersive_mode.GetValue() == 3);
     REQUIRE(v.factor_3d.GetValue() == 77);
-    REQUIRE(v.vr_immersive_squeeze.GetValue() == 0);
-    ApplyPresetSettings(*FindImmersivePreset(0x0004000000030800ull));
+    REQUIRE(v.vr_immersive_scale_x.GetValue() == 0);
+    ApplyPresetSettings(*FindImmersivePreset(0x0004000000030800ull)); // MK7: scale -30
+    REQUIRE(v.vr_immersive_scale_x.GetValue() == 0); // still the game's own 0
     REQUIRE(v.resolution_factor.GetValue() == 7);
     REQUIRE(v.resolution_factor.UsingGlobal());
     ResetPresetSettings();
+}
+
+// AzaharFrame kiu: Kid Icarus: Uprising's graphics preset in Japan's 0004000000030000 too, only
+// as starting values: a fresh game gets them, the game's own value and a changed global one
+// stay, and Immersive Mode is never set.
+TEST_CASE("FrameXr presets: Kid Icarus: Uprising (Japan, 30000) gives starting values only",
+          "[frame_xr][kiu]") {
+    auto& v = Settings::values;
+    const ImmersivePreset& kiu = *FindImmersivePreset(0x0004000000030000ull);
+    ResetPresetSettings();
+    ApplyPresetSettings(kiu);
+    CHECK(v.resolution_factor.GetValue() == 4);
+    CHECK(!v.resolution_factor.UsingGlobal()); // the game's, the global value untouched
+    CHECK(v.resolution_factor.GetValue(true) == v.resolution_factor.GetDefault());
+    CHECK(static_cast<int>(v.texture_filter.GetValue()) == 2);
+    CHECK(v.vr_immersive_mode.UsingGlobal());
+    CHECK(v.vr_immersive_mode.GetValue() == 0u);
+    ResetPresetSettings();
+    v.resolution_factor.SetGlobal(false); // this game's own value
+    v.resolution_factor.SetValue(2);
+    v.texture_filter.SetValue(Settings::TextureFilter::Anime4K); // a global value chosen
+    ApplyPresetSettings(kiu);
+    CHECK(v.resolution_factor.GetValue() == 2);
+    CHECK(v.texture_filter.UsingGlobal());
+    CHECK(static_cast<int>(v.texture_filter.GetValue()) == 1);
+    ResetPresetSettings();
+}
+
+// AzaharFrame kiu: the Controls preset gives starting values only: never over the game's own
+// value or a global value the player chose, and once per game (vr_controls_preset_done), so what
+// the player chooses afterwards stays, Use Global Value too.
+namespace {
+void ResetControlsSettings() {
+    auto& v = Settings::values;
+    v.vr_bottom_screen_reticle.SetGlobal(true);
+    v.vr_bottom_screen_reticle.SetValue(0);
+    v.vr_motion_controls.SetGlobal(true);
+    v.vr_motion_controls.SetValue(1);
+    v.vr_reticle_edge_cstick.SetGlobal(true);
+    v.vr_reticle_edge_cstick.SetValue(false);
+    v.vr_reticle_stick_moves.SetGlobal(true);
+    v.vr_reticle_stick_moves.SetValue(false);
+    v.vr_controls_preset_done.SetGlobal(true);
+    v.vr_controls_preset_done.SetValue(0);
+}
+} // namespace
+
+TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
+    auto& v = Settings::values;
+    // Every region, Japan's 0004000000030000 too: the same starting-values path.
+    const uint64_t id = GENERATE(0x0004000000030000ull, 0x0004000000030100ull,
+                                 0x0004000000030200ull, 0x0004000000030300ull);
+    INFO("title " << std::hex << id);
+    REQUIRE(FindControlsPreset(id) != nullptr);
+    const ControlsPreset& kiu = *FindControlsPreset(id);
+    SECTION("a fresh game gets them, Right Stick Moves Touch stays off") {
+        ResetControlsSettings();
+        CHECK(ApplyControlsPreset(kiu) ==
+              (kPresetReticle | kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
+        CHECK(v.vr_motion_controls.GetValue() == 0);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+        CHECK(!v.vr_reticle_stick_moves.GetValue());
+        CHECK(v.vr_reticle_stick_moves.UsingGlobal());
+        // The game's values, not the global ones.
+        CHECK(!v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue(true) == 1);
+        CHECK(v.vr_reticle_edge_cstick.GetValue(true) == false);
+        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+        // Booting again changes nothing.
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+    }
+    SECTION("a value the player saved for the game is never overwritten") {
+        ResetControlsSettings();
+        // The owner's file: Right Controller, Motion Controls Right Controller, C-Stick at Edge
+        // off, all saved for this game before the preset had them.
+        v.vr_bottom_screen_reticle.SetGlobal(false);
+        v.vr_bottom_screen_reticle.SetValue(2);
+        v.vr_motion_controls.SetGlobal(false);
+        v.vr_motion_controls.SetValue(1);
+        v.vr_reticle_edge_cstick.SetGlobal(false);
+        v.vr_reticle_edge_cstick.SetValue(false);
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+        CHECK(v.vr_motion_controls.GetValue() == 1);
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        // Marked: a later Use Global Value for them stays too.
+        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+    }
+    SECTION("a global value the player chose is left alone, and not marked") {
+        ResetControlsSettings();
+        v.vr_motion_controls.SetValue(3); // global Headset
+        v.vr_reticle_edge_cstick.SetValue(true); // global on (the preset's own value)
+        v.vr_bottom_screen_reticle.SetValue(1); // global Left Controller
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue() == 3);
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 1);
+        CHECK(v.vr_controls_preset_done.GetValue() == 0u);
+    }
+    SECTION("after the preset, the player's choice stays: a new value, or Use Global Value") {
+        ResetControlsSettings();
+        ApplyControlsPreset(kiu);
+        // Use Global Value for Motion Controls and C-Stick at Edge, a new value for the reticle
+        // (what the game's file keeps, with the marker).
+        v.vr_motion_controls.SetGlobal(true);
+        v.vr_reticle_edge_cstick.SetGlobal(true);
+        v.vr_bottom_screen_reticle.SetValue(2);
+        // The next start reads the same file back: nothing is given again.
+        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(v.vr_motion_controls.UsingGlobal());
+        CHECK(v.vr_motion_controls.GetValue() == 1);
+        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+    }
+    SECTION("a value added to the preset later is given once, the old ones stay decided") {
+        ResetControlsSettings();
+        v.vr_controls_preset_done.SetGlobal(false);
+        v.vr_controls_preset_done.SetValue(kPresetReticle); // an earlier build gave the reticle
+        CHECK(ApplyControlsPreset(kiu) == (kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(v.vr_bottom_screen_reticle.UsingGlobal()); // Use Global Value chosen back then
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+    }
+    ResetControlsSettings();
 }

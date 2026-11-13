@@ -30,6 +30,8 @@
 //                             the eyes), so a turn moves the eyes as a real head does
 //   MOCK_XR_IPD=<m>[,<m>@<s>] the distance between the eyes (0.064), and optionally the one it
 //                             changes to at <s> seconds after the session began (a dial turn)
+//   MOCK_XR_EYES_UNTRACKED=<s> no valid eye positions (only orientations) for the first <s>
+//                             seconds after the session began
 //   MOCK_XR_IPD_JITTER=<m>    the eyes this much further apart and closer, alternating each
 //                             display frame (eye positions that jitter)
 //   MOCK_XR_SPACEWARP=1       offer XR_FB_space_warp
@@ -157,6 +159,8 @@ static double gTurnRate = 0.0, gTurnAmp = 40.0, gNeck = 0.0;
 // MOCK_XR_IPD_JITTER.
 static double gIpd = 0.064, gIpd2 = 0.0, gIpdAt = 0.0, gIpdJitter = 0.0;
 static int gIpdStepSaid = 0;
+static double gEyesUntrackedS = 0.0; // MOCK_XR_EYES_UNTRACKED
+static int gEyesTrackedSaid = 0;
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
 // Sessions begun so far. A later session (an app that ended its session and made a new one)
 // keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
@@ -1589,6 +1593,14 @@ static XrResult XRAPI_CALL mLocateViews(XrSession s, const XrViewLocateInfo* li,
     (void)s;
     vs->viewStateFlags = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_TRACKED_BIT |
                          XR_VIEW_STATE_POSITION_TRACKED_BIT;
+    if (gEyesUntrackedS > 0.0 && gT0 != 0) {
+        if ((li->displayTime - gT0) / 1e9 < gEyesUntrackedS) {
+            vs->viewStateFlags = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_TRACKED_BIT;
+        } else if (!gEyesTrackedSaid) {
+            gEyesTrackedSaid = 1;
+            trace("eye positions valid from t=%.3f", (li->displayTime - gT0) / 1e9);
+        }
+    }
     *count = 2;
     if (cap == 0) return XR_SUCCESS;
     LOCK();
@@ -1736,6 +1748,8 @@ static void init(void) {
             gIpdAt = atof(at + 1);
         }
     }
+    const char* untracked = getenv("MOCK_XR_EYES_UNTRACKED");
+    if (untracked && *untracked) gEyesUntrackedS = atof(untracked);
     const char* ipdJitter = getenv("MOCK_XR_IPD_JITTER");
     if (ipdJitter && *ipdJitter) gIpdJitter = atof(ipdJitter);
     gDumpDir = getenv("MOCK_XR_DUMP_DIR");

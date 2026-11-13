@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <initializer_list>
+#include <utility>
+#include <vector>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -18,6 +21,7 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
 #include "common/settings.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame kiu
 
 namespace {
 
@@ -49,15 +53,24 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
 // 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
-// AzaharFrame immersive2: Narrow Screen (Settings::values.vr_immersive_squeeze) is in percent,
-// 5 % steps up to 30 % (frame_xr/immersive_layout.h); 1, 2 and 3 are the 10 % steps of earlier
-// builds (Layout::NarrowPercent). The combo's item n is n x 5 %.
-constexpr u32 kNarrowStep = 5;
-constexpr u32 kNarrowMax = 30;
-int NarrowIndex(u32 setting) {
-    const u32 percent =
-        (setting >= 1 && setting <= 3) ? setting * 10 : std::min(setting, kNarrowMax);
-    return static_cast<int>((percent + kNarrowStep / 2) / kNarrowStep);
+// AzaharFrame kiu: Horizontal and Vertical Scale (Settings::values.vr_immersive_scale_x and _y)
+// are signed percent, -30 to +30 in 5 % steps (frame_xr/immersive_layout.h ScalePercent). The
+// combo's item n is -30 + n x 5 %, so item 6 is 0 %.
+constexpr s32 kScaleStep = 5;
+constexpr s32 kScaleMax = 30;
+int ScaleIndex(s32 percent) {
+    const s32 p = std::clamp(percent, -kScaleMax, kScaleMax) + kScaleMax;
+    return static_cast<int>((p + kScaleStep / 2) / kScaleStep);
+}
+s32 ScaleOfIndex(s32 index) {
+    return std::clamp(index, 0, 2 * kScaleMax / kScaleStep) * kScaleStep - kScaleMax;
+}
+QComboBox* MakeScaleCombo(QWidget* parent) {
+    auto* combo = new QComboBox(parent);
+    for (s32 p = -kScaleMax; p <= kScaleMax; p += kScaleStep) {
+        combo->addItem(p > 0 ? QStringLiteral("+%1%").arg(p) : QStringLiteral("%1%").arg(p));
+    }
+    return combo;
 }
 
 int CurveIndex(u32 deg) {
@@ -122,7 +135,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         {window_scale_combo});
     layout->addWidget(window_scale_row);
 
-    // Global only. Values 0..3 are Settings::values.vr_motion_controls (frame_xr/input/motion.h).
+    // Values 0..3 are Settings::values.vr_motion_controls (frame_xr/input/motion.h). AzaharFrame
+    // kiu: global and per game, as the rows of the VR group (a game's Properties have Use global).
     motion_combo = new QComboBox(this);
     motion_combo->addItem(tr("Off"));
     motion_combo->addItem(tr("Right Controller"));
@@ -263,23 +277,22 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     for (const char* step : {"1.1x", "1.2x", "1.3x", "1.4x"}) {
         wider_combo->addItem(QString::fromLatin1(step));
     }
-    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr("Wider View"),
-                        tr("Shows more of the game around the edges. Some games leave them empty."),
-                        {wider_combo});
+    // AzaharFrame kiu: Render Margin (was Wider View); the names are in frame_xr/immersive_names.h.
+    namespace Names = FrameXr::Immersive::Names;
+    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr(Names::kRenderMargin),
+                        tr(Names::kRenderMarginTip), {wider_combo});
     layout->addWidget(wider_row);
 
-    // AzaharFrame immersive2: item n is n x 5 % of Settings::values.vr_immersive_squeeze
-    // (percent; Layout::NarrowPercent reads the steps of earlier builds).
-    squeeze_combo = new QComboBox(this);
-    squeeze_combo->addItem(tr("Off"));
-    for (u32 percent = kNarrowStep; percent <= kNarrowMax; percent += kNarrowStep) {
-        squeeze_combo->addItem(QStringLiteral("%1%").arg(percent));
-    }
-    squeeze_row = MakeRow(
-        this, QStringLiteral("frame_vr_squeeze_row"), tr("Narrow Screen"),
-        tr("Narrows the screen so the side HUD moves into view."),
-        {squeeze_combo});
-    layout->addWidget(squeeze_row);
+    // AzaharFrame kiu: Horizontal and Vertical Scale (ScaleIndex).
+    scale_x_combo = MakeScaleCombo(this);
+    scale_x_row = MakeRow(this, QStringLiteral("frame_vr_scale_x_row"),
+                          tr(Names::kHorizontalScale), tr(Names::kHorizontalScaleTip),
+                          {scale_x_combo});
+    layout->addWidget(scale_x_row);
+    scale_y_combo = MakeScaleCombo(this);
+    scale_y_row = MakeRow(this, QStringLiteral("frame_vr_scale_y_row"), tr(Names::kVerticalScale),
+                          tr(Names::kVerticalScaleTip), {scale_y_combo});
+    layout->addWidget(scale_y_row);
 
     // Values 0..2 are 10^n (Settings::values.vr_immersive_positional_game_scaler).
     depth_combo = new QComboBox(this);
@@ -319,9 +332,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
 ConfigureFrameVr::~ConfigureFrameVr() = default;
 
 void ConfigureFrameVr::SetupPerGameUI() {
-    // Face Buttons and Motion Controls are not per game.
+    // Face Buttons is not per game (AzaharFrame kiu: Motion Controls is).
     face_row->setVisible(Settings::IsConfiguringGlobal());
-    motion_row->setVisible(Settings::IsConfiguringGlobal());
     window_scale_row->setVisible(Settings::IsConfiguringGlobal());
     background_row->setVisible(Settings::IsConfiguringGlobal());
     curve_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame curve
@@ -334,24 +346,27 @@ void ConfigureFrameVr::SetupPerGameUI() {
         register_scope->setVisible(false);
         eye_scope->setVisible(false);
         fov_scope->setVisible(false);
-        // A running application that overrides them blocks the global values.
-        const auto lock = [this](QWidget* widget, bool using_global) {
-            widget->setEnabled(using_global);
+        // AzaharFrame kiu: never locked. While the running game has its own value, a row still
+        // edits the global value (ApplyConfiguration), the game keeps its own, and a plain hint
+        // says so.
+        const auto hint = [this](QWidget* widget, bool using_global) {
             if (!using_global) {
-                widget->setToolTip(tr("The running game has its own setting for this. Change it "
-                                      "in the game's Properties."));
+                widget->setToolTip(
+                    tr("The running game has its own value. This sets the one for other games."));
             }
         };
-        lock(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
-        lock(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
-        lock(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
-        lock(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
-        lock(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
-        lock(squeeze_combo, Settings::values.vr_immersive_squeeze.UsingGlobal());
-        lock(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
-        lock(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
-        lock(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
-        lock(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
+        hint(hide_bottom_check, Settings::values.vr_hide_bottom_screen.UsingGlobal());
+        hint(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
+        hint(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
+        hint(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
+        hint(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
+        hint(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
+        hint(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
+        hint(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
+        hint(depth_combo, Settings::values.vr_immersive_positional_game_scaler.UsingGlobal());
+        hint(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
+        hint(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
+        hint(motion_combo, Settings::values.vr_motion_controls.UsingGlobal());
         return;
     }
 
@@ -367,13 +382,19 @@ void ConfigureFrameVr::SetupPerGameUI() {
         wider_combo, wider_row,
         static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
-        squeeze_combo, squeeze_row,
-        NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        scale_x_combo, scale_x_row,
+        ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox(
+        scale_y_combo, scale_y_row,
+        ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox(
         depth_combo, depth_row,
         static_cast<int>(Settings::values.vr_immersive_positional_game_scaler.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox( // AzaharFrame kiu
+        motion_combo, motion_row,
+        static_cast<int>(Settings::values.vr_motion_controls.GetValue(true)));
 
     connect(register_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         register_spin->setEnabled(index == 1);
@@ -409,16 +430,18 @@ void ConfigureFrameVr::SetConfiguration() {
     if (global) {
         shape_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
-        squeeze_combo->setCurrentIndex(
-            NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue(true)));
+        scale_x_combo->setCurrentIndex(
+            ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
+        scale_y_combo->setCurrentIndex(
+            ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
         wider_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
         match_camera_combo->setCurrentIndex(static_cast<int>(
             std::min<u32>(Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2)));
         face_combo->setCurrentIndex(static_cast<int>(Settings::values.vr_face_buttons.GetValue()));
-        motion_combo->setCurrentIndex(
-            static_cast<int>(Settings::values.vr_motion_controls.GetValue()));
+        motion_combo->setCurrentIndex( // AzaharFrame kiu: the global value, not a game's
+            static_cast<int>(Settings::values.vr_motion_controls.GetValue(true)));
         background_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
@@ -439,17 +462,22 @@ void ConfigureFrameVr::SetConfiguration() {
 
     ConfigurationShared::SetPerGameSetting(shape_combo, &Settings::values.vr_top_aspect);
     ConfigurationShared::SetHighlight(shape_row, !Settings::values.vr_top_aspect.UsingGlobal());
-    squeeze_combo->setCurrentIndex(
-        Settings::values.vr_immersive_squeeze.UsingGlobal()
-            ? ConfigurationShared::USE_GLOBAL_INDEX
-            : NarrowIndex(Settings::values.vr_immersive_squeeze.GetValue()) +
-                  ConfigurationShared::USE_GLOBAL_OFFSET);
+    for (auto [combo, setting] :
+         {std::pair{scale_x_combo, &Settings::values.vr_immersive_scale_x},
+          std::pair{scale_y_combo, &Settings::values.vr_immersive_scale_y}}) {
+        combo->setCurrentIndex(setting->UsingGlobal()
+                                   ? ConfigurationShared::USE_GLOBAL_INDEX
+                                   : ScaleIndex(setting->GetValue()) +
+                                         ConfigurationShared::USE_GLOBAL_OFFSET);
+    }
     ConfigurationShared::SetPerGameSetting(wider_combo,
                                            &Settings::values.vr_immersive_wider_view_level);
     ConfigurationShared::SetHighlight(
         wider_row, !Settings::values.vr_immersive_wider_view_level.UsingGlobal());
-    ConfigurationShared::SetHighlight(squeeze_row,
-                                      !Settings::values.vr_immersive_squeeze.UsingGlobal());
+    ConfigurationShared::SetHighlight(scale_x_row,
+                                      !Settings::values.vr_immersive_scale_x.UsingGlobal());
+    ConfigurationShared::SetHighlight(scale_y_row,
+                                      !Settings::values.vr_immersive_scale_y.UsingGlobal());
     fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
     fov_spin->setEnabled(!Settings::values.vr_immersive_game_fov.UsingGlobal());
     ConfigurationShared::SetHighlight(fov_row,
@@ -462,6 +490,10 @@ void ConfigureFrameVr::SetConfiguration() {
         match_camera_row, !Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
     ConfigurationShared::SetPerGameSetting(depth_combo, &depth);
     ConfigurationShared::SetHighlight(depth_row, !depth.UsingGlobal());
+    // AzaharFrame kiu: Motion Controls, the game's own value or Use global
+    ConfigurationShared::SetPerGameSetting(motion_combo, &Settings::values.vr_motion_controls);
+    ConfigurationShared::SetHighlight(motion_row,
+                                      !Settings::values.vr_motion_controls.UsingGlobal());
 
     register_scope->setCurrentIndex(reg.UsingGlobal() ? 0 : 1);
     register_spin->setEnabled(!reg.UsingGlobal());
@@ -525,8 +557,6 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_immersive_offset_y.SetValue(0.0f);
         }
         Settings::values.vr_face_buttons.SetValue(static_cast<u32>(face_combo->currentIndex()));
-        Settings::values.vr_motion_controls.SetValue(
-            static_cast<u32>(motion_combo->currentIndex()));
         Settings::values.vr_background.SetValue(
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
@@ -547,6 +577,29 @@ void ConfigureFrameVr::ApplyConfiguration() {
             Settings::values.vr_window_scale.SetValue(static_cast<u32>(percent));
         }
     }
+    // AzaharFrame kiu: in the global settings every row edits the global value, also while the
+    // running game has its own: ApplyPerGameSetting writes only a setting that uses the global
+    // value there (SetValue would change the game's), so each is switched to it for the writes
+    // and back after, and the game keeps its value.
+    std::vector<std::function<void()>> game_values;
+    const auto as_global = [&game_values](auto& setting) {
+        if (Settings::IsConfiguringGlobal() && !setting.UsingGlobal()) {
+            setting.SetGlobal(true);
+            game_values.push_back([&setting] { setting.SetGlobal(false); });
+        }
+    };
+    as_global(Settings::values.vr_hide_bottom_screen);
+    as_global(Settings::values.vr_immersive_match_camera_mode);
+    as_global(Settings::values.vr_top_aspect);
+    as_global(Settings::values.vr_motion_controls);
+    as_global(Settings::values.vr_immersive_game_fov);
+    as_global(Settings::values.vr_immersive_wider_view_level);
+    as_global(Settings::values.vr_immersive_scale_x);
+    as_global(Settings::values.vr_immersive_scale_y);
+    as_global(Settings::values.vr_immersive_mode);
+    as_global(Settings::values.vr_immersive_positional_game_scaler);
+    as_global(Settings::values.vr_si_mode_register_offset);
+    as_global(Settings::values.vr_immersive_eye_indicator);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
                                              hide_bottom_check, hide_bottom_state);
     {
@@ -560,13 +613,16 @@ void ConfigureFrameVr::ApplyConfiguration() {
         }
     }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_top_aspect, shape_combo);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_controls,
+                                             motion_combo); // AzaharFrame kiu
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
                                              wider_combo);
-    ConfigurationShared::ApplyPerGameSetting(
-        &Settings::values.vr_immersive_squeeze, squeeze_combo,
-        [](s32 index) { return static_cast<u32>(std::max(index, 0)) * kNarrowStep; });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_x, scale_x_combo,
+                                             [](s32 index) { return ScaleOfIndex(index); });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_y, scale_y_combo,
+                                             [](s32 index) { return ScaleOfIndex(index); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_positional_game_scaler,
                                              depth_combo);
@@ -576,4 +632,7 @@ void ConfigureFrameVr::ApplyConfiguration() {
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.vr_immersive_eye_indicator, eye_scope,
         [this](s32) { return eye_edit->text().trimmed().toStdString(); });
+    for (const auto& back : game_values) {
+        back(); // AzaharFrame kiu: the running game's own values again
+    }
 }

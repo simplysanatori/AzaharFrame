@@ -156,7 +156,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(centre(Id::ScreenShape, 3) == Target{Id::ScreenShape, 3});
 
-    // The Wider View row in an Off immersive mode: only its tooltip.
+    // The Render Margin row in an Off immersive mode: only its tooltip.
     v = {};
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive; // AzaharFrame autosave
@@ -304,8 +304,9 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         v.tab = Tab::Controls;
         d.Draw(m, v);
         // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on;
-        // AzaharFrame fixes7: three (the switches' row)
-        REQUIRE(picture.H() > (reticle != 0 ? 120.0f : 200.0f));
+        // AzaharFrame fixes7: three (the switches' row); kiu: still three (C-Stick at Edge shares
+        // At Edge's row)
+        REQUIRE(picture.H() > (reticle != 0 ? 90.0f : 200.0f));
         Rect edit{}, pages{};
         float rows_y0 = 1e9f, rows_y1 = 0.0f;
         for (const auto& h : d.menu.Hits()) {
@@ -317,7 +318,8 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
             }
             if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
                 h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge ||
-                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick) { // fixes7
+                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick || // fixes7
+                h.t.id == Id::ReticleEdgeCStick) {                             // kiu
                 rows_y0 = std::min(rows_y0, h.r.y0);
                 rows_y1 = std::max(rows_y1, h.r.y1);
             }
@@ -2567,7 +2569,8 @@ TEST_CASE("Tab menu: Settings sections and the scope's menu button", "[frame_xr]
             for (const auto& h : d.menu.Hits()) {
                 const Id id = h.t.id;
                 if (id == Id::Scope || id == Id::ScopeMore || id == Id::SettingsSection ||
-                    id == Id::TabButton || id == Id::None) {
+                    id == Id::TabButton || id == Id::None ||
+                    id == Id::Scrollbar) { // AzaharFrame kiu: Immersive scrolls now
                     continue;
                 }
                 CHECK(static_cast<int>(SectionOf(id)) == sec); // only its own rows
@@ -2889,21 +2892,23 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
     CHECK(GameValueCount(1) == "1 Per-Game Value Set");
     CHECK(GameValueCount(2) == "2 Per-Game Values Set");
     // Global-only rows are never per game
-    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::MotionControls,
-                  Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution,
-                  Id::ScreenLayout, Id::MoveScreens, Id::ScreenCurve, Id::CursorSpeed}) {
+    // (AzaharFrame kiu: Motion Controls is per game now.)
+    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::ShowControllers,
+                  Id::FastForwardSpeed, Id::DynamicResolution, Id::ScreenLayout, Id::MoveScreens,
+                  Id::ScreenCurve, Id::CursorSpeed}) {
         CHECK(!PerGameSetting(id));
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
                   Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
-                  Id::MatchCamera, Id::NarrowScreen, Id::DepthFactor, Id::Autosave,
+                  Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::DepthFactor, Id::Autosave,
                   Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
                   Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
-                  Id::ReticleAtEdge}) {
+                  Id::ReticleAtEdge, Id::MotionControls, Id::ReticleEdgeCStick}) {
         CHECK(PerGameSetting(id));
     }
     CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
                                                  Id::ReticleSpeed, Id::ReticleAtEdge,
+                                                 Id::ReticleEdgeCStick, // AzaharFrame kiu
                                                  Id::ReticleCenter, Id::ReticleStick});
     MenuModel m = Sample();
     m.scope = 1;
@@ -3067,15 +3072,20 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
     CHECK(HasHit(d, Id::ReticleSpeed, kLabelIndex));
 }
 
-// AzaharFrame fixes7: Aim Only While Pressed and Stick Moves Reticle, switch rows under At Edge
-// while the reticle is on, per game; greyed in Global while the game has its own value.
+// AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, switch rows under At
+// Edge while the reticle is on, per game; greyed in Global while the game has its own value.
+// AzaharFrame kiu: C-Stick at Edge in a row of its own between At Edge and the pair.
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
-    CHECK(LabelFor(Id::ReticleStick) == "Stick Moves Reticle");
+    CHECK(LabelFor(Id::ReticleStick) == "Right Stick Moves Touch");
+    CHECK(LabelFor(Id::ReticleEdgeCStick) == "C-Stick at Edge");
     CHECK(!ExplainFor(Id::ReticleCenter).empty());
     CHECK(!ExplainFor(Id::ReticleStick).empty());
+    CHECK(!ExplainFor(Id::ReticleEdgeCStick).empty());
     CHECK(PerGameSetting(Id::ReticleCenter));
     CHECK(PerGameSetting(Id::ReticleStick));
+    CHECK(PerGameSetting(Id::ReticleEdgeCStick));
+    CHECK(PerGameSetting(Id::MotionControls)); // AzaharFrame kiu: per game too
     Drawn d;
     MenuModel m = Sample();
     MenuView v;
@@ -3083,25 +3093,40 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::ReticleCenter, -1)); // the reticle is off
     CHECK(!HasHit(d, Id::ReticleStick, -1));
+    CHECK(!HasHit(d, Id::ReticleEdgeCStick, -1));
     for (const int source : {1, 2, 3}) {
         m.bottom_screen_reticle = source;
         m.reticle_center = source == 2;
         m.reticle_stick = source == 3;
+        m.reticle_edge_cstick = source != 2;
         d.Draw(m, v);
         const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
+        const MenuLayout::Hit* cstick = FindHit(d, Id::ReticleEdgeCStick, -1);
         const MenuLayout::Hit* center = FindHit(d, Id::ReticleCenter, -1);
         const MenuLayout::Hit* stick = FindHit(d, Id::ReticleStick, -1);
         REQUIRE(edge != nullptr);
+        REQUIRE(cstick != nullptr);
         REQUIRE(center != nullptr);
         REQUIRE(stick != nullptr);
-        CHECK(center->r.y0 >= edge->r.y1 - 0.01f); // under At Edge, side by side
+        // In At Edge's row, at its right (kiu), then the pair, side by side
+        CHECK(std::fabs(cstick->r.Cy() - edge->r.Cy()) < 0.5f);
+        CHECK(cstick->r.x0 >= edge->r.x1 + 12.0f);
+        CHECK(center->r.y0 >= cstick->r.y1 - 0.01f);
+        CHECK(cstick->r.x0 == stick->r.x0);
+        CHECK(cstick->r.x1 == stick->r.x1);
+        for (int i = 0; i < 2; i++) { // At Edge's choices whole, left of the middle
+            const MenuLayout::Hit* seg = FindHit(d, Id::ReticleAtEdge, i);
+            REQUIRE(seg != nullptr);
+            CHECK(seg->r.x1 <= center->r.x1 + 0.01f);
+        }
         CHECK(stick->r.y0 == center->r.y0);
         CHECK(stick->r.x0 >= center->r.x1 - 0.01f);
         Audit a;
         a.Draw(m, v);
         a.Check("Controls, reticle switches");
         CHECK(a.Drew("Aim Only While Pressed"));
-        CHECK(a.Drew("Stick Moves Reticle"));
+        CHECK(a.Drew("Right Stick Moves Touch"));
+        CHECK(a.Drew("C-Stick at Edge"));
     }
     m.scope = 0;
     m.locked[static_cast<std::size_t>(Id::ReticleStick)] = Lock::GameValue;
@@ -3138,4 +3163,42 @@ TEST_CASE("Tab menu: Screen Shape has Automatic", "[frame_xr][tabmenu][autoshape
     CHECK(ExplainFor(Id::ScreenShape) ==
           "The top screen's shape, for games or mods that change it. Automatic follows the "
           "game's camera.");
+}
+
+// AzaharFrame kiu: a selected segment shows its check, the widest last one too, wherever the
+// row sits (the equal segments' last width came out a hair short: Detect Game FOV's Always).
+TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmenu][kiu]") {
+    Kit kit{1.0f};
+    frame_xr::ui::Canvas canvas;
+    canvas.Init(static_cast<int>(kPanelW), static_cast<int>(kPanelH));
+    kit.Begin(canvas);
+    const std::vector<std::vector<std::string>> rows{
+        OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
+        OptionsFor(Id::DepthFactor), OptionsFor(Id::WiderView)};
+    for (const auto& opts : rows) {
+        const float w = kit.SegmentedWidth(opts);
+        for (float x1 = 300.0f; x1 < kPanelW; x1 += 1.37f) {
+            const Rect r{x1 - w, 100.0f, x1, 140.0f};
+            const auto e = kit.SegmentEdges(r, opts);
+            for (int sel = 0; sel < static_cast<int>(opts.size()); sel++) {
+                std::vector<DrawnText> texts;
+                kit.RecordText(&texts);
+                kit.Segmented(r, opts, sel, -1, -1);
+                kit.RecordText(nullptr);
+                const std::string& want = opts[static_cast<std::size_t>(sel)];
+                const DrawnText* label = nullptr;
+                for (const auto& t : texts) {
+                    if (t.text == want) {
+                        label = &t;
+                    }
+                }
+                INFO(want << " at x1 " << x1);
+                REQUIRE(label != nullptr); // not cut short either
+                // With the check the label sits right of the segment's middle (the check before it).
+                const float mid = (e[static_cast<std::size_t>(sel)] +
+                                   e[static_cast<std::size_t>(sel + 1)]) * 0.5f;
+                CHECK((label->box.x0 + label->box.x1) * 0.5f > mid + 6.0f);
+            }
+        }
+    }
 }

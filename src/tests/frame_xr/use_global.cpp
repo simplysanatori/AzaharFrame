@@ -72,8 +72,9 @@ TEST_CASE("Use Global Value: the marker only while the game has its own value",
     CHECK(!Marked(Id::Depth3d));
     CHECK(!PerGame::UsesGlobal(Id::InternalResolution));
     // Global-only rows are never marked
-    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::MotionControls,
-                  Id::ShowControllers, Id::FastForwardSpeed, Id::DynamicResolution}) {
+    // (AzaharFrame kiu: Motion Controls is per game now.)
+    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::ShowControllers,
+                  Id::FastForwardSpeed, Id::DynamicResolution}) {
         CHECK(!Marked(id));
         CHECK(PerGame::UsesGlobal(id));
         CHECK(!PerGame::UseGlobalValue(id));
@@ -152,6 +153,23 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
         SetGlobalValue(v.autosave_enabled, true);
         CHECK(v.autosave_enabled.GetValue());
     }
+    SECTION("AzaharFrame kiu: Motion Controls and C-Stick at Edge, per game now") {
+        Keep k1{v.vr_motion_controls};
+        Keep k2{v.vr_reticle_edge_cstick};
+        SetGlobalValue(v.vr_motion_controls, 1u);
+        SetGameValue(v.vr_motion_controls, 0u);
+        SetGlobalValue(v.vr_reticle_edge_cstick, false);
+        SetGameValue(v.vr_reticle_edge_cstick, true);
+        CHECK(v.vr_motion_controls.GetValue() == 0u);
+        CHECK(v.vr_motion_controls.GetValue(true) == 1u);
+        for (Id id : {Id::MotionControls, Id::ReticleEdgeCStick}) {
+            CHECK(Marked(id));
+            CHECK(PerGame::UseGlobalValue(id));
+            CHECK(!Marked(id));
+        }
+        CHECK(v.vr_motion_controls.GetValue() == 1u);
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+    }
     SECTION("Fast Forward Audio (an enum)") {
         Keep keep{v.fast_forward_audio};
         SetGlobalValue(v.fast_forward_audio, Settings::FastForwardAudio::NormalPitch);
@@ -164,12 +182,12 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
     }
     SECTION("only that row") {
         Keep k1{v.texture_filter};
-        Keep k2{v.vr_immersive_squeeze};
+        Keep k2{v.vr_immersive_scale_x};
         SetGameValue(v.texture_filter, Settings::TextureFilter::Bicubic);
-        SetGameValue(v.vr_immersive_squeeze, 20u);
+        SetGameValue(v.vr_immersive_scale_x, -20);
         CHECK(PerGame::UseGlobalValue(Id::TextureFilter));
         CHECK(!Marked(Id::TextureFilter));
-        CHECK(Marked(Id::NarrowScreen));
-        CHECK(v.vr_immersive_squeeze.GetValue() == 20u);
+        CHECK(Marked(Id::ScaleX));
+        CHECK(v.vr_immersive_scale_x.GetValue() == -20);
     }
 }

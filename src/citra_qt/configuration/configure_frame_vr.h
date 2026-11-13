@@ -69,8 +69,10 @@ private:
     QSpinBox* fov_spin;
     QWidget* wider_row; ///< AzaharFrame widerview: Off, 1.1x to 1.4x
     QComboBox* wider_combo;
-    QWidget* squeeze_row;
-    QComboBox* squeeze_combo;
+    QWidget* scale_x_row; ///< AzaharFrame kiu: Horizontal Scale, -30 % to +30 %
+    QComboBox* scale_x_combo;
+    QWidget* scale_y_row; ///< Vertical Scale
+    QComboBox* scale_y_combo;
     QWidget* depth_row;
     QComboBox* depth_combo;
     QWidget* register_row;

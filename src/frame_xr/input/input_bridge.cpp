@@ -30,7 +30,6 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
         pads = hub.Merge(gamepads ? *gamepads : frame, InputCommon::FrameXr::GetProfileRoutes(),
                          last_.controls, gamepads != nullptr);
     }
-    InputCommon::FrameXr::GetPad().SetControls(last_.controls);
     {
         // 0 = off, 1 = right controller, 2 = left controller, 3 = headset
         const u32 choice = Settings::values.vr_motion_controls.GetValue();
@@ -74,6 +73,16 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
     }
     const TouchpadResult result = touchpad_.Update(touch);
     touchpad_cursor_ = result.cursor;
+    // AzaharFrame kiu: C-Stick at Edge: while the reticle's touch is the one the game gets and it
+    // sits in an edge band, the C-Stick (the right stick's, after its dead zone and the other
+    // gamepads) is pushed toward that edge too. Nothing is added otherwise, so it lets go in the
+    // frame the touch lifts or leaves the band.
+    edge_stick_ = ReticleEdgeStickFor(touch.reticle, touchpad_.owner(), touchpad_.touching());
+    if (edge_stick_.x != 0.0f || edge_stick_.y != 0.0f) {
+        last_.controls.SetStick(AnalogControl::StickR,
+                                AddStick(last_.controls.GetStick(AnalogControl::StickR), edge_stick_));
+    }
+    InputCommon::FrameXr::GetPad().SetControls(last_.controls);
     for (int i = 0; i < result.event_count; ++i) {
         const TouchEvent& event = result.events[static_cast<std::size_t>(i)];
         switch (event.type) {
@@ -97,6 +106,7 @@ void InputBridge::Release() {
         InputCommon::FrameXr::SendTouchReleased();
     }
     touchpad_cursor_ = {};
+    edge_stick_ = {}; // AzaharFrame kiu
     InputCommon::FrameXr::GetPad().ReleaseAll();
     Devices::Hub().Release(); // AzaharFrame pads: what is held stays away until let go
     motion_.Reset();

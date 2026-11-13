@@ -294,9 +294,13 @@ void Kit::Segmented(const Rect& r, const std::vector<std::string>& options, int 
                             : on     ? Tok::kOnSecondaryContainer
                                      : Tok::kOnSurface;
         const std::string& text = options[static_cast<std::size_t>(i)];
-        const bool check = on && TextWidth(Type::Label, text) + kSegCheck <= sr.W() - kSegPad;
-        const std::string label =
-            Fit(Type::Label, text, sr.W() - kSegPad - (check ? kSegCheck : 0.0f));
+        // AzaharFrame kiu: half a dp to spare: equal segments are sized for the widest label with
+        // the check (SegmentedWidth), and the last one's width, x1 less the summed shares, came
+        // out a hair short, so a selected widest last choice (Detect Game FOV's Always) lost its
+        // check.
+        const float room = sr.W() - kSegPad + 0.5f;
+        const bool check = on && TextWidth(Type::Label, text) + kSegCheck <= room;
+        const std::string label = Fit(Type::Label, text, room - (check ? kSegCheck : 0.0f));
         const float tw = TextWidth(Type::Label, label);
         if (check) {
             const float x = sr.Cx() - (tw + kSegCheck) * 0.5f;

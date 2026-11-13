@@ -9,11 +9,11 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab.
 - **Global** settings are in **Emulation > Configure**. They apply to every game, also when you open it from the in-game menu.
 - **Per game** settings are also in a game's **Properties**: right-click the game in the list. A value set there wins over the global one for that game.
 
-While a game with its own value runs, that row is greyed out in **Configure**.
+While a game with its own value runs, **Configure** still changes that row's global value; the game keeps its own, and pointing at the box says so.
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed** and **At Edge** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -23,7 +23,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Face Buttons](#face-buttons) | **By Position (Nintendo)**, **By Label (Xbox)** | By Position (Nintendo) | global | at once |
 | [Background](#background) | **Black**, **Passthrough** | Black | global | at once |
 | [Window Scale](#window-scale) | **100%**, **150%**, **200%** | 150% | global | when you press **OK** |
-| [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller**, **Headset** | Right Controller | global | at once, or next VR start from Off |
+| [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller**, **Headset** | Right Controller (Kid Icarus: Uprising: Off) | global and per game | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
@@ -33,6 +33,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
 | [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
 | [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
+| [C-Stick at Edge](#c-stick-at-edge) | on or off | off (Kid Icarus: Uprising: on) | global and per game | at once |
+| [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
+| [Right Stick Moves Touch](#right-stick-moves-touch) | on or off | off | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
@@ -40,13 +43,14 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% | global and per game | at once |
-| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10** | 3DS (5:3) | global and per game | at once |
+| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Detect Game FOV](#detect-game-fov) | **Off**, **Once**, **Always** | Always | global and per game | at once |
-| [Wider View](#wider-view) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
-| [Narrow Screen](#narrow-screen) | **Off** to **30%** in 5% steps (the VR menu: **Off**, **10%**, **20%**, **30%**) | 10% | global and per game | at once |
+| [Render Margin](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
+| [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
+| [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [Depth Factor Multiplier](#depth-factor-multiplier) | **1x**, **10x**, **100x** | 1x | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -79,6 +83,8 @@ How large Azahar's window looks in VR. Larger makes the text, buttons and list r
 Makes one controller, or your head, the 3DS's gyroscope and accelerometer, for games that aim by moving the 3DS. The slingshot, bow and hookshot in Ocarina of Time 3D are examples. Hold the controller like a 3DS, with its beam pointing into the screen. With **Headset**, turn and tilt your head instead; looking straight ahead is the 3DS held upright in front of you, and both controllers keep pointing normally.
 
 The same controller still points at the screens. If that gets in the way, choose the hand you don't point with. **Off** leaves the 3DS lying flat and still. Going from **Off** to another choice takes effect the next time VR starts.
+
+It can be set for one game on the in-game menu's **Settings** tab, in **General**, with **Per-Game** picked, or in the game's **Properties**. In the global settings it sets the value the other games use; a game with its own value keeps it. Kid Icarus: Uprising starts with **Off**, because its C-Stick & Gyro mod aims with the gyroscope and the reticle moved whenever you did. Turn it on for that game if you want gyro aiming.
 
 ## Show Controllers
 
@@ -119,6 +125,18 @@ How far the reticle moves when you turn your head or the controller, from where 
 
 What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Bottom Screen Reticle** while it is on.
 
+## C-Stick at Edge
+
+While the reticle touches near an edge of the bottom screen, the C-Stick is pushed toward that edge too: a little where the edge band starts, all the way at the edge. Games that turn the camera when C-Stick aiming reaches the edge of the screen then turn while you hold the touch there, such as Kid Icarus: Uprising with the C-Stick & Gyro mod. The band is the same turn of your head or controller at any **Reticle Speed**: about 3 degrees. Lift the trigger or move away from the edge and the C-Stick lets go. Works best with **At Edge** on **Follow**. Kid Icarus: Uprising starts with it on. Shown under **Bottom Screen Reticle** while it is on.
+
+## Aim Only While Pressed
+
+The reticle stays in the middle of the bottom screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Bottom Screen Reticle** while it is on.
+
+## Right Stick Moves Touch
+
+The right stick moves the bottom screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Bottom Screen Reticle** while it is on.
+
 ## Autosave
 
 Save states made while you play, separate from the 10 slots and Quick Save. **Every** is the minutes of play between autosaves, and **Keep** how many each game keeps. They are in the in-game menu's **Settings** > **General**, in **Emulation > Configure > General** and in a game's **Properties**. See the [user guide](USER_GUIDE.md#autosave).
@@ -142,6 +160,7 @@ The shape of the top screen in VR, and of the screen in immersive mode. The scre
 - **3DS (5:3)**: the 3DS's own shape. Right for almost every game.
 - **Widescreen (16:9)** and **Ultrawide (21:9)**: for mods that draw a widescreen picture.
 - **Standard (4:3)**, **3:2** and **16:10**: for cheats and mods that change the game's own aspect.
+- **Automatic**: follows the shape the game's camera draws with: 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
 
 Match the shape the game or mod draws, or the picture stretches. A change shows at once, also from the in-game menu, so you can match a mod's setting while you play.
 
@@ -174,15 +193,15 @@ The game camera's vertical field of view, in degrees. In the Full modes with Det
 
 ## Detect Game FOV
 
-Called Match Game Camera in earlier versions. Full modes only. **Always** reads the game camera's angle and shape from the game while it runs. A new angle is followed once it has held for half a second, and the view eases into it a little at a time, so a camera cut never makes it jump. **Once** measures the game's camera once while you play, for about 15 seconds, leaving out cuts and cutscenes, and sets that game's Immersive Game FOV to match. A message shows the value. From then on that value is used as if you had set it, and you can change it. Choose Once again to measure again. If no steady angle is found within a minute, the value stays as it was and a message says so. **Off** uses Immersive Game FOV and Screen Shape as they are, and nothing is read from the game. Settings from earlier versions keep their choice: on is Always, off is Off.
+Called Match Game Camera in earlier versions. Full modes only. **Always** reads the game camera's angle and shape from the game while it runs. A new angle is followed once it has held for half a second, and the view eases into it a little at a time, so a camera cut never makes it jump. **Once** measures the game's camera once while you play, for about 15 seconds, leaving out cuts and cutscenes, and sets that game's Immersive Game FOV to match. A message shows the value. From then on that value is used as if you had set it, and you can change it. Choose Once again to measure again. If no steady angle is found within a minute, the value stays as it was and a message says so. **Off** uses Immersive Game FOV as set and reads no angle from the game. With **Screen Shape** on **Automatic**, the shape is still read from the game. Settings from earlier versions keep their choice: on is Always, off is Off.
 
-## Wider View
+## Render Margin
 
-Shows more of the game around the edges. Some games leave them empty. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it.
+Called Wider View in earlier versions. Renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty. **Off** shows exactly the game's own picture. Full modes only. In VR, hold the immersive screen with a grip and press D-pad up or down; the screen grows with it. A label shows the value, for example **Render Margin: 1.2x**.
 
-## Narrow Screen
+## Horizontal Scale and Vertical Scale
 
-Narrows the screen so the side HUD moves into view. Full modes only. The game looks that much thinner. In VR, hold the immersive screen with both grips and press D-pad right (narrower) or left (wider); down and up make it lower or taller (**Narrow Height**, only there). Each is kept for the game.
+Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or shorter (**Vertical Scale**) than the game's picture. Full modes only. Above 0% the screen is larger, below 0% smaller: a narrower screen brings the side HUD into view, and the game looks that much thinner. Turning your head still moves the world as much as the screen, so the middle of the picture stays in place. In VR, hold the immersive screen with both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label shows the value, for example **Horizontal Scale: -10%**. Each is kept for the game. They replace Narrow Screen and Narrow Height: a game where you set those keeps its screen, so Narrow Screen 10% is now Horizontal Scale -10%. Mario Kart 7's preset starts at -30% and -15%.
 
 ## Depth Factor Multiplier
 

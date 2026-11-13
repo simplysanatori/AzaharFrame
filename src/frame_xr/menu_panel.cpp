@@ -17,7 +17,7 @@
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
 #include "frame_xr/immersive.h"          // AzaharFrame fovonce: MeasureCameraAgain
-#include "frame_xr/immersive_layout.h"   // AzaharFrame immersive2: Narrow Screen percent
+#include "frame_xr/immersive_layout.h"   // AzaharFrame kiu: Horizontal and Vertical Scale
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
@@ -246,8 +246,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::GameFov;
     case Id::MatchCamera:
         return MenuSetting::MatchCamera;
-    case Id::NarrowScreen:
-        return MenuSetting::NarrowScreen;
+    case Id::ScaleX:
+        return MenuSetting::ScaleX;
+    case Id::ScaleY:
+        return MenuSetting::ScaleY;
     case Id::DepthFactor:
         return MenuSetting::DepthFactor;
     case Id::Depth3d:
@@ -278,6 +280,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ReticleCenter;
     case Id::ReticleStick:
         return MenuSetting::ReticleStick;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        return MenuSetting::ReticleEdgeCStick;
+    case Id::MotionControls:
+        return MenuSetting::MotionControls;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -817,6 +823,7 @@ void MenuPanel::BuildModel(const Host& host) {
         Input::ClampReticleSpeed(v.vr_reticle_speed.GetValue()) * 10.0f));
     m.reticle_center = v.vr_reticle_center_until_pressed.GetValue(); // AzaharFrame fixes7
     m.reticle_stick = v.vr_reticle_stick_moves.GetValue();
+    m.reticle_edge_cstick = v.vr_reticle_edge_cstick.GetValue(); // AzaharFrame kiu
     if (remap.Editing()) {
         // AzaharFrame padsui + pads: Edit Controls' devices from the registry (Frame Controllers,
         // each gamepad, the mouse), each with its 3DS mapping in the menu's terms; the one being
@@ -1037,9 +1044,9 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     m.match_camera =
         static_cast<int>(std::min<u32>(v.vr_immersive_match_camera_mode.GetValue(), 2));
-    // AzaharFrame immersive2: percent; a 5 % step between two segments shows the lower one.
-    m.narrow_screen = static_cast<int>(
-        FrameXr::Immersive::Layout::NarrowPercent(v.vr_immersive_squeeze.GetValue()) / 10);
+    // AzaharFrame kiu: signed percent
+    m.scale_x = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_x.GetValue());
+    m.scale_y = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_y.GetValue());
     m.depth_factor =
         static_cast<int>(std::min<u32>(v.vr_immersive_positional_game_scaler.GetValue(), 2));
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
@@ -1200,7 +1207,12 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ReticleStick:
         Apply(v.vr_reticle_stick_moves, value != 0, per_game);
         r.setting = MenuSetting::ReticleStick;
-        LOG_INFO(Frontend, "xr: in-game menu: Stick Moves Reticle = {}", value != 0);
+        LOG_INFO(Frontend, "xr: in-game menu: Right Stick Moves Touch = {}", value != 0);
+        break;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        Apply(v.vr_reticle_edge_cstick, value != 0, per_game);
+        r.setting = MenuSetting::ReticleEdgeCStick;
+        LOG_INFO(Frontend, "xr: in-game menu: C-Stick at Edge = {}", value != 0);
         break;
     case Id::CustomTextures: // AzaharFrame texui: the game's own value when it has one
         r.per_game = !v.custom_textures.UsingGlobal();
@@ -1240,8 +1252,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_face_buttons, u, false);
         r.setting = MenuSetting::FaceButtons;
         break;
-    case Id::MotionControls:
-        Apply(v.vr_motion_controls, u, false);
+    case Id::MotionControls: // AzaharFrame kiu: per game in Per-Game
+        Apply(v.vr_motion_controls, std::min<u32>(u, 3), per_game);
         r.setting = MenuSetting::MotionControls;
         break;
     case Id::ShowControllers:
@@ -1275,12 +1287,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
             Immersive::MeasureCameraAgain();
         }
         break;
-    case Id::NarrowScreen:
-        // AzaharFrame immersive2: the setting is in percent (Off, 10 %, 20 %, 30 % here; both grips
-        // + D-pad set 5 % steps), and live.
-        r.value = static_cast<int>(std::min<u32>(u, 3) * 10);
-        Apply(v.vr_immersive_squeeze, static_cast<u32>(r.value), per_game);
-        r.setting = MenuSetting::NarrowScreen;
+    case Id::ScaleX: // AzaharFrame kiu: signed percent from the slider, live
+        r.value = FrameXr::Immersive::Layout::ScalePercent(value);
+        Apply(v.vr_immersive_scale_x, static_cast<s32>(r.value), per_game);
+        r.setting = MenuSetting::ScaleX;
+        break;
+    case Id::ScaleY:
+        r.value = FrameXr::Immersive::Layout::ScalePercent(value);
+        Apply(v.vr_immersive_scale_y, static_cast<s32>(r.value), per_game);
+        r.setting = MenuSetting::ScaleY;
         break;
     case Id::DepthFactor:
         Apply(v.vr_immersive_positional_game_scaler, u, per_game);
@@ -1888,6 +1903,9 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ReticleStick:
         SetSetting(t.id, model.reticle_stick ? 0 : 1, host);
         break;
+    case Id::ReticleEdgeCStick: // AzaharFrame kiu
+        SetSetting(t.id, model.reticle_edge_cstick ? 0 : 1, host);
+        break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
         break;
@@ -1937,7 +1955,6 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
-    case Id::NarrowScreen:
     case Id::DepthFactor:
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On

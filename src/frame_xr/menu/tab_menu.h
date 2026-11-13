@@ -92,7 +92,8 @@ enum class Id : int {
     ReticleAtEdge,       ///< AzaharFrame mouse, index: 0 Follow, 1 Snap to Middle
     ReticleSpeed,        ///< AzaharFrame reticle: a slider, 5 to 40 (tenths of 1x)
     ReticleCenter,       ///< AzaharFrame fixes7: Aim Only While Pressed (a switch)
-    ReticleStick,        ///< AzaharFrame fixes7: Stick Moves Reticle (a switch)
+    ReticleStick,        ///< AzaharFrame fixes7: Right Stick Moves Touch (a switch)
+    ReticleEdgeCStick,   ///< AzaharFrame kiu: C-Stick at Edge (a switch)
     // Settings
     /// AzaharFrame reticle: the scope toggle on the Settings, Controls and Position tabs, index:
     /// 0 Global, 1 Per-Game (DrawScope); pointing at Per-Game while picked shows the count.
@@ -124,8 +125,9 @@ enum class Id : int {
     ImmersiveMode,
     WiderView,
     GameFov,
-    MatchCamera, ///< AzaharFrame depth: Match Game Camera, per game
-    NarrowScreen,
+    MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
+    ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -30 to +30 % (5 % steps), per game
+    ScaleY, ///< AzaharFrame kiu: Vertical Scale, as ScaleX
     DepthFactor,
     MoreSettings,
     HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
@@ -288,7 +290,8 @@ struct MenuModel {
     int reticle_at_edge = 0;       ///< AzaharFrame mouse: 0 Follow, 1 Snap to Middle
     int reticle_speed = 20;        ///< AzaharFrame reticle: tenths of 1x (5 to 40)
     bool reticle_center = false;   ///< AzaharFrame fixes7: Aim Only While Pressed
-    bool reticle_stick = false;    ///< AzaharFrame fixes7: Stick Moves Reticle
+    bool reticle_stick = false;    ///< AzaharFrame fixes7: Right Stick Moves Touch
+    bool reticle_edge_cstick = false; ///< AzaharFrame kiu: C-Stick at Edge
     EditDevices devices;    ///< AzaharFrame padsui: Edit Controls' devices
     // Settings
     int scope = 0; ///< 0 Global, 1 Per-Game (AzaharFrame autosave: the menu opens on Per-Game)
@@ -309,7 +312,8 @@ struct MenuModel {
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
-    int narrow_screen = 0;
+    int scale_x = 0; ///< AzaharFrame kiu: percent, -30 to 30
+    int scale_y = 0;
     int depth_factor = 0;
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;

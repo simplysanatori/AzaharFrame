@@ -220,7 +220,7 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
 
-**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+**Bottom Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the bottom screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip re-centres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. **C-Stick at Edge**, under them, pushes the C-Stick toward an edge while you touch near it, which turns the camera in Kid Icarus: Uprising with the C-Stick & Gyro mod. Details: [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 The mouse has two modes, in **Mouse Mode** on its Edit Controls page. Hold the left and right buttons together for 3 seconds to switch; **Mouse: Pointer** or **Mouse: Bottom Screen** shows.
 
@@ -247,7 +247,7 @@ In Flat the window is 16:9, so it fills the big screen. Games start in the **Lar
 
 Everything is in the Azahar window, under **Emulation > Configure**. Resolution, filters, controls and audio are the ones you know from Azahar. Azahar for Frame starts with the **Dark** theme, which is easier on the eyes in the headset; **Emulation > Configure > General > UI > Theme** changes it.
 
-**Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row is greyed out in **Configure** and shows the value for all games.
+**Emulation > Configure** always changes the settings for every game, also when you open it from the in-game menu. To change a setting for one game only, right-click the game in the list and choose **Properties**. While a game with its own value runs, that row in **Configure** still shows and changes the value for all games; the game keeps its own.
 
 In the in-game menu, the **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right. While a game runs the menu opens on **Per-Game**, so a change is for that game only; **Global** changes every game. Point at **Per-Game** while it is picked to see how many values on the tab this game has of its own, for example "2 Per-Game Values Set". **Use Global Values for All**, in the **⋮** menu next to the switch, removes them, so the game follows the global values again. On **Settings** it counts and clears the section you are in. In **Global**, a row the game has its own value for is greyed out.
 
@@ -260,7 +260,7 @@ The VR settings are in the **VR** group at the bottom of the **Graphics** tab. [
 Global settings, not per game:
 
 - **Face Buttons**: **By Position (Nintendo)** (default) makes the Frame's A, B, X and Y do what the 3DS button in the same place does. **By Label (Xbox)** makes A, B, X and Y the 3DS's A, B, X and Y.
-- **Motion Controls**: **Off**, **Right Controller** (default) or **Left Controller**. The controller becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS.
+- **Motion Controls**: **Off**, **Right Controller** (default), **Left Controller** or **Headset**. The controller, or your head, becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS. It can be set per game, and Kid Icarus: Uprising starts with it off.
 
 ### Window Scale
 
@@ -342,8 +342,8 @@ A tap of the right stick click swaps to the bottom screen, which pauses immersiv
 
 In the Full modes the screen starts 3 m ahead and shows the game at its own scale, so nothing is magnified and the world keeps its shape. Two more settings in the same group, per game, for the Full modes, both changing at once:
 
-- **Wider View** (**Off**, **1.1x** to **1.4x**, 1.4x by default): shows more of the game around the edges. Some games leave them empty; Super Mario 3D Land can below the floor. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Wider View: 1.2x** (for example) shows. It is kept for the game.
-- **Narrow Screen** (**Off** to **30%** in 5% steps, 10% by default): makes the screen narrower at the same height, so the HUD at the sides moves into view. The game looks that much thinner. Turning your head left and right turns the game camera a little more than up and down does, so the middle of the picture stays in place. In VR, squeeze both grips and press D-pad right (narrower) or left (wider). Down and up do the same for the height (**Narrow Height**). A label shows the value, and it is kept for the game.
+- **Render Margin** (**Off**, **1.1x** to **1.4x**, 1.4x by default; called Wider View before): renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty; Super Mario 3D Land can below the floor. **Off** shows exactly the game's own picture. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Render Margin: 1.2x** (for example) shows. It is kept for the game.
+- **Horizontal Scale** and **Vertical Scale** (-30% to +30% in 5% steps, 0% by default): make the screen wider or narrower, taller or shorter, than the picture. A narrower screen brings the HUD at the sides into view; the game looks that much thinner. Your head still turns the world as far as the screen, so the middle of the picture stays in place. In VR, squeeze both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label such as **Horizontal Scale: -10%** shows the value, and it is kept for the game. A game where you set Narrow Screen in an earlier version keeps its screen: 10% narrower is now -10%.
 
 The other settings of the group are for **Full (6DoF): Other Games**: **Depth Factor Multiplier** (how far the game camera moves with your head, and how far apart your eyes are in the game, 1x by default; raise it when the 3D is too weak, then use **3D Depth**), **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 
