@@ -45,7 +45,7 @@
 //                             app's queue to go idle is an error (off unless
 //                             set: it stalls the app's queue)
 //   MOCK_XR_INPUT_SCRIPT=<f>  scripted controller input, see README.md
-//   MOCK_XR_TRACE_POSE=1      quad layer positions in the trace
+//   MOCK_XR_TRACE_POSE=1      quad layer positions in the trace (5: to 5 decimals, sizes too)
 //   MOCK_XR_DUMP_DIR=<dir>    write swapchain images as PNG into this dir
 //   MOCK_XR_DUMP_FRAME=<n|last>  the first image of each swapchain released at
 //                             or after frame n, or (default) the last image
@@ -1496,14 +1496,16 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
                 mock_error("endFrame quad layer %u with an unknown space", i);
                 res = XR_ERROR_LAYER_INVALID;
             }
-            snprintf(t, sizeof(t), " quad[sc%d:%dx%d at %d,%d eye=%d sp=%s size=%.2fx%.2f", chainId(q->subImage.swapchain), r->extent.width, r->extent.height,
-                     r->offset.x, r->offset.y, (int)q->eyeVisibility, sp ? kSpaceNames[sp->kind] : "?", q->size.width, q->size.height);
-            strcat(buf, t);
             static int poseTrace = -1;
             if (poseTrace < 0) poseTrace = getenv("MOCK_XR_TRACE_POSE") != NULL;
+            // AzaharFrame dbl: MOCK_XR_TRACE_POSE=5 gives 5 decimals (per-refresh slips are hundredths of a degree).
+            // AzaharFrame heldquad: the size too (a picture held on a later refresh is resized each refresh).
+            const int dp = poseTrace && getenv("MOCK_XR_TRACE_POSE")[0] == '5' ? 5 : 2;
+            snprintf(t, sizeof(t), " quad[sc%d:%dx%d at %d,%d eye=%d sp=%s size=%.*fx%.*f", chainId(q->subImage.swapchain), r->extent.width,
+                     r->extent.height, r->offset.x, r->offset.y, (int)q->eyeVisibility, sp ? kSpaceNames[sp->kind] : "?", dp, q->size.width, dp,
+                     q->size.height);
+            strcat(buf, t);
             if (poseTrace) {
-                // AzaharFrame dbl: MOCK_XR_TRACE_POSE=5 gives 5 decimals (per-refresh slips are hundredths of a degree).
-                const int dp = getenv("MOCK_XR_TRACE_POSE")[0] == '5' ? 5 : 2;
                 snprintf(t, sizeof(t), " pos=%.*f,%.*f,%.*f q=%.*f,%.*f,%.*f,%.*f", dp, q->pose.position.x, dp, q->pose.position.y, dp,
                          q->pose.position.z, dp, q->pose.orientation.x, dp, q->pose.orientation.y, dp, q->pose.orientation.z, dp,
                          q->pose.orientation.w);

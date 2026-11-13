@@ -62,7 +62,7 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_EXTENSIONS=a,b` | replace the list of extensions offered |
 | `MOCK_XR_END_GPU=1` | `xrEndFrame` waits for the app's queue to go idle before it returns, as SteamVR's did on the Frame while a GPU-heavy game ran (13 to 23 ms calls). The app holds its queue lock around the call, so this also holds back the app's own submits and swapchain releases |
 | `MOCK_XR_BUSY_MS=<ms>` | at each release, wait for the app's queue to go idle; longer than this is an error ("released while GPU work could still be pending"). Off by default, because it stalls the app's queue and submits on it from the releasing thread |
-| `MOCK_XR_TRACE_POSE=1` | quad positions in the trace |
+| `MOCK_XR_TRACE_POSE=1` | quad positions in the trace (`=5`: positions, orientations and sizes to 5 decimals, and each frame's display time and head yaw) |
 | `MOCK_XR_INPUT_SCRIPT=<file>` | scripted input, below |
 | `MOCK_XR_DUMP_DIR=<dir>` | write swapchain images as PNG |
 | `MOCK_XR_DUMP_FRAME=<n\|last>` | `n`: the first image of each swapchain released at or after frame n. `last` (default): the last image released, written when the session ends (`xrEndSession`), so the app has to end its session before it is killed. `n1,n2,...` (ascending): one dump per swapchain after each listed frame (`sc<id>_f<frame>.png`; a swapchain that releases nothing between two listed frames is dumped once for both) |
