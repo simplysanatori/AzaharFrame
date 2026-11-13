@@ -589,8 +589,8 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     }
 }
 
-void Runtime::WaitPresentSlot() {
-    pacing.WaitSlot(release_serial); // AzaharFrame pacing (release_serial: this thread's)
+void Runtime::WaitPresentSlot(uint64_t game_swaps) {
+    pacing.WaitSlot(release_serial, game_swaps); // AzaharFrame pacing (this thread's serial)
 }
 
 void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) {

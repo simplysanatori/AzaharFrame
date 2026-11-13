@@ -2,9 +2,12 @@
 // Licensed under GPLv3 or any later version
 // Refer to the LICENSE.txt file included.
 
+#include <utility>
 #include "common/archives.h"
+#include "common/debug_stall.h" // AzaharFrame pacing2 (test only)
 #include "common/hacks/hack_manager.h"
 #include "common/microprofile.h"
+#include "common/xr_pacer.h" // AzaharFrame pacing2
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/hle/service/gsp/gsp_gpu.h"
@@ -344,6 +347,9 @@ void GPU::SetBufferSwap(u32 screen_id, const Service::GSP::FrameBufferInfo& info
     if (screen_id == 0) {
         MicroProfileFlip();
         impl->system.perf_stats->EndGameFrame();
+        // AzaharFrame pacing2: a new top screen picture (a VBlank without one shows the last
+        // again: the VR pacing's cadence, common/xr_pacer.h PictureCadence).
+        Common::XrPacer::Get().game_swaps.fetch_add(1, std::memory_order_relaxed);
         right_eye_disabler->ReportEndFrame();
         // AzaharFrame immersive: a game frame ended; the next one gets the newest head pose,
         // all of its draws (both eyes) the same one (vr_immersive.h FrameLatch).
@@ -571,6 +577,15 @@ void GPU::VBlankCallback(std::uintptr_t user_data, s64 cycles_late) {
     // Signal to GSP that GPU interrupt has occurred
     impl->signal_interrupt(Service::GSP::InterruptId::PDC0, 0);
     impl->signal_interrupt(Service::GSP::InterruptId::PDC1, 0);
+
+    // AzaharFrame pacing2: test only, a long frame at each new picture (common/debug_stall.h).
+    if (Common::DebugStall::Get().where == Common::DebugStall::Where::Picture) [[unlikely]] {
+        static u64 last_swaps = 0;
+        const u64 swaps = Common::XrPacer::Get().game_swaps.load(std::memory_order_relaxed);
+        if (swaps != std::exchange(last_swaps, swaps)) {
+            Common::DebugStall::Maybe(Common::DebugStall::Where::Picture);
+        }
+    }
 
     // Present renderered frame.
     impl->renderer->SwapBuffers();

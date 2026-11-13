@@ -142,6 +142,11 @@ private:
     VideoCore::XrContentPose frame_content{};  ///< emu thread: the frame being drawn
     VideoCore::XrContentPose direct_content{}; ///< the Direct frame to be released
     std::array<VideoCore::XrContentPose, XrHandoff::kSlots> slot_content{};
+    // AzaharFrame pacing2: the game's top screen swaps so far when each frame was drawn (the
+    // release says whether it is a new picture or the last one again), by path as above.
+    u64 frame_swaps = 0;
+    u64 direct_swaps = 0;
+    std::array<u64, XrHandoff::kSlots> slot_swaps{};
     bool packed = false;
     bool skip_gpu_wait = false; ///< AZAHARFRAME_XR_NO_GPU_WAIT=1: negative test only
     std::jthread release_thread;

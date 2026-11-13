@@ -38,15 +38,17 @@ void Pacing::Configure(bool set_release_) {
     gate_switch = SwitchOn("AZAHARFRAME_XR_PACE_GATE");
     const char* t = std::getenv("AZAHARFRAME_XR_PACE_TRACE"); // =1: a log line per frame
     trace = t && t[0] == '1';
+    pictures_switch = SwitchOn("AZAHARFRAME_XR_PACE_PICTURES"); // pacing2 (0: by release)
     const bool lock = SwitchOn("AZAHARFRAME_XR_PACE_LOCK");
     P::Get().lock_switch.store(lock);
     LOG_INFO(Frontend,
-             "xr: pacing at 120 Hz: gate {}, lock {} (AZAHARFRAME_XR_PACE_GATE, "
-             "AZAHARFRAME_XR_PACE_LOCK; a user/{} file turns both off while it exists)",
+             "xr: pacing at 120 Hz: gate {} ({}), lock {} (AZAHARFRAME_XR_PACE_GATE, "
+             "AZAHARFRAME_XR_PACE_PICTURES, AZAHARFRAME_XR_PACE_LOCK; a user/{} file turns the "
+             "gate and the lock off while it exists)",
              !gate_switch   ? "off"
              : !set_release ? "off (needs AZAHARFRAME_XR_SET_RELEASE)"
                             : "on",
-             lock ? "on" : "off", kOffFile);
+             pictures_switch ? "by game picture" : "by release", lock ? "on" : "off", kOffFile);
 }
 
 void Pacing::NoteLatchTime() {
@@ -57,10 +59,13 @@ void Pacing::NoteLatch(uint64_t shown_serial, int64_t period, bool shown_now) {
     const int64_t latch = latch_lock_ns.load(std::memory_order_relaxed);
     {
         std::scoped_lock lock{mutex};
-        gate.Latch(shown_now ? shown_serial : 0);
+        gate.Latch(shown_now ? shown_serial : 0, PictureOf(shown_serial));
         if (trace) {
-            LOG_INFO(Frontend, "xr: pacing trace: latch at {:.2f} ms: frame {} ({} ended frames)",
-                     (latch % 1'000'000'000) / 1e6, gate.shown, gate.count);
+            LOG_INFO(Frontend,
+                     "xr: pacing trace: latch at {:.2f} ms: frame {} ({} ended frames), picture "
+                     "{} ({} ended frames)",
+                     (latch % 1'000'000'000) / 1e6, gate.shown, gate.count, gate.shown_picture,
+                     gate.picture_count);
         }
         period_ns = period;
         last_latch_ns = latch;
@@ -78,59 +83,112 @@ bool Pacing::GateActive(int64_t now_ns) const {
            now_ns - last_latch_ns < 3 * period_ns;
 }
 
-void Pacing::WaitSlot(uint64_t released) {
+uint64_t Pacing::PictureOf(uint64_t serial) const {
+    if (serial == 0) {
+        return 0;
+    }
+    const PictureEntry& e = pictures[serial % kPictureRing];
+    return e.serial == serial ? e.picture : 0;
+}
+
+uint32_t Pacing::Needed(uint64_t released, uint64_t released_picture, bool is_new,
+                        uint32_t cadence_now) const {
+    if (pictures_switch) {
+        return gate.PictureNeeded(released_picture, is_new, cadence_now);
+    }
+    // By release (AZAHARFRAME_XR_PACE_PICTURES=0, the gate before pacing2): every release waits
+    // for two ended frames of the one before.
+    if (gate.Open(released)) {
+        return 0;
+    }
+    return released == gate.shown ? 2 - std::min<uint32_t>(gate.count, 2) : 2;
+}
+
+void Pacing::WaitSlot(uint64_t released, uint64_t game_swaps) {
     const int64_t now = NowNs();
     std::unique_lock lock{mutex};
-    NotePhase(released, now);
-    if (!GateActive(now) || gate.Open(released)) {
+    // AzaharFrame pacing2: a new game picture, or the one before again (no top screen swap since
+    // the frame before: a game at 30 or 20 pictures a second, common/xr_pacer.h Gate).
+    const bool first = !have_swaps;
+    const bool swapped = !first && game_swaps != last_swaps;
+    have_swaps = true;
+    last_swaps = game_swaps;
+    cadence.Note(swapped);
+    const bool is_new = first || swapped || !cadence.Swapping() || picture_seq == 0;
+    if (is_new) {
+        picture_seq++;
+        new_pictures++;
+    } else {
+        repeats++;
+    }
+    const uint64_t next = released + 1; // ReleaseFrame's serial for this one
+    pictures[next % kPictureRing] = PictureEntry{next, picture_seq};
+    const uint64_t released_picture = PictureOf(released);
+    const uint32_t c = cadence.Cadence();
+    cadence_sum += c;
+    NotePhase(released, released_picture, is_new, c, now);
+    if (!GateActive(now)) {
         return;
     }
+    const uint32_t needed = Needed(released, released_picture, is_new, c);
+    if (needed == 0) {
+        return;
+    }
+    // At 60 pictures a second at most one period and 2 ms, as before; at 30 or 20 until the
+    // picture on view has had its 4 or 6 frames (each latch notifies), and 2 ms.
+    const int64_t hold_ns =
+        (pictures_switch && c > 1 ? static_cast<int64_t>(needed) : 1) * period_ns + 2'000'000;
     const auto start = std::chrono::steady_clock::now();
-    const auto deadline = start + std::chrono::nanoseconds(period_ns + 2'000'000);
-    const uint32_t count_before = gate.count;
-    const bool on_view = gate.shown == released;
+    const auto deadline = start + std::chrono::nanoseconds(hold_ns);
+    const uint32_t count_before = gate.picture_count;
+    const bool on_view = gate.shown_picture == released_picture;
     const bool open = cv.wait_until(lock, deadline, [&] {
-        return gate.Open(released) || !GateActive(NowNs());
+        return Needed(released, released_picture, is_new, c) == 0 || !GateActive(NowNs());
     });
     const double ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
             .count();
     if (trace) {
-        LOG_INFO(Frontend, "xr: pacing trace: frame {} held {:.2f} ms ({}, {} ended frames)",
-                 released, ms, on_view ? "on view" : "not yet on view", count_before);
+        LOG_INFO(Frontend,
+                 "xr: pacing trace: frame {} held {:.2f} ms (picture {} {}, {} ended frames, "
+                 "cadence {})",
+                 released, ms, released_picture, on_view ? "on view" : "not yet on view",
+                 count_before, c);
     }
     gate_waits++;
     gate_wait_max_ms = std::max(gate_wait_max_ms, ms);
     if (!open) {
         gate_timeouts++;
-    } else if (gate.Open(released)) {
+    } else if (Needed(released, released_picture, is_new, c) == 0) {
         holds_prevented++;
     }
 }
 
-void Pacing::NotePhase(uint64_t released, int64_t ready) {
+void Pacing::NotePhase(uint64_t released, uint64_t released_picture, bool is_new,
+                       uint32_t cadence_now, int64_t ready) {
     if (!shown || period_ns <= 0 || last_latch_ns == 0 || ready - last_latch_ns >= 3 * period_ns) {
         return; // no frame loop showing the game at a steady rate
     }
     const double period_us = period_ns / 1000.0;
-    // Held by the gate: the game runs ahead of the cadence the gate keeps (SampleErrorUs). The
-    // one before goes up at the next latch (not on view yet) and may make way after two.
-    uint32_t needed = 0;
-    if (GateActive(ready) && !gate.Open(released)) {
-        needed = released == gate.shown ? 2 - std::min<uint32_t>(gate.count, 2) : 2;
-    }
-    const bool held = needed != 0;
-    const bool gated = GateActive(ready);
     const double since_us = (ready - last_latch_ns) / 1000.0;
-    const double error_us = P::SampleErrorUs(since_us, needed, period_us);
     if (trace) {
         LOG_INFO(Frontend,
-                 "xr: pacing trace: ready at {:.2f} ms after frame {} ({}): {:.2f} ms after the "
-                 "last latch, {:.2f} ms after the limiter woke{}",
-                 (ready % 1'000'000'000) / 1e6, released,
-                 released == gate.shown ? "on view" : "not yet on view", since_us / 1000.0,
-                 (ready - P::Get().wake_ns.load()) / 1e6, held ? ", held" : "");
+                 "xr: pacing trace: ready at {:.2f} ms after frame {} (picture {}, {}): {:.2f} ms "
+                 "after the last latch, {:.2f} ms after the limiter woke; {} (cadence {})",
+                 (ready % 1'000'000'000) / 1e6, released, released_picture,
+                 released_picture == gate.shown_picture ? "on view" : "not yet on view",
+                 since_us / 1000.0, (ready - P::Get().wake_ns.load()) / 1e6,
+                 is_new ? "new picture" : "the same picture again", cadence_now);
     }
+    if (!is_new && pictures_switch) {
+        return; // the same picture again: it never waits, and when it goes up does not matter
+    }
+    // Held by the gate: the game runs ahead of the cadence the gate keeps (SampleErrorUs). The
+    // picture before goes up at the next latch (not on view yet) and may make way after 2 x
+    // cadence.
+    const bool gated = GateActive(ready);
+    const uint32_t needed = gated ? Needed(released, released_picture, true, cadence_now) : 0;
+    const double error_us = P::SampleErrorUs(since_us, needed, period_us);
     auto& s = P::Get();
     s.phase_error_ns.store(static_cast<int64_t>(error_us * 1000.0), std::memory_order_relaxed);
     s.phase_gated.store(gated, std::memory_order_relaxed);
@@ -155,6 +213,9 @@ void Pacing::Second(double seconds) {
 
     std::vector<float> phases;
     uint32_t runs[4];
+    uint32_t picture_runs[6];
+    uint32_t news, again;
+    double cadence_avg;
     uint32_t waits, timeouts, prevented;
     double wait_max;
     bool gate_on, was_shown;
@@ -165,6 +226,12 @@ void Pacing::Second(double seconds) {
         file_off = off_file;
         phases.swap(to_latch_ms);
         gate.TakeRuns(runs);
+        gate.TakePictureRuns(picture_runs);
+        news = std::exchange(new_pictures, 0);
+        again = std::exchange(repeats, 0);
+        cadence_avg = news + again ? static_cast<double>(std::exchange(cadence_sum, 0)) /
+                                         (news + again)
+                                   : 1.0;
         waits = std::exchange(gate_waits, 0);
         timeouts = std::exchange(gate_timeouts, 0);
         prevented = std::exchange(holds_prevented, 0);
@@ -203,16 +270,21 @@ void Pacing::Second(double seconds) {
         phase = fmt::format("{:.1f}/{:.1f}/{:.1f}/{:.1f} ms over {}", at(0.05), at(0.5), at(0.95),
                             phases.back(), phases.size());
     }
+    // AzaharFrame pacing2: by game picture (a repeat is the picture before again): a clean second
+    // is all 2s at cadence 1, all 4s at cadence 2; releases on view as before.
     LOG_INFO(Frontend,
-             "xr: pacing {:.1f}s: {} at {:.0f} Hz; game frame ready to the next latch p5/p50/p95/max {} "
-             "(smoothed {:+.2f} ms from the lock's target, concentration {:.2f}); pictures on view "
-             "1/2/3/4+ frames {}/{}/{}/{}; gate waits {} (max {:.1f} ms, timeouts {}), 1-frame "
-             "holds prevented {}; speed x{:.5f}, correction {:+.0f} us avg (max {}) over {} "
-             "frames; limiter could not sleep {} frames; audio backlog drops {} ({} frames)",
+             "xr: pacing {:.1f}s: {} at {:.0f} Hz; new picture ready to the next latch "
+             "p5/p50/p95/max {} (smoothed {:+.2f} ms from the lock's target, concentration "
+             "{:.2f}); game pictures {} and {} repeats (cadence {:.1f}): on view 1/2/3/4/5/6+ "
+             "frames {}/{}/{}/{}/{}/{}; releases on view 1/2/3/4+ frames {}/{}/{}/{}; gate waits "
+             "{} (max {:.1f} ms, timeouts {}), 1-frame holds prevented {}; speed x{:.5f}, "
+             "correction {:+.0f} us avg (max {}) over {} frames; limiter could not sleep {} "
+             "frames; audio backlog drops {} ({} frames)",
              seconds, mode, period > 0 ? 1e9 / period : 0.0, phase,
-             lock_off == P::Off::None ? s.phase_mean_ns.load() / 1e6 : mean,
-             concentration, runs[0], runs[1], runs[2],
-             runs[3], waits, wait_max, timeouts, prevented, s.audio_ratio.load(),
+             lock_off == P::Off::None ? s.phase_mean_ns.load() / 1e6 : mean, concentration, news,
+             again, cadence_avg, picture_runs[0], picture_runs[1], picture_runs[2],
+             picture_runs[3], picture_runs[4], picture_runs[5], runs[0], runs[1], runs[2], runs[3],
+             waits, wait_max, timeouts, prevented, s.audio_ratio.load(),
              lock_frames ? static_cast<double>(corr_sum) / lock_frames : 0.0, corr_max,
              lock_frames, no_sleep, drops, dropped);
 }

@@ -9,6 +9,11 @@
 //   submit   the Vulkan worker, inside the scheduler's submit mutex (the queue lock)
 //   acquire  the emu thread, between acquiring the XR screen images and queueing their release
 //   release  the XR release thread, after the GPU finished, before xrReleaseSwapchainImage
+//   picture  the emu thread, at a VBlank that shows a new game picture (the game swapped its top
+//            screen), before the picture is drawn: <ms> at every <every>-th one (default each),
+//            no period in seconds. A game whose frame with the new picture runs long and whose
+//            next VBlank (the same picture again) catches up at once, as Kid Icarus Uprising
+//            does in play (AzaharFrame pacing2).
 // Unset (the default): Maybe() is one relaxed load.
 
 #pragma once
@@ -25,7 +30,7 @@
 
 namespace Common::DebugStall {
 
-enum class Where { None, Tick, Submit, Acquire, Release };
+enum class Where { None, Tick, Submit, Acquire, Release, Picture };
 
 struct Config {
     Where where = Where::None;
@@ -51,6 +56,9 @@ inline const Config& Get() {
             c.where = Where::Acquire;
         } else if (name == "release") {
             c.where = Where::Release;
+        } else if (name == "picture") {
+            c.where = Where::Picture;
+            c.every_s = 1; // here: every n-th new picture
         }
         if (colon != std::string::npos) {
             c.ms = std::atoi(s.c_str() + colon + 1);
@@ -74,6 +82,13 @@ inline const Config& Get() {
 inline void Maybe(Where where) {
     const Config& c = Get();
     if (c.where != where) [[likely]] {
+        return;
+    }
+    if (where == Where::Picture) {
+        static std::atomic<long long> pictures{0};
+        if (pictures.fetch_add(1, std::memory_order_relaxed) % c.every_s == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(c.ms));
+        }
         return;
     }
     static std::atomic<long long> last_s{0};
