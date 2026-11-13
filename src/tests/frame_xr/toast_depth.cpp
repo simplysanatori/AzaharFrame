@@ -6,6 +6,7 @@
 // for any screen distance, size, curve and place.
 
 #include <cmath>
+#include <cstdint>
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -113,4 +114,58 @@ TEST_CASE("Toast depth: the screens go into the toast's inputs even when left ou
     CHECK_FALSE(hidden.layer);
     CHECK_FALSE(none.toast_input);
     CHECK_FALSE(none.layer);
+}
+
+TEST_CASE("Toast depth: eased in front of a nearer screen and back out", "[frame_xr][toast]") {
+    using ToastDepth::Ease;
+    constexpr int64_t ms = 1'000'000;
+    constexpr int64_t refresh = 11 * ms; // 90 Hz
+    Ease e;
+    CHECK(e.Step(1.0f, 0) == 1.0f); // first: where it belongs, at once
+    // Over a nearer screen: toward it, a part each refresh (no pop), there within a few tenths.
+    float k = 1.0f, last = 1.0f;
+    int64_t t = 0;
+    for (int i = 0; i < 60; i++) {
+        t += refresh;
+        k = e.Step(0.4f, t);
+        CHECK(k <= last);
+        CHECK(k >= 0.4f);
+        if (i == 0) {
+            CHECK(k > 0.85f); // one refresh moves it a part of the way only
+        }
+        if (t >= 4 * Ease::kNearTauNs) {
+            CHECK(k < 0.42f); // in front within a quarter second
+        }
+        last = k;
+    }
+    CHECK(k == Approx(0.4f).margin(1e-3f));
+    // Off the screen: back out, more slowly, never past its own distance.
+    last = k;
+    for (int i = 0; i < 400; i++) {
+        t += refresh;
+        k = e.Step(1.0f, t);
+        CHECK(k >= last);
+        CHECK(k <= 1.0f);
+        if (i == 0) {
+            CHECK(k < 0.45f);
+        }
+        last = k;
+    }
+    CHECK(k == 1.0f);
+    // A time constant in: about 63 % of the way, each way.
+    Ease f;
+    f.Step(0.5f, 0);
+    CHECK(f.Step(1.0f, Ease::kFarTauNs) == Approx(0.5f + 0.5f * 0.632f).margin(0.01f));
+    Ease n;
+    n.Step(1.0f, 0);
+    CHECK(n.Step(0.5f, Ease::kNearTauNs) == Approx(1.0f - 0.5f * 0.632f).margin(0.01f));
+    CHECK(Ease::kNearTauNs < Ease::kFarTauNs);
+    // Shown afresh (Reset): where it belongs, at once.
+    f.Reset();
+    CHECK(f.Step(0.3f, Ease::kFarTauNs + refresh) == 0.3f);
+    // The same display time twice (no time passed): no move.
+    CHECK(f.Step(1.0f, Ease::kFarTauNs + refresh) == 0.3f);
+    // Nonsense in: its own distance.
+    Ease g;
+    CHECK(g.Step(std::nanf(""), 0) == 1.0f);
 }

@@ -449,14 +449,19 @@ namespace {
 // AzaharFrame kiu2: in front of every screen it is over, whatever their distance (an immersive
 // screen can be nearer than a toast's 0.9 m): scaled about the eye, so it keeps its direction
 // and its size in view. Returns the factor (1: left as it is).
+// AzaharFrame integ9: eased (ToastDepth::Ease: in front of a nearer screen quickly, back out
+// more slowly), so it does not pop in depth as it crosses a screen's edge.
 float BringInFront(const ViewPose& head, const std::vector<Input::PanelQuad>* screens,
-                   Quad& quad) {
+                   Quad& quad, ToastDepth::Ease& ease, XrTime time) {
     if (!screens || !head.valid) {
+        ease.Reset();
         return 1.0f;
     }
     const Input::Vec3f eye = ToInput(head.head).position;
     const Input::Posef pose = ToInput(quad.pose);
-    const float k = ToastDepth::NearScale(eye, pose, quad.size.width, quad.size.height, *screens);
+    const float k = ease.Step(
+        ToastDepth::NearScale(eye, pose, quad.size.width, quad.size.height, *screens),
+        static_cast<int64_t>(time));
     if (k < 1.0f) {
         const Input::Vec3f p = eye + (pose.position - eye) * k;
         quad.pose.position = {p.x, p.y, p.z};
@@ -487,6 +492,7 @@ bool Hud::HintQuad(XrTime time, Quad& quad, const ViewPose& head,
         hint_waiting = false;
         hint_shown = true;
         hint_since = time;
+        hint_ease.Reset(); // AzaharFrame integ9: a new place, a new depth
     }
     if (!hint_shown || time - hint_since > kHintNs) {
         hint_shown = false;
@@ -497,7 +503,7 @@ bool Hud::HintQuad(XrTime time, Quad& quad, const ViewPose& head,
                        {static_cast<int32_t>(kHintWidth), static_cast<int32_t>(kToastHeight)}};
     quad.pose = hint_pose;
     quad.size = {hint_width, hint_width * kToastHeight / kHintWidth};
-    BringInFront(head, screens, quad); // AzaharFrame kiu2
+    BringInFront(head, screens, quad, hint_ease, time); // AzaharFrame kiu2
     quad.eye = XR_EYE_VISIBILITY_BOTH;
     quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
     return true;
@@ -742,6 +748,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
     const int requested = toast_kind.exchange(-1);
     if (requested >= 0 && requested < kToastKinds && head.valid) {
         shown_pose = ahead();
+        toast_ease.Reset(); // AzaharFrame integ9: a new place, a new depth
         shown_kind = requested;
         shown_since = time;
         shown_ns = ToastFit::DurationNs(ToastTimeOf(static_cast<Toast>(requested))); // ui3
@@ -787,6 +794,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
         const bool showing_text = shown_kind >= kToastKinds && time - shown_since <= shown_ns;
         if (!showing_text) {
             shown_pose = ahead();
+            toast_ease.Reset(); // AzaharFrame integ9
         }
         shown_kind = text_row_waiting;
         shown_since = time;
@@ -812,7 +820,7 @@ bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
     quad.size = {box.width_m, box.height_m};
     // AzaharFrame kiu2: in front of every screen it is over (BringInFront).
     if (screens && head.valid) {
-        const float k = BringInFront(head, screens, quad);
+        const float k = BringInFront(head, screens, quad, toast_ease, time);
         if ((k < 1.0f) != toast_nearer_logged) {
             toast_nearer_logged = k < 1.0f;
             if (k < 1.0f) {

@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 #include "frame_xr/input/geometry.h"
 
@@ -77,5 +78,49 @@ struct ScreenUse {
 constexpr ScreenUse UseOf(bool has_picture, bool hidden_this_refresh) {
     return {has_picture, has_picture && !hidden_this_refresh};
 }
+
+/// AzaharFrame integ9: NearScale eased, so the toast never pops in depth as its rectangle crosses
+/// a screen's edge (a world-fixed screen, a toast that stays where it was shown): in front of the
+/// nearer screen quickly (kNearTauNs, so it is behind a screen for a moment at most), back out to
+/// its own distance more slowly (kFarTauNs). A toast shown afresh (Reset) starts where it belongs.
+/// The factor scales the toast about the eye: only its depth eases, its size in view stays.
+class Ease {
+public:
+    /// Time constants (63 % of the way in this time): toward the eye, and back out.
+    static constexpr int64_t kNearTauNs = 60'000'000;
+    static constexpr int64_t kFarTauNs = 250'000'000;
+
+    void Reset() {
+        started_ = false;
+    }
+    /// `target`: this refresh's NearScale; `now_ns`: its display time. Returns the factor to use.
+    float Step(float target, int64_t now_ns) {
+        if (!std::isfinite(target)) {
+            target = 1.0f;
+        }
+        if (!started_) {
+            k_ = target;
+        } else {
+            const double dt = static_cast<double>(std::max<int64_t>(now_ns - last_ns_, 0));
+            const double tau = static_cast<double>(target < k_ ? kNearTauNs : kFarTauNs);
+            const float a = static_cast<float>(1.0 - std::exp(-dt / tau));
+            k_ += (target - k_) * a;
+            if (std::fabs(target - k_) < 1e-4f) {
+                k_ = target;
+            }
+        }
+        started_ = true;
+        last_ns_ = now_ns;
+        return k_;
+    }
+    float Value() const {
+        return k_;
+    }
+
+private:
+    bool started_ = false;
+    float k_ = 1.0f;
+    int64_t last_ns_ = 0;
+};
 
 } // namespace FrameXr::ToastDepth

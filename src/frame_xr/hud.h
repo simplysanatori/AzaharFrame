@@ -31,6 +31,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/geometry.h" // AzaharFrame kiu2: the toast in front of the screens
+#include "frame_xr/toast_depth.h" // AzaharFrame integ9: the toast's depth, eased
 #include "frame_xr/toast_fit.h" // AzaharFrame menuux
 #include "frame_xr/ui/ui_canvas.h"
 #include "frame_xr/ui/ui_ttf.h" // AzaharFrame shaderbadge
@@ -121,6 +122,8 @@ private:
     XrTime shown_ns = ToastFit::kShortNs; ///< AzaharFrame ui3: how long the one on view stays
     XrPosef shown_pose{{0, 0, 0, 1}, {0, 0, 0}};
     bool toast_nearer_logged = false; ///< AzaharFrame kiu2
+    ToastDepth::Ease toast_ease; ///< AzaharFrame integ9: its depth, eased (toast_depth.h)
+    ToastDepth::Ease hint_ease;  ///< AzaharFrame integ9: the hint chip's
 
     std::mutex text_mutex;
     std::string text_request; ///< ShowToastText not yet taken (text_requested)
