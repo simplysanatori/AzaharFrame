@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 #include <fmt/format.h>
@@ -98,6 +99,11 @@ struct Tuning {
     /// (the game stopped drawing: loading, a stall) goes back to the head, so the screen never
     /// stays behind out of view.
     float anchor_max_ms = 250.0f;
+    /// AzaharFrame turns: AZAHARFRAME_IMMERSIVE_ANCHOR_EYE (default 1): the anchored screen keeps
+    /// the picture's orientation about where the eye is now (L::AnchoredQuadPose), so the eyes
+    /// moving with a head turn (about the neck) no longer slide it against the scenery; 0: at the
+    /// picture's head pose, position too.
+    bool anchor_eye = true;
 };
 
 float EnvFloat(const char* name, float fallback, float lo, float hi) {
@@ -131,6 +137,8 @@ Tuning ReadTuning() {
     const char* anchor = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR");
     t.anchor = !(anchor && std::string(anchor) == "0");
     t.anchor_max_ms = EnvFloat("AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS", 250.0f, 50.0f, 2000.0f);
+    const char* anchor_eye = std::getenv("AZAHARFRAME_IMMERSIVE_ANCHOR_EYE");
+    t.anchor_eye = !(anchor_eye && std::string(anchor_eye) == "0");
     const char* wider = std::getenv("AZAHARFRAME_IMMERSIVE_WIDER");
     if (wider && *wider) {
         t.wider_level = static_cast<int>(EnvFloat("AZAHARFRAME_IMMERSIVE_WIDER", 0.0f, 0.0f,
@@ -336,7 +344,20 @@ struct State {
         /// and the frames whose view was more than kViewSettleChangeDeg from the fitted one.
         float mid_min_deg = 1e9f, mid_max_deg = -1e9f;
         uint32_t view_off = 0;
+        /// AzaharFrame turns: in the anchored frames, how far the screen's middle is, seen from
+        /// the eye now, from the direction its picture was drawn in (what scenery far away is
+        /// off by), and how far that moved since the frame before (a double image's spacing).
+        uint32_t slip_frames = 0, step_frames = 0;
+        double slip_sum_deg = 0, slip_max_deg = 0, step_sum_deg = 0, step_max_deg = 0;
+        /// AzaharFrame turns: the head from the rest pose (yaw, pitch) and the game camera given
+        /// (yaw, pitch), lowest and highest, degrees.
+        float head_yaw[2]{1e9f, -1e9f}, head_pitch[2]{1e9f, -1e9f};
+        float cam_yaw[2]{1e9f, -1e9f}, cam_pitch[2]{1e9f, -1e9f};
+        uint32_t cam_frames = 0;
     } age;
+    /// AzaharFrame turns: the last anchored frame's offsets (degrees across, up; per eye).
+    bool slip_prev_valid = false;
+    float slip_prev[2][2]{};
 };
 
 State g;
@@ -702,7 +723,20 @@ void OnFrame(const FrameInfo& info) {
                 // too, so the world stays where it is (immersive_layout.h).
                 const Input::Quatf c =
                     L::GameCameraRotation({q.x, q.y, q.z, q.w}, g.solved);
+                // AzaharFrame turns: the head and the camera given, for the per-second line.
+                const auto note = [](const XrQuaternionf& r, float (&yaw)[2], float (&pitch)[2]) {
+                    const XrVector3f f = Rotate(r, {0.0f, 0.0f, -1.0f});
+                    const float y = Deg(std::atan2(-f.x, -f.z));
+                    const float pt = Deg(std::atan2(f.y, std::hypot(f.x, f.z)));
+                    yaw[0] = std::min(yaw[0], y);
+                    yaw[1] = std::max(yaw[1], y);
+                    pitch[0] = std::min(pitch[0], pt);
+                    pitch[1] = std::max(pitch[1], pt);
+                };
+                note(q, g.age.head_yaw, g.age.head_pitch);
                 q = {c.x, c.y, c.z, c.w};
+                note(q, g.age.cam_yaw, g.age.cam_pitch);
+                g.age.cam_frames++;
             }
             const XrVector3f p =
                 Rotate(Conj(g.ref.orientation), Sub(g.view.head.position, g.ref.position));
@@ -771,6 +805,25 @@ void OnFrame(const FrameInfo& info) {
                      a.mid_min_deg <= a.mid_max_deg ? a.mid_min_deg : 0.0f,
                      a.mid_min_deg <= a.mid_max_deg ? a.mid_max_deg : 0.0f,
                      Deg(L::ViewMiddlePitch(g.view_fov)), a.view_off, L::kViewSettleChangeDeg);
+            if (a.cam_frames > 0) {
+                LOG_INFO(Frontend,
+                         "xr: immersive: head {:.0f} to {:.0f} degrees across from straight "
+                         "ahead, {:.0f} to {:.0f} up; game camera given {:.0f} to {:.0f} across, "
+                         "{:.0f} to {:.0f} up",
+                         a.head_yaw[0], a.head_yaw[1], a.head_pitch[0], a.head_pitch[1],
+                         a.cam_yaw[0], a.cam_yaw[1], a.cam_pitch[0], a.cam_pitch[1]);
+            }
+            if (a.slip_frames > 0) {
+                LOG_INFO(Frontend,
+                         "xr: immersive: far scenery on the anchored screen {:.2f} degrees (max "
+                         "{:.2f}) from where its picture was drawn, moving {:.3f} degrees (max "
+                         "{:.3f}) from one frame to the next, {} frames (screen {})",
+                         a.slip_sum_deg / a.slip_frames, a.slip_max_deg,
+                         a.step_frames ? a.step_sum_deg / a.step_frames : 0.0, a.step_max_deg,
+                         a.slip_frames,
+                         g.tuning.anchor_eye ? "about the eye now, AZAHARFRAME_IMMERSIVE_ANCHOR_EYE on"
+                                             : "at the picture's head pose, ANCHOR_EYE off");
+            }
             const int64_t keep_picture = a.last_picture;
             const uint32_t keep_run = a.run;
             a = {};
@@ -848,6 +901,10 @@ void Install() {
              g.tuning.anchor ? "placed where the head was when its picture was drawn"
                              : "locked to the head at display time",
              g.tuning.anchor_max_ms);
+    LOG_INFO(Frontend,
+             "xr: immersive: the anchored screen {} (AZAHARFRAME_IMMERSIVE_ANCHOR_EYE)",
+             g.tuning.anchor_eye ? "keeps its picture's direction about where the eye is now"
+                                 : "stays at its picture's head pose, position too");
 }
 
 void Uninstall() {
@@ -863,6 +920,41 @@ void Uninstall() {
 
 float TopAspect() {
     return g_top_aspect.load();
+}
+
+// AzaharFrame turns: the per-second slip figures (AgeStats) for this frame's anchored screen
+// (Screens, after OnFrame). Each eye in mode 3 (from the eye as located), the head in mode 2.
+void NoteSlip(bool anchored, const XrPosef (&top_pose)[2]) {
+    auto& a = g.age;
+    if (!anchored || !g.view.valid) {
+        g.slip_prev_valid = false;
+        return;
+    }
+    float err[2][2]{};
+    float slip = 0.0f, step = 0.0f;
+    for (int eye = 0; eye < 2; eye++) {
+        const XrPosef& p = top_pose[eye];
+        const XrVector3f from = g.mode == 3 && g.view.views_valid ? g.view.eye[eye].position
+                                                                  : g.view.head.position;
+        const XrVector3f v = Rotate(Conj(p.orientation), Sub(p.position, from));
+        err[eye][0] = Deg(std::atan2(v.x, -v.z));
+        err[eye][1] = Deg(std::atan2(v.y, -v.z));
+        slip = std::max(slip, std::hypot(err[eye][0], err[eye][1]));
+        if (g.slip_prev_valid) {
+            step = std::max(step, std::hypot(err[eye][0] - g.slip_prev[eye][0],
+                                             err[eye][1] - g.slip_prev[eye][1]));
+        }
+    }
+    a.slip_frames++;
+    a.slip_sum_deg += slip;
+    a.slip_max_deg = std::max<double>(a.slip_max_deg, slip);
+    if (g.slip_prev_valid) {
+        a.step_frames++;
+        a.step_sum_deg += step;
+        a.step_max_deg = std::max<double>(a.step_max_deg, step);
+    }
+    std::memcpy(g.slip_prev, err, sizeof(err));
+    g.slip_prev_valid = true;
 }
 
 ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacement& placement) {
@@ -905,22 +997,27 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         // while the head moves on; head-locked, the world swung with the head until the next
         // picture (2 to 4 display frames, 25 to 70 ms old) and jumped back: a double image on
         // fast head turns. SteamVR re-projects the layer for the head at display time.
+        // AzaharFrame turns: about the eye where it is now (AnchoredQuadPose), so the eyes moving
+        // with a turn do not slide the screen against its scenery.
         XrPosef anchor_head;
         const bool anchored = g.tuning.anchor && AnchorPose(g.view.time, anchor_head);
+        const bool follow_eye = g.tuning.anchor_eye && g.view.valid;
         for (int eye = 0; eye < 2; eye++) {
             const float x = g.mode == 3 ? (eye == 0 ? -g.half_ipd : g.half_ipd) : 0.0f;
-            const XrPosef in_view = ToXr(L::HeadLockedQuadPose(g.solved, x));
+            const Input::Posef in_view = L::HeadLockedQuadPose(g.solved, x);
             if (anchored) {
                 out.top_space = local_space;
-                out.top_pose[eye] = Compose(anchor_head, in_view);
+                out.top_pose[eye] = ToXr(L::AnchoredQuadPose(ToIn(anchor_head), ToIn(g.view.head),
+                                                             in_view, x, follow_eye));
             } else if (g.tuning.local_space && g.view.valid) {
                 out.top_space = local_space;
-                out.top_pose[eye] = Compose(g.view.head, in_view);
+                out.top_pose[eye] = Compose(g.view.head, ToXr(in_view));
             } else {
                 out.top_space = view_space;
-                out.top_pose[eye] = in_view;
+                out.top_pose[eye] = ToXr(in_view);
             }
         }
+        NoteSlip(anchored, out.top_pose);
         out.top_pointable = false;
         out.show_bottom = false;
     }

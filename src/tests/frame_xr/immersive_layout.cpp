@@ -1379,3 +1379,42 @@ TEST_CASE("FrameXr immersive: a lasting view change refits the screen once", "[f
     // Nonsense from the runtime is left out.
     REQUIRE_FALSE(settle.Add(FrameView(0.0f), std::nanf("")));
 }
+
+// AzaharFrame turns: the anchored screen about the eye where it is now.
+TEST_CASE("FrameXr immersive: the anchored screen keeps its scenery still when the eyes move",
+          "[frame_xr]") {
+    const ViewFov view = Symmetric(45.0f);
+    Placement p;
+    p.distance = 0.37f; // Mario Kart 7's
+    const HeadLocked s = SolveHeadLocked(p, 52.0f, kAspect3ds, view, 0.0f);
+    const float neck = 0.09f, turn = Rad(5.0f);
+    // The picture drawn with the head straight ahead; the head now turned 5 degrees left about a
+    // neck 9 cm behind the eyes, so the eyes moved too.
+    const Posef picture{Quatf{}, Vec3f{0.0f, 1.6f, 0.0f}};
+    const Posef now{YawRotation(turn), Vec3f{-neck * std::sin(turn), 1.6f,
+                                             neck - neck * std::cos(turn)}};
+    for (const float x : {-0.032f, 0.0f, 0.032f}) {
+        const Posef in_view = HeadLockedQuadPose(s, x);
+        const Vec3f drawn = In::Normalized(In::Rotate(picture.orientation, in_view.position -
+                                                                               Vec3f{x, 0, 0}));
+        const Vec3f eye_now = now.position + In::Rotate(now.orientation, Vec3f{x, 0.0f, 0.0f});
+        // About the eye now: the screen's middle is seen exactly where its picture was drawn.
+        const Posef follow = AnchoredQuadPose(picture, now, in_view, x, true);
+        REQUIRE(In::Dot(In::Normalized(follow.position - eye_now), drawn) ==
+                Approx(1.0f).margin(1e-6));
+        REQUIRE(In::Dot(In::Rotate(follow.orientation, Vec3f{0, 0, 1}),
+                        In::Rotate(picture.orientation, In::Rotate(in_view.orientation,
+                                                                   Vec3f{0, 0, 1}))) ==
+                Approx(1.0f));
+        // At the picture's head pose: off by about neck / distance of the turn (23 %).
+        const Posef fixed = AnchoredQuadPose(picture, now, in_view, x, false);
+        const float off = std::acos(std::min(
+            1.0f, In::Dot(In::Normalized(fixed.position - eye_now), drawn)));
+        REQUIRE(off / turn == Approx(neck / 0.37f).epsilon(0.15));
+    }
+    // The head where the picture was drawn: both are the old placement.
+    const Posef in_view = HeadLockedQuadPose(s, 0.032f);
+    const Posef a = AnchoredQuadPose(picture, picture, in_view, 0.032f, true);
+    const Posef b = AnchoredQuadPose(picture, picture, in_view, 0.032f, false);
+    REQUIRE(In::Length(a.position - b.position) == Approx(0.0f).margin(1e-6));
+}

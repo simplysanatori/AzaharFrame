@@ -467,6 +467,18 @@ Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x) {
     return {q, Vec3f{eye_x, 0.0f, 0.0f} + Input::Rotate(q, Vec3f{0.0f, 0.0f, -solved.distance})};
 }
 
+Posef AnchoredQuadPose(const Posef& picture, const Posef& now, const Posef& in_view,
+                       float eye_x, bool follow_eye) {
+    if (!follow_eye) {
+        return Compose(picture, in_view);
+    }
+    // The eye now, and the quad from it as it was from the eye in the picture's head frame.
+    const Vec3f eye{eye_x, 0.0f, 0.0f};
+    const Vec3f eye_now = now.position + Input::Rotate(now.orientation, eye);
+    return {Input::Normalized(Input::Multiply(picture.orientation, in_view.orientation)),
+            eye_now + Input::Rotate(picture.orientation, in_view.position - eye)};
+}
+
 Posef WideQuadPose(const Posef& rest, float pitch_rad, float distance, float yaw_rad) {
     const Quatf q = YawPitch(yaw_rad, pitch_rad);
     return Compose(rest, {q, Input::Rotate(q, Vec3f{0.0f, 0.0f, -distance})});

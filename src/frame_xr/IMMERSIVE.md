@@ -447,6 +447,7 @@ Environment variables, read when the XR session starts (logged as `xr: immersive
 | `AZAHARFRAME_IMMERSIVE_MEASURE` | 1 | 0: size the head-locked screen from the settings only, not from the game's measured projection |
 | `AZAHARFRAME_IMMERSIVE_ANCHOR` | 1 | 0: the Full modes' screen locked to the head at display time, as up to 1.2 (see below) |
 | `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_MS` | 250 | 50..2000: a picture further behind the display than this (the game stopped drawing) goes back to the head |
+| `AZAHARFRAME_IMMERSIVE_ANCHOR_EYE` | 1 | 0: the anchored screen at the picture's head pose, position too, as in 1.2.0 builds before it (slides against its scenery as the eyes move with a turn) |
 
 ## Head turns and the picture (AzaharFrame doubling)
 
@@ -469,6 +470,20 @@ before SteamVR's last recenter, or more than `AZAHARFRAME_IMMERSIVE_ANCHOR_MAX_M
 to the head. Once a second while a Full mode is on, the log says how old the pictures were, how far
 the head turned since, how many frames the screen was anchored, and how many display frames each
 picture stayed (`xr: immersive: 121 frames, 30 pictures, picture drawn 62.4 ms ...`).
+
+AzaharFrame turns: a real head turns about the neck, so the eyes move sideways with every turn
+(about 8 to 10 cm ahead of it). A screen left at the picture's head pose, position too, slid against
+the scenery it shows as if that scenery were as near as the screen: r / distance of the turn, 22 %
+at Mario Kart 7's 0.37 m (3 % at 3 m), back at every new picture, so the remaining double image on
+very fast turns. `Layout::AnchoredQuadPose` keeps the picture's orientation about where the eye is
+now (`AZAHARFRAME_IMMERSIVE_ANCHOR_EYE`, default 1): far scenery is seen exactly where it was drawn,
+as in a rotational reprojection, and the game camera follows the head's position on the next picture
+as before. A second line each second says how far far scenery on the anchored screen was from where
+its picture was drawn, and how far it moved from one display frame to the next
+(`xr: immersive: far scenery on the anchored screen ...`). The rest of a fast turn's slip is the
+gain: the game camera turns `gain` times the head, which keeps the world still at the screen's middle
+only when the gain is the game's real angle over the screen's (Match Game Camera on, or an Immersive
+Game FOV that is the game's real angle).
 
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together

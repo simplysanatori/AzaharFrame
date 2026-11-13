@@ -24,6 +24,10 @@
 //   MOCK_XR_EYE_WOBBLE=<deg>  the right eye's view pitched up and down by this much
 //                             relative to the head, the sign alternating each display
 //                             frame (eye views that differ from frame to frame)
+//   MOCK_XR_TURN=<deg/s>[,<deg>]  the head turns from side to side at this speed, this far
+//                             either way (default 40), instead of the slow sway
+//   MOCK_XR_NECK=<m>          the head turns about a neck this far behind the eyes (0: about
+//                             the eyes), so a turn moves the eyes as a real head does
 //   MOCK_XR_SPACEWARP=1       offer XR_FB_space_warp
 //   MOCK_XR_EXTENSIONS=a,b    replace the list of extensions offered
 //   MOCK_XR_SKIP=1            a frame begun late loses refreshes (the display
@@ -143,6 +147,8 @@ static XrQuaternionf qyawpitch(float yawDeg, float pitchDeg) {
 
 static int gSway = 1;
 static float gEyeWobbleRad = 0.0f; // MOCK_XR_EYE_WOBBLE, in radians
+// AzaharFrame turns: MOCK_XR_TURN (speed in degrees a second, how far either way) and MOCK_XR_NECK.
+static double gTurnRate = 0.0, gTurnAmp = 40.0, gNeck = 0.0;
 static int64_t gT0 = 0, gPeriod = 8333333, gEndAt = 0;
 // Sessions begun so far. A later session (an app that ended its session and made a new one)
 // keeps the first one's timeline: script times, shown dumps and MOCK_XR_SECONDS count from the
@@ -162,8 +168,18 @@ static XrPosef gHeadPose;
 static XrPosef headAt(XrTime t) {
     if (gHeadScripted) return gHeadPose;
     float yaw = 0;
-    if (gSway) yaw = (float)(0.3 * sin((double)(t - gT0) / 1e9 * 2.0 * 3.14159265 * 0.5));
-    return (XrPosef){{0, sinf(yaw * 0.5f), 0, cosf(yaw * 0.5f)}, {0, 1.6f, 0}};
+    if (gTurnRate > 0.0) {
+        // AzaharFrame turns: a triangle wave, the same speed all the way, turning back at the ends.
+        const double period = 4.0 * gTurnAmp / gTurnRate;
+        const double phase = fmod((double)(t - gT0) / 1e9, period) / period;
+        const double tri = phase < 0.5 ? 4.0 * phase - 1.0 : 3.0 - 4.0 * phase;
+        yaw = (float)(gTurnAmp * tri * 3.14159265358979 / 180.0);
+    } else if (gSway) {
+        yaw = (float)(0.3 * sin((double)(t - gT0) / 1e9 * 2.0 * 3.14159265 * 0.5));
+    }
+    // The eyes this far ahead of the neck they turn about: they move with the turn.
+    const float n = (float)gNeck;
+    return (XrPosef){{0, sinf(yaw * 0.5f), 0, cosf(yaw * 0.5f)}, {-n * sinf(yaw), 1.6f, n - n * cosf(yaw)}};
 }
 
 // ---- paths -----------------------------------------------------------------
@@ -1686,6 +1702,14 @@ static void init(void) {
     if (sway && atoi(sway) == 0) gSway = 0;
     const char* wobble = getenv("MOCK_XR_EYE_WOBBLE");
     if (wobble) gEyeWobbleRad = (float)(atof(wobble) * 3.14159265358979 / 180.0);
+    const char* turn = getenv("MOCK_XR_TURN");
+    if (turn && *turn) {
+        gTurnRate = atof(turn);
+        const char* comma = strchr(turn, ',');
+        if (comma && atof(comma + 1) > 0.0) gTurnAmp = atof(comma + 1);
+    }
+    const char* neck = getenv("MOCK_XR_NECK");
+    if (neck && *neck) gNeck = atof(neck);
     gDumpDir = getenv("MOCK_XR_DUMP_DIR");
     if (gDumpDir) {
         mkdir(gDumpDir, 0755);

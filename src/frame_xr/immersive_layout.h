@@ -404,6 +404,20 @@ Input::Quatf GameCameraRotation(const Input::Quatf& head_rel, const HeadLocked& 
 /// The head-locked quad's pose in the head's (VIEW) space for an eye `eye_x` to the side.
 Input::Posef HeadLockedQuadPose(const HeadLocked& solved, float eye_x);
 
+/// AzaharFrame turns: the head-locked quad (`in_view`, HeadLockedQuadPose for `eye_x`) placed
+/// for the picture drawn with the head at `picture`, while the head is at `now` (LOCAL space).
+///   - `follow_eye` false: where it was in the picture's head frame (Compose(picture, in_view)).
+///     The turn is undone, but a real head turns about the neck, so the eyes move sideways with
+///     it, and the quad (at its distance) moves against the scenery it shows as if the scenery
+///     were that near: about r / distance of the turn (r, the eyes ahead of the neck), 23 % at
+///     Mario Kart 7's 0.37 m, until the next picture puts it back: a double image on fast turns.
+///   - `follow_eye` true: the picture's orientation, about the eye where it is now: the picture
+///     is seen in the direction it was drawn in, from wherever the eye has moved, as a world far
+///     away is (what a rotational reprojection does). The game camera follows the head's
+///     position on the next picture, as before.
+Input::Posef AnchoredQuadPose(const Input::Posef& picture, const Input::Posef& now,
+                              const Input::Posef& in_view, float eye_x, bool follow_eye);
+
 /// Mode 1: the wide screen around the rest pose (room-fixed), at `pitch` (the player's pitch
 /// plus the middle of the view) and `distance`, turned by `yaw` (positive = left; the
 /// Immersive Offset).
