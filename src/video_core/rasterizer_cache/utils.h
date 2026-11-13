@@ -6,6 +6,7 @@
 
 #include <span>
 #include "common/math_util.h"
+#include "common/settings.h" // AzaharFrame xfergpu: ImageCopyAccuracy
 #include "common/vector_math.h"
 
 namespace VideoCore {
@@ -99,19 +100,61 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
                    std::span<u8> source, std::span<u8> dest, bool convert = false);
 
 /// AzaharFrame feshimmer: whether a transfer's output [out, out + out_size) overlaps its
-/// input [in, in + in_size) in guest memory, as an in-place downscale does. The hardware works
-/// through memory in order, which the surfaces of the cache can't follow (see
+/// input [in, in + in_size) in guest memory, as an in-place downscale does (see
 /// AccelerateDisplayTransfer).
 [[nodiscard]] constexpr bool TransferOverlaps(u32 in, u32 in_size, u32 out, u32 out_size) {
     return in_size != 0 && out_size != 0 && out < in + in_size && in < out + out_size;
 }
 
-/// AzaharFrame accxfer: whether a display transfer takes the software path: always with
-/// Accurate Image Copies on (Settings::values.accurate_image_copies), else when its output
-/// overlaps its input (TransferOverlaps).
-[[nodiscard]] constexpr bool DisplayTransferInSoftware(bool accurate_copies, u32 in, u32 in_size,
-                                                       u32 out, u32 out_size) {
-    return accurate_copies || TransferOverlaps(in, in_size, out, out_size);
+/// AzaharFrame accxfer, xfergpu: whether a display transfer takes the software path, by
+/// Accurate Image Copies (Settings::values.image_copy_accuracy). On: always. Off: never, as
+/// upstream. Automatic: when its output overlaps its input and the GPU path can't do it: the
+/// GPU path keeps the input's pixel format and tiling (the cache then moves the data between
+/// the strides with ValidateByRestride); AccelerateDisplayTransfer also sends an output that
+/// lands in the input's own surface here.
+[[nodiscard]] constexpr bool DisplayTransferInSoftware(Settings::ImageCopyAccuracy accuracy, u32 in,
+                                                       u32 in_size, u32 out, u32 out_size,
+                                                       bool gpu_can_overlap) {
+    switch (accuracy) {
+    case Settings::ImageCopyAccuracy::Off:
+        return false;
+    case Settings::ImageCopyAccuracy::On:
+        return true;
+    case Settings::ImageCopyAccuracy::Automatic:
+        break;
+    }
+    return TransferOverlaps(in, in_size, out, out_size) && !gpu_can_overlap;
+}
+
+/// AzaharFrame accxfer, xfergpu: texture copies take the software path with Accurate Image
+/// Copies On only.
+[[nodiscard]] constexpr bool TextureCopyInSoftware(Settings::ImageCopyAccuracy accuracy) {
+    return accuracy == Settings::ImageCopyAccuracy::On;
+}
+
+/// AzaharFrame xfergpu: whether the cache copies memory between strides on the GPU
+/// (ValidateByRestride): not with Accurate Image Copies Off, which keeps upstream's skip.
+[[nodiscard]] constexpr bool RestrideOnGpu(Settings::ImageCopyAccuracy accuracy) {
+    return accuracy != Settings::ImageCopyAccuracy::Off;
+}
+
+/// AzaharFrame xfergpu: splits [start, end) into pieces that each lie within one row of tiles
+/// (8 pixel rows; one pixel row for a linear surface) both of a surface at dst_addr with rows of
+/// dst_row_bytes and of one at src_addr with rows of src_row_bytes. Each piece is then a
+/// rectangle one row of tiles high in both surfaces, whatever their strides, so the data moves
+/// from one to the other with an image copy at the scaled resolution, as the guest sees the
+/// same memory with another stride. start must not lie before either address.
+template <typename Func>
+constexpr void ForEachRestrideChunk(u32 start, u32 end, u32 dst_addr, u32 dst_row_bytes,
+                                    u32 src_addr, u32 src_row_bytes, Func&& func) {
+    for (u32 pos = start; pos < end;) {
+        const u32 dst_row_end = dst_addr + ((pos - dst_addr) / dst_row_bytes + 1) * dst_row_bytes;
+        const u32 src_row_end = src_addr + ((pos - src_addr) / src_row_bytes + 1) * src_row_bytes;
+        u32 chunk_end = end < dst_row_end ? end : dst_row_end;
+        chunk_end = chunk_end < src_row_end ? chunk_end : src_row_end;
+        func(pos, chunk_end);
+        pos = chunk_end;
+    }
 }
 
 } // namespace VideoCore

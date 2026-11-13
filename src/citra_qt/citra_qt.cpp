@@ -2039,6 +2039,52 @@ GMainWindow::GMainWindow(Core::System& system_)
                                 graphics.grab().save(
                                     dir + (global ? QStringLiteral("/qt-configure-graphics.png")
                                                   : QStringLiteral("/qt-properties-graphics.png")));
+                                // AzaharFrame xfergpu: Accurate Image Copies' open list, each
+                                // choice highlighted with the tooltip it shows
+                                auto* box = graphics.findChild<QComboBox*>(
+                                    QStringLiteral("image_copy_accuracy_combobox"));
+                                if (!box) {
+                                    continue;
+                                }
+                                graphics.show();
+                                box->showPopup();
+                                QWidget* row = box->parentWidget();
+                                QAbstractItemView* list = box->view();
+                                for (int i = 0; i < box->count(); i++) {
+                                    if (box->itemText(i).isEmpty()) {
+                                        continue; // the per-game list's separator
+                                    }
+                                    list->setCurrentIndex(box->model()->index(i, 0));
+                                    QLabel tip(box->itemData(i, Qt::ToolTipRole).toString());
+                                    tip.setPalette(QToolTip::palette());
+                                    tip.setFont(QToolTip::font());
+                                    tip.setStyleSheet(QStringLiteral(
+                                        "background: palette(tool-tip-base); color: "
+                                        "palette(tool-tip-text); border: 1px solid "
+                                        "palette(mid); padding: 4px;"));
+                                    tip.adjustSize();
+                                    const QPixmap top = row->grab();
+                                    const QPixmap open = list->window()->grab();
+                                    const QPixmap note = tip.grab();
+                                    const int x = box->x();
+                                    const int y = list->visualRect(list->currentIndex()).center().y();
+                                    QPixmap shot(std::max(top.width(), x + open.width() + 8 +
+                                                                           note.width()),
+                                                 top.height() + open.height());
+                                    shot.fill(graphics.palette().color(QPalette::Window));
+                                    QPainter p(&shot);
+                                    p.drawPixmap(0, 0, top);
+                                    p.drawPixmap(x, top.height(), open);
+                                    p.drawPixmap(x + open.width() + 8,
+                                                 top.height() + y - note.height() / 2, note);
+                                    p.end();
+                                    shot.save(dir + QStringLiteral("/qt-image-copies-%1-%2.png")
+                                                        .arg(global ? QStringLiteral("global")
+                                                                    : QStringLiteral("game"))
+                                                        .arg(i));
+                                }
+                                box->hidePopup();
+                                graphics.hide();
                             }
                             for (const bool global : {true, false}) { // AzaharFrame ffaudio
                                 Settings::SetConfiguringGlobal(global);
@@ -5086,8 +5132,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::AsyncShaders: // from the next start
         set(v.async_shader_compilation, r.value != 0);
         break;
-    case S::AccurateImageCopies: // AzaharFrame accxfer: from the next image copy
-        set(v.accurate_image_copies, r.value != 0);
+    case S::AccurateImageCopies: // AzaharFrame accxfer, xfergpu: from the next image copy
+        set(v.image_copy_accuracy, static_cast<Settings::ImageCopyAccuracy>(std::min<u32>(u, 2)));
         break;
     case S::FastForwardAudio: // AzaharFrame ffaudio: the audio thread reads it each block
         set(v.fast_forward_audio, static_cast<Settings::FastForwardAudio>(std::min<u32>(u, 2)));
@@ -5163,7 +5209,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
     FrameKeepSetting keep_texture_filter{v.texture_filter};
     FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
-    FrameKeepSetting keep_accurate_copies{v.accurate_image_copies}; // AzaharFrame accxfer
+    FrameKeepSetting keep_accurate_copies{v.image_copy_accuracy}; // AzaharFrame accxfer
     FrameKeepSetting keep_ff_audio{v.fast_forward_audio}; // AzaharFrame ffaudio
     FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
     FrameKeepSetting keep_autosave_every{v.autosave_every};

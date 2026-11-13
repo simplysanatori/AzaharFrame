@@ -71,6 +71,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
 - **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and **Touchpad** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**.
+- **Accurate Image Copies**, in **Graphics**, has three choices. **Automatic**, the default, fixes glitches only where a game needs it. **On** makes every image copy exact but lowers performance a lot, and **Off** works the way Azahar always has. Pointing at each choice in the headset or in Azahar's window explains it.
 
 ### Crash reports
 
@@ -138,7 +139,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Bug fixes
 
 - Fixed a freeze when switching between VR and Flat.
-- I fixed the shimmer in the 3D scenes of Fire Emblem Echoes and Fates at a raised internal resolution. Their glow came out as blotches that changed every frame and differed between the eyes. The glow now takes about a third of the GPU time it did, so Dynamic Resolution no longer drops these games a step.
+- I fixed the shimmer in the 3D scenes of Fire Emblem Echoes and Fates at a raised internal resolution. Their glow came out as blotches that changed every frame and differed between the eyes. The glow is now worked out on the GPU at the full internal resolution, and the emulation no longer waits on it.
 - In VR both eyes always render. **Disable Right Eye Rendering** now says **(Flat Only)**, and ticking it in one game's **Properties** no longer turns it on for the games you start after it.
 - Fixed Azahar's menus no longer responding after some messages in VR.
 - Fixed a crash when loading a save state after a long pause with the microphone in use.

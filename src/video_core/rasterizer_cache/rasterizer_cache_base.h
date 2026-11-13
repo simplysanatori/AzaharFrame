@@ -15,6 +15,7 @@
 
 #include "video_core/rasterizer_cache/framebuffer_base.h"
 #include "video_core/rasterizer_cache/sampler_params.h"
+#include "video_core/rasterizer_cache/surface_base.h" // AzaharFrame xfergpu: SurfaceRegions
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/texture_cube.h"
 
@@ -190,6 +191,11 @@ private:
 
     /// Downloads a fill surface to guest VRAM
     void DownloadFillSurface(Surface& surface, SurfaceInterval interval);
+
+    /// AzaharFrame xfergpu: copies the part of interval that a surface of the same format and
+    /// tiling but another stride holds into surface_id, one row of tiles at a time. Returns
+    /// what it validated (empty when no surface could)
+    SurfaceRegions ValidateByRestride(SurfaceId surface_id, const SurfaceInterval& interval);
 
     /// Attempt to find a reinterpretable surface in the cache and use it to copy for validation
     bool ValidateByReinterpretation(Surface& surface, SurfaceParams params,

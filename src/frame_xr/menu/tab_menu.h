@@ -116,7 +116,7 @@ enum class Id : int {
     DynamicResolution,  ///< AzaharFrame menuux: vr_dynamic_resolution, global
     TextureFilter,      ///< AzaharFrame menuux: texture_filter, per game
     AsyncShaders,       ///< AzaharFrame menuux: async_shader_compilation, per game
-    AccurateImageCopies, ///< AzaharFrame accxfer: accurate_image_copies, per game
+    AccurateImageCopies, ///< AzaharFrame accxfer, xfergpu: image_copy_accuracy, per game
     FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
     FastForwardAudio,   ///< AzaharFrame ffaudio: fast_forward_audio, per game (Sped Up, Normal Pitch, Muted)
     ImmersiveMode,
@@ -298,7 +298,7 @@ struct MenuModel {
     bool dynamic_resolution = false;
     int texture_filter = 0;      ///< index into OptionsFor(Id::TextureFilter)
     bool async_shaders = false;
-    bool accurate_image_copies = false; ///< AzaharFrame accxfer
+    int accurate_image_copies = 1; ///< AzaharFrame accxfer, xfergpu: 0 Off, 1 Automatic, 2 On
     int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
     int fast_forward_audio = 1;  ///< Settings::FastForwardAudio, an index of OptionsFor(Id::FastForwardAudio)
     int immersive_mode = 0;
@@ -411,6 +411,11 @@ const std::vector<std::string>& OptionsFor(Id id);
 std::string LabelFor(Id id);
 /// One short sentence about a setting (the tooltip), or "".
 std::string ExplainFor(Id id);
+/// AzaharFrame xfergpu: a segmented row's tooltip for one of its choices (the beam resting on
+/// that segment), or "" when the row has none; its label keeps ExplainFor's.
+std::string ExplainOption(Id id, int index);
+/// AzaharFrame xfergpu: whether a segmented row has tooltips for its choices (ExplainOption).
+bool HasOptionTips(Id id);
 /// The tooltip of a locked item.
 std::string ExplainLock(Lock lock);
 /// A slider's range and step: min, max, step.

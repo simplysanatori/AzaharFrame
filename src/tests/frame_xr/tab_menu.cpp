@@ -1204,7 +1204,7 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
             seen_dyn |= h.t.id == Id::DynamicResolution && h.t.index == -1;
             seen_filter |= h.t.id == Id::TextureFilter && h.t.index == 4;
             seen_async |= h.t.id == Id::AsyncShaders && h.t.index == -1;
-            seen_copies |= h.t.id == Id::AccurateImageCopies && h.t.index == -1; // accxfer
+            seen_copies |= h.t.id == Id::AccurateImageCopies && h.t.index == 2; // xfergpu
             seen_ff |= h.t.id == Id::FastForwardSpeed && h.t.index == 3;
         }
     }
@@ -1216,7 +1216,9 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
     CHECK(SectionOf(Id::AccurateImageCopies) == SettingsSection::Graphics);
     CHECK(LabelFor(Id::AccurateImageCopies) == "Accurate Image Copies");
     CHECK(ExplainFor(Id::AccurateImageCopies) ==
-          "Fixes some flickering, shimmering or glow glitches. Substantially lowers performance.");
+          "Fixes flickering, shimmering or glow glitches in some games.");
+    CHECK(OptionsFor(Id::AccurateImageCopies) ==
+          std::vector<std::string>{"Off", "Automatic", "On"}); // AzaharFrame xfergpu
     CHECK(seen_ff);
     CHECK(OptionsFor(Id::InternalResolution).size() == static_cast<std::size_t>(kMaxResolution));
     CHECK(OptionsFor(Id::InternalResolution).front() == "1x (400x240)");
@@ -1237,6 +1239,84 @@ TEST_CASE("Tab menu: Internal Resolution, Dynamic Resolution, Texture Filter and
         CHECK(label.find("Frame Rate") == std::string::npos);
         CHECK(label.find("Refresh") == std::string::npos);
     }
+}
+
+// AzaharFrame xfergpu: Accurate Image Copies is Off | Automatic | On, each choice with its own
+// tooltip over its segment (the owner's words); its label keeps the row's.
+TEST_CASE("Tab menu: a segmented row's choices have their own tooltips", "[frame_xr][tabmenu]") {
+    CHECK(HasOptionTips(Id::AccurateImageCopies));
+    CHECK(!HasOptionTips(Id::TextureFilter));
+    CHECK(ExplainOption(Id::TextureFilter, 0).empty());
+    CHECK(ExplainOption(Id::AccurateImageCopies, 0) ==
+          "No effect on performance, but graphical glitches may occur.");
+    CHECK(ExplainOption(Id::AccurateImageCopies, 1) ==
+          "Fixes glitches only where a game needs it. Little to no effect on performance.");
+    CHECK(ExplainOption(Id::AccurateImageCopies, 2) ==
+          "Makes every image copy exact. Substantially lowers performance.");
+    CHECK(ExplainOption(Id::AccurateImageCopies, 3).empty());
+    CHECK(ExplainOption(Id::AccurateImageCopies, kLabelIndex).empty());
+
+    Drawn d;
+    MenuModel m = Sample();
+    m.accurate_image_copies = 1;
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::Graphics;
+    const MenuLayout::Hit* seg[3] = {};
+    for (float scroll = 0.0f; scroll <= 3000.0f && !seg[0]; scroll += kRowH) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        seg[0] = FindHit(d, Id::AccurateImageCopies, 0);
+    }
+    REQUIRE(seg[0]);
+    const std::vector<MenuLayout::Hit> hits = d.menu.Hits(); // the layout without a tooltip
+    const auto hit = [&](int index) -> const MenuLayout::Hit* {
+        for (const auto& h : hits) {
+            if (h.t.id == Id::AccurateImageCopies && h.t.index == index) {
+                return &h;
+            }
+        }
+        return nullptr;
+    };
+    REQUIRE(hit(1));
+    REQUIRE(hit(2));
+    REQUIRE(hit(kLabelIndex));
+    // The horizontal extent of what the tooltip adds, with the beam resting on `index`.
+    const auto tooltip = [&](int index) {
+        MenuView tv = v;
+        tv.hover = {Id::AccurateImageCopies, index};
+        d.Draw(m, tv);
+        const std::vector<uint32_t> plain = d.canvas.px;
+        tv.tooltip = Id::AccurateImageCopies;
+        tv.tooltip_index = index;
+        d.Draw(m, tv);
+        int x0 = d.canvas.w, x1 = -1;
+        for (int y = 0; y < d.canvas.h; y++) {
+            for (int x = 0; x < d.canvas.w; x++) {
+                const std::size_t i = static_cast<std::size_t>(y) * d.canvas.w + x;
+                if (d.canvas.px[i] != plain[i]) {
+                    x0 = std::min(x0, x);
+                    x1 = std::max(x1, x);
+                }
+            }
+        }
+        return std::pair{x0, x1};
+    };
+    std::vector<std::pair<int, int>> drawn;
+    for (int i = 0; i < 3; i++) {
+        const auto [x0, x1] = tooltip(i);
+        INFO("segment " << i);
+        REQUIRE(x1 >= x0); // a tooltip drew
+        // centred over its own segment (kept inside the pane)
+        CHECK(static_cast<float>(x0) <= hit(i)->r.Cx());
+        CHECK(static_cast<float>(x1) >= hit(i)->r.Cx());
+        drawn.push_back({x0, x1});
+    }
+    CHECK(drawn[0] != drawn[1]); // each choice's own text
+    CHECK(drawn[1] != drawn[2]);
+    // the label: the row's own tooltip
+    const auto [lx0, lx1] = tooltip(kLabelIndex);
+    CHECK(lx1 >= lx0);
 }
 
 TEST_CASE("Tab menu: Dynamic Resolution has nothing to do at 1x", "[frame_xr][tabmenu]") {

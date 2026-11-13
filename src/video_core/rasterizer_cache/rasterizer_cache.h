@@ -200,9 +200,9 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
     const DebugScope scope{runtime, Common::Vec4f{0.f, 0.f, 1.f, 1.f},
                            "RasterizerCache::AccelerateTextureCopy ({})", config.DebugName()};
 
-    // AzaharFrame accxfer: Accurate Image Copies: texture copies take the software path too
+    // AzaharFrame accxfer: Accurate Image Copies On: texture copies take the software path too
     // (SwBlitter::TextureCopy, the same fallback as a copy the cache can't do).
-    if (Settings::values.accurate_image_copies.GetValue()) {
+    if (TextureCopyInSoftware(Settings::values.image_copy_accuracy.GetValue())) {
         return false;
     }
 
@@ -336,16 +336,28 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
                            Pica::BytesPerPixel(config.output_format);
     }
 
-    // AzaharFrame feshimmer: an output that overlaps the input in memory goes to the software
-    // path. Fire Emblem Echoes and Fates halve their glow buffer in place, the output at the
-    // input's address, then halve it again into the space after it. As blits between the
-    // cache's overlapping surfaces it left garbage in the glow that changed every frame at a
-    // raised internal resolution (the shimmer of every 3D scene in VR), and the surfaces were
-    // remade every frame at about three times the GPU time. In memory, it is what the 3DS does.
-    // AzaharFrame accxfer: with Accurate Image Copies on, every display transfer does.
-    if (DisplayTransferInSoftware(Settings::values.accurate_image_copies.GetValue(),
+    // AzaharFrame accxfer: with Accurate Image Copies On, every display transfer takes the
+    // software path; Off, none (upstream).
+    // AzaharFrame xfergpu: Fire Emblem Echoes and Fates halve their glow buffer with transfers
+    // whose output overlaps the input in memory: 128x208 at 0x18108D00 into 64x104 at the same
+    // address, then 64x128 there into 0x1810F500. The blits themselves were right; the garbage
+    // came after them, when the cache needed that memory at another stride (the 64-wide input of
+    // the second transfer over the 128-wide buffer, the 32-wide glow texture over it after a
+    // draw). ValidateByReinterpretation counted such a region as valid without copying anything,
+    // so the surface kept whatever its image held: at 1x an older frame, at a raised resolution
+    // a newly scaled image, different every frame and in each eye. ValidateByRestride now copies
+    // that data between the strides on the GPU, so an overlapping transfer stays a blit at the
+    // raised resolution, with no readback. One that changes the pixel format or tiling, or whose
+    // output lands in the input's own surface, still takes the software path (feshimmer).
+    const Settings::ImageCopyAccuracy accuracy = Settings::values.image_copy_accuracy.GetValue();
+    const bool overlaps = accuracy != Settings::ImageCopyAccuracy::Off &&
+                          TransferOverlaps(src_params.addr, src_params.size, dst_params.addr,
+                                           dst_params.size);
+    if (DisplayTransferInSoftware(accuracy,
                                   src_params.addr, src_params.size, dst_params.addr,
-                                  dst_params.size)) {
+                                  dst_params.size,
+                                  src_params.pixel_format == dst_params.pixel_format &&
+                                      src_params.is_tiled == dst_params.is_tiled)) {
         return false;
     }
 
@@ -359,6 +371,11 @@ bool RasterizerCache<T>::AccelerateDisplayTransfer(const Pica::DisplayTransferCo
     const auto [dst_surface_id, dst_rect] =
         GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, false);
     if (!dst_surface_id) {
+        return false;
+    }
+
+    // AzaharFrame xfergpu: a blit can't read and write the same image where they overlap
+    if (overlaps && src_surface_id == dst_surface_id) {
         return false;
     }
 
@@ -1060,6 +1077,21 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
             continue;
         }
 
+        // AzaharFrame xfergpu: the same memory seen at another stride (a display transfer's
+        // halved output over the buffer it came from, a texture over a render target): copy it
+        // between the strides here, at the scaled resolution, instead of the readback below or
+        // the skip in ValidateByReinterpretation, which left the surface's old contents.
+        if (const SurfaceRegions restrided =
+                RestrideOnGpu(Settings::values.image_copy_accuracy.GetValue())
+                    ? ValidateByRestride(surface_id, interval)
+                    : SurfaceRegions{};
+            !restrided.empty()) {
+            for (const SurfaceInterval& part : restrided) {
+                notify_validated(part);
+            }
+            continue;
+        }
+
         // Try to find surface in cache with different format
         // that can can be reinterpreted to the requested format.
         if (ValidateByReinterpretation(surface, params, interval)) {
@@ -1326,6 +1358,103 @@ void RasterizerCache<T>::DownloadFillSurface(Surface& surface, SurfaceInterval i
     if (backup_bytes) {
         std::memcpy(&dest_ptr[coarse_start_offset], &backup_data[0], backup_bytes);
     }
+}
+
+template <class T>
+SurfaceRegions RasterizerCache<T>::ValidateByRestride(SurfaceId surface_id,
+                                                      const SurfaceInterval& interval) {
+    SurfaceRegions validated;
+    const auto usable = [](const Surface& s) {
+        return (s.type == SurfaceType::Color || s.type == SurfaceType::Texture) &&
+               s.levels == 1 && !s.IsCustom() && s.pixel_format != PixelFormat::Invalid;
+    };
+    if (!usable(slot_surfaces[surface_id])) {
+        return validated;
+    }
+
+    // The source: a surface of the same pixel format and tiling, at least at this one's
+    // resolution, that holds valid data in the interval at a tile-aligned offset from this one.
+    // The highest resolution wins, then the most data.
+    SurfaceId source_id{};
+    u32 source_scale = 0;
+    u32 source_length = 0;
+    {
+        const Surface& surface = slot_surfaces[surface_id];
+        const u32 unit = surface.BytesInPixels(surface.is_tiled ? 64 : 1);
+        ForEachSurfaceInRegion(
+            boost::icl::first(interval), boost::icl::length(interval),
+            [&](SurfaceId candidate_id, Surface& candidate) {
+                if (candidate_id == surface_id || !usable(candidate) ||
+                    candidate.pixel_format != surface.pixel_format ||
+                    candidate.is_tiled != surface.is_tiled ||
+                    candidate.res_scale < surface.res_scale ||
+                    candidate.addr % unit != surface.addr % unit) {
+                    return;
+                }
+                const SurfaceRegions valid =
+                    SurfaceRegions{interval & candidate.GetInterval()} - candidate.invalid_regions;
+                u32 length = 0;
+                for (const SurfaceInterval& part : valid) {
+                    length += boost::icl::length(part);
+                }
+                if (length != 0 && (candidate.res_scale > source_scale ||
+                                    (candidate.res_scale == source_scale && length > source_length))) {
+                    source_id = candidate_id;
+                    source_scale = candidate.res_scale;
+                    source_length = length;
+                }
+            });
+    }
+    if (!source_id) {
+        return validated;
+    }
+
+    Surface& source = slot_surfaces[source_id];
+    Surface& surface = slot_surfaces[surface_id];
+    if (source.res_scale > surface.res_scale) {
+        surface.ScaleUp(source.res_scale);
+    }
+
+    const u32 rows = surface.is_tiled ? 8 : 1;
+    const u32 unit = surface.BytesInPixels(surface.is_tiled ? 64 : 1);
+    const u32 dst_row_bytes = surface.BytesInPixels(surface.stride * rows);
+    const u32 src_row_bytes = source.BytesInPixels(source.stride * rows);
+    const SurfaceRegions valid =
+        SurfaceRegions{interval & source.GetInterval() & surface.GetInterval()} -
+        source.invalid_regions;
+    boost::container::small_vector<TextureCopy, 32> copies;
+    for (const SurfaceInterval& part : valid) {
+        const PAddr start =
+            surface.addr + Common::AlignUp(boost::icl::first(part) - surface.addr, unit);
+        const PAddr end =
+            surface.addr + Common::AlignDown(boost::icl::last_next(part) - surface.addr, unit);
+        if (start >= end) {
+            continue;
+        }
+        ForEachRestrideChunk(start, end, surface.addr, dst_row_bytes, source.addr, src_row_bytes,
+                             [&](u32 chunk_start, u32 chunk_end) {
+                                 SurfaceParams piece = surface;
+                                 piece.addr = chunk_start;
+                                 piece.width = surface.PixelsInBytes(chunk_end - chunk_start) / rows;
+                                 piece.height = rows;
+                                 piece.stride = piece.width;
+                                 piece.UpdateParams();
+                                 const auto src_rect = source.GetScaledSubRect(piece);
+                                 const auto dst_rect = surface.GetScaledSubRect(piece);
+                                 copies.push_back(TextureCopy{
+                                     .src_level = 0,
+                                     .dst_level = 0,
+                                     .src_offset = {src_rect.left, src_rect.bottom},
+                                     .dst_offset = {dst_rect.left, dst_rect.bottom},
+                                     .extent = {src_rect.GetWidth(), src_rect.GetHeight()},
+                                 });
+                                 validated += SurfaceInterval(chunk_start, chunk_end);
+                             });
+    }
+    if (!copies.empty()) {
+        runtime.CopyTextures(source, surface, copies);
+    }
+    return validated;
 }
 
 template <class T>
