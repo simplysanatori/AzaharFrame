@@ -178,7 +178,7 @@ bool ReadControllerModels(std::array<ModelFile, 2>& files, std::string& error) {
 struct ControllerModels::Files {
     std::array<ModelFile, 2> hand;
     std::vector<uint32_t> vert_spv_linear, frag_spv_linear, vert_spv, frag_spv;
-    std::vector<uint32_t> occluder_vert_spv; ///< AzaharFrame ctrlfront (empty: no occluders)
+    std::vector<uint32_t> occluder_vert_spv, occluder_frag_spv; ///< AzaharFrame ctrlfront
 };
 
 struct ControllerModels::Gpu {
@@ -642,7 +642,10 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             f.occluder_vert_spv = Vulkan::CompileGLSL(
                 std::string{"#version 450\n"} + Shaders::kOccluderVert,
                 vk::ShaderStageFlagBits::eVertex);
-            if (f.occluder_vert_spv.empty()) {
+            f.occluder_frag_spv = Vulkan::CompileGLSL(
+                std::string{"#version 450\n"} + Shaders::kOccluderFrag,
+                vk::ShaderStageFlagBits::eFragment);
+            if (f.occluder_vert_spv.empty() || f.occluder_frag_spv.empty()) {
                 LOG_WARNING(Frontend, "xr: controller models: the occluder shader did not compile; "
                                       "the controllers go over every screen");
             }
@@ -1091,24 +1094,29 @@ void ControllerModels::Setup(Runtime& rt) {
     g.pipeline_add = made_add.value;
 
     // AzaharFrame ctrlfront: the screens and panels into the depth buffer, before the models
-    // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer, no
-    // fragment shader, no colour written.
-    if (!f.occluder_vert_spv.empty()) {
+    // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer; the colour
+    // written whole, as the clear (kOccluderFrag: Turnip's LRZ stays valid).
+    if (!f.occluder_vert_spv.empty() && !f.occluder_frag_spv.empty()) {
         const vk::ShaderModule occ_vert = Vulkan::CompileSPV(f.occluder_vert_spv, g.device);
-        if (occ_vert) {
-            const vk::PipelineShaderStageCreateInfo occ_stage{
-                .stage = vk::ShaderStageFlagBits::eVertex, .module = occ_vert, .pName = "main"};
+        const vk::ShaderModule occ_frag = Vulkan::CompileSPV(f.occluder_frag_spv, g.device);
+        if (occ_vert && occ_frag) {
+            const std::array<vk::PipelineShaderStageCreateInfo, 2> occ_stages{{
+                {.stage = vk::ShaderStageFlagBits::eVertex, .module = occ_vert, .pName = "main"},
+                {.stage = vk::ShaderStageFlagBits::eFragment, .module = occ_frag, .pName = "main"},
+            }};
             const vk::PipelineVertexInputStateCreateInfo no_input{};
             const vk::PipelineInputAssemblyStateCreateInfo strip{
                 .topology = vk::PrimitiveTopology::eTriangleStrip};
-            const vk::PipelineColorBlendAttachmentState no_colour{.blendEnable = false,
-                                                                  .colorWriteMask = {}};
+            const vk::PipelineColorBlendAttachmentState clear_colour{
+                .blendEnable = false,
+                .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                                  vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
             const vk::PipelineColorBlendStateCreateInfo occ_blend{.attachmentCount = 1,
-                                                                  .pAttachments = &no_colour};
+                                                                  .pAttachments = &clear_colour};
             const auto made_occ = g.device.createGraphicsPipeline(
                 {}, {
-                        .stageCount = 1,
-                        .pStages = &occ_stage,
+                        .stageCount = static_cast<uint32_t>(occ_stages.size()),
+                        .pStages = occ_stages.data(),
                         .pVertexInputState = &no_input,
                         .pInputAssemblyState = &strip,
                         .pViewportState = &viewport,
@@ -1121,10 +1129,15 @@ void ControllerModels::Setup(Runtime& rt) {
                         .renderPass = g.render_pass,
                         .subpass = 0,
                     });
-            g.device.destroyShaderModule(occ_vert);
             if (made_occ.result == vk::Result::eSuccess) {
                 g.pipeline_occluder = made_occ.value;
             }
+        }
+        if (occ_vert) {
+            g.device.destroyShaderModule(occ_vert);
+        }
+        if (occ_frag) {
+            g.device.destroyShaderModule(occ_frag);
         }
         if (!g.pipeline_occluder) {
             LOG_WARNING(Frontend, "xr: controller models: no occluder pipeline; the controllers "

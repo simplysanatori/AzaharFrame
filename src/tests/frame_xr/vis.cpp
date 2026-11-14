@@ -885,6 +885,8 @@ TEST_CASE("FrameXr vis: the controller pass's shaders compile", "[frame_xr]") {
                .empty());
     CHECK(!Vulkan::CompileGLSL(v + Shaders::kOccluderVert, vk::ShaderStageFlagBits::eVertex)
                .empty());
+    CHECK(!Vulkan::CompileGLSL(v + Shaders::kOccluderFrag, vk::ShaderStageFlagBits::eFragment)
+               .empty());
 }
 
 // The occluders are drawn only where the models can be: every point of a model's sphere lands

@@ -166,7 +166,10 @@ void main() {
 )";
 
 // AzaharFrame ctrlfront: a screen or panel the controllers may go behind (model_plane.h
-// Occluder), into the depth buffer only: no fragment shader, no colour. A triangle strip of
+// Occluder), into the depth buffer, before the models: its colour is the cleared nothing again
+// (kOccluderFrag), written whole so Turnip keeps its low-resolution depth (LRZ) for the models: a
+// depth-only draw with no colour written left it invalid for the rest of the pass, about 0.2 ms
+// a picture on the Frame. A triangle strip of
 // 2 x (segments + 1) vertices, the same as OccluderVertex. eye.x above 0.5 (Occluder::always): at
 // the nearest depth, so it covers the controllers wherever they are.
 inline constexpr const char* kOccluderVert = R"(
@@ -189,6 +192,14 @@ void main() {
     }
     vec4 c = pc.mvp * vec4(p, 1.0);
     gl_Position = vec4(c.x, -c.y, pc.eye.x > 0.5 ? 0.0 : 0.5 * (c.z + c.w), c.w);
+}
+)";
+
+inline constexpr const char* kOccluderFrag = R"(
+layout(location = 0) out vec4 fragColor;
+
+void main() {
+    fragColor = vec4(0.0); // what the pass clears to: nothing round the models
 }
 )";
 
