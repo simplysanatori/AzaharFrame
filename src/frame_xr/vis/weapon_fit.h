@@ -135,4 +135,29 @@ float WeaponSizeFactor(int cls, const std::array<float, 3>& bounds_min,
 /// detached effect part (`glow`) of any class bobs 0.8 cm every 2.4 s. Nothing else moves.
 std::array<float, 3> FitMotion(int cls, FitSide side, bool glow, double time_s);
 
+/// AzaharFrame kiumodels: a glow card's look at a time (seconds; the same time gives the same
+/// look, every value bounded), for its glow pass:
+/// - its texture slides by (du, dv) over each loop of `frames` game frames (the converter's
+///   UvMotion: the game's own animation, or a flow along the card), `u`, `v` added to its UVs
+///   (|u| <= |du|, |v| <= |dv|);
+/// - it flickers: its light times `gain`, within 1 +- kGlowFlicker (palms' flames) or half that
+///   (the others' glows), from three slow waves (about 1.7, 3.1 and 4.3 per second: a flame's
+///   breathing, never a strobe);
+/// - palms' flames sway ("lick"): each vertex moves by `sway` times its distance from the anchor
+///   bone (the hand: the flames' roots stay, their tips move most) along a wave of `wave`
+///   radians per weapon unit, its two phases `phase_a`, `phase_b` in [0, 2 pi).
+struct GlowMotion {
+    float u = 0.0f, v = 0.0f;
+    float gain = 1.0f;
+    float sway = 0.0f;
+    float wave = 0.0f;
+    float phase_a = 0.0f, phase_b = 0.0f;
+};
+inline constexpr float kGlowFlicker = 0.16f;
+inline constexpr float kPalmSway = 0.05f;
+/// `source`: 0 none, 1 the game's, 2 a flow (FrameWeapons::UvSource); `game_fps`: the frames'
+/// rate (FrameWeapons::kGameFps).
+GlowMotion AnimateGlow(int cls, int source, float frames, float du, float dv, double time_s,
+                       float game_fps = 30.0f);
+
 } // namespace FrameXr::Vis

@@ -165,6 +165,35 @@ std::array<float, 3> FitMotion(int cls, FitSide side, bool glow, double time_s) 
     return m;
 }
 
+GlowMotion AnimateGlow(int cls, int source, float frames, float du, float dv, double time_s,
+                       float game_fps) {
+    constexpr double kTau = 6.283185307179586;
+    const auto frac = [](double x) { return x - std::floor(x); };
+    GlowMotion g;
+    const double t = std::isfinite(time_s) ? time_s : 0.0;
+    // The slide: a sawtooth over the loop (the game's linear loop; its jump at the loop's end is
+    // a whole repeat of the texture, unseen).
+    if (source != 0 && frames > 0.0f && game_fps > 0.0f && std::isfinite(frames) &&
+        std::isfinite(du) && std::isfinite(dv)) {
+        const double phase = frac(t * static_cast<double>(game_fps) / static_cast<double>(frames));
+        g.u = static_cast<float>(du * phase);
+        g.v = static_cast<float>(dv * phase);
+    }
+    // The flicker: three slow waves, their weights adding up to 1.
+    const double amount = cls == 4 ? kGlowFlicker : kGlowFlicker * 0.5;
+    const double wave = 0.5 * std::sin(kTau * 1.7 * t) + 0.3 * std::sin(kTau * 3.1 * t + 1.3) +
+                        0.2 * std::sin(kTau * 4.3 * t + 2.1);
+    g.gain = static_cast<float>(1.0 + amount * wave);
+    // The sway of a palm's flames: about three waves along them, two phases (1.3 s and 0.9 s).
+    if (cls == 4) {
+        g.sway = kPalmSway;
+        g.wave = static_cast<float>(kTau / 3.0);
+        g.phase_a = static_cast<float>(kTau * frac(t / 1.3));
+        g.phase_b = static_cast<float>(kTau * frac(t / 0.9));
+    }
+    return g;
+}
+
 PalmMode PalmModeFrom(const std::optional<std::string>& value) {
     return value && *value == "elbow" ? PalmMode::Elbow : PalmMode::Wrist;
 }

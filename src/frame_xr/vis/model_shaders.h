@@ -26,9 +26,12 @@ layout(push_constant) uniform PC {
     vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1), w: flags (kiuguns):
                   // +1 mirrored, +2 nothing before x = 0 (a palm's forearm drawn on its own),
                   // +4 a glow (unlit, added to what is behind: the additive pipeline),
-                  // +8 a muzzle flash's card (kiuflash: key its colour and white core, up its
-                  // colour mode, half width, half length and middle along y; x 1 for a fan;
-                  // with +4)
+                  // +8 (kiumodels, with +4) a moving glow: key and up, unused by a glow's light,
+                  // hold its motion (weapon_fit.h GlowMotion): key = (u, v, gain, sway),
+                  // up = (phase a, phase b, wave, 0)
+                  // +16 a muzzle flash's card (kiuflash, with +4; +8 in lane/kiuflash, moved at
+                  // integ13 to leave +8 to kiumodels: key its colour and white core, up its
+                  // colour mode, half width, half length and middle along y; x 1 for a fan)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -45,7 +48,17 @@ void main() {
     v_normal = a_normal;
     v_tangent = a_tangent;
     v_uv = a_uv;
-    vec4 p = pc.mvp * vec4(a_position, 1.0);
+    vec3 position = a_position;
+    // AzaharFrame kiumodels: a moving glow's texture slides, and a palm's flames sway, more the
+    // further from the hand (v_position stays put: the forearm cuts do not move with it).
+    if ((int(pc.params.w + 0.5) & 12) == 12) {
+        v_uv = a_uv + pc.key.xy;
+        vec3 q = a_position * pc.up.z;
+        vec3 sway = vec3(sin(q.y + q.z + pc.up.x), sin(q.z + q.x + pc.up.y),
+                         sin(q.x + q.y + pc.up.x + pc.up.y));
+        position += sway * (pc.key.w * length(a_position));
+    }
+    vec4 p = pc.mvp * vec4(position, 1.0);
     gl_Position = vec4(p.x, -p.y, 0.5 * (p.z + p.w), p.w);
 }
 )";
@@ -102,7 +115,7 @@ void main() {
         (mod(pc.params.w, 4.0) > 1.5 && v_position.x < 0.0)) {
         discard;
     }
-    if (pc.params.w > 7.5) {
+    if ((int(pc.params.w + 0.5) & 16) != 0) {
         // AzaharFrame kiuflash: a muzzle flash's card, as light (added, alpha 0): the texture's
         // own colour times the set's (mode 0), its red channel as light in the colour (1), or a
         // two-tone mask: green the shape in the colour, red a white core (2).
@@ -127,6 +140,10 @@ void main() {
         // light (a pixel with alpha 0 can be dropped as clear: the palm's flames did not show).
         vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0)) *
                           clamp(pc.params.z, 0.0, 1.0);
+        // AzaharFrame kiumodels: a moving glow flickers (its gain, about 1).
+        if ((int(pc.params.w + 0.5) & 12) == 12) {
+            glowColour = min(glowColour * clamp(pc.key.z, 0.0, 2.0), vec3(1.0));
+        }
         float cover = clamp(max(glowColour.r, max(glowColour.g, glowColour.b)) * 0.6, 0.0, 0.6);
         fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), cover);
         return;

@@ -18,6 +18,7 @@
 #include <map>
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <thread>
 #include <fmt/format.h>
@@ -231,6 +232,9 @@ int DiffuseMapper(const FrameCgfx::Material& mat, const FrameCgfx::File& file) {
 struct PartBuilder {
     std::string material;
     int mapper = -1;
+    /// AzaharFrame kiumodels: the texture coordinator the mapper's UVs come from, and its scale.
+    s32 coord = 0;
+    float scale_u = 1.0f, scale_v = 1.0f;
     std::map<Side, std::vector<float>> vertices; // 12 floats each
     std::map<Side, std::vector<u32>> indices;
     std::map<Side, std::map<std::array<s32, 4>, u32>> seen; // shape, vertex, bone, mesh -> index
@@ -726,8 +730,141 @@ const Weapon* Manifest::Find(int id) const {
     return nullptr;
 }
 
+// ---- AzaharFrame kiumodels: how a part's texture moves ----
+
+std::string ClassZrcName(int cls) {
+    return fmt::format("a{}.zrc", cls);
+}
+
+bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAnim>& out,
+                      std::string& error) {
+    Bytes bcres;
+    if (!FrameCgfx::DarcMember(class_zrc, "character/mdl.arc!mdl/00.bcres", bcres, error)) {
+        return false;
+    }
+    std::vector<FrameCgfx::UvAnim> all;
+    if (!FrameCgfx::ReadUvAnims(bcres, all, error)) {
+        return false;
+    }
+    // The weapons' ("WpnPalmUV" ...), not Pit's own (his face's "ChrPit00TalkUV00").
+    std::erase_if(all, [](const FrameCgfx::UvAnim& a) { return a.animation.rfind("Wpn", 0) != 0; });
+    out = std::move(all);
+    return true;
+}
+
+UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,
+                      s32 coord, float scale_u, float scale_v) {
+    UvMotion m;
+    float tu = 0.0f, tv = 0.0f, rot = 0.0f;
+    for (const FrameCgfx::UvAnim& a : anims) {
+        if (a.material != material || a.coord != coord || !(a.frames > 0.0f)) {
+            continue;
+        }
+        m.frames = m.frames > 0.0f ? m.frames : a.frames;
+        tu += a.translate_u;
+        tv += a.translate_v;
+        rot += a.rotate;
+    }
+    if (!(m.frames > 0.0f) || (tu == 0.0f && tv == 0.0f && rot == 0.0f)) {
+        return {};
+    }
+    // The game samples at scale * (uv - translate) (SPICA's TextureTransform, every DCC mode):
+    // a translate t slides the texture by -scale * t; the files' v is 1 - v.
+    m.source = UvSource::Game;
+    m.du = tu != 0.0f ? -scale_u * tu : 0.0f;
+    m.dv = tv != 0.0f ? scale_v * tv : 0.0f;
+    m.turns = rot / 6.2831853f;
+    return m;
+}
+
+namespace {
+
+/// A glow card's flow (no game animation for it): along its length, the axis of its longest
+/// side in weapon space, by the UV direction that runs that way (each triangle's gradient of the
+/// position along it, weighted by its area); one repeat of the texture per loop, away from the
+/// anchor bone. None when the texture is clamped that way (it would smear its edge).
+UvMotion FlowMotion(const PartBuilder& pb, Side primary, u32 wrap_u, u32 wrap_v) {
+    auto vit = pb.vertices.find(primary);
+    auto iit = pb.indices.find(primary);
+    if (vit == pb.vertices.end() || iit == pb.indices.end() || iit->second.empty()) {
+        vit = pb.vertices.begin();
+        iit = pb.indices.begin();
+        if (vit == pb.vertices.end() || iit == pb.indices.end()) {
+            return {};
+        }
+    }
+    const std::vector<float>& v = vit->second;
+    const std::vector<u32>& idx = iit->second;
+    Vec3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+    for (std::size_t i = 0; i + 11 < v.size(); i += 12) {
+        for (std::size_t k = 0; k < 3; k++) {
+            lo[k] = std::min(lo[k], v[i + k]);
+            hi[k] = std::max(hi[k], v[i + k]);
+        }
+    }
+    std::size_t L = 0;
+    for (std::size_t k = 1; k < 3; k++) {
+        if (hi[k] - lo[k] > hi[L] - lo[L]) {
+            L = k;
+        }
+    }
+    if (!(hi[L] - lo[L] > 0.0f)) {
+        return {};
+    }
+    double along_u = 0.0, along_v = 0.0, sign_u = 0.0, sign_v = 0.0;
+    for (std::size_t t = 0; t + 2 < idx.size(); t += 3) {
+        const float* p0 = &v[std::size_t{idx[t]} * 12];
+        const float* p1 = &v[std::size_t{idx[t + 1]} * 12];
+        const float* p2 = &v[std::size_t{idx[t + 2]} * 12];
+        const double du1 = p1[10] - p0[10], dv1 = p1[11] - p0[11];
+        const double du2 = p2[10] - p0[10], dv2 = p2[11] - p0[11];
+        const double ds1 = p1[L] - p0[L], ds2 = p2[L] - p0[L];
+        const double det = du1 * dv2 - du2 * dv1;
+        if (std::abs(det) < 1e-12) {
+            continue;
+        }
+        const double a = (ds1 * dv2 - ds2 * dv1) / det; // d(position along L) / du
+        const double b = (du1 * ds2 - du2 * ds1) / det; // ... / dv
+        const double n2 = a * a + b * b;
+        if (!(n2 > 1e-20) || !std::isfinite(n2)) {
+            continue;
+        }
+        const Vec3 e1{p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+        const Vec3 e2{p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]};
+        const Vec3 x{e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2],
+                     e1[0] * e2[1] - e1[1] * e2[0]};
+        const double area = std::sqrt(double{x[0]} * x[0] + double{x[1]} * x[1] + double{x[2]} * x[2]);
+        along_u += area * a * a / n2;
+        along_v += area * b * b / n2;
+        sign_u += area * a / std::sqrt(n2);
+        sign_v += area * b / std::sqrt(n2);
+    }
+    if (along_u == 0.0 && along_v == 0.0) {
+        return {};
+    }
+    const bool on_u = along_u >= along_v;
+    const u32 wrap = on_u ? wrap_u : wrap_v;
+    const float period = wrap == 2 ? 1.0f : wrap == 3 ? 2.0f : 0.0f;
+    if (period == 0.0f) {
+        return {};
+    }
+    // The texture at uv + offset: a growing offset moves its picture toward smaller uv, so
+    // toward smaller positions along L where the position grows with uv.
+    const double grows = on_u ? sign_u : sign_v;
+    const float centre = 0.5f * (lo[L] + hi[L]);
+    const float outward = centre < 0.0f ? -1.0f : 1.0f;
+    const float slide = -period * (grows < 0.0 ? -1.0f : 1.0f) * outward;
+    UvMotion m;
+    m.source = UvSource::Flow;
+    m.frames = kFlowFrames;
+    (on_u ? m.du : m.dv) = slide;
+    return m;
+}
+
+} // namespace
+
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
-                   const TexturePack* pack) {
+                   const TexturePack* pack, const std::vector<FrameCgfx::UvAnim>* class_anims) {
     if (id < 0 || id >= kWeapons) {
         error = "not a weapon id";
         return false;
@@ -802,8 +939,12 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
         PartBuilder& part = *it;
         FrameCgfx::TexCoord coord;
         if (part.mapper >= 0 && !mat.coords.empty()) {
-            coord = mat.coords[std::min<std::size_t>(static_cast<std::size_t>(part.mapper),
-                                                     mat.coords.size() - 1)];
+            const std::size_t ci = std::min<std::size_t>(static_cast<std::size_t>(part.mapper),
+                                                         mat.coords.size() - 1);
+            coord = mat.coords[ci];
+            part.coord = static_cast<s32>(ci);
+            part.scale_u = coord.scale_u;
+            part.scale_v = coord.scale_v;
         }
         const FrameCgfx::Shape& shape = m.shapes[static_cast<std::size_t>(mesh.shape)];
         for (const FrameCgfx::SubMesh& sub : shape.submeshes) {
@@ -944,6 +1085,14 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
         part.wrap_v = wrap_v;
         part.glow = IsGlow(pb.material);
         part.cull = mat ? mat->cull : 0;
+        // AzaharFrame kiumodels: how its texture moves: the game's own animation of this
+        // material's coordinator, else, for a glow card, a flow along its length.
+        if (class_anims) {
+            part.uv = GameUvMotion(*class_anims, pb.material, pb.coord, pb.scale_u, pb.scale_v);
+        }
+        if (part.uv.source == UvSource::None && part.glow) {
+            part.uv = FlowMotion(pb, primary, wrap_u, wrap_v);
+        }
         Bytes bytes = WriteModel(pb, tex, wrap_u, wrap_v, part.sides, part.triangles);
         c.files.emplace_back(part.file, std::move(bytes));
         w.parts.push_back(std::move(part));
@@ -1152,7 +1301,9 @@ bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutr
 //   part <file> <material> <sides> <triangles> <wrap u> <wrap v> <glow> <cull> <flip> [pack PNG]
 //   flashes <rapid model|-> <charged model|-> <source weapon|-1> <flash pack key>
 //   flash <file> <texture> <texture hash> <cards> <flip> [pack PNG]
-// A part line belongs to the weapon line before it; the PNG's path is the rest of the line.
+//   uvanim <file> <source: 1 game, 2 flow> <frames> <du> <dv> <turns>   (kiumodels, version 4)
+// A part line belongs to the weapon line before it; the PNG's path is the rest of the line. A
+// uvanim line belongs to that weapon's part of the same file.
 // AzaharFrame kiuflash: the flashes and flash lines too (builds before them skip both; a weapon
 // line without a flashes line is made again).
 
@@ -1201,6 +1352,11 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
                 out += " " + p.replaced;
             }
             out += "\n";
+            if (p.uv.source != UvSource::None) {
+                out += fmt::format("uvanim {} {} {} {} {} {}\n", p.file,
+                                   static_cast<int>(p.uv.source), p.uv.frames, p.uv.du, p.uv.dv,
+                                   p.uv.turns);
+            }
         }
         // AzaharFrame kiuflash: for a weapon made with its flashes (one made by a build before
         // them, kept as it was, keeps none: it is made again when next asked for).
@@ -1337,6 +1493,22 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
             std::getline(in >> std::ws, p.replaced);
             p.replaced_flip = flip != 0;
             current->flash.parts.push_back(std::move(p));
+        } else if (key == "uvanim" && current) {
+            // AzaharFrame kiumodels: a part's texture motion; a bad one is dropped (still).
+            std::string file;
+            int source = 0;
+            UvMotion m;
+            in >> file >> source >> m.frames >> m.du >> m.dv >> m.turns;
+            const auto ok = [](float f, float limit) { return std::isfinite(f) && std::abs(f) <= limit; };
+            if (in && (source == 1 || source == 2) && m.frames > 0.0f && ok(m.frames, 1e5f) &&
+                ok(m.du, 64.0f) && ok(m.dv, 64.0f) && ok(m.turns, 1e3f)) {
+                m.source = static_cast<UvSource>(source);
+                for (Part& part : current->parts) {
+                    if (part.file == file) {
+                        part.uv = m;
+                    }
+                }
+            }
         }
     }
     if (!header) {
@@ -1430,7 +1602,7 @@ public:
         }
         Converted c;
         std::string why;
-        if (!ConvertWeapon(id, zrc, c, why, pack)) {
+        if (!ConvertWeapon(id, zrc, c, why, pack, ClassAnims(ClassOf(id)))) {
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}): {}", ZrcName(id), id, why);
             res.failed++;
             return false;
@@ -1509,6 +1681,31 @@ public:
     }
 
 private:
+    /// AzaharFrame kiumodels: the class's Pit file's weapon texture animations, read once per
+    /// class (nullptr when the file is missing or bad: its glow cards flow instead).
+    const std::vector<FrameCgfx::UvAnim>* ClassAnims(int cls) {
+        auto it = class_anims.find(cls);
+        if (it == class_anims.end()) {
+            std::optional<std::vector<FrameCgfx::UvAnim>> anims;
+            const std::string name = ClassZrcName(cls);
+            const auto* f = index.Find(manifest.region + "/player/" + name);
+            Bytes zrc;
+            std::string why = "not in the RomFS";
+            std::vector<FrameCgfx::UvAnim> read;
+            if (f && index.Read(*f, zrc, u64{8} << 20) && ReadClassUvAnims(zrc, read, why)) {
+                anims = std::move(read);
+                LOG_INFO(Frontend, "xr: weapon models: {}: {} texture animations of the {}'s",
+                         name, anims->size(), ClassName(cls));
+            } else {
+                LOG_WARNING(Frontend, "xr: weapon models: {}: {} (its glow cards flow)", name,
+                            f ? why : std::string{"not in the RomFS"});
+            }
+            it = class_anims.emplace(cls, std::move(anims)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+
+    std::map<int, std::optional<std::vector<FrameCgfx::UvAnim>>> class_anims;
     FrameCgfx::RomFSIndex index;
     Manifest manifest;
     u64 title_id = 0;

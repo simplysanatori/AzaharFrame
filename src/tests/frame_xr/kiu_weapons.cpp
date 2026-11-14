@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <tuple>
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -658,4 +659,70 @@ TEST_CASE("Weapon Size: big weapons to a hand size, about the grip", "[kiufix]")
         CHECK((*mz)[0] == Approx(0.0f).margin(1e-4));
         CHECK((*mz)[1] == Approx(0.0f).margin(1e-4));
     }
+}
+
+// AzaharFrame kiumodels: a glow card's motion: its texture slides over the game's loop, it
+// flickers within its bounds, a palm's flames sway; the same time gives the same look.
+TEST_CASE("Weapon glow: moving, the same at the same time, bounded", "[kiumodels]") {
+    constexpr float kTwoPi = 6.2831855f;
+    // Burning Palm's flames: the game's WpnPalmUV (v slides by 2 every 160 frames, 30 a second).
+    const float frames = 160.0f, dv = -2.0f;
+    const double loop = frames / 30.0;
+    for (double t = 0.0; t < 20.0; t += 0.0137) {
+        const Vis::GlowMotion a = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, t);
+        const Vis::GlowMotion b = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, t);
+        INFO("t " << t);
+        CHECK(std::memcmp(&a, &b, sizeof(a)) == 0);
+        CHECK(a.u == 0.0f);
+        CHECK(a.v <= 0.0f);
+        CHECK(a.v >= dv);
+        CHECK(a.gain >= 1.0f - Vis::kGlowFlicker - 1e-6f);
+        CHECK(a.gain <= 1.0f + Vis::kGlowFlicker + 1e-6f);
+        CHECK(a.sway == Vis::kPalmSway);
+        CHECK(a.wave > 0.0f);
+        CHECK(a.phase_a >= 0.0f);
+        CHECK(a.phase_a <= kTwoPi);
+        CHECK(a.phase_b >= 0.0f);
+        CHECK(a.phase_b <= kTwoPi);
+        // On the loop: the slide is the game's linear one, its jump a whole repeat (unseen).
+        const double phase = t / loop - std::floor(t / loop);
+        CHECK(std::abs(std::remainder(a.v - dv * phase, 2.0)) < 1e-4);
+    }
+    CHECK(Vis::AnimateGlow(4, 1, frames, 0.0f, dv, loop * 0.5).v == Approx(-1.0f).margin(1e-5));
+    // It moves: over two seconds the flicker and the sway's phases change.
+    float lo = 2.0f, hi = 0.0f;
+    for (double t = 0.0; t < 2.0; t += 0.01) {
+        const float g = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, t).gain;
+        lo = std::min(lo, g);
+        hi = std::max(hi, g);
+    }
+    CHECK(hi - lo > 0.1f);
+    CHECK(Vis::AnimateGlow(4, 1, frames, 0.0f, dv, 0.3).phase_a !=
+          Vis::AnimateGlow(4, 1, frames, 0.0f, dv, 0.6).phase_a);
+    // Another class's glow (a flow: two units of u every 75 frames): half the flicker, no sway.
+    for (double t = 0.0; t < 10.0; t += 0.031) {
+        const Vis::GlowMotion g = Vis::AnimateGlow(0, 2, 75.0f, -2.0f, 0.0f, t);
+        CHECK(g.u <= 0.0f);
+        CHECK(g.u >= -2.0f);
+        CHECK(g.v == 0.0f);
+        CHECK(std::abs(g.gain - 1.0f) <= Vis::kGlowFlicker * 0.5f + 1e-6f);
+        CHECK(g.sway == 0.0f);
+    }
+    // Nothing to slide (no motion, no loop, bad numbers): still, only the flicker; a bad time is
+    // time 0.
+    for (const auto& [source, f, d] : {std::tuple{0, 160.0f, 1.0f}, std::tuple{1, 0.0f, 1.0f},
+                                       std::tuple{1, -5.0f, 1.0f},
+                                       std::tuple{1, 160.0f, std::nanf("")}}) {
+        const Vis::GlowMotion g = Vis::AnimateGlow(4, source, f, d, d, 3.7);
+        CHECK(g.u == 0.0f);
+        CHECK(g.v == 0.0f);
+        CHECK(std::abs(g.gain - 1.0f) <= Vis::kGlowFlicker + 1e-6f);
+    }
+    const Vis::GlowMotion nan_time = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, std::nan(""));
+    const Vis::GlowMotion zero_time = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, 0.0);
+    CHECK(std::memcmp(&nan_time, &zero_time, sizeof(nan_time)) == 0);
+    // A long session (the draw passes the time modulo an hour): the same bounds.
+    const Vis::GlowMotion late = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, 3599.99);
+    CHECK(late.v <= 0.0f);
+    CHECK(late.v >= dv);
 }
