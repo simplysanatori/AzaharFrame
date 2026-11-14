@@ -25,8 +25,23 @@ constexpr int kBeamTexWidth = 16; ///< one level
 constexpr int kBeamTexHeight = 256;
 
 /// The art: kBeamLevels columns of kBeamTexWidth x kBeamTexHeight, level 0 at full strength,
-/// premultiplied RGBA8 (white), rows top down. The beam runs along the rows.
-std::vector<uint8_t> BeamArt();
+/// premultiplied RGBA8 (white, or `rgb` 0xRRGGBB), rows top down. The beam runs along the rows.
+std::vector<uint8_t> BeamArt(uint32_t rgb = 0xFFFFFF);
+
+/// AzaharFrame kiugyro: Light Gun's laser sight: the beam in red (a second copy of the art in the
+/// atlas: SteamVR has no layer colour scale) and a small red dot where the ray hits the top
+/// screen, which is where Light Gun steers the game's reticle. Drawn instead of the white beam
+/// only while Light Gun has the reticle (Input::LaserSight); nothing more is drawn per frame.
+constexpr uint32_t kLaserRgb = 0xFF2A1A;
+constexpr int kLaserDotPixels = 32;
+/// The dot's art: kLaserDotPixels square, premultiplied RGBA8: a red disc, soft rim, a lighter
+/// core so it reads over red scenery.
+std::vector<uint8_t> LaserDotArt();
+/// The dot's size (metres) at `distance` from the eye: half the pointer dot's (0.01 m + 0.003 m
+/// a metre), so it marks the point without covering the game's reticle.
+constexpr float LaserDotSize(float distance_m) {
+    return 0.005f + 0.0015f * (distance_m > 0.0f ? distance_m : 0.0f);
+}
 
 /// The art level for a strength 0..1 (no level for 0).
 std::optional<int> BeamLevel(float strength);

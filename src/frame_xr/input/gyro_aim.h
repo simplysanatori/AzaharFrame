@@ -142,6 +142,15 @@ struct LightGunTarget {
 };
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 
+/// Light Gun's laser sight (the red beam and dot, vis/beam.h): only while Light Gun steers the
+/// reticle: Light Gun on, a game on view with the menu closed, the reticle read from the game
+/// (locked, not fallen back to Gyro), and the ray on the top screen. Otherwise the usual beam.
+constexpr bool LaserSight(GyroAimMode mode, bool in_game, bool locked,
+                          const LightGunTarget& target) {
+    return mode == GyroAimMode::LightGun && in_game && locked && target.valid &&
+           target.u >= 0.0f && target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
+}
+
 /// How deep (0 to 1) the target is in the Turn Zone on each side: x negative left, positive
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);

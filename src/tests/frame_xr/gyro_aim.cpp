@@ -13,6 +13,7 @@
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/gyro_aim.h"
 #include "frame_xr/kiu_scan.h"
+#include "frame_xr/vis/beam.h"
 
 // AzaharFrame kiugyro: Gyro Aim (frame_xr/input/gyro_aim.h) and the mod scan (frame_xr/kiu_scan.h).
 using Catch::Approx;
@@ -598,5 +599,62 @@ TEST_CASE("FrameXr Light Gun: the mod's addresses are found by their code", "[fr
         REQUIRE(SchemeOf(0x001FFFFFu) == 0u);
         REQUIRE(IsKidIcarus(0x0004000000030200ull));
         REQUIRE(!IsKidIcarus(0x0004000000030600ull));
+    }
+}
+
+// ---- Light Gun's laser sight (vis/beam.h) --------------------------------------------------
+
+TEST_CASE("FrameXr Light Gun: the laser sight shows only while Light Gun has the reticle",
+          "[frame_xr][kiugyro]") {
+    const LightGunTarget on{true, 0.4f, 0.6f};
+    SECTION("locked, on the top screen, in a game: red") {
+        CHECK(LaserSight(GyroAimMode::LightGun, true, true, on));
+        CHECK(LaserSight(GyroAimMode::LightGun, true, true, {true, 0.0f, 1.0f})); // its edge
+    }
+    SECTION("fallen back to Gyro (no reading): the usual beam") {
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, false, on));
+    }
+    SECTION("off the top screen, or pointing away: the usual beam") {
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {true, 1.05f, 0.5f}));
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {true, 0.5f, -0.1f}));
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {false, 0.5f, 0.5f}));
+    }
+    SECTION("menus, Gyro, Off: the usual beam") {
+        CHECK(!LaserSight(GyroAimMode::LightGun, false, true, on));
+        CHECK(!LaserSight(GyroAimMode::Gyro, true, true, on));
+        CHECK(!LaserSight(GyroAimMode::Off, true, true, on));
+    }
+}
+
+TEST_CASE("FrameXr Light Gun: the laser sight's art", "[frame_xr][kiugyro]") {
+    using namespace FrameXr::Vis;
+    SECTION("the red beam is the white one's shape, in red") {
+        const std::vector<uint8_t> white = BeamArt();
+        const std::vector<uint8_t> red = BeamArt(kLaserRgb);
+        REQUIRE(white.size() == red.size());
+        bool some = false;
+        for (std::size_t i = 0; i < red.size(); i += 4) {
+            REQUIRE(red[i + 3] == white[i + 3]); // the same alpha everywhere
+            REQUIRE(red[i] <= red[i + 3]);        // premultiplied
+            REQUIRE(red[i + 1] <= red[i]);        // red over green and blue
+            REQUIRE(red[i + 2] <= red[i]);
+            some = some || red[i + 3] > 200;
+        }
+        REQUIRE(some);
+    }
+    SECTION("the dot: opaque red in the middle, clear at the corners, small") {
+        const std::vector<uint8_t> dot = LaserDotArt();
+        REQUIRE(dot.size() == static_cast<std::size_t>(kLaserDotPixels * kLaserDotPixels * 4));
+        const auto at = [&](int x, int y) { return &dot[(y * kLaserDotPixels + x) * 4]; };
+        const uint8_t* mid = at(kLaserDotPixels / 2, kLaserDotPixels / 2);
+        CHECK(mid[3] == 255);
+        CHECK(mid[0] == 255);
+        const uint8_t* rim = at(kLaserDotPixels / 2, kLaserDotPixels / 2 - 13);
+        CHECK(rim[0] > 2 * rim[1]); // red toward the rim
+        CHECK(at(0, 0)[3] == 0);
+        CHECK(at(kLaserDotPixels - 1, kLaserDotPixels - 1)[3] == 0);
+        // Half the pointer dot's size: about 1 cm at 3 m, a few game pixels on a 1.6 m screen.
+        CHECK(LaserDotSize(3.0f) == Approx(0.0095f));
+        CHECK(LaserDotSize(1.0f) < 0.01f + 0.003f * 1.0f);
     }
 }

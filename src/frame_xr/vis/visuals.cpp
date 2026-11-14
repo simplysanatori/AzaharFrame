@@ -307,6 +307,8 @@ struct Visuals::Impl {
     // Beams, dots, models.
     std::array<HandActivity, 2> activity{};
     std::vector<Quad> top_beams, top_dots;
+    int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
+    Vec3f laser_point{};
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
     std::size_t max_layers = 16;
 
@@ -451,6 +453,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
                         bool have_input) {
     Impl& m = *impl;
     static_cast<void>(info);
+    m.laser_hand = -1; // AzaharFrame kiugyro: GameFrame sets it again for this frame
     // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
     // grip and stick then move them and reach neither the screens nor the game.
     const ViewPose view = LatestViewPose();
@@ -911,6 +914,10 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
                 beam_end[h] = hit.point_world;
             }
         }
+        // AzaharFrame kiugyro: Light Gun's laser sight: to where the ray meets the top screen.
+        if (h == m.laser_hand && where == Where::Game) {
+            beam_end[h] = m.laser_point;
+        }
         if (where != Where::Game) {
             for (const Quad& q : kept) {
                 if (q.swapchain == dim || q.swapchain == m.stats_chain.Handle()) {
@@ -980,17 +987,30 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     layers = std::move(kept);
     if (info.should_render && view.valid) {
         for (int h = 0; h < Input::kNumHands; h++) {
-            const float strength = m.activity[h].Beam() * (stub[h] ? kStubStrength : 1.0f);
+            // AzaharFrame kiugyro: the laser sight stays at full strength while the hand aims
+            // still.
+            const bool laser = h == m.laser_hand && where == Where::Game;
+            const float strength =
+                laser ? 1.0f : m.activity[h].Beam() * (stub[h] ? kStubStrength : 1.0f);
             const auto level = BeamLevel(strength);
             if (!beam_end[h] || !level || !m.atlas.HasImage()) {
                 continue;
             }
             const Vec3f start = in.hand[static_cast<std::size_t>(h)].aim.position;
             if (const auto b = PlaceBeam(start, *beam_end[h], head, kBeamWidth)) {
-                const AtlasRect r{kBeamRect.x + *level * kBeamTexWidth, kBeamRect.y, kBeamTexWidth,
+                const AtlasRect& art = laser ? kLaserBeamRect : kBeamRect;
+                const AtlasRect r{art.x + *level * kBeamTexWidth, art.y, kBeamTexWidth,
                                   kBeamTexHeight};
                 m.top_beams.push_back(
                     AtlasQuad(m.atlas.Handle(), r, b->pose, b->width, b->length));
+            }
+            if (laser) {
+                const float size = LaserDotSize(Input::Length(*beam_end[h] - head.position));
+                const Input::Posef dot_pose{
+                    Input::FaceViewer(*beam_end[h], head.position, {0.0f, 1.0f, 0.0f}),
+                    *beam_end[h]};
+                m.top_dots.push_back(
+                    AtlasQuad(m.atlas.Handle(), kLaserDotRect, dot_pose, size, size));
             }
         }
         // The dots, over the beams; a dot of an idle controller goes with its beam.
@@ -1024,6 +1044,11 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     }
     m.models.Frame(rt, view, hands);
     m.models_layer = m.models.Layer();
+}
+
+void Visuals::SetLaser(int hand, const Input::Vec3f& point) {
+    impl->laser_hand = hand;
+    impl->laser_point = point;
 }
 
 void Visuals::SetMousePointer(Input::MousePointer* pointer) {

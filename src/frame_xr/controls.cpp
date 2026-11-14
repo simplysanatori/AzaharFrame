@@ -15,6 +15,7 @@
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
+#include "frame_xr/kiu_probe.h"     // AzaharFrame kiugyro: Light Gun
 #include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
@@ -1577,6 +1578,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // trigger is ZL/ZR (the mod fires with them) and never a touch, which would stop the mod's
     // aim.
     Input::GyroAimFrame gyro_aim_frame;
+    int gyro_aim_hand = -1; // its controller (not the headset), while on
     {
         gyro_aim_frame.mode = Input::GyroAimModeFrom(Settings::values.vr_gyro_aim.GetValue());
         const uint32_t aim_source =
@@ -1598,6 +1600,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right))];
             gyro_aim_frame.clutch = gyro_clutch.Update(hand.grip);
             hand.grip = 0.0f;
+            gyro_aim_hand = Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right);
         } else {
             gyro_clutch.Reset();
         }
@@ -1758,6 +1761,16 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::MapperOutput& out =
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample, &gyro_aim_frame);
     bridge_live = true;
+    // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot) while it has the reticle.
+    if (gyro_aim_hand >= 0) {
+        const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+        const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
+        if (Input::LaserSight(gyro_aim_frame.mode, true, Kiu::Locked(), target)) {
+            visuals.SetLaser(gyro_aim_hand,
+                             Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
+                                 .point_world);
+        }
+    }
     {
         // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:
         // the touch is handed to the C-Stick and back.

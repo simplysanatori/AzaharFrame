@@ -126,6 +126,11 @@ void DrawStrip(PanelArt& a, const StripView& v) {
 void DrawBeam(PanelArt& a) {
     const std::vector<uint8_t> beam = BeamArt();
     a.Put(kBeamRect.x, kBeamRect.y, beam.data(), kBeamRect.w, kBeamRect.h);
+    // AzaharFrame kiugyro: the laser sight's art, drawn once with the beam's.
+    const std::vector<uint8_t> laser = BeamArt(kLaserRgb);
+    a.Put(kLaserBeamRect.x, kLaserBeamRect.y, laser.data(), kLaserBeamRect.w, kLaserBeamRect.h);
+    const std::vector<uint8_t> dot = LaserDotArt();
+    a.Put(kLaserDotRect.x, kLaserDotRect.y, dot.data(), kLaserDotRect.w, kLaserDotRect.h);
 }
 
 void DrawStats(PanelArt& a, const std::vector<StatsRow>& rows) {

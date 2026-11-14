@@ -123,6 +123,13 @@ Gyro Aim at Light Gun when the mod is installed (`ControlsPreset::gyro_aim_with_
   range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
   ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
   target, the gain and the game frame.
+- **Laser sight:** while Light Gun has the reticle (read from the game, not fallen back to
+  Gyro) and its ray is on the top screen, the controller's beam is red and ends in a small red
+  dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
+  loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
+  at the box). The beam stays at full strength while the hand is still. A red copy of the beam
+  art and the dot are in the vis atlas (`kLaserBeamRect`, `kLaserDotRect`), drawn once: no GPU
+  work in a game. Otherwise the usual white beam (`Input::LaserSight`, `Vis::Visuals::SetLaser`).
 - **Grip:** the Gyro Aim controller's grip held (above 0.60, let go below 0.40) pauses it (Gyro:
   zero rate; Light Gun: the reticle stays) and grabs nothing; letting go does not jump (Gyro
   starts again from the hand's new place; Light Gun goes back to the pointer). The other
