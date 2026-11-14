@@ -135,6 +135,14 @@ XrPosef ToXr(const Input::Posef& p) {
             {p.position.x, p.position.y, p.position.z}};
 }
 
+Input::Posef FromXr(const XrPosef& p) { // AzaharFrame ctrlfront
+    return {{p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w},
+            {p.position.x, p.position.y, p.position.z}};
+}
+
+// AzaharFrame ctrlfront: how often the pass's GPU time is logged while the models show.
+constexpr int64_t kGpuLogNs = 10'000'000'000;
+
 struct PushConstants {
     Mat mvp;
     std::array<float, 4> eye;
@@ -170,6 +178,7 @@ bool ReadControllerModels(std::array<ModelFile, 2>& files, std::string& error) {
 struct ControllerModels::Files {
     std::array<ModelFile, 2> hand;
     std::vector<uint32_t> vert_spv_linear, frag_spv_linear, vert_spv, frag_spv;
+    std::vector<uint32_t> occluder_vert_spv, occluder_frag_spv; ///< AzaharFrame ctrlfront
 };
 
 struct ControllerModels::Gpu {
@@ -200,6 +209,7 @@ struct ControllerModels::Gpu {
     vk::RenderPass render_pass;
     vk::Pipeline pipeline;
     vk::Pipeline pipeline_add; ///< AzaharFrame kiuguns: glows: added, no depth written
+    vk::Pipeline pipeline_occluder; ///< AzaharFrame ctrlfront: depth only (null: none)
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     vk::ImageView msaa_view, depth_view;
     std::vector<vk::ImageView> swap_views;
@@ -215,6 +225,20 @@ struct ControllerModels::Gpu {
     ViewPose drawn_views;  ///< the views of the image in flight
     ViewPose shown_views;  ///< the views of the image released last
     bool shown_fresh = false; ///< released since the models last went away
+    // AzaharFrame ctrlfront: the eye quads' distance for the image in flight and the one shown
+    // (model_plane.h ModelPlaneDistance), and the occluders the one in flight was drawn with.
+    float drawn_plane = kModelPlaneDefault;
+    float shown_plane = kModelPlaneDefault;
+    std::size_t drawn_occluders = 0;
+    // AzaharFrame ctrlfront: the pass's GPU time: two timestamps around it (null pool: the queue
+    // has none), summed for the log.
+    vk::QueryPool queries;
+    double timestamp_ns = 1.0;
+    uint64_t timestamp_mask = ~0ull;
+    double gpu_sum_ms = 0.0, gpu_max_ms = 0.0;
+    uint32_t gpu_images = 0;
+    uint64_t occluder_sum = 0;
+    int64_t gpu_log_ns = 0;
 
     XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
     std::array<XrCompositionLayerProjectionView, 2> layer_views{
@@ -439,8 +463,32 @@ ControllerModels::~ControllerModels() {
 }
 
 const XrCompositionLayerBaseHeader* ControllerModels::Layer() const {
-    return layer_ready ? reinterpret_cast<const XrCompositionLayerBaseHeader*>(&gpu->layer)
-                       : nullptr;
+    return layer_ready && !ModelsAsQuads(over_)
+               ? reinterpret_cast<const XrCompositionLayerBaseHeader*>(&gpu->layer)
+               : nullptr;
+}
+
+// AzaharFrame ctrlfront: the image released last as each eye's quad: the eye's view at the
+// distance it was drawn for, so it shows just as the projection layer would (model_plane.h).
+bool ControllerModels::EyeQuads(std::array<Quad, 2>& out) const {
+    if (!layer_ready || !ModelsAsQuads(over_)) {
+        return false;
+    }
+    const Gpu& g = *gpu;
+    for (int e = 0; e < 2; e++) {
+        const XrFovf& fov = g.shown_views.fov[e];
+        const EyePlane plane =
+            PlaneForEye(FromXr(g.shown_views.eye[e]), fov.angleLeft, fov.angleRight, fov.angleUp,
+                        fov.angleDown, g.shown_plane);
+        Quad& q = out[static_cast<std::size_t>(e)];
+        q.swapchain = g.swapchain;
+        q.image_rect = g.layer_views[static_cast<std::size_t>(e)].subImage.imageRect;
+        q.pose = ToXr(plane.pose);
+        q.size = {plane.width_m, plane.height_m};
+        q.eye = e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT;
+        q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    }
+    return true;
 }
 
 void ControllerModels::DestroyXr() {
@@ -510,6 +558,12 @@ void ControllerModels::DestroyXr() {
         if (g.pipeline_add) {
             g.device.destroyPipeline(g.pipeline_add);
         }
+        if (g.pipeline_occluder) { // AzaharFrame ctrlfront
+            g.device.destroyPipeline(g.pipeline_occluder);
+        }
+        if (g.queries) {
+            g.device.destroyQueryPool(g.queries);
+        }
         if (g.pipeline_layout) {
             g.device.destroyPipelineLayout(g.pipeline_layout);
         }
@@ -558,8 +612,10 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 
 } // namespace
 
-void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands) {
+void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands,
+                             ControllersInFront choice, const std::vector<Occluder>& occluders) {
     layer_ready = false;
+    over_ = choice; // AzaharFrame ctrlfront
     muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
     const bool any = hands[0].shown || hands[1].shown;
 
@@ -588,6 +644,17 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 LOG_ERROR(Frontend, "xr: controller models: the shaders did not compile");
                 load_state = 3;
                 return;
+            }
+            // AzaharFrame ctrlfront: without it the models go over every screen and panel.
+            f.occluder_vert_spv = Vulkan::CompileGLSL(
+                std::string{"#version 450\n"} + Shaders::kOccluderVert,
+                vk::ShaderStageFlagBits::eVertex);
+            f.occluder_frag_spv = Vulkan::CompileGLSL(
+                std::string{"#version 450\n"} + Shaders::kOccluderFrag,
+                vk::ShaderStageFlagBits::eFragment);
+            if (f.occluder_vert_spv.empty() || f.occluder_frag_spv.empty()) {
+                LOG_WARNING(Frontend, "xr: controller models: the occluder shader did not compile; "
+                                      "the controllers go over every screen");
             }
             LOG_INFO(Frontend, "xr: controller models read ({} and {} triangles, textures {}x{})",
                      f.hand[0].indices.size() / 3, f.hand[1].indices.size() / 3,
@@ -640,9 +707,13 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         const XrResult r =
             g.queue_lock->With([&] { return xr.xrReleaseSwapchainImage(g.swapchain, &ri); });
         g.in_flight = false;
+        NoteGpuTime(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch())
+                        .count()); // AzaharFrame ctrlfront
         if (XR_SUCCEEDED(r)) {
             g.has_image = true;
             g.shown_views = g.drawn_views;
+            g.shown_plane = g.drawn_plane; // AzaharFrame ctrlfront
             g.shown_fresh = true;
         }
     }
@@ -682,7 +753,20 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         wi.timeout = 0;
         if (g.acquired && xr.xrWaitSwapchainImage(g.swapchain, &wi) == XR_SUCCESS) {
             g.acquired = false;
-            Record(views, hands);
+            // AzaharFrame ctrlfront: the screens' and panels' depth while the image goes out as
+            // the eye quads (and with the shader); the eye quads at the nearer controller's depth.
+            static const std::vector<Occluder> kNone;
+            const std::vector<Occluder>& occ =
+                ModelsAsQuads(choice) && g.pipeline_occluder ? occluders : kNone;
+            std::array<std::optional<Input::Vec3f>, 2> at{};
+            for (std::size_t h = 0; h < hands.size(); h++) {
+                if (hands[h].shown) {
+                    at[h] = hands[h].aim.position;
+                }
+            }
+            g.drawn_plane = ModelPlaneDistance(FromXr(views.head), at);
+            g.drawn_occluders = occ.size();
+            Record(views, hands, occ);
             const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &g.cmd};
             g.queue_lock->With([&] {
                 g.queue.submit(submit, g.fence);
@@ -1015,6 +1099,70 @@ void ControllerModels::Setup(Runtime& rt) {
     }
     g.pipeline = made.value;
     g.pipeline_add = made_add.value;
+
+    // AzaharFrame ctrlfront: the screens and panels into the depth buffer, before the models
+    // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer; the colour
+    // written whole, as the clear (kOccluderFrag: Turnip's LRZ stays valid).
+    if (!f.occluder_vert_spv.empty() && !f.occluder_frag_spv.empty()) {
+        const vk::ShaderModule occ_vert = Vulkan::CompileSPV(f.occluder_vert_spv, g.device);
+        const vk::ShaderModule occ_frag = Vulkan::CompileSPV(f.occluder_frag_spv, g.device);
+        if (occ_vert && occ_frag) {
+            const std::array<vk::PipelineShaderStageCreateInfo, 2> occ_stages{{
+                {.stage = vk::ShaderStageFlagBits::eVertex, .module = occ_vert, .pName = "main"},
+                {.stage = vk::ShaderStageFlagBits::eFragment, .module = occ_frag, .pName = "main"},
+            }};
+            const vk::PipelineVertexInputStateCreateInfo no_input{};
+            const vk::PipelineInputAssemblyStateCreateInfo strip{
+                .topology = vk::PrimitiveTopology::eTriangleStrip};
+            const vk::PipelineColorBlendAttachmentState clear_colour{
+                .blendEnable = false,
+                .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                                  vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
+            const vk::PipelineColorBlendStateCreateInfo occ_blend{.attachmentCount = 1,
+                                                                  .pAttachments = &clear_colour};
+            const auto made_occ = g.device.createGraphicsPipeline(
+                {}, {
+                        .stageCount = static_cast<uint32_t>(occ_stages.size()),
+                        .pStages = occ_stages.data(),
+                        .pVertexInputState = &no_input,
+                        .pInputAssemblyState = &strip,
+                        .pViewportState = &viewport,
+                        .pRasterizationState = &raster,
+                        .pMultisampleState = &multisample,
+                        .pDepthStencilState = &depth_state,
+                        .pColorBlendState = &occ_blend,
+                        .pDynamicState = &dynamic,
+                        .layout = g.pipeline_layout,
+                        .renderPass = g.render_pass,
+                        .subpass = 0,
+                    });
+            if (made_occ.result == vk::Result::eSuccess) {
+                g.pipeline_occluder = made_occ.value;
+            }
+        }
+        if (occ_vert) {
+            g.device.destroyShaderModule(occ_vert);
+        }
+        if (occ_frag) {
+            g.device.destroyShaderModule(occ_frag);
+        }
+        if (!g.pipeline_occluder) {
+            LOG_WARNING(Frontend, "xr: controller models: no occluder pipeline; the controllers "
+                                  "go over every screen");
+        }
+    }
+    // AzaharFrame ctrlfront: two timestamps a picture, where the queue has them.
+    {
+        const auto families = g.physical.getQueueFamilyProperties();
+        const uint32_t family = rt.vulkan->QueueFamily();
+        const uint32_t bits = family < families.size() ? families[family].timestampValidBits : 0;
+        if (bits > 0) {
+            g.queries = g.device.createQueryPool(
+                {.queryType = vk::QueryType::eTimestamp, .queryCount = 2});
+            g.timestamp_ns = g.physical.getProperties().limits.timestampPeriod;
+            g.timestamp_mask = bits >= 64 ? ~0ull : ((1ull << bits) - 1);
+        }
+    }
 
     g.sampler = g.device.createSampler({
         .magFilter = vk::Filter::eLinear,
@@ -1393,12 +1541,17 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     }
 }
 
-void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands) {
+void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands,
+                              const std::vector<Occluder>& occluders) {
     Gpu& g = *gpu;
     const Files& f = *files;
     vk::CommandBuffer& c = g.cmd;
     c.reset();
     c.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    if (g.queries) { // AzaharFrame ctrlfront
+        c.resetQueryPool(g.queries, 0, 2);
+        c.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, g.queries, 0);
+    }
     std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
     clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
     c.beginRenderPass({.renderPass = g.render_pass,
@@ -1426,6 +1579,59 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         const Mat view_proj =
             Multiply(Projection(views.fov[e]),
                      InverseRigid(FromPose(views.eye[e].orientation, views.eye[e].position)));
+        // AzaharFrame ctrlfront: the depth of the screens and panels this eye sees first (a
+        // screen the choice leaves out at the nearest depth): a controller's parts behind one are
+        // not drawn, and the screen shows there.
+        // Only where the models can be in this eye's image (model_plane.h ModelsViewBounds).
+        std::optional<std::array<float, 4>> bounds;
+        if (!occluders.empty()) {
+            std::array<ModelSphere, 2> spheres{};
+            std::size_t n = 0;
+            for (const Hand& hand : hands) {
+                if (hand.shown) {
+                    spheres[n++] = {hand.aim.position,
+                                    hand.weapon >= 0 ? kWeaponSphere : kControllerSphere};
+                }
+            }
+            const XrFovf& fov = views.fov[e];
+            bounds = ModelsViewBounds(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
+                                      fov.angleUp, fov.angleDown, spheres.data(), n, kNear);
+        }
+        bool occluded = false;
+        for (const Occluder& o : occluders) {
+            if (!bounds || !(o.eyes & (1u << e)) || o.width_m <= 0.0f || o.height_m <= 0.0f) {
+                continue;
+            }
+            if (!occluded) {
+                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline_occluder);
+                const auto px = [](float t, uint32_t size) {
+                    return static_cast<int32_t>(std::clamp(t, 0.0f, 1.0f) * static_cast<float>(size));
+                };
+                const int32_t x0 = px((*bounds)[0], g.eye_w), y0 = px((*bounds)[1], g.eye_h);
+                const int32_t x1 = std::min<int32_t>(px((*bounds)[2], g.eye_w) + 1,
+                                                     static_cast<int32_t>(g.eye_w));
+                const int32_t y1 = std::min<int32_t>(px((*bounds)[3], g.eye_h) + 1,
+                                                     static_cast<int32_t>(g.eye_h));
+                c.setScissor(0, vk::Rect2D{{static_cast<int32_t>(g.eye_w * e) + x0, y0},
+                                           {static_cast<uint32_t>(std::max(x1 - x0, 0)),
+                                            static_cast<uint32_t>(std::max(y1 - y0, 0))}});
+                occluded = true;
+            }
+            PushConstants pc{};
+            const XrPosef op = ToXr(o.pose);
+            pc.mvp = Multiply(view_proj, FromPose(op.orientation, op.position));
+            const int segments = OccluderSegments(o);
+            pc.params = {o.width_m, o.height_m, o.curve_radius, static_cast<float>(segments)};
+            pc.eye = {o.always ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f};
+            c.pushConstants(g.pipeline_layout,
+                            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                            0, sizeof(pc), &pc);
+            c.draw(static_cast<uint32_t>(2 * (segments + 1)), 1, 0, 0);
+        }
+        if (occluded) {
+            c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
+            c.setScissor(0, sc);
+        }
         for (int h = 0; h < 2; h++) {
             const Hand& hand = hands[static_cast<std::size_t>(h)];
             if (!hand.shown) {
@@ -1479,7 +1685,50 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         }
     }
     c.endRenderPass();
+    if (g.queries) { // AzaharFrame ctrlfront
+        c.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, g.queries, 1);
+    }
     c.end();
+}
+
+void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
+    Gpu& g = *gpu;
+    if (!g.queries) {
+        return;
+    }
+    std::array<uint64_t, 2> t{};
+    // The image's fence has signalled, so both are written; never waits.
+    if (g.device.getQueryPoolResults(g.queries, 0, 2, sizeof(t), t.data(), sizeof(uint64_t),
+                                     vk::QueryResultFlagBits::e64) == vk::Result::eSuccess) {
+        const uint64_t ticks = ((t[1] & g.timestamp_mask) - (t[0] & g.timestamp_mask)) &
+                               g.timestamp_mask;
+        const double ms = static_cast<double>(ticks) * g.timestamp_ns / 1e6;
+        if (ms >= 0.0 && ms < 1000.0) {
+            g.gpu_sum_ms += ms;
+            g.gpu_max_ms = std::max(g.gpu_max_ms, ms);
+            g.gpu_images++;
+            g.occluder_sum += g.drawn_occluders;
+        }
+    }
+    if (g.gpu_log_ns == 0) {
+        g.gpu_log_ns = now_ns;
+    }
+    if (now_ns - g.gpu_log_ns >= kGpuLogNs && g.gpu_images > 0) {
+        LOG_INFO(Frontend,
+                 "xr: controller models: GPU {:.3f} ms a picture on average, {:.3f} at most, {} "
+                 "pictures in {:.0f} s, {:.1f} occluders a picture, {}",
+                 g.gpu_sum_ms / g.gpu_images, g.gpu_max_ms, g.gpu_images,
+                 static_cast<double>(now_ns - g.gpu_log_ns) / 1e9,
+                 static_cast<double>(g.occluder_sum) / g.gpu_images,
+                 over_ == ControllersInFront::Off            ? "Off (a projection layer)"
+                 : over_ == ControllersInFront::Primary      ? "Primary (eye quads)"
+                 : over_ == ControllersInFront::Secondary    ? "Secondary (eye quads)"
+                                                             : "Both (eye quads)");
+        g.gpu_sum_ms = g.gpu_max_ms = 0.0;
+        g.gpu_images = 0;
+        g.occluder_sum = 0;
+        g.gpu_log_ns = now_ns;
+    }
 }
 
 // ---- AzaharFrame kiuguns: the weapon in hand ----

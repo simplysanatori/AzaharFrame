@@ -314,6 +314,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_background.SetGlobal(true);      // AzaharFrame
     values.vr_show_controllers.SetGlobal(true); // AzaharFrame vrvis
     values.vr_show_stats.SetGlobal(true);       // AzaharFrame vrvis
+    values.vr_controllers_in_front.SetGlobal(true); // AzaharFrame ctrlfront
     values.vr_stats_position.SetGlobal(true);   // AzaharFrame statspos
     values.vr_immersive_offset_x.SetGlobal(true); // AzaharFrame vrsize
     values.vr_immersive_offset_y.SetGlobal(true); // AzaharFrame vrsize

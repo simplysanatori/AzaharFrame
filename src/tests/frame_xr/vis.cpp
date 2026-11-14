@@ -15,7 +15,11 @@
 #include "frame_xr/vis/controller_diagram.h"
 #include "frame_xr/vis/help_content.h"
 #include "frame_xr/vis/help_layout.h"
+#include "frame_xr/input/screen_rig.h" // AzaharFrame ctrlfront
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
+#include "frame_xr/vis/model_plane.h" // AzaharFrame ctrlfront
+#include "frame_xr/vis/model_shaders.h" // AzaharFrame ctrlfront
+#include "video_core/renderer_vulkan/vk_shader_util.h" // AzaharFrame ctrlfront
 #include "frame_xr/vis/model_file.h"
 #include "frame_xr/vis/stats_place.h"
 
@@ -742,4 +746,191 @@ TEST_CASE("FrameXr vis: the controller models are off in passthrough only", "[fr
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(true, true));
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, false));
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, true));
+}
+
+// ---- AzaharFrame ctrlfront: Controllers in Front of Screen (vis/model_plane.h) ----------------
+
+TEST_CASE("FrameXr vis: Controllers in Front of Screen's values", "[frame_xr]") {
+    STATIC_REQUIRE(ControllersInFrontFrom(0) == ControllersInFront::Off);
+    STATIC_REQUIRE(ControllersInFrontFrom(1) == ControllersInFront::Primary);
+    STATIC_REQUIRE(ControllersInFrontFrom(2) == ControllersInFront::Secondary);
+    STATIC_REQUIRE(ControllersInFrontFrom(3) == ControllersInFront::Both);
+    STATIC_REQUIRE(ControllersInFrontFrom(7) == ControllersInFront::Both); // a bad file: default
+    // Off keeps the projection layer (under every quad, as before); the others are quads.
+    STATIC_REQUIRE_FALSE(ModelsAsQuads(ControllersInFront::Off));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Primary));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Secondary));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Both));
+    // Which screen goes by depth (true) and which covers the controllers wherever they are.
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Off, true));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Off, false));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Primary, true));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Primary, false));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Secondary, true));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Secondary, false));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Both, true));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Both, false));
+    STATIC_REQUIRE_FALSE(Occluder{}.always);
+}
+
+// The eye quad shows the image exactly where the projection layer did: a direction in the eye's
+// view lands on the plane at the image position the projection gives it, at any distance.
+TEST_CASE("FrameXr vis: the models' eye quad is the eye's view", "[frame_xr]") {
+    const Input::Posef eye{Input::Normalized(Input::Quatf{0.08f, -0.21f, 0.03f, 0.97f}),
+                           {0.03f, 1.62f, -0.11f}};
+    const float al = -0.92f, ar = 0.81f, au = 0.86f, ad = -0.97f; // asymmetric, as the Frame's
+    const float tl = std::tan(al), tr = std::tan(ar), tu = std::tan(au), td = std::tan(ad);
+    for (const float distance : {0.15f, 0.4f, 1.3f}) {
+        const EyePlane plane = PlaneForEye(eye, al, ar, au, ad, distance);
+        CHECK(plane.width_m == Approx(distance * (tr - tl)));
+        CHECK(plane.height_m == Approx(distance * (tu - td)));
+        // Square to the view: its normal is the eye's +Z.
+        const Input::Vec3f n = Input::Rotate(plane.pose.orientation, {0.0f, 0.0f, 1.0f});
+        const Input::Vec3f back = Input::Rotate(eye.orientation, {0.0f, 0.0f, 1.0f});
+        CHECK(Input::Dot(n, back) == Approx(1.0f));
+        const Input::PanelQuad quad{plane.pose, plane.width_m, plane.height_m, true};
+        for (const float x : {-0.9f, -0.3f, 0.0f, 0.5f, 0.99f}) {
+            for (const float y : {-0.95f, -0.2f, 0.4f, 0.98f}) {
+                const float tx = tl + (tr - tl) * (x * 0.5f + 0.5f);
+                const float ty = td + (tu - td) * (y * 0.5f + 0.5f);
+                const Input::Ray ray{eye.position, Input::Normalized(Input::Rotate(
+                                                       eye.orientation, {tx, ty, -1.0f}))};
+                const Input::QuadHit hit = Input::IntersectQuad(ray, quad);
+                INFO("distance " << distance << ", x " << x << ", y " << y);
+                REQUIRE(hit.in_bounds);
+                // The projection's image position: u from the left, v from the top.
+                CHECK(hit.u == Approx((tx - tl) / (tr - tl)).margin(1e-4));
+                CHECK(hit.v == Approx(1.0f - (ty - td) / (tu - td)).margin(1e-4));
+            }
+        }
+        // Outside the view, outside the quad.
+        const Input::Ray out{eye.position, Input::Normalized(Input::Rotate(
+                                               eye.orientation, {tr * 1.05f, 0.0f, -1.0f}))};
+        CHECK_FALSE(Input::IntersectQuad(out, quad).in_bounds);
+    }
+}
+
+TEST_CASE("FrameXr vis: the models' plane at the nearer controller", "[frame_xr]") {
+    const Input::Posef head{Input::Normalized(Input::Quatf{0.0f, 0.38f, 0.0f, 0.92f}),
+                            {0.2f, 1.6f, 0.1f}};
+    const auto ahead = [&](float x, float y, float z) {
+        return Input::Transform(head, {x, y, -z});
+    };
+    using Hands = std::array<std::optional<Input::Vec3f>, 2>;
+    CHECK(ModelPlaneDistance(head, Hands{}) == Approx(kModelPlaneDefault));
+    CHECK(ModelPlaneDistance(head, Hands{ahead(-0.2f, -0.3f, 0.45f), ahead(0.25f, -0.2f, 0.32f)}) ==
+          Approx(0.32f));
+    CHECK(ModelPlaneDistance(head, Hands{std::nullopt, ahead(0.1f, 0.0f, 0.6f)}) == Approx(0.6f));
+    // Behind the head: not counted; very near or far: clamped.
+    CHECK(ModelPlaneDistance(head, Hands{ahead(0.0f, 0.0f, -0.3f), std::nullopt}) ==
+          Approx(kModelPlaneDefault));
+    CHECK(ModelPlaneDistance(head, Hands{ahead(0.0f, -0.1f, 0.05f), std::nullopt}) ==
+          Approx(kModelPlaneMin));
+    CHECK(ModelPlaneDistance(head, Hands{ahead(0.0f, 0.0f, 9.0f), std::nullopt}) ==
+          Approx(kModelPlaneMax));
+}
+
+// The occluder of a curved screen is the cylinder layer SteamVR draws (ScreenRig::CylinderFor):
+// every vertex on the cylinder, the middle at the screen's pose, the arc the central angle.
+TEST_CASE("FrameXr vis: an occluder has its screen's shape", "[frame_xr]") {
+    const Input::Posef pose{Input::Normalized(Input::Quatf{0.05f, 0.2f, -0.02f, 0.98f}),
+                            {0.3f, 1.4f, -1.8f}};
+    const float w = 1.6f, h = 0.96f;
+    // Flat: the four corners.
+    const Occluder flat{pose, w, h, 0.0f, 3};
+    REQUIRE(OccluderSegments(flat) == 1);
+    CHECK(OccluderVertex(w, h, 0.0f, 1, 0).x == Approx(-0.8f));
+    CHECK(OccluderVertex(w, h, 0.0f, 1, 0).y == Approx(-0.48f));
+    CHECK(OccluderVertex(w, h, 0.0f, 1, 3).x == Approx(0.8f));
+    CHECK(OccluderVertex(w, h, 0.0f, 1, 3).y == Approx(0.48f));
+    CHECK(OccluderVertex(w, h, 0.0f, 1, 3).z == Approx(0.0f));
+    for (const float radius : {0.8f, 1.5f, 3.2f}) {
+        const Occluder curved{pose, w, h, radius, 3};
+        const int segments = OccluderSegments(curved);
+        REQUIRE(segments == kOccluderArcSegments);
+        const auto c = Input::ScreenRig::CylinderFor(pose, w, h, radius);
+        REQUIRE(c.radius == Approx(radius));
+        const Input::Vec3f axis = Input::Rotate(c.pose.orientation, {0.0f, 1.0f, 0.0f});
+        const auto around = [&](const Input::Vec3f& p) {
+            const Input::Vec3f d = p - c.pose.position;
+            return d - axis * Input::Dot(d, axis);
+        };
+        for (int i = 0; i < 2 * (segments + 1); i++) {
+            const Input::Vec3f p =
+                Input::Transform(pose, OccluderVertex(w, h, radius, segments, i));
+            INFO("radius " << radius << ", vertex " << i);
+            CHECK(Input::Length(around(p)) == Approx(radius).margin(1e-4));
+        }
+        // The middle of the bottom and top edges are the screen's middle, half its height down
+        // and up.
+        const Input::Vec3f mid = (Input::Transform(pose, OccluderVertex(w, h, radius, segments, segments)) +
+                                  Input::Transform(pose, OccluderVertex(w, h, radius, segments, segments + 1))) *
+                                 0.5f;
+        CHECK(Input::Length(mid - pose.position) == Approx(0.0f).margin(1e-4));
+        const Input::Vec3f first = Input::Normalized(
+            around(Input::Transform(pose, OccluderVertex(w, h, radius, segments, 0))));
+        const Input::Vec3f last = Input::Normalized(around(
+            Input::Transform(pose, OccluderVertex(w, h, radius, segments, 2 * segments))));
+        CHECK(std::acos(std::clamp(Input::Dot(first, last), -1.0f, 1.0f)) ==
+              Approx(c.central_angle).margin(1e-3));
+    }
+}
+
+// The pass's shaders compile as ControllerModels compiles them (glslang, on its loader thread).
+TEST_CASE("FrameXr vis: the controller pass's shaders compile", "[frame_xr]") {
+    const std::string v = "#version 450\n";
+    CHECK(!Vulkan::CompileGLSL(v + Shaders::kModelVert, vk::ShaderStageFlagBits::eVertex).empty());
+    CHECK(!Vulkan::CompileGLSL(v + "#define OUT_LINEAR true\n" + Shaders::kModelFrag,
+                               vk::ShaderStageFlagBits::eFragment)
+               .empty());
+    CHECK(!Vulkan::CompileGLSL(v + Shaders::kOccluderVert, vk::ShaderStageFlagBits::eVertex)
+               .empty());
+    CHECK(!Vulkan::CompileGLSL(v + Shaders::kOccluderFrag, vk::ShaderStageFlagBits::eFragment)
+               .empty());
+}
+
+// The occluders are drawn only where the models can be: every point of a model's sphere lands
+// inside the bounds, at the image position PlaneForEye's quad gives it.
+TEST_CASE("FrameXr vis: the models' bounds in an eye's image", "[frame_xr]") {
+    const Input::Posef eye{Input::Normalized(Input::Quatf{0.06f, -0.15f, 0.02f, 0.98f}),
+                           {0.03f, 1.6f, 0.2f}};
+    const float al = -0.92f, ar = 0.81f, au = 0.86f, ad = -0.97f;
+    const float tl = std::tan(al), tr = std::tan(ar), tu = std::tan(au), td = std::tan(ad);
+    const auto ahead = [&](float x, float y, float z) { return Input::Transform(eye, {x, y, -z}); };
+    const std::array<ModelSphere, 2> spheres{
+        {{ahead(0.12f, -0.15f, 0.4f), kControllerSphere}, {ahead(-0.2f, 0.05f, 0.9f), kControllerSphere}}};
+    const auto b = ModelsViewBounds(eye, al, ar, au, ad, spheres.data(), 2, 0.05f);
+    REQUIRE(b);
+    CHECK((*b)[0] < (*b)[2]);
+    CHECK((*b)[1] < (*b)[3]);
+    CHECK(((*b)[2] - (*b)[0]) * ((*b)[3] - (*b)[1]) < 0.8f); // not the whole image
+    const Input::Posef to_eye = Input::Inverse(eye);
+    int inside = 0;
+    for (const auto& s : spheres) {
+        for (int i = 0; i < 200; i++) {
+            // points on and in the sphere, spread by a fixed sequence
+            const float a = 0.37f * i, p = 0.53f * i, k = (i % 5 + 1) / 5.0f;
+            const Input::Vec3f d{std::cos(a) * std::sin(p), std::sin(a) * std::sin(p), std::cos(p)};
+            const Input::Vec3f q = Input::Transform(to_eye, s.centre + d * (s.radius * k));
+            const float u = (q.x / -q.z - tl) / (tr - tl), v = (tu - q.y / -q.z) / (tu - td);
+            if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+                continue; // out of the image
+            }
+            inside++;
+            CHECK(u >= (*b)[0] - 1e-5f);
+            CHECK(u <= (*b)[2] + 1e-5f);
+            CHECK(v >= (*b)[1] - 1e-5f);
+            CHECK(v <= (*b)[3] + 1e-5f);
+        }
+    }
+    CHECK(inside > 300);
+    // Behind the eye: none. At the eye: all of the image.
+    const ModelSphere behind{ahead(0.0f, 0.0f, -0.5f), kControllerSphere};
+    CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, &behind, 1, 0.05f));
+    const ModelSphere at_eye{ahead(0.0f, -0.1f, 0.2f), kControllerSphere};
+    const auto all = ModelsViewBounds(eye, al, ar, au, ad, &at_eye, 1, 0.05f);
+    REQUIRE(all);
+    CHECK(*all == std::array<float, 4>{0.0f, 0.0f, 1.0f, 1.0f});
+    // None shown: none.
+    CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, nullptr, 0, 0.05f));
 }

@@ -322,6 +322,7 @@ Hold **View** and pull the right trigger to run the game at Azahar's turbo speed
 Global only:
 
 - **Show Controllers** (on by default) shows the Frame controllers in your hands, with the buttons and sticks moving. A controller you put down fades out after 30 seconds, and its beam after 4. The models are made from SteamVR's own when you install. If they are missing, the launcher makes them in the background and they show from the next start.
+- **Controllers in Front of Screen** (**Both** by default) shows the controllers in front of a screen when they are nearer to you than it: the **Primary** Screen, the **Secondary** Screen or **Both**, named as in **Detach Screens**. **Off** keeps them behind the screens and menus, as before.
 - **Show Stats** (off by default) shows the frame rate, the emulation speed, the frame times, the CPU load and the GPU clock while a game runs. **Stats Position** puts them in front of you (grab them with a grip to move them) or on your left wrist. The **Stats** button above Azahar's window switches it as well.
 
 ### Immersive mode

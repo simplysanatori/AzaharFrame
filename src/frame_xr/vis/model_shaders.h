@@ -186,4 +186,42 @@ void main() {
 }
 )";
 
+// AzaharFrame ctrlfront: a screen or panel the controllers may go behind (model_plane.h
+// Occluder), into the depth buffer, before the models: its colour is the cleared nothing again
+// (kOccluderFrag), written whole so Turnip keeps its low-resolution depth (LRZ) for the models: a
+// depth-only draw with no colour written left it invalid for the rest of the pass, about 0.2 ms
+// a picture on the Frame. A triangle strip of
+// 2 x (segments + 1) vertices, the same as OccluderVertex. eye.x above 0.5 (Occluder::always): at
+// the nearest depth, so it covers the controllers wherever they are.
+inline constexpr const char* kOccluderVert = R"(
+layout(push_constant) uniform PC {
+    mat4 mvp;    // proj * view * the occluder's pose (OpenGL clip space, as the models)
+    vec4 eye;    // x: above 0.5, at the nearest depth (covers the controllers wherever they are)
+    vec4 key;
+    vec4 up;
+    vec4 params; // x: width, y: height (metres), z: curve radius (0: flat), w: segments
+} pc;
+
+void main() {
+    int segments = max(int(pc.params.w + 0.5), 1);
+    float u = float(gl_VertexIndex / 2) / float(segments);
+    float y = ((gl_VertexIndex % 2) == 0 ? -0.5 : 0.5) * pc.params.y;
+    vec3 p = vec3((u - 0.5) * pc.params.x, y, 0.0);
+    if (pc.params.z > 0.0) {
+        float a = (u - 0.5) * pc.params.x / pc.params.z;
+        p = vec3(pc.params.z * sin(a), y, pc.params.z * (1.0 - cos(a)));
+    }
+    vec4 c = pc.mvp * vec4(p, 1.0);
+    gl_Position = vec4(c.x, -c.y, pc.eye.x > 0.5 ? 0.0 : 0.5 * (c.z + c.w), c.w);
+}
+)";
+
+inline constexpr const char* kOccluderFrag = R"(
+layout(location = 0) out vec4 fragColor;
+
+void main() {
+    fragColor = vec4(0.0); // what the pass clears to: nothing round the models
+}
+)";
+
 } // namespace FrameXr::Vis::Shaders

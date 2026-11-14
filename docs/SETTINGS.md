@@ -25,6 +25,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Window Scale](#window-scale) | **100%**, **150%**, **200%** | 150% | global | when you press **OK** |
 | [Motion Controls](#motion-controls) | **Off**, **Right Controller**, **Left Controller**, **Headset** | Right Controller (Kid Icarus: Uprising: Off) | global and per game | at once, or next VR start from Off |
 | [Show Controllers](#show-controllers) | on or off | on | global | at once |
+| [Controllers in Front of Screen](#controllers-in-front-of-screen) | **Off**, **Primary**, **Secondary**, **Both** | Both | global | at once |
 | [Show Stats](#show-stats) | on or off | off | global | at once |
 | [Stats Position](#stats-position) | **In Front**, **On Wrist** | In Front | global | at once |
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
@@ -91,6 +92,10 @@ It can be set for one game on the in-game menu's **Settings** tab, in **General*
 ## Show Controllers
 
 Shows the Frame controllers in your hands, with their buttons and sticks moving. A controller you put down fades out after 30 seconds.
+
+## Controllers in Front of Screen
+
+Shows the controllers, and a weapon in your hand, in front of a screen when they are nearer to you than it, so a hand held up in front of a screen stays in front and one reaching behind it goes behind. **Primary** and **Secondary** name the screens as **Detach Screens** does (after a swap the Secondary Screen is the top screen); the screen left out covers the controllers wherever they are. **Both** does it for both screens. **Off** keeps the controllers behind every screen and menu, as before. With any choice but **Off**, the menus, the keyboard and the stats go by distance too, so a controller pointing at a menu shows in front of it; messages never cover the controllers, and neither does the immersive screen (what it shows is far away) unless the choice leaves it out. It is on the in-game menu's **Settings** tab, under **Show Controllers**, while that is on.
 
 ## Show Stats
 

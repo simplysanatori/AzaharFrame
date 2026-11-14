@@ -5,8 +5,10 @@
 // AzaharFrame
 // The Steam Frame controllers drawn in VR ("Show Controllers"): SteamVR's own models of them
 // (model_file.h), lit as in Moonlight XR Native and with their buttons, sticks and triggers
-// following the controls, in a projection layer of their own that goes over the screens and the
-// panels (a controller held up in front of a screen is never lost behind it).
+// following the controls. AzaharFrame ctrlfront: one image, submitted as two eye quads over the
+// screens and panels, cut where a screen or panel is nearer or the choice keeps a screen in
+// front ("Controllers in Front of Screen": Primary, Secondary, Both), or as a projection
+// layer of its own, which SteamVR puts under every quad (Off); model_plane.h explains why.
 //
 // This is the one part of frame_xr that renders on the XR thread while a game runs, so it keeps
 // to the rules the screens keep: it never waits for the GPU on the XR thread, it holds the queue
@@ -34,6 +36,7 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/types.h"
 #include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/model_plane.h"  // AzaharFrame ctrlfront
 #include "frame_xr/vis/muzzle_flash.h" // AzaharFrame kiuflash
 #include "frame_xr/vis/weapon_fit.h"   // AzaharFrame kiuguns
 
@@ -72,20 +75,32 @@ public:
 
     /// XR thread, each frame while models are wanted (anything shown or not): reads the files
     /// the first time, sets up the GPU side, releases a finished image and draws the next one.
-    void Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands);
+    /// AzaharFrame ctrlfront: `choice`, how the image goes out; `occluders` (not Off): the
+    /// screens and panels whose depth the next image is drawn against.
+    void Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands,
+               ControllersInFront choice = ControllersInFront::Off,
+               const std::vector<Occluder>& occluders = {});
     /// AzaharFrame kiuguns: the weapon's muzzle in `hand`'s aim space, while the weapon is drawn
     /// there (Laser Sight's beam starts at it); the fit of the last Frame.
     std::optional<std::array<float, 3>> WeaponMuzzle(int hand) const {
         return hand == muzzle_hand ? muzzle : std::nullopt;
     }
-    /// The layer for this frame's xrEndFrame, or null. Valid until the next Frame.
+    /// The layer for this frame's xrEndFrame, or null (also when the image goes out as the eye
+    /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
+    /// AzaharFrame ctrlfront: the image as two quads, the left eye's and the right eye's
+    /// (any choice but Off); false when there is none this frame.
+    bool EyeQuads(std::array<Quad, 2>& out) const;
     /// XR thread, before the session ends: everything on the GPU (the files stay read).
     void DestroyXr();
 
 private:
     void Setup(Runtime& rt);
-    void Record(const ViewPose& views, const std::array<Hand, 2>& hands);
+    void Record(const ViewPose& views, const std::array<Hand, 2>& hands,
+                const std::vector<Occluder>& occluders);
+    /// AzaharFrame ctrlfront: the pass's GPU time (timestamps), read once the image's fence has
+    /// signalled; logged every kGpuLogSeconds while the models show.
+    void NoteGpuTime(int64_t now_ns);
     /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
     void UpdateWeapon(int id);
     void UploadWeapon();
@@ -111,6 +126,7 @@ private:
     std::thread loader;
     std::atomic<int> load_state{0}; ///< 0 not started, 1 reading, 2 read, 3 failed
     bool layer_ready = false;
+    ControllersInFront over_ = ControllersInFront::Off; ///< AzaharFrame ctrlfront: this frame's
 };
 
 } // namespace FrameXr::Vis
