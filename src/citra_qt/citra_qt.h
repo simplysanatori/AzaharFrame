@@ -379,6 +379,9 @@ private slots:
     bool WindowFullscreen() const; ///< AzaharFrame flat3: the game's window is Fullscreen
     /// AzaharFrame tabmenu: a button or setting of the in-game menu in VR (frame_xr/menu_panel.h).
     void FrameMenuRequest(const FrameXr::MenuRequest& r);
+    /// AzaharFrame natural: the 3D Factor shortcuts in VR in the Full modes step their own 3D
+    /// Depth; false when they do not apply (Normal and Wide: the 3DS 3D Depth).
+    bool FrameStepImmersiveDepth(int step);
     void ToggleWindowMode();
     void OnCreateGraphicsSurfaceViewer();
     void OnRecordMovie();

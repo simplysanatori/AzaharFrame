@@ -184,6 +184,8 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/frontend/emu_window.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/immersive.h" // AzaharFrame integ8: DepthChangeToast
+#include "frame_xr/immersive_layout.h" // AzaharFrame natural: NaturalDepthPercent
+#include "frame_xr/immersive_names.h"
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
 #include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
@@ -411,6 +413,9 @@ std::function<void()> g_frame_xr_quick_save;
 // AzaharFrame widerview: the per-application config of the game on view (BootGame), which
 // FrontendHooks::game_setting_changed saves.
 std::string g_frame_game_config_name;
+// AzaharFrame natural: a 3D Depth MenuRequest from the 3D Factor shortcuts (MenuRequest::text):
+// FrameMenuRequest takes it with the in-game menu closed.
+constexpr const char* kFrameDepthShortcut = "3d-factor-shortcut";
 std::function<void()> g_frame_xr_quick_load;
 // AzaharFrame tabmenu: the in-game menu's requests (FrontendHooks::menu_request). GUI thread.
 std::function<void(const FrameXr::MenuRequest&)> g_frame_xr_menu_request;
@@ -2706,6 +2711,11 @@ void GMainWindow::InitializeHotkeys() {
     // variable hold a garbage value after this function exits
     static constexpr u16 FACTOR_3D_STEP = 5;
     connect_shortcut(QStringLiteral("Decrease 3D Factor"), [this] {
+#ifdef ENABLE_FRAME_XR
+        if (FrameStepImmersiveDepth(-static_cast<int>(FACTOR_3D_STEP))) {
+            return; // AzaharFrame natural: the Full modes' own 3D Depth
+        }
+#endif
         const auto factor_3d = Settings::values.factor_3d.GetValue();
         if (factor_3d > 0) {
             if (factor_3d % FACTOR_3D_STEP != 0) {
@@ -2718,6 +2728,11 @@ void GMainWindow::InitializeHotkeys() {
         }
     });
     connect_shortcut(QStringLiteral("Increase 3D Factor"), [this] {
+#ifdef ENABLE_FRAME_XR
+        if (FrameStepImmersiveDepth(FACTOR_3D_STEP)) {
+            return; // AzaharFrame natural: the Full modes' own 3D Depth
+        }
+#endif
         const auto factor_3d = Settings::values.factor_3d.GetValue();
         if (factor_3d < 255) {
             if (factor_3d % FACTOR_3D_STEP != 0) {
@@ -4901,6 +4916,39 @@ bool GMainWindow::WindowFullscreen() const {
 }
 
 #ifdef ENABLE_FRAME_XR
+// AzaharFrame natural: in VR in the Full modes, the Increase/Decrease 3D Factor shortcuts step
+// the Full modes' own 3D Depth (vr_immersive_depth) by `step` percent, as the in-game menu's 3D
+// Depth row would: this game's own value when it has one (also when its own 3DS 3D Depth of 0
+// keeps it flat, NaturalDepthPercent), else the global one; saved, with a toast. Normal and Wide
+// keep the 3DS 3D Depth (factor_3d). False when not in a Full mode in VR.
+bool GMainWindow::FrameStepImmersiveDepth(int step) {
+    auto& v = Settings::values;
+    if (!emulation_running || !FrameXr::IsStarted() || v.vr_immersive_mode.GetValue() < 2 ||
+        step == 0) {
+        return false;
+    }
+    const int now = static_cast<int>(FrameXr::Immersive::Layout::NaturalDepthPercent(
+        !v.vr_immersive_depth.UsingGlobal(), v.vr_immersive_depth.GetValue(),
+        !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue()));
+    // To the next multiple of the step, as the 3DS shortcuts do.
+    const int off = now % std::abs(step);
+    const int next = std::clamp(off != 0 && step < 0 ? now - off
+                                : off != 0           ? now + std::abs(step) - off
+                                                     : now + step,
+                                0, 100);
+    FrameXr::MenuRequest r;
+    r.command = FrameXr::MenuCommand::SetSetting;
+    r.setting = FrameXr::MenuSetting::Depth3d;
+    r.value = next;
+    r.per_game = !g_frame_game_config_name.empty() &&
+                 (!v.vr_immersive_depth.UsingGlobal() ||
+                  (!v.factor_3d.UsingGlobal() && v.factor_3d.GetValue() == 0));
+    r.text = kFrameDepthShortcut;
+    FrameMenuRequest(r);
+    FrameXr::ShowToastText(FrameXr::Immersive::Names::DepthToast(static_cast<unsigned>(next)));
+    return true;
+}
+
 // AzaharFrame tabmenu: what the in-game menu's buttons and settings do. The XR thread has set a
 // setting already (the menu shows it at once); here it is set again and saved.
 void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
@@ -4908,8 +4956,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     using S = FrameXr::MenuSetting;
     // AzaharFrame fovonce: Match Game Camera's Set Once value comes while the game plays.
     // AzaharFrame natural: and World Scale set by the grips or the migration, while it plays.
-    const bool measured_fov = r.command == C::SetSetting && (r.setting == S::MeasuredGameFov ||
-                                                             r.setting == S::WorldScaleSaved);
+    // AzaharFrame natural: and the Full modes' 3D Depth stepped by the 3D Factor shortcuts.
+    const bool measured_fov =
+        r.command == C::SetSetting &&
+        (r.setting == S::MeasuredGameFov || r.setting == S::WorldScaleSaved ||
+         (r.setting == S::Depth3d && r.text == kFrameDepthShortcut));
     if (!emulation_running ||
         (!measured_fov && (!g_frame_mirror || !g_frame_mirror->MenuOpen()))) {
         return;

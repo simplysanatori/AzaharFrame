@@ -108,6 +108,12 @@ inline constexpr const char* kWorldScaleFollowsToast = "World Scale Follows Scre
 inline constexpr const char* kDepth3dWindowTip =
     "How deep the 3D looks. The Full modes use Immersive 3D Depth.";
 
+/// AzaharFrame natural: the toast when the 3D Factor shortcuts change the Full modes' 3D Depth:
+/// "3D Depth: 45%".
+inline std::string DepthToast(unsigned percent) {
+    return std::string(kDepth3d) + ": " + std::to_string(percent > 100 ? 100 : percent) + "%";
+}
+
 /// AzaharFrame integ8: the toast when 3D Depth changes (the VR menu's slider or a shortcut) in
 /// mode 2 and the cap applies: "3D Depth: 30% (Limited to 8%)", in whole percents. `limit` is
 /// the cap's limit in slider units (below 0: none known), `depth_scale` the share of 3D Depth the
