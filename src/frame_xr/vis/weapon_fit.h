@@ -115,6 +115,20 @@ FitMat RotationBetween(const std::array<float, 3>& pivot, const std::array<float
 /// The class's default scale (metres per game unit).
 float FitClassScale(int cls);
 
+/// AzaharFrame kiufix: Weapon Size (vr_light_gun_weapon_size, per game): Game Size, the class's
+/// fit as the game has it next to Pit's hand (as before); Hand Size, a weapon longer than its
+/// class's hand-held length (kHandSizeCapM: 35 to 45 cm) brought down to it, smaller ones left
+/// as they are. Weapon Scale (vr_light_gun_weapon_scale, 50 to 150 %) on top. The factor goes on
+/// the fit's scale (FitOverride::scale), which scales about the grip: the grip stays in the palm
+/// and the muzzle on the ray (FitWeaponToHand puts it there at any scale).
+enum class WeaponSize : uint8_t { Game = 0, Hand = 1 };
+float HandSizeCapM(int cls);
+/// The factor on the fit's scale. `bounds_*`: the model's (weapon space); `fit_scale`: the class's
+/// scale times any live tune (metres per unit).
+float WeaponSizeFactor(int cls, const std::array<float, 3>& bounds_min,
+                       const std::array<float, 3>& bounds_max, float fit_scale, WeaponSize size,
+                       int scale_percent);
+
 /// A small motion of the parts that float (aim space, metres; added to the fit's place, never
 /// turning anything, so the aim is not disturbed), from the time alone: the orbitars circle
 /// 1.5 cm across the ray every 2.6 s and bob 1 cm every 2.1 s, the two halves opposite; a

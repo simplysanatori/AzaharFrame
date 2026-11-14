@@ -24,8 +24,9 @@
 
 namespace FrameXr::Kiu {
 
-/// XR thread, each frame: what to read (installs the hook the first time).
-void SetWanted(bool weapon, bool shots);
+/// XR thread, each frame: what to read (installs the hook the first time). AzaharFrame kiufix:
+/// `scheme`, the game's control scheme (ControlScheme).
+void SetWanted(bool weapon, bool shots, bool scheme = false);
 
 /// XR thread: the settled weapon id, or -1 (none, not known, not wanted).
 int EquippedWeapon();
@@ -33,5 +34,12 @@ int EquippedWeapon();
 bool ShotsReadable();
 /// XR thread: the shots seen since the start (grows by the shots of each read).
 uint64_t ShotTotal();
+
+/// AzaharFrame kiufix: the game's own control scheme (its options, the object the shots record
+/// is in: kiu_scan.h kOptionsScheme), read 4 times a second while wanted: 0 C-Stick, 1 the
+/// C-Stick & Gyro mod's gyro (the only one Direct Aim and Gyro Aim work with), 3 Circle Pad; -1
+/// not known (not wanted, not read yet, not readable). Aiming's hint uses it: the gyro is not
+/// polled at all in another scheme, so Light Gun's own probe never runs there and cannot tell.
+int ControlScheme();
 
 } // namespace FrameXr::Kiu

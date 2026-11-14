@@ -30,6 +30,9 @@ class QWidget;
 namespace Core::CrashReport {
 struct Report;
 }
+namespace Core::AngelsReport {
+struct Info;
+}
 
 namespace FrameCrashDialog {
 
@@ -53,6 +56,10 @@ struct ProblemContext {
 
 /// Report a Problem, over `parent` (in VR Azahar's window shows it).
 void ShowReportProblem(QWidget* parent, const ProblemContext& context);
+/// AzaharFrame kiumenus: Angel's Aim's Send Report (the Mods tab's segment): Bug or Idea, a short
+/// text on the VR keyboard, one line of consent, then Send Report. Nothing goes without that tap.
+void ShowAngelsAimReport(QWidget* parent, const Core::AngelsReport::Info& info);
+QDialog* MakeAngelsAimReport(QWidget* parent, const Core::AngelsReport::Info& info);
 /// About Azahar for Frame: the version and build, GitHub and Ko-fi, and the credits
 /// (THIRD_PARTY_NOTICES.md next to the program). Links open in Flat; VR shows them as text.
 void ShowAbout(QWidget* parent);

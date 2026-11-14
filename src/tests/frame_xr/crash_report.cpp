@@ -459,3 +459,73 @@ TEST_CASE("Crash report: IP and MAC addresses out of the log", "[frame_xr]") {
                              "Core::System::Run cafe:babe 2026-11-12 Pushmo.cci 999.1.1.1";
     REQUIRE(CR::ScrubNetwork(keep) == keep);
 }
+
+// AzaharFrame kiumenus: Angel's Aim's Send Report payload
+#include "core/frame_angels_report.h"
+
+TEST_CASE("Angel's Aim report: the payload has the fields and nothing of the machine",
+          "[crashreport][kiumenus]") {
+    using namespace Core::AngelsReport;
+    Info info;
+    info.app_version = "1.1.1-524 test";
+    info.title_id = 0x0004000000030600;
+    info.title = "Kid Icarus: Uprising";
+    info.region = "Europe";
+    info.game_version = "1.0";
+    info.mod_installed = true;
+    info.aiming = 2;
+    info.weapon_in_hand = true;
+    info.laser_sight = true;
+    info.recoil = true;
+    info.recoil_charged = 100;
+    info.recoil_rapid = 50;
+    info.immersive = true;
+    Core::CrashReport::Scrubber scrub;
+    scrub.home = "/home/someone";
+    scrub.user = "someone";
+    scrub.host = "somebox";
+    const auto f = BuildPayload(Type::Bug,
+                                "The laser is off at /home/someone/Games/x on somebox, by someone\nmore",
+                                info, scrub);
+    const auto tag = [&](const std::string& k) -> std::string {
+        for (const auto& [key, v] : f.tags) {
+            if (key == k) {
+                return v;
+            }
+        }
+        return "<none>";
+    };
+    CHECK(tag("area") == "angels-aim");
+    CHECK(tag("type") == "bug");
+    CHECK(tag("title_id") == "0004000000030600");
+    CHECK(tag("game_region") == "Europe");
+    CHECK(tag("cstick_gyro_mod") == "installed");
+    CHECK(tag("aiming") == "Direct Aim");
+    CHECK(tag("immersive") == "On");
+    CHECK(f.message.rfind("Angel's Aim Bug: ", 0) == 0);
+    std::string all = f.message + f.comments;
+    for (const auto& [k, v] : f.tags) {
+        all += k + v;
+    }
+    bool settings = false, version = false;
+    for (const auto& [k, v] : f.extra) {
+        all += k + v;
+        settings |= k == "settings" && v.find("Laser Sight: On") != std::string::npos &&
+                    v.find("Immersive Mode: On") != std::string::npos &&
+                    v.find("Weapon in Hand: On") != std::string::npos;
+        version |= k == "app_version" && v == "1.1.1-524 test";
+    }
+    CHECK(settings);
+    CHECK(version);
+    CHECK(all.find("/home/someone") == std::string::npos);
+    CHECK(all.find("somebox") == std::string::npos);
+    CHECK(all.find("someone") == std::string::npos);
+    CHECK(f.comments.find("more") != std::string::npos);
+    // an idea with no words: a title only, no feedback text
+    const auto idea = BuildPayload(Type::Idea, "  \n", info, scrub);
+    CHECK(idea.message == "Angel's Aim Idea");
+    CHECK(idea.comments.empty());
+    CHECK(std::string(TypeKey(Type::Idea)) == "idea");
+    // long text is cut
+    CHECK(BuildPayload(Type::Bug, std::string(5000, 'a'), info, scrub).comments.size() == 2000);
+}

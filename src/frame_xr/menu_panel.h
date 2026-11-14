@@ -54,6 +54,12 @@ public:
         std::function<void(const MenuRequest&)> request; ///< to the Qt side
         std::function<void()> reset_position;
         std::function<void()> swap_screens;
+        /// AzaharFrame kiufix: Calibrate Aim (Direct Aim): start it (the menu then closes), and
+        /// its Reset (the game's calibration goes); whether the game has one, whether it can.
+        std::function<void()> calibrate_aim;
+        std::function<void()> reset_aim_calibration;
+        bool aim_calibrated = false;
+        bool aim_calibration_ok = false;
         bool curve_ok = true;       ///< the runtime takes cylinder layers (Screen Curve)
         bool passthrough_ok = true; ///< the runtime offers passthrough (Background)
     };
@@ -126,6 +132,7 @@ private:
     std::vector<std::pair<std::string, std::string>> stats;
     int scope = 0;
     int controls_page = 0;
+    bool scroll_to_aiming = false; ///< AzaharFrame kiufix: Angel's Aim's Aiming Settings
     std::array<bool, 2> trigger_down{};
     bool a_down = false, b_down = false;
     int active_hand = 1;

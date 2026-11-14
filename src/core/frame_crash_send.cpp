@@ -188,7 +188,7 @@ std::string Hex(u64 v) {
 // After Sentry has merged its scope into the event: only what the report shows stays. The
 // modules of the crashed run replace the ones of this process.
 sentry_value_t BeforeSend(sentry_value_t event, sentry_hint_t*, void* data) {
-    const auto* r = static_cast<const Report*>(data);
+    const auto* r = static_cast<const Report*>(data); // null for a Feedback
     for (const char* key : {"contexts", "user", "server_name", "breadcrumbs", "modules",
                             "debug_meta", "threads", "request"}) {
         sentry_value_remove_by_key(event, key);
@@ -212,7 +212,7 @@ sentry_value_t BeforeSend(sentry_value_t event, sentry_hint_t*, void* data) {
     sentry_value_set_by_key(sdk_settings, "infer_ip", Str("never"));
     sentry_value_set_by_key(sdk, "settings", sdk_settings);
     sentry_value_set_by_key(event, "sdk", sdk);
-    if (!r->modules.empty()) {
+    if (r != nullptr && !r->modules.empty()) {
         sentry_value_t images = sentry_value_new_list();
         for (const Module& m : r->modules) {
             sentry_value_t image = sentry_value_new_object();
@@ -368,9 +368,79 @@ SendResult Send(const Report& r, const std::string& dsn_text, const std::string&
     return result;
 }
 
+SendResult SendFeedback(const Feedback& f, const std::string& dsn_text, const std::string& work_dir) {
+    std::scoped_lock lock{g_send_mutex};
+    SendResult result;
+    Transport transport_state;
+    transport_state.result = &result;
+    if (!ParseDsn(dsn_text, transport_state.dsn)) {
+        result.error = "No Place to Send To";
+        return result;
+    }
+    const std::string db = work_dir + "/sentry-db";
+    std::error_code ec;
+    std::filesystem::create_directories(db, ec);
+    sentry_options_t* options = sentry_options_new();
+    sentry_options_set_dsn(options, dsn_text.c_str());
+    const std::string release = f.release.empty() ? ReleaseName() : f.release;
+    sentry_options_set_release(options, release.c_str());
+    sentry_options_set_environment(options, Environment().c_str());
+    sentry_options_set_database_path(options, db.c_str());
+    sentry_options_set_auto_session_tracking(options, 0);
+    sentry_options_set_send_client_reports(options, 0);
+    sentry_options_set_symbolize_stacktraces(options, 0);
+    sentry_options_set_max_breadcrumbs(options, 0);
+    sentry_options_set_shutdown_timeout(options, 2000);
+    sentry_options_set_before_send(options, &BeforeSend, nullptr);
+    sentry_transport_t* transport = sentry_transport_new(&SendEnvelope);
+    sentry_transport_set_state(transport, &transport_state);
+    sentry_options_set_transport(options, transport);
+    if (sentry_init(options) != 0) {
+        result.error = "Couldn't Start Sending";
+        std::filesystem::remove_all(db, ec);
+        return result;
+    }
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(event, "level", Str("info"));
+    sentry_value_t message = sentry_value_new_object();
+    sentry_value_set_by_key(message, "formatted", Str(f.message));
+    sentry_value_set_by_key(event, "message", message);
+    sentry_value_t tags = sentry_value_new_object();
+    for (const auto& [k, v] : f.tags) {
+        sentry_value_set_by_key(tags, k.c_str(), Str(v));
+    }
+    sentry_value_set_by_key(event, "tags", tags);
+    sentry_value_t extra = sentry_value_new_object();
+    for (const auto& [k, v] : f.extra) {
+        sentry_value_set_by_key(extra, k.c_str(), Str(v));
+    }
+    sentry_value_set_by_key(event, "extra", extra);
+    const sentry_uuid_t id = sentry_capture_event(event);
+    if (!f.comments.empty()) {
+        sentry_capture_feedback(
+            sentry_value_new_feedback(f.comments.c_str(), nullptr, nullptr, &id));
+    }
+    sentry_close();
+    char id_text[37] = {};
+    sentry_uuid_as_string(&id, id_text);
+    if (result.ok) {
+        result.event_id = id_text;
+    } else if (result.error.empty()) {
+        result.error = "Nothing Was Sent";
+    }
+    std::filesystem::remove_all(db, ec);
+    return result;
+}
+
 #else
 
 SendResult Send(const Report&, const std::string&, const std::string&) {
+    SendResult result;
+    result.error = "Sending Isn't Built In";
+    return result;
+}
+
+SendResult SendFeedback(const Feedback&, const std::string&, const std::string&) {
     SendResult result;
     result.error = "Sending Isn't Built In";
     return result;

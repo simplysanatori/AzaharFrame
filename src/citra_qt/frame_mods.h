@@ -42,6 +42,7 @@
 #include "core/custom_tex/packs.h"
 #include "core/custom_tex/parts.h" // AzaharFrame texparts
 #include "core/mods/compat.h" // AzaharFrame compat
+#include "core/frame_angels_report.h" // AzaharFrame kiumenus
 #include "frame_xr/menu/mods_segments.h"
 
 namespace Mods {
@@ -152,6 +153,14 @@ private:
     std::shared_ptr<CustomTex::Layers::Game> layers; ///< the game's packs and list, from RefreshPacks
     void PollProgress();
     void PublishMods();
+    /// AzaharFrame kiufix: the Angel's Aim segment (Kid Icarus: Uprising only): the mod, the
+    /// packs, Report an Issue's page; again after the mods change.
+    void RefreshAngelsAim();
+public:
+    /// AzaharFrame kiumenus: what Angel's Aim's Send Report says of the game and the settings now.
+    Core::AngelsReport::Info AngelsAimInfo(const std::string& game_title);
+
+private:
     void PublishTextures();
     // AzaharFrame texparts: a pack's Customize page (core/custom_tex/parts.h)
     void OpenParts(const std::string& pack_id);
@@ -251,6 +260,7 @@ private:
     u64 title_id = 0;
     int run = -1;
     FrameXr::Menu::ModsListModel mods;
+    std::string angels_aim_report_url; ///< AzaharFrame kiufix: the one OpenUrl may open
     FrameXr::Menu::TexturesModel textures;
     std::vector<CustomTex::Pack> packs; ///< as listed, for Activate
     std::string installing;             ///< the mod an install runs for

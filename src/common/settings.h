@@ -951,6 +951,17 @@ struct Values {
     // each of the game's own shots (frame_xr/vis/muzzle_flash.h). Per game too. A new key: older
     // builds ignore it (a game's own value is mirrored in vr_controls_preset_done).
     SwitchableSetting<bool> vr_light_gun_flash{true, "vr_light_gun_flash"};
+    // AzaharFrame kiufix: Recoil's strength (percent of the full buzz): Charged Shot (a shot
+    // after a pause: the charged-shot heuristic) and Rapid Fire (the rest). Weapon Size: 0 Game
+    // Size (the fit as the game has it), 1 Hand Size (big weapons down to a hand-held length);
+    // Weapon Scale (percent) on top. Per game too. New keys: older builds ignore them; a game's
+    // own values are mirrored in vr_controls_preset_done (FrameXr::MirrorAimExtras).
+    SwitchableSetting<u32, true> vr_light_gun_recoil_charged{100, 0, 100,
+                                                             "vr_light_gun_recoil_charged"};
+    SwitchableSetting<u32, true> vr_light_gun_recoil_rapid{50, 0, 100, "vr_light_gun_recoil_rapid"};
+    SwitchableSetting<u32, true> vr_light_gun_weapon_size{0, 0, 1, "vr_light_gun_weapon_size"};
+    SwitchableSetting<u32, true> vr_light_gun_weapon_scale{100, 50, 150,
+                                                           "vr_light_gun_weapon_scale"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

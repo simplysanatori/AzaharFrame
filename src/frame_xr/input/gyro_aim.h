@@ -9,14 +9,19 @@
 // What the mod does with the 3DS gyroscope (its "gyro" control scheme only): once per game frame
 // it reads the latest HID gyroscope entry, takes z as the reticle's horizontal rate and x as its
 // vertical rate (degrees per second), subtracts a 0.25 deg/s dead zone, clamps them to +-360 and
-// feeds them, unnegated, into the same synthetic touch drag as its C-Stick: positive z moves the
-// reticle right, positive x moves it down. So its gyro is relative (a rate moves the reticle,
+// feeds them into the same synthetic touch drag as its C-Stick. Its signs are a real 3DS's
+// (Azahar's 3DS axes, motion.h): turning the console right reads negative z and moves the reticle
+// right, tilting its top away (aiming up) reads negative x and moves it up. AzaharFrame kiufix:
+// the first build sent positive z for a turn to the right (design.md read the drag's sign the
+// other way), so Gyro Aim went left when the hand went right; the owner's headset check of
+// 2026-11-14 found it, and the unit tests now hold Gyro Aim to Motion Controls' own axes. So its gyro is relative (a rate moves the reticle,
 // like a mouse) and, on the ground, the game's reticle box turns the camera when the drag runs
 // past it, exactly as with the C-Stick. A held touch stops both.
 //
 // Gyro Aim (Settings::values.vr_gyro_aim, per game):
-//   Gyro: the controller's yaw and pitch rates go to the mod (z = yaw to the right, x = pitch
-//     down), times Gyro Sensitivity. Its grip held pauses them (a clutch: the hand can move back
+//   Gyro: the controller's yaw and pitch rates go to the mod (z = yaw to the left, x = pitch
+//     down, as Motion Controls would send them for a 3DS held like the controller), times Gyro
+//     Sensitivity. Its grip held pauses them (a clutch: the hand can move back
 //     without moving the reticle; nothing jumps when it is let go).
 //   Light Gun: the reticle goes where the controller's ray hits the top screen. The app reads the
 //     reticle's place from the game (kiu_probe.h) and feeds the mod's gyro the rate that brings it
@@ -29,6 +34,9 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/input/types.h"
@@ -77,10 +85,12 @@ AimAngles AnglesOf(const Vec3f& direction);
 /// The aim pose's pointing direction (-Z of the pose).
 Vec3f AimDirection(const Posef& aim);
 
-/// The mod's gyroscope input, in the 3DS axes of the motion device (deg/s): x moves the reticle
-/// down, z moves it right, y is not read.
+/// The mod's gyroscope input, in the 3DS axes of the motion device (deg/s), as a 3DS turned that
+/// way reads it (motion.h: z toward the 3DS's top, so a turn to the right is negative z; x toward
+/// its left, so aiming down is positive x): positive x moves the reticle down, negative z moves
+/// it right, y is not read. AzaharFrame kiufix: z was +right before (left and right swapped).
 constexpr Vec3f ModGyro(float right_dps, float down_dps) {
-    return {down_dps, 0.0f, right_dps};
+    return {down_dps, 0.0f, -right_dps};
 }
 
 /// The mod's own numbers (design.md, fact 3).
@@ -142,27 +152,96 @@ struct LightGunTarget {
 };
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 
-/// Light Gun's laser sight (the red beam and dot, vis/beam.h): only while Light Gun steers the
-/// reticle: Light Gun on, a game on view with the menu closed, the reticle read from the game
-/// (locked, not fallen back to Gyro), and the ray on the top screen. Otherwise the usual beam.
-constexpr bool LaserSight(GyroAimMode mode, bool in_game, bool locked,
-                          const LightGunTarget& target) {
-    return mode == GyroAimMode::LightGun && in_game && locked && target.valid &&
-           target.u >= 0.0f && target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
+/// AzaharFrame kiufix: Calibrate Aim (per game, optional). Light Gun's target is where the ray
+/// hits the top screen; this maps that point to where the player means it, per axis, as
+/// u' = a + b u (and v the same), from the player's own pointing: the top screen's centre, then
+/// (optionally) its top-left and bottom-right corners, each confirmed with the aiming
+/// controller's grip. The centre alone corrects an offset (b = 1); with the corners, a line is
+/// fitted through the three (least squares), which corrects the scale too. Computed live from
+/// what the player points at, never fitted to presets. Kept in a file of its own beside the
+/// game's settings file (config/custom/<title id>.aim, one line: AimCalibrationText), which
+/// older builds never read or write, so going back to one and forward again keeps it. Without
+/// one, the identity.
+struct AimCalibration {
+    bool set = false;
+    float au = 0.0f, bu = 1.0f; ///< u' = au + bu u
+    float av = 0.0f, bv = 1.0f;
+    bool scaled = false; ///< fitted with the corners (else an offset only)
+};
+/// The limits a calibration is kept within: an offset of at most half the screen, a scale of
+/// 0.5 to 2 (a point beyond them is a slip of the hand: that step is asked again).
+inline constexpr float kCalibrationMaxOffset = 0.5f;
+inline constexpr float kCalibrationMinScale = 0.5f;
+inline constexpr float kCalibrationMaxScale = 2.0f;
+LightGunTarget ApplyCalibration(const AimCalibration& c, const LightGunTarget& t);
+/// From the points pointed at (raw u, v) for the wanted ones (0.5, 0.5), (0, 0), (1, 1): the
+/// centre alone, or all three. Returns nothing when the result is out of the limits.
+std::optional<AimCalibration> FitCalibration(const std::vector<Vec2f>& raw,
+                                             const std::vector<Vec2f>& wanted);
+/// The calibration as one line of text and back ("v1 au bu av bv scaled"); bad text: none.
+std::string AimCalibrationText(const AimCalibration& c);
+AimCalibration AimCalibrationFrom(const std::string& text);
+
+/// The steps of Calibrate Aim, each a grip press of the aiming controller with its ray on the
+/// top screen: the centre, then the top-left and bottom-right corners. After the centre an
+/// offset-only calibration is ready (kept even if the player stops there).
+class AimCalibrationFlow {
+public:
+    enum class Step : uint8_t { Off, Centre, TopLeft, BottomRight };
+    struct Out {
+        bool changed = false;             ///< the step changed (a prompt to show)
+        std::optional<AimCalibration> result; ///< a calibration to keep (after each step)
+        bool retry = false;               ///< a press that did not fit: the step is asked again
+    };
+    void Start();
+    void Stop() {
+        step_ = Step::Off;
+    }
+    Step step() const {
+        return step_;
+    }
+    bool active() const {
+        return step_ != Step::Off;
+    }
+    /// Each frame while active: the grip (0 to 1) and the raw target (no calibration).
+    Out Update(float grip, const LightGunTarget& raw);
+
+private:
+    Step step_ = Step::Off;
+    GripClutch grip_;
+    bool was_held_ = true; ///< a grip held at the start is no press
+    std::vector<Vec2f> raw_;
+};
+/// AzaharFrame kiufix: the world point at (u, v) of a screen as drawn (flat or curved, as
+/// IntersectQuad reads them back): where Light Gun's calibrated target is, for the laser's dot.
+Vec3f PointOnQuad(const PanelQuad& quad, float u, float v);
+/// The prompt for a step (a toast), and the one when it is done.
+const char* AimCalibrationPrompt(AimCalibrationFlow::Step step);
+inline constexpr const char* kAimCalibratedToast = "Aim Calibrated";
+inline constexpr const char* kAimCalibrationRetryToast = "Calibrate Aim: Try That Point Again";
+
+/// Light Gun's laser sight (the red beam and dot, vis/beam.h): Direct Aim (Light Gun) on, a game
+/// on view with the menu closed, and the ray on the top screen. AzaharFrame kiufix: no longer
+/// only while the reticle is read from the game (locked): Direct Aim that had fallen back to Gyro
+/// (the game's controls not on gyro, say) showed no beam at all, so Laser Sight looked broken.
+constexpr bool LaserSight(GyroAimMode mode, bool in_game, const LightGunTarget& target) {
+    return mode == GyroAimMode::LightGun && in_game && target.valid && target.u >= 0.0f &&
+           target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
 }
 
 /// AzaharFrame kiuguns: the aiming hand's beam in a game. Laser Sight (vr_light_gun_laser, per
 /// game, off by default): on, Direct Aim's red laser while LaserSight holds; off, no beam or dot
 /// where the ray meets the top screen (the game's reticle shows the aim), with Direct Aim and
 /// with the weapon in hand in any aiming. The bottom screen, menus and the room keep their beam.
+/// AzaharFrame kiufix: the laser no longer waits for the reticle's reading (LaserSight).
 struct AimBeam {
     bool laser = false;    ///< the red beam and dot (from the weapon's muzzle when it is shown)
     bool hide_top = false; ///< no beam or dot over the top screen
 };
 constexpr AimBeam AimBeamFor(GyroAimMode mode, bool laser_setting, bool weapon_shown,
-                             bool locked, const LightGunTarget& target) {
+                             const LightGunTarget& target) {
     AimBeam b;
-    b.laser = laser_setting && LaserSight(mode, true, locked, target);
+    b.laser = laser_setting && LaserSight(mode, true, target);
     b.hide_top = !laser_setting && (mode == GyroAimMode::LightGun || weapon_shown);
     return b;
 }
@@ -172,6 +251,26 @@ constexpr AimBeam AimBeamFor(GyroAimMode mode, bool laser_setting, bool weapon_s
 constexpr bool RecoilActive(int aim_hand, bool recoil_setting) {
     return aim_hand >= 0 && recoil_setting;
 }
+
+/// AzaharFrame kiufix: Direct Aim and Gyro Aim steer the reticle through the mod's gyro, which
+/// the game reads only in the mod's gyro control scheme (kiu_scan.h kSchemeGyro). In any other
+/// the controller does nothing to the reticle, silently (the owner's session of 2026-11-14 was in
+/// the C-Stick scheme throughout). The toast says so: when Aiming is on and the game's scheme is
+/// read and is not the gyro one, again only after it was the gyro one or Aiming was off, and at
+/// most once every kRepeatNs.
+inline constexpr const char* kAimNeedsGyroToast = "Aiming: Set the Game's Controls to Gyro";
+class AimSchemeHint {
+public:
+    static constexpr int64_t kRepeatNs = 120'000'000'000;
+    /// Each frame: Aiming on (a controller aims) in the game, the scheme read (-1 not known).
+    /// Returns true when the toast is to show now.
+    bool Update(int64_t now_ns, bool aiming, int scheme);
+
+private:
+    bool armed_ = true;
+    bool shown_once_ = false;
+    int64_t shown_ns_ = 0;
+};
 
 /// How deep (0 to 1) the target is in the Turn Zone on each side: x negative left, positive
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
@@ -189,7 +288,12 @@ Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);
 struct RecoilPulse {
     bool fire = false;
     int64_t duration_ns = 0;
+    bool charged = false; ///< AzaharFrame kiufix: the charged-shot heuristic's (a long pulse)
 };
+/// AzaharFrame kiufix: Recoil's strength for a pulse (0 to 1): Charged Shot's percent for a
+/// charged one, Rapid Fire's for the rest (vr_light_gun_recoil_charged / _rapid, per game; 100 %
+/// and 50 % by default). 0: no pulse.
+float RecoilAmplitude(const RecoilPulse& pulse, int charged_percent, int rapid_percent);
 class Recoil {
 public:
     static constexpr float kAmplitude = 1.0f;

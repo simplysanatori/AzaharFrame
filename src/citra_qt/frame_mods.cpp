@@ -43,7 +43,14 @@
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#include <cmath>
+#include "common/scm_rev.h"
+#include "core/frame_crash_send.h"
+#include "common/settings.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/controls_presets.h" // AzaharFrame kiufix: CStickModInstalled
+#include "frame_xr/kiu_scan.h"         // AzaharFrame kiufix: IsKidIcarus
+#include "frame_xr/menu/angels_aim_tab.h"
 #include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
 #include "frame_xr/menu/ctgp7_tab.h"   // AzaharFrame ctgp7
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
@@ -269,6 +276,8 @@ void FrameMods::Open(u64 title_id_, int run_) {
         PublishMods();
         PublishTextures();
         PublishZip();
+        angels_aim_report_url.clear(); // AzaharFrame kiufix: the segment goes with its game
+        FrameXr::SetInGameMenuAngelsAim({});
     }
     if (title_id == 0) {
         return;
@@ -290,6 +299,7 @@ void FrameMods::Open(u64 title_id_, int run_) {
     }
     RefreshLoaded();
     RefreshPacks();
+    RefreshAngelsAim(); // AzaharFrame kiufix
     if (!downloader) {
         downloader = std::make_shared<CustomTex::Download::Downloader>();
     }
@@ -558,6 +568,8 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         // the catalog (the menu asked "Open <host>?" first).
         bool known = !Menu::GithubLinkText(r.text).empty();
         known |= r.text == Menu::kCtgp7Website; // AzaharFrame ctgp7: Official Website
+        // AzaharFrame kiufix: Angel's Aim's Report an Issue (the page this side made)
+        known |= !angels_aim_report_url.empty() && r.text == angels_aim_report_url;
         for (const Menu::PackOffer& o : textures.downloads) {
             known |= o.url == r.text;
         }
@@ -615,7 +627,118 @@ void FrameMods::RefreshLoaded() {
                 mods.loaded.push_back(ToRow(info, catalog));
             }
             PublishMods();
+            RefreshAngelsAim(); // AzaharFrame kiufix: the mod may have come or gone
         });
+}
+
+// AzaharFrame kiufix: the Angel's Aim segment.
+namespace {
+/// A folder named `name` with a PNG in it, under `dir` (at most three levels down): the Kid
+/// Icarus: Uprising texture packs install as <title>/weapons/ and <title>/effects/.
+bool HasPackFolder(const std::filesystem::path& dir, const std::string& name) {
+    std::error_code ec;
+    std::filesystem::recursive_directory_iterator it(
+        dir, std::filesystem::directory_options::skip_permission_denied, ec);
+    for (; !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+        if (it.depth() > 3) {
+            it.disable_recursion_pending();
+            continue;
+        }
+        if (it->is_directory(ec) && it->path().filename() == name) {
+            std::error_code ec2;
+            for (const auto& f : std::filesystem::recursive_directory_iterator(it->path(), ec2)) {
+                if (f.path().extension() == ".png") {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+std::string AppVersion() {
+    std::error_code ec;
+    const auto exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    if (ec) {
+        return {};
+    }
+    std::ifstream f(exe.parent_path() / "VERSION");
+    std::string line;
+    std::getline(f, line);
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) {
+        line.pop_back();
+    }
+    return line;
+}
+} // namespace
+
+void FrameMods::RefreshAngelsAim() {
+    const u64 tid = title_id;
+    if (!FrameXr::Kiu::IsKidIcarus(tid)) {
+        angels_aim_report_url.clear();
+        FrameXr::SetInGameMenuAngelsAim({});
+        return;
+    }
+    const Mods::Compat::Game& g = GameInfo();
+    std::string game = g.region == Mods::Compat::Region::Unknown
+                           ? std::string("region unknown")
+                           : Mods::Compat::RegionName(g.region);
+    game += g.version ? " " + Mods::Compat::VersionText(*g.version) : std::string(" version unknown");
+    OffThread(
+        this,
+        [tid, game] {
+            Menu::AngelsAimModel m;
+            m.shown = true;
+            m.mod_installed = FrameXr::CStickModInstalled(tid);
+            const std::filesystem::path dir =
+                std::filesystem::path(CustomTex::DefaultPaths().load_dir) / "textures" /
+                fmt::format("{:016X}", tid);
+            m.weapons_pack = HasPackFolder(dir, "weapons");
+            m.effects_pack = HasPackFolder(dir, "effects");
+            m.report_url = Menu::AngelsAimReportUrl(AppVersion(), game, m.mod_installed);
+            return m;
+        },
+        [this, tid](const Menu::AngelsAimModel& m) {
+            if (tid != title_id) {
+                return;
+            }
+            angels_aim_report_url = m.report_url;
+            LOG_INFO(Frontend, "xr: Angel's Aim: the mod {}, weapon textures {}, effect textures {}",
+                     m.mod_installed ? "installed" : "not installed",
+                     m.weapons_pack ? "installed" : "not installed",
+                     m.effects_pack ? "installed" : "not installed");
+            FrameXr::SetInGameMenuAngelsAim(m);
+        });
+}
+
+Core::AngelsReport::Info FrameMods::AngelsAimInfo(const std::string& game_title) {
+    Core::AngelsReport::Info i;
+    const auto& v = Settings::values;
+    i.app_version = Common::g_build_fullname;
+    i.release = Core::CrashReport::ReleaseName();
+    i.title_id = title_id;
+    i.title = game_title;
+    const Mods::Compat::Game& g = GameInfo();
+    if (g.region != Mods::Compat::Region::Unknown) {
+        i.region = Mods::Compat::RegionName(g.region);
+    }
+    if (g.version) {
+        i.game_version = Mods::Compat::VersionText(*g.version);
+    }
+    i.mod_installed = FrameXr::CStickModInstalled(title_id);
+    i.aiming = static_cast<int>(v.vr_gyro_aim.GetValue());
+    i.weapon_in_hand = v.vr_light_gun_weapon.GetValue();
+    i.laser_sight = v.vr_light_gun_laser.GetValue();
+    i.recoil = v.vr_light_gun_recoil.GetValue();
+    i.recoil_charged = static_cast<int>(v.vr_light_gun_recoil_charged.GetValue());
+    i.recoil_rapid = static_cast<int>(v.vr_light_gun_recoil_rapid.GetValue());
+    i.weapon_size = static_cast<int>(v.vr_light_gun_weapon_size.GetValue());
+    i.weapon_scale = static_cast<int>(v.vr_light_gun_weapon_scale.GetValue());
+    i.gyro_sensitivity = static_cast<int>(std::lround(v.vr_gyro_sensitivity.GetValue() * 10.0f));
+    i.turn_zone = static_cast<int>(v.vr_light_gun_turn_zone.GetValue());
+    i.turn_speed = static_cast<int>(std::lround(v.vr_light_gun_turn_speed.GetValue() * 10.0f));
+    i.immersive = v.vr_immersive_mode.GetValue() != 0;
+    return i;
 }
 
 void FrameMods::RefreshMods() { // AzaharFrame ctgp7b

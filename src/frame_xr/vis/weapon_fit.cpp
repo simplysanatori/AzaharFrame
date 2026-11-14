@@ -257,6 +257,35 @@ float FitClassScale(int cls) {
     return cls >= 0 && cls < 9 ? kFits[cls].scale : 0.07f;
 }
 
+float HandSizeCapM(int cls) {
+    //                                blade  staff  claws  bow    palm   club   cannon orbit  arm
+    static constexpr float kCap[9] = {0.45f, 0.45f, 0.35f, 0.45f, 0.45f, 0.45f, 0.40f, 0.35f, 0.40f};
+    return cls >= 0 && cls < 9 ? kCap[cls] : 0.40f;
+}
+
+float WeaponSizeFactor(int cls, const std::array<float, 3>& bounds_min,
+                       const std::array<float, 3>& bounds_max, float fit_scale, WeaponSize size,
+                       int scale_percent) {
+    float f = 1.0f;
+    if (size == WeaponSize::Hand) {
+        float longest = 0.0f;
+        for (int k = 0; k < 3; k++) {
+            const float e = bounds_max[static_cast<std::size_t>(k)] -
+                            bounds_min[static_cast<std::size_t>(k)];
+            if (std::isfinite(e)) {
+                longest = std::max(longest, e);
+            }
+        }
+        const float metres = longest * fit_scale;
+        const float cap = HandSizeCapM(cls);
+        if (metres > cap && metres > 0.0f) {
+            f = cap / metres;
+        }
+    }
+    const int pct = std::clamp(scale_percent, 50, 150);
+    return f * static_cast<float>(pct) / 100.0f;
+}
+
 std::string FitSwitchName(int cls) {
     static constexpr const char* kNames[9] = {"BLADE",  "STAFF", "CLAWS",    "BOW", "PALM",
                                               "CLUB",   "CANNON", "ORBITARS", "ARM"};
