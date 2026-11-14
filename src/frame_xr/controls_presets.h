@@ -78,6 +78,19 @@ inline constexpr uint32_t kFlashMirrorMask = 3u << kFlashMirrorShift;
 void MirrorWeaponInHand();
 bool RestoreWeaponInHand();
 
+/// AzaharFrame kiufix: the same for Recoil's strengths and Weapon Size, four values per field
+/// (0: the game uses the global value): bits 14 to 17 Charged Shot (its percent / 10 + 1, 0 to
+/// 100 %), 18 to 21 Rapid Fire (the same), 22 and 23 Weapon Size (value + 1), 24 to 27 Weapon
+/// Scale ((percent - 50) / 10 + 1, 50 to 150 %). A percent between the 10 % steps is mirrored
+/// to the nearest step. Old builds never read these bits.
+inline constexpr uint32_t kChargedMirrorShift = 14;
+inline constexpr uint32_t kRapidMirrorShift = 18;
+inline constexpr uint32_t kWeaponSizeMirrorShift = 22;
+inline constexpr uint32_t kWeaponScaleMirrorShift = 24;
+inline constexpr uint32_t kAimExtrasMirrorMask = 0x3FFFu << kChargedMirrorShift;
+void MirrorAimExtras();
+bool RestoreAimExtras();
+
 /// Kid Icarus: Uprising aims with the stylus on the bottom screen while the left hand moves
 /// and fires: the head aims the reticle (Headset) and either trigger touches.
 /// AzaharFrame kiugyro: with Darkshade's C-Stick & Gyro mod installed, the reticle on the top

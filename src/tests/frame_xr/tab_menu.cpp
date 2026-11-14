@@ -3117,6 +3117,7 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
 }
 
 // AzaharFrame kiuflash: Muzzle Flash, a game's switch under Weapon in Hand, shown only with it on.
+// integ13: on the Controls tab with Aiming's other rows (lane/kiufix moved them there).
 TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][kiuflash]") {
     CHECK(LabelFor(Id::MuzzleFlash) == "Muzzle Flash");
     CHECK(ExplainFor(Id::MuzzleFlash) == "A flash at your weapon's tip on each shot.");
@@ -3125,17 +3126,17 @@ TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][ki
     Drawn d;
     MenuModel m = Sample();
     MenuView v;
-    v.tab = Tab::Settings;
+    v.tab = Tab::Controls;
     for (const int aiming : {0, 1, 2}) {
         for (const bool weapon : {false, true}) {
             INFO("aiming " << aiming << ", weapon " << weapon);
             m.gyro_aim = aiming;
             m.weapon_in_hand = weapon;
             m.muzzle_flash = true;
-            // Scrolled down until the row is on view (the aiming rows are low in General).
+            // Scrolled down until the row is on view (Aiming's rows are under the picture).
             bool row = false;
             for (float scroll = 0.0f; scroll <= 3000.0f && !row; scroll += kRowH) {
-                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                v.scroll[static_cast<int>(Tab::Controls)] = scroll;
                 d.Draw(m, v);
                 row = HasHit(d, Id::MuzzleFlash, -1) && HasHit(d, Id::WeaponInHand, -1);
                 if (scroll >= d.menu.MaxScroll()) {
@@ -3151,7 +3152,7 @@ TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][ki
                 CHECK(flash->r.y0 >= in_hand->r.y1 - 0.01f); // under it
                 Audit a;
                 a.Draw(m, v);
-                a.Check("Settings, Muzzle Flash");
+                a.Check("Controls, Muzzle Flash");
                 CHECK(a.Drew("Muzzle Flash"));
             }
         }
@@ -3159,7 +3160,7 @@ TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][ki
     m.scope = 1;
     m.game_value = {};
     m.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
-    CHECK(GameValueRows(m, Tab::Settings, SectionOf(Id::MuzzleFlash)) ==
+    CHECK(GameValueRows(m, Tab::Controls, SectionOf(Id::MuzzleFlash)) ==
           std::vector<Id>{Id::MuzzleFlash});
 }
 

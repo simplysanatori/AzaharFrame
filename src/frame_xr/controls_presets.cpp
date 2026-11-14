@@ -130,6 +130,66 @@ bool RestoreWeaponInHand() { // AzaharFrame kiuguns
     return weapon || laser || flash;
 }
 
+namespace {
+// AzaharFrame kiufix: a game's own percent (`lo` to `lo + 100`, steps of 10) in four bits.
+void MirrorPercent(Settings::SwitchableSetting<u32, true>& setting, uint32_t shift, uint32_t lo,
+                   uint32_t& now) {
+    now &= ~(0xFu << shift);
+    if (!setting.UsingGlobal()) {
+        const uint32_t v = std::clamp<uint32_t>(setting.GetValue(), lo, lo + 100);
+        now |= (((v - lo + 5) / 10) + 1) << shift;
+    }
+}
+bool RestorePercent(Settings::SwitchableSetting<u32, true>& setting, uint32_t shift, uint32_t lo,
+                    const char* name) {
+    const uint32_t mirror = (Settings::values.vr_controls_preset_done.GetValue() >> shift) & 0xFu;
+    if (mirror == 0 || mirror > 11 || !setting.UsingGlobal()) {
+        return false;
+    }
+    setting.SetGlobal(false);
+    setting.SetValue(lo + (mirror - 1) * 10);
+    LOG_INFO(Frontend, "xr: {} {} % for this game, from vr_controls_preset_done (its key was "
+                       "dropped by an older build)",
+             name, lo + (mirror - 1) * 10);
+    return true;
+}
+} // namespace
+
+void MirrorAimExtras() { // AzaharFrame kiufix
+    auto& v = Settings::values;
+    auto& done = v.vr_controls_preset_done;
+    const uint32_t before = done.GetValue();
+    uint32_t now = before;
+    MirrorPercent(v.vr_light_gun_recoil_charged, kChargedMirrorShift, 0, now);
+    MirrorPercent(v.vr_light_gun_recoil_rapid, kRapidMirrorShift, 0, now);
+    now &= ~(3u << kWeaponSizeMirrorShift);
+    if (!v.vr_light_gun_weapon_size.UsingGlobal()) {
+        now |= (std::min<uint32_t>(v.vr_light_gun_weapon_size.GetValue(), 1) + 1)
+               << kWeaponSizeMirrorShift;
+    }
+    MirrorPercent(v.vr_light_gun_weapon_scale, kWeaponScaleMirrorShift, 50, now);
+    if (now != before) {
+        done.SetGlobal(false);
+        done.SetValue(now);
+    }
+}
+
+bool RestoreAimExtras() { // AzaharFrame kiufix
+    auto& v = Settings::values;
+    bool any = RestorePercent(v.vr_light_gun_recoil_charged, kChargedMirrorShift, 0, "Charged Shot");
+    any |= RestorePercent(v.vr_light_gun_recoil_rapid, kRapidMirrorShift, 0, "Rapid Fire");
+    const uint32_t size =
+        (v.vr_controls_preset_done.GetValue() >> kWeaponSizeMirrorShift) & 3u;
+    if (size != 0 && size <= 2 && v.vr_light_gun_weapon_size.UsingGlobal()) {
+        v.vr_light_gun_weapon_size.SetGlobal(false);
+        v.vr_light_gun_weapon_size.SetValue(size - 1);
+        LOG_INFO(Frontend, "xr: Weapon Size {} for this game, from vr_controls_preset_done", size - 1);
+        any = true;
+    }
+    any |= RestorePercent(v.vr_light_gun_weapon_scale, kWeaponScaleMirrorShift, 50, "Weapon Scale");
+    return any;
+}
+
 uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed) {
     auto& v = Settings::values;
     auto& done_setting = v.vr_controls_preset_done;

@@ -89,7 +89,8 @@ std::string SliderText(Id id, float value) {
         // AzaharFrame reticle: tenths of 1x, "2.0x" (AzaharFrame kiugyro: the gyro's too)
         return Format("%.1fx", value / 10.0f);
     }
-    if (id == Id::TurnZone) { // AzaharFrame kiugyro: "10%"
+    if (id == Id::TurnZone || id == Id::RecoilCharged || id == Id::RecoilRapid ||
+        id == Id::WeaponScale) { // AzaharFrame kiugyro: "10%" (kiufix: the strengths, the scale)
         return Format("%.0f%%", value);
     }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
@@ -135,33 +136,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
             rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
-            // AzaharFrame kiugyro: Aiming, Recoil, Gyro Sensitivity; Turn Zone and Turn Speed
-            // only with Direct Aim (stored 2, Light Gun).
-            rows.push_back(row(Id::GyroAim, RowKind::Segmented, AimingIndexOf(m.gyro_aim)));
-            if (m.gyro_aim != 0) {
-                rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
-                // AzaharFrame kiuguns
-                rows.push_back(row(Id::WeaponInHand, RowKind::Switch, 0, m.weapon_in_hand));
-                if (m.weapon_in_hand) { // AzaharFrame kiuflash
-                    rows.push_back(row(Id::MuzzleFlash, RowKind::Switch, 0, m.muzzle_flash));
-                }
-                if (m.gyro_aim == 2) { // Direct Aim (stored 2)
-                    rows.push_back(row(Id::LaserSight, RowKind::Switch, 0, m.laser_sight));
-                }
-            }
-            const auto gyro_slider = [&](Id id, int value) {
-                Row r = row(id, RowKind::Slider);
-                const SliderRange sr = SliderFor(id);
-                const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
-                r.t = (v - sr.min) / (sr.max - sr.min);
-                r.value = SliderText(id, v);
-                rows.push_back(r);
-            };
-            gyro_slider(Id::GyroSensitivity, m.gyro_sensitivity);
-            if (m.gyro_aim == 2) {
-                gyro_slider(Id::TurnZone, m.turn_zone);
-                gyro_slider(Id::TurnSpeed, m.turn_speed);
-            }
+            // AzaharFrame kiufix: Aiming and its rows are on the Controls tab now (DrawControls).
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
             if (m.show_controllers) { // AzaharFrame ctrlfront
                 rows.push_back(
@@ -328,6 +303,10 @@ bool PerGameSetting(Id id) {
     case Id::WeaponInHand: // AzaharFrame kiuguns
     case Id::LaserSight:
     case Id::MuzzleFlash: // AzaharFrame kiuflash
+    case Id::RecoilCharged: // AzaharFrame kiufix
+    case Id::RecoilRapid:
+    case Id::WeaponSize:
+    case Id::WeaponScale:
         return true;
     default:
         return false;
@@ -336,9 +315,13 @@ bool PerGameSetting(Id id) {
 
 // AzaharFrame reticle
 const std::vector<Id>& ControlsScopeRows() {
-    static const std::vector<Id> kRows{Id::TouchpadTouch,     Id::BottomScreenReticle,
-                                       Id::ReticleSpeed,      Id::ReticleAtEdge,
-                                       Id::ReticleCenter,     Id::ReticleStick}; // fixes7
+    // AzaharFrame kiufix: and Aiming's rows, moved here from Settings, General.
+    static const std::vector<Id> kRows{
+        Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,  Id::ReticleAtEdge,
+        Id::ReticleCenter, Id::ReticleStick,        Id::GyroAim,       Id::GyroSensitivity,
+        Id::Recoil,        Id::RecoilCharged,       Id::RecoilRapid,   Id::WeaponInHand,
+        Id::WeaponSize,    Id::WeaponScale,         Id::MuzzleFlash,   Id::LaserSight,
+        Id::TurnZone,      Id::TurnSpeed}; // fixes7; AzaharFrame kiuflash: Muzzle Flash
     return kRows;
 }
 
@@ -468,6 +451,10 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kMotion;
     case Id::GyroAim: // AzaharFrame kiugyro
         return kGyroAim;
+    case Id::WeaponSize: { // AzaharFrame kiufix
+        static const std::vector<std::string> kWeaponSize{"Game Size", "Hand Size"};
+        return kWeaponSize;
+    }
     case Id::WindowScale:
         return kScale;
     case Id::ImmersiveMode:
@@ -575,6 +562,22 @@ std::string LabelFor(Id id) {
         return "Laser Sight";
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return "Muzzle Flash";
+    case Id::RecoilCharged: // AzaharFrame kiufix
+        return "Charged Shot";
+    case Id::RecoilRapid:
+        return "Rapid Fire";
+    case Id::WeaponSize:
+        return "Weapon Size";
+    case Id::WeaponScale:
+        return "Weapon Scale";
+    case Id::CalibrateAim:
+        return "Calibrate Aim";
+    case Id::CalibrateAimReset:
+        return "Reset";
+    case Id::AngelsAimSettings:
+        return "Aiming Settings";
+    case Id::AngelsAimReport:
+        return "Report an Issue";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::ControllersInFront: // AzaharFrame ctrlfront
@@ -828,6 +831,16 @@ std::string ExplainFor(Id id) {
         return "A red beam from your weapon to where you aim.";
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return "A flash at your weapon's tip on each shot.";
+    case Id::RecoilCharged: // AzaharFrame kiufix
+        return "How strong the buzz is for a charged shot.";
+    case Id::RecoilRapid:
+        return "How strong the buzz is for each rapid-fire shot.";
+    case Id::WeaponSize:
+        return "Game Size matches Pit's weapon. Hand Size shrinks big weapons to fit your hand.";
+    case Id::WeaponScale:
+        return "Makes the weapon in your hand bigger or smaller.";
+    case Id::CalibrateAim:
+        return "Point at the top screen's centre, then two corners, pressing the grip at each, so the reticle lands where you aim.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::ControllersInFront: // AzaharFrame ctrlfront
@@ -954,6 +967,12 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::TurnZone) { // AzaharFrame kiugyro: 0 to 30 %
         return {0.0f, 30.0f, 1.0f};
+    }
+    if (id == Id::RecoilCharged || id == Id::RecoilRapid) { // AzaharFrame kiufix: 0 to 100 %
+        return {0.0f, 100.0f, 10.0f};
+    }
+    if (id == Id::WeaponScale) { // AzaharFrame kiufix: 50 to 150 %
+        return {50.0f, 150.0f, 10.0f};
     }
     return {};
 }
@@ -1833,13 +1852,63 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         AddHit({pe[static_cast<std::size_t>(i)], seg.y0, pe[static_cast<std::size_t>(i + 1)], seg.y1},
                {Id::ControlsPage, i}, pane);
     }
+    // AzaharFrame kiufix: under the pages, the page scrolls (as the Settings tab's list): the
+    // picture and the rows under it as before, then Aiming and its rows (moved here from
+    // Settings, General), reached by scrolling.
+    const Rect list{pane.x0, seg.y1 + 8.0f, pane.x1, pane.y1 - 8.0f};
+    constexpr float kChoiceH = kControlH + 8.0f;
+    constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
+    // At Edge, Reticle Speed, Aim Only While Pressed and Right Stick Moves Touch only while the
+    // reticle is on.
+    const bool reticle_on = model.bottom_screen_reticle != 0;
+    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
+    // The picture keeps the height it has with the reticle off and nothing below (the page as it
+    // was); the rest goes under it.
+    const float picture_h = (c.y1 - (kChoiceH + kSupportH + kChoiceH)) - 4.0f - list.y0;
+    // Aiming's rows: Aiming and Gyro Sensitivity always; Recoil and Weapon in Hand (with their
+    // own rows; AzaharFrame kiuflash: Muzzle Flash among Weapon in Hand's) while it is on; Laser Sight, Turn Zone, Turn Speed and Calibrate Aim with Direct
+    // Aim (stored 2).
+    std::vector<Id> aim_rows{Id::GyroAim, Id::GyroSensitivity};
+    if (model.gyro_aim != 0) {
+        aim_rows.push_back(Id::Recoil);
+        if (model.recoil) {
+            aim_rows.push_back(Id::RecoilCharged);
+            aim_rows.push_back(Id::RecoilRapid);
+        }
+        aim_rows.push_back(Id::WeaponInHand);
+        if (model.weapon_in_hand) {
+            aim_rows.push_back(Id::WeaponSize);
+            aim_rows.push_back(Id::WeaponScale);
+            aim_rows.push_back(Id::MuzzleFlash); // AzaharFrame kiuflash
+        }
+        if (model.gyro_aim == 2) {
+            aim_rows.push_back(Id::LaserSight);
+            aim_rows.push_back(Id::TurnZone);
+            aim_rows.push_back(Id::TurnSpeed);
+            aim_rows.push_back(Id::CalibrateAim);
+        }
+    }
+    constexpr float kDividerH = 24.0f;
+    const float content_h = picture_h + 4.0f + rows_h + kDividerH +
+                            kChoiceH * static_cast<float>(aim_rows.size()) + 8.0f;
+    const float max_scroll = std::max(0.0f, std::ceil(content_h - list.H()));
+    layout.max_scroll = max_scroll;
+    layout.scroll_step = kChoiceH;
+    const float scroll =
+        std::clamp(view.scroll[static_cast<std::size_t>(view.tab)], 0.0f, max_scroll);
+    // Where Aiming is: the scroll that brings it to the top (Angel's Aim's Aiming Settings).
+    layout.aiming_scroll = std::min(max_scroll, picture_h + 4.0f + rows_h);
+    layout.controls = true;
+    const float top = list.y0 - scroll;
+    kit.Clip(list);
     const float edit_w =
         std::min(200.0f, kit.TextWidth(Type::Label, LabelFor(Id::EditControls)) + 82.0f);
-    const Rect edit{c.x1 - edit_w, seg.y1 + kScopeEditGap, c.x1,
-                    seg.y1 + kScopeEditGap + kControlH};
+    const Rect edit{c.x1 - edit_w, seg.y1 + kScopeEditGap - scroll, c.x1,
+                    seg.y1 + kScopeEditGap + kControlH - scroll};
     kit.Button(edit, ButtonStyle::Tonal, Sym::kEdit, LabelFor(Id::EditControls),
                StateOf(view, {Id::EditControls}));
-    AddHit(edit, {Id::EditControls}, pane);
+    AddHit(edit, {Id::EditControls}, list);
+    const auto visible = [&list](const Rect& r) { return r.y1 > list.y0 && r.y0 < list.y1; };
     // Touchpad: a label and its two choices; AzaharFrame menuux: under them one line saying what
     // the chosen one does (the only row with a supporting line: the owner asked for it).
     // AzaharFrame mouse: Bottom Screen Reticle under that line, the same way.
@@ -1856,8 +1925,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         const Rect row{c.x0 - 12.0f, y0, right + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
-        AddHit(row, {id, kLabelIndex}, pane);
-        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        AddHit(row, {id, kLabelIndex}, list);
+        if (visible(row)) {
+            anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        }
         kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
                     enabled ? 1.0f : kDisabledContent);
         const auto& opts = OptionsFor(id);
@@ -1873,8 +1944,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             const auto e = kit.SegmentEdges(ts, opts);
             for (int i = 0; i < static_cast<int>(opts.size()); i++) {
                 AddHit({e[static_cast<std::size_t>(i)], ts.y0, e[static_cast<std::size_t>(i + 1)], ts.y1},
-                       {id, i}, pane);
-                if (HasOptionTips(id)) { // AzaharFrame xfergpu: a choice's own tooltip
+                       {id, i}, list);
+                if (HasOptionTips(id) && visible(row)) { // AzaharFrame xfergpu: a choice's own tooltip
                     anchors.push_back({id, c.x0, row.y0 + 6.0f, lock, i,
                                        (e[static_cast<std::size_t>(i)] +
                                         e[static_cast<std::size_t>(i + 1)]) *
@@ -1891,8 +1962,10 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         const Rect row{c.x0 - 12.0f, y0, c.x1 + 12.0f, y0 + kControlH + 8.0f};
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
-        AddHit(row, {id, kLabelIndex}, pane);
-        anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        AddHit(row, {id, kLabelIndex}, list);
+        if (visible(row)) {
+            anchors.push_back({id, c.x0, row.y0 + 6.0f, lock});
+        }
         kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
                     enabled ? 1.0f : kDisabledContent);
         const SliderRange range = SliderFor(id);
@@ -1903,11 +1976,12 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         const float tw = kit.SegmentedWidth(OptionsFor(Id::BottomScreenReticle), c.W() * 0.64f);
         const Rect sl{c.x1 - tw, row.y0, c.x1, row.y1};
+        const int stops = range.step > 1.5f ? static_cast<int>((range.max - range.min) / range.step) : 0;
         kit.Slider(sl, (v - range.min) / (range.max - range.min), SliderText(id, v),
-                   view.dragging == id ? State::Pressed : StateOf(view, {id}, enabled));
+                   view.dragging == id ? State::Pressed : StateOf(view, {id}, enabled), stops);
         layout.sliders.push_back({id, sl.x0, sl.x1 - 80.0f});
         if (enabled) {
-            AddHit(sl, {id}, pane);
+            AddHit(sl, {id}, list);
         }
         return row;
     };
@@ -1926,17 +2000,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         kit.TextMid(label_x, half.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
                     enabled ? 1.0f : kDisabledContent);
         kit.Switch({label_x, half.y0, half.x1 - 12.0f, half.y1}, on, st);
-        AddHit(half, {id, enabled ? -1 : kLabelIndex}, pane);
-        anchors.push_back({id, label_x, half.y0 + 6.0f, lock});
+        AddHit(half, {id, enabled ? -1 : kLabelIndex}, list);
+        if (visible(half)) {
+            anchors.push_back({id, label_x, half.y0 + 6.0f, lock});
+        }
     };
-    constexpr float kChoiceH = kControlH + 8.0f;
-    constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge, Reticle Speed, Aim Only While Pressed and Right Stick Moves Touch only while the
-    // reticle is on.
-    const bool reticle_on = model.bottom_screen_reticle != 0;
-    const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
-    const float rows_y0 = c.y1 - rows_h;
-    const Rect area{pane.x0 + 8.0f, seg.y1 + 8.0f, edit.x0 - 12.0f, rows_y0 - 4.0f};
+    const float rows_y0 = top + picture_h + 4.0f;
+    const Rect area{pane.x0 + 8.0f, top, edit.x0 - 12.0f, rows_y0 - 4.0f};
     if (diagram) {
         diagram(kit, area, model.controls_page);
     }
@@ -1958,6 +2028,89 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         switch_half(Id::ReticleStick, {mid + 12.0f, pair.y0, pair.x1, pair.y1},
                     model.reticle_stick);
     }
+
+    // ---- AzaharFrame kiufix: Aiming (moved from Settings, General) ----
+    float y = rows_y0 + rows_h + 8.0f;
+    kit.Line(c.x0, y, c.x1, y, 1.0f, Tok::kOutlineVariant);
+    y += kDividerH - 8.0f;
+    const auto switch_row = [&](Id id, bool on) {
+        switch_half(id, {c.x0 - 12.0f, y, c.x1 + 12.0f, y + kChoiceH}, on);
+    };
+    for (const Id id : aim_rows) {
+        switch (id) {
+        case Id::GyroAim:
+            choice_row(id, y, AimingIndexOf(model.gyro_aim));
+            break;
+        case Id::WeaponSize:
+            choice_row(id, y, std::clamp(model.weapon_size, 0, 1));
+            break;
+        case Id::GyroSensitivity:
+            slider_row(id, y, model.gyro_sensitivity);
+            break;
+        case Id::RecoilCharged:
+            slider_row(id, y, model.recoil_charged);
+            break;
+        case Id::RecoilRapid:
+            slider_row(id, y, model.recoil_rapid);
+            break;
+        case Id::WeaponScale:
+            slider_row(id, y, model.weapon_scale);
+            break;
+        case Id::TurnZone:
+            slider_row(id, y, model.turn_zone);
+            break;
+        case Id::TurnSpeed:
+            slider_row(id, y, model.turn_speed);
+            break;
+        case Id::Recoil:
+            switch_row(id, model.recoil);
+            break;
+        case Id::WeaponInHand:
+            switch_row(id, model.weapon_in_hand);
+            break;
+        case Id::LaserSight:
+            switch_row(id, model.laser_sight);
+            break;
+        case Id::MuzzleFlash: // AzaharFrame kiuflash
+            switch_row(id, model.muzzle_flash);
+            break;
+        case Id::CalibrateAim: {
+            // The label, then Reset (while this game has one) and Start, as buttons.
+            const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + kChoiceH};
+            const bool can = model.aim_calibration_ok;
+            AddHit(row, {id, kLabelIndex}, list);
+            if (visible(row)) {
+                anchors.push_back({id, c.x0, row.y0 + 6.0f, Lock::None});
+            }
+            kit.TextMid(c.x0, row.Cy(), Type::Body, Tok::kOnSurface, LabelFor(id), 0,
+                        can ? 1.0f : kDisabledContent);
+            const std::string start = "Start";
+            const float sw = kit.TextWidth(Type::Label, start) + 48.0f;
+            const Rect sb{c.x1 - sw, row.Cy() - 20.0f, c.x1, row.Cy() + 20.0f};
+            kit.Button(sb, ButtonStyle::Tonal, 0, start, StateOf(view, {Id::CalibrateAim}, can));
+            if (can) {
+                AddHit({sb.x0, row.Cy() - 24.0f, sb.x1, row.Cy() + 24.0f}, {Id::CalibrateAim}, list);
+            }
+            if (model.aim_calibrated) {
+                const std::string reset = LabelFor(Id::CalibrateAimReset);
+                const float rw = kit.TextWidth(Type::Label, reset) + 24.0f;
+                const Rect rb{sb.x0 - 8.0f - rw, sb.y0, sb.x0 - 8.0f, sb.y1};
+                kit.Button(rb, ButtonStyle::Text, 0, reset,
+                           StateOf(view, {Id::CalibrateAimReset}, can));
+                if (can) {
+                    AddHit({rb.x0, row.Cy() - 24.0f, rb.x1, row.Cy() + 24.0f},
+                           {Id::CalibrateAimReset}, list);
+                }
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        y += kChoiceH;
+    }
+    kit.ClearClip();
+    DrawScrollbar(kit, view, list, pane.x1, content_h, max_scroll, scroll); // AzaharFrame scroll
     DrawScopeMenu(kit, model, view, pane);
 }
 

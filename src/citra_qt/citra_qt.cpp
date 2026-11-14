@@ -516,6 +516,10 @@ struct FrameKeepControls {
           weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
           laser{Settings::values.vr_light_gun_laser},
           flash{Settings::values.vr_light_gun_flash}, // AzaharFrame kiuflash
+          recoil_charged{Settings::values.vr_light_gun_recoil_charged}, // AzaharFrame kiufix
+          recoil_rapid{Settings::values.vr_light_gun_recoil_rapid},
+          weapon_size{Settings::values.vr_light_gun_weapon_size},
+          weapon_scale{Settings::values.vr_light_gun_weapon_scale},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -534,6 +538,10 @@ struct FrameKeepControls {
         weapon.Restore();
         laser.Restore();
         flash.Restore();
+        recoil_charged.Restore(); // AzaharFrame kiufix
+        recoil_rapid.Restore();
+        weapon_size.Restore();
+        weapon_scale.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -552,6 +560,10 @@ struct FrameKeepControls {
     FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
     FrameKeepSetting<bool, false> laser;
     FrameKeepSetting<bool, false> flash; // AzaharFrame kiuflash
+    FrameKeepSetting<u32, true> recoil_charged; // AzaharFrame kiufix
+    FrameKeepSetting<u32, true> recoil_rapid;
+    FrameKeepSetting<u32, true> weapon_size;
+    FrameKeepSetting<u32, true> weapon_scale;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -5530,6 +5542,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::MuzzleFlash: // AzaharFrame kiuflash
         set(v.vr_light_gun_flash, r.value != 0);
+        break;
+    case S::RecoilCharged: // AzaharFrame kiufix: percent
+        set(v.vr_light_gun_recoil_charged, std::min<u32>(u, 100));
+        break;
+    case S::RecoilRapid:
+        set(v.vr_light_gun_recoil_rapid, std::min<u32>(u, 100));
+        break;
+    case S::WeaponSize:
+        set(v.vr_light_gun_weapon_size, std::min<u32>(u, 1));
+        break;
+    case S::WeaponScale:
+        set(v.vr_light_gun_weapon_scale, std::clamp<u32>(u, 50, 150));
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

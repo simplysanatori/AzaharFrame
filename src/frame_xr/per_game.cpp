@@ -133,6 +133,18 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         f(v.vr_light_gun_flash);
         return true;
+    case Id::RecoilCharged: // AzaharFrame kiufix
+        f(v.vr_light_gun_recoil_charged);
+        return true;
+    case Id::RecoilRapid:
+        f(v.vr_light_gun_recoil_rapid);
+        return true;
+    case Id::WeaponSize:
+        f(v.vr_light_gun_weapon_size);
+        return true;
+    case Id::WeaponScale:
+        f(v.vr_light_gun_weapon_scale);
+        return true;
     default:
         return false;
     }

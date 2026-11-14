@@ -344,6 +344,10 @@ enum class MenuSetting {
     WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
     LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)
     MuzzleFlash,     ///< AzaharFrame kiuflash: `value` 0 or 1 (vr_light_gun_flash)
+    RecoilCharged,   ///< AzaharFrame kiufix: `value` percent, 0 to 100 (vr_light_gun_recoil_charged)
+    RecoilRapid,     ///< `value` percent, 0 to 100 (vr_light_gun_recoil_rapid)
+    WeaponSize,      ///< `value` 0 Game Size, 1 Hand Size (vr_light_gun_weapon_size)
+    WeaponScale,     ///< `value` percent, 50 to 150 (vr_light_gun_weapon_scale)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;
@@ -497,6 +501,7 @@ struct ZipModel;
 struct HomebrewTabModel; // AzaharFrame emerald
 struct AutosaveCard;     // AzaharFrame autosave
 struct Ctgp7Model;       // AzaharFrame ctgp7
+struct AngelsAimModel;   // AzaharFrame kiufix
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
@@ -504,6 +509,9 @@ void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
 /// AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (frame_xr/menu/ctgp7_tab.h). Any thread.
 void SetInGameMenuCtgp7(const Menu::Ctgp7Model& ctgp7); ///< citra_qt/frame_ctgp7.cpp
+/// AzaharFrame kiufix: the Mods tab's Angel's Aim segment (frame_xr/menu/angels_aim_tab.h). Any
+/// thread.
+void SetInGameMenuAngelsAim(const Menu::AngelsAimModel& angels_aim); ///< citra_qt/frame_mods.cpp
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 /// AzaharFrame autosave: the running game's autosaves for Load State's card (newest first), and

@@ -17,6 +17,7 @@
 #include "common/file_util.h"
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "common/logging/log.h"
+#include "common/settings.h" // AzaharFrame kiufix: Weapon Size
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/model_shaders.h"
@@ -1064,7 +1065,10 @@ void ControllerModels::Setup(Runtime& rt) {
         .srcColorBlendFactor = vk::BlendFactor::eOne,
         .dstColorBlendFactor = vk::BlendFactor::eOne,
         .colorBlendOp = vk::BlendOp::eAdd,
-        .srcAlphaBlendFactor = vk::BlendFactor::eZero,
+        // AzaharFrame kiufix: the glow's coverage (the shader's alpha) adds up too, so the layer
+        // holds it as premultiplied light the compositor keeps; with alpha 0 everywhere a
+        // runtime may drop the pixels as clear, and the palm's flames did not show.
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
         .dstAlphaBlendFactor = vk::BlendFactor::eOne,
         .alphaBlendOp = vk::BlendOp::eAdd,
         .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
@@ -1317,7 +1321,9 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         // elbow (from the wrist up to the cut); else one draw.
         for (int pass = 0; pass < (forearm_turn ? 2 : 1); pass++) {
         Mat model = Multiply(aim_m, fit_m);
-        float cut = clip_x;
+        // AzaharFrame kiufix: a palm's flames run the length of Pit's forearm, past the wrist
+        // mode's cut: they are drawn whole (the player's own forearm is there), so they show.
+        float cut = glow_pass && w.info.cls == FrameWeapons::kPalm && !forearm_turn ? 0.0f : clip_x;
         float w_flags = fit.mirrored ? 1.0f : 0.0f;
         if (glow_pass) {
             w_flags += 4.0f; // added, unlit
@@ -1466,7 +1472,17 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
             const FrameWeapons::Weapon& info = g.weapon_live->info;
             const std::string name = FitSwitchName(info.cls);
             const auto value = Common::FrameTestSwitches::Value(name);
-            const FitOverride tune = ParseFitOverride(value);
+            FitOverride tune = ParseFitOverride(value);
+            // AzaharFrame kiufix: Weapon Size and Weapon Scale (per game): a factor on the fit's
+            // scale, about the grip (the grip stays in the palm, the muzzle on the ray).
+            const WeaponSize size_mode = static_cast<WeaponSize>(
+                std::min<u32>(Settings::values.vr_light_gun_weapon_size.GetValue(), 1));
+            const int size_pct =
+                static_cast<int>(Settings::values.vr_light_gun_weapon_scale.GetValue());
+            const float size_factor =
+                WeaponSizeFactor(info.cls, info.bounds_min, info.bounds_max,
+                                 FitClassScale(info.cls) * tune.scale, size_mode, size_pct);
+            tune.scale *= size_factor;
             std::vector<FitSide> sides;
             for (const auto& part : g.weapon_live->parts) {
                 for (const auto& comp : part.components) {
@@ -1520,17 +1536,19 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
                 palm_dir = {};
             }
             const std::string logged =
-                fmt::format("{} {} {} {} {} {}", info.id, left ? "left" : "right", name,
+                fmt::format("{} {} {} {} {} {} {:.3f}", info.id, left ? "left" : "right", name,
                             value.value_or("default"), forearm.value_or("default"),
-                            palm_elbow ? "elbow" : "wrist");
+                            palm_elbow ? "elbow" : "wrist", size_factor);
             if (logged != g.weapon_fit_logged) {
                 g.weapon_fit_logged = logged;
                 LOG_INFO(Frontend,
                          "xr: weapon in hand: {} (a {}) in the {} hand, fit {} (scale {:.3f} m "
-                         "per unit){}",
+                         "per unit; Weapon Size {}, {} %: x{:.2f}){}",
                          info.id, FrameWeapons::ClassName(info.cls), left ? "left" : "right",
                          value ? name + "=" + *value : std::string{"default"},
                          FitClassScale(info.cls) * tune.scale,
+                         size_mode == WeaponSize::Hand ? "Hand Size" : "Game Size", size_pct,
+                         size_factor,
                          weapon_clip > 0.0f
                              ? fmt::format(", forearm cut {:.0f} cm from the wrist{}",
                                            weapon_clip * FitClassScale(info.cls) * tune.scale * 100.0f,

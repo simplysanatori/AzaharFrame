@@ -635,6 +635,10 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     ReadGlobalSetting(Settings::values.vr_light_gun_laser);
     ReadGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    ReadGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
+    ReadGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
+    ReadGlobalSetting(Settings::values.vr_light_gun_weapon_size);
+    ReadGlobalSetting(Settings::values.vr_light_gun_weapon_scale);
     if (!global) {
         // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
         ReadGlobalSetting(Settings::values.vr_controls_preset_done);
@@ -642,6 +646,7 @@ void QtConfig::ReadVrValues() {
         // AzaharFrame kiugyro: a Gyro Aim an older build dropped comes back from its mirror.
         FrameXr::RestoreGyroAim();
         FrameXr::RestoreWeaponInHand(); // AzaharFrame kiuguns
+        FrameXr::RestoreAimExtras();    // AzaharFrame kiufix
 #endif
     }
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
@@ -1347,10 +1352,15 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     WriteGlobalSetting(Settings::values.vr_light_gun_laser);
     WriteGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    WriteGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
+    WriteGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
+    WriteGlobalSetting(Settings::values.vr_light_gun_weapon_size);
+    WriteGlobalSetting(Settings::values.vr_light_gun_weapon_scale);
     if (!global) {
 #ifdef ENABLE_FRAME_XR
         FrameXr::MirrorGyroAim(); // AzaharFrame kiugyro: kept by builds that drop vr_gyro_aim
         FrameXr::MirrorWeaponInHand(); // AzaharFrame kiuguns: the same for vr_light_gun_weapon
+        FrameXr::MirrorAimExtras();    // AzaharFrame kiufix: Recoil's strengths, Weapon Size
 #endif
         WriteGlobalSetting(Settings::values.vr_controls_preset_done); // AzaharFrame kiu
     }

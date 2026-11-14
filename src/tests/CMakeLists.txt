@@ -35,6 +35,7 @@ add_executable(tests
     ../frame_xr/vis/muzzle_flash.cpp # AzaharFrame kiuflash
     frame_xr/kiu_flash.cpp # AzaharFrame kiuflash
     frame_xr/gyro_aim.cpp # AzaharFrame kiugyro
+    frame_xr/kiufix.cpp # AzaharFrame kiufix
     ../frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_scale.cpp # AzaharFrame kiu

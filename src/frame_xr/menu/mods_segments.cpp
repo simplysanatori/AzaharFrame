@@ -511,6 +511,9 @@ ModsDialog DialogFor(const ModsDialog& dialog, const MenuView& view, const MenuM
     if (view.open_link.empty()) {
         return dialog;
     }
+    if (IsAngelsAimReportUrl(view.open_link)) { // AzaharFrame kiufix: "This opens github.com ..."
+        return {ModsDialogKind::OpenLink, "github.com", "github.com"};
+    }
     return {ModsDialogKind::OpenLink, LinkHost(view.open_link), LinkText(view.open_link)};
 }
 

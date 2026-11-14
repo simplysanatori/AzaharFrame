@@ -259,6 +259,13 @@ private:
     Vis::MuzzleFlash muzzle_flash; ///< AzaharFrame kiuflash: Muzzle Flash on the same shots
     bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
+    bool laser_logged = false; // AzaharFrame kiufix
+    Input::AimSchemeHint aim_scheme_hint; // AzaharFrame kiufix
+    // AzaharFrame kiufix: Calibrate Aim: the running game's (its own file), and the steps.
+    Input::AimCalibration aim_cal;
+    uint64_t aim_cal_title = 0;
+    Input::AimCalibrationFlow cal_flow;
+    int64_t cal_prompt_ns = 0;
     int reticle_modes_logged = -1; ///< AzaharFrame fixes7: the reticle switches, as logged
     bool edge_stick_logged = false; ///< AzaharFrame kiu: C-Stick at Edge pushing (logged)
     int reticle_hand_shown = -1; ///< AzaharFrame polish: ReticleDrivingHand, last frame

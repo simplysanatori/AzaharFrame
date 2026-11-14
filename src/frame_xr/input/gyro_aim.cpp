@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include "frame_xr/input/gyro_aim.h"
 
 // AzaharFrame kiugyro (gyro_aim.h)
@@ -99,6 +100,14 @@ GyroAimTracker::Out GyroAimTracker::Update(const HandInput& hand, int64_t time_n
     return out;
 }
 
+float RecoilAmplitude(const RecoilPulse& pulse, int charged_percent, int rapid_percent) {
+    if (!pulse.fire) {
+        return 0.0f;
+    }
+    const int pct = std::clamp(pulse.charged ? charged_percent : rapid_percent, 0, 100);
+    return static_cast<float>(pct) / 100.0f;
+}
+
 RecoilPulse Recoil::Update(int64_t now_ns, bool fire, bool active) {
     RecoilPulse out;
     if (!active) {
@@ -109,7 +118,7 @@ RecoilPulse Recoil::Update(int64_t now_ns, bool fire, bool active) {
     if (fire && !held_) {
         // A press: a charged shot after a long enough pause (heuristic), the first one too.
         const bool charged = !ever_released_ || now_ns - released_ns_ >= kChargePauseNs;
-        out = {true, charged ? kChargedPulseNs : kPulseNs};
+        out = {true, charged ? kChargedPulseNs : kPulseNs, charged};
         last_pulse_ns_ = now_ns;
     } else if (fire && now_ns - last_pulse_ns_ >= kRecoilPaceNs) {
         out = {true, kPulseNs}; // held: continuous fire
@@ -135,7 +144,8 @@ RecoilPulse ShotRecoil::Update(int64_t now_ns, uint64_t total, bool readable, bo
     if (total > last_) {
         const uint64_t n = total - last_;
         const bool charged = ever_ && now_ns - last_shot_ns_ >= Recoil::kChargePauseNs;
-        out = {true, charged ? Recoil::kChargedPulseNs : n > 1 ? kBurstPulseNs : Recoil::kPulseNs};
+        out = {true, charged ? Recoil::kChargedPulseNs : n > 1 ? kBurstPulseNs : Recoil::kPulseNs,
+               charged};
         last_shot_ns_ = now_ns;
         ever_ = true;
     }
@@ -156,6 +166,168 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     t.u = std::clamp(hit.u, -0.5f, 1.5f);
     t.v = std::clamp(hit.v, -0.5f, 1.5f);
     return t;
+}
+
+bool AimSchemeHint::Update(int64_t now_ns, bool aiming, int scheme) {
+    if (!aiming || scheme == 1) {
+        armed_ = true; // off, or the gyro scheme: the next wrong scheme is news
+        return false;
+    }
+    if (scheme < 0 || !armed_) {
+        return false;
+    }
+    if (shown_once_ && now_ns - shown_ns_ < kRepeatNs) {
+        return false;
+    }
+    armed_ = false;
+    shown_once_ = true;
+    shown_ns_ = now_ns;
+    return true;
+}
+
+LightGunTarget ApplyCalibration(const AimCalibration& c, const LightGunTarget& t) {
+    if (!c.set || !t.valid) {
+        return t;
+    }
+    LightGunTarget out = t;
+    out.u = std::clamp(c.au + c.bu * t.u, -0.5f, 1.5f);
+    out.v = std::clamp(c.av + c.bv * t.v, -0.5f, 1.5f);
+    return out;
+}
+
+std::optional<AimCalibration> FitCalibration(const std::vector<Vec2f>& raw,
+                                             const std::vector<Vec2f>& wanted) {
+    if (raw.empty() || raw.size() != wanted.size()) {
+        return std::nullopt;
+    }
+    AimCalibration c;
+    c.set = true;
+    const auto fit = [&](bool x, float& a, float& b) {
+        const std::size_t n = raw.size();
+        if (n == 1) {
+            b = 1.0f;
+            a = (x ? wanted[0].x - raw[0].x : wanted[0].y - raw[0].y);
+            return std::isfinite(a) && std::fabs(a) <= kCalibrationMaxOffset;
+        }
+        double sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (std::size_t i = 0; i < n; i++) {
+            const double r = x ? raw[i].x : raw[i].y;
+            const double w = x ? wanted[i].x : wanted[i].y;
+            sx += r;
+            sy += w;
+            sxx += r * r;
+            sxy += r * w;
+        }
+        const double den = static_cast<double>(n) * sxx - sx * sx;
+        if (!(std::fabs(den) > 1e-9)) {
+            return false;
+        }
+        b = static_cast<float>((static_cast<double>(n) * sxy - sx * sy) / den);
+        a = static_cast<float>((sy - b * sx) / static_cast<double>(n));
+        // The offset as seen at the centre is what is limited (a large a with a scale is fine).
+        const float at_centre = a + b * 0.5f - 0.5f;
+        return std::isfinite(a) && std::isfinite(b) && b >= kCalibrationMinScale &&
+               b <= kCalibrationMaxScale && std::fabs(at_centre) <= kCalibrationMaxOffset;
+    };
+    if (!fit(true, c.au, c.bu) || !fit(false, c.av, c.bv)) {
+        return std::nullopt;
+    }
+    c.scaled = raw.size() > 1;
+    return c;
+}
+
+std::string AimCalibrationText(const AimCalibration& c) {
+    if (!c.set) {
+        return {};
+    }
+    char buf[96];
+    std::snprintf(buf, sizeof(buf), "v1 %.5f %.5f %.5f %.5f %d", c.au, c.bu, c.av, c.bv,
+                  c.scaled ? 1 : 0);
+    return buf;
+}
+
+AimCalibration AimCalibrationFrom(const std::string& text) {
+    AimCalibration c;
+    float au = 0, bu = 1, av = 0, bv = 1;
+    int scaled = 0;
+    if (std::sscanf(text.c_str(), "v1 %f %f %f %f %d", &au, &bu, &av, &bv, &scaled) != 5) {
+        return {};
+    }
+    const auto ok = [](float a, float b) {
+        return std::isfinite(a) && std::isfinite(b) && b >= kCalibrationMinScale &&
+               b <= kCalibrationMaxScale && std::fabs(a + b * 0.5f - 0.5f) <= kCalibrationMaxOffset;
+    };
+    if (!ok(au, bu) || !ok(av, bv)) {
+        return {};
+    }
+    c = {true, au, bu, av, bv, scaled != 0};
+    return c;
+}
+
+void AimCalibrationFlow::Start() {
+    step_ = Step::Centre;
+    raw_.clear();
+    grip_.Reset();
+    was_held_ = true;
+}
+
+AimCalibrationFlow::Out AimCalibrationFlow::Update(float grip, const LightGunTarget& raw) {
+    Out out;
+    if (step_ == Step::Off) {
+        return out;
+    }
+    const bool held = grip_.Update(grip);
+    const bool press = held && !was_held_;
+    was_held_ = held;
+    if (!press) {
+        return out;
+    }
+    if (!raw.valid || raw.u < -0.25f || raw.u > 1.25f || raw.v < -0.25f || raw.v > 1.25f) {
+        out.retry = true; // not at the top screen
+        return out;
+    }
+    static const Vec2f kWanted[3] = {{0.5f, 0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f}};
+    raw_.push_back({raw.u, raw.v});
+    const std::vector<Vec2f> wanted(kWanted, kWanted + raw_.size());
+    const std::optional<AimCalibration> c = FitCalibration(raw_, wanted);
+    if (!c) {
+        raw_.pop_back();
+        out.retry = true;
+        return out;
+    }
+    out.result = c;
+    out.changed = true;
+    step_ = step_ == Step::Centre    ? Step::TopLeft
+            : step_ == Step::TopLeft ? Step::BottomRight
+                                     : Step::Off;
+    return out;
+}
+
+Vec3f PointOnQuad(const PanelQuad& quad, float u, float v) {
+    Vec3f local{(u - 0.5f) * quad.width_m, (0.5f - v) * quad.height_m, 0.0f};
+    if (quad.curve_radius > 0.0f) {
+        // As IntersectQuad reads it: the arc's length along the screen, about the line x = 0,
+        // z = R.
+        const float r = quad.curve_radius;
+        const float a = (u - 0.5f) * quad.width_m / r;
+        local.x = r * std::sin(a);
+        local.z = r - r * std::cos(a);
+    }
+    return Transform(quad.pose, local);
+}
+
+const char* AimCalibrationPrompt(AimCalibrationFlow::Step step) {
+    switch (step) {
+    case AimCalibrationFlow::Step::Centre:
+        return "Calibrate Aim: Point at the Top Screen's Centre, Press Grip";
+    case AimCalibrationFlow::Step::TopLeft:
+        return "Calibrate Aim: Top-Left Corner, Press Grip";
+    case AimCalibrationFlow::Step::BottomRight:
+        return "Calibrate Aim: Bottom-Right Corner, Press Grip";
+    case AimCalibrationFlow::Step::Off:
+        break;
+    }
+    return kAimCalibratedToast;
 }
 
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {

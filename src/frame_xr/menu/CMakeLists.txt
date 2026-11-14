@@ -11,7 +11,9 @@ add_library(frame_xr_menu STATIC
     edit_devices.cpp
     edit_devices.h
     ctgp7_tab.cpp # AzaharFrame ctgp7
+    angels_aim_tab.cpp # AzaharFrame kiufix
     ctgp7_tab.h
+    angels_aim_tab.h # AzaharFrame kiufix
     homebrew_tab.cpp # AzaharFrame emerald
     homebrew_tab.h
     list_scroll.cpp # AzaharFrame scroll

@@ -307,6 +307,14 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::LaserSight;
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return MenuSetting::MuzzleFlash;
+    case Id::RecoilCharged: // AzaharFrame kiufix
+        return MenuSetting::RecoilCharged;
+    case Id::RecoilRapid:
+        return MenuSetting::RecoilRapid;
+    case Id::WeaponSize:
+        return MenuSetting::WeaponSize;
+    case Id::WeaponScale:
+        return MenuSetting::WeaponScale;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -354,6 +362,11 @@ void SetInGameMenuTextures(const Menu::TexturesModel& textures) {
 void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
     std::scoped_lock lock{g_mods_mutex};
     g_mods.zip = zip;
+}
+
+void SetInGameMenuAngelsAim(const Menu::AngelsAimModel& angels_aim) { // AzaharFrame kiufix
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.angels_aim = angels_aim;
 }
 
 void SetInGameMenuCtgp7(const Menu::Ctgp7Model& ctgp7) { // AzaharFrame ctgp7
@@ -845,6 +858,10 @@ void MenuPanel::BuildModel(const Host& host) {
         }
         view.requires_ctgp7 = false;
     }
+    // AzaharFrame kiufix: the Angel's Aim segment only while Kid Icarus: Uprising is open
+    if (!m.mods.angels_aim.shown && view.mods_segment == Menu::ModsSegment::AngelsAim) {
+        view.mods_segment = Menu::ModsSegment::Cheats;
+    }
     if (m.mods.ctgp7.busy && m.mods.ctgp7.permille < 0 && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Ctgp7) {
         m.mods.ctgp7.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -988,6 +1005,11 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
     m.muzzle_flash = v.vr_light_gun_flash.GetValue(); // AzaharFrame kiuflash
+    m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
+    m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
+    m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
+    m.weapon_scale =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.controllers_in_front = // AzaharFrame ctrlfront
         static_cast<int>(std::min<u32>(v.vr_controllers_in_front.GetValue(), 3));
@@ -1050,7 +1072,10 @@ void MenuPanel::BuildModel(const Host& host) {
         const bool shown = view.tab == Menu::Tab::Mods &&
                            ((view.mods_segment == Menu::ModsSegment::Mods &&
                              view.mods_page == Menu::ModsPage::Install) ||
-                            (view.mods_segment == Menu::ModsSegment::Ctgp7 && m.mods.ctgp7.shown));
+                            (view.mods_segment == Menu::ModsSegment::Ctgp7 && m.mods.ctgp7.shown) ||
+                            // AzaharFrame kiufix: Angel's Aim lists the C-Stick & Gyro mod
+                            (view.mods_segment == Menu::ModsSegment::AngelsAim &&
+                             m.mods.angels_aim.shown));
         if (!shown) {
             catalog_ask_ms = -1;
         } else if (Menu::ShouldAskCatalog(m.mods.mods.catalog, shown, now_ms, catalog_ask_ms)) {
@@ -1152,6 +1177,8 @@ void MenuPanel::BuildModel(const Host& host) {
         lock(Id::ShowControllers, Lock::InPassthrough);
         lock(Id::ControllersInFront, Lock::InPassthrough); // AzaharFrame ctrlfront
     }
+    m.aim_calibrated = host.aim_calibrated; // AzaharFrame kiufix
+    m.aim_calibration_ok = host.aim_calibration_ok;
     model = std::move(m);
 }
 
@@ -1363,6 +1390,26 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash: per game in Per-Game
         Apply(v.vr_light_gun_flash, value != 0, per_game);
         r.setting = MenuSetting::MuzzleFlash;
+        break;
+    case Id::RecoilCharged: // AzaharFrame kiufix: percent, per game in Per-Game
+        r.value = std::clamp(value, 0, 100);
+        Apply(v.vr_light_gun_recoil_charged, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::RecoilCharged;
+        break;
+    case Id::RecoilRapid:
+        r.value = std::clamp(value, 0, 100);
+        Apply(v.vr_light_gun_recoil_rapid, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::RecoilRapid;
+        break;
+    case Id::WeaponSize:
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_weapon_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponSize;
+        break;
+    case Id::WeaponScale:
+        r.value = std::clamp(value, 50, 150);
+        Apply(v.vr_light_gun_weapon_scale, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponScale;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -1624,8 +1671,10 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Ctgp7) &&
-            (t.index != static_cast<int>(Menu::ModsSegment::Ctgp7) || model.mods.ctgp7.shown) &&
+        // AzaharFrame kiufix: the index is the segment's value (ModsSegmentsShown)
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::AngelsAim) &&
+            Menu::ShownSegment(model.mods, static_cast<Menu::ModsSegment>(t.index)) ==
+                static_cast<Menu::ModsSegment>(t.index) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1903,7 +1952,8 @@ void MenuPanel::Click(Target t, Host& host) {
         const auto& mm = model.mods.mods;
         // AzaharFrame ctgp7b: the CTGP-7 segment's rows are the catalog's
         const bool install = view.mods_page == Menu::ModsPage::Install ||
-                             view.mods_segment == Menu::ModsSegment::Ctgp7;
+                             view.mods_segment == Menu::ModsSegment::Ctgp7 ||
+                             view.mods_segment == Menu::ModsSegment::AngelsAim; // kiufix
         const std::size_t n = install ? mm.available.size() : mm.loaded.size();
         if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
             const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
@@ -2122,6 +2172,28 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
         break;
+    case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
+        if (host.calibrate_aim && model.aim_calibration_ok) {
+            host.calibrate_aim();
+            ask(MenuCommand::Continue);
+        }
+        break;
+    case Id::CalibrateAimReset:
+        if (host.reset_aim_calibration) {
+            host.reset_aim_calibration();
+        }
+        break;
+    case Id::AngelsAimSettings: // AzaharFrame kiufix: the Controls tab at Aiming
+        view.tab = Menu::Tab::Controls;
+        view.page = Menu::Page::Tabs;
+        controls_page = 0;
+        scroll_to_aiming = true;
+        break;
+    case Id::AngelsAimReport: // "Open GitHub?" first
+        if (!model.mods.angels_aim.report_url.empty()) {
+            view.open_link = model.mods.angels_aim.report_url;
+        }
+        break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
         break;
@@ -2176,6 +2248,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::FaceButtons:
     case Id::MotionControls:
     case Id::GyroAim: // AzaharFrame kiugyro
+    case Id::WeaponSize: // AzaharFrame kiufix
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
@@ -2383,6 +2456,11 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);
+        } else if (view.tab == Menu::Tab::Mods && // AzaharFrame kiufix: Angel's Aim's questions
+                   view.mods_segment == Menu::ModsSegment::AngelsAim &&
+                   (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
+                    !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
         } else if (textures_shown &&
                    (model.mods.textures.dialog.kind != Menu::ModsDialogKind::None ||
                     !view.open_link.empty())) {
@@ -2521,6 +2599,12 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             chain.Upload(reinterpret_cast<const uint8_t*>(shared->pixels.data()));
             layout = shared->layout;
             stale_uploaded = true; // AzaharFrame kbd
+            // AzaharFrame kiufix: Angel's Aim's Aiming Settings: the Controls tab at Aiming, once
+            // its page is drawn (the scroll that does it is the page's own).
+            if (scroll_to_aiming && layout.controls && view.tab == Menu::Tab::Controls) {
+                scroll_to_aiming = false;
+                view.scroll[static_cast<std::size_t>(Menu::Tab::Controls)] = layout.aiming_scroll;
+            }
         }
     }
     if (stale && stale_uploaded && !chain.Busy()) {

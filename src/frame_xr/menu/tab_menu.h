@@ -236,6 +236,17 @@ enum class Id : int {
     Ctgp7Website, ///< Official Website ("Open ctgp-7.github.io?" first)
     Ctgp7Uninstall, ///< "Uninstall CTGP-7?" (the Qt side asks)
     DialogCheck,    ///< a dialog's checkbox (ModsDialog::check; MenuView::dialog_check)
+    // AzaharFrame kiufix: Aiming's new rows (the Controls tab, with Aiming moved from General)
+    RecoilCharged,     ///< a slider, 0 to 100 (percent), while Recoil is on
+    RecoilRapid,       ///< a slider, 0 to 100 (percent), while Recoil is on
+    WeaponSize,        ///< index: 0 Game Size, 1 Hand Size, while Weapon in Hand is on
+    WeaponScale,       ///< a slider, 50 to 150 (percent), while Weapon in Hand is on
+    CalibrateAim,      ///< Direct Aim's Calibrate Aim: closes the menu and starts it
+    CalibrateAimReset, ///< its Reset (the game's calibration goes)
+    AimingDivider,     ///< the Controls tab's divider above Aiming (no action)
+    // AzaharFrame kiufix: the Mods tab's Angel's Aim segment (angels_aim_tab.h)
+    AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
+    AngelsAimReport,   ///< Report an Issue ("Open GitHub?" first)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -343,6 +354,12 @@ struct MenuModel {
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
     bool muzzle_flash = true;   ///< AzaharFrame kiuflash: vr_light_gun_flash
+    int recoil_charged = 100;   ///< AzaharFrame kiufix: percent (0 to 100)
+    int recoil_rapid = 50;      ///< percent (0 to 100)
+    int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size
+    int weapon_scale = 100;     ///< percent (50 to 150)
+    bool aim_calibrated = false; ///< the running game has a Calibrate Aim of its own
+    bool aim_calibration_ok = false; ///< Calibrate Aim can start (Direct Aim in a game)
     bool show_controllers = true;
     int controllers_in_front = 3; ///< AzaharFrame ctrlfront: 0 Off, 1 Primary, 2 Secondary, 3 Both
     int window_scale = 1; ///< 100, 150, 200 %
@@ -507,6 +524,10 @@ struct MenuLayout {
     /// and whether a dialog over the list holds it still (its scroll is kept for after).
     Scrolling::Bar bar;
     bool scroll_locked = false;
+    /// AzaharFrame kiufix: the Controls tab's scroll that brings Aiming to the top (`controls`:
+    /// this layout is the Controls tab's page).
+    float aiming_scroll = 0.0f;
+    bool controls = false;
 
     /// What is at (x, y) dp.
     Target HitTest(float x, float y) const;
@@ -585,6 +606,8 @@ private:
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     /// AzaharFrame ctgp7: the CTGP-7 segment (ctgp7_tab.cpp)
     void DrawCtgp7(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    /// AzaharFrame kiufix: the Angel's Aim segment (angels_aim_tab.cpp)
+    void DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
     /// AzaharFrame ctgp7b: rows of catalog mods (`rows`: indices of model.mods.mods.available) in
     /// `list`, `c` the content's edges (mods_segments.cpp): Install Mods' list and the CTGP-7
     /// segment's Mods for CTGP-7. Sets the list's scroll.

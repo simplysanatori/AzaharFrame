@@ -338,6 +338,10 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_light_gun_weapon.SetGlobal(true); // AzaharFrame kiuguns
     values.vr_light_gun_laser.SetGlobal(true);
     values.vr_light_gun_flash.SetGlobal(true); // AzaharFrame kiuflash
+    values.vr_light_gun_recoil_charged.SetGlobal(true); // AzaharFrame kiufix
+    values.vr_light_gun_recoil_rapid.SetGlobal(true);
+    values.vr_light_gun_weapon_size.SetGlobal(true);
+    values.vr_light_gun_weapon_scale.SetGlobal(true);
     values.vr_dynamic_resolution.SetGlobal(true); // AzaharFrame menuux
     values.autosave_enabled.SetGlobal(true);      // AzaharFrame autosave
     values.autosave_every.SetGlobal(true);

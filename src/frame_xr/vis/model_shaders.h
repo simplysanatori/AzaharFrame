@@ -122,8 +122,13 @@ void main() {
     if (pc.params.w > 3.5) {
         // A glow (a weapon's effect card): its texture as light, nothing covered (alpha 0, the
         // pipeline adds it).
-        vec3 glowColour = texture(u_colour, v_uv).rgb * clamp(pc.params.z, 0.0, 1.0);
-        fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), 0.0);
+        // AzaharFrame kiufix: twice as bright (the game's cards are dim textures it lights up),
+        // and a coverage alpha from the light itself, so the layer holds it as premultiplied
+        // light (a pixel with alpha 0 can be dropped as clear: the palm's flames did not show).
+        vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0)) *
+                          clamp(pc.params.z, 0.0, 1.0);
+        float cover = clamp(max(glowColour.r, max(glowColour.g, glowColour.b)) * 0.6, 0.0, 0.6);
+        fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), cover);
         return;
     }
     int view = int(pc.params.x + 0.5);

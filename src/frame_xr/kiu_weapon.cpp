@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "common/frame_emu_poll.h"
+#include "common/frame_test_switches.h" // AzaharFrame kiufix: AZAHARFRAME_KIU_FORCE_GYRO
 #include "common/logging/log.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -22,6 +23,8 @@ namespace {
 
 std::atomic<bool> g_want_weapon{false};
 std::atomic<bool> g_want_shots{false};
+std::atomic<bool> g_want_scheme{false}; // AzaharFrame kiufix
+std::atomic<int> g_scheme{-1};
 std::atomic<bool> g_installed{false};
 std::atomic<int> g_weapon{-1};
 std::atomic<bool> g_shots_ok{false};
@@ -37,10 +40,13 @@ struct Probe {
     bool scanned = false;
     WeaponAddresses weapon;
     ShotAddresses shots;
+    ModAddresses mod; ///< AzaharFrame kiufix: the C-Stick & Gyro mod's state (in a battle)
     WeaponSettle settle;
     ShotCounter counter;
     int64_t next_weapon_ns = 0;
     int64_t next_shots_ns = 0;
+    int64_t next_scheme_ns = 0; // AzaharFrame kiufix
+    int logged_scheme = -2;
     std::string weapon_reason, shots_reason;
     int logged_weapon = -3;
 };
@@ -77,6 +83,15 @@ void Scan(Probe& p, Kernel::Process& process, Memory::MemorySystem& memory) {
     }
     p.weapon = ScanForWeapon(code, seg.size, seg.addr);
     p.shots = ScanForShots(code, seg.size, seg.addr);
+    // AzaharFrame kiufix: the mod's state block (its code is in the data segment's range), for
+    // "in a battle": the mod keeps the player's reticle there while one is registered.
+    const auto& data = process.codeset->DataSegment();
+    if (data.size > 0 && data.offset + data.size <= image.size()) {
+        p.mod = ScanForMod(image.data() + data.offset, data.size, data.addr);
+    }
+    LOG_INFO(Frontend, "xr: Kid Icarus: the C-Stick & Gyro mod's state {}",
+             p.mod.found ? fmt::format("at 0x{:08X} (in a battle: its reticle set)", p.mod.state)
+                         : std::string{"not found (in a battle: the fighter records alone)"});
     LOG_INFO(Frontend,
              "xr: Kid Icarus: code scanned: weapon record {}, shots record {}",
              p.weapon.found ? fmt::format("at [0x{:08X}] + slot * 0x370 + {}", p.weapon.ptr,
@@ -89,8 +104,12 @@ void Scan(Probe& p, Kernel::Process& process, Memory::MemorySystem& memory) {
 void Poll(int64_t ticks) {
     const bool want_weapon = g_want_weapon.load(std::memory_order_relaxed);
     const bool want_shots = g_want_shots.load(std::memory_order_relaxed);
+    const bool want_scheme = g_want_scheme.load(std::memory_order_relaxed);
     Probe& p = TheProbe();
-    if (!want_weapon && !want_shots) {
+    if (!want_scheme) {
+        g_scheme = -1;
+    }
+    if (!want_weapon && !want_shots && !want_scheme) {
         if (g_weapon.load() != -1 || g_shots_ok.load()) {
             g_weapon = -1;
             g_shots_ok = false;
@@ -109,10 +128,17 @@ void Poll(int64_t ticks) {
     if (p.next_shots_ns - now > 4 * kShotsEveryNs) {
         p.next_shots_ns = now;
     }
+    if (p.next_scheme_ns - now > 4 * kWeaponEveryNs) {
+        p.next_scheme_ns = now;
+    }
     const bool weapon_due = want_weapon && now >= p.next_weapon_ns;
     const bool shots_due = want_shots && now >= p.next_shots_ns;
-    if (!weapon_due && !shots_due) {
+    const bool scheme_due = want_scheme && now >= p.next_scheme_ns;
+    if (!weapon_due && !shots_due && !scheme_due) {
         return;
+    }
+    if (scheme_due) {
+        p.next_scheme_ns = now + kWeaponEveryNs;
     }
     if (weapon_due) {
         p.next_weapon_ns = now + kWeaponEveryNs;
@@ -131,6 +157,7 @@ void Poll(int64_t ticks) {
     if (!process) {
         g_weapon = -1;
         g_shots_ok = false;
+        g_scheme = -1;
         return;
     }
     Memory::MemorySystem& memory = system.Memory();
@@ -143,6 +170,8 @@ void Poll(int64_t ticks) {
         p.settle.Reset();
         p.counter.Reset();
         p.logged_weapon = -3;
+        p.logged_scheme = -2;
+        g_scheme = -1;
     }
     if (!p.scanned) {
         Scan(p, *process, memory);
@@ -178,7 +207,23 @@ void Poll(int64_t ticks) {
                     static_cast<int8_t>(memory.Read8(*process, rec + p.weapon.field));
             }
             raw = WeaponFromRecords(r);
-            if (raw == -2) {
+            // AzaharFrame kiufix: Weapon in Hand only in a 3D battle (the owner: hubs, menus
+            // and the game's 2D screens show the controllers). The fighter record stays filled
+            // in some menus; the mod's player reticle is set only while a battle's reticle is
+            // registered (its hook clears it when the reticle goes), so both must hold.
+            uint32_t reticle = 0, vtable = 0;
+            // The object's first word, its vtable: in the game's code or read-only data.
+            const auto& code_seg = process->codeset->CodeSegment();
+            const auto& data_seg = process->codeset->DataSegment();
+            const bool have_reticle = p.mod.found &&
+                                      read32(p.mod.state + kStateReticle, reticle) &&
+                                      (reticle == 0 || read32(reticle, vtable));
+            const bool battle = InBattle(p.mod.found, have_reticle, reticle, vtable,
+                                         code_seg.addr, data_seg.addr);
+            if (raw >= 0 && !battle) {
+                raw = -1;
+                why = "not in a battle (no reticle)";
+            } else if (raw == -2) {
                 why = "the fighter records' values are out of range";
                 raw = -1;
             } else if (raw < 0 && (r.kind[0] == 1 || r.kind[0] == 2)) {
@@ -198,6 +243,43 @@ void Poll(int64_t ticks) {
                 LOG_INFO(Frontend, "xr: Kid Icarus: weapon {} (a {})", settled,
                          FrameWeapons::ClassName(FrameWeapons::ClassOf(settled)));
             }
+        }
+    }
+
+    if (scheme_due) {
+        // AzaharFrame kiufix: the options object is the one the shots record is in ([cache]).
+        int scheme = -1;
+        uint32_t object = 0, word = 0;
+        if (p.shots.found && read32(p.shots.cache, object) && object != 0 &&
+            read32(object + kOptionsScheme, word)) {
+            scheme = static_cast<int>(SchemeOf(word));
+            // AZAHARFRAME_KIU_FORCE_GYRO=1 (tests only, live): the game's controls set to the
+            // mod's gyro scheme in memory, as choosing it in the game's options does (for a mock
+            // run from a save made in another scheme; throwaway copies only), once a battle's
+            // reticle is there (the game reads its options again as it starts).
+            uint32_t battle_reticle = 0;
+            if (scheme != static_cast<int>(kSchemeGyro) && p.mod.found &&
+                read32(p.mod.state + kStateReticle, battle_reticle) && battle_reticle != 0 &&
+                Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FORCE_GYRO").value_or("") ==
+                    "1") {
+                const uint32_t forced = (word & ~(7u << 21)) | (kSchemeGyro << 21);
+                memory.Write32(*process, object + kOptionsScheme, forced);
+                LOG_WARNING(Frontend, "xr: Kid Icarus: AZAHARFRAME_KIU_FORCE_GYRO: the game's "
+                                      "controls set to gyro in memory (was scheme {})",
+                            scheme);
+                scheme = static_cast<int>(kSchemeGyro);
+            }
+        }
+        g_scheme = scheme;
+        if (scheme != p.logged_scheme) {
+            p.logged_scheme = scheme;
+            LOG_INFO(Frontend, "xr: Kid Icarus: the game's controls: {}",
+                     scheme < 0 ? std::string{"not readable"}
+                                : fmt::format("scheme {}{}", scheme,
+                                              scheme == static_cast<int>(kSchemeGyro)
+                                                  ? " (the mod's gyro)"
+                                                  : " (not the mod's gyro: Direct Aim and "
+                                                    "Gyro Aim cannot steer)"));
         }
     }
 
@@ -224,10 +306,11 @@ void Poll(int64_t ticks) {
 
 } // namespace
 
-void SetWanted(bool weapon, bool shots) {
+void SetWanted(bool weapon, bool shots, bool scheme) {
     g_want_weapon.store(weapon, std::memory_order_relaxed);
     g_want_shots.store(shots, std::memory_order_relaxed);
-    if ((weapon || shots) && !g_installed.exchange(true)) {
+    g_want_scheme.store(scheme, std::memory_order_relaxed);
+    if ((weapon || shots || scheme) && !g_installed.exchange(true)) {
         Common::FrameEmuPoll::Set(Poll);
     }
 }
@@ -242,6 +325,10 @@ bool ShotsReadable() {
 
 uint64_t ShotTotal() {
     return g_shot_total.load(std::memory_order_relaxed);
+}
+
+int ControlScheme() {
+    return g_want_scheme.load(std::memory_order_relaxed) ? g_scheme.load() : -1;
 }
 
 } // namespace FrameXr::Kiu
