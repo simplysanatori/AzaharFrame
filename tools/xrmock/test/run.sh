@@ -11,4 +11,6 @@ XRMOCK_TEST_INPUT=1 XRMOCK_BUILD=$BUILD "$TOOLS/mockrun.sh" --bin "$BUILD/xrmock
     --script "$HERE/input.script" --dump-frame 60 --out "$OUT"
 ls "$OUT"/dumps/sc0_f*.png >/dev/null
 grep -q 'test: .*: ok' "$OUT/emulator.log"
+# AzaharFrame imglag: the held-screen check's own test, image lag cases included.
+python3 -I "$TOOLS/xrmock/hold.py" --selftest
 echo "xrmock test: ok"

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "common/common_types.h"
+#include "frame_xr/image_lag.h" // AzaharFrame imglag: ShownPicture
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/toast_fit.h" // AzaharFrame ui3: ToastTime
 #include "frame_xr/xr_includes.h"
@@ -142,15 +143,18 @@ ViewPose LatestViewPose();
 /// AzaharFrame doubling: the head pose the game picture released last was drawn with (immersive
 /// modes 2 and 3; invalid otherwise). Any thread.
 VideoCore::XrContentPose ShownContentPose();
-/// AzaharFrame heldquad: a picture released, its release serial (ScreenChain::frame_serial) and
-/// the head pose it was drawn with.
-struct ShownPicture {
-    uint64_t serial = 0; ///< 0: none
-    VideoCore::XrContentPose content{};
-};
-inline constexpr std::size_t kShownPictures = 4;
-/// The last kShownPictures pictures released, newest first. Any thread.
+/// AzaharFrame heldquad: the last kShownPictures pictures released (ShownPicture, image_lag.h),
+/// newest first. Any thread.
 std::array<ShownPicture, kShownPictures> ShownPictures();
+/// AzaharFrame imglag: the picture the compositor shows on this display refresh: with the image
+/// lag of the runtime (ImageLagInEffect) the one the last xrEndFrame carried, found by its serial
+/// (ImageLag::PictureOnView). XR thread.
+ImageLag::OnView PictureOnView();
+/// AzaharFrame imglag: the image lag in effect, 0 or 1 refresh (the setting vr_xr_image_lag, or
+/// the live test switch AZAHARFRAME_XR_IMAGE_LAG). Any thread.
+uint32_t ImageLagInEffect();
+/// AzaharFrame imglag: the fallback and mispair counts since the runtime started. Any thread.
+ImageLag::Counts ImageLagCounts();
 
 /// Where the game screens are (LOCAL space; sizes in metres).
 struct ScreenPlacement {

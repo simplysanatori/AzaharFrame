@@ -523,6 +523,9 @@ void QtConfig::ReadUtilityValues() {
 void QtConfig::ReadVrValues() {
     qt_config->beginGroup(QStringLiteral("VR"));
 
+    if (global) {
+        ReadBasicSetting(Settings::values.vr_xr_image_lag); // AzaharFrame imglag (internal)
+    }
     ReadGlobalSetting(Settings::values.vr_immersive_mode);
     ReadGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     ReadGlobalSetting(Settings::values.vr_si_mode_register_offset);
@@ -1277,6 +1280,9 @@ void QtConfig::SaveUtilityValues() {
 void QtConfig::SaveVrValues() {
     qt_config->beginGroup(QStringLiteral("VR"));
 
+    if (global) {
+        WriteBasicSetting(Settings::values.vr_xr_image_lag); // AzaharFrame imglag (internal)
+    }
     WriteGlobalSetting(Settings::values.vr_immersive_mode);
     WriteGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
     WriteGlobalSetting(Settings::values.vr_si_mode_register_offset);

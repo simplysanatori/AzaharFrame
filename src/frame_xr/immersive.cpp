@@ -143,9 +143,6 @@ struct Tuning {
     /// holds a picture shown again as the game would draw it now (L::HeldQuad), "rigid" fixed in
     /// the room where it was drawn (L::AnchoredQuadPose), as up to 1.2.
     bool hold_warp = true;
-    /// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG (a test switch, live): -1, 0, +1
-    /// (TestSwitches::AnchorLagFrom).
-    int anchor_lag = 0;
 };
 
 // AzaharFrame integ9: through the live test-switch file (common/frame_test_switches.h), so a
@@ -212,7 +209,6 @@ Tuning ReadTuning() {
     const std::optional<std::string> world_tag = Switch("AZAHARFRAME_IMMERSIVE_WORLD_TAG");
     t.world_tag = !(world_tag && !world_tag->empty() && (*world_tag)[0] == '0');
     t.hold_warp = TestSwitches::HoldWarpFrom(Switch("AZAHARFRAME_IMMERSIVE_HOLD"));
-    t.anchor_lag = TestSwitches::AnchorLagFrom(Switch("AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"));
     return t;
 }
 
@@ -495,6 +491,10 @@ struct State {
         /// AzaharFrame heldquad: anchored frames whose picture's camera was in the pose ring
         /// (held as the game would draw it now), and those whose was not (held rigid).
         uint32_t held = 0, held_missed = 0;
+        /// AzaharFrame imglag: frames whose picture on view was the one the last xrEndFrame
+        /// carried, the newest because that frame had no top screen (or the one sent was no
+        /// longer kept), and the pictures never on view (released and replaced within a refresh).
+        uint32_t by_sent = 0, no_sent = 0, gone = 0, never_on_view = 0;
     } age;
     /// AzaharFrame turns: the last anchored frame's offsets (degrees across, up; per eye).
     bool slip_prev_valid = false;
@@ -502,17 +502,11 @@ struct State {
     /// AzaharFrame heldquad: each display frame's head pose and game camera (OnFrame), for
     /// holding a picture shown again as the game would draw it now (Screens, L::HeldQuad).
     L::PoseRing poses;
-    /// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG's count of the refreshes each
-    /// picture (its release serial) was on view: the display frame last seen and the picture it
-    /// showed at its last look (Screens runs more than once a frame; the frame loop's, under the
-    /// release lock, is the last), and up to the frame before it, the picture counted, its
-    /// refreshes and those of the picture before it.
-    struct Lag {
-        int64_t frame = 0;
-        uint64_t frame_serial = 0;
-        uint64_t serial = 0;
-        uint32_t run = 0, last_run = 0;
-    } lag;
+    /// AzaharFrame imglag: the picture on view's serial at the last per-frame look (OnFrame),
+    /// for the count of pictures never on view.
+    uint64_t on_view_serial = 0;
+    /// AzaharFrame imglag: the counts at the last per-second line (it says the change since).
+    ImageLag::Counts lag_counts;
 };
 
 State g;
@@ -749,67 +743,13 @@ void TestResolutionHook() {
     }
 }
 
-// AzaharFrame heldquad: the picture the screen is anchored to on this display frame: the one on
-// view; with AZAHARFRAME_IMMERSIVE_ANCHOR_LAG=-1 on its first refresh the one before it, with +1
-// on its last refresh (as long as the one before was on view) the next one, foreseen from the
-// pose ring: the head pose as long after this picture's as this one's was after the one before
-// (a picture's tag spacing). `held_time`: the pose ring's key for it (0: none).
-VideoCore::XrContentPose AnchorContent(int64_t& held_time) {
-    const std::array<ShownPicture, kShownPictures> pics = ShownPictures();
-    const ShownPicture& on = pics[0];
-    held_time = on.content.time;
-    auto& l = g.lag;
-    if (l.frame != g.view.time) {
-        // The display frame before is over: count the picture it showed.
-        if (l.frame != 0 && l.frame_serial != 0) {
-            if (l.frame_serial == l.serial) {
-                l.run++;
-            } else {
-                l.last_run = l.run;
-                l.run = 1;
-                l.serial = l.frame_serial;
-            }
-        }
-        l.frame = g.view.time;
-    }
-    l.frame_serial = on.serial;
-    if (g.tuning.anchor_lag == 0) {
-        return on.content;
-    }
-    // This frame's count of the picture on view, and the refreshes of the one before.
-    const bool same = on.serial == l.serial;
-    const uint32_t run = same ? l.run + 1 : 1;
-    const uint32_t last_run = same ? l.last_run : l.run;
-    const ShownPicture& before = pics[1];
-    const bool have_before = before.serial != 0 && before.serial + 1 == on.serial &&
-                             before.content.valid && on.content.valid;
-    if (!have_before) {
-        return on.content;
-    }
-    if (g.tuning.anchor_lag < 0 && run == 1) {
-        held_time = before.content.time;
-        return before.content;
-    }
-    if (g.tuning.anchor_lag > 0 && last_run >= 2 && run >= last_run) {
-        const int64_t next = on.content.time + (on.content.time - before.content.time);
-        const L::HeldPose* p = g.poses.Nearest(next);
-        // Within half a 120 Hz refresh of the foreseen time, and not after this frame.
-        if (p && std::abs(p->time - next) <= 4'200'000 && p->time <= g.view.time) {
-            VideoCore::XrContentPose c;
-            c.valid = true;
-            c.orientation[0] = p->head.orientation.x;
-            c.orientation[1] = p->head.orientation.y;
-            c.orientation[2] = p->head.orientation.z;
-            c.orientation[3] = p->head.orientation.w;
-            c.position[0] = p->head.position.x;
-            c.position[1] = p->head.position.y;
-            c.position[2] = p->head.position.z;
-            c.time = p->time;
-            held_time = p->time;
-            return c;
-        }
-    }
-    return on.content;
+// AzaharFrame imglag: the picture the screen is anchored to on this display frame: the one the
+// compositor shows on it (PictureOnView: with the runtime's image lag, the one the last
+// xrEndFrame carried, found by its release serial). Its pose is the anchor, its time the pose
+// ring's key for the held quad and what the 250 ms limit is judged on. A picture without a pose
+// (drawn outside the Full modes, before a recentre) is shown as before: not anchored.
+VideoCore::XrContentPose AnchorContent() {
+    return PictureOnView().picture.content;
 }
 
 bool AnchorPose(XrTime display, XrPosef& head, const Layout::HeldPose** held) {
@@ -819,18 +759,13 @@ bool AnchorPose(XrTime display, XrPosef& head, const Layout::HeldPose** held) {
     if (!g.engaged || !IsViewMode(g.mode)) {
         return false;
     }
-    int64_t held_time = 0;
-    const VideoCore::XrContentPose shown = AnchorContent(held_time);
-    if (!shown.valid || shown.time < g.recentre_time) {
-        return false;
-    }
-    const double age_ms = (display - shown.time) / 1e6;
-    if (age_ms > g.tuning.anchor_max_ms || age_ms < -100.0) {
+    const VideoCore::XrContentPose shown = AnchorContent();
+    if (!ImageLag::AnchorUsable(shown, display, g.recentre_time, g.tuning.anchor_max_ms)) {
         return false;
     }
     head = ToXr(shown);
     if (held) {
-        *held = g.poses.Find(held_time);
+        *held = g.poses.Find(shown.time);
     }
     return true;
 }
@@ -1537,7 +1472,30 @@ void OnFrame(const FrameInfo& info) {
     // AzaharFrame doubling: the per-second picture age line (Full modes, engaged).
     if (g.engaged && IsViewMode(mode) && g.view.valid) {
         auto& a = g.age;
-        const VideoCore::XrContentPose shown = ShownContentPose();
+        // AzaharFrame imglag: the picture on view (with the image lag, the one the last
+        // xrEndFrame carried), so the age, the turn since and the runs are of what is seen.
+        const ImageLag::OnView on_view = PictureOnView();
+        const VideoCore::XrContentPose& shown = on_view.picture.content;
+        switch (on_view.source) {
+        case ImageLag::Source::Sent:
+            a.by_sent++;
+            break;
+        case ImageLag::Source::NoSent:
+            a.no_sent++;
+            break;
+        case ImageLag::Source::Gone:
+            a.gone++;
+            break;
+        default:
+            break;
+        }
+        const uint64_t serial = on_view.picture.serial;
+        if (serial > g.on_view_serial + 1 && g.on_view_serial != 0) {
+            a.never_on_view += static_cast<uint32_t>(serial - g.on_view_serial - 1);
+        }
+        if (serial != 0) {
+            g.on_view_serial = serial;
+        }
         a.frames++;
         if (g.view_raw_valid) { // AzaharFrame jump: the view as located, against the fitted one
             const float mid = Deg(L::ViewMiddlePitch(g.view_raw));
@@ -1593,9 +1551,33 @@ void OnFrame(const FrameInfo& info) {
             if (a.anchored > 0) { // AzaharFrame heldquad
                 LOG_INFO(Frontend,
                          "xr: immersive: a picture shown again held {} (AZAHARFRAME_IMMERSIVE_HOLD) "
-                         "in {} anchored frames, its camera not found in {}; anchor lag {:+d}",
+                         "in {} anchored frames, its camera not found in {}",
                          g.tuning.hold_warp ? "as drawn for the head now" : "rigid", a.held,
-                         a.held_missed, g.tuning.anchor_lag);
+                         a.held_missed);
+            }
+            {
+                // AzaharFrame imglag: which rule chose the picture on view, and every case where
+                // the pairing rests on an assumption or can be a picture off (image_lag.h).
+                const ImageLag::Counts now_counts = ImageLagCounts();
+                const ImageLag::Counts& was = g.lag_counts;
+                const auto d = [](uint32_t now_v, uint32_t was_v) { return now_v - was_v; };
+                const auto none = [&](ImageLag::NoneSent k) {
+                    const auto i = static_cast<std::size_t>(k);
+                    return d(now_counts.none_sent[i], was.none_sent[i]);
+                };
+                LOG_INFO(Frontend,
+                         "xr: immersive: image lag {}: the picture on view the one sent in {} "
+                         "frames, the newest in {} (no top screen sent before) and {} (the one "
+                         "sent gone), {} pictures never on view; nothing sent by {} frames "
+                         "without the top screen, {} not rendered, {} whose xrEndFrame failed, "
+                         "{} without xrEndFrame; {} refreshes the loop missed; {} serials maybe "
+                         "behind their image (set releases off)",
+                         ImageLagInEffect(), a.by_sent, a.no_sent, a.gone, a.never_on_view,
+                         none(ImageLag::NoneSent::NoTopLayer), none(ImageLag::NoneSent::NotRendered),
+                         none(ImageLag::NoneSent::EndFailed), none(ImageLag::NoneSent::NoEndFrame),
+                         d(now_counts.missed_refreshes, was.missed_refreshes),
+                         d(now_counts.serial_trailing, was.serial_trailing));
+                g.lag_counts = now_counts;
             }
             if (a.cam_frames > 0) {
                 LOG_INFO(Frontend,
@@ -1699,6 +1681,8 @@ void OnFrame(const FrameInfo& info) {
         }
     } else {
         g.age = {};
+        g.on_view_serial = 0; // AzaharFrame imglag: counted again from the next picture on view
+        g.lag_counts = ImageLagCounts(); // the per-second line counts from here
     }
 
     if (g.engaged != was_engaged) {
@@ -1773,16 +1757,15 @@ void ReloadTestSwitches() {
     g.tuning.tag_offset = t.tag_offset;
     g.tuning.position_scale = t.position_scale;
     g.tuning.world_tag = t.world_tag;
-    g.tuning.hold_warp = t.hold_warp;   // AzaharFrame heldquad
-    g.tuning.anchor_lag = t.anchor_lag; // AzaharFrame heldquad
+    g.tuning.hold_warp = t.hold_warp; // AzaharFrame heldquad
     VideoCore::Immersive::g_content.SetFollowWorld(t.world_tag);
     VideoCore::Immersive::g_content.SetTagOffset(t.tag_offset);
     LOG_INFO(Frontend,
              "xr: immersive: test switches now: anchor {}, max {:.0f} ms, about the eye {}, anchor "
-             "depth {:.2f}, world tag {}, tag offset {:+d}, {}, hold {}, anchor lag {:+d}",
+             "depth {:.2f}, world tag {}, tag offset {:+d}, {}, hold {}, image lag {}",
              t.anchor ? "on" : "off", t.anchor_max_ms, t.anchor_eye ? "on" : "off",
              t.anchor_depth_m, t.world_tag ? "on" : "off", t.tag_offset, PositionScaleLine(),
-             t.hold_warp ? "warp" : "rigid", t.anchor_lag);
+             t.hold_warp ? "warp" : "rigid", ImageLagInEffect());
 }
 
 void Install() {
@@ -1824,10 +1807,16 @@ void Install() {
                                  : "stays at its picture's head pose, position too");
     LOG_INFO(Frontend,
              "xr: immersive: a picture shown again is held {} (AZAHARFRAME_IMMERSIVE_HOLD), "
-             "anchor lag {:+d} refresh (AZAHARFRAME_IMMERSIVE_ANCHOR_LAG)",
+             "anchored to the picture on view (image lag, logged with the runtime)",
              g.tuning.hold_warp ? "as the game would draw it now, through the screen's gains"
-                                : "rigid in the room where it was drawn",
-             g.tuning.anchor_lag);
+                                : "rigid in the room where it was drawn");
+    // AzaharFrame imglag: the old A/B switch is replaced by the image lag (AZAHARFRAME_XR_IMAGE_LAG).
+    if (const std::optional<std::string> old = Switch("AZAHARFRAME_IMMERSIVE_ANCHOR_LAG")) {
+        LOG_INFO(Frontend,
+                 "xr: immersive: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG={} is no longer read: the image "
+                 "lag replaces it (setting vr_xr_image_lag, switch AZAHARFRAME_XR_IMAGE_LAG=0|1)",
+                 *old);
+    }
 }
 
 void Uninstall() {

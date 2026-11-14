@@ -535,6 +535,8 @@ void Runtime::FrameLoop() {
             }
             if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH") {
                 test_single_flash = TestSwitches::OnFrom(Common::FrameTestSwitches::Value(c.name));
+            } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
+                UpdateImageLag("test switch changed"); // AzaharFrame imglag
             } else if (c.name == "AZAHARFRAME_XR_REFRESH_RATE") {
                 RequestRefreshRate();
             } else {
@@ -656,6 +658,8 @@ void Runtime::FrameLoop() {
             continue;
         }
         if (!running) {
+            sent_serial = 0; // AzaharFrame imglag: nothing of ours in the pipeline meanwhile
+            last_display_time = 0;
             Watchdog::Idle();
             loop_phase = "waiting for the session to run or end";
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -670,9 +674,15 @@ void Runtime::FrameLoop() {
         XrResult r = xr.xrWaitFrame(session, nullptr, &fs);
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrWaitFrame: {}", ResultName(r));
+            NoEndFrame(); // AzaharFrame imglag
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
+        // AzaharFrame imglag: refreshes the loop missed (the compositor showed the last frame's
+        // layers again: its image with the pose meant for the picture before it).
+        missed_refreshes += ImageLag::MissedRefreshes(last_display_time, fs.predictedDisplayTime,
+                                                      fs.predictedDisplayPeriod);
+        last_display_time = fs.predictedDisplayTime;
         const auto now = Clock::now();
         phases.wait_ms = Ms(now - wait_start);
         if (last_wait != Clock::time_point{}) {
@@ -694,6 +704,7 @@ void Runtime::FrameLoop() {
         phases.begin_ms = Ms(Clock::now() - mark) - phases.begin_lock_ms;
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrBeginFrame: {}", ResultName(r));
+            NoEndFrame(); // AzaharFrame imglag
             continue;
         }
         mark = Clock::now();
@@ -755,6 +766,10 @@ void Runtime::FrameLoop() {
         XrPosef label_top_pose{{0, 0, 0, 1}, {0, 0, 0}};
         XrExtent2Df label_top_size{0.0f, 0.0f};
         Hud::BadgeAnchor badge_anchor; // AzaharFrame shaderbadge: the main screen, if any
+        // AzaharFrame imglag: whether this frame's layers carry the top screen, and its picture's
+        // serial (what the compositor shows on the next refresh, with the image lag).
+        bool top_carried = false;
+        uint64_t top_serial = 0;
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
             {
@@ -771,10 +786,14 @@ void Runtime::FrameLoop() {
             // flickering, but no game picture is ever seen twice: an A/B for double images
             // that come from a picture held on two refreshes.
             // AzaharFrame integ9: live (test_switches.h; the switch file is read again while running).
+            // AzaharFrame imglag: judged on the picture this refresh would show (with the image
+            // lag the one the last frame carried), so no picture is seen on two refreshes.
             bool hide_top = false;
             {
                 const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
-                hide_top = single_flash.Hide(test_single_flash, t.has_image, t.frame_serial);
+                hide_top = single_flash.Hide(
+                    test_single_flash, t.has_image,
+                    ImageLag::SerialOnView(t.frame_serial, sent_serial.load(), image_lag.load()));
             }
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
@@ -811,6 +830,10 @@ void Runtime::FrameLoop() {
                 }
                 if (!use.layer) {
                     return; // no picture, or (AzaharFrame dbl) shown once already
+                }
+                if (s == VideoCore::XrScreen::TopLeft) { // AzaharFrame imglag
+                    top_carried = true;
+                    top_serial = chain.frame_serial;
                 }
                 Quad q;
                 q.swapchain = chain.handle;
@@ -1017,6 +1040,17 @@ void Runtime::FrameLoop() {
             }
         }
         stats.display_frames++;
+        // AzaharFrame imglag: what this xrEndFrame carried (still under the screens lock, so no
+        // release came between): with the image lag, the picture on view on the next refresh.
+        sent_serial =
+            ImageLag::SentAfterEnd(top_carried, fs.shouldRender, XR_SUCCEEDED(r), top_serial);
+        if (sent_serial == 0 && screens_live) { // counted while a game is on view
+            none_sent[static_cast<std::size_t>(
+                ImageLag::WhyNoneSent(fs.shouldRender, XR_SUCCEEDED(r)))]++;
+        }
+        if (!set_release && releasing.load() > 0) {
+            serial_trailing++; // a release outside the lock was in progress
+        }
         {
             // AzaharFrame pacing: the game frame this frame showed (the parity gate, the log).
             uint64_t shown_serial = 0;
@@ -1219,6 +1253,33 @@ VideoCore::XrContentPose ShownContentPose() {
         return rt->shown_content;
     }
     return {};
+}
+
+ImageLag::OnView PictureOnView() { // AzaharFrame imglag
+    if (auto* rt = GetRuntime()) {
+        return ImageLag::PictureOnView(ShownPictures(), rt->sent_serial.load(),
+                                       rt->image_lag.load());
+    }
+    return {};
+}
+
+ImageLag::Counts ImageLagCounts() { // AzaharFrame imglag
+    ImageLag::Counts c;
+    if (auto* rt = GetRuntime()) {
+        for (std::size_t i = 0; i < ImageLag::kNoneSentKinds; i++) {
+            c.none_sent[i] = rt->none_sent[i].load();
+        }
+        c.missed_refreshes = rt->missed_refreshes.load();
+        c.serial_trailing = rt->serial_trailing.load();
+    }
+    return c;
+}
+
+uint32_t ImageLagInEffect() { // AzaharFrame imglag
+    if (auto* rt = GetRuntime()) {
+        return rt->image_lag.load();
+    }
+    return ImageLag::kDefaultLag;
 }
 
 std::array<ShownPicture, kShownPictures> ShownPictures() { // AzaharFrame heldquad

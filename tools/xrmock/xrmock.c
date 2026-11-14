@@ -961,6 +961,11 @@ typedef struct {
     long releases;    // total
     int lastRel;      // index of the image released last (-1: none)
     int dumped;       // how many of gDumpFrames were dumped
+    // AzaharFrame imglag (MOCK_XR_IMAGE_LAG=1): what the last endFrame that submitted this chain
+    // carried (its release count and image index), shown with the NEXT endFrame's layer pose;
+    // sentRel 0: the last endFrame did not submit it (its next layer shows the newest at once).
+    long sentRel;
+    int sentIdx;
 } Chain;
 static Chain gChains[MAXSC];
 static int gChainCount = 0;
@@ -1430,6 +1435,23 @@ static XrResult XRAPI_CALL mBeginFrame(XrSession s, const XrFrameBeginInfo* bi) 
     UNLOCK();
     return r;
 }
+// AzaharFrame imglag: the image an endFrame carries is shown one refresh late, with the next
+// endFrame's layer pose, as SteamVR does on the Steam Frame (38/dbl/advisor.md, cause 1a): the
+// default, as the app's image lag is 1 by default; MOCK_XR_IMAGE_LAG=0 shows it at once.
+static int imageLag(void) {
+    static int lag = -1;
+    if (lag < 0) lag = !(getenv("MOCK_XR_IMAGE_LAG") && getenv("MOCK_XR_IMAGE_LAG")[0] == '0');
+    return lag;
+}
+// The image a layer of chain `c` shows on this refresh: its release count (the picture) and index.
+static long shownRel(const Chain* c, int* idx) {
+    if (imageLag() && c->sentRel > 0) {
+        if (idx) *idx = c->sentIdx;
+        return c->sentRel;
+    }
+    if (idx) *idx = c->lastRel;
+    return c->releases;
+}
 static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     (void)s;
     char buf[2048] = "";
@@ -1510,6 +1532,12 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
                          q->pose.position.z, dp, q->pose.orientation.x, dp, q->pose.orientation.y, dp, q->pose.orientation.z, dp,
                          q->pose.orientation.w);
                 strcat(buf, t);
+                // AzaharFrame imglag: with MOCK_XR_IMAGE_LAG=1, the picture (release count) this
+                // layer shows on this refresh (without it, the releases before this endFrame).
+                if (imageLag()) {
+                    snprintf(t, sizeof(t), " img=%ld", shownRel(c, NULL));
+                    strcat(buf, t);
+                }
             }
             strcat(buf, "]");
         } else if (l->type == XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR) {
@@ -1586,9 +1614,19 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
         for (int k = 0; k < nshown; k++) {
             char tag[32];
             snprintf(tag, sizeof(tag), "shown_f%d", gFrame);
-            dumpImage(shown[k], gChains[shown[k]].lastRel, tag);
+            int idx = -1;
+            shownRel(&gChains[shown[k]], &idx); // AzaharFrame imglag: the image on view
+            dumpImage(shown[k], idx, tag);
         }
         while (gShownNext < gShownCount && since >= gShownTimes[gShownNext]) gShownNext++;
+    }
+    // AzaharFrame imglag: what this endFrame carried, on view on the next refresh (a failed one
+    // carried nothing).
+    for (int i = 0; i < gChainCount; i++) {
+        int carried = 0;
+        for (int k = 0; k < nshown; k++) carried |= shown[k] == i;
+        gChains[i].sentRel = carried && res == XR_SUCCESS ? gChains[i].releases : 0;
+        gChains[i].sentIdx = carried && res == XR_SUCCESS ? gChains[i].lastRel : -1;
     }
     secTick();
     UNLOCK();
@@ -1790,6 +1828,8 @@ static void init(void) {
         free(copy);
     }
     gFocusOnce = getenv("MOCK_XR_FOCUS_ONCE") && getenv("MOCK_XR_FOCUS_ONCE")[0] == '1';
+    // AzaharFrame imglag: in the trace's head, so a run's pairing model is on record.
+    trace("config image lag %d refresh (MOCK_XR_IMAGE_LAG; default 1, as SteamVR)", imageLag());
     const char* script = getenv("MOCK_XR_INPUT_SCRIPT");
     if (script) loadScript(script);
     secReset();

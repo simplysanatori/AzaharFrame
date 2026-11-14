@@ -62,11 +62,12 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_EXTENSIONS=a,b` | replace the list of extensions offered |
 | `MOCK_XR_END_GPU=1` | `xrEndFrame` waits for the app's queue to go idle before it returns, as SteamVR's did on the Frame while a GPU-heavy game ran (13 to 23 ms calls). The app holds its queue lock around the call, so this also holds back the app's own submits and swapchain releases |
 | `MOCK_XR_BUSY_MS=<ms>` | at each release, wait for the app's queue to go idle; longer than this is an error ("released while GPU work could still be pending"). Off by default, because it stalls the app's queue and submits on it from the releasing thread |
+| `MOCK_XR_IMAGE_LAG=0` | show the image an `xrEndFrame` carries at once. Without it (the default, `1`, as the app's own default image lag), as SteamVR on the Steam Frame: the image an `xrEndFrame` carries is shown one refresh late, with the next `xrEndFrame`'s layer pose (a layer not submitted on the frame before shows its newest image at once). With `MOCK_XR_TRACE_POSE`, each quad says which picture it shows (`img=<release count>`); `hold.py` (here) reads it, and fails an app that pairs the pose with the image it sends (image lag 0) |
 | `MOCK_XR_TRACE_POSE=1` | quad positions in the trace (`=5`: positions, orientations and sizes to 5 decimals, and each frame's display time and head yaw) |
 | `MOCK_XR_INPUT_SCRIPT=<file>` | scripted input, below |
 | `MOCK_XR_DUMP_DIR=<dir>` | write swapchain images as PNG |
 | `MOCK_XR_DUMP_FRAME=<n\|last>` | `n`: the first image of each swapchain released at or after frame n. `last` (default): the last image released, written when the session ends (`xrEndSession`), so the app has to end its session before it is killed. `n1,n2,...` (ascending): one dump per swapchain after each listed frame (`sc<id>_f<frame>.png`; a swapchain that releases nothing between two listed frames is dumped once for both) |
-| `MOCK_XR_DUMP_SHOWN=t1,t2,...` | at the first `xrEndFrame` at or after each listed time (seconds since the session began, as in input scripts), the image every submitted quad layer shows (its last released image) as `sc<id>_shown_f<frame>.png`, and a `shown` trace line. What is on screen then, whether or not anything was released; a hidden layer is not dumped |
+| `MOCK_XR_DUMP_SHOWN=t1,t2,...` | at the first `xrEndFrame` at or after each listed time (seconds since the session began, as in input scripts), the image every submitted quad layer shows (its last released image; by default the one the endFrame before carried) as `sc<id>_shown_f<frame>.png`, and a `shown` trace line. What is on screen then, whether or not anything was released; a hidden layer is not dumped |
 
 ## Trace and checks
 

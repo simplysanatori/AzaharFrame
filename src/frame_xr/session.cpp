@@ -221,6 +221,10 @@ bool Runtime::CreateXrInstance(bool renew) {
     LOG_INFO(Frontend, "xr: runtime {} {}.{}.{}, extensions:{}", props.runtimeName,
              XR_VERSION_MAJOR(props.runtimeVersion), XR_VERSION_MINOR(props.runtimeVersion),
              XR_VERSION_PATCH(props.runtimeVersion), list);
+    runtime_name = fmt::format("{} {}.{}.{}", props.runtimeName,
+                               XR_VERSION_MAJOR(props.runtimeVersion),
+                               XR_VERSION_MINOR(props.runtimeVersion),
+                               XR_VERSION_PATCH(props.runtimeVersion)); // AzaharFrame imglag
 
     XrSystemGetInfo sgi{XR_TYPE_SYSTEM_GET_INFO};
     sgi.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -420,6 +424,9 @@ bool Runtime::CreateSession() {
         ui->Create(*this);
     }
     hud.Create(*this); // AzaharFrame vrqol
+    sent_serial = 0;                  // AzaharFrame imglag: nothing in the compositor yet
+    last_display_time = 0;
+    UpdateImageLag("session started"); // AzaharFrame imglag
     has_session = true;
     Settings::frame_flat_mono = false; // stereo again for the headset
     return true;
@@ -646,6 +653,8 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
     std::unique_lock set_lock{screens_mutex, std::defer_lock};
     if (set_release) {
         set_lock.lock();
+    } else {
+        releasing++; // AzaharFrame imglag: an xrEndFrame meanwhile may carry it before its serial
     }
     const uint64_t serial = ++release_serial; // only the handoff thread releases
     for (std::size_t i = 0; i < kScreens; i++) {
@@ -678,10 +687,51 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
             }
         }
     }
-    std::scoped_lock lock{content_mutex};
-    shown_content = content;
-    shown_pictures[shown_next] = {serial, content}; // AzaharFrame heldquad
-    shown_next = (shown_next + 1) % shown_pictures.size();
+    {
+        std::scoped_lock lock{content_mutex};
+        shown_content = content;
+        shown_pictures[shown_next] = {serial, content}; // AzaharFrame heldquad
+        shown_next = (shown_next + 1) % shown_pictures.size();
+    }
+    if (!set_release) {
+        releasing--;
+    }
+}
+
+// AzaharFrame imglag: the image lag from the internal setting (vr_xr_image_lag, config.ini [VR],
+// default 1: SteamVR shows an image one refresh after the pose sent with it) and the live switch
+// AZAHARFRAME_XR_IMAGE_LAG=0|1 (for re-testing after a SteamVR update). Logged with the runtime
+// at each session's start and when it changes.
+void Runtime::UpdateImageLag(const char* why) {
+    const uint32_t setting = Settings::values.vr_xr_image_lag.GetValue();
+    const std::optional<uint32_t> over =
+        ImageLag::OverrideFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_IMAGE_LAG"));
+    const uint32_t lag = ImageLag::InEffect(setting, over);
+    image_lag = lag;
+    LOG_INFO(Frontend,
+             "xr: image lag {} refresh ({}; setting vr_xr_image_lag {}{}), runtime {}: the "
+             "anchored screen is placed for the picture {} (lag 1 measured on {})",
+             lag, why, setting,
+             over ? fmt::format(", AZAHARFRAME_XR_IMAGE_LAG={} wins", *over) : std::string{},
+             runtime_name.empty() ? std::string{"unknown"} : runtime_name,
+             lag ? "the last xrEndFrame carried" : "each xrEndFrame carries",
+             ImageLag::kMeasuredRuntime);
+    // Any SteamVR version keeps lag 1 without a word (SteamVR updates almost daily); only
+    // another runtime, or none known, is warned about.
+    if (lag == 1 && !ImageLag::SteamVrRuntime(runtime_name)) {
+        LOG_WARNING(Frontend,
+                    "xr: image lag 1 is assumed for runtime {}, which is not SteamVR (the lag was "
+                    "measured on {}): if head turns double the world, check once with "
+                    "AZAHARFRAME_XR_IMAGE_LAG=0 (the doubling must come back with 0 if 1 is right)",
+                    runtime_name.empty() ? std::string{"unknown"} : runtime_name,
+                    ImageLag::kMeasuredRuntime);
+    }
+    if (!set_release) {
+        LOG_WARNING(Frontend,
+                    "xr: AZAHARFRAME_XR_SET_RELEASE=0: releases happen outside the screens lock, "
+                    "so a frame can carry an image before its serial is written; the image lag "
+                    "pairing may be a picture behind then (counted as serials maybe behind)");
+    }
 }
 
 bool Runtime::PackedTop() const {

@@ -7,6 +7,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     dynamic_resolution.cpp # AzaharFrame menuux
     dynamic_resolution.h
     frame_xr.h
+    image_lag.h # AzaharFrame imglag
     immersive.cpp
     immersive.h
     immersive_layout.cpp

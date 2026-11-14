@@ -20,7 +20,8 @@
 
 namespace FrameXr::TestSwitches {
 
-enum class Apply : uint8_t { Live, Restart };
+/// AzaharFrame imglag: Retired, a switch no longer read (its line is ignored).
+enum class Apply : uint8_t { Live, Restart, Retired };
 
 /// The switches applied as they change; every other one is read only at the start (it sizes or
 /// makes something once: the session, the screen's place, a thread, a trace) and needs a restart.
@@ -32,8 +33,13 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_LOCAL",          "AZAHARFRAME_IMMERSIVE_WORLD_TAG",
         "AZAHARFRAME_IMMERSIVE_TAG_OFFSET",     "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
-        "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_IMMERSIVE_ANCHOR_LAG",
+        "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_XR_IMAGE_LAG",
     };
+    // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.
+    constexpr std::string_view kRetired[] = {"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"};
+    if (std::find(std::begin(kRetired), std::end(kRetired), name) != std::end(kRetired)) {
+        return Apply::Retired;
+    }
     return std::find(std::begin(kLive), std::end(kLive), name) != std::end(kLive) ? Apply::Live
                                                                                   : Apply::Restart;
 }
@@ -44,8 +50,11 @@ inline std::string LogLine(const Common::FrameTestSwitches::Change& c) {
         return "test switch " + c.name + " changed in the file, ignored: set in the environment";
     }
     const std::string what = c.removed ? c.name + " removed (its default)" : c.name + "=" + c.value;
+    const Apply a = ApplyFor(c.name);
     return "test switch " + what +
-           (ApplyFor(c.name) == Apply::Live ? " (live)" : " (restart needed)");
+           (a == Apply::Live      ? " (live)"
+            : a == Apply::Retired ? " (no longer read)"
+                                  : " (restart needed)");
 }
 
 /// One toast for the changes of one read ("" when none shows): "Test Switch: NAME=value", two
@@ -53,8 +62,8 @@ inline std::string LogLine(const Common::FrameTestSwitches::Change& c) {
 inline std::string ToastText(const std::vector<Common::FrameTestSwitches::Change>& changes) {
     std::vector<std::string> parts;
     for (const auto& c : changes) {
-        if (c.env_wins) {
-            continue;
+        if (c.env_wins || ApplyFor(c.name) == Apply::Retired) {
+            continue; // AzaharFrame imglag: a retired switch shows no toast
         }
         std::string p = c.removed ? c.name + " Cleared" : c.name + "=" + c.value;
         if (ApplyFor(c.name) == Apply::Restart) {
@@ -112,14 +121,8 @@ inline bool HoldWarpFrom(const std::optional<std::string>& v) {
     return !(v && *v == "rigid");
 }
 
-/// AzaharFrame heldquad: AZAHARFRAME_IMMERSIVE_ANCHOR_LAG: -1, 0 or +1 (anything else, or unset:
-/// 0). -1: a new picture's anchor one refresh after its image (its first refresh keeps the
-/// anchor of the picture before); +1: one refresh before it (a picture's last refresh takes the
-/// next one's anchor, foreseen from the head poses). A test of a one-refresh skew between image
-/// and pose in the compositor.
-inline int AnchorLagFrom(const std::optional<std::string>& v) {
-    return TagOffsetFrom(v);
-}
+// AzaharFrame imglag: AZAHARFRAME_XR_IMAGE_LAG=0|1 (live) replaces the A/B switch
+// AZAHARFRAME_IMMERSIVE_ANCHOR_LAG; its value is read by ImageLag::OverrideFrom (image_lag.h).
 
 /// A switch that is on with "1" (AZAHARFRAME_XR_SINGLE_FLASH).
 inline bool OnFrom(const std::optional<std::string>& v) {

@@ -115,31 +115,30 @@ TEST_CASE("Test switches: the values of the A/B switches", "[frame_xr][test_swit
     CHECK_FALSE(TS::OnFrom(std::string("")));
     CHECK_FALSE(TS::OnFrom(std::nullopt));
 
-    // AzaharFrame heldquad: HOLD is warp unless it says rigid; ANCHOR_LAG is -1, 0 or +1.
+    // AzaharFrame heldquad: HOLD is warp unless it says rigid.
     CHECK(TS::HoldWarpFrom(std::nullopt));
     CHECK(TS::HoldWarpFrom(std::string("warp")));
     CHECK(TS::HoldWarpFrom(std::string("")));
     CHECK(TS::HoldWarpFrom(std::string("x")));
     CHECK_FALSE(TS::HoldWarpFrom(std::string("rigid")));
-    CHECK(TS::AnchorLagFrom(std::nullopt) == 0);
-    CHECK(TS::AnchorLagFrom(std::string("-1")) == -1);
-    CHECK(TS::AnchorLagFrom(std::string("0")) == 0);
-    CHECK(TS::AnchorLagFrom(std::string("+1")) == 1);
-    CHECK(TS::AnchorLagFrom(std::string("1")) == 1);
-    CHECK(TS::AnchorLagFrom(std::string("-2")) == 0);
 }
 
 TEST_CASE("Test switches: what applies live, the log and the toast", "[frame_xr][test_switches]") {
     for (const char* live : {"AZAHARFRAME_IMMERSIVE_TAG_OFFSET", "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
                              "AZAHARFRAME_XR_SINGLE_FLASH", "AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH",
                              "AZAHARFRAME_IMMERSIVE_WORLD_TAG", "AZAHARFRAME_XR_REFRESH_RATE",
-                             "AZAHARFRAME_IMMERSIVE_HOLD", "AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"}) {
+                             "AZAHARFRAME_IMMERSIVE_HOLD", "AZAHARFRAME_XR_IMAGE_LAG"}) {
         CHECK(TS::ApplyFor(live) == TS::Apply::Live);
     }
     for (const char* restart : {"AZAHARFRAME_IMMERSIVE_DISTANCE", "AZAHARFRAME_IMMERSIVE_FOV",
                                 "AZAHARFRAME_XR_PACKED", "AZAHARFRAME_IMMERSIVE_FRAME_TRACE"}) {
         CHECK(TS::ApplyFor(restart) == TS::Apply::Restart);
     }
+    // AzaharFrame imglag: the old A/B switch is no longer read: said so, and no toast.
+    CHECK(TS::ApplyFor("AZAHARFRAME_IMMERSIVE_ANCHOR_LAG") == TS::Apply::Retired);
+    const FTS::Change retired{"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG", "-1", false, false};
+    CHECK(TS::LogLine(retired) == "test switch AZAHARFRAME_IMMERSIVE_ANCHOR_LAG=-1 (no longer read)");
+    CHECK(TS::ToastText({retired}).empty());
 
     const FTS::Change tag{"AZAHARFRAME_IMMERSIVE_TAG_OFFSET", "+1", false, false};
     const FTS::Change dist{"AZAHARFRAME_IMMERSIVE_DISTANCE", "2", false, false};

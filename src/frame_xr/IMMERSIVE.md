@@ -618,6 +618,43 @@ the picture's own screen, so only the head's turn is reprojected. `AZAHARFRAME_I
 per-second line says in how many frames the picture's camera was found
 (`xr: immersive: a picture shown again held ...`).
 
+AzaharFrame imglag: the picture on view, not the one sent. SteamVR shows the image an `xrEndFrame`
+carries one refresh later, with the NEXT frame's layer pose (the headset A/B of 2026-11-14: the
+anchor of the picture before on a picture's first refresh removed the doubling; one a refresh
+ahead did not). Anchored to the picture each frame carried, every new picture was shown once with
+the next one's anchor: a double image on every head turn, warp or rigid. The frame loop now
+records the release serial each `xrEndFrame` carried in its top screen layer (`sent_serial`), and
+the screen is anchored to the picture with that serial (`PictureOnView`, `frame_xr/image_lag.h`):
+its pose, its camera in the pose ring for the held quad, the 250 ms limit and the per-second age
+line all take that picture. Found by serial, not by counting refreshes, so it is exact for a
+picture never on view (two releases inside a refresh), a gap in the serials, a picture without a
+pose or one drawn before a recentre (not anchored, as before), and a frame before that had no top
+screen (hidden, another screen in focus, `shouldRender` false: the compositor has no older image,
+so the newest is on view). SINGLE_FLASH hides by the same serial. The lag is an internal setting,
+`vr_xr_image_lag` in `[VR]` (0 or 1, default 1; no menu), logged with the runtime at each session's
+start (`xr: image lag 1 refresh ...`); the live test switch `AZAHARFRAME_XR_IMAGE_LAG=0|1` wins
+while set, for re-testing after a SteamVR update. It replaces `AZAHARFRAME_IMMERSIVE_ANCHOR_LAG`,
+which is no longer read. No latency is added: the compositor shows the image a refresh late anyway.
+xrmock's `MOCK_XR_IMAGE_LAG=1` shows images the same way, and `tools/xrmock/hold.py` fails an app
+at lag 0 and passes it at lag 1. Only the steady case is measured (the headset A/B): the fallbacks
+(no top screen the frame before: the newest at once; the one sent gone: the newest) are
+assumptions about SteamVR, and the unit tests and the mock implement the same model, so they check
+the bookkeeping, not SteamVR. So every case is counted in a per-second line, `xr: immersive: image
+lag 1: the picture on view the one sent in N frames, the newest in N (no top screen sent before)
+and N (the one sent gone), N pictures never on view; nothing sent by N frames without the top
+screen, N not rendered, N whose xrEndFrame failed, N without xrEndFrame; N refreshes the loop
+missed; N serials maybe behind their image (set releases off)`. A refresh the loop missed shows
+the last frame's layers again, its image with the pose meant for the picture before: one
+mispaired refresh the app cannot avoid, only count. A frame that fails before `xrEndFrame` clears
+the serial sent. With `AZAHARFRAME_XR_SET_RELEASE=0` releases happen outside the screens lock, so
+a frame can carry an image before its serial is written: a warning at the session's start, and
+each frame that ended while such a release was in progress is counted. The lag was measured on
+SteamVR/OpenXR 2.19.3; it stays 1 for every SteamVR version (SteamVR updates almost daily, so the
+version is never compared and behaviour never changes by version). The runtime's name and version
+are in the session's INFO line; only a runtime that is not SteamVR, or none known, logs a warning
+naming the one-minute check: `AZAHARFRAME_XR_IMAGE_LAG=0` must bring the doubling back. That check
+is worth doing after a SteamVR or SteamOS update that changes how the screen looks on head turns.
+
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's
 single-screen mod, which still has to be shown to draw a new world at each. A game that draws its
