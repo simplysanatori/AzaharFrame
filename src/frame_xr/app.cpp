@@ -779,6 +779,7 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("the screens lock");
         std::scoped_lock screens_lock{screens_mutex};
+        DropOldScreens(false); // AzaharFrame flash3: a replaced swapchain kept until the new one shows
         pacing.NoteLatchTime(); // AzaharFrame pacing: releases from now on are for the next frame
         phases.screens_lock_ms = Ms(Clock::now() - mark);
         mark = Clock::now();
@@ -857,7 +858,10 @@ void Runtime::FrameLoop() {
             MotionClarity::TopLayers top_layers;
             Quad backing; // AzaharFrame flash: the backing's image (Hud::BackingImage)
             {
-                const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
+                // AzaharFrame flash3: the swapchain the layer shows (the old one while a new one
+                // has no picture: the same picture again, a late one, not a gap).
+                const ScreenChain& t =
+                    LayerChain(static_cast<std::size_t>(VideoCore::XrScreen::TopLeft));
                 MotionClarity::Refresh rf;
                 rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
                                                 clarity_override, shown.full_mode);
@@ -894,9 +898,10 @@ void Runtime::FrameLoop() {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
                 // the upper half and the right eye in the lower one (kXrPackedGap between).
                 const bool top = s != VideoCore::XrScreen::Bottom;
-                const ScreenChain& chain =
-                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
-                                                                       : s)];
+                // AzaharFrame flash3: LayerChain: while a swapchain made anew has no picture, the
+                // old one with its last picture (no blink of the compositor's background).
+                const ScreenChain& chain = LayerChain(static_cast<std::size_t>(
+                    packed_top && top ? VideoCore::XrScreen::TopLeft : s));
                 // AzaharFrame integ9: the toast's inputs take the screen whether or not its layer
                 // is left out this refresh (SINGLE_FLASH), so the toast's depth holds still.
                 const ToastDepth::ScreenUse use =
@@ -997,9 +1002,8 @@ void Runtime::FrameLoop() {
             // waits for it, never floating in a black view at boot).
             const auto has_picture = [&](VideoCore::XrScreen s) {
                 const bool top = s != VideoCore::XrScreen::Bottom;
-                const ScreenChain& chain =
-                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
-                                                                       : s)];
+                const ScreenChain& chain = LayerChain(static_cast<std::size_t>( // flash3
+                    packed_top && top ? VideoCore::XrScreen::TopLeft : s));
                 return chain.handle != XR_NULL_HANDLE && chain.has_image;
             };
             badge_anchor.live = true;
@@ -1263,7 +1267,8 @@ void Runtime::FrameLoop() {
         {
             // AzaharFrame pacing: the game frame this frame showed (the parity gate, the log).
             uint64_t shown_serial = 0;
-            for (const ScreenChain& chain : screens) {
+            for (std::size_t i = 0; i < kScreens; i++) {
+                const ScreenChain& chain = LayerChain(i); // AzaharFrame flash3: as the layers
                 if (chain.handle && chain.has_image) {
                     shown_serial = std::max(shown_serial, chain.frame_serial);
                 }
