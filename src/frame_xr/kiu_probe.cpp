@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include "common/frame_test_switches.h" // AzaharFrame kiufix: AZAHARFRAME_KIU_LIGHTGUN_TRACE
 #include "common/logging/log.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -218,7 +219,12 @@ bool Override(Common::Vec3f& gyro) {
     gyro = Common::Vec3f{g.x, g.y, g.z};
     g_locked = true;
     const int64_t host_now = NowNs();
-    if (host_now - p.last_stats_ns > 5'000'000'000) {
+    // AzaharFrame kiufix: AZAHARFRAME_KIU_LIGHTGUN_TRACE=1 (tests, live): 4 lines a second.
+    const int64_t every =
+        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_LIGHTGUN_TRACE").value_or("") == "1"
+            ? 250'000'000
+            : 5'000'000'000;
+    if (host_now - p.last_stats_ns > every) {
         p.last_stats_ns = host_now;
         LOG_INFO(Frontend,
                  "xr: Light Gun: reticle {:.0f}, {:.0f} of {:.0f}x{:.0f} ({}), target {:.3f}, "

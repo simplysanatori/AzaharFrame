@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "common/frame_emu_poll.h"
+#include "common/frame_test_switches.h" // AzaharFrame kiufix: AZAHARFRAME_KIU_FORCE_GYRO
 #include "common/logging/log.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -252,6 +253,22 @@ void Poll(int64_t ticks) {
         if (p.shots.found && read32(p.shots.cache, object) && object != 0 &&
             read32(object + kOptionsScheme, word)) {
             scheme = static_cast<int>(SchemeOf(word));
+            // AZAHARFRAME_KIU_FORCE_GYRO=1 (tests only, live): the game's controls set to the
+            // mod's gyro scheme in memory, as choosing it in the game's options does (for a mock
+            // run from a save made in another scheme; throwaway copies only), once a battle's
+            // reticle is there (the game reads its options again as it starts).
+            uint32_t battle_reticle = 0;
+            if (scheme != static_cast<int>(kSchemeGyro) && p.mod.found &&
+                read32(p.mod.state + kStateReticle, battle_reticle) && battle_reticle != 0 &&
+                Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FORCE_GYRO").value_or("") ==
+                    "1") {
+                const uint32_t forced = (word & ~(7u << 21)) | (kSchemeGyro << 21);
+                memory.Write32(*process, object + kOptionsScheme, forced);
+                LOG_WARNING(Frontend, "xr: Kid Icarus: AZAHARFRAME_KIU_FORCE_GYRO: the game's "
+                                      "controls set to gyro in memory (was scheme {})",
+                            scheme);
+                scheme = static_cast<int>(kSchemeGyro);
+            }
         }
         g_scheme = scheme;
         if (scheme != p.logged_scheme) {
