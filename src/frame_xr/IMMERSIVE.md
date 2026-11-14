@@ -636,9 +636,22 @@ start (`xr: image lag 1 refresh ...`); the live test switch `AZAHARFRAME_XR_IMAG
 while set, for re-testing after a SteamVR update. It replaces `AZAHARFRAME_IMMERSIVE_ANCHOR_LAG`,
 which is no longer read. No latency is added: the compositor shows the image a refresh late anyway.
 xrmock's `MOCK_XR_IMAGE_LAG=1` shows images the same way, and `tools/xrmock/hold.py` fails an app
-at lag 0 and passes it at lag 1. The per-second line gives the frames whose picture on view was
-the one sent, the newest (no top screen sent before, or the one sent gone) and the pictures never
-on view.
+at lag 0 and passes it at lag 1. Only the steady case is measured (the headset A/B): the fallbacks
+(no top screen the frame before: the newest at once; the one sent gone: the newest) are
+assumptions about SteamVR, and the unit tests and the mock implement the same model, so they check
+the bookkeeping, not SteamVR. So every case is counted in a per-second line, `xr: immersive: image
+lag 1: the picture on view the one sent in N frames, the newest in N (no top screen sent before)
+and N (the one sent gone), N pictures never on view; nothing sent by N frames without the top
+screen, N not rendered, N whose xrEndFrame failed, N without xrEndFrame; N refreshes the loop
+missed; N serials maybe behind their image (set releases off)`. A refresh the loop missed shows
+the last frame's layers again, its image with the pose meant for the picture before: one
+mispaired refresh the app cannot avoid, only count. A frame that fails before `xrEndFrame` clears
+the serial sent. With `AZAHARFRAME_XR_SET_RELEASE=0` releases happen outside the screens lock, so
+a frame can carry an image before its serial is written: a warning at the session's start, and
+each frame that ended while such a release was in progress is counted. Lag 1 on any runtime but
+SteamVR/OpenXR 2.19.3 (where it was measured), or an unknown one, logs a warning naming the
+one-minute check: `AZAHARFRAME_XR_IMAGE_LAG=0` must bring the doubling back. Do that check after
+every SteamVR or SteamOS update.
 
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's

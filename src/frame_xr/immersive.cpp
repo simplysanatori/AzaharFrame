@@ -505,6 +505,8 @@ struct State {
     /// AzaharFrame imglag: the picture on view's serial at the last per-frame look (OnFrame),
     /// for the count of pictures never on view.
     uint64_t on_view_serial = 0;
+    /// AzaharFrame imglag: the counts at the last per-second line (it says the change since).
+    ImageLag::Counts lag_counts;
 };
 
 State g;
@@ -1549,13 +1551,33 @@ void OnFrame(const FrameInfo& info) {
             if (a.anchored > 0) { // AzaharFrame heldquad
                 LOG_INFO(Frontend,
                          "xr: immersive: a picture shown again held {} (AZAHARFRAME_IMMERSIVE_HOLD) "
-                         "in {} anchored frames, its camera not found in {}; image lag {}: the "
-                         "picture on view the one sent in {} frames, the newest in {} (no top "
-                         "screen sent before) and {} (the one sent gone), {} pictures never on "
-                         "view",
+                         "in {} anchored frames, its camera not found in {}",
                          g.tuning.hold_warp ? "as drawn for the head now" : "rigid", a.held,
-                         a.held_missed, ImageLagInEffect(), a.by_sent, a.no_sent, a.gone,
-                         a.never_on_view);
+                         a.held_missed);
+            }
+            {
+                // AzaharFrame imglag: which rule chose the picture on view, and every case where
+                // the pairing rests on an assumption or can be a picture off (image_lag.h).
+                const ImageLag::Counts now_counts = ImageLagCounts();
+                const ImageLag::Counts& was = g.lag_counts;
+                const auto d = [](uint32_t now_v, uint32_t was_v) { return now_v - was_v; };
+                const auto none = [&](ImageLag::NoneSent k) {
+                    const auto i = static_cast<std::size_t>(k);
+                    return d(now_counts.none_sent[i], was.none_sent[i]);
+                };
+                LOG_INFO(Frontend,
+                         "xr: immersive: image lag {}: the picture on view the one sent in {} "
+                         "frames, the newest in {} (no top screen sent before) and {} (the one "
+                         "sent gone), {} pictures never on view; nothing sent by {} frames "
+                         "without the top screen, {} not rendered, {} whose xrEndFrame failed, "
+                         "{} without xrEndFrame; {} refreshes the loop missed; {} serials maybe "
+                         "behind their image (set releases off)",
+                         ImageLagInEffect(), a.by_sent, a.no_sent, a.gone, a.never_on_view,
+                         none(ImageLag::NoneSent::NoTopLayer), none(ImageLag::NoneSent::NotRendered),
+                         none(ImageLag::NoneSent::EndFailed), none(ImageLag::NoneSent::NoEndFrame),
+                         d(now_counts.missed_refreshes, was.missed_refreshes),
+                         d(now_counts.serial_trailing, was.serial_trailing));
+                g.lag_counts = now_counts;
             }
             if (a.cam_frames > 0) {
                 LOG_INFO(Frontend,
@@ -1660,6 +1682,7 @@ void OnFrame(const FrameInfo& info) {
     } else {
         g.age = {};
         g.on_view_serial = 0; // AzaharFrame imglag: counted again from the next picture on view
+        g.lag_counts = ImageLagCounts(); // the per-second line counts from here
     }
 
     if (g.engaged != was_engaged) {

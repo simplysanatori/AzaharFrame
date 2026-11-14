@@ -658,6 +658,8 @@ void Runtime::FrameLoop() {
             continue;
         }
         if (!running) {
+            sent_serial = 0; // AzaharFrame imglag: nothing of ours in the pipeline meanwhile
+            last_display_time = 0;
             Watchdog::Idle();
             loop_phase = "waiting for the session to run or end";
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -672,9 +674,15 @@ void Runtime::FrameLoop() {
         XrResult r = xr.xrWaitFrame(session, nullptr, &fs);
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrWaitFrame: {}", ResultName(r));
+            NoEndFrame(); // AzaharFrame imglag
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
+        // AzaharFrame imglag: refreshes the loop missed (the compositor showed the last frame's
+        // layers again: its image with the pose meant for the picture before it).
+        missed_refreshes += ImageLag::MissedRefreshes(last_display_time, fs.predictedDisplayTime,
+                                                      fs.predictedDisplayPeriod);
+        last_display_time = fs.predictedDisplayTime;
         const auto now = Clock::now();
         phases.wait_ms = Ms(now - wait_start);
         if (last_wait != Clock::time_point{}) {
@@ -696,6 +704,7 @@ void Runtime::FrameLoop() {
         phases.begin_ms = Ms(Clock::now() - mark) - phases.begin_lock_ms;
         if (XR_FAILED(r)) {
             LOG_ERROR(Frontend, "xr: xrBeginFrame: {}", ResultName(r));
+            NoEndFrame(); // AzaharFrame imglag
             continue;
         }
         mark = Clock::now();
@@ -1035,6 +1044,13 @@ void Runtime::FrameLoop() {
         // release came between): with the image lag, the picture on view on the next refresh.
         sent_serial =
             ImageLag::SentAfterEnd(top_carried, fs.shouldRender, XR_SUCCEEDED(r), top_serial);
+        if (sent_serial == 0 && screens_live) { // counted while a game is on view
+            none_sent[static_cast<std::size_t>(
+                ImageLag::WhyNoneSent(fs.shouldRender, XR_SUCCEEDED(r)))]++;
+        }
+        if (!set_release && releasing.load() > 0) {
+            serial_trailing++; // a release outside the lock was in progress
+        }
         {
             // AzaharFrame pacing: the game frame this frame showed (the parity gate, the log).
             uint64_t shown_serial = 0;
@@ -1245,6 +1261,18 @@ ImageLag::OnView PictureOnView() { // AzaharFrame imglag
                                        rt->image_lag.load());
     }
     return {};
+}
+
+ImageLag::Counts ImageLagCounts() { // AzaharFrame imglag
+    ImageLag::Counts c;
+    if (auto* rt = GetRuntime()) {
+        for (std::size_t i = 0; i < ImageLag::kNoneSentKinds; i++) {
+            c.none_sent[i] = rt->none_sent[i].load();
+        }
+        c.missed_refreshes = rt->missed_refreshes.load();
+        c.serial_trailing = rt->serial_trailing.load();
+    }
+    return c;
 }
 
 uint32_t ImageLagInEffect() { // AzaharFrame imglag

@@ -153,6 +153,8 @@ ImageLag::OnView PictureOnView();
 /// AzaharFrame imglag: the image lag in effect, 0 or 1 refresh (the setting vr_xr_image_lag, or
 /// the live test switch AZAHARFRAME_XR_IMAGE_LAG). Any thread.
 uint32_t ImageLagInEffect();
+/// AzaharFrame imglag: the fallback and mispair counts since the runtime started. Any thread.
+ImageLag::Counts ImageLagCounts();
 
 /// Where the game screens are (LOCAL space; sizes in metres).
 struct ScreenPlacement {

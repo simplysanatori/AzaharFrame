@@ -70,6 +70,58 @@ inline uint64_t SentAfterEnd(bool carried, bool should_render, bool succeeded, u
     return carried && should_render && succeeded ? serial : 0;
 }
 
+/// Why a frame left no picture in the pipeline (SentAfterEnd 0), counted per second.
+enum class NoneSent : uint8_t {
+    NoTopLayer,  ///< rendered, but no top screen layer (hidden, SINGLE_FLASH, another in focus)
+    NotRendered, ///< shouldRender false
+    EndFailed,   ///< xrEndFrame failed
+    NoEndFrame,  ///< xrWaitFrame or xrBeginFrame failed: the frame never reached xrEndFrame
+    Count,
+};
+inline constexpr std::size_t kNoneSentKinds = static_cast<std::size_t>(NoneSent::Count);
+
+/// The reason when SentAfterEnd(carried, should_render, succeeded, ...) is 0.
+inline NoneSent WhyNoneSent(bool should_render, bool succeeded) {
+    if (!should_render) {
+        return NoneSent::NotRendered;
+    }
+    if (!succeeded) {
+        return NoneSent::EndFailed;
+    }
+    return NoneSent::NoTopLayer;
+}
+
+/// Display refreshes the frame loop missed between two frames' predicted display times (the
+/// compositor shows the last frame's layers again on each: its image with a pose meant for the
+/// picture before it). A gap under 1.5 periods is none; 0 without a frame before.
+inline uint32_t MissedRefreshes(int64_t last_display, int64_t display, int64_t period) {
+    if (last_display == 0 || period <= 0 || display <= last_display) {
+        return 0;
+    }
+    const int64_t gap = display - last_display;
+    if (gap * 2 < period * 3) {
+        return 0;
+    }
+    return static_cast<uint32_t>((gap + period / 2) / period - 1);
+}
+
+/// The counts the per-second line reports (totals since the runtime started; the line says the
+/// change since the last one). Any thread reads them (ImageLagCounts).
+struct Counts {
+    uint32_t none_sent[kNoneSentKinds]{};
+    uint32_t missed_refreshes = 0;
+    /// xrEndFrames that may carry an image whose serial was not written yet: a release in
+    /// progress outside the screens lock (AZAHARFRAME_XR_SET_RELEASE=0 only).
+    uint32_t serial_trailing = 0;
+};
+
+/// The runtime the image lag of 1 was measured on (the headset A/B of 2026-11-14). Any other one,
+/// or none known, gets a warning in the log (not a different default: no version table).
+inline constexpr const char* kMeasuredRuntime = "SteamVR/OpenXR 2.19.3";
+inline bool MeasuredRuntime(const std::string& runtime) {
+    return runtime == kMeasuredRuntime;
+}
+
 /// Why a picture is the one on view (for the per-second log line).
 enum class Source : uint8_t {
     Newest,  ///< lag 0: the newest released, the one this frame carries
@@ -99,9 +151,12 @@ const ShownPicture* FindPicture(const std::array<ShownPicture, N>& pics, uint64_
 }
 
 /// The picture on view on this display refresh: `pics` the last pictures released (newest
-/// first), `sent` the serial the last xrEndFrame carried (SentAfterEnd), `lag` InEffect. With lag 1 the one the last xrEndFrame
-/// carried (by serial, whatever came between: a picture never on view, a serial gap); when that
-/// frame had no top layer the compositor has no older image of it, so the newest is shown at once.
+/// first), `sent` the serial the last xrEndFrame carried (SentAfterEnd), `lag` InEffect. With
+/// lag 1 the one the last xrEndFrame carried (by serial, whatever came between: a picture never
+/// on view, a serial gap). The fallbacks are assumptions about SteamVR, not measured (only the
+/// steady case was, on the headset): when the frame before had no top layer the compositor is
+/// taken to have no older image of it, so the newest is on view at once; each fallback is
+/// counted in the per-second log (Source, NoneSent) so a headset A/B shows whether it happens.
 template <std::size_t N>
 OnView PictureOnView(const std::array<ShownPicture, N>& pics, uint64_t sent, uint32_t lag) {
     const ShownPicture& newest = pics[0];

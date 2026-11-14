@@ -6,6 +6,9 @@
 // (frame_xr/image_lag.h). A model compositor shows the image an xrEndFrame carried one refresh
 // later (SteamVR) or at once; the screen must be anchored to the picture it shows on every
 // refresh, through irregular cadences, hidden frames, pictures without a pose and recentres.
+// The model compositor is the ASSUMPTION the app is built on (its "no layer before: the newest at
+// once" rule included), so these tests check the bookkeeping against it, not SteamVR: only the
+// steady case is measured (the headset A/B); the fallbacks are counted in the log for the next.
 
 #include <array>
 #include <cstdint>
@@ -199,7 +202,7 @@ TEST_CASE("Image lag: the held quad's pose ring is keyed by the picture on view"
     CHECK(ring.Find(now.picture.content.time)->time == 4 * kPeriod);
 }
 
-TEST_CASE("Image lag: every refresh anchored to the picture the compositor shows",
+TEST_CASE("Image lag: every refresh anchored to the picture the assumed compositor shows",
           "[frame_xr][image_lag]") {
     // Cadences: 60 pictures a second (2 refreshes each), 30 (4), 40 (3), and random ones with two
     // releases inside a refresh (a picture never on view), refreshes without a release, hidden
@@ -258,4 +261,25 @@ TEST_CASE("Image lag: the wrong lag mispairs (the check can fail)", "[frame_xr][
         INFO("app lag " << app << ", compositor lag " << comp);
         CHECK(run.mispaired >= 55); // one refresh of each of the 60 pictures
     }
+}
+
+TEST_CASE("Image lag: the counts of fallbacks and missed refreshes", "[frame_xr][image_lag]") {
+    // Why nothing was sent, in the order the frame loop can tell.
+    CHECK(IL::WhyNoneSent(false, true) == IL::NoneSent::NotRendered);
+    CHECK(IL::WhyNoneSent(false, false) == IL::NoneSent::NotRendered);
+    CHECK(IL::WhyNoneSent(true, false) == IL::NoneSent::EndFailed);
+    CHECK(IL::WhyNoneSent(true, true) == IL::NoneSent::NoTopLayer);
+    // Refreshes the loop missed: none without a frame before, under 1.5 periods, or going back.
+    CHECK(IL::MissedRefreshes(0, 5 * kPeriod, kPeriod) == 0);
+    CHECK(IL::MissedRefreshes(kPeriod, 2 * kPeriod, kPeriod) == 0);
+    CHECK(IL::MissedRefreshes(kPeriod, kPeriod + kPeriod * 14 / 10, kPeriod) == 0);
+    CHECK(IL::MissedRefreshes(kPeriod, 3 * kPeriod, kPeriod) == 1);
+    CHECK(IL::MissedRefreshes(kPeriod, 4 * kPeriod + 100'000, kPeriod) == 2);
+    CHECK(IL::MissedRefreshes(5 * kPeriod, 4 * kPeriod, kPeriod) == 0);
+    CHECK(IL::MissedRefreshes(kPeriod, 3 * kPeriod, 0) == 0);
+    // Lag 1 was measured on one runtime; any other is warned about in the log.
+    CHECK(IL::MeasuredRuntime("SteamVR/OpenXR 2.19.3"));
+    CHECK_FALSE(IL::MeasuredRuntime("SteamVR/OpenXR 2.19.4"));
+    CHECK_FALSE(IL::MeasuredRuntime("xrmock 0.1.0"));
+    CHECK_FALSE(IL::MeasuredRuntime(""));
 }

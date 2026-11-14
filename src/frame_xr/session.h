@@ -230,6 +230,20 @@ public:
     /// AzaharFrame imglag: the release serial the last xrEndFrame carried in its top screen
     /// layer, 0: none (written by the XR thread after each xrEndFrame; image_lag.h).
     std::atomic<uint64_t> sent_serial{0};
+    /// AzaharFrame imglag: the fallbacks and silent mispairs, counted for the per-second line
+    /// (ImageLagCounts): frames that left nothing sent, by reason (XR thread writes); refreshes the
+    /// loop missed; xrEndFrames that may carry an image ahead of its serial (set releases off).
+    std::array<std::atomic<uint32_t>, ImageLag::kNoneSentKinds> none_sent{};
+    std::atomic<uint32_t> missed_refreshes{0};
+    std::atomic<uint32_t> serial_trailing{0};
+    /// AzaharFrame imglag: ReleaseFrame calls in progress outside screens_mutex (set releases off).
+    std::atomic<uint32_t> releasing{0};
+    XrTime last_display_time = 0; ///< AzaharFrame imglag: the last xrWaitFrame's (XR thread)
+    /// AzaharFrame imglag: no xrEndFrame for this frame: nothing of it in the pipeline (XR thread).
+    void NoEndFrame() {
+        sent_serial = 0;
+        none_sent[static_cast<std::size_t>(ImageLag::NoneSent::NoEndFrame)]++;
+    }
     /// AzaharFrame imglag: the runtime's image lag in effect, 0 or 1 refresh (ImageLag::InEffect
     /// of the setting vr_xr_image_lag and the live switch AZAHARFRAME_XR_IMAGE_LAG).
     std::atomic<uint32_t> image_lag{ImageLag::kDefaultLag};
