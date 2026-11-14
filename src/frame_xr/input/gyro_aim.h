@@ -192,6 +192,29 @@ private:
     int64_t released_ns_ = 0;
 };
 
+/// AzaharFrame kiuguns: Recoil from the game's own shots (kiu_weapon.h: the save's shots-fired
+/// record, read about once a game frame): a pulse for each read that saw new shots (one pulse
+/// for several, a little longer), never for a press that fired nothing. Charged shots are not
+/// marked in the game's data that was found, so the heuristic stays: a shot after
+/// Recoil::kChargePauseNs without one gets the longer pulse. While the record cannot be read,
+/// Recoil's timed pulses are used instead (the caller's choice: `readable`).
+class ShotRecoil {
+public:
+    static constexpr int64_t kBurstPulseNs = 60'000'000;
+
+    /// Each frame: the shots total so far, whether it is being read, `active` as for Recoil.
+    RecoilPulse Update(int64_t now_ns, uint64_t total, bool readable, bool active);
+    void Reset() {
+        has_ = false;
+    }
+
+private:
+    bool has_ = false;
+    uint64_t last_ = 0;
+    int64_t last_shot_ns_ = 0;
+    bool ever_ = false;
+};
+
 /// The reticle as read from the game (kiu_probe.h), in the game's screen pixels.
 struct ReticleReading {
     bool valid = false;

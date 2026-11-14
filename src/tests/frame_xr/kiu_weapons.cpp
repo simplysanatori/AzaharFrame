@@ -167,6 +167,32 @@ TEST_CASE("Kid Icarus shots: counted from the record, drops and jumps ignored", 
     CHECK(c.Update(501) == 1);
 }
 
+TEST_CASE("Recoil on the game's shots: a pulse per read with shots, none without", "[kiuguns]") {
+    using FrameXr::Input::Recoil;
+    using FrameXr::Input::ShotRecoil;
+    ShotRecoil r;
+    constexpr int64_t ms = 1'000'000;
+    CHECK_FALSE(r.Update(0, 100, true, true).fire); // the first read: no pulse
+    CHECK_FALSE(r.Update(16 * ms, 100, true, true).fire);
+    auto p = r.Update(32 * ms, 101, true, true);
+    CHECK(p.fire);
+    CHECK(p.duration_ns == Recoil::kPulseNs);
+    p = r.Update(48 * ms, 103, true, true); // two in one read: one longer pulse
+    CHECK(p.fire);
+    CHECK(p.duration_ns == ShotRecoil::kBurstPulseNs);
+    CHECK_FALSE(r.Update(64 * ms, 103, true, true).fire); // a press that fired nothing
+    // After a charge-length pause: the longer pulse (the heuristic kept).
+    p = r.Update(64 * ms + Recoil::kChargePauseNs, 104, true, true);
+    CHECK(p.fire);
+    CHECK(p.duration_ns == Recoil::kChargedPulseNs);
+    // Shots while inactive (a menu) or unreadable: none, and none counted afterwards.
+    CHECK_FALSE(r.Update(3000 * ms, 110, true, false).fire);
+    CHECK_FALSE(r.Update(3016 * ms, 110, true, true).fire);
+    CHECK_FALSE(r.Update(3032 * ms, 115, false, true).fire);
+    CHECK_FALSE(r.Update(3048 * ms, 116, true, true).fire);
+    CHECK(r.Update(3064 * ms, 117, true, true).fire);
+}
+
 TEST_CASE("Weapon fit: held weapons' grip in the palm and muzzle on the ray", "[kiuguns]") {
     // A blade: GripN at the origin, the muzzle 10 units back and out (as the First Blade's).
     const Vis::FitWeapon blade{0, {-4.55f, 0.1f, -9.89f}, true};

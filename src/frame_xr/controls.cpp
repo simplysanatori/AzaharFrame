@@ -1530,6 +1530,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         nudger.Reset(); // AzaharFrame vrsize
         was_holding = false;
         recoil.Reset(); // AzaharFrame kiugyro
+        shot_recoil.Reset(); // AzaharFrame kiuguns
         Kiu::SetWanted(false, false);
         return;
     }
@@ -1773,7 +1774,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
     const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
     bool weapon_shown = false;
-    Kiu::SetWanted(weapon_on, false);
+    Kiu::SetWanted(weapon_on, kiu && recoil_on);
     if (weapon_on) {
         FrameWeapons::Request(); // made the first time they are wanted (once a boot)
         // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.
@@ -1796,8 +1797,22 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
     // steers (input/gyro_aim.h Recoil; the shot is the fire press, then a pace while held).
+    // AzaharFrame kiuguns: on Kid Icarus: Uprising's own shots while its shots record is read
+    // (ShotRecoil), the timed pulses otherwise.
     {
-        const Input::RecoilPulse pulse = recoil.Update(in.time_ns, bridge.gyro_fire(), recoil_on);
+        const bool real = kiu && Kiu::ShotsReadable();
+        const Input::RecoilPulse timed =
+            recoil.Update(in.time_ns, bridge.gyro_fire(), recoil_on && !real);
+        const Input::RecoilPulse shot =
+            shot_recoil.Update(in.time_ns, Kiu::ShotTotal(), real, recoil_on);
+        if (real != recoil_real_logged) {
+            recoil_real_logged = real;
+            if (recoil_on) {
+                LOG_INFO(Frontend, "xr: Recoil: {}", real ? "on the game's own shots"
+                                                          : "on the fire button (timed)");
+            }
+        }
+        const Input::RecoilPulse& pulse = real ? shot : timed;
         if (pulse.fire) {
             actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
         }
