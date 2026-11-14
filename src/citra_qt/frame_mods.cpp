@@ -45,6 +45,7 @@
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/cheat_entry.h" // AzaharFrame ui2
+#include "frame_xr/menu/ctgp7_tab.h"   // AzaharFrame ctgp7
 #include "frame_xr/mem_guard.h" // AzaharFrame modfix
 
 namespace Menu = FrameXr::Menu;
@@ -556,6 +557,7 @@ void FrameMods::Command(const FrameXr::MenuRequest& r) {
         // Only a page the menu showed: a mod's GitHub repository or a pack author's page from
         // the catalog (the menu asked "Open <host>?" first).
         bool known = !Menu::GithubLinkText(r.text).empty();
+        known |= r.text == Menu::kCtgp7Website; // AzaharFrame ctgp7: Official Website
         for (const Menu::PackOffer& o : textures.downloads) {
             known |= o.url == r.text;
         }
@@ -715,6 +717,7 @@ void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
         o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = a.unscanned;
         o.mod_version = a.version; // AzaharFrame ui3
+        o.requires_ctgp7 = a.requires_pack == Mods::kRequiresCtgp7; // AzaharFrame ctgp7
         if (!a.compat.Fits()) { // AzaharFrame compat
             o.mismatch = true;
             o.region_chip = a.compat.RegionChip();
