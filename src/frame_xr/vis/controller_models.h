@@ -34,7 +34,8 @@
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/types.h"
 #include "frame_xr/vis/model_file.h"
-#include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
+#include "frame_xr/vis/muzzle_flash.h" // AzaharFrame kiuflash
+#include "frame_xr/vis/weapon_fit.h"   // AzaharFrame kiuguns
 
 namespace FrameXr {
 class Runtime;
@@ -64,6 +65,9 @@ public:
         /// controller (core/frame_weapon_models.h, fitted by weapon_fit.h), or -1. The
         /// controller is drawn until the weapon's files are read and on the GPU.
         int weapon = -1;
+        /// AzaharFrame kiuflash: the weapon's muzzle flash this frame (muzzle_flash.h), drawn at
+        /// its muzzle with its own flash cards when the weapon is.
+        FlashFrame flash;
     };
 
     /// XR thread, each frame while models are wanted (anything shown or not): reads the files
@@ -87,6 +91,7 @@ private:
     void UploadWeapon();
     void FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands);
     std::vector<FitPart> weapon_fits; ///< this frame's, for the weapon's hand
+    float weapon_scale = 0.0f;        ///< AzaharFrame kiuflash: the fit's metres per game unit
     float weapon_clip = 0.0f;         ///< FitClipX: a palm's forearm cut (weapon space)
     bool palm_elbow = false;          ///< the palm's forearm drawn apart, turned to the elbow
     FitMat palm_turn{};               ///< that turn about the wrist (LOCAL space)

@@ -127,6 +127,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::LaserSight: // AzaharFrame kiuguns
         f(v.vr_light_gun_laser);
         return true;
+    case Id::MuzzleFlash: // AzaharFrame kiuflash
+        f(v.vr_light_gun_flash);
+        return true;
     default:
         return false;
     }

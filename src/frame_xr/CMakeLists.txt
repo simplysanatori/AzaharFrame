@@ -129,6 +129,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/model_shaders.h
     vis/weapon_fit.cpp # AzaharFrame kiuguns
     vis/weapon_fit.h
+    vis/muzzle_flash.cpp # AzaharFrame kiuflash
+    vis/muzzle_flash.h
     vis/panel_art.cpp
     vis/panel_art.h
     vis/panels.cpp

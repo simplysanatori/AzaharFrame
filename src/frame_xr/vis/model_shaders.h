@@ -5,7 +5,8 @@
 // AzaharFrame
 // The controller models' shaders: Moonlight XR Native's shaders/model_tex.vert and .frag (same
 // author, GPLv3), with the strength of the model's fade (params.z, premultiplied out) added and
-// OUT_LINEAR as a #define, and (AzaharFrame kiuguns) params.w for a mirrored model. Compiled at run time with Azahar's glslang (vk_shader_util), on the
+// OUT_LINEAR as a #define, and (AzaharFrame kiuguns) params.w for a mirrored model
+// (AzaharFrame kiuflash: and a muzzle flash's cards). Compiled at run time with Azahar's glslang (vk_shader_util), on the
 // thread that reads the model files.
 //
 // The Frame's plastic is near black and fairly glossy, so, as under SteamVR, its shape shows in
@@ -24,7 +25,10 @@ layout(push_constant) uniform PC {
     vec4 up;      // xyz: the room's up, model space
     vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1), w: flags (kiuguns):
                   // +1 mirrored, +2 nothing before x = 0 (a palm's forearm drawn on its own),
-                  // +4 a glow (unlit, added to what is behind: the additive pipeline)
+                  // +4 a glow (unlit, added to what is behind: the additive pipeline),
+                  // +8 a muzzle flash's card (kiuflash: key its colour and white core, up its
+                  // colour mode, half width, half length and middle along y; x 1 for a fan;
+                  // with +4)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -97,6 +101,23 @@ void main() {
     if ((pc.eye.w > 0.0 && v_position.x > pc.eye.w) ||
         (mod(pc.params.w, 4.0) > 1.5 && v_position.x < 0.0)) {
         discard;
+    }
+    if (pc.params.w > 7.5) {
+        // AzaharFrame kiuflash: a muzzle flash's card, as light (added, alpha 0): the texture's
+        // own colour times the set's (mode 0), its red channel as light in the colour (1), or a
+        // two-tone mask: green the shape in the colour, red a white core (2).
+        vec4 t = texture(u_colour, v_uv);
+        int mode = int(pc.up.x + 0.5);
+        vec3 light = mode == 2 ? pc.key.rgb * t.g + vec3(pc.key.w * t.r)
+                   : mode == 1 ? pc.key.rgb * t.r
+                               : pc.key.rgb * t.rgb * t.a;
+        // Its edges fade, so a sprite that reaches its border shows no square (a fan's from
+        // its sides and far end only: its point is at the muzzle).
+        vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
+        float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
+        light *= (1.0 - smoothstep(0.75, 1.0, edge)) * clamp(pc.params.z, 0.0, 1.0);
+        fragColor = vec4(OUT_LINEAR ? light : linearToSrgb(light), 0.0);
+        return;
     }
     if (pc.params.w > 3.5) {
         // A glow (a weapon's effect card): its texture as light, nothing covered (alpha 0, the

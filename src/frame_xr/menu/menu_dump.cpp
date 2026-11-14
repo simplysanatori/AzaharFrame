@@ -946,6 +946,12 @@ int main(int argc, char** argv) {
         gv.hover = {Id::WeaponInHand, kLabelIndex};
         gv.tooltip = Id::WeaponInHand;
         ok &= shot("5h3-settings-aiming-weapon-in-hand-tooltip", go, gv);
+        // AzaharFrame kiuflash: Muzzle Flash under Weapon in Hand, off for this game, its tooltip.
+        go.muzzle_flash = false;
+        go.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
+        gv.hover = {Id::MuzzleFlash, kLabelIndex};
+        gv.tooltip = Id::MuzzleFlash;
+        ok &= shot("5h4-settings-aiming-muzzle-flash-tooltip", go, gv);
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

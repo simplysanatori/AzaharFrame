@@ -119,6 +119,7 @@ enum class Id : int {
     Recoil,          ///< AzaharFrame kiugyro: a switch, while Aiming is not Off
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
     LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
+    MuzzleFlash,     ///< AzaharFrame kiuflash: a switch, with Weapon in Hand on
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
@@ -338,6 +339,7 @@ struct MenuModel {
     bool recoil = true;        ///< AzaharFrame kiugyro: vr_light_gun_recoil
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
+    bool muzzle_flash = true;   ///< AzaharFrame kiuflash: vr_light_gun_flash
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %

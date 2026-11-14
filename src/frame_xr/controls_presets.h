@@ -71,6 +71,10 @@ inline constexpr uint32_t kWeaponMirrorMask = 3u << kWeaponMirrorShift;
 /// restored by these two.
 inline constexpr uint32_t kLaserMirrorShift = 12;
 inline constexpr uint32_t kLaserMirrorMask = 3u << kLaserMirrorShift;
+/// AzaharFrame kiuflash: bits 14 and 15: Muzzle Flash (vr_light_gun_flash), the same way, by the
+/// same two.
+inline constexpr uint32_t kFlashMirrorShift = 14;
+inline constexpr uint32_t kFlashMirrorMask = 3u << kFlashMirrorShift;
 void MirrorWeaponInHand();
 bool RestoreWeaponInHand();
 

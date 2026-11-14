@@ -303,6 +303,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WeaponInHand;
     case Id::LaserSight:
         return MenuSetting::LaserSight;
+    case Id::MuzzleFlash: // AzaharFrame kiuflash
+        return MenuSetting::MuzzleFlash;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -983,6 +985,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.recoil = v.vr_light_gun_recoil.GetValue();
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
+    m.muzzle_flash = v.vr_light_gun_flash.GetValue(); // AzaharFrame kiuflash
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1350,6 +1353,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::LaserSight: // AzaharFrame kiuguns: per game in Per-Game
         Apply(v.vr_light_gun_laser, value != 0, per_game);
         r.setting = MenuSetting::LaserSight;
+        break;
+    case Id::MuzzleFlash: // AzaharFrame kiuflash: per game in Per-Game
+        Apply(v.vr_light_gun_flash, value != 0, per_game);
+        r.setting = MenuSetting::MuzzleFlash;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -2097,6 +2104,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::LaserSight: // AzaharFrame kiuguns
         SetSetting(t.id, model.laser_sight ? 0 : 1, host);
+        break;
+    case Id::MuzzleFlash: // AzaharFrame kiuflash
+        SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
         break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);

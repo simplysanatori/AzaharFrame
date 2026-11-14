@@ -240,6 +240,8 @@ private:
     bool gyro_clutch_logged = false;
     Input::Recoil recoil;          ///< AzaharFrame kiugyro: Light Gun's recoil
     Input::ShotRecoil shot_recoil; ///< AzaharFrame kiuguns: Recoil on the game's own shots
+    Vis::MuzzleFlash muzzle_flash; ///< AzaharFrame kiuflash: Muzzle Flash on the same shots
+    bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
     int reticle_modes_logged = -1; ///< AzaharFrame fixes7: the reticle switches, as logged
     bool edge_stick_logged = false; ///< AzaharFrame kiu: C-Stick at Edge pushing (logged)
