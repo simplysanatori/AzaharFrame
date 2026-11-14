@@ -3016,6 +3016,11 @@ void GMainWindow::ConnectWidgetEvents() {
             return this;
         };
         h.quit = [this] { QTimer::singleShot(0, this, &QWidget::close); };
+        h.refresh_mods = [] { // AzaharFrame ctgp7b
+            if (g_frame_mods) {
+                g_frame_mods->RefreshMods();
+            }
+        };
         g_frame_ctgp7 = new FrameCtgp7(std::move(h), this);
     }
     connect(game_list, &GameList::PopulatingCompleted, this, [] {
@@ -3908,6 +3913,11 @@ void GMainWindow::ShutdownGame() {
     game_title.clear();
     UpdateWindowTitle();
 
+    // AzaharFrame ctgp7b: the list's rows again when a folder changed while the game ran, or when
+    // the game's own file is gone: a title the game installed again has a new .app (CTGP-7's
+    // launcher, its first run), and the row would start nothing. OnStopGame scans anyway; a game
+    // that stops by itself and Close Game in VR come here only.
+    game_list->RefreshIfPending(!game_path.isEmpty() && !QFileInfo::exists(game_path));
     game_path.clear();
     game_title_id = 0;
     // AzaharFrame catalog3: the game is not running: what waited goes in or out

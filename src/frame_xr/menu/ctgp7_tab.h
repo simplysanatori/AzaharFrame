@@ -75,6 +75,20 @@ inline constexpr const char* kRequiresCtgp7Body =
     "This mod works only inside CTGP-7. Azahar for Frame can install CTGP-7 for you in one click.";
 inline constexpr const char* kRequiresCtgp7Open = "Open CTGP-7";
 
+/// AzaharFrame ctgp7b: the mods for CTGP-7 ("requires": "ctgp7") are listed in the segment, under
+/// the status row, never in the Mods segment (Install Mods or the loaded list), while the segment
+/// shows; installed ones keep their switch and Remove there. Install waits for CTGP-7.
+inline constexpr const char* kCtgp7ModsTitle = "Mods for CTGP-7";
+inline constexpr const char* kCtgp7ModsFirst = "Install CTGP-7 First";
+/// The catalog rows (indices of `available`) Install Mods lists, in the catalog's order.
+std::vector<int> InstallModsRows(const ModsListModel& m, bool ctgp7_shown);
+/// The catalog rows the CTGP-7 segment lists ("requires": "ctgp7"; none while it is hidden).
+std::vector<int> Ctgp7ModRows(const ModsListModel& m, bool ctgp7_shown);
+/// The loaded rows (indices of `loaded`) the Mods segment lists: not one the CTGP-7 segment lists.
+std::vector<int> LoadedRows(const ModsListModel& m, bool ctgp7_shown);
+/// Install of a mod for CTGP-7 can be pressed: CTGP-7 is installed and nothing of it runs.
+bool Ctgp7ModsInstallable(const Ctgp7Model& m);
+
 /// The status row's second line: the phase's detail while busy, else the error, the blocker, the
 /// version ("Version 1.6.30"), or Not Installed. `error_colour` when it is a failure or a blocker.
 std::string Ctgp7Line(const Ctgp7Model& m, bool* error_colour = nullptr);

@@ -503,9 +503,29 @@ void GameList::ValidateEntry(const QModelIndex& item) {
 
     switch (selected.data(GameListItem::TypeRole).value<GameListItemType>()) {
     case GameListItemType::Game: {
-        const QString file_path = selected.data(GameListItemPath::FullPathRole).toString();
+        QString file_path = selected.data(GameListItemPath::FullPathRole).toString();
         if (file_path.isEmpty())
             return;
+        // AzaharFrame ctgp7b: an installed title's .app as the title has it now. A game can install
+        // a title again while it runs (CTGP-7's launcher does on its first run: a new content ID),
+        // and the row kept the path of the list's last scan; that file is gone. The row started
+        // nothing, without a word, until Azahar was started again.
+        const QString current = QString::fromStdString(Service::AM::ListedContentPath(
+            file_path.toStdString(),
+            static_cast<Service::FS::MediaType>(
+                selected.data(GameListItemPath::MediaTypeRole).toUInt()),
+            selected.data(GameListItemPath::ProgramIdRole).toULongLong()));
+        if (current != file_path) {
+            LOG_WARNING(Frontend, "game list: {} is gone{}", file_path.toStdString(),
+                        current.isEmpty() ? ", the list is scanned again"
+                                          : "; the title's content now: " + current.toStdString());
+            // the rows again (now, or once the game it starts stops)
+            RefreshIfPending(true);
+            if (current.isEmpty()) {
+                return;
+            }
+            file_path = current;
+        }
         const QFileInfo file_info(file_path);
         if (!file_info.exists() || file_info.isDir())
             return;
@@ -1251,6 +1271,9 @@ void GameList::RefreshGameDirectory() {
     // Do not scan directories when the system is powered on, it will be
     // repopulated on shutdown anyways.
     if (Core::System::GetInstance().IsPoweredOn()) {
+        // AzaharFrame ctgp7b: not on every shutdown (a game that stops by itself, Close Game in
+        // VR): kept for RefreshIfPending, which the shutdown calls
+        refresh_pending = true;
         return;
     }
 
@@ -1267,6 +1290,23 @@ void GameList::RefreshGameDirectory() {
         LOG_INFO(Frontend, "Change detected in the applications directory. Reloading game list.");
         PopulateAsync(UISettings::values.game_dirs);
     }
+}
+
+bool GameList::RefreshIfPending(bool force) {
+    if (force) {
+        refresh_pending = true;
+    }
+    if (!refresh_pending || Core::System::GetInstance().IsPoweredOn()) {
+        return false; // a game runs: when it stops
+    }
+    refresh_pending = false;
+    if (UISettings::values.game_dirs.isEmpty()) {
+        return false;
+    }
+    LOG_INFO(Frontend, "game list: scanned again (a folder changed while a game ran)");
+    time_last_refresh = std::chrono::steady_clock::now();
+    PopulateAsync(UISettings::values.game_dirs);
+    return true;
 }
 
 void GameList::ToggleFavorite(u64 program_id) {

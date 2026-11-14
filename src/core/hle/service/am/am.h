@@ -542,6 +542,18 @@ std::string GetTitleContentPath(FS::MediaType media_type, u64 tid, std::size_t i
                                 bool update = false);
 
 /**
+ * AzaharFrame ctgp7b: the .app to start for a game list row of an installed title. The list keeps
+ * the path it found at its last scan; a title installed again since then (a game can do that
+ * through this service: CTGP-7's launcher installs itself again on its first run) has a new
+ * content ID, so that file is gone. Then the title's current boot content.
+ * @param listed the path the list holds
+ * @param media_type the row's media (SDMC or NAND for an installed title; anything else: a file)
+ * @param tid the row's title ID
+ * @returns `listed` while it exists, else the title's current .app when it exists, else ""
+ */
+std::string ListedContentPath(const std::string& listed, FS::MediaType media_type, u64 tid);
+
+/**
  * Get the folder for a title's installed content.
  * @param media_type the media the title exists on
  * @param tid the title ID to get

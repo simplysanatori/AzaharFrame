@@ -1855,6 +1855,20 @@ std::string GetTitleContentPath(Service::FS::MediaType media_type, u64 tid, std:
     return fmt::format("{}{:08x}.app", content_path, content_id);
 }
 
+std::string ListedContentPath(const std::string& listed, FS::MediaType media_type, u64 tid) {
+    if (FileUtil::Exists(listed) && !FileUtil::IsDirectory(listed)) {
+        return listed;
+    }
+    if (tid == 0 || !IsInstallableMediaType(media_type)) {
+        return {};
+    }
+    const std::string current = GetTitleContentPath(media_type, tid);
+    if (current.empty() || !FileUtil::Exists(current) || FileUtil::IsDirectory(current)) {
+        return {};
+    }
+    return current;
+}
+
 std::string GetTitlePath(Service::FS::MediaType media_type, u64 tid) {
     // TODO(PabloMK7) TWL titles should be in TWL Nand. Assuming CTR Nand for now.
 

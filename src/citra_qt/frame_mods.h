@@ -88,6 +88,9 @@ public:
     void Command(const FrameXr::MenuRequest& request);
     /// Custom Textures or Preload changed (the Qt side saved it): the snackbar.
     void TextureSettingChanged();
+    /// AzaharFrame ctgp7b: the open game's mods read again (CTGP-7's Uninstall removed its mods):
+    /// the loaded list, and the catalog's rows once they were listed.
+    void RefreshMods();
     /// AzaharFrame ui3: whether a game runs now (GUI thread): a pack switch Optimize for Frame
     /// or Use Original asks for then waits for ApplyPendingPack.
     void SetGameRunningSource(std::function<bool()> source);

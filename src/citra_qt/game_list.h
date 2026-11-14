@@ -88,6 +88,9 @@ public:
     QString FindGameByProgramID(u64 program_id, int role);
 
     void RefreshGameDirectory();
+    /// AzaharFrame ctgp7b: the scan a folder change asked for while a game ran (or a row's .app
+    /// was found gone), once the game has stopped; `force` scans anyway. Returns whether it scans.
+    bool RefreshIfPending(bool force = false);
 
     void ToggleFavorite(u64 program_id);
     void AddFavorite(u64 program_id);
@@ -153,6 +156,7 @@ private:
     const PlayTime::PlayTimeManager& play_time_manager;
 
     std::chrono::time_point<std::chrono::steady_clock> time_last_refresh;
+    bool refresh_pending = false; ///< AzaharFrame ctgp7b: RefreshIfPending
 };
 
 class GameListPlaceholder : public QWidget {
