@@ -152,6 +152,9 @@ private:
     std::shared_ptr<CustomTex::Layers::Game> layers; ///< the game's packs and list, from RefreshPacks
     void PollProgress();
     void PublishMods();
+    /// AzaharFrame kiufix: the Angel's Aim segment (Kid Icarus: Uprising only): the mod, the
+    /// packs, Report an Issue's page; again after the mods change.
+    void RefreshAngelsAim();
     void PublishTextures();
     // AzaharFrame texparts: a pack's Customize page (core/custom_tex/parts.h)
     void OpenParts(const std::string& pack_id);
@@ -251,6 +254,7 @@ private:
     u64 title_id = 0;
     int run = -1;
     FrameXr::Menu::ModsListModel mods;
+    std::string angels_aim_report_url; ///< AzaharFrame kiufix: the one OpenUrl may open
     FrameXr::Menu::TexturesModel textures;
     std::vector<CustomTex::Pack> packs; ///< as listed, for Activate
     std::string installing;             ///< the mod an install runs for

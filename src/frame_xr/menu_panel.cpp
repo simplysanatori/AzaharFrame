@@ -360,6 +360,11 @@ void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
     g_mods.zip = zip;
 }
 
+void SetInGameMenuAngelsAim(const Menu::AngelsAimModel& angels_aim) { // AzaharFrame kiufix
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.angels_aim = angels_aim;
+}
+
 void SetInGameMenuCtgp7(const Menu::Ctgp7Model& ctgp7) { // AzaharFrame ctgp7
     std::scoped_lock lock{g_mods_mutex};
     g_mods.ctgp7 = ctgp7;
@@ -849,6 +854,10 @@ void MenuPanel::BuildModel(const Host& host) {
         }
         view.requires_ctgp7 = false;
     }
+    // AzaharFrame kiufix: the Angel's Aim segment only while Kid Icarus: Uprising is open
+    if (!m.mods.angels_aim.shown && view.mods_segment == Menu::ModsSegment::AngelsAim) {
+        view.mods_segment = Menu::ModsSegment::Cheats;
+    }
     if (m.mods.ctgp7.busy && m.mods.ctgp7.permille < 0 && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Ctgp7) {
         m.mods.ctgp7.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -991,6 +1000,11 @@ void MenuPanel::BuildModel(const Host& host) {
     m.recoil = v.vr_light_gun_recoil.GetValue();
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
+    m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
+    m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
+    m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
+    m.weapon_scale =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1000,11 +1014,6 @@ void MenuPanel::BuildModel(const Host& host) {
                   !v.vr_immersive_depth.UsingGlobal(), v.vr_immersive_depth.GetValue(),
                   !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue())
             : std::min<u32>(v.factor_3d.GetValue(), 100));
-    m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
-    m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
-    m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
-    m.weapon_scale =
-        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
     // AzaharFrame menuux: the renderer's settings.
     m.internal_resolution = static_cast<int>(std::min<u32>(v.resolution_factor.GetValue(), 18));
     m.dynamic_resolution = v.vr_dynamic_resolution.GetValue();
@@ -1056,7 +1065,10 @@ void MenuPanel::BuildModel(const Host& host) {
         const bool shown = view.tab == Menu::Tab::Mods &&
                            ((view.mods_segment == Menu::ModsSegment::Mods &&
                              view.mods_page == Menu::ModsPage::Install) ||
-                            (view.mods_segment == Menu::ModsSegment::Ctgp7 && m.mods.ctgp7.shown));
+                            (view.mods_segment == Menu::ModsSegment::Ctgp7 && m.mods.ctgp7.shown) ||
+                            // AzaharFrame kiufix: Angel's Aim lists the C-Stick & Gyro mod
+                            (view.mods_segment == Menu::ModsSegment::AngelsAim &&
+                             m.mods.angels_aim.shown));
         if (!shown) {
             catalog_ask_ms = -1;
         } else if (Menu::ShouldAskCatalog(m.mods.mods.catalog, shown, now_ms, catalog_ask_ms)) {
@@ -1156,6 +1168,8 @@ void MenuPanel::BuildModel(const Host& host) {
     if (host.passthrough_ok && m.background == 1) {
         lock(Id::ShowControllers, Lock::InPassthrough);
     }
+    m.aim_calibrated = host.aim_calibrated; // AzaharFrame kiufix
+    m.aim_calibration_ok = host.aim_calibration_ok;
     model = std::move(m);
 }
 
@@ -1168,8 +1182,6 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     r.value = value;
     const u32 u = static_cast<u32>(std::max(value, 0));
     switch (id) {
-    m.aim_calibrated = host.aim_calibrated; // AzaharFrame kiufix
-    m.aim_calibration_ok = host.aim_calibration_ok;
     case Id::HideBottomScreen:
         Apply(v.vr_hide_bottom_screen, value != 0, per_game);
         r.setting = MenuSetting::HideBottomScreen;
@@ -1366,18 +1378,6 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_laser, value != 0, per_game);
         r.setting = MenuSetting::LaserSight;
         break;
-    case Id::ShowControllers:
-        Apply(v.vr_show_controllers, value != 0, false);
-        r.setting = MenuSetting::ShowControllers;
-        break;
-    case Id::WindowScale:
-        r.value = static_cast<int>(kScaleSteps[std::min<std::size_t>(u, kScaleSteps.size() - 1)]);
-        Apply(v.vr_window_scale, static_cast<u32>(r.value), false);
-        r.setting = MenuSetting::WindowScale;
-        break;
-    case Id::ImmersiveMode:
-        Apply(v.vr_immersive_mode, u, per_game);
-        r.setting = MenuSetting::ImmersiveMode;
     case Id::RecoilCharged: // AzaharFrame kiufix: percent, per game in Per-Game
         r.value = std::clamp(value, 0, 100);
         Apply(v.vr_light_gun_recoil_charged, static_cast<u32>(r.value), per_game);
@@ -1398,6 +1398,18 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_weapon_scale, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::WeaponScale;
         break;
+    case Id::ShowControllers:
+        Apply(v.vr_show_controllers, value != 0, false);
+        r.setting = MenuSetting::ShowControllers;
+        break;
+    case Id::WindowScale:
+        r.value = static_cast<int>(kScaleSteps[std::min<std::size_t>(u, kScaleSteps.size() - 1)]);
+        Apply(v.vr_window_scale, static_cast<u32>(r.value), false);
+        r.setting = MenuSetting::WindowScale;
+        break;
+    case Id::ImmersiveMode:
+        Apply(v.vr_immersive_mode, u, per_game);
+        r.setting = MenuSetting::ImmersiveMode;
         break;
     case Id::WiderView:
         Apply(v.vr_immersive_wider_view_level, u, per_game);
@@ -1638,8 +1650,10 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Ctgp7) &&
-            (t.index != static_cast<int>(Menu::ModsSegment::Ctgp7) || model.mods.ctgp7.shown) &&
+        // AzaharFrame kiufix: the index is the segment's value (ModsSegmentsShown)
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::AngelsAim) &&
+            Menu::ShownSegment(model.mods, static_cast<Menu::ModsSegment>(t.index)) ==
+                static_cast<Menu::ModsSegment>(t.index) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1917,7 +1931,8 @@ void MenuPanel::Click(Target t, Host& host) {
         const auto& mm = model.mods.mods;
         // AzaharFrame ctgp7b: the CTGP-7 segment's rows are the catalog's
         const bool install = view.mods_page == Menu::ModsPage::Install ||
-                             view.mods_segment == Menu::ModsSegment::Ctgp7;
+                             view.mods_segment == Menu::ModsSegment::Ctgp7 ||
+                             view.mods_segment == Menu::ModsSegment::AngelsAim; // kiufix
         const std::size_t n = install ? mm.available.size() : mm.loaded.size();
         if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
             const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
@@ -2133,6 +2148,28 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::LaserSight: // AzaharFrame kiuguns
         SetSetting(t.id, model.laser_sight ? 0 : 1, host);
         break;
+    case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
+        if (host.calibrate_aim && model.aim_calibration_ok) {
+            host.calibrate_aim();
+            ask(MenuCommand::Continue);
+        }
+        break;
+    case Id::CalibrateAimReset:
+        if (host.reset_aim_calibration) {
+            host.reset_aim_calibration();
+        }
+        break;
+    case Id::AngelsAimSettings: // AzaharFrame kiufix: the Controls tab at Aiming
+        view.tab = Menu::Tab::Controls;
+        view.page = Menu::Page::Tabs;
+        controls_page = 0;
+        scroll_to_aiming = true;
+        break;
+    case Id::AngelsAimReport: // "Open GitHub?" first
+        if (!model.mods.angels_aim.report_url.empty()) {
+            view.open_link = model.mods.angels_aim.report_url;
+        }
+        break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
         break;
@@ -2184,6 +2221,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::FaceButtons:
     case Id::MotionControls:
     case Id::GyroAim: // AzaharFrame kiugyro
+    case Id::WeaponSize: // AzaharFrame kiufix
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
@@ -2221,7 +2259,6 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     // ---- The beams ----
     const Input::PanelQuad quad{ToInput(pose), width_m, Height(), true};
     std::array<Input::QuadHit, 2> hit{};
-    case Id::WeaponSize: // AzaharFrame kiufix
     std::array<bool, 2> edge{};
     for (int h = 0; h < Input::kNumHands; h++) {
         const auto& hand = in.hand[static_cast<std::size_t>(h)];
@@ -2391,6 +2428,11 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);
+        } else if (view.tab == Menu::Tab::Mods && // AzaharFrame kiufix: Angel's Aim's questions
+                   view.mods_segment == Menu::ModsSegment::AngelsAim &&
+                   (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
+                    !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
         } else if (textures_shown &&
                    (model.mods.textures.dialog.kind != Menu::ModsDialogKind::None ||
                     !view.open_link.empty())) {
@@ -2529,6 +2571,12 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             chain.Upload(reinterpret_cast<const uint8_t*>(shared->pixels.data()));
             layout = shared->layout;
             stale_uploaded = true; // AzaharFrame kbd
+            // AzaharFrame kiufix: Angel's Aim's Aiming Settings: the Controls tab at Aiming, once
+            // its page is drawn (the scroll that does it is the page's own).
+            if (scroll_to_aiming && layout.controls && view.tab == Menu::Tab::Controls) {
+                scroll_to_aiming = false;
+                view.scroll[static_cast<std::size_t>(Menu::Tab::Controls)] = layout.aiming_scroll;
+            }
         }
     }
     if (stale && stale_uploaded && !chain.Busy()) {
@@ -2571,12 +2619,6 @@ void MenuPanel::Worker() {
                 return;
             }
             shared->job = false;
-            // AzaharFrame kiufix: Angel's Aim's Aiming Settings: the Controls tab at Aiming, once
-            // its page is drawn (the scroll that does it is the page's own).
-            if (scroll_to_aiming && layout.controls && view.tab == Menu::Tab::Controls) {
-                scroll_to_aiming = false;
-                view.scroll[static_cast<std::size_t>(Menu::Tab::Controls)] = layout.aiming_scroll;
-            }
             seq = shared->job_seq;
             m = shared->job_model;
             v = shared->job_view;
