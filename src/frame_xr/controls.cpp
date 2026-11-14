@@ -23,6 +23,7 @@
 #include "core/frame_weapon_models.h" // AzaharFrame kiuguns
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
+#include "frame_xr/vis/see_through.h" // AzaharFrame kiuopacity
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
 #include "frame_xr/input/devices.h"    // AzaharFrame padsui
@@ -1892,7 +1893,14 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             }
         }
         if (id >= 0) {
-            visuals.SetWeapon(gyro_aim_hand, id);
+            // AzaharFrame kiuopacity: Weapon Opacity, or AZAHARFRAME_KIU_OPACITY's (live).
+            const Vis::OpacityTune see = Vis::ParseOpacityTune(
+                Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_OPACITY"));
+            visuals.SetWeapon(
+                gyro_aim_hand, id,
+                Vis::OpacityOf(
+                    static_cast<int>(Settings::values.vr_light_gun_weapon_opacity.GetValue()),
+                    see.weapon));
             weapon_shown = true;
         }
     }
@@ -1929,6 +1937,11 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             shot_signal.size =
                 static_cast<float>(Settings::values.vr_light_gun_projectile_size.GetValue()) /
                 100.0f * tune.size;
+            // AzaharFrame kiuopacity: Projectile Opacity, or AZAHARFRAME_KIU_OPACITY's (live).
+            shot_signal.opacity = Vis::OpacityOf(
+                static_cast<int>(Settings::values.vr_light_gun_projectile_opacity.GetValue()),
+                Vis::ParseOpacityTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_OPACITY"))
+                    .projectile);
         }
     }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim

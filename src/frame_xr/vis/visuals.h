@@ -123,8 +123,9 @@ public:
     void SetLaser(int hand, const Input::Vec3f& point);
     /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
     /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
-    /// is not ready). Cleared by TakeInput; GameFrame sets it.
-    void SetWeapon(int hand, int id);
+    /// is not ready). Cleared by TakeInput; GameFrame sets it. AzaharFrame kiuopacity:
+    /// `opacity`, Weapon Opacity (0.2 to 1; see_through.h).
+    void SetWeapon(int hand, int id, float opacity = 1.0f);
     /// AzaharFrame kiuflash: the weapon's muzzle flash this frame (muzzle_flash.h), drawn with
     /// the weapon set by SetWeapon. Cleared by TakeInput; GameFrame sets it.
     void SetMuzzleFlash(const FlashFrame& flash);

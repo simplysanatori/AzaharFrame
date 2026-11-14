@@ -133,6 +133,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/muzzle_flash.h
     vis/projectile.cpp # AzaharFrame kiuflash
     vis/projectile.h
+    vis/see_through.cpp # AzaharFrame kiuopacity
+    vis/see_through.h
     vis/panel_art.cpp
     vis/panel_art.h
     vis/panels.cpp

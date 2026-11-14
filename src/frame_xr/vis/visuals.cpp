@@ -309,6 +309,7 @@ struct Visuals::Impl {
     std::vector<Quad> top_beams, top_dots;
     int weapon_hand = -1;      ///< AzaharFrame kiuguns: the weapon in hand, this frame
     int weapon_id = -1;
+    float weapon_opacity = 1.0f; ///< AzaharFrame kiuopacity
     FlashFrame flash;          ///< AzaharFrame kiuflash: its muzzle flash, this frame
     int shots_hand = -1;       ///< AzaharFrame kiuflash: the projectiles' hand and signal
     ShotSignal shots;
@@ -1074,6 +1075,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
+            out.weapon_opacity = h == m.weapon_hand ? m.weapon_opacity : 1.0f; // kiuopacity
             out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
             out.shots = h == m.shots_hand ? m.shots : ShotSignal{};
         }
@@ -1082,9 +1084,10 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     m.models_layer = m.models.Layer();
 }
 
-void Visuals::SetWeapon(int hand, int id) {
+void Visuals::SetWeapon(int hand, int id, float opacity) {
     impl->weapon_hand = hand;
     impl->weapon_id = id;
+    impl->weapon_opacity = opacity; // AzaharFrame kiuopacity
 }
 
 void Visuals::SetMuzzleFlash(const FlashFrame& flash) { // AzaharFrame kiuflash

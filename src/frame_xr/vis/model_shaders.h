@@ -32,6 +32,8 @@ layout(push_constant) uniform PC {
                   // +16 a muzzle flash's card (kiuflash: key its colour and white core, up its
                   // colour mode, half width, half length and middle along y; x 1 for a fan,
                   // 2 a projectile's bullet mesh times its vertex colour, 3 one without; with +4)
+                  // +32 (kiuopacity) depth only: a see-through part's first stage
+                  // (see_through.h): discarded where it would be, else nothing (no lighting)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -42,6 +44,9 @@ layout(location = 0) out vec3 v_position;
 layout(location = 1) out vec3 v_normal;
 layout(location = 2) out vec4 v_tangent;
 layout(location = 3) out vec2 v_uv;
+// AzaharFrame kiuopacity: a see-through part's depth stage and its colour stage (depth test
+// LEQUAL against it) must give every vertex the same depth.
+invariant gl_Position;
 
 void main() {
     v_position = a_position;
@@ -115,6 +120,11 @@ void main() {
         (mod(pc.params.w, 4.0) > 1.5 && v_position.x < 0.0)) {
         discard;
     }
+    if ((int(pc.params.w + 0.5) & 32) != 0) {
+        // AzaharFrame kiuopacity: the depth stage (no colour is written).
+        fragColor = vec4(0.0);
+        return;
+    }
     if ((int(pc.params.w + 0.5) & 16) != 0) {
         // AzaharFrame kiuflash: a muzzle flash's card, as light (added): the texture's
         // own colour times the set's (mode 0), its red channel as light in the colour (1), or a
@@ -150,12 +160,14 @@ void main() {
         // AzaharFrame kiufix: twice as bright (the game's cards are dim textures it lights up),
         // and a coverage alpha from the light itself, so the layer holds it as premultiplied
         // light (a pixel with alpha 0 can be dropped as clear: the palm's flames did not show).
-        vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0)) *
-                          clamp(pc.params.z, 0.0, 1.0);
+        vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0));
         // AzaharFrame kiumodels: a moving glow flickers (its gain, about 1).
         if ((int(pc.params.w + 0.5) & 12) == 12) {
             glowColour = min(glowColour * clamp(pc.key.z, 0.0, 2.0), vec3(1.0));
         }
+        // The fade last (AzaharFrame kiuopacity: times Weapon Opacity), so light and coverage
+        // scale with it as one; at fade 1 the same as before.
+        glowColour *= clamp(pc.params.z, 0.0, 1.0);
         float cover = clamp(max(glowColour.r, max(glowColour.g, glowColour.b)) * 0.6, 0.0, 0.6);
         fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), cover);
         return;

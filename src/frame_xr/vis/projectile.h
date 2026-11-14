@@ -37,6 +37,7 @@ struct ShotSignal {
     bool target_valid = false;
     std::array<float, 3> target{}; ///< the room: where the aim ray meets the top screen
     float speed = 1.0f, size = 1.0f; ///< Projectile Speed and Size, factors (the tune on top)
+    float opacity = 1.0f; ///< AzaharFrame kiuopacity: Projectile Opacity (see_through.h)
 };
 inline constexpr float kRapidSpeed = 14.0f;   ///< metres a second
 inline constexpr float kChargedSpeed = 9.0f;

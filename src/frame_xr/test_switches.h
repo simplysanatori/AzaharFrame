@@ -43,7 +43,8 @@ inline Apply ApplyFor(std::string_view name) {
     }
     // AzaharFrame kiuguns: the weapon in hand's tuning (vis/weapon_fit.h: AZAHARFRAME_KIU_FIT_
     // <CLASS>, AZAHARFRAME_KIU_WEAPON, AZAHARFRAME_KIU_WEAPON_GLOW), read every frame.
-    // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION too.
+    // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION too. AzaharFrame kiuopacity:
+    // AZAHARFRAME_KIU_OPACITY too.
     if (name.rfind("AZAHARFRAME_KIU_", 0) == 0) {
         return Apply::Live;
     }

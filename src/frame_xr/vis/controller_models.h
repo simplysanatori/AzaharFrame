@@ -66,6 +66,9 @@ public:
         /// controller (core/frame_weapon_models.h, fitted by weapon_fit.h), or -1. The
         /// controller is drawn until the weapon's files are read and on the GPU.
         int weapon = -1;
+        /// AzaharFrame kiuopacity: Weapon Opacity (see_through.h): under 1 the weapon, its glows
+        /// and its muzzle flash are drawn see-through.
+        float weapon_opacity = 1.0f;
         /// AzaharFrame kiuflash: the weapon's muzzle flash this frame (muzzle_flash.h), drawn at
         /// its muzzle with its own flash cards when the weapon is.
         FlashFrame flash;

@@ -194,6 +194,19 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
   untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
   duration).
+- **Weapon Opacity** (`vr_light_gun_weapon_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Weapon in Hand while it is on, above Weapon Size; AzaharFrame
+  kiuopacity): how solid the weapon in hand looks (`vis/see_through.h`). Under 100 % its lit
+  parts are drawn twice, depth only, then their colour where they are the nearest surface
+  (LEQUAL, nothing written to depth), premultiplied at the opacity and blended over what is
+  there, so the fade is even and shows no inner or back faces; its glows, a palm's flames and
+  the muzzle flash (added light) are drawn after it with their light and coverage alpha times
+  the opacity, and the other hand's controller is drawn first so it shows through. At 100 % the
+  pass is as before (no extra draws). The controllers' image is premultiplied (the layer, and
+  Controllers in Front of Screen's eye quads, have only `XR_COMPOSITION_LAYER_BLEND_TEXTURE_
+  SOURCE_ALPHA_BIT`), so the screens and the room show through it the same way in either path.
+  Laser Sight is untouched. A plain new key (no mirror bit): an older build ignores it, and one
+  that saves the game's file sends it back to the global value.
 - **Projectiles** (`vr_light_gun_projectile`, per game too, on by default; under Muzzle Flash;
   AzaharFrame kiuflash), with **Projectile Size** and **Projectile Speed** (50 to 200 %, 100 % by
   default; shown while it is on): each of the game's own shots flies as the weapon's own bullet
@@ -204,6 +217,11 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   at once, turning slowly about the way they fly (the bullets' own animations are not read).
   Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
   new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
+  **Projectile Opacity** (`vr_light_gun_projectile_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Projectiles while it is on, above Projectile Size; AzaharFrame
+  kiuopacity): the same see-through drawing as Weapon Opacity for the bullets in flight (solid
+  bullets depth first, then their colour; added bullets and sprite bullets dimmed). A plain new
+  key. Test switch (live) for both: `AZAHARFRAME_KIU_OPACITY=weapon,projectile` (percent).
 - **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
   AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
   is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has
