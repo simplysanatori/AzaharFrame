@@ -975,8 +975,8 @@ Input::Posef AnchoredFullQuad(const HeadLocked& solved, uint32_t mode, int eye, 
 ///   - `eye_share`: where the picture's rays come from, this share of the way from the quad's
 ///     axis to the eye. Mode 3 centres each eye's quad on its eye (any value: the eye). Mode 2's
 ///     one picture per eye on the shared quad comes from the game's own two cameras: 0 when they
-///     are one (3D Depth 0), 1 when its far scenery is IPD apart on the quad (parallel), as the
-///     stereo cap keeps it (EyeShareOnQuad).
+///     are one (3D Depth 0), 1 when its far scenery is IPD apart on the quad (parallel, 3D
+///     Depth 100 % of the natural 3D) (EyeShareOnQuad).
 /// Gains 1 and the rays from the eye: A = R, exactly the pose of AnchoredQuadPose (follow 1) for
 /// the same turn.
 struct HeldQuadPose {

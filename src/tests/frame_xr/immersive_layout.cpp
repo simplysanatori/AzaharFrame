@@ -2081,6 +2081,10 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
     constexpr int kCases = 800; // half a pure yaw, half any turn and lean; both modes
     constexpr double kSkewShare = 0.55;
     double yaw_worst[2]{}, any_worst[2]{}, any_rigid[2]{}, still_deg = 0.0, still_size = 0.0;
+    // Only printed: any turn on the magnified screens (both gains under 1.2) whose gains are
+    // within 1.5 times of each other, as most settings give.
+    double near_held[2]{}, near_rigid[2]{};
+    int near_count[2]{};
     double share_worst = 0.0;
     float ws_lo = 1e9f, ws_hi = 0.0f, d_lo = 1e9f, d_hi = 0.0f;
     int follow_on = 0, follow_off = 0, depth0 = 0, depth1 = 0;
@@ -2260,6 +2264,12 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
             any_worst[mi] = std::max(any_worst[mi], case_held);
             any_rigid[mi] = std::max(any_rigid[mi], case_rigid);
             REQUIRE(case_held < 0.001 + kSkewShare * skew / kDegToRad);
+            if (std::max(s.gain_x, s.gain) < 1.2f &&
+                std::max(s.gain_x, s.gain) < 1.5f * std::min(s.gain_x, s.gain)) {
+                near_held[mi] = std::max(near_held[mi], case_held);
+                near_rigid[mi] = std::max(near_rigid[mi], case_rigid);
+                near_count[mi]++;
+            }
         }
     }
     std::printf("held picture with World Scale %.0f to %.0f %% (the screen %.2f to %.2f m), "
@@ -2271,6 +2281,11 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
                 ws_lo, ws_hi, d_lo, d_hi, follow_on, follow_off, depth0, depth1, kCases,
                 yaw_worst[0], yaw_worst[1], any_worst[0], any_worst[1], any_rigid[0],
                 any_rigid[1], share_worst, still_deg, still_size, points, skipped);
+    std::printf("held picture with World Scale, any turn and lean, gains under 1.2 and within 1.5 "
+                "times: mode 2 (%d cases) %.4f held, %.3f rigid; mode 3 (%d cases) %.4f held, "
+                "%.3f rigid\n",
+                near_count[0], near_held[0], near_rigid[0], near_count[1], near_held[1],
+                near_rigid[1]);
     REQUIRE(skipped * 20 < points);
     REQUIRE(share_worst < 1e-3);
     REQUIRE(still_deg < 1e-4);

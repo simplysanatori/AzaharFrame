@@ -595,8 +595,10 @@ the pose time the picture carries), so a Detect Game FOV slew, a zoom or a size 
 and display is never taken for a head turn; a picture not found there (after a recentre or a mode
 change, which clear it) is held rigid. Mode 3 holds each eye's quad about its eye; mode 2's
 pictures come from the game's own two cameras, so each eye's rays come from a point between the
-head's middle (3D Depth 0) and the eye (far scenery at parallel, as the stereo cap keeps it), found
-from the game's measured far scenery (`Layout::EyeShareOnQuad`). At gain 1, with the rays from the
+head's middle (3D Depth 0) and the eye (far scenery at parallel: 3D Depth 100 % of the natural
+3D), found from the game's measured far scenery (`Layout::EyeShareOnQuad`). Mode 3's eye quads,
+moved in by half the game's own far scenery (`Mode3Natural`), take their rays from the eye all the
+same: that far scenery puts straight ahead exactly in front of it. At gain 1, with the rays from the
 eye, it is the rigid placement above. What it cannot do: the swim itself (it becomes smooth, not
 stepped; only gain 1 has none), the HUD and anything else fixed in the picture (still stepped once
 a picture), near scenery with 3D Depth above 0 (its parallax needs depth), the screen's edges (they
@@ -607,7 +609,12 @@ Shape, IPD 55 to 75 mm, mode 2's ray point, turns up to 10 degrees about a neck,
 pictures traced fresh for the head now (`a picture shown again is held as the game would draw it
 now`): a pure yaw or pitch in mode 3 and a yaw in mode 2 within 0.0001 degrees where rigid is off
 by up to 16 degrees, any other turn under about half its skew, and at gain 1 the rigid placement to
-0.0001 degrees. `AZAHARFRAME_IMMERSIVE_HOLD=rigid` (a live test switch) holds it rigid again; the
+0.0001 degrees. A second sweep (`a held picture with any World Scale, Follow Screen Size and 3D
+Depth`, 800 cases) adds Natural: World Scale 10 to 400 % (eased between the picture and now),
+Follow Screen Size on and off, 3D Depth 0 to 100 % in both modes; a pure yaw stays within 0.0001
+degrees, and with no head turn a change of World Scale, the screen's size and gains and the head's
+position holds the quad exactly where the rigid placement puts it: the ring's camera is made with
+the picture's own screen, so only the head's turn is reprojected. `AZAHARFRAME_IMMERSIVE_HOLD=rigid` (a live test switch) holds it rigid again; the
 per-second line says in how many frames the picture's camera was found
 (`xr: immersive: a picture shown again held ...`).
 
