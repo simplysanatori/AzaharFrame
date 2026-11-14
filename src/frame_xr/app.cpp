@@ -857,6 +857,7 @@ void Runtime::FrameLoop() {
                 rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
                                                 clarity_override, shown.head_driven);
                 rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top;
+                rf.time_ns = fs.predictedDisplayTime; // flash2: how long a gap lasts
                 if (t.handle != XR_NULL_HANDLE && t.has_image) {
                     const uint64_t on_view = ImageLag::SerialOnView(
                         t.frame_serial, sent_serial.load(), image_lag.load());

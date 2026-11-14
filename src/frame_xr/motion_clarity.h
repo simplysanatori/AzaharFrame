@@ -120,6 +120,9 @@ struct Refresh {
     bool on = false;      ///< InEffect
     bool steady = false;  ///< playing: no menu, keyboard, pause or bottom screen in focus
     uint64_t picture = 0; ///< the game picture on view this refresh (0: none)
+    /// flash2: the refresh's display time (XrTime, ns), for how long a gap without a picture
+    /// lasts (kGapKeepNs); 0 not known (a gap then forgets the rate).
+    int64_t time_ns = 0;
 };
 
 struct Decision {
@@ -139,6 +142,11 @@ inline constexpr float kTwiceMax = 5.0f;
 /// An interval longer than this many refreshes is not counted (a stall or a loading screen is not
 /// the game's rate; 10 pictures a second at 120 Hz).
 inline constexpr uint32_t kMaxInterval = 12;
+/// flash2: a gap without a game picture up to this long keeps the learnt rate: a swapchain made
+/// anew (a Dynamic Resolution step) has no image for a refresh or two, and relearning the rate
+/// after it held about 18 refreshes lit (150 ms), a bright flash at every step. A longer gap (a
+/// game stopped, another starting) learns the next game's rate anew.
+inline constexpr int64_t kGapKeepNs = 500'000'000;
 
 class Scheduler {
 public:
@@ -152,9 +160,10 @@ public:
     /// it on never hides a new picture and the rate is known at once.
     Decision Next(const Refresh& r) {
         if (r.picture == 0) {
-            Forget(); // no game picture (no game, a new one starting): learn the next one anew
+            Gap(r.time_ns);
             return {true, r.on ? Why::Unsteady : Why::Off};
         }
+        last_picture_ns_ = r.time_ns;
         if (r.picture != picture_) {
             if (picture_ != 0 && clean_) {
                 Push(age_ + 1);
@@ -210,6 +219,19 @@ public:
     }
 
 private:
+    /// flash2: no game picture this refresh. A short gap (kGapKeepNs since the last picture: a
+    /// swapchain made anew) keeps the rate, and the next picture is a new one at once (the gap is
+    /// not an interval), so flashing goes on with it; a longer one (no game, a new one starting),
+    /// or one with no time, learns the next picture's rate anew.
+    void Gap(int64_t now_ns) {
+        if (now_ns != 0 && last_picture_ns_ != 0 && now_ns - last_picture_ns_ <= kGapKeepNs) {
+            picture_ = 0;
+            age_ = 0;
+            clean_ = false;
+            return;
+        }
+        Forget();
+    }
     void Forget() {
         picture_ = 0;
         age_ = 0;
@@ -218,6 +240,7 @@ private:
         next_ = 0;
         fast_ = false;
         mean_ = 0.0f;
+        last_picture_ns_ = 0;
     }
     void Push(uint32_t interval) {
         if (interval > kMaxInterval) {
@@ -248,6 +271,7 @@ private:
     std::size_t filled_ = 0, next_ = 0;
     bool fast_ = false;
     float mean_ = 0.0f;
+    int64_t last_picture_ns_ = 0; ///< flash2: the time of the last refresh with a picture
 };
 
 /// The scheduler's picture id from what a release recorded: its game picture (ShownPicture::

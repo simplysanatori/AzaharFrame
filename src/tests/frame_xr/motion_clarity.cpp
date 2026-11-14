@@ -166,6 +166,51 @@ TEST_CASE("Motion Clarity: menus, pauses and off are held; turning on never hide
     CHECK(s.Mean() == 0.0f);
 }
 
+TEST_CASE("Motion Clarity: a short gap without a picture keeps the rate", "[frame_xr][flash]") {
+    // flash2: a Dynamic Resolution step makes the top swapchain anew; it has no image for a
+    // refresh or two (picture 0). The rate learnt before is kept and the next picture flashes at
+    // once (it held 18 refreshes lit while the rate was learnt again: a bright flash).
+    constexpr int64_t kPeriod = 8'333'333; // 120 Hz
+    int64_t t = 1'000'000'000;
+    uint64_t pic = 0;
+    MC::Scheduler s;
+    const auto next = [&](uint64_t p) {
+        t += kPeriod;
+        return s.Next({true, true, p, t});
+    };
+    for (int i = 0; i < 40; i++) {
+        next(i % 2 == 0 ? ++pic : pic);
+    }
+    REQUIRE(s.Fast());
+    // A gap of 3 refreshes, then the new swapchain's pictures: lit, backing, lit, backing...
+    for (int i = 0; i < 3; i++) {
+        CHECK(next(0).show);
+    }
+    CHECK(s.Fast());
+    CHECK(s.Mean() == 2.0f);
+    std::string out;
+    for (int i = 0; i < 8; i++) {
+        out += next(i % 2 == 0 ? ++pic : pic).show ? 'P' : 'B';
+    }
+    CHECK(out == "PBPBPBPB");
+    // The gap is not taken for an interval: the rate is still 2.
+    CHECK(s.Mean() == 2.0f);
+    // Up to kGapKeepNs (0.5 s, 60 refreshes at 120 Hz) since the last picture: kept.
+    for (int i = 0; i < 59; i++) {
+        next(0);
+    }
+    CHECK(s.Fast());
+    CHECK(next(++pic).why == MC::Why::Fresh);
+    CHECK_FALSE(next(pic).show);
+    // Longer (a game stopped, another starting): learnt anew.
+    for (int i = 0; i < 61; i++) {
+        next(0);
+    }
+    CHECK_FALSE(s.Fast());
+    CHECK(s.Mean() == 0.0f);
+    CHECK(next(++pic).why == MC::Why::Learning);
+}
+
 TEST_CASE("Motion Clarity: the override, the setting and the picture ids", "[frame_xr][flash]") {
     CHECK(MC::OverrideFrom(std::nullopt) == std::nullopt);
     CHECK(MC::OverrideFrom(std::string("1")) == true);
