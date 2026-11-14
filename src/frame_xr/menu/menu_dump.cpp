@@ -1565,6 +1565,62 @@ int main(int argc, char** argv) {
             hb.homebrew.items[0].status = "Could not connect";
             hv.hover = {};
             ok &= shot("homebrew-error", hb, hv);
+
+            // AzaharFrame emhb: Uninstall, a copy from another computer, Repair, and the dialog
+            HomebrewItem in = it;
+            in.installed = true;
+            in.can_uninstall = true;
+            in.author = "ZallaxDev \u00b7 English";
+            in.version = "v0.5.0";
+            in.checked = "Checked Just Now";
+            hb.homebrew.items = {in};
+            hv.hover = {Id::HomebrewUninstall, 0};
+            ok &= shot("homebrew-uninstall", hb, hv);
+            hb.homebrew.items[0].author = "ZallaxDev"; // a copy: no release named in its files
+            hb.homebrew.items[0].version.clear();
+            hb.homebrew.items[0].update = true;
+            hb.homebrew.items[0].latest = "v0.6.0";
+            hv.hover = {};
+            ok &= shot("homebrew-imported", hb, hv);
+            HomebrewItem br = it;
+            br.repair = true;
+            br.can_uninstall = true;
+            br.author = "ZallaxDev \u00b7 Game Data Missing";
+            hb.homebrew.items = {br};
+            hv.hover = {Id::HomebrewInstall, 0};
+            ok &= shot("homebrew-repair", hb, hv);
+            hb.homebrew.items = {in};
+            HomebrewDialog& dl = hb.homebrew.dialog;
+            dl.id = "emerald3ds";
+            dl.title = "Uninstall Pok\u00e9mon Emerald 3DS?";
+            dl.body = "Removes the game and its build files. Your ROM and save data are kept.";
+            dl.check = "Also Delete Save Data";
+            dl.confirm = "Uninstall";
+            dl.cancel = "Cancel";
+            hv.hover = {Id::HomebrewDialogCancel};
+            ok &= shot("homebrew-uninstall-dialog", hb, hv);
+            dl.checked = true;
+            dl.body = "Removes the game, its build files and your save data. Your ROM is kept.";
+            hv.hover = {Id::HomebrewDialogCheck};
+            ok &= shot("homebrew-uninstall-dialog-save", hb, hv);
+            dl.checked = false;
+            dl.check.clear();
+            dl.body = "Removes the game and its build files. Your ROM is kept.";
+            hv.hover = {Id::HomebrewDialogConfirm};
+            ok &= shot("homebrew-uninstall-dialog-nosave", hb, hv);
+            dl = {};
+            dl.id = "emerald3ds";
+            dl.title = "Stop the Game First";
+            dl.body = "Pok\u00e9mon Emerald 3DS is running. Stop it, then uninstall it from the "
+                      "Homebrew menu.";
+            dl.confirm = "OK";
+            hv.hover = {};
+            ok &= shot("homebrew-uninstall-running", hb, hv);
+            dl = {};
+            hb.homebrew.items[0].busy = true;
+            hb.homebrew.items[0].status = "Uninstalling";
+            hb.homebrew.spin = 7;
+            ok &= shot("homebrew-uninstalling", hb, hv);
         }
 
         MenuModel tm = m;

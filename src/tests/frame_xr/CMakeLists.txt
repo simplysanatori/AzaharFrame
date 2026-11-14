@@ -9,6 +9,7 @@ add_executable(frame_xr_picker_tests
     cheat_entry.cpp # AzaharFrame ui2
     list_scroll.cpp # AzaharFrame scroll
     utf8_text.cpp # AzaharFrame utf8
+    homebrew_uninstall.cpp # AzaharFrame emhb
 )
 target_link_libraries(frame_xr_picker_tests PRIVATE frame_xr_picker_core frame_xr_menu catch2)
 add_test(NAME frame_xr_picker_tests COMMAND frame_xr_picker_tests)

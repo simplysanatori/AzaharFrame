@@ -201,6 +201,11 @@ enum class Id : int {
     HomebrewReinstall, ///< AzaharFrame ui3: installed and no newer release seen; index:
                        ///< homebrew.items
     HomebrewCheck,     ///< AzaharFrame ui3: Check for Updates; index: homebrew.items
+    // AzaharFrame emhb: Uninstall and its dialog (homebrew_tab.h HomebrewDialog)
+    HomebrewUninstall,     ///< index: homebrew.items
+    HomebrewDialogCheck,   ///< Also Delete Save Data
+    HomebrewDialogConfirm, ///< Uninstall (or OK)
+    HomebrewDialogCancel,
     // AzaharFrame ui3: Optimize for Frame on a pack's page (mods_segments.h PackOptimize)
     OptimizePack,   ///< Optimize for Frame (the estimate, then the dialog)
     OptimizeStop,   ///< Stop while it converts
@@ -534,6 +539,8 @@ private:
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
                       const Rect& pane); ///< AzaharFrame emerald: homebrew_tab.cpp; ui3: the Homebrew tab
+    void DrawHomebrewDialog(Kit& kit, const HomebrewDialog& dialog,
+                            const MenuView& view); ///< AzaharFrame emhb: homebrew_tab.cpp
     /// AzaharFrame ui2: Install from Zip at a download page's bar end.
     void DrawZipButton(Kit& kit, const MenuView& view, const Rect& area, ZipTarget target,
                        bool enabled);

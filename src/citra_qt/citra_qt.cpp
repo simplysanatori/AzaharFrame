@@ -5085,6 +5085,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
+    case C::HomebrewUninstall: // AzaharFrame emhb: Uninstall and its dialog, in the menu
+        QTimer::singleShot(0, this, [r] {
+            if (g_frame_homebrew) {
+                g_frame_homebrew->VrUninstall(QString::fromStdString(r.text), r.value);
+            }
+        });
+        return;
     case C::HomebrewPlay: {
         const QString path = g_frame_homebrew
                                  ? g_frame_homebrew->GamePath(QString::fromStdString(r.text))

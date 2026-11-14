@@ -248,6 +248,8 @@ enum class MenuCommand {
     HomebrewUpdate,  ///< the same for an update
     HomebrewPlay,    ///< close the menu and start the installed package
     HomebrewCheck,   ///< AzaharFrame ui3: Check for Updates now (a toast says what it found)
+    HomebrewUninstall, ///< AzaharFrame emhb: Uninstall's dialog: `value` 0 open, 1 the checkbox,
+                       ///< 2 Cancel, 3 Uninstall
     // AzaharFrame texparts: a pack's Customize page (Menu::TexturePartsModel, frame_mods.cpp)
     OpenTextureParts, ///< `text`: the pack's id (CustomTex::Pack::id)
     TexturePart,      ///< `value`: the row clicked (a checkbox or a radio button)
