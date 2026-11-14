@@ -93,6 +93,7 @@ add_executable(tests
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
     core/ctgp7.cpp # AzaharFrame ctgp7
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
+    core/emerald_detect.cpp # AzaharFrame emhb
     core/homebrew_update_check.cpp # AzaharFrame ui3
     core/savestate_frame.cpp # AzaharFrame savestate
     core/autosave_frame.cpp # AzaharFrame autosave

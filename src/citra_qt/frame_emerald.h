@@ -8,6 +8,8 @@
 // (core/homebrew/emerald3ds_build.h, no Python, nothing downloaded is run), and the files put in place. Update: the .3dsx
 // and .smdh alone when the release keeps the data ABI, else the pack made again from the kept ROM.
 // The save is backed up first and never touched.
+// AzaharFrame emhb: what is installed comes from the files (core/homebrew/emerald3ds_detect.h), so a
+// copy from another computer is installed too; Uninstall removes what an install put in place.
 
 #pragma once
 
@@ -17,6 +19,7 @@
 #include <QString>
 #include "citra_qt/frame_homebrew.h"
 #include "core/homebrew/emerald3ds.h"
+#include "core/homebrew/emerald3ds_detect.h" // AzaharFrame emhb
 
 class FrameEmerald : public HomebrewPackager {
     Q_OBJECT
@@ -29,6 +32,11 @@ public:
     void CheckForUpdate() override;
     void CheckNow(std::function<void(Homebrew::CheckResult)> done) override; // AzaharFrame ui3
     bool ApplyBootSettings(const QString& path) override;
+    // AzaharFrame emhb
+    void Rescan() override;
+    void Uninstall(QWidget* parent) override;
+    void UninstallNow(bool delete_save, std::function<void(QString)> done) override;
+    QString UninstallBody(bool has_save, bool delete_save) const override;
 
     /// The one place the ROM file is picked (to be swapped for the shared picker later).
     QString PickRom(QWidget* parent) const;
@@ -53,6 +61,9 @@ private:
 
     void LoadState();
     void SaveState();
+    /// AzaharFrame emhb: a copy with no state.json: its game folder copy is the one an install or
+    /// update replaces (state.rom_dir_copy, in memory until the install saves it).
+    void AdoptCopy();
     /// The game folder for the copy: the installed one, else chosen (may add a game folder).
     QString ChooseRomDir(QWidget* parent);
     /// The game language when the ROM builds more than one ("en" or "pt" from the English ROM),
@@ -68,6 +79,11 @@ private:
     Homebrew::Emerald3ds::Paths paths;
     Homebrew::Emerald3ds::State state;
     bool have_state = false;
+    // AzaharFrame emhb: what the files say (Rescan), and for a copy with no state.json the last
+    // check's answer (kept in memory: no file is written for it until its release is known)
+    Homebrew::Emerald3ds::Detection detected;
+    std::string imported_latest;
+    s64 imported_checked = 0;
     bool busy = false;
     int progress = -1;
     QString status;

@@ -95,6 +95,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     steam_cef.h # AzaharFrame cpphelpers
     homebrew/emerald3ds_build.cpp # AzaharFrame cpphelpers
     homebrew/emerald3ds_build.h # AzaharFrame cpphelpers
+    homebrew/emerald3ds_detect.cpp # AzaharFrame emhb
+    homebrew/emerald3ds_detect.h
     homebrew/emerald3ds_fallback.cpp # AzaharFrame emfallback
     homebrew/emerald3ds_fallback.h
     homebrew/xz/xz_crc32.c # AzaharFrame cpphelpers: XZ Embedded (0BSD), reads the recipes

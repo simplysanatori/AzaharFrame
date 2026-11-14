@@ -1555,6 +1555,22 @@ void MenuPanel::Click(Target t, Host& host) {
             ask_text(c, model.homebrew.items[static_cast<std::size_t>(t.index)].id);
         }
         break;
+    case Id::HomebrewUninstall: // AzaharFrame emhb: its dialog's state is the Qt side's
+        if (t.index >= 0 && t.index < static_cast<int>(model.homebrew.items.size())) {
+            ask_text(MenuCommand::HomebrewUninstall,
+                     model.homebrew.items[static_cast<std::size_t>(t.index)].id, 0);
+        }
+        break;
+    case Id::HomebrewDialogCheck:
+    case Id::HomebrewDialogCancel:
+    case Id::HomebrewDialogConfirm:
+        if (!model.homebrew.dialog.id.empty()) {
+            ask_text(MenuCommand::HomebrewUninstall, model.homebrew.dialog.id,
+                     t.id == Id::HomebrewDialogCheck    ? 1
+                     : t.id == Id::HomebrewDialogCancel ? 2
+                                                        : 3);
+        }
+        break;
     case Id::DownloadCheats:
         ask(MenuCommand::DownloadCheats);
         break;
@@ -2267,6 +2283,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             Click({Id::TexturesBack}, host);
         } else if (textures_shown && view.textures_page == Menu::TexturesPage::Parts) {
             Click({Id::PartsBack}, host); // AzaharFrame texparts
+        } else if (view.tab == Menu::Tab::Homebrew && !model.homebrew.dialog.id.empty()) {
+            Click({Id::HomebrewDialogCancel}, host); // AzaharFrame emhb: Uninstall's dialog
         } else if (view.page != Menu::Page::Tabs) {
             view.page = Menu::Page::Tabs;
         } else {

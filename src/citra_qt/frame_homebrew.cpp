@@ -14,12 +14,23 @@
 #include <QPointer>
 #include <QTimer>
 #include "citra_qt/frame_emerald.h"
+#include "common/logging/log.h"
+#include "core/core.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/menu/homebrew_tab.h"
 
 namespace {
 FrameHomebrew* g_instance = nullptr;
 std::function<void()> g_refresh_list;
+const HomebrewPackager* g_booted = nullptr; // AzaharFrame emhb: whose game was started last
+
+QString Id(const HomebrewPackager* p) {
+    return QString::fromUtf8(p->Info().id.data(), static_cast<qsizetype>(p->Info().id.size()));
+}
+
+QString Title(const HomebrewPackager* p) {
+    return QString::fromUtf8(p->Info().title.data(), static_cast<qsizetype>(p->Info().title.size()));
+}
 } // namespace
 
 FrameHomebrew::FrameHomebrew(QWidget* window_, QMenuBar* bar, QMenu* before,
@@ -48,6 +59,10 @@ FrameHomebrew::FrameHomebrew(QWidget* window_, QMenuBar* bar, QMenu* before,
                 p->Install(window);
             }
         });
+        // AzaharFrame emhb: Uninstall, shown while anything of it is there
+        QAction* uninstall = menu->addAction(tr("Uninstall %1").arg(Title(p)));
+        uninstall_actions.push_back(uninstall);
+        connect(uninstall, &QAction::triggered, this, [this, p] { Uninstall(p); });
         connect(p, &HomebrewPackager::Changed, this, &FrameHomebrew::Refresh);
     }
     // AzaharFrame ui3: Check for Updates, the result in a message box (as Install's)
@@ -82,10 +97,15 @@ void FrameHomebrew::Refresh() {
         const HomebrewPackager::Status s = packagers[i]->GetStatus();
         const Homebrew::PackageInfo& info = packagers[i]->Info();
         const std::string title(info.title);
-        // "Install Pokémon Emerald 3DS", "Update ...", "Reinstall ..."
-        const char* verb = !s.installed ? "Install " : s.update ? "Update " : "Reinstall ";
+        // "Install Pokémon Emerald 3DS", "Update ...", "Reinstall ..."; AzaharFrame emhb: "Repair ..."
+        const char* verb = s.repair       ? "Repair "
+                           : !s.installed ? "Install "
+                           : s.update     ? "Update "
+                                          : "Reinstall ";
         actions[i]->setText(QString::fromStdString(verb + title));
         actions[i]->setEnabled(!s.busy);
+        uninstall_actions[i]->setVisible(s.can_uninstall); // AzaharFrame emhb
+        uninstall_actions[i]->setEnabled(s.can_uninstall && !s.busy);
 
         FrameXr::Menu::HomebrewItem item;
         item.id = std::string(info.id);
@@ -103,7 +123,31 @@ void FrameHomebrew::Refresh() {
         item.version = s.version.toStdString();
         item.latest = s.latest.toStdString();
         item.checked = Homebrew::CheckedText(s.checked, now);
+        item.repair = s.repair; // AzaharFrame emhb
+        item.can_uninstall = s.can_uninstall;
         can_check |= s.installed && !s.busy && !s.checking;
+        // AzaharFrame emhb: Uninstall's dialog, while its package can still be uninstalled
+        if (vr_dialog.package == Id(packagers[i]) && (s.busy || !s.can_uninstall)) {
+            vr_dialog = {}; // nothing left to uninstall, or it got busy meanwhile
+        }
+        if (vr_dialog.package == Id(packagers[i])) {
+            FrameXr::Menu::HomebrewDialog& d = model.dialog;
+            d.id = item.id;
+            if (vr_dialog.running) {
+                d.title = "Stop the Game First";
+                d.body = tr("%1 is running. Stop it, then uninstall it from the Homebrew menu.")
+                             .arg(Title(packagers[i]))
+                             .toStdString();
+                d.confirm = "OK";
+            } else {
+                d.title = tr("Uninstall %1?").arg(Title(packagers[i])).toStdString();
+                d.body = packagers[i]->UninstallBody(s.has_save, vr_dialog.delete_save).toStdString();
+                d.check = s.has_save ? "Also Delete Save Data" : "";
+                d.checked = s.has_save && vr_dialog.delete_save;
+                d.confirm = "Uninstall";
+                d.cancel = "Cancel";
+            }
+        }
         model.items.push_back(std::move(item));
     }
     if (check_action != nullptr) {
@@ -114,8 +158,78 @@ void FrameHomebrew::Refresh() {
 
 void FrameHomebrew::CheckForUpdates() {
     for (HomebrewPackager* p : packagers) {
+        p->Rescan(); // AzaharFrame emhb: the game list loaded: its folders may hold a copy now
         p->CheckForUpdate();
     }
+    Refresh();
+}
+
+HomebrewPackager* FrameHomebrew::Find(const QString& package) const { // AzaharFrame emhb
+    for (HomebrewPackager* p : packagers) {
+        if (Id(p) == package) {
+            return p;
+        }
+    }
+    return nullptr;
+}
+
+bool FrameHomebrew::Running(const HomebrewPackager* p) const { // AzaharFrame emhb
+    return g_booted == p && Core::System::GetInstance().IsPoweredOn();
+}
+
+void FrameHomebrew::Uninstall(HomebrewPackager* p) { // AzaharFrame emhb: the Homebrew menu
+    if (p->GetStatus().busy) {
+        return;
+    }
+    if (Running(p)) {
+        QMessageBox::information(
+            window, tr("Stop the Game First"),
+            tr("%1 is running. Stop it, then uninstall it from the Homebrew menu.").arg(Title(p)));
+        return;
+    }
+    p->Uninstall(window);
+}
+
+void FrameHomebrew::VrUninstall(const QString& package, int code) { // AzaharFrame emhb
+    HomebrewPackager* p = Find(package);
+    if (p == nullptr) {
+        vr_dialog = {};
+        Refresh();
+        return;
+    }
+    switch (code) {
+    case 0: // Uninstall pressed
+        p->Rescan();
+        if (!p->GetStatus().busy && p->GetStatus().can_uninstall) {
+            vr_dialog = {package, Running(p), false};
+            LOG_INFO(Frontend, "xr: in-game menu: Homebrew: Uninstall {}{}", package.toStdString(),
+                     vr_dialog.running ? " (running: not now)" : "");
+        }
+        break;
+    case 1: // Also Delete Save Data
+        if (vr_dialog.package == package) {
+            vr_dialog.delete_save = !vr_dialog.delete_save;
+        }
+        break;
+    case 3: // Uninstall (or OK)
+        if (vr_dialog.package == package && !vr_dialog.running && !Running(p)) {
+            const bool delete_save = vr_dialog.delete_save;
+            LOG_INFO(Frontend, "xr: in-game menu: Homebrew: Uninstall {} confirmed (save {})",
+                     package.toStdString(), delete_save ? "deleted" : "kept");
+            vr_dialog = {};
+            const QString done = tr("%1 Uninstalled").arg(Title(p));
+            p->UninstallNow(delete_save, [done](const QString& error) {
+                FrameXr::ShowToastText((error.isEmpty() ? done : error).toStdString(),
+                                       FrameXr::ToastTime::Long);
+            });
+        }
+        vr_dialog = {};
+        break;
+    default: // Cancel, B
+        vr_dialog = {};
+        break;
+    }
+    Refresh();
 }
 
 void FrameHomebrew::Run(const QString& package, bool update) {
@@ -182,8 +296,10 @@ void FrameHomebrew::ApplyBootSettings(const QString& path) {
     if (g_instance == nullptr) {
         return;
     }
+    g_booted = nullptr; // AzaharFrame emhb
     for (HomebrewPackager* p : g_instance->packagers) {
         if (p->ApplyBootSettings(path)) {
+            g_booted = p;
             return;
         }
     }
