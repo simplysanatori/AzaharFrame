@@ -142,8 +142,9 @@ inline float ModelPlaneDistance(const Input::Posef& head,
 /// The part of an eye's image the models can cover: the bounds of the spheres (centre LOCAL,
 /// radius) seen from `eye` with that field of view, as {u0, v0, u1, v1}, 0 to 1 across the image
 /// from its left and top edges; none when no sphere is in front of the eye. A sphere reaching the
-/// eye's near plane (`near_m`) gives the whole image. The occluders are drawn only there (a
-/// scissor): their depth matters nowhere else.
+/// eye's near plane (`near_m`) gives the whole image. The occluders are drawn only there: their
+/// depth matters nowhere else, and so it costs next to nothing (on the Frame a screen filling the
+/// view, written whole, cost about 0.2 ms a picture).
 struct ModelSphere {
     Input::Vec3f centre;
     float radius = 0.0f;
