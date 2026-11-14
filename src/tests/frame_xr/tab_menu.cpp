@@ -2933,13 +2933,14 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(PerGameSetting(id));
     }
     // AzaharFrame kiugyro: C-Stick at Edge shelved: not a row.
-    // AzaharFrame kiufix: and Aiming's rows (moved here from Settings, General)
+    // AzaharFrame kiufix: and Aiming's rows (moved here from Settings, General); kiuflash's
+    // Muzzle Flash with them (integ13).
     CHECK(ControlsScopeRows() ==
           std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
                           Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
                           Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
-                          Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::LaserSight,
-                          Id::TurnZone, Id::TurnSpeed});
+                          Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::MuzzleFlash,
+                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
