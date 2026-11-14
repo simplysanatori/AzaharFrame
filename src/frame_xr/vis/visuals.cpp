@@ -309,6 +309,7 @@ struct Visuals::Impl {
     std::vector<Quad> top_beams, top_dots;
     int weapon_hand = -1;      ///< AzaharFrame kiuguns: the weapon in hand, this frame
     int weapon_id = -1;
+    FlashFrame flash;          ///< AzaharFrame kiuflash: its muzzle flash, this frame
     int hide_hand = -1;        ///< AzaharFrame kiuguns: no beam over `hide_over`, this frame
     Input::PanelQuad hide_over;
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
@@ -459,6 +460,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     static_cast<void>(info);
     m.laser_hand = -1; // AzaharFrame kiugyro: GameFrame sets it again for this frame
     m.weapon_hand = -1; // AzaharFrame kiuguns: the same
+    m.flash = {};       // AzaharFrame kiuflash: the same
     m.hide_hand = -1;
     // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
     // grip and stick then move them and reach neither the screens nor the game.
@@ -1069,6 +1071,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
+            out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
         }
     }
     m.models.Frame(rt, view, hands);
@@ -1078,6 +1081,10 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
 void Visuals::SetWeapon(int hand, int id) {
     impl->weapon_hand = hand;
     impl->weapon_id = id;
+}
+
+void Visuals::SetMuzzleFlash(const FlashFrame& flash) { // AzaharFrame kiuflash
+    impl->flash = flash;
 }
 
 void Visuals::SetBeamHidden(int hand, const Input::PanelQuad& over) {

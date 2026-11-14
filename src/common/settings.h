@@ -954,6 +954,10 @@ struct Values {
     // AzaharFrame kiuguns: Laser Sight: with the weapon in hand, Light Gun's red beam and dot over
     // the top screen (off: no beam there, the game's reticle shows the aim). Per game too.
     SwitchableSetting<bool> vr_light_gun_laser{false, "vr_light_gun_laser"};
+    // AzaharFrame kiuflash: Muzzle Flash: with the weapon in hand, a short flash at its muzzle on
+    // each of the game's own shots (frame_xr/vis/muzzle_flash.h). Per game too. A new key: older
+    // builds ignore it (a game's own value is mirrored in vr_controls_preset_done).
+    SwitchableSetting<bool> vr_light_gun_flash{true, "vr_light_gun_flash"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

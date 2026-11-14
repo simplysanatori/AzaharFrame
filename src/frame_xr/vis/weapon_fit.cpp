@@ -401,8 +401,12 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
     V3 sum{};
     for (const FitPart& p : parts) {
         V3 mz = w.muzzle_valid ? w.muzzle : kFits[w.cls].grip;
-        if (p.side == FitSide::Left && kFits[w.cls].rule == Rule::Worn) {
-            mz[0] = -mz[0]; // the left claw's muzzle, in its own hand's space
+        if (p.side == FitSide::Left &&
+            (kFits[w.cls].rule == Rule::Worn || kFits[w.cls].rule == Rule::Pair)) {
+            // The left claw's muzzle, in its own hand's space; the left orbitar's, its own
+            // (the json gives the right one's: the left is its mirror, so their middle stays on
+            // the hand's line).
+            mz[0] = -mz[0];
         }
         const V3 q = TransformPoint(p.transform, mz);
         sum = {sum[0] + q[0], sum[1] + q[1], sum[2] + q[2]};

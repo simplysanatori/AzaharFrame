@@ -163,6 +163,16 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
   `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
   raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+- **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
+  Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
+  game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The
+  weapon's own flash from its `character/effect.bcres` (rapid fire's, or the charged shot's after
+  Recoil's 1.5 s pause), made with the weapon (`core/frame_weapon_models.h` ConvertFlash) as up to
+  four cards per kind: faces turned to the eye a little ahead of the muzzle, fans along the ray.
+  Added to what is behind, 70 ms (charged 100 ms), fading as it grows a little. A weapon whose
+  file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
+  untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
+  duration).
 - **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
   AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
   is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has

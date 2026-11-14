@@ -342,6 +342,7 @@ enum class MenuSetting {
     Recoil,          ///< `value` 0 or 1 (vr_light_gun_recoil)
     WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
     LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)
+    MuzzleFlash,     ///< AzaharFrame kiuflash: `value` 0 or 1 (vr_light_gun_flash)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

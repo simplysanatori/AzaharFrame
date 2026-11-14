@@ -515,6 +515,7 @@ struct FrameKeepControls {
           recoil{Settings::values.vr_light_gun_recoil},
           weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
           laser{Settings::values.vr_light_gun_laser},
+          flash{Settings::values.vr_light_gun_flash}, // AzaharFrame kiuflash
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -532,6 +533,7 @@ struct FrameKeepControls {
         recoil.Restore();
         weapon.Restore();
         laser.Restore();
+        flash.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -549,6 +551,7 @@ struct FrameKeepControls {
     FrameKeepSetting<bool, false> recoil;
     FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
     FrameKeepSetting<bool, false> laser;
+    FrameKeepSetting<bool, false> flash; // AzaharFrame kiuflash
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -5521,6 +5524,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::LaserSight: // AzaharFrame kiuguns
         set(v.vr_light_gun_laser, r.value != 0);
+        break;
+    case S::MuzzleFlash: // AzaharFrame kiuflash
+        set(v.vr_light_gun_flash, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

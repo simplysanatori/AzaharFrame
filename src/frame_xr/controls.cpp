@@ -1531,6 +1531,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         was_holding = false;
         recoil.Reset(); // AzaharFrame kiugyro
         shot_recoil.Reset(); // AzaharFrame kiuguns
+        muzzle_flash.Reset(); // AzaharFrame kiuflash
         Kiu::SetWanted(false, false);
         return;
     }
@@ -1774,8 +1775,11 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool recoil_on =
         Input::RecoilActive(gyro_aim_hand, Settings::values.vr_light_gun_recoil.GetValue());
     const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
+    // AzaharFrame kiuflash: Muzzle Flash, with the weapon in hand; its shots are read for it
+    // too (Recoil keeps its own switch).
+    const bool flash_on = weapon_on && Settings::values.vr_light_gun_flash.GetValue();
     bool weapon_shown = false;
-    Kiu::SetWanted(weapon_on, kiu && recoil_on);
+    Kiu::SetWanted(weapon_on, kiu && (recoil_on || flash_on));
     if (weapon_on) {
         FrameWeapons::Request(); // made the first time they are wanted (once a boot)
         // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.
@@ -1790,6 +1794,25 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (id >= 0) {
             visuals.SetWeapon(gyro_aim_hand, id);
             weapon_shown = true;
+        }
+    }
+    // AzaharFrame kiuflash: a flash at the weapon's muzzle on each of the game's own shots.
+    {
+        const bool active = flash_on && weapon_shown;
+        const bool readable = Kiu::ShotsReadable();
+        muzzle_flash.SetDurationMs(
+            active ? Vis::ParseFlashTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FLASH"))
+                         .duration_ms
+                   : 0);
+        muzzle_flash.Update(in.time_ns, Kiu::ShotTotal(), readable, active);
+        if (active && readable != muzzle_flash_logged) {
+            muzzle_flash_logged = readable;
+            LOG_INFO(Frontend, "xr: muzzle flash: {}",
+                     readable ? "on the game's own shots" : "waiting for the shots record");
+        }
+        const Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
+        if (active && flash.shown) {
+            visuals.SetMuzzleFlash(flash);
         }
     }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim

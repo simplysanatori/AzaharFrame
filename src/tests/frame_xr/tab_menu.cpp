@@ -3116,6 +3116,53 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     }
 }
 
+// AzaharFrame kiuflash: Muzzle Flash, a game's switch under Weapon in Hand, shown only with it on.
+TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][kiuflash]") {
+    CHECK(LabelFor(Id::MuzzleFlash) == "Muzzle Flash");
+    CHECK(ExplainFor(Id::MuzzleFlash) == "A flash at your weapon's tip on each shot.");
+    CHECK(PerGameSetting(Id::MuzzleFlash));
+    CHECK(SectionOf(Id::MuzzleFlash) == SectionOf(Id::WeaponInHand));
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Settings;
+    for (const int aiming : {0, 1, 2}) {
+        for (const bool weapon : {false, true}) {
+            INFO("aiming " << aiming << ", weapon " << weapon);
+            m.gyro_aim = aiming;
+            m.weapon_in_hand = weapon;
+            m.muzzle_flash = true;
+            // Scrolled down until the row is on view (the aiming rows are low in General).
+            bool row = false;
+            for (float scroll = 0.0f; scroll <= 3000.0f && !row; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                row = HasHit(d, Id::MuzzleFlash, -1) && HasHit(d, Id::WeaponInHand, -1);
+                if (scroll >= d.menu.MaxScroll()) {
+                    break;
+                }
+            }
+            CHECK(row == (aiming != 0 && weapon));
+            if (row) {
+                const MenuLayout::Hit* in_hand = FindHit(d, Id::WeaponInHand, -1);
+                const MenuLayout::Hit* flash = FindHit(d, Id::MuzzleFlash, -1);
+                REQUIRE(in_hand != nullptr);
+                REQUIRE(flash != nullptr);
+                CHECK(flash->r.y0 >= in_hand->r.y1 - 0.01f); // under it
+                Audit a;
+                a.Draw(m, v);
+                a.Check("Settings, Muzzle Flash");
+                CHECK(a.Drew("Muzzle Flash"));
+            }
+        }
+    }
+    m.scope = 1;
+    m.game_value = {};
+    m.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
+    CHECK(GameValueRows(m, Tab::Settings, SectionOf(Id::MuzzleFlash)) ==
+          std::vector<Id>{Id::MuzzleFlash});
+}
+
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
     CHECK(LabelFor(Id::ReticleStick) == "Right Stick Moves Touch");

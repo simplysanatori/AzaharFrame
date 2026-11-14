@@ -117,6 +117,7 @@ bool RestoreSwitch(Settings::SwitchableSetting<bool>& setting, uint32_t shift, c
 void MirrorWeaponInHand() { // AzaharFrame kiuguns
     MirrorSwitch(Settings::values.vr_light_gun_weapon, kWeaponMirrorShift);
     MirrorSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift);
+    MirrorSwitch(Settings::values.vr_light_gun_flash, kFlashMirrorShift); // AzaharFrame kiuflash
 }
 
 bool RestoreWeaponInHand() { // AzaharFrame kiuguns
@@ -124,7 +125,9 @@ bool RestoreWeaponInHand() { // AzaharFrame kiuguns
         RestoreSwitch(Settings::values.vr_light_gun_weapon, kWeaponMirrorShift, "Weapon in Hand");
     const bool laser =
         RestoreSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift, "Laser Sight");
-    return weapon || laser;
+    const bool flash = // AzaharFrame kiuflash
+        RestoreSwitch(Settings::values.vr_light_gun_flash, kFlashMirrorShift, "Muzzle Flash");
+    return weapon || laser || flash;
 }
 
 uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed) {

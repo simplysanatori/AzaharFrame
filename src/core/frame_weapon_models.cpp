@@ -326,6 +326,296 @@ std::string Hex(u64 v) {
     return fmt::format("{:016X}", v);
 }
 
+// ---- AzaharFrame kiuflash: the flash cards ----
+
+constexpr u32 kFlagFlash = 1u << 17; // frame_xr/vis/model_file.h kModelFlagFlash
+
+/// The game's own word for a class in its effect models' names ("PtcRifle01RapidFlashA").
+constexpr const char* kEffectClass[kClasses] = {"Rifle",  "Snipe",  "Nail", "Bow", "Palm",
+                                                "Pillar", "Launch", "Bit",  "Arm"};
+
+enum class CardRole : u8 { Face, Fan };
+
+struct Card {
+    FlashKind kind = FlashKind::Rapid;
+    CardRole role = CardRole::Face;
+    std::string texture;
+    std::array<float, kFlashValues> values{};
+    float width = 0.0f, length = 0.0f; ///< game units: across, and along (a face's height)
+    float u0 = 0.0f, u1 = 1.0f, v0 = 0.0f, v1 = 1.0f; ///< v: rows in memory order
+    bool apex_at_v1 = false; ///< a fan: its point at v1 (else at v0)
+    u32 wrap_u = 0, wrap_v = 0;
+    int priority = 0;
+};
+
+/// How much light a texel gives in a mode (0 to 1).
+float TexelLight(const FrameCgfx::Texture& t, u32 x, u32 y, FlashMode mode) {
+    const u8* p = t.rgba.data() + (std::size_t{y} * t.width + x) * 4;
+    switch (mode) {
+    case kFlashTwoTone:
+        return std::max(p[0], p[1]) / 255.0f;
+    case kFlashLuminance:
+        return p[0] / 255.0f;
+    default:
+        return (p[0] + p[1] + p[2]) / (3.0f * 255.0f) * (p[3] / 255.0f);
+    }
+}
+
+/// The light of a column (axis 0) or row (axis 1) of a texture's region.
+float LineLight(const FrameCgfx::Texture& t, int axis, u32 at, u32 from, u32 to, FlashMode mode) {
+    float sum = 0.0f;
+    for (u32 k = from; k < to; k++) {
+        sum += axis == 0 ? TexelLight(t, at, k, mode) : TexelLight(t, k, at, mode);
+    }
+    return sum;
+}
+
+/// A sprite sheet's cell along one axis: `cells` cells (the set's texture coordinate scale), or
+/// when the set gives none (0), two where the texture's middle lines are dark (a gutter), else
+/// one. Returns the lightest cell's range.
+std::pair<u32, u32> SheetCell(const FrameCgfx::Texture& t, int axis, FlashMode mode, u32 cells) {
+    const u32 n = axis == 0 ? t.width : t.height;
+    const u32 across = axis == 0 ? t.height : t.width;
+    std::vector<float> light(n);
+    float peak = 0.0f;
+    for (u32 k = 0; k < n; k++) {
+        light[k] = LineLight(t, axis, k, 0, across, mode);
+        peak = std::max(peak, light[k]);
+    }
+    if (cells == 0) {
+        cells = n >= 16 && peak > 0.0f &&
+                        light[n / 2 - 1] + light[n / 2] <= 0.04f * peak ? 2 : 1;
+    }
+    if (cells <= 1 || cells > 8 || n % cells != 0) {
+        return {0, n};
+    }
+    const u32 size = n / cells;
+    u32 best = 0;
+    float best_light = -1.0f;
+    for (u32 c = 0; c < cells; c++) {
+        float sum = 0.0f;
+        for (u32 k = c * size; k < (c + 1) * size; k++) {
+            sum += light[k];
+        }
+        if (sum > best_light + 1e-4f) {
+            best = c;
+            best_light = sum;
+        }
+    }
+    return {best * size, (best + 1) * size};
+}
+
+/// The cards of one flash model: its sets (smoke and unlit ones left out), the strongest first,
+/// at most kFlashCardsMax.
+std::vector<Card> FlashCards(const FrameCgfx::ParticleModel& model, FlashKind kind,
+                             const std::vector<FrameCgfx::Texture>& textures, bool neutral) {
+    std::vector<Card> cards;
+    for (const FrameCgfx::ParticleSet& s : model.sets) {
+        std::string lower = s.name + " " + s.texture;
+        std::transform(lower.begin(), lower.end(), lower.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        if (lower.find("smoke") != std::string::npos || lower.find("smork") != std::string::npos ||
+            lower.find("kumo") != std::string::npos) {
+            continue; // smoke: dark and slow, not a flash
+        }
+        const auto tex = std::find_if(textures.begin(), textures.end(),
+                                      [&](const FrameCgfx::Texture& t) { return t.name == s.texture; });
+        if (tex == textures.end()) {
+            continue;
+        }
+        float rgb[3] = {((s.colour >> 16) & 0xFF) / 255.0f, ((s.colour >> 8) & 0xFF) / 255.0f,
+                        (s.colour & 0xFF) / 255.0f};
+        const u32 colour_mode = s.type & 0xFF;
+        FlashMode mode = colour_mode == 4   ? kFlashTwoTone
+                         : colour_mode >= 2 ? kFlashLuminance
+                                            : kFlashTexture;
+        // No colour of its own (its Type's combiner byte differs, 0 or 3 for these): the
+        // texture's own colours, as they are.
+        if (rgb[0] + rgb[1] + rgb[2] <= 0.0f) {
+            rgb[0] = rgb[1] = rgb[2] = 1.0f;
+            mode = kFlashTexture;
+        }
+        if (neutral) {
+            const float v = std::max({rgb[0], rgb[1], rgb[2], 0.6f});
+            rgb[0] = rgb[1] = rgb[2] = v;
+        }
+        Card c;
+        c.kind = kind;
+        c.texture = s.texture;
+        c.values[kFlashMode] = static_cast<float>(mode);
+        c.values[kFlashRed] = rgb[0];
+        c.values[kFlashGreen] = rgb[1];
+        c.values[kFlashBlue] = rgb[2];
+        const float core = ((s.colour >> 24) & 0xFF) / 255.0f;
+        c.values[kFlashCore] = mode == kFlashTwoTone ? (core > 0.0f ? core : 0.5f) : 0.0f;
+        const u32 mirror = (s.type >> 16) & 0xFF;
+        c.wrap_u = (s.sampler >> 12) & 0xF;
+        c.wrap_v = (s.sampler >> 8) & 0xF;
+        c.wrap_u = c.wrap_u > 3 ? 0 : c.wrap_u;
+        c.wrap_v = c.wrap_v > 3 ? 0 : c.wrap_v;
+        // Mirrored repeat on an axis (the sampler's): the texture is a half or a quarter.
+        const bool mirror_u = c.wrap_u == 3;
+        const bool mirror_v = c.wrap_v == 3;
+        c.role = mirror == 2 ? CardRole::Fan : CardRole::Face;
+        const FrameCgfx::Texture& t = *tex;
+        // The UVs: a mirrored axis whose light reaches an edge spans two copies about its
+        // lighter edge (a quarter glow made round, half a fan made whole; a sprite centred in its
+        // texture stays whole); another axis the lighter cell of a sprite sheet.
+        const auto axis_range = [&](int axis, bool mirrored, float& lo, float& hi, u32& texels) {
+            const u32 n = axis == 0 ? t.width : t.height;
+            const u32 across = axis == 0 ? t.height : t.width;
+            if (mirrored) {
+                float peak = 0.0f;
+                for (u32 k = 0; k < n; k++) {
+                    peak = std::max(peak, LineLight(t, axis, k, 0, across, mode));
+                }
+                const float e0 = LineLight(t, axis, 0, 0, across, mode);
+                const float e1 = LineLight(t, axis, n - 1, 0, across, mode);
+                if (std::max(e0, e1) > 0.15f * peak) {
+                    lo = e0 >= e1 ? -1.0f : 0.0f;
+                    hi = lo + 2.0f;
+                    texels = n * 2;
+                    return;
+                }
+            }
+            const float scale = s.uv_scale[static_cast<std::size_t>(axis)];
+            const u32 cells = scale > 0.0f ? static_cast<u32>(std::lround(1.0f / scale)) : 0;
+            const auto [a, b] = SheetCell(t, axis, mode, cells);
+            lo = static_cast<float>(a) / static_cast<float>(n);
+            hi = static_cast<float>(b) / static_cast<float>(n);
+            texels = b - a;
+        };
+        u32 cell_w = 0, cell_h = 0;
+        axis_range(0, mirror_u, c.u0, c.u1, cell_w);
+        axis_range(1, mirror_v, c.v0, c.v1, cell_h);
+        // The size: the set's own, else ours.
+        float size_x = s.size[0];
+        float size_y = s.size[1];
+        const bool read = size_x > 0.0f && size_y > 0.0f;
+        if (!read) {
+            size_x = size_y = c.role == CardRole::Fan ? 12.0f : 6.0f;
+        }
+        const float aspect = static_cast<float>(cell_h) / static_cast<float>(std::max(cell_w, 1u));
+        if (c.role == CardRole::Fan) {
+            // Its point at the darker end along its length; as long as its larger size, as wide
+            // as its texture's shape (made whole) says.
+            const u32 rows = std::max(1u, t.height / 4);
+            float first = 0.0f, last = 0.0f;
+            for (u32 k = 0; k < rows; k++) {
+                first += LineLight(t, 1, k, 0, t.width, mode);
+                last += LineLight(t, 1, t.height - 1 - k, 0, t.width, mode);
+            }
+            c.apex_at_v1 = last < first;
+            c.length = std::max(size_x, size_y);
+            c.width = c.length / std::max(aspect, 0.25f);
+            c.values[kFlashOffset] = 0.0f;
+            c.priority = 1;
+        } else {
+            // Its size across and down; a square size takes the cell's shape. Centred half its
+            // size ahead of the muzzle, so the weapon's own tip (or a cannon's barrel, its muzzle
+            // inside) does not hide it.
+            c.width = size_x;
+            c.length = std::abs(size_x - size_y) < 1e-3f ? size_x * aspect : size_y;
+            c.values[kFlashOffset] = 0.5f * std::max(c.width, c.length);
+            c.priority = mirror_u && mirror_v ? 2 : mode == kFlashLuminance ? 3 : 0;
+        }
+        c.values[kFlashGrow] = 1.25f; // ours: a slight scale-up (the sets' own animation is not read)
+        cards.push_back(std::move(c));
+    }
+    // At most kFlashCardsMax: the first of each kind (burst, fan, glow, light) first, then the
+    // rest in that order, each in the file's order.
+    std::stable_sort(cards.begin(), cards.end(),
+                     [](const Card& a, const Card& b) { return a.priority < b.priority; });
+    std::vector<Card> kept;
+    std::vector<bool> taken(cards.size(), false);
+    for (std::size_t i = 0; i < cards.size(); i++) {
+        if (i == 0 || cards[i].priority != cards[i - 1].priority) {
+            kept.push_back(cards[i]);
+            taken[i] = true;
+        }
+    }
+    for (std::size_t i = 0; i < cards.size(); i++) {
+        if (!taken[i]) {
+            kept.push_back(cards[i]);
+        }
+    }
+    if (kept.size() > static_cast<std::size_t>(kFlashCardsMax)) {
+        kept.resize(kFlashCardsMax);
+    }
+    return kept;
+}
+
+/// One texture's cards as an MXFM file (weapon space, flagged as a flash: the texture keeps its
+/// alpha; one flat surface texel).
+Bytes WriteFlashModel(const FrameCgfx::Texture& tex, const std::vector<const Card*>& cards) {
+    std::vector<float> verts;
+    std::vector<u32> idx;
+    for (const Card* c : cards) {
+        const u32 base = static_cast<u32>(verts.size() / 12);
+        const float x0 = -c->width / 2.0f, x1 = c->width / 2.0f;
+        float y0 = -c->length / 2.0f, y1 = c->length / 2.0f;
+        float va = c->v0, vb = c->v1; // v at y0, y1
+        if (c->role == CardRole::Fan) {
+            y0 = 0.0f;
+            y1 = c->length;
+            if (c->apex_at_v1) {
+                std::swap(va, vb);
+            }
+        } else {
+            std::swap(va, vb); // the texture's first row at the top
+        }
+        const float corners[4][4] = {{x0, y0, c->u0, va}, {x1, y0, c->u1, va},
+                                     {x1, y1, c->u1, vb}, {x0, y1, c->u0, vb}};
+        for (const auto& q : corners) {
+            verts.insert(verts.end(), {q[0], q[1], 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+                                       1.0f, q[2], q[3]});
+        }
+        idx.insert(idx.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+    }
+    const Card& first = *cards.front();
+    Bytes b;
+    b.insert(b.end(), {'M', 'X', 'F', 'M'});
+    Put32(b, kModelVersion);
+    Put32(b, static_cast<u32>(verts.size() / 12));
+    Put32(b, static_cast<u32>(idx.size()));
+    Put32(b, static_cast<u32>(cards.size()));
+    Put32(b, tex.width);
+    Put32(b, tex.height);
+    Put32(b, kFlagWeaponSpace | (first.wrap_u & 7) << 8 | (first.wrap_v & 7) << 12 |
+                 kFlagFlatSurface | kFlagFlash);
+    for (std::size_t i = 0; i < cards.size(); i++) {
+        const Card& c = *cards[i];
+        Bytes rec(kComponentBytes, 0);
+        const char* name = c.kind == FlashKind::Charged ? "charged" : "rapid";
+        const char* role = c.role == CardRole::Fan ? "fan" : "face";
+        std::memcpy(rec.data(), name, std::strlen(name));
+        std::memcpy(rec.data() + kNameBytes, role, std::strlen(role));
+        const auto put_at = [&](std::size_t at, u32 v) {
+            for (int k = 0; k < 4; k++) {
+                rec[at + k] = static_cast<u8>(v >> (8 * k));
+            }
+        };
+        put_at(2 * kNameBytes, static_cast<u32>(i * 6));
+        put_at(2 * kNameBytes + 4, 6);
+        put_at(2 * kNameBytes + 8, 0); // no motion: the floats are the card's values
+        for (int k = 0; k < kFlashValues; k++) {
+            u32 bits;
+            std::memcpy(&bits, &c.values[static_cast<std::size_t>(k)], 4);
+            put_at(2 * kNameBytes + 16 + std::size_t(k) * 4, bits);
+        }
+        b.insert(b.end(), rec.begin(), rec.end());
+    }
+    for (const float f : verts) {
+        PutF(b, f);
+    }
+    for (const u32 i : idx) {
+        Put32(b, i);
+    }
+    b.insert(b.end(), tex.rgba.begin(), tex.rgba.end()); // with its alpha
+    b.insert(b.end(), {128, 128, 255, kRoughness});
+    return b;
+}
+
 bool WriteFileAtomic(const std::string& path, const void* data, std::size_t size) {
     const std::string tmp = path + ".part";
     {
@@ -340,7 +630,7 @@ bool WriteFileAtomic(const std::string& path, const void* data, std::size_t size
 } // namespace
 
 bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rgba, u32& width,
-                     u32& height) {
+                     u32& height, bool keep_alpha) {
     std::ifstream f(path, std::ios::binary);
     const Bytes png((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     static Frontend::ImageInterface images; // lodepng
@@ -359,7 +649,7 @@ bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rg
                              px.begin() + std::size_t{h - 1 - y} * w * 4);
         }
     }
-    for (std::size_t i = 3; i < px.size(); i += 4) {
+    for (std::size_t i = 3; i < px.size() && !keep_alpha; i += 4) {
         px[i] = 255; // no ambient occlusion
     }
     rgba = std::move(px);
@@ -692,8 +982,161 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
         }
     }
     w.pack_key = PackKey(pack, w.texture_hashes);
+    // AzaharFrame kiuflash: its flashes from its own effects (another weapon's when it has
+    // none: the caller's, GameConverter::Ensure).
+    ConvertFlash(id, zrc, id, false, c, pack);
     error.clear();
     out = std::move(c);
+    return true;
+}
+
+FlashModels PickFlashModels(int id, const std::vector<std::string>& names) {
+    FlashModels out;
+    if (id < 0 || id >= kWeapons) {
+        return out;
+    }
+    const std::string prefix =
+        fmt::format("Ptc{}{:02d}", kEffectClass[ClassOf(id)], id % kPerClass);
+    // The first name of the prefix whose rest starts with one of `starts` (in that order), a
+    // plain one (nothing after the start but a letter: "ShotFlash", "ShotFlashA") before one
+    // with more ("ShotFlash_Line", "ShotFlash2").
+    const auto find = [&](std::initializer_list<const char*> starts) {
+        for (const char* start : starts) {
+            const std::size_t len = std::strlen(start);
+            std::string first;
+            for (const std::string& n : names) {
+                if (n.size() < prefix.size() + len || n.rfind(prefix, 0) != 0 ||
+                    n.compare(prefix.size(), len, start) != 0) {
+                    continue;
+                }
+                const std::string rest = n.substr(prefix.size() + len);
+                if (rest.empty() ||
+                    (rest.size() == 1 && std::isupper(static_cast<unsigned char>(rest[0])))) {
+                    return n;
+                }
+                if (first.empty()) {
+                    first = n;
+                }
+            }
+            if (!first.empty()) {
+                return first;
+            }
+        }
+        return std::string{};
+    };
+    out.rapid = find({"RapidFlash", "RapidShot", "Bullet01_Flash", "ShotA", "Muzzle"});
+    out.charged = find({"ShotFlash", "Bullet02_Flash", "ShotB"});
+    if (out.rapid.empty()) {
+        out.rapid = out.charged;
+    }
+    if (out.charged.empty()) {
+        out.charged = out.rapid;
+    }
+    return out;
+}
+
+bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutral,
+                  Converted& out, const TexturePack* pack) {
+    FlashInfo& f = out.info.flash;
+    f.known = true;
+    Bytes effects;
+    std::string why;
+    std::vector<FrameCgfx::ParticleModel> models;
+    if (!FrameCgfx::DarcMember(source_zrc, "character/effect.bcres", effects, why) ||
+        !FrameCgfx::ReadParticleModels(effects, models, why)) {
+        return false;
+    }
+    std::vector<std::string> names;
+    for (const auto& m : models) {
+        names.push_back(m.name);
+    }
+    const FlashModels picked = PickFlashModels(source, names);
+    const auto model = [&](const std::string& name) -> const FrameCgfx::ParticleModel* {
+        for (const auto& m : models) {
+            if (!name.empty() && m.name == name) {
+                return &m;
+            }
+        }
+        return nullptr;
+    };
+    const FrameCgfx::ParticleModel* rapid = model(picked.rapid);
+    const FrameCgfx::ParticleModel* charged = model(picked.charged);
+    std::vector<std::string> wanted;
+    for (const auto* m : {rapid, charged}) {
+        for (const auto& s : m ? m->sets : std::vector<FrameCgfx::ParticleSet>{}) {
+            if (std::find(wanted.begin(), wanted.end(), s.texture) == wanted.end()) {
+                wanted.push_back(s.texture);
+            }
+        }
+    }
+    std::vector<FrameCgfx::Texture> textures;
+    if (wanted.empty() || !FrameCgfx::ReadTextures(effects, wanted, textures, why)) {
+        return false;
+    }
+    std::vector<Card> cards;
+    if (rapid) {
+        cards = FlashCards(*rapid, FlashKind::Rapid, textures, neutral);
+    }
+    if (charged) {
+        auto more = FlashCards(*charged, FlashKind::Charged, textures, neutral);
+        cards.insert(cards.end(), std::make_move_iterator(more.begin()),
+                     std::make_move_iterator(more.end()));
+    }
+    if (cards.empty()) {
+        return false;
+    }
+    // One file per texture (and wrap), its cards the components.
+    FlashInfo made;
+    made.known = true;
+    made.rapid = rapid ? rapid->name : std::string{};
+    made.charged = charged ? charged->name : std::string{};
+    made.source = source;
+    std::vector<std::pair<std::string, std::vector<u8>>> files;
+    std::vector<bool> done(cards.size(), false);
+    for (std::size_t i = 0; i < cards.size(); i++) {
+        if (done[i]) {
+            continue;
+        }
+        std::vector<const Card*> group;
+        for (std::size_t k = i; k < cards.size(); k++) {
+            if (!done[k] && cards[k].texture == cards[i].texture &&
+                cards[k].wrap_u == cards[i].wrap_u && cards[k].wrap_v == cards[i].wrap_v) {
+                group.push_back(&cards[k]);
+                done[k] = true;
+            }
+        }
+        const auto tex = std::find_if(textures.begin(), textures.end(), [&](const auto& t) {
+            return t.name == cards[i].texture;
+        });
+        FlashPart part;
+        part.file = fmt::format("w{:03d}-f{}.model", id, made.parts.size());
+        part.texture = tex->name;
+        part.hash = VideoCore::CustomTexManager::NewHash(tex->raw);
+        part.cards = static_cast<u32>(group.size());
+        if (pack && pack->on) {
+            if (const auto it = pack->files.find(part.hash); it != pack->files.end()) {
+                const auto ext = std::filesystem::path(it->second).extension().string();
+                if (ext == ".png" || ext == ".PNG") {
+                    part.replaced = it->second;
+                    part.replaced_flip = pack->flip_png;
+                }
+            }
+        }
+        files.emplace_back(part.file, WriteFlashModel(*tex, group));
+        made.parts.push_back(std::move(part));
+    }
+    std::vector<u64> hashes;
+    for (const FlashPart& p : made.parts) {
+        hashes.push_back(p.hash);
+    }
+    made.pack_key = PackKey(pack, hashes);
+    // Another weapon's flash replaces what this one had (nothing: it found none).
+    std::erase_if(out.files, [](const auto& file) {
+        return file.first.find("-f") != std::string::npos;
+    });
+    out.files.insert(out.files.end(), std::make_move_iterator(files.begin()),
+                     std::make_move_iterator(files.end()));
+    f = std::move(made);
     return true;
 }
 
@@ -707,7 +1150,11 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
 //          <bounds: 6 numbers> <charge time: 2> <rapid fire time: 2> <rapid normal: 3>
 //          <texture hashes: count, then each>
 //   part <file> <material> <sides> <triangles> <wrap u> <wrap v> <glow> <cull> <flip> [pack PNG]
+//   flashes <rapid model|-> <charged model|-> <source weapon|-1> <flash pack key>
+//   flash <file> <texture> <texture hash> <cards> <flip> [pack PNG]
 // A part line belongs to the weapon line before it; the PNG's path is the rest of the line.
+// AzaharFrame kiuflash: the flashes and flash lines too (builds before them skip both; a weapon
+// line without a flashes line is made again).
 
 bool WriteManifest(const std::string& path, const Manifest& m, std::string& error) {
     std::string out = "# Kid Icarus: Uprising's weapons, made by Azahar for Frame from this game's "
@@ -750,6 +1197,22 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
                                p.material.empty() ? "-" : p.material, sides.empty() ? "C" : sides,
                                p.triangles, p.wrap_u, p.wrap_v, p.glow ? 1 : 0, p.cull,
                                p.replaced_flip ? 1 : 0);
+            if (!p.replaced.empty()) {
+                out += " " + p.replaced;
+            }
+            out += "\n";
+        }
+        // AzaharFrame kiuflash: for a weapon made with its flashes (one made by a build before
+        // them, kept as it was, keeps none: it is made again when next asked for).
+        const FlashInfo& f = w.flash;
+        if (!f.known) {
+            continue;
+        }
+        out += fmt::format("flashes {} {} {} {}\n", f.rapid.empty() ? "-" : f.rapid,
+                           f.charged.empty() ? "-" : f.charged, f.source, Hex(f.pack_key));
+        for (const FlashPart& p : f.parts) {
+            out += fmt::format("flash {} {} {} {} {}", p.file, p.texture.empty() ? "-" : p.texture,
+                               Hex(p.hash), p.cards, p.replaced_flip ? 1 : 0);
             if (!p.replaced.empty()) {
                 out += " " + p.replaced;
             }
@@ -846,6 +1309,34 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
             p.glow = glow != 0;
             p.replaced_flip = flip != 0;
             current->parts.push_back(std::move(p));
+        } else if (key == "flashes" && current) { // AzaharFrame kiuflash
+            FlashInfo& f = current->flash;
+            in >> f.rapid >> f.charged >> f.source;
+            if (!in || !hex(f.pack_key) || f.source < -1 || f.source >= kWeapons) {
+                error = "a bad flashes line";
+                return false;
+            }
+            for (std::string* t : {&f.rapid, &f.charged}) {
+                if (*t == "-") {
+                    t->clear();
+                }
+            }
+            f.known = true;
+        } else if (key == "flash" && current && current->flash.known) {
+            FlashPart p;
+            int flip = 1;
+            in >> p.file >> p.texture;
+            const bool ok = static_cast<bool>(in) && hex(p.hash);
+            in >> p.cards >> flip;
+            if (!ok || !in || p.file.find('/') != std::string::npos ||
+                p.file.find("..") != std::string::npos || p.cards == 0 ||
+                p.cards > 2u * kFlashCardsMax) {
+                error = "a bad flash line";
+                return false;
+            }
+            std::getline(in >> std::ws, p.replaced);
+            p.replaced_flip = flip != 0;
+            current->flash.parts.push_back(std::move(p));
         }
     }
     if (!header) {
@@ -932,7 +1423,8 @@ public:
         if (old != manifest.weapons.end() && old->source_hash == hash &&
             old->pack_key == PackKey(pack, old->texture_hashes) &&
             std::all_of(old->parts.begin(), old->parts.end(),
-                        [&](const Part& p) { return FileUtil::Exists(dir + p.file); })) {
+                        [&](const Part& p) { return FileUtil::Exists(dir + p.file); }) &&
+            FlashCurrent(old->flash)) {
             res.kept++;
             return true;
         }
@@ -942,6 +1434,16 @@ public:
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}): {}", ZrcName(id), id, why);
             res.failed++;
             return false;
+        }
+        // AzaharFrame kiuflash: no flash of its own: the first of its class's that has one, its
+        // colours made neutral.
+        for (int k = 0; c.info.flash.parts.empty() && k < kPerClass; k++) {
+            const int other = ClassOf(id) * kPerClass + k;
+            const auto* of = index.Find(manifest.region + "/player/" + ZrcName(other));
+            Bytes other_zrc;
+            if (other != id && of && index.Read(*of, other_zrc, u64{8} << 20)) {
+                ConvertFlash(id, other_zrc, other, true, c, pack);
+            }
         }
         for (const auto& [name, bytes] : c.files) {
             if (!WriteFileAtomic(dir + name, bytes.data(), bytes.size())) {
@@ -958,6 +1460,12 @@ public:
                     FileUtil::Delete(dir + p.file);
                 }
             }
+            for (const FlashPart& p : old->flash.parts) { // AzaharFrame kiuflash
+                if (std::none_of(c.info.flash.parts.begin(), c.info.flash.parts.end(),
+                                 [&](const FlashPart& q) { return q.file == p.file; })) {
+                    FileUtil::Delete(dir + p.file);
+                }
+            }
             manifest.weapons.erase(old);
         }
         for (const Part& p : c.info.parts) {
@@ -969,6 +1477,22 @@ public:
         res.made++;
         dirty = true;
         return true;
+    }
+
+    /// AzaharFrame kiuflash: a weapon's flashes as made: made by a build that makes them, the
+    /// texture pack's files for them unchanged, the files there.
+    bool FlashCurrent(const FlashInfo& f) const {
+        if (!f.known) {
+            return false;
+        }
+        std::vector<u64> hashes;
+        for (const FlashPart& p : f.parts) {
+            hashes.push_back(p.hash);
+            if (!FileUtil::Exists(dir + p.file)) {
+                return false;
+            }
+        }
+        return f.pack_key == PackKey(pack, hashes);
     }
 
     bool Save(RunResult& res) {

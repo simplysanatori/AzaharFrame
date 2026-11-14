@@ -515,6 +515,12 @@ TEST_CASE("Weapon fit: every class's muzzle on the aim ray", "[kiuguns]") {
             if (s.cls == 7) {
                 // The orbitars' middle: above the hand, on its line.
                 CHECK((*m)[0] == Approx(0.0f).margin(1e-4));
+                // AzaharFrame kiuflash: a muzzle off the orbitar's axis too (the second
+                // orbitars': x 1.6), the left one's mirrored.
+                const auto off = Vis::FitMuzzle({7, {1.6f, 0.8f, 0.8f}, true}, left, sides);
+                REQUIRE(off);
+                CHECK((*off)[0] == Approx(0.0f).margin(1e-4));
+                CHECK((*off)[1] > 0.0f);
                 continue;
             }
             CHECK((*m)[0] == Approx(0.0f).margin(1e-3));

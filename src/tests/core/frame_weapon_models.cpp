@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -448,7 +449,8 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
 
 /// A claw pair (weapon 24): Pit's body, a right claw on RHandN at x -5 and a left one on
 /// LHandN at x +5, a hidden mesh; the right claw's triangle is wound against its normal.
-Bytes ClawZrc() {
+/// AzaharFrame kiuflash: with `effect` as its character/effect.bcres when given.
+Bytes ClawZrc(const Bytes& effect = {}) {
     const Tri right{{{{0, 0, 0}, {0, 1, 0}, {1, 0, 0}}}, {0, 0, 1}}; // winding gives -z: wrong
     const Tri left{{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}, {0, 0, 1}};
     const Tri body{{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}, {0, 0, 1}};
@@ -462,7 +464,220 @@ Bytes ClawZrc() {
                              {{"WpnN", true}, {"WpnHiddenN", false}});
     const Bytes fmdl = Darc({{"fmdl/00.bcres", bcres}});
     const Bytes js = Darc({{"json/00.json", WeaponJson("WPNID_WPN_NAIL_00", "RHandN", {-1.3f, 0, 0})}});
+    if (!effect.empty()) {
+        return Lz11Store(Darc({{"character/fmdl.arc", Lz11Store(fmdl)},
+                               {"character/json.arc", js},
+                               {"character/effect.bcres", effect}}));
+    }
     return Lz11Store(Darc({{"character/fmdl.arc", Lz11Store(fmdl)}, {"character/json.arc", js}}));
+}
+
+// ---- AzaharFrame kiuflash: an effect file of particle models ----
+
+struct TexSpec {
+    std::string name;
+    u32 width, height;
+    /// Each 8x8 tile's colour (r, g, b, a) by its column and row.
+    std::function<std::array<u8, 4>(u32, u32)> tile;
+};
+
+struct SetSpec {
+    std::string name, texture;
+    u32 colour, sampler, type;
+    float size_x, size_y;
+    bool updater; ///< the size as a scale updater (else a constant scale attribute)
+    float uv_x = 0.0f, uv_y = 0.0f; ///< its texture coordinate scale (attribute 6), or none
+};
+
+struct ParticleSpec {
+    std::string name;
+    std::vector<SetSpec> sets;
+};
+
+/// A CGFX file of particle models (as Kid Icarus: Uprising's effect.bcres keeps its flashes:
+/// user data Tex, Col, Sam, Type, Order; particle sets with a scale), one mesh model that is not
+/// a particle model, and RGBA8 textures of uniform tiles.
+Bytes EffectCgfx(const std::vector<ParticleSpec>& particles, const std::vector<TexSpec>& textures) {
+    Buf f;
+    f.Alloc(0x14 + 8 + 16 * 8);
+    f.Magic(0, "CGFX");
+    f.W16(4, 0xFEFF);
+    f.W16(6, 0x14);
+    f.Magic(0x14, "DATA");
+    std::vector<std::pair<std::string, std::size_t>> model_entries;
+    {
+        const std::size_t mesh_model = f.Alloc(0x100); // a bullet's mesh model: skipped
+        f.W32(mesh_model, 0x40000012u);
+        f.Magic(mesh_model + 4, "CMDL");
+        f.Rel(mesh_model + 0xC, f.Str("EffTestBullet"));
+        model_entries.emplace_back("EffTestBullet", mesh_model);
+    }
+    for (const ParticleSpec& p : particles) {
+        const std::size_t mo = f.Alloc(0x100);
+        f.W32(mo, 0x40000112u);
+        f.Magic(mo + 4, "CMDL");
+        f.Rel(mo + 0xC, f.Str(p.name));
+        const std::size_t n = p.sets.size();
+        const std::size_t tex = f.Alloc(0x14 + 4 * n);
+        f.W32(tex, 0x10000000u);
+        f.W32(tex + 8, 2);
+        f.W32(tex + 0x10, static_cast<u32>(n));
+        for (std::size_t i = 0; i < n; i++) {
+            f.Rel(tex + 0x14 + 4 * i, f.Str(p.sets[i].texture));
+        }
+        const auto ints = [&](auto get) {
+            const std::size_t e = f.Alloc(0x10 + 4 * n);
+            f.W32(e, 0x20000000u);
+            f.W32(e + 8, 1);
+            f.W32(e + 0xC, static_cast<u32>(n));
+            for (std::size_t i = 0; i < n; i++) {
+                f.W32(e + 0x10 + 4 * i, get(p.sets[i], i));
+            }
+            return e;
+        };
+        const std::size_t col = ints([](const SetSpec& s, std::size_t) { return s.colour; });
+        const std::size_t sam = ints([](const SetSpec& s, std::size_t) { return s.sampler; });
+        const std::size_t type = ints([](const SetSpec& s, std::size_t) { return s.type; });
+        const std::size_t order =
+            ints([](const SetSpec&, std::size_t i) { return static_cast<u32>(i); });
+        f.W32(mo + 0x10, 5);
+        f.Rel(mo + 0x14, f.Dict({{"Tex", tex}, {"Col", col}, {"Sam", sam}, {"Type", type},
+                                 {"Order", order}}));
+        std::vector<std::size_t> sets;
+        for (const SetSpec& s : p.sets) {
+            const std::size_t so = f.Alloc(0x100);
+            f.W32(so, 0x40000001u);
+            f.Magic(so + 4, "CNOD");
+            f.Rel(so + 0xC, f.Str(s.name));
+            // The attributes, then the updaters (as the files have them).
+            if (s.uv_x > 0.0f) {
+                f.W32(so + 0x20, 0x40000000u);
+                f.W32(so + 0x24, 6);
+                f.W32(so + 0x28, 2);
+                f.W32(so + 0x2C, 2);
+                f.W32(so + 0x30, 4);
+                f.F(so + 0x34, s.uv_x);
+                f.F(so + 0x38, s.uv_y);
+            }
+            if (s.updater) {
+                f.W32(so + 0x40, 0x00200000u);
+                f.W32(so + 0x44, 0x100u);
+                f.W32(so + 0x48, 1);
+                f.F(so + 0x4C, s.size_x);
+                f.F(so + 0x50, s.size_y);
+                f.F(so + 0x54, 1.0f);
+                f.F(so + 0x58, 0.5f);
+            } else if (s.size_x > 0.0f) {
+                f.W32(so + 0x40, 0x40000000u);
+                f.W32(so + 0x44, 1);
+                f.W32(so + 0x48, 2);
+                f.W32(so + 0x4C, 2);
+                f.W32(so + 0x50, 4);
+                f.F(so + 0x54, s.size_x);
+                f.F(so + 0x58, s.size_y);
+            }
+            sets.push_back(so);
+        }
+        f.PtrList(mo + 0xE0, sets);
+        model_entries.emplace_back(p.name, mo);
+    }
+    std::vector<std::pair<std::string, std::size_t>> tex_entries;
+    for (const TexSpec& t : textures) {
+        const std::size_t to = f.Alloc(0x50);
+        f.Magic(to + 4, "TXOB");
+        f.W32(to + 0x18, t.height);
+        f.W32(to + 0x1C, t.width);
+        f.W32(to + 0x34, 0); // RGBA8
+        const std::size_t image = f.Alloc(0x10);
+        const std::size_t pixels = f.Alloc(std::size_t{t.width} * t.height * 4);
+        for (u32 ty = 0; ty < t.height / 8; ty++) {
+            for (u32 tx = 0; tx < t.width / 8; tx++) {
+                const auto c = t.tile(tx, ty);
+                const std::size_t at = pixels + (std::size_t{ty} * (t.width / 8) + tx) * 64 * 4;
+                for (std::size_t k = 0; k < 64; k++) { // PICA's byte order: a, b, g, r
+                    f.b[at + k * 4] = c[3];
+                    f.b[at + k * 4 + 1] = c[2];
+                    f.b[at + k * 4 + 2] = c[1];
+                    f.b[at + k * 4 + 3] = c[0];
+                }
+            }
+        }
+        f.W32(image, t.height);
+        f.W32(image + 4, t.width);
+        f.W32(image + 8, t.width * t.height * 4);
+        f.Rel(image + 0xC, pixels);
+        f.Rel(to + 0x38, image);
+        tex_entries.emplace_back(t.name, to);
+    }
+    const std::size_t models = f.Dict(model_entries);
+    const std::size_t texs = f.Dict(tex_entries);
+    f.W32(0x1C, static_cast<u32>(model_entries.size()));
+    f.Rel(0x20, models);
+    f.W32(0x24, static_cast<u32>(tex_entries.size()));
+    f.Rel(0x28, texs);
+    return f.b;
+}
+
+/// The claws' (weapon 24, Nail00) flashes: rapid fire's a two-tone burst, a fan, smoke (left
+/// out) and a set with no colour of its own (the texture's); the charged shot's a round glow from
+/// a quarter, a sprite sheet and four more bursts (at most kFlashCardsMax cards).
+Bytes ClawEffects() {
+    const auto uniform = [](std::array<u8, 4> c) {
+        return [c](u32, u32) { return c; };
+    };
+    const std::vector<TexSpec> textures{
+        {"ptc_burst", 16, 16, uniform({255, 200, 10, 255})},
+        // A half fan: lit at its left column, its point at the top (row 0), wide below.
+        {"ptc_fan", 16, 32,
+         [](u32 tx, u32 ty) {
+             return std::array<u8, 4>{
+                 static_cast<u8>(tx == 0 ? 40 + ty * 60 : 0), 0, 0, 255};
+         }},
+        // A quarter glow: lit at its last column and row (the bottom right corner).
+        {"ptc_glow", 16, 16,
+         [](u32 tx, u32 ty) {
+             return std::array<u8, 4>{static_cast<u8>(tx == 1 && ty == 1 ? 250 : tx + ty ? 90 : 0),
+                                      0, 0, 255};
+         }},
+        // A sheet of two cells across with a dark gutter between: the right one brighter.
+        {"ptc_sheet", 32, 16,
+         [](u32 tx, u32) {
+             const u8 v = tx == 0 ? 120 : tx == 3 ? 220 : 0;
+             return std::array<u8, 4>{v, v, v, 0x80};
+         }},
+        {"ptc_smoke", 8, 8, uniform({90, 90, 90, 255})},
+        {"ptc_unused", 8, 8, uniform({9, 9, 9, 255})},
+    };
+    const std::vector<ParticleSpec> particles{
+        {"PtcNail00RapidShot",
+         {{"Nail00RapidShot", "ptc_burst", 0xE561FF00u, 6, 0xFF000704u, 9, 9, true},
+          {"Nail00RapidShot_smoke", "ptc_smoke", 0x00FFFFFFu, 6, 0xFF000401u, 3, 3, false},
+          {"Nail00RapidShot_gokou", "ptc_fan", 0x000000FFu, 0x3006, 0xFF020402u, 2, 20, true},
+          {"Nail00RapidShot_own", "ptc_burst", 0x00000000u, 6, 0xFF000302u, 4, 4, false}}},
+        {"PtcNail00ShotFlash",
+         {{"Nail00ShotFlash_a", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false},
+          {"Nail00ShotFlash_b", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false},
+          {"Nail00ShotFlash_glow", "ptc_glow", 0x000040FFu, 0x3306, 0xFF010402u, 6, 6, false},
+          {"Nail00ShotFlash_sheet", "ptc_sheet", 0x00FF8000u, 6, 0xFF000401u, 0, 0, false, 0.5f, 1.0f},
+          {"Nail00ShotFlash_c", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false},
+          {"Nail00ShotFlash_d", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false}}},
+        {"PtcNail00ShotSub", {{"Nail00ShotSub", "ptc_unused", 0x00FFFFFFu, 6, 0xFF000401u, 1, 1, false}}},
+    };
+    return EffectCgfx(particles, textures);
+}
+
+FrameXr::Vis::ModelFile LoadFlashFile(const std::string& dir, const std::string& name,
+                                      const Bytes& bytes) {
+    {
+        std::ofstream o(dir + name, std::ios::binary);
+        o.write(reinterpret_cast<const char*>(bytes.data()),
+                static_cast<std::streamsize>(bytes.size()));
+    }
+    FrameXr::Vis::ModelFile mf;
+    std::string error;
+    INFO(name);
+    REQUIRE(FrameXr::Vis::LoadModelFile(dir + name, mf, error, FrameXr::Vis::kModelFlagWeaponSpace));
+    return mf;
 }
 
 /// A RomFS level 3 image: root / <region> / player / the files.
@@ -878,4 +1093,400 @@ TEST_CASE("Weapon models: the texture pack's replacement, found by the game's ow
     FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
     std::filesystem::remove_all(root);
     std::filesystem::remove_all(dir);
+}
+
+// ---- AzaharFrame kiuflash: the muzzle flashes ----
+
+TEST_CASE("Muzzle Flash: particle models read from an effect file", "[kiuflash]") {
+    const Bytes effects = ClawEffects();
+    std::vector<FrameCgfx::ParticleModel> models;
+    std::string error;
+    REQUIRE(FrameCgfx::ReadParticleModels(effects, models, error));
+    REQUIRE(models.size() == 3); // the mesh model skipped
+    CHECK(models[0].name == "PtcNail00RapidShot");
+    REQUIRE(models[0].sets.size() == 4);
+    const auto& s = models[0].sets[2];
+    CHECK(s.name == "Nail00RapidShot_gokou");
+    CHECK(s.texture == "ptc_fan");
+    CHECK(s.colour == 0x000000FFu);
+    CHECK(s.sampler == 0x3006u);
+    CHECK(s.type == 0xFF020402u);
+    CHECK(s.size[0] == Approx(2.0f)); // the scale updater's across and down
+    CHECK(s.size[1] == Approx(20.0f));
+    CHECK(s.uv_scale[0] == 0.0f);     // none given
+    CHECK(models[1].sets[2].size[0] == Approx(6.0f)); // the constant scale
+    CHECK(models[1].sets[3].size[0] == 0.0f);         // none
+    CHECK(models[1].sets[3].uv_scale[0] == Approx(0.5f)); // two cells across, one down
+    CHECK(models[1].sets[3].uv_scale[1] == Approx(1.0f));
+    std::vector<FrameCgfx::Texture> textures;
+    REQUIRE(FrameCgfx::ReadTextures(effects, {"ptc_glow", "ptc_sheet", "nothing"}, textures, error));
+    REQUIRE(textures.size() == 2);
+    CHECK(textures[1].name == "ptc_sheet");
+    CHECK(textures[1].width == 32);
+    CHECK(textures[1].rgba[3] == 0x80);
+    // Not CGFX, cut short: errors, not crashes.
+    CHECK_FALSE(FrameCgfx::ReadParticleModels(Bytes{1, 2, 3}, models, error));
+    for (const std::size_t cut : {std::size_t{0x40}, effects.size() / 2}) {
+        const Bytes part(effects.begin(), effects.begin() + static_cast<std::ptrdiff_t>(cut));
+        std::vector<FrameCgfx::ParticleModel> m2;
+        FrameCgfx::ReadParticleModels(part, m2, error); // false or partial, never a crash
+    }
+}
+
+TEST_CASE("Muzzle Flash: a weapon's flash cards and their files", "[kiuflash]") {
+    FrameWeapons::Converted c;
+    std::string error;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(ClawEffects()), c, error));
+    const FrameWeapons::FlashInfo& f = c.info.flash;
+    CHECK(f.known);
+    CHECK(f.rapid == "PtcNail00RapidShot");
+    CHECK(f.charged == "PtcNail00ShotFlash");
+    CHECK(f.source == 24);
+    // One file per texture: burst, fan, glow, sheet (smoke left out).
+    REQUIRE(f.parts.size() == 4);
+    CHECK(f.parts[0].file == "w024-f0.model");
+    CHECK(c.files.size() == 1 + 4); // the claws' model and the flash files
+    const std::string dir = TestDir("frame_weapon_flash_test");
+    std::map<std::string, FrameXr::Vis::ModelFile> files;
+    for (const auto& [name, bytes] : c.files) {
+        if (name.find("-f") != std::string::npos) {
+            files[name] = LoadFlashFile(dir, name, bytes);
+        }
+    }
+    int rapid = 0, charged = 0;
+    for (const auto& part : f.parts) {
+        INFO(part.texture);
+        const auto& mf = files.at(part.file);
+        CHECK((mf.flags & FrameXr::Vis::kModelFlagFlash) != 0);
+        CHECK(part.cards == mf.components.size());
+        CHECK(part.hash != 0);
+        for (const auto& comp : mf.components) {
+            CHECK((comp.name == "rapid" || comp.name == "charged"));
+            CHECK((comp.path == "face" || comp.path == "fan"));
+            CHECK(comp.index_count == 6);
+            CHECK(comp.motion_type == 0);
+            (comp.name == "rapid" ? rapid : charged)++;
+            const float* v = comp.motion.data();
+            float maxy = -1e9f, miny = 1e9f, minu = 1e9f, maxu = -1e9f, minv = 1e9f, maxv = -1e9f;
+            for (uint32_t k = comp.first_index; k < comp.first_index + comp.index_count; k++) {
+                const float* q = &mf.vertices[mf.indices[k] * 12];
+                miny = std::min(miny, q[1]);
+                maxy = std::max(maxy, q[1]);
+                minu = std::min(minu, q[10]);
+                maxu = std::max(maxu, q[10]);
+                minv = std::min(minv, q[11]);
+                maxv = std::max(maxv, q[11]);
+                CHECK(q[2] == 0.0f);
+                CHECK(q[5] == 1.0f);
+            }
+            CHECK(v[FrameWeapons::kFlashGrow] > 1.0f);
+            CHECK(v[FrameWeapons::kFlashGrow] <= 2.0f);
+            if (part.texture == "ptc_burst" && comp.name == "rapid" &&
+                v[FrameWeapons::kFlashMode] != FrameWeapons::kFlashTwoTone) {
+                // No colour of its own: the texture's, in white.
+                CHECK(v[FrameWeapons::kFlashMode] == FrameWeapons::kFlashTexture);
+                CHECK(v[FrameWeapons::kFlashRed] == 1.0f);
+                CHECK(v[FrameWeapons::kFlashBlue] == 1.0f);
+                CHECK(maxy - miny == Approx(4.0f));
+            } else if (part.texture == "ptc_burst" && comp.name == "rapid") {
+                // The two-tone burst: its colour, its white core (the top byte), 9 units.
+                CHECK(v[FrameWeapons::kFlashMode] == FrameWeapons::kFlashTwoTone);
+                CHECK(v[FrameWeapons::kFlashRed] == Approx(0x61 / 255.0f));
+                CHECK(v[FrameWeapons::kFlashGreen] == Approx(1.0f));
+                CHECK(v[FrameWeapons::kFlashBlue] == 0.0f);
+                CHECK(v[FrameWeapons::kFlashCore] == Approx(0xE5 / 255.0f));
+                CHECK(comp.path == "face");
+                CHECK(maxy - miny == Approx(9.0f));
+                CHECK(v[FrameWeapons::kFlashOffset] == Approx(4.5f)); // half its size ahead
+            }
+            if (part.texture == "ptc_fan") {
+                // A fan from the muzzle along the ray, 20 units long, whole from its half
+                // (mirrored about its lit left edge), its point (the dim top) at the muzzle.
+                CHECK(comp.path == "fan");
+                CHECK(v[FrameWeapons::kFlashMode] == FrameWeapons::kFlashLuminance);
+                CHECK(miny == 0.0f);
+                CHECK(maxy == Approx(20.0f));
+                CHECK(minu == Approx(-1.0f));
+                CHECK(maxu == Approx(1.0f));
+                CHECK(FrameXr::Vis::ModelWrapU(mf.flags) == 3);
+                for (uint32_t k = comp.first_index; k < comp.first_index + comp.index_count; k++) {
+                    const float* q = &mf.vertices[mf.indices[k] * 12];
+                    if (q[1] == 0.0f) {
+                        CHECK(q[11] == 0.0f); // the first row at the point
+                    }
+                }
+            }
+            if (part.texture == "ptc_glow") {
+                // A round glow from a quarter: both axes mirrored about the lit corner.
+                CHECK(comp.path == "face");
+                CHECK(minu == 0.0f);
+                CHECK(maxu == Approx(2.0f));
+                CHECK(minv == 0.0f);
+                CHECK(maxv == Approx(2.0f));
+                CHECK(FrameXr::Vis::ModelWrapU(mf.flags) == 3);
+                CHECK(FrameXr::Vis::ModelWrapV(mf.flags) == 3);
+                CHECK(v[FrameWeapons::kFlashRed] == 0.0f);
+                CHECK(v[FrameWeapons::kFlashBlue] == Approx(1.0f));
+            }
+            if (part.texture == "ptc_sheet") {
+                // A sprite sheet of two cells (its UV scale): the brighter; no size of its own:
+                // ours (6 units).
+                CHECK(minu == Approx(0.5f));
+                CHECK(maxu == Approx(1.0f));
+                CHECK(v[FrameWeapons::kFlashMode] == FrameWeapons::kFlashTexture);
+                CHECK(maxy - miny == Approx(6.0f));
+                CHECK(mf.colour[3] == 0x80); // the texture's alpha kept
+            }
+        }
+    }
+    CHECK(rapid == 3);                         // the burst, the fan, the texture's own
+    CHECK(charged == FrameWeapons::kFlashCardsMax); // six sets, four cards
+    // Each kind keeps its glow (the first of each kind before more of one).
+    bool glow = false;
+    for (const auto& part : f.parts) {
+        glow |= part.texture == "ptc_glow";
+    }
+    CHECK(glow);
+    // The manifest keeps it all; a reader without kiuflash's lines skips them (unknown keys).
+    FrameWeapons::Manifest m;
+    m.version = FrameWeapons::kConverterVersion;
+    m.title_id = 0x0004000000030200ull;
+    m.weapons.push_back(c.info);
+    REQUIRE(FrameWeapons::WriteManifest(dir + "weapons.txt", m, error));
+    FrameWeapons::Manifest back;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", back, error));
+    REQUIRE(back.Find(24));
+    const auto& bf = back.Find(24)->flash;
+    CHECK(bf.known);
+    CHECK(bf.rapid == f.rapid);
+    CHECK(bf.charged == f.charged);
+    CHECK(bf.source == 24);
+    REQUIRE(bf.parts.size() == f.parts.size());
+    CHECK(bf.parts[1].file == f.parts[1].file);
+    CHECK(bf.parts[1].hash == f.parts[1].hash);
+    CHECK(bf.parts[1].cards == f.parts[1].cards);
+    // A weapon file with no effects: no flash, known (the game's run then borrows one).
+    FrameWeapons::Converted none;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(), none, error));
+    CHECK(none.info.flash.known);
+    CHECK(none.info.flash.parts.empty());
+    CHECK(none.info.flash.source == -1);
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("Muzzle Flash: the cache: with the weapon, made again once, a class's fallback",
+          "[kiuflash]") {
+    const std::string dir = TestDir("frame_weapon_flash_cache");
+    constexpr u64 kTitle = 0x0004000000030200ull;
+    // m200 has its effects; m204 (weapon 28) has none.
+    auto rom = std::make_shared<MemoryRomFS>(
+        RomFS("eu", {{"m200.zrc", ClawZrc(ClawEffects())}, {"m204.zrc", ClawZrc()}}));
+    FrameWeapons::RunResult r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 2);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    REQUIRE(m.Find(24));
+    REQUIRE(m.Find(28));
+    CHECK(m.Find(24)->flash.source == 24);
+    // The fallback: the class's first weapon with a flash, its colours made neutral.
+    const auto& fb = m.Find(28)->flash;
+    CHECK(fb.source == 24);
+    CHECK(fb.rapid == "PtcNail00RapidShot");
+    REQUIRE(!fb.parts.empty());
+    CHECK(fb.parts[0].file == "w028-f0.model");
+    FrameXr::Vis::ModelFile mf;
+    REQUIRE(FrameXr::Vis::LoadModelFile(dir + fb.parts[0].file, mf, error,
+                                        FrameXr::Vis::kModelFlagWeaponSpace));
+    for (const auto& comp : mf.components) {
+        const float* v = comp.motion.data();
+        CHECK(v[FrameWeapons::kFlashRed] == v[FrameWeapons::kFlashGreen]);
+        CHECK(v[FrameWeapons::kFlashGreen] == v[FrameWeapons::kFlashBlue]);
+        CHECK(v[FrameWeapons::kFlashRed] >= 0.6f);
+    }
+    // The extra cache, per weapon (the claws' test textures are tiny; the real sizes are in the
+    // report).
+    std::uintmax_t flash_bytes = 0, weapon_bytes = 0;
+    for (const auto& e : std::filesystem::directory_iterator(dir)) {
+        const std::string n = e.path().filename().string();
+        if (n.rfind("w024", 0) == 0) {
+            (n.find("-f") != std::string::npos ? flash_bytes : weapon_bytes) += e.file_size();
+        }
+    }
+    CHECK(flash_bytes > 0);
+    CHECK(flash_bytes < 16 * 1024);
+    // Kept when nothing changed.
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.kept == 2);
+    CHECK(r.made == 0);
+    // A manifest from before the flashes (an older build saved it: no flashes lines): each
+    // weapon made again once, then kept.
+    {
+        std::ifstream in(dir + "weapons.txt");
+        std::string text, line;
+        while (std::getline(in, line)) {
+            if (line.rfind("flash", 0) != 0) {
+                text += line + "\n";
+            }
+        }
+        in.close();
+        std::ofstream(dir + "weapons.txt") << text;
+    }
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(24)->flash.known);
+    // Saved again as it is (a run that made another weapon): still not known, never "no flash".
+    REQUIRE(FrameWeapons::WriteManifest(dir + "weapons.txt", m, error));
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(24)->flash.known);
+    CHECK_FALSE(m.Find(28)->flash.known);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 2);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.kept == 2);
+    // A flash file gone: made again.
+    std::filesystem::remove(dir + "w024-f1.model");
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 1);
+    CHECK(std::filesystem::exists(dir + "w024-f1.model"));
+    // A bad flash line: the manifest is not taken (made again), never a crash.
+    {
+        std::ofstream(dir + "weapons.txt", std::ios::app) << "flash ../x - 0 1 1\n";
+    }
+    CHECK_FALSE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("Muzzle Flash: the texture pack's replacement, with its alpha", "[kiuflash]") {
+    const std::string root = TestDir("frame_weapon_flash_pack");
+    const std::string before = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
+    FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, root);
+    constexpr u64 kTitle = 0x0004000000030200ull;
+    const std::string pack_dir = fmt::format("{}textures/{:016X}/", root, kTitle);
+    std::filesystem::create_directories(pack_dir + "effects");
+    {
+        std::ofstream o(pack_dir + "pack.json");
+        o << R"({"author": "test", "options": {"use_new_hash": true, "flip_png_files": true}})";
+    }
+    FrameWeapons::Converted plain;
+    std::string error;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(ClawEffects()), plain, error));
+    const FrameWeapons::FlashPart* sheet = nullptr;
+    for (const auto& p : plain.info.flash.parts) {
+        if (p.texture == "ptc_sheet") {
+            sheet = &p;
+        }
+    }
+    REQUIRE(sheet);
+    // A 4x replacement named by the texture's new hash, in the effects folder.
+    Frontend::ImageInterface images;
+    Bytes px;
+    for (int i = 0; i < 128 * 64; i++) {
+        px.insert(px.end(), {10, 20, 30, static_cast<u8>(i % 2 ? 40 : 200)});
+    }
+    const std::string png =
+        fmt::format("{}effects/tex1_32x16_{:016X}_0_mip0.png", pack_dir, sheet->hash);
+    REQUIRE(images.EncodePNG(png, 128, 64, px));
+    const FrameWeapons::TexturePack pack = FrameWeapons::ReadTexturePack(kTitle);
+    REQUIRE(pack.on);
+    FrameWeapons::Converted c;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(ClawEffects()), c, error, &pack));
+    const FrameWeapons::FlashPart* replaced = nullptr;
+    for (const auto& p : c.info.flash.parts) {
+        if (p.texture == "ptc_sheet") {
+            replaced = &p;
+        }
+        if (p.texture != "ptc_sheet") {
+            CHECK(p.replaced.empty());
+        }
+    }
+    REQUIRE(replaced);
+    CHECK(std::filesystem::equivalent(replaced->replaced, png));
+    CHECK(c.info.flash.pack_key != 0);
+    CHECK(c.info.pack_key == plain.info.pack_key); // the weapon's own key is its textures' only
+    // Read in place when the weapon loads, alpha and all (never copied into the cache).
+    std::vector<u8> rgba;
+    u32 w = 0, h = 0;
+    REQUIRE(FrameWeapons::LoadPackTexture(replaced->replaced, true, rgba, w, h, true));
+    CHECK(w == 128);
+    CHECK(rgba[3] == 200);
+    CHECK(rgba[7] == 40);
+    REQUIRE(FrameWeapons::LoadPackTexture(replaced->replaced, true, rgba, w, h));
+    CHECK(rgba[7] == 255); // a weapon's colour image: no alpha
+    FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
+    std::filesystem::remove_all(root);
+}
+
+// ---- Desktop run (hidden): AZAHARFRAME_TEST_KIU_ZRC=<a folder of the game's player/m*.zrc>,
+// AZAHARFRAME_TEST_KIU_FLASH_OUT=<a new folder>, AZAHARFRAME_TEST_KIU_LOAD=<a load folder with
+// textures/<title id>/, optional>: every weapon made through a game's run (as in a game: its own
+// flash or its class's fallback), and flash-coverage.txt: per weapon its flashes, cards and files'
+// sizes. ----
+
+TEST_CASE("Muzzle Flash: every weapon of a game's files", "[.kiuflash_real]") {
+    const char* zrc_dir = std::getenv("AZAHARFRAME_TEST_KIU_ZRC");
+    const char* out = std::getenv("AZAHARFRAME_TEST_KIU_FLASH_OUT");
+    const char* load = std::getenv("AZAHARFRAME_TEST_KIU_LOAD");
+    REQUIRE(zrc_dir);
+    REQUIRE(out);
+    constexpr u64 kTitle = 0x0004000000030200ull;
+    std::vector<std::pair<std::string, Bytes>> files;
+    for (int id = 0; id < FrameWeapons::kWeapons; id++) {
+        const std::string name = FrameWeapons::ZrcName(id);
+        std::ifstream f(std::string{zrc_dir} + "/" + name, std::ios::binary);
+        REQUIRE(f);
+        files.emplace_back(name, Bytes((std::istreambuf_iterator<char>(f)),
+                                       std::istreambuf_iterator<char>()));
+    }
+    auto rom = std::make_shared<MemoryRomFS>(RomFS("eu", files));
+    FrameWeapons::TexturePack pack;
+    const std::string before = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
+    if (load) {
+        FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, std::string{load} + "/");
+        pack = FrameWeapons::ReadTexturePack(kTitle);
+    }
+    const std::string dir = std::string{out} + "/";
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto r = FrameWeapons::ConvertGame(rom, kTitle, dir, nullptr, load ? &pack : nullptr);
+    const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    WARN("made " << r.made << ", kept " << r.kept << ", failed " << r.failed << " in " << s
+                 << " s; pack " << (pack.on ? "on" : "off") << ", " << pack.files.size()
+                 << " colour textures");
+    CHECK(r.made + r.kept == FrameWeapons::kWeapons);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    std::ofstream cov(dir + "flash-coverage.txt");
+    cov << "# id class source(own|fallback:<id>|none) rapid charged rapid_cards charged_cards "
+           "flash_files flash_bytes weapon_bytes flash_pack_pngs\n";
+    int own = 0, fallback = 0, none = 0;
+    for (const auto& w : m.weapons) {
+        int rapid = 0, charged = 0, pngs = 0;
+        std::uintmax_t flash_bytes = 0, weapon_bytes = 0;
+        for (const auto& p : w.parts) {
+            weapon_bytes += std::filesystem::file_size(dir + p.file);
+        }
+        for (const auto& p : w.flash.parts) {
+            flash_bytes += std::filesystem::file_size(dir + p.file);
+            pngs += p.replaced.empty() ? 0 : 1;
+            FrameXr::Vis::ModelFile mf;
+            REQUIRE(FrameXr::Vis::LoadModelFile(dir + p.file, mf, error,
+                                                FrameXr::Vis::kModelFlagWeaponSpace));
+            for (const auto& c : mf.components) {
+                (c.name == "rapid" ? rapid : charged)++;
+            }
+        }
+        const std::string source = w.flash.source < 0         ? "none"
+                                   : w.flash.source == w.id ? "own"
+                                                            : fmt::format("fallback:{}", w.flash.source);
+        (w.flash.source < 0 ? none : w.flash.source == w.id ? own : fallback)++;
+        cov << fmt::format("{} {} {} {} {} {} {} {} {} {} {}\n", w.id, FrameWeapons::ClassName(w.cls),
+                           source, w.flash.rapid.empty() ? "-" : w.flash.rapid,
+                           w.flash.charged.empty() ? "-" : w.flash.charged, rapid, charged,
+                           w.flash.parts.size(), flash_bytes, weapon_bytes, pngs);
+    }
+    cov << fmt::format("# own {} fallback {} none {}\n", own, fallback, none);
+    WARN("flashes: own " << own << ", fallback " << fallback << ", none " << none);
+    if (load) {
+        FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
+    }
 }

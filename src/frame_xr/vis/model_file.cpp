@@ -149,7 +149,8 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error, 
     m.flags = U32(head + 28);
     if (space == kModelFlagWeaponSpace) { // AzaharFrame kiuguns
         if (m.version != 2 || (m.flags & kModelFlagSpaceMask) != kModelFlagWeaponSpace ||
-            (m.flags & ~(kModelFlagSpaceMask | 0x7700u | kModelFlagFlatSurface)) != 0 ||
+            (m.flags & ~(kModelFlagSpaceMask | 0x7700u | kModelFlagFlatSurface |
+                         kModelFlagFlash)) != 0 ||
             ModelWrapU(m.flags) > 3 ||
             ModelWrapV(m.flags) > 3) {
             error = "version " + std::to_string(m.version) + " flags " +
