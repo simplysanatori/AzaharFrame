@@ -376,6 +376,9 @@ TEST_CASE("Muzzle Flash: a game's choice survives an older build", "[kiuflash]")
     CHECK((saved & FrameXr::kWeaponMirrorMask) >> FrameXr::kWeaponMirrorShift == 2);
     CHECK((saved & FrameXr::kLaserMirrorMask) == 0);
     CHECK((saved & FrameXr::kFlashMirrorMask) >> FrameXr::kFlashMirrorShift == 1);
+    // Its own bits, 28 and 29: clear of the other mirrors (8 to 13 here, 14 to 27 kiufix's).
+    CHECK(FrameXr::kFlashMirrorMask == 0x30000000u);
+    CHECK((saved & 0x0FFFC000u) == 0);
     // New -> old (the key dropped: the global value) -> new: the game's Off comes back.
     for (int round = 0; round < 2; round++) {
         v.vr_light_gun_flash.SetGlobal(true);
