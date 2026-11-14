@@ -387,13 +387,20 @@ private:
 /// slider had held for kStableSwaps swaps (the game reads it once a frame, so a frame just after
 /// a change may still have the old one); the median of the last kSamples. The game's own 3D is
 /// linear in the slider (Ocarina of Time 3D: 0.117 % of the width per percent, at 10, 30 and 50).
+/// AzaharFrame overshoot: also the median of only the last kRecent (Recent: a change of the
+/// game's scene is seen two frames after it is drawn, a single odd frame still out-voted), the
+/// samples taken (Taken), and the far width as drawn in the last kStableSwaps swaps, whatever the
+/// slider (Drawn).
 class FarPerSlider {
 public:
     static constexpr int kStableSwaps = 4;
     static constexpr int kSamples = 9;
+    static constexpr int kRecent = 3;
     static constexpr float kMinSlider = 0.001f;
 
     void Swap(int eyes, float far_width, float slider) noexcept {
+        drawn_[drawn_next_] = eyes >= 2 && far_width > 0.0f ? far_width : -1.0f;
+        drawn_next_ = (drawn_next_ + 1) % kStableSwaps;
         if (slider != last_slider_) {
             last_slider_ = slider;
             stable_ = 0;
@@ -408,6 +415,12 @@ public:
         samples_[next_] = far_width / slider;
         next_ = (next_ + 1) % kSamples;
         count_ = count_ < kSamples ? count_ + 1 : kSamples;
+        ++taken_;
+    }
+    /// AzaharFrame overshoot: samples taken so far (wraps): a new one since the last look means
+    /// the measure is fresh, not one held while the slider moves.
+    uint32_t Taken() const noexcept {
+        return taken_;
     }
     /// Below 0 until a frame was measured.
     float Value() const noexcept {
@@ -421,6 +434,27 @@ public:
         std::nth_element(v, v + count_ / 2, v + count_);
         return v[count_ / 2];
     }
+    /// The median of the last kRecent samples (fewer: Value); below 0 until a frame was measured.
+    float Recent() const noexcept {
+        if (count_ < kRecent) {
+            return Value();
+        }
+        float v[kRecent];
+        for (int i = 0; i < kRecent; ++i) {
+            v[i] = samples_[(next_ - 1 - i + kSamples) % kSamples];
+        }
+        std::sort(v, v + kRecent);
+        return v[kRecent / 2];
+    }
+    /// The widest far scenery of the last kStableSwaps swaps with both eyes (of the picture's
+    /// width, at the slider each was drawn with); below 0 when none had both.
+    float Drawn() const noexcept {
+        float w = -1.0f;
+        for (const float d : drawn_) {
+            w = std::max(w, d);
+        }
+        return w;
+    }
     void Reset() noexcept {
         *this = FarPerSlider{};
     }
@@ -429,6 +463,9 @@ private:
     float samples_[kSamples]{};
     int count_ = 0, next_ = 0, stable_ = 0;
     float last_slider_ = -1.0f;
+    float drawn_[kStableSwaps] = {-1.0f, -1.0f, -1.0f, -1.0f};
+    int drawn_next_ = 0;
+    uint32_t taken_ = 0;
 };
 
 /// AzaharFrame dbl: the game's zero-parallax plane, measured: the horizontal scale of its

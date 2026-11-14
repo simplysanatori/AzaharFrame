@@ -667,7 +667,7 @@ bool WorldScaleToMigrate(bool world_scale_own, bool world_set_own_on) {
     return !world_scale_own && !world_set_own_on;
 }
 
-float RatioRamp::Update(float target, int64_t now_ms) {
+float RatioRamp::Update(float target, int64_t now_ms, float ceiling) {
     const float dt_s =
         last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
                       : 0.0f;
@@ -680,7 +680,11 @@ float RatioRamp::Update(float target, int64_t now_ms) {
         return value_;
     }
     // Eased, then rate limited in ratio: never a jump, whatever the target does.
+    // AzaharFrame overshoot: and no higher than the ceiling (or than it is).
+    const float top =
+        std::isnan(ceiling) ? std::numeric_limits<float>::infinity() : std::max(value_, ceiling);
     eased_ += (target - eased_) * (1.0f - std::exp(-dt_s / kTauS));
+    eased_ = std::min(eased_, top);
     const float step = std::exp(rate_ * dt_s);
     value_ = std::clamp(eased_, value_ / step, value_ * step);
     return value_;
@@ -707,7 +711,7 @@ float EyePerFarInUse::Update(float measured, int samples, float saved, float fal
     return ramp_.Update(target_, now_ms);
 }
 
-float NaturalSlider::Update(float f, float limit, int64_t now_ms) {
+float NaturalSlider::Update(float f, float limit, int64_t now_ms, bool no_higher) {
     const float dt_s =
         last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)
                       : 0.0f;
@@ -730,14 +734,108 @@ float NaturalSlider::Update(float f, float limit, int64_t now_ms) {
     if (jump || out_ < 0.0f || target <= out_) {
         // Lower at once: the far scenery is never past parallel while the screen grows.
         out_ = target;
+    } else if (no_higher) {
+        // Held where it is until the game is measured again.
     } else {
         out_ += (target - out_) * (1.0f - std::exp(-dt_s / kUpTauS));
-        if (target - out_ <= 1e-4f * target) {
+        if (target - out_ <= kSnap * target) {
             out_ = target;
         }
     }
     clamped_ = out_ > 1.0f;
     return std::min(out_, 1.0f);
+}
+
+float FarMeasureHold::Update(float measure, uint32_t taken, int64_t now_ms) {
+    // The hold's own clock runs only while the game is being measured: while the slider moves
+    // (the measure waits for it, FarPerSlider) or the game shows no far scenery, nothing ages,
+    // so what was seen before still counts when the measure comes back.
+    const int64_t dt = last_ms_ != 0 ? std::clamp<int64_t>(now_ms - last_ms_, 0, kBucketMs) : 0;
+    last_ms_ = now_ms;
+    if (taken != taken_ || held_ < 0.0f) {
+        taken_ = taken;
+        fresh_ms_ = now_ms;
+    }
+    if (now_ms - fresh_ms_ > kBucketMs || !(measure > 0.0f) || !std::isfinite(measure)) {
+        return held_;
+    }
+    clock_ms_ += dt;
+    const int64_t now = clock_ms_ / kBucketMs;
+    {
+        Bucket& b = buckets_[static_cast<std::size_t>(now % kRing)];
+        if (b.index != now) {
+            b = {now, measure, measure};
+        } else {
+            b.lo = std::min(b.lo, measure);
+            b.hi = std::max(b.hi, measure);
+        }
+    }
+    const auto at = [&](int64_t index) -> const Bucket* {
+        if (index < 0) {
+            return nullptr;
+        }
+        const Bucket& b = buckets_[static_cast<std::size_t>(index % kRing)];
+        return b.index == index ? &b : nullptr;
+    };
+    // The highest of the kHoldBuckets ending at `last` (below 0: none).
+    const auto top_to = [&](int64_t last) {
+        float top = -1.0f;
+        for (int64_t i = last - kHoldBuckets + 1; i <= last; ++i) {
+            if (const Bucket* b = at(i)) {
+                top = std::max(top, b->hi);
+            }
+        }
+        return top;
+    };
+    // How far bucket `i` went above the highest of the hold window as it was kRiseBuckets
+    // before: what the measure in use missed, the game being that far ahead of it.
+    const auto beyond = [&](int64_t i) {
+        const Bucket* b = at(i);
+        const float before = top_to(i - kRiseBuckets);
+        return b && before > 0.0f ? std::max(b->hi / before - 1.0f, 0.0f) : 0.0f;
+    };
+    if (now != noise_at_) {
+        // A bucket done: the noise is the most any went beyond, fading by kNoiseTauS.
+        if (noise_at_ >= 0) {
+            const float fade = std::exp(-static_cast<float>(now - noise_at_) *
+                                        static_cast<float>(kBucketMs) / (1000.0f * kNoiseTauS));
+            noise_ = std::max(noise_ * fade, beyond(noise_at_));
+        }
+        noise_at_ = now;
+    }
+    const float top = top_to(now);
+    if (top <= 0.0f) {
+        return held_; // nothing measured lately: the last in use holds
+    }
+    // The measure's own spread over the hold window: a lower one counts once it is lower by
+    // more than half that (and than NaturalSlider::kRise).
+    float low = top;
+    for (int64_t i = now - kHoldBuckets + 1; i <= now; ++i) {
+        if (const Bucket* b = at(i)) {
+            low = std::min(low, b->lo);
+        }
+    }
+    const float margin = std::clamp(std::max(noise_, beyond(now)), kMarginFloor, kMarginMax);
+    const float want = top * (1.0f + margin);
+    const float band = std::max(NaturalSlider::kRise, 0.5f * (1.0f - low / top));
+    // Higher once it has eaten into half the margin in use (the other half still covers what
+    // the game may be ahead), at once.
+    if (held_ < 0.0f || want > held_ * (1.0f + 0.5f * margin_) || want < held_ * (1.0f - band)) {
+        held_ = want;
+        margin_ = margin;
+    }
+    return held_;
+}
+
+float ParallelDistance(const HeadLocked& solved, float half_ipd, float far_width) {
+    // The far scenery apart on the quad: far_width / factor x the quad's width (2 d tan_y
+    // aspect), parallel at 2 h.
+    const float per_m =
+        far_width / std::max(solved.factor, 1e-3f) * 2.0f * solved.tan_half_y * solved.aspect;
+    if (!(per_m > 0.0f) || !std::isfinite(per_m)) {
+        return std::numeric_limits<float>::infinity();
+    }
+    return 2.0f * half_ipd / per_m;
 }
 
 Mode3Stereo Mode3Natural(float f, float leaning, float half_ipd, float game_far_m) {

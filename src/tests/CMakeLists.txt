@@ -35,6 +35,7 @@ add_executable(tests
     frame_xr/stereo.cpp # AzaharFrame stereo
     frame_xr/log_gate.cpp # AzaharFrame integ8
     frame_xr/natural.cpp # AzaharFrame natural
+    frame_xr/natural_overshoot.cpp # AzaharFrame overshoot
     frame_xr/input_motion.cpp # AzaharFrame
     ../frame_xr/vis/beam.cpp # AzaharFrame vrvis
     ../frame_xr/vis/controller_diagram.cpp # AzaharFrame ctrldiag

@@ -806,13 +806,15 @@ bool WorldScaleToMigrate(bool world_scale_own, bool world_set_own_on);
 
 /// A value moving towards its target at most `rate` in ratio a second (ln 2: a factor 2 a
 /// second), eased by kTauS: never a jump. The first value is taken at once; Set takes one at
-/// once (a change nobody can see).
+/// once (a change nobody can see). AzaharFrame overshoot: `ceiling`, it goes no higher than that
+/// (or where it is, when that is already higher): it waits there, and goes on eased.
 class RatioRamp {
 public:
     static constexpr float kMaxRatePerS = 0.6931472f; ///< ln 2
     static constexpr float kTauS = 0.25f;
     explicit RatioRamp(float rate = kMaxRatePerS) : rate_(rate) {}
-    float Update(float target, int64_t now_ms);
+    float Update(float target, int64_t now_ms,
+                 float ceiling = std::numeric_limits<float>::infinity());
     void Set(float value) {
         value_ = eased_ = value;
     }
@@ -875,11 +877,17 @@ private:
 class NaturalSlider {
 public:
     static constexpr float kRise = 0.01f; ///< relative
-    static constexpr float kUpTauS = 0.25f;
+    /// AzaharFrame overshoot: 0.1 s (was 0.25), and eased up to within kSnap of the target, then
+    /// the rest at once (too small to see): the game's measure waits while the slider moves
+    /// (FarPerSlider), so the easing ends within half a second rather than over two.
+    static constexpr float kUpTauS = 0.1f;
     static constexpr float kProbe = 0.03f;
+    static constexpr float kSnap = 0.005f;
 
     /// `limit` below 0: not known (the last known one holds once there was one).
-    float Update(float f, float limit, int64_t now_ms);
+    /// AzaharFrame overshoot: `no_higher`, the far scenery on view is at parallel already (the
+    /// game ahead of its measure, which waits while the slider moves): it goes no higher now.
+    float Update(float f, float limit, int64_t now_ms, bool no_higher = false);
     float Limit() const {
         return limit_;
     }
@@ -895,6 +903,71 @@ private:
     int64_t last_ms_ = 0;
     bool clamped_ = false;
 };
+
+/// AzaharFrame overshoot: the game's far width per slider unit (FarPerSlider) as mode 2's natural
+/// limit is made from it. The game's far scenery moves with its scene and camera (Ocarina of
+/// Time 3D: about 2 % either way within seconds), so a limit made from each measure went past
+/// parallel whenever the measure rose after the slider was set (the game draws a few frames
+/// behind), and hunted with it several times a second. Here:
+/// - the measure counts at the highest it was over the last kHoldBuckets (a higher one at once:
+///   the limit lower at once);
+/// - times 1 + a margin from the measure's own noise: how far it went above that highest as it
+///   was kRiseBuckets before (about the time a change of the game's far scenery takes to be
+///   measured and a lower slider drawn: what the game can be ahead of the measure in use), the
+///   most seen, fading by kNoiseTauS; at least kMarginFloor, at most kMarginMax. A steady game
+///   gets only the floor, a noisy one only what its noise goes past the highest of before;
+/// - and that is held until it goes lower by more than half the measure's spread over the hold
+///   window (its noise; at least NaturalSlider::kRise): a lower measure waits until it is
+///   clearly lower, then the slider eases up (NaturalSlider). A higher one counts at once.
+/// Its clock runs only while the game is measured (its windows are of the game's measures).
+/// Nothing is fitted to a game or a screen: the margin is the measure's own, in proportion.
+/// XR thread; pure (unit tested).
+class FarMeasureHold {
+public:
+    static constexpr int64_t kBucketMs = 100;
+    static constexpr int kHoldBuckets = 20; ///< 2 s
+    static constexpr int kRiseBuckets = 4;  ///< 0.4 s
+    static constexpr float kNoiseTauS = 20.0f;
+    static constexpr float kMarginFloor = 0.0025f;
+    static constexpr float kMarginMax = 0.05f;
+
+    /// `measure` below 0: not known now (the last one in use holds); `taken`, the samples it was
+    /// made of so far (FarPerSlider::Taken): the same for longer than a bucket, it is not being
+    /// measured now (the slider moving, no far scenery) and the one in use holds, nothing ageing.
+    /// Returns the measure in use (held, with the margin), below 0 before one was known.
+    float Update(float measure, uint32_t taken, int64_t now_ms);
+    float Value() const {
+        return held_;
+    }
+    /// The margin in use (relative, 0.01 = 1 %).
+    float Margin() const {
+        return margin_;
+    }
+    void Reset() {
+        *this = FarMeasureHold{};
+    }
+
+private:
+    struct Bucket {
+        int64_t index = -1;
+        float lo = 0.0f, hi = 0.0f;
+    };
+    /// A bucket's hold window as it was kRiseBuckets before, and the bucket.
+    static constexpr int kRing = kHoldBuckets + kRiseBuckets + 1;
+    std::array<Bucket, kRing> buckets_{};
+    float held_ = -1.0f, margin_ = 0.0f;
+    int64_t noise_at_ = -1; ///< the bucket being filled when noise_ was last brought up to date
+    float noise_ = 0.0f;    ///< the most a bucket went beyond the hold, fading
+    int64_t clock_ms_ = 0;  ///< runs only while measured
+    int64_t last_ms_ = 0, fresh_ms_ = 0;
+    uint32_t taken_ = 0;
+};
+
+/// AzaharFrame overshoot: the farthest the Full modes' screen may be (m) for the game's far
+/// scenery `far_width` of its picture's width apart (as drawn now) to stay within parallel at the
+/// screen's angular size and factor: past it, the eyes would have to diverge. Infinity when the
+/// game shows no far disparity.
+float ParallelDistance(const HeadLocked& solved, float half_ipd, float far_width);
 
 /// Mode 3's own stereo: each eye's camera `f x leaning x IPD / 2` to its side (game units,
 /// rasterizer GameEyeOffset's scaler f x leaning) and the eye quads the IPD apart, less the
