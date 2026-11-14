@@ -515,6 +515,9 @@ TEST_CASE("Angel's Aim report: the payload has the fields and nothing of the mac
                     v.find("Weapon in Hand: On") != std::string::npos &&
                     // AzaharFrame kiuopacity
                     v.find("Weapon Opacity: 100 %\nProjectile Opacity: 100 %") !=
+                        std::string::npos &&
+                    // AzaharFrame kiuweap2
+                    v.find("Projectile Opacity: 100 %\nMuzzle Flash Size: 100 %\n") !=
                         std::string::npos;
         version |= k == "app_version" && v == "1.1.1-524 test";
     }

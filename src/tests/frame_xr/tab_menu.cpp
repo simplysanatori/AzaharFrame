@@ -2938,9 +2938,9 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                           Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
                           Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
                           Id::WeaponInHand, Id::WeaponOpacity, Id::WeaponSize, Id::WeaponScale,
-                          Id::MuzzleFlash, Id::Projectiles, Id::ProjectileOpacity,
-                          Id::ProjectileSize, Id::ProjectileSpeed, Id::LaserSight, Id::TurnZone,
-                          Id::TurnSpeed});
+                          Id::MuzzleFlash, Id::MuzzleFlashSize, Id::Projectiles,
+                          Id::ProjectileOpacity, Id::ProjectileSize, Id::ProjectileSpeed,
+                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3356,6 +3356,129 @@ TEST_CASE("Tab menu: Weapon Opacity and Projectile Opacity", "[frame_xr][tabmenu
     m.game_value[static_cast<std::size_t>(Id::WeaponScale)] = true;
     CHECK(GameValueRows(m, Tab::Controls) ==
           std::vector<Id>{Id::WeaponOpacity, Id::WeaponScale, Id::ProjectileOpacity});
+}
+
+// AzaharFrame kiuweap2: Muzzle Flash Size, a slider under Muzzle Flash while it is on.
+TEST_CASE("Tab menu: Muzzle Flash Size under Muzzle Flash", "[frame_xr][tabmenu][kiuweap2]") {
+    CHECK(LabelFor(Id::MuzzleFlashSize) == "Muzzle Flash Size");
+    CHECK(ExplainFor(Id::MuzzleFlashSize) == "How big the flash at your weapon's tip is.");
+    CHECK(PerGameSetting(Id::MuzzleFlashSize));
+    const SliderRange r = SliderFor(Id::MuzzleFlashSize);
+    CHECK(r.min == 50.0f);
+    CHECK(r.max == 300.0f);
+    CHECK(r.step == 10.0f);
+    Drawn d;
+    MenuModel m = Sample();
+    m.flash_size = 150;
+    MenuView v;
+    v.tab = Tab::Controls;
+    const auto find = [&](Id id, int index) {
+        for (float scroll = 0.0f; scroll <= 4000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Controls)] = scroll;
+            d.Draw(m, v);
+            if (HasHit(d, id, index) && HasHit(d, Id::MuzzleFlash, -1)) {
+                return true;
+            }
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
+        }
+        return false;
+    };
+    for (const int aiming : {0, 1, 2}) {
+        for (const bool weapon : {false, true}) {
+            for (const bool flash : {false, true}) {
+                INFO("aiming " << aiming << ", weapon " << weapon << ", flash " << flash);
+                m.gyro_aim = aiming;
+                m.weapon_in_hand = weapon;
+                m.muzzle_flash = flash;
+                const bool shown = aiming != 0 && weapon && flash;
+                CHECK(find(Id::MuzzleFlashSize, kLabelIndex) == shown);
+                if (!shown) {
+                    continue;
+                }
+                const MenuLayout::Hit* size = FindHit(d, Id::MuzzleFlashSize, kLabelIndex);
+                const MenuLayout::Hit* sw = FindHit(d, Id::MuzzleFlash, -1);
+                REQUIRE(size != nullptr);
+                REQUIRE(sw != nullptr);
+                CHECK(size->r.y0 >= sw->r.y1 - 0.01f); // right under its switch
+                CHECK(size->r.y0 - sw->r.y1 < kRowH);
+                Audit a;
+                a.Draw(m, v);
+                a.Check("Controls, Muzzle Flash Size");
+                CHECK(a.Drew("Muzzle Flash Size"));
+                CHECK(a.Drew("150%"));
+            }
+        }
+    }
+    m.scope = 1;
+    m.game_value = {};
+    m.game_value[static_cast<std::size_t>(Id::MuzzleFlashSize)] = true;
+    CHECK(GameValueRows(m, Tab::Controls) == std::vector<Id>{Id::MuzzleFlashSize});
+}
+
+// AzaharFrame kiuweap2: "Angel's Aim Is On": once, when Aiming is turned on in Kid Icarus.
+TEST_CASE("Tab menu: the Angel's Aim prompt", "[frame_xr][tabmenu][kiuweap2]") {
+    // Due: from Off to Direct Aim or Gyro Aim, with the game open, never shown before.
+    CHECK(AngelsIntroDue(0, 1, true, false));
+    CHECK(AngelsIntroDue(0, 2, true, false));
+    CHECK_FALSE(AngelsIntroDue(0, 0, true, false)); // still Off
+    CHECK_FALSE(AngelsIntroDue(1, 2, true, false)); // already on: a change of kind
+    CHECK_FALSE(AngelsIntroDue(2, 1, true, false));
+    CHECK_FALSE(AngelsIntroDue(0, 1, false, false)); // another game
+    CHECK_FALSE(AngelsIntroDue(0, 1, true, true));   // shown once already
+    CHECK_FALSE(AngelsIntroDue(0, 3, true, false));
+    // Its rows: the states of what Angel's Aim has on.
+    MenuModel m = Sample();
+    m.weapon_in_hand = true;
+    m.muzzle_flash = true;
+    m.projectiles = false;
+    m.recoil = true;
+    m.laser_sight = false;
+    ModsDialog dlg = AngelsIntroDialog(m);
+    CHECK(dlg.kind == ModsDialogKind::Notice);
+    CHECK(dlg.mod == "Angel's Aim Is On");
+    CHECK(dlg.other == "These are set up for you. Change any of them on the Controls page.");
+    CHECK(dlg.confirm == "OK");
+    CHECK(dlg.extra == "Controls");
+    REQUIRE(dlg.rows.size() == 5);
+    CHECK(dlg.rows[0] == std::pair<std::string, std::string>{"Weapon in Hand", "On"});
+    CHECK(dlg.rows[1] == std::pair<std::string, std::string>{"Muzzle Flash", "On"});
+    CHECK(dlg.rows[2] == std::pair<std::string, std::string>{"Projectiles", "Off"});
+    CHECK(dlg.rows[3] == std::pair<std::string, std::string>{"Recoil", "On"});
+    CHECK(dlg.rows[4] == std::pair<std::string, std::string>{"Laser Sight", "Off"});
+    // Without the weapon, its flash and shots are off too.
+    m.weapon_in_hand = false;
+    dlg = AngelsIntroDialog(m);
+    CHECK(dlg.rows[0].second == "Off");
+    CHECK(dlg.rows[1].second == "Off");
+    // Drawn over the page: OK and Controls, nothing under it, on any tab.
+    m.weapon_in_hand = true;
+    m.gyro_aim = 1;
+    for (const Tab t : {Tab::Settings, Tab::Controls}) {
+        Drawn d;
+        MenuView v;
+        v.tab = t;
+        v.angels_intro = true;
+        d.Draw(m, v);
+        const auto* ok = FindHit(d, Id::DialogConfirm, -1);
+        const auto* controls = FindHit(d, Id::DialogExtra, -1);
+        REQUIRE(ok);
+        REQUIRE(controls);
+        CHECK(controls->r.x1 <= ok->r.x0); // OK last
+        CHECK(!HasHit(d, Id::GyroAim, -1));
+        CHECK(d.menu.HitTest(ok->r.Cx(), ok->r.Cy()) == Target{Id::DialogConfirm});
+        CHECK(d.menu.HitTest(controls->r.Cx(), controls->r.Cy()) == Target{Id::DialogExtra});
+        CheckTargets(d);
+        // (Its text over the page's: the scrim hides the page; the dialog's own lines are the
+        // menu dump's to look at.)
+        Audit a;
+        a.Draw(m, v);
+        for (const char* s : {"Angel's Aim Is On", "Weapon in Hand", "Laser Sight", "OK", "Controls"}) {
+            INFO(s);
+            CHECK(a.Drew(s));
+        }
+    }
 }
 
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {

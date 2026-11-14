@@ -114,9 +114,9 @@ TEST_CASE("Muzzle Flash: a flash per real shot, rapid or charged, and its fade",
     REQUIRE(f.shown);
     CHECK_FALSE(f.charged);
     CHECK(f.age == Approx(0.0f));
-    CHECK(f.duration_s == Approx(0.07f));
+    CHECK(f.duration_s == Approx(0.09f)); // AzaharFrame kiuweap2: was 70 ms
     const uint32_t first = f.shot;
-    f = m.Current(t + 35 * kMs);
+    f = m.Current(t + 45 * kMs);
     CHECK(f.shown);
     CHECK(f.age == Approx(0.5f));
     CHECK_FALSE(m.Current(t + Vis::MuzzleFlash::kRapidNs).shown);
@@ -136,7 +136,7 @@ TEST_CASE("Muzzle Flash: a flash per real shot, rapid or charged, and its fade",
     f = m.Current(t + 80 * kMs);
     CHECK(f.shown);
     CHECK(f.charged);
-    CHECK(f.duration_s == Approx(0.1f));
+    CHECK(f.duration_s == Approx(0.12f)); // AzaharFrame kiuweap2: was 100 ms
     CHECK_FALSE(m.Current(t + Vis::MuzzleFlash::kChargedNs).shown);
     // Just under the pause: rapid.
     t += FrameXr::Input::Recoil::kChargePauseNs - 50 * kMs;
@@ -186,6 +186,56 @@ TEST_CASE("Muzzle Flash: the fade and the growth", "[kiuflash]") {
     CHECK(Vis::FlashGrowth(2.0f, 1.3f) == Approx(1.3f));
     CHECK(Vis::FlashGrowth(0.5f, 5.0f) <= 2.0f); // a slight scale-up only
     CHECK(Vis::FlashGrowth(0.5f, 0.5f) == Approx(1.0f));
+}
+
+TEST_CASE("Muzzle Flash: a bigger burst, the flare, the size setting", "[kiuflash][kiuweap2]") {
+    // The burst: from kBurstFrom at the shot to kBurstTo at the end, most of it early, never
+    // shrinking; times the game's growth.
+    CHECK(Vis::FlashBurst(0.0f, 1.0f) == Approx(Vis::kBurstFrom));
+    CHECK(Vis::FlashBurst(1.0f, 1.0f) == Approx(Vis::kBurstTo));
+    CHECK(Vis::FlashBurst(1.0f, 1.3f) == Approx(Vis::kBurstTo * 1.3f));
+    CHECK(Vis::FlashBurst(1.0f / 3.0f, 1.0f) >
+          Vis::kBurstFrom + 0.6f * (Vis::kBurstTo - Vis::kBurstFrom));
+    CHECK(Vis::FlashBurst(std::nanf(""), 1.0f) == Approx(Vis::kBurstFrom));
+    float last = 0.0f;
+    for (int i = 0; i <= 50; i++) {
+        const float v = Vis::FlashBurst(static_cast<float>(i) / 50.0f, 1.3f);
+        CHECK(v >= last - 1e-6f);
+        last = v;
+    }
+    // The charged flash is the bigger one.
+    CHECK(Vis::FlashKindScale(false) == 1.0f);
+    CHECK(Vis::FlashKindScale(true) == Approx(Vis::kChargedScale));
+    CHECK(Vis::kChargedScale > 1.0f);
+    // Muzzle Flash Size: percent to a factor, held to 50 to 300.
+    CHECK(Vis::FlashSizeFactor(100) == Approx(1.0f));
+    CHECK(Vis::FlashSizeFactor(250) == Approx(2.5f));
+    CHECK(Vis::FlashSizeFactor(10) == Approx(0.5f));
+    CHECK(Vis::FlashSizeFactor(1000) == Approx(3.0f));
+    // The flare: full at the shot, its core first to go, gone by kFlareFade; nothing outside.
+    const auto f0 = Vis::FlashFlareAt(0.0f, false);
+    CHECK(f0.strength == Approx(1.0f));
+    CHECK(f0.core == Approx(1.0f));
+    CHECK(f0.metres == Approx(Vis::kFlareRapidM * Vis::kBurstFrom));
+    const auto c0 = Vis::FlashFlareAt(0.0f, true);
+    CHECK(c0.metres == Approx(Vis::kFlareChargedM * Vis::kBurstFrom));
+    const auto mid = Vis::FlashFlareAt(0.3f, false);
+    CHECK(mid.strength > 0.0f);
+    CHECK(mid.strength < 1.0f);
+    CHECK(mid.core < mid.strength);
+    CHECK(mid.metres > f0.metres);
+    CHECK(Vis::FlashFlareAt(Vis::kFlareFade, false).strength == Approx(0.0f).margin(1e-6));
+    CHECK(Vis::FlashFlareAt(0.9f, true).strength == 0.0f);
+    CHECK(Vis::FlashFlareAt(1.0f, false).metres == 0.0f);
+    CHECK(Vis::FlashFlareAt(-0.1f, false).strength == 0.0f);
+    CHECK(Vis::FlashFlareAt(std::nanf(""), false).strength == 0.0f);
+    // Larger than before (were 0.3, 0.22, 0.32, 0.05) and longer (were 70 and 100 ms).
+    CHECK(Vis::kSizeScale > 0.3f);
+    CHECK(Vis::kFaceMaxM > 0.22f);
+    CHECK(Vis::kFanMaxM > 0.32f);
+    CHECK(Vis::kCardMinM > 0.05f);
+    CHECK(Vis::MuzzleFlash::kRapidNs > 70'000'000);
+    CHECK(Vis::MuzzleFlash::kChargedNs > Vis::MuzzleFlash::kRapidNs);
 }
 
 TEST_CASE("Muzzle Flash: cards along the ray, facing the eye, for any pose", "[kiuflash]") {

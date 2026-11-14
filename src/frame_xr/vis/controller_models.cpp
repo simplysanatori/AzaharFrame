@@ -1394,8 +1394,34 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
     if (!(strength > 0.0f)) {
         return;
     }
+    // AzaharFrame kiuweap2: Muzzle Flash Size and the charged shot's larger flash.
+    tune_size *= std::max(flash.size, 0.0f) * FlashKindScale(flash.charged);
     bool pipeline = false;
     uint32_t n = 0;
+    // AzaharFrame kiuweap2: the flare, on the kind's first face card (the shader draws it: mode
+    // 3), in the brightest of the kind's colours.
+    const FlashFlare flare = FlashFlareAt(flash.age, flash.charged);
+    bool flare_drawn = !(flare.strength > 0.0f);
+    std::array<float, 3> flare_colour{};
+    for (const auto& part : w.parts) {
+        if (!part.flash || part.bullet) {
+            continue;
+        }
+        for (const ModelComponent& comp : part.components) {
+            if (comp.name == kind && comp.index_count > 0) {
+                const float* v = comp.motion.data();
+                const std::array<float, 3> col{v[FrameWeapons::kFlashRed],
+                                               v[FrameWeapons::kFlashGreen],
+                                               v[FrameWeapons::kFlashBlue]};
+                if (col[0] + col[1] + col[2] > flare_colour[0] + flare_colour[1] + flare_colour[2]) {
+                    flare_colour = col;
+                }
+            }
+        }
+    }
+    if (flare_colour[0] + flare_colour[1] + flare_colour[2] < 0.15f) {
+        flare_colour = {1.0f, 0.9f, 0.7f}; // a card that shows its texture's own colours: warm
+    }
     for (const auto& part : w.parts) {
         if (!part.flash || part.bullet) {
             continue;
@@ -1421,8 +1447,31 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
             const bool fan = comp.path == "fan";
             const FlashCardExtent size =
                 k < part.card_size.size() ? part.card_size[k] : FlashCardExtent{};
+            if (!flare_drawn && !fan && size.Units() > 0.0f) {
+                // AzaharFrame kiuweap2: the flare: round (its half sides alike), a fifth of its
+                // width ahead of the muzzle, under the cards (all added light).
+                flare_drawn = true;
+                const float units = size.Units();
+                const float flare_m = flare.metres * tune_size / units;
+                const auto card = FlashCardTransform(false, origin, forward, eye, head_up, flare_m,
+                                                     0.2f * units, 0.0f);
+                Mat model{};
+                std::copy(card.begin(), card.end(), model.begin());
+                PushConstants pc{};
+                pc.mvp = Multiply(view_proj, model);
+                pc.key = {FlashLinear(flare_colour[0]), FlashLinear(flare_colour[1]),
+                          FlashLinear(flare_colour[2]), flare.core};
+                const float half = units / 2.0f;
+                pc.up = {3.0f, half, half, size.middle};
+                pc.params = {0.0f, 1.0f, flare.strength * std::clamp(fade, 0.0f, 1.0f), 20.0f};
+                c.pushConstants(g.pipeline_layout,
+                                vk::ShaderStageFlagBits::eVertex |
+                                    vk::ShaderStageFlagBits::eFragment,
+                                0, sizeof(pc), &pc);
+                c.drawIndexed(comp.index_count, 1, comp.first_index, 0, 0);
+            }
             const float metres = FlashCardMetres(fan, size.Units(), fit_scale, tune_size) *
-                                 FlashGrowth(flash.age, v[FrameWeapons::kFlashGrow]);
+                                 FlashBurst(flash.age, v[FrameWeapons::kFlashGrow]);
             const auto card = FlashCardTransform(fan, origin, forward, eye, head_up, metres,
                                                  v[FrameWeapons::kFlashOffset],
                                                  FlashSpin(flash.shot * 7u + n++));

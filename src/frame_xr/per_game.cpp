@@ -157,6 +157,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ProjectileOpacity:
         f(v.vr_light_gun_projectile_opacity);
         return true;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2
+        f(v.vr_light_gun_muzzle_flash_size);
+        return true;
     default:
         return false;
     }

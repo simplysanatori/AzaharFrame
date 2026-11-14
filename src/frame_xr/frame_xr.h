@@ -353,6 +353,9 @@ enum class MenuSetting {
     WeaponOpacity,   ///< AzaharFrame kiuopacity: `value` percent, 20 to 100
                      ///< (vr_light_gun_weapon_opacity)
     ProjectileOpacity, ///< `value` percent, 20 to 100 (vr_light_gun_projectile_opacity)
+    MuzzleFlashSize, ///< AzaharFrame kiuweap2: `value` percent, 50 to 300
+                     ///< (vr_light_gun_muzzle_flash_size)
+    AngelsAimIntroShown, ///< AzaharFrame kiuweap2: `value` 1 (vr_angels_aim_intro_shown, global)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

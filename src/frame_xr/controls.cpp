@@ -1920,7 +1920,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             LOG_INFO(Frontend, "xr: muzzle flash and projectiles: {}",
                      readable ? "on the game's own shots" : "waiting for the shots record");
         }
-        const Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
+        Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
+        // AzaharFrame kiuweap2: Muzzle Flash Size (per game).
+        flash.size = Vis::FlashSizeFactor(
+            static_cast<int>(Settings::values.vr_light_gun_muzzle_flash_size.GetValue()));
         if (active && flash_on && flash.shown) {
             visuals.SetMuzzleFlash(flash);
         }

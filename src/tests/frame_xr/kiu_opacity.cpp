@@ -356,3 +356,36 @@ TEST_CASE("See-through: the settings, their defaults and a game's own values",
     // (Both are per-game rows of the Controls tab: the picker tests' "Weapon Opacity and
     // Projectile Opacity".)
 }
+
+// AzaharFrame kiuweap2: Muzzle Flash Size (per game, as the opacities) and the prompt's plain key.
+TEST_CASE("Muzzle Flash Size and the prompt's key: defaults, limits, a game's own value",
+          "[kiuweap2]") {
+    using FrameXr::Menu::Id;
+    auto& v = Settings::values;
+    auto& s = v.vr_light_gun_muzzle_flash_size;
+    CHECK(s.GetValue() == 100);
+    CHECK(s.GetDefault() == 100);
+    CHECK(s.UsingGlobal());
+    CHECK(s.GetLabel() == "vr_light_gun_muzzle_flash_size");
+    s.SetValue(10);
+    CHECK(s.GetValue() == 50);
+    s.SetValue(1000);
+    CHECK(s.GetValue() == 300);
+    s.SetValue(120);
+    s.SetGlobal(false);
+    s.SetValue(250);
+    CHECK(s.GetValue() == 250);
+    CHECK(Vis::FlashSizeFactor(static_cast<int>(s.GetValue())) == Approx(2.5f));
+    CHECK_FALSE(FrameXr::PerGame::UsesGlobal(Id::MuzzleFlashSize));
+    FrameXr::Menu::MenuModel m;
+    FrameXr::PerGame::FillGameValues(m);
+    CHECK(m.game_value[static_cast<std::size_t>(Id::MuzzleFlashSize)]);
+    CHECK(FrameXr::PerGame::UseGlobalValue(Id::MuzzleFlashSize));
+    CHECK(s.UsingGlobal());
+    CHECK(s.GetValue() == 120);
+    s.SetValue(100);
+    // The prompt's key: a new plain one, off until shown (no older key changes its meaning).
+    CHECK_FALSE(v.vr_angels_aim_intro_shown.GetValue());
+    CHECK_FALSE(v.vr_angels_aim_intro_shown.GetDefault());
+    CHECK(v.vr_angels_aim_intro_shown.GetLabel() == "vr_angels_aim_intro_shown");
+}

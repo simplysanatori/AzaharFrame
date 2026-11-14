@@ -206,7 +206,17 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   Added to what is behind, 70 ms (charged 100 ms), fading as it grows a little. A weapon whose
   file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
   untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
-  duration).
+  duration). AzaharFrame kiuweap2: bigger and clearer: 90 ms (charged 120 ms), the cards 1.5 times
+  larger (and their limits), bursting from 0.6 to 1.4 of their size (most of it early), the
+  charged one 1.4 times the rapid one, and a flare under them (one more card drawn by the shader
+  alone: a white-hot core in a halo of the weapon's flash colour, gone by 70 % of the flash).
+  **Muzzle Flash Size** (`vr_light_gun_muzzle_flash_size`, per game too, 50 to 300 %, 100 % by
+  default; the row under Muzzle Flash while it is on) scales all of it. A plain new key.
+- **"Angel's Aim Is On"** (AzaharFrame kiuweap2): turning Aiming on (Off to Direct Aim or Gyro
+  Aim) in the VR menu with Kid Icarus: Uprising open shows, once, a notice of what is on
+  (Weapon in Hand, Muzzle Flash, Projectiles, Recoil, Laser Sight, each On or Off) with OK and
+  Controls (the Controls tab at Aiming). Shown once in all: `vr_angels_aim_intro_shown`, a plain
+  new global key (an older build ignores it; no older key changes meaning).
 - **Weapon Opacity** (`vr_light_gun_weapon_opacity`, per game too, 20 to 100 %, 100 % by
   default; the first row under Weapon in Hand while it is on, above Weapon Size; AzaharFrame
   kiuopacity): how solid the weapon in hand looks (`vis/see_through.h`). Under 100 % its lit

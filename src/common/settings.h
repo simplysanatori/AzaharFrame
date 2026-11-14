@@ -772,6 +772,9 @@ struct Values {
 
     // VR
     Setting<bool> vr_extra_performance_mode_enabled{false, "vr_extra_performance_mode"};
+    // AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt was shown (Aiming turned on from Off
+    // in the VR menu): it shows once. A plain new key (global): older builds ignore it.
+    Setting<bool> vr_angels_aim_intro_shown{false, "vr_angels_aim_intro_shown"};
     // AzaharFrame imglag: internal (no menu): the XR runtime's image lag in display refreshes, 0
     // or 1. SteamVR shows an image one refresh after the pose sent with it, so 1 (frame_xr/
     // image_lag.h); 0 for a runtime that shows them together. The test switch
@@ -981,6 +984,11 @@ struct Values {
                                                              "vr_light_gun_weapon_opacity"};
     SwitchableSetting<u32, true> vr_light_gun_projectile_opacity{100, 20, 100,
                                                                  "vr_light_gun_projectile_opacity"};
+    // AzaharFrame kiuweap2: Muzzle Flash Size (percent, 50 to 300): how big the flash at the
+    // weapon's tip is (100: kiuweap2's bigger flash). Per game too. A plain new key, no mirror:
+    // older builds ignore it.
+    SwitchableSetting<u32, true> vr_light_gun_muzzle_flash_size{100, 50, 300,
+                                                                "vr_light_gun_muzzle_flash_size"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

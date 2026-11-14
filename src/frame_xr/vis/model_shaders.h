@@ -30,7 +30,8 @@ layout(push_constant) uniform PC {
                   // hold its motion (weapon_fit.h GlowMotion): key = (u, v, gain, sway),
                   // up = (phase a, phase b, wave, 0)
                   // +16 a muzzle flash's card (kiuflash: key its colour and white core, up its
-                  // colour mode, half width, half length and middle along y; x 1 for a fan,
+                  // colour mode (kiuweap2: 3 the flare, drawn by the shader alone), half
+                  // width, half length and middle along y; x 1 for a fan,
                   // 2 a projectile's bullet mesh times its vertex colour, 3 one without; with +4)
                   // +32 (kiuopacity) depth only: a see-through part's first stage
                   // (see_through.h): discarded where it would be, else nothing (no lighting)
@@ -143,6 +144,15 @@ void main() {
         vec3 light = mode == 2 ? pc.key.rgb * t.g + vec3(pc.key.w * t.r)
                    : mode == 1 ? pc.key.rgb * t.r
                                : pc.key.rgb * t.rgb * t.a;
+        if (mode == 3) {
+            // AzaharFrame kiuweap2: the flare (no texture): a halo of the flash's colour and a
+            // white-hot core (key.w), round over the card, gone at its edge.
+            vec2 f = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
+            float r = length(f);
+            float halo = 1.0 - smoothstep(0.0, 1.0, r);
+            float core = 1.0 - smoothstep(0.0, 0.35, r);
+            light = pc.key.rgb * halo * halo + vec3(pc.key.w * core);
+        }
         // Its edges fade, so a sprite that reaches its border shows no square (a fan's from
         // its sides and far end only: its point is at the muzzle).
         // AzaharFrame kiuflash: a projectile's bullet mesh (x 2 or 3): no edge to fade; with x 2
@@ -151,7 +161,7 @@ void main() {
             if (pc.params.x < 2.5) {
                 light *= clamp(v_tangent.rgb, 0.0, 1.0) * clamp(v_tangent.a, 0.0, 1.0);
             }
-        } else {
+        } else if (mode != 3) {
             vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
             float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
             light *= 1.0 - smoothstep(0.75, 1.0, edge);

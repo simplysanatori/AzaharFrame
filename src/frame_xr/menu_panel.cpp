@@ -323,6 +323,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WeaponOpacity;
     case Id::ProjectileOpacity:
         return MenuSetting::ProjectileOpacity;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2
+        return MenuSetting::MuzzleFlashSize;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -870,6 +872,9 @@ void MenuPanel::BuildModel(const Host& host) {
     if (!m.mods.angels_aim.shown && view.mods_segment == Menu::ModsSegment::AngelsAim) {
         view.mods_segment = Menu::ModsSegment::Cheats;
     }
+    if (!m.mods.angels_aim.shown) {
+        view.angels_intro = false; // AzaharFrame kiuweap2: its prompt goes with the game
+    }
     if (m.mods.ctgp7.busy && m.mods.ctgp7.permille < 0 && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Ctgp7) {
         m.mods.ctgp7.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1027,6 +1032,9 @@ void MenuPanel::BuildModel(const Host& host) {
         static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_opacity.GetValue(), 20, 100));
     m.projectile_opacity =
         static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_opacity.GetValue(), 20, 100));
+    m.flash_size = // AzaharFrame kiuweap2
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_muzzle_flash_size.GetValue(), 50, 300));
+    m.angels_intro_shown = v.vr_angels_aim_intro_shown.GetValue();
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1447,6 +1455,11 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = std::clamp(value, 20, 100);
         Apply(v.vr_light_gun_projectile_opacity, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::ProjectileOpacity;
+        break;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2: percent, per game in Per-Game
+        r.value = std::clamp(value, 50, 300);
+        Apply(v.vr_light_gun_muzzle_flash_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::MuzzleFlashSize;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -1996,6 +2009,13 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DialogExtra: // AzaharFrame memwarn: only a notice has one
         if (model.notice.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::NoticeAnswer, 2);
+        } else if (view.angels_intro) {
+            // AzaharFrame kiuweap2: the prompt's Controls: the Controls tab at Aiming
+            view.angels_intro = false;
+            view.tab = Menu::Tab::Controls;
+            view.page = Menu::Page::Tabs;
+            controls_page = 0;
+            scroll_to_aiming = true;
         } else if (view.mods_segment == Menu::ModsSegment::Ctgp7 && // AzaharFrame ctgp7
                    model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
             ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "", 2);
@@ -2009,6 +2029,10 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DialogCancel: {
         if (model.notice.kind != Menu::ModsDialogKind::None) { // AzaharFrame savestate: drawn on top
             ask(MenuCommand::NoticeAnswer, t.id == Id::DialogConfirm ? 1 : 0);
+            break;
+        }
+        if (view.angels_intro) { // AzaharFrame kiuweap2: the prompt's OK
+            view.angels_intro = false;
             break;
         }
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
@@ -2289,6 +2313,22 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:
         if (t.index >= 0) {
+            // AzaharFrame kiuweap2: Aiming turned on in Kid Icarus: "Angel's Aim Is On", once
+            // (a plain new key remembers it).
+            if (t.id == Id::GyroAim &&
+                Menu::AngelsIntroDue(model.gyro_aim, t.index, model.mods.angels_aim.shown,
+                                     model.angels_intro_shown)) {
+                view.angels_intro = true;
+                Settings::values.vr_angels_aim_intro_shown.SetValue(true);
+                MenuRequest r;
+                r.command = MenuCommand::SetSetting;
+                r.setting = MenuSetting::AngelsAimIntroShown;
+                r.value = 1;
+                if (host.request) {
+                    host.request(r);
+                }
+                LOG_INFO(Frontend, "xr: in-game menu: Angel's Aim's prompt");
+            }
             SetSetting(t.id, t.index, host);
         }
         break;

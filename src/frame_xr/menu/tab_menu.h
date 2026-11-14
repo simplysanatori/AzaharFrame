@@ -251,6 +251,8 @@ enum class Id : int {
     // AzaharFrame kiuopacity
     WeaponOpacity,     ///< a slider, 20 to 100 (percent), while Weapon in Hand is on
     ProjectileOpacity, ///< a slider, 20 to 100 (percent), with Projectiles on
+    // AzaharFrame kiuweap2
+    MuzzleFlashSize, ///< a slider, 50 to 300 (percent), with Muzzle Flash on
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -317,6 +319,13 @@ constexpr int AimingValueAt(int index) {
     return index == 1 ? 2 : (index == 2 ? 1 : 0);
 }
 
+/// AzaharFrame kiuweap2: Aiming turned on: from Off (`stored_before`, vr_gyro_aim's 0) to Direct
+/// Aim or Gyro Aim (`index_after`, the shown index 1 or 2), while Kid Icarus: Uprising is open
+/// (`kiu_open`) and the prompt has not been shown (`shown`).
+constexpr bool AngelsIntroDue(int stored_before, int index_after, bool kiu_open, bool shown) {
+    return kiu_open && !shown && stored_before == 0 && (index_after == 1 || index_after == 2);
+}
+
 struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
@@ -367,6 +376,8 @@ struct MenuModel {
     int weapon_scale = 100;     ///< percent (50 to 150)
     int weapon_opacity = 100;     ///< AzaharFrame kiuopacity: percent (20 to 100)
     int projectile_opacity = 100; ///< percent (20 to 100)
+    int flash_size = 100;         ///< AzaharFrame kiuweap2: Muzzle Flash Size, percent (50 to 300)
+    bool angels_intro_shown = false; ///< AzaharFrame kiuweap2: vr_angels_aim_intro_shown
     bool aim_calibrated = false; ///< the running game has a Calibrate Aim of its own
     bool aim_calibration_ok = false; ///< Calibrate Aim can start (Direct Aim in a game)
     bool show_controllers = true;
@@ -405,6 +416,11 @@ struct MenuModel {
     std::array<bool, kIdCount> game_value{};
     bool operator==(const MenuModel&) const = default;
 };
+
+/// AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt (MenuView::angels_intro): a notice with
+/// the states of Weapon in Hand, Muzzle Flash, Projectiles, Recoil and Laser Sight, and its
+/// buttons Controls (DialogExtra) and OK (DialogConfirm).
+ModsDialog AngelsIntroDialog(const MenuModel& model);
 
 enum class Page { Tabs, SaveSlots, LoadSlots };
 
@@ -473,6 +489,9 @@ struct MenuView {
     } confirm;
     /// AzaharFrame ctgp7: "Requires CTGP-7" shows (an Install Mods row of a CTGP-7 mod was pressed)
     bool requires_ctgp7 = false;
+    /// AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt is open (AngelsIntroDialog): OK
+    /// closes it, Controls closes it and shows the Controls tab at Aiming
+    bool angels_intro = false;
     /// AzaharFrame ctgp7: the open dialog's checkbox (ModsDialog::check) is ticked; off for each new one
     bool dialog_check = false;
     bool operator==(const MenuView&) const = default;

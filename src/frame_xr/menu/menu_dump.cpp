@@ -1062,6 +1062,46 @@ int main(int argc, char** argv) {
         op_off.projectiles = false;
         ok &= shot("kiu-controls-17c-projectiles-off", op_off,
                    at(aiming_at(op_off, Id::Projectiles)));
+        // AzaharFrame kiuweap2: Muzzle Flash Size under Muzzle Flash (100, 50 and 300 %), its
+        // tooltip, held, and Muzzle Flash off (the slider gone with it); the "Angel's Aim Is On"
+        // prompt (over the Controls tab: as it opens, Controls hovered, some things off with OK
+        // hovered).
+        for (const int pct : {100, 50, 300}) {
+            MenuModel fs = fx;
+            fs.flash_size = pct;
+            ok &= shot("kiu-controls-18-muzzle-flash-size-" + std::to_string(pct), fs,
+                       at(aiming_at(fs, Id::MuzzleFlashSize)));
+        }
+        MenuModel fs = fx;
+        fs.flash_size = 150;
+        ok &= shot("kiu-controls-18b-tooltip-muzzle-flash-size", fs,
+                   at(aiming_at(fs, Id::MuzzleFlashSize), Id::MuzzleFlashSize, kLabelIndex, true));
+        MenuView fs_held = at(aiming_at(fs, Id::MuzzleFlashSize));
+        fs_held.dragging = Id::MuzzleFlashSize;
+        fs_held.hover = {Id::MuzzleFlashSize};
+        ok &= shot("kiu-controls-18c-muzzle-flash-size-held", fs, fs_held);
+        MenuModel fs_off = fs;
+        fs_off.muzzle_flash = false;
+        ok &= shot("kiu-controls-18d-muzzle-flash-off", fs_off,
+                   at(aiming_at(fs_off, Id::MuzzleFlash)));
+        MenuModel intro = fx;
+        intro.gyro_aim = 1;
+        intro.weapon_in_hand = true;
+        intro.muzzle_flash = true;
+        intro.projectiles = true;
+        intro.recoil = true;
+        intro.laser_sight = true;
+        MenuView iv = at(aiming_at(intro, Id::GyroAim));
+        iv.angels_intro = true;
+        ok &= shot("kiu-controls-19-angels-aim-prompt", intro, iv);
+        iv.hover = {Id::DialogExtra};
+        ok &= shot("kiu-controls-19b-angels-aim-prompt-hover-controls", intro, iv);
+        MenuModel intro_off = intro;
+        intro_off.laser_sight = false;
+        intro_off.projectiles = false;
+        MenuView iv_ok = iv;
+        iv_ok.hover = {Id::DialogConfirm};
+        ok &= shot("kiu-controls-19c-angels-aim-prompt-some-off-hover-ok", intro_off, iv_ok);
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

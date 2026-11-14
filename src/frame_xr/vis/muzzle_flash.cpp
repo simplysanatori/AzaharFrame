@@ -101,6 +101,28 @@ float FlashGrowth(float age, float grow) {
     return 1.0f + (g - 1.0f) * (1.0f - (1.0f - t) * (1.0f - t));
 }
 
+float FlashBurst(float age, float grow) {
+    const float t = std::clamp(std::isfinite(age) ? age : 0.0f, 0.0f, 1.0f);
+    const float out = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t); // ease out (cubic)
+    return (kBurstFrom + (kBurstTo - kBurstFrom) * out) * FlashGrowth(t, grow);
+}
+
+float FlashSizeFactor(int percent) {
+    return static_cast<float>(std::clamp(percent, kFlashSizeMin, kFlashSizeMax)) / 100.0f;
+}
+
+FlashFlare FlashFlareAt(float age, bool charged) {
+    FlashFlare f;
+    if (!(age >= 0.0f) || age >= 1.0f) {
+        return f;
+    }
+    f.metres = (charged ? kFlareChargedM : kFlareRapidM) * FlashBurst(age, 1.0f);
+    const float t = std::clamp(age / kFlareFade, 0.0f, 1.0f);
+    f.strength = (1.0f - t) * (1.0f - t);
+    f.core = f.strength * f.strength; // the white core goes first: the halo's colour lingers
+    return f;
+}
+
 FlashTune ParseFlashTune(const std::optional<std::string>& value) {
     FlashTune t;
     if (!value || value->empty()) {

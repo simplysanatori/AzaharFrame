@@ -21,6 +21,14 @@
 //     kCardMinM to kFaceMaxM / kFanMaxM across. AZAHARFRAME_KIU_FLASH=size,ms (live) tunes the size factor
 //     and the duration (ms, both kinds alike) for a headset check.
 // Independent of Recoil (its own switch and timer) and of Laser Sight.
+//
+// AzaharFrame kiuweap2: a bigger, clearer flash (the owner: "it wasn't that big"): a short burst
+// that expands (FlashBurst: from 0.6 to 1.4 of its size, quickly at first) over 90 ms (charged
+// 120 ms), the game's cards larger (kSizeScale, kFaceMaxM, kFanMaxM, kCardMinM), the charged
+// shot's 1.4 times the rapid's (FlashKindScale), and a light flare under them: one more card,
+// drawn by the shader alone (mode 3: a white-hot core in a halo of the weapon's flash colour),
+// brightest at the shot and fading faster than the cards (FlashFlareAt). Muzzle Flash Size
+// (vr_light_gun_muzzle_flash_size, per game, 50 to 300 %) scales all of it.
 
 #pragma once
 
@@ -40,12 +48,13 @@ struct FlashFrame {
     float age = 0.0f;       ///< 0 at the shot, 1 at the end
     uint32_t shot = 0;      ///< which shot (the card's spin)
     float duration_s = 0.0f;
+    float size = 1.0f;      ///< AzaharFrame kiuweap2: Muzzle Flash Size (FlashSizeFactor)
 };
 
 class MuzzleFlash {
 public:
-    static constexpr int64_t kRapidNs = 70'000'000;
-    static constexpr int64_t kChargedNs = 100'000'000;
+    static constexpr int64_t kRapidNs = 90'000'000;    // AzaharFrame kiuweap2: was 70 ms
+    static constexpr int64_t kChargedNs = 120'000'000; // AzaharFrame kiuweap2: was 100 ms
 
     /// Each frame: the shots total so far (Kiu::ShotTotal), whether it is being read, and
     /// `active`: Muzzle Flash on with the weapon in hand. Inactive or unread: nothing, and shots
@@ -84,6 +93,34 @@ private:
 float FlashIntensity(float age);
 /// Its size against its start: from 1 to `grow` (eased), over its age.
 float FlashGrowth(float age, float grow);
+/// AzaharFrame kiuweap2: the burst: a card's size over its age, from kBurstFrom (the shot) to
+/// kBurstTo (the end), most of it in the first third (an ease out), times the card's own growth
+/// (FlashGrowth, the game's value).
+inline constexpr float kBurstFrom = 0.6f;
+inline constexpr float kBurstTo = 1.4f;
+float FlashBurst(float age, float grow);
+/// AzaharFrame kiuweap2: the charged shot's flash is bigger than rapid fire's.
+inline constexpr float kChargedScale = 1.4f;
+inline float FlashKindScale(bool charged) {
+    return charged ? kChargedScale : 1.0f;
+}
+/// AzaharFrame kiuweap2: Muzzle Flash Size (percent, 50 to 300) as a factor.
+inline constexpr int kFlashSizeMin = 50;
+inline constexpr int kFlashSizeMax = 300;
+float FlashSizeFactor(int percent);
+/// AzaharFrame kiuweap2: the flare at an age: its width (metres, before the size factors: rapid
+/// kFlareRapidM, charged kFlareChargedM, bursting as the cards), its strength (full at the shot,
+/// gone by kFlareFade of the flash, faster than the cards) and its white core's (the halo's
+/// colour is the flash's). Nothing (strength 0) outside the flash.
+inline constexpr float kFlareRapidM = 0.14f;
+inline constexpr float kFlareChargedM = 0.20f;
+inline constexpr float kFlareFade = 0.7f;
+struct FlashFlare {
+    float metres = 0.0f;
+    float strength = 0.0f;
+    float core = 0.0f;
+};
+FlashFlare FlashFlareAt(float age, bool charged);
 
 /// The size factor and the duration of AZAHARFRAME_KIU_FLASH=size,ms (either part may be left
 /// out; out of range or unset: 1 and 0).
@@ -93,11 +130,12 @@ struct FlashTune {
 };
 FlashTune ParseFlashTune(const std::optional<std::string>& value);
 
-inline constexpr float kSizeScale = 0.3f;
-inline constexpr float kFaceMaxM = 0.22f;
-inline constexpr float kFanMaxM = 0.32f;
+// AzaharFrame kiuweap2: larger (were 0.3, 0.22, 0.32, 0.05).
+inline constexpr float kSizeScale = 0.45f;
+inline constexpr float kFaceMaxM = 0.32f;
+inline constexpr float kFanMaxM = 0.45f;
 /// The smallest card (its larger side), so a flash reads at arm's length and beyond.
-inline constexpr float kCardMinM = 0.05f;
+inline constexpr float kCardMinM = 0.08f;
 
 /// Column major 4x4 from a card's plane (x across, y up or along, z toward the viewer; game
 /// units) to the room: a face (`fan` false) or a fan. `origin` the muzzle, `forward` the ray's
