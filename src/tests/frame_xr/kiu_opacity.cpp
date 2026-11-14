@@ -232,7 +232,10 @@ TEST_CASE("See-through: the glows, flames and flash dim with the weapon", "[kiuo
             // Light and coverage both times the opacity.
             CHECK(dim.light[c] == Approx(full.light[c] * o).margin(1e-6));
         }
-        CHECK(dim.cover == Approx(full.cover * o).margin(1e-6));
+        // The coverage too, down to its floor (lit pixels are never at alpha 0).
+        const bool any = std::max(dim.light[0], std::max(dim.light[1], dim.light[2])) > 0.0f;
+        CHECK(dim.cover ==
+              Approx(any ? std::max(full.cover * o, Vis::kCoverFloor) : 0.0f).margin(1e-6));
         CHECK(dim.cover <= 0.6f);
         // Lit means covered: SteamVR drops light written at alpha 0.
         const float lit = std::max(dim.light[0], std::max(dim.light[1], dim.light[2]));
@@ -246,7 +249,9 @@ TEST_CASE("See-through: the glows, flames and flash dim with the weapon", "[kiuo
         const float s = Vis::FlashIntensity(age);
         const float light = 0.7f * s, dimmed = 0.7f * s * 0.3f;
         CHECK(Vis::CoverAlpha(dimmed, 0.0f, 0.0f) ==
-              Approx(Vis::CoverAlpha(light, 0.0f, 0.0f) * 0.3f).margin(1e-6));
+              Approx(std::max(Vis::CoverAlpha(light, 0.0f, 0.0f) * 0.3f,
+                              light > 0.0f ? Vis::kCoverFloor : 0.0f))
+                  .margin(1e-6));
     }
     // Composited: a glow over a faded surface adds its dimmed light on top.
     const Pixel p = DrawWeapon({{{0.2f, 0.2f, 0.2f}, 0.4f, false}, {{0.5f, 0.3f, 0.0f}, 0.38f, true}},

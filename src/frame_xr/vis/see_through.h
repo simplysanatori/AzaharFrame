@@ -25,7 +25,8 @@
 //               (colour x a, a), blended over what is there (ONE, ONE_MINUS_SRC_ALPHA).
 //     Then Added: the glows, a palm's flames, the muzzle flash and added bullets, their light
 //     and coverage alpha both times the opacity (the coverage, clamp(max(light) x 0.6, 0, 0.6),
-//     is taken from the light after it is scaled), on top of the faded surface.
+//     is taken from the light after it is scaled; never under 4/255 where there is light),
+//     on top of the faded surface.
 //   - A faded weapon is drawn after the other hand's controller, so the controller shows
 //     through it too.
 // Laser Sight is drawn elsewhere and is unchanged.
@@ -132,9 +133,12 @@ constexpr std::array<int, 2> HandOrder(bool faded0, bool faded1) {
 }
 
 /// The coverage alpha the shaders give added light (the glows', the flash's), as
-/// model_shaders.h: clamp(max(light) x 0.6, 0, 0.6).
+/// model_shaders.h coverOf: clamp(max(light) x 0.6, 0, 0.6), and at least kCoverFloor where
+/// there is any light (a pixel with light at alpha 0 can be dropped as clear).
+inline constexpr float kCoverFloor = 4.0f / 255.0f;
 constexpr float CoverAlpha(float r, float g, float b) {
-    return std::clamp(std::max(r, std::max(g, b)) * 0.6f, 0.0f, 0.6f);
+    const float m = std::max(r, std::max(g, b));
+    return m > 0.0f ? std::clamp(std::max(m * 0.6f, kCoverFloor), 0.0f, 0.6f) : 0.0f;
 }
 
 /// A glow's light as the shader makes it (for the tests): its texture doubled and held at 1, a

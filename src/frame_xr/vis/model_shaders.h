@@ -108,6 +108,15 @@ vec4 writeLinear(vec3 c) {
     return vec4(v * a, a);
 }
 
+// The coverage alpha of added light (the glows', the flash's; AzaharFrame kiufix): from the light
+// itself, at most 0.6. AzaharFrame kiuopacity: never under 4/255 where there is light at all, so
+// a dim pixel (a flame's fringe, a glow at a low Weapon Opacity) is not written at alpha 0 and
+// dropped as clear; 4/255 still rounds above 0 after a 4x MSAA resolve with one sample lit.
+float coverOf(vec3 light) {
+    float m = max(light.r, max(light.g, light.b));
+    return m > 0.0 ? clamp(max(m * 0.6, 4.0 / 255.0), 0.0, 0.6) : 0.0;
+}
+
 vec3 sky(vec3 dir, vec3 up, float spread) {
     float t = clamp(0.5 + 0.5 * dot(dir, up) / max(spread + 0.15, 0.15), 0.0, 1.0);
     return mix(GROUND, SKY, t);
@@ -150,7 +159,7 @@ void main() {
         light *= clamp(pc.params.z, 0.0, 1.0);
         // A coverage alpha from the light itself, as the glows' (AzaharFrame kiufix): light at
         // alpha 0 can be dropped as clear.
-        float cover = clamp(max(light.r, max(light.g, light.b)) * 0.6, 0.0, 0.6);
+        float cover = coverOf(light);
         fragColor = vec4(OUT_LINEAR ? light : linearToSrgb(light), cover);
         return;
     }
@@ -168,7 +177,7 @@ void main() {
         // The fade last (AzaharFrame kiuopacity: times Weapon Opacity), so light and coverage
         // scale with it as one; at fade 1 the same as before.
         glowColour *= clamp(pc.params.z, 0.0, 1.0);
-        float cover = clamp(max(glowColour.r, max(glowColour.g, glowColour.b)) * 0.6, 0.0, 0.6);
+        float cover = coverOf(glowColour);
         fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), cover);
         return;
     }
