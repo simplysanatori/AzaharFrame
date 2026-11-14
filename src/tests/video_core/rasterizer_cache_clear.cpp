@@ -219,3 +219,29 @@ TEST_CASE("Rasterizer cache: a save's ClearAll frees what it drops", "[video_cor
     cache.TickFrame();
     CHECK(FakeSurface::live == null_surfaces);
 }
+
+// AzaharFrame savemem: a state load's crash (Kid Icarus, Turnip in vkUpdateDescriptorSets): a
+// disabled cube texture unit was bound with GetSampler(NULL_SURFACE_CUBE_ID), sampler 1, which a
+// fresh cache (right after the load) does not have: the "handle" came from past the array. The
+// renderer now asks for NULL_SAMPLER_ID, and an id that names no sampler gets the null sampler.
+TEST_CASE("Rasterizer cache: a sampler id that names no sampler gets the null sampler",
+          "[video_core][savemem]") {
+    Core::System& system = Core::System::GetInstance();
+    Memory::MemorySystem memory{system};
+    if (!system.GetImageInterface()) {
+        system.RegisterImageInterface(std::make_shared<Frontend::ImageInterface>());
+    }
+    CustomTexManager custom_tex_manager{system};
+    FakeRuntime runtime;
+    Pica::RegsInternal regs{};
+    FakeWindow window;
+    FakeRenderer renderer{system, window};
+    RasterizerCache<FakeTraits> cache{memory, custom_tex_manager, runtime, regs, renderer};
+
+    FakeSampler& null_sampler = cache.GetSampler(NULL_SAMPLER_ID);
+    // A fresh cache has the null sampler only
+    CHECK(&cache.GetSampler(SamplerId{1}) == &null_sampler);
+    CHECK(&cache.GetSampler(NULL_SURFACE_CUBE_ID) == &null_sampler);
+    CHECK(&cache.GetSampler(SamplerId{4096}) == &null_sampler);
+    CHECK(&cache.GetSampler(SamplerId{}) == &null_sampler); // an invalid id too
+}

@@ -441,6 +441,15 @@ typename T::Surface& RasterizerCache<T>::GetSurface(SurfaceId surface_id) {
 
 template <class T>
 typename T::Sampler& RasterizerCache<T>::GetSampler(SamplerId sampler_id) {
+    // AzaharFrame savemem: an id that names no sampler (a surface's id passed by mistake) gets the
+    // null sampler, never memory past the array (SlotVector checks only in debug builds)
+    if (!slot_samplers.contains(sampler_id)) [[unlikely]] {
+        static bool logged = false;
+        if (!std::exchange(logged, true)) {
+            LOG_ERROR(Render, "No sampler {}: the null sampler is used", sampler_id.index);
+        }
+        return slot_samplers[NULL_SAMPLER_ID];
+    }
     return slot_samplers[sampler_id];
 }
 
