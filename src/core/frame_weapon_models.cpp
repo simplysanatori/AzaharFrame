@@ -16,11 +16,11 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <condition_variable>
 #include <mutex>
 #include <sstream>
 #include <thread>
 #include <fmt/format.h>
-#include <json.hpp>
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -38,12 +38,12 @@ namespace FrameWeapons {
 
 namespace {
 
-using json = nlohmann::json;
 using FrameCgfx::Bytes;
 using Vec3 = std::array<float, 3>;
 
 constexpr u32 kModelVersion = 2;
 constexpr u32 kFlagWeaponSpace = 2; // frame_xr/vis/model_file.h kModelFlagWeaponSpace
+constexpr u32 kFlagFlatSurface = 1u << 16; // kModelFlagFlatSurface: a one-texel surface image
 constexpr u32 kNameBytes = 32;
 constexpr u32 kComponentBytes = 208;
 constexpr u8 kRoughness = 90; // the surface image's alpha: fairly glossy, like the game's metal
@@ -284,7 +284,7 @@ Bytes WriteModel(const PartBuilder& p, const FrameCgfx::Texture* tex, u32 wrap_u
     Put32(b, static_cast<u32>(comps.size()));
     Put32(b, tw);
     Put32(b, th);
-    Put32(b, kFlagWeaponSpace | (wrap_u & 7) << 8 | (wrap_v & 7) << 12);
+    Put32(b, kFlagWeaponSpace | (wrap_u & 7) << 8 | (wrap_v & 7) << 12 | kFlagFlatSurface);
     for (const Comp& c : comps) {
         Bytes rec(kComponentBytes, 0);
         const char* name = SideName(c.side);
@@ -317,10 +317,8 @@ Bytes WriteModel(const PartBuilder& p, const FrameCgfx::Texture* tex, u32 wrap_u
             b.insert(b.end(), {160, 160, 160, 255});
         }
     }
-    // Surface: a flat normal, one roughness.
-    for (std::size_t i = 0; i < px; i++) {
-        b.insert(b.end(), {128, 128, 255, kRoughness});
-    }
+    // Surface: one texel, a flat normal and one roughness (kFlagFlatSurface).
+    b.insert(b.end(), {128, 128, 255, kRoughness});
     return b;
 }
 
@@ -339,49 +337,36 @@ bool WriteFileAtomic(const std::string& path, const void* data, std::size_t size
     return FileUtil::Rename(tmp, path);
 }
 
-/// A pack's PNG for a texture hash, decoded, in the rows' memory order. False: none (or not
-/// a PNG it can read).
-bool LoadReplacement(const TexturePack* pack, u64 hash, FrameCgfx::Texture& out) {
-    if (!pack || !pack->on) {
-        return false;
-    }
-    const auto it = pack->files.find(hash);
-    if (it == pack->files.end()) {
-        return false;
-    }
-    const std::string& path = it->second;
-    const auto ext = std::filesystem::path(path).extension().string();
-    if (ext != ".png" && ext != ".PNG") {
-        LOG_INFO(Frontend, "xr: weapon models: {} is not a PNG: the game's texture is used",
-                 std::filesystem::path(path).filename().string());
-        return false;
-    }
+} // namespace
+
+bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rgba, u32& width,
+                     u32& height) {
     std::ifstream f(path, std::ios::binary);
     const Bytes png((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     static Frontend::ImageInterface images; // lodepng
     u32 w = 0, h = 0;
-    Bytes rgba;
-    if (png.empty() || !images.DecodePNG(rgba, w, h, png) || w == 0 || h == 0 || w > 4096 ||
-        h > 4096 || rgba.size() != std::size_t{w} * h * 4) {
+    Bytes px;
+    if (png.empty() || !images.DecodePNG(px, w, h, png) || w == 0 || h == 0 || w > 4096 ||
+        h > 4096 || px.size() != std::size_t{w} * h * 4) {
         return false;
     }
     // A pack flips its PNGs (flip_png_files, the default) so their first row is the top of the
-    // picture, the first row of the game's texture in memory, which is how these images are kept.
-    if (!pack->flip_png) {
+    // picture, the first row of the game's texture in memory, which is how models keep them.
+    if (!flip_png) {
         for (u32 y = 0; y < h / 2; y++) {
-            std::swap_ranges(rgba.begin() + std::size_t{y} * w * 4,
-                             rgba.begin() + std::size_t{y + 1} * w * 4,
-                             rgba.begin() + std::size_t{h - 1 - y} * w * 4);
+            std::swap_ranges(px.begin() + std::size_t{y} * w * 4,
+                             px.begin() + std::size_t{y + 1} * w * 4,
+                             px.begin() + std::size_t{h - 1 - y} * w * 4);
         }
     }
-    out.name = std::filesystem::path(path).filename().string();
-    out.width = w;
-    out.height = h;
-    out.rgba = std::move(rgba);
+    for (std::size_t i = 3; i < px.size(); i += 4) {
+        px[i] = 255; // no ambient occlusion
+    }
+    rgba = std::move(px);
+    width = w;
+    height = h;
     return true;
 }
-
-} // namespace
 
 TexturePack ReadTexturePack(u64 title_id) {
     TexturePack pack;
@@ -640,18 +625,27 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
             wrap_v = mp.wrap_v;
         }
         Part part;
-        // The custom texture pack's replacement, at its own size (the same hash the game's
-        // textures are looked up by).
-        FrameCgfx::Texture replacement;
+        // The custom texture pack's replacement (the same hash the game's textures are looked
+        // up by): named, and read from the pack when the model loads; the file keeps the game's
+        // own texture for when the pack is gone.
         if (tex) {
             const u64 hash = VideoCore::CustomTexManager::NewHash(tex->raw);
             if (std::find(w.texture_hashes.begin(), w.texture_hashes.end(), hash) ==
                 w.texture_hashes.end()) {
                 w.texture_hashes.push_back(hash);
             }
-            if (LoadReplacement(pack, hash, replacement)) {
-                part.replaced = std::filesystem::path(pack->files.at(hash)).filename().string();
-                tex = &replacement;
+            if (pack && pack->on) {
+                if (const auto it = pack->files.find(hash); it != pack->files.end()) {
+                    const auto ext = std::filesystem::path(it->second).extension().string();
+                    if (ext == ".png" || ext == ".PNG") {
+                        part.replaced = it->second;
+                        part.replaced_flip = pack->flip_png;
+                    } else {
+                        LOG_INFO(Frontend, "xr: weapon models: {} is not a PNG: the game's "
+                                           "texture is used",
+                                 std::filesystem::path(it->second).filename().string());
+                    }
+                }
             }
         }
         part.file = i == 0 ? fmt::format("w{:03d}.model", id) : fmt::format("w{:03d}-{}.model", id, i);
@@ -705,53 +699,64 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
 
 // ---- The manifest ----
 
+// The manifest: plain lines (no JSON library: the binary stays small).
+//   kiu-weapons <version>
+//   title <title id, hex>
+//   region <folder>
+//   weapon <id> <WPNID> <anchor> <source hash> <pack key> <muzzle: 1 x y z, or 0>
+//          <bounds: 6 numbers> <charge time: 2> <rapid fire time: 2> <rapid normal: 3>
+//          <texture hashes: count, then each>
+//   part <file> <material> <sides> <triangles> <wrap u> <wrap v> <glow> <cull> <flip> [pack PNG]
+// A part line belongs to the weapon line before it; the PNG's path is the rest of the line.
+
 bool WriteManifest(const std::string& path, const Manifest& m, std::string& error) {
-    json j;
-    j["about"] = "Kid Icarus: Uprising's weapons, made by Azahar for Frame from this game's own "
-                 "files on this machine. Not to be shared.";
-    j["version"] = m.version;
-    j["title"] = Hex(m.title_id);
-    j["region"] = m.region;
-    json list = json::array();
+    std::string out = "# Kid Icarus: Uprising's weapons, made by Azahar for Frame from this game's "
+                      "own files on this machine. Not to be shared.\n";
+    out += fmt::format("kiu-weapons {}\ntitle {}\nregion {}\n", m.version, Hex(m.title_id),
+                       m.region.empty() ? "-" : m.region);
+    const auto anchor = [](const std::string& a) { return a.empty() ? std::string{"-"} : a; };
     for (const Weapon& w : m.weapons) {
-        json e;
-        e["id"] = w.id;
-        e["class"] = ClassName(w.cls);
-        e["wpnid"] = w.wpnid;
-        e["anchor"] = w.anchor;
-        e["muzzle"] = w.muzzle_valid ? json(w.muzzle) : json(nullptr);
-        e["bounds"] = json::array({w.bounds_min, w.bounds_max});
-        e["charge_time"] = w.charge_time;
-        e["rapid_fire_time"] = w.rapid_fire_time;
-        e["rapid_normal"] = w.rapid_normal;
-        e["source"] = Hex(w.source_hash);
-        json hashes = json::array();
-        for (const u64 h : w.texture_hashes) {
-            hashes.push_back(Hex(h));
+        out += fmt::format("weapon {} {} {} {} {} ", w.id, w.wpnid.empty() ? "-" : w.wpnid,
+                           anchor(w.anchor), Hex(w.source_hash), Hex(w.pack_key));
+        out += w.muzzle_valid
+                   ? fmt::format("1 {} {} {}", w.muzzle[0], w.muzzle[1], w.muzzle[2])
+                   : std::string{"0"};
+        for (const float f : w.bounds_min) {
+            out += fmt::format(" {}", f);
         }
-        e["textures"] = std::move(hashes);
-        e["pack"] = Hex(w.pack_key);
-        json parts = json::array();
+        for (const float f : w.bounds_max) {
+            out += fmt::format(" {}", f);
+        }
+        for (const float f : w.charge_time) {
+            out += fmt::format(" {}", f);
+        }
+        for (const float f : w.rapid_fire_time) {
+            out += fmt::format(" {}", f);
+        }
+        for (const float f : w.rapid_normal) {
+            out += fmt::format(" {}", f);
+        }
+        out += fmt::format(" {}", w.texture_hashes.size());
+        for (const u64 h : w.texture_hashes) {
+            out += " " + Hex(h);
+        }
+        out += "\n";
         for (const Part& p : w.parts) {
             std::string sides;
-            for (const Side s : p.sides) {
-                sides += SideName(s);
+            for (const Side side : p.sides) {
+                sides += SideName(side);
             }
-            parts.push_back({{"file", p.file},
-                             {"material", p.material},
-                             {"sides", sides},
-                             {"triangles", p.triangles},
-                             {"wrap", {p.wrap_u, p.wrap_v}},
-                             {"glow", p.glow},
-                             {"cull", p.cull},
-                             {"replaced", p.replaced}});
+            out += fmt::format("part {} {} {} {} {} {} {} {} {}", p.file,
+                               p.material.empty() ? "-" : p.material, sides.empty() ? "C" : sides,
+                               p.triangles, p.wrap_u, p.wrap_v, p.glow ? 1 : 0, p.cull,
+                               p.replaced_flip ? 1 : 0);
+            if (!p.replaced.empty()) {
+                out += " " + p.replaced;
+            }
+            out += "\n";
         }
-        e["parts"] = std::move(parts);
-        list.push_back(std::move(e));
     }
-    j["weapons"] = std::move(list);
-    const std::string text = j.dump(1);
-    if (!WriteFileAtomic(path, text.data(), text.size())) {
+    if (!WriteFileAtomic(path, out.data(), out.size())) {
         error = "the manifest cannot be written";
         return false;
     }
@@ -764,69 +769,92 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
         error = "no manifest";
         return false;
     }
-    try {
-        const json j = json::parse(f);
-        Manifest m;
-        m.version = j.at("version").get<int>();
-        m.title_id = std::stoull(j.at("title").get<std::string>(), nullptr, 16);
-        m.region = j.value("region", "");
-        for (const json& e : j.at("weapons")) {
+    Manifest m;
+    std::string line;
+    Weapon* current = nullptr;
+    bool header = false;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        std::istringstream in(line);
+        std::string key;
+        in >> key;
+        const auto hex = [&](u64& v) {
+            std::string t;
+            in >> t;
+            char* end = nullptr;
+            v = std::strtoull(t.c_str(), &end, 16);
+            return !t.empty() && end && *end == '\0';
+        };
+        if (key == "kiu-weapons") {
+            header = static_cast<bool>(in >> m.version);
+        } else if (key == "title") {
+            hex(m.title_id);
+        } else if (key == "region") {
+            in >> m.region;
+        } else if (key == "weapon") {
             Weapon w;
-            w.id = e.at("id").get<int>();
-            if (w.id < 0 || w.id >= kWeapons) {
-                continue;
-            }
-            w.cls = ClassOf(w.id);
-            w.wpnid = e.value("wpnid", "");
-            w.anchor = e.value("anchor", "");
-            if (e.contains("muzzle") && e["muzzle"].is_array()) {
-                w.muzzle = e["muzzle"].get<std::array<float, 3>>();
+            int has_muzzle = 0;
+            std::size_t textures = 0;
+            in >> w.id >> w.wpnid >> w.anchor;
+            bool ok = static_cast<bool>(in) && hex(w.source_hash) && hex(w.pack_key);
+            in >> has_muzzle;
+            if (has_muzzle) {
+                in >> w.muzzle[0] >> w.muzzle[1] >> w.muzzle[2];
                 w.muzzle_valid = true;
             }
-            if (e.contains("bounds")) {
-                w.bounds_min = e["bounds"].at(0).get<std::array<float, 3>>();
-                w.bounds_max = e["bounds"].at(1).get<std::array<float, 3>>();
+            for (auto* arr : {&w.bounds_min, &w.bounds_max}) {
+                in >> (*arr)[0] >> (*arr)[1] >> (*arr)[2];
             }
-            w.charge_time = e.value("charge_time", std::array<float, 2>{});
-            w.rapid_fire_time = e.value("rapid_fire_time", std::array<float, 2>{});
-            w.rapid_normal = e.value("rapid_normal", std::array<float, 3>{});
-            w.source_hash = std::stoull(e.at("source").get<std::string>(), nullptr, 16);
-            if (e.contains("textures")) {
-                for (const json& h : e["textures"]) {
-                    w.texture_hashes.push_back(std::stoull(h.get<std::string>(), nullptr, 16));
-                }
+            in >> w.charge_time[0] >> w.charge_time[1] >> w.rapid_fire_time[0] >>
+                w.rapid_fire_time[1] >> w.rapid_normal[0] >> w.rapid_normal[1] >>
+                w.rapid_normal[2] >> textures;
+            ok = ok && static_cast<bool>(in) && w.id >= 0 && w.id < kWeapons && textures <= 16;
+            for (std::size_t i = 0; ok && i < textures; i++) {
+                u64 h = 0;
+                ok = hex(h);
+                w.texture_hashes.push_back(h);
             }
-            w.pack_key = std::stoull(e.value("pack", std::string{"0"}), nullptr, 16);
-            for (const json& p : e.at("parts")) {
-                Part part;
-                part.file = p.at("file").get<std::string>();
-                if (part.file.find('/') != std::string::npos || part.file.find("..") != std::string::npos) {
-                    continue; // only names inside the folder
+            if (!ok) {
+                error = "a bad weapon line";
+                return false;
+            }
+            w.cls = ClassOf(w.id);
+            for (std::string* t : {&w.wpnid, &w.anchor}) {
+                if (*t == "-") {
+                    t->clear();
                 }
-                part.material = p.value("material", "");
-                for (const char ch : p.value("sides", std::string{"C"})) {
-                    part.sides.push_back(ch == 'R' ? Side::Right : ch == 'L' ? Side::Left : Side::Centre);
-                }
-                part.triangles = p.value("triangles", 0u);
-                const auto wrap = p.value("wrap", std::array<u32, 2>{2, 2});
-                part.wrap_u = wrap[0];
-                part.wrap_v = wrap[1];
-                part.glow = p.value("glow", false);
-                part.cull = p.value("cull", 0u);
-                part.replaced = p.value("replaced", "");
-                w.parts.push_back(std::move(part));
             }
             m.weapons.push_back(std::move(w));
+            current = &m.weapons.back();
+        } else if (key == "part" && current) {
+            Part p;
+            std::string sides;
+            int glow = 0, flip = 1;
+            in >> p.file >> p.material >> sides >> p.triangles >> p.wrap_u >> p.wrap_v >> glow >>
+                p.cull >> flip;
+            if (!in || p.file.find('/') != std::string::npos ||
+                p.file.find("..") != std::string::npos || p.wrap_u > 3 || p.wrap_v > 3) {
+                error = "a bad part line";
+                return false;
+            }
+            std::getline(in >> std::ws, p.replaced);
+            for (const char ch : sides) {
+                p.sides.push_back(ch == 'R' ? Side::Right : ch == 'L' ? Side::Left : Side::Centre);
+            }
+            p.glow = glow != 0;
+            p.replaced_flip = flip != 0;
+            current->parts.push_back(std::move(p));
         }
-        out = std::move(m);
-        return true;
-    } catch (const std::exception& e) {
-        error = std::string{"a bad manifest: "} + e.what();
+    }
+    if (!header) {
+        error = "not a weapons manifest";
         return false;
     }
+    out = std::move(m);
+    return true;
 }
-
-// ---- A game ----
 
 std::string WeaponDir(u64 title_id) {
     std::string root;
@@ -841,108 +869,149 @@ std::string WeaponDir(u64 title_id) {
     return root + "games/" + Hex(title_id) + "/kiu-weapons/";
 }
 
-RunResult ConvertGame(std::shared_ptr<FileSys::RomFSReader> romfs, u64 title_id,
-                      const std::string& dir, const std::atomic<bool>* cancel,
-                      const TexturePack* pack) {
-    RunResult res;
-    FrameCgfx::RomFSIndex index;
-    if (!index.Open(std::move(romfs), res.error)) {
-        return res;
-    }
-    // The region folder: the one with player/m<class><index>.zrc files.
-    for (const auto& f : index.Files()) {
-        const auto slash = f.path.find('/');
-        if (slash == std::string::npos) {
-            continue;
+namespace {
+
+/// A game's weapons made one at a time into its folder, the manifest kept up to date.
+class GameConverter {
+public:
+    bool Open(std::shared_ptr<FileSys::RomFSReader> romfs, u64 title, const std::string& folder,
+              const TexturePack* texture_pack, RunResult& res) {
+        title_id = title;
+        dir = folder;
+        pack = texture_pack;
+        if (!index.Open(std::move(romfs), res.error)) {
+            return false;
         }
-        const std::string rest = f.path.substr(slash);
-        if (rest.size() == 16 && rest.rfind("/player/m", 0) == 0 &&
-            rest.compare(12, 4, ".zrc") == 0 && std::isdigit(static_cast<unsigned char>(rest[9])) &&
-            std::isdigit(static_cast<unsigned char>(rest[10])) &&
-            std::isdigit(static_cast<unsigned char>(rest[11]))) {
-            res.region = f.path.substr(0, slash);
-            break;
+        // The region folder: the one with player/m<class><index>.zrc files.
+        for (const auto& f : index.Files()) {
+            const auto slash = f.path.find('/');
+            if (slash == std::string::npos) {
+                continue;
+            }
+            const std::string rest = f.path.substr(slash);
+            if (rest.size() == 16 && rest.rfind("/player/m", 0) == 0 &&
+                rest.compare(12, 4, ".zrc") == 0 &&
+                std::isdigit(static_cast<unsigned char>(rest[9])) &&
+                std::isdigit(static_cast<unsigned char>(rest[10])) &&
+                std::isdigit(static_cast<unsigned char>(rest[11]))) {
+                res.region = f.path.substr(0, slash);
+                break;
+            }
         }
-    }
-    if (res.region.empty()) {
-        res.error = "no player/m<nnn>.zrc in the RomFS: not Kid Icarus: Uprising's files";
-        return res;
-    }
-    if (!FileUtil::CreateFullPath(dir)) {
-        res.error = "the folder cannot be made";
-        return res;
-    }
-    const std::string manifest_path = dir + "weapons.json";
-    Manifest old;
-    std::string why;
-    if (!ReadManifest(manifest_path, old, why) || old.version != kConverterVersion ||
-        old.title_id != title_id) {
-        old = {};
-    }
-    Manifest now;
-    now.version = kConverterVersion;
-    now.title_id = title_id;
-    now.region = res.region;
-    for (int id = 0; id < kWeapons; id++) {
-        if (cancel && cancel->load()) {
-            res.error = "stopped";
-            break;
+        if (res.region.empty()) {
+            res.error = "no player/m<nnn>.zrc in the RomFS: not Kid Icarus: Uprising's files";
+            return false;
         }
-        const auto* f = index.Find(res.region + "/player/" + ZrcName(id));
+        if (!FileUtil::CreateFullPath(dir)) {
+            res.error = "the folder cannot be made";
+            return false;
+        }
+        std::string why;
+        if (!ReadManifest(dir + "weapons.txt", manifest, why) ||
+            manifest.version != kConverterVersion || manifest.title_id != title_id) {
+            manifest = {};
+        }
+        manifest.version = kConverterVersion;
+        manifest.title_id = title_id;
+        manifest.region = res.region;
+        return true;
+    }
+
+    /// One weapon current in the folder: true when it is (kept or made).
+    bool Ensure(int id, RunResult& res) {
+        const auto* f = index.Find(manifest.region + "/player/" + ZrcName(id));
         Bytes zrc;
         if (!f || !index.Read(*f, zrc, u64{8} << 20)) {
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}) cannot be read", ZrcName(id), id);
             res.failed++;
-            continue;
+            return false;
         }
         const u64 hash = Common::ComputeHash64(zrc.data(), zrc.size());
-        if (const Weapon* w = old.Find(id);
-            w && w->source_hash == hash && w->pack_key == PackKey(pack, w->texture_hashes)) {
-            const bool all = std::all_of(w->parts.begin(), w->parts.end(),
-                                         [&](const Part& p) { return FileUtil::Exists(dir + p.file); });
-            if (all) {
-                now.weapons.push_back(*w);
-                res.kept++;
-                continue;
-            }
+        auto old = std::find_if(manifest.weapons.begin(), manifest.weapons.end(),
+                                [id](const Weapon& w) { return w.id == id; });
+        if (old != manifest.weapons.end() && old->source_hash == hash &&
+            old->pack_key == PackKey(pack, old->texture_hashes) &&
+            std::all_of(old->parts.begin(), old->parts.end(),
+                        [&](const Part& p) { return FileUtil::Exists(dir + p.file); })) {
+            res.kept++;
+            return true;
         }
         Converted c;
+        std::string why;
         if (!ConvertWeapon(id, zrc, c, why, pack)) {
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}): {}", ZrcName(id), id, why);
             res.failed++;
-            continue;
+            return false;
         }
-        bool written = true;
         for (const auto& [name, bytes] : c.files) {
-            written = written && WriteFileAtomic(dir + name, bytes.data(), bytes.size());
+            if (!WriteFileAtomic(dir + name, bytes.data(), bytes.size())) {
+                LOG_WARNING(Frontend, "xr: weapon models: w{:03d} cannot be written", id);
+                res.failed++;
+                return false;
+            }
         }
-        if (!written) {
-            LOG_WARNING(Frontend, "xr: weapon models: w{:03d} cannot be written", id);
-            res.failed++;
-            continue;
-        }
-        // A part an older file had and this one has not.
-        if (const Weapon* w = old.Find(id)) {
-            for (const Part& p : w->parts) {
+        if (old != manifest.weapons.end()) {
+            // A part an older file had and this one has not.
+            for (const Part& p : old->parts) {
                 if (std::none_of(c.info.parts.begin(), c.info.parts.end(),
                                  [&](const Part& q) { return q.file == p.file; })) {
                     FileUtil::Delete(dir + p.file);
                 }
             }
+            manifest.weapons.erase(old);
         }
         for (const Part& p : c.info.parts) {
-            if (!p.replaced.empty()) {
-                res.replaced++;
-            }
+            res.replaced += p.replaced.empty() ? 0 : 1;
         }
-        now.weapons.push_back(std::move(c.info));
+        manifest.weapons.push_back(std::move(c.info));
+        std::sort(manifest.weapons.begin(), manifest.weapons.end(),
+                  [](const Weapon& x, const Weapon& y) { return x.id < y.id; });
         res.made++;
+        dirty = true;
+        return true;
     }
-    if (!WriteManifest(manifest_path, now, why)) {
-        res.error = why;
+
+    bool Save(RunResult& res) {
+        if (!dirty) {
+            return true;
+        }
+        std::string why;
+        if (!WriteManifest(dir + "weapons.txt", manifest, why)) {
+            res.error = why;
+            return false;
+        }
+        dirty = false;
+        return true;
+    }
+
+private:
+    FrameCgfx::RomFSIndex index;
+    Manifest manifest;
+    u64 title_id = 0;
+    std::string dir;
+    const TexturePack* pack = nullptr;
+    bool dirty = false;
+};
+
+} // namespace
+
+RunResult ConvertGame(std::shared_ptr<FileSys::RomFSReader> romfs, u64 title_id,
+                      const std::string& dir, const std::atomic<bool>* cancel,
+                      const TexturePack* pack) {
+    RunResult res;
+    GameConverter game;
+    if (!game.Open(std::move(romfs), title_id, dir, pack, res)) {
         return res;
     }
-    res.ok = res.error.empty() && !now.weapons.empty();
+    int good = 0;
+    for (int id = 0; id < kWeapons; id++) {
+        if (cancel && cancel->load()) {
+            res.error = "stopped";
+            break;
+        }
+        good += game.Ensure(id, res) ? 1 : 0;
+    }
+    res.ok = game.Save(res) && res.error.empty() && good > 0;
     return res;
 }
 
@@ -994,6 +1063,7 @@ namespace {
 
 struct Booted {
     std::mutex mutex;
+    std::condition_variable wake;
     u64 title = 0;
     std::shared_ptr<FileSys::RomFSReader> romfs;
     bool custom_textures = false;
@@ -1002,6 +1072,8 @@ struct Booted {
     std::atomic<bool> cancel{false};
     std::atomic<int> state{static_cast<int>(State::None)};
     std::atomic<u32> generation{0};
+    std::vector<int> queue;                ///< under mutex
+    std::array<State, kWeapons> weapons{}; ///< under mutex
 };
 
 Booted& TheBooted() {
@@ -1019,23 +1091,46 @@ void StartLocked(Booted& b) {
     b.worker = std::thread([&b, romfs = b.romfs, title = b.title, textures = b.custom_textures] {
         // The lowest priority: the game and the XR thread come first.
         setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), 19);
-        const auto t0 = std::chrono::steady_clock::now();
-        const std::string dir = WeaponDir(title);
         const TexturePack pack = textures ? ReadTexturePack(title) : TexturePack{};
-        const RunResult r = ConvertGame(romfs, title, dir, &b.cancel, &pack);
-        const double s =
-            std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-        if (r.ok) {
-            LOG_INFO(Frontend,
-                     "xr: weapon models: {} made ({} textures from the texture pack), {} kept, "
-                     "{} failed in {:.1f} s (region {}; frame-models/games/{:016X}/kiu-weapons)",
-                     r.made, r.replaced, r.kept, r.failed, s, r.region, title);
-        } else {
-            LOG_WARNING(Frontend, "xr: weapon models: none ({}; {} made, {} failed)", r.error,
-                        r.made, r.failed);
+        GameConverter game;
+        RunResult res;
+        if (!game.Open(romfs, title, WeaponDir(title), &pack, res)) {
+            LOG_WARNING(Frontend, "xr: weapon models: none ({})", res.error);
+            b.state = static_cast<int>(State::Failed);
+            b.generation++;
+            return;
         }
-        b.state = static_cast<int>(r.ok ? State::Ready : State::Failed);
+        LOG_INFO(Frontend, "xr: weapon models: ready to make them (region {}, texture pack {}; "
+                           "frame-models/games/{:016X}/kiu-weapons)",
+                 res.region, pack.on ? "on" : "off", title);
+        b.state = static_cast<int>(State::Ready);
         b.generation++;
+        while (true) {
+            int id = -1;
+            {
+                std::unique_lock lock{b.mutex};
+                b.wake.wait(lock, [&] { return b.cancel.load() || !b.queue.empty(); });
+                if (b.cancel) {
+                    return;
+                }
+                id = b.queue.front();
+                b.queue.erase(b.queue.begin());
+            }
+            const auto t0 = std::chrono::steady_clock::now();
+            RunResult one;
+            const bool ok = game.Ensure(id, one) && game.Save(one);
+            const double ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            LOG_INFO(Frontend, "xr: weapon models: {} {} in {:.0f} ms{}", ZrcName(id),
+                     !ok ? "failed" : one.made ? "made" : "current", ms,
+                     one.replaced ? " (its texture from the texture pack)" : "");
+            {
+                std::scoped_lock lock{b.mutex};
+                b.weapons[static_cast<std::size_t>(id)] = ok ? State::Ready : State::Failed;
+            }
+            b.generation++;
+        }
     });
 }
 
@@ -1051,6 +1146,8 @@ void OnGameBoot(u64 title_id, std::shared_ptr<FileSys::RomFSReader> romfs, bool 
     b.custom_textures = custom_textures;
     b.started = false;
     b.state = static_cast<int>(State::None);
+    b.queue.clear();
+    b.weapons.fill(State::None);
     if (start) {
         StartLocked(b);
     }
@@ -1067,7 +1164,10 @@ void OnGameStop() {
         b.title = 0;
         b.started = false;
         b.state = static_cast<int>(State::None);
+        b.queue.clear();
+        b.weapons.fill(State::None);
     }
+    b.wake.notify_all();
     if (worker.joinable()) {
         worker.join(); // between two weapons: a few milliseconds at most
     }
@@ -1079,8 +1179,34 @@ void Request() {
     StartLocked(b);
 }
 
+void Request(int id) {
+    if (id < 0 || id >= kWeapons) {
+        return;
+    }
+    Booted& b = TheBooted();
+    {
+        std::scoped_lock lock{b.mutex};
+        StartLocked(b);
+        if (!b.started || b.weapons[static_cast<std::size_t>(id)] != State::None) {
+            return; // asked for already this boot
+        }
+        b.weapons[static_cast<std::size_t>(id)] = State::Working;
+        b.queue.push_back(id);
+    }
+    b.wake.notify_all();
+}
+
 State CurrentState() {
     return static_cast<State>(TheBooted().state.load());
+}
+
+State WeaponState(int id) {
+    if (id < 0 || id >= kWeapons) {
+        return State::Failed;
+    }
+    Booted& b = TheBooted();
+    std::scoped_lock lock{b.mutex};
+    return b.weapons[static_cast<std::size_t>(id)];
 }
 
 u64 CurrentTitle() {

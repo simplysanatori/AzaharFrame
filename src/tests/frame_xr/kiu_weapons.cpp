@@ -354,7 +354,7 @@ TEST_CASE("Kid Icarus: the fits of converted weapons", "[.kiuguns_real]") {
     REQUIRE(out);
     FrameWeapons::Manifest m;
     std::string error;
-    REQUIRE(FrameWeapons::ReadManifest(std::string{dir} + "/weapons.json", m, error));
+    REQUIRE(FrameWeapons::ReadManifest(std::string{dir} + "/weapons.txt", m, error));
     std::ofstream o(out);
     for (const auto& w : m.weapons) {
         std::vector<Vis::FitSide> sides;

@@ -735,6 +735,10 @@ TEST_CASE("Weapon models: only the weapon, each claw in its own hand's space", "
     CHECK(mf.vertices[11] == Approx(0.75f));
     CHECK(mf.colour[0] == 0x10);
     CHECK(mf.colour[3] == 255);
+    // One surface texel (kModelFlagFlatSurface), not a constant image the colour's size.
+    CHECK((mf.flags & FrameXr::Vis::kModelFlagFlatSurface) != 0);
+    CHECK(mf.surface.size() == 4);
+    CHECK(mf.SurfaceWidth() == 1);
     std::filesystem::remove_all(dir);
 }
 
@@ -749,7 +753,7 @@ TEST_CASE("Weapon models: a game's folder, kept until the file changes", "[kiugu
     CHECK(r.failed == FrameWeapons::kWeapons - 1);
     FrameWeapons::Manifest m;
     std::string error;
-    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.json", m, error));
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
     CHECK(m.title_id == 0x0004000000030100ull);
     CHECK(m.version == FrameWeapons::kConverterVersion);
     REQUIRE(m.Find(24));
@@ -816,7 +820,10 @@ TEST_CASE("Weapon models: the texture pack's replacement, found by the game's ow
     REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(), c, error, &pack));
     REQUIRE(c.info.texture_hashes.size() == 1);
     CHECK(c.info.texture_hashes[0] == hash);
-    CHECK(c.info.parts[0].replaced == fmt::format("tex1_8x8_{:016X}_0_mip0.png", hash));
+    // The pack's file is named, not copied: the model keeps the game's 8x8 texture.
+    const std::string png = fmt::format("{}weapons/tex1_8x8_{:016X}_0_mip0.png", pack_dir, hash);
+    CHECK(std::filesystem::equivalent(c.info.parts[0].replaced, png));
+    CHECK(c.info.parts[0].replaced_flip);
     CHECK(c.info.pack_key != 0);
     const std::string dir = TestDir("frame_weapon_pack_models");
     {
@@ -827,10 +834,20 @@ TEST_CASE("Weapon models: the texture pack's replacement, found by the game's ow
     FrameXr::Vis::ModelFile mf;
     REQUIRE(FrameXr::Vis::LoadModelFile(dir + "w.model", mf, error,
                                         FrameXr::Vis::kModelFlagWeaponSpace));
-    CHECK(mf.tex_width == 16);
-    CHECK(mf.tex_height == 16);
-    CHECK(mf.colour[1] == 7);       // flip_png_files: the PNG's first row is the texture's first
-    CHECK(mf.colour[4 + 1] == 200);
+    CHECK(mf.tex_width == 8);
+    CHECK(mf.colour[0] == 0x10);
+    // Read from the pack when the model loads, at its own size.
+    std::vector<u8> rgba;
+    u32 w = 0, h = 0;
+    REQUIRE(FrameWeapons::LoadPackTexture(c.info.parts[0].replaced, true, rgba, w, h));
+    CHECK(w == 16);
+    CHECK(h == 16);
+    CHECK(rgba[1] == 7);       // flip_png_files: the PNG's first row is the texture's first
+    CHECK(rgba[4 + 1] == 200);
+    CHECK(rgba[3] == 255);
+    REQUIRE(FrameWeapons::LoadPackTexture(c.info.parts[0].replaced, false, rgba, w, h));
+    CHECK(rgba[1] == 200); // not flipped by the pack: turned over here
+    CHECK(rgba[15 * 16 * 4 + 1] == 7);
 
     // A game's run keeps it while the pack's file is the same, and makes it again once not.
     auto rom = std::make_shared<MemoryRomFS>(RomFS("eu", {{"m200.zrc", ClawZrc()}}));
@@ -839,6 +856,12 @@ TEST_CASE("Weapon models: the texture pack's replacement, found by the game's ow
     CHECK(r.replaced == 1);
     r = FrameWeapons::ConvertGame(rom, kTitle, dir, nullptr, &pack);
     CHECK(r.kept == 1);
+    // Nothing of the pack in the folder: the models hold the game's small textures only.
+    std::uintmax_t bytes = 0;
+    for (const auto& e : std::filesystem::directory_iterator(dir)) {
+        bytes += e.file_size();
+    }
+    CHECK(bytes < 8 * 1024);
     std::filesystem::remove(fmt::format("{}weapons/tex1_8x8_{:016X}_0_mip0.png", pack_dir, hash));
     write_png(100);
     std::filesystem::last_write_time(

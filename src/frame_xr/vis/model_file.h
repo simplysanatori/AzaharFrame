@@ -60,6 +60,9 @@ constexpr uint32_t kModelFlagAimSpace = 1;
 /// controllers'.
 constexpr uint32_t kModelFlagWeaponSpace = 2;
 constexpr uint32_t kModelFlagSpaceMask = 0xFF;
+/// AzaharFrame kiuguns: weapon space only: the surface image is one texel (a flat normal and one
+/// roughness for the whole model), not texWidth x texHeight.
+constexpr uint32_t kModelFlagFlatSurface = 1u << 16;
 constexpr uint32_t ModelWrapU(uint32_t flags) {
     return (flags >> 8) & 7u;
 }
@@ -85,7 +88,14 @@ struct ModelFile {
     std::vector<ModelComponent> components;
     uint32_t tex_width = 0, tex_height = 0;
     std::vector<uint8_t> colour;  ///< tex_width * tex_height * 4
-    std::vector<uint8_t> surface; ///< the same size
+    std::vector<uint8_t> surface; ///< the same size (one texel with kModelFlagFlatSurface)
+    /// AzaharFrame kiuguns: the surface image's size (texWidth x texHeight, or 1 x 1).
+    uint32_t SurfaceWidth() const {
+        return flags & kModelFlagFlatSurface ? 1 : tex_width;
+    }
+    uint32_t SurfaceHeight() const {
+        return flags & kModelFlagFlatSurface ? 1 : tex_height;
+    }
 };
 
 /// Reads and checks one hand's file. False with the reason in `error`. AzaharFrame kiuguns:

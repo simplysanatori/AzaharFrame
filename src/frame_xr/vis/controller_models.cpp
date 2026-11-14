@@ -374,6 +374,8 @@ struct ControllerModels::Gpu {
         std::vector<vk::ImageView> views;
         std::vector<vk::DescriptorSet> sets;
         uint32_t triangles = 0;
+        uint64_t gpu_bytes = 0; ///< buffers and images (the mip chains' too)
+        int pack_textures = 0;
     };
     std::unique_ptr<Weapon> weapon_live, weapon_uploading;
     std::vector<std::unique_ptr<Weapon>> weapon_retired;
@@ -413,6 +415,7 @@ struct ControllerModels::WeaponLoad { // AzaharFrame kiuguns
     std::string error;
     FrameWeapons::Weapon info;
     std::vector<ModelFile> files;
+    int pack_textures = 0; ///< colour images taken from the texture pack
 };
 
 ControllerModels::ControllerModels() = default;
@@ -1288,9 +1291,12 @@ void ControllerModels::UpdateWeapon(int id) {
             g.weapon_retired.push_back(std::move(g.weapon_live));
         }
         g.weapon_live = std::move(g.weapon_uploading);
-        LOG_INFO(Frontend, "xr: weapon in hand: {} (a {}), {} parts, {} triangles, on the GPU",
+        LOG_INFO(Frontend,
+                 "xr: weapon in hand: {} (a {}), {} parts, {} triangles, {} KB on the GPU{}",
                  g.weapon_live->id, FrameWeapons::ClassName(g.weapon_live->info.cls),
-                 g.weapon_live->parts.size(), g.weapon_live->triangles);
+                 g.weapon_live->parts.size(), g.weapon_live->triangles,
+                 g.weapon_live->gpu_bytes >> 10,
+                 g.weapon_live->pack_textures ? " (textures from the texture pack)" : "");
     }
     // A read done: to the GPU (or noted as failed, not tried again until the files change).
     if (weapon_load_state == 2) {
@@ -1316,16 +1322,25 @@ void ControllerModels::UpdateWeapon(int id) {
         weapon_load.reset();
         weapon_load_state = 0;
     }
-    // A read to start: a weapon wanted that is not the one there, its files made.
+    // A read to start: a weapon wanted that is not the one there, once its files are made (only
+    // the weapons asked for are: core/frame_weapon_models.h Request(id)).
     if (id < 0 || weapon_load_state != 0 || g.weapon_uploading ||
-        FrameWeapons::CurrentState() != FrameWeapons::State::Ready) {
+        (g.weapon_live && g.weapon_live->id == id) || id == g.weapon_failed_id) {
+        return;
+    }
+    const FrameWeapons::State made = FrameWeapons::WeaponState(id);
+    if (made == FrameWeapons::State::None || made == FrameWeapons::State::Working) {
+        FrameWeapons::Request(id);
+        return;
+    }
+    if (made == FrameWeapons::State::Failed) {
+        g.weapon_failed_id = id;
+        LOG_WARNING(Frontend, "xr: weapon in hand: {}: its model could not be made (the "
+                              "controller is drawn)",
+                    id);
         return;
     }
     const uint32_t generation = FrameWeapons::Generation();
-    if ((g.weapon_live && g.weapon_live->id == id && g.weapon_live->generation == generation) ||
-        (id == g.weapon_failed_id && generation == g.weapon_failed_generation)) {
-        return;
-    }
     if (weapon_loader.joinable()) {
         weapon_loader.join();
     }
@@ -1338,7 +1353,7 @@ void ControllerModels::UpdateWeapon(int id) {
         WeaponLoad& l = *weapon_load;
         FrameWeapons::Manifest manifest;
         std::string error;
-        if (!FrameWeapons::ReadManifest(dir + "weapons.json", manifest, error)) {
+        if (!FrameWeapons::ReadManifest(dir + "weapons.txt", manifest, error)) {
             l.error = error;
         } else if (const FrameWeapons::Weapon* w = manifest.Find(l.id)) {
             l.info = *w;
@@ -1348,6 +1363,17 @@ void ControllerModels::UpdateWeapon(int id) {
                 if (!LoadModelFile(dir + part.file, file, why, kModelFlagWeaponSpace)) {
                     l.error = part.file + ": " + why;
                     break;
+                }
+                // A texture pack's replacement, read from the pack itself (never copied).
+                if (!part.replaced.empty() && (file.flags & kModelFlagFlatSurface)) {
+                    std::vector<u8> rgba;
+                    u32 w = 0, h = 0;
+                    if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w, h)) {
+                        file.colour = std::move(rgba);
+                        file.tex_width = w;
+                        file.tex_height = h;
+                        l.pack_textures++;
+                    }
                 }
                 l.files.push_back(std::move(file));
             }
@@ -1366,6 +1392,7 @@ void ControllerModels::UploadWeapon() {
     w->id = l.id;
     w->generation = l.generation;
     w->info = l.info;
+    w->pack_textures = l.pack_textures;
     vk::DeviceSize total = 0;
     for (const ModelFile& m : l.files) {
         total += m.vertices.size() * 4 + m.indices.size() * 4 + m.colour.size() + m.surface.size();
@@ -1410,8 +1437,8 @@ void ControllerModels::UploadWeapon() {
             g.UploadImage(u, put(m.colour.data(), m.colour.size()), m.tex_width, m.tex_height,
                           vk::Format::eR8G8B8A8Srgb, &w->images, &w->views);
         const vk::ImageView surface =
-            g.UploadImage(u, put(m.surface.data(), m.surface.size()), m.tex_width, m.tex_height,
-                          vk::Format::eR8G8B8A8Unorm, &w->images, &w->views);
+            g.UploadImage(u, put(m.surface.data(), m.surface.size()), m.SurfaceWidth(),
+                          m.SurfaceHeight(), vk::Format::eR8G8B8A8Unorm, &w->images, &w->views);
         // The texture's own wrap modes (77 of the 108 weapons repeat their UVs).
         const uint32_t key = ModelWrapU(m.flags) | ModelWrapV(m.flags) << 4;
         vk::Sampler& sampler = g.weapon_samplers[key];
@@ -1459,6 +1486,8 @@ void ControllerModels::UploadWeapon() {
         part.components = m.components;
         part.glow = i < l.info.parts.size() && l.info.parts[i].glow;
         w->triangles += static_cast<uint32_t>(m.indices.size() / 3);
+        w->gpu_bytes += m.vertices.size() * 4 + m.indices.size() * 4 +
+                        (m.colour.size() + m.surface.size()) * 4 / 3; // with the mips
         w->parts.push_back(std::move(part));
     }
     const vk::MemoryBarrier to_draws{

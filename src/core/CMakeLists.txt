@@ -679,3 +679,8 @@ endif()
 if (CITRA_USE_PRECOMPILED_HEADERS)
     target_precompile_headers(citra_core PRIVATE precompiled_headers.h)
 endif()
+
+# AzaharFrame kiuguns: the weapon models' reader and converter run once per weapon, off the
+# emulation and XR threads: built for size, not speed.
+set_source_files_properties(frame_cgfx.cpp frame_weapon_models.cpp PROPERTIES COMPILE_OPTIONS "-Os"
+                            SKIP_PRECOMPILE_HEADERS ON)
