@@ -655,6 +655,9 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_immersive_scale_y);
     as_global(Settings::values.vr_immersive_mode);
     as_global(Settings::values.vr_immersive_positional_game_scaler);
+    as_global(Settings::values.vr_immersive_world_scale); // AzaharFrame natural
+    as_global(Settings::values.vr_immersive_follow_screen);
+    as_global(Settings::values.vr_immersive_depth);
     as_global(Settings::values.vr_si_mode_register_offset);
     as_global(Settings::values.vr_immersive_eye_indicator);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_hide_bottom_screen,
