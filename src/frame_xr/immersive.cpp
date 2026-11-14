@@ -416,6 +416,9 @@ struct State {
     /// (eased); the Full modes' screen distance from World Scale (eased, at most a factor 4 a
     /// second); the leaning made from both; mode 3's own stereo.
     L::NaturalSlider natural;
+    /// AzaharFrame overshoot: the game's far scenery per slider unit as mode 2's limit uses it
+    /// (held at its highest, with a margin from its own noise).
+    L::FarMeasureHold far_hold;
     L::EyePerFarInUse eye_k;
     L::RatioRamp full_distance{1.3862944f}; // ln 4
     float full_distance_target = -1.0f; ///< where full_distance is going (m)
@@ -445,6 +448,16 @@ struct State {
     bool far_said_diverges = false;
     float far_min_deg = 0.0f, far_max_deg = 0.0f;
     int far_secs = 0;
+    /// AzaharFrame overshoot: mode 2's slider over the same seconds: how often it moved and its
+    /// range (the line says so: hunting shows).
+    int slider_moves = 0;
+    float slider_sent = -1.0f, slider_min = 0.0f, slider_max = 0.0f;
+    /// And the far scenery of the frames on view (the game's last frames, FarPerSlider::Drawn, on
+    /// the screen as it is that XR frame), every XR frame: the worst, and how many were past
+    /// parallel. The line's own figure is the median of the game's last second on the screen as
+    /// it is now, which is a second behind while the screen moves.
+    float view_worst_deg = 1e9f;
+    int view_frames = 0, view_past = 0;
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
     L::LensOffset offset;
@@ -975,7 +988,20 @@ float FullScreenDistance(u32 mode) {
                              : L::FullDistance(WorldScaleSetting(), p.size,
                                                v.vr_immersive_follow_screen.GetValue());
     g.full_distance_target = target;
-    return g.full_distance.Update(target, VideoCore::Immersive::SteadyMs());
+    // AzaharFrame overshoot: in mode 2 the screen goes no farther than the game's far scenery as
+    // drawn now allows (with the margin in use): it waits for the game to draw with the lower
+    // slider sent for where it is going (UpdateNatural), so not even the frames of the game's
+    // lag go past parallel.
+    float ceiling = std::numeric_limits<float>::infinity();
+    if (mode == 2) {
+        const float drawn =
+            VideoCore::Immersive::g_stereo_far_drawn.load(std::memory_order_relaxed);
+        if (drawn > 0.0f) {
+            ceiling =
+                L::ParallelDistance(g.solved, g.half_ipd, drawn * (1.0f + g.far_hold.Margin()));
+        }
+    }
+    return g.full_distance.Update(target, VideoCore::Immersive::SteadyMs(), ceiling);
 }
 
 // AzaharFrame natural: the leaning scale in game units per metre: the game's K (measured, saved
@@ -1016,6 +1042,10 @@ void UpdateNatural(u32 mode) {
             Settings::frame_vr_natural_slider.store(-1.0f, std::memory_order_relaxed);
         }
         g.natural.Reset();
+        g.far_hold.Reset();
+        g.slider_sent = -1.0f;
+        g.slider_moves = g.view_frames = g.view_past = 0;
+        g.view_worst_deg = 1e9f;
         g.quad_half = L::kQuadsOnEyes;
         g.natural_logged_limit = -1.0f;
         g.natural_logged_depth = 1000;
@@ -1027,18 +1057,46 @@ void UpdateNatural(u32 mode) {
     const float leaning = NaturalLeaningNow();
     g.leaning = leaning;
     const int source = static_cast<int>(g.eye_k.From());
-    const float per = VideoCore::Immersive::g_stereo_far_per_slider.load(std::memory_order_relaxed);
     if (mode == 2) {
         if (g.engaged) {
+            // AzaharFrame overshoot: the game's far scenery per slider unit as measured lately,
+            // held at its highest with a margin from its own noise (L::FarMeasureHold): the far
+            // scenery exactly at parallel with no fixed margin, and no hunting with the scene.
+            const int64_t now = VideoCore::Immersive::SteadyMs();
+            const float per = g.far_hold.Update(
+                VideoCore::Immersive::g_stereo_far_per_slider_recent.load(
+                    std::memory_order_relaxed),
+                VideoCore::Immersive::g_stereo_far_taken.load(std::memory_order_relaxed), now);
             // The screen moving farther (World Scale eased up) makes the far scenery wider
             // apart on it before the game draws with a lower slider: the limit at the distance
             // it is going to as well, so it never goes past parallel on the way.
             L::HeadLocked going = g.solved;
             going.distance = std::max(g.solved.distance, g.full_distance_target);
-            const float limit = std::min(L::StereoSliderLimit(g.solved, g.half_ipd, per),
-                                         L::StereoSliderLimit(going, g.half_ipd, per));
-            const float sent = g.natural.Update(f, limit, VideoCore::Immersive::SteadyMs());
+            const float limit =
+                std::min(L::StereoSliderLimit(g.solved, g.half_ipd, per, L::kNaturalMarginDeg),
+                         L::StereoSliderLimit(going, g.half_ipd, per, L::kNaturalMarginDeg));
+            // While the far scenery on view is at parallel already (the game ahead of its
+            // measure, which waits while the slider moves) the slider goes no higher.
+            const float drawn =
+                VideoCore::Immersive::g_stereo_far_drawn.load(std::memory_order_relaxed);
+            const float view_deg =
+                drawn > 0.0f ? L::StereoFarOnQuad(g.solved, 2, g.half_ipd, drawn).vergence_deg
+                             : 1e9f;
+            const bool no_higher = view_deg <= 0.0f;
+            if (drawn > 0.0f) {
+                g.view_worst_deg = std::min(g.view_worst_deg, view_deg);
+                ++g.view_frames;
+                g.view_past += view_deg < -0.01f ? 1 : 0;
+            }
+            const float sent = g.natural.Update(f, limit, now, no_higher);
             Settings::frame_vr_natural_slider.store(sent, std::memory_order_relaxed);
+            if (sent != g.slider_sent) {
+                const bool first = g.slider_sent < 0.0f;
+                g.slider_moves += first ? 0 : 1;
+                g.slider_min = first ? sent : std::min(g.slider_min, sent);
+                g.slider_max = first ? sent : std::max(g.slider_max, sent);
+                g.slider_sent = sent;
+            }
         }
         g.quad_half = L::kQuadsOnEyes;
     } else {
@@ -1078,17 +1136,19 @@ void UpdateNatural(u32 mode) {
         if (mode == 2) {
             LOG_INFO(Frontend,
                      "xr: natural 3D: 3D Depth {} % = the game's 3D at {} (natural {} for the "
-                     "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm{}); "
-                     "{}: the head moves the camera {:.1f} game units per metre, {}",
+                     "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} mm{}; "
+                     "the game's far scenery taken at its highest of late and {:.1f} % over, "
+                     "for its own noise); {}: the head moves the camera {:.1f} game units per "
+                     "metre, {}",
                      depth,
-                     limit >= 0.0f ? fmt::format("{:.2f} %", 100.0f * std::min(f * limit, 1.0f))
-                                   : fmt::format("{:.2f} % (probing)",
-                                                 100.0f * f * L::NaturalSlider::kProbe),
+                     limit >= 0.0f
+                         ? fmt::format("{:.2f} %", 100.0f * std::min(f * limit, 1.0f))
+                         : fmt::format("{:.2f} % (probing)", 100.0f * f * L::NaturalSlider::kProbe),
                      limit >= 0.0f ? fmt::format("{:.2f} %", 100.0f * limit)
                                    : std::string("not measured yet"),
                      screen_deg, g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
                      g.natural.Clamped() ? "; above the 3DS's full 3D, so 100 % of it" : "",
-                     world_text, leaning, kSource[source]);
+                     100.0f * g.far_hold.Margin(), world_text, leaning, kSource[source]);
         } else {
             LOG_INFO(Frontend,
                      "xr: natural 3D: 3D Depth {} %, mode 3's eyes {:.4f} game units apart "
@@ -1123,11 +1183,19 @@ void OnFrame(const FrameInfo& info) {
         if (g_title_id.load() != g.title_id) {
             VideoCore::Immersive::g_stereo_generation.fetch_add(1, std::memory_order_relaxed);
             VideoCore::Immersive::g_stereo_far_per_slider.store(-1.0f, std::memory_order_relaxed);
+            // AzaharFrame overshoot: and its recent measure and the far scenery as drawn.
+            VideoCore::Immersive::g_stereo_far_per_slider_recent.store(-1.0f,
+                                                                       std::memory_order_relaxed);
+            VideoCore::Immersive::g_stereo_far_drawn.store(-1.0f, std::memory_order_relaxed);
             StopStereoCap();
             // AzaharFrame natural: the game's eyes are measured afresh, the slider and leaning too.
             VideoCore::Immersive::g_stereo_eye_per_far.store(-1.0f, std::memory_order_relaxed);
             VideoCore::Immersive::g_stereo_eye_samples.store(0, std::memory_order_relaxed);
             g.natural.Reset();
+            g.far_hold.Reset();
+            g.slider_sent = -1.0f;
+            g.slider_moves = g.view_frames = g.view_past = 0;
+            g.view_worst_deg = 1e9f;
             g.eye_k.Reset();
             g.full_distance.Reset();
             g.full_distance_target = -1.0f;
@@ -1562,34 +1630,59 @@ void OnFrame(const FrameInfo& info) {
                 g.far_min_deg = std::min(g.far_min_deg, st.far_deg);
                 g.far_max_deg = std::max(g.far_max_deg, st.far_deg);
                 ++g.far_secs;
+                // AzaharFrame overshoot: in mode 2 doubling is the frames on view's (every XR
+                // frame since the line was last said), not the median's: that is the game's last
+                // second on the screen as it is now, a second behind while the screen moves.
+                const bool by_view = mode == 2 && g.view_frames > 0;
+                const float diverge_deg = by_view ? -g.view_worst_deg : -st.vergence_deg;
+                const bool diverges = by_view ? diverge_deg > L::kDivergeToleranceDeg : st.diverges;
                 using Common::FrameLog::Moved;
                 const bool changed = Moved(g.far_said_deg, st.far_deg, 0.0f, 0.1f) ||
                                      Moved(g.far_said_allow, st.allow_deg, 0.0f, 0.05f) ||
-                                     st.diverges != g.far_said_diverges;
+                                     diverges != g.far_said_diverges;
                 const auto say = g.far_gate.Update(g.view.time / 1'000'000, changed);
                 if (say != Common::FrameLog::ChangeGate::Say::Nothing) {
+                    // AzaharFrame overshoot: mode 2's slider and the frames on view since.
+                    std::string slider_text;
+                    if (mode == 2 && g.slider_sent >= 0.0f) {
+                        slider_text = fmt::format("; the slider sent moved {} times, {:.2f} to "
+                                                  "{:.2f} %",
+                                                  g.slider_moves, 100.0f * g.slider_min,
+                                                  100.0f * g.slider_max);
+                        if (g.view_frames > 0) {
+                            slider_text +=
+                                fmt::format("; the frames on view: the eyes at worst "
+                                            "{:.2f} degrees inwards, {} of {} past "
+                                            "parallel",
+                                            g.view_worst_deg, g.view_past, g.view_frames);
+                        }
+                    }
                     LOG_INFO(Frontend,
                              "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
                              "scenery {:.2f} % of its picture's width apart, {:.3f} m on the "
                              "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} "
                              "mm; the eyes {:.2f} degrees inwards; the game's 3D x {:.2f} would "
-                             "be parallel) ({:.2f} to {:.2f} deg over {} s, {})",
+                             "be parallel) ({:.2f} to {:.2f} deg over {} s{}, {})",
                              st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
                              Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
                              g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
                              st.vergence_deg, st.natural_scale, g.far_min_deg, g.far_max_deg,
-                             g.far_secs, Common::FrameLog::Why(say));
+                             g.far_secs, slider_text, Common::FrameLog::Why(say));
+                    g.slider_moves = 0;
+                    g.view_worst_deg = 1e9f;
+                    g.view_frames = g.view_past = 0;
+                    g.slider_min = g.slider_max = g.slider_sent;
                     g.far_said_deg = st.far_deg;
                     g.far_said_allow = st.allow_deg;
-                    g.far_said_diverges = st.diverges;
+                    g.far_said_diverges = diverges;
                     g.far_secs = 0;
                 }
-                if (st.diverges) {
+                if (diverges) {
                     LOG_WARNING(Frontend,
                                 "xr: stereo: the far scenery needs the eyes to diverge {:.2f} "
                                 "degrees, which they cannot: it doubles (the game's 3D, 3D "
                                 "Depth {} %, is too deep for this screen)",
-                                -st.vergence_deg, Settings::values.factor_3d.GetValue());
+                                diverge_deg, Settings::values.factor_3d.GetValue());
                 }
             } else if (g.far_said_deg >= 0.0f) {
                 g.far_gate.Reset(); // AzaharFrame integ8: not seen; logged at once when it is again

@@ -452,6 +452,13 @@ inline std::atomic<float> g_stereo_far_width{-1.0f};
 /// AzaharFrame stereo: the game's far width per slider unit (FarPerSlider), every swap; below 0
 /// until measured. The XR thread's stereo cap is made from it (frame_xr/immersive.cpp).
 inline std::atomic<float> g_stereo_far_per_slider{-1.0f};
+/// AzaharFrame overshoot: the same of only its last frames (FarPerSlider::Recent), the samples
+/// taken so far (Taken), and the far width as drawn in its last frames, whatever the slider
+/// (Drawn); every swap, below 0 until measured. The XR thread holds the first
+/// (frame_xr/immersive_layout.h FarMeasureHold) and keeps the screen and slider within the last.
+inline std::atomic<float> g_stereo_far_per_slider_recent{-1.0f};
+inline std::atomic<u32> g_stereo_far_taken{0};
+inline std::atomic<float> g_stereo_far_drawn{-1.0f};
 /// AzaharFrame dbl: the game's zero-parallax plane (ZeroParallaxMeasure), every swap: NDC per
 /// unit of eye distance there, and its distance in the game's units; below 0 until measured.
 /// The XR thread bounds mode 3's eye distance with it (frame_xr/immersive.cpp).
@@ -578,6 +585,10 @@ public:
             const float slider = Settings::frame_vr_slider_shown.load(std::memory_order_relaxed);
             far_per_slider_.Swap(st.eyes, st.far_ndc / 2.0f, slider);
             g_stereo_far_per_slider.store(far_per_slider_.Value(), std::memory_order_relaxed);
+            g_stereo_far_per_slider_recent.store(far_per_slider_.Recent(),
+                                                 std::memory_order_relaxed);
+            g_stereo_far_taken.store(far_per_slider_.Taken(), std::memory_order_relaxed);
+            g_stereo_far_drawn.store(far_per_slider_.Drawn(), std::memory_order_relaxed);
             // AzaharFrame dbl: where the game's own two eyes agree.
             zero_.Swap(st);
             g_stereo_near_per_unit.store(zero_.PerUnit(), std::memory_order_relaxed);
