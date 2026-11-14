@@ -221,6 +221,10 @@ bool Runtime::CreateXrInstance(bool renew) {
     LOG_INFO(Frontend, "xr: runtime {} {}.{}.{}, extensions:{}", props.runtimeName,
              XR_VERSION_MAJOR(props.runtimeVersion), XR_VERSION_MINOR(props.runtimeVersion),
              XR_VERSION_PATCH(props.runtimeVersion), list);
+    runtime_name = fmt::format("{} {}.{}.{}", props.runtimeName,
+                               XR_VERSION_MAJOR(props.runtimeVersion),
+                               XR_VERSION_MINOR(props.runtimeVersion),
+                               XR_VERSION_PATCH(props.runtimeVersion)); // AzaharFrame imglag
 
     XrSystemGetInfo sgi{XR_TYPE_SYSTEM_GET_INFO};
     sgi.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -420,6 +424,8 @@ bool Runtime::CreateSession() {
         ui->Create(*this);
     }
     hud.Create(*this); // AzaharFrame vrqol
+    sent_serial = 0;                  // AzaharFrame imglag: nothing in the compositor yet
+    UpdateImageLag("session started"); // AzaharFrame imglag
     has_session = true;
     Settings::frame_flat_mono = false; // stereo again for the headset
     return true;
@@ -682,6 +688,25 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
     shown_content = content;
     shown_pictures[shown_next] = {serial, content}; // AzaharFrame heldquad
     shown_next = (shown_next + 1) % shown_pictures.size();
+}
+
+// AzaharFrame imglag: the image lag from the internal setting (vr_xr_image_lag, config.ini [VR],
+// default 1: SteamVR shows an image one refresh after the pose sent with it) and the live switch
+// AZAHARFRAME_XR_IMAGE_LAG=0|1 (for re-testing after a SteamVR update). Logged with the runtime
+// at each session's start and when it changes.
+void Runtime::UpdateImageLag(const char* why) {
+    const uint32_t setting = Settings::values.vr_xr_image_lag.GetValue();
+    const std::optional<uint32_t> over =
+        ImageLag::OverrideFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_IMAGE_LAG"));
+    const uint32_t lag = ImageLag::InEffect(setting, over);
+    image_lag = lag;
+    LOG_INFO(Frontend,
+             "xr: image lag {} refresh ({}; setting vr_xr_image_lag {}{}), runtime {}: the "
+             "anchored screen is placed for the picture {}",
+             lag, why, setting,
+             over ? fmt::format(", AZAHARFRAME_XR_IMAGE_LAG={} wins", *over) : std::string{},
+             runtime_name.empty() ? std::string{"unknown"} : runtime_name,
+             lag ? "the last xrEndFrame carried" : "each xrEndFrame carries");
 }
 
 bool Runtime::PackedTop() const {

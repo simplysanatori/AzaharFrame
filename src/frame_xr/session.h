@@ -224,9 +224,19 @@ public:
     VideoCore::XrContentPose shown_content{};
     /// AzaharFrame heldquad: the last pictures released, with their release serial (the
     /// chains' frame_serial), newest at shown_next - 1; guarded by content_mutex
-    /// (ShownPictures, AZAHARFRAME_IMMERSIVE_ANCHOR_LAG).
+    /// (ShownPictures, PictureOnView).
     std::array<ShownPicture, kShownPictures> shown_pictures{};
     std::size_t shown_next = 0;
+    /// AzaharFrame imglag: the release serial the last xrEndFrame carried in its top screen
+    /// layer, 0: none (written by the XR thread after each xrEndFrame; image_lag.h).
+    std::atomic<uint64_t> sent_serial{0};
+    /// AzaharFrame imglag: the runtime's image lag in effect, 0 or 1 refresh (ImageLag::InEffect
+    /// of the setting vr_xr_image_lag and the live switch AZAHARFRAME_XR_IMAGE_LAG).
+    std::atomic<uint32_t> image_lag{ImageLag::kDefaultLag};
+    std::string runtime_name; ///< AzaharFrame imglag: "SteamVR/OpenXR 2.19.3", for the log
+    /// AzaharFrame imglag: the image lag from the setting and the switch, logged when it changes
+    /// (with the runtime's name and version, as the lag is the runtime's).
+    void UpdateImageLag(const char* why);
     /// AzaharFrame pacing: the parity gate and the release phase (pacing.h).
     Pacing pacing;
 

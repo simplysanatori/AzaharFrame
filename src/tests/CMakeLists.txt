@@ -65,6 +65,7 @@ add_executable(tests
     frame_xr/toast_fit.cpp # AzaharFrame menuux
     frame_xr/toast_depth.cpp # AzaharFrame kiu2
     frame_xr/test_switches.cpp # AzaharFrame integ9
+    frame_xr/image_lag.cpp # AzaharFrame imglag
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp
