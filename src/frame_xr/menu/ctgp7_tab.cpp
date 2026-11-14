@@ -152,8 +152,9 @@ void TabMenu::DrawCtgp7(Kit& kit, const MenuModel& model, const MenuView& view, 
                               : id == Id::Ctgp7Launch ? Sym::kPlayArrow
                                                       : char32_t{0};
         const float w = ButtonWidth(kit, label, icon != 0, text ? 12.0f : 24.0f);
-        // a text button's own 12 dp padding lines its label up with the edge (or the next button)
-        const float edge = text ? right + 12.0f : right;
+        // a text button's own 12 dp padding lines its label up with the pane's edge; next to
+        // another button its container keeps the 8 dp gap
+        const float edge = text && right == c.x1 ? right + 12.0f : right;
         const Rect b{edge - w, cy - kButtonH * 0.5f, edge, cy + kButtonH * 0.5f};
         kit.Button(b, text ? ButtonStyle::Text : ButtonStyle::Filled, icon, label, StateOf(view, {id}));
         AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {id}, area);
