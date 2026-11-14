@@ -446,7 +446,10 @@ public:
         return save_state_status;
     }
 
+    /// Serializes, compresses and writes the state to `slot`, all on the calling thread.
     void SaveState(u32 slot) const;
+    /// AzaharFrame savemem: the file of `slot` for the running game (and movie).
+    std::string SaveStatePath(u32 slot) const;
 
     /// AzaharFrame savestate: `allow_mismatch` (Load Anyway) skips only the build check. A failure
     /// reading the archive into the system throws SaveStateHalfLoaded (savestate.h).
@@ -615,6 +618,19 @@ private:
     bool save_state_allow_mismatch = false; ///< AzaharFrame savestate: Signal::LoadAnyway
     // AzaharFrame autosave
     void MakeAutosave();
+    /// AzaharFrame savemem: a slot's save (Signal::Save): the emulation thread serializes, the
+    /// autosave writer compresses and writes it (as an autosave), so the game is held for the
+    /// serialization alone. A write that fails is reported by the next RunLoop
+    /// (TakeSlotWriteFailure) as ErrorSavestate, as a failed save was before. Throws as
+    /// SaveState when the system cannot be serialized.
+    void SaveStateInBackground(u32 slot);
+    /// AzaharFrame savemem: a background slot write failed since the last call: its reason (the
+    /// notice's) and details.
+    bool TakeSlotWriteFailure(SaveFailure& failure, std::string& details);
+    std::mutex slot_write_mutex;
+    bool slot_write_failed = false;          ///< under slot_write_mutex
+    SaveFailure slot_write_failure{};        ///< under slot_write_mutex
+    std::string slot_write_details;          ///< under slot_write_mutex
     std::unique_ptr<Autosave::Writer> autosave_writer;
     bool autosave_pending = false;
     u32 autosave_reason = 0;

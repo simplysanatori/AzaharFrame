@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <functional>
+#include <optional>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -38,6 +40,26 @@ namespace Common::Compression {
  * @return the compressed data.
  */
 [[nodiscard]] std::vector<u8> CompressDataZSTDDefault(std::span<const u8> source);
+
+/**
+ * AzaharFrame savemem: compresses `source` into one Zstandard frame as CompressDataZSTD does (the
+ * same level, the content size in the frame header, which DecompressDataZSTD needs), but hands
+ * the compressed bytes to `sink` piece by piece (ZSTD_CStreamOutSize(), about 128 KiB) as they
+ * come. No buffer of ZSTD_compressBound(source) (about the source's size, zero-filled, so all of
+ * it in memory) is held, nor a copy of the result: a save state's 300 MB system needs a few MB
+ * here instead of 300 MB more.
+ *
+ * @param sink receives each piece in order; returning false stops the compression.
+ *
+ * @return the compressed size, or nullopt on a failure (or when `sink` stopped it).
+ */
+[[nodiscard]] std::optional<std::size_t> CompressDataZSTDTo(
+    std::span<const u8> source, s32 compression_level,
+    const std::function<bool(std::span<const u8>)>& sink);
+
+/// AzaharFrame savemem: CompressDataZSTDTo at the default level (CompressDataZSTDDefault's).
+[[nodiscard]] std::optional<std::size_t> CompressDataZSTDDefaultTo(
+    std::span<const u8> source, const std::function<bool(std::span<const u8>)>& sink);
 
 /**
  * Gets the decompressed size of the specified Zstandard compressed memory region.

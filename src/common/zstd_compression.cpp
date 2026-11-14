@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <zstd.h>
@@ -50,6 +51,57 @@ std::vector<u8> CompressDataZSTD(std::span<const u8> source, s32 compression_lev
 
 std::vector<u8> CompressDataZSTDDefault(std::span<const u8> source) {
     return CompressDataZSTD(source, ZSTD_CLEVEL_DEFAULT);
+}
+
+std::optional<std::size_t> CompressDataZSTDTo(std::span<const u8> source, s32 compression_level,
+                                              const std::function<bool(std::span<const u8>)>& sink) {
+    compression_level = std::clamp(compression_level, ZSTD_minCLevel(), ZSTD_maxCLevel());
+    const std::unique_ptr<ZSTD_CCtx, decltype(&ZSTD_freeCCtx)> cctx{ZSTD_createCCtx(),
+                                                                   &ZSTD_freeCCtx};
+    if (!cctx) {
+        LOG_ERROR(Common, "Error creating a ZSTD compression context");
+        return std::nullopt;
+    }
+    const auto check = [](std::size_t code, const char* what) {
+        if (ZSTD_isError(code)) {
+            LOG_ERROR(Common, "Error {} ZSTD stream: {} ({})", what, ZSTD_getErrorName(code),
+                      code);
+            return false;
+        }
+        return true;
+    };
+    // The same frame as ZSTD_compress: the level, and the source's size pledged so the parameters
+    // are chosen for it and the frame header carries the content size.
+    if (!check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_compressionLevel, compression_level),
+               "setting the level of a") ||
+        !check(ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1),
+               "setting the content size of a") ||
+        !check(ZSTD_CCtx_setPledgedSrcSize(cctx.get(), source.size()),
+               "pledging the size of a")) {
+        return std::nullopt;
+    }
+    std::vector<u8> out(ZSTD_CStreamOutSize());
+    ZSTD_inBuffer in{source.data(), source.size(), 0};
+    std::size_t total = 0;
+    for (;;) {
+        ZSTD_outBuffer piece{out.data(), out.size(), 0};
+        const std::size_t left = ZSTD_compressStream2(cctx.get(), &piece, &in, ZSTD_e_end);
+        if (!check(left, "compressing a")) {
+            return std::nullopt;
+        }
+        if (piece.pos > 0 && !sink(std::span<const u8>{out.data(), piece.pos})) {
+            return std::nullopt;
+        }
+        total += piece.pos;
+        if (left == 0) {
+            return total;
+        }
+    }
+}
+
+std::optional<std::size_t> CompressDataZSTDDefaultTo(
+    std::span<const u8> source, const std::function<bool(std::span<const u8>)>& sink) {
+    return CompressDataZSTDTo(source, ZSTD_CLEVEL_DEFAULT, sink);
 }
 
 std::size_t GetDecompressedSize(std::span<const u8> compressed) {

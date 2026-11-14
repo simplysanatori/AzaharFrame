@@ -8,10 +8,12 @@
 #include <functional>
 #include <span>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
 #include "common/common_types.h"
+#include "common/transient_memory.h"
 
 namespace Core {
 
@@ -113,6 +115,37 @@ std::array<u8, 256> CurrentStateHeader(u64 program_id, u64 time);
 /// Writes (replacing) a state file: header, then the compressed state. Throws on failure.
 /// AzaharFrame advfix: atomic (a temporary file renamed over it): a failure leaves the old file.
 void WriteStateFile(const std::string& path, std::span<const u8> header, std::span<const u8> body);
+/// AzaharFrame savemem: writes (replacing, atomically as WriteStateFile) a state file from the
+/// serialized system: the header, then `raw` compressed into it as it is written
+/// (Common::Compression::CompressDataZSTDTo, the same zstd frame), so no compressed copy of the
+/// state is held. Returns the file's size; throws on failure.
+std::size_t WriteStateFileFrom(const std::string& path, std::span<const u8> header,
+                               std::span<const u8> raw);
+/// AzaharFrame savemem: what System::SerializeState reserves: the last state's size and 32 MiB,
+/// at least all the guest memory a state can hold and 96 MiB (only address space until written).
+std::size_t ReserveForState(std::size_t last_size);
+/// AzaharFrame savemem: the stream buffer System::SerializeState writes the archive into: one
+/// string reserved up front (`reserve`, ReserveForState), appended to, never copied; what it holds
+/// counts as transient memory (common/transient_memory.h) as it grows.
+class StateWriteBuf : public std::streambuf {
+public:
+    explicit StateWriteBuf(std::size_t reserve);
+    std::string out;
+
+protected:
+    std::streamsize xsputn(const char* s, std::streamsize n) override;
+    int_type overflow(int_type c) override;
+
+private:
+    Common::TransientMemory::Hold hold;
+    std::size_t counted = 0;
+};
+/// AzaharFrame savemem: a read-only stream buffer over a decompressed state, so the archive reads
+/// it in place (an istringstream held a second copy of it).
+class StateReadBuf : public std::streambuf {
+public:
+    explicit StateReadBuf(std::span<u8> bytes);
+};
 /// What a header allows: a state of this game from this build (`revision_hex`), or with
 /// `allow_mismatch` from any build (the program id and the file type are always checked).
 enum class HeaderCheck { Ok, NotAState, OtherGame, OtherBuild };

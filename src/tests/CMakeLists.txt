@@ -96,6 +96,7 @@ add_executable(tests
     core/emerald_detect.cpp # AzaharFrame emhb
     core/homebrew_update_check.cpp # AzaharFrame ui3
     core/savestate_frame.cpp # AzaharFrame savestate
+    core/savestate_memory.cpp # AzaharFrame savemem
     core/autosave_frame.cpp # AzaharFrame autosave
     frame_xr/autosave_label.cpp # AzaharFrame autosave
     frame_xr/use_global.cpp # AzaharFrame useglobal

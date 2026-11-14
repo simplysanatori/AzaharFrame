@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -30,6 +31,7 @@
 #include <vector>
 
 #include "common/common_types.h"
+#include "common/transient_memory.h"
 
 namespace Core::Autosave {
 
@@ -122,7 +124,8 @@ struct Gates {
     bool loading_state = false; ///< a state is being saved or loaded
     bool shaders_busy = false;  ///< shaders are being prepared (the game stands for them)
     /// AzaharFrame memwarn: Azahar is almost at its memory limit (frame_xr/mem_watch.h Critical):
-    /// writing a save state needs about 0.9 GB more for a moment and could get it closed
+    /// writing a save state needs its serialized system (about 300 MB for a big game) more for a
+    /// moment and could get it closed
     bool memory_low = false;
 };
 
@@ -213,10 +216,13 @@ private:
 
 // ---- The worker -------------------------------------------------------------------------------
 
-/// Compresses and writes autosaves (and the undo file, and the pictures) one after another on a
-/// thread of its own.
+/// Compresses and writes autosaves (and the undo file, a slot's save, and the pictures) one after
+/// another on a thread of its own. AzaharFrame savemem: each state is compressed straight into its
+/// file as it is written (WriteStateFileFrom): only the serialized system is in memory, plus a few
+/// MB, never a compressed copy of it.
 class Writer {
 public:
+    struct Done;
     struct Job {
         std::string path;             ///< the .cst to write (atomically)
         std::array<u8, 256> header{}; ///< CurrentStateHeader
@@ -229,6 +235,14 @@ public:
         u64 movie_id = 0;
         u32 keep = 3;
         s64 serialize_ms = 0; ///< the emulation thread's part, for the log
+        /// AzaharFrame savemem: a slot's save (System::SaveStateInBackground), not an autosave:
+        /// `slot` for the log; `then` is told how it went, on the writer's thread.
+        bool slot_save = false;
+        u32 slot = 0;
+        std::function<void(const Done&)> then;
+        /// AzaharFrame savemem: `raw` counted as transient memory (common/transient_memory.h)
+        /// until the writer lets it go.
+        std::shared_ptr<Common::TransientMemory::Hold> hold;
     };
     struct Done {
         std::string path;
@@ -239,8 +253,10 @@ public:
         std::size_t raw_bytes = 0;
         std::size_t file_bytes = 0;
         s64 serialize_ms = 0;
-        s64 compress_ms = 0;
-        s64 write_ms = 0;
+        s64 compress_ms = 0; ///< AzaharFrame savemem: compressed as written: both, in one pass
+        s64 write_ms = 0;    ///< AzaharFrame savemem: the commit (fsync, rename)
+        bool slot_save = false; ///< AzaharFrame savemem: Job's
+        u32 slot = 0;
     };
 
     Writer() = default;
