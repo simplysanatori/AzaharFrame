@@ -180,6 +180,8 @@ struct ControllerModels::Files {
     std::array<ModelFile, 2> hand;
     std::vector<uint32_t> vert_spv_linear, frag_spv_linear, vert_spv, frag_spv;
     std::vector<uint32_t> occluder_vert_spv; ///< AzaharFrame ctrlfront (empty: no occluders)
+    /// AzaharFrame ctrlfront: each hand's model inside a sphere (aim space centre, radius).
+    std::array<ModelSphere, 2> sphere{};
 };
 
 struct ControllerModels::Gpu {
@@ -655,6 +657,10 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 LOG_WARNING(Frontend, "xr: controller models: the occluder shader did not compile; "
                                       "the controllers go over every screen");
             }
+            for (std::size_t h = 0; h < 2; h++) { // AzaharFrame ctrlfront
+                f.sphere[h] = ModelBoundingSphere(f.hand[h].vertices, kModelVertexFloats,
+                                                  kMovingPartsMargin);
+            }
             LOG_INFO(Frontend, "xr: controller models read ({} and {} triangles, textures {}x{})",
                      f.hand[0].indices.size() / 3, f.hand[1].indices.size() / 3,
                      f.hand[0].tex_width, f.hand[0].tex_height);
@@ -1105,7 +1111,12 @@ void ControllerModels::Setup(Runtime& rt) {
     // AzaharFrame ctrlfront: the screens and panels into the depth buffer, before the models
     // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer, no
     // fragment shader, no colour written.
-    if (!f.occluder_vert_spv.empty()) {
+    // AZAHARFRAME_CTRL_OCCLUDERS=0 (a test switch, read here once a session): no occluders, the
+    // controllers over every screen, for A/B timing of the pass.
+    const char* occ_env = std::getenv("AZAHARFRAME_CTRL_OCCLUDERS");
+    if (occ_env && occ_env[0] == '0') {
+        LOG_INFO(Frontend, "xr: controller models: occluders off (AZAHARFRAME_CTRL_OCCLUDERS=0)");
+    } else if (!f.occluder_vert_spv.empty()) {
         const vk::ShaderModule occ_vert = Vulkan::CompileSPV(f.occluder_vert_spv, g.device);
         if (occ_vert) {
             const vk::PipelineShaderStageCreateInfo occ_stage{
@@ -1606,10 +1617,14 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         if (!occluders.empty()) {
             std::array<ModelSphere, 2> spheres{};
             std::size_t n = 0;
-            for (const Hand& hand : hands) {
+            for (std::size_t h = 0; h < hands.size(); h++) {
+                const Hand& hand = hands[h];
                 if (hand.shown) {
-                    spheres[n++] = {hand.aim.position,
-                                    hand.weapon >= 0 ? kWeaponSphere : kControllerSphere};
+                    spheres[n++] =
+                        hand.weapon >= 0
+                            ? ModelSphere{hand.aim.position, kWeaponSphere}
+                            : ModelSphere{Input::Transform(hand.aim, f.sphere[h].centre),
+                                          f.sphere[h].radius};
                 }
             }
             const XrFovf& fov = views.fov[e];
