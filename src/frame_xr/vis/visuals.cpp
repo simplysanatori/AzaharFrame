@@ -314,6 +314,11 @@ struct Visuals::Impl {
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
     Vec3f laser_point{};
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
+    // AzaharFrame ctrlfront: the models as the eye quads (When in Front, Always), and what the
+    // next picture is drawn against.
+    std::array<Quad, 2> model_quads{};
+    bool model_quads_ready = false;
+    std::vector<Occluder> occluders;
     std::size_t max_layers = 16;
 
     void LoadSeen();
@@ -621,6 +626,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     m.top_beams.clear();
     m.top_dots.clear();
     m.models_layer = nullptr;
+    m.model_quads_ready = false; // AzaharFrame ctrlfront
     m.atlas.Poll();
     m.stats_chain.Poll();
 
@@ -1071,8 +1077,16 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
         }
     }
-    m.models.Frame(rt, view, hands);
+    // AzaharFrame ctrlfront: "Controllers Over Screens", read every frame (model_plane.h).
+    const ControllersOver over =
+        ControllersOverFrom(Settings::values.vr_controllers_over.GetValue());
+    m.models.Frame(rt, view, hands, over, m.occluders);
     m.models_layer = m.models.Layer();
+    m.model_quads_ready = m.models.EyeQuads(m.model_quads);
+}
+
+void Visuals::SetOccluders(std::vector<Occluder>&& occluders) {
+    impl->occluders = std::move(occluders);
 }
 
 void Visuals::SetWeapon(int hand, int id) {
@@ -1106,13 +1120,21 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
     room -= dots;
     const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
     room -= models ? 1 : 0;
+    // AzaharFrame ctrlfront: or the two eye quads, under the beams and dots.
+    const bool model_quads = m.model_quads_ready && room >= m.model_quads.size();
+    room -= model_quads ? m.model_quads.size() : 0;
     const std::size_t beams = std::min(room, m.top_beams.size());
-    if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models)) {
+    if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models) ||
+        (m.model_quads_ready && !model_quads)) {
         static int said = 0;
         if (said++ < 5) {
             LOG_WARNING(Frontend, "xr: vis: {} layers allowed, {} used: beams {}/{}, models {}",
-                        m.max_layers, used, beams, m.top_beams.size(), models ? "on" : "off");
+                        m.max_layers, used, beams, m.top_beams.size(),
+                        models || model_quads ? "on" : "off");
         }
+    }
+    if (model_quads) {
+        top.insert(top.end(), m.model_quads.begin(), m.model_quads.end());
     }
     top.insert(top.end(), m.top_beams.begin(), m.top_beams.begin() + beams);
     top.insert(top.end(), m.top_dots.begin(), m.top_dots.begin() + dots);

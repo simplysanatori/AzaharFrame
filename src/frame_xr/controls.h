@@ -84,6 +84,16 @@ public:
     std::size_t MaxLayers() const {
         return visuals.MaxLayers();
     }
+    /// AzaharFrame ctrlfront, app.cpp: whether a panel quad of this swapchain hides the part of
+    /// a controller behind it (vis/model_plane.h): not the in-game menu's dim quad, the pointer
+    /// dots or the mouse ring, which are see-through.
+    bool HidesControllers(XrSwapchain swapchain) const {
+        return swapchain != dim_chain.handle && swapchain != cursor_chain.handle &&
+               swapchain != ring_chain.handle;
+    }
+    void SetOccluders(std::vector<Vis::Occluder>&& occluders) {
+        visuals.SetOccluders(std::move(occluders));
+    }
 
     /// AzaharFrame screenswap, XR thread (app.cpp, while building the layers): where each 3DS
     /// screen goes for the screens immersive.cpp gives (Immersive::Screens), with the focus

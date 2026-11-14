@@ -515,6 +515,9 @@ void Runtime::FrameLoop() {
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
+    // AzaharFrame ctrlfront: the screens and panels under the models, for the next picture of
+    // them (vis/model_plane.h: When in Front).
+    std::vector<Vis::Occluder> occluders;
     // AzaharFrame dbl / integ9: AZAHARFRAME_XR_SINGLE_FLASH, live (test_switches.h).
     TestSwitches::SingleFlash single_flash;
     bool test_single_flash =
@@ -752,6 +755,27 @@ void Runtime::FrameLoop() {
         Watchdog::Beat("layers");
         quad_layers.clear();
         toast_screens.clear();
+        occluders.clear();
+        // AzaharFrame ctrlfront: a layer that hides the parts of a controller behind it (LOCAL
+        // space only: the one VIEW-space screen is the immersive one, which never does).
+        const auto add_occluder = [&](XrSpace space, const XrPosef& pose, XrExtent2Df size,
+                                      float curve, XrEyeVisibility eye) {
+            if (space != local_space) {
+                return;
+            }
+            const uint8_t eyes = eye == XR_EYE_VISIBILITY_LEFT    ? 1
+                                 : eye == XR_EYE_VISIBILITY_RIGHT ? 2
+                                                                  : 3;
+            occluders.push_back({{{pose.orientation.x, pose.orientation.y, pose.orientation.z,
+                                   pose.orientation.w},
+                                  {pose.position.x, pose.position.y, pose.position.z}},
+                                 size.width,
+                                 size.height,
+                                 curve,
+                                 eyes});
+        };
+        // The immersive top screen never does: what it shows is far away (or all round).
+        bool top_hides_controllers = true;
         // AzaharFrame doubling: the two eyes' top images of separate swapchains from different
         // game frames (a release of the set came between); never with set releases or packed.
         if (!packed_top && screens_live) {
@@ -857,10 +881,14 @@ void Runtime::FrameLoop() {
                 } else {
                     quad_layers.push_back(MakeQuad(space, q));
                 }
+                if (!top || top_hides_controllers) { // AzaharFrame ctrlfront
+                    add_occluder(space, pose, size, curve, eye);
+                }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
+            top_hides_controllers = draw.swapped || shown.top_pointable; // AzaharFrame ctrlfront
             label_top_ok = !draw.swapped && shown.show_top && shown.top_pointable &&
                            shown.top_space == local_space;
             label_top_pose = shown.top_pose[0];
@@ -952,12 +980,23 @@ void Runtime::FrameLoop() {
             }
             std::stable_sort(extra.begin(), extra.end(),
                              [](const Quad* a, const Quad* b) { return a->order < b->order; });
+            // AzaharFrame ctrlfront: every panel hides a controller behind it but the
+            // see-through ones (the dim quad, the pointer dots, the mouse ring). The toast, the
+            // hint chip, the Autosaved label and the shader badge below never do: small, brief,
+            // with clear margins round their art, and in front of everything anyway.
+            const auto panel_occluder = [&](const Quad& q) {
+                if (!ui || ui->HidesControllers(q.swapchain)) {
+                    add_occluder(local_space, q.pose, q.size, 0.0f, q.eye);
+                }
+            };
             for (const Quad* q : extra) {
                 quad_layers.push_back(MakeQuad(local_space, *q));
+                panel_occluder(*q);
             }
             // The picker and the pointer dot last (the dot on top of everything).
             for (const Quad& q : ui_quads) {
                 quad_layers.push_back(MakeQuad(local_space, q));
+                panel_occluder(q);
             }
             // AzaharFrame vrqol: a toast (Quick Saved ...) in front of everything.
             Quad toast;
@@ -997,6 +1036,9 @@ void Runtime::FrameLoop() {
         const XrCompositionLayerBaseHeader* models_layer = nullptr;
         const std::size_t models_at = quad_layers.size();
         top_quads.clear();
+        if (ui) {
+            ui->SetOccluders(std::move(occluders)); // AzaharFrame ctrlfront: for the next picture
+        }
         if (fs.shouldRender && ui) {
             models_layer = ui->TopLayers(top_quads, quad_layers.size() + (passthrough ? 1 : 0));
             for (const Quad& q : top_quads) {
