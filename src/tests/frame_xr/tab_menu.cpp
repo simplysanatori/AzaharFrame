@@ -82,7 +82,13 @@ TEST_CASE("Tab menu: every target is at least 48 dp", "[frame_xr][tabmenu]") {
             if (h.t.index == kLabelIndex || h.t.index == kMenuAreaIndex) {
                 continue;
             }
-            if ((v.tab == Tab::Position || v.tab == Tab::Settings) &&
+            if (h.t.id == Id::Scrollbar) { // AzaharFrame kiumenus: every list's bar, one standard
+                INFO("tab " << static_cast<int>(v.tab) << " scrollbar " << h.r.W() << " x " << h.r.H());
+                CHECK(h.r.W() >= Scrolling::kHitLeft + Scrolling::kHitRight); // the beam's strip
+                CHECK(h.r.H() >= 48.0f);
+                continue;
+            }
+            if ((v.tab == Tab::Position || v.tab == Tab::Settings || v.tab == Tab::Controls) &&
                 h.r.y1 >= kListBottom - 0.01f) {
                 continue; // cut by the scrolled list's edge: only the part on view is a target
             }
@@ -283,9 +289,14 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     // At Edge: only while the reticle is on.
     CHECK_FALSE(has(Id::ReticleAtEdge, 0));
     m.bottom_screen_reticle = 2;
+    // AzaharFrame kiumenus: the Controls page scrolls; At Edge is under the picture and the rows
+    // above it (the picture keeps its height), so one step down brings it into view
+    v.scroll[static_cast<int>(Tab::Controls)] = 1.0e4f;
     d.Draw(m, v);
     CHECK(has(Id::ReticleAtEdge, 0));
     CHECK(has(Id::ReticleAtEdge, 1));
+    v.scroll[static_cast<int>(Tab::Controls)] = 0.0f;
+    d.Draw(m, v);
     CHECK(has(Id::TouchpadTouch, 1));
     CHECK(has(Id::EditControls, -1));
     CHECK(OptionsFor(Id::ReticleAtEdge) == std::vector<std::string>{"Follow", "Snap to Middle"});
@@ -489,6 +500,16 @@ const MenuLayout::Hit* FindHit(const Drawn& d, Id id, int index) {
     }
     return nullptr;
 }
+
+// AzaharFrame kiumenus: the Controls page scrolls; draws it with the reticle's rows (`rows_up` dp
+// above Aiming) or with Aiming itself at the top of the list.
+void DrawControlsAt(Drawn& d, const MenuModel& m, MenuView& v, float rows_up) {
+    v.scroll[static_cast<int>(Tab::Controls)] = 0.0f;
+    d.Draw(m, v);
+    v.scroll[static_cast<int>(Tab::Controls)] = std::max(0.0f, d.menu.Layout().aiming_scroll - rows_up);
+    d.Draw(m, v);
+}
+constexpr float kReticleRowsUp = 330.0f; ///< Touchpad's row down to At Edge's pair, above Aiming
 
 /// Every target of the segment is at least 48 dp and inside the panel.
 // AzaharFrame useglobal; reticle: the views with per-game rows, and a model where the game has
@@ -2908,9 +2929,13 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(PerGameSetting(id));
     }
     // AzaharFrame kiugyro: C-Stick at Edge shelved: not a row.
-    CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
-                                                 Id::ReticleSpeed, Id::ReticleAtEdge,
-                                                 Id::ReticleCenter, Id::ReticleStick});
+    // AzaharFrame kiufix: and Aiming's rows (moved here from Settings, General)
+    CHECK(ControlsScopeRows() ==
+          std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
+                          Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
+                          Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
+                          Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::LaserSight,
+                          Id::TurnZone, Id::TurnSpeed});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3031,7 +3056,7 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
     for (const int source : {1, 2, 3}) {
         m.bottom_screen_reticle = source;
         m.reticle_speed = 20;
-        d.Draw(m, v);
+        DrawControlsAt(d, m, v, kReticleRowsUp);
         const MenuLayout::Hit* speed = FindHit(d, Id::ReticleSpeed, -1);
         REQUIRE(speed != nullptr);
         const MenuLayout::Hit* reticle = FindHit(d, Id::BottomScreenReticle, 0);
@@ -3097,7 +3122,7 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     Drawn d;
     MenuModel m = Sample();
     MenuView v;
-    v.tab = Tab::Settings;
+    v.tab = Tab::Controls; // AzaharFrame kiumenus: Aiming is on the Controls page now
     const auto shown = [&d](Id id) {
         for (const auto& h : d.menu.Hits()) {
             if (h.t.id == id) {
@@ -3109,9 +3134,16 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     for (const int stored : {0, 1, 2}) {
         INFO("stored " << stored);
         m.gyro_aim = stored;
-        d.Draw(m, v);
+        DrawControlsAt(d, m, v, 0.0f); // Aiming at the top of the list
         CHECK(shown(Id::GyroAim));
         CHECK(shown(Id::Recoil) == (stored != 0));
+        // Gyro Sensitivity is right under Aiming
+        const MenuLayout::Hit* aim = FindHit(d, Id::GyroAim, 0);
+        const MenuLayout::Hit* sens = FindHit(d, Id::GyroSensitivity, -1);
+        REQUIRE(aim != nullptr);
+        REQUIRE(sens != nullptr);
+        CHECK(sens->r.y0 >= aim->r.y1 - 0.01f);
+        CHECK(sens->r.y0 - aim->r.y1 < 24.0f);
     }
 }
 
@@ -3137,7 +3169,7 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
         m.reticle_center = source == 2;
         m.reticle_stick = source == 3;
         m.reticle_edge_cstick = true; // stored on (the earlier preset's): still no row
-        d.Draw(m, v);
+        DrawControlsAt(d, m, v, kReticleRowsUp);
         const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
         const MenuLayout::Hit* center = FindHit(d, Id::ReticleCenter, -1);
         const MenuLayout::Hit* stick = FindHit(d, Id::ReticleStick, -1);

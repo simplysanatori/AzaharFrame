@@ -912,40 +912,81 @@ int main(int argc, char** argv) {
         ok &= shot("5n-settings-motion-controls-global-locked", mo, mv);
     }
     {
-        // AzaharFrame kiugyro: Aiming: Direct Aim (stored 2; Kid Icarus: Uprising's preset with
-        // the C-Stick & Gyro mod) shows Turn Zone and Turn Speed under Gyro Sensitivity; then
-        // Gyro Aim (stored 1), with Aiming's tooltip.
+        // AzaharFrame kiumenus: Aiming lives on the Controls page now (it scrolls): Kid Icarus:
+        // Uprising, Direct Aim with the C-Stick & Gyro mod. The page at the top, scrolled to
+        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Calibrate Aim).
         MenuModel go = pg;
+        go.game_title = "Kid Icarus: Uprising";
         go.motion_controls = 1;
         go.gyro_aim = 2;
         go.gyro_sensitivity = 10;
         go.turn_zone = 10;
         go.turn_speed = 10;
+        go.weapon_in_hand = true;
+        go.recoil = true;
+        go.aim_calibration_ok = true;
         go.game_value[static_cast<std::size_t>(Id::GyroAim)] = true;
         go.game_value[static_cast<std::size_t>(Id::MotionControls)] = true;
-        MenuView gv = settings(SettingsSection::General);
-        gv.hover = {Id::TurnZone};
-        ok &= shot("5g-settings-aiming-direct-aim", go, gv);
-        go.gyro_aim = 1;
-        go.gyro_sensitivity = 15;
-        gv.hover = {Id::GyroAim, kLabelIndex};
-        gv.tooltip = Id::GyroAim;
-        ok &= shot("5h-settings-aiming-gyro-aim-tooltip", go, gv);
-        // AzaharFrame kiuguns: Direct Aim with Recoil off, Weapon in Hand on and Laser Sight on,
-        // Laser Sight's tooltip shown.
-        go.gyro_aim = 2;
-        go.gyro_sensitivity = 10;
-        go.recoil = false;
-        go.weapon_in_hand = true;
-        go.laser_sight = true;
-        go.game_value[static_cast<std::size_t>(Id::Recoil)] = true;
-        go.game_value[static_cast<std::size_t>(Id::LaserSight)] = true;
-        gv.hover = {Id::LaserSight, kLabelIndex};
-        gv.tooltip = Id::LaserSight;
-        ok &= shot("5h2-settings-aiming-laser-sight-recoil", go, gv);
-        gv.hover = {Id::WeaponInHand, kLabelIndex};
-        gv.tooltip = Id::WeaponInHand;
-        ok &= shot("5h3-settings-aiming-weapon-in-hand-tooltip", go, gv);
+        const auto at = [](float scroll, Id hover = Id::None, int index = kLabelIndex,
+                           bool tip = false) {
+            MenuView cv;
+            cv.tab = Tab::Controls;
+            cv.scroll[static_cast<int>(Tab::Controls)] = scroll;
+            cv.hover = {hover, index};
+            if (tip) {
+                cv.tooltip = hover;
+            }
+            return cv;
+        };
+        ok &= shot("kiu-controls-1-top", go, at(0.0f));
+        ok &= shot("kiu-controls-2-scrolled-one-step", go, at(80.0f));
+        ok &= shot("kiu-controls-3-aiming", go, at(1.0e4f * 0 + 330.0f));
+        ok &= shot("kiu-controls-4-aiming-mid", go, at(480.0f));
+        ok &= shot("kiu-controls-5-end", go, at(1.0e5f));
+        MenuModel cal = go;
+        cal.aim_calibrated = true;
+        ok &= shot("kiu-controls-6-end-calibrated", cal, at(1.0e5f));
+        MenuModel nocal = go;
+        nocal.aim_calibration_ok = false;
+        ok &= shot("kiu-controls-6b-end-calibrate-unavailable", nocal, at(1.0e5f));
+        ok &= shot("kiu-controls-7-tooltip-calibrate", go, at(1.0e5f, Id::CalibrateAim, kLabelIndex, true));
+        ok &= shot("kiu-controls-7b-tooltip-laser-sight", go, at(1.0e5f, Id::LaserSight, kLabelIndex, true));
+        MenuModel ls = go;
+        ls.laser_sight = true;
+        ls.recoil_charged = 70;
+        ls.recoil_rapid = 25;
+        ls.weapon_size = 1;
+        ls.weapon_scale = 120;
+        ok &= shot("kiu-controls-8-end-values", ls, at(1.0e5f));
+        ok &= shot("kiu-controls-8b-tooltip-weapon-size", ls, at(500.0f, Id::WeaponSize, kLabelIndex, true));
+        ok &= shot("kiu-controls-8c-tooltip-recoil-charged", ls, at(400.0f, Id::RecoilCharged, kLabelIndex, true));
+        MenuView dv = at(400.0f);
+        dv.dragging = Id::RecoilRapid;
+        dv.hover = {Id::RecoilRapid};
+        ok &= shot("kiu-controls-8d-recoil-rapid-held", ls, dv);
+        MenuModel gy = go;
+        gy.gyro_aim = 1;
+        gy.gyro_sensitivity = 15;
+        ok &= shot("kiu-controls-9-gyro-aim-end", gy, at(1.0e5f));
+        ok &= shot("kiu-controls-9b-gyro-aim-tooltip", gy, at(330.0f, Id::GyroAim, kLabelIndex, true));
+        MenuModel off = go;
+        off.gyro_aim = 0;
+        ok &= shot("kiu-controls-10-aiming-off-end", off, at(1.0e5f));
+        MenuModel nr = go;
+        nr.recoil = false;
+        nr.weapon_in_hand = false;
+        ok &= shot("kiu-controls-11-recoil-and-weapon-off-end", nr, at(1.0e5f));
+        MenuModel rr = go;
+        rr.bottom_screen_reticle = 3;
+        ok &= shot("kiu-controls-12-reticle-on-top", rr, at(0.0f));
+        ok &= shot("kiu-controls-12b-reticle-on-end", rr, at(1.0e5f));
+        MenuModel gl = go;
+        gl.scope = 0;
+        gl.locked[static_cast<std::size_t>(Id::GyroAim)] = Lock::GameValue;
+        ok &= shot("kiu-controls-13-global-locked-end", gl, at(1.0e5f, Id::GyroAim, kLabelIndex, true));
+        MenuModel win = go;
+        win.controls_page = 1;
+        ok &= shot("kiu-controls-14-window-page", win, at(0.0f));
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
@@ -2292,6 +2333,83 @@ int main(int argc, char** argv) {
         ok &= shot("ctgp7-mods-loaded-list", req, rv);
         rv.mods_page = ModsPage::Install;
         ok &= shot("ctgp7-mods-install-mods", req, rv);
+    }
+    // AzaharFrame kiumenus: the Mods tab's Angel's Aim segment (shown while Kid Icarus: Uprising
+    // is open): the mod and the texture packs installed or not, the catalog's C-Stick rows,
+    // Report an Issue's question, Aiming Settings.
+    {
+        MenuModel ka = m;
+        ka.game_title = "Kid Icarus: Uprising";
+        ka.mods.angels_aim.shown = true;
+        ka.mods.angels_aim.report_url = std::string(kAngelsAimIssuesUrl) + "&body=App%3A%201.1.1";
+        MenuView kv;
+        kv.tab = Tab::Mods;
+        kv.mods_segment = ModsSegment::AngelsAim;
+        ok &= shot("aa-1-top-nothing-installed", ka, kv);
+        kv.hover = {Id::ModsSegment, 3};
+        ok &= shot("aa-1b-segment-hover", ka, kv);
+        kv.hover = {Id::AngelsAimReport};
+        ok &= shot("aa-1c-report-hover", ka, kv);
+        kv.hover = {};
+        // Report an Issue's question
+        kv.open_link = ka.mods.angels_aim.report_url;
+        ok &= shot("aa-2-report-dialog", ka, kv);
+        kv.open_link.clear();
+        // The catalog's C-Stick rows under Required
+        MenuModel kc = ka;
+        const auto offer = [](const char* id, const char* name, const char* author) {
+            ModOffer o;
+            o.id = id;
+            o.name = name;
+            o.author = author;
+            o.url = "https://gamebanana.com/members/1";
+            return o;
+        };
+        kc.mods.mods.available = {
+            offer("kiu-cstick-gyro", "C-Stick & Gyro", "Darkshade"),
+            offer("kiu-cstick-gyro-widescreen-16-9", "C-Stick & Gyro (Widescreen 16:9)", "Darkshade"),
+            offer("kiu-cstick-gyro-ultrawide-21-9", "C-Stick & Gyro (Ultrawide 21:9)", "Darkshade"),
+            offer("kiu-cstick-aim", "C-Stick Aim", "Darkshade")};
+        kc.mods.mods.catalog = CatalogState::Ready;
+        ok &= shot("aa-3-not-installed-catalog", kc, kv);
+        kv.scroll[static_cast<int>(Tab::Mods)] = 300.0f;
+        ok &= shot("aa-3b-not-installed-catalog-scrolled", kc, kv);
+        kv.scroll[static_cast<int>(Tab::Mods)] = 1.0e5f;
+        ok &= shot("aa-3c-not-installed-catalog-end", kc, kv);
+        kv.hover = {Id::AngelsAimSettings};
+        ok &= shot("aa-3d-aiming-settings-hover", kc, kv);
+        kv.hover = {};
+        // Installed
+        MenuModel ki = kc;
+        ki.mods.angels_aim.mod_installed = true;
+        ki.mods.mods.available[0].state = OfferState::Installed;
+        kv.scroll[static_cast<int>(Tab::Mods)] = 0.0f;
+        ok &= shot("aa-4-mod-installed", ki, kv);
+        kv.scroll[static_cast<int>(Tab::Mods)] = 1.0e5f;
+        ok &= shot("aa-4b-mod-installed-end", ki, kv);
+        // Texture packs installed, the mod not
+        MenuModel kp = ka;
+        kp.mods.angels_aim.weapons_pack = true;
+        kp.mods.angels_aim.effects_pack = true;
+        kv.scroll[static_cast<int>(Tab::Mods)] = 1.0e5f;
+        ok &= shot("aa-5-packs-installed-end", kp, kv);
+        MenuModel kw = kp;
+        kw.mods.angels_aim.effects_pack = false;
+        ok &= shot("aa-5b-weapons-pack-only-end", kw, kv);
+        // Everything installed
+        MenuModel kall = ki;
+        kall.mods.angels_aim.weapons_pack = true;
+        kall.mods.angels_aim.effects_pack = true;
+        ok &= shot("aa-6-all-installed-end", kall, kv);
+        // CTGP-7 shown too: five segments
+        MenuModel k5 = ka;
+        k5.mods.ctgp7.shown = true;
+        kv.scroll[static_cast<int>(Tab::Mods)] = 0.0f;
+        ok &= shot("aa-7-five-segments", k5, kv);
+        // No Report link yet (offline build): the button greyed
+        MenuModel kn = ka;
+        kn.mods.angels_aim.report_url.clear();
+        ok &= shot("aa-8-report-unavailable", kn, kv);
     }
     v = {};
     v.tab = Tab::Main;
