@@ -84,6 +84,13 @@ public:
     std::size_t MaxLayers() const {
         return visuals.MaxLayers();
     }
+    /// AzaharFrame projscreen (vis/proj_screen.h), app.cpp: before Frame; after the screens.
+    void SetScreensInProjection(bool on, float scale) {
+        visuals.SetScreensInProjection(on, scale);
+    }
+    Vis::ProjLayer ProjectionScreens(Runtime& runtime, const Vis::ProjScreens& screens) {
+        return visuals.ProjectionScreens(runtime, screens);
+    }
 
     /// AzaharFrame screenswap, XR thread (app.cpp, while building the layers): where each 3DS
     /// screen goes for the screens immersive.cpp gives (Immersive::Screens), with the focus

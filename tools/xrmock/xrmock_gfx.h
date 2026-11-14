@@ -37,6 +37,14 @@ typedef struct MockGfx {
     // PNG dump.  The image is in its released layout (color attachment).
     // 0 on success, -1 when the format or the state does not allow it.
     int (*read_image)(void* images, int index, int w, int h, int64_t format, uint8_t* rgba);
+    // AzaharFrame projscreen (MOCK_XR_PROJ_SCAN): copies `n` rectangles (x, y, w, h each) of
+    // image `index` into a host buffer on the app's queue, without waiting: in queue order, so the
+    // app may go on using the image. NULL when the format does not allow it.
+    void* (*copy_regions)(void* images, int index, int64_t format, const int* rects, int n);
+    // Waits for that copy and writes its pixels as RGBA8 (the rectangles one after the other) to
+    // `rgba`, which holds sum(w * h * 4) bytes. 0 on success.
+    int (*read_copy)(void* copy, uint8_t* rgba);
+    void (*free_copy)(void* copy);
 } MockGfx;
 
 extern const MockGfx kMockGfxVk;

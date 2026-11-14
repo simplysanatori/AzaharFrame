@@ -635,6 +635,7 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     {
         std::scoped_lock lock{screens_mutex};
         chain.has_image = true;
+        chain.shown_index = chain.index; // AzaharFrame projscreen
     }
     stats.releases[i]++;
     if (!gpu_finished) {
@@ -673,10 +674,12 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
         if (set_release) {
             chain.has_image = true;
             chain.frame_serial = serial;
+            chain.shown_index = chain.index; // AzaharFrame projscreen
         } else {
             std::scoped_lock lock{screens_mutex};
             chain.has_image = true;
             chain.frame_serial = serial;
+            chain.shown_index = chain.index;
         }
         // A packed top screen counts for both eyes (the log line keeps its meaning).
         const bool both = packed_top && i == static_cast<std::size_t>(VideoCore::XrScreen::TopLeft);

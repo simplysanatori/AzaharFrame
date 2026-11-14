@@ -1117,6 +1117,185 @@ static int gDumpCount = 0;
 static double gShownTimes[MAXDUMPS];
 static int gShownCount = 0, gShownNext = 0;
 
+// AzaharFrame projscreen: MOCK_XR_PROJ_SCAN=<t0>,<t1>[,<frames>[,<crop>[,<eyes>]]]: from t0 to t1
+// seconds after the session began (at most <frames> endFrames, default 48), the middle <crop> x
+// <crop> pixels (default 1152) of each eye of the first projection layer (<eyes>: 1 left, 2 right,
+// 3 both, the default) and the top left strip are copied on the app's queue without a wait. After
+// the window a thread of the mock reads them: the picture's serial from the strip and the centres
+// of the magenta dots (AZAHARFRAME_XR_PROJ_MARKS=1), weighted, in the eye's pixels; one line each:
+//   projscan frame=N t=T yaw=Y eye=E serial=S pos=x,y,z q=x,y,z,w fov=l,r,u,d rect=WxH marks=K x,y ...
+// with the view's pose and FOV as the layer submitted them (hold.py --proj reads them).
+#define SCAN_MAX 128
+#define SCAN_CODE_BITS 16
+#define SCAN_CODE_CELL 4
+typedef struct {
+    int frame, eye;
+    double t, yaw;
+    XrPosef pose;
+    XrFovf fov;
+    int rw, rh;          // the eye's rect
+    int cx, cy, cw, ch;  // the crop, in the eye's rect
+    void* copy;
+} ScanRec;
+static double gScanT0 = -1.0, gScanT1 = -1.0;
+static int gScanMaxFrames = 48, gScanCrop = 1152, gScanEyes = 3;
+static ScanRec gScans[2 * SCAN_MAX];
+static int gScanCount = 0, gScanFrames = 0, gScanState = 0;  // 0 waiting, 1 copying, 2 reading, 3 done
+static pthread_t gScanThread;
+
+static double srgbToLinear(int v) {
+    double c = v / 255.0;
+    return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
+
+static void* scanReader(void* arg) {
+    (void)arg;
+    double lin[256];
+    for (int i = 0; i < 256; i++) lin[i] = srgbToLinear(i);
+    for (int r = 0; r < gScanCount; r++) {
+        ScanRec* s = &gScans[r];
+        const int stripW = (SCAN_CODE_BITS + 2) * SCAN_CODE_CELL, stripH = SCAN_CODE_CELL;
+        size_t n = (size_t)stripW * stripH * 4 + (size_t)s->cw * s->ch * 4;
+        uint8_t* px = (uint8_t*)malloc(n);
+        int ok = px && gGfx->read_copy(s->copy, px) == 0;
+        gGfx->free_copy(s->copy);
+        s->copy = NULL;
+        if (!ok) {
+            trace("projscan frame=%d eye=%d not read", s->frame, s->eye);
+            free(px);
+            continue;
+        }
+        // The serial: a cell's middle pixel, white 1, black 0; then a white and a black cell.
+        int serial = 0, valid = 1;
+        for (int b = 0; b < SCAN_CODE_BITS + 2; b++) {
+            const uint8_t* p = px + ((size_t)(SCAN_CODE_CELL / 2) * stripW + (size_t)b * SCAN_CODE_CELL + SCAN_CODE_CELL / 2) * 4;
+            int white = p[0] > 200 && p[1] > 200 && p[2] > 200, black = p[0] < 50 && p[1] < 50 && p[2] < 50;
+            if (!white && !black) valid = 0;
+            if (b < SCAN_CODE_BITS && white) serial |= 1 << b;
+            if (b == SCAN_CODE_BITS && !white) valid = 0;
+            if (b == SCAN_CODE_BITS + 1 && !black) valid = 0;
+        }
+        // The dots: bright magenta cores (4-connected), each centred by the linear weights of the
+        // magenta pixels within 4 pixels of its brightest one.
+        const uint8_t* img = px + (size_t)stripW * stripH * 4;
+        const int W = s->cw, H = s->ch;
+        uint8_t* seen = (uint8_t*)calloc((size_t)W * H, 1);
+        int* stack = (int*)malloc(sizeof(int) * (size_t)W * H);
+        char line[4096];
+        int len = 0, marks = 0;
+        char pts[3000];
+        int plen = 0;
+        pts[0] = 0;
+#define CORE(i) (img[(i) * 4] >= 128 && img[(i) * 4 + 1] <= 8 && abs((int)img[(i) * 4] - (int)img[(i) * 4 + 2]) <= 8)
+#define MAG(i) (img[(i) * 4 + 1] <= 8 && abs((int)img[(i) * 4] - (int)img[(i) * 4 + 2]) <= 12)
+        for (int i = 0; seen && stack && i < W * H; i++) {
+            if (seen[i] || !CORE(i)) continue;
+            int top = 0, size = 0, best = i;
+            stack[top++] = i;
+            seen[i] = 1;
+            while (top) {
+                int j = stack[--top];
+                size++;
+                if (img[j * 4] > img[best * 4]) best = j;
+                int x = j % W, y = j / W;
+                int nb[4] = {x > 0 ? j - 1 : -1, x < W - 1 ? j + 1 : -1, y > 0 ? j - W : -1, y < H - 1 ? j + W : -1};
+                for (int k = 0; k < 4; k++)
+                    if (nb[k] >= 0 && !seen[nb[k]] && CORE(nb[k])) {
+                        seen[nb[k]] = 1;
+                        stack[top++] = nb[k];
+                    }
+            }
+            if (size > 80) continue;  // not a dot (magenta in the picture)
+            int bx = best % W, by = best / W;
+            // A dot sits on a disc the app drew all in magenta shades (G 0, R = B) 5.5 pixels
+            // round: game pixels that happen to be magenta are not ringed by that.
+            int ring = 0, ringMag = 0;
+            for (int y = by - 4; y <= by + 4; y++)
+                for (int x = bx - 4; x <= bx + 4; x++) {
+                    if (x < 0 || y < 0 || x >= W || y >= H || (x - bx) * (x - bx) + (y - by) * (y - by) > 20) continue;
+                    ring++;
+                    ringMag += MAG(y * W + x) ? 1 : 0;
+                }
+            if (ringMag * 10 < ring * 9) continue;
+            double sw = 0, sx = 0, sy = 0;
+            for (int y = by - 4; y <= by + 4; y++)
+                for (int x = bx - 4; x <= bx + 4; x++) {
+                    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+                    int j = y * W + x;
+                    if (!MAG(j)) continue;
+                    double w = lin[img[j * 4]];
+                    sw += w;
+                    sx += w * (x + 0.5);
+                    sy += w * (y + 0.5);
+                }
+            if (sw <= 0) continue;
+            marks++;
+            if (plen < (int)sizeof(pts) - 40)
+                plen += snprintf(pts + plen, sizeof(pts) - (size_t)plen, " %.4f,%.4f", s->cx + sx / sw, s->cy + sy / sw);
+        }
+#undef CORE
+#undef MAG
+        len = snprintf(line, sizeof(line),
+                       "projscan frame=%d t=%.6f yaw=%.6f eye=%d serial=%d pos=%.6f,%.6f,%.6f q=%.6f,%.6f,%.6f,%.6f fov=%.6f,%.6f,%.6f,%.6f "
+                       "rect=%dx%d marks=%d%s",
+                       s->frame, s->t, s->yaw, s->eye, valid ? serial : -1, s->pose.position.x, s->pose.position.y, s->pose.position.z,
+                       s->pose.orientation.x, s->pose.orientation.y, s->pose.orientation.z, s->pose.orientation.w, s->fov.angleLeft,
+                       s->fov.angleRight, s->fov.angleUp, s->fov.angleDown, s->rw, s->rh, marks, pts);
+        (void)len;
+        trace("%s", line);
+        free(seen);
+        free(stack);
+        free(px);
+    }
+    trace("projscan done: %d eye images of %d endFrames read", gScanCount, gScanFrames);
+    return NULL;
+}
+
+// At an endFrame: the projection layer's eyes copied while in the window; the reader started after it.
+static void scanFrame(const XrFrameEndInfo* ei) {
+    if (gScanT0 < 0 || gScanState >= 2 || !gGfx || !gGfx->copy_regions) return;
+    const double since = (nowNs() - gT0) * 1e-9;
+    if (since < gScanT0) return;
+    if (since > gScanT1 || gScanFrames >= gScanMaxFrames) {
+        gScanState = 2;
+        if (pthread_create(&gScanThread, NULL, scanReader, NULL) != 0) gScanState = 3;
+        return;
+    }
+    gScanState = 1;
+    for (uint32_t i = 0; i < ei->layerCount; i++) {
+        const XrCompositionLayerBaseHeader* l = ei->layers[i];
+        if (l->type != XR_TYPE_COMPOSITION_LAYER_PROJECTION) continue;
+        const XrCompositionLayerProjection* p = (const XrCompositionLayerProjection*)l;
+        for (uint32_t e = 0; e < p->viewCount && e < 2; e++) {
+            if (!(gScanEyes & (1 << e)) || gScanCount >= 2 * SCAN_MAX) continue;
+            const XrCompositionLayerProjectionView* v = &p->views[e];
+            Chain* c = chainOf(v->subImage.swapchain);
+            if (!c || c->lastRel < 0) continue;
+            const XrRect2Di* r = &v->subImage.imageRect;
+            ScanRec* s = &gScans[gScanCount];
+            s->frame = gFrame;
+            s->eye = (int)e;
+            s->t = (double)(ei->displayTime - gT0) / 1e9;
+            const XrPosef hp = headAt(ei->displayTime);
+            s->yaw = 2.0 * atan2((double)hp.orientation.y, (double)hp.orientation.w) * 57.29577951308232;
+            s->pose = v->pose;
+            s->fov = v->fov;
+            s->rw = r->extent.width;
+            s->rh = r->extent.height;
+            s->cw = gScanCrop < s->rw ? gScanCrop : s->rw;
+            s->ch = gScanCrop < s->rh ? gScanCrop : s->rh;
+            s->cx = (s->rw - s->cw) / 2;
+            s->cy = (s->rh - s->ch) / 2;
+            const int rects[8] = {r->offset.x, r->offset.y, (SCAN_CODE_BITS + 2) * SCAN_CODE_CELL, SCAN_CODE_CELL,
+                                  r->offset.x + s->cx, r->offset.y + s->cy, s->cw, s->ch};
+            s->copy = gGfx->copy_regions(c->images, c->lastRel, c->format, rects, 2);
+            if (s->copy) gScanCount++;
+        }
+        break;  // the first projection layer only
+    }
+    gScanFrames++;
+}
+
 static uint32_t crcTab[256];
 static uint32_t crc32(uint32_t crc, const uint8_t* p, size_t n) {
     if (!crcTab[1]) {
@@ -1340,6 +1519,15 @@ static XrResult XRAPI_CALL mBeginSession(XrSession s, const XrSessionBeginInfo* 
 }
 static XrResult XRAPI_CALL mEndSession(XrSession s) {
     (void)s;
+    // AzaharFrame projscreen: the scan's copies read before the session's images go.
+    if (gScanState == 1) {
+        gScanState = 2;
+        if (pthread_create(&gScanThread, NULL, scanReader, NULL) != 0) gScanState = 3;
+    }
+    if (gScanState == 2) {
+        pthread_join(gScanThread, NULL);
+        gScanState = 3;
+    }
     LOCK();
     secEmit();
     for (int i = 0; i < gChainCount; i++) {
@@ -1643,6 +1831,7 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     } else {
         trace("endFrame layers=%u%s", ei->layerCount, buf);
     }
+    scanFrame(ei);  // AzaharFrame projscreen
     const double since = (nowNs() - gT0) * 1e-9;
     if (gDumpDir && gShownNext < gShownCount && since >= gShownTimes[gShownNext]) {
         trace("shown f%d t=%.2f: %d quad swapchains", gFrame, since, nshown);
@@ -1867,6 +2056,20 @@ static void init(void) {
             if (gShownCount == 0 || t > gShownTimes[gShownCount - 1]) gShownTimes[gShownCount++] = t;
         }
         free(copy);
+    }
+    const char* scan = getenv("MOCK_XR_PROJ_SCAN");  // AzaharFrame projscreen
+    if (scan) {
+        double t0 = -1, t1 = -1;
+        int frames = 48, crop = 1152, eyes = 3;
+        if (sscanf(scan, "%lf,%lf,%d,%d,%d", &t0, &t1, &frames, &crop, &eyes) >= 2 && t1 > t0) {
+            gScanT0 = t0;
+            gScanT1 = t1;
+            gScanMaxFrames = frames < 1 ? 1 : frames > SCAN_MAX ? SCAN_MAX : frames;
+            gScanCrop = crop < 64 ? 64 : crop;
+            gScanEyes = eyes & 3 ? eyes & 3 : 3;
+            trace("config proj scan %.2f to %.2f s, at most %d frames, crop %d, eyes %d", gScanT0, gScanT1, gScanMaxFrames, gScanCrop,
+                  gScanEyes);
+        }
     }
     gFocusOnce = getenv("MOCK_XR_FOCUS_ONCE") && getenv("MOCK_XR_FOCUS_ONCE")[0] == '1';
     // AzaharFrame imglag: in the trace's head, so a run's pairing model is on record.

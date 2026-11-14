@@ -20,6 +20,7 @@
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/model_shaders.h"
+#include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
 #include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
 #include "core/frame_weapon_models.h" // AzaharFrame kiuguns
 #include "frame_xr/xr_loader.h"
@@ -109,8 +110,12 @@ Mat InverseAffine(const Mat& m) {
     return r;
 }
 
+// AzaharFrame projscreen: the screens may be further than kFar (World Scale up to 400 %: 12 m).
+constexpr float kFarScreens = 100.0f;
+
 // OpenGL style (y up, z -1..1); the vertex shader turns it into Vulkan's clip space.
-Mat Projection(const XrFovf& fov) {
+Mat Projection(const XrFovf& fov, float far_z = kFar) {
+    const float kFar = far_z;
     const float l = std::tan(fov.angleLeft), r = std::tan(fov.angleRight);
     const float u = std::tan(fov.angleUp), d = std::tan(fov.angleDown);
     Mat m{};
@@ -144,6 +149,16 @@ struct PushConstants {
 };
 static_assert(sizeof(PushConstants) == 128);
 
+// AzaharFrame projscreen: the screen's push constants (proj_screen.h kScreenVert).
+struct ScreenPushConstants {
+    Mat mvp;
+    std::array<float, 4> shape;
+    std::array<float, 4> rect;
+    std::array<float, 4> tex;
+    std::array<float, 4> extra;
+};
+static_assert(sizeof(ScreenPushConstants) == 128);
+
 } // namespace
 
 std::string ControllerModelDir() {
@@ -170,6 +185,7 @@ bool ReadControllerModels(std::array<ModelFile, 2>& files, std::string& error) {
 struct ControllerModels::Files {
     std::array<ModelFile, 2> hand;
     std::vector<uint32_t> vert_spv_linear, frag_spv_linear, vert_spv, frag_spv;
+    std::vector<uint32_t> screen_vert_spv, screen_frag_spv; ///< AzaharFrame projscreen
 };
 
 struct ControllerModels::Gpu {
@@ -221,6 +237,35 @@ struct ControllerModels::Gpu {
         {{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}}};
 
     vk::PhysicalDevice physical;
+
+    // ---- AzaharFrame projscreen: the top screen drawn first (screens mode) ----
+    bool screens = false; ///< made for screens mode (full size, no MSAA by default)
+    float scale = 1.0f;
+    vk::DescriptorSetLayout screen_set_layout;
+    vk::DescriptorPool screen_pool;
+    std::array<vk::DescriptorSet, 2> screen_sets{};
+    vk::PipelineLayout screen_layout;
+    vk::Pipeline screen_pipeline;
+    vk::Sampler screen_sampler;
+    vk::Format screen_format = vk::Format::eUndefined;
+    std::vector<vk::ImageView> screen_views; ///< made for the draw in flight; destroyed after it
+    vk::QueryPool timing;   ///< two timestamps round the pass (screens mode, or
+                            ///< AZAHARFRAME_XR_MODELS_GPU_TIME=1)
+    double tick_ns = 0.0;
+    uint64_t timestamp_mask = 0;
+    bool drawn_screen = false, shown_screen = false;
+    uint64_t drawn_serial = 0, shown_serial = 0;
+    // Per second, for the log line.
+    std::chrono::steady_clock::time_point stats_since{};
+    uint32_t stat_draws = 0, stat_screen_draws = 0, stat_busy = 0, stat_layers = 0, stat_gpu_n = 0;
+    double stat_gpu_sum = 0.0, stat_gpu_max = 0.0;
+
+    void DestroyScreenViews() {
+        for (auto v : screen_views) {
+            device.destroyImageView(v);
+        }
+        screen_views.clear();
+    }
 
     uint32_t Memory(uint32_t bits, vk::MemoryPropertyFlags want, vk::MemoryPropertyFlags fallback) {
         const auto props = physical.getMemoryProperties();
@@ -476,6 +521,26 @@ void ControllerModels::DestroyXr() {
         if (g.weapon_fence) {
             g.device.destroyFence(g.weapon_fence);
         }
+        // AzaharFrame projscreen
+        g.DestroyScreenViews();
+        if (g.screen_pipeline) {
+            g.device.destroyPipeline(g.screen_pipeline);
+        }
+        if (g.screen_layout) {
+            g.device.destroyPipelineLayout(g.screen_layout);
+        }
+        if (g.screen_pool) {
+            g.device.destroyDescriptorPool(g.screen_pool);
+        }
+        if (g.screen_set_layout) {
+            g.device.destroyDescriptorSetLayout(g.screen_set_layout);
+        }
+        if (g.screen_sampler) {
+            g.device.destroySampler(g.screen_sampler);
+        }
+        if (g.timing) {
+            g.device.destroyQueryPool(g.timing);
+        }
         for (auto fb : g.framebuffers) {
             g.device.destroyFramebuffer(fb);
         }
@@ -554,7 +619,13 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands) {
     layer_ready = false;
     muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
-    const bool any = hands[0].shown || hands[1].shown;
+    // AzaharFrame projscreen: in screens mode the pass is wanted for the screen too.
+    const bool any = hands[0].shown || hands[1].shown || screens_mode;
+    if (gpu && (gpu->screens != screens_mode || (screens_mode && gpu->scale != screens_scale))) {
+        LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f}): the models' pass is made again",
+                 screens_mode ? "on" : "off", screens_scale);
+        DestroyXr();
+    }
 
     // ---- The files, once a run, on a thread ----
     if (load_state == 0) {
@@ -581,6 +652,15 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 LOG_ERROR(Frontend, "xr: controller models: the shaders did not compile");
                 load_state = 3;
                 return;
+            }
+            // AzaharFrame projscreen: the screen's shaders (used in screens mode only).
+            f.screen_vert_spv = Vulkan::CompileGLSL(
+                std::string{"#version 450\n"} + Shaders::kScreenVert, vk::ShaderStageFlagBits::eVertex);
+            f.screen_frag_spv = Vulkan::CompileGLSL(std::string{"#version 450\n"} +
+                                                        Shaders::kScreenFrag,
+                                                    vk::ShaderStageFlagBits::eFragment);
+            if (f.screen_vert_spv.empty() || f.screen_frag_spv.empty()) {
+                LOG_ERROR(Frontend, "xr: projection screens: the shaders did not compile");
             }
             LOG_INFO(Frontend, "xr: controller models read ({} and {} triangles, textures {}x{})",
                      f.hand[0].indices.size() / 3, f.hand[1].indices.size() / 3,
@@ -627,18 +707,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
     }
 
     // ---- Release the image drawn on an earlier frame once the GPU is done with it ----
-    if (g.in_flight && g.device.getFenceStatus(g.fence) == vk::Result::eSuccess) {
-        g.device.resetFences(g.fence);
-        XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-        const XrResult r =
-            g.queue_lock->With([&] { return xr.xrReleaseSwapchainImage(g.swapchain, &ri); });
-        g.in_flight = false;
-        if (XR_SUCCEEDED(r)) {
-            g.has_image = true;
-            g.shown_views = g.drawn_views;
-            g.shown_fresh = true;
-        }
-    }
+    TryRelease();
     // AzaharFrame kiuguns: the weapon in hand; a weapon swapped out is freed once no image
     // drawn with it is in flight.
     if (!g.in_flight && !g.weapon_retired.empty()) {
@@ -659,6 +728,12 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
+        return;
+    }
+    if (screens_mode) {
+        // AzaharFrame projscreen: drawn by FrameScreens, once the screens are placed.
+        pending_views = views;
+        pending_hands = hands;
         return;
     }
 
@@ -686,6 +761,23 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         }
     }
 
+    // AzaharFrame projscreen: AZAHARFRAME_XR_MODELS_GPU_TIME=1, the models' pass alone, timed.
+    if (g.timing) {
+        const auto now = std::chrono::steady_clock::now();
+        if (g.stats_since == std::chrono::steady_clock::time_point{}) {
+            g.stats_since = now;
+        }
+        if (std::chrono::duration<double>(now - g.stats_since).count() >= 1.0) {
+            LOG_INFO(Frontend, "xr: controller models: GPU {:.2f} ms a draw (max {:.2f}, {} timed; "
+                               "{}x{} per eye, {}x MSAA)",
+                     g.stat_gpu_n ? g.stat_gpu_sum / g.stat_gpu_n : 0.0, g.stat_gpu_max,
+                     g.stat_gpu_n, g.eye_w, g.eye_h, static_cast<int>(g.samples));
+            g.stats_since = now;
+            g.stat_gpu_n = 0;
+            g.stat_gpu_sum = g.stat_gpu_max = 0.0;
+        }
+    }
+
     // ---- The layer: the image released last, at the eyes it was drawn for ----
     if (g.has_image && g.shown_fresh) {
         for (int e = 0; e < 2; e++) {
@@ -705,6 +797,128 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
     }
 }
 
+void ControllerModels::TryRelease() {
+    Gpu& g = *gpu;
+    if (!g.in_flight || g.device.getFenceStatus(g.fence) != vk::Result::eSuccess) {
+        return;
+    }
+    g.device.resetFences(g.fence);
+    XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+    const XrResult r =
+        g.queue_lock->With([&] { return Xr().xrReleaseSwapchainImage(g.swapchain, &ri); });
+    g.in_flight = false;
+    if (XR_SUCCEEDED(r)) {
+        g.has_image = true;
+        g.shown_views = g.drawn_views;
+        g.shown_fresh = true;
+        g.shown_screen = g.drawn_screen; // AzaharFrame projscreen
+        g.shown_serial = g.drawn_serial;
+    }
+    // AzaharFrame projscreen: the pass's GPU time (no wait: the fence has signalled).
+    g.DestroyScreenViews();
+    if (g.timing) {
+        std::array<uint64_t, 2> ts{};
+        if (g.device.getQueryPoolResults(g.timing, 0, 2, sizeof(ts), ts.data(), sizeof(uint64_t),
+                                         vk::QueryResultFlagBits::e64) == vk::Result::eSuccess) {
+            const uint64_t ticks = (ts[1] - ts[0]) & g.timestamp_mask;
+            const double ms = static_cast<double>(ticks) * g.tick_ns / 1e6;
+            if (ms >= 0.0 && ms < 1000.0) {
+                g.stat_gpu_sum += ms;
+                g.stat_gpu_max = std::max(g.stat_gpu_max, ms);
+                g.stat_gpu_n++;
+            }
+        }
+    }
+}
+
+void ControllerModels::SetScreensMode(bool on, float scale) {
+    screens_mode = on;
+    screens_scale = scale;
+}
+
+ProjLayer ControllerModels::FrameScreens(Runtime& rt, const ProjScreens& screens) {
+    ProjLayer out;
+    layer_ready = false;
+    if (!screens_mode || !gpu || gpu->state != 2 || !gpu->screens || !gpu->screen_pipeline) {
+        return out;
+    }
+    Gpu& g = *gpu;
+    auto& xr = Xr();
+    TryRelease(); // the image drawn on the last refresh is usually done by now
+    const auto now = std::chrono::steady_clock::now();
+    if (g.stats_since == std::chrono::steady_clock::time_point{}) {
+        g.stats_since = now;
+    }
+    const bool hands = pending_hands[0].shown || pending_hands[1].shown;
+    if (!hands && !screens.Any()) {
+        g.shown_fresh = false;
+    } else {
+        // ---- Draw this refresh's image: the screen, then the models ----
+        if (g.in_flight) {
+            g.stat_busy++; // the layer shows the last image again, at its own views
+        } else if (pending_views.valid && pending_views.views_valid) {
+            if (!g.acquired) {
+                XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+                if (XR_SUCCEEDED(g.queue_lock->With(
+                        [&] { return xr.xrAcquireSwapchainImage(g.swapchain, &ai, &g.index); }))) {
+                    g.acquired = true;
+                }
+            }
+            XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+            wi.timeout = 0;
+            if (g.acquired && xr.xrWaitSwapchainImage(g.swapchain, &wi) == XR_SUCCESS) {
+                g.acquired = false;
+                Record(pending_views, pending_hands, &screens);
+                const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &g.cmd};
+                g.queue_lock->With([&] {
+                    g.queue.submit(submit, g.fence);
+                    return 0;
+                });
+                g.in_flight = true;
+                g.drawn_views = pending_views;
+                g.drawn_screen = screens.Any();
+                g.drawn_serial = screens.eye[0].shown ? screens.eye[0].serial : screens.eye[1].serial;
+                g.stat_draws++;
+                g.stat_screen_draws += g.drawn_screen ? 1 : 0;
+            }
+        }
+        // ---- The layer: the image released last, at the eyes it was drawn for ----
+        if (g.has_image && g.shown_fresh) {
+            for (int e = 0; e < 2; e++) {
+                auto& v = g.layer_views[static_cast<std::size_t>(e)];
+                v.pose = g.shown_views.eye[e];
+                v.fov = g.shown_views.fov[e];
+                v.subImage.swapchain = g.swapchain;
+                v.subImage.imageRect = {{static_cast<int32_t>(g.eye_w * e), 0},
+                                        {static_cast<int32_t>(g.eye_w), static_cast<int32_t>(g.eye_h)}};
+                v.subImage.imageArrayIndex = 0;
+            }
+            g.layer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+            g.layer.space = rt.local_space;
+            g.layer.viewCount = 2;
+            g.layer.views = g.layer_views.data();
+            layer_ready = true;
+            out.layer = Layer();
+            out.has_screen = g.shown_screen;
+            g.stat_layers += out.has_screen ? 1 : 0;
+        }
+    }
+    const double since = std::chrono::duration<double>(now - g.stats_since).count();
+    if (since >= 1.0) {
+        LOG_INFO(Frontend,
+                 "xr: projection screens: {:.1f}s {} draws ({} with the top screen), {} refreshes "
+                 "showed the last image again (GPU busy), {} layers with the screen; GPU {:.2f} ms "
+                 "a draw (max {:.2f}, {} timed; screen and models, {}x{} per eye, {}x MSAA, scale "
+                 "{:.2f})",
+                 since, g.stat_draws, g.stat_screen_draws, g.stat_busy, g.stat_layers,
+                 g.stat_gpu_n ? g.stat_gpu_sum / g.stat_gpu_n : 0.0, g.stat_gpu_max, g.stat_gpu_n,
+                 g.eye_w, g.eye_h, static_cast<int>(g.samples), g.scale);
+        g.stats_since = now;
+        g.stat_draws = g.stat_screen_draws = g.stat_busy = g.stat_layers = g.stat_gpu_n = 0;
+        g.stat_gpu_sum = g.stat_gpu_max = 0.0;
+    }
+    return out;
+}
 
 void ControllerModels::Setup(Runtime& rt) {
     Gpu& g = *gpu;
@@ -736,6 +950,14 @@ void ControllerModels::Setup(Runtime& rt) {
     g.eye_h = std::min(max_h, std::max(200u, static_cast<uint32_t>(rec_h * kEyeScale)));
     g.eye_w = std::max(200u, static_cast<uint32_t>(
                                  static_cast<float>(g.eye_h) * rec_w / std::max(1u, rec_h)));
+    // AzaharFrame projscreen: the screen needs the eye buffer's full size (times the scale); then
+    // the pass is over 1000 pixels high, so Valve's foveation layer may lower the edges.
+    g.screens = screens_mode;
+    g.scale = screens_scale;
+    if (g.screens) {
+        g.eye_w = std::max(200u, static_cast<uint32_t>(static_cast<float>(rec_w) * g.scale));
+        g.eye_h = std::max(200u, static_cast<uint32_t>(static_cast<float>(rec_h) * g.scale));
+    }
     XrSwapchainCreateInfo sci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
     sci.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
     sci.format = rt.swapchain_format;
@@ -761,7 +983,11 @@ void ControllerModels::Setup(Runtime& rt) {
 
     // MSAA where colour and depth both have 4 samples; a depth format that can be attached.
     const auto limits = g.physical.getProperties().limits;
-    if ((limits.framebufferColorSampleCounts & vk::SampleCountFlagBits::e4) &&
+    // AzaharFrame projscreen: no MSAA at full size (the screen has no edges inside it; the models
+    // are drawn at twice the size), unless AZAHARFRAME_XR_PROJ_MSAA=4.
+    const char* proj_msaa = std::getenv("AZAHARFRAME_XR_PROJ_MSAA");
+    const bool want_msaa = !g.screens || (proj_msaa && std::atoi(proj_msaa) == 4);
+    if (want_msaa && (limits.framebufferColorSampleCounts & vk::SampleCountFlagBits::e4) &&
         (limits.framebufferDepthSampleCounts & vk::SampleCountFlagBits::e4)) {
         g.samples = vk::SampleCountFlagBits::e4;
     }
@@ -1009,6 +1235,87 @@ void ControllerModels::Setup(Runtime& rt) {
     g.pipeline = made.value;
     g.pipeline_add = made_add.value;
 
+    // AzaharFrame projscreen: the screen's pipeline (its quad made in the vertex shader), drawn
+    // first with depth so the models are tested against it.
+    if (g.screens && !f.screen_vert_spv.empty() && !f.screen_frag_spv.empty()) {
+        g.screen_format = static_cast<vk::Format>(rt.swapchain_format);
+        const vk::DescriptorSetLayoutBinding sb{0, vk::DescriptorType::eCombinedImageSampler, 1,
+                                                vk::ShaderStageFlagBits::eFragment};
+        g.screen_set_layout =
+            g.device.createDescriptorSetLayout({.bindingCount = 1, .pBindings = &sb});
+        const vk::DescriptorPoolSize sp{vk::DescriptorType::eCombinedImageSampler, 2};
+        g.screen_pool =
+            g.device.createDescriptorPool({.maxSets = 2, .poolSizeCount = 1, .pPoolSizes = &sp});
+        const std::array<vk::DescriptorSetLayout, 2> sl{g.screen_set_layout, g.screen_set_layout};
+        const auto ss = g.device.allocateDescriptorSets(
+            {.descriptorPool = g.screen_pool, .descriptorSetCount = 2, .pSetLayouts = sl.data()});
+        g.screen_sets = {ss[0], ss[1]};
+        const vk::PushConstantRange spush{
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
+            sizeof(ScreenPushConstants)};
+        g.screen_layout = g.device.createPipelineLayout({.setLayoutCount = 1,
+                                                         .pSetLayouts = &g.screen_set_layout,
+                                                         .pushConstantRangeCount = 1,
+                                                         .pPushConstantRanges = &spush});
+        const vk::ShaderModule sv = Vulkan::CompileSPV(f.screen_vert_spv, g.device);
+        const vk::ShaderModule sf = Vulkan::CompileSPV(f.screen_frag_spv, g.device);
+        if (!sv || !sf) {
+            throw std::runtime_error("screen shader modules");
+        }
+        const std::array<vk::PipelineShaderStageCreateInfo, 2> sstages{{
+            {.stage = vk::ShaderStageFlagBits::eVertex, .module = sv, .pName = "main"},
+            {.stage = vk::ShaderStageFlagBits::eFragment, .module = sf, .pName = "main"},
+        }};
+        const vk::PipelineVertexInputStateCreateInfo no_input{};
+        const auto made_screen =
+            g.device.createGraphicsPipeline({}, {
+                                                    .stageCount = 2,
+                                                    .pStages = sstages.data(),
+                                                    .pVertexInputState = &no_input,
+                                                    .pInputAssemblyState = &assembly,
+                                                    .pViewportState = &viewport,
+                                                    .pRasterizationState = &raster,
+                                                    .pMultisampleState = &multisample,
+                                                    .pDepthStencilState = &depth_state,
+                                                    .pColorBlendState = &blend,
+                                                    .pDynamicState = &dynamic,
+                                                    .layout = g.screen_layout,
+                                                    .renderPass = g.render_pass,
+                                                    .subpass = 0,
+                                                });
+        g.device.destroyShaderModule(sv);
+        g.device.destroyShaderModule(sf);
+        if (made_screen.result != vk::Result::eSuccess) {
+            throw std::runtime_error("screen pipeline");
+        }
+        g.screen_pipeline = made_screen.value;
+        // The picture has one mip level (SteamVR allocates level 0 only): the fragment shader
+        // takes up to 4 x 4 bilinear taps over each pixel's footprint instead.
+        g.screen_sampler = g.device.createSampler({
+            .magFilter = vk::Filter::eLinear,
+            .minFilter = vk::Filter::eLinear,
+            .mipmapMode = vk::SamplerMipmapMode::eNearest,
+            .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+            .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+            .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+            .maxLod = 0.0f,
+        });
+    }
+    // AzaharFrame projscreen: the pass's GPU time, two timestamps (screens mode, or
+    // AZAHARFRAME_XR_MODELS_GPU_TIME=1 to time the models' pass alone).
+    const char* time_env = std::getenv("AZAHARFRAME_XR_MODELS_GPU_TIME");
+    if (g.screens || (time_env && time_env[0] == '1')) {
+        const auto families = g.physical.getQueueFamilyProperties();
+        const uint32_t family = rt.vulkan->QueueFamily();
+        const uint32_t bits = family < families.size() ? families[family].timestampValidBits : 0;
+        if (bits > 0 && limits.timestampPeriod > 0.0f) {
+            g.timing = g.device.createQueryPool(
+                {.queryType = vk::QueryType::eTimestamp, .queryCount = 2});
+            g.tick_ns = limits.timestampPeriod;
+            g.timestamp_mask = bits >= 64 ? ~uint64_t{0} : ((uint64_t{1} << bits) - 1);
+        }
+    }
+
     g.sampler = g.device.createSampler({
         .magFilter = vk::Filter::eLinear,
         .minFilter = vk::Filter::eLinear,
@@ -1123,8 +1430,14 @@ void ControllerModels::Setup(Runtime& rt) {
     });
     g.state = 1;
     LOG_INFO(Frontend,
-             "xr: controller models: {}x{} per eye, {}x MSAA, {} MB uploading; one swapchain",
-             g.eye_w, g.eye_h, static_cast<int>(g.samples), total >> 20);
+             "xr: controller models: {}x{} per eye, {}x MSAA, {} MB uploading; one swapchain{}",
+             g.eye_w, g.eye_h, static_cast<int>(g.samples), total >> 20,
+             g.screens ? fmt::format(" (projection screens: the top screen drawn into it, scale "
+                                     "{:.2f}, recommended {}x{}{}{})",
+                                     g.scale, rec_w, rec_h,
+                                     g.screen_pipeline ? "" : ", NO screen pipeline",
+                                     g.timing ? ", GPU timed" : "")
+                       : std::string{});
 }
 
 namespace {
@@ -1310,12 +1623,75 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     }
 }
 
-void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands) {
+void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands,
+                              const ProjScreens* screens) {
     Gpu& g = *gpu;
     const Files& f = *files;
     vk::CommandBuffer& c = g.cmd;
     c.reset();
     c.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    if (g.timing) { // AzaharFrame projscreen
+        c.resetQueryPool(g.timing, 0, 2);
+        c.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, g.timing, 0);
+    }
+    // AzaharFrame projscreen: the top screen's images, sampled from the swapchain the renderer
+    // released them to (never given to the runtime in screens mode): a view and a descriptor set
+    // for each eye, and the images moved to SHADER_READ_ONLY for the pass and back after it.
+    std::vector<vk::Image> screen_images;
+    const bool draw_screens = screens && screens->Any() && g.screen_pipeline;
+    if (draw_screens) {
+        g.DestroyScreenViews();
+        std::array<vk::ImageView, 2> eye_view{};
+        for (int e = 0; e < 2; e++) {
+            const ProjScreenEye& se = screens->eye[static_cast<std::size_t>(e)];
+            if (!se.shown || se.image == VK_NULL_HANDLE) {
+                continue;
+            }
+            const vk::Image image{se.image};
+            const auto seen = std::find(screen_images.begin(), screen_images.end(), image);
+            if (seen != screen_images.end()) {
+                eye_view[static_cast<std::size_t>(e)] =
+                    g.screen_views[static_cast<std::size_t>(seen - screen_images.begin())];
+            } else {
+                screen_images.push_back(image);
+                g.screen_views.push_back(g.device.createImageView({
+                    .image = image,
+                    .viewType = vk::ImageViewType::e2D,
+                    .format = g.screen_format,
+                    .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+                }));
+                eye_view[static_cast<std::size_t>(e)] = g.screen_views.back();
+            }
+            const vk::DescriptorImageInfo info{g.screen_sampler, eye_view[static_cast<std::size_t>(e)],
+                                               vk::ImageLayout::eShaderReadOnlyOptimal};
+            g.device.updateDescriptorSets(
+                vk::WriteDescriptorSet{.dstSet = g.screen_sets[static_cast<std::size_t>(e)],
+                                       .dstBinding = 0,
+                                       .descriptorCount = 1,
+                                       .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                                       .pImageInfo = &info},
+                {});
+        }
+        std::vector<vk::ImageMemoryBarrier> to_read;
+        for (const vk::Image image : screen_images) {
+            to_read.push_back({
+                .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite |
+                                 vk::AccessFlagBits::eTransferWrite,
+                .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+                .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+            });
+        }
+        c.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                              vk::PipelineStageFlagBits::eTransfer,
+                          vk::PipelineStageFlagBits::eFragmentShader, {}, {}, {}, to_read);
+    }
+    const bool marks = draw_screens &&
+                       Common::FrameTestSwitches::Value(kProjMarksSwitch).value_or("0") == "1";
     std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
     clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
     c.beginRenderPass({.renderPass = g.render_pass,
@@ -1333,8 +1709,49 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         c.setViewport(0, vp);
         c.setScissor(0, sc);
         const Mat view_proj =
-            Multiply(Projection(views.fov[e]),
+            Multiply(Projection(views.fov[e], g.screens ? kFarScreens : kFar),
                      InverseRigid(FromPose(views.eye[e].orientation, views.eye[e].position)));
+        // AzaharFrame projscreen: this eye's top screen first, where its quad would have been.
+        const ProjScreenEye* se = draw_screens ? &screens->eye[static_cast<std::size_t>(e)] : nullptr;
+        if (se && se->shown && se->image != VK_NULL_HANDLE && se->image_width && se->image_height) {
+            ScreenPushConstants sp{};
+            sp.mvp = Multiply(view_proj, FromPose(se->pose.orientation, se->pose.position));
+            const float columns = se->curve > 0.0f ? 32.0f : 1.0f;
+            sp.shape = {se->size.width * 0.5f, se->size.height * 0.5f, se->curve, columns};
+            const float iw = static_cast<float>(se->image_width);
+            const float ih = static_cast<float>(se->image_height);
+            sp.rect = {se->rect.offset.x / iw, se->rect.offset.y / ih, se->rect.extent.width / iw,
+                       se->rect.extent.height / ih};
+            sp.tex = {iw, ih, marks ? 1.0f : 0.0f, 0.0f};
+            c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.screen_pipeline);
+            c.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, g.screen_layout, 0,
+                                 g.screen_sets[static_cast<std::size_t>(e)], {});
+            c.pushConstants(g.screen_layout,
+                            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
+                            sizeof(sp), &sp);
+            c.draw(static_cast<uint32_t>(columns) * 6, 1, 0, 0);
+            c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
+            if (marks) {
+                // The picture's serial in this eye's top left corner (proj_screen.h kProjCodeBits).
+                std::vector<vk::ClearRect> ones, zeros;
+                for (uint32_t b = 0; b < kProjCodeBits + 2; b++) {
+                    const bool one = b < kProjCodeBits ? ((se->serial >> b) & 1) != 0
+                                                       : b == kProjCodeBits;
+                    const vk::ClearRect rect{
+                        {{static_cast<int32_t>(g.eye_w * e + b * kProjCodeCell), 0},
+                         {kProjCodeCell, kProjCodeCell}},
+                        0,
+                        1};
+                    (one ? ones : zeros).push_back(rect);
+                }
+                const vk::ClearAttachment white{vk::ImageAspectFlagBits::eColor, 0,
+                                                vk::ClearColorValue{std::array<float, 4>{1, 1, 1, 1}}};
+                const vk::ClearAttachment black{vk::ImageAspectFlagBits::eColor, 0,
+                                                vk::ClearColorValue{std::array<float, 4>{0, 0, 0, 1}}};
+                c.clearAttachments(white, ones);
+                c.clearAttachments(black, zeros);
+            }
+        }
         for (int h = 0; h < 2; h++) {
             const Hand& hand = hands[static_cast<std::size_t>(h)];
             if (!hand.shown) {
@@ -1379,6 +1796,27 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         }
     }
     c.endRenderPass();
+    // AzaharFrame projscreen: the top screen's images back to the layout the renderer expects.
+    if (!screen_images.empty()) {
+        std::vector<vk::ImageMemoryBarrier> back;
+        for (const vk::Image image : screen_images) {
+            back.push_back({
+                .srcAccessMask = {},
+                .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                .oldLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+            });
+        }
+        c.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader,
+                          vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, back);
+    }
+    if (g.timing) {
+        c.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, g.timing, 1);
+    }
     c.end();
 }
 

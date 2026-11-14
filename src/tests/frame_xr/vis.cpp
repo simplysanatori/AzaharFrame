@@ -17,6 +17,7 @@
 #include "frame_xr/vis/help_layout.h"
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
 #include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
 #include "frame_xr/vis/stats_place.h"
 
 // AzaharFrame vrvis
@@ -742,4 +743,69 @@ TEST_CASE("FrameXr vis: the controller models are off in passthrough only", "[fr
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(true, true));
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, false));
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, true));
+}
+
+// AzaharFrame projscreen
+namespace {
+struct TQ {
+    float x, y, z, w;
+};
+struct TV {
+    float x, y, z;
+};
+struct TPose {
+    TQ orientation;
+    TV position;
+};
+} // namespace
+
+TEST_CASE("FrameXr vis: projection screens: a VIEW-space quad through the head", "[frame_xr]") {
+    // The head turned 90 degrees to the left (about +Y) and 1.6 m up: a quad 2 m ahead of it is
+    // 2 m to the left in LOCAL, still facing the head.
+    const float h = std::sqrt(0.5f);
+    const TPose head{{0.0f, h, 0.0f, h}, {0.0f, 1.6f, 0.0f}};
+    const TPose quad{{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -2.0f}};
+    const TPose p = ComposePose(head, quad);
+    CHECK(p.position.x == Approx(-2.0f).margin(1e-5));
+    CHECK(p.position.y == Approx(1.6f).margin(1e-5));
+    CHECK(p.position.z == Approx(0.0f).margin(1e-5));
+    const TV normal = QuatRotate(p.orientation, TV{0.0f, 0.0f, 1.0f});
+    CHECK(normal.x == Approx(1.0f).margin(1e-5)); // towards the head
+    // The identity changes nothing.
+    const TPose same = ComposePose(TPose{{0, 0, 0, 1}, {0, 0, 0}}, quad);
+    CHECK(same.position.z == Approx(-2.0f));
+    CHECK(same.orientation.w == Approx(1.0f));
+}
+
+TEST_CASE("FrameXr vis: projection screens: the screen's points, flat and curved", "[frame_xr]") {
+    const auto corner = ScreenPoint(1.0f, 1.0f, 1.6f, 0.96f, 0.0f);
+    CHECK(corner[0] == Approx(0.8f));
+    CHECK(corner[1] == Approx(0.48f));
+    CHECK(corner[2] == Approx(0.0f));
+    // On a cylinder (MakeCylinder: the axis `radius` behind the middle): the middle stays, the
+    // edge is the arc's half length round, bent towards the viewer, at the radius from the axis.
+    const float r = 2.0f;
+    const auto mid = ScreenPoint(0.0f, 0.0f, 1.6f, 0.96f, r);
+    CHECK(mid[0] == Approx(0.0f).margin(1e-6));
+    CHECK(mid[2] == Approx(0.0f).margin(1e-6));
+    const auto edge = ScreenPoint(1.0f, 0.0f, 1.6f, 0.96f, r);
+    const float phi = 0.8f / r;
+    CHECK(edge[0] == Approx(r * std::sin(phi)));
+    CHECK(edge[2] == Approx(r - r * std::cos(phi)));
+    CHECK(std::hypot(edge[0], edge[2] - r) == Approx(r));
+}
+
+TEST_CASE("FrameXr vis: projection screens: the eye buffer's scale switch", "[frame_xr]") {
+    CHECK(ProjScaleFrom(std::nullopt) == 1.0f);
+    CHECK(ProjScaleFrom(std::string("1.4")) == Approx(1.4f));
+    CHECK(ProjScaleFrom(std::string("9")) == 2.0f);
+    CHECK(ProjScaleFrom(std::string("0.1")) == 0.5f);
+    CHECK(ProjScaleFrom(std::string("x")) == 1.0f);
+    // The test marks are in the picture and read top row first, left to right.
+    for (const auto& m : kProjMarks) {
+        CHECK(std::abs(m[0]) <= 0.5f);
+        CHECK(std::abs(m[1]) <= 0.5f);
+    }
+    CHECK(kProjMarks[0][1] > kProjMarks[14][1]);
+    CHECK(kProjMarks[0][0] < kProjMarks[4][0]);
 }

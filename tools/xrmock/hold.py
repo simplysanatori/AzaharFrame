@@ -55,6 +55,22 @@ slope against the head's roll the pictures' age before, within 2 %). Roll fast (
 the shear grows with the roll since the picture.
 
   hold.py TRACE --roll [--eye left|right]
+
+projscreen, the projection layer (--proj, on a trace made with MOCK_XR_PROJ_SCAN and the app's
+AZAHARFRAME_XR_SCREENS_IN_PROJECTION=1 and AZAHARFRAME_XR_PROJ_MARKS=1): the top screen is not a
+quad but drawn into the projection layer, with magenta dots at 15 fixed picture points and the
+picture's serial as a strip of cells in each eye's corner. The mock copies parts of the images it
+is handed and finds the dots ("projscan" lines: each eye's view pose and FOV as submitted, the
+serial, the dots' centres in pixels). From the dots and the view they were drawn for, each
+refresh's screen is rebuilt (a homography from the picture points to the view's tangent plane:
+exact for a flat screen), and the same checks run on it as on a quad: the directions of the
+picture points are measured from the eye the image was drawn for (SteamVR reprojects a
+projection layer by rotation, which keeps those directions). --proj-world: a screen fixed in the
+room (no immersive mode): each dot found in both eyes is triangulated, and its place must not move
+over the run (--world-tol, degrees seen from the eyes; the dots' own spread is reported).
+
+  hold.py TRACE --proj --log azahar_log.txt [--camera warp] [--eye left|right]
+  hold.py TRACE --proj-world [--world-tol 0.05]
 """
 import argparse
 import math
@@ -68,6 +84,15 @@ QUAD = re.compile(
 END = re.compile(r"endFrame layers=\d+ t=([-\d.]+) yaw=([-\d.]+)(.*)$")
 ROLL = re.compile(r"^ roll=([-\d.]+)")  # fovscale: MOCK_XR_ROLL
 REL = re.compile(r"release sc(\d+)")
+# projscreen: MOCK_XR_PROJ_SCAN (xrmock.c) lines.
+NUM = r"([-\d.eE+]+)"
+PROJ = re.compile(r"projscan frame=(\d+) t=" + NUM + r" yaw=" + NUM + r" eye=(\d) serial=(-?\d+) "
+                  r"pos=" + NUM + "," + NUM + "," + NUM + " q=" + NUM + "," + NUM + "," + NUM + "," + NUM +
+                  r" fov=" + NUM + "," + NUM + "," + NUM + "," + NUM + r" rect=(\d+)x(\d+) marks=(\d+)(.*)$")
+# The test marks' picture points (frame_xr/vis/proj_screen.h kProjMarks), top row first.
+MARKS = [(-0.5, 0.5), (-0.25, 0.5), (0.0, 0.5), (0.25, 0.5), (0.5, 0.5),
+         (-0.5, 0.0), (-0.25, 0.0), (0.0, 0.0), (0.25, 0.0), (0.5, 0.0),
+         (-0.5, -0.5), (-0.25, -0.5), (0.0, -0.5), (0.25, -0.5), (0.5, -0.5)]
 
 
 def qrot(q, v):
@@ -198,6 +223,8 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
     # The picture's base size and distance: the median over the trace (the held size changes
     # only to the second order).
     def eye_rel(r):
+        if hasattr(r[3], "eye"):  # projscreen: from the eye it was drawn for
+            return sub(r[3][0], r[3].eye)
         return sub(r[3][0], eye_at(r[1], eye, ipd, neck))
     ds = sorted(math.sqrt(sum(c * c for c in eye_rel(r))) for r in rows)
     ws = sorted(r[3][2] for r in rows)
@@ -227,6 +254,8 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
                 pts.append((across, up, u, v))
 
     def where(r, u, v):
+        if hasattr(r[3], "eye"):  # projscreen: the rebuilt screen, from the eye it was drawn for
+            return angles(r[3].dir(u, v))
         pos, q, qw, qh = r[3]
         p = add(pos, qrot(q, (u * qw / 2, v * qh / 2, 0.0)))
         return angles(sub(p, eye_at(r[1], eye, ipd, neck)))
@@ -311,6 +340,15 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
             out("against a fresh picture, refresh %d of a picture: worst %.4f, mean %.4f degrees "
                 "(%d points)" % (i, dev[i][0], dev[i][1] / max(dev[i][2], 1), dev[i][2]))
         check.dev = dev
+    # projscreen: the dots' measuring noise (the fits' median rms residual): a step difference
+    # takes four measured points, so 4 x that is allowed on top of the tolerance.
+    allowance = 0.0
+    if hasattr(rows[0][3], "residual"):
+        rs = sorted(r[3].residual for r in rows)
+        allowance = 4.0 * rs[len(rs) // 2]
+        out("projection layer: the dots' fit residual median %.5f, worst %.5f degrees; %.4f "
+            "degrees allowed for it" % (rs[len(rs) // 2], rs[-1], allowance))
+    check.allowance = allowance
     pairs = fails = 0
     worst = 0.0
     stats = {}  # (across, up) -> [pairs, worst |s1 - s2|, sum |s1|, sum |s2|]
@@ -373,7 +411,7 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
             # in radians)^2 (an ideal warp, synthetic: 0.034 degrees at 250 degrees a second),
             # where rigid's error is first order (2 x s x the turn).
             turn_r = math.radians(abs(step1))
-            if e > tol + rel * step + second * math.degrees(turn_r * turn_r):
+            if e > tol + allowance + rel * step + second * math.degrees(turn_r * turn_r):
                 fails += 1
                 if fails <= 10:
                     out("FAIL picture %d at %+.0f, %+.0f degrees: steps %.4f, %.4f across and "
@@ -389,6 +427,251 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
             out("  %+3.0f, %+3.0f: %4d  worst %.4f  steps %.4f / %.4f"
                 % (across, up, st[0], st[1], st[2] / st[0], st[3] / st[0]))
     return pairs, worst, fails
+
+
+def solve(m, b):
+    """projscreen: m x = b (Gaussian elimination with partial pivoting)."""
+    n = len(b)
+    a = [list(m[i]) + [b[i]] for i in range(n)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(a[r][c]))
+        a[c], a[p] = a[p], a[c]
+        if abs(a[c][c]) < 1e-15:
+            raise ValueError("singular")
+        for r in range(n):
+            if r != c:
+                f = a[r][c] / a[c][c]
+                for k in range(c, n + 1):
+                    a[r][k] -= f * a[c][k]
+    return [a[i][n] / a[i][i] for i in range(n)]
+
+
+def homography(src, dst):
+    """projscreen: H (3 x 3, h22 = 1) taking src (u, v) to dst (x, y), least squares."""
+    rows, rhs = [], []
+    for (u, v), (x, y) in zip(src, dst):
+        rows.append((u, v, 1.0, 0.0, 0.0, 0.0, -x * u, -x * v))
+        rhs.append(x)
+        rows.append((0.0, 0.0, 0.0, u, v, 1.0, -y * u, -y * v))
+        rhs.append(y)
+    ata = [[sum(r[i] * r[j] for r in rows) for j in range(8)] for i in range(8)]
+    atb = [sum(r[i] * b for r, b in zip(rows, rhs)) for i in range(8)]
+    h = solve(ata, atb)
+    return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1.0]]
+
+
+class ProjQuad(tuple):
+    """projscreen: a refresh's screen rebuilt from the dots in one eye's image: (pos, q, width,
+    height) as a quad's tuple (the middle put 1 m from the eye: only directions are measured;
+    q its yaw), with the eye the image was drawn for and the exact directions (dir)."""
+
+    @staticmethod
+    def build(eye_pos, view_q, fov, w_px, h_px, pts):
+        tl, tr, tu, td = (math.tan(a) for a in fov)
+        tang = [(tl + x / w_px * (tr - tl), tu - y / h_px * (tu - td)) for x, y in pts]
+        hm = homography(MARKS, tang)
+        # (x, y, 1) ~ H (u, v, 1) with x = X / -Z: the columns are the screen's half axes and
+        # middle in the view, up to one scale (Z negated).
+        a = (hm[0][0], hm[1][0], -hm[2][0])
+        b = (hm[0][1], hm[1][1], -hm[2][1])
+        c = (hm[0][2], hm[1][2], -hm[2][2])
+        k = 1.0 / math.sqrt(sum(x * x for x in c))
+        if c[2] > 0:
+            k = -k
+        a, b, c = (qrot(view_q, scale(v, k)) for v in (a, b, c))
+        yaw = math.degrees(math.atan2(-a[2], a[0]))
+        width = 2 * math.sqrt(sum(x * x for x in a))
+        height = 2 * math.sqrt(sum(x * x for x in b))
+        quad = ProjQuad((add(eye_pos, c), yawq(yaw), width, height))
+        quad.eye = eye_pos
+        quad.axes = (a, b, c)
+        quad.hm = hm
+        quad.tang = tang
+        # The fit's rms residual, degrees at the middle (the dots' measuring noise).
+        res = 0.0
+        for (u, v), (x, y) in zip(MARKS, tang):
+            den = hm[2][0] * u + hm[2][1] * v + 1.0
+            px = (hm[0][0] * u + hm[0][1] * v + hm[0][2]) / den
+            py = (hm[1][0] * u + hm[1][1] * v + hm[1][2]) / den
+            res += (px - x) ** 2 + (py - y) ** 2
+        quad.residual = math.degrees(math.sqrt(res / len(MARKS)))
+        return quad
+
+    def dir(self, u, v):
+        a, b, c = self.axes
+        return add(c, add(scale(a, u), scale(b, v)))
+
+
+def match_marks(pts):
+    """projscreen: the 15 dots as MARKS orders them (rows top first, each left to right), or None."""
+    if len(pts) != len(MARKS):
+        return None
+    by_y = sorted(pts, key=lambda p: p[1])
+    rows = [sorted(by_y[i * 5:(i + 1) * 5]) for i in range(3)]
+    # The rows must be apart (a level screen, not rolled much).
+    for i in range(2):
+        if max(p[1] for p in rows[i]) >= min(p[1] for p in rows[i + 1]):
+            return None
+    return [p for r in rows for p in r]
+
+
+def parse_proj(path, eye, t_from=None, t_to=None):
+    """projscreen: as parse(), the top screen rebuilt from each projscan line of `eye` (1 left,
+    2 right). parse_proj.skipped counts lines left out."""
+    heads = []
+    index = {}
+    scans = []
+    parse_proj.rolls = []
+    for line in open(path, errors="replace"):
+        m = END.search(line)
+        if m:
+            t, yaw = float(m.group(1)), float(m.group(2))
+            if (t_from is not None and t < t_from) or (t_to is not None and t > t_to):
+                continue
+            rm = ROLL.match(m.group(3))
+            parse_proj.rolls.append(float(rm.group(1)) if rm else 0.0)
+            index[round(t, 5)] = len(heads)
+            heads.append((t, yaw))
+            continue
+        m = PROJ.search(line)
+        if m and int(m.group(4)) + 1 == eye:
+            scans.append(m)
+    rows = []
+    skipped = {"no serial": 0, "not 15 dots": 0, "outside the window": 0}
+    for m in scans:
+        t, yaw = float(m.group(2)), float(m.group(3))
+        k = index.get(round(t, 5))
+        if k is None:
+            skipped["outside the window"] += 1
+            continue
+        serial = int(m.group(5))
+        if serial < 0:
+            skipped["no serial"] += 1
+            continue
+        pos = tuple(float(m.group(i)) for i in (6, 7, 8))
+        q = tuple(float(m.group(i)) for i in (9, 10, 11, 12))
+        fov = tuple(float(m.group(i)) for i in (13, 14, 15, 16))
+        w_px, h_px = int(m.group(17)), int(m.group(18))
+        pts = [tuple(float(v) for v in p.split(",")) for p in m.group(20).split()]
+        pts = match_marks(pts)
+        if pts is None:
+            skipped["not 15 dots"] += 1
+            continue
+        rows.append((t, yaw, serial, ProjQuad.build(pos, q, fov, w_px, h_px, pts), k))
+    rows.sort(key=lambda r: r[0])
+    parse_proj.heads = heads
+    parse_proj.skipped = skipped
+    return rows
+
+
+def check_world(path, tol=0.05, out=print):
+    """projscreen --proj-world: each dot seen by both eyes on a refresh, triangulated (the
+    nearest point between the two rays); over the run every dot must stay where it was (seen
+    from between the eyes, within `tol` degrees). Returns (ok, worst degrees, frames)."""
+    by_frame = {}
+    for line in open(path, errors="replace"):
+        m = PROJ.search(line)
+        if not m:
+            continue
+        pts = match_marks([tuple(float(v) for v in p.split(",")) for p in m.group(20).split()])
+        if pts is None:
+            continue
+        pos = tuple(float(m.group(i)) for i in (6, 7, 8))
+        q = tuple(float(m.group(i)) for i in (9, 10, 11, 12))
+        fov = tuple(math.tan(float(m.group(i))) for i in (13, 14, 15, 16))
+        w_px, h_px = int(m.group(17)), int(m.group(18))
+        rays = []
+        for x, y in pts:
+            tx = fov[0] + x / w_px * (fov[1] - fov[0])
+            ty = fov[2] - y / h_px * (fov[2] - fov[3])
+            d = qrot(q, (tx, ty, -1.0))
+            n = math.sqrt(sum(c * c for c in d))
+            rays.append((pos, scale(d, 1.0 / n)))
+        by_frame.setdefault(int(m.group(1)), {})[int(m.group(4))] = (float(m.group(3)), rays)
+    points = {}  # dot -> [(frame, point, centre of the eyes)]
+    for f, eyes in sorted(by_frame.items()):
+        if 0 not in eyes or 1 not in eyes:
+            continue
+        for i, (r0, r1) in enumerate(zip(eyes[0][1], eyes[1][1])):
+            (p0, d0), (p1, d1) = r0, r1
+            w0 = sub(p0, p1)
+            a, b, c = 1.0, sum(x * y for x, y in zip(d0, d1)), 1.0
+            d, e = sum(x * y for x, y in zip(d0, w0)), sum(x * y for x, y in zip(d1, w0))
+            den = a * c - b * b
+            if den < 1e-12:
+                continue
+            s0, s1 = (b * e - c * d) / den, (a * e - b * d) / den
+            q0, q1 = add(p0, scale(d0, s0)), add(p1, scale(d1, s1))
+            mid = scale(add(q0, q1), 0.5)
+            points.setdefault(i, []).append((f, mid, scale(add(p0, p1), 0.5)))
+    if not points:
+        out("no frame with the 15 dots in both eyes (MOCK_XR_PROJ_SCAN with both eyes?)")
+        return False, 0.0, 0
+    worst = 0.0
+    depth = []
+    for i, lst in sorted(points.items()):
+        mean = tuple(sum(p[1][k] for p in lst) / len(lst) for k in range(3))
+        for f, p, centre in lst:
+            to_mean, to_p = sub(mean, centre), sub(p, centre)
+            n0 = math.sqrt(sum(x * x for x in to_mean))
+            n1 = math.sqrt(sum(x * x for x in to_p))
+            cosang = max(-1.0, min(1.0, sum(x * y for x, y in zip(to_mean, to_p)) / (n0 * n1)))
+            worst = max(worst, math.degrees(math.acos(cosang)))
+            depth.append(n1 - n0)
+        if i in (0, 7, 14):
+            out("dot %2d (%+.2f, %+.2f): %d frames, at %.4f, %.4f, %.4f m" % (
+                i, MARKS[i][0], MARKS[i][1], len(lst), mean[0], mean[1], mean[2]))
+    frames = len(next(iter(points.values())))
+    out("world lock: %d dots over %d frames, worst angle from its mean place %.4f degrees (limit "
+        "%.3f); distance spread %.1f mm (triangulated: depth is the noisiest)" % (
+            len(points), frames, worst, tol, 1000 * (max(depth) - min(depth))))
+    return worst <= tol, worst, frames
+
+
+def proj_lines(lines, eye=1, ipd=0.064, w_px=1680, h_px=1760, fov=0.84, noise=0.02):
+    """projscreen selftest: a quad trace as the projection layer would carry it: the marks
+    projected for the eye at that refresh (the image drawn for it) into projscan lines, the
+    picture's serial from img= or the releases, pixel noise of +-`noise` (centroids)."""
+    import random
+    rnd = random.Random(7)
+    out = []
+    releases = 0
+    frame = 0
+    t_fov = math.tan(fov)
+    for line in lines:
+        if line.startswith("release"):
+            releases += 1
+            out.append(line)
+            continue
+        m = END.search(line)
+        if not m:
+            out.append(line)
+            continue
+        out.append("endFrame layers=1 t=%s yaw=%s" % (m.group(1), m.group(2)))
+        q = QUAD.search(m.group(3))
+        frame += 1
+        if not q:
+            continue
+        yaw = float(m.group(2))
+        pos = tuple(float(q.group(i)) for i in (6, 7, 8))
+        qq = tuple(float(q.group(i)) for i in (9, 10, 11, 12))
+        sw, sh = float(q.group(4)), float(q.group(5))
+        serial = int(q.group(13)) if q.group(13) is not None else releases
+        e = eye_at(yaw, eye, ipd, 0.0)
+        vq = yawq(yaw)
+        pts = []
+        for u, v in MARKS:
+            p = add(pos, qrot(qq, (u * sw / 2, v * sh / 2, 0.0)))
+            d = qrot(qconj(vq), sub(p, e))
+            x, y = d[0] / -d[2], d[1] / -d[2]
+            pts.append(((x + t_fov) / (2 * t_fov) * w_px + rnd.uniform(-noise, noise),
+                        (t_fov - y) / (2 * t_fov) * h_px + rnd.uniform(-noise, noise)))
+        out.append("projscan frame=%d t=%s yaw=%s eye=%d serial=%d pos=%.6f,%.6f,%.6f "
+                   "q=%.6f,%.6f,%.6f,%.6f fov=%.6f,%.6f,%.6f,%.6f rect=%dx%d marks=15 %s" % (
+                       frame, m.group(1), m.group(2), eye - 1, serial, e[0], e[1], e[2],
+                       vq[0], vq[1], vq[2], vq[3], -fov, fov, fov, -fov, w_px, h_px,
+                       " ".join("%.3f,%.3f" % p for p in pts)))
+    return out
 
 
 def qmul(a, b):
@@ -659,6 +942,50 @@ def selftest():
                  (", app lag %d on compositor lag %d" % (app_lag, comp_lag) if comp_lag or app_lag
                   else "") + (", irregular cadence" if cadence else ""), pairs, worst, "PASS" if got else "FAIL", "PASS" if want else "FAIL"))
         ok &= got == want
+    # projscreen: the same pictures carried by the projection layer (dots found in the images,
+    # the screen rebuilt per refresh): rigid fails at gain 0.6, warp passes; cameras read too.
+    # (Cameras are not read from the rebuilt screen: a nearly frontal plane's turn is poorly
+    # fixed by its dots, so --proj runs without --camera.)
+    for hold, g, want, camera in (("rigid", 0.6, False, None), ("rigid", 1.0, True, None),
+                                  ("warp", 0.6, True, None), ("warp", 1.4, True, None),
+                                  ("rigid", 1.4, False, None)):
+        fd, path = tempfile.mkstemp(suffix=".trace", dir=os.path.dirname(os.path.abspath(__file__)))
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(proj_lines(synthetic(hold, g, g))) + "\n")
+        rows = parse_proj(path, 1)
+        pairs, worst, fails = check(rows, g, g, 1, 0.064, 0.0, 0.01, 0.1, out=lambda s: None,
+                                    heads=parse_proj.heads, before=0 if camera else 10,
+                                    camera=camera)
+        os.remove(path)
+        got = pairs > 0 and fails == 0
+        jump = getattr(check, "jump", None)
+        if camera == "warp" and jump is not None:
+            got = got and jump[0] < 0.01
+        check.jump = None
+        print("selftest proj %-5s gain %.1f%s: %d step pairs, worst %.4f degrees -> %s (want %s)"
+              % (hold, g, ", cameras read" if camera else "", pairs, worst,
+                 "PASS" if got else "FAIL", "PASS" if want else "FAIL"))
+        ok &= got == want
+    # projscreen --proj-world: a screen fixed in the room, both eyes, a turn: still; one that
+    # moves 0.2 degrees a refresh with the head: not.
+    for drift, want in ((0.0, True), (0.2, False)):
+        lines = []
+        for k in range(48):
+            yaw = 1.25 * k
+            lines.append("endFrame layers=1 t=%.6f yaw=%.6f quad[sc3:1x1 at 0,0 eye=1 sp=local "
+                         "size=1.60000x0.96000 pos=0.00000,0.00000,-2.00000 q=%.5f,%.5f,%.5f,%.5f]"
+                         % (k / 120.0, yaw, *yawq(drift * k)))
+        both = []
+        for e in (1, 2):
+            both += [l for l in proj_lines(lines, eye=e) if l.startswith("projscan")]
+        fd, path = tempfile.mkstemp(suffix=".trace", dir=os.path.dirname(os.path.abspath(__file__)))
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(both) + "\n")
+        got = check_world(path, out=lambda s: None)
+        os.remove(path)
+        print("selftest proj world lock, drift %.1f degrees a refresh: worst %.4f degrees -> %s (want %s)"
+              % (drift, got[1], "PASS" if got[0] else "FAIL", "PASS" if want else "FAIL"))
+        ok &= got[0] == want
     # fovscale: the roll check: equal gains (Field of View) pass, unequal (Stretch) fail.
     for gx, gy, want in ((0.714, 0.714, True), (1.0, 1.0, True), (0.714 / 0.7, 0.714 / 0.85, False),
                          (0.714 / 1.3, 0.714, False)):
@@ -703,6 +1030,12 @@ def main():
     ap.add_argument("--from", dest="t_from", type=float, help="trace time to start at, s")
     ap.add_argument("--to", dest="t_to", type=float, help="trace time to stop at, s")
     ap.add_argument("--roll", action="store_true", help="the roll check (fovscale)")
+    ap.add_argument("--proj", action="store_true",
+                    help="the top screen from the projection layer's dots (projscreen)")
+    ap.add_argument("--proj-world", action="store_true",
+                    help="a screen fixed in the room, from both eyes' dots (projscreen)")
+    ap.add_argument("--world-tol", type=float, default=0.05,
+                    help="--proj-world: degrees a dot may move from its mean place")
     ap.add_argument("--shape-tol", type=float, default=0.0002,
                     help="--roll: width over height within this share of its median")
     ap.add_argument("--spread-tol", type=float, default=0.005,
@@ -710,6 +1043,13 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    if a.proj_world:
+        if not a.trace:
+            ap.error("a trace is needed")
+        ok = check_world(a.trace, a.world_tol)[0]
+        print("RESULT: %s" % ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
+    reader = parse_proj if a.proj else parse
     if a.roll:
         if not a.trace:
             ap.error("a trace is needed")
@@ -730,12 +1070,15 @@ def main():
         ap.error("a trace and --gain-x and --gain-y (or --log) are needed")
     eye = 1 if a.eye == "left" else 2
     if a.fit_gain:
-        rows0 = parse(a.trace, eye, a.t_from, a.t_to)
+        rows0 = reader(a.trace, eye, a.t_from, a.t_to)
         a.gain_x, a.gain_y = fit_gain(rows0, a.camera or "warp", a.scale_x, a.scale_y)
     print("gain across %.5f, up %.5f; trace from %s s to %s s" % (a.gain_x, a.gain_y, a.t_from, a.t_to))
-    rows = parse(a.trace, eye, a.t_from, a.t_to)
+    rows = reader(a.trace, eye, a.t_from, a.t_to)
+    if a.proj:
+        print("projection layer: %d refreshes with the screen rebuilt; left out: %s" % (
+            len(rows), ", ".join("%d %s" % (v, k) for k, v in parse_proj.skipped.items())))
     pairs, worst, fails = check(rows, a.gain_x, a.gain_y, eye, a.ipd, a.neck, a.tol, a.rel,
-                                heads=parse.heads,
+                                heads=reader.heads,
                                 before=a.before if a.before is not None else (0 if a.camera else 10),
                                 camera=a.camera, second=a.second)
     print("%d step pairs, worst difference %.4f degrees, %d over %.3f + %.0f %% of the step"

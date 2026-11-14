@@ -100,6 +100,9 @@ struct ScreenChain {
     bool has_image = false;  ///< released at least once since made (may be shown)
     /// AzaharFrame doubling: the game frame (Runtime::release_serial) of the image released last.
     uint64_t frame_serial = 0;
+    /// AzaharFrame projscreen: the index of the image released last (`index` moves on as soon as
+    /// the renderer acquires the next one); under screens_mutex.
+    uint32_t shown_index = 0;
 };
 
 /// Where one display frame's time went (milliseconds), from one xrWaitFrame return to the next.
