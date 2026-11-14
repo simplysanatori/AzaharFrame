@@ -295,10 +295,16 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
     pairs = fails = 0
     worst = 0.0
     stats = {}  # (across, up) -> [pairs, worst |s1 - s2|, sum |s1|, sum |s2|]
+    # imglag: the pictures the step check leaves out, counted (irregular paths are not judged).
+    skipped = {"on one refresh": 0, "irregular pacing": 0, "turning back or unsteady": 0}
     for n in range(1, len(pics) - 1):
         a, b = pics[n], pics[n + 1]
         # r31: k refreshes a picture (2 at 60 pictures a second, 4 at 30), the same as the last
-        if len(a) < 2 or len(b) < 1 or len(pics[n - 1]) != len(a):
+        if len(a) < 2:
+            skipped["on one refresh"] += 1
+            continue
+        if len(b) < 1 or len(pics[n - 1]) != len(a):
+            skipped["irregular pacing"] += 1
             continue  # not steady pacing here
         # The head's turn between the two pictures' first refreshes (their cameras' turn over
         # gain_x); skip the ends of the sweep, where it turns back.
@@ -306,10 +312,12 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
         step1, step2 = a[1][1] - a[0][1], b[0][1] - a[-1][1]
         if abs(step1 - step2) > 1e-3 or abs(turn) < 1e-4 or any(
                 abs(a[i + 1][1] - a[i][1] - step1) > 1e-3 for i in range(len(a) - 1)):
+            skipped["turning back or unsteady"] += 1
             continue
         # r31: and steady from `before` refreshes before picture n's first refresh (its camera's
         # pose; the age is about 5 refreshes on the mock) to picture n+1's first.
         if heads is not None and not steady(heads, a[0][4] - before, b[0][4]):
+            skipped["turning back or unsteady"] += 1
             continue
         cam = gx * turn  # picture n+1's camera from picture n's, degrees (a yaw)
         if camera:
@@ -351,6 +359,10 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
                 if fails <= 10:
                     out("FAIL picture %d at %+.0f, %+.0f degrees: steps %.4f, %.4f across and "
                         "%.4f, %.4f up (degrees)" % (a[0][2], across, up, s1[0], s2[0], s1[1], s2[1]))
+    out("pictures checked %d of %d; left out: %s" % (
+        max(0, len(pics) - 2 - sum(skipped.values())), len(pics),
+        ", ".join("%d %s" % (v, k) for k, v in skipped.items())))
+    check.skipped = skipped
     if stats:
         out("per picture point (degrees across, up): pairs, worst |step1 - step2|, mean step "
             "refresh 1 -> 2, mean step refresh 2 -> next picture (degrees)")

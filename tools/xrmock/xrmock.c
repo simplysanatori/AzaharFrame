@@ -1435,11 +1435,12 @@ static XrResult XRAPI_CALL mBeginFrame(XrSession s, const XrFrameBeginInfo* bi) 
     UNLOCK();
     return r;
 }
-// AzaharFrame imglag: MOCK_XR_IMAGE_LAG=1 shows the image an endFrame carries one refresh late, with
-// the next endFrame's layer pose, as SteamVR does on the Steam Frame (38/dbl/advisor.md, cause 1a).
+// AzaharFrame imglag: the image an endFrame carries is shown one refresh late, with the next
+// endFrame's layer pose, as SteamVR does on the Steam Frame (38/dbl/advisor.md, cause 1a): the
+// default, as the app's image lag is 1 by default; MOCK_XR_IMAGE_LAG=0 shows it at once.
 static int imageLag(void) {
     static int lag = -1;
-    if (lag < 0) lag = getenv("MOCK_XR_IMAGE_LAG") && getenv("MOCK_XR_IMAGE_LAG")[0] == '1';
+    if (lag < 0) lag = !(getenv("MOCK_XR_IMAGE_LAG") && getenv("MOCK_XR_IMAGE_LAG")[0] == '0');
     return lag;
 }
 // The image a layer of chain `c` shows on this refresh: its release count (the picture) and index.
@@ -1827,6 +1828,8 @@ static void init(void) {
         free(copy);
     }
     gFocusOnce = getenv("MOCK_XR_FOCUS_ONCE") && getenv("MOCK_XR_FOCUS_ONCE")[0] == '1';
+    // AzaharFrame imglag: in the trace's head, so a run's pairing model is on record.
+    trace("config image lag %d refresh (MOCK_XR_IMAGE_LAG; default 1, as SteamVR)", imageLag());
     const char* script = getenv("MOCK_XR_INPUT_SCRIPT");
     if (script) loadScript(script);
     secReset();
