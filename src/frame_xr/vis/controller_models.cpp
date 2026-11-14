@@ -1478,13 +1478,39 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         // AzaharFrame ctrlfront: the depth of the screens and panels this eye sees first (a
         // screen the choice leaves out at the nearest depth): a controller's parts behind one are
         // not drawn, and the screen shows there.
+        // Only where the models can be in this eye's image (model_plane.h ModelsViewBounds).
+        std::optional<std::array<float, 4>> bounds;
+        if (!occluders.empty()) {
+            std::array<ModelSphere, 2> spheres{};
+            std::size_t n = 0;
+            for (const Hand& hand : hands) {
+                if (hand.shown) {
+                    spheres[n++] = {hand.aim.position,
+                                    hand.weapon >= 0 ? kWeaponSphere : kControllerSphere};
+                }
+            }
+            const XrFovf& fov = views.fov[e];
+            bounds = ModelsViewBounds(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
+                                      fov.angleUp, fov.angleDown, spheres.data(), n, kNear);
+        }
         bool occluded = false;
         for (const Occluder& o : occluders) {
-            if (!(o.eyes & (1u << e)) || o.width_m <= 0.0f || o.height_m <= 0.0f) {
+            if (!bounds || !(o.eyes & (1u << e)) || o.width_m <= 0.0f || o.height_m <= 0.0f) {
                 continue;
             }
             if (!occluded) {
                 c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline_occluder);
+                const auto px = [](float t, uint32_t size) {
+                    return static_cast<int32_t>(std::clamp(t, 0.0f, 1.0f) * static_cast<float>(size));
+                };
+                const int32_t x0 = px((*bounds)[0], g.eye_w), y0 = px((*bounds)[1], g.eye_h);
+                const int32_t x1 = std::min<int32_t>(px((*bounds)[2], g.eye_w) + 1,
+                                                     static_cast<int32_t>(g.eye_w));
+                const int32_t y1 = std::min<int32_t>(px((*bounds)[3], g.eye_h) + 1,
+                                                     static_cast<int32_t>(g.eye_h));
+                c.setScissor(0, vk::Rect2D{{static_cast<int32_t>(g.eye_w * e) + x0, y0},
+                                           {static_cast<uint32_t>(std::max(x1 - x0, 0)),
+                                            static_cast<uint32_t>(std::max(y1 - y0, 0))}});
                 occluded = true;
             }
             PushConstants pc{};
@@ -1500,6 +1526,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         }
         if (occluded) {
             c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
+            c.setScissor(0, sc);
         }
         for (int h = 0; h < 2; h++) {
             const Hand& hand = hands[static_cast<std::size_t>(h)];

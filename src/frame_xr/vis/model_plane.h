@@ -139,4 +139,65 @@ inline float ModelPlaneDistance(const Input::Posef& head,
     return std::clamp(nearest.value_or(kModelPlaneDefault), kModelPlaneMin, kModelPlaneMax);
 }
 
+/// The part of an eye's image the models can cover: the bounds of the spheres (centre LOCAL,
+/// radius) seen from `eye` with that field of view, as {u0, v0, u1, v1}, 0 to 1 across the image
+/// from its left and top edges; none when no sphere is in front of the eye. A sphere reaching the
+/// eye's near plane (`near_m`) gives the whole image. The occluders are drawn only there: their
+/// depth matters nowhere else, and so it costs next to nothing (on the Frame a screen filling the
+/// view, written whole, cost about 0.2 ms a picture).
+struct ModelSphere {
+    Input::Vec3f centre;
+    float radius = 0.0f;
+};
+constexpr float kControllerSphere = 0.25f; ///< a Frame controller round its aim pose
+constexpr float kWeaponSphere = 1.2f;      ///< a weapon in hand, with the palm's forearm
+inline std::optional<std::array<float, 4>> ModelsViewBounds(
+    const Input::Posef& eye, float angle_left, float angle_right, float angle_up, float angle_down,
+    const ModelSphere* spheres, std::size_t count, float near_m) {
+    const float l = std::tan(angle_left), r = std::tan(angle_right);
+    const float u = std::tan(angle_up), d = std::tan(angle_down);
+    const Input::Posef to_eye = Input::Inverse(eye);
+    std::optional<std::array<float, 4>> out;
+    const auto add = [&](float u0, float v0, float u1, float v1) {
+        if (!out) {
+            out = std::array<float, 4>{u0, v0, u1, v1};
+        } else {
+            (*out)[0] = std::min((*out)[0], u0);
+            (*out)[1] = std::min((*out)[1], v0);
+            (*out)[2] = std::max((*out)[2], u1);
+            (*out)[3] = std::max((*out)[3], v1);
+        }
+    };
+    for (std::size_t i = 0; i < count; i++) {
+        const Input::Vec3f c = Input::Transform(to_eye, spheres[i].centre);
+        const float rad = spheres[i].radius;
+        if (c.z - rad >= 0.0f) {
+            continue; // all of it behind the eye
+        }
+        if (c.z + rad > -near_m) {
+            add(0.0f, 0.0f, 1.0f, 1.0f); // at the eye: anywhere
+            continue;
+        }
+        // The box round the sphere, its corners projected (all in front of the eye).
+        float u0 = 1e9f, v0 = 1e9f, u1 = -1e9f, v1 = -1e9f;
+        for (int k = 0; k < 8; k++) {
+            const float x = c.x + ((k & 1) ? rad : -rad);
+            const float y = c.y + ((k & 2) ? rad : -rad);
+            const float z = c.z + ((k & 4) ? rad : -rad);
+            const float tx = x / -z, ty = y / -z;
+            const float pu = (tx - l) / (r - l), pv = (u - ty) / (u - d);
+            u0 = std::min(u0, pu);
+            u1 = std::max(u1, pu);
+            v0 = std::min(v0, pv);
+            v1 = std::max(v1, pv);
+        }
+        if (u1 <= 0.0f || u0 >= 1.0f || v1 <= 0.0f || v0 >= 1.0f) {
+            continue; // out of view
+        }
+        add(std::clamp(u0, 0.0f, 1.0f), std::clamp(v0, 0.0f, 1.0f), std::clamp(u1, 0.0f, 1.0f),
+            std::clamp(v1, 0.0f, 1.0f));
+    }
+    return out;
+}
+
 } // namespace FrameXr::Vis

@@ -886,3 +886,49 @@ TEST_CASE("FrameXr vis: the controller pass's shaders compile", "[frame_xr]") {
     CHECK(!Vulkan::CompileGLSL(v + Shaders::kOccluderVert, vk::ShaderStageFlagBits::eVertex)
                .empty());
 }
+
+// The occluders are drawn only where the models can be: every point of a model's sphere lands
+// inside the bounds, at the image position PlaneForEye's quad gives it.
+TEST_CASE("FrameXr vis: the models' bounds in an eye's image", "[frame_xr]") {
+    const Input::Posef eye{Input::Normalized(Input::Quatf{0.06f, -0.15f, 0.02f, 0.98f}),
+                           {0.03f, 1.6f, 0.2f}};
+    const float al = -0.92f, ar = 0.81f, au = 0.86f, ad = -0.97f;
+    const float tl = std::tan(al), tr = std::tan(ar), tu = std::tan(au), td = std::tan(ad);
+    const auto ahead = [&](float x, float y, float z) { return Input::Transform(eye, {x, y, -z}); };
+    const std::array<ModelSphere, 2> spheres{
+        {{ahead(0.12f, -0.15f, 0.4f), kControllerSphere}, {ahead(-0.2f, 0.05f, 0.9f), kControllerSphere}}};
+    const auto b = ModelsViewBounds(eye, al, ar, au, ad, spheres.data(), 2, 0.05f);
+    REQUIRE(b);
+    CHECK((*b)[0] < (*b)[2]);
+    CHECK((*b)[1] < (*b)[3]);
+    CHECK(((*b)[2] - (*b)[0]) * ((*b)[3] - (*b)[1]) < 0.8f); // not the whole image
+    const Input::Posef to_eye = Input::Inverse(eye);
+    int inside = 0;
+    for (const auto& s : spheres) {
+        for (int i = 0; i < 200; i++) {
+            // points on and in the sphere, spread by a fixed sequence
+            const float a = 0.37f * i, p = 0.53f * i, k = (i % 5 + 1) / 5.0f;
+            const Input::Vec3f d{std::cos(a) * std::sin(p), std::sin(a) * std::sin(p), std::cos(p)};
+            const Input::Vec3f q = Input::Transform(to_eye, s.centre + d * (s.radius * k));
+            const float u = (q.x / -q.z - tl) / (tr - tl), v = (tu - q.y / -q.z) / (tu - td);
+            if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+                continue; // out of the image
+            }
+            inside++;
+            CHECK(u >= (*b)[0] - 1e-5f);
+            CHECK(u <= (*b)[2] + 1e-5f);
+            CHECK(v >= (*b)[1] - 1e-5f);
+            CHECK(v <= (*b)[3] + 1e-5f);
+        }
+    }
+    CHECK(inside > 300);
+    // Behind the eye: none. At the eye: all of the image.
+    const ModelSphere behind{ahead(0.0f, 0.0f, -0.5f), kControllerSphere};
+    CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, &behind, 1, 0.05f));
+    const ModelSphere at_eye{ahead(0.0f, -0.1f, 0.2f), kControllerSphere};
+    const auto all = ModelsViewBounds(eye, al, ar, au, ad, &at_eye, 1, 0.05f);
+    REQUIRE(all);
+    CHECK(*all == std::array<float, 4>{0.0f, 0.0f, 1.0f, 1.0f});
+    // None shown: none.
+    CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, nullptr, 0, 0.05f));
+}
