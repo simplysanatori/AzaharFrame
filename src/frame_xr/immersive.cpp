@@ -448,6 +448,16 @@ struct State {
     bool far_said_diverges = false;
     float far_min_deg = 0.0f, far_max_deg = 0.0f;
     int far_secs = 0;
+    /// AzaharFrame overshoot: mode 2's slider over the same seconds: how often it moved and its
+    /// range (the line says so: hunting shows).
+    int slider_moves = 0;
+    float slider_sent = -1.0f, slider_min = 0.0f, slider_max = 0.0f;
+    /// And the far scenery of the frames on view (the game's last frames, FarPerSlider::Drawn, on
+    /// the screen as it is that XR frame), every XR frame: the worst, and how many were past
+    /// parallel. The line's own figure is the median of the game's last second on the screen as
+    /// it is now, which is a second behind while the screen moves.
+    float view_worst_deg = 1e9f;
+    int view_frames = 0, view_past = 0;
     L::Adjuster adjuster;
     /// The global Immersive Offset (vr_immersive_offset_x, _y), read every frame.
     L::LensOffset offset;
@@ -1033,6 +1043,9 @@ void UpdateNatural(u32 mode) {
         }
         g.natural.Reset();
         g.far_hold.Reset();
+        g.slider_sent = -1.0f;
+        g.slider_moves = g.view_frames = g.view_past = 0;
+        g.view_worst_deg = 1e9f;
         g.quad_half = L::kQuadsOnEyes;
         g.natural_logged_limit = -1.0f;
         g.natural_logged_depth = 1000;
@@ -1066,11 +1079,24 @@ void UpdateNatural(u32 mode) {
             // measure, which waits while the slider moves) the slider goes no higher.
             const float drawn =
                 VideoCore::Immersive::g_stereo_far_drawn.load(std::memory_order_relaxed);
-            const bool no_higher =
-                drawn > 0.0f &&
-                L::StereoFarOnQuad(g.solved, 2, g.half_ipd, drawn).vergence_deg <= 0.0f;
+            const float view_deg =
+                drawn > 0.0f ? L::StereoFarOnQuad(g.solved, 2, g.half_ipd, drawn).vergence_deg
+                             : 1e9f;
+            const bool no_higher = view_deg <= 0.0f;
+            if (drawn > 0.0f) {
+                g.view_worst_deg = std::min(g.view_worst_deg, view_deg);
+                ++g.view_frames;
+                g.view_past += view_deg < -0.01f ? 1 : 0;
+            }
             const float sent = g.natural.Update(f, limit, now, no_higher);
             Settings::frame_vr_natural_slider.store(sent, std::memory_order_relaxed);
+            if (sent != g.slider_sent) {
+                const bool first = g.slider_sent < 0.0f;
+                g.slider_moves += first ? 0 : 1;
+                g.slider_min = first ? sent : std::min(g.slider_min, sent);
+                g.slider_max = first ? sent : std::max(g.slider_max, sent);
+                g.slider_sent = sent;
+            }
         }
         g.quad_half = L::kQuadsOnEyes;
     } else {
@@ -1167,6 +1193,9 @@ void OnFrame(const FrameInfo& info) {
             VideoCore::Immersive::g_stereo_eye_samples.store(0, std::memory_order_relaxed);
             g.natural.Reset();
             g.far_hold.Reset();
+            g.slider_sent = -1.0f;
+            g.slider_moves = g.view_frames = g.view_past = 0;
+            g.view_worst_deg = 1e9f;
             g.eye_k.Reset();
             g.full_distance.Reset();
             g.full_distance_target = -1.0f;
@@ -1601,34 +1630,59 @@ void OnFrame(const FrameInfo& info) {
                 g.far_min_deg = std::min(g.far_min_deg, st.far_deg);
                 g.far_max_deg = std::max(g.far_max_deg, st.far_deg);
                 ++g.far_secs;
+                // AzaharFrame overshoot: in mode 2 doubling is the frames on view's (every XR
+                // frame since the line was last said), not the median's: that is the game's last
+                // second on the screen as it is now, a second behind while the screen moves.
+                const bool by_view = mode == 2 && g.view_frames > 0;
+                const float diverge_deg = by_view ? -g.view_worst_deg : -st.vergence_deg;
+                const bool diverges = by_view ? diverge_deg > L::kDivergeToleranceDeg : st.diverges;
                 using Common::FrameLog::Moved;
                 const bool changed = Moved(g.far_said_deg, st.far_deg, 0.0f, 0.1f) ||
                                      Moved(g.far_said_allow, st.allow_deg, 0.0f, 0.05f) ||
-                                     st.diverges != g.far_said_diverges;
+                                     diverges != g.far_said_diverges;
                 const auto say = g.far_gate.Update(g.view.time / 1'000'000, changed);
                 if (say != Common::FrameLog::ChangeGate::Say::Nothing) {
+                    // AzaharFrame overshoot: mode 2's slider and the frames on view since.
+                    std::string slider_text;
+                    if (mode == 2 && g.slider_sent >= 0.0f) {
+                        slider_text = fmt::format("; the slider sent moved {} times, {:.2f} to "
+                                                  "{:.2f} %",
+                                                  g.slider_moves, 100.0f * g.slider_min,
+                                                  100.0f * g.slider_max);
+                        if (g.view_frames > 0) {
+                            slider_text +=
+                                fmt::format("; the frames on view: the eyes at worst "
+                                            "{:.2f} degrees inwards, {} of {} past "
+                                            "parallel",
+                                            g.view_worst_deg, g.view_past, g.view_frames);
+                        }
+                    }
                     LOG_INFO(Frontend,
                              "xr: stereo far {:.2f} deg, eyes allow {:.2f} deg (the game's far "
                              "scenery {:.2f} % of its picture's width apart, {:.3f} m on the "
                              "screen {:.0f} degrees wide at {:.2f} m, factor {:.2f}, IPD {:.1f} "
                              "mm; the eyes {:.2f} degrees inwards; the game's 3D x {:.2f} would "
-                             "be parallel) ({:.2f} to {:.2f} deg over {} s, {})",
+                             "be parallel) ({:.2f} to {:.2f} deg over {} s{}, {})",
                              st.far_deg, st.allow_deg, far_width * 100.0f, st.separation_m,
                              Deg(2 * std::atan(g.solved.tan_half_y * g.solved.aspect)),
                              g.solved.distance, g.solved.factor, 2000.0f * g.half_ipd,
                              st.vergence_deg, st.natural_scale, g.far_min_deg, g.far_max_deg,
-                             g.far_secs, Common::FrameLog::Why(say));
+                             g.far_secs, slider_text, Common::FrameLog::Why(say));
+                    g.slider_moves = 0;
+                    g.view_worst_deg = 1e9f;
+                    g.view_frames = g.view_past = 0;
+                    g.slider_min = g.slider_max = g.slider_sent;
                     g.far_said_deg = st.far_deg;
                     g.far_said_allow = st.allow_deg;
-                    g.far_said_diverges = st.diverges;
+                    g.far_said_diverges = diverges;
                     g.far_secs = 0;
                 }
-                if (st.diverges) {
+                if (diverges) {
                     LOG_WARNING(Frontend,
                                 "xr: stereo: the far scenery needs the eyes to diverge {:.2f} "
                                 "degrees, which they cannot: it doubles (the game's 3D, 3D "
                                 "Depth {} %, is too deep for this screen)",
-                                -st.vergence_deg, Settings::values.factor_3d.GetValue());
+                                diverge_deg, Settings::values.factor_3d.GetValue());
                 }
             } else if (g.far_said_deg >= 0.0f) {
                 g.far_gate.Reset(); // AzaharFrame integ8: not seen; logged at once when it is again
