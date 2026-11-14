@@ -12,7 +12,9 @@
 #include <chrono>
 #include <thread>
 #include <utility>
+#include <optional>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
@@ -30,6 +32,9 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include <fmt/format.h>
+#include "core/hle/service/am/am.h"   // AzaharFrame emhb: the installed titles' folders
+#include "core/hle/service/fs/archive.h"
 #include "core/homebrew/emerald3ds_build.h"
 #include "core/homebrew/emerald3ds_fallback.h"
 #include "core/homebrew/net.h"
@@ -110,6 +115,41 @@ FrameEmerald::FrameEmerald(const Homebrew::PackageInfo& info, QObject* parent)
                          FileUtil::GetUserPath(FileUtil::UserPath::UserDir));
     LoadState();
     automatic = FrameTestEnv("AZAHARFRAME_HOMEBREW_AUTO") == Q(info.id);
+    Rescan(); // AzaharFrame emhb
+}
+
+/// AzaharFrame emhb: what of Emerald 3DS the SD card, the game folders, the installed titles and
+/// the user folder hold (core/homebrew/emerald3ds_detect.h).
+void FrameEmerald::Rescan() {
+    E::DetectInput in;
+    in.paths = paths;
+    for (const auto& d : UISettings::values.game_dirs) {
+        if (d.path != QStringLiteral("INSTALLED") && d.path != QStringLiteral("SYSTEM")) {
+            in.game_dirs.emplace_back(d.path.toStdString(), d.deep_scan);
+        }
+    }
+    in.title_roots = {Service::AM::GetMediaTitlePath(Service::FS::MediaType::SDMC),
+                      Service::AM::GetMediaTitlePath(Service::FS::MediaType::NAND)};
+    E::Detection d = E::Detect(in);
+    const auto summary = [](const E::Detection& x) {
+        return fmt::format("{} piece(s), {}, {}, version {}, play {}", x.found.size(),
+                           x.app_made ? "installed by this program" : "a copy",
+                           x.playable ? "playable" : x.Any() ? x.Problem() : "nothing",
+                           x.version.empty() ? "unknown" : x.version,
+                           QFileInfo(QString::fromStdString(x.game_path)).fileName().toStdString());
+    };
+    if (summary(d) != summary(detected) || d.found != detected.found) {
+        LOG_INFO(Frontend, "emerald3ds: found {}", d.Any() ? summary(d) : std::string("nothing"));
+    }
+    detected = std::move(d);
+}
+
+void FrameEmerald::AdoptCopy() { // AzaharFrame emhb
+    if (!have_state && state.rom_dir_copy.empty() && !detected.game_copy.empty() &&
+        QFileInfo(QString::fromStdString(detected.game_copy)).suffix().toLower() ==
+            QStringLiteral("3dsx")) {
+        state.rom_dir_copy = detected.game_copy;
+    }
 }
 
 void FrameEmerald::Warn(QWidget* parent, const QString& title, const QString& text) {
@@ -163,30 +203,48 @@ void FrameEmerald::SaveState() {
 
 HomebrewPackager::Status FrameEmerald::GetStatus() const {
     Status s;
-    s.installed = have_state && FileUtil::Exists(paths.three_dsx);
-    s.update = s.installed && E::UpdateAvailable(state);
+    // AzaharFrame emhb: from the files (Rescan), whoever installed it; a copy with no state.json
+    // has the version its files name (or none until a check finds its release)
+    const std::string& version = have_state ? state.tag : detected.version;
+    const std::string& latest = have_state ? state.latest_tag : imported_latest;
+    const std::string& language = have_state ? state.language : detected.language;
+    s.installed = detected.playable;
+    s.repair = detected.Broken();
+    s.can_uninstall = detected.Any();
+    s.has_save = !detected.saves.empty();
+    s.update = s.installed && E::IsNewer(latest, version);
     s.busy = busy;
     s.progress = progress;
     s.status = status;
-    if (s.installed) {
-        s.detail = QString::fromStdString(E::LanguageName(state.language));
+    if (s.installed && !language.empty()) {
+        s.detail = QString::fromStdString(E::LanguageName(language));
+    } else if (s.repair) {
+        s.detail = Q(detected.Problem()); // "Game Data Missing"
     }
     s.checking = checking; // AzaharFrame ui3
     if (s.installed) {
-        s.version = QString::fromStdString(state.tag);
-        s.checked = state.last_check;
+        s.version = QString::fromStdString(version);
+        s.checked = have_state ? state.last_check : imported_checked;
     }
     if (s.update) {
-        s.latest = QString::fromStdString(state.latest_tag);
+        s.latest = QString::fromStdString(latest);
     }
-    s.game_path = !state.rom_dir_copy.empty() && FileUtil::Exists(state.rom_dir_copy)
-                      ? QString::fromStdString(state.rom_dir_copy)
-                      : QString::fromStdString(paths.three_dsx);
+    s.game_path = QString::fromStdString(detected.game_path.empty() ? paths.three_dsx
+                                                                    : detected.game_path);
     return s;
 }
 
 bool FrameEmerald::ApplyBootSettings(const QString& path) {
-    if (!E::IsEmeraldPath(path.toStdString())) {
+    // AzaharFrame emhb: also a copy found under another name (a .3dsx, a .cia, an installed title)
+    const QString clean = QDir::cleanPath(path);
+    const auto same = [&clean](const std::string& p) {
+        return !p.empty() && QDir::cleanPath(QString::fromStdString(p)) == clean;
+    };
+    bool ours = E::IsEmeraldPath(path.toStdString()) || same(detected.game_path);
+    for (const E::Found& f : detected.found) {
+        ours |= (f.piece == E::Piece::SdmcGame || f.piece == E::Piece::GameCopy) && same(f.path);
+    }
+    if (!ours) {
         return false;
     }
     // Its sound needs Azahar's HLE DSP (the placeholder dspfirm.cdc holds no firmware). A .3dsx has
@@ -259,8 +317,9 @@ bool FrameEmerald::ConfirmSource(QWidget* parent, const QString& title) {
     if (automatic) { // developer and test runs have no dialogs (AZAHARFRAME_HOMEBREW_AUTO)
         return true;
     }
-    const QString version = state.latest_tag.empty() ? tr("the latest release")
-                                                     : tr("Version %1").arg(Q(state.latest_tag));
+    const std::string& latest = have_state ? state.latest_tag : imported_latest; // AzaharFrame emhb
+    const QString version =
+        latest.empty() ? tr("the latest release") : tr("Version %1").arg(Q(latest));
     return QMessageBox::question(
                parent, title,
                tr("Download %1 from ZallaxDev/emerald-3ds on GitHub?\n\n"
@@ -273,6 +332,8 @@ void FrameEmerald::Install(QWidget* parent) {
     if (busy) {
         return;
     }
+    Rescan(); // AzaharFrame emhb: a copy's game folder file is the one replaced
+    AdoptCopy();
     const QString title = tr("Install Pokémon Emerald 3DS");
     Job job;
     // Reinstall from the kept ROM when it is still the one installed from.
@@ -319,6 +380,8 @@ void FrameEmerald::Update(QWidget* parent) {
     if (busy) {
         return;
     }
+    Rescan(); // AzaharFrame emhb
+    AdoptCopy();
     Job job;
     job.update = true;
     job.language = state.language;
@@ -350,11 +413,17 @@ void FrameEmerald::Update(QWidget* parent) {
 }
 
 void FrameEmerald::CheckForUpdate() {
-    if (busy || checking || !GetStatus().installed || !E::CheckDue(state.last_check, Now())) {
+    // AzaharFrame emhb: a copy with no state.json is checked once a day too, its time in memory
+    const s64 last = have_state ? state.last_check : imported_checked;
+    if (busy || checking || !GetStatus().installed || !E::CheckDue(last, Now())) {
         return;
     }
-    state.last_check = Now();
-    SaveState();
+    if (have_state) {
+        state.last_check = Now();
+        SaveState();
+    } else {
+        imported_checked = Now();
+    }
     Fetch();
 }
 
@@ -380,22 +449,81 @@ void FrameEmerald::CheckNow(std::function<void(Homebrew::CheckResult)> done) { /
 void FrameEmerald::Fetch() {
     checking = true;
     emit Changed();
+    // AzaharFrame emhb: a copy with no state.json: is its .3dsx the latest release's (by the
+    // release's checksums and manifest)? Then its release and language are known.
+    struct Answer {
+        std::string tag;
+        std::optional<E::Variant> variant;
+    };
+    const std::string identify = !have_state && detected.playable ? detected.three_dsx : "";
     OffThread(
         this,
-        [] {
+        [identify] {
+            Answer a;
             const Homebrew::Reply r = Homebrew::GetText(std::string(E::kLatestUrl), kSmallReply);
-            std::string tag;
-            if (r.error.empty()) {
-                if (const auto release = E::ParseRelease(r.body)) {
-                    tag = release->tag;
+            if (!r.error.empty()) {
+                return a;
+            }
+            const auto release = E::ParseRelease(r.body);
+            if (!release) {
+                return a;
+            }
+            a.tag = release->tag;
+            if (identify.empty()) {
+                return a;
+            }
+            const auto meta = E::SelectAssets(*release, E::UpdateKind::None, {}, nullptr);
+            if (!meta) {
+                return a;
+            }
+            const Homebrew::Reply sums = Homebrew::GetText(meta->sums->url, kSmallReply);
+            const Homebrew::Reply man = Homebrew::GetText(meta->manifest->url, kSmallReply);
+            if (!sums.error.empty() || !man.error.empty()) {
+                return a;
+            }
+            const std::string man_sum = E::SumFor(E::ParseSums(sums.body), E::kManifestAsset);
+            if (man_sum.empty() || man_sum != Homebrew::Sha256Hex(man.body)) {
+                return a;
+            }
+            if (const auto manifest = E::ParseManifest(man.body)) {
+                if (const E::Variant* v =
+                        E::FindVariantByThreeDsx(*manifest, Homebrew::FileSha256(identify))) {
+                    a.variant = *v;
                 }
             }
-            return tag;
+            return a;
         },
-        [this](std::string tag) {
+        [this](Answer a) {
             checking = false;
-            const Homebrew::CheckResult result = Homebrew::ResultOf(tag, state.tag);
-            if (!tag.empty() && !busy) {
+            const std::string& tag = a.tag;
+            const std::string installed =
+                have_state ? state.tag : a.variant ? a.tag : detected.version;
+            const Homebrew::CheckResult result = Homebrew::ResultOf(tag, installed);
+            if (!tag.empty() && !busy && !have_state) { // AzaharFrame emhb: a copy
+                imported_latest = tag;
+                imported_checked = Now();
+                if (a.variant && detected.playable) {
+                    // It is this release: from now on it is managed as one this program installed
+                    E::State s;
+                    s.tag = tag;
+                    s.language = a.variant->language;
+                    s.rom_sha1 = a.variant->rom_sha1;
+                    s.data_abi = a.variant->data_abi;
+                    AdoptCopy();
+                    s.rom_dir_copy = state.rom_dir_copy;
+                    s.last_check = Now();
+                    s.latest_tag = tag;
+                    state = s;
+                    have_state = true;
+                    SaveState();
+                    Rescan();
+                    LOG_INFO(Frontend, "emerald3ds: the copy found is release {} ({})", tag,
+                             s.language);
+                } else {
+                    LOG_INFO(Frontend, "emerald3ds: latest release {}, the copy found is {}", tag,
+                             detected.version.empty() ? "of another release" : detected.version);
+                }
+            } else if (!tag.empty() && !busy) {
                 state.latest_tag = tag;
                 state.last_check = Now();
                 SaveState();
@@ -425,6 +553,7 @@ void FrameEmerald::SetBusy(bool busy_, const QString& status_, int progress_) {
 
 void FrameEmerald::Finish(QWidget* parent, const QString& error, const QString& done_text) {
     LoadState();
+    Rescan(); // AzaharFrame emhb
     SetBusy(false, error);
     FileUtil::DeleteDirRecursively(paths.work_dir);
     if (automatic) {
@@ -845,6 +974,90 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
                 build(std::move(p));
             } else {
                 install(std::move(p));
+            }
+        });
+}
+
+// ---- AzaharFrame emhb: Uninstall ----
+
+QString FrameEmerald::UninstallBody(bool has_save, bool delete_save) const {
+    return QString::fromStdString(E::UninstallBody(has_save, delete_save));
+}
+
+void FrameEmerald::Uninstall(QWidget* parent) {
+    if (busy) {
+        return;
+    }
+    Rescan();
+    const Status st = GetStatus();
+    if (!st.can_uninstall) {
+        return;
+    }
+    // Material 3's confirmation: a short title, one or two sentences, Cancel and Uninstall (and
+    // the save's checkbox, off)
+    QMessageBox box(QMessageBox::NoIcon, tr("Uninstall Pokémon Emerald 3DS?"),
+                    UninstallBody(st.has_save, false), QMessageBox::NoButton, parent);
+    QCheckBox* save_box = nullptr;
+    if (st.has_save) {
+        save_box = new QCheckBox(tr("Also Delete Save Data"), &box);
+        save_box->setChecked(false);
+        box.setCheckBox(save_box);
+        connect(save_box, &QCheckBox::toggled, &box,
+                [this, &box](bool on) { box.setText(UninstallBody(true, on)); });
+    }
+    QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+    QPushButton* go = box.addButton(tr("Uninstall"), QMessageBox::AcceptRole);
+    box.setDefaultButton(cancel);
+    box.setEscapeButton(cancel);
+    box.exec();
+    if (box.clickedButton() != go) {
+        return;
+    }
+    QPointer<QWidget> window(parent);
+    UninstallNow(save_box != nullptr && save_box->isChecked(), [window](const QString& error) {
+        if (!window) {
+            return;
+        }
+        if (error.isEmpty()) {
+            QMessageBox::information(window, tr("Pokémon Emerald 3DS"),
+                                     tr("Pokémon Emerald 3DS Uninstalled"));
+        } else {
+            QMessageBox::warning(window, tr("Pokémon Emerald 3DS"), error);
+        }
+    });
+}
+
+void FrameEmerald::UninstallNow(bool delete_save, std::function<void(QString)> done) {
+    if (busy) {
+        return;
+    }
+    Rescan();
+    const E::UninstallPlan plan = E::PlanUninstall(detected, paths, delete_save);
+    LOG_INFO(Frontend, "emerald3ds: uninstall: {} file(s), {} folder(s); kept: {} ({})",
+             plan.files.size(), plan.dirs.size(), plan.kept.size(),
+             delete_save ? "the save is deleted" : "the save stays");
+    SetBusy(true, tr("Uninstalling"));
+    OffThread(
+        this, [plan] { return E::RunUninstall(plan); },
+        [this, done = std::move(done)](E::UninstallResult r) {
+            for (const std::string& f : r.failed) {
+                LOG_WARNING(Frontend, "emerald3ds: uninstall: could not remove {}",
+                            QFileInfo(QDir::cleanPath(QString::fromStdString(f))).fileName().toStdString());
+            }
+            LOG_INFO(Frontend, "emerald3ds: uninstalled: {} removed, {} not", r.removed.size(),
+                     r.failed.size());
+            state = {};
+            LoadState(); // gone, unless it could not be removed
+            imported_latest.clear();
+            imported_checked = 0;
+            manual = {};
+            Rescan();
+            const QString error = r.Ok() ? QString{} : tr("Couldn't Remove Every File");
+            SetBusy(false, error);
+            emit Changed();
+            FrameHomebrew::RefreshList()();
+            if (done) {
+                done(error);
             }
         });
 }
