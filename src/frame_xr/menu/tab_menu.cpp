@@ -138,6 +138,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             // AzaharFrame kiugyro: Gyro Aim, Gyro Sensitivity; Turn Zone and Turn Speed only
             // while Gyro Aim is Light Gun.
             rows.push_back(row(Id::GyroAim, RowKind::Segmented, m.gyro_aim));
+            if (m.gyro_aim != 0) {
+                rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
+            }
             const auto gyro_slider = [&](Id id, int value) {
                 Row r = row(id, RowKind::Slider);
                 const SliderRange sr = SliderFor(id);
@@ -301,6 +304,7 @@ bool PerGameSetting(Id id) {
     case Id::GyroSensitivity:
     case Id::TurnZone:
     case Id::TurnSpeed:
+    case Id::Recoil:
         return true;
     default:
         return false;
@@ -529,6 +533,8 @@ std::string LabelFor(Id id) {
         return "Turn Zone";
     case Id::TurnSpeed:
         return "Turn Speed";
+    case Id::Recoil:
+        return "Recoil";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::WindowScale:
@@ -732,6 +738,8 @@ std::string ExplainFor(Id id) {
         return "Point this close to an edge of the top screen to turn the camera.";
     case Id::TurnSpeed:
         return "How fast the camera turns in the Turn Zone.";
+    case Id::Recoil:
+        return "A short buzz in the aiming controller on each shot.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::WindowScale:

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include "frame_xr/xr_includes.h" // AzaharFrame: OpenXR without prototypes
 #include "frame_xr/input/input_frame.h"
 
@@ -52,6 +53,10 @@ public:
     bool Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out, bool sync = true);
 
     void Destroy();
+
+    /// AzaharFrame kiugyro: a haptic pulse on one controller (0 left, 1 right): Light Gun's recoil.
+    /// The frequency is the runtime's. False when the runtime has no haptics bound.
+    bool Pulse(XrSession session, int hand, int64_t duration_ns, float amplitude);
 
 private:
     struct Impl;

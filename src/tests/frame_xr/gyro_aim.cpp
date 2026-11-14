@@ -658,3 +658,59 @@ TEST_CASE("FrameXr Light Gun: the laser sight's art", "[frame_xr][kiugyro]") {
         CHECK(LaserDotSize(1.0f) < 0.01f + 0.003f * 1.0f);
     }
 }
+
+// ---- Recoil (gyro_aim.h) -------------------------------------------------------------------
+
+TEST_CASE("FrameXr Gyro Aim: Recoil's pulses", "[frame_xr][kiugyro]") {
+    Recoil r;
+    constexpr int64_t ms = 1'000'000;
+    int64_t t = 1000 * ms;
+    const auto step = [&](int64_t dt_ms, bool fire, bool active = true) {
+        t += dt_ms * ms;
+        return r.Update(t, fire, active);
+    };
+    SECTION("a press: one pulse; the first is the charged one (heuristic)") {
+        RecoilPulse p = step(11, true);
+        REQUIRE(p.fire);
+        CHECK(p.duration_ns == Recoil::kChargedPulseNs);
+        CHECK(!step(11, true).fire); // still held, before the pace
+        CHECK(!step(11, false).fire);
+        p = step(300, true); // a quick second press: a plain shot
+        REQUIRE(p.fire);
+        CHECK(p.duration_ns == Recoil::kPulseNs);
+    }
+    SECTION("held: a pulse at the pace, short ones") {
+        step(11, true);
+        int pulses = 0;
+        for (int i = 0; i < 90; i++) { // ~1 s more at 90 Hz
+            const RecoilPulse p = step(11, true);
+            if (p.fire) {
+                pulses++;
+                CHECK(p.duration_ns == Recoil::kPulseNs);
+            }
+        }
+        CHECK(pulses == 7); // 990 ms / 125 ms, the press's own pulse aside
+    }
+    SECTION("a press after a charge-length pause: the longer pulse") {
+        step(11, true);
+        step(11, false);
+        step(Recoil::kChargePauseNs / ms - 50, false);
+        CHECK(step(11, true).duration_ns == Recoil::kPulseNs); // not long enough
+        step(11, false);
+        step(Recoil::kChargePauseNs / ms + 10, false);
+        CHECK(step(11, true).duration_ns == Recoil::kChargedPulseNs);
+    }
+    SECTION("never while inactive (menus, Gyro Aim off, Recoil off)") {
+        for (int i = 0; i < 50; i++) {
+            CHECK(!step(11, i % 7 < 4, false).fire);
+        }
+        // A trigger held through it is no new shot when it comes back, only the pace.
+        step(11, true, false);
+        CHECK(!step(11, true).fire);
+        bool later = false;
+        for (int i = 0; i < 20; i++) {
+            later = later || step(11, true).fire;
+        }
+        CHECK(later);
+    }
+}

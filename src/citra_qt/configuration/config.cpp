@@ -623,6 +623,7 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_gyro_sensitivity);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    ReadGlobalSetting(Settings::values.vr_light_gun_recoil);
     if (!global) {
         // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
         ReadGlobalSetting(Settings::values.vr_controls_preset_done);
@@ -1324,6 +1325,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_gyro_sensitivity);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    WriteGlobalSetting(Settings::values.vr_light_gun_recoil);
     if (!global) {
 #ifdef ENABLE_FRAME_XR
         FrameXr::MirrorGyroAim(); // AzaharFrame kiugyro: kept by builds that drop vr_gyro_aim

@@ -116,6 +116,7 @@ enum class Id : int {
     GyroSensitivity, ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x)
     TurnZone,        ///< AzaharFrame kiugyro: a slider, 0 to 30 (percent), Light Gun only
     TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Light Gun only
+    Recoil,          ///< AzaharFrame kiugyro: a switch, while Gyro Aim is on
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
@@ -307,6 +308,7 @@ struct MenuModel {
     int gyro_sensitivity = 10; ///< tenths of 1x (2 to 40)
     int turn_zone = 10;        ///< percent (0 to 30)
     int turn_speed = 10;       ///< tenths of 1x (2 to 40)
+    bool recoil = true;        ///< AzaharFrame kiugyro: vr_light_gun_recoil
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %

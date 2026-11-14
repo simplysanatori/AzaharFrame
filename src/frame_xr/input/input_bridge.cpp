@@ -117,6 +117,16 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
         last_.controls.SetStick(AnalogControl::StickR,
                                 AddStick(last_.controls.GetStick(AnalogControl::StickR), edge_stick_));
     }
+    // AzaharFrame kiugyro: while Gyro Aim is on, a trigger that is ZL/ZR (not a touch) also
+    // presses the Left Bumper's control, L in the default profile: Kid Icarus: Uprising fires
+    // with L, so point and pull fires with either hand. The mod passes ZL/ZR on as well (it
+    // writes ir:rst's ZL/ZR into the game's held buttons).
+    gyro_fire_ = false;
+    if (gyro_aim && gyro_aim->mode != GyroAimMode::Off &&
+        (last_.controls.Get(Control::TriggerL) || last_.controls.Get(Control::TriggerR))) {
+        last_.controls.Set(Control::BumperL, true);
+        gyro_fire_ = true;
+    }
     InputCommon::FrameXr::GetPad().SetControls(last_.controls);
     for (int i = 0; i < result.event_count; ++i) {
         const TouchEvent& event = result.events[static_cast<std::size_t>(i)];
@@ -142,6 +152,7 @@ void InputBridge::Release() {
     }
     touchpad_cursor_ = {};
     edge_stick_ = {}; // AzaharFrame kiu
+    gyro_fire_ = false; // AzaharFrame kiugyro
     InputCommon::FrameXr::GetPad().ReleaseAll();
     Devices::Hub().Release(); // AzaharFrame pads: what is held stays away until let go
     motion_.Reset();

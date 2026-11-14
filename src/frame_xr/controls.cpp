@@ -1525,6 +1525,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
         nudger.Reset(); // AzaharFrame vrsize
         was_holding = false;
+        recoil.Reset(); // AzaharFrame kiugyro
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
@@ -1761,6 +1762,15 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::MapperOutput& out =
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample, &gyro_aim_frame);
     bridge_live = true;
+    // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
+    // steers (input/gyro_aim.h Recoil; the shot is the fire press, then a pace while held).
+    {
+        const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
+        const Input::RecoilPulse pulse = recoil.Update(in.time_ns, bridge.gyro_fire(), recoil_on);
+        if (pulse.fire) {
+            actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
+        }
+    }
     // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot) while it has the reticle.
     if (gyro_aim_hand >= 0) {
         const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];

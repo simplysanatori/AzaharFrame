@@ -926,6 +926,9 @@ struct Values {
     SwitchableSetting<u32, true> vr_light_gun_turn_zone{10, 0, 30, "vr_light_gun_turn_zone"};
     SwitchableSetting<float, true> vr_light_gun_turn_speed{1.0f, 0.2f, 4.0f,
                                                            "vr_light_gun_turn_speed"};
+    // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
+    // steers (frame_xr/input/gyro_aim.h Recoil). Per game too. A new key: older builds ignore it.
+    SwitchableSetting<bool> vr_light_gun_recoil{true, "vr_light_gun_recoil"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

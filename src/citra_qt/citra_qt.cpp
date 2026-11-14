@@ -506,6 +506,7 @@ struct FrameKeepControls {
           gyro_sensitivity{Settings::values.vr_gyro_sensitivity},
           turn_zone{Settings::values.vr_light_gun_turn_zone},
           turn_speed{Settings::values.vr_light_gun_turn_speed},
+          recoil{Settings::values.vr_light_gun_recoil},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -520,6 +521,7 @@ struct FrameKeepControls {
         gyro_sensitivity.Restore();
         turn_zone.Restore();
         turn_speed.Restore();
+        recoil.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -534,6 +536,7 @@ struct FrameKeepControls {
     FrameKeepSetting<float, true> gyro_sensitivity;
     FrameKeepSetting<u32, true> turn_zone;
     FrameKeepSetting<float, true> turn_speed;
+    FrameKeepSetting<bool, false> recoil;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -5367,6 +5370,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::TurnSpeed: // tenths of 1x
         set(v.vr_light_gun_turn_speed, static_cast<float>(std::clamp<u32>(u, 2, 40)) / 10.0f);
+        break;
+    case S::Recoil:
+        set(v.vr_light_gun_recoil, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

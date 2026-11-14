@@ -135,6 +135,17 @@ Gyro Aim at Light Gun when the mod is installed (`ControlsPreset::gyro_aim_with_
   starts again from the hand's new place; Light Gun goes back to the pointer). The other
   controller's grip still grabs, moves and sizes the screens (World Scale, grip + stick).
   Not with Headset (no grip).
+- **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
+  presses the Left Bumper's control (L in the default profile): the game fires with L, so the
+  aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's
+  ZL/ZR into the game's held buttons (its poll at 0xD33C7C), so ZL/ZR reach the game as well.
+- **Recoil** (`vr_light_gun_recoil`, per game too, on by default; shown under Gyro Aim while it
+  is not Off): a pulse on the aiming controller's haptics for each shot (full amplitude, 40 ms,
+  the runtime's frequency, as Moonlight XR's light gun). The game's own shots are not read: a
+  shot is the fire press, then one every 125 ms while fire is held (`Recoil::kRecoilPaceNs`, one
+  constant for a weapon's rate later), and a press after 1.5 s without firing gets a 90 ms pulse
+  (a heuristic for the charged shot). Never in menus or with Gyro Aim off. The haptic output is
+  suggested with the bindings, and without it if the runtime refuses it (`Actions::Pulse`).
 - **Trigger:** while Gyro Aim is on, the Bottom Screen Reticle steps aside (its setting is kept;
   the shelved C-Stick at Edge with it), so the trigger is ZL/ZR, which the mod fires with, and never a touch,
   which would stop the mod's aim. The controller keeps its beam; pointed at the bottom screen its

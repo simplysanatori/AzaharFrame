@@ -115,6 +115,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::TurnSpeed:
         f(v.vr_light_gun_turn_speed);
         return true;
+    case Id::Recoil:
+        f(v.vr_light_gun_recoil);
+        return true;
     default:
         return false;
     }

@@ -59,6 +59,11 @@ public:
     Vec2f edge_stick() const {
         return edge_stick_;
     }
+    /// AzaharFrame kiugyro: fire (a trigger as ZL/ZR, pressing L too) while Gyro Aim was on, in
+    /// the last Process: Recoil's shot.
+    bool gyro_fire() const {
+        return gyro_fire_;
+    }
     /// AzaharFrame kiu2: C-Stick at Edge's hand-over state after the last Process.
     ReticleEdgeHandoff::State edge_state() const {
         return touchpad_.edge_state();
@@ -69,6 +74,7 @@ private:
     MotionTracker motion_;
     GyroAimTracker gyro_aim_; ///< AzaharFrame kiugyro
     bool light_gun_on_ = false;
+    bool gyro_fire_ = false;
     TouchpadTouch touchpad_;
     TouchpadCursor touchpad_cursor_;
     Vec2f edge_stick_; ///< AzaharFrame kiu

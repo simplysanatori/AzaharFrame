@@ -99,6 +99,29 @@ GyroAimTracker::Out GyroAimTracker::Update(const HandInput& hand, int64_t time_n
     return out;
 }
 
+RecoilPulse Recoil::Update(int64_t now_ns, bool fire, bool active) {
+    RecoilPulse out;
+    if (!active) {
+        held_ = fire; // a trigger held through a menu is no new shot when it comes back,
+        last_pulse_ns_ = now_ns; // and the pace starts again from then
+        return out;
+    }
+    if (fire && !held_) {
+        // A press: a charged shot after a long enough pause (heuristic), the first one too.
+        const bool charged = !ever_released_ || now_ns - released_ns_ >= kChargePauseNs;
+        out = {true, charged ? kChargedPulseNs : kPulseNs};
+        last_pulse_ns_ = now_ns;
+    } else if (fire && now_ns - last_pulse_ns_ >= kRecoilPaceNs) {
+        out = {true, kPulseNs}; // held: continuous fire
+        last_pulse_ns_ = now_ns;
+    } else if (!fire && held_) {
+        ever_released_ = true;
+        released_ns_ = now_ns;
+    }
+    held_ = fire;
+    return out;
+}
+
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     LightGunTarget t;
     if (!hand.active || !top.visible) {

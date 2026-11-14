@@ -155,6 +155,43 @@ constexpr bool LaserSight(GyroAimMode mode, bool in_game, bool locked,
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);
 
+/// Recoil (Settings::values.vr_light_gun_recoil, per game too, on by default): a short strong
+/// buzz in the aiming controller on each shot while Gyro Aim steers the reticle in a game
+/// (Moonlight XR's light gun recoil: full amplitude, 40 ms, the runtime's frequency).
+/// The game's own shots are not read (no guarded shot signal found yet; design.md), so a shot is
+/// the fire press (either trigger as ZL/ZR, which also presses L while Gyro Aim is on), then one
+/// every kRecoilPaceNs while it is held: Kid Icarus: Uprising's held fire is continuous. A
+/// HEURISTIC for the charged shot: a press after at least kChargePauseNs without firing (the
+/// weapon charges while it does not fire) gets the longer kChargedPulseNs. A weapon's real fire
+/// rate can replace the pace later (one constant).
+struct RecoilPulse {
+    bool fire = false;
+    int64_t duration_ns = 0;
+};
+class Recoil {
+public:
+    static constexpr float kAmplitude = 1.0f;
+    static constexpr int64_t kPulseNs = 40'000'000;
+    static constexpr int64_t kChargedPulseNs = 90'000'000;
+    /// The pace of pulses while fire is held (8 a second).
+    static constexpr int64_t kRecoilPaceNs = 125'000'000;
+    /// Heuristic: a pause this long before a press reads as a charged shot.
+    static constexpr int64_t kChargePauseNs = 1'500'000'000;
+
+    /// Each frame: `fire` held this frame, `active` Gyro Aim steering in a game with Recoil on.
+    /// Inactive: nothing, and a press only counts once active again.
+    RecoilPulse Update(int64_t now_ns, bool fire, bool active);
+    void Reset() {
+        held_ = false;
+    }
+
+private:
+    bool held_ = false;
+    bool ever_released_ = false;
+    int64_t last_pulse_ns_ = 0;
+    int64_t released_ns_ = 0;
+};
+
 /// The reticle as read from the game (kiu_probe.h), in the game's screen pixels.
 struct ReticleReading {
     bool valid = false;

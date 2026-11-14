@@ -295,6 +295,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::TurnZone;
     case Id::TurnSpeed:
         return MenuSetting::TurnSpeed;
+    case Id::Recoil:
+        return MenuSetting::Recoil;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -953,6 +955,7 @@ void MenuPanel::BuildModel(const Host& host) {
         std::min<u32>(v.vr_light_gun_turn_zone.GetValue(), Input::kTurnZoneMaxPercent));
     m.turn_speed = static_cast<int>(
         std::lround(Input::ClampTurnSpeed(v.vr_light_gun_turn_speed.GetValue()) * 10.0f));
+    m.recoil = v.vr_light_gun_recoil.GetValue();
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1301,6 +1304,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = std::clamp(value, 2, 40);
         Apply(v.vr_light_gun_turn_speed, static_cast<float>(r.value) / 10.0f, per_game);
         r.setting = MenuSetting::TurnSpeed;
+        break;
+    case Id::Recoil: // per game in Per-Game
+        Apply(v.vr_light_gun_recoil, value != 0, per_game);
+        r.setting = MenuSetting::Recoil;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -1965,6 +1972,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ReticleEdgeCStick: // AzaharFrame kiu
         SetSetting(t.id, model.reticle_edge_cstick ? 0 : 1, host);
+        break;
+    case Id::Recoil: // AzaharFrame kiugyro
+        SetSetting(t.id, model.recoil ? 0 : 1, host);
         break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);

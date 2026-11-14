@@ -541,6 +541,7 @@ TEST_CASE("FrameXr Gyro Sensitivity: a new key with its default", "[frame_xr][ki
     CHECK(Settings::values.vr_light_gun_turn_zone.GetDefault() == 10u);
     CHECK(Settings::values.vr_light_gun_turn_speed.GetDefault() == 1.0f);
     CHECK(Settings::values.vr_gyro_aim.GetDefault() == 0u);
+    CHECK(Settings::values.vr_light_gun_recoil.GetDefault()); // Recoil on
 }
 
 namespace {
