@@ -663,7 +663,7 @@ picture never on view (two releases inside a refresh), a gap in the serials, a p
 pose or one drawn before a recentre (not anchored, as before), and a frame before that had no top
 screen (hidden, another screen in focus, `shouldRender` false: the compositor has no older image,
 so the newest is on view). SINGLE_FLASH hides by the same serial. The lag is an internal setting,
-`vr_xr_image_lag` in `[VR]` (0 or 1, default 1; no menu), logged with the runtime at each session's
+`vr_xr_image_lag` in `[VR]` (0 or 1, default 0 since lane/flash, was 1; no menu), logged with the runtime at each session's
 start (`xr: image lag 1 refresh ...`); the live test switch `AZAHARFRAME_XR_IMAGE_LAG=0|1` wins
 while set, for re-testing after a SteamVR update. It replaces `AZAHARFRAME_IMMERSIVE_ANCHOR_LAG`,
 which is no longer read. No latency is added: the compositor shows the image a refresh late anyway.

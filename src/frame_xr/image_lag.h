@@ -40,9 +40,16 @@ inline constexpr std::size_t kShownPictures = 8;
 namespace ImageLag {
 
 /// The runtime's image lag in refreshes: 0 (the image an xrEndFrame carries is on view at that
-/// frame's display time) or 1 (at the next one's: SteamVR 2.x on the Steam Frame).
+/// frame's display time) or 1 (at the next one's: SteamVR 2.x on the Steam Frame, as measured
+/// with the mock's model). AzaharFrame flash: 0 by default: in the owner's headset A/B of
+/// 2026-11-14 (handoff report 54) lag 0 doubled less than lag 1 with every hold; a later A/B the
+/// same day found the reverse, as SteamVR's overlay path predicts (the image and the pose of a quad
+/// are latched apart, handoff report 55/flash/overlay-path.md), so neither value is right every
+/// time. A
+/// config written by an earlier build stored 1 as the default (`\default=true`), so it follows
+/// the new default; a value set by hand (`\default=false`) keeps its meaning.
 inline constexpr uint32_t kMaxLag = 1;
-inline constexpr uint32_t kDefaultLag = 1;
+inline constexpr uint32_t kDefaultLag = 0;
 
 /// The live test-switch override (AZAHARFRAME_XR_IMAGE_LAG): "0" or "1"; anything else, or unset:
 /// none (the setting holds).

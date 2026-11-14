@@ -776,7 +776,9 @@ struct Values {
     // or 1. SteamVR shows an image one refresh after the pose sent with it, so 1 (frame_xr/
     // image_lag.h); 0 for a runtime that shows them together. The test switch
     // AZAHARFRAME_XR_IMAGE_LAG wins while it is set. A new key: older versions drop it.
-    Setting<u32, true> vr_xr_image_lag{1, 0, 1, "vr_xr_image_lag"};
+    // AzaharFrame flash: default 0 (was 1): in the owner's first headset A/B of 2026-11-14 lag 0
+    // doubled less than lag 1 with the hold (frame_xr/image_lag.h kDefaultLag).
+    Setting<u32, true> vr_xr_image_lag{0, 0, 1, "vr_xr_image_lag"};
     // AzaharFrame: switchable, so the Qt window can set them per game (same keys as CitraVR).
     SwitchableSetting<u32> vr_immersive_mode{0, "vr_immersive_mode"};
     SwitchableSetting<int32_t> vr_si_mode_register_offset{-1, "vr_si_mode_register_offset"};
