@@ -30,6 +30,7 @@
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
+#include "frame_xr/layer_slots.h"     // AzaharFrame flash
 #include "frame_xr/motion_clarity.h"   // AzaharFrame flash
 #include "frame_xr/session.h"
 #include "frame_xr/test_switches.h" // AzaharFrame integ9: the switch file, live
@@ -130,6 +131,12 @@ XrCompositionLayerCylinderKHR MakeCylinder(XrSpace space, const Quad& q, float r
     layer.aspectRatio = c.aspect_ratio;
     return layer;
 }
+
+// AzaharFrame flash: a quad after the screens and its space, for the fixed layer positions.
+struct SlotQuad {
+    XrSpace space = XR_NULL_HANDLE;
+    Quad quad;
+};
 
 } // namespace
 
@@ -516,6 +523,12 @@ void Runtime::FrameLoop() {
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
+    // AzaharFrame flash: every quad after the screens keeps its position in the list
+    // (layer_slots.h), absent ones collapsed in place, so SteamVR never gives an overlay another
+    // quad's texture.
+    LayerSlots::Map<SlotQuad> layer_slots;
+    std::vector<LayerSlots::Map<SlotQuad>::Out> slot_out;
+    uint64_t slots_logged_added = 0, slots_logged_dropped = 0, slots_logged_resets = 0;
     // AzaharFrame flash: Motion Clarity (motion_clarity.h): the setting vr_motion_clarity with
     // AZAHARFRAME_XR_SINGLE_FLASH as its override, AZAHARFRAME_XR_FLASH_SLOW for slow games and
     // AZAHARFRAME_XR_FLASH_BACKING for an A/B of the backing, all live (test_switches.h).
@@ -997,6 +1010,26 @@ void Runtime::FrameLoop() {
                 }
             }
         }
+        // AzaharFrame flash: the quads after the screens go through the slot map.
+        const std::size_t screen_layers = quad_layers.size();
+        const auto slot_add = [&](LayerSlots::Group group, XrSpace space, const Quad& q) {
+            // The rect's size tells an atlas's regions apart (the vis atlas: help, buttons,
+            // beams); the toast, the hint chip, the label and the badge are one quad each whose
+            // rect changes with its text, so they key on their group alone.
+            const bool one = group != LayerSlots::Group::Ui && group != LayerSlots::Group::Top &&
+                             group != LayerSlots::Group::Extra;
+            layer_slots.Add(group, reinterpret_cast<uint64_t>(q.swapchain),
+                            one ? 0 : q.image_rect.extent.width,
+                            one ? 0 : q.image_rect.extent.height, SlotQuad{space, q});
+        };
+        if (fs.shouldRender) {
+            // A new list when the panels' context changes or the screens' layers change in number
+            // (a game starting or stopping, Motion Clarity's backing coming or going): the slots
+            // after them would all move anyway.
+            const uint32_t screens_n = static_cast<uint32_t>(std::min<std::size_t>(screen_layers, 15));
+            layer_slots.Begin(((ui ? ui->LayerContext() : 0) * 2 + (screens_live ? 1 : 0)) * 16 +
+                              screens_n);
+        }
         if (fs.shouldRender) {
             std::scoped_lock lock{quads_mutex};
             std::vector<const Quad*> extra;
@@ -1008,34 +1041,34 @@ void Runtime::FrameLoop() {
             std::stable_sort(extra.begin(), extra.end(),
                              [](const Quad* a, const Quad* b) { return a->order < b->order; });
             for (const Quad* q : extra) {
-                quad_layers.push_back(MakeQuad(local_space, *q));
+                slot_add(LayerSlots::Group::Extra, local_space, *q);
             }
             // The picker and the pointer dot last (the dot on top of everything).
             for (const Quad& q : ui_quads) {
-                quad_layers.push_back(MakeQuad(local_space, q));
+                slot_add(LayerSlots::Group::Ui, local_space, q);
             }
             // AzaharFrame vrqol: a toast (Quick Saved ...) in front of everything.
             Quad toast;
             if (hud.ToastQuad(LatestViewPose(), fs.predictedDisplayTime, toast, &toast_screens)) {
-                quad_layers.push_back(MakeQuad(local_space, toast));
+                slot_add(LayerSlots::Group::Toast, local_space, toast);
             }
             // AzaharFrame controls: the grip hint chip under the held screen.
             Quad hint;
             if (hud.HintQuad(fs.predictedDisplayTime, hint, LatestViewPose(), &toast_screens)) {
-                quad_layers.push_back(MakeQuad(local_space, hint));
+                slot_add(LayerSlots::Group::Hint, local_space, hint);
             }
             // AzaharFrame autosave: "Autosaved" over the top screen's corner
             Quad label;
             if (hud.LabelQuad(LatestViewPose(), label_top_ok, label_top_pose, label_top_size,
                               fs.predictedDisplayTime, label)) {
-                quad_layers.push_back(MakeQuad(local_space, label));
+                slot_add(LayerSlots::Group::Label, local_space, label);
             }
             // AzaharFrame shaderbadge: "Preparing Shaders 3 / 9" in the main screen's corner
             Quad badge;
             bool badge_in_view = false;
             if (hud.BadgeQuad(LatestViewPose(), badge_anchor, fs.predictedDisplayTime, badge,
                               badge_in_view)) {
-                quad_layers.push_back(MakeQuad(badge_in_view ? view_space : local_space, badge));
+                slot_add(LayerSlots::Group::Badge, badge_in_view ? view_space : local_space, badge);
             }
         }
         // AzaharFrame vrqol: "Background: Passthrough". The room shows behind a transparent
@@ -1050,12 +1083,34 @@ void Runtime::FrameLoop() {
         // AzaharFrame vrvis: the controller models' projection layer over all that, and the
         // beams and pointer dots over the models (frame_xr/vis/visuals.h).
         const XrCompositionLayerBaseHeader* models_layer = nullptr;
-        const std::size_t models_at = quad_layers.size();
+        std::size_t models_at = quad_layers.size();
         top_quads.clear();
         if (fs.shouldRender && ui) {
-            models_layer = ui->TopLayers(top_quads, quad_layers.size() + (passthrough ? 1 : 0));
+            models_layer = ui->TopLayers(
+                top_quads, screen_layers + layer_slots.Size() + (passthrough ? 1 : 0));
             for (const Quad& q : top_quads) {
-                quad_layers.push_back(MakeQuad(local_space, q));
+                slot_add(LayerSlots::Group::Top, local_space, q);
+            }
+        }
+        if (fs.shouldRender) {
+            // AzaharFrame flash: the slots in their fixed order, absent quads collapsed in place
+            // (their own swapchain and rect, size ~0: the compositor draws nothing of them). The
+            // models' layer goes before the first Top slot. Within the runtime's limit, less the
+            // screens and the one projection layer.
+            const std::size_t projection = models_layer || passthrough ? 1 : 0;
+            const std::size_t limit = ui ? ui->MaxLayers() : 64;
+            const std::size_t room =
+                limit > screen_layers + projection ? limit - screen_layers - projection : 0;
+            layer_slots.End(room, slot_out, [](SlotQuad& s) {
+                s.quad.size = {s.quad.size.width * LayerSlots::kCollapse,
+                               s.quad.size.height * LayerSlots::kCollapse};
+            });
+            models_at = screen_layers;
+            for (const auto& o : slot_out) {
+                quad_layers.push_back(MakeQuad(o.quad.space, o.quad.quad));
+                if (o.group < LayerSlots::Group::Top) {
+                    models_at++;
+                }
             }
         }
         // AzaharFrame vis: one projection layer a frame (vis/layer_plan.h). With the models
@@ -1123,6 +1178,18 @@ void Runtime::FrameLoop() {
         if (since >= 1.0) {
             LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
             pacing.Second(since); // AzaharFrame pacing
+            if (layer_slots.Added() != slots_logged_added ||
+                layer_slots.Dropped() != slots_logged_dropped ||
+                layer_slots.Resets() != slots_logged_resets) { // AzaharFrame flash
+                LOG_INFO(Frontend,
+                         "xr: layer slots: {} after the screens ({} made, {} dropped over the "
+                         "runtime's limit, {} lists since the start)",
+                         layer_slots.Size(), layer_slots.Added(), layer_slots.Dropped(),
+                         layer_slots.Resets());
+                slots_logged_added = layer_slots.Added();
+                slots_logged_dropped = layer_slots.Dropped();
+                slots_logged_resets = layer_slots.Resets();
+            }
             if (const std::string line = clarity_log.Second(
                     clarity.Mean(), fs.predictedDisplayPeriod, flash_backing);
                 !line.empty()) {

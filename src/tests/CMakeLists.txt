@@ -72,6 +72,7 @@ add_executable(tests
     frame_xr/test_switches.cpp # AzaharFrame integ9
     frame_xr/image_lag.cpp # AzaharFrame imglag
     frame_xr/motion_clarity.cpp # AzaharFrame flash
+    frame_xr/layer_slots.cpp # AzaharFrame flash
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp
