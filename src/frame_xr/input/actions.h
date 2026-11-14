@@ -49,8 +49,10 @@ public:
     /// xrSyncActions for the action set (skip with sync = false if the caller synced already, with
     /// action_set() among the active sets), then reads every action and locates the aim spaces
     /// relative to `base` at `time`. Returns false when the sync failed; `out` is then left
-    /// unchanged.
-    bool Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out, bool sync = true);
+    /// unchanged. AzaharFrame ctrlglitch: with `ahead` above 0, also at `time + ahead`
+    /// (HandInput::aim_ahead).
+    bool Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out, bool sync = true,
+              XrDuration ahead = 0);
 
     void Destroy();
 

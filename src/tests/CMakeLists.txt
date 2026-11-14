@@ -77,6 +77,8 @@ add_executable(tests
     frame_xr/motion_clarity.cpp # AzaharFrame flash
     frame_xr/screen_handover.cpp # AzaharFrame flash3
     frame_xr/layer_slots.cpp # AzaharFrame flash
+    frame_xr/pose_guard.cpp # AzaharFrame ctrlglitch
+    frame_xr/model_canvas.cpp # AzaharFrame ctrlglitch
     common/bit_field.cpp
     common/file_util.cpp
     common/param_package.cpp

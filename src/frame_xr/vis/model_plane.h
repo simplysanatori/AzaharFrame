@@ -225,4 +225,225 @@ inline std::optional<std::array<float, 4>> ModelsViewBounds(
     return out;
 }
 
+// ---- AzaharFrame ctrlglitch: the eye quads on a world-locked canvas ----
+//
+// SteamVR makes each quad layer an overlay and sets its texture and its place in separate calls
+// that the compositor takes up on its own schedule (handoff report 55/flash/overlay-path.md), so
+// for a refresh a quad can show one image at the place meant for another. The eye quads were
+// each eye's view at the time their image was drawn: a new place and a new image every refresh
+// (the log's "1200 pictures in 10 s"), so a refresh that paired an image with the place of the
+// refresh before or after showed the controllers off by the head's turn in one refresh (1.25
+// degrees at 150 degrees a second), left or right as the head turned: the reported glitching.
+//
+// Now each eye's quad is a canvas that stays where it was put in the room, square to the eye's
+// view when put there and a little larger (kCanvasMargin), and every image is drawn onto it
+// from wherever the eye is (CanvasView: the eye looking square at the canvas, its frustum through
+// the canvas's edges; an image drawn so looks right from that eye whatever way the head turns).
+// The place only changes when the canvas stops serving the view (CanvasServes): the models'
+// part of the view leaves it, the head turns well away from it (kCanvasMaxTilt), or the eye
+// comes too near. A new image paired with the canvas's place is right; an older one is only the
+// older moment of the controllers, never the head's turn.
+//
+// Moving the canvas itself goes through CanvasHandover, so its texture and its place never show
+// mismatched either: the quads are shrunk to nothing first, moved once the shrink has had time
+// to take, and grown back once images for the new place have gone out for as long. Meanwhile
+// the image released last also goes out as the projection layer (image and views in one
+// submit, which SteamVR gets right), so the controllers stay on view; they only go behind a
+// screen for those few refreshes. No OpenXR or Vulkan here (unit tested).
+
+/// A quad not shown is this size times its own (LayerSlots::kCollapse): nothing is drawn of it,
+/// and its texture and bounds stay as they are.
+constexpr float kCanvasShrink = 1e-5f;
+/// The canvas reaches this far round the eye's view (radians, about 4 degrees each side).
+constexpr float kCanvasMargin = 0.07f;
+/// It is moved when the models' part of the view, this much larger (about 2 degrees), leaves it.
+constexpr float kCanvasGuard = 0.035f;
+/// ... or the eye looks this far off its square (45 degrees) ...
+constexpr float kCanvasMaxTilt = 0.785f;
+/// The models' part of the view only counts this far in from the view's edges (about 6
+/// degrees): controllers held low, across the edge of the view, would otherwise move the
+/// canvas at every nod. Past it, at the very edge of the lenses, the quads may cut them.
+constexpr float kCanvasEdge = 0.105f;
+/// ... or the eye is this near it (metres).
+constexpr float kCanvasNearest = 0.08f;
+
+/// An eye's canvas when put down now: its view at `distance`, kCanvasMargin larger each side.
+inline EyePlane PlaceCanvas(const Input::Posef& eye, float angle_left, float angle_right,
+                            float angle_up, float angle_down, float distance) {
+    constexpr float kMaxAngle = 1.45f; // 83 degrees: the tangent stays finite
+    return PlaneForEye(eye, std::max(angle_left - kCanvasMargin, -kMaxAngle),
+                       std::min(angle_right + kCanvasMargin, kMaxAngle),
+                       std::min(angle_up + kCanvasMargin, kMaxAngle),
+                       std::max(angle_down - kCanvasMargin, -kMaxAngle), distance);
+}
+
+/// The view an image of the canvas is drawn with, from `eye_position` (LOCAL): the eye where it
+/// is, turned square to the canvas, the frustum through the canvas's edges (angles as XrFovf,
+/// left and down negative). None when the eye is not in front of it.
+struct CanvasEye {
+    Input::Posef pose;
+    float angle_left = 0.0f, angle_right = 0.0f, angle_up = 0.0f, angle_down = 0.0f;
+};
+inline std::optional<CanvasEye> CanvasView(const EyePlane& canvas,
+                                           const Input::Vec3f& eye_position) {
+    const Input::Vec3f e = Input::Transform(Input::Inverse(canvas.pose), eye_position);
+    if (e.z < kCanvasNearest * 0.5f) {
+        return std::nullopt;
+    }
+    const float hw = canvas.width_m * 0.5f, hh = canvas.height_m * 0.5f;
+    return CanvasEye{{canvas.pose.orientation, eye_position},
+                     std::atan((-hw - e.x) / e.z),
+                     std::atan((hw - e.x) / e.z),
+                     std::atan((hh - e.y) / e.z),
+                     std::atan((-hh - e.y) / e.z)};
+}
+
+/// Whether `canvas` still serves `eye` (LOCAL, its field of view's angles), with the models in
+/// the part `models` of its view ({u0, v0, u1, v1} as ModelsViewBounds gives, none when they are
+/// not in view).
+inline bool CanvasServes(const EyePlane& canvas, const Input::Posef& eye, float angle_left,
+                         float angle_right, float angle_up, float angle_down,
+                         const std::optional<std::array<float, 4>>& models) {
+    const Input::Posef to_canvas = Input::Inverse(canvas.pose);
+    const Input::Vec3f e = Input::Transform(to_canvas, eye.position);
+    if (e.z < kCanvasNearest) {
+        return false;
+    }
+    const Input::Vec3f look = Input::Rotate(eye.orientation, {0.0f, 0.0f, -1.0f});
+    const Input::Vec3f square = Input::Rotate(canvas.pose.orientation, {0.0f, 0.0f, -1.0f});
+    if (Input::Dot(look, square) < std::cos(kCanvasMaxTilt)) {
+        return false;
+    }
+    if (!models) {
+        return true;
+    }
+    const float tl = std::tan(angle_left), tr = std::tan(angle_right);
+    const float tu = std::tan(angle_up), td = std::tan(angle_down);
+    const auto widen = [](float t, float by) {
+        return std::tan(std::clamp(std::atan(t) + by, -1.5f, 1.5f));
+    };
+    // Widened by the guard, then kept kCanvasEdge in from the view's edges.
+    const float x0 = std::max(widen(tl + (tr - tl) * (*models)[0], -kCanvasGuard),
+                              std::tan(angle_left + kCanvasEdge));
+    const float x1 = std::min(widen(tl + (tr - tl) * (*models)[2], kCanvasGuard),
+                              std::tan(angle_right - kCanvasEdge));
+    const float y1 = std::min(widen(tu - (tu - td) * (*models)[1], kCanvasGuard),
+                              std::tan(angle_up - kCanvasEdge));
+    const float y0 = std::max(widen(tu - (tu - td) * (*models)[3], -kCanvasGuard),
+                              std::tan(angle_down + kCanvasEdge));
+    if (x0 > x1 || y0 > y1) {
+        return true; // only at the very edge of the view
+    }
+    const float hw = canvas.width_m * 0.5f, hh = canvas.height_m * 0.5f;
+    for (const float x : {x0, x1}) {
+        for (const float y : {y0, y1}) {
+            const Input::Vec3f d =
+                Input::Rotate(to_canvas.orientation, Input::Rotate(eye.orientation, {x, y, -1.0f}));
+            if (d.z >= -1e-6f) {
+                return false; // the ray never reaches it
+            }
+            const float t = -e.z / d.z;
+            const float hx = e.x + d.x * t, hy = e.y + d.y * t;
+            if (std::fabs(hx) > hw || std::fabs(hy) > hh) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/// What the eye quads and the models' layer do this refresh.
+struct CanvasFrame {
+    uint32_t canvas = 0;       ///< the canvas the quads carry and the next image is drawn for (0 none)
+    bool quads_shown = false;  ///< the quads at full size (else shrunk to nothing, in place)
+    bool projection = false;   ///< the image released last also goes out as the projection layer
+};
+
+/// Moving the canvas without the quads ever showing an image at a place it was not drawn for,
+/// whatever order SteamVR takes the calls up in (up to kSettle refreshes late each).
+class CanvasHandover {
+public:
+    static constexpr int kSettle = 2;
+
+    /// A new canvas (its number, never 0) wanted: the quads shrink now and move to it once they
+    /// have gone out shrunk (or not at all) for kSettle refreshes; at once when they already
+    /// have. Ignored while a move waits for that (Busy).
+    void Request(uint32_t canvas) {
+        if (pending_ == 0) {
+            pending_ = canvas;
+        }
+    }
+    bool Busy() const {
+        return pending_ != 0;
+    }
+    bool Shown() const {
+        return shown_;
+    }
+    uint32_t Canvas() const {
+        return quads_;
+    }
+
+    /// Each refresh the quads go out. `image`: an image has been released (it can go out as the
+    /// projection layer); `released`: the canvas it was drawn for (0: drawn for the eyes' own
+    /// views).
+    CanvasFrame Step(bool image, uint32_t released) {
+        if (!image) {
+            released = 0;
+        }
+        if (pending_ != 0 && hidden_ >= kSettle) {
+            quads_ = pending_;
+            pending_ = 0;
+            pose_age_ = 0;
+            matched_ = 0;
+        }
+        CanvasFrame f;
+        f.canvas = quads_;
+        f.quads_shown = pending_ == 0 && quads_ != 0 && released == quads_ &&
+                        pose_age_ >= kSettle && matched_ >= kSettle;
+        f.projection = image && !(f.quads_shown && shown_age_ >= kSettle);
+        shown_ = f.quads_shown;
+        if (f.quads_shown) {
+            shown_age_++;
+            hidden_ = 0;
+        } else {
+            shown_age_ = 0;
+            hidden_++;
+        }
+        pose_age_++;
+        matched_ = released == quads_ ? matched_ + 1 : 0;
+        return f;
+    }
+
+    /// Each refresh the quads do not go out (no models, or Off): the layer slots shrink them in
+    /// place (layer_slots.h), which counts as hidden.
+    void Absent() {
+        shown_ = false;
+        shown_age_ = 0;
+        hidden_++;
+        matched_ = 0;
+    }
+
+    /// Each refresh the quads go out but not through here (AZAHARFRAME_XR_CANVAS=0): on view at
+    /// some other place, so a move back starts with the shrink.
+    void Elsewhere() {
+        shown_ = true;
+        shown_age_ = 0;
+        hidden_ = 0;
+        matched_ = 0;
+    }
+
+    void Reset() {
+        *this = {};
+    }
+
+private:
+    uint32_t quads_ = 0;
+    uint32_t pending_ = 0;
+    bool shown_ = false;
+    int hidden_ = 0;     ///< refreshes in a row the quads went out shrunk (or not at all)
+    int shown_age_ = 0;  ///< refreshes in a row they went out at full size
+    int pose_age_ = 0;   ///< refreshes they have carried this canvas's place
+    int matched_ = 0;    ///< refreshes in a row the image released was drawn for it
+};
+
 } // namespace FrameXr::Vis

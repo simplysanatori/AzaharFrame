@@ -9,6 +9,11 @@
 // screens and panels, cut where a screen or panel is nearer or the choice keeps a screen in
 // front ("Controllers in Front of Screen": Primary, Secondary, Both), or as a projection
 // layer of its own, which SteamVR puts under every quad (Off); model_plane.h explains why.
+// AzaharFrame ctrlglitch: the eye quads are a canvas that stays put in the room, the image drawn
+// onto it from where the eyes are, so SteamVR taking up an image and a place from different
+// refreshes no longer moves the controllers; the canvas moves rarely, through a handover, and the
+// models are drawn where the controller will be on the refresh their image is on view
+// (model_plane.h, input/pose_guard.h).
 //
 // This is the one part of frame_xr that renders on the XR thread while a game runs, so it keeps
 // to the rules the screens keep: it never waits for the GPU on the XR thread, it holds the queue
@@ -108,6 +113,9 @@ private:
     void Setup(Runtime& rt);
     void Record(const ViewPose& views, const std::array<Hand, 2>& hands,
                 const std::vector<Occluder>& occluders, const ProjScreens* screens = nullptr);
+    /// AzaharFrame ctrlglitch: the shown hands' bounding spheres (LOCAL), and how many.
+    std::array<ModelSphere, 2> Spheres(const std::array<Hand, 2>& hands) const;
+    static std::size_t SphereCount(const std::array<Hand, 2>& hands);
     /// AzaharFrame ctrlfront: the pass's GPU time (timestamps), read once the image's fence has
     /// signalled; logged every kGpuLogSeconds while the models show.
     void NoteGpuTime(int64_t now_ns);

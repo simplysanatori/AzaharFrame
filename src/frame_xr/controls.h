@@ -26,6 +26,7 @@
 #include "frame_xr/input/input_bridge.h"
 #include "frame_xr/input/key_device.h"   // AzaharFrame keys
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
+#include "frame_xr/input/pose_guard.h"    // AzaharFrame ctrlglitch
 #include "frame_xr/input/reticle.h"       // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h"  // AzaharFrame vrsize
 #include "frame_xr/input/screen_view.h" // AzaharFrame screenswap
@@ -295,6 +296,11 @@ private:
     float mouse_mark_size = 0.0f;
     void MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_input);
     void KeyboardTick(const FrameInfo& info); // AzaharFrame keys
+    /// AzaharFrame ctrlglitch: the controllers' poses for what is drawn of them (model, weapon,
+    /// beam) through the pose guards (input/pose_guard.h); the log line every 10 s.
+    void GuardDrawnPoses(const FrameInfo& info, Input::InputFrame& vis_in, bool have_input);
+    std::array<Input::PoseGuard, 2> pose_guards;
+    int64_t pose_guard_log_ns = 0;
     void AddMouseRing(const FrameInfo& info, std::vector<Quad>& layers);
     /// A hold of one button (the mapper, which times Menu and View in a game, does not run
     /// while the menu shows). Arms only once the button was let go.
