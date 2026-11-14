@@ -17,11 +17,14 @@
 // .3dsx, a .cia, an installed title). Never part of an install, so never removed by Uninstall:
 // the player's ROM (any .gba, and user/emerald3ds/rom.gba, the copy kept for rebuilds), and the
 // shared sdmc/3ds/dspfirm.cdc. The save (emerald3ds.sav and its companions, backup/, an installed
-// title's data/) is removed only when the player asks for it. No Qt here.
+// title's data/) is removed only when the player asks for it. The .3dsx and .cia copies in the game
+// folders are the player's files: Uninstall keeps them, except extra copies that are byte for byte
+// the same as one it keeps (IdenticalExtras). No Qt here.
 
 #pragma once
 
 #include <optional>
+#include <cstddef>
 #include <span>
 #include <string>
 #include <string_view>
@@ -136,10 +139,18 @@ struct UninstallPlan {
     std::vector<std::string> files;
     std::vector<std::string> dirs;           ///< removed with everything in them
     std::vector<std::string> remove_if_empty; ///< afterwards, deepest first
-    std::vector<std::string> kept;           ///< the save, the ROM's copy: never in files or dirs
+    std::vector<std::string> kept; ///< the save, the ROM's copy, the game folders' copies: never in files or dirs
+                                   ///< (but an identical extra copy, see IdenticalExtras)
 };
 
-/// What Uninstall removes: every piece Detect found (an installed title's content/, all of it with
+/// Of the game folders' copies (in this order), the ones that are byte for byte the same as an
+/// earlier one (same size and SHA-256, then the bytes themselves): the extras Uninstall may remove.
+/// The first of each kind of content is never among them, nor a copy that differs in any way, nor
+/// the same file listed twice.
+std::vector<std::string> IdenticalExtras(const std::vector<std::string>& copies);
+
+/// What Uninstall removes: every piece Detect found, except the game folders' .3dsx and .cia copies
+/// (the player's files: kept, bar identical extras; an installed title's content/, all of it with
 /// `delete_save`), and with `delete_save` the save files, backup/ and a title's data/. Never a ROM
 /// (a .gba, Paths::rom_copy) or dspfirm.cdc, whatever is asked.
 UninstallPlan PlanUninstall(const Detection& detection, const Paths& paths, bool delete_save);
@@ -157,9 +168,11 @@ UninstallResult RunUninstall(const UninstallPlan& plan);
 // Uninstall's dialog (the VR menu's and Azahar's window's): "Uninstall Pokémon Emerald 3DS?", this
 // text, the checkbox "Also Delete Save Data" (only with a save), Cancel and Uninstall.
 
-/// "Removes the game and its build files. Your ROM and save data are kept." (`has_save`), "...
-/// Your ROM is kept." (no save), "Removes the game, its build files and your save data. Your ROM
-/// is kept." (`delete_save`).
-std::string UninstallBody(bool has_save, bool delete_save);
+/// `game_copies`: how many .3dsx / .cia copies the game folders hold.
+/// "Removes the installed game and its build files. Your ROM, save data and game files are kept."
+/// (no game files: "Your ROM and save data are kept."; no save: "...Your ROM and game files..."),
+/// ticked: "Removes the installed game, its build files and your save data. Your ROM and game
+/// files are kept."; two or more copies add " Any extra identical copies are removed."
+std::string UninstallBody(bool has_save, bool delete_save, size_t game_copies = 0);
 
 } // namespace Homebrew::Emerald3ds

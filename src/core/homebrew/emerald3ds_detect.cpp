@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <fmt/format.h>
+#include "core/homebrew/net.h"
 
 namespace Homebrew::Emerald3ds {
 
@@ -592,8 +593,70 @@ const Variant* FindVariantByThreeDsx(const Manifest& manifest, std::string_view 
 
 // ---------------------------------------------------------------------------------------------
 
+namespace {
+
+/// The two files hold the same bytes (same size, then the whole of both).
+bool SameBytes(const std::string& a, const std::string& b) {
+    std::error_code ec;
+    if (fs::file_size(a, ec) != fs::file_size(b, ec) || ec) {
+        return false;
+    }
+    std::ifstream fa(a, std::ios::binary), fb(b, std::ios::binary);
+    if (!fa || !fb) {
+        return false;
+    }
+    std::array<char, 1 << 16> ba, bb;
+    while (fa && fb) {
+        fa.read(ba.data(), ba.size());
+        fb.read(bb.data(), bb.size());
+        if (fa.gcount() != fb.gcount() || !std::equal(ba.begin(), ba.begin() + fa.gcount(), bb.begin())) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+std::vector<std::string> IdenticalExtras(const std::vector<std::string>& copies) {
+    std::vector<std::string> keep; // the first of each kind of content
+    std::vector<std::string> hashes;
+    std::vector<std::string> extras;
+    for (const std::string& c : copies) {
+        std::error_code ec;
+        if (!IsFile(c)) {
+            continue;
+        }
+        bool same_file = false; // the same file listed twice (or reached by a link): not an extra
+        for (const std::string& k : keep) {
+            if (fs::equivalent(c, k, ec)) {
+                same_file = true;
+                break;
+            }
+        }
+        if (same_file) {
+            continue;
+        }
+        const std::string hash = FileSha256(c);
+        bool extra = false;
+        if (!hash.empty()) {
+            for (size_t i = 0; i < keep.size() && !extra; ++i) {
+                extra = hashes[i] == hash && SameBytes(keep[i], c);
+            }
+        }
+        if (extra) {
+            extras.push_back(c);
+        } else {
+            keep.push_back(c); // different from every copy kept so far (or unreadable): kept
+            hashes.push_back(hash);
+        }
+    }
+    return extras;
+}
+
 UninstallPlan PlanUninstall(const Detection& d, const Paths& paths, bool delete_save) {
     UninstallPlan plan;
+    std::vector<std::string> game_copies; // the game folders' .3dsx and .cia: kept, bar identical extras
     const auto add_if_empty = [&plan](const std::string& dir) {
         if (!dir.empty() &&
             std::none_of(plan.remove_if_empty.begin(), plan.remove_if_empty.end(),
@@ -627,9 +690,22 @@ UninstallPlan PlanUninstall(const Detection& d, const Paths& paths, bool delete_
             }
             break;
         }
+        case Piece::GameCopy:
+            game_copies.push_back(f.path); // the player's files: decided below
+            break;
         default:
             plan.files.push_back(f.path);
             break;
+        }
+    }
+    {
+        const std::vector<std::string> extras = IdenticalExtras(game_copies);
+        for (const std::string& c : game_copies) {
+            if (std::find(extras.begin(), extras.end(), c) != extras.end()) {
+                plan.files.push_back(c);
+            } else {
+                plan.kept.push_back(c);
+            }
         }
     }
     for (const std::string& s : d.saves) {
@@ -689,12 +765,27 @@ UninstallResult RunUninstall(const UninstallPlan& plan) {
     return r;
 }
 
-std::string UninstallBody(bool has_save, bool delete_save) {
+std::string UninstallBody(bool has_save, bool delete_save, size_t game_copies) {
+    std::string text;
     if (has_save && delete_save) {
-        return "Removes the game, its build files and your save data. Your ROM is kept.";
+        text = "Removes the installed game, its build files and your save data. ";
+        text += game_copies > 0 ? "Your ROM and game files are kept." : "Your ROM is kept.";
+    } else {
+        text = "Removes the installed game and its build files. Your ROM";
+        if (has_save && game_copies > 0) {
+            text += ", save data and game files are kept.";
+        } else if (has_save) {
+            text += " and save data are kept.";
+        } else if (game_copies > 0) {
+            text += " and game files are kept.";
+        } else {
+            text += " is kept.";
+        }
     }
-    return has_save ? "Removes the game and its build files. Your ROM and save data are kept."
-                    : "Removes the game and its build files. Your ROM is kept.";
+    if (game_copies > 1) {
+        text += " Any extra identical copies are removed.";
+    }
+    return text;
 }
 
 } // namespace Homebrew::Emerald3ds

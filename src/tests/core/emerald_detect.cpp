@@ -440,7 +440,7 @@ TEST_CASE("Emerald detect: the variant a .3dsx comes from", "[emhb]") {
     CHECK_FALSE(E::FindVariantByThreeDsx(m, ""));
 }
 
-TEST_CASE("Emerald uninstall: only the install's files go; the ROM and the save stay", "[emhb]") {
+TEST_CASE("Emerald uninstall: only the install's files go; the ROM, the save and the game folder's copy stay", "[emhb]") {
     Scratch s("uninstall");
     AppMade(s);
     const E::Paths p = s.Paths();
@@ -453,15 +453,15 @@ TEST_CASE("Emerald uninstall: only the install's files go; the ROM and the save 
     const E::Detection d = E::Detect(s.Input());
     const E::UninstallPlan plan = E::PlanUninstall(d, p, false);
     const std::set<std::string> want_files = Norm(
-        {p.three_dsx, p.smdh, p.pak, s.Games() + "Emerald3DS.3dsx", p.state_file,
-         p.data_dir + "fallback-choices.json"});
+        {p.three_dsx, p.smdh, p.pak, p.state_file, p.data_dir + "fallback-choices.json"});
     CHECK(Norm(plan.files) == want_files);
     CHECK(Norm(plan.dirs) == Norm({p.data_dir + "followers-cache/"}));
-    CHECK(Norm(plan.kept) ==
-          Norm({p.save, p.app_dir + "emerald3ds.clock", p.backup_root, p.rom_copy}));
+    CHECK(Norm(plan.kept) == Norm({p.save, p.app_dir + "emerald3ds.clock", p.backup_root, p.rom_copy,
+                                   s.Games() + "Emerald3DS.3dsx"}));
 
     const E::UninstallResult r = E::RunUninstall(plan);
     CHECK(r.Ok());
+    CHECK(Exists(s.Games() + "Emerald3DS.3dsx")); // the player's copy
     for (const std::string& f : want_files) {
         CHECK_FALSE(Exists(f));
     }
@@ -476,9 +476,10 @@ TEST_CASE("Emerald uninstall: only the install's files go; the ROM and the save 
     CHECK(Exists(p.app_dir + "settings.ini"));
     CHECK(Exists(s.Games() + "ftpd.3dsx"));
     CHECK(Exists(s.root.string() + "/sdmc/3ds/ftpd/ftpd.3dsx"));
-    // and nothing of the install is left to find
+    // and nothing of the install is left to find but the game folder's copy
     const E::Detection after = E::Detect(s.Input());
-    CHECK_FALSE(after.Any());
+    REQUIRE(after.found.size() == 1);
+    CHECK(after.found[0].piece == E::Piece::GameCopy);
     CHECK(after.saves.size() == 3);
 }
 
@@ -489,7 +490,7 @@ TEST_CASE("Emerald uninstall: Also Delete Save Data, only when ticked", "[emhb]"
     Write(s.Games() + "Pokemon Emerald.gba", "rom");
     const E::Detection d = E::Detect(s.Input());
     const E::UninstallPlan plan = E::PlanUninstall(d, p, true);
-    CHECK(Norm(plan.kept) == Norm({p.rom_copy})); // the ROM's copy, even now
+    CHECK(Norm(plan.kept) == Norm({p.rom_copy, s.Games() + "Emerald3DS.3dsx"})); // the ROM's copy, even now; and the game folder's file
     const E::UninstallResult r = E::RunUninstall(plan);
     CHECK(r.Ok());
     CHECK_FALSE(Exists(p.save));
@@ -520,11 +521,12 @@ TEST_CASE("Emerald uninstall: an imported copy and an installed title", "[emhb]"
     CHECK(r.Ok());
     CHECK_FALSE(Exists(dir)); // the folder it came in, empty
     CHECK_FALSE(Exists(p.pak));
-    CHECK_FALSE(Exists(s.Games() + "Emerald3DS.cia"));
+    CHECK(Exists(s.Games() + "Emerald3DS.cia")); // the player's file stays
     CHECK_FALSE(Exists(title + "content"));
     CHECK(Exists(title + "data/00000001.sav")); // the title's save
     CHECK(Exists(p.save));
-    CHECK_FALSE(E::Detect(s.Input()).Any());
+    REQUIRE(E::Detect(s.Input()).found.size() == 1);
+    CHECK(E::Detect(s.Input()).found[0].piece == E::Piece::GameCopy);
 
     // ticked: the title's save goes with it
     Write(title + "content/00000000.app", Ncch(EmeraldSmdh()));
@@ -533,6 +535,71 @@ TEST_CASE("Emerald uninstall: an imported copy and an installed title", "[emhb]"
     CHECK(r.Ok());
     CHECK_FALSE(Exists(title));
     CHECK_FALSE(Exists(p.save));
+    CHECK(Exists(s.Games() + "Emerald3DS.cia")); // not even now
+}
+
+TEST_CASE("Emerald uninstall: identical copies in the game folders keep one, the rest go", "[emhb]") {
+    Scratch s("uninstall-dups");
+    const E::Paths p = s.Paths();
+    const std::string game = ThreeDsx(EmeraldSmdh());
+    Write(s.Games() + "Emerald3DS.3dsx", game);
+    Write(s.Games() + "Emerald3DS copy.3dsx", game);
+    Write(s.Games() + "Emerald3DS (2).3dsx", game);
+    Write(p.pak, Pak(kEnSha1));
+    {
+        // the decision itself, on the files: the first of each kind stays
+        const std::vector<std::string> list = {s.Games() + "Emerald3DS.3dsx",
+                                               s.Games() + "Emerald3DS copy.3dsx",
+                                               s.Games() + "Emerald3DS (2).3dsx"};
+        CHECK(E::IdenticalExtras(list) ==
+              std::vector<std::string>{list[1], list[2]});
+        CHECK(E::IdenticalExtras({list[2], list[0]}) == std::vector<std::string>{list[0]});
+        CHECK(E::IdenticalExtras({list[0], list[0]}).empty()); // the same file twice
+    }
+    E::Detection d = E::Detect(s.Input());
+    E::UninstallPlan plan = E::PlanUninstall(d, p, false);
+    CHECK(E::RunUninstall(plan).Ok());
+    int left = 0;
+    for (const std::string& f : {s.Games() + "Emerald3DS.3dsx", s.Games() + "Emerald3DS copy.3dsx",
+                                 s.Games() + "Emerald3DS (2).3dsx"}) {
+        left += Exists(f) ? 1 : 0;
+    }
+    CHECK(left == 1); // at least one stays
+    CHECK(E::Detect(s.Input()).found.size() == 1);
+}
+
+TEST_CASE("Emerald uninstall: copies that differ are all kept; so is a single copy", "[emhb]") {
+    Scratch s("uninstall-differ");
+    const E::Paths p = s.Paths();
+    const std::string game = ThreeDsx(EmeraldSmdh());
+    const std::string one = s.Games() + "Emerald3DS.3dsx";
+    const std::string two = s.Games() + "Emerald3DS v2.3dsx";
+    const std::string three = s.Games() + "Emerald3DS same size.3dsx";
+    const std::string cia = s.Games() + "Emerald3DS.cia";
+    Write(one, game);
+    Write(two, game + "x");                 // another size
+    std::string flipped = game;
+    flipped.back() ^= 1;                    // the same size, one bit different
+    Write(three, flipped);
+    Write(cia, Cia(EmeraldSmdh()));         // another kind of file
+    CHECK(E::IdenticalExtras({one, two, three, cia}).empty());
+    CHECK(E::IdenticalExtras({one}).empty());
+    CHECK(E::IdenticalExtras({}).empty());
+    CHECK(E::IdenticalExtras({one, s.Games() + "missing.3dsx"}).empty());
+    E::UninstallPlan plan = E::PlanUninstall(E::Detect(s.Input()), p, true);
+    CHECK(E::RunUninstall(plan).Ok());
+    for (const std::string& f : {one, two, three, cia}) {
+        CHECK(Exists(f));
+    }
+
+    // a single copy
+    Scratch t("uninstall-single");
+    Write(t.Games() + "Emerald3DS.3dsx", game);
+    plan = E::PlanUninstall(E::Detect(t.Input()), t.Paths(), true);
+    CHECK(plan.files.empty());
+    CHECK(Norm(plan.kept) == Norm({t.Games() + "Emerald3DS.3dsx"}));
+    CHECK(E::RunUninstall(plan).Ok());
+    CHECK(Exists(t.Games() + "Emerald3DS.3dsx"));
 }
 
 TEST_CASE("Emerald uninstall: never a ROM, whatever the list says", "[emhb]") {
@@ -557,8 +624,19 @@ TEST_CASE("Emerald uninstall: never a ROM, whatever the list says", "[emhb]") {
 
 TEST_CASE("Emerald uninstall: the dialog's text", "[emhb]") {
     CHECK(E::UninstallBody(true, false) ==
-          "Removes the game and its build files. Your ROM and save data are kept.");
+          "Removes the installed game and its build files. Your ROM and save data are kept.");
     CHECK(E::UninstallBody(true, true) ==
-          "Removes the game, its build files and your save data. Your ROM is kept.");
-    CHECK(E::UninstallBody(false, false) == "Removes the game and its build files. Your ROM is kept.");
+          "Removes the installed game, its build files and your save data. Your ROM is kept.");
+    CHECK(E::UninstallBody(false, false) ==
+          "Removes the installed game and its build files. Your ROM is kept.");
+    // game folder copies: kept; two or more may hold identical extras
+    CHECK(E::UninstallBody(true, false, 1) ==
+          "Removes the installed game and its build files. Your ROM, save data and game files are kept.");
+    CHECK(E::UninstallBody(false, false, 1) ==
+          "Removes the installed game and its build files. Your ROM and game files are kept.");
+    CHECK(E::UninstallBody(true, true, 1) ==
+          "Removes the installed game, its build files and your save data. Your ROM and game files are kept.");
+    CHECK(E::UninstallBody(true, false, 3) ==
+          "Removes the installed game and its build files. Your ROM, save data and game files are kept. "
+          "Any extra identical copies are removed.");
 }

@@ -981,7 +981,10 @@ void FrameEmerald::Start(QWidget* parent, Job job) {
 // ---- AzaharFrame emhb: Uninstall ----
 
 QString FrameEmerald::UninstallBody(bool has_save, bool delete_save) const {
-    return QString::fromStdString(E::UninstallBody(has_save, delete_save));
+    const auto copies = static_cast<size_t>(std::count_if(
+        detected.found.begin(), detected.found.end(),
+        [](const E::Found& f) { return f.piece == E::Piece::GameCopy; }));
+    return QString::fromStdString(E::UninstallBody(has_save, delete_save, copies));
 }
 
 void FrameEmerald::Uninstall(QWidget* parent) {
@@ -1032,13 +1035,17 @@ void FrameEmerald::UninstallNow(bool delete_save, std::function<void(QString)> d
         return;
     }
     Rescan();
-    const E::UninstallPlan plan = E::PlanUninstall(detected, paths, delete_save);
-    LOG_INFO(Frontend, "emerald3ds: uninstall: {} file(s), {} folder(s); kept: {} ({})",
-             plan.files.size(), plan.dirs.size(), plan.kept.size(),
-             delete_save ? "the save is deleted" : "the save stays");
     SetBusy(true, tr("Uninstalling"));
+    // the plan hashes the game folders' copies (to find identical extras): off the UI thread too
     OffThread(
-        this, [plan] { return E::RunUninstall(plan); },
+        this,
+        [detection = detected, paths = paths, delete_save] {
+            const E::UninstallPlan plan = E::PlanUninstall(detection, paths, delete_save);
+            LOG_INFO(Frontend, "emerald3ds: uninstall: {} file(s), {} folder(s); kept: {} ({})",
+                     plan.files.size(), plan.dirs.size(), plan.kept.size(),
+                     delete_save ? "the save is deleted" : "the save stays");
+            return E::RunUninstall(plan);
+        },
         [this, done = std::move(done)](E::UninstallResult r) {
             for (const std::string& f : r.failed) {
                 LOG_WARNING(Frontend, "emerald3ds: uninstall: could not remove {}",
