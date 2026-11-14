@@ -648,10 +648,12 @@ the last frame's layers again, its image with the pose meant for the picture bef
 mispaired refresh the app cannot avoid, only count. A frame that fails before `xrEndFrame` clears
 the serial sent. With `AZAHARFRAME_XR_SET_RELEASE=0` releases happen outside the screens lock, so
 a frame can carry an image before its serial is written: a warning at the session's start, and
-each frame that ended while such a release was in progress is counted. Lag 1 on any runtime but
-SteamVR/OpenXR 2.19.3 (where it was measured), or an unknown one, logs a warning naming the
-one-minute check: `AZAHARFRAME_XR_IMAGE_LAG=0` must bring the doubling back. Do that check after
-every SteamVR or SteamOS update.
+each frame that ended while such a release was in progress is counted. The lag was measured on
+SteamVR/OpenXR 2.19.3; it stays 1 for every SteamVR version (SteamVR updates almost daily, so the
+version is never compared and behaviour never changes by version). The runtime's name and version
+are in the session's INFO line; only a runtime that is not SteamVR, or none known, logs a warning
+naming the one-minute check: `AZAHARFRAME_XR_IMAGE_LAG=0` must bring the doubling back. That check
+is worth doing after a SteamVR or SteamOS update that changes how the screen looks on head turns.
 
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's

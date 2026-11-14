@@ -115,11 +115,14 @@ struct Counts {
     uint32_t serial_trailing = 0;
 };
 
-/// The runtime the image lag of 1 was measured on (the headset A/B of 2026-11-14). Any other one,
-/// or none known, gets a warning in the log (not a different default: no version table).
+/// The runtime the image lag of 1 was measured on (the headset A/B of 2026-11-14), for the log.
+/// SteamVR updates almost daily, so the version is never compared: lag 1 holds for every SteamVR
+/// version (no version table, behaviour never changes by version); only a runtime that is not
+/// SteamVR at all, or none known, gets a warning in the log.
 inline constexpr const char* kMeasuredRuntime = "SteamVR/OpenXR 2.19.3";
-inline bool MeasuredRuntime(const std::string& runtime) {
-    return runtime == kMeasuredRuntime;
+/// Whether `runtime` ("<runtimeName> <major.minor.patch>", as the session logs it) is SteamVR's.
+inline bool SteamVrRuntime(const std::string& runtime) {
+    return runtime.rfind("SteamVR", 0) == 0;
 }
 
 /// Why a picture is the one on view (for the per-second log line).

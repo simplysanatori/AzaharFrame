@@ -716,11 +716,13 @@ void Runtime::UpdateImageLag(const char* why) {
              runtime_name.empty() ? std::string{"unknown"} : runtime_name,
              lag ? "the last xrEndFrame carried" : "each xrEndFrame carries",
              ImageLag::kMeasuredRuntime);
-    if (lag == 1 && !ImageLag::MeasuredRuntime(runtime_name)) {
+    // Any SteamVR version keeps lag 1 without a word (SteamVR updates almost daily); only
+    // another runtime, or none known, is warned about.
+    if (lag == 1 && !ImageLag::SteamVrRuntime(runtime_name)) {
         LOG_WARNING(Frontend,
-                    "xr: image lag 1 is assumed for runtime {}, but was measured on {} only: "
-                    "if head turns double the world, check once with AZAHARFRAME_XR_IMAGE_LAG=0 "
-                    "(the doubling must come back with 0 if 1 is right)",
+                    "xr: image lag 1 is assumed for runtime {}, which is not SteamVR (the lag was "
+                    "measured on {}): if head turns double the world, check once with "
+                    "AZAHARFRAME_XR_IMAGE_LAG=0 (the doubling must come back with 0 if 1 is right)",
                     runtime_name.empty() ? std::string{"unknown"} : runtime_name,
                     ImageLag::kMeasuredRuntime);
     }

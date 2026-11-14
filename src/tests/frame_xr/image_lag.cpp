@@ -277,9 +277,12 @@ TEST_CASE("Image lag: the counts of fallbacks and missed refreshes", "[frame_xr]
     CHECK(IL::MissedRefreshes(kPeriod, 4 * kPeriod + 100'000, kPeriod) == 2);
     CHECK(IL::MissedRefreshes(5 * kPeriod, 4 * kPeriod, kPeriod) == 0);
     CHECK(IL::MissedRefreshes(kPeriod, 3 * kPeriod, 0) == 0);
-    // Lag 1 was measured on one runtime; any other is warned about in the log.
-    CHECK(IL::MeasuredRuntime("SteamVR/OpenXR 2.19.3"));
-    CHECK_FALSE(IL::MeasuredRuntime("SteamVR/OpenXR 2.19.4"));
-    CHECK_FALSE(IL::MeasuredRuntime("xrmock 0.1.0"));
-    CHECK_FALSE(IL::MeasuredRuntime(""));
+    // Lag 1 holds for every SteamVR version (no warning); only another runtime or none known is
+    // warned about in the log.
+    CHECK(IL::SteamVrRuntime("SteamVR/OpenXR 2.19.3"));
+    CHECK(IL::SteamVrRuntime("SteamVR/OpenXR 2.19.4"));
+    CHECK(IL::SteamVrRuntime("SteamVR/OpenXR 3.0.0"));
+    CHECK_FALSE(IL::SteamVrRuntime("xrmock 0.1.0"));
+    CHECK_FALSE(IL::SteamVrRuntime("Monado 25.0.0"));
+    CHECK_FALSE(IL::SteamVrRuntime(""));
 }
