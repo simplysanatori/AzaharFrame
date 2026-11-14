@@ -174,6 +174,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_crash_dialog.h" // AzaharFrame crashreport
 #include "common/frame_crash.h"          // AzaharFrame crashreport
 #include "core/frame_crash_report.h"     // AzaharFrame crashreport
+#include "core/frame_weapon_models.h"    // AzaharFrame kiuguns
 #include "core/cheats/online.h"         // AzaharFrame compat: the game's version
 #include "core/loader/smdh.h"           // AzaharFrame compat: its region
 #include "core/mods/compat.h"           // AzaharFrame compat
@@ -189,6 +190,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
 #include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
+#include "frame_xr/kiu_scan.h"          // AzaharFrame kiuguns: IsKidIcarus
 #include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
@@ -3558,6 +3560,17 @@ void GMainWindow::BootGame(const QString& filename) {
         secondary_window->ReleaseRenderTarget();
         return;
     }
+#ifdef ENABLE_FRAME_XR // AzaharFrame kiuguns: Kid Icarus: Uprising's weapons for the hand
+    // (core/frame_weapon_models.h): the game's own RomFS as the game reads it (LayeredFS mods
+    // too), handed to a thread of its own; nothing here waits for it.
+    if (Loader::ResultStatus::Success == res && !is_artic && FrameXr::Kiu::IsKidIcarus(title_id)) {
+        std::shared_ptr<FileSys::RomFSReader> romfs;
+        if (system.GetAppLoader().ReadRomFS(romfs) == Loader::ResultStatus::Success && romfs) {
+            FrameWeapons::OnGameBoot(title_id, std::move(romfs), true,
+                                     Settings::values.custom_textures.GetValue());
+        }
+    }
+#endif
 
     // Set everything up
     if (movie_record_on_start) {
@@ -3742,6 +3755,9 @@ void GMainWindow::ShutdownGame() {
 #endif
 
     emu_thread->RequestStop();
+#ifdef ENABLE_FRAME_XR
+    FrameWeapons::OnGameStop(); // AzaharFrame kiuguns: a run stops between two weapons
+#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame kbd: the emulation thread may wait for the VR keyboard
     FrameXr::CancelGameKeyboard();
 #endif

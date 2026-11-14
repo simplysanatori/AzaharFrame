@@ -91,6 +91,7 @@ add_executable(tests
     core/custom_tex_parts.cpp # AzaharFrame texparts
     core/custom_tex_layers.cpp # AzaharFrame texlayers
     core/pack_config_json.cpp # AzaharFrame jsoncrash
+    core/frame_weapon_models.cpp # AzaharFrame kiuguns
     core/custom_tex_optimize.cpp # AzaharFrame ui3
     core/custom_tex_convert.cpp # AzaharFrame cppconv
     frame_xr/zip_install.cpp # AzaharFrame zipinstall

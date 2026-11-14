@@ -142,6 +142,12 @@ The controller models' converter (`azahar --frame-controller-models`, `src/core/
 - The models themselves are Valve's, from SteamVR's Steam Frame controller driver on your Frame (`/opt/steamvr/drivers/frame_controller/resources/rendermodels`). They are converted on your Frame at install time and are not part of this repository or of the release.
 - The controls help and stats panels use Noto Sans Regular and Bold (SIL Open Font License 1.1) from SteamOS's own `/usr/share/fonts/noto/`, with the stb_truetype above.
 
+## Kid Icarus: Uprising's weapons in the hand
+
+The readers of Nintendo's darc archives and NW4C CGFX (`.bcres`) models (`src/core/frame_cgfx.cpp`) were written for this project from the structure layouts documented by SPICA by gdkchan (https://github.com/gdkchan/SPICA), which is released into the public domain (the Unlicense). No SPICA code is included.
+
+- The weapon models are the game's own. They are made on your machine from your copy of the game (`azahar --frame-weapon-models`, or when the game starts), kept in your user folder, and are not part of this repository or of the release.
+
 ## SDL
 
 SDL (https://www.libsdl.org) reads game controllers and, in the Azahar build,

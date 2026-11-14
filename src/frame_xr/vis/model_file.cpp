@@ -125,7 +125,7 @@ Mat Stick(const float* mo, float x, float y, float click) {
 
 } // namespace
 
-bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) {
+bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error, uint32_t space) {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
     if (!f) {
         error = "cannot be read";
@@ -147,7 +147,15 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) 
     m.tex_width = U32(head + 20);
     m.tex_height = U32(head + 24);
     m.flags = U32(head + 28);
-    if (m.version != 2 || m.flags != kModelFlagAimSpace) {
+    if (space == kModelFlagWeaponSpace) { // AzaharFrame kiuguns
+        if (m.version != 2 || (m.flags & kModelFlagSpaceMask) != kModelFlagWeaponSpace ||
+            (m.flags & ~(kModelFlagSpaceMask | 0x7700u)) != 0 || ModelWrapU(m.flags) > 3 ||
+            ModelWrapV(m.flags) > 3) {
+            error = "version " + std::to_string(m.version) + " flags " +
+                    std::to_string(m.flags) + ": not a weapon model";
+            return false;
+        }
+    } else if (m.version != 2 || m.flags != kModelFlagAimSpace) {
         error = "version " + std::to_string(m.version) + " flags " + std::to_string(m.flags) +
                 ": not an aim space model (azahar --frame-controller-models)";
         return false;

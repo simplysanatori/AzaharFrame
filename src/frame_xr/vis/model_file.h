@@ -52,6 +52,20 @@ using ModelInputs = std::array<float, kModelInputs>;
 
 constexpr uint32_t kModelVertexFloats = 12;
 constexpr uint32_t kModelFlagAimSpace = 1;
+/// AzaharFrame kiuguns: a game's model (core/frame_weapon_models.h: Kid Icarus: Uprising's
+/// weapons): the vertices in the space of the weapon's anchor bone, in the game's units, fitted
+/// to the hand when drawn (frame_xr/vis/weapon_fit.h). Bits 8-10 and 12-14 of the flags are the
+/// texture's wrap modes across and down (PICA's: 0 clamp to edge, 1 clamp to border, 2 repeat,
+/// 3 mirrored repeat). The controller reader refuses these files, and the weapon reader the
+/// controllers'.
+constexpr uint32_t kModelFlagWeaponSpace = 2;
+constexpr uint32_t kModelFlagSpaceMask = 0xFF;
+constexpr uint32_t ModelWrapU(uint32_t flags) {
+    return (flags >> 8) & 7u;
+}
+constexpr uint32_t ModelWrapV(uint32_t flags) {
+    return (flags >> 12) & 7u;
+}
 
 struct ModelComponent {
     std::string name;
@@ -74,8 +88,11 @@ struct ModelFile {
     std::vector<uint8_t> surface; ///< the same size
 };
 
-/// Reads and checks one hand's file. False with the reason in `error`.
-bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error);
+/// Reads and checks one hand's file. False with the reason in `error`. AzaharFrame kiuguns:
+/// `space` the kind wanted: kModelFlagAimSpace (a controller: flags exactly 1, as always) or
+/// kModelFlagWeaponSpace (a game's model: the space 2, wrap bits allowed).
+bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error,
+                   uint32_t space = kModelFlagAimSpace);
 
 /// One draw of a model: an index range and its transform (column major 4x4, in model space).
 struct ModelPart {

@@ -8,6 +8,7 @@
 #include "common/common_paths.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
+#include "common/lz11.h" // AzaharFrame kiuguns
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/file_sys/archive_ncch.h"
@@ -154,60 +155,6 @@ void Module::APTInterface::Initialize(Kernel::HLERequestContext& ctx) {
     }
 }
 
-static u32 DecompressLZ11(const u8* in, u8* out) {
-    u32_le decompressed_size;
-    std::memcpy(&decompressed_size, in, sizeof(u32));
-    in += 4;
-
-    u8 type = decompressed_size & 0xFF;
-    ASSERT(type == 0x11);
-    decompressed_size >>= 8;
-
-    u32 current_out_size = 0;
-    u8 flags = 0, mask = 1;
-    while (current_out_size < decompressed_size) {
-        if (mask == 1) {
-            flags = *(in++);
-            mask = 0x80;
-        } else {
-            mask >>= 1;
-        }
-
-        if (flags & mask) {
-            u8 byte1 = *(in++);
-            u32 length = byte1 >> 4;
-            u32 offset;
-            if (length == 0) {
-                u8 byte2 = *(in++);
-                u8 byte3 = *(in++);
-                length = (((byte1 & 0x0F) << 4) | (byte2 >> 4)) + 0x11;
-                offset = (((byte2 & 0x0F) << 8) | byte3) + 0x1;
-            } else if (length == 1) {
-                u8 byte2 = *(in++);
-                u8 byte3 = *(in++);
-                u8 byte4 = *(in++);
-                length = (((byte1 & 0x0F) << 12) | (byte2 << 4) | (byte3 >> 4)) + 0x111;
-                offset = (((byte3 & 0x0F) << 8) | byte4) + 0x1;
-            } else {
-                u8 byte2 = *(in++);
-                length = (byte1 >> 4) + 0x1;
-                offset = (((byte1 & 0x0F) << 8) | byte2) + 0x1;
-            }
-
-            for (u32 i = 0; i < length; i++) {
-                *out = *(out - offset);
-                ++out;
-            }
-
-            current_out_size += length;
-        } else {
-            *(out++) = *(in++);
-            current_out_size++;
-        }
-    }
-    return decompressed_size;
-}
-
 bool Module::LoadSharedFont() {
     auto cfg = Service::CFG::GetModule(system);
     u8 font_region_code;
@@ -268,7 +215,9 @@ bool Module::LoadSharedFont() {
     shared_font_header.status = 2; // successfully loaded
     shared_font_header.region = font_region_code;
     shared_font_header.decompressed_size =
-        DecompressLZ11(font_file.Data(), shared_font_mem->GetPointer(0x80));
+        static_cast<u32>(Common::DecompressLZ11( // AzaharFrame kiuguns: common/lz11.h
+            font_file.Data(), static_cast<std::size_t>(font_file.Length()),
+            shared_font_mem->GetPointer(0x80), shared_font_mem->GetSize() - 0x80));
     std::memcpy(shared_font_mem->GetPointer(), &shared_font_header, sizeof(shared_font_header));
     *shared_font_mem->GetPointer(0x83) = 'U'; // Change the magic from "CFNT" to "CFNU"
 

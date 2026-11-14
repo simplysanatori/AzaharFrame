@@ -13,6 +13,7 @@
 #include <QImage>
 #include "core/frame_controller_models.h"
 #include "core/frame_dock_icon.h"
+#include "core/frame_weapon_models.h" // AzaharFrame kiuguns
 #include "core/steam_cef.h"
 
 namespace FrameTools {
@@ -52,6 +53,9 @@ std::optional<int> Run(int argc, char* argv[]) {
             }
             return true;
         });
+    }
+    if (mode == "--frame-weapon-models") { // AzaharFrame kiuguns: GAME [OUTDIR]
+        return FrameWeapons::RunCli(args);
     }
     if (mode == "--frame-dock-icon") {
         return FrameDockIcon::RunCli(args);

@@ -8,6 +8,8 @@
 //   --frame-cef 'JS' | --art APPID DIR [--dry-run] | --screen ...   the command line steam-cef.py had (removed)
 //   --frame-steam-art APPID DIR [--dry-run]                          Steam library art and icon
 //   --frame-steam-shortcut find|add|update|remove|remove-named ...   the library entry
+//   --frame-weapon-models GAME [OUTDIR]                              AzaharFrame kiuguns: Kid Icarus:
+//                                    Uprising's weapon models from the player's own game
 
 #pragma once
 
