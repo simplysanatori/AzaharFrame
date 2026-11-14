@@ -33,6 +33,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_TAG_OFFSET",     "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_IMMERSIVE_ANCHOR_LAG",
+        "AZAHARFRAME_CSTICK_EDGE", // AzaharFrame kiugyro
     };
     return std::find(std::begin(kLive), std::end(kLive), name) != std::end(kLive) ? Apply::Live
                                                                                   : Apply::Restart;
@@ -124,6 +125,15 @@ inline int AnchorLagFrom(const std::optional<std::string>& v) {
 /// A switch that is on with "1" (AZAHARFRAME_XR_SINGLE_FLASH).
 inline bool OnFrom(const std::optional<std::string>& v) {
     return v && !v->empty() && (*v)[0] == '1';
+}
+
+/// AzaharFrame kiugyro: C-Stick at Edge (AzaharFrame kiu, reticle.h) is shelved: Gyro Aim
+/// replaced it and it has no row in the menu. Its key (vr_reticle_edge_cstick) is kept as it was,
+/// so older builds read the same value, but this build acts on it only with the test switch
+/// AZAHARFRAME_CSTICK_EDGE=1 (live), to bring it back for a test.
+inline constexpr const char* kCStickEdgeSwitch = "AZAHARFRAME_CSTICK_EDGE";
+inline bool CStickEdgeOn(const std::optional<std::string>& test_switch, bool setting) {
+    return setting && OnFrom(test_switch);
 }
 
 /// AZAHARFRAME_XR_SINGLE_FLASH (lane dbl): each top screen picture on one display refresh only.

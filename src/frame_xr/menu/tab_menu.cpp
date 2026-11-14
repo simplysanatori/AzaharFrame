@@ -311,7 +311,6 @@ bool PerGameSetting(Id id) {
 const std::vector<Id>& ControlsScopeRows() {
     static const std::vector<Id> kRows{Id::TouchpadTouch,     Id::BottomScreenReticle,
                                        Id::ReticleSpeed,      Id::ReticleAtEdge,
-                                       Id::ReticleEdgeCStick, // AzaharFrame kiu
                                        Id::ReticleCenter,     Id::ReticleStick}; // fixes7
     return kRows;
 }
@@ -490,8 +489,6 @@ std::string LabelFor(Id id) {
         return "Aim Only While Pressed";
     case Id::ReticleStick: // AzaharFrame kiu: was Stick Moves Reticle
         return "Right Stick Moves Touch";
-    case Id::ReticleEdgeCStick: // AzaharFrame kiu
-        return "C-Stick at Edge";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -707,8 +704,6 @@ std::string ExplainFor(Id id) {
         return "Keeps the reticle centred on the bottom screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
-    case Id::ReticleEdgeCStick:
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Hold the reticle at an edge of the bottom screen to push the C-Stick that way.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -1816,9 +1811,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, two switches side
     // by side in one row (each half toggles its own), so the controller picture keeps its room.
-    // AzaharFrame kiu: C-Stick at Edge the same way, in the right half of At Edge's row (At Edge
-    // in the left half), so the picture keeps its room; its switch lines up with Right Stick
-    // Moves Touch's under it.
+    // AzaharFrame kiugyro: C-Stick at Edge (AzaharFrame kiu) is shelved: no row (Gyro Aim
+    // replaces it; AZAHARFRAME_CSTICK_EDGE=1 brings back its behaviour, not its row).
     const auto switch_half = [&](Id id, const Rect& half, bool on) {
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
@@ -1835,8 +1829,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge, Reticle Speed, C-Stick at Edge, Aim Only While Pressed and Right Stick Moves
-    // Touch only while the reticle is on.
+    // At Edge, Reticle Speed, Aim Only While Pressed and Right Stick Moves Touch only while the
+    // reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
     const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
@@ -1855,10 +1849,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
         const float mid = (c.x0 + c.x1) * 0.5f;
-        const Rect edge_row =
-            choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge, mid - 12.0f);
-        switch_half(Id::ReticleEdgeCStick, {mid + 12.0f, edge_row.y0, c.x1 + 12.0f, edge_row.y1},
-                    model.reticle_edge_cstick); // AzaharFrame kiu
+        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
         const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
         switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
                     model.reticle_center);

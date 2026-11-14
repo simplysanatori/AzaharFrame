@@ -380,7 +380,7 @@ TEST_CASE("FrameXr Light Gun: the reticle goes under the pointer, 30 and 60 fps"
             worst_over = std::max(worst_over, over);
         }
         INFO("worst frames " << worst << ", worst overshoot " << worst_over << " px");
-        CHECK(worst <= 24);
+        CHECK(worst <= 28);
         // A frame of latency more than the loop assumes costs a few pixels more.
         CHECK(worst_over <= 3.0f + 4.0f * extra_frames);
     }

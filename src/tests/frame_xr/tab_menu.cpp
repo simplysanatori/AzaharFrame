@@ -305,8 +305,7 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
         v.tab = Tab::Controls;
         d.Draw(m, v);
         // most of the pane; AzaharFrame reticle: two rows fewer of it while the reticle is on;
-        // AzaharFrame fixes7: three (the switches' row); kiu: still three (C-Stick at Edge shares
-        // At Edge's row)
+        // AzaharFrame fixes7: three (the switches' row); kiugyro: C-Stick at Edge has no row
         REQUIRE(picture.H() > (reticle != 0 ? 90.0f : 200.0f));
         Rect edit{}, pages{};
         float rows_y0 = 1e9f, rows_y1 = 0.0f;
@@ -319,8 +318,7 @@ TEST_CASE("Tab menu: Controls has the picture on top, the rows at the bottom", "
             }
             if (h.t.id == Id::TouchpadTouch || h.t.id == Id::BottomScreenReticle ||
                 h.t.id == Id::ReticleSpeed || h.t.id == Id::ReticleAtEdge ||
-                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick || // fixes7
-                h.t.id == Id::ReticleEdgeCStick) {                             // kiu
+                h.t.id == Id::ReticleCenter || h.t.id == Id::ReticleStick) { // fixes7
                 rows_y0 = std::min(rows_y0, h.r.y0);
                 rows_y1 = std::max(rows_y1, h.r.y1);
             }
@@ -2909,9 +2907,9 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                   Id::ReticleAtEdge, Id::MotionControls, Id::ReticleEdgeCStick}) {
         CHECK(PerGameSetting(id));
     }
+    // AzaharFrame kiugyro: C-Stick at Edge shelved: not a row.
     CHECK(ControlsScopeRows() == std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle,
                                                  Id::ReticleSpeed, Id::ReticleAtEdge,
-                                                 Id::ReticleEdgeCStick, // AzaharFrame kiu
                                                  Id::ReticleCenter, Id::ReticleStick});
     MenuModel m = Sample();
     m.scope = 1;
@@ -3077,17 +3075,17 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
 
 // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, switch rows under At
 // Edge while the reticle is on, per game; greyed in Global while the game has its own value.
-// AzaharFrame kiu: C-Stick at Edge in a row of its own between At Edge and the pair.
+// AzaharFrame kiugyro: C-Stick at Edge (kiu) is shelved: no row, no label, no tooltip, even with
+// its value on; At Edge has its row to itself again.
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
     CHECK(LabelFor(Id::ReticleStick) == "Right Stick Moves Touch");
-    CHECK(LabelFor(Id::ReticleEdgeCStick) == "C-Stick at Edge");
+    CHECK(LabelFor(Id::ReticleEdgeCStick) != "C-Stick at Edge");
     CHECK(!ExplainFor(Id::ReticleCenter).empty());
     CHECK(!ExplainFor(Id::ReticleStick).empty());
-    CHECK(!ExplainFor(Id::ReticleEdgeCStick).empty());
+    CHECK(ExplainFor(Id::ReticleEdgeCStick).empty());
     CHECK(PerGameSetting(Id::ReticleCenter));
     CHECK(PerGameSetting(Id::ReticleStick));
-    CHECK(PerGameSetting(Id::ReticleEdgeCStick));
     CHECK(PerGameSetting(Id::MotionControls)); // AzaharFrame kiu: per game too
     Drawn d;
     MenuModel m = Sample();
@@ -3096,32 +3094,22 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     d.Draw(m, v);
     CHECK(!HasHit(d, Id::ReticleCenter, -1)); // the reticle is off
     CHECK(!HasHit(d, Id::ReticleStick, -1));
-    CHECK(!HasHit(d, Id::ReticleEdgeCStick, -1));
     for (const int source : {1, 2, 3}) {
         m.bottom_screen_reticle = source;
         m.reticle_center = source == 2;
         m.reticle_stick = source == 3;
-        m.reticle_edge_cstick = source != 2;
+        m.reticle_edge_cstick = true; // stored on (the earlier preset's): still no row
         d.Draw(m, v);
         const MenuLayout::Hit* edge = FindHit(d, Id::ReticleAtEdge, 0);
-        const MenuLayout::Hit* cstick = FindHit(d, Id::ReticleEdgeCStick, -1);
         const MenuLayout::Hit* center = FindHit(d, Id::ReticleCenter, -1);
         const MenuLayout::Hit* stick = FindHit(d, Id::ReticleStick, -1);
         REQUIRE(edge != nullptr);
-        REQUIRE(cstick != nullptr);
         REQUIRE(center != nullptr);
         REQUIRE(stick != nullptr);
-        // In At Edge's row, at its right (kiu), then the pair, side by side
-        CHECK(std::fabs(cstick->r.Cy() - edge->r.Cy()) < 0.5f);
-        CHECK(cstick->r.x0 >= edge->r.x1 + 12.0f);
-        CHECK(center->r.y0 >= cstick->r.y1 - 0.01f);
-        CHECK(cstick->r.x0 == stick->r.x0);
-        CHECK(cstick->r.x1 == stick->r.x1);
-        for (int i = 0; i < 2; i++) { // At Edge's choices whole, left of the middle
-            const MenuLayout::Hit* seg = FindHit(d, Id::ReticleAtEdge, i);
-            REQUIRE(seg != nullptr);
-            CHECK(seg->r.x1 <= center->r.x1 + 0.01f);
-        }
+        CHECK(!HasHit(d, Id::ReticleEdgeCStick, -1));
+        CHECK(!HasHit(d, Id::ReticleEdgeCStick, kLabelIndex));
+        // At Edge, then the pair, side by side
+        CHECK(center->r.y0 >= edge->r.y1 - 0.01f);
         CHECK(stick->r.y0 == center->r.y0);
         CHECK(stick->r.x0 >= center->r.x1 - 0.01f);
         Audit a;
@@ -3129,7 +3117,7 @@ TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
         a.Check("Controls, reticle switches");
         CHECK(a.Drew("Aim Only While Pressed"));
         CHECK(a.Drew("Right Stick Moves Touch"));
-        CHECK(a.Drew("C-Stick at Edge"));
+        CHECK(!a.Drew("C-Stick at Edge"));
     }
     m.scope = 0;
     m.locked[static_cast<std::size_t>(Id::ReticleStick)] = Lock::GameValue;

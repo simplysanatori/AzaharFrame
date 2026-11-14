@@ -15,6 +15,7 @@
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
+#include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
 #include "frame_xr/input/devices.h"    // AzaharFrame padsui
@@ -1649,7 +1650,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
             // AzaharFrame kiu2: while it is on the point follows the edges (Follow) whatever At
             // Edge says, so Snap to Middle never pulls it out of the band; the setting is kept.
-            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            // AzaharFrame kiugyro: shelved: only with AZAHARFRAME_CSTICK_EDGE=1 (test_switches.h).
+            const bool edge_on = TestSwitches::CStickEdgeOn(
+                Common::FrameTestSwitches::Value(TestSwitches::kCStickEdgeSwitch),
+                Settings::values.vr_reticle_edge_cstick.GetValue());
             const Input::ReticleEdge at_edge =
                 edge_on ? Input::ReticleEdge::Follow
                         : Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue());
