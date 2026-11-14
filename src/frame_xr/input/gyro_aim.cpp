@@ -168,23 +168,6 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     return t;
 }
 
-bool AimSchemeHint::Update(int64_t now_ns, bool aiming, int scheme) {
-    if (!aiming || scheme == 1) {
-        armed_ = true; // off, or the gyro scheme: the next wrong scheme is news
-        return false;
-    }
-    if (scheme < 0 || !armed_) {
-        return false;
-    }
-    if (shown_once_ && now_ns - shown_ns_ < kRepeatNs) {
-        return false;
-    }
-    armed_ = false;
-    shown_once_ = true;
-    shown_ns_ = now_ns;
-    return true;
-}
-
 LightGunTarget ApplyCalibration(const AimCalibration& c, const LightGunTarget& t) {
     if (!c.set || !t.valid) {
         return t;
@@ -514,9 +497,32 @@ LightGunLoop::Out LightGunLoop::Update(int64_t time_ns, const ReticleReading& r,
     have_last_ = true;
     last_time_ns_ = time_ns;
 
+    // AzaharFrame kiufix2: after a pause (the grip, Calibrate Aim, the C-Stick), ease back in.
+    float ease = 1.0f;
+    if (clutch) {
+        paused_ = true;
+        easing_ = false;
+    } else if (paused_) {
+        paused_ = false;
+        easing_ = true;
+        resume_ns_ = time_ns;
+    }
+    if (easing_ && !clutch) {
+        const float t =
+            static_cast<float>(time_ns - resume_ns_) / static_cast<float>(kEaseInNs);
+        if (t >= 1.0f) {
+            easing_ = false;
+        } else {
+            const float k = std::clamp(t, 0.0f, 1.0f);
+            ease = k * k * (3.0f - 2.0f * k);
+        }
+    }
+
     const Vec2f depth = TurnZoneDepth(target, zone_fraction);
     const bool push = r.ground && !clutch && target.valid && (depth.x != 0.0f || depth.y != 0.0f);
-    Learn(time_ns, r, push || clutch);
+    // Nothing is learnt while paused or easing back in: the stick's own moves (and those still
+    // on their way, a frame or two late) are not the rates sent.
+    Learn(time_ns, r, push || clutch || easing_);
     if (clutch || !target.valid) {
         last_rate_[0] = last_rate_[1] = 0.0f;
         return out;
@@ -568,7 +574,7 @@ LightGunLoop::Out LightGunLoop::Update(int64_t time_ns, const ReticleReading& r,
         if (std::fabs(error) < kHoldPx) {
             continue;
         }
-        rate[a] = error / tau / gain_[a];
+        rate[a] = ease * error / tau / gain_[a];
         rate[a] = std::clamp(rate[a], -kModMaxDps, kModMaxDps);
     }
     last_rate_[0] = rate[0];
@@ -578,8 +584,8 @@ LightGunLoop::Out LightGunLoop::Update(int64_t time_ns, const ReticleReading& r,
     if (push) {
         // One screen width (height) a second at the edge, x Turn Speed, past the box.
         const float s = ClampTurnSpeed(turn_speed);
-        out.right_dps += depth.x * s * r.w / gain_[0];
-        out.down_dps += depth.y * s * r.h / gain_[1];
+        out.right_dps += ease * depth.x * s * r.w / gain_[0];
+        out.down_dps += ease * depth.y * s * r.h / gain_[1];
         out.right_dps = std::clamp(out.right_dps, -kModMaxDps, kModMaxDps);
         out.down_dps = std::clamp(out.down_dps, -kModMaxDps, kModMaxDps);
         out.turning = true;

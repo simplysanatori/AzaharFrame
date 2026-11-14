@@ -12,8 +12,8 @@
 // Guards, every read: one of the game's title ids; the mod's three code patterns found in the
 // loaded code (kiu_scan.h); the reticle pointer mapped, 4-byte aligned, its first word (the
 // object's vtable) inside the game's code and the same as when first seen; the screen size 2 to
-// 4096 pixels, its centre inside it; the reticle within one screen of it; the game's control
-// scheme the mod's gyro (otherwise the mod reads no gyroscope at all). The code is scanned once
+// 4096 pixels, its centre inside it; the reticle within one screen of it. Any control scheme
+// (AzaharFrame kiufix2: the mod's gyro aims in the C-Stick scheme too). The code is scanned once
 // per boot of the game (the data segment and what follows: the mod's code; about 2 MB), and again
 // at most every 10 s while nothing was found.
 
@@ -30,6 +30,9 @@ struct LightGunFrame {
     float zone_fraction = 0.0f;
     float turn_speed = 1.0f;
     bool clutch = false;
+    /// AzaharFrame kiufix2: the C-Stick pushed (Input::CStickTakesAim): the stick steers, Direct
+    /// Aim pauses as for `clutch` and eases back in after.
+    bool stick = false;
 };
 
 /// XR thread: this frame's Light Gun input. Installs the override the first time it is enabled.

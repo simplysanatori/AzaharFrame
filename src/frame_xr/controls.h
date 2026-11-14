@@ -272,7 +272,6 @@ private:
     bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
     bool laser_logged = false; // AzaharFrame kiufix
-    Input::AimSchemeHint aim_scheme_hint; // AzaharFrame kiufix
     // AzaharFrame kiufix: Calibrate Aim: the running game's (its own file), and the steps.
     Input::AimCalibration aim_cal;
     uint64_t aim_cal_title = 0;

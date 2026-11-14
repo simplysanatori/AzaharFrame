@@ -3113,8 +3113,8 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     CHECK(LabelFor(Id::GyroAim) == "Aiming");
     CHECK(OptionsFor(Id::GyroAim) == std::vector<std::string>{"Off", "Direct Aim", "Gyro Aim"});
     CHECK(ExplainFor(Id::GyroAim) ==
-          "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the "
-          "game's controls. Direct Aim puts the reticle where you point. Hold the grip to pause.");
+          "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the "
+          "reticle where you point. Hold the grip to pause.");
     CHECK(AimingIndexOf(0) == 0);
     CHECK(AimingIndexOf(2) == 1); // Direct Aim is stored Light Gun
     CHECK(AimingIndexOf(1) == 2); // Gyro Aim is stored Gyro

@@ -255,8 +255,8 @@ void Poll(int64_t ticks) {
             scheme = static_cast<int>(SchemeOf(word));
             // AZAHARFRAME_KIU_FORCE_GYRO=1 (tests only, live): the game's controls set to the
             // mod's gyro scheme in memory, as choosing it in the game's options does (for a mock
-            // run from a save made in another scheme; throwaway copies only), once a battle's
-            // reticle is there (the game reads its options again as it starts).
+            // of the gyro scheme from a save made in another; throwaway copies only), once a
+            // battle's reticle is there (the game reads its options again as it starts).
             uint32_t battle_reticle = 0;
             if (scheme != static_cast<int>(kSchemeGyro) && p.mod.found &&
                 read32(p.mod.state + kStateReticle, battle_reticle) && battle_reticle != 0 &&
@@ -274,12 +274,7 @@ void Poll(int64_t ticks) {
         if (scheme != p.logged_scheme) {
             p.logged_scheme = scheme;
             LOG_INFO(Frontend, "xr: Kid Icarus: the game's controls: {}",
-                     scheme < 0 ? std::string{"not readable"}
-                                : fmt::format("scheme {}{}", scheme,
-                                              scheme == static_cast<int>(kSchemeGyro)
-                                                  ? " (the mod's gyro)"
-                                                  : " (not the mod's gyro: Direct Aim and "
-                                                    "Gyro Aim cannot steer)"));
+                     scheme < 0 ? std::string{"not readable"} : fmt::format("scheme {}", scheme));
         }
     }
 

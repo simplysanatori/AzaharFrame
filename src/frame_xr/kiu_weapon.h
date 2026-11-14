@@ -37,9 +37,9 @@ uint64_t ShotTotal();
 
 /// AzaharFrame kiufix: the game's own control scheme (its options, the object the shots record
 /// is in: kiu_scan.h kOptionsScheme), read 4 times a second while wanted: 0 C-Stick, 1 the
-/// C-Stick & Gyro mod's gyro (the only one Direct Aim and Gyro Aim work with), 3 Circle Pad; -1
-/// not known (not wanted, not read yet, not readable). Aiming's hint uses it: the gyro is not
-/// polled at all in another scheme, so Light Gun's own probe never runs there and cannot tell.
+/// C-Stick & Gyro mod's gyro, 3 Circle Pad; -1 not known (not wanted, not read yet, not
+/// readable). Logged as it changes ("xr: Kid Icarus: the game's controls: scheme N"); Direct Aim
+/// and Gyro Aim run in any scheme (AzaharFrame kiufix2).
 int ControlScheme();
 
 } // namespace FrameXr::Kiu

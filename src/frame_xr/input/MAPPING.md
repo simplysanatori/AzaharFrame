@@ -94,8 +94,8 @@ game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds rea
 value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
 **Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
 to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
-4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172),
-whose gyro control scheme has to be chosen in the game's own controls; its Controls preset starts
+4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in
+any of the game's own control schemes (AzaharFrame kiufix2); its Controls preset starts
 Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
 `kiu_scan.h`, `kiu_probe.h`; the disassembly is in handoff/reports/37/kiugyro/design.md.
 
@@ -110,12 +110,26 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   Rolling the controller sends nothing. AzaharFrame kiufix: the first build sent right as
   positive z, so the reticle went left when the hand went right (the owner's headset check,
   2026-11-14); a unit test now holds Gyro Aim to Motion Controls' axes.
-- **The game's controls** (AzaharFrame kiufix): the mod reads the gyroscope only in its gyro
-  control scheme. The game's scheme is read with the weapon (`Kiu::ControlScheme`, the options
-  object of the shots record, +0x163E8 bits 21 to 23) and logged (`xr: Kid Icarus: the game's
-  controls: scheme N`); while Aiming is on and it is not the gyro one, a toast says "Aiming: Set
-  the Game's Controls to Gyro" (`AimSchemeHint`). In another scheme the gyroscope is not even
-  polled, so Light Gun's own probe never runs and could not say so.
+- **The game's controls** (AzaharFrame kiufix2): Direct Aim and Gyro Aim run in any of them.
+  The disassembly (design.md fact 1) read the mod's gyro as its gyro scheme's only, and the first
+  kiufix build would not aim otherwise, with a toast and a Mods tab line asking for the gyro
+  scheme; the owner's headset check of 2026-11-14 aimed with the mod's gyro with the game's
+  controls on C-Stick, so the gate, the toast and the line are gone. The game's scheme is still
+  read with the weapon (`Kiu::ControlScheme`, the options object of the shots record, +0x163E8
+  bits 21 to 23) and logged as it changes (`xr: Kid Icarus: the game's controls: scheme N`).
+- **The C-Stick** (AzaharFrame kiufix2): with the game on C-Stick the mod moves the reticle with
+  the stick and the gyro together, so the stick still aims and turns the camera with Aiming on.
+  Direct Aim would undo it (every poll it sends the rate back to the pointer, and against a stick
+  pushing past the box it pulled back), so while the right stick (`AnalogControl::StickR`, the
+  C-Stick in the default profile, after the mapper's dead zone and the other gamepads;
+  `CStickTakesAim`) is pushed, Direct Aim pauses as for its grip (`LightGunFrame::stick`) and the
+  stick has the reticle to itself, Turn Zone included. Let go, or after the grip's pause,
+  Direct Aim eases back in rather than snapping under the pointer: what `LightGunLoop` sends,
+  the Turn Zone's push too, is scaled from 0 to 1 over 300 ms of game time (a smoothstep,
+  `LightGunLoop::kEaseInNs`), and it learns nothing until then, so the stick's moves are never
+  taken for the gyro's. The C-Stick is untouched (never zeroed or rebound); Gyro Aim adds the
+  hand's turn to the stick's and has no pause. With the trace switch the reading's line ends in
+  `C-Stick steers`, `paused` or `easing back in`.
 - **Light Gun:** where the ray hits the top screen (`LightGunTargetFor`, the screen as drawn,
   `PanelGeometry::top`; a screen that cannot be pointed at, such as the immersive one, gives no
   target) is where the reticle goes. On the emulation thread, at each HID gyroscope poll
@@ -130,7 +144,7 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   screen's sides (and top and bottom) adds a push past the box, depth 0 to 1 across the zone, one
   screen width (height) a second at the edge times Turn Speed, which the mod turns into a camera
   turn. In the air (no box) nothing is pushed. When the reticle cannot be read (not Kid Icarus,
-  the mod's code patterns not found, the game's controls not on gyro, no reticle, a value out of
+  the mod's code patterns not found, no reticle, a value out of
   range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
   ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
   target, the gain and the game frame.

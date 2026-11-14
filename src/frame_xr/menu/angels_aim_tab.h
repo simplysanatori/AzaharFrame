@@ -14,7 +14,6 @@
 //   ─────────────────────────────────────────────────────────────
 //   Required                                                         (title)
 //   Darkshade's C-Stick & Gyro Mod                     Installed / Not Installed
-//   Then set the game's own Controls to gyro.
 //   (the catalog's C-Stick & Gyro rows, as Install Mods draws them: Install, its versions)
 //   ─────────────────────────────────────────────────────────────
 //   Suggested                                                        (title)
@@ -61,7 +60,6 @@ inline constexpr const char* kAngelsAimAbout2 =
 inline constexpr const char* kAngelsAimReportLine = "Bug reports and feature ideas welcome.";
 inline constexpr const char* kAngelsAimRequired = "Required";
 inline constexpr const char* kAngelsAimModName = "Darkshade's C-Stick & Gyro Mod";
-inline constexpr const char* kAngelsAimGyroReminder = "Then Set the Game's Own Controls to Gyro";
 inline constexpr const char* kAngelsAimSuggested = "Suggested";
 inline constexpr const char* kAngelsAimWeaponsPack = "Weapon Textures";
 inline constexpr const char* kAngelsAimEffectsPack = "Effect Textures";
