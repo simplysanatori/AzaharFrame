@@ -367,13 +367,47 @@ TEST_CASE("Kid Icarus: the fits of converted weapons", "[.kiuguns_real]") {
             }
         }
         for (const bool left : {false, true}) {
-            for (const auto& f : Vis::FitWeaponToHand({w.cls, w.muzzle, w.muzzle_valid}, left, sides)) {
+            const auto fits = Vis::FitWeaponToHand({w.cls, w.muzzle, w.muzzle_valid}, left, sides);
+            // Palm, elbow mode (AZAHARFRAME_KIU_PALM_MODE=elbow): the forearm's turn as the app
+            // works it out, for a head 0.42 m above, 0.38 m behind and 0.18 m inward of the
+            // controller (aim space taken as the room, the controller held level).
+            const bool elbow = w.cls == 4 && fits.size() == 1 &&
+                               Vis::PalmModeFrom(std::getenv(Vis::kPalmModeSwitch)
+                                                     ? std::optional<std::string>{std::getenv(Vis::kPalmModeSwitch)}
+                                                     : std::nullopt) == Vis::PalmMode::Elbow;
+            if (elbow) {
+                const auto wrist = Point(fits[0].transform, {0, 0, 0});
+                const auto along = Point(fits[0].transform, {1, 0, 0});
+                const std::array<float, 3> head{left ? 0.18f : -0.18f, 0.42f, 0.38f};
+                const auto e = Vis::EstimateElbow(head, {0, 0, -1}, left, wrist);
+                const auto turn = Vis::RotationBetween(
+                    wrist, {along[0] - wrist[0], along[1] - wrist[1], along[2] - wrist[2]},
+                    {e[0] - wrist[0], e[1] - wrist[1], e[2] - wrist[2]});
+                Vis::FitMat m{};
+                for (int c = 0; c < 4; c++) {
+                    for (int r = 0; r < 4; r++) {
+                        float v = 0.0f;
+                        for (int k = 0; k < 4; k++) {
+                            v += turn[static_cast<std::size_t>(k * 4 + r)] *
+                                 fits[0].transform[static_cast<std::size_t>(c * 4 + k)];
+                        }
+                        m[static_cast<std::size_t>(c * 4 + r)] = v;
+                    }
+                }
+                o << w.id << ' ' << (left ? 'L' : 'R') << " F " << (fits[0].mirrored ? 1 : 0);
+                for (const float v : m) {
+                    o << ' ' << v;
+                }
+                o << ' ' << Vis::FitClipX(w.cls, {}, std::nullopt, Vis::PalmMode::Elbow) << " 1\n";
+            }
+            for (const auto& f : fits) {
                 o << w.id << ' ' << (left ? 'L' : 'R') << ' ' << "CRL"[static_cast<int>(f.side)] << ' '
                   << (f.mirrored ? 1 : 0);
                 for (const float v : f.transform) {
                     o << ' ' << v;
                 }
-                o << '\n';
+                // The cut: the hand alone in elbow mode (the forearm is the F line), else the stub.
+                o << ' ' << (elbow ? 1e-5f : Vis::FitClipX(w.cls, {}, std::nullopt)) << '\n';
             }
         }
     }
@@ -488,4 +522,91 @@ TEST_CASE("Weapon fit: every class's muzzle on the aim ray", "[kiuguns]") {
             CHECK((*m)[2] < 0.06f);
         }
     }
+}
+
+TEST_CASE("Weapon fit: a palm's forearm cut, tunable live", "[kiuguns]") {
+    // Only palms are cut: a short stub at the wrist by default, the forearm in elbow mode.
+    CHECK(Vis::FitClipX(0, {}, std::nullopt) == 0.0f);
+    const float def = Vis::FitClipX(4, {}, std::nullopt);
+    CHECK(def * Vis::FitClassScale(4) * 100.0f == Approx(Vis::kPalmStubCm));
+    CHECK(Vis::FitClipX(4, {}, std::nullopt, Vis::PalmMode::Elbow) * Vis::FitClassScale(4) * 100.0f ==
+          Approx(Vis::kPalmForearmCm));
+    CHECK(Vis::PalmModeFrom(std::string{"elbow"}) == Vis::PalmMode::Elbow);
+    CHECK(Vis::PalmModeFrom(std::string{"wrist"}) == Vis::PalmMode::Wrist);
+    CHECK(Vis::PalmModeFrom(std::nullopt) == Vis::PalmMode::Wrist);
+    CHECK(FrameXr::TestSwitches::ApplyFor(Vis::kPalmModeSwitch) == FrameXr::TestSwitches::Apply::Live);
+    CHECK(Vis::FitClipX(4, {}, std::string{"10"}) * Vis::FitClassScale(4) * 100.0f == Approx(10.0f));
+    CHECK(Vis::FitClipX(4, {}, std::string{"x"}) == Approx(def));
+    // A scaled palm keeps the same length in cm (the cut is in the weapon's units).
+    const auto half = Vis::ParseFitOverride(std::string{"0,0,0,0,0,0,0.5"});
+    CHECK(Vis::FitClipX(4, half, std::nullopt) == Approx(def * 2.0f));
+    // Burning Palm (its json: the muzzle 2.9 units past the wrist): Pit's palm at the grip, the
+    // muzzle on the ray, the wrist behind the palm and the cut forearm further back.
+    const Vis::FitWeapon palm{4, {-2.9f, 0.0f, 0.0f}, true};
+    const auto p = Vis::FitWeaponToHand(palm, false, {Vis::FitSide::Centre});
+    REQUIRE(p.size() == 1);
+    const auto at_palm = Point(p[0].transform, {-0.7f, 0, 0});
+    CHECK(at_palm[1] == Approx(-0.0525f));
+    CHECK(at_palm[2] == Approx(0.043f));
+    const auto wrist = Point(p[0].transform, {0, 0, 0});
+    const auto cut = Point(p[0].transform, {def, 0, 0});
+    CHECK(wrist[2] > at_palm[2]);
+    CHECK(cut[2] == Approx(wrist[2] + Vis::kPalmStubCm / 100.0f).margin(0.02f));
+    // Palms stay still, their flames too.
+    CHECK(Vis::FitMotion(4, Vis::FitSide::Centre, true, 0.6) == std::array<float, 3>{});
+}
+
+TEST_CASE("Palm elbow mode: the elbow estimate, the smoothing, the turn", "[kiuguns]") {
+    using V = std::array<float, 3>;
+    const auto len = [](const V& a, const V& b) {
+        return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) +
+                         (a[2] - b[2]) * (a[2] - b[2]));
+    };
+    const V head{0.0f, 1.6f, 0.0f};
+    const V ahead{0.0f, 0.0f, -1.0f};
+    const V shoulder_r{0.16f, 1.43f, 0.0f};
+    // A right hand held in front, low: the elbow below the shoulder-wrist line, on the right,
+    // and the arm's two bones their lengths.
+    const V wrist{0.20f, 1.10f, -0.35f};
+    const V e = Vis::EstimateElbow(head, ahead, false, wrist);
+    CHECK(len(e, shoulder_r) == Approx(0.30f).margin(1e-3));
+    CHECK(len(e, wrist) == Approx(0.27f).margin(1e-3));
+    CHECK(e[0] > 0.1f);
+    const float t = (e[2] - shoulder_r[2]) / (wrist[2] - shoulder_r[2]);
+    CHECK(e[1] < shoulder_r[1] + (wrist[1] - shoulder_r[1]) * t); // bent downward
+    // The left hand: the mirror image.
+    const V el = Vis::EstimateElbow(head, ahead, true, {-wrist[0], wrist[1], wrist[2]});
+    CHECK(el[0] == Approx(-e[0]).margin(1e-4));
+    CHECK(el[1] == Approx(e[1]).margin(1e-4));
+    // Looking down does not move the shoulder (the yaw frame); turning the head does.
+    const V down = Vis::EstimateElbow(head, {0.0f, -0.9f, -0.1f}, false, wrist);
+    CHECK(down[0] == Approx(e[0]).margin(1e-3));
+    const V turned = Vis::EstimateElbow(head, {1.0f, 0.0f, 0.0f}, false, {0.35f, 1.10f, 0.20f});
+    CHECK(turned[2] > 0.05f); // the right side is +z when facing +x
+    // An arm stretched further than it reaches: straight, the elbow on the line.
+    const V far{0.16f, 1.43f, -1.2f};
+    const V s = Vis::EstimateElbow(head, ahead, false, far);
+    CHECK(s[0] == Approx(0.16f).margin(0.01f));
+    CHECK(s[1] == Approx(1.43f).margin(0.01f));
+    // Smoothing: eases, stays a unit vector, gets there.
+    V d = Vis::SmoothDirection({}, {0.0f, 0.0f, 1.0f}, -1.0f);
+    CHECK(d[2] == Approx(1.0f));
+    d = Vis::SmoothDirection(d, {1.0f, 0.0f, 0.0f}, 0.011f);
+    CHECK(d[0] > 0.0f);
+    CHECK(d[0] < 0.2f);
+    CHECK(std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) == Approx(1.0f));
+    for (int i = 0; i < 100; i++) {
+        d = Vis::SmoothDirection(d, {1.0f, 0.0f, 0.0f}, 0.011f);
+    }
+    CHECK(d[0] == Approx(1.0f).margin(1e-3));
+    // The turn about the wrist: the wrist stays, the forearm's direction becomes the target.
+    const V pivot{0.2f, 1.1f, -0.35f};
+    const Vis::FitMat r = Vis::RotationBetween(pivot, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f});
+    const auto p0 = Point(r, pivot);
+    CHECK(len(p0, pivot) < 1e-5f);
+    const auto p1 = Point(r, {pivot[0], pivot[1], pivot[2] + 0.2f});
+    CHECK(p1[1] == Approx(pivot[1] - 0.2f).margin(1e-5));
+    CHECK(Det(r) == Approx(1.0f));
+    const Vis::FitMat back = Vis::RotationBetween(pivot, {0, 0, 1}, {0, 0, -1}); // opposite
+    CHECK(Point(back, {pivot[0], pivot[1], pivot[2] + 1.0f})[2] == Approx(pivot[2] - 1.0f).margin(1e-4));
 }

@@ -19,10 +19,12 @@ namespace FrameXr::Vis::Shaders {
 inline constexpr const char* kModelVert = R"(
 layout(push_constant) uniform PC {
     mat4 mvp;     // proj * view * model * part (OpenGL clip space, turned into Vulkan's below)
-    vec4 eye;     // camera position, model space
+    vec4 eye;     // camera position, model space; w: above 0, nothing past x = w (a palm's sleeve)
     vec4 key;     // xyz: toward the key light, model space
     vec4 up;      // xyz: the room's up, model space
-    vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1), w: mirrored (1)
+    vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1), w: flags (kiuguns):
+                  // +1 mirrored, +2 nothing before x = 0 (a palm's forearm drawn on its own),
+                  // +4 a glow (unlit, added to what is behind: the additive pipeline)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -90,6 +92,19 @@ vec3 sky(vec3 dir, vec3 up, float spread) {
 }
 
 void main() {
+    // AzaharFrame kiuguns: a weapon cut off along its +x (a palm's forearm), and the forearm
+    // drawn apart from the hand (nothing on the hand's side of the wrist).
+    if ((pc.eye.w > 0.0 && v_position.x > pc.eye.w) ||
+        (mod(pc.params.w, 4.0) > 1.5 && v_position.x < 0.0)) {
+        discard;
+    }
+    if (pc.params.w > 3.5) {
+        // A glow (a weapon's effect card): its texture as light, nothing covered (alpha 0, the
+        // pipeline adds it).
+        vec3 glowColour = texture(u_colour, v_uv).rgb * clamp(pc.params.z, 0.0, 1.0);
+        fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), 0.0);
+        return;
+    }
     int view = int(pc.params.x + 0.5);
     vec4 base = texture(u_colour, v_uv);
     vec4 surf = texture(u_surface, v_uv);
@@ -98,7 +113,7 @@ void main() {
 
     vec3 ng = normalize(v_normal);
     // AzaharFrame kiuguns: a mirrored model (a weapon's left-hand fit) turns its triangles over.
-    bool front = pc.params.w > 0.5 ? !gl_FrontFacing : gl_FrontFacing;
+    bool front = mod(pc.params.w, 2.0) > 0.5 ? !gl_FrontFacing : gl_FrontFacing;
     if (!front) ng = -ng;
     vec3 t = v_tangent.xyz - ng * dot(ng, v_tangent.xyz);
     t = dot(t, t) > 1e-10 ? normalize(t) : vec3(1.0, 0.0, 0.0);

@@ -85,8 +85,13 @@ private:
     /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
     void UpdateWeapon(int id);
     void UploadWeapon();
-    void FitWeapon(const std::array<Hand, 2>& hands);
+    void FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands);
     std::vector<FitPart> weapon_fits; ///< this frame's, for the weapon's hand
+    float weapon_clip = 0.0f;         ///< FitClipX: a palm's forearm cut (weapon space)
+    bool palm_elbow = false;          ///< the palm's forearm drawn apart, turned to the elbow
+    FitMat palm_turn{};               ///< that turn about the wrist (LOCAL space)
+    std::array<float, 3> palm_dir{};  ///< the smoothed forearm direction (LOCAL)
+    int64_t palm_time_ns = 0;
     int muzzle_hand = -1;
     std::optional<std::array<float, 3>> muzzle;
 

@@ -199,6 +199,7 @@ struct ControllerModels::Gpu {
     vk::PipelineLayout pipeline_layout;
     vk::RenderPass render_pass;
     vk::Pipeline pipeline;
+    vk::Pipeline pipeline_add; ///< AzaharFrame kiuguns: glows: added, no depth written
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     vk::ImageView msaa_view, depth_view;
     std::vector<vk::ImageView> swap_views;
@@ -499,6 +500,9 @@ void ControllerModels::DestroyXr() {
         if (g.pipeline) {
             g.device.destroyPipeline(g.pipeline);
         }
+        if (g.pipeline_add) {
+            g.device.destroyPipeline(g.pipeline_add);
+        }
         if (g.pipeline_layout) {
             g.device.destroyPipelineLayout(g.pipeline_layout);
         }
@@ -651,7 +655,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             }
         }
         UpdateWeapon(weapon);
-        FitWeapon(hands);
+        FitWeapon(views, hands);
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
@@ -963,12 +967,47 @@ void ControllerModels::Setup(Runtime& rt) {
                                                               .renderPass = g.render_pass,
                                                               .subpass = 0,
                                                           });
+    // AzaharFrame kiuguns: the same with the colour added and no depth written (weapon glows).
+    const vk::PipelineColorBlendAttachmentState add_att{
+        .blendEnable = true,
+        .srcColorBlendFactor = vk::BlendFactor::eOne,
+        .dstColorBlendFactor = vk::BlendFactor::eOne,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eZero,
+        .dstAlphaBlendFactor = vk::BlendFactor::eOne,
+        .alphaBlendOp = vk::BlendOp::eAdd,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    };
+    const vk::PipelineColorBlendStateCreateInfo add_blend{.attachmentCount = 1,
+                                                          .pAttachments = &add_att};
+    const vk::PipelineDepthStencilStateCreateInfo add_depth{
+        .depthTestEnable = true,
+        .depthWriteEnable = false,
+        .depthCompareOp = vk::CompareOp::eLessOrEqual,
+    };
+    const auto made_add = g.device.createGraphicsPipeline({}, {
+                                                                  .stageCount = 2,
+                                                                  .pStages = shader_stages.data(),
+                                                                  .pVertexInputState = &vertex_input,
+                                                                  .pInputAssemblyState = &assembly,
+                                                                  .pViewportState = &viewport,
+                                                                  .pRasterizationState = &raster,
+                                                                  .pMultisampleState = &multisample,
+                                                                  .pDepthStencilState = &add_depth,
+                                                                  .pColorBlendState = &add_blend,
+                                                                  .pDynamicState = &dynamic,
+                                                                  .layout = g.pipeline_layout,
+                                                                  .renderPass = g.render_pass,
+                                                                  .subpass = 0,
+                                                              });
     g.device.destroyShaderModule(vert);
     g.device.destroyShaderModule(frag);
-    if (made.result != vk::Result::eSuccess) {
+    if (made.result != vk::Result::eSuccess || made_add.result != vk::Result::eSuccess) {
         throw std::runtime_error("pipeline");
     }
     g.pipeline = made.value;
+    g.pipeline_add = made_add.value;
 
     g.sampler = g.device.createSampler({
         .magFilter = vk::Filter::eLinear,
@@ -1094,13 +1133,16 @@ namespace {
 template <typename GpuT, typename WeaponT, typename HandT>
 void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
                   const XrVector3f& eye_pos, const Mat& head, const HandT& hand, bool left,
-                  const std::vector<FitPart>& fits) {
+                  const std::vector<FitPart>& fits, float clip_x, const FitMat* forearm_turn) {
     (void)left;
     const XrPosef aim = ToXr(hand.aim);
     const Mat aim_m = FromPose(aim.orientation, aim.position);
     // The glow and effect parts (WpnEfe ...) are cards the game blends and animates; drawn plain
     // they float about, so only with AZAHARFRAME_KIU_WEAPON_GLOW=1 (live).
-    const bool glow = Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_WEAPON_GLOW").value_or("0") == "1";
+    // A palm's flames are its look: kept (still: FitMotion).
+    const bool glow =
+        w.info.cls == FrameWeapons::kPalm ||
+        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_WEAPON_GLOW").value_or("0") == "1";
     const double now_s =
         std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     for (const FitPart& fit : fits) {
@@ -1108,6 +1150,7 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         if (glow_pass && !glow) {
             continue;
         }
+        c.bindPipeline(vk::PipelineBindPoint::eGraphics, glow_pass ? g.pipeline_add : g.pipeline);
         Mat fit_m{};
         std::copy(fit.transform.begin(), fit.transform.end(), fit_m.begin());
         // The orbitars' and detached parts' float (weapon_fit.h FitMotion), across the ray.
@@ -1115,17 +1158,33 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         for (int k = 0; k < 3; k++) {
             fit_m[static_cast<std::size_t>(12 + k)] += motion[static_cast<std::size_t>(k)];
         }
-        const Mat model = Multiply(aim_m, fit_m);
+        // A palm in elbow mode: the hand (cut at the wrist), then the forearm turned toward the
+        // elbow (from the wrist up to the cut); else one draw.
+        for (int pass = 0; pass < (forearm_turn ? 2 : 1); pass++) {
+        Mat model = Multiply(aim_m, fit_m);
+        float cut = clip_x;
+        float w_flags = fit.mirrored ? 1.0f : 0.0f;
+        if (glow_pass) {
+            w_flags += 4.0f; // added, unlit
+        }
+        if (forearm_turn && pass == 0) {
+            cut = 1e-5f; // the hand: nothing past the wrist
+        } else if (forearm_turn) {
+            Mat turn{};
+            std::copy(forearm_turn->begin(), forearm_turn->end(), turn.begin());
+            model = Multiply(turn, model);
+            w_flags += 2.0f; // the forearm: nothing before the wrist
+        }
         const Mat to_model = InverseAffine(model);
         PushConstants pc{};
         const auto eye = Apply(to_model, eye_pos.x, eye_pos.y, eye_pos.z, 1.0f);
-        pc.eye = {eye[0], eye[1], eye[2], 1.0f};
+        pc.eye = {eye[0], eye[1], eye[2], cut};
         const auto back = Apply(head, 0.0f, 0.0f, 1.0f, 0.0f);
         const auto key = Apply(to_model, back[0] * 0.6f, 1.0f + back[1] * 0.6f, back[2] * 0.6f, 0.0f);
         pc.key = {key[0], key[1], key[2], 0.0f};
         const auto up = Apply(to_model, 0.0f, 1.0f, 0.0f, 0.0f);
         pc.up = {up[0], up[1], up[2], 0.0f};
-        pc.params = {0.0f, 1.0f, std::clamp(hand.fade, 0.0f, 1.0f), fit.mirrored ? 1.0f : 0.0f};
+        pc.params = {0.0f, 1.0f, std::clamp(hand.fade, 0.0f, 1.0f), w_flags};
         pc.mvp = Multiply(view_proj, model);
         const char* side = fit.side == FitSide::Right  ? "R"
                            : fit.side == FitSide::Left ? "L"
@@ -1153,17 +1212,21 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
                 c.drawIndexed(comp.index_count, 1, comp.first_index, 0, 0);
             }
         }
+        }
       }
     }
+    c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline); // for what is drawn next
 }
 
 } // namespace
 
-void ControllerModels::FitWeapon(const std::array<Hand, 2>& hands) { // AzaharFrame kiuguns
+void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands) { // AzaharFrame kiuguns
     // The weapon's fit, with the class's live tune (test switches), and its muzzle.
     weapon_fits.clear();
     muzzle_hand = -1;
     muzzle.reset();
+    weapon_clip = 0.0f;
+    palm_elbow = false;
     if (!gpu) {
         return;
     }
@@ -1190,16 +1253,58 @@ void ControllerModels::FitWeapon(const std::array<Hand, 2>& hands) { // AzaharFr
             weapon_fits = FitWeaponToHand({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
             muzzle_hand = h;
             muzzle = FitMuzzle({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
-            const std::string logged = fmt::format("{} {} {} {}", info.id, left ? "left" : "right",
-                                                   name, value.value_or("default"));
+            const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
+            const PalmMode mode =
+                PalmModeFrom(Common::FrameTestSwitches::Value(kPalmModeSwitch));
+            weapon_clip = FitClipX(info.cls, tune, forearm, mode);
+            palm_elbow = info.cls == FrameWeapons::kPalm && mode == PalmMode::Elbow &&
+                         weapon_fits.size() == 1 && views.valid;
+            if (palm_elbow) {
+                // The wrist where the fit puts it, the forearm turned from where it points to
+                // the estimated elbow (smoothed), about the wrist.
+                const XrPosef aim = ToXr(hand.aim);
+                Mat fit_m{};
+                std::copy(weapon_fits[0].transform.begin(), weapon_fits[0].transform.end(),
+                          fit_m.begin());
+                const Mat world = Multiply(FromPose(aim.orientation, aim.position), fit_m);
+                const auto wrist = Apply(world, 0.0f, 0.0f, 0.0f, 1.0f);
+                const auto along = Apply(world, 1.0f, 0.0f, 0.0f, 0.0f);
+                const Mat head = FromPose(views.head.orientation, views.head.position);
+                const auto fwd = Apply(head, 0.0f, 0.0f, -1.0f, 0.0f);
+                const std::array<float, 3> w3{wrist[0], wrist[1], wrist[2]};
+                const auto elbow = EstimateElbow(
+                    {views.head.position.x, views.head.position.y, views.head.position.z},
+                    {fwd[0], fwd[1], fwd[2]}, left, w3);
+                const std::array<float, 3> target{elbow[0] - w3[0], elbow[1] - w3[1],
+                                                  elbow[2] - w3[2]};
+                const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count();
+                const float dt = palm_time_ns ? static_cast<float>(now - palm_time_ns) * 1e-9f : -1.0f;
+                palm_time_ns = now;
+                palm_dir = SmoothDirection(palm_dir, target, dt);
+                palm_turn = RotationBetween(w3, {along[0], along[1], along[2]}, palm_dir);
+            } else {
+                palm_time_ns = 0;
+                palm_dir = {};
+            }
+            const std::string logged =
+                fmt::format("{} {} {} {} {} {}", info.id, left ? "left" : "right", name,
+                            value.value_or("default"), forearm.value_or("default"),
+                            palm_elbow ? "elbow" : "wrist");
             if (logged != g.weapon_fit_logged) {
                 g.weapon_fit_logged = logged;
                 LOG_INFO(Frontend,
                          "xr: weapon in hand: {} (a {}) in the {} hand, fit {} (scale {:.3f} m "
-                         "per unit)",
+                         "per unit){}",
                          info.id, FrameWeapons::ClassName(info.cls), left ? "left" : "right",
                          value ? name + "=" + *value : std::string{"default"},
-                         FitClassScale(info.cls) * tune.scale);
+                         FitClassScale(info.cls) * tune.scale,
+                         weapon_clip > 0.0f
+                             ? fmt::format(", forearm cut {:.0f} cm from the wrist{}",
+                                           weapon_clip * FitClassScale(info.cls) * tune.scale * 100.0f,
+                                           palm_elbow ? ", turned toward the elbow" : "")
+                             : std::string{});
             }
         }
     }
@@ -1239,7 +1344,8 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             // the GPU.
             if (hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon) {
                 RecordWeapon(c, g, *g.weapon_live, view_proj, views.eye[e].position, head, hand,
-                             h == Input::HandIndex(Input::Hand::Left), weapon_fits);
+                             h == Input::HandIndex(Input::Hand::Left), weapon_fits, weapon_clip,
+                             palm_elbow ? &palm_turn : nullptr);
                 continue;
             }
             const ModelFile& m = f.hand[static_cast<std::size_t>(h)];
@@ -1250,7 +1356,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             PushConstants pc{};
             const auto eye = Apply(to_model, views.eye[e].position.x, views.eye[e].position.y,
                                    views.eye[e].position.z, 1.0f);
-            pc.eye = {eye[0], eye[1], eye[2], 1.0f};
+            pc.eye = {eye[0], eye[1], eye[2], 0.0f}; // AzaharFrame kiuguns: w: no clip
             // The key light from above and behind the head (world), then into model space.
             const auto back = Apply(head, 0.0f, 0.0f, 1.0f, 0.0f);
             const float kx = back[0] * 0.6f, ky = 1.0f + back[1] * 0.6f, kz = back[2] * 0.6f;

@@ -10,7 +10,9 @@
 // XR's light gun: the barrel along the ray and the grip in the palm, where a hand holds a pistol
 // at the aim pose (kPalm: 5.25 cm under the ray, 4.3 cm behind its start).
 //
-//   Held (blades, staffs, bows, palms, clubs, cannons): the grip point at the palm, turned so the
+//   Held (blades, staffs, bows, palms, clubs, cannons): the grip point at the palm (a palm's own:
+//     Pit's palm on the controller, his forearm back along the player's, cut off at
+//     kPalmForearmCm, its flames kept and still), turned so the
 //     weapon's muzzle (its json's muzzle node and offset) lies on the ray, its up axis kept up.
 //     Bows have no useful muzzle (it is the hand): the arrow's axis (+x, away from Pit) along
 //     the ray, the limbs upright. Cannons replace the hand: the grip is where Pit's hand would
@@ -79,6 +81,36 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
 std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand,
                                               const std::vector<FitSide>& sides,
                                               const FitOverride& tune = {});
+
+/// AzaharFrame kiuguns: a palm is a whole forearm and hand. Two ways to wear it, a live test
+/// switch (AZAHARFRAME_KIU_PALM_MODE=wrist|elbow, wrist by default):
+///   Wrist: the hand on the controller and a short stub of the forearm (kPalmStubCm).
+///   Elbow: the hand on the controller, the forearm (kPalmForearmCm) turned about the wrist
+///     toward where the player's elbow is estimated to be (EstimateElbow), smoothed.
+/// AZAHARFRAME_KIU_PALM_FOREARM_CM sets how much forearm is drawn in either (1 to 200 cm).
+enum class PalmMode : uint8_t { Wrist, Elbow };
+inline constexpr const char* kPalmModeSwitch = "AZAHARFRAME_KIU_PALM_MODE";
+inline constexpr const char* kPalmForearmSwitch = "AZAHARFRAME_KIU_PALM_FOREARM_CM";
+inline constexpr float kPalmStubCm = 6.0f;
+inline constexpr float kPalmForearmCm = 22.0f;
+PalmMode PalmModeFrom(const std::optional<std::string>& value);
+/// Where the weapon is cut off along its anchor's +x (Pit's forearm, toward the shoulder), in
+/// game units (weapon space): palms only (`forearm_cm`: the switch's value); 0 for none.
+float FitClipX(int cls, const FitOverride& tune, const std::optional<std::string>& forearm_cm,
+               PalmMode mode = PalmMode::Wrist);
+
+/// Elbow mode's estimate (one space for all, metres, +y up): the shoulder 0.17 m under the head
+/// and 0.16 m to the aiming hand's side in the head's yaw frame, then a two-bone arm (upper arm
+/// 0.30 m, forearm 0.27 m) from it to the wrist, the elbow bent down and a little outward.
+std::array<float, 3> EstimateElbow(const std::array<float, 3>& head,
+                                   const std::array<float, 3>& head_forward, bool left_hand,
+                                   const std::array<float, 3>& wrist);
+/// A unit direction eased toward `target` (time constant 0.08 s), so the forearm does not jitter.
+std::array<float, 3> SmoothDirection(const std::array<float, 3>& previous,
+                                     const std::array<float, 3>& target, float dt_s);
+/// The rotation about `pivot` that turns direction `from` onto `to` (the shortest), column major.
+FitMat RotationBetween(const std::array<float, 3>& pivot, const std::array<float, 3>& from,
+                       const std::array<float, 3>& to);
 
 /// The class's default scale (metres per game unit).
 float FitClassScale(int cls);

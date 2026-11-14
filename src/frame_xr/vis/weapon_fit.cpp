@@ -134,7 +134,7 @@ constexpr ClassFit kFits[9] = {
     {Rule::Held, 0.065f, {0, 0, 0}, {0, 0, 1}, {0, 1, 0}, true},      // staff (SnipeM)
     {Rule::Worn, 0.080f, {0, 0, 0}, {-1, 0, 0}, {0, 0, 1}, false},    // claws (each hand)
     {Rule::Held, 0.070f, {0, 0, 0}, {1, 0, 0}, {0, 0, 1}, false},     // bow (LHandN)
-    {Rule::Held, 0.090f, {0, 0, 0}, {-1, 0, 0}, {0, 0, 1}, true},     // palm (RHandN)
+    {Rule::Held, 0.090f, {-0.7f, 0, 0}, {-1, 0, 0}, {0, 0, 1}, true}, // palm (RHandN; its palm)
     {Rule::Held, 0.035f, {0, 0, 0}, {0, 0, -1}, {0, 1, 0}, true},     // club (GripN)
     {Rule::Held, 0.060f, {-2.17f, 0, 0}, {-1, 0, 0}, {0, 1, 0}, true}, // cannon (RArmN)
     {Rule::Pair, 0.070f, {0, 0, 0}, {0, 0, 1}, {0, 1, 0}, false},     // orbitars (each bit)
@@ -159,10 +159,98 @@ std::array<float, 3> FitMotion(int cls, FitSide side, bool glow, double time_s) 
         const double b = kTau * time_s / 2.1 + phase;
         m[0] = static_cast<float>(0.015 * std::cos(a));
         m[1] = static_cast<float>(0.015 * std::sin(a) + 0.010 * std::sin(b));
-    } else if (glow) {
+    } else if (glow && cls != 4) { // a palm's flames stay with the hand
         m[1] = static_cast<float>(0.008 * std::sin(kTau * time_s / 2.4));
     }
     return m;
+}
+
+PalmMode PalmModeFrom(const std::optional<std::string>& value) {
+    return value && *value == "elbow" ? PalmMode::Elbow : PalmMode::Wrist;
+}
+
+std::array<float, 3> EstimateElbow(const std::array<float, 3>& head,
+                                   const std::array<float, 3>& head_forward, bool left_hand,
+                                   const std::array<float, 3>& wrist) {
+    constexpr float kShoulderDown = 0.17f, kShoulderSide = 0.16f;
+    constexpr float kUpperArm = 0.30f, kForearm = 0.27f;
+    // The head's yaw frame: its forward flattened (straight ahead when it looks up or down).
+    V3 fwd{head_forward[0], 0.0f, head_forward[2]};
+    if (Length(fwd) < 1e-4f) {
+        fwd = {0.0f, 0.0f, -1.0f};
+    }
+    fwd = Normal(fwd);
+    const V3 right = Cross(fwd, V3{0.0f, 1.0f, 0.0f}); // -z ahead: +x right
+    const float side = left_hand ? -kShoulderSide : kShoulderSide;
+    const V3 shoulder{head[0] + right[0] * side, head[1] - kShoulderDown, head[2] + right[2] * side};
+    // Two bones from the shoulder to the wrist; the elbow down and a little outward.
+    const V3 to_wrist = Sub(wrist, shoulder);
+    float d = Length(to_wrist);
+    if (d < 1e-4f) {
+        return {shoulder[0], shoulder[1] - kUpperArm, shoulder[2]};
+    }
+    const V3 axis = Scale(to_wrist, 1.0f / d);
+    d = std::min(d, kUpperArm + kForearm - 1e-4f);
+    const float along = (kUpperArm * kUpperArm - kForearm * kForearm + d * d) / (2.0f * d);
+    const float out = std::sqrt(std::max(0.0f, kUpperArm * kUpperArm - along * along));
+    V3 bend{right[0] * side * 2.0f, -1.0f, right[2] * side * 2.0f}; // down, outward
+    bend = Sub(bend, Scale(axis, Dot(bend, axis)));
+    if (Length(bend) < 1e-4f) {
+        bend = Sub(V3{0, 0, 1}, Scale(axis, Dot(V3{0, 0, 1}, axis)));
+    }
+    bend = Normal(bend);
+    return {shoulder[0] + axis[0] * along + bend[0] * out,
+            shoulder[1] + axis[1] * along + bend[1] * out,
+            shoulder[2] + axis[2] * along + bend[2] * out};
+}
+
+std::array<float, 3> SmoothDirection(const std::array<float, 3>& previous,
+                                     const std::array<float, 3>& target, float dt_s) {
+    if (Length(previous) < 0.5f || !(dt_s >= 0.0f)) {
+        return Normal(target);
+    }
+    const float k = 1.0f - std::exp(-std::min(dt_s, 1.0f) / 0.08f);
+    return Normal({previous[0] + (target[0] - previous[0]) * k,
+                   previous[1] + (target[1] - previous[1]) * k,
+                   previous[2] + (target[2] - previous[2]) * k});
+}
+
+FitMat RotationBetween(const std::array<float, 3>& pivot, const std::array<float, 3>& from,
+                       const std::array<float, 3>& to) {
+    const V3 a = Normal(from), b = Normal(to);
+    const V3 axis = Cross(a, b);
+    const float s = Length(axis), c = Dot(a, b);
+    M3 r{1, 0, 0, 0, 1, 0, 0, 0, 1};
+    if (s > 1e-6f) {
+        const V3 k = Scale(axis, 1.0f / s);
+        const float t = 1.0f - c;
+        r = {c + k[0] * k[0] * t,        k[0] * k[1] * t - k[2] * s, k[0] * k[2] * t + k[1] * s,
+             k[1] * k[0] * t + k[2] * s, c + k[1] * k[1] * t,        k[1] * k[2] * t - k[0] * s,
+             k[2] * k[0] * t - k[1] * s, k[2] * k[1] * t + k[0] * s, c + k[2] * k[2] * t};
+    } else if (c < 0.0f) {
+        // Opposite: half a turn about any axis square to them.
+        V3 k = Normal(Cross(a, std::fabs(a[1]) < 0.9f ? V3{0, 1, 0} : V3{1, 0, 0}));
+        r = {2 * k[0] * k[0] - 1, 2 * k[0] * k[1],     2 * k[0] * k[2],
+             2 * k[1] * k[0],     2 * k[1] * k[1] - 1, 2 * k[1] * k[2],
+             2 * k[2] * k[0],     2 * k[2] * k[1],     2 * k[2] * k[2] - 1};
+    }
+    return Compose(pivot, r, 1.0f, pivot, false);
+}
+
+float FitClipX(int cls, const FitOverride& tune, const std::optional<std::string>& forearm_cm,
+               PalmMode mode) {
+    if (cls != 4) {
+        return 0.0f;
+    }
+    float cm = mode == PalmMode::Elbow ? kPalmForearmCm : kPalmStubCm;
+    if (forearm_cm && !forearm_cm->empty()) {
+        char* end = nullptr;
+        const float v = std::strtof(forearm_cm->c_str(), &end);
+        if (end != forearm_cm->c_str() && std::isfinite(v)) {
+            cm = std::clamp(v, 1.0f, 200.0f);
+        }
+    }
+    return cm / 100.0f / (kFits[cls].scale * tune.scale);
 }
 
 float FitClassScale(int cls) {
