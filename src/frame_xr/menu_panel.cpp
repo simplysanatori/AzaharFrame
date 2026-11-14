@@ -319,6 +319,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WeaponSize;
     case Id::WeaponScale:
         return MenuSetting::WeaponScale;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        return MenuSetting::WeaponOpacity;
+    case Id::ProjectileOpacity:
+        return MenuSetting::ProjectileOpacity;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -1019,6 +1023,10 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
     m.weapon_scale =
         static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
+    m.weapon_opacity = // AzaharFrame kiuopacity
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_opacity.GetValue(), 20, 100));
+    m.projectile_opacity =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_opacity.GetValue(), 20, 100));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1429,6 +1437,16 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = std::clamp(value, 50, 150);
         Apply(v.vr_light_gun_weapon_scale, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::WeaponScale;
+        break;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity: percent, per game in Per-Game
+        r.value = std::clamp(value, 20, 100);
+        Apply(v.vr_light_gun_weapon_opacity, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponOpacity;
+        break;
+    case Id::ProjectileOpacity:
+        r.value = std::clamp(value, 20, 100);
+        Apply(v.vr_light_gun_projectile_opacity, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileOpacity;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);

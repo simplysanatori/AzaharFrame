@@ -151,6 +151,12 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::WeaponScale:
         f(v.vr_light_gun_weapon_scale);
         return true;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        f(v.vr_light_gun_weapon_opacity);
+        return true;
+    case Id::ProjectileOpacity:
+        f(v.vr_light_gun_projectile_opacity);
+        return true;
     default:
         return false;
     }

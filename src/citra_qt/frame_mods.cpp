@@ -734,6 +734,8 @@ Core::AngelsReport::Info FrameMods::AngelsAimInfo(const std::string& game_title)
     i.recoil_rapid = static_cast<int>(v.vr_light_gun_recoil_rapid.GetValue());
     i.weapon_size = static_cast<int>(v.vr_light_gun_weapon_size.GetValue());
     i.weapon_scale = static_cast<int>(v.vr_light_gun_weapon_scale.GetValue());
+    i.weapon_opacity = static_cast<int>(v.vr_light_gun_weapon_opacity.GetValue()); // kiuopacity
+    i.projectile_opacity = static_cast<int>(v.vr_light_gun_projectile_opacity.GetValue());
     i.gyro_sensitivity = static_cast<int>(std::lround(v.vr_gyro_sensitivity.GetValue() * 10.0f));
     i.turn_zone = static_cast<int>(v.vr_light_gun_turn_zone.GetValue());
     i.turn_speed = static_cast<int>(std::lround(v.vr_light_gun_turn_speed.GetValue() * 10.0f));

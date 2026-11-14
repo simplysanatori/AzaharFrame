@@ -63,10 +63,11 @@ CrashReport::Feedback BuildPayload(Type type, const std::string& text, const Inf
         {"settings",
          fmt::format("Aiming: {}\nWeapon in Hand: {}\nLaser Sight: {}\nRecoil: {}\n"
                      "Charged Shot: {} %\nRapid Fire: {} %\nWeapon Size: {}\nWeapon Scale: {} %\n"
-                     "Gyro Sensitivity: {}\nTurn Zone: {}\nTurn Speed: {}\nImmersive Mode: {}",
+                     "Weapon Opacity: {} %\nProjectile Opacity: {} %\nGyro Sensitivity: {}\nTurn Zone: {}\nTurn Speed: {}\nImmersive Mode: {}",
                      AimingName(info.aiming), OnOff(info.weapon_in_hand), OnOff(info.laser_sight),
                      OnOff(info.recoil), info.recoil_charged, info.recoil_rapid,
                      info.weapon_size == 1 ? "Hand Size" : "Game Size", info.weapon_scale,
+                     info.weapon_opacity, info.projectile_opacity,
                      info.gyro_sensitivity, info.turn_zone, info.turn_speed,
                      OnOff(info.immersive))},
     };

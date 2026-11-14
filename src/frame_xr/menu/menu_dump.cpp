@@ -1033,6 +1033,35 @@ int main(int argc, char** argv) {
         nofx.muzzle_flash = false;
         ok &= shot("kiu-controls-15g-flash-and-projectiles-off", nofx,
                    at(aiming_at(nofx, Id::Projectiles)));
+        // AzaharFrame kiuopacity: Weapon Opacity first under Weapon in Hand, Projectile Opacity
+        // first under Projectiles: each at 100 %, 50 % and 20 %, their tooltips, one held, and
+        // Projectiles off (its Opacity gone with it).
+        for (const int pct : {100, 50, 20}) {
+            MenuModel op = fx;
+            op.weapon_opacity = pct;
+            op.projectile_opacity = pct;
+            const std::string n = std::to_string(pct);
+            ok &= shot("kiu-controls-16-weapon-opacity-" + n, op,
+                       at(aiming_at(op, Id::WeaponSize)));
+            ok &= shot("kiu-controls-17-projectile-opacity-" + n, op,
+                       at(aiming_at(op, Id::ProjectileSpeed)));
+        }
+        MenuModel op = fx;
+        op.weapon_opacity = 60;
+        op.projectile_opacity = 30;
+        ok &= shot("kiu-controls-16b-tooltip-weapon-opacity", op,
+                   at(aiming_at(op, Id::WeaponOpacity), Id::WeaponOpacity, kLabelIndex, true));
+        ok &= shot("kiu-controls-17b-tooltip-projectile-opacity", op,
+                   at(aiming_at(op, Id::ProjectileOpacity), Id::ProjectileOpacity, kLabelIndex,
+                      true));
+        MenuView op_held = at(aiming_at(op, Id::WeaponSize));
+        op_held.dragging = Id::WeaponOpacity;
+        op_held.hover = {Id::WeaponOpacity};
+        ok &= shot("kiu-controls-16c-weapon-opacity-held", op, op_held);
+        MenuModel op_off = op;
+        op_off.projectiles = false;
+        ok &= shot("kiu-controls-17c-projectiles-off", op_off,
+                   at(aiming_at(op_off, Id::Projectiles)));
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

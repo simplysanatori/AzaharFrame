@@ -343,6 +343,8 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_light_gun_recoil_rapid.SetGlobal(true);
     values.vr_light_gun_weapon_size.SetGlobal(true);
     values.vr_light_gun_weapon_scale.SetGlobal(true);
+    values.vr_light_gun_weapon_opacity.SetGlobal(true); // AzaharFrame kiuopacity
+    values.vr_light_gun_projectile_opacity.SetGlobal(true);
     values.vr_dynamic_resolution.SetGlobal(true); // AzaharFrame menuux
     values.autosave_enabled.SetGlobal(true);      // AzaharFrame autosave
     values.autosave_every.SetGlobal(true);

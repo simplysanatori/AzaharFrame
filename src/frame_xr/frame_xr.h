@@ -350,6 +350,9 @@ enum class MenuSetting {
     RecoilRapid,     ///< `value` percent, 0 to 100 (vr_light_gun_recoil_rapid)
     WeaponSize,      ///< `value` 0 Game Size, 1 Hand Size (vr_light_gun_weapon_size)
     WeaponScale,     ///< `value` percent, 50 to 150 (vr_light_gun_weapon_scale)
+    WeaponOpacity,   ///< AzaharFrame kiuopacity: `value` percent, 20 to 100
+                     ///< (vr_light_gun_weapon_opacity)
+    ProjectileOpacity, ///< `value` percent, 20 to 100 (vr_light_gun_projectile_opacity)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

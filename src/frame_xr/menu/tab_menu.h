@@ -248,6 +248,9 @@ enum class Id : int {
     AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
     AngelsAimReport,   ///< Report an Issue ("Open GitHub?" first)
     AngelsAimSend,     ///< AzaharFrame kiumenus: Send Report (Azahar's window, its own dialog)
+    // AzaharFrame kiuopacity
+    WeaponOpacity,     ///< a slider, 20 to 100 (percent), while Weapon in Hand is on
+    ProjectileOpacity, ///< a slider, 20 to 100 (percent), with Projectiles on
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -362,6 +365,8 @@ struct MenuModel {
     int recoil_rapid = 50;      ///< percent (0 to 100)
     int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;     ///< percent (50 to 150)
+    int weapon_opacity = 100;     ///< AzaharFrame kiuopacity: percent (20 to 100)
+    int projectile_opacity = 100; ///< percent (20 to 100)
     bool aim_calibrated = false; ///< the running game has a Calibrate Aim of its own
     bool aim_calibration_ok = false; ///< Calibrate Aim can start (Direct Aim in a game)
     bool show_controllers = true;

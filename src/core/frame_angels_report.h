@@ -37,6 +37,7 @@ struct Info {
     int recoil_charged = 0, recoil_rapid = 0; ///< percent
     int weapon_size = 0;                      ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;                   ///< percent
+    int weapon_opacity = 100, projectile_opacity = 100; ///< AzaharFrame kiuopacity: percent
     int gyro_sensitivity = 0, turn_zone = 0, turn_speed = 0;
     bool immersive = false;
 };

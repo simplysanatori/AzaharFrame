@@ -2937,9 +2937,10 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
           std::vector<Id>{Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
                           Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
                           Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
-                          Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::MuzzleFlash,
-                          Id::Projectiles, Id::ProjectileSize, Id::ProjectileSpeed,
-                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed});
+                          Id::WeaponInHand, Id::WeaponOpacity, Id::WeaponSize, Id::WeaponScale,
+                          Id::MuzzleFlash, Id::Projectiles, Id::ProjectileOpacity,
+                          Id::ProjectileSize, Id::ProjectileSpeed, Id::LaserSight, Id::TurnZone,
+                          Id::TurnSpeed});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3267,6 +3268,94 @@ TEST_CASE("Tab menu: Projectiles and their size and speed", "[frame_xr][tabmenu]
     m.game_value[static_cast<std::size_t>(Id::Projectiles)] = true;
     CHECK(GameValueRows(m, Tab::Controls) ==
           std::vector<Id>{Id::Projectiles, Id::ProjectileSize});
+}
+
+// AzaharFrame kiuopacity: Weapon Opacity first under Weapon in Hand, Projectile Opacity first
+// under Projectiles (the owner's order), each shown while its switch is on.
+TEST_CASE("Tab menu: Weapon Opacity and Projectile Opacity", "[frame_xr][tabmenu][kiuopacity]") {
+    CHECK(LabelFor(Id::WeaponOpacity) == "Weapon Opacity");
+    CHECK(LabelFor(Id::ProjectileOpacity) == "Projectile Opacity");
+    CHECK(ExplainFor(Id::WeaponOpacity) ==
+          "How solid your weapon looks. Lower lets you see through it.");
+    CHECK(ExplainFor(Id::ProjectileOpacity) ==
+          "How solid your shots look. Lower lets you see through them.");
+    for (const Id id : {Id::WeaponOpacity, Id::ProjectileOpacity}) {
+        CHECK(PerGameSetting(id));
+        const SliderRange r = SliderFor(id);
+        CHECK(r.min == 20.0f);
+        CHECK(r.max == 100.0f);
+        CHECK(r.step == 10.0f);
+    }
+    Drawn d;
+    MenuModel m = Sample();
+    m.gyro_aim = 2;
+    m.weapon_opacity = 60;
+    m.projectile_opacity = 30;
+    MenuView v;
+    v.tab = Tab::Controls;
+    const auto find = [&](Id id, int index) {
+        for (float scroll = 0.0f; scroll <= 4000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Controls)] = scroll;
+            d.Draw(m, v);
+            if (HasHit(d, id, index)) {
+                return true;
+            }
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
+        }
+        return false;
+    };
+    for (const int aiming : {0, 1, 2}) {
+        for (const bool weapon : {false, true}) {
+            for (const bool on : {false, true}) {
+                INFO("aiming " << aiming << ", weapon " << weapon << ", projectiles " << on);
+                m.gyro_aim = aiming;
+                m.weapon_in_hand = weapon;
+                m.projectiles = on;
+                const bool weapon_rows = aiming != 0 && weapon;
+                CHECK(find(Id::WeaponOpacity, kLabelIndex) == weapon_rows);
+                CHECK(find(Id::ProjectileOpacity, kLabelIndex) == (weapon_rows && on));
+                if (!(weapon_rows && on)) {
+                    continue;
+                }
+                // Weapon in Hand, Weapon Opacity, Weapon Size, Weapon Scale; then Projectiles,
+                // Projectile Opacity, Projectile Size (each on the page with the one before).
+                const auto below = [&](Id upper, int ui, Id lower, int li) {
+                    REQUIRE(find(lower, li));
+                    const MenuLayout::Hit* l = FindHit(d, lower, li);
+                    const MenuLayout::Hit* u = FindHit(d, upper, ui);
+                    REQUIRE(l != nullptr);
+                    if (u) {
+                        CHECK(l->r.y0 >= u->r.y1 - 0.01f);
+                        CHECK(l->r.y0 - u->r.y1 < kRowH);
+                    }
+                };
+                below(Id::WeaponInHand, -1, Id::WeaponOpacity, kLabelIndex);
+                below(Id::WeaponOpacity, kLabelIndex, Id::WeaponSize, kLabelIndex);
+                below(Id::Projectiles, -1, Id::ProjectileOpacity, kLabelIndex);
+                below(Id::ProjectileOpacity, kLabelIndex, Id::ProjectileSize, kLabelIndex);
+                REQUIRE(find(Id::WeaponOpacity, kLabelIndex));
+                Audit a;
+                a.Draw(m, v);
+                a.Check("Controls, Weapon Opacity");
+                CHECK(a.Drew("Weapon Opacity"));
+                CHECK(a.Drew("60%"));
+                REQUIRE(find(Id::ProjectileOpacity, kLabelIndex));
+                a.Draw(m, v);
+                a.Check("Controls, Projectile Opacity");
+                CHECK(a.Drew("Projectile Opacity"));
+                CHECK(a.Drew("30%"));
+            }
+        }
+    }
+    m.scope = 1;
+    m.game_value = {};
+    m.game_value[static_cast<std::size_t>(Id::ProjectileOpacity)] = true;
+    m.game_value[static_cast<std::size_t>(Id::WeaponOpacity)] = true;
+    m.game_value[static_cast<std::size_t>(Id::WeaponScale)] = true;
+    CHECK(GameValueRows(m, Tab::Controls) ==
+          std::vector<Id>{Id::WeaponOpacity, Id::WeaponScale, Id::ProjectileOpacity});
 }
 
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {

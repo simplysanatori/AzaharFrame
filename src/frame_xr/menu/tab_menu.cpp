@@ -90,7 +90,8 @@ std::string SliderText(Id id, float value) {
         return Format("%.1fx", value / 10.0f);
     }
     if (id == Id::TurnZone || id == Id::RecoilCharged || id == Id::RecoilRapid ||
-        id == Id::WeaponScale || id == Id::ProjectileSize || id == Id::ProjectileSpeed) { // AzaharFrame kiugyro: "10%" (kiufix: the strengths, the scale)
+        id == Id::WeaponScale || id == Id::ProjectileSize || id == Id::ProjectileSpeed ||
+        id == Id::WeaponOpacity || id == Id::ProjectileOpacity) { // AzaharFrame kiugyro: "10%" (kiufix: the strengths, the scale; kiuopacity: the opacities)
         return Format("%.0f%%", value);
     }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
@@ -302,6 +303,8 @@ bool PerGameSetting(Id id) {
     case Id::RecoilRapid:
     case Id::WeaponSize:
     case Id::WeaponScale:
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+    case Id::ProjectileOpacity:
         return true;
     default:
         return false;
@@ -315,9 +318,11 @@ const std::vector<Id>& ControlsScopeRows() {
         Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,  Id::ReticleAtEdge,
         Id::ReticleCenter, Id::ReticleStick,        Id::GyroAim,       Id::GyroSensitivity,
         Id::Recoil,        Id::RecoilCharged,       Id::RecoilRapid,   Id::WeaponInHand,
-        Id::WeaponSize,    Id::WeaponScale,         Id::MuzzleFlash,   Id::Projectiles,
-        Id::ProjectileSize, Id::ProjectileSpeed,    Id::LaserSight,    Id::TurnZone,
-        Id::TurnSpeed}; // fixes7; AzaharFrame kiuflash: Muzzle Flash, Projectiles and theirs
+        Id::WeaponOpacity, Id::WeaponSize,          Id::WeaponScale,   Id::MuzzleFlash,
+        Id::Projectiles,   Id::ProjectileOpacity,   Id::ProjectileSize, Id::ProjectileSpeed,
+        Id::LaserSight,    Id::TurnZone,            Id::TurnSpeed};
+    // fixes7; AzaharFrame kiuflash: Muzzle Flash, Projectiles and theirs; kiuopacity: the
+    // opacities, each first under its switch
     return kRows;
 }
 
@@ -567,6 +572,10 @@ std::string LabelFor(Id id) {
         return "Weapon Size";
     case Id::WeaponScale:
         return "Weapon Scale";
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        return "Weapon Opacity";
+    case Id::ProjectileOpacity:
+        return "Projectile Opacity";
     case Id::CalibrateAim:
         return "Calibrate Aim";
     case Id::CalibrateAimReset:
@@ -825,6 +834,10 @@ std::string ExplainFor(Id id) {
         return "Game Size matches Pit's weapon. Hand Size shrinks big weapons to fit your hand.";
     case Id::WeaponScale:
         return "Makes the weapon in your hand bigger or smaller.";
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        return "How solid your weapon looks. Lower lets you see through it.";
+    case Id::ProjectileOpacity:
+        return "How solid your shots look. Lower lets you see through them.";
     case Id::CalibrateAim:
         return "Point at the top screen's centre, then two corners, pressing the grip at each, so the reticle lands where you aim.";
     case Id::ShowControllers:
@@ -958,6 +971,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::WeaponScale) { // AzaharFrame kiufix: 50 to 150 %
         return {50.0f, 150.0f, 10.0f};
+    }
+    if (id == Id::WeaponOpacity || id == Id::ProjectileOpacity) { // AzaharFrame kiuopacity
+        return {20.0f, 100.0f, 10.0f};
     }
     return {};
 }
@@ -1851,7 +1867,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // was); the rest goes under it.
     const float picture_h = (c.y1 - (kChoiceH + kSupportH + kChoiceH)) - 4.0f - list.y0;
     // Aiming's rows: Aiming and Gyro Sensitivity always; Recoil and Weapon in Hand (with their
-    // own rows; Weapon in Hand's: Weapon Size, Weapon Scale, Muzzle Flash) while it is on; Laser Sight, Turn Zone, Turn Speed and Calibrate Aim with Direct
+    // own rows; Weapon in Hand's: Weapon Opacity, Weapon Size, Weapon Scale, Muzzle Flash,
+    // Projectiles (Projectile Opacity, Size and Speed while it is on)) while it is on; Laser Sight, Turn Zone, Turn Speed and Calibrate Aim with Direct
     // Aim (stored 2).
     std::vector<Id> aim_rows{Id::GyroAim, Id::GyroSensitivity};
     if (model.gyro_aim != 0) {
@@ -1862,11 +1879,13 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         aim_rows.push_back(Id::WeaponInHand);
         if (model.weapon_in_hand) {
+            aim_rows.push_back(Id::WeaponOpacity); // AzaharFrame kiuopacity: first, under it
             aim_rows.push_back(Id::WeaponSize);
             aim_rows.push_back(Id::WeaponScale);
             aim_rows.push_back(Id::MuzzleFlash); // AzaharFrame kiuflash
             aim_rows.push_back(Id::Projectiles);
             if (model.projectiles) {
+                aim_rows.push_back(Id::ProjectileOpacity); // AzaharFrame kiuopacity
                 aim_rows.push_back(Id::ProjectileSize);
                 aim_rows.push_back(Id::ProjectileSpeed);
             }
@@ -2045,6 +2064,12 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             break;
         case Id::WeaponScale:
             slider_row(id, y, model.weapon_scale);
+            break;
+        case Id::WeaponOpacity: // AzaharFrame kiuopacity
+            slider_row(id, y, model.weapon_opacity);
+            break;
+        case Id::ProjectileOpacity:
+            slider_row(id, y, model.projectile_opacity);
             break;
         case Id::TurnZone:
             slider_row(id, y, model.turn_zone);

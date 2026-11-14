@@ -972,6 +972,15 @@ struct Values {
     SwitchableSetting<u32, true> vr_light_gun_weapon_size{0, 0, 1, "vr_light_gun_weapon_size"};
     SwitchableSetting<u32, true> vr_light_gun_weapon_scale{100, 50, 150,
                                                            "vr_light_gun_weapon_scale"};
+    // AzaharFrame kiuopacity: Weapon Opacity and Projectile Opacity (percent, 20 to 100): how
+    // solid the weapon in hand and the projectiles look; under 100 they are drawn see-through,
+    // nearest surface only (frame_xr/vis/see_through.h). Per game too. Plain new keys, no
+    // mirror: older builds ignore them, and one that saves a game's file sends them back to the
+    // global values.
+    SwitchableSetting<u32, true> vr_light_gun_weapon_opacity{100, 20, 100,
+                                                             "vr_light_gun_weapon_opacity"};
+    SwitchableSetting<u32, true> vr_light_gun_projectile_opacity{100, 20, 100,
+                                                                 "vr_light_gun_projectile_opacity"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.
