@@ -516,7 +516,7 @@ void Runtime::FrameLoop() {
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
     // AzaharFrame ctrlfront: the screens and panels under the models, for the next picture of
-    // them (vis/model_plane.h: When in Front).
+    // them (vis/model_plane.h).
     std::vector<Vis::Occluder> occluders;
     // AzaharFrame dbl / integ9: AZAHARFRAME_XR_SINGLE_FLASH, live (test_switches.h).
     TestSwitches::SingleFlash single_flash;
@@ -756,26 +756,35 @@ void Runtime::FrameLoop() {
         quad_layers.clear();
         toast_screens.clear();
         occluders.clear();
-        // AzaharFrame ctrlfront: a layer that hides the parts of a controller behind it (LOCAL
-        // space only: the one VIEW-space screen is the immersive one, which never does).
+        // AzaharFrame ctrlfront: a layer that hides the parts of a controller behind it, in LOCAL
+        // space (a VIEW one placed with this frame's head); `always`: wherever they are (a
+        // screen "Controllers in Front of Screen" leaves out).
         const auto add_occluder = [&](XrSpace space, const XrPosef& pose, XrExtent2Df size,
-                                      float curve, XrEyeVisibility eye) {
-            if (space != local_space) {
+                                      float curve, XrEyeVisibility eye, bool always) {
+            Input::Posef p{{pose.orientation.x, pose.orientation.y, pose.orientation.z,
+                            pose.orientation.w},
+                           {pose.position.x, pose.position.y, pose.position.z}};
+            if (space == view_space) {
+                const XrPosef h = LatestViewPose().head;
+                const Input::Posef head{
+                    {h.orientation.x, h.orientation.y, h.orientation.z, h.orientation.w},
+                    {h.position.x, h.position.y, h.position.z}};
+                p = {Input::Multiply(head.orientation, p.orientation),
+                     Input::Transform(head, p.position)};
+            } else if (space != local_space) {
                 return;
             }
             const uint8_t eyes = eye == XR_EYE_VISIBILITY_LEFT    ? 1
                                  : eye == XR_EYE_VISIBILITY_RIGHT ? 2
                                                                   : 3;
-            occluders.push_back({{{pose.orientation.x, pose.orientation.y, pose.orientation.z,
-                                   pose.orientation.w},
-                                  {pose.position.x, pose.position.y, pose.position.z}},
-                                 size.width,
-                                 size.height,
-                                 curve,
-                                 eyes});
+            occluders.push_back({p, size.width, size.height, curve, eyes, always});
         };
-        // The immersive top screen never does: what it shows is far away (or all round).
-        bool top_hides_controllers = true;
+        const Vis::ControllersInFront in_front =
+            Vis::ControllersInFrontFrom(Settings::values.vr_controllers_in_front.GetValue());
+        // The immersive top screen, when the controllers may go in front of it, hides nothing:
+        // what it shows is far away (or all round).
+        bool top_immersive = false;
+        bool screens_swapped = false;
         // AzaharFrame doubling: the two eyes' top images of separate swapchains from different
         // game frames (a release of the set came between); never with set releases or packed.
         if (!packed_top && screens_live) {
@@ -881,14 +890,19 @@ void Runtime::FrameLoop() {
                 } else {
                     quad_layers.push_back(MakeQuad(space, q));
                 }
-                if (!top || top_hides_controllers) { // AzaharFrame ctrlfront
-                    add_occluder(space, pose, size, curve, eye);
+                // AzaharFrame ctrlfront: by depth when the choice includes this screen's slot
+                // (Primary: the top screen, or the bottom one swapped in), else in front of the
+                // controllers wherever they are.
+                const bool by_depth = Vis::InFrontOfScreen(in_front, top != screens_swapped);
+                if (!by_depth || !top || !top_immersive) {
+                    add_occluder(space, pose, size, curve, eye, !by_depth);
                 }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
             // (immersive is paused then); a hidden screen is not added.
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
-            top_hides_controllers = draw.swapped || shown.top_pointable; // AzaharFrame ctrlfront
+            top_immersive = !draw.swapped && !shown.top_pointable; // AzaharFrame ctrlfront
+            screens_swapped = draw.swapped;
             label_top_ok = !draw.swapped && shown.show_top && shown.top_pointable &&
                            shown.top_space == local_space;
             label_top_pose = shown.top_pose[0];
@@ -986,7 +1000,7 @@ void Runtime::FrameLoop() {
             // with clear margins round their art, and in front of everything anyway.
             const auto panel_occluder = [&](const Quad& q) {
                 if (!ui || ui->HidesControllers(q.swapchain)) {
-                    add_occluder(local_space, q.pose, q.size, 0.0f, q.eye);
+                    add_occluder(local_space, q.pose, q.size, 0.0f, q.eye, false);
                 }
             };
             for (const Quad* q : extra) {

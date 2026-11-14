@@ -141,7 +141,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.
-- A controller you hold up in front of a screen or menu now shows in front of it, and so does a weapon in your hand. Before, the screens always covered them. **Controllers Over Screens** on the VR **Settings** tab and in **Configure** chooses: **When in Front**, **Always** or **Never**.
+- A controller you hold up in front of a screen or menu now shows in front of it, and so does a weapon in your hand. Before, the screens always covered them. **Controllers in Front of Screen**, under **Show Controllers** on the VR **Settings** tab and in **Configure**, chooses the screens: **Off**, **Primary**, **Secondary** or **Both**.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 

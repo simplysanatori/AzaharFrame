@@ -866,11 +866,12 @@ struct Values {
     // every frame (frame_xr/vis/visuals.h).
     SwitchableSetting<bool> vr_show_controllers{true, "vr_show_controllers"};
     SwitchableSetting<bool> vr_show_stats{false, "vr_show_stats"};
-    // AzaharFrame ctrlfront (global only): when the controllers (and a weapon in hand) show over
-    // the screens and panels: 0 = Never (under every screen and panel, as before), 1 = When in
-    // Front (over what they are nearer to you than), 2 = Always. Read every frame
+    // AzaharFrame ctrlfront (global only): "Controllers in Front of Screen", the screens the
+    // controllers (and a weapon in hand) may show in front of when nearer to you: 0 = Off (behind
+    // every screen and panel, as before), 1 = Primary, 2 = Secondary (the slots, as Detach
+    // Screens), 3 = Both. The panels go by depth unless Off. Read every frame
     // (frame_xr/vis/model_plane.h). Older builds ignore the key.
-    SwitchableSetting<u32, true> vr_controllers_over{1, 0, 2, "vr_controllers_over"};
+    SwitchableSetting<u32, true> vr_controllers_in_front{3, 0, 3, "vr_controllers_in_front"};
     // AzaharFrame statspos (global only): where the stats panel shows: 0 = In Front (placed ahead
     // of you, then fixed in the room; a grip moves it), 1 = On Wrist (the left controller). Read
     // every frame (frame_xr/vis/stats_place.h).

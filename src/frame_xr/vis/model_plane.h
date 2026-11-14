@@ -3,8 +3,9 @@
 // Refer to the license.txt file included.
 
 // AzaharFrame ctrlfront
-// How the controller models (and a weapon in hand) go over the screens: "Controllers Over
-// Screens" (Settings::values.vr_controllers_over).
+// How the controller models (and a weapon in hand) go in front of the screens: "Controllers in
+// Front of Screen" (Settings::values.vr_controllers_in_front): Off, Primary, Secondary, Both, as
+// Detach Screens (Off, Secondary, Both) names the screens.
 //
 // SteamVR draws every quad and cylinder layer over every projection layer, whatever the order
 // they are submitted in (Moonlight XR's finding from SteamVR screenshots, and what the owner saw
@@ -17,12 +18,15 @@
 //     picture of that eye's view on any plane square to it, so it looks the same, and SteamVR
 //     moves it with the head as it does the screens). They go after the screens and panels and
 //     under the beams and dots, so they draw over the screens and panels;
-//   - When in Front: before the models, each eye's pass writes the depth of the screens and
-//     panels it shows (Occluder, flat or curved, no colour), so the parts of a controller behind
-//     a screen fail the depth test and leave the image clear there: the screen shows through.
-//     A few quads a frame into a depth buffer the pass clears anyway: next to no GPU time;
-//   - Never: the projection layer as before (under everything);
-//   - Always: the quads with no occluders.
+//   - before the models, each eye's pass writes the depth of the screens and panels it shows
+//     (Occluder, flat or curved, no colour), so the parts of a controller behind one fail the
+//     depth test and leave the image clear there: the screen shows through. A few quads a
+//     frame into a depth buffer the pass clears anyway: next to no GPU time;
+//   - a screen the choice leaves out (the Secondary Screen with Primary, the Primary Screen with
+//     Secondary) is written at the nearest depth instead (Occluder::always): it covers the
+//     controllers wherever they are, as before. The panels (menus, keyboard, stats, help) are
+//     always by depth; the immersive top screen, when chosen, hides nothing (it is far away);
+//   - Off: the projection layer as before (under every screen and panel).
 //
 // XR_KHR_composition_layer_depth would not do it: SteamVR lists it but uses the depth only to
 // reproject, it never depth-tests one layer against another, and quads still go over the
@@ -40,19 +44,28 @@
 
 namespace FrameXr::Vis {
 
-enum class ControllersOver : uint32_t { Never = 0, WhenInFront = 1, Always = 2 };
+/// The stored values (vr_controllers_in_front). Primary is the screen in the main slot (the top
+/// screen, or the bottom one while it is swapped in), Secondary the other, as Detach Screens.
+enum class ControllersInFront : uint32_t { Off = 0, Primary = 1, Secondary = 2, Both = 3 };
 
-constexpr ControllersOver ControllersOverFrom(uint32_t value) {
-    return value == 0 ? ControllersOver::Never
-                      : value == 2 ? ControllersOver::Always : ControllersOver::WhenInFront;
+/// A value out of range (a hand-edited file) reads as the default, Both.
+constexpr ControllersInFront ControllersInFrontFrom(uint32_t value) {
+    return value <= 3 ? static_cast<ControllersInFront>(value) : ControllersInFront::Both;
 }
 
 /// The models go out as the eye quads (else as the projection layer, under everything).
-constexpr bool ModelsAsQuads(ControllersOver over) {
-    return over != ControllersOver::Never;
+constexpr bool ModelsAsQuads(ControllersInFront choice) {
+    return choice != ControllersInFront::Off;
 }
 
-/// A screen or panel that hides the parts of a controller behind it (When in Front), in LOCAL
+/// Whether the controllers may go in front of the Primary (`primary`) or the Secondary Screen;
+/// when not, that screen covers them wherever they are.
+constexpr bool InFrontOfScreen(ControllersInFront choice, bool primary) {
+    return choice == ControllersInFront::Both ||
+           choice == (primary ? ControllersInFront::Primary : ControllersInFront::Secondary);
+}
+
+/// A screen or panel that hides the parts of a controller behind it, in LOCAL
 /// space: a rectangle facing +Z of `pose`, or, with `curve_radius` above 0, bent as a cylinder
 /// layer (Input::PanelQuad's rule: the middle stays at the pose, the width is the arc's length,
 /// the sides come toward the viewer).
@@ -62,6 +75,9 @@ struct Occluder {
     float height_m = 0.0f;
     float curve_radius = 0.0f;
     uint8_t eyes = 3; ///< bit 0 the left eye sees it, bit 1 the right eye
+    /// Covers the controllers wherever they are (a screen the choice leaves out): written at
+    /// the nearest depth.
+    bool always = false;
 };
 
 /// The segments a curved occluder is drawn with (a flat one is one).

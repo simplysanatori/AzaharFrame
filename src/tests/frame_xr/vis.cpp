@@ -748,17 +748,29 @@ TEST_CASE("FrameXr vis: the controller models are off in passthrough only", "[fr
     STATIC_REQUIRE_FALSE(ControllerModelsWanted(false, true));
 }
 
-// ---- AzaharFrame ctrlfront: Controllers Over Screens (vis/model_plane.h) ----------------------
+// ---- AzaharFrame ctrlfront: Controllers in Front of Screen (vis/model_plane.h) ----------------
 
-TEST_CASE("FrameXr vis: Controllers Over Screens' values", "[frame_xr]") {
-    STATIC_REQUIRE(ControllersOverFrom(0) == ControllersOver::Never);
-    STATIC_REQUIRE(ControllersOverFrom(1) == ControllersOver::WhenInFront);
-    STATIC_REQUIRE(ControllersOverFrom(2) == ControllersOver::Always);
-    STATIC_REQUIRE(ControllersOverFrom(7) == ControllersOver::WhenInFront); // a bad file: default
-    // Never keeps the projection layer (under every quad, as before); the others are quads.
-    STATIC_REQUIRE_FALSE(ModelsAsQuads(ControllersOver::Never));
-    STATIC_REQUIRE(ModelsAsQuads(ControllersOver::WhenInFront));
-    STATIC_REQUIRE(ModelsAsQuads(ControllersOver::Always));
+TEST_CASE("FrameXr vis: Controllers in Front of Screen's values", "[frame_xr]") {
+    STATIC_REQUIRE(ControllersInFrontFrom(0) == ControllersInFront::Off);
+    STATIC_REQUIRE(ControllersInFrontFrom(1) == ControllersInFront::Primary);
+    STATIC_REQUIRE(ControllersInFrontFrom(2) == ControllersInFront::Secondary);
+    STATIC_REQUIRE(ControllersInFrontFrom(3) == ControllersInFront::Both);
+    STATIC_REQUIRE(ControllersInFrontFrom(7) == ControllersInFront::Both); // a bad file: default
+    // Off keeps the projection layer (under every quad, as before); the others are quads.
+    STATIC_REQUIRE_FALSE(ModelsAsQuads(ControllersInFront::Off));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Primary));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Secondary));
+    STATIC_REQUIRE(ModelsAsQuads(ControllersInFront::Both));
+    // Which screen goes by depth (true) and which covers the controllers wherever they are.
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Off, true));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Off, false));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Primary, true));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Primary, false));
+    STATIC_REQUIRE_FALSE(InFrontOfScreen(ControllersInFront::Secondary, true));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Secondary, false));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Both, true));
+    STATIC_REQUIRE(InFrontOfScreen(ControllersInFront::Both, false));
+    STATIC_REQUIRE_FALSE(Occluder{}.always);
 }
 
 // The eye quad shows the image exactly where the projection layer did: a direction in the eye's

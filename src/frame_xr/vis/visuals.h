@@ -98,12 +98,12 @@ public:
     Input::PanelQuad StatsOccluder() const;
     /// app.cpp, after the other layers (`used` of them): the models' projection layer (or null)
     /// and the quads that go over it, as many as the runtime's layer limit leaves room for: the
-    /// pointer dots first, then the models, then the beams. AzaharFrame ctrlfront: with
-    /// "Controllers Over Screens" When in Front or Always the models are two quads, the first in
-    /// `top`, and no projection layer.
+    /// pointer dots first, then the models, then the beams. AzaharFrame ctrlfront: unless
+    /// "Controllers in Front of Screen" is Off the models are two quads, the first in `top`, and
+    /// no projection layer.
     const XrCompositionLayerBaseHeader* TopLayers(std::vector<Quad>& top, std::size_t used) const;
     /// AzaharFrame ctrlfront: app.cpp, each frame: the screens and panels under the models (LOCAL),
-    /// whose depth the next picture of the models is drawn against (When in Front).
+    /// whose depth the next picture of the models is drawn against.
     void SetOccluders(std::vector<Occluder>&& occluders);
     /// The runtime's limit of layers a frame (XrSystemGraphicsProperties::maxLayerCount).
     std::size_t MaxLayers() const;

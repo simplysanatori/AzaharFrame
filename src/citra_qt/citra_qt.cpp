@@ -5374,8 +5374,8 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ShowControllers:
         set(v.vr_show_controllers, r.value != 0);
         break;
-    case S::ControllersOver: // AzaharFrame ctrlfront
-        set(v.vr_controllers_over, u);
+    case S::ControllersInFront: // AzaharFrame ctrlfront
+        set(v.vr_controllers_in_front, u);
         break;
     case S::WindowScale:
         set(v.vr_window_scale, u);

@@ -3630,48 +3630,84 @@ TEST_CASE("Tab menu: mods for CTGP-7 are listed in its segment", "[frame_xr][tab
     CHECK_FALSE(somewhere(m, v, Id::ModInstall, 4));
 }
 
-// AzaharFrame ctrlfront: Controllers Over Screens, a global row of three choices under Show
-// Controllers, shown only while the controllers are; each choice with its own tooltip.
-TEST_CASE("Tab menu: Controllers Over Screens", "[frame_xr][tabmenu]") {
-    CHECK(!PerGameSetting(Id::ControllersOver));
-    CHECK(SectionOf(Id::ControllersOver) == SettingsSection::General);
-    CHECK(LabelFor(Id::ControllersOver) == "Controllers Over Screens");
-    CHECK(OptionsFor(Id::ControllersOver) ==
-          std::vector<std::string>{"Never", "When in Front", "Always"});
-    CHECK(MenuModel{}.controllers_over == 1); // When in Front, the default
-    CHECK(HasOptionTips(Id::ControllersOver));
+// AzaharFrame ctrlfront: Controllers in Front of Screen, a global segmented row worded as
+// Detach Screens (Off, Secondary, Both) with Primary added, directly under Show Controllers and
+// only while it is on; each choice with its own tooltip.
+TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
+    CHECK(!PerGameSetting(Id::ControllersInFront));
+    CHECK(SectionOf(Id::ControllersInFront) == SettingsSection::General);
+    CHECK(LabelFor(Id::ControllersInFront) == "Controllers in Front of Screen");
+    CHECK(OptionsFor(Id::ControllersInFront) ==
+          std::vector<std::string>{"Off", "Primary", "Secondary", "Both"});
+    // The same words, in the same order, as Detach Screens.
+    CHECK(OptionsFor(Id::MoveScreens) == std::vector<std::string>{"Off", "Secondary", "Both"});
+    CHECK(MenuModel{}.controllers_in_front == 3); // Both, the default
+    CHECK(HasOptionTips(Id::ControllersInFront));
     {
         Kit kit{1.0f};
         for (const std::string& text :
-             {ExplainFor(Id::ControllersOver), ExplainOption(Id::ControllersOver, 0),
-              ExplainOption(Id::ControllersOver, 1), ExplainOption(Id::ControllersOver, 2)}) {
+             {ExplainFor(Id::ControllersInFront), ExplainOption(Id::ControllersInFront, 0),
+              ExplainOption(Id::ControllersInFront, 1), ExplainOption(Id::ControllersInFront, 2),
+              ExplainOption(Id::ControllersInFront, 3)}) {
             INFO(text);
             CHECK(!text.empty());
             CHECK(kit.TextWidth(Type::Tooltip, text) + 28.0f <= kPanelW * 0.7f);
         }
     }
-    CHECK(ExplainOption(Id::ControllersOver, 3).empty());
+    CHECK(ExplainOption(Id::ControllersInFront, 4).empty());
     for (const bool shown : {true, false}) {
-        for (int pick = 0; pick < 3; pick++) {
+        for (int pick = 0; pick < 4; pick++) {
             Drawn d;
             MenuModel m = Sample();
             m.show_controllers = shown;
-            m.controllers_over = pick;
+            m.controllers_in_front = pick;
             MenuView v;
             v.tab = Tab::Settings;
             v.section = SettingsSection::General;
-            bool seen[3] = {};
+            bool seen[4] = {};
+            bool under_show = false, fits = false;
             for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
                 v.scroll[static_cast<int>(Tab::Settings)] = scroll;
                 d.Draw(m, v);
-                for (int i = 0; i < 3; i++) {
-                    seen[i] |= FindHit(d, Id::ControllersOver, i) != nullptr;
+                for (int i = 0; i < 4; i++) {
+                    seen[i] |= FindHit(d, Id::ControllersInFront, i) != nullptr;
+                }
+                const auto* sc = FindHit(d, Id::ShowControllers, -1);
+                const auto* first = FindHit(d, Id::ControllersInFront, 0);
+                const auto* label = FindHit(d, Id::ControllersInFront, kLabelIndex);
+                if (sc && first) {
+                    // the next row down: one row height below Show Controllers
+                    const float dy =
+                        0.5f * ((first->r.y0 + first->r.y1) - (sc->r.y0 + sc->r.y1));
+                    under_show |= std::abs(dy - kRowH) < 1.0f;
+                }
+                if (first && label) {
+                    // The four choices beside the label, none of them cut short (the row's hit
+                    // is the label's, 12 dp outside the content each side; 24 dp label gap and
+                    // segment padding, as tab_menu.cpp and md3.cpp).
+                    Kit kit{1.0f};
+                    const auto& opts = OptionsFor(Id::ControllersInFront);
+                    const float label_end =
+                        label->r.x0 + 12.0f +
+                        kit.TextWidth(Type::Body, LabelFor(Id::ControllersInFront)) + 24.0f;
+                    const auto e =
+                        kit.SegmentEdges({first->r.x0, 0.0f, label->r.x1 - 12.0f, 48.0f}, opts);
+                    bool whole = first->r.x0 >= label_end;
+                    for (std::size_t k = 0; k < opts.size(); k++) {
+                        whole &= kit.Fit(Type::Label, opts[k], e[k + 1] - e[k] - 24.0f + 0.5f) ==
+                                 opts[k];
+                    }
+                    fits |= whole;
                 }
             }
             INFO("Show Controllers " << shown << ", picked " << pick);
-            CHECK(seen[0] == shown);
-            CHECK(seen[1] == shown);
-            CHECK(seen[2] == shown);
+            for (int i = 0; i < 4; i++) {
+                CHECK(seen[i] == shown);
+            }
+            if (shown) {
+                CHECK(under_show);
+                CHECK(fits);
+            }
         }
     }
 }

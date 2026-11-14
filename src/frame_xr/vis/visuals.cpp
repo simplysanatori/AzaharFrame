@@ -314,7 +314,7 @@ struct Visuals::Impl {
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
     Vec3f laser_point{};
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
-    // AzaharFrame ctrlfront: the models as the eye quads (When in Front, Always), and what the
+    // AzaharFrame ctrlfront: the models as the eye quads (any choice but Off), and what the
     // next picture is drawn against.
     std::array<Quad, 2> model_quads{};
     bool model_quads_ready = false;
@@ -1077,10 +1077,10 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
         }
     }
-    // AzaharFrame ctrlfront: "Controllers Over Screens", read every frame (model_plane.h).
-    const ControllersOver over =
-        ControllersOverFrom(Settings::values.vr_controllers_over.GetValue());
-    m.models.Frame(rt, view, hands, over, m.occluders);
+    // AzaharFrame ctrlfront: "Controllers in Front of Screen", read every frame (model_plane.h).
+    const ControllersInFront choice =
+        ControllersInFrontFrom(Settings::values.vr_controllers_in_front.GetValue());
+    m.models.Frame(rt, view, hands, choice, m.occluders);
     m.models_layer = m.models.Layer();
     m.model_quads_ready = m.models.EyeQuads(m.model_quads);
 }

@@ -894,6 +894,17 @@ int main(int argc, char** argv) {
     v = settings(SettingsSection::General);
     v.hover = {Id::ShowControllers};
     ok &= shot("5-settings", pg, v);
+    {
+        // AzaharFrame ctrlfront: Controllers in Front of Screen under Show Controllers, its
+        // Primary choice's tooltip; then Show Controllers off, the row gone.
+        MenuView cv = settings(SettingsSection::General);
+        cv.hover = {Id::ControllersInFront, 1};
+        ok &= shot("5c-settings-controllers-in-front", pg, cv);
+        MenuModel off = pg;
+        off.show_controllers = false;
+        cv.hover = {Id::ShowControllers};
+        ok &= shot("5d-settings-controllers-off", off, cv);
+    }
     v.hover = {Id::AutosaveKeep};
     v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
     ok &= shot("5a-settings-general-end-saves", pg, v);

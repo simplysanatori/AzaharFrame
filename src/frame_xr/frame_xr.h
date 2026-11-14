@@ -294,7 +294,7 @@ enum class MenuSetting {
     FaceButtons,
     MotionControls,
     ShowControllers,
-    ControllersOver, ///< AzaharFrame ctrlfront: `value` 0 Never, 1 When in Front, 2 Always
+    ControllersInFront, ///< AzaharFrame ctrlfront: `value` 0 Off, 1 Primary, 2 Secondary, 3 Both
     WindowScale, ///< `value`: percent
     ImmersiveMode,
     WiderView,

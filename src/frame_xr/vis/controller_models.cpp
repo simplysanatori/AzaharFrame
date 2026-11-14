@@ -606,9 +606,9 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 } // namespace
 
 void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands,
-                             ControllersOver over, const std::vector<Occluder>& occluders) {
+                             ControllersInFront choice, const std::vector<Occluder>& occluders) {
     layer_ready = false;
-    over_ = over; // AzaharFrame ctrlfront
+    over_ = choice; // AzaharFrame ctrlfront
     muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
     const bool any = hands[0].shown || hands[1].shown;
 
@@ -638,7 +638,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 load_state = 3;
                 return;
             }
-            // AzaharFrame ctrlfront: without it the models go over every screen (as Always).
+            // AzaharFrame ctrlfront: without it the models go over every screen and panel.
             f.occluder_vert_spv = Vulkan::CompileGLSL(
                 std::string{"#version 450\n"} + Shaders::kOccluderVert,
                 vk::ShaderStageFlagBits::eVertex);
@@ -743,11 +743,11 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         wi.timeout = 0;
         if (g.acquired && xr.xrWaitSwapchainImage(g.swapchain, &wi) == XR_SUCCESS) {
             g.acquired = false;
-            // AzaharFrame ctrlfront: the screens' and panels' depth only When in Front (and with
-            // the shader); the eye quads at the nearer controller's depth.
+            // AzaharFrame ctrlfront: the screens' and panels' depth while the image goes out as
+            // the eye quads (and with the shader); the eye quads at the nearer controller's depth.
             static const std::vector<Occluder> kNone;
             const std::vector<Occluder>& occ =
-                over == ControllersOver::WhenInFront && g.pipeline_occluder ? occluders : kNone;
+                ModelsAsQuads(choice) && g.pipeline_occluder ? occluders : kNone;
             std::array<std::optional<Input::Vec3f>, 2> at{};
             for (std::size_t h = 0; h < hands.size(); h++) {
                 if (hands[h].shown) {
@@ -1091,7 +1091,7 @@ void ControllerModels::Setup(Runtime& rt) {
     g.pipeline_add = made_add.value;
 
     // AzaharFrame ctrlfront: the screens and panels into the depth buffer, before the models
-    // (When in Front): a strip of triangles made in the vertex shader, no vertex buffer, no
+    // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer, no
     // fragment shader, no colour written.
     if (!f.occluder_vert_spv.empty()) {
         const vk::ShaderModule occ_vert = Vulkan::CompileSPV(f.occluder_vert_spv, g.device);
@@ -1475,8 +1475,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         const Mat view_proj =
             Multiply(Projection(views.fov[e]),
                      InverseRigid(FromPose(views.eye[e].orientation, views.eye[e].position)));
-        // AzaharFrame ctrlfront: When in Front, the depth of the screens and panels this eye
-        // sees first: a controller's parts behind one are not drawn, and the screen shows there.
+        // AzaharFrame ctrlfront: the depth of the screens and panels this eye sees first (a
+        // screen the choice leaves out at the nearest depth): a controller's parts behind one are
+        // not drawn, and the screen shows there.
         bool occluded = false;
         for (const Occluder& o : occluders) {
             if (!(o.eyes & (1u << e)) || o.width_m <= 0.0f || o.height_m <= 0.0f) {
@@ -1491,6 +1492,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             pc.mvp = Multiply(view_proj, FromPose(op.orientation, op.position));
             const int segments = OccluderSegments(o);
             pc.params = {o.width_m, o.height_m, o.curve_radius, static_cast<float>(segments)};
+            pc.eye = {o.always ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f};
             c.pushConstants(g.pipeline_layout,
                             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
                             0, sizeof(pc), &pc);
@@ -1578,9 +1580,10 @@ void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
                  g.gpu_sum_ms / g.gpu_images, g.gpu_max_ms, g.gpu_images,
                  static_cast<double>(now_ns - g.gpu_log_ns) / 1e9,
                  static_cast<double>(g.occluder_sum) / g.gpu_images,
-                 over_ == ControllersOver::Never        ? "Never (a projection layer)"
-                 : over_ == ControllersOver::WhenInFront ? "When in Front (eye quads)"
-                                                         : "Always (eye quads)");
+                 over_ == ControllersInFront::Off            ? "Off (a projection layer)"
+                 : over_ == ControllersInFront::Primary      ? "Primary (eye quads)"
+                 : over_ == ControllersInFront::Secondary    ? "Secondary (eye quads)"
+                                                             : "Both (eye quads)");
         g.gpu_sum_ms = g.gpu_max_ms = 0.0;
         g.gpu_images = 0;
         g.occluder_sum = 0;

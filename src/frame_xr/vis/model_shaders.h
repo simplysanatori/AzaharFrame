@@ -166,12 +166,13 @@ void main() {
 )";
 
 // AzaharFrame ctrlfront: a screen or panel the controllers may go behind (model_plane.h
-// Occluder, When in Front), into the depth buffer only: no fragment shader, no colour. A triangle
-// strip of 2 x (segments + 1) vertices, the same as OccluderVertex.
+// Occluder), into the depth buffer only: no fragment shader, no colour. A triangle strip of
+// 2 x (segments + 1) vertices, the same as OccluderVertex. eye.x above 0.5 (Occluder::always): at
+// the nearest depth, so it covers the controllers wherever they are.
 inline constexpr const char* kOccluderVert = R"(
 layout(push_constant) uniform PC {
     mat4 mvp;    // proj * view * the occluder's pose (OpenGL clip space, as the models)
-    vec4 eye;
+    vec4 eye;    // x: above 0.5, at the nearest depth (covers the controllers wherever they are)
     vec4 key;
     vec4 up;
     vec4 params; // x: width, y: height (metres), z: curve radius (0: flat), w: segments
@@ -187,7 +188,7 @@ void main() {
         p = vec3(pc.params.z * sin(a), y, pc.params.z * (1.0 - cos(a)));
     }
     vec4 c = pc.mvp * vec4(p, 1.0);
-    gl_Position = vec4(c.x, -c.y, 0.5 * (c.z + c.w), c.w);
+    gl_Position = vec4(c.x, -c.y, pc.eye.x > 0.5 ? 0.0 : 0.5 * (c.z + c.w), c.w);
 }
 )";
 
