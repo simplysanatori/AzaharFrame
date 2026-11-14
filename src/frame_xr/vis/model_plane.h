@@ -39,6 +39,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "frame_xr/input/geometry.h"
 
@@ -149,8 +150,32 @@ struct ModelSphere {
     Input::Vec3f centre;
     float radius = 0.0f;
 };
-constexpr float kControllerSphere = 0.25f; ///< a Frame controller round its aim pose
-constexpr float kWeaponSphere = 1.2f;      ///< a weapon in hand, with the palm's forearm
+constexpr float kWeaponSphere = 1.2f; ///< a weapon in hand round the aim pose, with the forearm
+/// Room for a controller's moving parts (trigger, stick, buttons) past its model at rest.
+constexpr float kMovingPartsMargin = 0.02f;
+
+/// The sphere round a model's vertices (`stride` floats each, the position first): the middle of
+/// their box, out to the farthest one, plus `margin`. A Frame controller's is about 9 cm round a
+/// point 6 cm behind its aim pose (the files `azahar --frame-controller-models` makes).
+inline ModelSphere ModelBoundingSphere(const std::vector<float>& vertices, uint32_t stride,
+                                       float margin) {
+    if (stride < 3 || vertices.size() < stride) {
+        return {{0.0f, 0.0f, 0.0f}, 0.0f};
+    }
+    Input::Vec3f lo{1e9f, 1e9f, 1e9f}, hi{-1e9f, -1e9f, -1e9f};
+    for (std::size_t i = 0; i + 2 < vertices.size(); i += stride) {
+        lo = {std::min(lo.x, vertices[i]), std::min(lo.y, vertices[i + 1]),
+              std::min(lo.z, vertices[i + 2])};
+        hi = {std::max(hi.x, vertices[i]), std::max(hi.y, vertices[i + 1]),
+              std::max(hi.z, vertices[i + 2])};
+    }
+    const Input::Vec3f c = (lo + hi) * 0.5f;
+    float r = 0.0f;
+    for (std::size_t i = 0; i + 2 < vertices.size(); i += stride) {
+        r = std::max(r, Input::Length(Input::Vec3f{vertices[i], vertices[i + 1], vertices[i + 2]} - c));
+    }
+    return {c, r + margin};
+}
 inline std::optional<std::array<float, 4>> ModelsViewBounds(
     const Input::Posef& eye, float angle_left, float angle_right, float angle_up, float angle_down,
     const ModelSphere* spheres, std::size_t count, float near_m) {

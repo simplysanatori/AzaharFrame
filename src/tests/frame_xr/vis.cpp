@@ -896,7 +896,7 @@ TEST_CASE("FrameXr vis: the models' bounds in an eye's image", "[frame_xr]") {
     const float tl = std::tan(al), tr = std::tan(ar), tu = std::tan(au), td = std::tan(ad);
     const auto ahead = [&](float x, float y, float z) { return Input::Transform(eye, {x, y, -z}); };
     const std::array<ModelSphere, 2> spheres{
-        {{ahead(0.12f, -0.15f, 0.4f), kControllerSphere}, {ahead(-0.2f, 0.05f, 0.9f), kControllerSphere}}};
+        {{ahead(0.12f, -0.15f, 0.4f), 0.25f}, {ahead(-0.2f, 0.05f, 0.9f), 0.25f}}};
     const auto b = ModelsViewBounds(eye, al, ar, au, ad, spheres.data(), 2, 0.05f);
     REQUIRE(b);
     CHECK((*b)[0] < (*b)[2]);
@@ -923,12 +923,30 @@ TEST_CASE("FrameXr vis: the models' bounds in an eye's image", "[frame_xr]") {
     }
     CHECK(inside > 300);
     // Behind the eye: none. At the eye: all of the image.
-    const ModelSphere behind{ahead(0.0f, 0.0f, -0.5f), kControllerSphere};
+    const ModelSphere behind{ahead(0.0f, 0.0f, -0.5f), 0.25f};
     CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, &behind, 1, 0.05f));
-    const ModelSphere at_eye{ahead(0.0f, -0.1f, 0.2f), kControllerSphere};
+    const ModelSphere at_eye{ahead(0.0f, -0.1f, 0.2f), 0.25f};
     const auto all = ModelsViewBounds(eye, al, ar, au, ad, &at_eye, 1, 0.05f);
     REQUIRE(all);
     CHECK(*all == std::array<float, 4>{0.0f, 0.0f, 1.0f, 1.0f});
     // None shown: none.
     CHECK_FALSE(ModelsViewBounds(eye, al, ar, au, ad, nullptr, 0, 0.05f));
+}
+
+TEST_CASE("FrameXr vis: a model's bounding sphere", "[frame_xr]") {
+    // Three vertices (12 floats each, the position first) of a box 0.08 x 0.09 x 0.12.
+    std::vector<float> v;
+    for (const std::array<float, 3> p :
+         {std::array<float, 3>{-0.04f, -0.08f, 0.0f}, {0.04f, 0.01f, 0.12f}, {0.0f, 0.0f, 0.06f}}) {
+        v.insert(v.end(), {p[0], p[1], p[2], 0, 1, 0, 1, 0, 0, 1, 0, 0});
+    }
+    const ModelSphere s = ModelBoundingSphere(v, kModelVertexFloats, 0.02f);
+    CHECK(s.centre.x == Approx(0.0f).margin(1e-6));
+    CHECK(s.centre.y == Approx(-0.035f));
+    CHECK(s.centre.z == Approx(0.06f));
+    for (std::size_t i = 0; i < v.size(); i += kModelVertexFloats) {
+        CHECK(Input::Length(Input::Vec3f{v[i], v[i + 1], v[i + 2]} - s.centre) <= s.radius - 0.02f + 1e-6f);
+    }
+    CHECK(s.radius == Approx(std::sqrt(0.04f * 0.04f + 0.045f * 0.045f + 0.06f * 0.06f) + 0.02f));
+    CHECK(ModelBoundingSphere({}, kModelVertexFloats, 0.02f).radius == 0.0f);
 }
