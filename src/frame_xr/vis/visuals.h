@@ -119,6 +119,13 @@ public:
     /// is drawn red to `point` (LOCAL, on the top screen) with a small red dot there, at full
     /// strength however still the hand is. Cleared by TakeInput; GameFrame sets it.
     void SetLaser(int hand, const Input::Vec3f& point);
+    /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
+    /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
+    /// is not ready). Cleared by TakeInput; GameFrame sets it.
+    void SetWeapon(int hand, int id);
+    /// AzaharFrame kiuguns: no beam or dot this frame where `hand` points at `over` (the top
+    /// screen, Laser Sight off: Input::AimBeamFor). Cleared by TakeInput.
+    void SetBeamHidden(int hand, const Input::PanelQuad& over);
 
 private:
     struct Impl;

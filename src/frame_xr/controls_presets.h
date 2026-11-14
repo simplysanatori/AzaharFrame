@@ -62,6 +62,18 @@ void MirrorGyroAim();
 /// has a value) is given back as the game's own. Returns whether it was.
 bool RestoreGyroAim();
 
+/// AzaharFrame kiuguns: bits 10 and 11 mirror the game's own Weapon in Hand
+/// (vr_light_gun_weapon) the same way: 0 the game uses the global value, 1 off, 2 on. Older
+/// builds drop the key when they save the game's file; the mirror brings the choice back.
+inline constexpr uint32_t kWeaponMirrorShift = 10;
+inline constexpr uint32_t kWeaponMirrorMask = 3u << kWeaponMirrorShift;
+/// Bits 12 and 13: Laser Sight (vr_light_gun_laser), the same way. Both are mirrored and
+/// restored by these two.
+inline constexpr uint32_t kLaserMirrorShift = 12;
+inline constexpr uint32_t kLaserMirrorMask = 3u << kLaserMirrorShift;
+void MirrorWeaponInHand();
+bool RestoreWeaponInHand();
+
 /// Kid Icarus: Uprising aims with the stylus on the bottom screen while the left hand moves
 /// and fires: the head aims the reticle (Headset) and either trigger touches.
 /// AzaharFrame kiugyro: with Darkshade's C-Stick & Gyro mod installed, the reticle on the top

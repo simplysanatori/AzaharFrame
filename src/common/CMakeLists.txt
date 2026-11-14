@@ -54,6 +54,9 @@ add_library(citra_common STATIC EXCLUDE_FROM_ALL
     logging/text_formatter.cpp
     logging/text_formatter.h
     logging/types.h
+    frame_emu_poll.h # AzaharFrame kiuguns
+    lz11.cpp # AzaharFrame kiuguns
+    lz11.h # AzaharFrame kiuguns
     math_util.cpp
     math_util.h
     memory_detect.cpp

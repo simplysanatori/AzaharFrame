@@ -151,6 +151,28 @@ constexpr bool LaserSight(GyroAimMode mode, bool in_game, bool locked,
            target.u >= 0.0f && target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
 }
 
+/// AzaharFrame kiuguns: the aiming hand's beam in a game. Laser Sight (vr_light_gun_laser, per
+/// game, off by default): on, Direct Aim's red laser while LaserSight holds; off, no beam or dot
+/// where the ray meets the top screen (the game's reticle shows the aim), with Direct Aim and
+/// with the weapon in hand in any aiming. The bottom screen, menus and the room keep their beam.
+struct AimBeam {
+    bool laser = false;    ///< the red beam and dot (from the weapon's muzzle when it is shown)
+    bool hide_top = false; ///< no beam or dot over the top screen
+};
+constexpr AimBeam AimBeamFor(GyroAimMode mode, bool laser_setting, bool weapon_shown,
+                             bool locked, const LightGunTarget& target) {
+    AimBeam b;
+    b.laser = laser_setting && LaserSight(mode, true, locked, target);
+    b.hide_top = !laser_setting && (mode == GyroAimMode::LightGun || weapon_shown);
+    return b;
+}
+
+/// AzaharFrame kiuguns: Recoil's switch gates every pulse, the timed ones and those on the
+/// game's own shots: a controller aims (Aiming not Off) and Recoil is on.
+constexpr bool RecoilActive(int aim_hand, bool recoil_setting) {
+    return aim_hand >= 0 && recoil_setting;
+}
+
 /// How deep (0 to 1) the target is in the Turn Zone on each side: x negative left, positive
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);
@@ -190,6 +212,29 @@ private:
     bool ever_released_ = false;
     int64_t last_pulse_ns_ = 0;
     int64_t released_ns_ = 0;
+};
+
+/// AzaharFrame kiuguns: Recoil from the game's own shots (kiu_weapon.h: the save's shots-fired
+/// record, read about once a game frame): a pulse for each read that saw new shots (one pulse
+/// for several, a little longer), never for a press that fired nothing. Charged shots are not
+/// marked in the game's data that was found, so the heuristic stays: a shot after
+/// Recoil::kChargePauseNs without one gets the longer pulse. While the record cannot be read,
+/// Recoil's timed pulses are used instead (the caller's choice: `readable`).
+class ShotRecoil {
+public:
+    static constexpr int64_t kBurstPulseNs = 60'000'000;
+
+    /// Each frame: the shots total so far, whether it is being read, `active` as for Recoil.
+    RecoilPulse Update(int64_t now_ns, uint64_t total, bool readable, bool active);
+    void Reset() {
+        has_ = false;
+    }
+
+private:
+    bool has_ = false;
+    uint64_t last_ = 0;
+    int64_t last_shot_ns_ = 0;
+    bool ever_ = false;
 };
 
 /// The reticle as read from the game (kiu_probe.h), in the game's screen pixels.

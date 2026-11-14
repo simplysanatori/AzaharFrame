@@ -125,7 +125,7 @@ Mat Stick(const float* mo, float x, float y, float click) {
 
 } // namespace
 
-bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) {
+bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error, uint32_t space) {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
     if (!f) {
         error = "cannot be read";
@@ -147,7 +147,16 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) 
     m.tex_width = U32(head + 20);
     m.tex_height = U32(head + 24);
     m.flags = U32(head + 28);
-    if (m.version != 2 || m.flags != kModelFlagAimSpace) {
+    if (space == kModelFlagWeaponSpace) { // AzaharFrame kiuguns
+        if (m.version != 2 || (m.flags & kModelFlagSpaceMask) != kModelFlagWeaponSpace ||
+            (m.flags & ~(kModelFlagSpaceMask | 0x7700u | kModelFlagFlatSurface)) != 0 ||
+            ModelWrapU(m.flags) > 3 ||
+            ModelWrapV(m.flags) > 3) {
+            error = "version " + std::to_string(m.version) + " flags " +
+                    std::to_string(m.flags) + ": not a weapon model";
+            return false;
+        }
+    } else if (m.version != 2 || m.flags != kModelFlagAimSpace) {
         error = "version " + std::to_string(m.version) + " flags " + std::to_string(m.flags) +
                 ": not an aim space model (azahar --frame-controller-models)";
         return false;
@@ -160,9 +169,10 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) 
         return false;
     }
     const uint64_t tex_bytes = uint64_t{m.tex_width} * m.tex_height * 4;
+    const uint64_t surface_bytes = uint64_t{m.SurfaceWidth()} * m.SurfaceHeight() * 4;
     const uint64_t expected = kHeaderBytes + uint64_t{component_count} * kComponentBytes +
                               uint64_t{vertex_count} * kModelVertexFloats * 4 +
-                              uint64_t{index_count} * 4 + 2 * tex_bytes;
+                              uint64_t{index_count} * 4 + tex_bytes + surface_bytes;
     if (expected != size) {
         error = "the sizes do not add up";
         return false;
@@ -171,7 +181,7 @@ bool LoadModelFile(const std::string& path, ModelFile& out, std::string& error) 
     m.vertices.resize(std::size_t{vertex_count} * kModelVertexFloats);
     m.indices.resize(index_count);
     m.colour.resize(static_cast<std::size_t>(tex_bytes));
-    m.surface.resize(static_cast<std::size_t>(tex_bytes));
+    m.surface.resize(static_cast<std::size_t>(surface_bytes));
     if (!f.read(reinterpret_cast<char*>(comps.data()), static_cast<std::streamsize>(comps.size())) ||
         !f.read(reinterpret_cast<char*>(m.vertices.data()),
                 static_cast<std::streamsize>(m.vertices.size() * 4)) ||

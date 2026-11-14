@@ -26,12 +26,15 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <optional>
+#include <vector>
 #include <string>
 #include <thread>
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/types.h"
 #include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
 
 namespace FrameXr {
 class Runtime;
@@ -57,11 +60,20 @@ public:
         Input::Posef aim; ///< LOCAL space, the display time of the frame
         float fade = 1.0f;
         ModelInputs input{};
+        /// AzaharFrame kiuguns: Kid Icarus: Uprising's weapon to draw in place of this hand's
+        /// controller (core/frame_weapon_models.h, fitted by weapon_fit.h), or -1. The
+        /// controller is drawn until the weapon's files are read and on the GPU.
+        int weapon = -1;
     };
 
     /// XR thread, each frame while models are wanted (anything shown or not): reads the files
     /// the first time, sets up the GPU side, releases a finished image and draws the next one.
     void Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands);
+    /// AzaharFrame kiuguns: the weapon's muzzle in `hand`'s aim space, while the weapon is drawn
+    /// there (Laser Sight's beam starts at it); the fit of the last Frame.
+    std::optional<std::array<float, 3>> WeaponMuzzle(int hand) const {
+        return hand == muzzle_hand ? muzzle : std::nullopt;
+    }
     /// The layer for this frame's xrEndFrame, or null. Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
     /// XR thread, before the session ends: everything on the GPU (the files stay read).
@@ -70,9 +82,25 @@ public:
 private:
     void Setup(Runtime& rt);
     void Record(const ViewPose& views, const std::array<Hand, 2>& hands);
+    /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
+    void UpdateWeapon(int id);
+    void UploadWeapon();
+    void FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands);
+    std::vector<FitPart> weapon_fits; ///< this frame's, for the weapon's hand
+    float weapon_clip = 0.0f;         ///< FitClipX: a palm's forearm cut (weapon space)
+    bool palm_elbow = false;          ///< the palm's forearm drawn apart, turned to the elbow
+    FitMat palm_turn{};               ///< that turn about the wrist (LOCAL space)
+    std::array<float, 3> palm_dir{};  ///< the smoothed forearm direction (LOCAL)
+    int64_t palm_time_ns = 0;
+    int muzzle_hand = -1;
+    std::optional<std::array<float, 3>> muzzle;
 
     struct Files;
     struct Gpu;
+    struct WeaponLoad;
+    std::unique_ptr<WeaponLoad> weapon_load; ///< the read under way or done (loader thread)
+    std::thread weapon_loader;
+    std::atomic<int> weapon_load_state{0}; ///< 0 none, 1 reading, 2 read
     std::unique_ptr<Files> files;
     std::unique_ptr<Gpu> gpu;
     std::thread loader;

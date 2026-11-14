@@ -117,6 +117,8 @@ enum class Id : int {
     TurnZone,        ///< AzaharFrame kiugyro: a slider, 0 to 30 (percent), Direct Aim only
     TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Direct Aim only
     Recoil,          ///< AzaharFrame kiugyro: a switch, while Aiming is not Off
+    WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
+    LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
@@ -334,6 +336,8 @@ struct MenuModel {
     int turn_zone = 10;        ///< percent (0 to 30)
     int turn_speed = 10;       ///< tenths of 1x (2 to 40)
     bool recoil = true;        ///< AzaharFrame kiugyro: vr_light_gun_recoil
+    bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
+    bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
     bool show_controllers = true;
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %

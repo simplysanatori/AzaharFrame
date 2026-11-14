@@ -176,6 +176,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_crash_dialog.h" // AzaharFrame crashreport
 #include "common/frame_crash.h"          // AzaharFrame crashreport
 #include "core/frame_crash_report.h"     // AzaharFrame crashreport
+#include "core/frame_weapon_models.h"    // AzaharFrame kiuguns
 #include "core/cheats/online.h"         // AzaharFrame compat: the game's version
 #include "core/loader/smdh.h"           // AzaharFrame compat: its region
 #include "core/mods/compat.h"           // AzaharFrame compat
@@ -191,6 +192,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "frame_xr/menu/tab_menu.h" // AzaharFrame autosave: Load State's card
 #include "frame_xr/auto_shape.h"       // AzaharFrame fixes7
 #include "frame_xr/controls_presets.h" // AzaharFrame reticle
+#include "frame_xr/kiu_scan.h"          // AzaharFrame kiuguns: IsKidIcarus
 #include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
@@ -510,6 +512,8 @@ struct FrameKeepControls {
           turn_zone{Settings::values.vr_light_gun_turn_zone},
           turn_speed{Settings::values.vr_light_gun_turn_speed},
           recoil{Settings::values.vr_light_gun_recoil},
+          weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
+          laser{Settings::values.vr_light_gun_laser},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -525,6 +529,8 @@ struct FrameKeepControls {
         turn_zone.Restore();
         turn_speed.Restore();
         recoil.Restore();
+        weapon.Restore();
+        laser.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -540,6 +546,8 @@ struct FrameKeepControls {
     FrameKeepSetting<u32, true> turn_zone;
     FrameKeepSetting<float, true> turn_speed;
     FrameKeepSetting<bool, false> recoil;
+    FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
+    FrameKeepSetting<bool, false> laser;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -3641,6 +3649,19 @@ void GMainWindow::BootGame(const QString& filename) {
         secondary_window->ReleaseRenderTarget();
         return;
     }
+#ifdef ENABLE_FRAME_XR // AzaharFrame kiuguns: Kid Icarus: Uprising's weapons for the hand
+    // (core/frame_weapon_models.h): the game's own RomFS as the game reads it (LayeredFS mods
+    // too), handed to a thread of its own; nothing here waits for it.
+    if (Loader::ResultStatus::Success == res && !is_artic && FrameXr::Kiu::IsKidIcarus(title_id)) {
+        std::shared_ptr<FileSys::RomFSReader> romfs;
+        if (system.GetAppLoader().ReadRomFS(romfs) == Loader::ResultStatus::Success && romfs) {
+            // Made now when Weapon in Hand is on, else the first time it is turned on.
+            FrameWeapons::OnGameBoot(title_id, std::move(romfs),
+                                     Settings::values.vr_light_gun_weapon.GetValue(),
+                                     Settings::values.custom_textures.GetValue());
+        }
+    }
+#endif
 
     // Set everything up
     if (movie_record_on_start) {
@@ -3825,6 +3846,9 @@ void GMainWindow::ShutdownGame() {
 #endif
 
     emu_thread->RequestStop();
+#ifdef ENABLE_FRAME_XR
+    FrameWeapons::OnGameStop(); // AzaharFrame kiuguns: a run stops between two weapons
+#endif
 #ifdef ENABLE_FRAME_XR // AzaharFrame kbd: the emulation thread may wait for the VR keyboard
     FrameXr::CancelGameKeyboard();
 #endif
@@ -5486,6 +5510,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::Recoil:
         set(v.vr_light_gun_recoil, r.value != 0);
+        break;
+    case S::WeaponInHand: // AzaharFrame kiuguns
+        set(v.vr_light_gun_weapon, r.value != 0);
+        FrameWeapons::Request(); // the models are made the first time they are wanted
+        break;
+    case S::LaserSight: // AzaharFrame kiuguns
+        set(v.vr_light_gun_laser, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

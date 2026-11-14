@@ -9,14 +9,19 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
+#include <map>
 #include <stdexcept>
 #include <string>
 
 #include "common/file_util.h"
+#include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "common/logging/log.h"
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/model_shaders.h"
+#include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
+#include "core/frame_weapon_models.h" // AzaharFrame kiuguns
 #include "frame_xr/xr_loader.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 
@@ -74,6 +79,31 @@ Mat InverseRigid(const Mat& m) {
     }
     for (int i = 0; i < 3; i++) {
         r[12 + i] = -(r[i] * m[12] + r[4 + i] * m[13] + r[8 + i] * m[14]);
+    }
+    r[15] = 1.0f;
+    return r;
+}
+
+// AzaharFrame kiuguns: the inverse of an affine transform (a weapon's has a scale, maybe a mirror).
+Mat InverseAffine(const Mat& m) {
+    const double a = m[0], b = m[4], c = m[8], d = m[1], e = m[5], f = m[9], g = m[2], h = m[6],
+                 i = m[10];
+    const double det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    if (std::fabs(det) < 1e-12) {
+        return InverseRigid(m);
+    }
+    // Row major inverse of the 3x3 [a b c; d e f; g h i].
+    const double inv[9] = {(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det,
+                           (f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det,
+                           (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det};
+    Mat r{};
+    for (int row = 0; row < 3; row++) {
+        double t = 0.0;
+        for (int col = 0; col < 3; col++) {
+            r[col * 4 + row] = static_cast<float>(inv[row * 3 + col]);
+            t -= inv[row * 3 + col] * m[12 + col];
+        }
+        r[12 + row] = static_cast<float>(t);
     }
     r[15] = 1.0f;
     return r;
@@ -169,6 +199,7 @@ struct ControllerModels::Gpu {
     vk::PipelineLayout pipeline_layout;
     vk::RenderPass render_pass;
     vk::Pipeline pipeline;
+    vk::Pipeline pipeline_add; ///< AzaharFrame kiuguns: glows: added, no depth written
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     vk::ImageView msaa_view, depth_view;
     std::vector<vk::ImageView> swap_views;
@@ -219,7 +250,8 @@ struct ControllerModels::Gpu {
         return b;
     }
 
-    vk::Image Image(const vk::ImageCreateInfo& info, bool lazy) {
+    vk::Image Image(const vk::ImageCreateInfo& info, bool lazy,
+                    std::vector<std::pair<vk::Image, vk::DeviceMemory>>* list = nullptr) {
         const vk::Image image = device.createImage(info);
         const auto req = device.getImageMemoryRequirements(image);
         const auto local = vk::MemoryPropertyFlagBits::eDeviceLocal;
@@ -230,21 +262,161 @@ struct ControllerModels::Gpu {
         const vk::DeviceMemory m =
             device.allocateMemory({.allocationSize = req.size, .memoryTypeIndex = type});
         device.bindImageMemory(image, m, 0);
-        owned_images.emplace_back(image, m);
+        (list ? *list : owned_images).emplace_back(image, m);
         return image;
     }
 
     vk::ImageView View(vk::Image image, vk::Format format, vk::ImageAspectFlags aspect,
-                       uint32_t levels) {
+                       uint32_t levels, std::vector<vk::ImageView>* list = nullptr) {
         const vk::ImageView v = device.createImageView({
             .image = image,
             .viewType = vk::ImageViewType::e2D,
             .format = format,
             .subresourceRange = {aspect, 0, levels, 0, 1},
         });
-        views.push_back(v);
+        (list ? *list : views).push_back(v);
         return v;
     }
+
+    /// A texture from `pixels` (RGBA8) put in the staging buffer at `offset`: its mip chain made
+    /// by blits where the format allows, ready to sample when `u` has run.
+    vk::ImageView UploadImage(vk::CommandBuffer u, vk::DeviceSize offset, uint32_t width,
+                              uint32_t height, vk::Format tf,
+                              std::vector<std::pair<vk::Image, vk::DeviceMemory>>* images,
+                              std::vector<vk::ImageView>* view_list) {
+        const vk::FormatFeatureFlags blit = vk::FormatFeatureFlagBits::eBlitSrc |
+                                            vk::FormatFeatureFlagBits::eBlitDst |
+                                            vk::FormatFeatureFlagBits::eSampledImageFilterLinear;
+        uint32_t levels = 1;
+        if ((physical.getFormatProperties(tf).optimalTilingFeatures & blit) == blit) {
+            levels = static_cast<uint32_t>(
+                         std::floor(std::log2(static_cast<float>(std::max(width, height))))) +
+                     1;
+        }
+        const vk::Image image = Image(
+            {.imageType = vk::ImageType::e2D,
+             .format = tf,
+             .extent = {width, height, 1},
+             .mipLevels = levels,
+             .arrayLayers = 1,
+             .samples = vk::SampleCountFlagBits::e1,
+             .tiling = vk::ImageTiling::eOptimal,
+             .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+                      vk::ImageUsageFlagBits::eTransferSrc},
+            false, images);
+        const auto barrier = [&](uint32_t level, uint32_t n, vk::ImageLayout from,
+                                 vk::ImageLayout to, vk::AccessFlags src, vk::AccessFlags dst,
+                                 vk::PipelineStageFlags src_stage,
+                                 vk::PipelineStageFlags dst_stage) {
+            const vk::ImageMemoryBarrier b{
+                .srcAccessMask = src,
+                .dstAccessMask = dst,
+                .oldLayout = from,
+                .newLayout = to,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = {vk::ImageAspectFlagBits::eColor, level, n, 0, 1},
+            };
+            u.pipelineBarrier(src_stage, dst_stage, {}, {}, {}, b);
+        };
+        const auto transfer = vk::PipelineStageFlagBits::eTransfer;
+        barrier(0, levels, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, {},
+                vk::AccessFlagBits::eTransferWrite, vk::PipelineStageFlagBits::eTopOfPipe,
+                transfer);
+        u.copyBufferToImage(staging_for_upload, image, vk::ImageLayout::eTransferDstOptimal,
+                            vk::BufferImageCopy{offset, 0, 0,
+                                                {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+                                                {0, 0, 0}, {width, height, 1}});
+        int32_t w = static_cast<int32_t>(width), hgt = static_cast<int32_t>(height);
+        for (uint32_t level = 1; level < levels; level++) {
+            barrier(level - 1, 1, vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eTransferWrite,
+                    vk::AccessFlagBits::eTransferRead, transfer, transfer);
+            const int32_t nw = std::max(1, w / 2), nh = std::max(1, hgt / 2);
+            const vk::ImageBlit region{
+                .srcSubresource = {vk::ImageAspectFlagBits::eColor, level - 1, 0, 1},
+                .srcOffsets = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{w, hgt, 1}}},
+                .dstSubresource = {vk::ImageAspectFlagBits::eColor, level, 0, 1},
+                .dstOffsets = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{nw, nh, 1}}},
+            };
+            u.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, image,
+                        vk::ImageLayout::eTransferDstOptimal, region, vk::Filter::eLinear);
+            w = nw;
+            hgt = nh;
+        }
+        const auto shader = vk::PipelineStageFlagBits::eFragmentShader;
+        if (levels > 1) {
+            barrier(0, levels - 1, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eTransferRead,
+                    vk::AccessFlagBits::eShaderRead, transfer, shader);
+        }
+        barrier(levels - 1, 1, vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eTransferWrite,
+                vk::AccessFlagBits::eShaderRead, transfer, shader);
+        return View(image, tf, vk::ImageAspectFlagBits::eColor, levels, view_list);
+    }
+    vk::Buffer staging_for_upload; ///< UploadImage's source
+
+    // ---- AzaharFrame kiuguns: the weapon in hand ----
+    struct WeaponPart {
+        vk::Buffer vertices, indices;
+        vk::DescriptorSet set;
+        std::vector<ModelComponent> components;
+        bool glow = false;
+    };
+    struct Weapon {
+        int id = -1;
+        uint32_t generation = 0;
+        FrameWeapons::Weapon info;
+        std::vector<WeaponPart> parts;
+        std::vector<std::pair<vk::Buffer, vk::DeviceMemory>> buffers;
+        std::vector<std::pair<vk::Image, vk::DeviceMemory>> images;
+        std::vector<vk::ImageView> views;
+        std::vector<vk::DescriptorSet> sets;
+        uint32_t triangles = 0;
+        uint64_t gpu_bytes = 0; ///< buffers and images (the mip chains' too)
+        int pack_textures = 0;
+    };
+    std::unique_ptr<Weapon> weapon_live, weapon_uploading;
+    std::vector<std::unique_ptr<Weapon>> weapon_retired;
+    vk::DescriptorPool weapon_pool;
+    vk::CommandBuffer weapon_cmd;
+    vk::Fence weapon_fence;
+    vk::Buffer weapon_staging;
+    vk::DeviceMemory weapon_staging_memory;
+    std::map<uint32_t, vk::Sampler> weapon_samplers; ///< by wrap modes (u | v << 4)
+    int weapon_failed_id = -1;
+    uint32_t weapon_failed_generation = 0;
+    std::string weapon_fit_logged;
+
+    void FreeWeapon(Weapon& w) {
+        if (!w.sets.empty()) {
+            device.freeDescriptorSets(weapon_pool, w.sets);
+        }
+        for (auto v : w.views) {
+            device.destroyImageView(v);
+        }
+        for (auto& [image, memory] : w.images) {
+            device.destroyImage(image);
+            device.freeMemory(memory);
+        }
+        for (auto& [buffer, memory] : w.buffers) {
+            device.destroyBuffer(buffer);
+            device.freeMemory(memory);
+        }
+        w = {};
+    }
+};
+
+struct ControllerModels::WeaponLoad { // AzaharFrame kiuguns
+    int id = -1;
+    uint32_t generation = 0;
+    bool ok = false;
+    std::string error;
+    FrameWeapons::Weapon info;
+    std::vector<ModelFile> files;
+    int pack_textures = 0; ///< colour images taken from the texture pack
 };
 
 ControllerModels::ControllerModels() = default;
@@ -253,6 +425,9 @@ ControllerModels::~ControllerModels() {
     DestroyXr();
     if (loader.joinable()) {
         loader.join();
+    }
+    if (weapon_loader.joinable()) { // AzaharFrame kiuguns
+        weapon_loader.join();
     }
 }
 
@@ -275,6 +450,31 @@ void ControllerModels::DestroyXr() {
         }
         if (g.state == 1) {
             static_cast<void>(g.device.waitForFences(g.upload_fence, true, 1'000'000'000));
+        }
+        // AzaharFrame kiuguns: the weapon in hand (an upload under way finishes first).
+        if (g.weapon_uploading) {
+            static_cast<void>(g.device.waitForFences(g.weapon_fence, true, 1'000'000'000));
+        }
+        for (auto* w : {g.weapon_live.get(), g.weapon_uploading.get()}) {
+            if (w) {
+                g.FreeWeapon(*w);
+            }
+        }
+        for (auto& w : g.weapon_retired) {
+            g.FreeWeapon(*w);
+        }
+        if (g.weapon_staging) {
+            g.device.destroyBuffer(g.weapon_staging);
+            g.device.freeMemory(g.weapon_staging_memory);
+        }
+        for (auto& [key, sampler] : g.weapon_samplers) {
+            g.device.destroySampler(sampler);
+        }
+        if (g.weapon_pool) {
+            g.device.destroyDescriptorPool(g.weapon_pool);
+        }
+        if (g.weapon_fence) {
+            g.device.destroyFence(g.weapon_fence);
         }
         for (auto fb : g.framebuffers) {
             g.device.destroyFramebuffer(fb);
@@ -299,6 +499,9 @@ void ControllerModels::DestroyXr() {
         }
         if (g.pipeline) {
             g.device.destroyPipeline(g.pipeline);
+        }
+        if (g.pipeline_add) {
+            g.device.destroyPipeline(g.pipeline_add);
         }
         if (g.pipeline_layout) {
             g.device.destroyPipelineLayout(g.pipeline_layout);
@@ -350,6 +553,7 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 
 void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands) {
     layer_ready = false;
+    muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
     const bool any = hands[0].shown || hands[1].shown;
 
     // ---- The files, once a run, on a thread ----
@@ -434,6 +638,24 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             g.shown_views = g.drawn_views;
             g.shown_fresh = true;
         }
+    }
+    // AzaharFrame kiuguns: the weapon in hand; a weapon swapped out is freed once no image
+    // drawn with it is in flight.
+    if (!g.in_flight && !g.weapon_retired.empty()) {
+        for (auto& w : g.weapon_retired) {
+            g.FreeWeapon(*w);
+        }
+        g.weapon_retired.clear();
+    }
+    {
+        int weapon = -1;
+        for (const Hand& hand : hands) {
+            if (hand.shown && hand.weapon >= 0) {
+                weapon = hand.weapon;
+            }
+        }
+        UpdateWeapon(weapon);
+        FitWeapon(views, hands);
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
@@ -745,12 +967,47 @@ void ControllerModels::Setup(Runtime& rt) {
                                                               .renderPass = g.render_pass,
                                                               .subpass = 0,
                                                           });
+    // AzaharFrame kiuguns: the same with the colour added and no depth written (weapon glows).
+    const vk::PipelineColorBlendAttachmentState add_att{
+        .blendEnable = true,
+        .srcColorBlendFactor = vk::BlendFactor::eOne,
+        .dstColorBlendFactor = vk::BlendFactor::eOne,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eZero,
+        .dstAlphaBlendFactor = vk::BlendFactor::eOne,
+        .alphaBlendOp = vk::BlendOp::eAdd,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    };
+    const vk::PipelineColorBlendStateCreateInfo add_blend{.attachmentCount = 1,
+                                                          .pAttachments = &add_att};
+    const vk::PipelineDepthStencilStateCreateInfo add_depth{
+        .depthTestEnable = true,
+        .depthWriteEnable = false,
+        .depthCompareOp = vk::CompareOp::eLessOrEqual,
+    };
+    const auto made_add = g.device.createGraphicsPipeline({}, {
+                                                                  .stageCount = 2,
+                                                                  .pStages = shader_stages.data(),
+                                                                  .pVertexInputState = &vertex_input,
+                                                                  .pInputAssemblyState = &assembly,
+                                                                  .pViewportState = &viewport,
+                                                                  .pRasterizationState = &raster,
+                                                                  .pMultisampleState = &multisample,
+                                                                  .pDepthStencilState = &add_depth,
+                                                                  .pColorBlendState = &add_blend,
+                                                                  .pDynamicState = &dynamic,
+                                                                  .layout = g.pipeline_layout,
+                                                                  .renderPass = g.render_pass,
+                                                                  .subpass = 0,
+                                                              });
     g.device.destroyShaderModule(vert);
     g.device.destroyShaderModule(frag);
-    if (made.result != vk::Result::eSuccess) {
+    if (made.result != vk::Result::eSuccess || made_add.result != vk::Result::eSuccess) {
         throw std::runtime_error("pipeline");
     }
     g.pipeline = made.value;
+    g.pipeline_add = made_add.value;
 
     g.sampler = g.device.createSampler({
         .magFilter = vk::Filter::eLinear,
@@ -773,6 +1030,17 @@ void ControllerModels::Setup(Runtime& rt) {
     g.upload_cmd = cmds[1];
     g.fence = g.device.createFence({});
     g.upload_fence = g.device.createFence({});
+    // AzaharFrame kiuguns: the weapon in hand: its own sets (freed one weapon at a time), command
+    // buffer and fence.
+    const vk::DescriptorPoolSize weapon_size{vk::DescriptorType::eCombinedImageSampler, 64};
+    g.weapon_pool = g.device.createDescriptorPool(
+        {.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+         .maxSets = 32,
+         .poolSizeCount = 1,
+         .pPoolSizes = &weapon_size});
+    g.weapon_cmd = g.device.allocateCommandBuffers(
+        {.commandPool = g.pool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1})[0];
+    g.weapon_fence = g.device.createFence({});
 
     // ---- The meshes and textures: one staging buffer, one submit, a fence polled later ----
     vk::DeviceSize total = 0;
@@ -793,9 +1061,7 @@ void ControllerModels::Setup(Runtime& rt) {
     };
     vk::CommandBuffer& u = g.upload_cmd;
     u.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-    const vk::FormatFeatureFlags blit = vk::FormatFeatureFlagBits::eBlitSrc |
-                                        vk::FormatFeatureFlagBits::eBlitDst |
-                                        vk::FormatFeatureFlagBits::eSampledImageFilterLinear;
+    g.staging_for_upload = g.staging;
     std::vector<vk::DescriptorSetLayout> layouts(2, g.set_layout);
     const auto sets = g.device.allocateDescriptorSets(
         {.descriptorPool = g.descriptor_pool, .descriptorSetCount = 2, .pSetLayouts = layouts.data()});
@@ -819,76 +1085,9 @@ void ControllerModels::Setup(Runtime& rt) {
         for (int t = 0; t < 2; t++) {
             const vk::Format tf = t == 0 ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
             const auto& pixels = t == 0 ? m.colour : m.surface;
-            uint32_t levels = 1;
-            if ((g.physical.getFormatProperties(tf).optimalTilingFeatures & blit) == blit) {
-                levels = static_cast<uint32_t>(std::floor(
-                             std::log2(static_cast<float>(std::max(m.tex_width, m.tex_height))))) +
-                         1;
-            }
-            const vk::Image image = g.Image(
-                {.imageType = vk::ImageType::e2D,
-                 .format = tf,
-                 .extent = {m.tex_width, m.tex_height, 1},
-                 .mipLevels = levels,
-                 .arrayLayers = 1,
-                 .samples = vk::SampleCountFlagBits::e1,
-                 .tiling = vk::ImageTiling::eOptimal,
-                 .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
-                          vk::ImageUsageFlagBits::eTransferSrc},
-                false);
             const auto toff = put(pixels.data(), pixels.size());
-            const auto barrier = [&](uint32_t level, uint32_t n, vk::ImageLayout from,
-                                     vk::ImageLayout to, vk::AccessFlags src, vk::AccessFlags dst,
-                                     vk::PipelineStageFlags src_stage,
-                                     vk::PipelineStageFlags dst_stage) {
-                const vk::ImageMemoryBarrier b{
-                    .srcAccessMask = src,
-                    .dstAccessMask = dst,
-                    .oldLayout = from,
-                    .newLayout = to,
-                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .image = image,
-                    .subresourceRange = {vk::ImageAspectFlagBits::eColor, level, n, 0, 1},
-                };
-                u.pipelineBarrier(src_stage, dst_stage, {}, {}, {}, b);
-            };
-            const auto transfer = vk::PipelineStageFlagBits::eTransfer;
-            barrier(0, levels, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, {},
-                    vk::AccessFlagBits::eTransferWrite, vk::PipelineStageFlagBits::eTopOfPipe,
-                    transfer);
-            u.copyBufferToImage(
-                g.staging, image, vk::ImageLayout::eTransferDstOptimal,
-                vk::BufferImageCopy{toff, 0, 0, {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
-                                    {0, 0, 0}, {m.tex_width, m.tex_height, 1}});
-            int32_t w = static_cast<int32_t>(m.tex_width), hgt = static_cast<int32_t>(m.tex_height);
-            for (uint32_t level = 1; level < levels; level++) {
-                barrier(level - 1, 1, vk::ImageLayout::eTransferDstOptimal,
-                        vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eTransferWrite,
-                        vk::AccessFlagBits::eTransferRead, transfer, transfer);
-                const int32_t nw = std::max(1, w / 2), nh = std::max(1, hgt / 2);
-                const vk::ImageBlit region{
-                    .srcSubresource = {vk::ImageAspectFlagBits::eColor, level - 1, 0, 1},
-                    .srcOffsets = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{w, hgt, 1}}},
-                    .dstSubresource = {vk::ImageAspectFlagBits::eColor, level, 0, 1},
-                    .dstOffsets = {{vk::Offset3D{0, 0, 0}, vk::Offset3D{nw, nh, 1}}},
-                };
-                u.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, image,
-                            vk::ImageLayout::eTransferDstOptimal, region, vk::Filter::eLinear);
-                w = nw;
-                hgt = nh;
-            }
-            const auto shader = vk::PipelineStageFlagBits::eFragmentShader;
-            if (levels > 1) {
-                barrier(0, levels - 1, vk::ImageLayout::eTransferSrcOptimal,
-                        vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eTransferRead,
-                        vk::AccessFlagBits::eShaderRead, transfer, shader);
-            }
-            barrier(levels - 1, 1, vk::ImageLayout::eTransferDstOptimal,
-                    vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eTransferWrite,
-                    vk::AccessFlagBits::eShaderRead, transfer, shader);
             (t == 0 ? hg.colour : hg.surface) =
-                g.View(image, tf, vk::ImageAspectFlagBits::eColor, levels);
+                g.UploadImage(u, toff, m.tex_width, m.tex_height, tf, nullptr, nullptr);
         }
         hg.set = sets[static_cast<std::size_t>(h)];
         const std::array<vk::DescriptorImageInfo, 2> infos{{
@@ -928,6 +1127,189 @@ void ControllerModels::Setup(Runtime& rt) {
              g.eye_w, g.eye_h, static_cast<int>(g.samples), total >> 20);
 }
 
+namespace {
+
+// AzaharFrame kiuguns: a weapon's parts at the aim pose times each fit (weapon_fit.h).
+template <typename GpuT, typename WeaponT, typename HandT>
+void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
+                  const XrVector3f& eye_pos, const Mat& head, const HandT& hand, bool left,
+                  const std::vector<FitPart>& fits, float clip_x, const FitMat* forearm_turn) {
+    (void)left;
+    const XrPosef aim = ToXr(hand.aim);
+    const Mat aim_m = FromPose(aim.orientation, aim.position);
+    // The glow and effect parts (WpnEfe ...) are cards the game blends and animates; drawn plain
+    // they float about, so only with AZAHARFRAME_KIU_WEAPON_GLOW=1 (live).
+    // A palm's flames are its look: kept (still: FitMotion).
+    const bool glow =
+        w.info.cls == FrameWeapons::kPalm ||
+        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_WEAPON_GLOW").value_or("0") == "1";
+    const double now_s =
+        std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    for (const FitPart& fit : fits) {
+      for (const bool glow_pass : {false, true}) {
+        if (glow_pass && !glow) {
+            continue;
+        }
+        c.bindPipeline(vk::PipelineBindPoint::eGraphics, glow_pass ? g.pipeline_add : g.pipeline);
+        Mat fit_m{};
+        std::copy(fit.transform.begin(), fit.transform.end(), fit_m.begin());
+        // The orbitars' and detached parts' float (weapon_fit.h FitMotion), across the ray.
+        const auto motion = FitMotion(w.info.cls, fit.side, glow_pass, std::fmod(now_s, 3600.0));
+        for (int k = 0; k < 3; k++) {
+            fit_m[static_cast<std::size_t>(12 + k)] += motion[static_cast<std::size_t>(k)];
+        }
+        // A palm in elbow mode: the hand (cut at the wrist), then the forearm turned toward the
+        // elbow (from the wrist up to the cut); else one draw.
+        for (int pass = 0; pass < (forearm_turn ? 2 : 1); pass++) {
+        Mat model = Multiply(aim_m, fit_m);
+        float cut = clip_x;
+        float w_flags = fit.mirrored ? 1.0f : 0.0f;
+        if (glow_pass) {
+            w_flags += 4.0f; // added, unlit
+        }
+        if (forearm_turn && pass == 0) {
+            cut = 1e-5f; // the hand: nothing past the wrist
+        } else if (forearm_turn) {
+            Mat turn{};
+            std::copy(forearm_turn->begin(), forearm_turn->end(), turn.begin());
+            model = Multiply(turn, model);
+            w_flags += 2.0f; // the forearm: nothing before the wrist
+        }
+        const Mat to_model = InverseAffine(model);
+        PushConstants pc{};
+        const auto eye = Apply(to_model, eye_pos.x, eye_pos.y, eye_pos.z, 1.0f);
+        pc.eye = {eye[0], eye[1], eye[2], cut};
+        const auto back = Apply(head, 0.0f, 0.0f, 1.0f, 0.0f);
+        const auto key = Apply(to_model, back[0] * 0.6f, 1.0f + back[1] * 0.6f, back[2] * 0.6f, 0.0f);
+        pc.key = {key[0], key[1], key[2], 0.0f};
+        const auto up = Apply(to_model, 0.0f, 1.0f, 0.0f, 0.0f);
+        pc.up = {up[0], up[1], up[2], 0.0f};
+        pc.params = {0.0f, 1.0f, std::clamp(hand.fade, 0.0f, 1.0f), w_flags};
+        pc.mvp = Multiply(view_proj, model);
+        const char* side = fit.side == FitSide::Right  ? "R"
+                           : fit.side == FitSide::Left ? "L"
+                                                       : "C";
+        for (const auto& part : w.parts) {
+            if (part.glow != glow_pass) {
+                continue;
+            }
+            bool bound = false;
+            for (const ModelComponent& comp : part.components) {
+                if (comp.name != side || comp.index_count == 0) {
+                    continue;
+                }
+                if (!bound) {
+                    c.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, g.pipeline_layout, 0,
+                                         part.set, {});
+                    c.bindVertexBuffers(0, part.vertices, vk::DeviceSize{0});
+                    c.bindIndexBuffer(part.indices, 0, vk::IndexType::eUint32);
+                    c.pushConstants(g.pipeline_layout,
+                                    vk::ShaderStageFlagBits::eVertex |
+                                        vk::ShaderStageFlagBits::eFragment,
+                                    0, sizeof(pc), &pc);
+                    bound = true;
+                }
+                c.drawIndexed(comp.index_count, 1, comp.first_index, 0, 0);
+            }
+        }
+        }
+      }
+    }
+    c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline); // for what is drawn next
+}
+
+} // namespace
+
+void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands) { // AzaharFrame kiuguns
+    // The weapon's fit, with the class's live tune (test switches), and its muzzle.
+    weapon_fits.clear();
+    muzzle_hand = -1;
+    muzzle.reset();
+    weapon_clip = 0.0f;
+    palm_elbow = false;
+    if (!gpu) {
+        return;
+    }
+    Gpu& g = *gpu;
+    for (int h = 0; h < 2; h++) {
+        const Hand& hand = hands[static_cast<std::size_t>(h)];
+        if (hand.shown && hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon) {
+            const FrameWeapons::Weapon& info = g.weapon_live->info;
+            const std::string name = FitSwitchName(info.cls);
+            const auto value = Common::FrameTestSwitches::Value(name);
+            const FitOverride tune = ParseFitOverride(value);
+            std::vector<FitSide> sides;
+            for (const auto& part : g.weapon_live->parts) {
+                for (const auto& comp : part.components) {
+                    const FitSide side = comp.name == "R"   ? FitSide::Right
+                                         : comp.name == "L" ? FitSide::Left
+                                                            : FitSide::Centre;
+                    if (std::find(sides.begin(), sides.end(), side) == sides.end()) {
+                        sides.push_back(side);
+                    }
+                }
+            }
+            const bool left = h == Input::HandIndex(Input::Hand::Left);
+            weapon_fits = FitWeaponToHand({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            muzzle_hand = h;
+            muzzle = FitMuzzle({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
+            const PalmMode mode =
+                PalmModeFrom(Common::FrameTestSwitches::Value(kPalmModeSwitch));
+            weapon_clip = FitClipX(info.cls, tune, forearm, mode);
+            palm_elbow = info.cls == FrameWeapons::kPalm && mode == PalmMode::Elbow &&
+                         weapon_fits.size() == 1 && views.valid;
+            if (palm_elbow) {
+                // The wrist where the fit puts it, the forearm turned from where it points to
+                // the estimated elbow (smoothed), about the wrist.
+                const XrPosef aim = ToXr(hand.aim);
+                Mat fit_m{};
+                std::copy(weapon_fits[0].transform.begin(), weapon_fits[0].transform.end(),
+                          fit_m.begin());
+                const Mat world = Multiply(FromPose(aim.orientation, aim.position), fit_m);
+                const auto wrist = Apply(world, 0.0f, 0.0f, 0.0f, 1.0f);
+                const auto along = Apply(world, 1.0f, 0.0f, 0.0f, 0.0f);
+                const Mat head = FromPose(views.head.orientation, views.head.position);
+                const auto fwd = Apply(head, 0.0f, 0.0f, -1.0f, 0.0f);
+                const std::array<float, 3> w3{wrist[0], wrist[1], wrist[2]};
+                const auto elbow = EstimateElbow(
+                    {views.head.position.x, views.head.position.y, views.head.position.z},
+                    {fwd[0], fwd[1], fwd[2]}, left, w3);
+                const std::array<float, 3> target{elbow[0] - w3[0], elbow[1] - w3[1],
+                                                  elbow[2] - w3[2]};
+                const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count();
+                const float dt = palm_time_ns ? static_cast<float>(now - palm_time_ns) * 1e-9f : -1.0f;
+                palm_time_ns = now;
+                palm_dir = SmoothDirection(palm_dir, target, dt);
+                palm_turn = RotationBetween(w3, {along[0], along[1], along[2]}, palm_dir);
+            } else {
+                palm_time_ns = 0;
+                palm_dir = {};
+            }
+            const std::string logged =
+                fmt::format("{} {} {} {} {} {}", info.id, left ? "left" : "right", name,
+                            value.value_or("default"), forearm.value_or("default"),
+                            palm_elbow ? "elbow" : "wrist");
+            if (logged != g.weapon_fit_logged) {
+                g.weapon_fit_logged = logged;
+                LOG_INFO(Frontend,
+                         "xr: weapon in hand: {} (a {}) in the {} hand, fit {} (scale {:.3f} m "
+                         "per unit){}",
+                         info.id, FrameWeapons::ClassName(info.cls), left ? "left" : "right",
+                         value ? name + "=" + *value : std::string{"default"},
+                         FitClassScale(info.cls) * tune.scale,
+                         weapon_clip > 0.0f
+                             ? fmt::format(", forearm cut {:.0f} cm from the wrist{}",
+                                           weapon_clip * FitClassScale(info.cls) * tune.scale * 100.0f,
+                                           palm_elbow ? ", turned toward the elbow" : "")
+                             : std::string{});
+            }
+        }
+    }
+}
+
 void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands) {
     Gpu& g = *gpu;
     const Files& f = *files;
@@ -958,6 +1340,14 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             if (!hand.shown) {
                 continue;
             }
+            // AzaharFrame kiuguns: the weapon in hand in place of the controller, once it is on
+            // the GPU.
+            if (hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon) {
+                RecordWeapon(c, g, *g.weapon_live, view_proj, views.eye[e].position, head, hand,
+                             h == Input::HandIndex(Input::Hand::Left), weapon_fits, weapon_clip,
+                             palm_elbow ? &palm_turn : nullptr);
+                continue;
+            }
             const ModelFile& m = f.hand[static_cast<std::size_t>(h)];
             const Gpu::HandGpu& hg = g.hands[static_cast<std::size_t>(h)];
             const XrPosef aim = ToXr(hand.aim);
@@ -966,7 +1356,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             PushConstants pc{};
             const auto eye = Apply(to_model, views.eye[e].position.x, views.eye[e].position.y,
                                    views.eye[e].position.z, 1.0f);
-            pc.eye = {eye[0], eye[1], eye[2], 1.0f};
+            pc.eye = {eye[0], eye[1], eye[2], 0.0f}; // AzaharFrame kiuguns: w: no clip
             // The key light from above and behind the head (world), then into model space.
             const auto back = Apply(head, 0.0f, 0.0f, 1.0f, 0.0f);
             const float kx = back[0] * 0.6f, ky = 1.0f + back[1] * 0.6f, kz = back[2] * 0.6f;
@@ -990,6 +1380,249 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
     }
     c.endRenderPass();
     c.end();
+}
+
+// ---- AzaharFrame kiuguns: the weapon in hand ----
+
+void ControllerModels::UpdateWeapon(int id) {
+    Gpu& g = *gpu;
+    // An upload done: it goes live; the one before is freed once no image uses it.
+    if (g.weapon_uploading && g.device.getFenceStatus(g.weapon_fence) == vk::Result::eSuccess) {
+        g.device.resetFences(g.weapon_fence);
+        g.device.destroyBuffer(g.weapon_staging);
+        g.device.freeMemory(g.weapon_staging_memory);
+        g.weapon_staging = nullptr;
+        g.weapon_staging_memory = nullptr;
+        if (g.weapon_live) {
+            g.weapon_retired.push_back(std::move(g.weapon_live));
+        }
+        g.weapon_live = std::move(g.weapon_uploading);
+        LOG_INFO(Frontend,
+                 "xr: weapon in hand: {} (a {}), {} parts, {} triangles, {} KB on the GPU{}",
+                 g.weapon_live->id, FrameWeapons::ClassName(g.weapon_live->info.cls),
+                 g.weapon_live->parts.size(), g.weapon_live->triangles,
+                 g.weapon_live->gpu_bytes >> 10,
+                 g.weapon_live->pack_textures ? " (textures from the texture pack)" : "");
+    }
+    // A read done: to the GPU (or noted as failed, not tried again until the files change).
+    if (weapon_load_state == 2) {
+        if (weapon_loader.joinable()) {
+            weapon_loader.join();
+        }
+        WeaponLoad& l = *weapon_load;
+        bool ok = l.ok;
+        if (ok && !g.weapon_uploading) {
+            try {
+                UploadWeapon();
+            } catch (const std::exception& e) {
+                l.error = std::string{"the upload failed: "} + e.what();
+                ok = false;
+            }
+        }
+        if (!ok) {
+            g.weapon_failed_id = l.id;
+            g.weapon_failed_generation = l.generation;
+            LOG_WARNING(Frontend, "xr: weapon in hand: {}: {} (the controller is drawn)", l.id,
+                        l.error);
+        }
+        weapon_load.reset();
+        weapon_load_state = 0;
+    }
+    // A read to start: a weapon wanted that is not the one there, once its files are made (only
+    // the weapons asked for are: core/frame_weapon_models.h Request(id)).
+    if (id < 0 || weapon_load_state != 0 || g.weapon_uploading ||
+        (g.weapon_live && g.weapon_live->id == id) || id == g.weapon_failed_id) {
+        return;
+    }
+    const FrameWeapons::State made = FrameWeapons::WeaponState(id);
+    if (made == FrameWeapons::State::None || made == FrameWeapons::State::Working) {
+        FrameWeapons::Request(id);
+        return;
+    }
+    if (made == FrameWeapons::State::Failed) {
+        g.weapon_failed_id = id;
+        LOG_WARNING(Frontend, "xr: weapon in hand: {}: its model could not be made (the "
+                              "controller is drawn)",
+                    id);
+        return;
+    }
+    const uint32_t generation = FrameWeapons::Generation();
+    if (weapon_loader.joinable()) {
+        weapon_loader.join();
+    }
+    weapon_load = std::make_unique<WeaponLoad>();
+    weapon_load->id = id;
+    weapon_load->generation = generation;
+    weapon_load_state = 1;
+    const std::string dir = FrameWeapons::WeaponDir(FrameWeapons::CurrentTitle());
+    weapon_loader = std::thread([this, dir] {
+        WeaponLoad& l = *weapon_load;
+        FrameWeapons::Manifest manifest;
+        std::string error;
+        if (!FrameWeapons::ReadManifest(dir + "weapons.txt", manifest, error)) {
+            l.error = error;
+        } else if (const FrameWeapons::Weapon* w = manifest.Find(l.id)) {
+            l.info = *w;
+            for (const FrameWeapons::Part& part : w->parts) {
+                ModelFile file;
+                std::string why;
+                if (!LoadModelFile(dir + part.file, file, why, kModelFlagWeaponSpace)) {
+                    l.error = part.file + ": " + why;
+                    break;
+                }
+                // A texture pack's replacement, read from the pack itself (never copied).
+                if (!part.replaced.empty() && (file.flags & kModelFlagFlatSurface)) {
+                    std::vector<u8> rgba;
+                    u32 w = 0, h = 0;
+                    if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w, h)) {
+                        file.colour = std::move(rgba);
+                        file.tex_width = w;
+                        file.tex_height = h;
+                        l.pack_textures++;
+                    }
+                }
+                l.files.push_back(std::move(file));
+            }
+            l.ok = l.error.empty() && !l.files.empty();
+        } else {
+            l.error = "not among the weapons made";
+        }
+        weapon_load_state = 2;
+    });
+}
+
+void ControllerModels::UploadWeapon() {
+    Gpu& g = *gpu;
+    WeaponLoad& l = *weapon_load;
+    auto w = std::make_unique<Gpu::Weapon>();
+    w->id = l.id;
+    w->generation = l.generation;
+    w->info = l.info;
+    w->pack_textures = l.pack_textures;
+    vk::DeviceSize total = 0;
+    for (const ModelFile& m : l.files) {
+        total += m.vertices.size() * 4 + m.indices.size() * 4 + m.colour.size() + m.surface.size();
+    }
+    g.weapon_staging = g.Buffer(total, vk::BufferUsageFlagBits::eTransferSrc,
+                                vk::MemoryPropertyFlagBits::eHostVisible |
+                                    vk::MemoryPropertyFlagBits::eHostCoherent,
+                                &g.weapon_staging_memory);
+    auto* map = static_cast<uint8_t*>(g.device.mapMemory(g.weapon_staging_memory, 0, total));
+    vk::DeviceSize at = 0;
+    const auto put = [&](const void* data, std::size_t size) {
+        std::memcpy(map + at, data, size);
+        const vk::DeviceSize offset = at;
+        at += size;
+        return offset;
+    };
+    vk::CommandBuffer& u = g.weapon_cmd;
+    try {
+    u.reset();
+    u.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    g.staging_for_upload = g.weapon_staging;
+    const auto local = vk::MemoryPropertyFlagBits::eDeviceLocal;
+    for (std::size_t i = 0; i < l.files.size(); i++) {
+        const ModelFile& m = l.files[i];
+        Gpu::WeaponPart part;
+        vk::DeviceMemory memory;
+        part.vertices = g.Buffer(m.vertices.size() * 4,
+                                 vk::BufferUsageFlagBits::eVertexBuffer |
+                                     vk::BufferUsageFlagBits::eTransferDst,
+                                 local, &memory);
+        w->buffers.emplace_back(part.vertices, memory);
+        part.indices = g.Buffer(m.indices.size() * 4,
+                                vk::BufferUsageFlagBits::eIndexBuffer |
+                                    vk::BufferUsageFlagBits::eTransferDst,
+                                local, &memory);
+        w->buffers.emplace_back(part.indices, memory);
+        const auto voff = put(m.vertices.data(), m.vertices.size() * 4);
+        const auto ioff = put(m.indices.data(), m.indices.size() * 4);
+        u.copyBuffer(g.weapon_staging, part.vertices, vk::BufferCopy{voff, 0, m.vertices.size() * 4});
+        u.copyBuffer(g.weapon_staging, part.indices, vk::BufferCopy{ioff, 0, m.indices.size() * 4});
+        const vk::ImageView colour =
+            g.UploadImage(u, put(m.colour.data(), m.colour.size()), m.tex_width, m.tex_height,
+                          vk::Format::eR8G8B8A8Srgb, &w->images, &w->views);
+        const vk::ImageView surface =
+            g.UploadImage(u, put(m.surface.data(), m.surface.size()), m.SurfaceWidth(),
+                          m.SurfaceHeight(), vk::Format::eR8G8B8A8Unorm, &w->images, &w->views);
+        // The texture's own wrap modes (77 of the 108 weapons repeat their UVs).
+        const uint32_t key = ModelWrapU(m.flags) | ModelWrapV(m.flags) << 4;
+        vk::Sampler& sampler = g.weapon_samplers[key];
+        if (!sampler) {
+            const auto mode = [](uint32_t pica) {
+                switch (pica) {
+                case 2:
+                    return vk::SamplerAddressMode::eRepeat;
+                case 3:
+                    return vk::SamplerAddressMode::eMirroredRepeat;
+                default:
+                    return vk::SamplerAddressMode::eClampToEdge;
+                }
+            };
+            sampler = g.device.createSampler({
+                .magFilter = vk::Filter::eLinear,
+                .minFilter = vk::Filter::eLinear,
+                .mipmapMode = vk::SamplerMipmapMode::eLinear,
+                .addressModeU = mode(ModelWrapU(m.flags)),
+                .addressModeV = mode(ModelWrapV(m.flags)),
+                .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+                .maxLod = VK_LOD_CLAMP_NONE,
+            });
+        }
+        part.set = g.device.allocateDescriptorSets(
+            {.descriptorPool = g.weapon_pool, .descriptorSetCount = 1, .pSetLayouts = &g.set_layout})[0];
+        w->sets.push_back(part.set);
+        const std::array<vk::DescriptorImageInfo, 2> infos{{
+            {sampler, colour, vk::ImageLayout::eShaderReadOnlyOptimal},
+            {sampler, surface, vk::ImageLayout::eShaderReadOnlyOptimal},
+        }};
+        const std::array<vk::WriteDescriptorSet, 2> writes{{
+            {.dstSet = part.set,
+             .dstBinding = 0,
+             .descriptorCount = 1,
+             .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+             .pImageInfo = &infos[0]},
+            {.dstSet = part.set,
+             .dstBinding = 1,
+             .descriptorCount = 1,
+             .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+             .pImageInfo = &infos[1]},
+        }};
+        g.device.updateDescriptorSets(writes, {});
+        part.components = m.components;
+        part.glow = i < l.info.parts.size() && l.info.parts[i].glow;
+        w->triangles += static_cast<uint32_t>(m.indices.size() / 3);
+        w->gpu_bytes += m.vertices.size() * 4 + m.indices.size() * 4 +
+                        (m.colour.size() + m.surface.size()) * 4 / 3; // with the mips
+        w->parts.push_back(std::move(part));
+    }
+    const vk::MemoryBarrier to_draws{
+        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+        .dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead | vk::AccessFlagBits::eIndexRead,
+    };
+    u.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eVertexInput,
+                      {}, to_draws, {}, {});
+    u.end();
+    g.device.unmapMemory(g.weapon_staging_memory);
+    map = nullptr;
+    const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &u};
+    g.queue_lock->With([&] {
+        g.queue.submit(submit, g.weapon_fence);
+        return 0;
+    });
+    } catch (...) {
+        // Nothing was submitted: what was made goes.
+        g.FreeWeapon(*w);
+        if (map) {
+            g.device.unmapMemory(g.weapon_staging_memory);
+        }
+        g.device.destroyBuffer(g.weapon_staging);
+        g.device.freeMemory(g.weapon_staging_memory);
+        g.weapon_staging = nullptr;
+        g.weapon_staging_memory = nullptr;
+        throw;
+    }
+    g.weapon_uploading = std::move(w);
 }
 
 } // namespace FrameXr::Vis

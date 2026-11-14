@@ -44,6 +44,21 @@ public:
     explicit CustomTexManager(Core::System& system);
     ~CustomTexManager();
 
+    /// AzaharFrame kiuguns: the hash a pack with use_new_hash names a texture level by (the raw
+    /// tiled bytes the game uploads); RasterizerCache::ComputeHash uses it.
+    static u64 NewHash(std::span<const u8> upload_data);
+
+    /// AzaharFrame kiuguns: a game's active pack as FindCustomTextures sees it (the packs and
+    /// parts turned on, pack.json's file map, the first file of a hash winning), its colour
+    /// textures only: hash to file. Reads the folders only (no texture is decoded); any thread.
+    struct PackIndex {
+        bool config = false; ///< a pack.json with options
+        bool use_new_hash = false;
+        bool flip_png_files = true;
+        std::unordered_map<u64, std::string> colour;
+    };
+    static PackIndex IndexPack(Core::System& system, u64 title_id);
+
     /// Processes queued texture uploads
     void TickFrame();
 
@@ -95,6 +110,9 @@ public:
     }
 
 private:
+    /// AzaharFrame kiuguns: for IndexPack (no image interface needed: nothing is decoded)
+    CustomTexManager(Core::System& system, Frontend::ImageInterface& images);
+
     /// Parses the custom texture filename (hash, material type, etc).
     bool ParseFilename(const FileUtil::FSTEntry& file, CustomTexture* texture);
 

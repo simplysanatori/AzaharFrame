@@ -16,6 +16,7 @@
 #include <json.hpp>
 #include "common/test_hooks.h"
 #include "common/file_util.h"
+#include "common/hash.h" // AzaharFrame kiuguns
 #include "common/literals.h"
 #include "common/microprofile.h"
 #include "common/scope_exit.h"      // AzaharFrame
@@ -80,6 +81,39 @@ CustomTexManager::CustomTexManager(Core::System& system_)
       async_custom_loading{Settings::values.async_custom_loading.GetValue()} {}
 
 CustomTexManager::~CustomTexManager() = default;
+
+// AzaharFrame kiuguns
+CustomTexManager::CustomTexManager(Core::System& system_, Frontend::ImageInterface& images)
+    : system{system_}, image_interface{images},
+      async_custom_loading{Settings::values.async_custom_loading.GetValue()} {}
+
+u64 CustomTexManager::NewHash(std::span<const u8> upload_data) {
+    return Common::ComputeHash64<Common::HashAlgo64::CityHash>(upload_data.data(),
+                                                               upload_data.size());
+}
+
+CustomTexManager::PackIndex CustomTexManager::IndexPack(Core::System& system, u64 title_id) {
+    static Frontend::ImageInterface images; // lodepng; never used to decode here
+    CustomTexManager m{system, images};
+    PackIndex out;
+    const auto textures = m.GetTextures(title_id);
+    out.config = m.ReadConfig(title_id);
+    out.use_new_hash = out.config && m.use_new_hash;
+    out.flip_png_files = m.flip_png_files;
+    for (const FileUtil::FSTEntry& file : textures) {
+        if (file.isDirectory) {
+            continue;
+        }
+        CustomTexture texture{images};
+        if (!m.ParseFilename(file, &texture) || texture.type != MapType::Color) {
+            continue;
+        }
+        for (const u64 hash : texture.hashes) {
+            out.colour.try_emplace(hash, file.physicalName);
+        }
+    }
+    return out;
+}
 
 void CustomTexManager::TickFrame() {
     MICROPROFILE_SCOPE(CustomTexManager_TickFrame);

@@ -80,6 +80,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     kiu_probe.h
     kiu_scan.cpp
     kiu_scan.h
+    kiu_weapon.cpp # AzaharFrame kiuguns
+    kiu_weapon.h
     input/screen_rig.cpp
     input/screen_rig.h
     input/screen_view.cpp
@@ -125,6 +127,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/model_file.cpp
     vis/model_file.h
     vis/model_shaders.h
+    vis/weapon_fit.cpp # AzaharFrame kiuguns
+    vis/weapon_fit.h
     vis/panel_art.cpp
     vis/panel_art.h
     vis/panels.cpp

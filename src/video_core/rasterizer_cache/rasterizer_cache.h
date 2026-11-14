@@ -1162,8 +1162,7 @@ u64 RasterizerCache<T>::ComputeHash(const SurfaceParams& load_info, std::span<u8
         DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, decoded, false);
         return Common::ComputeHash64<Common::HashAlgo64::CityHash>(decoded.data(), decoded.size());
     } else {
-        return Common::ComputeHash64<Common::HashAlgo64::CityHash>(upload_data.data(),
-                                                                   upload_data.size());
+        return CustomTexManager::NewHash(upload_data); // AzaharFrame kiuguns: one definition
     }
 }
 

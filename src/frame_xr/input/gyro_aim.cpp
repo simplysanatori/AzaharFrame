@@ -122,6 +122,27 @@ RecoilPulse Recoil::Update(int64_t now_ns, bool fire, bool active) {
     return out;
 }
 
+RecoilPulse ShotRecoil::Update(int64_t now_ns, uint64_t total, bool readable, bool active) {
+    RecoilPulse out;
+    if (!readable || !active || !has_) {
+        has_ = readable; // shots made while inactive (a menu) or before the first read: none
+        last_ = total;
+        if (!active) {
+            last_shot_ns_ = now_ns;
+        }
+        return out;
+    }
+    if (total > last_) {
+        const uint64_t n = total - last_;
+        const bool charged = ever_ && now_ns - last_shot_ns_ >= Recoil::kChargePauseNs;
+        out = {true, charged ? Recoil::kChargedPulseNs : n > 1 ? kBurstPulseNs : Recoil::kPulseNs};
+        last_shot_ns_ = now_ns;
+        ever_ = true;
+    }
+    last_ = total;
+    return out;
+}
+
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     LightGunTarget t;
     if (!hand.active || !top.visible) {

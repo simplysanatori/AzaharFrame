@@ -940,6 +940,13 @@ struct Values {
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
     // steers (frame_xr/input/gyro_aim.h Recoil). Per game too. A new key: older builds ignore it.
     SwitchableSetting<bool> vr_light_gun_recoil{true, "vr_light_gun_recoil"};
+    // AzaharFrame kiuguns: Weapon in Hand: Kid Icarus: Uprising's equipped weapon drawn in place
+    // of the aiming controller while Gyro Aim is on (frame_xr/vis/weapon_fit.h). Per game too. A
+    // new key: older builds ignore it.
+    SwitchableSetting<bool> vr_light_gun_weapon{true, "vr_light_gun_weapon"};
+    // AzaharFrame kiuguns: Laser Sight: with the weapon in hand, Light Gun's red beam and dot over
+    // the top screen (off: no beam there, the game's reticle shows the aim). Per game too.
+    SwitchableSetting<bool> vr_light_gun_laser{false, "vr_light_gun_laser"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

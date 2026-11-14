@@ -140,6 +140,11 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::GyroAim, RowKind::Segmented, AimingIndexOf(m.gyro_aim)));
             if (m.gyro_aim != 0) {
                 rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
+                // AzaharFrame kiuguns
+                rows.push_back(row(Id::WeaponInHand, RowKind::Switch, 0, m.weapon_in_hand));
+                if (m.gyro_aim == 2) { // Direct Aim (stored 2)
+                    rows.push_back(row(Id::LaserSight, RowKind::Switch, 0, m.laser_sight));
+                }
             }
             const auto gyro_slider = [&](Id id, int value) {
                 Row r = row(id, RowKind::Slider);
@@ -309,6 +314,8 @@ bool PerGameSetting(Id id) {
     case Id::TurnZone:
     case Id::TurnSpeed:
     case Id::Recoil:
+    case Id::WeaponInHand: // AzaharFrame kiuguns
+    case Id::LaserSight:
         return true;
     default:
         return false;
@@ -545,6 +552,10 @@ std::string LabelFor(Id id) {
         return "Turn Speed";
     case Id::Recoil:
         return "Recoil";
+    case Id::WeaponInHand: // AzaharFrame kiuguns
+        return "Weapon in Hand";
+    case Id::LaserSight:
+        return "Laser Sight";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::WindowScale:
@@ -773,6 +784,10 @@ std::string ExplainFor(Id id) {
         return "How fast the camera turns in the Turn Zone.";
     case Id::Recoil:
         return "A short buzz in the aiming controller on each shot.";
+    case Id::WeaponInHand: // AzaharFrame kiuguns
+        return "Shows the weapon Pit holds in place of the aiming controller.";
+    case Id::LaserSight:
+        return "A red beam from your weapon to where you aim.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::WindowScale:

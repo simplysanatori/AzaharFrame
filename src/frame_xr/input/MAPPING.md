@@ -125,7 +125,7 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
   ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
   target, the gain and the game frame.
-- **Laser sight:** while Light Gun has the reticle (read from the game, not fallen back to
+- **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): while Light Gun has the reticle (read from the game, not fallen back to
   Gyro) and its ray is on the top screen, the controller's beam is red and ends in a small red
   dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
   loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
@@ -148,6 +148,30 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   constant for a weapon's rate later), and a press after 1.5 s without firing gets a 90 ms pulse
   (a heuristic for the charged shot). Never in menus or with Gyro Aim off. The haptic output is
   suggested with the bindings, and without it if the runtime refuses it (`Actions::Pulse`).
+  AzaharFrame kiuguns: in Kid Icarus: Uprising the pulses follow the game's own shots instead
+  (`ShotRecoil`, `kiu_weapon.h`): the save's shots-fired record (`kiu_scan.h ScanForShots`,
+  [0xD636C4] + 0x16454 EUR and USA, [0xD6365C] + 0x16454 JPN), read about once a game frame on
+  the emulation thread; a read with new shots is one pulse (60 ms for several), a shot after
+  1.5 s without one keeps the 90 ms pulse (the game marks no charged shot that was found); a
+  drop or a jump of the record (a save loaded) is none. Unreadable: the timed pulses
+  (`xr: Recoil: on the fire button (timed)`).
+- **Weapon in Hand** (`vr_light_gun_weapon`, per game too, on by default; shown under Recoil;
+  AzaharFrame kiuguns): in Kid Icarus: Uprising the aiming controller's model is the weapon Pit
+  holds (`kiu_weapon.h`: the game's getWeaponId record, slot 0 in single player only, settled
+  for 0.5 s; the models from the player's own game, `core/frame_weapon_models.h`, fitted by
+  `vis/weapon_fit.h`). The controller is drawn until the weapon is ready, for no weapon, with
+  another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
+  `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
+  raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+- **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
+  AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
+  is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has
+  no beam or dot over the top screen with Direct Aim, or with the weapon in hand (the game's
+  reticle shows the aim; the weapon is on the same ray). The bottom screen, menus and the room
+  keep the beam (`Input::AimBeamFor`). Test switches (live): `AZAHARFRAME_KIU_FIT_<CLASS>` (BLADE, STAFF,
+  CLAWS, BOW, PALM, CLUB, CANNON, ORBITARS, ARM) `=dx,dy,dz,yaw,pitch,roll,scale` (cm, degrees,
+  a factor), `AZAHARFRAME_KIU_WEAPON=<id>` (0 to 107: show that weapon), and
+  `AZAHARFRAME_KIU_WEAPON_GLOW=1` (draw the effect cards too).
 - **Trigger:** while Gyro Aim is on, the Bottom Screen Reticle steps aside (its setting is kept;
   the shelved C-Stick at Edge with it), so the trigger is ZL/ZR, which the mod fires with, and never a touch,
   which would stop the mod's aim. The controller keeps its beam; pointed at the bottom screen its

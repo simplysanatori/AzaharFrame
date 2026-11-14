@@ -10,6 +10,7 @@
 #include <boost/serialization/unique_ptr.hpp>
 #include "common/archives.h"
 #include "common/logging/log.h"
+#include "common/frame_emu_poll.h" // AzaharFrame kiuguns
 #include "common/frame_flat.h" // AzaharFrame
 #include "common/frame_vr_depth.h" // AzaharFrame vrsize
 #include "core/3ds.h"
@@ -343,6 +344,9 @@ void Module::UpdatePadCallback(std::uintptr_t user_data, s64 cycles_late) {
             0.01f;
     Settings::frame_vr_slider_shown.store(mem->pad.sliderstate_3d, std::memory_order_relaxed);
     system.Kernel().GetSharedPageHandler().Set3DSlider(mem->pad.sliderstate_3d);
+
+    // AzaharFrame kiuguns: frame_xr's reads of the game's memory (common/frame_emu_poll.h)
+    Common::FrameEmuPoll::Run(static_cast<int64_t>(system.CoreTiming().GetTicks()));
 
     // Reschedule recurrent event
     system.CoreTiming().ScheduleEvent(pad_update_ticks - cycles_late, pad_update_event);
