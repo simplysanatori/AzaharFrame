@@ -1073,7 +1073,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             auto& out = hands[static_cast<std::size_t>(h)];
             out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f &&
                         !in.hand[static_cast<std::size_t>(h)].mouse; // AzaharFrame padsui
-            out.aim = m.activity[h].Pose();
+            out.aim = m.activity[h].PoseAhead(); // AzaharFrame ctrlglitch: when it is on view
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
@@ -1125,11 +1125,13 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
     std::size_t room = m.max_layers > used ? m.max_layers - used : 0;
     const std::size_t dots = std::min(room, m.top_dots.size());
     room -= dots;
-    const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
-    room -= models ? 1 : 0;
-    // AzaharFrame ctrlfront: or the two eye quads, under the beams and dots.
+    // AzaharFrame ctrlfront: or the two eye quads, under the beams and dots. AzaharFrame
+    // ctrlglitch: they come first; the projection layer goes with them only while their canvas
+    // moves (controller_models.h), and a frame without room for it just shows the quads.
     const bool model_quads = m.model_quads_ready && room >= m.model_quads.size();
     room -= model_quads ? m.model_quads.size() : 0;
+    const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
+    room -= models ? 1 : 0;
     const std::size_t beams = std::min(room, m.top_beams.size());
     if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models) ||
         (m.model_quads_ready && !model_quads)) {

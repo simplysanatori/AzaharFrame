@@ -17,6 +17,11 @@ struct HandInput {
     bool active = false;
     /// Aim pose in the base (LOCAL) space. The pointing ray is the pose's -Z axis.
     Posef aim;
+    /// AzaharFrame ctrlglitch: what SteamVR said of `aim` (pose_guard.h TrackBits), and its pose
+    /// for the next display time (`ahead_valid`), where the models' image will be on view.
+    uint8_t track = 0;
+    bool ahead_valid = false;
+    Posef aim_ahead;
     /// Index trigger, 0..1.
     float trigger = 0.0f;
     /// Squeeze (grip), 0..1.

@@ -1425,7 +1425,8 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     Input::InputFrame in;
     in.time_ns = info.display_time;
     const bool have_input = focused && actions_ok &&
-                            actions.Sync(info.session, info.local_space, info.display_time, in);
+                            actions.Sync(info.session, info.local_space, info.display_time, in, true,
+                                         info.display_period); // AzaharFrame ctrlglitch
     if (have_input) {
         mode_latch.Filter(in); // the chord that made this session stays away until let go
     }
@@ -1535,10 +1536,62 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     if (reticle_hand >= 0) {
         vis_in.hand[static_cast<std::size_t>(reticle_hand)].reticle = true;
     }
+    GuardDrawnPoses(info, vis_in, have_input); // AzaharFrame ctrlglitch
     visuals.Frame(rt, info, where, window, stats_screens, vis_in, have_input, layers,
                   cursor_chain.handle, dim_chain.handle);
     AddMouseRing(info, layers); // AzaharFrame padsui
     last_time = info.display_time;
+}
+
+// AzaharFrame ctrlglitch: what is drawn of a controller (its model, the weapon in hand, its beam)
+// keeps off single-refresh tracking spikes, and the models get the pose for the refresh their
+// image is on view (input/pose_guard.h). The pointing and aiming read the poses as reported.
+// AZAHARFRAME_XR_POSE_GUARD=0 (live) draws them as reported again, for an A/B; the counts are
+// kept and logged either way.
+void VrUi::GuardDrawnPoses(const FrameInfo& info, Input::InputFrame& vis_in, bool have_input) {
+    const bool guard_on = Common::FrameTestSwitches::Value("AZAHARFRAME_XR_POSE_GUARD").value_or("1") != "0";
+    for (std::size_t i = 0; i < pose_guards.size(); i++) {
+        Input::HandInput& hand = vis_in.hand[i];
+        const bool active = have_input && hand.active;
+        const Input::PoseGuard::Out out = pose_guards[i].Step(
+            info.display_time, active, hand.track, hand.aim, hand.aim_ahead, hand.ahead_valid);
+        if (!active) {
+            continue;
+        }
+        if (guard_on) {
+            hand.aim = out.pose;
+            hand.aim_ahead = out.ahead;
+            hand.ahead_valid = true;
+        } else if (!hand.ahead_valid) {
+            hand.aim_ahead = hand.aim;
+            hand.ahead_valid = true;
+        }
+    }
+    if (pose_guard_log_ns == 0) {
+        pose_guard_log_ns = info.display_time;
+    }
+    if (info.display_time - pose_guard_log_ns < 10'000'000'000LL) {
+        return;
+    }
+    const double seconds = static_cast<double>(info.display_time - pose_guard_log_ns) / 1e9;
+    pose_guard_log_ns = info.display_time;
+    std::string line;
+    bool any = false;
+    for (std::size_t i = 0; i < pose_guards.size(); i++) {
+        const Input::PoseGuardStats& st = pose_guards[i].Stats();
+        any = any || st.tracked + st.inferred > 0;
+        line += fmt::format(
+            "{}{}: tracked {}, inferred {}, lost {}; off course <0.5/1/2/4/more cm {}/{}/{}/{}/{} "
+            "(max {:.1f} cm, {:.1f} deg); held {} ({} refreshes): dropped {}, moved {}",
+            i ? "; " : "", i == 0 ? "left" : "right", st.tracked, st.inferred, st.lost,
+            st.off_cm[0], st.off_cm[1], st.off_cm[2], st.off_cm[3], st.off_cm[4],
+            st.off_max_m * 100.0f, st.off_max_deg, st.holds, st.held_frames, st.dropped, st.jumps);
+        pose_guards[i].ResetStats();
+    }
+    if (any) {
+        LOG_INFO(Frontend, "xr: controller tracking over {:.0f} s ({}): {}", seconds,
+                 guard_on ? "guard on" : "guard off, AZAHARFRAME_XR_POSE_GUARD=0", line);
+    }
 }
 
 // AzaharFrame memguard: until a game's screens are live GameFrame does nothing (no mapper), so a

@@ -149,6 +149,7 @@ void HandActivity::Update(int64_t now, const Input::HandInput& hand, bool used) 
         tracked = true;
         last_seen = now;
         pose = hand.aim;
+        ahead = hand.ahead_valid ? hand.aim_ahead : hand.aim; // AzaharFrame ctrlglitch
         const bool moved =
             Input::Length(hand.aim.position - anchor.position) > kMoveMetres ||
             Input::Dot(Forward(hand.aim), Forward(anchor)) < kTurnCos;

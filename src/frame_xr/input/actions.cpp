@@ -8,6 +8,7 @@
 #include <vector>
 #include "common/logging/log.h"
 #include "frame_xr/input/actions.h"
+#include "frame_xr/input/pose_guard.h" // AzaharFrame ctrlglitch: TrackBits
 #include "frame_xr/xr_calls.h" // AzaharFrame: calls through the run-time loader
 
 // AzaharFrame
@@ -323,7 +324,8 @@ bool Actions::Attach(XrSession session) {
     return CreateSpaces(session);
 }
 
-bool Actions::Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out, bool sync) {
+bool Actions::Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out, bool sync,
+                   XrDuration ahead) {
     if (impl_ == nullptr) {
         return false;
     }
@@ -355,12 +357,35 @@ bool Actions::Sync(XrSession session, XrSpace base, XrTime time, InputFrame& out
             if (XR_SUCCEEDED(xrLocateSpace(s.aim_space[i], base, time, &location))) {
                 constexpr XrSpaceLocationFlags kValid =
                     XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+                // AzaharFrame ctrlglitch: what SteamVR says of it (tracked, or only inferred).
+                const XrSpaceLocationFlags f = location.locationFlags;
+                hand.track = static_cast<uint8_t>(
+                    ((f & XR_SPACE_LOCATION_POSITION_VALID_BIT) ? kTrackPositionValid : 0) |
+                    ((f & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) ? kTrackOrientationValid : 0) |
+                    ((f & XR_SPACE_LOCATION_POSITION_TRACKED_BIT) ? kTrackPositionTracked : 0) |
+                    ((f & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT) ? kTrackOrientationTracked
+                                                                     : 0));
                 if ((location.locationFlags & kValid) == kValid) {
                     hand.active = true;
                     hand.aim.orientation = {location.pose.orientation.x, location.pose.orientation.y,
                                             location.pose.orientation.z, location.pose.orientation.w};
                     hand.aim.position = {location.pose.position.x, location.pose.position.y,
                                          location.pose.position.z};
+                }
+            }
+            // AzaharFrame ctrlglitch: the pose for the next display time, where the models'
+            // image drawn now is on view.
+            XrSpaceLocation next{XR_TYPE_SPACE_LOCATION};
+            if (hand.active && ahead > 0 &&
+                XR_SUCCEEDED(xrLocateSpace(s.aim_space[i], base, time + ahead, &next))) {
+                constexpr XrSpaceLocationFlags kValid =
+                    XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+                if ((next.locationFlags & kValid) == kValid) {
+                    hand.ahead_valid = true;
+                    hand.aim_ahead.orientation = {next.pose.orientation.x, next.pose.orientation.y,
+                                                  next.pose.orientation.z, next.pose.orientation.w};
+                    hand.aim_ahead.position = {next.pose.position.x, next.pose.position.y,
+                                               next.pose.position.z};
                 }
             }
         }

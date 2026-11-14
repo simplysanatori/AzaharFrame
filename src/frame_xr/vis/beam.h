@@ -80,6 +80,11 @@ public:
     const Input::Posef& Pose() const {
         return pose;
     }
+    /// AzaharFrame ctrlglitch: the pose a refresh later (HandInput::aim_ahead, else Pose()), for
+    /// the models: their image is drawn now and on view from the next refresh.
+    const Input::Posef& PoseAhead() const {
+        return ahead;
+    }
     /// 0..1, eased in and out.
     float Beam() const {
         return beam;
@@ -95,6 +100,7 @@ private:
     int64_t last_active = 0;
     int64_t last_time = 0;
     Input::Posef pose{};
+    Input::Posef ahead{}; ///< AzaharFrame ctrlglitch
     Input::Posef anchor{};
     float beam = 0.0f;
     float model = 0.0f;
