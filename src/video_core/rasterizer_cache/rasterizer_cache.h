@@ -1521,7 +1521,20 @@ void RasterizerCache<T>::ClearAll(bool flush) {
     if (flush) {
         FlushRegion(0x0, 0xFFFFFFFF);
     }
-    // Unmark all of the marked pages
+    // AzaharFrame savemem: every registered surface is unregistered (its pages unmarked) and goes
+    // to the deletion queue, where the garbage collector frees it once the GPU is done with it, or
+    // CreateSurface takes it back for the same texture. Clearing page_table alone (as before) left
+    // the surfaces in slot_surfaces with their images until the cache was destroyed: every save
+    // state (System::serialize calls ClearAll(true)) leaked the game's whole working set of
+    // textures and render targets, and the game made it again after the save. On the Frame the
+    // memory grew by hundreds of MB with each quick save until Stop Game.
+    dirty_regions.clear();
+    for (auto& [page, surfaces] : page_table) {
+        while (!surfaces.empty()) {
+            UnregisterSurface(surfaces.back());
+        }
+    }
+    // Unmark all of the marked pages (nothing is left normally: UnregisterSurface unmarked them)
     for (auto& pair : RangeFromInterval(cached_pages, flush_interval)) {
         const auto interval = pair.first & flush_interval;
 

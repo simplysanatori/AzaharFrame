@@ -123,6 +123,7 @@ add_executable(tests
     video_core/shader.cpp
     video_core/right_eye_disabler.cpp # AzaharFrame feshimmer
     video_core/transfer_overlap.cpp # AzaharFrame feshimmer
+    video_core/rasterizer_cache_clear.cpp # AzaharFrame savemem
     audio_core/merryhime_3ds_audio/merry_audio/merry_audio.cpp
     audio_core/merryhime_3ds_audio/merry_audio/merry_audio.h
     audio_core/merryhime_3ds_audio/merry_audio/service_fixture.cpp
@@ -141,6 +142,7 @@ target_link_libraries(tests PRIVATE citra_common citra_core video_core audio_cor
 target_link_libraries(tests PRIVATE input_common) # AzaharFrame
 target_link_libraries(tests PRIVATE httplib) # AzaharFrame crashreport: Send Report to 127.0.0.1
 target_link_libraries(tests PRIVATE json-headers) # AzaharFrame jsoncrash: pack_config.h; emfallback: the recipe parser header
+target_link_libraries(tests PRIVATE tsl::robin_map) # AzaharFrame savemem: rasterizer_cache_clear.cpp
 target_link_libraries(tests PRIVATE ${PLATFORM_LIBRARIES} catch2 nihstro-headers Threads::Threads)
 
 if (ENABLE_LIBRETRO)
