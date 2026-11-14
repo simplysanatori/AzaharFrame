@@ -7,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -67,15 +68,22 @@ private:
 /// reads (0, -1, 0)), gyroscope in degrees per second; see frame_xr/input/motion.h.
 class MotionState {
 public:
+    /// AzaharFrame kiugyro: called on the emulation thread by Get(), outside the lock: true and
+    /// a gyroscope value replace the one Set() gave (Gyro Aim's Light Gun, frame_xr/kiu_probe.h).
+    using GyroOverride = std::function<bool(Common::Vec3f& gyro)>;
+
     void Set(const Common::Vec3f& accel, const Common::Vec3f& gyro);
     /// Back to a 3DS lying flat and still.
     void Reset();
     std::tuple<Common::Vec3f, Common::Vec3f> Get() const;
+    /// AzaharFrame kiugyro: sets or (empty) clears the override. Any thread.
+    void SetGyroOverride(GyroOverride override_fn);
 
 private:
     mutable std::mutex mutex_;
     Common::Vec3f accel_{0.0f, -1.0f, 0.0f};
     Common::Vec3f gyro_{0.0f, 0.0f, 0.0f};
+    std::shared_ptr<const GyroOverride> override_; ///< AzaharFrame kiugyro
 };
 
 /// The process wide pad. Valid whether or not the engine is registered.

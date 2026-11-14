@@ -85,8 +85,12 @@ std::string SliderText(Id id, float value) {
         return Immersive::Names::WorldScaleText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
-    if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
+    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed) {
+        // AzaharFrame reticle: tenths of 1x, "2.0x" (AzaharFrame kiugyro: the gyro's too)
         return Format("%.1fx", value / 10.0f);
+    }
+    if (id == Id::TurnZone) { // AzaharFrame kiugyro: "10%"
+        return Format("%.0f%%", value);
     }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
         const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
@@ -131,6 +135,22 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
             rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
+            // AzaharFrame kiugyro: Gyro Aim, Gyro Sensitivity; Turn Zone and Turn Speed only
+            // while Gyro Aim is Light Gun.
+            rows.push_back(row(Id::GyroAim, RowKind::Segmented, m.gyro_aim));
+            const auto gyro_slider = [&](Id id, int value) {
+                Row r = row(id, RowKind::Slider);
+                const SliderRange sr = SliderFor(id);
+                const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
+                r.t = (v - sr.min) / (sr.max - sr.min);
+                r.value = SliderText(id, v);
+                rows.push_back(r);
+            };
+            gyro_slider(Id::GyroSensitivity, m.gyro_sensitivity);
+            if (m.gyro_aim == 2) {
+                gyro_slider(Id::TurnZone, m.turn_zone);
+                gyro_slider(Id::TurnSpeed, m.turn_speed);
+            }
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
             rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
             // AzaharFrame kiu2: a menu button, as Normal Speed (Experimental) does not fit a
@@ -277,6 +297,10 @@ bool PerGameSetting(Id id) {
     case Id::ReticleStick:
     case Id::ReticleEdgeCStick: // AzaharFrame kiu
     case Id::MotionControls:    // AzaharFrame kiu: per game too (a Controls preset gives it)
+    case Id::GyroAim:           // AzaharFrame kiugyro
+    case Id::GyroSensitivity:
+    case Id::TurnZone:
+    case Id::TurnSpeed:
         return true;
     default:
         return false;
@@ -342,6 +366,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
     static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
+    static const std::vector<std::string> kGyroAim{"Off", "Gyro", "Light Gun"}; // AzaharFrame kiugyro
     static const std::vector<std::string> kScale{"100%", "150%", "200%"};
     static const std::vector<std::string> kMode{"Off", "Wide (3DoF)",
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
@@ -404,6 +429,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kFace;
     case Id::MotionControls:
         return kMotion;
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return kGyroAim;
     case Id::WindowScale:
         return kScale;
     case Id::ImmersiveMode:
@@ -497,6 +524,14 @@ std::string LabelFor(Id id) {
         return "Face Buttons";
     case Id::MotionControls:
         return "Motion Controls";
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return "Gyro Aim";
+    case Id::GyroSensitivity:
+        return "Gyro Sensitivity";
+    case Id::TurnZone:
+        return "Turn Zone";
+    case Id::TurnSpeed:
+        return "Turn Speed";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::WindowScale:
@@ -694,6 +729,14 @@ std::string ExplainFor(Id id) {
         return "How A, B, X and Y map to the 3DS.";
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the game's controls. Light Gun puts the reticle where you point. Hold the grip to pause.";
+    case Id::GyroSensitivity:
+        return "Scales the gyroscope in every game.";
+    case Id::TurnZone:
+        return "Point this close to an edge of the top screen to turn the camera.";
+    case Id::TurnSpeed:
+        return "How fast the camera turns in the Turn Zone.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::WindowScale:
@@ -808,6 +851,12 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: 0.5x to 4.0x in tenths
         return {5.0f, 40.0f, 1.0f};
+    }
+    if (id == Id::GyroSensitivity || id == Id::TurnSpeed) { // AzaharFrame kiugyro: 0.2x to 4.0x
+        return {2.0f, 40.0f, 1.0f};
+    }
+    if (id == Id::TurnZone) { // AzaharFrame kiugyro: 0 to 30 %
+        return {0.0f, 30.0f, 1.0f};
     }
     return {};
 }

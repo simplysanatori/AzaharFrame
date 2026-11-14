@@ -235,6 +235,9 @@ private:
     Input::BottomScreenReticle reticle; ///< AzaharFrame mouse: Bottom Screen Reticle
     void SaveVrSettingSoon();           ///< AzaharFrame mouse
     int reticle_hand_logged = -2;
+    Input::GripClutch gyro_clutch; ///< AzaharFrame kiugyro: Gyro Aim's grip
+    int gyro_aim_logged = -1;      ///< AzaharFrame kiugyro: Gyro Aim and its controller, as logged
+    bool gyro_clutch_logged = false;
     int reticle_modes_logged = -1; ///< AzaharFrame fixes7: the reticle switches, as logged
     bool edge_stick_logged = false; ///< AzaharFrame kiu: C-Stick at Edge pushing (logged)
     int reticle_hand_shown = -1; ///< AzaharFrame polish: ReticleDrivingHand, last frame

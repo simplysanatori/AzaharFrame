@@ -920,6 +920,27 @@ int main(int argc, char** argv) {
         ok &= shot("5n-settings-motion-controls-global-locked", mo, mv);
     }
     {
+        // AzaharFrame kiugyro: Gyro Aim Light Gun (Kid Icarus: Uprising's preset with the
+        // C-Stick & Gyro mod) shows Turn Zone and Turn Speed under Gyro Sensitivity; then Gyro,
+        // with Gyro Aim's tooltip.
+        MenuModel go = pg;
+        go.motion_controls = 1;
+        go.gyro_aim = 2;
+        go.gyro_sensitivity = 10;
+        go.turn_zone = 10;
+        go.turn_speed = 10;
+        go.game_value[static_cast<std::size_t>(Id::GyroAim)] = true;
+        go.game_value[static_cast<std::size_t>(Id::MotionControls)] = true;
+        MenuView gv = settings(SettingsSection::General);
+        gv.hover = {Id::TurnZone};
+        ok &= shot("5g-settings-gyro-aim-light-gun", go, gv);
+        go.gyro_aim = 1;
+        go.gyro_sensitivity = 15;
+        gv.hover = {Id::GyroAim, kLabelIndex};
+        gv.tooltip = Id::GyroAim;
+        ok &= shot("5h-settings-gyro-aim-gyro-tooltip", go, gv);
+    }
+    {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
         so.autosave = false;
         so.locked[static_cast<std::size_t>(Id::AutosaveEvery)] = Lock::AutosaveOff;

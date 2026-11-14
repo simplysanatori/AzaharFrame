@@ -320,6 +320,10 @@ enum class MenuSetting {
     ReticleCenter, ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_center_until_pressed)
     ReticleStick,  ///< AzaharFrame fixes7: `value` 0 or 1 (vr_reticle_stick_moves)
     ReticleEdgeCStick, ///< AzaharFrame kiu: `value` 0 or 1 (vr_reticle_edge_cstick)
+    GyroAim,         ///< AzaharFrame kiugyro: `value` 0 Off, 1 Gyro, 2 Light Gun (vr_gyro_aim)
+    GyroSensitivity, ///< `value` tenths of 1x, 2 to 40 (vr_gyro_sensitivity)
+    TurnZone,        ///< `value` percent, 0 to 30 (vr_light_gun_turn_zone)
+    TurnSpeed,       ///< `value` tenths of 1x, 2 to 40 (vr_light_gun_turn_speed)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

@@ -656,16 +656,19 @@ TEST_CASE("Reticle: Aim Only While Pressed with Right Stick Moves Touch", "[fram
 }
 
 // AzaharFrame fixes7, kiu: Kid Icarus: Uprising's Controls preset (every region): Headset,
-// C-Stick at Edge on, Motion Controls Off; Right Stick Moves Touch is not given (the global
-// default, off).
+// Motion Controls Off; Right Stick Moves Touch is not given (the global default, off).
+// AzaharFrame kiugyro: C-Stick at Edge no longer; with the C-Stick & Gyro mod, Gyro Aim Light Gun
+// and Motion Controls Right Controller.
 TEST_CASE("Reticle: Kid Icarus: Uprising's Controls preset", "[frame_xr][reticle]") {
     for (const uint64_t id : {0x0004000000030000ULL, 0x0004000000030100ULL, 0x0004000000030200ULL,
                               0x0004000000030300ULL}) { // kiu: 30000, Japan in the mod's list
         const FrameXr::ControlsPreset* p = FrameXr::FindControlsPreset(id);
         REQUIRE(p != nullptr);
         CHECK(p->bottom_screen_reticle == 3);
-        CHECK(p->edge_cstick);
+        CHECK(!p->edge_cstick);
         CHECK(p->motion_controls == 0);
+        CHECK(p->motion_controls_with_mod == 1);
+        CHECK(p->gyro_aim_with_mod == 2);
     }
     CHECK(FrameXr::FindControlsPreset(0x0004000000033500ULL) == nullptr);
 }

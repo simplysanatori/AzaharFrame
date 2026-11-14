@@ -232,8 +232,28 @@ void MotionState::Reset() {
 }
 
 std::tuple<Common::Vec3f, Common::Vec3f> MotionState::Get() const {
+    Common::Vec3f accel, gyro;
+    std::shared_ptr<const GyroOverride> override_fn;
+    {
+        std::lock_guard lock{mutex_};
+        accel = accel_;
+        gyro = gyro_;
+        override_fn = override_;
+    }
+    if (override_fn && *override_fn) {
+        Common::Vec3f replaced = gyro;
+        if ((*override_fn)(replaced)) { // AzaharFrame kiugyro
+            gyro = replaced;
+        }
+    }
+    return {accel, gyro};
+}
+
+void MotionState::SetGyroOverride(GyroOverride override_fn) {
+    auto next = override_fn ? std::make_shared<const GyroOverride>(std::move(override_fn))
+                            : std::shared_ptr<const GyroOverride>{};
     std::lock_guard lock{mutex_};
-    return {accel_, gyro_};
+    override_ = std::move(next);
 }
 
 MotionState& GetMotion() {

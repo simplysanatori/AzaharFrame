@@ -502,6 +502,10 @@ struct FrameKeepControls {
           stick{Settings::values.vr_reticle_stick_moves},
           edge_cstick{Settings::values.vr_reticle_edge_cstick}, // AzaharFrame kiu
           motion{Settings::values.vr_motion_controls},
+          gyro_aim{Settings::values.vr_gyro_aim}, // AzaharFrame kiugyro
+          gyro_sensitivity{Settings::values.vr_gyro_sensitivity},
+          turn_zone{Settings::values.vr_light_gun_turn_zone},
+          turn_speed{Settings::values.vr_light_gun_turn_speed},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -512,6 +516,10 @@ struct FrameKeepControls {
         stick.Restore();
         edge_cstick.Restore();
         motion.Restore();
+        gyro_aim.Restore(); // AzaharFrame kiugyro
+        gyro_sensitivity.Restore();
+        turn_zone.Restore();
+        turn_speed.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -522,6 +530,10 @@ struct FrameKeepControls {
     FrameKeepSetting<bool, false> stick;
     FrameKeepSetting<bool, false> edge_cstick; // AzaharFrame kiu
     FrameKeepSetting<u32, true> motion;
+    FrameKeepSetting<u32, true> gyro_aim; // AzaharFrame kiugyro
+    FrameKeepSetting<float, true> gyro_sensitivity;
+    FrameKeepSetting<u32, true> turn_zone;
+    FrameKeepSetting<float, true> turn_speed;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -1141,8 +1153,12 @@ GMainWindow::GMainWindow(Core::System& system_)
             // AzaharFrame: a Frame controller as the 3DS gyroscope and accelerometer (Motion
             // Controls), unless the profile has another motion device.
             // AzaharFrame kiu: per game too: the global value or the game's.
+            // AzaharFrame kiugyro: Gyro Aim needs it too (it uses the right controller when
+            // Motion Controls is Off).
             if ((Settings::values.vr_motion_controls.GetValue(true) != 0 ||
-                 Settings::values.vr_motion_controls.GetValue() != 0) &&
+                 Settings::values.vr_motion_controls.GetValue() != 0 ||
+                 Settings::values.vr_gyro_aim.GetValue(true) != 0 ||
+                 Settings::values.vr_gyro_aim.GetValue() != 0) &&
                 InputCommon::FrameXr::UseFrameMotionDevice(
                     Settings::values.current_input_profile)) {
                 system.ApplySettings();
@@ -5339,6 +5355,18 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::ReticleEdgeCStick: // AzaharFrame kiu
         set(v.vr_reticle_edge_cstick, r.value != 0);
+        break;
+    case S::GyroAim: // AzaharFrame kiugyro
+        set(v.vr_gyro_aim, std::min<u32>(u, 2));
+        break;
+    case S::GyroSensitivity: // tenths of 1x
+        set(v.vr_gyro_sensitivity, static_cast<float>(std::clamp<u32>(u, 2, 40)) / 10.0f);
+        break;
+    case S::TurnZone: // percent
+        set(v.vr_light_gun_turn_zone, std::min<u32>(u, 30));
+        break;
+    case S::TurnSpeed: // tenths of 1x
+        set(v.vr_light_gun_turn_speed, static_cast<float>(std::clamp<u32>(u, 2, 40)) / 10.0f);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);
