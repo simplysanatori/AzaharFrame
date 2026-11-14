@@ -90,7 +90,7 @@ void CustomTexManager::TickFrame() {
     if (const auto now = std::chrono::steady_clock::now();
         now - held_hint_at >= std::chrono::seconds(2)) {
         held_hint_at = now;
-        held_hint.store(HeldBytes(), std::memory_order_relaxed);
+        held_hint.store(HeldBytes(true), std::memory_order_relaxed);
     }
     std::size_t num_uploads = 0;
     u64 upload_bytes = 0;
@@ -344,10 +344,19 @@ u64 CustomTexManager::PreloadEstimate() {
     return *estimate;
 }
 
-u64 CustomTexManager::HeldBytes() const {
+u64 CustomTexManager::HeldBytes(bool skip_busy) const {
     u64 bytes = 0;
     for (const auto& texture : custom_textures) {
-        std::scoped_lock lock{texture->decode_mutex};
+        // AzaharFrame savemem: the emulation thread's hint never waits for a worker's decode
+        // (LoadFromDisk holds the lock for the whole read): a texture being decoded is left out
+        std::unique_lock lock{texture->decode_mutex, std::defer_lock};
+        if (skip_busy) {
+            if (!lock.try_lock()) {
+                continue;
+            }
+        } else {
+            lock.lock();
+        }
         bytes += texture->data.capacity(); // AzaharFrame memwarn: what is held, not used
     }
     return bytes;

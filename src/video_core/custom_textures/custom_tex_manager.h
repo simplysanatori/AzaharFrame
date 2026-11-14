@@ -69,7 +69,9 @@ public:
 
     /// AzaharFrame memguard: the custom texture pixel data held in memory now (decoded PNGs,
     /// read DDS/KTX files), for the log when a game stops
-    u64 HeldBytes() const;
+    /// AzaharFrame savemem: `skip_busy` leaves out a texture whose decode holds its lock now
+    /// (never waits; for HeldBytesHint).
+    u64 HeldBytes(bool skip_busy = false) const;
     /// AzaharFrame savemem: HeldBytes as of the last few seconds (worked out by TickFrame at most
     /// every 2 s, and by Unload), for the memory dialog's advice. Any thread.
     u64 HeldBytesHint() const {
