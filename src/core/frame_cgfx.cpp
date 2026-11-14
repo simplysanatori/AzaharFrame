@@ -1011,6 +1011,180 @@ bool ReadCgfx(std::span<const u8> data, File& out, std::string& error) {
     }
 }
 
+// ---- AzaharFrame kiumodels: material animations (CANM) ----
+
+namespace {
+
+/// A key's frame and value (slopes are not needed for a loop's change).
+struct Key {
+    float frame = 0.0f, value = 0.0f;
+};
+
+/// `Materials["<material>"].TextureCoordinators[<n>].<what>`; false for anything else.
+bool ParseCoordPath(std::string_view p, std::string& material, s32& coord, std::string& what) {
+    constexpr std::string_view head = "Materials[\"";
+    constexpr std::string_view mid = "\"].TextureCoordinators[";
+    if (p.substr(0, head.size()) != head) {
+        return false;
+    }
+    p.remove_prefix(head.size());
+    const std::size_t q = p.find(mid);
+    if (q == std::string_view::npos || q == 0) {
+        return false;
+    }
+    material = std::string(p.substr(0, q));
+    p.remove_prefix(q + mid.size());
+    if (p.size() < 3 || p[0] < '0' || p[0] > '2' || p.substr(1, 2) != "].") {
+        return false;
+    }
+    coord = p[0] - '0';
+    what = std::string(p.substr(3));
+    return true;
+}
+
+/// A float key frame group (GfxFloatKeyFrameGroup) at `g`: its first and last keys.
+/// `linear`: two keys, linear (or one constant).
+void ReadGroup(const Reader& r, std::size_t g, Key& first, Key& last, bool& linear) {
+    const u32 curve_flags = r.U32(g + 12);
+    if (curve_flags & 2) {
+        first.value = last.value = r.F32(g + 16);
+        return;
+    }
+    const std::size_t c = r.RelNonNull(g + 20);
+    const u32 format = r.U32(c + 8);
+    const u32 keys = r.U32(c + 12);
+    CheckCount(keys);
+    if (keys == 0) {
+        throw Bad("CGFX: an animation curve without keys");
+    }
+    const u32 quant = format >> 5;
+    if (quant > 7) {
+        throw Bad("CGFX: an animation curve's quantization");
+    }
+    float value_scale = 1.0f, value_offset = 0.0f, frame_scale = 1.0f;
+    std::size_t k = c + 20;
+    if (quant != 0 && quant != 3 && quant != 6) {
+        value_scale = r.F32(k);
+        value_offset = r.F32(k + 4);
+        frame_scale = r.F32(k + 8);
+        k += 12;
+    }
+    static constexpr std::size_t kSize[8] = {16, 8, 6, 12, 6, 4, 8, 4};
+    r.Need(k, std::size_t{keys} * kSize[quant]);
+    const auto key = [&](u32 i) {
+        const std::size_t at = k + std::size_t{i} * kSize[quant];
+        float f = 0.0f, v = 0.0f;
+        switch (quant) {
+        case 0: // Hermite128
+        case 3: // UnifiedHermite96
+        case 6: // StepLinear64
+            f = r.F32(at);
+            v = r.F32(at + 4);
+            break;
+        case 1: // Hermite64
+        case 7: { // StepLinear32
+            const u32 fv = r.U32(at);
+            f = static_cast<float>(fv & 0xFFF);
+            v = static_cast<float>(fv >> 12);
+            break;
+        }
+        case 2: // Hermite48
+            f = static_cast<float>(r.U8(at));
+            v = static_cast<float>(r.U16(at + 1));
+            break;
+        case 4: // UnifiedHermite48
+            f = static_cast<float>(r.U16(at)) / 32.0f;
+            v = static_cast<float>(r.U16(at + 2));
+            break;
+        default: { // 5, UnifiedHermite32
+            f = static_cast<float>(r.U8(at));
+            v = static_cast<float>((r.U16(at + 1) | (u32{r.U8(at + 3)} << 16)) & 0xFFF);
+            break;
+        }
+        }
+        return Key{f * frame_scale, v * value_scale + value_offset};
+    };
+    first = key(0);
+    last = key(keys - 1);
+    linear = keys == 2 && quant >= 6 && (format & 4) != 0;
+}
+
+} // namespace
+
+bool ReadUvAnims(std::span<const u8> data, std::vector<UvAnim>& out, std::string& error) {
+    try {
+        const Reader r(data);
+        if (!r.Magic(0, "CGFX") || r.U16(4) != 0xFEFF) {
+            throw Bad("not a CGFX file");
+        }
+        const u16 header = r.U16(6);
+        if (!r.Magic(header, "DATA")) {
+            throw Bad("CGFX: no DATA");
+        }
+        const Cgfx c{r};
+        std::vector<UvAnim> anims;
+        // The 11th dictionary: material ("texture") animations.
+        const std::size_t p = header + 8 + std::size_t{10} * 8;
+        const std::size_t dict = r.U32(p) ? r.RelNonNull(p + 4) : 0;
+        for (const auto& [name, ao] : c.Dict(dict)) {
+            if (!r.Magic(ao, "CANM")) {
+                throw Bad("CGFX: not a CANM");
+            }
+            const u32 revision = r.U32(ao + 4);
+            const u32 loop = r.U32(ao + 0x10);
+            const float frames = r.F32(ao + 0x14);
+            const std::size_t elements = r.U32(ao + 0x18) ? r.RelNonNull(ao + 0x1C) : 0;
+            for (const auto& [path, eo] : c.Dict(elements)) {
+                UvAnim a;
+                std::string what;
+                if (!ParseCoordPath(path, a.material, a.coord, what)) {
+                    continue;
+                }
+                const u32 flags = r.U32(eo);
+                // Older files have a second name and a word before the type.
+                const std::size_t type_at = eo + (revision <= 0x05000000u ? 0x10 : 8);
+                const u32 type = r.U32(type_at);
+                const std::size_t content = type_at + 4;
+                const int axes = what == "Translate" && type == 3 ? 2 // Vector2D
+                                 : what == "Rotate" && type == 0  ? 1 // Float
+                                                                  : 0;
+                if (axes == 0) {
+                    continue;
+                }
+                float change[2]{};
+                for (int ax = 0; ax < axes; ax++) {
+                    if (flags & (1u << (axes + ax))) {
+                        continue; // absent: not animated
+                    }
+                    if (flags & (1u << ax)) {
+                        continue; // one value held: no change
+                    }
+                    Key first, last;
+                    bool linear = true;
+                    ReadGroup(r, r.RelNonNull(content + std::size_t(ax) * 4), first, last, linear);
+                    change[ax] = last.value - first.value;
+                    a.linear = a.linear && linear;
+                }
+                a.animation = name;
+                a.frames = frames;
+                a.loops = loop == 1;
+                if (axes == 2) {
+                    a.translate_u = change[0];
+                    a.translate_v = change[1];
+                } else {
+                    a.rotate = change[0];
+                }
+                anims.push_back(std::move(a));
+            }
+        }
+        out = std::move(anims);
+        return true;
+    } catch (const Bad& e) {
+        error = e.what();
+        return false;
+    }
+}
+
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,
                                   std::array<float, 3>* normal) {
     std::array<float, 3> p = v.position;

@@ -39,6 +39,9 @@
 namespace FileSys {
 class RomFSReader;
 }
+namespace FrameCgfx {
+struct UvAnim;
+}
 
 namespace FrameWeapons {
 
@@ -46,7 +49,8 @@ constexpr int kClasses = 9;
 constexpr int kPerClass = 12;
 constexpr int kWeapons = kClasses * kPerClass; // ids 0..107 (the game's WPNID order)
 /// The manifest's and files' version: a change makes every weapon again.
-constexpr int kConverterVersion = 3;
+/// 4 (AzaharFrame kiumodels): the parts' texture animations (`uvanim` lines).
+constexpr int kConverterVersion = 4;
 
 enum Class : int { kBlade, kStaff, kClaws, kBow, kPalm, kClub, kCannon, kOrbitars, kArm };
 
@@ -60,6 +64,26 @@ std::string ZrcName(int id);
 
 enum class Side : u8 { Centre, Right, Left };
 const char* SideName(Side side); ///< "C", "R", "L" (the component names)
+
+/// AzaharFrame kiumodels: how a part's texture moves (drawn on its glow pass): its texture
+/// coordinates slide by (du, dv) over each loop of `frames` game frames (kGameFps a second), in
+/// the model file's UV space (v = 1 - v_game). From the game's own material animation for the
+/// part's material and coordinator (the class's Pit file, player/a<class>.zrc, "Wpn...UV"), or,
+/// for a glow card the game does not animate, a flow along the card's length (one repeat of its
+/// texture per loop, away from the anchor bone) when its texture repeats that way.
+enum class UvSource : u8 { None = 0, Game = 1, Flow = 2 };
+/// The game's frames a second: a battle draws 30 new pictures a second (each shown for two of
+/// the 3DS's 60 refreshes: the Frame mock's pacing log, "game pictures 30 and 30 repeats"), and
+/// its animations step once a picture (Pit's palm run cycle, 26 frames, is 0.87 s).
+constexpr float kGameFps = 30.0f;
+constexpr float kFlowFrames = 75.0f; ///< a flow's loop: 2.5 s
+
+struct UvMotion {
+    UvSource source = UvSource::None;
+    float frames = 0.0f;
+    float du = 0.0f, dv = 0.0f;
+    float turns = 0.0f; ///< the coordinator's turn over a loop (whole turns; not drawn yet)
+};
 
 struct Part {
     std::string file;     ///< in the weapon folder
@@ -76,6 +100,7 @@ struct Part {
     /// and whether the pack flips its PNGs (pack.json's flip_png_files).
     std::string replaced;
     bool replaced_flip = true;
+    UvMotion uv; ///< AzaharFrame kiumodels
 };
 
 struct Weapon {
@@ -125,8 +150,23 @@ struct Converted {
     Weapon info;
     std::vector<std::pair<std::string, std::vector<u8>>> files;
 };
+/// `class_anims` (AzaharFrame kiumodels): the material animations of the class's Pit file
+/// (ReadClassUvAnims), for the parts' UvMotion; none: glow cards flow.
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
-                   const TexturePack* pack = nullptr);
+                   const TexturePack* pack = nullptr,
+                   const std::vector<FrameCgfx::UvAnim>* class_anims = nullptr);
+
+/// AzaharFrame kiumodels: the class's Pit file (player/a<class>.zrc: LZ11, darc,
+/// character/mdl.arc!mdl/00.bcres) read for its texture coordinator animations (the weapons'
+/// "Wpn...UV": claws, palms, clubs, cannons, orbitars have one).
+bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAnim>& out,
+                      std::string& error);
+/// The class's Pit file name: "a<class>.zrc".
+std::string ClassZrcName(int cls);
+/// A part's UvMotion from the animations (the coordinator `coord` of `material`; a scale on it
+/// turns the slide: the game samples at scale * (uv - translate)). None when nothing targets it.
+UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,
+                      s32 coord, float scale_u, float scale_v);
 
 /// A texture pack's PNG (Part::replaced) for a model's colour image: RGBA8, rows in the game's
 /// memory order, alpha 255. False when it cannot be read (the model's own texture stays).
