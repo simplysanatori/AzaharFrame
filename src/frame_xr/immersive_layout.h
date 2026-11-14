@@ -794,6 +794,13 @@ float MigrateWorldScaleMode3(const HeadLocked& solved, float eye_per_far, float 
                              float size, bool follow);
 /// Migration, mode 2: the World Scale that keeps the screen at its saved `distance`. Clamped.
 float MigrateWorldScaleMode2(float distance, float size, bool follow);
+/// Whether a game's World Scale is still to be made from 1.2.0's settings: it has no World Scale
+/// of its own (`world_scale_own`) and no vr_immersive_world_set of its own that is on
+/// (`world_set_own_on`: migrated once, then perhaps put back on the global value by Use Global
+/// Values for All, which keeps it). Rollback: an older version drops both keys together when it
+/// saves the game's file (they are new), so the next run makes World Scale again from the old
+/// keys as they are then; the old keys are only read, never written with another meaning.
+bool WorldScaleToMigrate(bool world_scale_own, bool world_set_own_on);
 
 /// A value moving towards its target at most `rate` in ratio a second (ln 2: a factor 2 a
 /// second), eased by kTauS: never a jump. The first value is taken at once; Set takes one at

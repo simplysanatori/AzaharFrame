@@ -652,6 +652,10 @@ float MigrateWorldScaleMode2(float distance, float size, bool follow) {
     return ClampWorldScale(WorldScaleForDistance(distance, size, follow));
 }
 
+bool WorldScaleToMigrate(bool world_scale_own, bool world_set_own_on) {
+    return !world_scale_own && !world_set_own_on;
+}
+
 float RatioRamp::Update(float target, int64_t now_ms) {
     const float dt_s =
         last_ms_ != 0 ? std::clamp(static_cast<float>(now_ms - last_ms_) / 1000.0f, 0.0f, 0.1f)

@@ -3,7 +3,11 @@
 // Refer to the license.txt file included.
 
 #include <cmath>
+#include <map>
+#include <optional>
 #include <random>
+#include <set>
+#include <string>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "common/frame_vr_depth.h"
@@ -564,3 +568,85 @@ TEST_CASE("Natural: the game's K and the distance never jump", "[frame_xr][natur
     }
 }
 
+// AzaharFrame natural: rollback. A game's file (its keys as text) goes old -> new -> old -> new.
+// 1.2.0 knows only its own keys and drops the others when it saves the file; 1.2.1 reads the old
+// keys only, never writes them with another meaning, and makes World Scale from them whenever
+// the game has none of its own (WorldScaleToMigrate). So each 1.2.1 run after a 1.2.0 save
+// shows the game as a first 1.2.1 run would with those old keys, and 1.2.0 always finds its keys
+// as it left them.
+TEST_CASE("Natural: World Scale's migration survives old -> new -> old -> new", "[frame_xr][natural]") {
+    using File = std::map<std::string, std::string>;
+    const std::set<std::string> old_keys{"vr_immersive_positional_game_scaler", "factor_3d",
+                                         "distance", "size"};
+    // 1.2.0 saving the game's file: its own keys, as they are (or changed by the player).
+    const auto old_saves = [&](File f, const File& changes = {}) {
+        File out;
+        for (const auto& [k, v] : f) {
+            if (old_keys.count(k)) {
+                out[k] = v;
+            }
+        }
+        for (const auto& [k, v] : changes) {
+            out[k] = v;
+        }
+        return out;
+    };
+    // 1.2.1 running the game in mode 2 (Follow Screen Size on), then saving its file: the World
+    // Scale it uses and the screen's distance it shows.
+    struct Run {
+        File file;
+        float world_scale;
+        float distance;
+    };
+    const auto new_runs = [](File f, std::optional<float> grip = std::nullopt) {
+        const bool own = f.count("vr_immersive_world_scale") != 0;
+        const bool set = f.count("vr_immersive_world_set") && f["vr_immersive_world_set"] == "true";
+        const float size = std::stof(f["size"]);
+        float ws = own ? std::stof(f["vr_immersive_world_scale"]) : kWorldScaleAuto;
+        if (WorldScaleToMigrate(own, set)) {
+            ws = MigrateWorldScaleMode2(std::stof(f["distance"]), size, true);
+            f["vr_immersive_world_scale"] = std::to_string(ws);
+            f["vr_immersive_world_set"] = "true";
+        }
+        if (grip) { // the player's own World Scale
+            ws = *grip;
+            f["vr_immersive_world_scale"] = std::to_string(ws);
+        }
+        return Run{f, ws, FullDistance(ws, size, true)};
+    };
+    const File v120{{"vr_immersive_positional_game_scaler", "1"},
+                    {"factor_3d", "30"},
+                    {"distance", "1.10"},
+                    {"size", "1.30"}};
+    // Old -> new: the screen where 1.2.0 had it; the old keys as they were.
+    const Run a = new_runs(v120);
+    CHECK(a.distance == Approx(1.10f).epsilon(1e-4));
+    CHECK(old_saves(a.file) == v120);
+    // -> old (it saves: the new keys go) -> new: made again, the same.
+    const Run b = new_runs(old_saves(a.file));
+    CHECK(b.world_scale == Approx(a.world_scale));
+    CHECK(b.file == a.file);
+    // -> old without a save (the new keys stay) -> new: kept, not made again.
+    const Run c = new_runs(a.file);
+    CHECK(c.file == a.file);
+    // The player's own World Scale in 1.2.1 is kept by 1.2.1 ...
+    const Run d = new_runs(a.file, 63.0f);
+    CHECK(new_runs(d.file).world_scale == Approx(63.0f));
+    CHECK(old_saves(d.file) == v120); // ... and never touches 1.2.0's keys;
+    // after 1.2.0 saves the file it is made from the old keys again (1.2.0 cannot keep it).
+    CHECK(new_runs(old_saves(d.file)).world_scale == Approx(a.world_scale));
+    // 1.2.0 moves the screen: the next 1.2.1 run follows the old key, in step.
+    const Run e = new_runs(old_saves(d.file, {{"distance", "2.00"}}));
+    CHECK(e.distance == Approx(2.00f).epsilon(1e-4));
+    CHECK(old_saves(e.file).at("distance") == "2.00");
+    // Use Global Values for All in 1.2.1: the game's World Scale goes, its migrated flag stays:
+    // the global value is used, not made again.
+    File global = e.file;
+    global.erase("vr_immersive_world_scale");
+    CHECK_FALSE(WorldScaleToMigrate(false, true));
+    CHECK(new_runs(global).world_scale == kWorldScaleAuto);
+    // A file 1.2.0 never saw a 1.2.1 key in: always made.
+    CHECK(WorldScaleToMigrate(false, false));
+    CHECK_FALSE(WorldScaleToMigrate(true, false));
+    CHECK_FALSE(WorldScaleToMigrate(true, true));
+}

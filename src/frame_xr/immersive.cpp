@@ -906,9 +906,10 @@ void MigrateWorldScale(u32 mode) {
     const bool follow = v.vr_immersive_follow_screen.GetValue();
     const float size = L::Clamped(g.head_place).size;
     if (g.world_migration == 0) {
-        const bool done = !g.title_id || (v.vr_immersive_world_set.GetValue() &&
-                                          !v.vr_immersive_world_set.UsingGlobal()) ||
-                          !v.vr_immersive_world_scale.UsingGlobal();
+        const bool done =
+            !g.title_id || !L::WorldScaleToMigrate(!v.vr_immersive_world_scale.UsingGlobal(),
+                                                   v.vr_immersive_world_set.GetValue() &&
+                                                       !v.vr_immersive_world_set.UsingGlobal());
         if (done) {
             g.world_migration = 1;
             return;
