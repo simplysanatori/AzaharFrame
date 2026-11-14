@@ -5,9 +5,10 @@
 // AzaharFrame menuux: Dynamic Resolution (Settings::values.vr_dynamic_resolution, Off by
 // default).
 //
-// The rule: Internal Resolution is the ceiling and 1x the floor. Dynamic Resolution only ever
-// draws below the Internal Resolution setting, one step at a time, never under 1x; at 1x it has
-// nothing to do (the menu shows its row disabled). It lowers the resolution only when the GPU is
+// The rule: the renderer's factor is the ceiling (Internal Resolution, two steps more in the
+// immersive modes) and, AzaharFrame flash3, the Internal Resolution setting the floor
+// (kFloorAtSetting; 1x with Auto), one step at a time; at 1x it has nothing to do (the menu shows
+// its row disabled), nor outside the immersive modes, where the factor is the setting itself. It lowers the resolution only when the GPU is
 // the limit: the GPU's time on the game's frames is near or over the headset's frame budget (its
 // display period). Frames missed while the GPU has room are the emulation thread's (CPU-bound):
 // a lower resolution would not help them, so they never step it down.
@@ -35,9 +36,9 @@
 //     factor over this one's, ((f + 1) / f)^2, under kUpBudget of the bad line. The old rule (a
 //     quarter of the budget, 2.08 ms at 120 Hz) was under the GPU's floor in MK7 (3 ms even at
 //     3x), so it never went up. The failed-step blocking above is kept;
-//   - the floor (FloorFactor): 1x by default, as before, so in the immersive modes it may go
-//     under the Internal Resolution setting (they add two steps over it); kFloorAtSetting stops
-//     it at the setting itself instead.
+//   - the floor (FloorFactor): the owner's choice (option B): the Internal Resolution setting
+//     itself (kFloorAtSetting), so only the immersive modes' two extra steps come off (1.1.1 went
+//     down to 1x: 3x under a 4x setting in session 573). false brings 1.1.1's rule back.
 
 #pragma once
 
@@ -62,9 +63,10 @@ struct Second {
 };
 
 /// AzaharFrame flash3: whether Dynamic Resolution stops at the Internal Resolution setting
-/// (true) or may go down to 1x (false, as in 1.1.1: in the immersive modes, which draw two steps
-/// over the setting, it can go under it, e.g. 3x under a 4x setting). The owner's choice.
-inline constexpr bool kFloorAtSetting = false;
+/// (true, the owner's choice: only the immersive modes' two extra steps come off; outside them it
+/// has nothing to do) or may go down to 1x (false, as in 1.1.1: in the immersive modes it could
+/// go under the setting, e.g. 3x under a 4x setting).
+inline constexpr bool kFloorAtSetting = true;
 
 /// AzaharFrame flash3: the lowest factor it draws at for the renderer's factor `base` (with the
 /// immersive modes' steps) and the Internal Resolution setting `setting` (0: Auto), and how many
