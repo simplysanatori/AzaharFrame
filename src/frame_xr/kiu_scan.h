@@ -107,6 +107,21 @@ struct FighterRecords {
 /// known), or -2 for values out of range (not the record: a guard).
 int WeaponFromRecords(const FighterRecords& r);
 
+/// AzaharFrame kiufix: whether the player is in a 3D battle, for Weapon in Hand (hubs, menus and
+/// the game's 2D screens show the controllers). With the C-Stick & Gyro mod: its player reticle
+/// pointer (state + kStateReticle) is set, readable, and the object's first word (its vtable) is
+/// in the game's code or read-only data [code_lo, code_hi). The mod's hook on the game's reticle
+/// registration sets it for the player's reticle and clears it when that reticle goes. Without
+/// the mod nothing says so: true (the fighter records alone decide, as before).
+constexpr bool InBattle(bool mod_found, bool read_ok, uint32_t reticle, uint32_t vtable,
+                        uint32_t code_lo, uint32_t code_hi) {
+    if (!mod_found) {
+        return true;
+    }
+    return read_ok && reticle != 0 && (reticle & 3u) == 0 && vtable >= code_lo &&
+           vtable < code_hi;
+}
+
 /// A weapon id shown only once it has held for kSettleNs of the game's time (a menu scrolling
 /// through weapons does not load each).
 class WeaponSettle {

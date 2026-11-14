@@ -39,6 +39,7 @@ struct Probe {
     bool scanned = false;
     WeaponAddresses weapon;
     ShotAddresses shots;
+    ModAddresses mod; ///< AzaharFrame kiufix: the C-Stick & Gyro mod's state (in a battle)
     WeaponSettle settle;
     ShotCounter counter;
     int64_t next_weapon_ns = 0;
@@ -81,6 +82,15 @@ void Scan(Probe& p, Kernel::Process& process, Memory::MemorySystem& memory) {
     }
     p.weapon = ScanForWeapon(code, seg.size, seg.addr);
     p.shots = ScanForShots(code, seg.size, seg.addr);
+    // AzaharFrame kiufix: the mod's state block (its code is in the data segment's range), for
+    // "in a battle": the mod keeps the player's reticle there while one is registered.
+    const auto& data = process.codeset->DataSegment();
+    if (data.size > 0 && data.offset + data.size <= image.size()) {
+        p.mod = ScanForMod(image.data() + data.offset, data.size, data.addr);
+    }
+    LOG_INFO(Frontend, "xr: Kid Icarus: the C-Stick & Gyro mod's state {}",
+             p.mod.found ? fmt::format("at 0x{:08X} (in a battle: its reticle set)", p.mod.state)
+                         : std::string{"not found (in a battle: the fighter records alone)"});
     LOG_INFO(Frontend,
              "xr: Kid Icarus: code scanned: weapon record {}, shots record {}",
              p.weapon.found ? fmt::format("at [0x{:08X}] + slot * 0x370 + {}", p.weapon.ptr,
@@ -196,7 +206,23 @@ void Poll(int64_t ticks) {
                     static_cast<int8_t>(memory.Read8(*process, rec + p.weapon.field));
             }
             raw = WeaponFromRecords(r);
-            if (raw == -2) {
+            // AzaharFrame kiufix: Weapon in Hand only in a 3D battle (the owner: hubs, menus
+            // and the game's 2D screens show the controllers). The fighter record stays filled
+            // in some menus; the mod's player reticle is set only while a battle's reticle is
+            // registered (its hook clears it when the reticle goes), so both must hold.
+            uint32_t reticle = 0, vtable = 0;
+            // The object's first word, its vtable: in the game's code or read-only data.
+            const auto& code_seg = process->codeset->CodeSegment();
+            const auto& data_seg = process->codeset->DataSegment();
+            const bool have_reticle = p.mod.found &&
+                                      read32(p.mod.state + kStateReticle, reticle) &&
+                                      (reticle == 0 || read32(reticle, vtable));
+            const bool battle = InBattle(p.mod.found, have_reticle, reticle, vtable,
+                                         code_seg.addr, data_seg.addr);
+            if (raw >= 0 && !battle) {
+                raw = -1;
+                why = "not in a battle (no reticle)";
+            } else if (raw == -2) {
                 why = "the fighter records' values are out of range";
                 raw = -1;
             } else if (raw < 0 && (r.kind[0] == 1 || r.kind[0] == 2)) {
