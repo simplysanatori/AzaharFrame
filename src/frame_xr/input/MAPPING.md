@@ -143,6 +143,16 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   at the box). The beam stays at full strength while the hand is still. A red copy of the beam
   art and the dot are in the vis atlas (`kLaserBeamRect`, `kLaserDotRect`), drawn once: no GPU
   work in a game. Otherwise the usual white beam (`Input::LaserSight`, `Vis::Visuals::SetLaser`).
+- **Calibrate Aim** (AzaharFrame kiufix; Direct Aim, optional, per game): the Controls page's
+  Calibrate Aim row, Start, closes the menu; toasts ask for the top screen's centre, then its
+  top-left and bottom-right corners, each a press of the aiming controller's grip (the reticle
+  waits meanwhile). The centre alone gives an offset; with the corners a line is fitted per axis
+  (least squares: offset and scale), u' = a + b u, applied to Light Gun's target and to the laser's
+  dot (`AimCalibration`, `FitCalibration`, `AimCalibrationFlow`, `PointOnQuad`). A point that
+  would give an offset past half the screen or a scale outside 0.5 to 2 is asked again. Kept in
+  `config/custom/<title id>.aim` (one line, `v1 au bu av bv scaled`), not a settings key, so an
+  older build neither reads nor drops it; Reset deletes it; the menu opening stops a calibration
+  where it is (what was saved stays). Computed from the player's own pointing, never a preset.
 - **Grip:** the Gyro Aim controller's grip held (above 0.60, let go below 0.40) pauses it (Gyro:
   zero rate; Light Gun: the reticle stays) and grabs nothing; letting go does not jump (Gyro
   starts again from the hand's new place; Light Gun goes back to the pointer). The other
