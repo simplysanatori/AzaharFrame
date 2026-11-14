@@ -443,7 +443,7 @@ std::optional<InstallerFile> PickInstaller(std::string_view profile_json, std::s
             best = file;
         }
         if (!best) {
-            return fail("The CTGP-7 installer isn't on its GameBanana page");
+            return fail("The CTGP-7 Installer Isn't on GameBanana");
         }
         return best;
     } catch (const std::exception&) {
@@ -526,7 +526,7 @@ FetchResult FetchInstaller(const Paths& paths, const GetToFile& get, const std::
         fs::remove(page, ec);
         out.error = !pr.error.empty() ? pr.error
                     : pr.status == 0  ? std::string("No Internet Connection")
-                                      : fmt::format("GameBanana Answered {}", pr.status);
+                                      : fmt::format("GameBanana Error {}", pr.status);
         return out;
     }
     std::string json;
@@ -583,7 +583,7 @@ FetchResult FetchInstaller(const Paths& paths, const GetToFile& get, const std::
         }
         if (r.status != 200 && r.status != 206) {
             out.error = r.status == 0 ? std::string("No Internet Connection")
-                                      : fmt::format("GameBanana Answered {}", r.status);
+                                      : fmt::format("GameBanana Error {}", r.status);
             return out;
         }
         break;

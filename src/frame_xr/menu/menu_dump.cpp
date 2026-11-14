@@ -2124,6 +2124,11 @@ int main(int argc, char** argv) {
         ok &= shot("ctgp7-failed", failed, cv);
         failed.mods.ctgp7.error = "Install Failed: Not Enough Space: Needs 3.6 GB Free";
         ok &= shot("ctgp7-no-space", failed, cv);
+        // AzaharFrame ctgp7b: GameBanana's errors (the owner's wording)
+        failed.mods.ctgp7.error = "Install Failed: The CTGP-7 Installer Isn't on GameBanana";
+        ok &= shot("ctgp7-failed-not-on-gamebanana", failed, cv);
+        failed.mods.ctgp7.error = "Install Failed: GameBanana Error 503";
+        ok &= shot("ctgp7-failed-gamebanana-error", failed, cv);
         MenuModel done = ct;
         done.mods.ctgp7.installed = true;
         done.mods.ctgp7.version = "1.6.30";

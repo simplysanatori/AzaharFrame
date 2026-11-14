@@ -260,7 +260,7 @@ TEST_CASE("CTGP-7: the official offline installer is the file picked", "[ctgp7]"
     CHECK(f->md5 == "abcdef");
     CHECK_FALSE(PickInstaller(GbPage(GbFile(1, "ctgp-7_cia_online_installer.zip", "clean", false, 1)),
                               &error));
-    CHECK(error == "The CTGP-7 installer isn't on its GameBanana page");
+    CHECK(error == "The CTGP-7 Installer Isn't on GameBanana");
     CHECK_FALSE(PickInstaller("{\"_bIsTrashed\":true,\"_aFiles\":[]}", &error));
     CHECK_FALSE(PickInstaller("not json", &error));
 
@@ -343,6 +343,7 @@ TEST_CASE("CTGP-7: the download follows GameBanana's redirects and checks the fi
     SECTION("offline") {
         const auto r = FetchInstaller(p, get, nullptr, {});
         CHECK_FALSE(r.error.empty());
+        CHECK(r.error == "GameBanana Error 404"); // the page's status (owner's wording)
     }
 }
 
