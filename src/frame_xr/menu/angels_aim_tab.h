@@ -71,7 +71,7 @@ inline constexpr const char* kAngelsAimNotInstalled = "Not Installed";
 /// Report an Issue's page: a new issue, titled and labelled for Angel's Aim (GitHub ignores a
 /// label the repository does not have). The body is added by the Qt side (AngelsAimReportUrl).
 inline constexpr const char* kAngelsAimIssuesUrl =
-    "https://github.com/simplysanatori/AzaharFrame/issues/new?title=%5BAngel%27s%20Aim%5D%20&labels=angels-aim";
+    "https://github.com/simplysanatori/AzaharFrame/issues/new?title=%5BAngel%27s%20Aim%5D%20&labels=Angel%27s%20Aim";
 
 /// The page with a prefilled body (percent-encoded; kept short, as the menu's links are at most
 /// 300 characters): the app's version, the game's region and version, the mod's state.
