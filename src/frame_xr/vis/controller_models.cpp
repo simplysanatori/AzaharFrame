@@ -980,7 +980,10 @@ void ControllerModels::Setup(Runtime& rt) {
         .srcColorBlendFactor = vk::BlendFactor::eOne,
         .dstColorBlendFactor = vk::BlendFactor::eOne,
         .colorBlendOp = vk::BlendOp::eAdd,
-        .srcAlphaBlendFactor = vk::BlendFactor::eZero,
+        // AzaharFrame kiufix: the glow's coverage (the shader's alpha) adds up too, so the layer
+        // holds it as premultiplied light the compositor keeps; with alpha 0 everywhere a
+        // runtime may drop the pixels as clear, and the palm's flames did not show.
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
         .dstAlphaBlendFactor = vk::BlendFactor::eOne,
         .alphaBlendOp = vk::BlendOp::eAdd,
         .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
@@ -1286,8 +1289,8 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
                       FlashLinear(v[FrameWeapons::kFlashGreen]),
                       FlashLinear(v[FrameWeapons::kFlashBlue]), v[FrameWeapons::kFlashCore]};
             pc.up = {v[FrameWeapons::kFlashMode], size.half_width, size.half_length, size.middle};
-            // A glow (+4) and a flash card (+8); x: a fan.
-            pc.params = {fan ? 1.0f : 0.0f, 1.0f, strength, 12.0f};
+            // A glow (+4) and a flash card (+16); x: a fan.
+            pc.params = {fan ? 1.0f : 0.0f, 1.0f, strength, 20.0f};
             c.pushConstants(g.pipeline_layout,
                             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
                             0, sizeof(pc), &pc);
