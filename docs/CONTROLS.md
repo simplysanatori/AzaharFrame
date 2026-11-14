@@ -320,7 +320,7 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Stick of that hand, right or left | Makes the screen bigger or smaller. In the Full modes with **Follow Screen Size** on (the default), the world grows or shrinks with it, and a label shows **Follow Screen Size: On** |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Render Margin, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Render Margin: 1.2x**. Kept for this game |
-| Both grips, then D-pad right or left | Full modes: makes the screen wider or narrower, 5% per press, -30% to +30% (**Horizontal Scale**). A label shows the value, for example **Horizontal Scale: -10%**. Kept for this game, at once |
+| Both grips, then D-pad right or left | Full modes: makes the screen wider or narrower, 5% per press, -100% to +100% (**Horizontal Scale**). A label shows the value, for example **Horizontal Scale: -10%**. Kept for this game, at once |
 | Both grips, then D-pad up or down | Full modes: makes the screen taller or shorter in the same way (**Vertical Scale**), for example **Vertical Scale: +5%** |
 | Right stick click, held for 1 second | While you hold the screen: puts it back where it starts, recentres the view and resets the normal screens. Without a grip it only recentres, and the screen keeps its size. A tap does nothing while you hold the screen |
 

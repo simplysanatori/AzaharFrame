@@ -22,7 +22,8 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
 #include "common/settings.h"
-#include "frame_xr/immersive_names.h" // AzaharFrame kiu
+#include "frame_xr/immersive_layout.h" // AzaharFrame fov100: the scales' range
+#include "frame_xr/immersive_names.h"  // AzaharFrame kiu
 
 namespace {
 
@@ -55,10 +56,10 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
 // 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
 // AzaharFrame kiu: Horizontal and Vertical Scale (Settings::values.vr_immersive_scale_x and _y)
-// are signed percent, -30 to +30 in 5 % steps (frame_xr/immersive_layout.h ScalePercent). The
-// combo's item n is -30 + n x 5 %, so item 6 is 0 %.
-constexpr s32 kScaleStep = 5;
-constexpr s32 kScaleMax = 30;
+// are signed percent, -100 to +100 in 5 % steps (frame_xr/immersive_layout.h ScalePercent;
+// AzaharFrame fov100, -30 to +30 before). The combo's item n is -100 + n x 5 %, so item 20 is 0 %.
+constexpr s32 kScaleStep = FrameXr::Immersive::Layout::kScaleStepPercent;
+constexpr s32 kScaleMax = FrameXr::Immersive::Layout::kMaxScalePercent;
 int ScaleIndex(s32 percent) {
     const s32 p = std::clamp(percent, -kScaleMax, kScaleMax) + kScaleMax;
     return static_cast<int>((p + kScaleStep / 2) / kScaleStep);

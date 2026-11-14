@@ -12,11 +12,15 @@
 #include <random>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h" // AzaharFrame fov100: the setting's range
 #include "frame_xr/immersive_layout.h"
 #include "video_core/shader/generator/glsl_shader_gen.h" // AzaharFrame fovscale
 
 using Catch::Approx;
 using namespace FrameXr::Immersive::Layout;
+using FrameXr::Input::Posef; // AzaharFrame fov100
+using FrameXr::Input::Quatf;
+namespace In = FrameXr::Input;
 
 namespace {
 ViewFov Symmetric(float half_deg) {
@@ -31,7 +35,8 @@ constexpr float kAspect3ds = 400.0f / 240.0f;
 } // namespace
 
 TEST_CASE("FrameXr immersive scale: the setting", "[frame_xr][kiu]") {
-    // On the 5 % grid, -30 to +30, halves away from 0 the same either side.
+    // On the 5 % grid, -100 to +100 (AzaharFrame fov100; -30 to +30 before), halves away from 0
+    // the same either side.
     REQUIRE(ScalePercent(0) == 0);
     REQUIRE(ScalePercent(10) == 10);
     REQUIRE(ScalePercent(-10) == -10);
@@ -41,9 +46,13 @@ TEST_CASE("FrameXr immersive scale: the setting", "[frame_xr][kiu]") {
     REQUIRE(ScalePercent(-8) == -10);
     REQUIRE(ScalePercent(30) == 30);
     REQUIRE(ScalePercent(31) == 30);
-    REQUIRE(ScalePercent(-99) == -30);
-    REQUIRE(ScalePercent(1000) == 30);
-    for (int v = -40; v <= 40; ++v) {
+    REQUIRE(ScalePercent(33) == 35);
+    REQUIRE(ScalePercent(-99) == -100);
+    REQUIRE(ScalePercent(-100) == -100);
+    REQUIRE(ScalePercent(-101) == -100);
+    REQUIRE(ScalePercent(1000) == 100);
+    REQUIRE(ScalePercent(-1000) == -100);
+    for (int v = -140; v <= 140; ++v) {
         REQUIRE(ScalePercent(-v) == -ScalePercent(v));
         REQUIRE(ScalePercent(v) % kScaleStepPercent == 0);
         REQUIRE(ScalePercent(ScalePercent(v)) == ScalePercent(v));
@@ -52,17 +61,21 @@ TEST_CASE("FrameXr immersive scale: the setting", "[frame_xr][kiu]") {
     REQUIRE(SqueezeForScale(0) == 0.0f);
     REQUIRE(SqueezeForScale(-10) == Approx(0.1f));
     REQUIRE(SqueezeForScale(15) == Approx(-0.15f));
-    REQUIRE(SqueezeForScale(99) == Approx(-0.3f));
+    REQUIRE(SqueezeForScale(30) == Approx(-0.3f));
+    REQUIRE(SqueezeForScale(99) == Approx(-1.0f));
 }
 
 TEST_CASE("FrameXr immersive scale: D-pad steps and toasts", "[frame_xr][kiu]") {
     REQUIRE(SteppedScale(0, 1) == 5);
     REQUIRE(SteppedScale(0, -1) == -5);
     REQUIRE(SteppedScale(-10, 2) == 0);
-    REQUIRE(SteppedScale(30, 1) == 30);
-    REQUIRE(SteppedScale(-30, -1) == -30);
+    REQUIRE(SteppedScale(30, 1) == 35); // AzaharFrame fov100: on past the old ends
+    REQUIRE(SteppedScale(-30, -1) == -35);
+    REQUIRE(SteppedScale(100, 1) == 100);
+    REQUIRE(SteppedScale(-100, -1) == -100);
+    REQUIRE(SteppedScale(-95, -3) == -100);
     REQUIRE(SteppedScale(7, 1) == 10); // a hand-edited value goes onto the grid first
-    for (int v = -30; v <= 30; v += 5) {
+    for (int v = -100; v <= 100; v += 5) {
         for (const int steps : {-1, 1}) {
             const int next = SteppedScale(v, steps);
             REQUIRE(next >= -kMaxScalePercent);
@@ -76,7 +89,9 @@ TEST_CASE("FrameXr immersive scale: D-pad steps and toasts", "[frame_xr][kiu]") 
     REQUIRE(ScaleToast(30, true) == "Vertical Scale: +30%");
     REQUIRE(ScaleToast(-15, true) == "Vertical Scale: -15%");
     REQUIRE(ScaleToast(0, true) == "Vertical Scale: 0%");
-    REQUIRE(ScaleToast(99, true) == "Vertical Scale: +30%");
+    REQUIRE(ScaleToast(99, true) == "Vertical Scale: +100%");
+    REQUIRE(ScaleToast(-100, false) == "Horizontal Scale: -100%");
+    REQUIRE(ScaleToast(-35, false) == "Horizontal Scale: -35%");
     REQUIRE(WiderToast(0) == "Render Margin: Off");
     REQUIRE(WiderToast(2) == "Render Margin: 1.2x");
 }
@@ -213,12 +228,16 @@ TEST_CASE("FrameXr fovscale: the split of one axis", "[frame_xr][fovscale]") {
     // 1.4x at -30 %: the design's "draws 1.00x, stretch 0.98".
     REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).drawn == kFactorMin);
     REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).stretch == Approx(0.98f));
-    // The upper limit: 1.4x x 1.3 is exactly kFovFactorMax; past it (a hand-edited factor) the
-    // rest is a stretch.
-    REQUIRE(kFovFactorMax == Approx(1.82f));
+    // The upper limit: 1.4x x 2 (+100 %) is exactly kFovFactorMax (AzaharFrame fov100; 1.4x x 1.3
+    // before); past it (a hand-made scale) the rest is a stretch.
+    REQUIRE(kFovFactorMax == Approx(2.8f));
     REQUIRE(ScaleSplit(1.4f, 1.3f, 1.0f).stretch == Approx(1.0f));
-    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).drawn == Approx(kFovFactorMax));
-    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).stretch == Approx(1.4f * 1.5f / kFovFactorMax));
+    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).drawn == Approx(2.1f));
+    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).stretch == Approx(1.0f));
+    REQUIRE(ScaleSplit(1.4f, 2.0f, 1.0f).drawn == Approx(kFovFactorMax));
+    REQUIRE(ScaleSplit(1.4f, 2.0f, 1.0f).stretch == Approx(1.0f));
+    REQUIRE(ScaleSplit(1.4f, 2.5f, 1.0f).drawn == Approx(kFovFactorMax));
+    REQUIRE(ScaleSplit(1.4f, 2.5f, 1.0f).stretch == Approx(1.4f * 2.5f / kFovFactorMax));
     // Not a number or nonsense: the factor as drawn, no stretch.
     REQUIRE(ScaleSplit(1.4f, std::nanf(""), 1.0f).stretch == 1.0f);
     REQUIRE(ScaleSplit(1.4f, 0.8f, std::nanf("")).stretch == 0.8f); // Stretch
@@ -434,4 +453,340 @@ TEST_CASE("FrameXr fovscale: the vertex shader's factors with unequal axes",
     const V corner = vr({-1.0f, 1.0f, 1.0f}, 1.82f, 1.4f);
     REQUIRE(corner.x == -1.0f);
     REQUIRE(corner.y == 1.0f);
+}
+
+// ---- AzaharFrame fov100: the scales from -100 % to +100 % ----
+
+namespace {
+// What every build before fov100 did with a scale: on the 5 % grid within -30 to +30 %, the
+// squeeze -scale / 100, and the Field of View split with its upper limit at 1.4x x 1.3.
+int OldScalePercent(int setting) {
+    const int c = std::clamp(setting, -30, 30);
+    return c >= 0 ? (c + 2) / 5 * 5 : -((-c + 2) / 5 * 5);
+}
+float OldSqueeze(int setting) {
+    return -static_cast<float>(OldScalePercent(setting)) / 100.0f;
+}
+AxisSplit OldSplit(float factor, float k, float fov) {
+    constexpr float old_max = kFactorMax * (1.0f + 30.0f / 100.0f);
+    if (!(fov > 0.0f)) {
+        return {factor, k};
+    }
+    const float want = factor * (fov >= 1.0f ? k : std::pow(k, fov));
+    const float drawn = std::clamp(want, kFactorMin, std::max(old_max, factor));
+    return {drawn, factor * k / drawn};
+}
+bool Finite(const HeadLocked& s) {
+    for (const float f : {s.factor, s.factor_y, s.tan_half_y, s.aspect, s.pitch_rad, s.distance,
+                          s.gain, s.gain_x, s.stretch_x, s.stretch_y, s.yaw_rad}) {
+        if (!std::isfinite(f)) {
+            return false;
+        }
+    }
+    return true;
+}
+} // namespace
+
+// Rollback-safe: every value an earlier build could save (-30 to +30 %, hand-edited ones too)
+// gives the same squeeze, the same size and the same split, bit for bit.
+TEST_CASE("FrameXr fov100: the old range keeps its meaning", "[frame_xr][fov100]") {
+    REQUIRE(kMaxScalePercent == 100);
+    REQUIRE(kLinearScalePercent == 30);
+    for (int v = -30; v <= 30; ++v) {
+        INFO("setting " << v);
+        REQUIRE(ScalePercent(v) == OldScalePercent(v));
+        REQUIRE(SqueezeForScale(v) == OldSqueeze(v)); // bit for bit
+        REQUIRE(ScaleFactor(v) == 1.0f - OldSqueeze(v));
+        REQUIRE(ScaleFactor(v) == Approx(1.0f + OldScalePercent(v) / 100.0f).epsilon(1e-7));
+    }
+    // The split of each old value in both modes, at every Render Margin and menu-rule share.
+    for (uint32_t level = 0; level <= kMaxWiderLevel; ++level) {
+        const float b = WiderFactor(level);
+        for (int p = -30; p <= 30; p += 5) {
+            const float k = 1.0f - SqueezeForScale(p);
+            for (const float share : {0.0f, 0.3f, 0.7f, 1.0f}) {
+                const AxisSplit now = ScaleSplit(b, k, share), old = OldSplit(b, k, share);
+                REQUIRE(now.drawn == old.drawn);
+                REQUIRE(now.stretch == old.stretch);
+            }
+        }
+    }
+    // The solved screen of old values, in both modes: the quad, factors and gains follow the
+    // same split and size as before (the solver's own clamps are wider than the old range).
+    std::mt19937 rng(20261114u);
+    std::uniform_int_distribution<int> scale(-6, 6), level(0, 4);
+    std::uniform_real_distribution<float> fov(30.0f, 90.0f), half(35.0f, 60.0f),
+        size(kMinSize, kMaxSize), aspect(1.3f, 2.4f);
+    for (int i = 0; i < 500; ++i) {
+        Options o;
+        const int sx = scale(rng) * 5, sy = scale(rng) * 5;
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(sy);
+        o.wider = WiderFactor(static_cast<uint32_t>(level(rng)));
+        Placement p;
+        p.size = size(rng);
+        const float a = aspect(rng), game_fov = fov(rng);
+        const ViewFov view = Symmetric(half(rng));
+        Options o0 = o;
+        o0.squeeze = o0.squeeze_y = 0.0f;
+        const HeadLocked z = SolveHeadLocked(p, game_fov, a, view, 0.0f, o0);
+        for (const float share : {0.0f, 1.0f}) {
+            o.scale_fov = share;
+            const HeadLocked s = SolveHeadLocked(p, game_fov, a, view, 0.0f, o);
+            INFO("case " << i << " scales " << sx << ", " << sy << " share " << share);
+            const AxisSplit ax = OldSplit(z.factor, 1.0f - OldSqueeze(sx), share);
+            const AxisSplit up = OldSplit(z.factor_y, 1.0f - OldSqueeze(sy), share);
+            // The same split; up and down only to float rounding: factor_y is the factor again
+            // through the screen's shape (a last-bit difference), and at 1.4x and +30 % the old
+            // limit (1.4 x 1.3, rounded) could take that last bit off. 1e-6 is far below a pixel.
+            REQUIRE(s.factor == ax.drawn);
+            REQUIRE(s.stretch_x == ax.stretch);
+            REQUIRE(s.factor_y == Approx(up.drawn).epsilon(1e-6));
+            REQUIRE(s.stretch_y == Approx(up.stretch).epsilon(1e-6));
+            REQUIRE(s.tan_half_y == z.tan_half_y * (1.0f - OldSqueeze(sy)));
+            REQUIRE(s.width() == Approx(z.width() * (1.0f + sx / 100.0f)).epsilon(1e-5));
+        }
+    }
+}
+
+// Below -30 % the size follows 0.7 x e^((scale + 30) / 70): the line's value and slope at -30 %
+// (no jump, no kink), the same share smaller each step, never 0; above, the line to 2 at +100 %.
+TEST_CASE("FrameXr fov100: the size from -100 % to +100 %", "[frame_xr][fov100]") {
+    REQUIRE(ScaleFactor(-100) == Approx(kMinScaleFactor).epsilon(1e-6));
+    REQUIRE(kMinScaleFactor == Approx(0.7 / std::exp(1.0)).epsilon(1e-7));
+    REQUIRE(ScaleFactor(100) == kMaxScaleFactor);
+    REQUIRE(ScaleFactor(100) == 2.0f);
+    REQUIRE(ScaleFactor(-30) == Approx(0.7f));
+    REQUIRE(ScaleFactor(-35) == Approx(0.7 * std::exp(-5.0 / 70.0)));
+    REQUIRE(ScaleFactor(-65) == Approx(0.7 * std::exp(-0.5)));
+    // Clamped like the setting.
+    REQUIRE(ScaleFactor(-1000) == ScaleFactor(-100));
+    REQUIRE(ScaleFactor(1000) == ScaleFactor(100));
+    REQUIRE(SqueezeForScale(-100) == Approx(1.0f - kMinScaleFactor));
+    REQUIRE(SqueezeForScale(100) == Approx(-1.0f));
+    // Value and slope match at -30 % (the curve's slope there is 1/100 a percent, the line's).
+    const double slope = (0.7 - 0.7 * std::exp(-1e-3 / 70.0)) / 1e-3;
+    REQUIRE(slope == Approx(0.01).epsilon(1e-4));
+    // Every step larger than the one below; below -30 % each the same share (e^(5/70)) of it.
+    float last = ScaleFactor(-100);
+    for (int p = -95; p <= 100; p += 5) {
+        const float k = ScaleFactor(p);
+        INFO("scale " << p);
+        REQUIRE(k > last);
+        REQUIRE(k > 0.0f);
+        REQUIRE(std::isfinite(k));
+        if (p <= -30) {
+            REQUIRE(k / last == Approx(std::exp(5.0 / 70.0)).epsilon(1e-5));
+        } else {
+            REQUIRE(k - last == Approx(0.05f).epsilon(1e-4)); // the line, 5 % a step
+        }
+        last = k;
+    }
+    // The step from -30 % to -35 % is as big as the line's next one would have been, near enough.
+    REQUIRE(ScaleFactor(-30) - ScaleFactor(-35) == Approx(0.05f).epsilon(0.04));
+}
+
+// The ends in both Scale Modes, as the immersive screen: everything finite and usable, the quad
+// exactly the size the scale gives, the gains within their limits, the drawn view under 180
+// degrees, and the HUD (the game's own frame) on a quarter of the default screen at -100 %.
+TEST_CASE("FrameXr fov100: -100 % and +100 % in both modes", "[frame_xr][fov100]") {
+    std::mt19937 rng(20261115u);
+    std::uniform_int_distribution<int> level(0, 4), pick(0, 9);
+    std::uniform_real_distribution<float> fov(30.0f, 110.0f), live(10.0f, 150.0f),
+        half(35.0f, 60.0f), size(kMinSize, kMaxSize), aspect(1.2f, 3.0f), menu(0.0f, 1.0f),
+        dist(kMinDistance, kMaxDistance), turn(-1.0f, 1.0f);
+    const int ends[] = {-100, -95, -65, -35, -30, 0, 30, 35, 65, 95, 100};
+    int checked = 0;
+    float widest_deg = 0.0f;
+    for (int i = 0; i < 3000; ++i) {
+        Options o;
+        const int sx = ends[rng() % 11];
+        const int sy = ends[rng() % 11];
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(sy);
+        o.wider = WiderFactor(static_cast<uint32_t>(level(rng)));
+        o.live_fov_y_deg = pick(rng) < 3 ? 0.0f : live(rng);
+        const bool in_menu = pick(rng) == 0;
+        if (in_menu) {
+            o.size_wider = o.wider;
+            o.wider = MenuExact::Factor(o.wider, menu(rng));
+        }
+        Placement p;
+        p.size = size(rng);
+        p.distance = dist(rng);
+        const float a = aspect(rng), game_fov = fov(rng);
+        const ViewFov view = Symmetric(half(rng));
+        Options o0 = o;
+        o0.squeeze = o0.squeeze_y = 0.0f;
+        o0.scale_fov = 0.0f;
+        const HeadLocked z = SolveHeadLocked(p, game_fov, a, view, 0.0f, o0);
+        for (const float share : {0.0f, 1.0f}) {
+            o.scale_fov = share;
+            const HeadLocked s = SolveHeadLocked(p, game_fov, a, view, 0.0f, o);
+            INFO("case " << i << " scales " << sx << ", " << sy << " share " << share << " margin "
+                         << o.wider);
+            REQUIRE(Finite(s));
+            // The quad: exactly the scale's size on each axis, never 0 or inverted.
+            REQUIRE(s.width() > 0.0f);
+            REQUIRE(s.height() > 0.0f);
+            REQUIRE(s.width() == Approx(z.width() * ScaleFactor(sx)).epsilon(1e-4));
+            REQUIRE(s.height() == Approx(z.height() * ScaleFactor(sy)).epsilon(1e-4));
+            REQUIRE(s.width() >= z.width() * kMinScaleFactor * 0.9999f);
+            REQUIRE(s.width() <= z.width() * kMaxScaleFactor * 1.0001f);
+            // The split: drawn x stretch is the factor x the size; a factor of at least the game's
+            // own frame, at most kFovFactorMax; a stretch above 0.
+            REQUIRE(s.factor >= kFactorMin);
+            REQUIRE(s.factor_y >= kFactorMin * (1.0f - 1e-6f)); // through the shape: rounding
+            REQUIRE(s.factor <= std::max(kFovFactorMax, z.factor) * 1.0001f);
+            REQUIRE(s.stretch_x > 0.0f);
+            REQUIRE(s.stretch_y > 0.0f);
+            REQUIRE(s.factor * s.stretch_x == Approx(z.factor * ScaleFactor(sx)).epsilon(1e-5));
+            REQUIRE(s.factor_y * s.stretch_y == Approx(z.factor_y * ScaleFactor(sy)).epsilon(1e-5));
+            // The gains: within their limits, and over the stretch left where none is hit.
+            REQUIRE(s.gain >= kMinGain);
+            REQUIRE(s.gain <= kMaxGain);
+            REQUIRE(s.gain_x >= kMinGain);
+            REQUIRE(s.gain_x <= kMaxGain);
+            // The game's drawn view (its camera times the factor, as tangents): under 180 degrees.
+            const float t = std::tan(
+                std::clamp(o.live_fov_y_deg > 0.0f ? o.live_fov_y_deg : game_fov, 10.0f, 150.0f) *
+                kDegToRad / 2.0f);
+            const float across_deg = 2.0f * std::atan(s.factor * a * t) / kDegToRad;
+            const float up_deg = 2.0f * std::atan(s.factor_y * t) / kDegToRad;
+            REQUIRE(across_deg < 180.0f);
+            REQUIRE(up_deg < 180.0f);
+            widest_deg = std::max({widest_deg, across_deg, up_deg});
+            // Field of View: +100 % draws all of it (no stretch, so both gains stay the base gain,
+            // one picture scale); -100 % draws the game's own frame and stretches the rest.
+            if (share == 1.0f && !in_menu) {
+                if (sx == 100) {
+                    REQUIRE(s.stretch_x == Approx(1.0f).margin(1e-5));
+                    REQUIRE(s.factor == Approx(z.factor * 2.0f));
+                }
+                if (sx == -100) {
+                    REQUIRE(s.factor == kFactorMin);
+                    REQUIRE(s.stretch_x == Approx(z.factor * kMinScaleFactor).epsilon(1e-5));
+                }
+            }
+            // The HUD inside the game's own frame: at -100 % its width on the screen (the quad's
+            // over the drawn factor) is at most a quarter of the default screen's, in both modes.
+            if (sx == -100 && !in_menu) {
+                REQUIRE(s.width() / s.factor <= z.width() * kMinScaleFactor * 1.0001f);
+            }
+            // The head-driven camera and the quad's pose: finite, unit rotations.
+            const Quatf head =
+                In::Normalized(Quatf{turn(rng) * 0.3f, turn(rng) * 0.5f, turn(rng) * 0.2f, 1.0f});
+            const Quatf cam = GameCameraRotation(head, s);
+            REQUIRE(std::abs(cam.x * cam.x + cam.y * cam.y + cam.z * cam.z + cam.w * cam.w - 1.0f) <
+                    1e-4f);
+            for (int eye = 0; eye < 2; ++eye) {
+                const Posef q = HeadLockedQuadPose(s, EyeX(eye, 0.032f));
+                REQUIRE(std::isfinite(q.position.x));
+                REQUIRE(std::isfinite(q.position.z));
+            }
+            // Natural 3D and World Scale's measures: finite (the slider limit may be "none").
+            const StereoFar far2 = StereoFarOnQuad(s, 2, 0.032f, 0.004f);
+            const StereoFar far3 = StereoFarOnQuad(s, 3, 0.032f, 0.004f);
+            REQUIRE(std::isfinite(far2.vergence_deg));
+            REQUIRE(std::isfinite(far3.vergence_deg));
+            REQUIRE(std::isfinite(far2.natural_scale));
+            REQUIRE(far2.natural_scale > 0.0f);
+            const float limit = StereoSliderLimit(s, 0.032f, 0.0002f, kNaturalMarginDeg);
+            REQUIRE(!std::isnan(limit));
+            REQUIRE(std::isfinite(GameFarOnQuad(s, 0.004f)));
+            REQUIRE(ParallelDistance(s, 0.032f, 0.004f) > 0.0f);
+            const float leaning = NaturalLeaning(s, 0.5f);
+            REQUIRE(std::isfinite(leaning));
+            REQUIRE(leaning > 0.0f);
+            REQUIRE(EyePerFarFor(s, leaning) == Approx(0.5f).epsilon(1e-4));
+            const float ws = MigrateWorldScaleMode3(s, 0.5f, 0.8f, p.size, true);
+            REQUIRE(std::isfinite(ws));
+            REQUIRE(ws >= kWorldScaleMin);
+            REQUIRE(ws <= kWorldScaleMax);
+            checked++;
+        }
+    }
+    std::printf("fov100: %d screens at the scales' ends in both modes; widest drawn view %.1f "
+                "degrees\n",
+                checked, widest_deg);
+    REQUIRE(checked == 6000);
+}
+
+// Stretch at the ends: the picture's shape is the sizes' ratio (7.8 at -100 % across and +100 %
+// up and down), finite; Field of View within its limits keeps one scale both ways.
+TEST_CASE("FrameXr fov100: the picture's shape at the ends", "[frame_xr][fov100]") {
+    const ViewFov view = Symmetric(50);
+    for (const int sx : {-100, 100}) {
+        for (const int sy : {-100, 100}) {
+            Options o;
+            o.wider = kFactorMax;
+            o.squeeze = SqueezeForScale(sx);
+            o.squeeze_y = SqueezeForScale(sy);
+            o.scale_fov = 0.0f;
+            const HeadLocked st = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+            INFO("scales " << sx << ", " << sy);
+            REQUIRE(PictureShape(st, kAspect3ds) ==
+                    Approx(ScaleFactor(sy) / ScaleFactor(sx)).epsilon(1e-4));
+            o.scale_fov = 1.0f;
+            const HeadLocked fv = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+            REQUIRE(std::isfinite(PictureShape(fv, kAspect3ds)));
+            if (sx == 100 && sy == 100) {
+                REQUIRE(PictureShape(fv, kAspect3ds) == Approx(1.0f).epsilon(1e-4));
+                REQUIRE(fv.gain_x == Approx(fv.gain).epsilon(1e-4));
+            }
+        }
+    }
+    Options o;
+    o.squeeze = SqueezeForScale(-100);
+    o.squeeze_y = SqueezeForScale(100);
+    const HeadLocked st = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+    REQUIRE(PictureShape(st, kAspect3ds) == Approx(2.0f / kMinScaleFactor).epsilon(1e-4));
+    REQUIRE(2.0f / kMinScaleFactor == Approx(7.77f).epsilon(1e-3));
+}
+
+// The settings themselves: -100 to +100, what a reader clamps to. An older build's range was -30
+// to +30: a value past it comes back as its end, one inside it unchanged (old -> new -> old ->
+// new); the newer build never changes what a value of the old range means.
+TEST_CASE("FrameXr fov100: the setting's range and a round trip through an older build",
+          "[frame_xr][fov100]") {
+    auto& v = Settings::values;
+    for (auto* s : {&v.vr_immersive_scale_x, &v.vr_immersive_scale_y}) {
+        const bool global = s->UsingGlobal();
+        const s32 before = s->GetValue();
+        s->SetGlobal(true);
+        const s32 global_before = s->GetValue(true);
+        REQUIRE(s->GetDefault() == 0);
+        s->SetValue(-100);
+        REQUIRE(s->GetValue() == -100);
+        s->SetValue(100);
+        REQUIRE(s->GetValue() == 100);
+        s->SetValue(-150);
+        REQUIRE(s->GetValue() == -100);
+        s->SetValue(1000);
+        REQUIRE(s->GetValue() == 100);
+        s->SetValue(-80);
+        REQUIRE(s->GetValue() == -80);
+        s->SetValue(global_before);
+        s->SetGlobal(global);
+        if (!global) {
+            s->SetValue(before);
+        }
+    }
+    // An older build's setting (the same key, -30 to +30) reading what this one wrote, and back.
+    Settings::Setting<s32, true> older{0, -30, 30, "vr_immersive_scale_x"};
+    Settings::Setting<s32, true> newer{0, -100, 100, "vr_immersive_scale_x"};
+    for (const s32 saved : {-100, -80, -35, -30, -15, 0, 25, 30, 35, 100}) {
+        newer.SetValue(saved);
+        older.SetValue(newer.GetValue()); // the older build reads the file
+        newer.SetValue(older.GetValue()); // and saves it; this one reads it again
+        INFO("saved " << saved);
+        if (saved >= -30 && saved <= 30) {
+            REQUIRE(newer.GetValue() == saved);
+            REQUIRE(SqueezeForScale(newer.GetValue()) == OldSqueeze(older.GetValue()));
+        } else {
+            REQUIRE(newer.GetValue() == (saved < 0 ? -30 : 30)); // the older build's end
+        }
+        // Whatever the older build shows is what this one shows for the same value.
+        REQUIRE(ScaleFactor(older.GetValue()) == 1.0f - OldSqueeze(older.GetValue()));
+    }
 }

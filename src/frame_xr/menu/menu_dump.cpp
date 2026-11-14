@@ -1122,6 +1122,30 @@ int main(int argc, char** argv) {
         v.hover = {Id::ScaleMode, kLabelIndex};
         v.tooltip_index = kLabelIndex;
         ok &= shot("fs-scale-mode-tip-label", sc, v);
+        // AzaharFrame fov100: the scales at their ends, -100 % and +100 %, both and mixed, and
+        // Horizontal Scale held at each end (the value under the beam).
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        sc.scale_mode = 1;
+        sc.scale_x = -100;
+        sc.scale_y = -100;
+        ok &= shot("f100-scales-min", sc, v);
+        sc.scale_x = 100;
+        sc.scale_y = 100;
+        ok &= shot("f100-scales-max", sc, v);
+        sc.scale_x = -100;
+        sc.scale_y = 100;
+        sc.scale_mode = 0;
+        ok &= shot("f100-scales-mixed-stretch", sc, v);
+        sc.scale_mode = 1;
+        sc.scale_x = 0;
+        sc.scale_y = 0;
+        for (const float t : {0.0f, 1.0f}) {
+            v.dragging = Id::ScaleX;
+            v.drag_t = t;
+            ok &= shot(t == 0.0f ? "f100-scale-x-held-min" : "f100-scale-x-held-max", sc, v);
+        }
+        v.dragging = Id::None;
     }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;

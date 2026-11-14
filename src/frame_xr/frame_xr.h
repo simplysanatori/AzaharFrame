@@ -302,7 +302,7 @@ enum class MenuSetting {
     GameFov, ///< `value`: degrees
     MatchCamera, ///< AzaharFrame depth, fovonce: `value` 0 Off, 1 Set Once, 2 Always
                  ///< (vr_immersive_match_camera_mode); Set Once clears vr_immersive_fov_measured
-    ScaleX, ///< AzaharFrame kiu: `value` percent, -30 to 30 (vr_immersive_scale_x)
+    ScaleX, ///< AzaharFrame kiu, fov100: `value` percent, -100 to 100 (vr_immersive_scale_x)
     ScaleY, ///< vr_immersive_scale_y
     ScaleMode, ///< AzaharFrame fovscale: `value` 0 Stretch, 1 Field of View (vr_immersive_scale_mode)
     WorldScale,   ///< AzaharFrame natural: `value` hundredths of a percent (vr_immersive_world_scale)

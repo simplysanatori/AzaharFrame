@@ -1736,8 +1736,9 @@ TEST_CASE("FrameXr immersive: a picture shown again is held as the game would dr
                     uni(kMinSize, kMaxSize)};
         Options o;
         o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
-        o.squeeze = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
-        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        // AzaharFrame fov100: the scales' whole range, -100 to +100 % (41 steps)
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
         LensOffset offset{uni(-kMaxOffsetDeg, kMaxOffsetDeg), uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
         if (kind == Yaw) { // a yaw in the quad's frame: the screen level
             offset.up_deg = 0.0f;
@@ -2109,8 +2110,9 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
                     uni(kMinDistance, kMaxDistance), uni(kMinSize, kMaxSize)};
         Options o;
         o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
-        o.squeeze = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
-        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        // AzaharFrame fov100: the scales' whole range, -100 to +100 % (41 steps)
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
         LensOffset offset{yaw_only ? 0.0f : uni(-kMaxOffsetDeg, kMaxOffsetDeg),
                           yaw_only ? 0.0f : uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
         HeadLocked s = SolveHeadLocked(p, uni(30, 110), kAspect3ds, view,

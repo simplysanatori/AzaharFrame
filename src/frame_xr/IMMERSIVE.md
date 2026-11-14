@@ -248,10 +248,19 @@ Four per-game settings change this (**VR** group, logged as
   default. Mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
   Land draw correctly, but Super Mario 3D Land's levels are black below the floor.
 - **Horizontal Scale** (`vr_immersive_scale_x`, AzaharFrame kiu; it replaces Narrow Screen,
-  `vr_immersive_squeeze`, called Squeeze Width in 1.0.0): signed percent, -30 to +30 in 5 % steps,
-  0 by default, read every frame (`Layout::ScalePercent`). Positive means larger: the quad keeps
-  its height and is that much wider than the picture; negative, that much narrower
-  (`Options::squeeze` = -scale / 100, `Layout::SqueezeForScale`). How the picture fills that
+  `vr_immersive_squeeze`, called Squeeze Width in 1.0.0): signed percent, -100 to +100 in 5 %
+  steps (AzaharFrame fov100; -30 to +30 before), 0 by default, read every frame
+  (`Layout::ScalePercent`). Positive means larger: the quad keeps its height and is that much
+  wider than the picture; negative, that much narrower (`Options::squeeze` = -scale / 100,
+  `Layout::SqueezeForScale`). AzaharFrame fov100: that line holds from -30 % up, so every value of
+  the old range keeps its screen bit for bit and +100 % is twice the width (`k` = 2). Below -30 %
+  the line would reach 0 at -100 %, so the size `k` = 1 - squeeze follows
+  `0.7 x e^((scale + 30) / 70)` there (`Layout::ScaleFactor`): the line's value and slope at
+  -30 %, each further step 6.9 % smaller than the one before, 0.26 at -100 % (`kMinScaleFactor`),
+  never 0. The owner wants the HUD always in reach (with Field of View at 1.4x it only starts to
+  move in at -28.6 %); a quarter of the width still shows the whole picture. An older build
+  reading -35 % or beyond clamps it to its own -30 % (its `SwitchableSetting` range) and writes
+  that if it saves the file; a value inside the old range is unchanged both ways. How the picture fills that
   quad is **Scale Mode** (below): Field of View by default. What follows to the end of the
   bullet is Stretch, every build before AzaharFrame fovscale. The yaw gets its own gain,
   `gain_x = base gain / (1 + scale)`, so the middle stays locked both ways. The scale applies to
@@ -264,7 +273,8 @@ Four per-game settings change this (**VR** group, logged as
   1:1), and the edges move a little more against the head (the formula above with `gain_x`).
   `gain_x` is clamped to `kMinGain` and `kMaxGain` like the gain. It costs nothing to draw and
   needs no restart: only the quad's shape and the gains change, nothing in the game. The VR
-  menu's row is a slider from -30 % to +30 %; the Qt window offers every 5 %; both grips + D-pad
+  menu's row is a slider from -100 % to +100 % (no tick marks: 40 stops; it snaps to them); the
+  Qt window offers every 5 %; both grips + D-pad
   right (wider) or left (narrower) step 5 %. A config with only the old key is converted once
   when read (`FrameConfig::MigratedScale`, `Layout::ScaleFromNarrow`): Narrow Screen 10 % is
   Horizontal Scale -10 % (1, 2 and 3 are the 10 % steps of earlier builds,
@@ -280,7 +290,7 @@ Four per-game settings change this (**VR** group, logged as
   shows the same picture on it, stretched, as above. **Field of View** has the game draw that
   much more (or less) on that axis instead, through the two periphery factors the vertex shader
   already has (`VrFactor`: clip y across, clip x up and down; a 2D vertex on an edge keeps its
-  place): per axis, with `b` Render Margin's factor and `k` = 1 + scale / 100,
+  place): per axis, with `b` Render Margin's factor and `k` = 1 + scale / 100 (`ScaleFactor`),
   `drawn = clamp(b x k, kFactorMin, kFovFactorMax)` and the stretch left `r = b x k / drawn`, the
   axis's gain `base gain / r` (`Layout::ScaleSplit`; Stretch is `drawn = b`, `r = k`, bit for
   bit). Inside the limits `r = 1`: the picture has one scale both ways, both gains are the base
@@ -290,8 +300,16 @@ Four per-game settings change this (**VR** group, logged as
   longer change with Horizontal Scale (they take the drawn factor over the quad's width, and the
   scale cancels). The limits: below the game's own frame (`kFactorMin`; at 1.4x Horizontal Scale
   down to -28.6 % is all field of view, at Render Margin Off any negative scale is a stretch, as
-  before) the HUD inside the frame would be pushed off the picture; `kFovFactorMax` = 1.4 x 1.3 =
-  1.82 is only a guard (the settings cannot pass it). What a factor cannot take stays a stretch,
+  before) the HUD inside the frame would be pushed off the picture; `kFovFactorMax` = 1.4 x 2 =
+  2.8 (AzaharFrame fov100; 1.82 with the old +30 %, which no old value came near, so their
+  pictures are the same) is only a guard (the settings cannot pass it). The shader divides clip x
+  and y by the factor, so the tangents of the game's view widen by it: never 180 degrees or more
+  (a 90-degree camera drawn at 2.8x is 141 degrees), never inverted. At the ends: +100 % in Field
+  of View draws `2 b` with no stretch and the base gains (fully locked); -100 % draws the game's
+  own frame (1.0x) with the stretch `0.26 b` left, so the HUD is at a quarter of the width and
+  the gain `base / (0.26 b)` reaches `kMaxGain` (2.0) from a base gain of 0.72 at 1.4x (the world
+  then drifts a little against the head, as at every gain limit). In Stretch, -100 % on one axis and +100 % on the other is a
+  picture 7.8 times as stretched one way as the other: finite, and a head roll shears it. What a factor cannot take stays a stretch,
   continuous in the setting. Mode 2's menu rule (`MenuExact`) eases the split off with the
   factor (`Options::scale_fov` = 1 - its weight): a full-screen 2D screen pinned to the edges and
   the icons on it keep one scale only with equal factors. Mode 1 is untouched (factor 3.0). The

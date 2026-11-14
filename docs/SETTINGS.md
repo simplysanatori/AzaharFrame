@@ -50,8 +50,8 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
 | [Detect Game FOV](#detect-game-fov) | **Off**, **Once**, **Always** | Always | global and per game | at once |
 | [Render Margin](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
-| [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
-| [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
+| [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | 0% | global and per game | at once |
+| [Vertical Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | 0% | global and per game | at once |
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [Motion Clarity](#motion-clarity) | on or off | on | global and per game | at once |
@@ -210,7 +210,7 @@ Called Wider View in earlier versions. Renders extra picture around the 3DS scre
 
 ## Horizontal Scale and Vertical Scale
 
-Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or shorter (**Vertical Scale**) than the game's picture. Full modes only. Above 0% the screen is larger, below 0% smaller: a narrower screen brings the side HUD into view, and the game looks that much thinner. Turning your head still moves the world as much as the screen, so the middle of the picture stays in place. In VR, hold the immersive screen with both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label shows the value, for example **Horizontal Scale: -10%**. Each is kept for the game. They replace Narrow Screen and Narrow Height: a game where you set those keeps its screen, so Narrow Screen 10% is now Horizontal Scale -10%. Mario Kart 7's preset starts at -30% and -15%.
+Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or shorter (**Vertical Scale**) than the game's picture. Full modes only. Above 0% the screen is larger, below 0% smaller: a narrower screen brings the side HUD into view, and the game looks that much thinner. Past -30% each step shrinks it a little less, so -100% leaves about a quarter of the screen. Turning your head still moves the world as much as the screen, so the middle of the picture stays in place. In VR, hold the immersive screen with both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label shows the value, for example **Horizontal Scale: -10%**. Each is kept for the game. They replace Narrow Screen and Narrow Height: a game where you set those keeps its screen, so Narrow Screen 10% is now Horizontal Scale -10%. Mario Kart 7's preset starts at -30% and -15%.
 
 ## World Scale
 

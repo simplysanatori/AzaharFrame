@@ -138,13 +138,13 @@ TEST_CASE("VR group: no row is locked while the running game has its own value",
         // The global values show
         CHECK(mode->currentIndex() == 0);
         CHECK(wider->currentIndex() == 4);
-        CHECK(scale->currentIndex() == 6); // 0 %
+        CHECK(scale->currentIndex() == 20); // 0 % (AzaharFrame fov100: -100 % is item 0)
         CHECK(fov->value() == 60);
         CHECK(!hide->isChecked());
         Shot(w, "qt-vr-global-game-values.png");
         mode->setCurrentIndex(3);
         wider->setCurrentIndex(2);
-        scale->setCurrentIndex(8); // +10 %
+        scale->setCurrentIndex(22); // +10 %
         fov->setValue(70);
         hide->setChecked(true);
         w.ApplyConfiguration();
@@ -173,8 +173,8 @@ TEST_CASE("VR group: no row is locked while the running game has its own value",
         REQUIRE(fov_scope);
         CHECK(mode->count() == 4 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(mode->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
-        CHECK(scale->count() == 13 + ConfigurationShared::USE_GLOBAL_OFFSET);
-        CHECK(scale->currentIndex() == 4 + ConfigurationShared::USE_GLOBAL_OFFSET); // -10 %
+        CHECK(scale->count() == 41 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(scale->currentIndex() == 18 + ConfigurationShared::USE_GLOBAL_OFFSET); // -10 %
         CHECK(fov_scope->currentIndex() == 1); // its own
         Shot(w, "qt-vr-per-game-own-values.png");
         mode->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
@@ -307,5 +307,64 @@ TEST_CASE("VR group: Scale Mode", "[frame_xr][fovscale]") {
     }
     CHECK(v.vr_immersive_scale_mode.UsingGlobal());
     CHECK(v.vr_immersive_scale_mode.GetValue() == 1u);
+    Settings::SetConfiguringGlobal(true);
+}
+
+// AzaharFrame fov100: Horizontal and Vertical Scale offer -100 % to +100 % in 5 % steps (41
+// items, 0 % in the middle); a game's -100 % and a global +100 % show and are applied as such,
+// and a value of the old range (-30 to +30 %) keeps its item's meaning.
+TEST_CASE("VR group: the scales from -100 % to +100 %", "[frame_xr][fov100]") {
+    App();
+    auto& v = Settings::values;
+    Keep<s32, true> kx{v.vr_immersive_scale_x};
+    Keep<s32, true> ky{v.vr_immersive_scale_y};
+    // The setting's own range (what any reader clamps to).
+    CHECK(v.vr_immersive_scale_x.GetDefault() == 0);
+    Settings::SetConfiguringGlobal(true);
+    Values(v.vr_immersive_scale_x, 100, -100);
+    Values(v.vr_immersive_scale_y, -100, 100);
+    {
+        ConfigureFrameVr w;
+        for (const char* row : {"frame_vr_scale_x_row", "frame_vr_scale_y_row"}) {
+            auto* combo = In<QComboBox>(w, row);
+            REQUIRE(combo);
+            CHECK(combo->count() == 41);
+            CHECK(combo->itemText(0) == QStringLiteral("-100%"));
+            CHECK(combo->itemText(14) == QStringLiteral("-30%"));
+            CHECK(combo->itemText(20) == QStringLiteral("0%"));
+            CHECK(combo->itemText(26) == QStringLiteral("+30%"));
+            CHECK(combo->itemText(40) == QStringLiteral("+100%"));
+            CHECK(combo->isEnabled());
+        }
+        auto* x = In<QComboBox>(w, "frame_vr_scale_x_row");
+        auto* y = In<QComboBox>(w, "frame_vr_scale_y_row");
+        CHECK(x->currentIndex() == 40); // the global values
+        CHECK(y->currentIndex() == 0);
+        Shot(w, "qt-vr-scales-global-ends.png");
+        x->setCurrentIndex(0);
+        y->setCurrentIndex(40);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_x.GetValue(true) == -100);
+    CHECK(v.vr_immersive_scale_y.GetValue(true) == 100);
+    CHECK(v.vr_immersive_scale_x.GetValue() == -100); // the game's own stayed
+    CHECK(v.vr_immersive_scale_y.GetValue() == 100);
+    Settings::SetConfiguringGlobal(false);
+    {
+        ConfigureFrameVr w;
+        auto* x = In<QComboBox>(w, "frame_vr_scale_x_row");
+        auto* y = In<QComboBox>(w, "frame_vr_scale_y_row");
+        REQUIRE(x);
+        REQUIRE(y);
+        CHECK(x->count() == 41 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(x->currentIndex() == 0 + ConfigurationShared::USE_GLOBAL_OFFSET);  // -100 %
+        CHECK(y->currentIndex() == 40 + ConfigurationShared::USE_GLOBAL_OFFSET); // +100 %
+        Shot(w, "qt-vr-scales-per-game-ends.png");
+        x->setCurrentIndex(14 + ConfigurationShared::USE_GLOBAL_OFFSET); // -30 %, the old end
+        y->setCurrentIndex(26 + ConfigurationShared::USE_GLOBAL_OFFSET); // +30 %
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_x.GetValue() == -30);
+    CHECK(v.vr_immersive_scale_y.GetValue() == 30);
     Settings::SetConfiguringGlobal(true);
 }

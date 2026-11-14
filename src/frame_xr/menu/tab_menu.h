@@ -136,7 +136,7 @@ enum class Id : int {
     WiderView,
     GameFov,
     MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
-    ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -30 to +30 % (5 % steps), per game
+    ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -100 to +100 % (5 % steps), per game
     ScaleY, ///< AzaharFrame kiu: Vertical Scale, as ScaleX
     /// AzaharFrame fovscale: how the scales act, Stretch | Field of View
     /// (vr_immersive_scale_mode), per game
@@ -376,7 +376,7 @@ struct MenuModel {
     int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
     int game_fov = 60;   ///< 30 to 110 degrees
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
-    int scale_x = 0; ///< AzaharFrame kiu: percent, -30 to 30
+    int scale_x = 0; ///< AzaharFrame kiu, fov100: percent, -100 to 100
     int scale_y = 0;
     int scale_mode = 1; ///< AzaharFrame fovscale: 0 Stretch, 1 Field of View
     /// AzaharFrame natural: World Scale's slider stop (Layout::kWorldScaleStops; 20 = 100 %,

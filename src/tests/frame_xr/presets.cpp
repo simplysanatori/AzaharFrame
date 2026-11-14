@@ -90,8 +90,9 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     for (std::size_t i = 0; i < count; ++i) {
         const ImmersivePreset& p = *titles[i].preset;
         REQUIRE((p.wider_level >= -1 && p.wider_level <= 4));
-        REQUIRE((p.scale_x >= -30 && p.scale_x <= 30 && p.scale_x % 5 == 0)); // AzaharFrame kiu
-        REQUIRE((p.scale_y >= -30 && p.scale_y <= 30 && p.scale_y % 5 == 0));
+        // AzaharFrame kiu, fov100: the scales' range is -100 to +100 %
+        REQUIRE((p.scale_x >= -100 && p.scale_x <= 100 && p.scale_x % 5 == 0));
+        REQUIRE((p.scale_y >= -100 && p.scale_y <= 100 && p.scale_y % 5 == 0));
         REQUIRE((p.factor_3d >= -1 && p.factor_3d <= 100));
         REQUIRE((p.resolution >= -1 && p.resolution <= 18));
         REQUIRE((p.texture_filter >= -1 && p.texture_filter <= 5));

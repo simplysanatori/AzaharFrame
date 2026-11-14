@@ -26,8 +26,10 @@
 //     and only shows more or less around it (AzaharFrame immersive2).
 //   - Horizontal Scale (per game, 0 % by default, live; AzaharFrame immersive2, kiu: signed,
 //     positive is larger): the quad is that much wider or narrower than the game's picture
-//     (-30 to +30 %, 5 % steps) at the same height, and the yaw gain is the base gain / (1 +
-//     scale), so a narrower screen brings the HUD at the sides in while the middle stays locked.
+//     (-100 to +100 %, 5 % steps; AzaharFrame fov100, -30 to +30 % before; below -30 % the size
+//     follows a curve that never reaches 0, ScaleFactor) at the same height, and the yaw gain is
+//     the base gain / (1 + scale), so a narrower screen brings the HUD at the sides in while the
+//     middle stays locked.
 //     The world looks that much thinner. Vertical Scale does the same up and down (the pitch
 //     gain / (1 + vertical scale)): the world looks that much flatter.
 //     AzaharFrame fovscale: that is Stretch. Field of View (the default, per game) keeps the
@@ -228,7 +230,7 @@ struct Options {
     /// sized with `wider`, so the head turns the game as before.
     float size_wider = 0.0f;
     /// The quad this much narrower than the picture (AzaharFrame kiu: -0.3 to 0.3, negative is
-    /// wider: SqueezeForScale of Horizontal Scale).
+    /// wider: SqueezeForScale of Horizontal Scale; AzaharFrame fov100: -1 to 0.74).
     float squeeze = 0.0f;
     float squeeze_y = 0.0f;  ///< AzaharFrame immersive2: and this much lower (Vertical Scale)
     /// AzaharFrame immersive: the game camera's vertical angle right now (Match Game Camera: a
@@ -250,13 +252,28 @@ float SqueezeFor(uint32_t setting);
 /// _y), signed percent: the immersive screen that much larger (positive) or smaller (negative)
 /// than the picture on that axis, -kMaxScalePercent to +kMaxScalePercent in kScaleStepPercent
 /// steps, 0 by default. They replace Narrow Screen and Narrow Height: Narrow Screen 10 % is
-/// Horizontal Scale -10 %. The axis's gain is the base gain over (1 + scale): the middle stays
-/// locked at both signs (at -30 % a base gain of 1.4 reaches kMaxGain; at +30 % it is / 1.3).
+/// Horizontal Scale -10 %. The axis's gain is the base gain over the screen's size on that axis
+/// (ScaleFactor): the middle stays locked at both signs (at -30 % a base gain of 1.4 reaches
+/// kMaxGain; at +30 % it is / 1.3).
+/// AzaharFrame fov100: -100 to +100 % (-30 to +30 % before). From -kLinearScalePercent up the
+/// size is 1 + scale / 100, exactly as before (+100 % is twice the size), so a saved value keeps
+/// its screen. Below -30 % a straight line would reach 0 at -100 %; there each step shrinks the
+/// screen by the same share instead (0.7 x e^((scale + 30) / 70): the line's value and slope at
+/// -30 %, no kink), down to kMinScaleFactor (0.26) at -100 %, so the HUD always fits.
 inline constexpr int kScaleStepPercent = 5;
-inline constexpr int kMaxScalePercent = 30;
+inline constexpr int kMaxScalePercent = 100;
+/// The range of builds before fov100, where the size is the straight line 1 + scale / 100.
+inline constexpr int kLinearScalePercent = 30;
+/// ScaleFactor at -kMaxScalePercent (0.7 / e) and at +kMaxScalePercent.
+inline constexpr float kMinScaleFactor = 0.25751561f;
+inline constexpr float kMaxScaleFactor = 2.0f;
 /// The setting clamped and on the 5 % grid (a hand-edited value too).
 int ScalePercent(int setting);
-/// The setting as Options::squeeze (squeeze_y): -ScalePercent / 100.
+/// AzaharFrame fov100: the screen's size on that axis over the picture's for the setting
+/// (1 - SqueezeForScale): 1 + ScalePercent / 100 from -30 % up, the curve below it.
+float ScaleFactor(int setting);
+/// The setting as Options::squeeze (squeeze_y): -ScalePercent / 100 from -30 % up (bit for bit
+/// as every earlier build), 1 - ScaleFactor below.
 float SqueezeForScale(int setting);
 /// The setting after `steps` presses (positive = larger), clamped.
 int SteppedScale(int setting, int steps);
@@ -271,10 +288,12 @@ int ScaleFromNarrow(uint32_t old_setting);
 /// that axis follows); Field of View has the game draw that much more (or less) on that axis, so
 /// the picture keeps one scale both ways and a head roll is a plain rotation (IMMERSIVE.md).
 enum class ScaleMode : uint32_t { Stretch = 0, FieldOfView = 1 };
-/// The highest factor Field of View draws: Render Margin's 1.4x times +30 %. The shader has no
-/// limit of its own; what limits it is the game's scenery past its own camera.
-inline constexpr float kFovFactorMax =
-    kFactorMax * (1.0f + static_cast<float>(kMaxScalePercent) / 100.0f);
+/// The highest factor Field of View draws: Render Margin's 1.4x times the largest scale (+100 %:
+/// 2.8x; 1.82x when the scales ended at +30 %, and no setting of the old range comes near it, so
+/// their pictures are the same). The shader has no limit of its own (it divides clip x and y by
+/// it: the tangents of the view widen by it, so the view stays under 180 degrees at any factor);
+/// what limits it is the game's scenery past its own camera.
+inline constexpr float kFovFactorMax = kFactorMax * kMaxScaleFactor;
 /// One axis of a scale split between what the game draws and a stretch of the picture.
 struct AxisSplit {
     float drawn = kFactorMin; ///< the periphery factor the game draws with on this axis

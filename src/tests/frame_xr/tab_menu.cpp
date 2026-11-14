@@ -3516,6 +3516,45 @@ TEST_CASE("Tab menu: Scale Mode is Stretch or Field of View", "[frame_xr][tabmen
     }
 }
 
+// AzaharFrame fov100: Horizontal and Vertical Scale are sliders from -100 % to +100 % in 5 %
+// steps (-30 to +30 % before), with no tick marks (40 stops); the ends read "-100%" and "+100%"
+// and fit their row.
+TEST_CASE("Tab menu: the scales from -100 % to +100 %", "[frame_xr][tabmenu][fov100]") {
+    for (Id id : {Id::ScaleX, Id::ScaleY}) {
+        const SliderRange r = SliderFor(id);
+        CHECK(r.min == -100.0f);
+        CHECK(r.max == 100.0f);
+        CHECK(r.step == 5.0f);
+    }
+    const auto text = [](int p) { return (p > 0 ? "+" : "") + std::to_string(p) + "%"; };
+    for (const auto& [x, y] :
+         {std::pair{-100, 100}, std::pair{100, -100}, std::pair{-100, -100}, std::pair{100, 100}}) {
+        Audit a;
+        MenuModel m = Sample();
+        m.scale_x = x;
+        m.scale_y = y;
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = SettingsSection::Immersive;
+        bool shown = false;
+        for (float scroll = 0.0f; scroll <= 3000.0f && !shown; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            a.Draw(m, v);
+            bool sx = false, sy = false;
+            for (const auto& h : a.menu.Hits()) {
+                sx |= h.t.id == Id::ScaleX;
+                sy |= h.t.id == Id::ScaleY;
+            }
+            shown = sx && sy;
+        }
+        INFO("scales " << x << ", " << y);
+        REQUIRE(shown);
+        CHECK(a.Drew(text(x))); // "-100%", "+100%"
+        CHECK(a.Drew(text(y)));
+        a.Check("the scales at their ends");
+    }
+}
+
 // AzaharFrame ctgp7b: the catalog's mods for CTGP-7 ("requires": "ctgp7", the eight of the
 // catalog's ctgp7 branch) are listed in the CTGP-7 segment under its status row, not in the Mods
 // segment (Install Mods or the loaded list); the others (Sonic works with or without CTGP-7) stay

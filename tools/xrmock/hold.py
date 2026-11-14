@@ -494,6 +494,16 @@ def synthetic_roll(gx, gy, speed=120.0, amp=20.0, seconds=2.0, d=3.0, w=6.0, h=3
     return lines
 
 
+def scale_factor(percent):
+    """fov100: the screen's size on an axis over the picture's for Horizontal or Vertical Scale
+    `percent` (Layout::ScaleFactor): 1 + percent / 100 from -30 up, as every earlier build;
+    0.7 e^((percent + 30) / 70) below, 0.2575 at -100."""
+    p = max(-100, min(100, int(round(percent))))
+    if p >= -30:
+        return 1.0 + p / 100.0
+    return 0.7 * math.exp((p + 30) / 70.0)
+
+
 def fit_gain(rows, camera, sx, sy, out=print):
     """r31 (Detect Game FOV Once / Always: the gain follows the game's measured camera and is not
     logged after the first line): the base gain at which each picture's camera, read from its
@@ -505,7 +515,7 @@ def fit_gain(rows, camera, sx, sy, out=print):
     pics = [p for p in pics.values() if len(p) >= 2]
 
     def cost(b):
-        gx = min(max(b / (1.0 + sx / 100.0), 0.4), 2.0)
+        gx = min(max(b / scale_factor(sx), 0.4), 2.0)
         sp = sorted(max(cs) - min(cs) for cs in
                     ([camera_yaw(r, camera, gx) for r in p] for p in pics))
         return sp[len(sp) // 2] if sp else 1e9
@@ -514,8 +524,8 @@ def fit_gain(rows, camera, sx, sy, out=print):
     lo = best[1] - 0.005
     best = min((cost(lo + k / 10000.0), lo + k / 10000.0) for k in range(0, 101))
     b = best[1]
-    gx = min(max(b / (1.0 + sx / 100.0), 0.4), 2.0)
-    gy = min(max(b / (1.0 + sy / 100.0), 0.4), 2.0)
+    gx = min(max(b / scale_factor(sx), 0.4), 2.0)
+    gy = min(max(b / scale_factor(sy), 0.4), 2.0)
     out("gains fitted from the quads (each picture's camera the same on its refreshes, median "
         "spread %.4f degrees): base %.4f, across %.5f, up %.5f" % (best[0], b, gx, gy))
     return gx, gy
@@ -549,8 +559,8 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
         return latest[1], latest[2], max(t, latest[0])
     if size is not None:
         base = 1.0 / min(max(size, 0.6), 2.5)
-        cx = min(max(base / (1.0 + (scale_x or 0) / 100.0), 0.4), 2.0)
-        cy = min(max(base / (1.0 + (scale_y or 0) / 100.0), 0.4), 2.0)
+        cx = min(max(base / scale_factor(scale_x or 0), 0.4), 2.0)
+        cy = min(max(base / scale_factor(scale_y or 0), 0.4), 2.0)
         if abs(cx - gx) <= 0.0051 and abs(cy - g) <= 0.0051:
             out("gains: logged %.2f across, %.2f up; exact from size %.3f: %.5f, %.5f" % (gx, g, size, cx, cy))
             return cx, cy, t
@@ -673,6 +683,16 @@ def selftest():
               % (gx, gy, 100.0 * got[1], got[2], got[3], "PASS" if got[0] else "FAIL",
                  "PASS" if want else "FAIL"))
         ok &= got[0] == want
+    # fov100: the scales' sizes, as Layout::ScaleFactor: the line of earlier builds from -30 up,
+    # continuous below it and never 0.
+    sizes = [scale_factor(p) for p in range(-100, 101, 5)]
+    good = (all(scale_factor(p) == 1.0 + p / 100.0 for p in range(-30, 101, 5))
+            and abs(scale_factor(-100) - 0.7 / math.e) < 1e-12
+            and all(b > a > 0.0 for a, b in zip(sizes, sizes[1:]))
+            and abs(scale_factor(-35) - 0.65) < 0.002 and scale_factor(-1000) == scale_factor(-100))
+    print("selftest scale sizes: -100 %% %.4f, -30 %% %.2f, +100 %% %.2f -> %s (want PASS)"
+          % (scale_factor(-100), scale_factor(-30), scale_factor(100), "PASS" if good else "FAIL"))
+    ok &= good
     print("RESULT: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

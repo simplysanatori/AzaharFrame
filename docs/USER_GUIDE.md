@@ -346,7 +346,7 @@ A tap of the right stick click swaps to the bottom screen, which pauses immersiv
 In the Full modes the screen starts 3 m ahead and shows the game at its own scale, so nothing is magnified and the world keeps its shape. Three more settings in the same group, per game, for the Full modes, all changing at once:
 
 - **Render Margin** (**Off**, **1.1x** to **1.4x**, 1.4x by default; called Wider View before): renders extra picture around the 3DS screen's edges so more of the game shows. Some games leave the edges empty; Super Mario 3D Land can below the floor. **Off** shows exactly the game's own picture. In VR, keep a grip on the immersive screen and press D-pad up or down: the screen grows with the view, and **Render Margin: 1.2x** (for example) shows. It is kept for the game.
-- **Horizontal Scale** and **Vertical Scale** (-30% to +30% in 5% steps, 0% by default): make the screen wider or narrower, taller or shorter. **Scale Mode** says how the picture fills it:
+- **Horizontal Scale** and **Vertical Scale** (-100% to +100% in 5% steps, 0% by default): make the screen wider or narrower, taller or shorter. **Scale Mode** says how the picture fills it:
   - **Field of View** (the default): the game shows that much more or less of its world on that side, and the world keeps its shape, also when you tilt your head. A narrower screen trims the extra picture Render Margin adds; the HUD stays where it is. A wider screen can show empty edges in some games; set those to **Stretch**.
   - **Stretch**: the same picture is stretched to the screen, as in earlier versions. A narrower screen brings the HUD at the sides into view; the game looks that much thinner, and tilting your head skews the world a little.
 

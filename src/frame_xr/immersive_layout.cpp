@@ -229,8 +229,20 @@ int ScalePercent(int setting) {
                   : -((-c + half) / kScaleStepPercent * kScaleStepPercent);
 }
 
+float ScaleFactor(int setting) {
+    return 1.0f - SqueezeForScale(setting);
+}
+
 float SqueezeForScale(int setting) {
-    return -static_cast<float>(ScalePercent(setting)) / 100.0f;
+    const int p = ScalePercent(setting);
+    if (p >= -kLinearScalePercent) {
+        return -static_cast<float>(p) / 100.0f; // every earlier build's, bit for bit
+    }
+    // AzaharFrame fov100: below -30 % the same share less each step: k0 x e^((p + 30) / (100 k0))
+    // with k0 = 0.7 has the line's value and slope (1/100 a percent) at -30 % and stays above 0.
+    constexpr double k0 = 1.0 - kLinearScalePercent / 100.0;
+    const double k = k0 * std::exp((p + kLinearScalePercent) / (100.0 * k0));
+    return static_cast<float>(1.0 - k);
 }
 
 AxisSplit ScaleSplit(float factor, float k, float fov) {
@@ -391,10 +403,14 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const LensOffset& offset_in) {
     const Placement p = Clamped(placement);
     // AzaharFrame kiu: negative too (Horizontal or Vertical Scale above 0: a larger screen).
-    const float squeeze =
-        std::isfinite(options.squeeze) ? std::clamp(options.squeeze, -0.5f, 0.5f) : 0.0f;
-    const float squeeze_y =
-        std::isfinite(options.squeeze_y) ? std::clamp(options.squeeze_y, -0.5f, 0.5f) : 0.0f;
+    // AzaharFrame fov100: within what the scales give (+100 % to -100 %, the quad 2 to 0.26 times
+    // as large; it was -0.5 to 0.5, wider than the -30 to +30 % of then), so it never collapses.
+    const auto squeeze_of = [](float v) {
+        return std::isfinite(v) ? std::clamp(v, 1.0f - kMaxScaleFactor, 1.0f - kMinScaleFactor)
+                                : 0.0f;
+    };
+    const float squeeze = squeeze_of(options.squeeze);
+    const float squeeze_y = squeeze_of(options.squeeze_y);
     HeadLocked s;
     s.distance = p.distance;
     s.pitch_rad = PlacementPitch(p, view);

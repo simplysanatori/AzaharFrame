@@ -207,13 +207,14 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         rows.push_back(fov);
         // AzaharFrame depth, fovonce: Off | Set Once | Always
         rows.push_back(full(row(Id::MatchCamera, RowKind::Segmented, m.match_camera)));
-        // AzaharFrame kiu: Horizontal and Vertical Scale, -30 to +30 % around 0
+        // AzaharFrame kiu: Horizontal and Vertical Scale, -100 to +100 % around 0 (AzaharFrame
+        // fov100; -30 to +30 % before). No tick marks: 40 stops would be a row of dots, as World
+        // Scale's; it still snaps to them.
         const auto scale = [&](Id id, int value) {
             Row r = full(row(id, RowKind::Slider));
             const SliderRange sr = SliderFor(id);
             const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
             r.t = (v - sr.min) / (sr.max - sr.min);
-            r.stops = static_cast<int>((sr.max - sr.min) / sr.step);
             r.value = SliderText(id, v);
             rows.push_back(r);
         };
@@ -946,8 +947,9 @@ SliderRange SliderFor(Id id) {
     if (id == Id::Depth3d) {
         return {0.0f, 100.0f, 5.0f};
     }
-    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu
-        return {-30.0f, 30.0f, 5.0f};
+    if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu, fov100: -100 to +100 %
+        constexpr float kMax = static_cast<float>(Immersive::Layout::kMaxScalePercent);
+        return {-kMax, kMax, static_cast<float>(Immersive::Layout::kScaleStepPercent)};
     }
     if (id == Id::WorldScale) { // AzaharFrame natural: Layout::kWorldScaleStops' indexes
         return {0.0f, static_cast<float>(Immersive::Layout::kWorldScaleStops.size() - 1), 1.0f};

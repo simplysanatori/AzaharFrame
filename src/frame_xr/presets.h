@@ -33,7 +33,7 @@ struct ImmersivePreset {
     /// -1 = the default, 1.4x).
     int32_t wider_level = -1;
     /// AzaharFrame kiu: Settings::values.vr_immersive_scale_x, Horizontal Scale in percent
-    /// (-30 to 30; 0 = keep: the default). Was Narrow Screen: Narrow Screen 30 % is -30.
+    /// (-100 to 100; 0 = keep: the default). Was Narrow Screen: Narrow Screen 30 % is -30.
     int32_t scale_x = 0;
     /// AzaharFrame immersive: the immersive screen's default size, times the true-scale default
     /// (0 = 1; immersive_layout.h). A placement the player saved wins.

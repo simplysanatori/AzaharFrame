@@ -5345,6 +5345,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     // ---- A setting ----
     auto& v = Settings::values;
     bool per_game_setting = false;
+    constexpr int kScaleMax = FrameXr::Immersive::Layout::kMaxScalePercent; // AzaharFrame fov100
     // AzaharFrame useglobal: Use Global Value: the game's own value goes (the menu did it in the
     // settings already); its file is saved below, where WriteGlobalSetting takes the key out.
     const bool use_global = r.command == C::UseGlobalValue;
@@ -5433,11 +5434,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         LOG_INFO(Frontend, "xr: Detect Game FOV Once: Immersive Game FOV {} saved for {}",
                  r.value, g_frame_game_config_name);
         break;
-    case S::ScaleX: // AzaharFrame kiu: signed percent
-        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -30, 30)));
+    case S::ScaleX: // AzaharFrame kiu: signed percent (AzaharFrame fov100: -100 to +100)
+        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -kScaleMax, kScaleMax)));
         break;
     case S::ScaleY:
-        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
+        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -kScaleMax, kScaleMax)));
         break;
     case S::ScaleMode: // AzaharFrame fovscale: Stretch, Field of View
         set(v.vr_immersive_scale_mode, r.value == 0 ? 0u : 1u);
