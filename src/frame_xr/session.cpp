@@ -17,6 +17,7 @@
 #include "common/frame_flat.h"
 #include "common/frame_test_switches.h" // AzaharFrame integ9
 #include "frame_xr/controls.h"
+#include "frame_xr/screen_handover.h" // AzaharFrame flash3
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -42,7 +43,9 @@ const char* ScreenName(std::size_t i) {
 // time, so a swapchain may hold an acquired or waited image when it is destroyed. It goes back
 // first (OpenXR runtimes may refuse to destroy a swapchain with acquired images). The caller
 // holds screens_mutex, so no xrEndFrame comes in between.
-void ReturnHeldImage(ScreenChain& chain, QueueLock& queue_lock) {
+// AzaharFrame flash3: the wait half on its own, for a swapchain kept on view (EnsureSwapchain):
+// its release then needs no wait on the XR thread (DropOldScreens).
+void WaitHeldImage(ScreenChain& chain) {
     auto& xr = Xr();
     if (chain.acquired && !chain.waited) {
         XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
@@ -52,6 +55,11 @@ void ReturnHeldImage(ScreenChain& chain, QueueLock& queue_lock) {
             chain.waited = true;
         }
     }
+}
+
+void ReturnHeldImage(ScreenChain& chain, QueueLock& queue_lock) {
+    auto& xr = Xr();
+    WaitHeldImage(chain);
     if (chain.waited) {
         XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
         queue_lock.With([&] { return xr.xrReleaseSwapchainImage(chain.handle, &ri); });
@@ -448,6 +456,7 @@ void Runtime::DestroySession() {
         // Waits for a renderer swapchain call in progress (an acquire waits 100 ms at most).
         std::unique_lock chains_lock{chains_mutex};
         std::scoped_lock lock{screens_mutex};
+        DropOldScreens(true); // AzaharFrame flash3
         for (auto& chain : screens) {
             if (chain.handle && xr.xrDestroySwapchain) {
                 ReturnHeldImage(chain, queue_lock);
@@ -535,8 +544,24 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
     // Runtimes may use the app's queue here (layout transitions), so under the queue lock
     // (order: screens_mutex, then the queue lock, as in EndFrame).
     if (chain.handle) {
-        ReturnHeldImage(chain, queue_lock);
-        queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
+        // AzaharFrame flash3: one with a picture on view stays until the new one has one
+        // (screen_handover.h), its held image still held; an older one kept goes now.
+        ScreenChain& old = old_screens[i];
+        if (old.handle) {
+            ReturnHeldImage(old, queue_lock);
+            queue_lock.With([&] { return xr.xrDestroySwapchain(old.handle); });
+            old = {};
+        }
+        if (ScreenHandover::KeepOnReplace(chain.has_image)) {
+            WaitHeldImage(chain); // here, not on the XR thread when it goes
+            old = chain;
+            old_kept[i] = 0;
+            LOG_INFO(Frontend, "xr: swapchain {} {}x{}: on view until the new one has a picture",
+                     ScreenName(i), old.width, old.height);
+        } else {
+            ReturnHeldImage(chain, queue_lock);
+            queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
+        }
         chain = {};
     }
     XrSwapchainCreateInfo ci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
@@ -570,6 +595,46 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
     chain.height = height;
     LOG_INFO(Frontend, "xr: swapchain {} {}x{}, {} images", ScreenName(i), width, height, count);
     return true;
+}
+
+const ScreenChain& Runtime::LayerChain(std::size_t i) const { // AzaharFrame flash3
+    const ScreenChain& now = screens[i];
+    const ScreenChain& old = old_screens[i];
+    return ScreenHandover::Choose(now.handle != XR_NULL_HANDLE && now.has_image,
+                                  old.handle != XR_NULL_HANDLE && old.has_image) ==
+                   ScreenHandover::Use::Old
+               ? old
+               : now;
+}
+
+void Runtime::DropOldScreens(bool all) { // AzaharFrame flash3
+    auto& xr = Xr();
+    for (std::size_t i = 0; i < kScreens; i++) {
+        ScreenChain& old = old_screens[i];
+        if (!old.handle) {
+            continue;
+        }
+        const bool has_image = screens[i].handle != XR_NULL_HANDLE && screens[i].has_image;
+        if (!all && !ScreenHandover::DropOld(has_image, screens_live.load(), old_kept[i])) {
+            old_kept[i]++;
+            continue;
+        }
+        const char* why = has_image             ? "the new one has a picture"
+                          : all                 ? "the session ends"
+                          : !screens_live.load() ? "the screens are off"
+                                                : "the new one has no picture yet";
+        LOG_INFO(Frontend, "xr: swapchain {} {}x{} dropped after {} refreshes ({})", ScreenName(i),
+                 old.width, old.height, old_kept[i], why);
+        if (xr.xrDestroySwapchain) {
+            ReturnHeldImage(old, queue_lock);
+            const XrResult r = queue_lock.With([&] { return xr.xrDestroySwapchain(old.handle); });
+            if (XR_FAILED(r)) {
+                LOG_ERROR(Frontend, "xr: xrDestroySwapchain: {}", ResultName(r));
+            }
+        }
+        old = {};
+        old_kept[i] = 0;
+    }
 }
 
 uint32_t Runtime::SwapchainImages(VideoCore::XrScreen screen, VkImage* images, uint32_t capacity) {

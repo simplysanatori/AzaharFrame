@@ -209,6 +209,17 @@ public:
     mutable std::mutex screens_mutex;
     std::array<ScreenChain, kScreens> screens;
     std::atomic<bool> screens_live{false};
+    /// AzaharFrame flash3: per screen, the swapchain a new one replaced, kept with its last
+    /// picture on view until the new one has one (screen_handover.h), and the refreshes it has
+    /// been kept; under screens_mutex.
+    std::array<ScreenChain, kScreens> old_screens;
+    std::array<uint32_t, kScreens> old_kept{};
+    /// AzaharFrame flash3: the swapchain a screen's layer shows this refresh (its own, or the old
+    /// one while the new one has no picture); under screens_mutex.
+    const ScreenChain& LayerChain(std::size_t i) const;
+    /// AzaharFrame flash3: once a refresh before the layers (XR thread, under screens_mutex):
+    /// drops the old swapchains whose time is over (ScreenHandover::DropOld); `all`: every one.
+    void DropOldScreens(bool all);
 
     // AzaharFrame doubling (all three read once, at construction; see DOUBLING in IMMERSIVE.md).
     /// AZAHARFRAME_XR_SET_RELEASE (default 1): ReleaseFrame releases every screen under

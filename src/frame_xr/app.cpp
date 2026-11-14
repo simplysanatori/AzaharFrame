@@ -430,6 +430,21 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double window_present_ms = telemetry.window_present_max_us.exchange(0) / 1000.0;
     const double alloc_ms = telemetry.device_alloc_max_us.exchange(0) / 1000.0;
     const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
+    // AzaharFrame flash3: shaders and pipelines queued and built in this second (the boot's
+    // backlog and misses in play), the backlog left, and draws left out for a pipeline still
+    // being built.
+    static uint64_t builds_queued_seen = 0, builds_done_seen = 0, skips_seen = 0;
+    const uint64_t builds_queued = telemetry.shader_builds_queued.load(std::memory_order_relaxed);
+    const uint64_t builds_done = telemetry.shader_builds_done.load(std::memory_order_relaxed);
+    const uint64_t skips = telemetry.draws_skipped.load(std::memory_order_relaxed);
+    const std::string builds = fmt::format(
+        ", shader and pipeline builds {} queued, {} done ({} waiting), draws skipped {}",
+        builds_queued - std::min(builds_queued, builds_queued_seen),
+        builds_done - std::min(builds_done, builds_done_seen),
+        builds_queued - std::min(builds_queued, builds_done), skips - std::min(skips, skips_seen));
+    builds_queued_seen = builds_queued;
+    builds_done_seen = builds_done;
+    skips_seen = skips;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
     const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
@@ -452,14 +467,14 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
              "endFrame errors {}, state {}, screens {}, {}, window presents {}, XR queue lock wait "
              "max {:.2f} ms, emu submit max {:.2f} ms (lock wait {:.2f}), window present max "
              "{:.2f} ms, vkAllocateMemory max {:.1f} ms (largest {:.0f} MiB), slowest frame "
-             "{:.1f} ms ({}), eyes from different game frames {}",
+             "{:.1f} ms ({}), eyes from different game frames {}{}",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], spill_shown, spill_replaced, emu_waits, emu_wait_ms,
              unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,
-             PhasesText(worst), eyes_mixed);
+             PhasesText(worst), eyes_mixed, builds);
 }
 
 void Runtime::LogFlatSummary(double seconds) {
@@ -779,6 +794,7 @@ void Runtime::FrameLoop() {
         mark = Clock::now();
         Watchdog::Beat("the screens lock");
         std::scoped_lock screens_lock{screens_mutex};
+        DropOldScreens(false); // AzaharFrame flash3: a replaced swapchain kept until the new one shows
         pacing.NoteLatchTime(); // AzaharFrame pacing: releases from now on are for the next frame
         phases.screens_lock_ms = Ms(Clock::now() - mark);
         mark = Clock::now();
@@ -857,7 +873,10 @@ void Runtime::FrameLoop() {
             MotionClarity::TopLayers top_layers;
             Quad backing; // AzaharFrame flash: the backing's image (Hud::BackingImage)
             {
-                const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
+                // AzaharFrame flash3: the swapchain the layer shows (the old one while a new one
+                // has no picture: the same picture again, a late one, not a gap).
+                const ScreenChain& t =
+                    LayerChain(static_cast<std::size_t>(VideoCore::XrScreen::TopLeft));
                 MotionClarity::Refresh rf;
                 rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
                                                 clarity_override, shown.full_mode);
@@ -894,9 +913,10 @@ void Runtime::FrameLoop() {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
                 // the upper half and the right eye in the lower one (kXrPackedGap between).
                 const bool top = s != VideoCore::XrScreen::Bottom;
-                const ScreenChain& chain =
-                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
-                                                                       : s)];
+                // AzaharFrame flash3: LayerChain: while a swapchain made anew has no picture, the
+                // old one with its last picture (no blink of the compositor's background).
+                const ScreenChain& chain = LayerChain(static_cast<std::size_t>(
+                    packed_top && top ? VideoCore::XrScreen::TopLeft : s));
                 // AzaharFrame integ9: the toast's inputs take the screen whether or not its layer
                 // is left out this refresh (SINGLE_FLASH), so the toast's depth holds still.
                 const ToastDepth::ScreenUse use =
@@ -997,9 +1017,8 @@ void Runtime::FrameLoop() {
             // waits for it, never floating in a black view at boot).
             const auto has_picture = [&](VideoCore::XrScreen s) {
                 const bool top = s != VideoCore::XrScreen::Bottom;
-                const ScreenChain& chain =
-                    screens[static_cast<std::size_t>(packed_top && top ? VideoCore::XrScreen::TopLeft
-                                                                       : s)];
+                const ScreenChain& chain = LayerChain(static_cast<std::size_t>( // flash3
+                    packed_top && top ? VideoCore::XrScreen::TopLeft : s));
                 return chain.handle != XR_NULL_HANDLE && chain.has_image;
             };
             badge_anchor.live = true;
@@ -1263,7 +1282,8 @@ void Runtime::FrameLoop() {
         {
             // AzaharFrame pacing: the game frame this frame showed (the parity gate, the log).
             uint64_t shown_serial = 0;
-            for (const ScreenChain& chain : screens) {
+            for (std::size_t i = 0; i < kScreens; i++) {
+                const ScreenChain& chain = LayerChain(i); // AzaharFrame flash3: as the layers
                 if (chain.handle && chain.has_image) {
                     shown_serial = std::max(shown_serial, chain.frame_serial);
                 }
@@ -1301,7 +1321,8 @@ void Runtime::FrameLoop() {
             }
             layers_most = layers_most_screens = 0;
             if (const std::string line = clarity_log.Second(
-                    clarity.Mean(), fs.predictedDisplayPeriod, flash_backing);
+                    clarity.Mean(), fs.predictedDisplayPeriod, flash_backing,
+                    clarity.Hitches()); // AzaharFrame flash3
                 !line.empty()) {
                 LOG_INFO(Frontend, "xr: {}", line); // AzaharFrame flash
             }

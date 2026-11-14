@@ -43,6 +43,15 @@ public:
     /// Waits until the pipelines queued while loading the cache are built
     void WaitLoadCachedPipelines();
 
+    /// AzaharFrame flash3: the cached pipelines the start built at once from the driver pipeline
+    /// cache, and the ones it queued to be built in the background.
+    u32 CachedFromDriver() const {
+        return cached_from_driver;
+    }
+    u32 CachedInBackground() const {
+        return cached_in_background;
+    }
+
     u64 GetProgramID() const {
         return title_id;
     }
@@ -361,6 +370,8 @@ private:
         graphics_pipelines;
     std::unordered_set<u64> known_graphic_pipelines;
     std::vector<GraphicsPipeline*> loaded_cached_pipelines;
+    u32 cached_from_driver = 0;   ///< AzaharFrame flash3
+    u32 cached_in_background = 0; ///< AzaharFrame flash3
 };
 
 } // namespace Vulkan

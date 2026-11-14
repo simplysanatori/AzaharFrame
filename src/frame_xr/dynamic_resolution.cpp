@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <string>
 
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -20,9 +21,16 @@ bool Controller::Bad(const Second& s) {
            s.gpu_ms >= kBadBudget * s.period_ms;
 }
 
-bool Controller::Good(const Second& s) {
+double Controller::PredictUp(double gpu_ms, int factor) { // AzaharFrame flash3
+    const double f = std::max(1, factor);
+    return gpu_ms * ((f + 1.0) / f) * ((f + 1.0) / f);
+}
+
+bool Controller::Good(const Second& s, int factor) {
+    // AzaharFrame flash3: the next factor's cost, from this one's pixels to the next one's,
+    // well under the bad line, so the step up holds.
     return s.period_ms > 0.0 && s.gpu_frames >= kMinGpuFrames &&
-           s.gpu_ms < kGoodBudget * s.period_ms;
+           PredictUp(s.gpu_ms, factor) < kUpBudget * kBadBudget * s.period_ms;
 }
 
 int Controller::Judge(const Second& s, int max_drop) {
@@ -45,6 +53,8 @@ int Controller::Judge(const Second& s, int max_drop) {
     if (holding) {
         hold--;
     }
+    // AzaharFrame flash3: the factor drawn now (without one, the steps down to 1x).
+    const int factor = s.factor > 0 ? s.factor : max_drop + 1 - drop;
     if (Bad(s)) {
         good = 0;
         if (++bad >= kDownAfter && drop < max_drop) {
@@ -61,20 +71,19 @@ int Controller::Judge(const Second& s, int max_drop) {
             settle = kSettle;
             hold = kHoldAfterDown; // AzaharFrame ui2
         }
-    } else if (Good(s) && !holding) {
-        bad = 0;
-        if (++good >= kUpAfter && drop > 0 && now >= blocked_until[drop - 1]) {
-            drop--;
-            good = 0;
-            settle = kSettle;
-            last_up = now;
-        }
     } else {
-        // neither (or good while it holds): the good seconds must come in a row
-        if (Good(s)) {
-            bad = 0; // a good second breaks a bad run as ever
+        // AzaharFrame flash3: any second that is not bad ends a bad run (only a good one did).
+        bad = 0;
+        if (Good(s, factor) && !holding) {
+            if (++good >= kUpAfter && drop > 0 && now >= blocked_until[drop - 1]) {
+                drop--;
+                good = 0;
+                settle = kSettle;
+                last_up = now;
+            }
+        } else {
+            good = 0; // neither (or good while it holds): the good seconds must come in a row
         }
-        good = 0;
     }
     return drop;
 }
@@ -105,8 +114,25 @@ void Publish(int drop) {
                                               std::memory_order_relaxed);
 }
 
+// AzaharFrame flash3: every change of the level is logged ("xr: Dynamic Resolution: "), also the
+// ones that are not a judged step (turned off, a new game or setting with steps taken off).
+void LogBack(int before, const char* why) {
+    if (before == 0) {
+        return;
+    }
+    const u32 base = VideoCore::DynamicResolution::g_base.load(std::memory_order_relaxed);
+    if (base > 1) {
+        LOG_INFO(Frontend, "xr: Dynamic Resolution: {}x (was {}x; {})", base,
+                 base > static_cast<u32>(before) ? base - before : 1, why);
+    } else {
+        LOG_INFO(Frontend, "xr: Dynamic Resolution: the full factor (was {} steps under it; {})",
+                 before, why);
+    }
+}
+
 // AzaharFrame ui2: the setting's change, under g_mutex.
 void TurnOff() {
+    LogBack(g_controller.Drop(), "turned off"); // AzaharFrame flash3
     g_saved = g_controller;
     g_have_saved = true;
     g_controller.Reset();
@@ -127,7 +153,8 @@ void TurnOn() {
     }
 }
 
-void ResetLocked() {
+void ResetLocked(const char* why) {
+    LogBack(g_controller.Drop(), why); // AzaharFrame flash3
     g_controller.Reset();
     g_have_saved = false;
     Publish(0);
@@ -137,14 +164,14 @@ void ResetLocked() {
 
 void Install() {
     std::scoped_lock lock{g_mutex};
-    ResetLocked();
+    ResetLocked("VR started");
     g_installed = true;
     g_was_on = Settings::values.vr_dynamic_resolution.GetValue();
 }
 
 void Uninstall() {
     std::scoped_lock lock{g_mutex};
-    ResetLocked();
+    ResetLocked("VR stopped");
     g_installed = false;
 }
 
@@ -166,20 +193,29 @@ void NoteSecond(const Second& s) {
         return;
     }
     // The factor the renderer works out (Internal Resolution, with the immersive modes' own
-    // steps) is the ceiling, 1x the floor; at Internal Resolution 1x nothing is taken off.
+    // steps) is the ceiling; the floor is FloorFactor's (1x, or the setting with
+    // kFloorAtSetting); at Internal Resolution 1x nothing is taken off.
     const u32 base = VideoCore::DynamicResolution::g_base.load(std::memory_order_relaxed);
-    const bool at_lowest = Settings::values.resolution_factor.GetValue() == 1;
+    const int setting = static_cast<int>(Settings::values.resolution_factor.GetValue());
     const int before = g_controller.Drop();
-    const int drop =
-        g_controller.Judge(s, base > 1 && !at_lowest ? static_cast<int>(base) - 1 : 0);
+    Second judged = s;
+    judged.factor = base > static_cast<u32>(before) ? static_cast<int>(base) - before : 1;
+    const int drop = g_controller.Judge(judged, MaxDrop(static_cast<int>(base), setting));
     if (drop != before) {
         Publish(drop);
+        // AzaharFrame flash3: why (a step up gives the cost it predicted for the new factor).
+        const std::string why =
+            drop > before
+                ? fmt::format("{} bad seconds in a row", Controller::kDownAfter)
+                : fmt::format("{} good seconds in a row, predicted {:.1f} ms at the new factor",
+                              Controller::kUpAfter,
+                              Controller::PredictUp(s.gpu_ms, judged.factor));
         LOG_INFO(Frontend,
-                 "xr: Dynamic Resolution: {}x (was {}x; {} display frames in {:.1f} s at {:.2f} "
-                 "ms, GPU {:.1f} ms behind over {} of {} game frames)",
+                 "xr: Dynamic Resolution: {}x (was {}x; {}; {} display frames in {:.1f} s at "
+                 "{:.2f} ms, GPU {:.1f} ms behind over {} of {} game frames)",
                  base > static_cast<u32>(drop) ? base - drop : 1,
-                 base > static_cast<u32>(before) ? base - before : 1, s.display_frames, s.seconds,
-                 s.period_ms, s.gpu_ms, s.gpu_frames, s.emu_frames);
+                 base > static_cast<u32>(before) ? base - before : 1, why, s.display_frames,
+                 s.seconds, s.period_ms, s.gpu_ms, s.gpu_frames, s.emu_frames);
     }
 }
 
@@ -190,7 +226,7 @@ int Drop() {
 
 void Reset() {
     std::scoped_lock lock{g_mutex};
-    ResetLocked();
+    ResetLocked("from the factor itself again");
 }
 
 void SetEnabled(bool on) {

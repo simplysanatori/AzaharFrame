@@ -24,8 +24,20 @@
 // time; the seconds after a step are not judged (the step's own hitch: the rasterizer cache
 // starts again at the new factor); and a step up the GPU cannot hold blocks that level for
 // kRetryWait, and for the rest of the game the second time, so it settles instead of going up
-// and down. AzaharFrame ui2: a step up needs the GPU under a quarter of the budget, and good
-// seconds count only kHoldAfterDown seconds after the last step down's settle.
+// and down. AzaharFrame ui2: good seconds count only kHoldAfterDown seconds after the last step
+// down's settle.
+//
+// AzaharFrame flash3 (report 70, session 573: it only ever went down, 6x to 3x in MK7):
+//   - a second that is not bad ends a bad run, so a step down needs kDownAfter bad seconds truly
+//     in a row (an ordinary second left the count as it was, and the step to 3x counted a bad
+//     second from 24 s before);
+//   - a step up is judged by its predicted cost: the GPU's time now times the pixels of the next
+//     factor over this one's, ((f + 1) / f)^2, under kUpBudget of the bad line. The old rule (a
+//     quarter of the budget, 2.08 ms at 120 Hz) was under the GPU's floor in MK7 (3 ms even at
+//     3x), so it never went up. The failed-step blocking above is kept;
+//   - the floor (FloorFactor): 1x by default, as before, so in the immersive modes it may go
+//     under the Internal Resolution setting (they add two steps over it); kFloorAtSetting stops
+//     it at the setting itself instead.
 
 #pragma once
 
@@ -44,18 +56,41 @@ struct Second {
     uint32_t gpu_frames = 0; ///< game frames whose GPU finish was timed
     double gpu_ms = 0.0;     ///< their average time from the last submit to the fence
     bool live = true;        ///< a game is running (its screens are live)
+    /// AzaharFrame flash3: the factor drawn in this second (0: not known; Judge then takes the
+    /// steps up to `max_drop` as the factors down to 1x).
+    int factor = 0;
 };
+
+/// AzaharFrame flash3: whether Dynamic Resolution stops at the Internal Resolution setting
+/// (true) or may go down to 1x (false, as in 1.1.1: in the immersive modes, which draw two steps
+/// over the setting, it can go under it, e.g. 3x under a 4x setting). The owner's choice.
+inline constexpr bool kFloorAtSetting = false;
+
+/// AzaharFrame flash3: the lowest factor it draws at for the renderer's factor `base` (with the
+/// immersive modes' steps) and the Internal Resolution setting `setting` (0: Auto), and how many
+/// steps that leaves (MaxDrop). Internal Resolution 1x leaves none either way.
+constexpr int FloorFactor(int base, int setting, bool floor_at_setting = kFloorAtSetting) {
+    if (setting == 1) {
+        return base; // at 1x it has nothing to do (the menu's row is locked)
+    }
+    const int floor = floor_at_setting && setting > 1 ? setting : 1;
+    return floor < base ? floor : base;
+}
+constexpr int MaxDrop(int base, int setting, bool floor_at_setting = kFloorAtSetting) {
+    return base > 1 ? base - FloorFactor(base, setting, floor_at_setting) : 0;
+}
 
 /// The decisions, without threads or settings (unit-tested).
 class Controller {
 public:
-    /// The GPU's time as a share of the display period: from kBadBudget on it is the limit,
-    /// under kGoodBudget it has room for a step up.
+    /// The GPU's time as a share of the display period: from kBadBudget on it is the limit.
     static constexpr double kBadBudget = 0.9;
-    /// AzaharFrame ui2: 0.5 was too eager: in report 14's logs 3 of 4 steps up from 2.2-2.9 ms
-    /// at 120 Hz (a third of the budget) failed within 8 s; the GPU's time jumps from a few ms
-    /// to over a frame at the next level.
-    static constexpr double kGoodBudget = 0.25;
+    /// AzaharFrame flash3: a second has room for a step up when the GPU's time, scaled to the
+    /// next factor's pixels, is under this share of the bad line (5.6 ms at 120 Hz). AzaharFrame
+    /// ui2's rule was a quarter of the budget (0.5 before it: in report 14's logs 3 of 4 steps
+    /// up from 2.2-2.9 ms at 120 Hz failed within 8 s), whatever the factor; in session 573 MK7
+    /// never went under 3 ms, even at 3x, so it never went up again.
+    static constexpr double kUpBudget = 0.75;
     static constexpr uint32_t kMinGpuFrames = 5; ///< fewer timed frames say nothing
     static constexpr int kDownAfter = 3;        ///< bad seconds in a row for a step down
     static constexpr int kUpAfter = 10;         ///< good seconds in a row for a step up
@@ -79,9 +114,12 @@ public:
     /// the streaks start again and, at a lower level, the seconds after are not judged.
     void Resume();
 
-    /// Whether a second is bad (the GPU is the limit) or good (it has room); neither: neutral.
+    /// Whether a second is bad (the GPU is the limit) or good (it has room for the next factor
+    /// up from `factor`, AzaharFrame flash3); neither: neutral.
     static bool Bad(const Second& s);
-    static bool Good(const Second& s);
+    static bool Good(const Second& s, int factor);
+    /// AzaharFrame flash3: the GPU's time predicted at `factor` + 1 from the time at `factor`.
+    static double PredictUp(double gpu_ms, int factor);
 
 private:
     int drop = 0;

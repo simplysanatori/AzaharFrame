@@ -5,6 +5,9 @@
 // AzaharFrame menuux: Dynamic Resolution's decisions (frame_xr/dynamic_resolution.h): only when
 // the GPU is the limit, one step at a time, only after seconds in a row, never up and down.
 
+#include <cmath>
+#include <cstddef>
+#include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h"
@@ -46,20 +49,34 @@ TEST_CASE("Dynamic Resolution: what a bad and a good second are", "[frame_xr]") 
     CHECK(Controller::Bad({1.0, 120, kPeriod, 60, 60, 7.6, true}));
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 60, 7.0, true}));
     CHECK_FALSE(Controller::Bad(Fine()));
-    CHECK(Controller::Good(Fine()));
-    CHECK_FALSE(Controller::Good(Neutral()));
-    // AzaharFrame ui2: room means a quarter of the budget (2.08 ms at 120 Hz): the 2.2-2.9 ms
-    // seconds the failed steps up of report 14 came from are not good any more.
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 2.2, true}));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 2.9, true}));
+    CHECK(Controller::Good(Fine(), 3));
+    CHECK_FALSE(Controller::Good(Neutral(), 3));
+    // AzaharFrame flash3: room is the next factor's predicted cost, the time now times its pixels
+    // over this factor's, under three quarters of the bad line (5.6 ms at 120 Hz). Session 573's
+    // MK7 at 3x: 3.0 ms predicts 5.3 ms at 4x (room), 4.5 ms (its median) 8.0 ms (none).
+    CHECK(std::abs(Controller::PredictUp(3.0, 3) - 3.0 * 16.0 / 9.0) < 1e-9);
+    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.0, true}, 3));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.2, true}, 3));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 4.5, true}, 3));
+    // The higher the factor, the smaller the step: 3.5 ms is room at 5x (to 6x: 5.0 ms) and 4x
+    // (5.5 ms), not at 2x (7.9 ms).
+    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 5));
+    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 4));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 2));
+    // 1x to 2x is four times the pixels.
+    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.3, true}, 1));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 1));
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 0)); // as 1x
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 60, 2.9, true}));
     CHECK_FALSE(Controller::Bad(Neutral()));
     // The game's own rate does not count: a 30 fps game with the headset at full rate is fine.
     Second thirty = Fine();
     thirty.emu_frames = thirty.gpu_frames = 30;
-    CHECK(Controller::Good(thirty));
+    CHECK(Controller::Good(thirty, 3));
     // 90 Hz: 90 frames are all of them.
-    CHECK(Controller::Good({1.0, 90, 1000.0 / 90.0, 30, 30, 2.0, true}));
+    CHECK(Controller::Good({1.0, 90, 1000.0 / 90.0, 30, 30, 2.0, true}, 3));
+    // Too few timed frames say nothing either way.
+    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 4, 1.0, true}, 3));
     CHECK(Controller::Bad({1.0, 90, 1000.0 / 90.0, 30, 30, 10.5, true}));
     // Too few timed frames to say the GPU is behind.
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 3, 30.0, true}));
@@ -262,4 +279,136 @@ TEST_CASE("Dynamic Resolution: off and on again in a game", "[frame_xr]") {
     Uninstall();
     setting.SetValue(was);
     V::g_base = 0;
+}
+
+// AzaharFrame flash3 (report 70, session 573): "3 bad seconds in a row" was not enforced: an
+// ordinary second left the bad count as it was, and the step to 3x counted a bad second from
+// 24 s before. Any second that is not bad now ends the run.
+TEST_CASE("Dynamic Resolution: bad seconds must come in a row", "[frame_xr]") {
+    Controller c;
+    // Bad, bad, an ordinary second (neither bad nor good), bad: no step.
+    for (int i = 0; i < 50; i++) {
+        c.Judge(GpuBehind(), 3);
+        c.Judge(GpuBehind(), 3);
+        c.Judge(Neutral(), 3);
+    }
+    CHECK(c.Drop() == 0);
+    // A CPU-bound second, or one with too few timed frames, ends the run too.
+    Second few = GpuBehind();
+    few.gpu_frames = 3;
+    for (int i = 0; i < 50; i++) {
+        c.Judge(GpuBehind(), 3);
+        c.Judge(GpuBehind(), 3);
+        c.Judge(i % 2 ? CpuBound() : few, 3);
+    }
+    CHECK(c.Drop() == 0);
+    // Session 573's 4x stretch before the step to 3x: a bad second every few seconds among
+    // ordinary ones (5-6 ms, the 4x median 5.1) is not a GPU that cannot keep up.
+    Controller d;
+    const double seconds[] = {5.1, 7.9, 5.0, 5.3, 6.1, 4.8, 8.1, 5.2, 5.6, 4.9, 5.4, 7.7,
+                              5.0, 5.2, 6.0, 4.7, 5.5, 5.1, 8.4, 5.3, 4.9, 5.2, 9.4, 5.0};
+    for (int round = 0; round < 10; round++) {
+        for (const double ms : seconds) {
+            d.Judge({1.0, 120, kPeriod, 60, 60, ms, true, 4}, 5);
+        }
+    }
+    CHECK(d.Drop() == 0);
+    // Three in a row still step it down.
+    for (int i = 0; i < Controller::kDownAfter; i++) {
+        d.Judge({1.0, 120, kPeriod, 60, 60, 9.0, true, 4}, 5);
+    }
+    CHECK(d.Drop() == 1);
+}
+
+namespace {
+
+/// A GPU that takes `cost[factor]` ms a frame (the factor drawn from the controller's steps under
+/// `base`); returns the factors it drew, one per second.
+std::vector<int> Model(Controller& c, int base, const double* cost, int seconds) {
+    std::vector<int> drawn;
+    for (int i = 0; i < seconds; i++) {
+        const int factor = base - c.Drop();
+        c.Judge({1.0, 120, kPeriod, 60, 60, cost[factor], true, factor}, base - 1);
+        drawn.push_back(base - c.Drop());
+    }
+    return drawn;
+}
+
+int Changes(const std::vector<int>& v) {
+    int n = 0;
+    for (std::size_t i = 1; i < v.size(); i++) {
+        n += v[i] != v[i - 1];
+    }
+    return n;
+}
+
+} // namespace
+
+// AzaharFrame flash3: a step up is judged by its predicted cost (the GPU's time times the next
+// factor's pixels over this one's) against three quarters of the bad line, so it climbs back
+// where the GPU has room, and the failed-step blocking keeps it from going up and down.
+TEST_CASE("Dynamic Resolution: it climbs back where the GPU allows, without bouncing",
+          "[frame_xr]") {
+    // Session 573's MK7 at 120 Hz, the median per factor (6x over the budget).
+    const double mk7[] = {0.0, 2.0, 2.6, 3.0, 5.1, 6.0, 10.6};
+    {
+        // From 3x (where the old rule left it): up to 4x, where 5.1 ms predicts 8.0 ms at 5x
+        // (no room), and it stays there.
+        Controller c;
+        Model(c, 6, mk7, 0);
+        const double heavy[] = {0.0, 9, 9, 9, 9, 9, 9}; // down to 3x first
+        Model(c, 6, heavy, 3 * (Controller::kDownAfter + Controller::kSettle));
+        REQUIRE(6 - c.Drop() == 3);
+        const auto drawn = Model(c, 6, mk7, 1000);
+        CHECK(drawn.back() == 4);
+        CHECK(Changes(drawn) == 1);
+    }
+    {
+        // A GPU whose cost jumps past the prediction at 6x (5x has room by the rule, 6x is over
+        // the budget): it tries 6x, comes back down, waits kRetryWait, tries once more, and then
+        // stays at 5x for the rest of the game.
+        const double jump[] = {0.0, 1.0, 1.5, 2.0, 2.5, 3.5, 10.0};
+        Controller c;
+        const auto drawn = Model(c, 6, jump, 2000);
+        CHECK(drawn.back() == 5);
+        CHECK(Changes(drawn) == 5); // 6 -> 5, 5 -> 6, 6 -> 5, 5 -> 6, 6 -> 5
+        int ups = 0;
+        for (std::size_t i = 1; i < drawn.size(); i++) {
+            ups += drawn[i] > drawn[i - 1];
+        }
+        CHECK(ups == 2);
+    }
+    {
+        // A light game: back to the full factor and no change after.
+        const double light[] = {0.0, 0.5, 0.8, 1.2, 1.8, 2.6, 3.5};
+        Controller c;
+        Model(c, 6, mk7, 60);
+        REQUIRE(c.Drop() >= 1);
+        const auto drawn = Model(c, 6, light, 600);
+        CHECK(drawn.back() == 6);
+        CHECK(c.Drop() == 0);
+    }
+}
+
+// AzaharFrame flash3: the floor. 1x by default (as 1.1.1: under the setting in the immersive
+// modes, which add two steps); with kFloorAtSetting, the Internal Resolution setting itself.
+TEST_CASE("Dynamic Resolution: the floor", "[frame_xr]") {
+    // Today's rule (the default).
+    CHECK(MaxDrop(6, 4, false) == 5); // immersive over a 4x setting: down to 1x
+    CHECK(MaxDrop(4, 4, false) == 3);
+    CHECK(MaxDrop(6, 0, false) == 5); // Auto
+    CHECK(MaxDrop(3, 1, false) == 0); // the setting at 1x: nothing to do (the row is locked)
+    CHECK(MaxDrop(1, 0, false) == 0);
+    CHECK(MaxDrop(0, 4, false) == 0); // the renderer's factor not known yet
+    // The alternative: never under the setting; only the immersive modes' steps come off.
+    CHECK(MaxDrop(6, 4, true) == 2);
+    CHECK(MaxDrop(4, 4, true) == 0); // outside immersive it has nothing to do
+    CHECK(MaxDrop(6, 0, true) == 5); // Auto: no setting to stop at
+    CHECK(MaxDrop(3, 1, true) == 0);
+    CHECK(MaxDrop(8, 7, true) == 1); // immersive capped at 8x
+    CHECK(FloorFactor(6, 4, true) == 4);
+    CHECK(FloorFactor(6, 4, false) == 1);
+    // The one-line switch keeps today's rule.
+    CHECK(MaxDrop(6, 4) == MaxDrop(6, 4, kFloorAtSetting));
+    CHECK_FALSE(kFloorAtSetting);
 }

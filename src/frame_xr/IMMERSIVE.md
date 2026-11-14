@@ -714,7 +714,18 @@ outside play (paused, learning the rate, a picture shown again late) the newest 
 a fixed beat at 60 a second (every other refresh at 120 Hz, never two lit in a row); a new
 picture due on the refresh after a lit one waits one refresh. A gap without a picture of up to
 0.5 s keeps the learnt rate. Only a game under the full rate is held, in play and in its menus
-alike. The menu panel is a quad of its own after the screens, so the menu stays fully lit. The
+alike. AzaharFrame flash3: a hitch (a picture on view for twice the full rate's interval or more,
+4 refreshes at 120 Hz, while the game is fast or its rate is being learnt) is not taken for the
+rate; it is a late picture, lit on the beat. One hitch of 11 or 12 refreshes in the 8-picture
+history made the mean over 3.0 and held the screen lit as a slow game: after Quick Load and at
+race starts (handoff report 70, session 573). A slower game is learnt from 8 such intervals in a
+row, each within 1 of the run's first (4 +-1 at 30 a second), and is held as before.
+AzaharFrame flash3: a swapchain made anew (a Dynamic Resolution step, Internal Resolution changed)
+has no picture for 3 to 5 refreshes; its screen and backing were left out then, and the
+compositor's background blinked through. The old swapchain now stays on view with its last
+picture until the new one has one (`screen_handover.h`, `Runtime::LayerChain`; at most 1 s, and
+never with the screens off), so the layer list keeps its shape and Motion Clarity sees a late
+picture, not a gap. The menu panel is a quad of its own after the screens, so the menu stays fully lit. The
 switch stays as an override: 1 on in every mode (as it always was), 0 off.
 `AZAHARFRAME_XR_FLASH_BACKING=0` leaves the layer out on dark refreshes, as the bare switch did. A
 per-state log line (`xr: Motion Clarity flashing: ...`, then every 10 s) gives the rate, the lit

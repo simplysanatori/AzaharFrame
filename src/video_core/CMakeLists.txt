@@ -21,6 +21,7 @@ add_library(video_core STATIC EXCLUDE_FROM_ALL
     vr_auto_shape.h # AzaharFrame fixes7
     vr_view_matrix.h # AzaharFrame
     vr_dynamic_resolution.h # AzaharFrame menuux
+    vr_cache_save.h # AzaharFrame flash3
     rasterizer_interface.h
     renderer_base.cpp
     renderer_base.h
