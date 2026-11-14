@@ -87,14 +87,16 @@ acceleration). AzaharFrame kiugyro: **Gyro Sensitivity** (`vr_gyro_sensitivity`,
 0.2x to 4.0x, default 1.0x) multiplies the gyroscope in every game; the accelerometer is not
 scaled.
 
-## Gyro Aim (AzaharFrame kiugyro)
+## Aiming (Gyro Aim in the code; AzaharFrame kiugyro)
 
-Settings, General, under Motion Controls: **Gyro Aim** Off, Gyro, Light Gun (`vr_gyro_aim`, per
-game too), **Gyro Sensitivity**, and with Light Gun **Turn Zone** (`vr_light_gun_turn_zone`, 0
+Settings, General, under Motion Controls: **Aiming** Off, Direct Aim, Gyro Aim (`vr_gyro_aim`, per
+game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds read the same
+value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
+**Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
 to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
 4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172),
 whose gyro control scheme has to be chosen in the game's own controls; its Controls preset starts
-Gyro Aim at Light Gun when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
+Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
 `kiu_scan.h`, `kiu_probe.h`; the disassembly is in handoff/reports/37/kiugyro/design.md.
 
 - **What the mod reads:** once per game frame, the latest HID gyroscope entry: z as the

@@ -135,9 +135,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
             rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
-            // AzaharFrame kiugyro: Gyro Aim, Gyro Sensitivity; Turn Zone and Turn Speed only
-            // while Gyro Aim is Light Gun.
-            rows.push_back(row(Id::GyroAim, RowKind::Segmented, m.gyro_aim));
+            // AzaharFrame kiugyro: Aiming, Recoil, Gyro Sensitivity; Turn Zone and Turn Speed
+            // only with Direct Aim (stored 2, Light Gun).
+            rows.push_back(row(Id::GyroAim, RowKind::Segmented, AimingIndexOf(m.gyro_aim)));
             if (m.gyro_aim != 0) {
                 rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
                 // AzaharFrame kiuguns
@@ -376,7 +376,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
     static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
-    static const std::vector<std::string> kGyroAim{"Off", "Gyro", "Light Gun"}; // AzaharFrame kiugyro
+    // AzaharFrame kiugyro: Aiming, in the shown order (AimingValueAt gives the stored value)
+    static const std::vector<std::string> kGyroAim{"Off", "Direct Aim", "Gyro Aim"};
     static const std::vector<std::string> kScale{"100%", "150%", "200%"};
     static const std::vector<std::string> kMode{"Off", "Wide (3DoF)",
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
@@ -533,7 +534,7 @@ std::string LabelFor(Id id) {
     case Id::MotionControls:
         return "Motion Controls";
     case Id::GyroAim: // AzaharFrame kiugyro
-        return "Gyro Aim";
+        return "Aiming";
     case Id::GyroSensitivity:
         return "Gyro Sensitivity";
     case Id::TurnZone:
@@ -742,7 +743,7 @@ std::string ExplainFor(Id id) {
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
     case Id::GyroAim: // AzaharFrame kiugyro
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the game's controls. Light Gun puts the reticle where you point. Hold the grip to pause.";
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the game's controls. Direct Aim puts the reticle where you point. Hold the grip to pause.";
     case Id::GyroSensitivity:
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:

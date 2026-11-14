@@ -3077,6 +3077,44 @@ TEST_CASE("Tab menu: Reticle Speed under Bottom Screen Reticle", "[frame_xr][tab
 // Edge while the reticle is on, per game; greyed in Global while the game has its own value.
 // AzaharFrame kiugyro: C-Stick at Edge (kiu) is shelved: no row, no label, no tooltip, even with
 // its value on; At Edge has its row to itself again.
+// AzaharFrame kiugyro: Aiming shows Off, Direct Aim, Gyro Aim; vr_gyro_aim keeps its stored values
+// (0 Off, 1 Gyro, 2 Light Gun) for older builds, so the middle two trade places.
+TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") {
+    CHECK(LabelFor(Id::GyroAim) == "Aiming");
+    CHECK(OptionsFor(Id::GyroAim) == std::vector<std::string>{"Off", "Direct Aim", "Gyro Aim"});
+    CHECK(ExplainFor(Id::GyroAim) ==
+          "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the "
+          "game's controls. Direct Aim puts the reticle where you point. Hold the grip to pause.");
+    CHECK(AimingIndexOf(0) == 0);
+    CHECK(AimingIndexOf(2) == 1); // Direct Aim is stored Light Gun
+    CHECK(AimingIndexOf(1) == 2); // Gyro Aim is stored Gyro
+    for (int i = 0; i < 3; i++) {
+        CHECK(AimingIndexOf(AimingValueAt(i)) == i);
+    }
+    CHECK(AimingValueAt(1) == 2);
+    CHECK(AimingValueAt(2) == 1);
+    // Turn Zone and Turn Speed with Direct Aim only; Recoil whenever Aiming is not Off.
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Settings;
+    const auto shown = [&d](Id id) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id) {
+                return true;
+            }
+        }
+        return false;
+    };
+    for (const int stored : {0, 1, 2}) {
+        INFO("stored " << stored);
+        m.gyro_aim = stored;
+        d.Draw(m, v);
+        CHECK(shown(Id::GyroAim));
+        CHECK(shown(Id::Recoil) == (stored != 0));
+    }
+}
+
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {
     CHECK(LabelFor(Id::ReticleCenter) == "Aim Only While Pressed");
     CHECK(LabelFor(Id::ReticleStick) == "Right Stick Moves Touch");

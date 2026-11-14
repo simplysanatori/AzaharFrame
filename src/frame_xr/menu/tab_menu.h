@@ -112,13 +112,13 @@ enum class Id : int {
     Background,
     FaceButtons,
     MotionControls,
-    GyroAim,         ///< AzaharFrame kiugyro, index: 0 Off, 1 Gyro, 2 Light Gun
+    GyroAim,         ///< AzaharFrame kiugyro: Aiming, index: 0 Off, 1 Direct Aim, 2 Gyro Aim
     GyroSensitivity, ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x)
-    TurnZone,        ///< AzaharFrame kiugyro: a slider, 0 to 30 (percent), Light Gun only
-    TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Light Gun only
-    Recoil,          ///< AzaharFrame kiugyro: a switch, while Gyro Aim is on
-    WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Gyro Aim is on
-    LaserSight,      ///< AzaharFrame kiuguns: a switch, Light Gun with Weapon in Hand on
+    TurnZone,        ///< AzaharFrame kiugyro: a slider, 0 to 30 (percent), Direct Aim only
+    TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Direct Aim only
+    Recoil,          ///< AzaharFrame kiugyro: a switch, while Aiming is not Off
+    WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
+    LaserSight,      ///< AzaharFrame kiuguns: a switch, Direct Aim with Weapon in Hand on
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
@@ -273,6 +273,16 @@ struct AutosaveCard {
 };
 
 /// The values the menu shows (the host's, read from the settings every frame).
+/// AzaharFrame kiugyro: Aiming's choices are shown Off, Direct Aim, Gyro Aim, but stored as
+/// vr_gyro_aim has always been (0 Off, 1 Gyro, 2 Light Gun), so older builds read the same value:
+/// the two middle ones trade places between the stored value and the shown index.
+constexpr int AimingIndexOf(int stored) {
+    return stored == 1 ? 2 : (stored == 2 ? 1 : 0);
+}
+constexpr int AimingValueAt(int index) {
+    return index == 1 ? 2 : (index == 2 ? 1 : 0);
+}
+
 struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
@@ -306,7 +316,7 @@ struct MenuModel {
     int background = 0;
     int face_buttons = 0;
     int motion_controls = 1;
-    int gyro_aim = 0;          ///< AzaharFrame kiugyro: 0 Off, 1 Gyro, 2 Light Gun
+    int gyro_aim = 0;          ///< AzaharFrame kiugyro: the stored value: 0 Off, 1 Gyro, 2 Light Gun
     int gyro_sensitivity = 10; ///< tenths of 1x (2 to 40)
     int turn_zone = 10;        ///< percent (0 to 30)
     int turn_speed = 10;       ///< tenths of 1x (2 to 40)
