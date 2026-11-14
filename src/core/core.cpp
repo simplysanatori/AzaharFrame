@@ -201,14 +201,6 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
 
     ProcessPendingWork();
 
-    // AzaharFrame savemem: a slot's save written in the background failed since: the notice, as
-    // when the save failed here (OnCoreError: Couldn't Save State, the game goes on)
-    if (SaveFailure failure{}; TakeSlotWriteFailure(failure, status_details)) {
-        savestate_error_on_load = false;
-        savestate_save_failure = static_cast<u8>(failure);
-        return ResultStatus::ErrorSavestate;
-    }
-
     Signal signal{Signal::None};
     u32 param{};
     std::string autosave_path; // AzaharFrame autosave: LoadAutosave's
@@ -601,14 +593,15 @@ void System::SaveStateInBackground(u32 slot) {
                                  "loader (Artic Base).");
     }
     const auto t0 = std::chrono::steady_clock::now();
-    std::string raw = SerializeState();
+    auto hold = std::make_shared<Common::TransientMemory::Hold>();
+    std::string raw = SerializeState(hold.get());
     const u64 now_s = static_cast<u64>(std::chrono::duration_cast<std::chrono::seconds>(
                                            std::chrono::system_clock::now().time_since_epoch())
                                            .count());
     Autosave::Writer::Job job;
     job.path = SaveStatePath(slot);
     job.header = CurrentStateHeader(title_id, now_s);
-    job.hold = std::make_shared<Common::TransientMemory::Hold>(raw.size());
+    job.hold = std::move(hold);
     job.raw = std::move(raw);
     job.autosave = false;
     job.slot_save = true;
@@ -618,29 +611,7 @@ void System::SaveStateInBackground(u32 slot) {
     job.serialize_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - t0)
                            .count();
-    job.then = [this](const Autosave::Writer::Done& done) {
-        if (done.ok) {
-            return;
-        }
-        std::scoped_lock lock{slot_write_mutex};
-        slot_write_failed = true;
-        slot_write_failure = done.failure == Autosave::Failure::NoSpace ? SaveFailure::NoSpace
-                             : done.failure == Autosave::Failure::Write ? SaveFailure::Write
-                                                                        : SaveFailure::Unknown;
-        slot_write_details = "Could not write " + done.path;
-    };
     writer.Submit(std::move(job));
-}
-
-bool System::TakeSlotWriteFailure(SaveFailure& failure, std::string& details) {
-    std::scoped_lock lock{slot_write_mutex};
-    if (!std::exchange(slot_write_failed, false)) {
-        return false;
-    }
-    failure = slot_write_failure;
-    details = std::move(slot_write_details);
-    LOG_ERROR(Core, "Error saving: {}", details);
-    return true;
 }
 
 // The emulation thread's part: serialize, hand the rest to the writer, ask for the picture.
@@ -652,8 +623,9 @@ void System::MakeAutosave() {
     }
     const auto t0 = std::chrono::steady_clock::now();
     std::string raw;
+    auto hold = std::make_shared<Common::TransientMemory::Hold>(); // AzaharFrame savemem
     try {
-        raw = SerializeState();
+        raw = SerializeState(hold.get());
     } catch (const std::exception& e) {
         LOG_ERROR(Core, "autosave: not made: {}", e.what());
         if (autosave_callback) {
@@ -675,7 +647,7 @@ void System::MakeAutosave() {
                    ? Autosave::MenuPathFor(job.dir, title_id, movie_id)
                    : Autosave::PathFor(job.dir, title_id, movie_id, static_cast<s64>(now_s));
     job.header = CurrentStateHeader(title_id, now_s);
-    job.hold = std::make_shared<Common::TransientMemory::Hold>(raw.size()); // AzaharFrame savemem
+    job.hold = std::move(hold); // AzaharFrame savemem
     job.raw = std::move(raw);
     job.reason = reason;
     job.program_id = title_id;
@@ -728,10 +700,6 @@ System::ResultStatus System::SingleStep() {
 System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::string& filepath,
                                   Frontend::EmuWindow* secondary_window) {
     Settings::ResetTemporaryFrameLimit();
-    { // AzaharFrame savemem: a background save of the last game that failed is not this one's
-        std::scoped_lock lock{slot_write_mutex};
-        slot_write_failed = false;
-    }
     FileUtil::SetCurrentRomPath(filepath);
     if (early_app_loader) {
         app_loader = std::move(early_app_loader);
@@ -745,6 +713,12 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
 
     u64_le program_id = 0;
     app_loader->ReadProgramId(program_id);
+    // AzaharFrame savemem: a slot's .tmp left by a save killed during its write (none is being
+    // written now: the writer is idle)
+    if (autosave_writer) {
+        autosave_writer->WaitIdle();
+    }
+    RemoveStaleStateTemps(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id);
     if (restore_plugin_context.has_value() && restore_plugin_context->is_enabled &&
         restore_plugin_context->use_user_load_parameters) {
         if (restore_plugin_context->user_load_parameters.low_title_Id ==

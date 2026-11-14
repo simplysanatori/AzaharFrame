@@ -7409,8 +7409,10 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
     // or an autosave from this build cut short, Undo Load) gets the same notice, through FrameAsk:
     // in VR the in-game menu, where upstream's message box below would not be seen while the game
     // runs with the menu closed. A failed save keeps upstream's message.
-    const bool anyway_failed =
-        result == RS::ErrorSavestate && std::exchange(frame_load_anyway_pending, false);
+    // AzaharFrame savemem: only a load's error is Load Anyway's (a save's error in between must
+    // not disarm its save data backup)
+    const bool anyway_failed = result == RS::ErrorSavestate && system.SavestateErrorOnLoad() &&
+                               std::exchange(frame_load_anyway_pending, false);
     if (result == RS::ErrorSavestate && (anyway_failed || system.SavestateErrorOnLoad())) {
         if (anyway_failed && !frame_rescue_root.empty()) { // not loaded: the save data is as it was
             Core::SaveBackup::Disarm(frame_rescue_root);
@@ -8616,6 +8618,24 @@ void GMainWindow::FramePushAutosaves() {
 #endif
 }
 
+// AzaharFrame savemem: a slot's save the writer could not write: Couldn't Save State with the
+// reason, as when the save failed on the emulation thread (OnCoreError). With the game stopped,
+// in VR, a toast: the notice lives in the in-game menu, and a message box on the window behind
+// VR would not be seen.
+void GMainWindow::FrameSlotSaveFailed(Core::SaveFailure failure, const std::string& path) {
+    LOG_WARNING(Frontend, "savestate: save failed: {} not written ({})", path,
+                static_cast<int>(failure));
+    frame_save_failures++; // the Quick Save confirmation stops waiting for the file
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing() && !emulation_running) {
+        FrameXr::ShowToastText(Core::kSaveFailedTitle, FrameXr::ToastTime::Long);
+        return;
+    }
+#endif
+    FrameAsk(QString::fromUtf8(Core::kSaveFailedTitle),
+             QString::fromStdString(Core::SaveFailedBody(failure)), tr("OK"), {}, {});
+}
+
 // AzaharFrame advfix: "Couldn't Autosave" (with the reason when known), at most once every
 // kFailureToastGapMs: a toast in VR, the status bar in Flat. The details are in the log.
 void GMainWindow::FrameAutosaveFailed(Core::Autosave::Failure failure) {
@@ -8643,6 +8663,16 @@ void GMainWindow::FrameAutosaveFailed(Core::Autosave::Failure failure) {
 }
 
 void GMainWindow::FrameAutosaveWritten(const Core::Autosave::Writer::Done& done) {
+    // AzaharFrame savemem: a slot's save (Quick Save too) is written here, after the game went on:
+    // a failure is told from here, as soon as it is known, whether the game runs, is paused (the
+    // in-game menu) or has stopped since. Never through the core's RunLoop, where it was taken
+    // for a failed Load Anyway and could hold up Stop Game.
+    if (done.slot_save) {
+        if (const auto failure = Core::Autosave::SlotSaveFailure(done)) {
+            FrameSlotSaveFailed(*failure, done.path);
+        }
+        return;
+    }
     if (!done.autosave || !emulation_running) {
         return;
     }

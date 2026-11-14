@@ -121,6 +121,10 @@ void WriteStateFile(const std::string& path, std::span<const u8> header, std::sp
 /// state is held. Returns the file's size; throws on failure.
 std::size_t WriteStateFileFrom(const std::string& path, std::span<const u8> header,
                                std::span<const u8> raw);
+/// AzaharFrame savemem: removes `<states_dir><program id>.*.cst.tmp`: what a save killed during
+/// its write (a crash, the display lost) left beside a slot (its file was never replaced). The
+/// game's start does it, once the writer is idle. Returns how many went.
+std::size_t RemoveStaleStateTemps(const std::string& states_dir, u64 program_id);
 /// AzaharFrame savemem: what System::SerializeState reserves: the last state's size and 32 MiB,
 /// at least all the guest memory a state can hold and 96 MiB (only address space until written).
 std::size_t ReserveForState(std::size_t last_size);
@@ -131,6 +135,8 @@ class StateWriteBuf : public std::streambuf {
 public:
     explicit StateWriteBuf(std::size_t reserve);
     std::string out;
+    /// The count, set to all of `out`, handed over (to the caller's hold: no gap between them).
+    Common::TransientMemory::Hold TakeHold();
 
 protected:
     std::streamsize xsputn(const char* s, std::streamsize n) override;

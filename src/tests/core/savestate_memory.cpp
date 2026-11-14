@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <istream>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -258,6 +259,12 @@ TEST_CASE("Save state memory: a slot's save on the writer", "[savestate][savemem
     int told = 0;
     bool ok = false;
     A::Writer::Done seen;
+    // As the frontend: told through on_done (FrameAutosaveWritten), whatever the game does
+    w.SetOnDone([&](const A::Writer::Done& d) {
+        told++;
+        ok = d.ok;
+        seen = d;
+    });
     const auto job = [&](const std::string& path) {
         A::Writer::Job j;
         j.path = path;
@@ -268,11 +275,6 @@ TEST_CASE("Save state memory: a slot's save on the writer", "[savestate][savemem
         j.slot_save = true;
         j.slot = 3;
         j.program_id = kTitle;
-        j.then = [&](const A::Writer::Done& d) {
-            told++;
-            ok = d.ok;
-            seen = d;
-        };
         return j;
     };
     w.Submit(job(dir.File("0004000000030200.03.cst")));
@@ -284,6 +286,7 @@ TEST_CASE("Save state memory: a slot's save on the writer", "[savestate][savemem
     CHECK(!seen.autosave);
     CHECK(seen.raw_bytes == raw.size());
     CHECK(TM::Bytes() == base); // let go once written
+    CHECK(!A::SlotSaveFailure(seen)); // written: no notice
     const SaveStateInfo info = GetSaveStateInfoAt(dir.File("0004000000030200.03.cst"), kTitle);
     CHECK(info.slot == 0);
     CHECK(info.time == 1794000000);
@@ -295,5 +298,92 @@ TEST_CASE("Save state memory: a slot's save on the writer", "[savestate][savemem
     CHECK(told == 2);
     CHECK(!ok);
     CHECK(seen.failure == A::Failure::Write);
+    CHECK(A::SlotSaveFailure(seen) == SaveFailure::Write); // Couldn't Save State, its reason
+    CHECK(TM::Bytes() == base);
+}
+
+// The three cases the review found, as far as the core is concerned: the failure of a slot's
+// background write is told by the writer alone, at once, and leaves nothing for the emulation
+// thread's RunLoop to return later. So a paused game (the in-game menu: no RunLoop runs) still
+// gets the notice; a Load Anyway right after is never given the save's error (its backup stays
+// armed); and Stop Game right after finds nothing pending (the quit autosave is made, no wait).
+TEST_CASE("Save state memory: a failed background save is told by the writer, at once",
+          "[savestate][savemem]") {
+    namespace A = Core::Autosave;
+    TempDir dir("told");
+    std::ofstream(dir.File("blocked")) << "file";
+    A::Writer w;
+    std::vector<A::Writer::Done> told;
+    std::mutex m;
+    w.SetOnDone([&](const A::Writer::Done& d) {
+        std::scoped_lock lock{m};
+        told.push_back(d);
+    });
+    const auto job = [&](const std::string& path, bool slot) {
+        A::Writer::Job j;
+        j.path = path;
+        j.header = CurrentStateHeader(kTitle, 1);
+        j.raw = std::string(1 << 20, 's');
+        j.autosave = !slot;
+        j.slot_save = slot;
+        j.dir = dir.File("autosave") + "/";
+        j.program_id = kTitle;
+        return j;
+    };
+    // Paused: nothing else runs; the writer alone tells it
+    w.Submit(job(dir.File("blocked") + "/0004000000030200.00.cst", true));
+    w.WaitIdle();
+    REQUIRE(told.size() == 1);
+    CHECK(A::SlotSaveFailure(told[0]) == SaveFailure::Write);
+    // A Load Anyway right after: its load is separate (the next job is unaffected), and nothing
+    // of the failed save is left to come back as an error
+    w.Submit(job(dir.File("0004000000030200.01.cst"), true));
+    w.WaitIdle();
+    REQUIRE(told.size() == 2);
+    CHECK(told[1].ok);
+    CHECK(!A::SlotSaveFailure(told[1]));
+    // An autosave's failure is the autosave's own toast, never Couldn't Save State
+    w.Submit(job(dir.File("blocked") + "/a.cst", false));
+    w.WaitIdle();
+    REQUIRE(told.size() == 3);
+    CHECK(!told[2].ok);
+    CHECK(!A::SlotSaveFailure(told[2]));
+    // Stop Game right after a failed save: the writer is idle, the failure was already told
+    w.Submit(job(dir.File("blocked") + "/0004000000030200.02.cst", true));
+    w.WaitIdle();
+    CHECK(!w.Busy());
+    REQUIRE(told.size() == 4);
+    CHECK(A::SlotSaveFailure(told[3]) == SaveFailure::Write);
+}
+
+TEST_CASE("Save state memory: a killed save's .tmp goes at the game's start",
+          "[savestate][savemem]") {
+    TempDir dir("stale");
+    const std::string states = dir.path.string() + "/";
+    std::ofstream(states + "0004000000030200.00.cst.tmp") << "half";
+    std::ofstream(states + "0004000000030200.movie0000000000000001.03.cst.tmp") << "half";
+    std::ofstream(states + "0004000000030200.00.cst") << "kept";
+    std::ofstream(states + "0004000000055D00.00.cst.tmp") << "another game's";
+    CHECK(RemoveStaleStateTemps(states, kTitle) == 2);
+    CHECK(!fs::exists(states + "0004000000030200.00.cst.tmp"));
+    CHECK(fs::exists(states + "0004000000030200.00.cst"));
+    CHECK(fs::exists(states + "0004000000055D00.00.cst.tmp"));
+    CHECK(RemoveStaleStateTemps(states + "missing/", kTitle) == 0);
+}
+
+TEST_CASE("Save state memory: the count is handed over with no gap", "[savestate][savemem]") {
+    namespace TM = Common::TransientMemory;
+    const auto base = TM::Bytes();
+    TM::Hold kept;
+    {
+        StateWriteBuf buf{1 << 20};
+        std::ostream stream{&buf};
+        const std::string chunk(3u << 20, 'h'); // under a 4 MiB step: not yet counted
+        stream.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+        kept = buf.TakeHold();
+        CHECK(TM::Bytes() == base + (3u << 20)); // all of it, before the buffer goes
+    }
+    CHECK(TM::Bytes() == base + (3u << 20)); // still counted by the caller's hold
+    kept.Release();
     CHECK(TM::Bytes() == base);
 }

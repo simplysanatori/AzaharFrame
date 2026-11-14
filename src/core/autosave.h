@@ -25,6 +25,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -32,6 +33,10 @@
 
 #include "common/common_types.h"
 #include "common/transient_memory.h"
+
+namespace Core {
+enum class SaveFailure : u8; // core/savestate.h
+}
 
 namespace Core::Autosave {
 
@@ -236,10 +241,9 @@ public:
         u32 keep = 3;
         s64 serialize_ms = 0; ///< the emulation thread's part, for the log
         /// AzaharFrame savemem: a slot's save (System::SaveStateInBackground), not an autosave:
-        /// `slot` for the log; `then` is told how it went, on the writer's thread.
+        /// `slot` for the log. How it went is told through on_done (SlotSaveFailure).
         bool slot_save = false;
         u32 slot = 0;
-        std::function<void(const Done&)> then;
         /// AzaharFrame savemem: `raw` counted as transient memory (common/transient_memory.h)
         /// until the writer lets it go.
         std::shared_ptr<Common::TransientMemory::Hold> hold;
@@ -300,5 +304,11 @@ private:
     std::function<void(const Done&)> on_done;
     std::thread thread;
 };
+
+/// AzaharFrame savemem: a slot's save the writer could not write: the reason for the notice
+/// (Couldn't Save State, SaveFailedBody); nullopt when it was written, or is not a slot's save.
+/// The frontend asks this in its on_done, so the notice comes whether the game runs, is paused
+/// or has stopped since.
+std::optional<SaveFailure> SlotSaveFailure(const Writer::Done& done);
 
 } // namespace Core::Autosave

@@ -5,6 +5,7 @@
 // AzaharFrame autosave: see autosave.h.
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -16,6 +17,7 @@
 #include <lodepng.h>
 #include "common/atomic_file.h"
 #include "common/logging/log.h"
+#include "common/test_hooks.h"
 #include "common/zstd_compression.h"
 #include "core/autosave.h"
 #include "core/savestate.h"
@@ -565,6 +567,34 @@ void Writer::SetOnDone(std::function<void(const Done&)> callback) {
     on_done = std::move(callback);
 }
 
+// AzaharFrame savemem: test driver (hooks builds only): AZAHARFRAME_TEST_SAVE_FAIL="11,12" fails
+// the 11th and 12th slot saves the writer is given (counted from 1 in this run), as a full disk
+// or an I/O error would, after the serialization.
+static bool TestFailSlotWrite() {
+    static std::atomic<int> count{0};
+    const int n = ++count;
+    const char* env = Common::TestHookEnv("AZAHARFRAME_TEST_SAVE_FAIL");
+    if (!env) {
+        return false;
+    }
+    const std::string list = std::string(",") + env + ",";
+    return list.find("," + std::to_string(n) + ",") != std::string::npos;
+}
+
+std::optional<SaveFailure> SlotSaveFailure(const Writer::Done& done) {
+    if (!done.slot_save || done.ok) {
+        return std::nullopt;
+    }
+    switch (done.failure) {
+    case Failure::NoSpace:
+        return SaveFailure::NoSpace;
+    case Failure::Write:
+        return SaveFailure::Write;
+    default:
+        return SaveFailure::Unknown;
+    }
+}
+
 Writer::Done Writer::Write(Job& job) {
     Done done;
     done.path = job.path;
@@ -580,6 +610,9 @@ Writer::Done Writer::Write(Job& job) {
     // AzaharFrame savemem: compressed into the file as it is written (no compressed copy, no
     // zero-filled buffer of the state's size; the file as before)
     try {
+        if (job.slot_save && TestFailSlotWrite()) {
+            throw std::runtime_error("Could not write " + job.path + " (test: forced)");
+        }
         done.file_bytes = WriteStateFileFrom(
             job.path, job.header,
             std::span<const u8>{reinterpret_cast<const u8*>(job.raw.data()), job.raw.size()});
@@ -587,8 +620,10 @@ Writer::Done Writer::Write(Job& job) {
     } catch (const std::exception& e) {
         LOG_ERROR(Core, "autosave: {}", e.what());
     }
-    std::string().swap(job.raw); // the serialized system is large: let it go now
+    // The serialized system is large: let it go now; its count first, so a memory sample in
+    // between counts it (the safe side) rather than leaving out memory already gone
     job.hold.reset();
+    std::string().swap(job.raw);
     done.compress_ms = Ms(std::chrono::steady_clock::now() - t0);
     if (!done.ok) {
         done.failure = WriteFailure(job.path, done.raw_bytes / 8 + job.header.size());
@@ -646,7 +681,6 @@ void Writer::Run() {
                 LOG_WARNING(Core, "autosave: no picture for {}", item.png_path);
             }
         } else {
-            const auto then = std::move(item.job.then);
             const Done done = Write(item.job);
             LOG_INFO(Core,
                      "{} ({}): {} MB serialized on the emulation thread in {} ms; compressed and "
@@ -657,9 +691,6 @@ void Writer::Run() {
                      fs::path(done.path).filename().string(),
                      fmt::format("{:.1f}", done.raw_bytes / 1048576.0), done.serialize_ms,
                      fmt::format("{:.1f}", done.file_bytes / 1048576.0), done.compress_ms);
-            if (then) {
-                then(done);
-            }
             std::function<void(const Done&)> callback;
             {
                 std::scoped_lock lock{mutex};

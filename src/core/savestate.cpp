@@ -145,11 +145,37 @@ std::streamsize StateWriteBuf::xsputn(const char* s, std::streamsize n) {
     return n;
 }
 
+Common::TransientMemory::Hold StateWriteBuf::TakeHold() {
+    hold.Set(out.size());
+    return std::move(hold);
+}
+
 StateWriteBuf::int_type StateWriteBuf::overflow(int_type c) {
     if (!traits_type::eq_int_type(c, traits_type::eof())) {
         out.push_back(traits_type::to_char_type(c));
     }
     return traits_type::not_eof(c);
+}
+
+// AzaharFrame savemem
+std::size_t RemoveStaleStateTemps(const std::string& states_dir, u64 program_id) {
+    namespace fs = std::filesystem;
+    const std::string prefix = fmt::format("{:016X}.", program_id);
+    constexpr std::string_view suffix = ".cst.tmp";
+    std::size_t removed = 0;
+    std::error_code ec;
+    for (fs::directory_iterator it{states_dir, ec}, end; !ec && it != end; it.increment(ec)) {
+        const std::string name = it->path().filename().string();
+        if (name.size() > prefix.size() + suffix.size() && name.starts_with(prefix) &&
+            name.ends_with(suffix) && it->is_regular_file(ec)) {
+            std::error_code rm;
+            if (fs::remove(it->path(), rm)) {
+                LOG_INFO(Core, "Removed {}: a save state's write cut short", name);
+                removed++;
+            }
+        }
+    }
+    return removed;
 }
 
 // AzaharFrame savemem
@@ -407,8 +433,8 @@ void System::SaveState(u32 slot) const {
     // zero-filled buffer of about the same size again: about 3x the state (0.9 GB for 306 MB)
     // for a moment, against about 1x now. The file is the same: the header, then one zstd frame
     // at the same level with the content size.
-    std::string raw = SerializeState();
-    Common::TransientMemory::Hold hold{raw.size()};
+    Common::TransientMemory::Hold hold;
+    std::string raw = SerializeState(&hold);
 
     const u64 movie_id = movie.GetCurrentMovieID();
     const auto path = GetSaveStatePath(title_id, movie_id, slot);
@@ -441,7 +467,7 @@ void System::LoadState(u32 slot, bool allow_mismatch) {
 
 // AzaharFrame autosave: the system serialized, not compressed (the autosave's writer compresses
 // it on its own thread)
-std::string System::SerializeState() const {
+std::string System::SerializeState(Common::TransientMemory::Hold* hold) const {
     if (app_loader && !app_loader->SupportsSaveStates()) {
         throw std::runtime_error("Savestates are not supported by the current application "
                                  "loader (Artic Base).");
@@ -461,6 +487,9 @@ std::string System::SerializeState() const {
         oa&* this;
     }
     last_size = sink.out.size();
+    if (hold) {
+        *hold = sink.TakeHold(); // AzaharFrame savemem: counted on, with no gap
+    }
     return std::move(sink.out);
 }
 
@@ -522,8 +551,8 @@ void System::LoadStateAt(const std::string& path, bool allow_mismatch) {
 std::vector<u8> System::SaveStateBuffer() const {
     // AzaharFrame savemem: serialized as SaveState does (no stream copy), compressed into the
     // result after its header (no buffer of the uncompressed size)
-    std::string raw = SerializeState();
-    Common::TransientMemory::Hold hold{raw.size()};
+    Common::TransientMemory::Hold hold;
+    std::string raw = SerializeState(&hold);
     std::vector<u8> buffer;
     buffer.reserve(raw.size() / 8);
     if (!Common::Compression::CompressDataZSTDDefaultTo(

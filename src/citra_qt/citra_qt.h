@@ -285,6 +285,7 @@ private:
     void FrameSetAutosaveSetting(int which, u32 value);
     void FrameAutosaveKeepChanged();
     void FrameAutosaveWritten(const Core::Autosave::Writer::Done& done);
+    void FrameSlotSaveFailed(Core::SaveFailure failure, const std::string& path); // savemem
     void FrameAutosaveFailed(Core::Autosave::Failure failure);        // AzaharFrame advfix
     void FrameUndoOffered(int slot);                                  // AzaharFrame advfix
     std::vector<Core::SaveBackup::Part> FrameSaveParts(u64 title_id); // AzaharFrame advfix
