@@ -1112,6 +1112,9 @@ std::string SettingsSummary() {
     s += fmt::format("{}: {}\n", Names::kRenderMargin, v.vr_immersive_wider_view_level.GetValue());
     s += fmt::format("{}: {}%\n", Names::kHorizontalScale, v.vr_immersive_scale_x.GetValue());
     s += fmt::format("{}: {}%\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
+    s += fmt::format("{}: {}\n", Names::kScaleMode, // AzaharFrame fovscale
+                     v.vr_immersive_scale_mode.GetValue() == 0 ? Names::kScaleStretch
+                                                               : Names::kScaleFieldOfView);
     s += fmt::format("Screen Layout: {}\n", v.vr_screen_layout.GetValue());
     s += fmt::format("Screen Curve: {}\n", v.vr_screen_curve.GetValue());
     // AzaharFrame natural: World Scale, Follow Screen Size and the Full modes' 3D Depth.

@@ -26,6 +26,16 @@ inline constexpr const char* kHorizontalScaleTip =
     "Makes the immersive screen wider or narrower. Narrower brings the side HUD into view.";
 inline constexpr const char* kVerticalScale = "Vertical Scale";
 inline constexpr const char* kVerticalScaleTip = "Makes the immersive screen taller or shorter.";
+/// AzaharFrame fovscale: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of View):
+/// how the two scales act. The VR menu's segmented row and Azahar's window.
+inline constexpr const char* kScaleMode = "Scale Mode";
+inline constexpr const char* kScaleModeTip = "How Horizontal and Vertical Scale change the picture.";
+inline constexpr const char* kScaleStretch = "Stretch";
+inline constexpr const char* kScaleStretchTip =
+    "Stretches the picture to the screen. The world looks wider or thinner.";
+inline constexpr const char* kScaleFieldOfView = "Field of View";
+inline constexpr const char* kScaleFieldOfViewTip =
+    "Shows more or less of the game. The world keeps its shape.";
 
 // AzaharFrame natural: 3D Depth in the Full modes, World Scale and Follow Screen Size. Material 3
 // Title Case for names and choices, sentence case for tooltips.

@@ -40,6 +40,21 @@ imglag (moved here from the r30/r31 handoff scripts): with MOCK_XR_IMAGE_LAG=1 t
 image an endFrame carries one refresh late and names the picture on view in each quad (img=), so
 the picture a refresh shows is taken from it. Run it with --camera warp on such a trace: an app at
 image lag 0 fails (each picture's first refresh carries the next one's anchor), at lag 1 passes.
+
+fovscale, the roll check (--roll, on a trace made with MOCK_XR_ROLL, MOCK_XR_SWAY=0 and no turn):
+with Horizontal and Vertical Scale unequal, a picture held on a later refresh is the game camera's
+roll since (1:1 with the head) through M = diag(1 / gain_x, 1 / gain_y). With the scales as Field of
+View the gains are equal, so it is a plain rotation: the held quad keeps its width over height on
+every refresh, its roll in the room is the picture's (the same on each of its refreshes), and over
+the run the quads roll as far as the head. In Stretch the gains differ and the held quad is the
+rectangle nearest a shear: its width over height changes with the roll since the picture (the
+control, which must fail). PASS: width over height within its median on
+every refresh (--shape-tol, 0.02 %), a picture's room roll the same on its refreshes
+(--spread-tol, 0.005 degrees), and the quads' room roll following the head's 1:1 (a least-squares
+slope against the head's roll the pictures' age before, within 2 %). Roll fast (MOCK_XR_ROLL=120,20):
+the shear grows with the roll since the picture.
+
+  hold.py TRACE --roll [--eye left|right]
 """
 import argparse
 import math
@@ -51,6 +66,7 @@ QUAD = re.compile(
     r"pos=([-\d.]+),([-\d.]+),([-\d.]+) q=([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)"
     r"(?: img=(\d+))?\]")
 END = re.compile(r"endFrame layers=\d+ t=([-\d.]+) yaw=([-\d.]+)(.*)$")
+ROLL = re.compile(r"^ roll=([-\d.]+)")  # fovscale: MOCK_XR_ROLL
 REL = re.compile(r"release sc(\d+)")
 
 
@@ -99,6 +115,7 @@ def parse(path, eye, t_from=None, t_to=None):
     releases = {}
     rows = []
     heads = []  # r31: every refresh's (t, head yaw), for the steady-turn window
+    parse.rolls = []  # fovscale: every refresh's head roll (MOCK_XR_ROLL), degrees
     for line in open(path, errors="replace"):
         m = REL.search(line)
         if m and "endFrame" not in line:
@@ -110,6 +127,8 @@ def parse(path, eye, t_from=None, t_to=None):
         t, yaw, rest = float(m.group(1)), float(m.group(2)), m.group(3)
         if (t_from is not None and t < t_from) or (t_to is not None and t > t_to):
             continue
+        rm = ROLL.match(rest)
+        parse.rolls.append(float(rm.group(1)) if rm else 0.0)
         heads.append((t, yaw))
         for q in QUAD.finditer(rest):
             # r31: the mock traces the space in lower case ("sp=local").
@@ -372,6 +391,109 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
     return pairs, worst, fails
 
 
+def qmul(a, b):
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
+
+
+def qconj(q):
+    return (-q[0], -q[1], -q[2], q[3])
+
+
+def rollq(deg):
+    a = math.radians(deg) / 2
+    return (0.0, 0.0, math.sin(a), math.cos(a))
+
+
+def check_roll(rows, rolls, shape_tol=0.0002, spread_tol=0.005, out=print):
+    """fovscale: the roll check (module doc). rows from parse(), rolls: parse.rolls (each row's
+    refresh index is r[4]). Returns (ok, worst shape change, worst picture roll spread, quads'
+    roll range over the head's)."""
+    if not rows:
+        out("no top-screen quads in LOCAL space in the trace (MOCK_XR_TRACE_POSE=5, mode 3?)")
+        return False, 0.0, 0.0, 0.0
+    shapes = []
+    room = []  # (picture, the quad's roll in the room)
+    for r in rows:
+        head = qmul(yawq(r[1]), rollq(rolls[r[4]]))
+        rel = qmul(qconj(head), r[3][1])
+        ax = qrot(rel, (1.0, 0.0, 0.0))
+        room.append((r[2], rolls[r[4]] + math.degrees(math.atan2(ax[1], ax[0]))))
+        shapes.append(r[3][2] / r[3][3])
+    med = sorted(shapes)[len(shapes) // 2]
+    worst_shape = max(abs(x / med - 1.0) for x in shapes)
+    by_pic = {}
+    for pic, ang in room:
+        by_pic.setdefault(pic, []).append(ang)
+    spread = max((max(a) - min(a)) for a in by_pic.values())
+    head_range = max(rolls) - min(rolls) if rolls else 0.0
+    # 1:1: the quads' room roll against the head's some refreshes before (the pictures' age, the
+    # lag with the least scatter), as a least-squares slope.
+    best = None
+    for lag in range(0, 17):
+        xs, ys = [], []
+        for r, (_, ang) in zip(rows, room):
+            if r[4] - lag >= 0:
+                xs.append(rolls[r[4] - lag])
+                ys.append(ang)
+        if len(xs) < 10:
+            continue
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        sxx = sum((x - mx) ** 2 for x in xs)
+        if sxx <= 0:
+            continue
+        slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+        res = math.sqrt(sum((y - my - slope * (x - mx)) ** 2 for x, y in zip(xs, ys)) / len(xs))
+        if best is None or res < best[2]:
+            best = (lag, slope, res)
+    lag, ratio, res = best if best else (0, 0.0, 0.0)
+    out("roll: head %.2f to %.2f degrees; the quads' room roll follows the head's %d refreshes "
+        "before x%.4f (scatter %.4f degrees); width over height median %.5f, worst change %.5f "
+        "%%; a picture's room roll on its refreshes the same to %.5f degrees (%d pictures, %d "
+        "refreshes)" % (min(rolls), max(rolls), lag, ratio, res, med, 100.0 * worst_shape, spread,
+                        len(by_pic), len(rows)))
+    ok = (head_range > 1.0 and worst_shape <= shape_tol and spread <= spread_tol and
+          abs(ratio - 1.0) <= 0.02)
+    return ok, worst_shape, spread, ratio
+
+
+def synthetic_roll(gx, gy, speed=120.0, amp=20.0, seconds=2.0, d=3.0, w=6.0, h=3.6, age=3):
+    """fovscale: a level mode 3 screen rolled (MOCK_XR_ROLL), pictures on 2 refreshes drawn for the
+    head `age` refreshes before, held as HeldQuad holds them: the camera's roll since through
+    A = M R M^-1, the nearest rectangle (each axis' length, the mean of their turns)."""
+    lines = []
+    hz = 120.0
+    n = 0
+    rolls = {}
+
+    def roll_at(k):
+        period = 4.0 * amp / speed
+        ph = ((k / hz) % period) / period
+        return amp * (4.0 * ph - 1.0 if ph < 0.5 else 3.0 - 4.0 * ph)
+
+    for k in range(int(seconds * hz)):
+        if k % 2 == 0:
+            lines.append("release sc3")
+            n += 1
+            rolls[n] = roll_at(k - age)
+        rho = roll_at(k)
+        dr = math.radians(rho - rolls[n])  # the camera's roll since, in the quad's frame
+        c, s_ = math.cos(-dr), math.sin(-dr)
+        # A = M R M^-1, R a roll by -dr: columns A e_x, A e_y
+        axx, axy = c, s_ * gx / gy
+        ayx, ayy = -s_ * gy / gx, c
+        sw, sh = w * math.hypot(axx, axy), h * math.hypot(ayx, ayy)
+        turn = 0.5 * (math.degrees(math.atan2(axy, axx)) + math.degrees(math.atan2(-ayx, ayy)))
+        q = qmul(rollq(rho), rollq(turn))
+        pos = qrot(rollq(rho), (0.0, 0.0, -d))
+        lines.append("endFrame layers=1 t=%.6f yaw=0.000000 roll=%.6f quad[sc3:1x1 at 0,0 eye=1 "
+                     "sp=local size=%.5fx%.5f pos=%.5f,%.5f,%.5f q=%.5f,%.5f,%.5f,%.5f]"
+                     % (k / hz, rho, sw, sh, pos[0], pos[1] + 1.6, pos[2], q[0], q[1], q[2], q[3]))
+    return lines
+
+
 def fit_gain(rows, camera, sx, sy, out=print):
     """r31 (Detect Game FOV Once / Always: the gain follows the game's measured camera and is not
     logged after the first line): the base gain at which each picture's camera, read from its
@@ -412,6 +534,19 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
     if last is None:
         return None
     t, g, gx, sz = last
+    # fovscale: the app logs its gains to 4 decimals whenever they move (Detect Game FOV, a scale,
+    # Scale Mode): the last such line is the gains in use, with no rounding and no fit (the review
+    # of r38: a stale gain from the "mode N on" line failed the check).
+    gl = re.compile(r"^\[\s*([\d.]+)\].*immersive: gains ([\d.]+) across, ([\d.]+) up and down")
+    latest = None
+    for line in open(log, errors="replace"):
+        m = gl.search(line)
+        if m:
+            latest = tuple(float(v) for v in m.groups())
+    if latest is not None:
+        out("gains: %.4f across, %.4f up, as logged at %.2f s (the last change)" % (latest[1], latest[2],
+                                                                                   latest[0]))
+        return latest[1], latest[2], max(t, latest[0])
     if size is not None:
         base = 1.0 / min(max(size, 0.6), 2.5)
         cx = min(max(base / (1.0 + (scale_x or 0) / 100.0), 0.4), 2.0)
@@ -524,6 +659,20 @@ def selftest():
                  (", app lag %d on compositor lag %d" % (app_lag, comp_lag) if comp_lag or app_lag
                   else "") + (", irregular cadence" if cadence else ""), pairs, worst, "PASS" if got else "FAIL", "PASS" if want else "FAIL"))
         ok &= got == want
+    # fovscale: the roll check: equal gains (Field of View) pass, unequal (Stretch) fail.
+    for gx, gy, want in ((0.714, 0.714, True), (1.0, 1.0, True), (0.714 / 0.7, 0.714 / 0.85, False),
+                         (0.714 / 1.3, 0.714, False)):
+        fd, path = tempfile.mkstemp(suffix=".trace", dir=os.path.dirname(os.path.abspath(__file__)))
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(synthetic_roll(gx, gy)) + "\n")
+        rows = parse(path, 1)
+        got = check_roll(rows, parse.rolls, out=lambda s: None)
+        os.remove(path)
+        print("selftest roll, gains %.3f across, %.3f up: shape change %.5f %%, picture roll spread "
+              "%.5f degrees, x%.4f the head's -> %s (want %s)"
+              % (gx, gy, 100.0 * got[1], got[2], got[3], "PASS" if got[0] else "FAIL",
+                 "PASS" if want else "FAIL"))
+        ok &= got[0] == want
     print("RESULT: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
@@ -553,9 +702,21 @@ def main():
     ap.add_argument("--scale-y", type=float, default=0.0)
     ap.add_argument("--from", dest="t_from", type=float, help="trace time to start at, s")
     ap.add_argument("--to", dest="t_to", type=float, help="trace time to stop at, s")
+    ap.add_argument("--roll", action="store_true", help="the roll check (fovscale)")
+    ap.add_argument("--shape-tol", type=float, default=0.0002,
+                    help="--roll: width over height within this share of its median")
+    ap.add_argument("--spread-tol", type=float, default=0.005,
+                    help="--roll: a picture's room roll the same on its refreshes to this, degrees")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    if a.roll:
+        if not a.trace:
+            ap.error("a trace is needed")
+        rows = parse(a.trace, 1 if a.eye == "left" else 2, a.t_from, a.t_to)
+        ok = check_roll(rows, parse.rolls, a.shape_tol, a.spread_tol)[0]
+        print("RESULT: %s" % ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
     if a.trace and a.log and (a.gain_x is None or a.gain_y is None):
         got = gains_from_log(a.log, a.size, a.scale_x, a.scale_y)
         if got is None:

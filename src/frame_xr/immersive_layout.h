@@ -30,6 +30,12 @@
 //     scale), so a narrower screen brings the HUD at the sides in while the middle stays locked.
 //     The world looks that much thinner. Vertical Scale does the same up and down (the pitch
 //     gain / (1 + vertical scale)): the world looks that much flatter.
+//     AzaharFrame fovscale: that is Stretch. Field of View (the default, per game) keeps the
+//     same quad and has the game draw that much more (or less) on that axis instead, through the
+//     periphery factors (ScaleSplit): the picture keeps one scale both ways, both gains stay the
+//     base gain, a head roll is a plain rotation, and the HUD keeps its place. Only what the
+//     factor cannot take (below the game's own frame, above kFovFactorMax, mode 2's menu rule)
+//     stays a stretch.
 //
 // AzaharFrame immersive2: the default size is the world at its own scale (gain 1): the screen is
 // as many degrees across as the game draws (its camera times the Render Margin factor), so nothing is
@@ -228,6 +234,9 @@ struct Options {
     /// AzaharFrame immersive: the game camera's vertical angle right now (Match Game Camera: a
     /// zoom), degrees; 0 = the angle the screen is sized with. Only the gain follows it.
     float live_fov_y_deg = 0.0f;
+    /// AzaharFrame fovscale: the share of the scales the game draws as field of view (ScaleSplit:
+    /// 0 Stretch, 1 Field of View; mode 2's menu rule eases it to 0 with the factor).
+    float scale_fov = 0.0f;
 };
 
 /// AzaharFrame immersive2: the old Narrow Screen's or Narrow Height's setting in percent (0 to 30,
@@ -257,6 +266,30 @@ std::string ScaleToast(int percent, bool vertical);
 /// 10 % steps rule kept), so a game keeps exactly its screen.
 int ScaleFromNarrow(uint32_t old_setting);
 
+/// AzaharFrame fovscale: what the scales do (Settings::values.vr_immersive_scale_mode, per game).
+/// The quad is the same in both: Stretch shows the same picture on it, stretched (the gain of
+/// that axis follows); Field of View has the game draw that much more (or less) on that axis, so
+/// the picture keeps one scale both ways and a head roll is a plain rotation (IMMERSIVE.md).
+enum class ScaleMode : uint32_t { Stretch = 0, FieldOfView = 1 };
+/// The highest factor Field of View draws: Render Margin's 1.4x times +30 %. The shader has no
+/// limit of its own; what limits it is the game's scenery past its own camera.
+inline constexpr float kFovFactorMax =
+    kFactorMax * (1.0f + static_cast<float>(kMaxScalePercent) / 100.0f);
+/// One axis of a scale split between what the game draws and a stretch of the picture.
+struct AxisSplit {
+    float drawn = kFactorMin; ///< the periphery factor the game draws with on this axis
+    float stretch = 1.0f;     ///< the picture shown this much larger on this axis (1: true)
+};
+/// AzaharFrame fovscale: the scale `k` (1 + scale / 100; the quad's size on this axis over the
+/// picture's) of an axis whose Render Margin factor is `factor`, taken as field of view by the
+/// share `fov` (0 Stretch, 1 Field of View; mode 2's menu rule eases it to 0). Field of View
+/// draws factor x k, within kFactorMin (below it the HUD inside the game's own frame would be
+/// pushed off the picture) and kFovFactorMax; what it cannot take stays a stretch, so
+/// drawn x stretch = factor x k always, with no jump at a limit. Stretch: {factor, k} exactly.
+AxisSplit ScaleSplit(float factor, float k, float fov);
+/// The mode's name: "Stretch", "Field of View".
+const char* ScaleModeName(ScaleMode mode);
+
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
     float factor = kFactorMax; ///< the game draws this much wider (gl_Position.y /= factor)
@@ -272,7 +305,11 @@ struct HeadLocked {
     /// the base gain / (1 - squeeze_y).
     float gain = 1.0f;
     /// The head's yaw x gain_x is given to the game: the base gain / (1 - squeeze).
+    /// AzaharFrame fovscale: over the stretch left (`stretch_x`, `stretch_y`), which is the
+    /// scale itself in Stretch and 1 in Field of View within its limits (ScaleSplit).
     float gain_x = 1.0f;
+    float stretch_x = 1.0f; ///< AzaharFrame fovscale: the picture stretched this much across
+    float stretch_y = 1.0f; ///< and this much up and down
     /// The Immersive Offset's yaw (positive = left, about +Y). Its pitch is in pitch_rad; the
     /// size is fitted without either.
     float yaw_rad = 0.0f;

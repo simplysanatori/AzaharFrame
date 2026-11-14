@@ -233,6 +233,24 @@ float SqueezeForScale(int setting) {
     return -static_cast<float>(ScalePercent(setting)) / 100.0f;
 }
 
+AxisSplit ScaleSplit(float factor, float k, float fov) {
+    if (!std::isfinite(factor) || !std::isfinite(k) || k <= 0.0f) {
+        return {std::isfinite(factor) ? factor : kFactorMin, 1.0f};
+    }
+    if (!(fov > 0.0f)) { // Stretch (and not a number): today's picture, bit for bit
+        return {factor, k};
+    }
+    // A share below 1 (the menu rule easing in) takes that share of the scale, on a log scale,
+    // so it is continuous from Stretch to Field of View.
+    const float want = factor * (fov >= 1.0f ? k : std::pow(k, fov));
+    const float drawn = std::clamp(want, kFactorMin, std::max(kFovFactorMax, factor));
+    return {drawn, factor * k / drawn};
+}
+
+const char* ScaleModeName(ScaleMode mode) {
+    return mode == ScaleMode::Stretch ? "Stretch" : "Field of View";
+}
+
 int SteppedScale(int setting, int steps) {
     return std::clamp(ScalePercent(setting) + steps * kScaleStepPercent, -kMaxScalePercent,
                       kMaxScalePercent);
@@ -423,8 +441,20 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // AzaharFrame kiu2: over the height the drawn factor would have been sized with, so a screen
     // kept at a larger size (size_wider) turns the game as the smaller one did.
     const float base = s.factor_y * live / (qy * drawn_over_sized);
-    s.gain = std::clamp(base / (1.0f - squeeze_y), kMinGain, kMaxGain);
-    s.gain_x = std::clamp(base / (1.0f - squeeze), kMinGain, kMaxGain);
+    // AzaharFrame fovscale: each scale split between what the game draws and a stretch
+    // (ScaleSplit). Stretch: the factors as above and the gain over the scale, as before; Field
+    // of View: the game draws the scale, so the stretch, and with it the gain's change, is 1.
+    // The quad above is the same either way.
+    const float fov =
+        std::isfinite(options.scale_fov) ? std::clamp(options.scale_fov, 0.0f, 1.0f) : 0.0f;
+    const AxisSplit across = ScaleSplit(s.factor, 1.0f - squeeze, fov);
+    const AxisSplit up = ScaleSplit(s.factor_y, 1.0f - squeeze_y, fov);
+    s.factor = across.drawn;
+    s.factor_y = up.drawn;
+    s.stretch_x = across.stretch;
+    s.stretch_y = up.stretch;
+    s.gain = std::clamp(base / up.stretch, kMinGain, kMaxGain);
+    s.gain_x = std::clamp(base / across.stretch, kMinGain, kMaxGain);
     // The Immersive Offset last: it turns the screen fitted above, never resizes it.
     const LensOffset offset = ClampedOffset(offset_in);
     s.pitch_rad += offset.up_deg * kDegToRad;

@@ -209,6 +209,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         };
         scale(Id::ScaleX, m.scale_x);
         scale(Id::ScaleY, m.scale_y);
+        // AzaharFrame fovscale: Stretch | Field of View, under the scales it acts on
+        rows.push_back(full(row(Id::ScaleMode, RowKind::Segmented, m.scale_mode)));
         // AzaharFrame natural: World Scale, a slider over its stops (10% to 400%, the default
         // 100%), and Follow Screen Size.
         Row world = full(row(Id::WorldScale, RowKind::Slider));
@@ -240,6 +242,7 @@ SettingsSection SectionOf(Id id) {
     case Id::MatchCamera:
     case Id::ScaleX:
     case Id::ScaleY:
+    case Id::ScaleMode: // AzaharFrame fovscale
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
         return SettingsSection::Immersive;
@@ -258,6 +261,7 @@ bool PerGameSetting(Id id) {
     case Id::MatchCamera: // AzaharFrame depth
     case Id::ScaleX:
     case Id::ScaleY:
+    case Id::ScaleMode: // AzaharFrame fovscale
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::Depth3d: // AzaharFrame depth3d
@@ -357,6 +361,9 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kFastForwardAudio{"Sped Up", "Normal Pitch", "Normal Speed (Experimental)", "Muted"};
     static const std::vector<std::string> kImageCopies{"Off", "Automatic", "On"}; // xfergpu
     static const std::vector<std::string> kMatchCamera{"Off", "Once", "Always"}; // fovonce
+    static const std::vector<std::string> kScaleMode{
+        ::FrameXr::Immersive::Names::kScaleStretch,
+        ::FrameXr::Immersive::Names::kScaleFieldOfView}; // fovscale
     static_assert(kMaxResolution == 8 && kTextureFilters.size() == 5 &&
                   kFastForwardSpeeds.size() == 4);
     switch (id) {
@@ -372,6 +379,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kImageCopies;
     case Id::MatchCamera: // AzaharFrame fovonce
         return kMatchCamera;
+    case Id::ScaleMode: // AzaharFrame fovscale
+        return kScaleMode;
     case Id::ScreenShape:
         return kShape;
     case Id::ScreenCurve:
@@ -529,6 +538,8 @@ std::string LabelFor(Id id) {
         return ::FrameXr::Immersive::Names::kHorizontalScale;
     case Id::ScaleY:
         return ::FrameXr::Immersive::Names::kVerticalScale;
+    case Id::ScaleMode: // AzaharFrame fovscale
+        return ::FrameXr::Immersive::Names::kScaleMode;
     case Id::WorldScale:
         return Immersive::Names::kWorldScale; // AzaharFrame natural
     case Id::FollowScreen:
@@ -653,6 +664,16 @@ std::string ExplainOption(Id id, int index) {
             break;
         }
     }
+    if (id == Id::ScaleMode) { // AzaharFrame fovscale
+        switch (index) {
+        case 0:
+            return ::FrameXr::Immersive::Names::kScaleStretchTip;
+        case 1:
+            return ::FrameXr::Immersive::Names::kScaleFieldOfViewTip;
+        default:
+            break;
+        }
+    }
     if (id == Id::AccurateImageCopies) { // AzaharFrame xfergpu: the owner's words
         switch (index) {
         case 0:
@@ -669,7 +690,8 @@ std::string ExplainOption(Id id, int index) {
 }
 
 bool HasOptionTips(Id id) {
-    return id == Id::AccurateImageCopies || id == Id::MatchCamera;
+    return id == Id::AccurateImageCopies || id == Id::MatchCamera ||
+           id == Id::ScaleMode; // AzaharFrame fovscale
 }
 
 std::string ExplainFor(Id id) {
@@ -736,6 +758,8 @@ std::string ExplainFor(Id id) {
         return ::FrameXr::Immersive::Names::kHorizontalScaleTip;
     case Id::ScaleY:
         return ::FrameXr::Immersive::Names::kVerticalScaleTip;
+    case Id::ScaleMode: // AzaharFrame fovscale
+        return ::FrameXr::Immersive::Names::kScaleModeTip;
     case Id::WorldScale:
         return Immersive::Names::kWorldScaleTip; // AzaharFrame natural
     case Id::FollowScreen:

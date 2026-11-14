@@ -845,6 +845,12 @@ struct Values {
     // Screen 10 % is -10 here.
     SwitchableSetting<s32, true> vr_immersive_scale_x{0, -30, 30, "vr_immersive_scale_x"};
     SwitchableSetting<s32, true> vr_immersive_scale_y{0, -30, 30, "vr_immersive_scale_y"};
+    // AzaharFrame fovscale: how the scales act (Full (6DoF) only, per game, read every frame):
+    // 0 = Stretch (the picture stretched on the larger or smaller screen, as every build before),
+    // 1 = Field of View (the game draws that much more or less on that axis; the default). The
+    // scales keep their meaning (the screen's size), so an older build reading the same file
+    // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit).
+    SwitchableSetting<u32, true> vr_immersive_scale_mode{1, 0, 1, "vr_immersive_scale_mode"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
     // (frame_xr/input/mapper.h).

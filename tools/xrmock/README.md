@@ -53,6 +53,7 @@ exists, `lasrecomp` runs (or, for `mockrun.sh`, a Steam game does), then take
 | `MOCK_XR_HZ=<hz>` | display refresh |
 | `MOCK_XR_SWAY=0` | keep the head still |
 | `MOCK_XR_TURN=<deg/s>[,<deg>]` | the head turns from side to side at this speed all the way, this far either way (default 40 degrees), instead of the slow sway (a fast head turn) |
+| `MOCK_XR_ROLL=<deg/s>[,<deg>]` | the head rolls (about its own forward axis, after the yaw) from side to side at this speed, this far either way (default 20 degrees); with `MOCK_XR_TRACE_POSE=5` each `endFrame` line adds `roll=`. `hold.py --roll` (here) checks the held quads on such a trace: with Horizontal and Vertical Scale as Field of View a roll must be a plain rotation |
 | `MOCK_XR_NECK=<m>` | the head turns about a neck this far behind the eyes (default 0: about the eyes), so a turn also moves the eyes sideways, as a real head's do |
 | `MOCK_XR_IPD=<m>[,<m>@<s>]` | the distance between the eyes (default 0.064), and optionally the one it changes to at `<s>` seconds after the session began, as a turn of the IPD dial: `0.063,0.068@20` |
 | `MOCK_XR_EYES_UNTRACKED=<s>` | no valid eye positions (orientations only) for the first `<s>` seconds after the session began |

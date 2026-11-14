@@ -609,6 +609,9 @@ void QtConfig::ReadVrValues() {
                      old.toStdString(), now.toStdString(), *migrated);
         }
     }
+    // AzaharFrame fovscale: Stretch or Field of View (no migration: a file without it has the
+    // default of whichever build reads it).
+    ReadGlobalSetting(Settings::values.vr_immersive_scale_mode);
     // AzaharFrame autosave: a global value and, for a game, its own (Per-Game)
     ReadGlobalSetting(Settings::values.autosave_enabled);
     ReadGlobalSetting(Settings::values.autosave_every);
@@ -1302,6 +1305,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
     WriteGlobalSetting(Settings::values.vr_immersive_scale_x); // AzaharFrame kiu
     WriteGlobalSetting(Settings::values.vr_immersive_scale_y);
+    WriteGlobalSetting(Settings::values.vr_immersive_scale_mode); // AzaharFrame fovscale
     // Narrow Screen and Narrow Height, read once into the scales above
     qt_config->remove(QStringLiteral("vr_immersive_squeeze"));
     qt_config->remove(QStringLiteral("vr_immersive_squeeze_y"));

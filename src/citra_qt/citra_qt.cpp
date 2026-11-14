@@ -2021,6 +2021,26 @@ GMainWindow::GMainWindow(Core::System& system_)
                     continue;
                 }
                 const QString what = parts[1].trimmed();
+                // AzaharFrame fovscale: "hold" turns frame advancing on (the game stops at the end
+                // of its frame), "step" lets one frame through, "go" turns it off. Held before a
+                // load, the game stops at the first frame after it, the same in every run: two
+                // runs with other settings show the same game moment (the mock's picture checks).
+                if (what == QStringLiteral("hold") || what == QStringLiteral("step") ||
+                    what == QStringLiteral("go")) {
+                    QTimer::singleShot(static_cast<int>(parts[0].toDouble() * 1000.0), this,
+                                       [this, what] {
+                                           LOG_INFO(Frontend, "xr test: frame advance {}",
+                                                    what.toStdString());
+                                           auto& limiter = system.frame_limiter;
+                                           if (what == QStringLiteral("step")) {
+                                               limiter.AdvanceFrame();
+                                           } else {
+                                               limiter.SetFrameAdvancing(what ==
+                                                                         QStringLiteral("hold"));
+                                           }
+                                       });
+                    continue;
+                }
                 const bool save = what.startsWith(QStringLiteral("save"));
                 // AzaharFrame oot: loadanyN loads slot N with Load Anyway (a state from another
                 // build, as the owner's quick save is for a mock of this one), asking nothing.
@@ -5338,6 +5358,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::ScaleY:
         set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
         break;
+    case S::ScaleMode: // AzaharFrame fovscale: Stretch, Field of View
+        set(v.vr_immersive_scale_mode, r.value == 0 ? 0u : 1u);
+        break;
     case S::WorldScale: // AzaharFrame natural: World Scale, hundredths of a percent
         set(v.vr_immersive_world_scale, std::clamp(static_cast<float>(r.value) / 100.0f, 10.0f,
                                                    400.0f));
@@ -5479,6 +5502,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
     FrameKeepSetting keep_scale_x{v.vr_immersive_scale_x}; // AzaharFrame kiu
     FrameKeepSetting keep_scale_y{v.vr_immersive_scale_y};
+    FrameKeepSetting keep_scale_mode{v.vr_immersive_scale_mode}; // AzaharFrame fovscale
     FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
     FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
     FrameKeepSetting keep_preload{v.preload_textures};
@@ -5507,6 +5531,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_wider.Restore();
     keep_scale_x.Restore();
     keep_scale_y.Restore();
+    keep_scale_mode.Restore();
     keep_depth.Restore();
     keep_custom_textures.Restore();
     keep_preload.Restore();
