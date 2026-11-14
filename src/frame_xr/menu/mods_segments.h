@@ -169,6 +169,20 @@ struct ModsListModel {
     bool operator==(const ModsListModel&) const = default;
 };
 
+/// AzaharFrame ctgp7b: how TabMenu::DrawOfferList draws a list of catalog mods.
+struct OfferListOptions {
+    bool install_allowed = true; ///< Install can be pressed (a mod for CTGP-7: once CTGP-7 is there)
+    /// an installed mod has its switch and Remove (the loaded list's row), not "Installed"
+    bool manage = false;
+    /// the rows are part of a page that scrolls as a whole (the CTGP-7 segment): they start at
+    /// `page_top` (scrolled already), the list rect is only what shows, and no scroll of their own
+    bool in_page = false;
+    float page_top = 0.0f;
+};
+
+/// AzaharFrame ctgp7b: the loaded list's index of the mod `id` (-1 none).
+int LoadedIndex(const ModsListModel& m, const std::string& id);
+
 /// One installed pack for the running game (CustomTex::Pack).
 struct TexturePackItem {
     std::string id;     ///< CustomTex::Pack::id (the command's `text`)

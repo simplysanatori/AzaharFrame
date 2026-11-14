@@ -834,6 +834,9 @@ void FrameCtgp7::Uninstall(bool both, bool delete_progress) {
             if (hooks.refresh_list) {
                 hooks.refresh_list();
             }
+            if (hooks.refresh_mods) { // AzaharFrame ctgp7b: its mods went (the segment lists them)
+                hooks.refresh_mods();
+            }
             if (err.empty() && hooks.notify) {
                 hooks.notify(kToastUninstalled);
             }

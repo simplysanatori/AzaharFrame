@@ -61,6 +61,7 @@ public:
         std::function<void(bool down)> press_a;        ///< the 3DS's A, from outside the controls
         std::function<void(const std::string&)> notify; ///< a toast in VR, the status bar in Flat
         std::function<void()> refresh_list;            ///< the game list scans again
+        std::function<void()> refresh_mods; ///< AzaharFrame ctgp7b: the Mods tab's lists read again
         std::function<QWidget*()> window;              ///< Azahar's window, shown (dialogs)
         std::function<void()> quit;                    ///< the app quits (test runs)
     };

@@ -2977,6 +2977,11 @@ void GMainWindow::ConnectWidgetEvents() {
             return this;
         };
         h.quit = [this] { QTimer::singleShot(0, this, &QWidget::close); };
+        h.refresh_mods = [] { // AzaharFrame ctgp7b
+            if (g_frame_mods) {
+                g_frame_mods->RefreshMods();
+            }
+        };
         g_frame_ctgp7 = new FrameCtgp7(std::move(h), this);
     }
     connect(game_list, &GameList::PopulatingCompleted, this, [] {

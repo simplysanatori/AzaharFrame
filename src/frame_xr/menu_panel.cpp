@@ -1012,9 +1012,11 @@ void MenuPanel::BuildModel(const Host& host) {
         const long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                      std::chrono::steady_clock::now().time_since_epoch())
                                      .count();
+        // AzaharFrame ctgp7b: the CTGP-7 segment lists the catalog's mods for CTGP-7 too
         const bool shown = view.tab == Menu::Tab::Mods &&
-                           view.mods_segment == Menu::ModsSegment::Mods &&
-                           view.mods_page == Menu::ModsPage::Install;
+                           ((view.mods_segment == Menu::ModsSegment::Mods &&
+                             view.mods_page == Menu::ModsPage::Install) ||
+                            (view.mods_segment == Menu::ModsSegment::Ctgp7 && m.mods.ctgp7.shown));
         if (!shown) {
             catalog_ask_ms = -1;
         } else if (Menu::ShouldAskCatalog(m.mods.mods.catalog, shown, now_ms, catalog_ask_ms)) {
@@ -1033,7 +1035,9 @@ void MenuPanel::BuildModel(const Host& host) {
     for (const auto& o : m.mods.mods.available) {
         spinning |= o.state == Menu::OfferState::Installing;
     }
-    if (spinning && view.tab == Menu::Tab::Mods && view.mods_segment == Menu::ModsSegment::Mods) {
+    if (spinning && view.tab == Menu::Tab::Mods &&
+        (view.mods_segment == Menu::ModsSegment::Mods ||
+         view.mods_segment == Menu::ModsSegment::Ctgp7)) { // AzaharFrame ctgp7b: its mods' rings
         // The progress rings turn, 15 steps a second (a redraw each step) while they show.
         m.mods.mods.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                 std::chrono::steady_clock::now().time_since_epoch())
@@ -1808,7 +1812,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::ModLink: { // "Open GitHub?" first
         const auto& mm = model.mods.mods;
-        const bool install = view.mods_page == Menu::ModsPage::Install;
+        // AzaharFrame ctgp7b: the CTGP-7 segment's rows are the catalog's
+        const bool install = view.mods_page == Menu::ModsPage::Install ||
+                             view.mods_segment == Menu::ModsSegment::Ctgp7;
         const std::size_t n = install ? mm.available.size() : mm.loaded.size();
         if (t.index >= 0 && static_cast<std::size_t>(t.index) < n) {
             const std::string& url = install ? mm.available[static_cast<std::size_t>(t.index)].url
@@ -1852,18 +1858,14 @@ void MenuPanel::Click(Target t, Host& host) {
             }
             break;
         }
-        // AzaharFrame ctgp7: the segment's question (the Qt side's), else Official Website's link
-        if (view.mods_segment == Menu::ModsSegment::Ctgp7) {
-            const bool yes = t.id == Id::DialogConfirm;
-            if (model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
-                ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "", yes ? 1 : 0);
-                view.dialog_check = false;
-            } else if (!view.open_link.empty()) {
-                const std::string url = std::exchange(view.open_link, {});
-                if (yes) {
-                    ask_text(MenuCommand::OpenUrl, url);
-                }
-            }
+        // AzaharFrame ctgp7: the segment's question (the Qt side's). AzaharFrame ctgp7b: else the
+        // Mods list's (its mods for CTGP-7: Replace, This May Not Work, ...) or Official Website's
+        // link, as the Mods segment answers them (below)
+        if (view.mods_segment == Menu::ModsSegment::Ctgp7 &&
+            model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
+            ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "",
+                     t.id == Id::DialogConfirm ? 1 : 0);
+            view.dialog_check = false;
             break;
         }
         // AzaharFrame compat: "This May Not Work": Install Anyway, Download Anyway, Turn On Anyway
@@ -2268,6 +2270,7 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
         } else if (mods_shown && view.requires_ctgp7) { // AzaharFrame ctgp7
             Click({Id::DialogCancel}, host);
         } else if (ctgp7_shown && (model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None ||
+                                   model.mods.mods.dialog.kind != Menu::ModsDialogKind::None || // AzaharFrame ctgp7b
                                    !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||

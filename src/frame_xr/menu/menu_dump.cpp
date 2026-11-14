@@ -2180,27 +2180,73 @@ int main(int argc, char** argv) {
         ov.tab = Tab::Mods;
         ov.mods_segment = ModsSegment::Cheats;
         ok &= shot("ctgp7-hidden-other-game", other, ov);
-        // "Requires CTGP-7" over Install Mods
+        // AzaharFrame ctgp7b: the catalog's mods for CTGP-7 (the eight of its ctgp7 branch) in the
+        // segment, under the status row; Install Mods and the loaded list keep the others
         MenuModel req = ct;
-        ModOffer miku;
-        miku.id = "mk7-hatsune-miku";
-        miku.name = "Hatsune Miku";
-        miku.author = "Sedral";
-        miku.url = "https://gamebanana.com/members/2124152";
-        miku.notes = "Requires CTGP-7.";
-        miku.downloads = "10K+ Downloads";
-        miku.updated = "Updated May 2024";
-        miku.requires_ctgp7 = true;
-        req.mods.mods.available = {miku};
-        req.mods.mods.catalog = CatalogState::Ready;
+        const auto offer = [](const char* id, const char* name, const char* author, const char* url,
+                              bool ctgp7) {
+            ModOffer o;
+            o.id = id;
+            o.name = name;
+            o.author = author;
+            o.url = url;
+            o.notes = ctgp7 ? "Requires CTGP-7." : "";
+            o.requires_ctgp7 = ctgp7;
+            return o;
+        };
+        auto& rm = req.mods.mods;
+        rm.available = {
+            offer("mk7-sonic", "Sonic", "Blurro", "https://gamebanana.com/members/1", false),
+            offer("mk7-sm64-mario", "SM64 Mario", "NintendoGameTuber", "https://gamebanana.com/members/2", false),
+            offer("mk7-hatsune-miku", "Hatsune Miku", "Sedral", "https://gamebanana.com/members/2124152", true),
+            offer("mk7-pikmin-red", "Pikmin Red", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-pikmin-blue", "Pikmin Blue", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-pikmin-yellow", "Pikmin Yellow", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-pikmin-purple", "Pikmin Purple", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-pikmin-white", "Pikmin White", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-pikmin-mushroom", "Pikmin Mushroom (Puffmin)", "Yasioen", "https://gamebanana.com/members/3", true),
+            offer("mk7-midna", "Midna", "TheHumanBanana", "https://gamebanana.com/members/4", true)};
+        rm.available[2].downloads = "10K+ Downloads";
+        rm.available[2].updated = "Updated May 2024";
+        rm.catalog = CatalogState::Ready;
         MenuView rv;
         rv.tab = Tab::Mods;
+        rv.mods_segment = ModsSegment::Ctgp7;
+        ok &= shot("ctgp7-mods-not-installed", req, rv);
+        rv.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
+        ok &= shot("ctgp7-mods-not-installed-end", req, rv);
+        rv.scroll[static_cast<int>(Tab::Mods)] = 0.0f;
+        req.mods.ctgp7.installed = true;
+        req.mods.ctgp7.version = "1.6.30";
+        ModRow sonic_row, miku_row;
+        sonic_row.id = "mk7-sonic";
+        sonic_row.name = "Sonic";
+        sonic_row.author = "Blurro";
+        sonic_row.url = "https://gamebanana.com/members/1";
+        sonic_row.managed = true;
+        miku_row.id = "mk7-hatsune-miku";
+        miku_row.name = "Hatsune Miku";
+        miku_row.author = "Sedral";
+        miku_row.url = "https://gamebanana.com/members/2124152";
+        miku_row.managed = true;
+        rm.loaded = {sonic_row, miku_row};
+        rm.available[0].state = OfferState::Installed;
+        rm.available[2].state = OfferState::Installed;
+        rv.hover = {Id::ModInstall, 3};
+        ok &= shot("ctgp7-mods-installed", req, rv);
+        rm.available[3].state = OfferState::Installing;
+        rm.available[3].note = "Downloading 42%";
+        rm.busy = true;
+        rm.spin = 5;
+        rv.hover = {};
+        ok &= shot("ctgp7-mods-installing", req, rv);
+        rm.available[3].state = OfferState::Install;
+        rm.available[3].note.clear();
+        rm.busy = false;
         rv.mods_segment = ModsSegment::Mods;
+        ok &= shot("ctgp7-mods-loaded-list", req, rv);
         rv.mods_page = ModsPage::Install;
-        ok &= shot("ctgp7-requires-row", req, rv);
-        rv.requires_ctgp7 = true;
-        rv.hover = {Id::DialogConfirm};
-        ok &= shot("ctgp7-requires-dialog", req, rv);
+        ok &= shot("ctgp7-mods-install-mods", req, rv);
     }
     v = {};
     v.tab = Tab::Main;

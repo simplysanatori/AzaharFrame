@@ -550,6 +550,15 @@ private:
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
     /// AzaharFrame ctgp7: the CTGP-7 segment (ctgp7_tab.cpp)
     void DrawCtgp7(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
+    /// AzaharFrame ctgp7b: rows of catalog mods (`rows`: indices of model.mods.mods.available) in
+    /// `list`, `c` the content's edges (mods_segments.cpp): Install Mods' list and the CTGP-7
+    /// segment's Mods for CTGP-7. Sets the list's scroll.
+    void DrawOfferList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area,
+                       const Rect& c, const Rect& list, const std::vector<int>& rows,
+                       const OfferListOptions& opt);
+    /// AzaharFrame ctgp7b: how tall DrawOfferList's rows are, all of them
+    float OfferListHeight(const Kit& kit, const ModsListModel& m, const Rect& c,
+                          const std::vector<int>& rows, const OfferListOptions& opt) const;
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
                       const Rect& pane); ///< AzaharFrame emerald: homebrew_tab.cpp; ui3: the Homebrew tab
     void DrawHomebrewDialog(Kit& kit, const HomebrewDialog& dialog,
@@ -594,5 +603,8 @@ private:
 ModsDialog CompatConfirmDialog(const MenuModel& model, const MenuView& view);
 /// AzaharFrame compat: what answering it allows (kAnywayOtherVersion | kAnywayUnscanned), 0 none.
 int CompatConfirmFlags(const MenuModel& model, const MenuView& view);
+/// AzaharFrame ctgp7b: the Mods list's question as drawn: the Qt side's, "This May Not Work", or
+/// "Open <host>?" for a link (kind None: none). The CTGP-7 segment shows it under its own.
+ModsDialog ModsDialogFor(const MenuModel& model, const MenuView& view);
 
 } // namespace FrameXr::Menu

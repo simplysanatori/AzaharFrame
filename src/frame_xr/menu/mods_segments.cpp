@@ -766,6 +766,19 @@ std::string ModVersionText(const std::string& version) { // AzaharFrame ui3
     return version;
 }
 
+ModsDialog ModsDialogFor(const MenuModel& model, const MenuView& view) { // AzaharFrame ctgp7b
+    return DialogFor(model.mods.mods.dialog, view, model);
+}
+
+int LoadedIndex(const ModsListModel& m, const std::string& id) { // AzaharFrame ctgp7b
+    for (std::size_t i = 0; i < m.loaded.size(); i++) {
+        if (m.loaded[i].id == id) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 std::vector<std::string> OfferParts(const ModOffer& offer) {
     if (!offer.note.empty()) {
         return {ModVersionText(offer.mod_version), offer.note};
@@ -839,9 +852,20 @@ std::string BylineText(const std::string& author, const std::vector<std::string>
 
 namespace { // AzaharFrame ui3: the text's right edge of a catalog row (as drawn below)
 
-float OfferTextRight(const Kit& kit, const ModOffer& o, float x1) {
+/// AzaharFrame ctgp7b: what a row's switch and Remove take from the right (the Mods list's column)
+float ManageWidth(const Kit& kit) {
+    return kSwitchW + kTrailGap + ButtonWidth(kit, LabelFor(Id::ModRemove), false, 12.0f) - 24.0f;
+}
+
+/// AzaharFrame ctgp7b: the loaded list's row of an installed catalog mod, for a list that shows
+/// its switch and Remove (OfferListOptions::manage), else -1
+int LoadedOf(const ModsListModel& m, const OfferListOptions& opt, const ModOffer& o) {
+    return opt.manage ? LoadedIndex(m, o.id) : -1;
+}
+
+float OfferTextRight(const Kit& kit, const ModOffer& o, float x1, float manage = 0.0f) {
     float right = x1;
-    switch (o.state) {
+    switch (manage > 0.0f && o.state != OfferState::Installing ? OfferState::Installed : o.state) {
     case OfferState::Install:
     case OfferState::Unavailable:
         right = x1 - ButtonWidth(kit, OfferButtonLabel(o), false, 24.0f); // AzaharFrame fixes7
@@ -850,7 +874,8 @@ float OfferTextRight(const Kit& kit, const ModOffer& o, float x1) {
         right = x1 - ButtonWidth(kit, LabelFor(Id::ModCancel), false, 12.0f) - 32.0f;
         break;
     case OfferState::Installed:
-        right = x1 - ButtonWidth(kit, "Installed", true, 12.0f) + 24.0f;
+        right = manage > 0.0f ? x1 - manage // AzaharFrame ctgp7b: its switch and Remove
+                              : x1 - ButtonWidth(kit, "Installed", true, 12.0f) + 24.0f;
         break;
     }
     float name_right = right - kNameGap;
@@ -1287,6 +1312,212 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
 // ---------------------------------------------------------------------------------------------
 // Mods
 
+namespace {
+// AzaharFrame ui3: a row is taller only when its byline goes on to a second line
+std::vector<float> OfferRowHeights(const Kit& kit, const ModsListModel& m, const Rect& c,
+                                   const std::vector<int>& rows, const OfferListOptions& opt) {
+    std::vector<float> heights;
+    for (const int r : rows) {
+        const ModOffer& o = m.available[static_cast<std::size_t>(r)];
+        const float manage = LoadedOf(m, opt, o) >= 0 ? ManageWidth(kit) : 0.0f; // AzaharFrame ctgp7b
+        heights.push_back(CatalogRowH(kit, OfferTextRight(kit, o, c.x1, manage) - c.x0, o.author,
+                                      OfferParts(o)));
+    }
+    return heights;
+}
+} // namespace
+
+float TabMenu::OfferListHeight(const Kit& kit, const ModsListModel& m, const Rect& c,
+                               const std::vector<int>& rows, const OfferListOptions& opt) const {
+    float h = 0.0f;
+    for (const float r : OfferRowHeights(kit, m, c, rows, opt)) {
+        h += r;
+    }
+    return h;
+}
+
+// AzaharFrame ctgp7b: the rows of catalog mods (Install Mods, and the CTGP-7 segment's Mods for
+// CTGP-7), out of DrawModsList: `rows` are indices of `available`, which the hits keep.
+void TabMenu::DrawOfferList(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area,
+                            const Rect& c, const Rect& list, const std::vector<int>& rows,
+                            const OfferListOptions& opt) {
+    const ModsListModel& m = model.mods.mods;
+    const float top = opt.in_page ? opt.page_top : list.y0;
+    const std::vector<float> heights = OfferRowHeights(kit, m, c, rows, opt);
+    // AzaharFrame ctgp7b: in a page that scrolls as a whole, the page's scroll is in page_top
+    const ListScroll s = Scroll(heights, opt.in_page ? 1e9f : list.H(), opt.in_page ? 0.0f : ScrollWanted(view));
+    if (!opt.in_page) {
+        layout.max_scroll = s.max_scroll;
+        layout.scroll_step = s.step;
+    }
+    kit.Clip(list);
+    // AzaharFrame modcat: the version chip's tooltip, drawn after the list
+    struct ChipTip {
+        float cx = 0.0f, y = 0.0f;
+        bool above = true;
+        std::string text;
+    } chip_tip;
+    NoteTip note_tip; // AzaharFrame modcat2
+    // AzaharFrame compat: the row whose notes show and where the names' column ends
+    const ModOffer* tip_row = nullptr;
+    Rect tip_rect{};
+    float names_right = c.x1;
+    NoteTip compat_tip;
+    for (std::size_t i = 0; i < rows.size(); i++) {
+        const float y = top + s.tops[i] - s.scroll;
+        const float rh = heights[i];
+        if (y + rh <= list.y0 || y >= list.y1) {
+            continue; // AzaharFrame scroll: out of view (a part row shows cut)
+        }
+        // AzaharFrame ctgp7b: the hits keep the catalog's index (MenuModel's `available`)
+        const int idx = rows[i];
+        const ModOffer& o = m.available[static_cast<std::size_t>(idx)];
+        const int loaded = LoadedOf(m, opt, o);
+        const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + rh};
+        const float cy = row.Cy();
+        AddHit(row, {Id::ModInstall, kLabelIndex}, list);
+        float right = c.x1;
+        if (loaded >= 0 && o.state != OfferState::Installing) {
+            // AzaharFrame ctgp7b: installed: its switch and Remove, as the Mods segment's list
+            // (the loaded list's index)
+            const ModRow& r = m.loaded[static_cast<std::size_t>(loaded)];
+            const bool enabled = !m.busy;
+            const State st = StateOf(view, {Id::Mod, loaded}, enabled);
+            const Rect sw{c.x1 - kSwitchW, cy - 24.0f, c.x1, cy + 24.0f};
+            kit.Switch({c.x1 - kSwitchW, row.y0, c.x1, row.y1}, r.active, st);
+            if (enabled) {
+                AddHit(sw, {Id::Mod, loaded}, list);
+            }
+            const std::string remove = LabelFor(Id::ModRemove);
+            const float rx1 = c.x1 - kSwitchW - kTrailGap + 12.0f;
+            const Rect b{rx1 - ButtonWidth(kit, remove, false, 12.0f), cy - kButtonH * 0.5f, rx1,
+                         cy + kButtonH * 0.5f};
+            kit.Button(b, ButtonStyle::Text, 0, remove, StateOf(view, {Id::ModRemove, loaded}, enabled));
+            if (enabled) {
+                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModRemove, loaded}, list);
+            }
+            right = b.x0 + 12.0f;
+        } else {
+            switch (o.state) {
+            case OfferState::Install:
+            case OfferState::Unavailable: {
+                const std::string label = OfferButtonLabel(o); // AzaharFrame fixes7: or Resume
+                const float w = ButtonWidth(kit, label, false, 24.0f);
+                const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
+                // AzaharFrame ctgp7b: a mod for CTGP-7 waits for CTGP-7 (opt.install_allowed)
+                const bool on = o.state == OfferState::Install && !m.busy && opt.install_allowed;
+                kit.Button(b, ButtonStyle::Tonal, 0, label,
+                           StateOf(view, {Id::ModInstall, idx}, on));
+                if (on) {
+                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModInstall, idx}, list);
+                }
+                right = b.x0;
+                break;
+            }
+            case OfferState::Installing: {
+                // AzaharFrame integ3: Cancel where the Install button was (as Download Packs'
+                // rows), the ring left of it; the row's line says "Downloading 42%".
+                const std::string label = LabelFor(Id::ModCancel);
+                const float w = ButtonWidth(kit, label, false, 12.0f);
+                const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
+                kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::ModCancel, idx}));
+                AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModCancel, idx}, list);
+                Ring(kit, b.x0 - 16.0f, cy, 24.0f, m.spin);
+                right = b.x0 - 32.0f;
+                break;
+            }
+            case OfferState::Installed: {
+                const std::string label = "Installed";
+                const float w = ButtonWidth(kit, label, true, 12.0f);
+                const Rect b{c.x1 - w + 12.0f, cy - kButtonH * 0.5f, c.x1 + 12.0f,
+                             cy + kButtonH * 0.5f};
+                kit.Button(b, ButtonStyle::Text, Sym::kCheck, label, State::Disabled);
+                right = b.x0 + 12.0f;
+                break;
+            }
+            }
+        }
+        // AzaharFrame modcat: the version chip, left of the button (the Cheats rows' chip:
+        // outlined; filled for the build that matches the game); hover shows its tooltip
+        float name_right = right - kNameGap;
+        if (!o.version.empty()) {
+            constexpr float kChipH = 32.0f, kChipPad = 12.0f;
+            const float cw = kit.TextWidth(Type::Label, o.version) + kChipPad * 2.0f;
+            const Rect chip{right - 16.0f - cw, cy - kChipH * 0.5f, right - 16.0f,
+                            cy + kChipH * 0.5f};
+            if (o.version_match) {
+                kit.Fill(chip, 8.0f, Tok::kSecondaryContainer);
+                kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSecondaryContainer, o.version, 1);
+            } else {
+                kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
+                kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSurfaceVariant, o.version, 1);
+            }
+            // The touch target 48 dp round the 32 dp chip, as the Install button's.
+            const float hw = std::max(chip.W(), 48.0f) * 0.5f;
+            AddHit({chip.Cx() - hw, cy - 24.0f, chip.Cx() + hw, cy + 24.0f},
+                   {Id::ModVersion, idx}, list);
+            if (view.tooltip == Id::ModVersion && view.tooltip_index == idx &&
+                !o.version_tip.empty()) {
+                const float half = kit.TextWidth(Type::Tooltip, o.version_tip) * 0.5f + 10.0f;
+                chip_tip.cx = std::clamp(chip.Cx(), area.x0 + half + 4.0f, area.x1 - half - 4.0f);
+                // above the chip; under it for the first row shown
+                chip_tip.above = chip.y0 - 40.0f > list.y0;
+                chip_tip.y = chip_tip.above ? chip.y0 : chip.y1;
+                chip_tip.text = o.version_tip;
+            }
+            name_right = chip.x0 - kNameGap;
+        }
+        // AzaharFrame compat: made for another version: the red chip and the region's
+        if (o.mismatch) {
+            Rect chips{};
+            const float x0 = CompatChips(kit, name_right + kNameGap - (o.version.empty() ? 16.0f : 8.0f), cy,
+                                         o.region_chip, &chips);
+            AddHit({chips.x0, cy - 24.0f, chips.x1, cy + 24.0f}, {Id::ModCompat, idx}, list);
+            if (view.tooltip == Id::ModCompat && view.tooltip_index == idx &&
+                !o.mismatch_reason.empty()) {
+                compat_tip = MakeChipTip(kit, o.mismatch_reason, chips, list, area);
+            }
+            name_right = x0 - kNameGap;
+        }
+        names_right = std::min(names_right, name_right);
+        AddHit({row.x0, y, name_right, y + rh}, {Id::ModNote, idx}, list);
+        if (view.tooltip == Id::ModNote && view.tooltip_index == idx) {
+            tip_row = &o;
+            tip_rect = row;
+        }
+        // AzaharFrame compat: "Created by <author>" (any https page), AzaharFrame ui3: then
+        // " · v172 · Matches Your Game · 10K+ Downloads · Updated Sep 2026" (the phase or the
+        // failure while it installs or when it failed): OfferParts
+        const bool link = !LinkText(o.url).empty();
+        const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.recommended, o.author,
+                                      link, StateOf(view, {Id::ModLink, idx}), OfferParts(o),
+                                      !o.note.empty() && o.error ? 1 : std::string::npos);
+        if (l.W() > 0.0f) {
+            AddHit(l, {Id::ModLink, idx}, list);
+        }
+    }
+    kit.ClearClip();
+    if (!opt.in_page) {
+        DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
+    }
+    if (tip_row != nullptr) {
+        const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
+        if (!text.empty()) {
+            note_tip = MakeNoteTip(kit, text, tip_rect, list, area, c.x0, names_right);
+        }
+    }
+    if (!note_tip.text.empty()) {
+        kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
+    }
+    if (!chip_tip.text.empty()) {
+        kit.Tooltip(chip_tip.cx, chip_tip.y, chip_tip.text, chip_tip.above);
+    }
+    if (!compat_tip.text.empty()) {
+        kit.TooltipWrapped(compat_tip.cx, compat_tip.y, compat_tip.text, compat_tip.above,
+                           compat_tip.max_w);
+    }
+}
+
 void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& view,
                            const Rect& area) {
     const ModsListModel& m = model.mods.mods;
@@ -1327,158 +1558,12 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             AddHit(rb, {Id::InstallMods}, area);
         } else if (m.catalog != CatalogState::Ready) {
             EmptyState(kit, {c.x0, top, c.x1, bottom}, 0, true, m.spin, "Loading Mods", "");
-        } else if (m.available.empty()) {
+        } else if (InstallModsRows(m, model.mods.ctgp7.shown).empty()) { // AzaharFrame ctgp7b
             EmptyState(kit, {c.x0, top, c.x1, bottom}, Sym::kExtension, false, 0,
                        "No Mods for This Game", "");
         } else {
-            // AzaharFrame ui3: a row is taller only when its byline goes on to a second line
-            std::vector<float> heights;
-            for (const ModOffer& o : m.available) {
-                heights.push_back(CatalogRowH(kit, OfferTextRight(kit, o, c.x1) - c.x0, o.author,
-                                              OfferParts(o)));
-            }
-            const ListScroll s = Scroll(heights, list.H(), ScrollWanted(view));
-            layout.max_scroll = s.max_scroll;
-            layout.scroll_step = s.step;
-            kit.Clip(list);
-            // AzaharFrame modcat: the version chip's tooltip, drawn after the list
-            struct ChipTip {
-                float cx = 0.0f, y = 0.0f;
-                bool above = true;
-                std::string text;
-            } chip_tip;
-            NoteTip note_tip; // AzaharFrame modcat2
-            // AzaharFrame compat: the row whose notes show and where the names' column ends
-            const ModOffer* tip_row = nullptr;
-            Rect tip_rect{};
-            float names_right = c.x1;
-            NoteTip compat_tip;
-            for (std::size_t i = 0; i < m.available.size(); i++) {
-                const float y = top + s.tops[i] - s.scroll;
-                const float rh = heights[i];
-                if (y + rh <= list.y0 || y >= list.y1) {
-                    continue; // AzaharFrame scroll: out of view (a part row shows cut)
-                }
-                const ModOffer& o = m.available[i];
-                const int idx = static_cast<int>(i);
-                const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + rh};
-                const float cy = row.Cy();
-                AddHit(row, {Id::ModInstall, kLabelIndex}, list);
-                float right = c.x1;
-                switch (o.state) {
-                case OfferState::Install:
-                case OfferState::Unavailable: {
-                    const std::string label = OfferButtonLabel(o); // AzaharFrame fixes7: or Resume
-                    const float w = ButtonWidth(kit, label, false, 24.0f);
-                    const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
-                    const bool on = o.state == OfferState::Install && !m.busy;
-                    kit.Button(b, ButtonStyle::Tonal, 0, label,
-                               StateOf(view, {Id::ModInstall, idx}, on));
-                    if (on) {
-                        AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModInstall, idx}, list);
-                    }
-                    right = b.x0;
-                    break;
-                }
-                case OfferState::Installing: {
-                    // AzaharFrame integ3: Cancel where the Install button was (as Download Packs'
-                    // rows), the ring left of it; the row's line says "Downloading 42%".
-                    const std::string label = LabelFor(Id::ModCancel);
-                    const float w = ButtonWidth(kit, label, false, 12.0f);
-                    const Rect b{c.x1 - w, cy - kButtonH * 0.5f, c.x1, cy + kButtonH * 0.5f};
-                    kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {Id::ModCancel, idx}));
-                    AddHit({b.x0, cy - 24.0f, b.x1, cy + 24.0f}, {Id::ModCancel, idx}, list);
-                    Ring(kit, b.x0 - 16.0f, cy, 24.0f, m.spin);
-                    right = b.x0 - 32.0f;
-                    break;
-                }
-                case OfferState::Installed: {
-                    const std::string label = "Installed";
-                    const float w = ButtonWidth(kit, label, true, 12.0f);
-                    const Rect b{c.x1 - w + 12.0f, cy - kButtonH * 0.5f, c.x1 + 12.0f,
-                                 cy + kButtonH * 0.5f};
-                    kit.Button(b, ButtonStyle::Text, Sym::kCheck, label, State::Disabled);
-                    right = b.x0 + 12.0f;
-                    break;
-                }
-                }
-                // AzaharFrame modcat: the version chip, left of the button (the Cheats rows' chip:
-                // outlined; filled for the build that matches the game); hover shows its tooltip
-                float name_right = right - kNameGap;
-                if (!o.version.empty()) {
-                    constexpr float kChipH = 32.0f, kChipPad = 12.0f;
-                    const float cw = kit.TextWidth(Type::Label, o.version) + kChipPad * 2.0f;
-                    const Rect chip{right - 16.0f - cw, cy - kChipH * 0.5f, right - 16.0f,
-                                    cy + kChipH * 0.5f};
-                    if (o.version_match) {
-                        kit.Fill(chip, 8.0f, Tok::kSecondaryContainer);
-                        kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSecondaryContainer, o.version, 1);
-                    } else {
-                        kit.Stroke(chip, 8.0f, 1.0f, Tok::kOutline);
-                        kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kOnSurfaceVariant, o.version, 1);
-                    }
-                    // The touch target 48 dp round the 32 dp chip, as the Install button's.
-                    const float hw = std::max(chip.W(), 48.0f) * 0.5f;
-                    AddHit({chip.Cx() - hw, cy - 24.0f, chip.Cx() + hw, cy + 24.0f},
-                           {Id::ModVersion, idx}, list);
-                    if (view.tooltip == Id::ModVersion && view.tooltip_index == idx &&
-                        !o.version_tip.empty()) {
-                        const float half = kit.TextWidth(Type::Tooltip, o.version_tip) * 0.5f + 10.0f;
-                        chip_tip.cx = std::clamp(chip.Cx(), area.x0 + half + 4.0f, area.x1 - half - 4.0f);
-                        // above the chip; under it for the first row shown
-                        chip_tip.above = chip.y0 - 40.0f > list.y0;
-                        chip_tip.y = chip_tip.above ? chip.y0 : chip.y1;
-                        chip_tip.text = o.version_tip;
-                    }
-                    name_right = chip.x0 - kNameGap;
-                }
-                // AzaharFrame compat: made for another version: the red chip and the region's
-                if (o.mismatch) {
-                    Rect chips{};
-                    const float x0 = CompatChips(kit, name_right + kNameGap - (o.version.empty() ? 16.0f : 8.0f), cy,
-                                                 o.region_chip, &chips);
-                    AddHit({chips.x0, cy - 24.0f, chips.x1, cy + 24.0f}, {Id::ModCompat, idx}, list);
-                    if (view.tooltip == Id::ModCompat && view.tooltip_index == idx &&
-                        !o.mismatch_reason.empty()) {
-                        compat_tip = MakeChipTip(kit, o.mismatch_reason, chips, list, area);
-                    }
-                    name_right = x0 - kNameGap;
-                }
-                names_right = std::min(names_right, name_right);
-                AddHit({row.x0, y, name_right, y + rh}, {Id::ModNote, idx}, list);
-                if (view.tooltip == Id::ModNote && view.tooltip_index == idx) {
-                    tip_row = &o;
-                    tip_rect = row;
-                }
-                // AzaharFrame compat: "Created by <author>" (any https page), AzaharFrame ui3: then
-                // " · v172 · Matches Your Game · 10K+ Downloads · Updated Sep 2026" (the phase or the
-                // failure while it installs or when it failed): OfferParts
-                const bool link = !LinkText(o.url).empty();
-                const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.recommended, o.author,
-                                              link, StateOf(view, {Id::ModLink, idx}), OfferParts(o),
-                                              !o.note.empty() && o.error ? 1 : std::string::npos);
-                if (l.W() > 0.0f) {
-                    AddHit(l, {Id::ModLink, idx}, list);
-                }
-            }
-            kit.ClearClip();
-            DrawScrollbar(kit, view, list, area.x1, s.content_h, s.max_scroll, s.scroll); // AzaharFrame scroll
-            if (tip_row != nullptr) {
-                const std::string text = RowTip(tip_row->mismatch, tip_row->mismatch_reason, tip_row->notes);
-                if (!text.empty()) {
-                    note_tip = MakeNoteTip(kit, text, tip_rect, list, area, c.x0, names_right);
-                }
-            }
-            if (!note_tip.text.empty()) {
-                kit.TooltipWrapped(note_tip.cx, note_tip.y, note_tip.text, note_tip.above, note_tip.max_w);
-            }
-            if (!chip_tip.text.empty()) {
-                kit.Tooltip(chip_tip.cx, chip_tip.y, chip_tip.text, chip_tip.above);
-            }
-            if (!compat_tip.text.empty()) {
-                kit.TooltipWrapped(compat_tip.cx, compat_tip.y, compat_tip.text, compat_tip.above,
-                                   compat_tip.max_w);
-            }
+            DrawOfferList(kit, model, view, area, c, list,
+                          InstallModsRows(m, model.mods.ctgp7.shown), {}); // AzaharFrame ctgp7b
         }
         DrawModsDialog(kit, DialogFor(m.dialog, view, model), view);
         return;
@@ -1486,7 +1571,10 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
 
     // ---- What is loaded for the game ----
     const std::string install = LabelFor(Id::InstallMods);
-    if (m.loaded.empty()) {
+    // AzaharFrame ctgp7b: not the mods for CTGP-7 the CTGP-7 segment lists; the indices are the
+    // loaded list's (the hits keep them)
+    const std::vector<int> loaded_rows = LoadedRows(m, model.mods.ctgp7.shown);
+    if (loaded_rows.empty()) {
         const Rect a{c.x0, c.y0, c.x1, bottom};
         const float h = 48.0f + 16.0f + 24.0f + 24.0f + kBarH;
         float y = a.Cy() - h * 0.5f;
@@ -1516,7 +1604,8 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     // to a second line is a catalog row's height
     const float loaded_right = c.x1 - kSwitchW - kTrailGap + 12.0f - remove_w + 12.0f - kNameGap;
     std::vector<float> heights;
-    for (const ModRow& r : m.loaded) {
+    for (const int li : loaded_rows) {
+        const ModRow& r = m.loaded[static_cast<std::size_t>(li)];
         heights.push_back(!r.author.empty()
                               ? (FitByline(kit, loaded_right - c.x0, r.author, true, {r.detail}).Wraps()
                                      ? kRowCatalog
@@ -1527,14 +1616,14 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
     layout.max_scroll = s.max_scroll;
     layout.scroll_step = s.step;
     kit.Clip(list);
-    for (std::size_t i = 0; i < m.loaded.size(); i++) {
+    for (std::size_t i = 0; i < loaded_rows.size(); i++) {
         const float ih = heights[i];
         const float y = top + s.tops[i] - s.scroll;
         if (y + ih <= list.y0 || y >= list.y1) { // AzaharFrame scroll: out of view
             continue;
         }
-        const ModRow& r = m.loaded[i];
-        const int idx = static_cast<int>(i);
+        const int idx = loaded_rows[i];
+        const ModRow& r = m.loaded[static_cast<std::size_t>(idx)];
         const Rect row{c.x0 - 12.0f, y, c.x1 + 12.0f, y + ih};
         const float cy = row.Cy();
         const bool enabled = !m.busy;

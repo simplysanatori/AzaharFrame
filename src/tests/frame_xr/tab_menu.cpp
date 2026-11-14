@@ -3333,7 +3333,8 @@ TEST_CASE("Tab menu: the CTGP-7 segment", "[frame_xr][tab_menu][ctgp7]") {
     CHECK_FALSE(reachable(Id::Ctgp7Launch, -1));
     CHECK(LinkText(kCtgp7Website) == "ctgp-7.github.io");
 
-    // "Requires CTGP-7" over Install Mods
+    // "Requires CTGP-7" over Install Mods. AzaharFrame ctgp7b: while the segment shows, a mod for
+    // CTGP-7 is listed there only; Install Mods lists it while it doesn't
     v = {};
     v.tab = Tab::Mods;
     v.mods_segment = ModsSegment::Mods;
@@ -3347,10 +3348,213 @@ TEST_CASE("Tab menu: the CTGP-7 segment", "[frame_xr][tab_menu][ctgp7]") {
     m.mods.mods.available = {o};
     m.mods.mods.catalog = CatalogState::Ready;
     d.Draw(m, v);
+    CHECK_FALSE(has(Id::ModInstall, 0));
+    m.mods.ctgp7.shown = false;
+    d.Draw(m, v);
     CHECK(has(Id::ModInstall, 0));
+    m.mods.ctgp7.shown = true;
     v.requires_ctgp7 = true;
     d.Draw(m, v);
     CHECK(reachable(Id::DialogConfirm, -1));
     CHECK(reachable(Id::DialogCancel, -1));
     CHECK_FALSE(reachable(Id::ModInstall, 0));
+}
+
+// AzaharFrame ctgp7b: the catalog's mods for CTGP-7 ("requires": "ctgp7", the eight of the
+// catalog's ctgp7 branch) are listed in the CTGP-7 segment under its status row, not in the Mods
+// segment (Install Mods or the loaded list); the others (Sonic works with or without CTGP-7) stay
+// in Mods. Install waits for CTGP-7; an installed one keeps its switch and Remove.
+TEST_CASE("Tab menu: mods for CTGP-7 are listed in its segment", "[frame_xr][tab_menu][ctgp7]") {
+    Audit d;
+    const auto has = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto reachable = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                const Target t = d.menu.HitTest(h.r.Cx(), h.r.Cy());
+                return t.id == id && t.index == index;
+            }
+        }
+        return false;
+    };
+    // the segment scrolls as a whole: reachable at some scroll of it
+    const auto somewhere = [&](const MenuModel& mm, MenuView vv, Id id, int index) {
+        d.Draw(mm, vv);
+        const float end = d.menu.MaxScroll();
+        for (float sc = 0.0f; sc <= end + 24.0f; sc += 24.0f) {
+            vv.scroll[static_cast<int>(Tab::Mods)] = sc;
+            d.Draw(mm, vv);
+            if (reachable(id, index)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    MenuModel m = Sample();
+    m.game_title = "Mario Kart 7";
+    m.mods.ctgp7.shown = true;
+    const auto offer = [](const char* id, const char* name, const char* author, bool ctgp7) {
+        ModOffer o;
+        o.id = id;
+        o.name = name;
+        o.author = author;
+        o.url = "https://gamebanana.com/members/1";
+        o.notes = ctgp7 ? "Requires CTGP-7." : "";
+        o.requires_ctgp7 = ctgp7;
+        return o;
+    };
+    auto& mm = m.mods.mods;
+    mm.available = {offer("mk7-sonic", "Sonic", "Blurro", false),
+                    offer("mk7-hatsune-miku", "Hatsune Miku", "Sedral", true),
+                    offer("mk7-sm64-mario", "SM64 Mario", "NintendoGameTuber", false),
+                    offer("mk7-pikmin-red", "Pikmin Red", "Yasioen", true),
+                    offer("mk7-pikmin-blue", "Pikmin Blue", "Yasioen", true),
+                    offer("mk7-pikmin-yellow", "Pikmin Yellow", "Yasioen", true),
+                    offer("mk7-pikmin-purple", "Pikmin Purple", "Yasioen", true),
+                    offer("mk7-pikmin-white", "Pikmin White", "Yasioen", true),
+                    offer("mk7-pikmin-mushroom", "Pikmin Mushroom (Puffmin)", "Yasioen", true),
+                    offer("mk7-midna", "Midna", "TheHumanBanana", true)};
+    mm.catalog = CatalogState::Ready;
+    const std::vector<int> ctgp7_rows{1, 3, 4, 5, 6, 7, 8, 9};
+
+    // which list has which row
+    CHECK(InstallModsRows(mm, true) == std::vector<int>{0, 2});
+    CHECK(Ctgp7ModRows(mm, true) == ctgp7_rows);
+    CHECK(InstallModsRows(mm, false).size() == mm.available.size()); // no segment: Mods as before
+    CHECK(Ctgp7ModRows(mm, false).empty());
+
+    // Install Mods: Sonic and SM64 Mario only
+    MenuView v;
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    d.Draw(m, v);
+    CHECK(has(Id::ModInstall, 0));
+    CHECK(has(Id::ModInstall, 2));
+    for (const int r : ctgp7_rows) {
+        CHECK_FALSE(has(Id::ModInstall, r));
+    }
+    CHECK(d.Drew("Sonic"));
+    CHECK_FALSE(d.Drew("Hatsune Miku"));
+    // only mods for CTGP-7: "No Mods for This Game"
+    {
+        MenuModel only = m;
+        only.mods.mods.available.erase(only.mods.mods.available.begin() + 2);
+        only.mods.mods.available.erase(only.mods.mods.available.begin());
+        d.Draw(only, v);
+        CHECK(d.Drew("No Mods for This Game"));
+    }
+
+    // the CTGP-7 segment, CTGP-7 not installed: all eight, Install not pressable, the line
+    v = {};
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Ctgp7;
+    d.Draw(m, v);
+    CHECK(d.Drew(kCtgp7ModsTitle));
+    CHECK(d.Drew(kCtgp7ModsFirst));
+    CHECK_FALSE(d.Drew("Sonic"));
+    {
+        bool miku = false;
+        MenuView vv = v;
+        for (float sc = 0.0f; sc <= d.menu.MaxScroll() + 24.0f; sc += 24.0f) {
+            vv.scroll[static_cast<int>(Tab::Mods)] = sc;
+            d.Draw(m, vv);
+            miku |= d.Drew("Hatsune Miku");
+        }
+        CHECK(miku);
+        d.Draw(m, v);
+    }
+    for (const int r : ctgp7_rows) {
+        CHECK_FALSE(somewhere(m, v, Id::ModInstall, r));
+    }
+    d.Draw(m, v);
+    CHECK(reachable(Id::Ctgp7Install, -1)); // the status row as before, at the top
+    CHECK(d.menu.MaxScroll() > 0.0f); // eight rows under the About section: the page scrolls
+    // scrolled to its end: the last one shows whole, inside the pane
+    v.scroll[static_cast<int>(Tab::Mods)] = 10000.0f;
+    d.Draw(m, v);
+    CHECK(d.Drew("Midna"));
+    for (const auto& h : d.menu.Hits()) {
+        CHECK(h.r.y1 <= kPanelH);
+    }
+    v.scroll[static_cast<int>(Tab::Mods)] = 0.0f;
+
+    // installed: Install, and an installed one's switch and Remove (the loaded list's index)
+    m.mods.ctgp7.installed = true;
+    m.mods.ctgp7.version = "1.6.30";
+    ModRow sonic, miku;
+    sonic.id = "mk7-sonic";
+    sonic.name = "Sonic";
+    sonic.managed = true;
+    miku.id = "mk7-hatsune-miku";
+    miku.name = "Hatsune Miku";
+    miku.author = "Sedral";
+    miku.managed = true;
+    mm.loaded = {sonic, miku};
+    mm.available[1].state = OfferState::Installed;
+    d.Draw(m, v);
+    CHECK_FALSE(d.Drew(kCtgp7ModsFirst));
+    CHECK(has(Id::Ctgp7Launch, -1));
+    CHECK(somewhere(m, v, Id::ModInstall, 3));
+    CHECK(somewhere(m, v, Id::ModInstall, 9));
+    CHECK_FALSE(somewhere(m, v, Id::ModInstall, 1));
+    CHECK(somewhere(m, v, Id::Mod, 1));       // Hatsune Miku's switch
+    CHECK(somewhere(m, v, Id::ModRemove, 1)); // and Remove
+    CHECK_FALSE(somewhere(m, v, Id::Mod, 0)); // Sonic is the Mods segment's
+    // an install that runs: Cancel and the ring
+    mm.available[3].state = OfferState::Installing;
+    mm.available[3].note = "Downloading 42%";
+    mm.busy = true;
+    CHECK(somewhere(m, v, Id::ModCancel, 3));
+    CHECK_FALSE(somewhere(m, v, Id::ModInstall, 4)); // the others wait
+    CHECK_FALSE(somewhere(m, v, Id::ModRemove, 1));
+    mm.busy = false;
+    mm.available[3].state = OfferState::Install;
+    mm.available[3].note.clear();
+    // CTGP-7 being uninstalled: its mods wait
+    m.mods.ctgp7.busy = true;
+    CHECK_FALSE(somewhere(m, v, Id::ModInstall, 3));
+    m.mods.ctgp7.busy = false;
+
+    // the Mods segment's loaded list: Sonic, not Hatsune Miku
+    CHECK(LoadedRows(mm, true) == std::vector<int>{0});
+    CHECK(LoadedRows(mm, false) == std::vector<int>{0, 1});
+    v.mods_segment = ModsSegment::Mods;
+    d.Draw(m, v);
+    CHECK(has(Id::Mod, 0));
+    CHECK_FALSE(has(Id::Mod, 1));
+    CHECK_FALSE(has(Id::ModRemove, 1));
+    // only Hatsune Miku installed: "No Mods" there, Install Mods to the catalog
+    {
+        MenuModel one = m;
+        one.mods.mods.loaded = {miku};
+        d.Draw(one, v);
+        CHECK(d.Drew("No Mods"));
+    }
+    // one the catalog no longer lists stays in the Mods segment (nothing goes unlisted)
+    {
+        MenuModel gone = m;
+        gone.mods.mods.available.erase(gone.mods.mods.available.begin() + 1);
+        CHECK(LoadedRows(gone.mods.mods, true) == std::vector<int>{0, 1});
+    }
+
+    // a link and a question from a CTGP-7 row show over the segment and take the beam
+    v.mods_segment = ModsSegment::Ctgp7;
+    v.open_link = "https://gamebanana.com/members/1";
+    d.Draw(m, v);
+    CHECK(reachable(Id::DialogConfirm, -1));
+    CHECK_FALSE(somewhere(m, v, Id::ModInstall, 3)); // the scrim takes the beam
+    v.open_link.clear();
+    mm.available[3].mismatch = true;
+    mm.available[3].mismatch_body = "This mod was made for the USA version of the game.";
+    v.confirm = {Id::ModInstall, 3, "mk7-pikmin-red"};
+    d.Draw(m, v);
+    CHECK(reachable(Id::DialogConfirm, -1));
+    CHECK_FALSE(somewhere(m, v, Id::ModInstall, 4));
 }

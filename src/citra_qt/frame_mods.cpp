@@ -618,6 +618,16 @@ void FrameMods::RefreshLoaded() {
         });
 }
 
+void FrameMods::RefreshMods() { // AzaharFrame ctgp7b
+    if (title_id == 0) {
+        return;
+    }
+    RefreshLoaded();
+    if (mods.catalog == Menu::CatalogState::Ready) {
+        RefreshAvailable();
+    }
+}
+
 void FrameMods::RefreshAvailable() {
     // AzaharFrame stall: the list at once from the catalog in hand (the compiled-in copy, or the
     // one fetched earlier this run), filtered to this game; then, once per game a run, the
