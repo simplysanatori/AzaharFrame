@@ -72,6 +72,19 @@
 //     BPS patch's own source checksum); the row whose list holds the running game's CRC32 is
 //     marked "Matches Your Game" and listed first. Nothing is hidden: the others stay.
 //
+// AzaharFrame ctgp7, optional entry fields (builds before 1.2.0 ignore both, and the entry keeps
+// "install": {"rules": []}, so an older build installs nothing of it into the mods folder):
+//   "requires": "ctgp7"     the mod only works inside CTGP-7 (the menu offers to install CTGP-7 first;
+//     any other value: a newer build's pack, never installed here)
+//   "ctgp7_install": {"rules": [{"from": "*.chpack", "to": "MyStuff/Characters/"},
+//                               {"from": "Menu3D.szs", "to": "gamefs/"}]}
+//     the second install target: CTGP-7's folder on the emulated SD card (sdmc/CTGP-7/). "from" is a
+//     '*' glob (GlobMatch) of a file's name, or of its whole path when it has a '/'; "to" is relative
+//     to sdmc/CTGP-7/ and starts with MyStuff/ (character packs: MyStuff/Characters/, where CTGP-7's
+//     installer puts its own .chpack files) or gamefs/ (CTGP-7's game files, e.g. a Menu3D.szs, as
+//     its author says); "to" ending in '/' keeps the file's name. The first rule that matches wins.
+//     Removing or turning the mod off takes out only the files it put there.
+//
 // install.rules map an archive's (or folder's) file paths to the game's mods folder
 // (<LoadDir>/mods/<TID>/). The first rule whose "from" matches wins; files no rule matches are
 // skipped (READMEs, licences, other regions). "from" is a path pattern: '/'-separated parts, a part
@@ -142,6 +155,9 @@ struct CatalogEntry {
     std::vector<u32> code_crc32; // the game code CRC32s it was made for (any title ID of the entry)
     std::map<u64, std::vector<u32>> code_crc32_by_title; // or per title ID ({"<tid>": [...]})
     std::string notes;
+    /// AzaharFrame ctgp7: "requires" ("ctgp7"; "" none) and the CTGP-7 folder's rules
+    std::string requires_pack;
+    std::vector<Rule> ctgp7_rules;
 
     bool ServesTitle(u64 title_id) const;
     /// The code CRC32s for this title ID: its own list in the per-title form (none for a title ID
@@ -157,6 +173,9 @@ struct Catalog {
 
     const CatalogEntry* Find(std::string_view id) const;
 };
+
+/// AzaharFrame ctgp7: the pack a "requires" names that this build knows.
+constexpr const char* kRequiresCtgp7 = "ctgp7";
 
 constexpr const char* kOwnerRepo = "simplysanatori/3ds-game-fixes";
 constexpr const char* kCatalogPath = "catalog/mods.json";

@@ -338,6 +338,29 @@ std::string MapTexturePath(std::string_view archive_path, const std::vector<Rule
     return safe ? *safe : std::string{};
 }
 
+// AzaharFrame ctgp7: the "ctgp7_install" rules; no layout detection, no rules = nothing.
+std::string MapCtgp7Path(std::string_view archive_path, const std::vector<Rule>& rules) {
+    const auto parts = Split(archive_path);
+    if (rules.empty() || parts.empty() || std::find(parts.begin(), parts.end(), "..") != parts.end()) {
+        return {};
+    }
+    const std::string whole = Join(parts, 0);
+    const std::string& name = parts.back();
+    for (const Rule& r : rules) {
+        const bool full = r.from.find('/') != std::string::npos;
+        if (!GlobMatch(r.from, full ? std::string_view(whole) : std::string_view(name))) {
+            continue;
+        }
+        const std::string to = !r.to.empty() && r.to.back() == '/' ? r.to + name : r.to;
+        const auto safe = SafeRelativePath(to);
+        if (!safe || safe->empty() || (safe->rfind("MyStuff/", 0) != 0 && safe->rfind("gamefs/", 0) != 0)) {
+            return {};
+        }
+        return *safe;
+    }
+    return {};
+}
+
 bool IsModPath(std::string_view rel) {
     const auto parts = Split(rel);
     if (parts.empty() || parts.size() != static_cast<std::size_t>(std::count(rel.begin(), rel.end(), '/')) + 1) {
@@ -412,6 +435,9 @@ struct Library::Manifest {
     bool active = false; // the files are in mods/<TID>/ now
     std::vector<std::string> files;
     std::vector<std::string> texture_files; // AzaharFrame catalog3: relative to load/textures/<TID>/<id>/
+    // AzaharFrame ctgp7: relative to sdmc/CTGP-7/, kept apart from "files" so a build before 1.2.0
+    // reads the manifest (with no files) and never puts them in the mods folder
+    std::vector<std::string> ctgp7_files;
     // AzaharFrame catalog3: a change that waits for the running game to stop ("" none): "activate"
     // (downloaded, files not in the game's folders yet), "deactivate", "remove"
     std::string pending;
@@ -491,6 +517,16 @@ bool Library::ReadManifest(const std::string& dir, Manifest& m) const {
                 m.texture_files.push_back(*rel);
             }
         }
+        m.ctgp7_files.clear();
+        if (j.contains("ctgp7_files")) { // AzaharFrame ctgp7
+            for (const auto& f : j.at("ctgp7_files")) {
+                const auto rel = SafeRelativePath(f.get<std::string>());
+                if (!rel || (rel->rfind("MyStuff/", 0) != 0 && rel->rfind("gamefs/", 0) != 0)) {
+                    return false;
+                }
+                m.ctgp7_files.push_back(*rel);
+            }
+        }
         return !m.id.empty() && !m.name.empty();
     } catch (const std::exception&) {
         return false;
@@ -520,6 +556,9 @@ bool Library::WriteManifest(const std::string& dir, const Manifest& m) const {
     j["files"] = m.files;
     if (!m.texture_files.empty()) {
         j["texture_files"] = m.texture_files;
+    }
+    if (!m.ctgp7_files.empty()) {
+        j["ctgp7_files"] = m.ctgp7_files; // AzaharFrame ctgp7
     }
     return Common::WriteFileAtomic(dir + "manifest.json", j.dump(2) + "\n"); // AzaharFrame harden: fsynced, atomic
 }
@@ -625,6 +664,9 @@ bool Library::RefreshCatalogOnce() {
 // One GET with redirects followed to GitHub's own hosts only.
 std::string ShortFailure(std::string_view e) {
     const auto has = [&](std::string_view needle) { return e.find(needle) != std::string_view::npos; };
+    if (e == kNeedsCtgp7 || e == "Needs a Newer Version of Azahar for Frame") { // AzaharFrame ctgp7
+        return std::string(e);
+    }
     if (e.rfind("Not Enough Space", 0) == 0 || e == kUnscanned) { // AzaharFrame catalog3
         return std::string(e); // "Not Enough Space: Needs 4.6 GB Free", "GameBanana Hasn't Scanned This File Yet"
     }
@@ -1630,6 +1672,7 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
             info.unscanned = m.unscanned;
             info.files = m.files;
             info.texture_files = m.texture_files; // AzaharFrame catalog3
+            info.ctgp7_files = m.ctgp7_files;     // AzaharFrame ctgp7
             if (m.active) {
                 owned.insert(m.files.begin(), m.files.end()); // still in the folder until it is taken out
             }
@@ -1755,6 +1798,7 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         a.downloads = e.downloads;                  // AzaharFrame catalog3
         a.size = e.size;
         a.has_textures = !e.texture_rules.empty();
+        a.requires_pack = e.requires_pack; // AzaharFrame ctgp7
         a.multipart = !e.parts.empty();
         a.unscanned = unscanned_ids_.count(e.id) != 0;
         a.installable = e.Installable();
@@ -1833,6 +1877,42 @@ RemoveOutcome Library::RemoveTextureFiles(u64 title_id, const std::string& mod_i
     return {};
 }
 
+// AzaharFrame ctgp7: only the files a mod put in CTGP-7's folder; its folders stay (CTGP-7's own).
+RemoveOutcome Library::RemoveCtgp7Files(const std::vector<std::string>& files) {
+    std::error_code ec;
+    for (const auto& rel : files) {
+        if (ctgp7_dir_.empty() || (rel.rfind("MyStuff/", 0) != 0 && rel.rfind("gamefs/", 0) != 0)) {
+            continue;
+        }
+        fs::remove(ctgp7_dir_ + rel, ec);
+        if (ec) {
+            return {false, "Cannot delete " + rel};
+        }
+    }
+    return {};
+}
+
+void Library::SetCtgp7Dir(std::string dir) {
+    if (!dir.empty() && dir.back() != '/') {
+        dir += '/';
+    }
+    std::lock_guard lock{mutex_};
+    ctgp7_dir_ = std::move(dir);
+}
+
+std::string Library::Ctgp7Dir() const {
+    return ctgp7_dir_;
+}
+
+bool Library::Ctgp7Installed() const {
+    if (ctgp7_check_) {
+        return ctgp7_check_();
+    }
+    std::error_code ec;
+    return !ctgp7_dir_.empty() && fs::exists(ctgp7_dir_ + "resources/CTGP-7.3gx", ec) &&
+           fs::exists(ctgp7_dir_ + "config/version.bin", ec);
+}
+
 RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id) {
     if (mod_id == kLegacyFixId) {
         return RemoveFilesOf(title_id, {"code.ips", kLegacyMarker});
@@ -1853,6 +1933,10 @@ RemoveOutcome Library::DeactivateLocked(u64 title_id, const std::string& mod_id)
             return r;
         }
         r = RemoveTextureFiles(title_id, m.id, m.texture_files); // AzaharFrame catalog3
+        if (!r.ok) {
+            return r;
+        }
+        r = RemoveCtgp7Files(m.ctgp7_files); // AzaharFrame ctgp7
         if (!r.ok) {
             return r;
         }
@@ -1976,6 +2060,15 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
     if (!entry.Installable()) {
         return {InstallResult::NotAvailable, "This mod needs bsdtar (for 7z and rar), which wasn't found"};
     }
+    // AzaharFrame ctgp7: a mod for CTGP-7 only once CTGP-7 is there; a pack this build doesn't know, never
+    if (!entry.requires_pack.empty()) {
+        if (entry.requires_pack != kRequiresCtgp7) {
+            return {InstallResult::NotAvailable, "Needs a Newer Version of Azahar for Frame"};
+        }
+        if (!Ctgp7Installed()) {
+            return {InstallResult::NotAvailable, kNeedsCtgp7};
+        }
+    }
     {
         std::lock_guard sl{state_mutex_};
         if (busy_) {
@@ -2068,15 +2161,23 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
             }
         }
         // target path -> index in `paths` (the later of two files with one target wins)
-        std::map<std::string, std::size_t> mod_targets, tex_targets;
+        std::map<std::string, std::size_t> mod_targets, tex_targets, ct_targets;
+        // AzaharFrame ctgp7: a CTGP-7 mod's mods-folder part only by its own rules (never detected)
+        const bool for_ctgp7 = !entry.requires_pack.empty();
         const auto map_for = [&](u64 rules_tid) {
             mod_targets.clear();
             tex_targets.clear();
+            ct_targets.clear();
             for (std::size_t i = 0; i < paths.size(); ++i) {
                 // the targets are always this title's folder; only the rules' {tid} changes
-                const std::string target = MapPath(paths[i], entry.rules, rules_tid);
+                const std::string target =
+                    for_ctgp7 && entry.rules.empty() ? std::string{} : MapPath(paths[i], entry.rules, rules_tid);
                 if (!target.empty()) {
                     mod_targets[target] = i;
+                }
+                const std::string ct = MapCtgp7Path(paths[i], entry.ctgp7_rules); // AzaharFrame ctgp7
+                if (!ct.empty()) {
+                    ct_targets[ct] = i;
                 }
                 const std::string tex = MapTexturePath(paths[i], entry.texture_rules, rules_tid);
                 if (!tex.empty()) {
@@ -2086,16 +2187,16 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
         };
         map_for(title_id);
         // AzaharFrame compat: Install Anyway: the files of the region it was made for
-        for (std::size_t i = 0; mod_targets.empty() && tex_targets.empty() &&
+        for (std::size_t i = 0; mod_targets.empty() && tex_targets.empty() && ct_targets.empty() &&
                                 !entry.ServesTitle(title_id) && i < entry.title_ids.size();
              i++) {
             map_for(entry.title_ids[i]);
-            if (!mod_targets.empty() || !tex_targets.empty()) {
+            if (!mod_targets.empty() || !tex_targets.empty() || !ct_targets.empty()) {
                 LOG_INFO(Core, "mods: {} installed from its files for {}", entry.id,
                          TitleIdText(entry.title_ids[i]));
             }
         }
-        if (mod_targets.empty() && tex_targets.empty()) {
+        if (mod_targets.empty() && tex_targets.empty() && ct_targets.empty()) {
             return fail(InstallResult::Error, "Nothing in the download fits this game");
         }
         const auto head_of = [&](std::size_t i, std::size_t n) {
@@ -2146,6 +2247,16 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
                 }
             }
         }
+        { // AzaharFrame ctgp7: a file both parts and the CTGP-7 folder want is copied, not moved
+            std::map<std::size_t, int> uses;
+            for (const auto* m : {&mod_targets, &tex_targets, &ct_targets}) {
+                for (const auto& [t, i] : *m) {
+                    if (++uses[i] > 1) {
+                        wanted_twice.insert(i);
+                    }
+                }
+            }
+        }
         const auto put = [&](const std::string& dest, std::size_t i) {
             if (root.empty()) {
                 return WriteFile(dest, archive[i].data);
@@ -2169,6 +2280,10 @@ InstallOutcome Library::InstallImpl(u64 title_id, const std::string& mod_id, boo
         for (const auto& [target, i] : tex_targets) {
             manifest.texture_files.push_back(target);
             ok = ok && put(dir + "tex/" + target, i);
+        }
+        for (const auto& [target, i] : ct_targets) { // AzaharFrame ctgp7
+            manifest.ctgp7_files.push_back(target);
+            ok = ok && put(dir + "ctgp7/" + target, i);
         }
         if (!ok || !WriteManifest(dir, manifest)) {
             fs::remove_all(dir, ec);
@@ -2204,6 +2319,9 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         for (const auto& f : m.texture_files) { // AzaharFrame catalog3: two texture parts, one file
             taken.emplace("tex:" + f, std::make_pair(&m, f));
         }
+        for (const auto& f : m.ctgp7_files) { // AzaharFrame ctgp7
+            taken.emplace("ctgp7:" + f, std::make_pair(&m, f));
+        }
     }
     std::vector<const ModInfo*> clashes;
     std::vector<std::string> mine_keys; // AzaharFrame catalog3: this mod's keys, mod files then textures
@@ -2213,6 +2331,9 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
     for (const auto& f : manifest.texture_files) {
         mine_keys.push_back("tex:" + f);
     }
+    for (const auto& f : manifest.ctgp7_files) { // AzaharFrame ctgp7
+        mine_keys.push_back("ctgp7:" + f);
+    }
     for (const auto& key : mine_keys) {
         const auto it = taken.find(key);
         if (it == taken.end()) {
@@ -2221,6 +2342,21 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         const ModInfo* owner = it->second.first;
         if (std::find(clashes.begin(), clashes.end(), owner) == clashes.end()) {
             clashes.push_back(owner);
+        }
+    }
+    // AzaharFrame ctgp7: a file already in CTGP-7's folder that no mod of this title put there
+    // (the player's, or CTGP-7's own) is never replaced: the player removes it first
+    for (const auto& f : manifest.ctgp7_files) {
+        std::error_code e;
+        if (taken.count("ctgp7:" + f) == 0 && !ctgp7_dir_.empty() && fs::exists(ctgp7_dir_ + f, e)) {
+            InstallOutcome o;
+            o.result = InstallResult::Conflict;
+            o.conflict_name = BaseName(f);
+            o.conflict_path = "CTGP-7/" + f;
+            o.conflict_unmanaged = true;
+            o.error = fmt::format("Conflicts with {}", o.conflict_name);
+            SetState(State::Phase::Failed, mod_id, "Install failed: " + o.error);
+            return o;
         }
     }
     bool legacy_ours = false;
@@ -2317,11 +2453,29 @@ InstallOutcome Library::ActivateLocked(u64 title_id, const std::string& mod_id, 
         }
         tex_written.push_back(rel);
     }
+    // AzaharFrame ctgp7: CTGP-7's folder on the SD card
+    std::vector<std::string> ct_written;
+    for (const auto& rel : manifest.ctgp7_files) {
+        if (ctgp7_dir_.empty()) {
+            ec = std::make_error_code(std::errc::no_such_file_or_directory);
+        } else {
+            fs::create_directories(fs::path(ctgp7_dir_ + rel).parent_path(), ec);
+            fs::copy_file(dir + "ctgp7/" + rel, ctgp7_dir_ + rel, fs::copy_options::overwrite_existing, ec);
+        }
+        if (ec) {
+            RemoveFilesOf(title_id, written);
+            RemoveTextureFiles(title_id, manifest.id, tex_written);
+            RemoveCtgp7Files(ct_written);
+            return fail(InstallResult::Error, "Cannot copy " + rel);
+        }
+        ct_written.push_back(rel);
+    }
     manifest.active = true;
     manifest.pending.clear();
     if (!WriteManifest(dir, manifest)) {
         RemoveFilesOf(title_id, written);
         RemoveTextureFiles(title_id, manifest.id, tex_written);
+        RemoveCtgp7Files(ct_written);
         return fail(InstallResult::Error, "Cannot write the manifest");
     }
     SetState(State::Phase::Done, mod_id, fmt::format("{} Installed", manifest.name));
@@ -2523,6 +2677,11 @@ void Library::SetRunningTitle(u64 title_id) {
 
 Library& Default() {
     static Library library(FileUtil::GetUserPath(FileUtil::UserPath::LoadDir));
+    static const bool ctgp7 = [] { // AzaharFrame ctgp7: the second install target
+        library.SetCtgp7Dir(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir) + "CTGP-7/");
+        return true;
+    }();
+    (void)ctgp7;
     return library;
 }
 

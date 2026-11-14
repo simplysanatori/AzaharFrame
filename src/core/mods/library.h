@@ -79,6 +79,14 @@ std::string ConflictKey(std::string_view rel);
 /// a texture of the mod). `rules` are the entry's "textures" rules (no rules, no textures).
 std::string MapTexturePath(std::string_view archive_path, const std::vector<Rule>& rules, u64 title_id);
 
+/// AzaharFrame ctgp7: where an archive file goes in CTGP-7's folder on the SD card (sdmc/CTGP-7/),
+/// by an entry's "ctgp7_install" rules (catalog.h); "" = not part of it. Always under MyStuff/ or
+/// gamefs/.
+std::string MapCtgp7Path(std::string_view archive_path, const std::vector<Rule>& rules);
+/// AzaharFrame ctgp7: the reason an install of a "requires": "ctgp7" mod is refused while CTGP-7 is
+/// not installed (the menu shows its own dialog first, so this is a backstop).
+constexpr const char* kNeedsCtgp7 = "Requires CTGP-7";
+
 struct MappedFile {
     std::string path; // relative to the mods folder
     std::string data;
@@ -110,6 +118,8 @@ struct ModInfo {
     std::vector<std::string> files; // paths relative to the mods folder
     /// AzaharFrame catalog3: the textures part, relative to load/textures/<TID>/<id>/
     std::vector<std::string> texture_files;
+    /// AzaharFrame ctgp7: the files put in CTGP-7's folder, relative to sdmc/CTGP-7/
+    std::vector<std::string> ctgp7_files;
     /// AzaharFrame catalog3: "activate" (downloaded, goes in when the running game stops), "deactivate"
     /// or "remove" (the same), "" none. `state` already shows the outcome.
     std::string pending;
@@ -138,6 +148,7 @@ struct AvailableMod {
     bool unscanned = false;
     bool pending = false;   // AzaharFrame catalog3: downloaded for the running game; `active` is true, the files go in when it stops
     bool has_textures = false; // AzaharFrame catalog3: the mod also carries textures
+    std::string requires_pack; // AzaharFrame ctgp7: the catalog's "requires" ("ctgp7"), "" none
     bool multipart = false;    // AzaharFrame catalog3: several downloads, joined
     std::string chip;       // AzaharFrame modcat: the version chip ("1.0"), "" none
     std::string chip_tip;   // its tooltip
@@ -275,6 +286,13 @@ public:
     /// AzaharFrame catalog3: free bytes of the file system holding a folder (tests replace it).
     using FreeSpaceFn = std::function<bool(const std::string& dir, u64* out)>;
     void SetFreeSpace(FreeSpaceFn fn) { free_space_ = std::move(fn); }
+    /// AzaharFrame ctgp7: CTGP-7's folder on the SD card (sdmc/CTGP-7/, ends with '/'), the second
+    /// install target, and whether CTGP-7 is installed (by default: its plugin and version file
+    /// are in that folder). Default() sets the user folder's.
+    void SetCtgp7Dir(std::string dir);
+    std::string Ctgp7Dir() const;
+    void SetCtgp7Check(std::function<bool()> installed) { ctgp7_check_ = std::move(installed); }
+    bool Ctgp7Installed() const;
     /// AzaharFrame mega: the network MEGA downloads go through (tests replace it).
     void SetMegaNet(Mega::Net net) { mega_net_ = std::move(net); }
 
@@ -360,6 +378,9 @@ private:
     Multipart::FileTransport file_transport_; // AzaharFrame catalog3; fixes7: StreamGet with stopper_
     FreeSpaceFn free_space_ = Multipart::FreeBytes;
     std::atomic<u64> running_title_{0}; // AzaharFrame catalog3
+    std::string ctgp7_dir_;                // AzaharFrame ctgp7
+    std::function<bool()> ctgp7_check_;     // AzaharFrame ctgp7
+    RemoveOutcome RemoveCtgp7Files(const std::vector<std::string>& files); // AzaharFrame ctgp7
     std::string big_root_; // AzaharFrame catalog3: where DownloadBig unpacked (install thread only)
 };
 
