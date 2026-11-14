@@ -119,6 +119,10 @@ public:
     }
 
 private:
+    /// AzaharFrame texfilt: tests/video_core/custom_texture_filter.cpp gives the manager a
+    /// material without a pack on disk
+    friend struct CustomTexManagerTestAccess;
+
     /// AzaharFrame kiuguns: for IndexPack (no image interface needed: nothing is decoded)
     CustomTexManager(Core::System& system, Frontend::ImageInterface& images);
 

@@ -1275,10 +1275,16 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
         // A new base material replaces the image in this slot. The previous image is sentenced
         // and the page table keeps surface_id
         if (!target.IsCustom() || (level == 0 && target.material != material)) {
-            const SurfaceBase old_surface{target};
+            // AzaharFrame texfilt: the replacement is made at its own size, never at the scale
+            // a texture filter gave the guest texture (GetTextureSurface). The backends made a
+            // second, scaled image for that scale and sampled it, but only the base image is
+            // uploaded, so a filter turned every replaced texture black or into garbage. A pack
+            // texture is high resolution already: no filter runs on it.
+            SurfaceBase replacement{target};
+            replacement.res_scale = 1;
             const auto image_start = std::chrono::steady_clock::now(); // AzaharFrame
             const SurfaceId old_id =
-                slot_surfaces.swap_and_insert(surface_id, runtime, old_surface, material);
+                slot_surfaces.swap_and_insert(surface_id, runtime, replacement, material);
             Common::StallTelemetry::Get().custom_image_us.fetch_add(
                 static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
                                      std::chrono::steady_clock::now() - image_start)
@@ -1298,7 +1304,11 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
         custom_surface.UploadCustom(material, level);
         // AzaharFrame: DDS/KTX mip chains are uploaded as stored; compressed images cannot be
         // blitted into, so they are never generated
-        if (custom_tex_manager.SkipMipmaps() && !material->HasStoredMips()) {
+        // AzaharFrame texfilt: a base PNG makes the rest of the chain in a pack that keeps
+        // mipmaps too. A level with a file of its own overwrites its generated level when it
+        // uploads (after this one); a level without one was never written before, and showed
+        // garbage at a distance
+        if (level == 0 && !material->HasStoredMips()) {
             runtime.GenerateMipmaps(custom_surface);
         }
         return true;
