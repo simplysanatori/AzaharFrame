@@ -984,6 +984,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
     m.show_controllers = v.vr_show_controllers.GetValue();
+    m.controllers_over = static_cast<int>(std::min<u32>(v.vr_controllers_over.GetValue(), 2)); // ctrlfront
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
     m.depth_3d = static_cast<int>(
@@ -1142,6 +1143,7 @@ void MenuPanel::BuildModel(const Host& host) {
     // its saved value, greyed.
     if (host.passthrough_ok && m.background == 1) {
         lock(Id::ShowControllers, Lock::InPassthrough);
+        lock(Id::ControllersOver, Lock::InPassthrough); // AzaharFrame ctrlfront
     }
     model = std::move(m);
 }
@@ -1354,6 +1356,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
         r.setting = MenuSetting::ShowControllers;
+        break;
+    case Id::ControllersOver: // AzaharFrame ctrlfront, global
+        Apply(v.vr_controllers_over, std::min<u32>(u, 2), false);
+        r.setting = MenuSetting::ControllersOver;
         break;
     case Id::WindowScale:
         r.value = static_cast<int>(kScaleSteps[std::min<std::size_t>(u, kScaleSteps.size() - 1)]);
@@ -2153,6 +2159,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
     case Id::ScaleMode:   // AzaharFrame fovscale: Stretch | Field of View
+    case Id::ControllersOver: // AzaharFrame ctrlfront: Never | When in Front | Always
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:

@@ -54,6 +54,8 @@ private:
     QWidget* motion_row;
     QComboBox* motion_combo;
     QCheckBox* show_controllers_check; ///< AzaharFrame vrvis, global only
+    QWidget* controllers_over_row;     ///< AzaharFrame ctrlfront, global only
+    QComboBox* controllers_over_combo;
     QCheckBox* show_stats_check;       ///< AzaharFrame vrvis, global only
     QWidget* stats_position_row;       ///< AzaharFrame statspos, global only
     QComboBox* stats_position_combo;

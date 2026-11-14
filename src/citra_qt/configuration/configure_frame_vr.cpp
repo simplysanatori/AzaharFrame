@@ -158,6 +158,18 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     show_controllers_check->setToolTip(
         tr("Shows the Steam Frame controllers in VR. They hide when you put them down."));
     layout->addWidget(show_controllers_check);
+    // AzaharFrame ctrlfront: global only. Values 0..2 are Settings::values.vr_controllers_over
+    // (frame_xr/vis/model_plane.h).
+    controllers_over_combo = new QComboBox(this);
+    controllers_over_combo->addItem(tr("Never"));
+    controllers_over_combo->addItem(tr("When in Front"));
+    controllers_over_combo->addItem(tr("Always"));
+    controllers_over_row = MakeRow(
+        this, QStringLiteral("frame_vr_controllers_over_row"), tr("Controllers Over Screens"),
+        tr("When the controllers show over the screens and panels. When in Front: where they "
+           "are nearer to you. Always: over every one. Never: the screens and panels cover them."),
+        {controllers_over_combo});
+    layout->addWidget(controllers_over_row);
     show_stats_check = new QCheckBox(tr("Show Stats"), this);
     show_stats_check->setObjectName(QStringLiteral("frame_vr_show_stats_check"));
     show_stats_check->setToolTip(
@@ -378,6 +390,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
     screen_layout_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame layout
     offset_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrsize
     show_controllers_check->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame vrvis
+    controllers_over_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame ctrlfront
     show_stats_check->setVisible(Settings::IsConfiguringGlobal());       // AzaharFrame vrvis
     stats_position_row->setVisible(Settings::IsConfiguringGlobal()); // AzaharFrame statspos
     if (Settings::IsConfiguringGlobal()) {
@@ -513,6 +526,8 @@ void ConfigureFrameVr::SetConfiguration() {
         background_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_background.GetValue()));
         show_controllers_check->setChecked(Settings::values.vr_show_controllers.GetValue());
+        controllers_over_combo->setCurrentIndex(static_cast<int>(
+            std::min<u32>(Settings::values.vr_controllers_over.GetValue(), 2))); // ctrlfront
         show_stats_check->setChecked(Settings::values.vr_show_stats.GetValue());
         stats_position_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_stats_position.GetValue())); // statspos
@@ -638,6 +653,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
         Settings::values.vr_background.SetValue(
             static_cast<u32>(background_combo->currentIndex()));
         Settings::values.vr_show_controllers.SetValue(show_controllers_check->isChecked());
+        Settings::values.vr_controllers_over.SetValue(
+            static_cast<u32>(controllers_over_combo->currentIndex())); // AzaharFrame ctrlfront
         Settings::values.vr_show_stats.SetValue(show_stats_check->isChecked());
         Settings::values.vr_stats_position.SetValue(
             static_cast<u32>(stats_position_combo->currentIndex())); // AzaharFrame statspos

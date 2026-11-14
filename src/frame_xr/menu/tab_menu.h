@@ -120,6 +120,8 @@ enum class Id : int {
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
     LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
     ShowControllers,
+    ControllersOver, ///< AzaharFrame ctrlfront: Controllers Over Screens, index: 0 Never,
+                     ///< 1 When in Front, 2 Always (vr_controllers_over), global
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
     InternalResolution, ///< AzaharFrame menuux: resolution_factor, per game (a menu, 1x to 8x)
@@ -339,6 +341,7 @@ struct MenuModel {
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
     bool show_controllers = true;
+    int controllers_over = 1; ///< AzaharFrame ctrlfront: 0 Never, 1 When in Front, 2 Always
     int window_scale = 1; ///< 100, 150, 200 %
     int depth_3d = 50;    ///< AzaharFrame depth3d: 0 to 100 %
     int internal_resolution = 1; ///< AzaharFrame menuux: resolution_factor (0 Auto, 1 to 18)

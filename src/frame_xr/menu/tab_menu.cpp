@@ -160,6 +160,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
                 gyro_slider(Id::TurnSpeed, m.turn_speed);
             }
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
+            if (m.show_controllers) { // AzaharFrame ctrlfront
+                rows.push_back(row(Id::ControllersOver, RowKind::Segmented, m.controllers_over));
+            }
             rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
             // AzaharFrame kiu2: a menu button, as Normal Speed (Experimental) does not fit a
             // segment (four choices beside the label).
@@ -378,6 +381,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kScope{"Global", "Per-Game"};
     static const std::vector<std::string> kSections{"General", "Graphics", "Immersive"}; // autosave
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
+    // AzaharFrame ctrlfront: vr_controllers_over's values in order
+    static const std::vector<std::string> kControllersOver{"Never", "When in Front", "Always"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
     static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
     // AzaharFrame kiugyro: Aiming, in the shown order (AimingValueAt gives the stored value)
@@ -445,6 +450,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kSections;
     case Id::Background:
         return kBackground;
+    case Id::ControllersOver: // AzaharFrame ctrlfront
+        return kControllersOver;
     case Id::FaceButtons:
         return kFace;
     case Id::MotionControls:
@@ -558,6 +565,8 @@ std::string LabelFor(Id id) {
         return "Laser Sight";
     case Id::ShowControllers:
         return "Show Controllers";
+    case Id::ControllersOver: // AzaharFrame ctrlfront
+        return "Controllers Over Screens";
     case Id::WindowScale:
         return "Window Scale";
     case Id::Depth3d:
@@ -702,6 +711,18 @@ std::string LabelFor(Id id) {
 }
 
 std::string ExplainOption(Id id, int index) {
+    if (id == Id::ControllersOver) { // AzaharFrame ctrlfront
+        switch (index) {
+        case 0:
+            return "The screens and panels always cover them.";
+        case 1:
+            return "Over a screen or panel where they are nearer to you than it.";
+        case 2:
+            return "Over every screen and panel, even one in front of them.";
+        default:
+            break;
+        }
+    }
     if (id == Id::MatchCamera) { // AzaharFrame fovonce
         switch (index) {
         case 0:
@@ -741,7 +762,8 @@ std::string ExplainOption(Id id, int index) {
 
 bool HasOptionTips(Id id) {
     return id == Id::AccurateImageCopies || id == Id::MatchCamera ||
-           id == Id::ScaleMode; // AzaharFrame fovscale
+           id == Id::ScaleMode || // AzaharFrame fovscale
+           id == Id::ControllersOver; // AzaharFrame ctrlfront
 }
 
 std::string ExplainFor(Id id) {
@@ -790,6 +812,8 @@ std::string ExplainFor(Id id) {
         return "A red beam from your weapon to where you aim.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
+    case Id::ControllersOver: // AzaharFrame ctrlfront
+        return "When the controllers show over the screens and panels.";
     case Id::WindowScale:
         return "Makes text and buttons in Azahar's window bigger.";
     case Id::Depth3d:

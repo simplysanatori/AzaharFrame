@@ -3629,3 +3629,49 @@ TEST_CASE("Tab menu: mods for CTGP-7 are listed in its segment", "[frame_xr][tab
     CHECK(reachable(Id::DialogConfirm, -1));
     CHECK_FALSE(somewhere(m, v, Id::ModInstall, 4));
 }
+
+// AzaharFrame ctrlfront: Controllers Over Screens, a global row of three choices under Show
+// Controllers, shown only while the controllers are; each choice with its own tooltip.
+TEST_CASE("Tab menu: Controllers Over Screens", "[frame_xr][tabmenu]") {
+    CHECK(!PerGameSetting(Id::ControllersOver));
+    CHECK(SectionOf(Id::ControllersOver) == SettingsSection::General);
+    CHECK(LabelFor(Id::ControllersOver) == "Controllers Over Screens");
+    CHECK(OptionsFor(Id::ControllersOver) ==
+          std::vector<std::string>{"Never", "When in Front", "Always"});
+    CHECK(MenuModel{}.controllers_over == 1); // When in Front, the default
+    CHECK(HasOptionTips(Id::ControllersOver));
+    {
+        Kit kit{1.0f};
+        for (const std::string& text :
+             {ExplainFor(Id::ControllersOver), ExplainOption(Id::ControllersOver, 0),
+              ExplainOption(Id::ControllersOver, 1), ExplainOption(Id::ControllersOver, 2)}) {
+            INFO(text);
+            CHECK(!text.empty());
+            CHECK(kit.TextWidth(Type::Tooltip, text) + 28.0f <= kPanelW * 0.7f);
+        }
+    }
+    CHECK(ExplainOption(Id::ControllersOver, 3).empty());
+    for (const bool shown : {true, false}) {
+        for (int pick = 0; pick < 3; pick++) {
+            Drawn d;
+            MenuModel m = Sample();
+            m.show_controllers = shown;
+            m.controllers_over = pick;
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = SettingsSection::General;
+            bool seen[3] = {};
+            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                for (int i = 0; i < 3; i++) {
+                    seen[i] |= FindHit(d, Id::ControllersOver, i) != nullptr;
+                }
+            }
+            INFO("Show Controllers " << shown << ", picked " << pick);
+            CHECK(seen[0] == shown);
+            CHECK(seen[1] == shown);
+            CHECK(seen[2] == shown);
+        }
+    }
+}
