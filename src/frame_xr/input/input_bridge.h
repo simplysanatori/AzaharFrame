@@ -21,6 +21,7 @@ namespace FrameXr::Input {
 struct GyroAimFrame {
     GyroAimMode mode = GyroAimMode::Off;
     bool clutch = false;
+    AimCalibration calibration; ///< AzaharFrame kiufix: Light Gun's target through it
 };
 
 class InputBridge {

@@ -34,6 +34,9 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/input/types.h"
@@ -149,6 +152,74 @@ struct LightGunTarget {
 };
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 
+/// AzaharFrame kiufix: Calibrate Aim (per game, optional). Light Gun's target is where the ray
+/// hits the top screen; this maps that point to where the player means it, per axis, as
+/// u' = a + b u (and v the same), from the player's own pointing: the top screen's centre, then
+/// (optionally) its top-left and bottom-right corners, each confirmed with the aiming
+/// controller's grip. The centre alone corrects an offset (b = 1); with the corners, a line is
+/// fitted through the three (least squares), which corrects the scale too. Computed live from
+/// what the player points at, never fitted to presets. Kept in a file of its own beside the
+/// game's settings file (config/custom/<title id>.aim, one line: AimCalibrationText), which
+/// older builds never read or write, so going back to one and forward again keeps it. Without
+/// one, the identity.
+struct AimCalibration {
+    bool set = false;
+    float au = 0.0f, bu = 1.0f; ///< u' = au + bu u
+    float av = 0.0f, bv = 1.0f;
+    bool scaled = false; ///< fitted with the corners (else an offset only)
+};
+/// The limits a calibration is kept within: an offset of at most half the screen, a scale of
+/// 0.5 to 2 (a point beyond them is a slip of the hand: that step is asked again).
+inline constexpr float kCalibrationMaxOffset = 0.5f;
+inline constexpr float kCalibrationMinScale = 0.5f;
+inline constexpr float kCalibrationMaxScale = 2.0f;
+LightGunTarget ApplyCalibration(const AimCalibration& c, const LightGunTarget& t);
+/// From the points pointed at (raw u, v) for the wanted ones (0.5, 0.5), (0, 0), (1, 1): the
+/// centre alone, or all three. Returns nothing when the result is out of the limits.
+std::optional<AimCalibration> FitCalibration(const std::vector<Vec2f>& raw,
+                                             const std::vector<Vec2f>& wanted);
+/// The calibration as one line of text and back ("v1 au bu av bv scaled"); bad text: none.
+std::string AimCalibrationText(const AimCalibration& c);
+AimCalibration AimCalibrationFrom(const std::string& text);
+
+/// The steps of Calibrate Aim, each a grip press of the aiming controller with its ray on the
+/// top screen: the centre, then the top-left and bottom-right corners. After the centre an
+/// offset-only calibration is ready (kept even if the player stops there).
+class AimCalibrationFlow {
+public:
+    enum class Step : uint8_t { Off, Centre, TopLeft, BottomRight };
+    struct Out {
+        bool changed = false;             ///< the step changed (a prompt to show)
+        std::optional<AimCalibration> result; ///< a calibration to keep (after each step)
+        bool retry = false;               ///< a press that did not fit: the step is asked again
+    };
+    void Start();
+    void Stop() {
+        step_ = Step::Off;
+    }
+    Step step() const {
+        return step_;
+    }
+    bool active() const {
+        return step_ != Step::Off;
+    }
+    /// Each frame while active: the grip (0 to 1) and the raw target (no calibration).
+    Out Update(float grip, const LightGunTarget& raw);
+
+private:
+    Step step_ = Step::Off;
+    GripClutch grip_;
+    bool was_held_ = true; ///< a grip held at the start is no press
+    std::vector<Vec2f> raw_;
+};
+/// AzaharFrame kiufix: the world point at (u, v) of a screen as drawn (flat or curved, as
+/// IntersectQuad reads them back): where Light Gun's calibrated target is, for the laser's dot.
+Vec3f PointOnQuad(const PanelQuad& quad, float u, float v);
+/// The prompt for a step (a toast), and the one when it is done.
+const char* AimCalibrationPrompt(AimCalibrationFlow::Step step);
+inline constexpr const char* kAimCalibratedToast = "Aim Calibrated";
+inline constexpr const char* kAimCalibrationRetryToast = "Calibrate Aim: Try That Point Again";
+
 /// Light Gun's laser sight (the red beam and dot, vis/beam.h): Direct Aim (Light Gun) on, a game
 /// on view with the menu closed, and the ray on the top screen. AzaharFrame kiufix: no longer
 /// only while the reticle is read from the game (locked): Direct Aim that had fallen back to Gyro
@@ -217,7 +288,12 @@ Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);
 struct RecoilPulse {
     bool fire = false;
     int64_t duration_ns = 0;
+    bool charged = false; ///< AzaharFrame kiufix: the charged-shot heuristic's (a long pulse)
 };
+/// AzaharFrame kiufix: Recoil's strength for a pulse (0 to 1): Charged Shot's percent for a
+/// charged one, Rapid Fire's for the rest (vr_light_gun_recoil_charged / _rapid, per game; 100 %
+/// and 50 % by default). 0: no pulse.
+float RecoilAmplitude(const RecoilPulse& pulse, int charged_percent, int rapid_percent);
 class Recoil {
 public:
     static constexpr float kAmplitude = 1.0f;

@@ -341,6 +341,10 @@ enum class MenuSetting {
     Recoil,          ///< `value` 0 or 1 (vr_light_gun_recoil)
     WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
     LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)
+    RecoilCharged,   ///< AzaharFrame kiufix: `value` percent, 0 to 100 (vr_light_gun_recoil_charged)
+    RecoilRapid,     ///< `value` percent, 0 to 100 (vr_light_gun_recoil_rapid)
+    WeaponSize,      ///< `value` 0 Game Size, 1 Hand Size (vr_light_gun_weapon_size)
+    WeaponScale,     ///< `value` percent, 50 to 150 (vr_light_gun_weapon_scale)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

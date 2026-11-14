@@ -64,7 +64,8 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
         if (aim == GyroAimMode::LightGun) {
             Kiu::LightGunFrame lg;
             lg.enabled = true;
-            lg.target = LightGunTargetFor(source, panels.top);
+            lg.target = ApplyCalibration(gyro_aim->calibration,
+                                         LightGunTargetFor(source, panels.top)); // kiufix
             lg.zone_fraction =
                 static_cast<float>(std::min<u32>(Settings::values.vr_light_gun_turn_zone.GetValue(),
                                                  kTurnZoneMaxPercent)) /

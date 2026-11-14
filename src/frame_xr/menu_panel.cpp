@@ -303,6 +303,14 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WeaponInHand;
     case Id::LaserSight:
         return MenuSetting::LaserSight;
+    case Id::RecoilCharged: // AzaharFrame kiufix
+        return MenuSetting::RecoilCharged;
+    case Id::RecoilRapid:
+        return MenuSetting::RecoilRapid;
+    case Id::WeaponSize:
+        return MenuSetting::WeaponSize;
+    case Id::WeaponScale:
+        return MenuSetting::WeaponScale;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -992,6 +1000,11 @@ void MenuPanel::BuildModel(const Host& host) {
                   !v.vr_immersive_depth.UsingGlobal(), v.vr_immersive_depth.GetValue(),
                   !v.factor_3d.UsingGlobal(), v.factor_3d.GetValue())
             : std::min<u32>(v.factor_3d.GetValue(), 100));
+    m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
+    m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
+    m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
+    m.weapon_scale =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
     // AzaharFrame menuux: the renderer's settings.
     m.internal_resolution = static_cast<int>(std::min<u32>(v.resolution_factor.GetValue(), 18));
     m.dynamic_resolution = v.vr_dynamic_resolution.GetValue();
@@ -1155,6 +1168,8 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     r.value = value;
     const u32 u = static_cast<u32>(std::max(value, 0));
     switch (id) {
+    m.aim_calibrated = host.aim_calibrated; // AzaharFrame kiufix
+    m.aim_calibration_ok = host.aim_calibration_ok;
     case Id::HideBottomScreen:
         Apply(v.vr_hide_bottom_screen, value != 0, per_game);
         r.setting = MenuSetting::HideBottomScreen;
@@ -1363,6 +1378,26 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::ImmersiveMode:
         Apply(v.vr_immersive_mode, u, per_game);
         r.setting = MenuSetting::ImmersiveMode;
+    case Id::RecoilCharged: // AzaharFrame kiufix: percent, per game in Per-Game
+        r.value = std::clamp(value, 0, 100);
+        Apply(v.vr_light_gun_recoil_charged, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::RecoilCharged;
+        break;
+    case Id::RecoilRapid:
+        r.value = std::clamp(value, 0, 100);
+        Apply(v.vr_light_gun_recoil_rapid, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::RecoilRapid;
+        break;
+    case Id::WeaponSize:
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_weapon_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponSize;
+        break;
+    case Id::WeaponScale:
+        r.value = std::clamp(value, 50, 150);
+        Apply(v.vr_light_gun_weapon_scale, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponScale;
+        break;
         break;
     case Id::WiderView:
         Apply(v.vr_immersive_wider_view_level, u, per_game);
@@ -2186,6 +2221,7 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
     // ---- The beams ----
     const Input::PanelQuad quad{ToInput(pose), width_m, Height(), true};
     std::array<Input::QuadHit, 2> hit{};
+    case Id::WeaponSize: // AzaharFrame kiufix
     std::array<bool, 2> edge{};
     for (int h = 0; h < Input::kNumHands; h++) {
         const auto& hand = in.hand[static_cast<std::size_t>(h)];
@@ -2535,6 +2571,12 @@ void MenuPanel::Worker() {
                 return;
             }
             shared->job = false;
+            // AzaharFrame kiufix: Angel's Aim's Aiming Settings: the Controls tab at Aiming, once
+            // its page is drawn (the scroll that does it is the page's own).
+            if (scroll_to_aiming && layout.controls && view.tab == Menu::Tab::Controls) {
+                scroll_to_aiming = false;
+                view.scroll[static_cast<std::size_t>(Menu::Tab::Controls)] = layout.aiming_scroll;
+            }
             seq = shared->job_seq;
             m = shared->job_model;
             v = shared->job_view;

@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdio> // AzaharFrame memguard
 #include <cstdlib>
+#include <filesystem> // AzaharFrame kiufix: Calibrate Aim's file
+#include <fstream>
 #include <utility>
 
 #include "common/test_hooks.h"
@@ -35,6 +37,49 @@
 #include "common/frame_crash.h" // AzaharFrame crashreport
 
 namespace FrameXr {
+
+namespace {
+// AzaharFrame kiufix: Calibrate Aim's file for a game: config/custom/<title id>.aim (beside the
+// game's settings file; older builds never touch it).
+std::string AimCalibrationPath(uint64_t title) {
+    return FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "custom/" +
+           fmt::format("{:016X}", title) + ".aim";
+}
+
+Input::AimCalibration LoadAimCalibration(uint64_t title) {
+    if (title == 0) {
+        return {};
+    }
+    std::ifstream f(AimCalibrationPath(title));
+    std::string line;
+    std::getline(f, line);
+    const Input::AimCalibration c = Input::AimCalibrationFrom(line);
+    if (c.set) {
+        LOG_INFO(Frontend, "xr: Calibrate Aim: this game's: {}", line);
+    }
+    return c;
+}
+
+void SaveAimCalibration(uint64_t title, const Input::AimCalibration& c) {
+    if (title == 0) {
+        return;
+    }
+    const std::string path = AimCalibrationPath(title);
+    if (!c.set) {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        LOG_INFO(Frontend, "xr: Calibrate Aim: reset for this game");
+        return;
+    }
+    const std::string text = Input::AimCalibrationText(c);
+    if (!Common::WriteFileAtomic(path, text + "\n")) {
+        LOG_WARNING(Frontend, "xr: Calibrate Aim: could not write {}", path);
+        return;
+    }
+    LOG_INFO(Frontend, "xr: Calibrate Aim: saved for this game: {}", text);
+}
+} // namespace
+
 
 namespace {
 
@@ -801,6 +846,7 @@ bool VrUi::Hold::Update(bool pressed, XrTime now, XrTime need) {
 }
 
 void VrUi::EnterMenu() {
+    cal_flow.Stop(); // AzaharFrame kiufix: Calibrate Aim stops where it is (what it saved stays)
     if (bridge_live) {
         bridge.Release(); // the game sees nothing held while the menu shows
         bridge_live = false;
@@ -1068,6 +1114,21 @@ void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFr
         }
         Vis::RecentreStats(); // AzaharFrame statspos
         ShowToastText("Position Reset");
+    };
+    // AzaharFrame kiufix: Calibrate Aim, from the Controls tab's Aiming rows
+    host.aim_calibrated = aim_cal.set && aim_cal_title == GameTitleId();
+    host.aim_calibration_ok =
+        GameTitleId() != 0 && Input::GyroAimModeFrom(Settings::values.vr_gyro_aim.GetValue()) ==
+                                  Input::GyroAimMode::LightGun;
+    host.calibrate_aim = [this] {
+        cal_flow.Start();
+        cal_prompt_ns = 0; // the first step's prompt once the game shows
+        LOG_INFO(Frontend, "xr: Calibrate Aim: started");
+    };
+    host.reset_aim_calibration = [this] {
+        aim_cal = {};
+        SaveAimCalibration(aim_cal_title, aim_cal);
+        ShowToastText("Aim Calibration Reset");
     };
     host.swap_screens = [this] {
         const bool managed = Immersive::CanToggleBottom();
@@ -1615,6 +1676,39 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             gyro_clutch_logged = gyro_aim_frame.clutch;
             LOG_DEBUG(Frontend, "xr: Gyro Aim: {}", gyro_clutch_logged ? "paused" : "resumed");
         }
+        // AzaharFrame kiufix: Calibrate Aim (input/gyro_aim.h): the game's own, and its steps
+        // (each a press of the aiming controller's grip; the reticle waits meanwhile).
+        const uint64_t title = GameTitleId();
+        if (title != aim_cal_title) {
+            aim_cal_title = title;
+            aim_cal = LoadAimCalibration(title);
+            cal_flow.Stop();
+        }
+        gyro_aim_frame.calibration = aim_cal;
+        if (cal_flow.active()) {
+            if (gyro_aim_frame.mode != Input::GyroAimMode::LightGun || gyro_aim_hand < 0) {
+                cal_flow.Stop();
+                LOG_INFO(Frontend, "xr: Calibrate Aim: stopped (Direct Aim is off)");
+            } else {
+                const Input::HandInput& raw_hand = in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+                const Input::LightGunTarget raw = Input::LightGunTargetFor(raw_hand, panels.top);
+                const Input::AimCalibrationFlow::Out step = cal_flow.Update(raw_hand.grip, raw);
+                if (step.result) {
+                    aim_cal = *step.result;
+                    gyro_aim_frame.calibration = aim_cal;
+                    LOG_INFO(Frontend, "xr: Calibrate Aim: point at {:.3f}, {:.3f}", raw.u, raw.v);
+                    SaveAimCalibration(title, aim_cal);
+                }
+                if (step.changed || in.time_ns - cal_prompt_ns > 4'000'000'000) {
+                    cal_prompt_ns = in.time_ns;
+                    ShowToastText(Input::AimCalibrationPrompt(cal_flow.step()), ToastTime::Long);
+                } else if (step.retry) {
+                    cal_prompt_ns = in.time_ns;
+                    ShowToastText(Input::kAimCalibrationRetryToast, ToastTime::Long);
+                }
+                gyro_aim_frame.clutch = true; // the reticle waits while it calibrates
+            }
+        }
     }
     {
         Input::ReticleHand source =
@@ -1814,8 +1908,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             }
         }
         const Input::RecoilPulse& pulse = real ? shot : timed;
-        if (pulse.fire) {
-            actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
+        // AzaharFrame kiufix: Charged Shot's and Rapid Fire's strengths (per game)
+        const float amplitude = Input::RecoilAmplitude(
+            pulse, static_cast<int>(Settings::values.vr_light_gun_recoil_charged.GetValue()),
+            static_cast<int>(Settings::values.vr_light_gun_recoil_rapid.GetValue()));
+        if (pulse.fire && amplitude > 0.0f) {
+            actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns,
+                          Input::Recoil::kAmplitude * amplitude);
         }
     }
     // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot).
@@ -1825,7 +1924,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // owner's session: the laser never showed).
     if (gyro_aim_hand >= 0) {
         const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
-        const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
+        // AzaharFrame kiufix: where Light Gun steers to (Calibrate Aim's), so the dot is there.
+        const Input::LightGunTarget target = Input::ApplyCalibration(
+            aim_cal, Input::LightGunTargetFor(aim_hand, panels.top));
         const Input::AimBeam beam =
             Input::AimBeamFor(gyro_aim_frame.mode, Settings::values.vr_light_gun_laser.GetValue(),
                               weapon_shown, target);
@@ -1838,8 +1939,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
         if (beam.laser) {
             visuals.SetLaser(gyro_aim_hand,
-                             Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
-                                 .point_world);
+                             aim_cal.set
+                                 ? Input::PointOnQuad(panels.top, target.u, target.v)
+                                 : Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
+                                       .point_world);
         }
         if (beam.hide_top) {
             visuals.SetBeamHidden(gyro_aim_hand, panels.top);

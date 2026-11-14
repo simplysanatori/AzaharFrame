@@ -609,3 +609,47 @@ TEST_CASE("Palm elbow mode: the elbow estimate, the smoothing, the turn", "[kiug
     const Vis::FitMat back = Vis::RotationBetween(pivot, {0, 0, 1}, {0, 0, -1}); // opposite
     CHECK(Point(back, {pivot[0], pivot[1], pivot[2] + 1.0f})[2] == Approx(pivot[2] - 1.0f).margin(1e-4));
 }
+
+// AzaharFrame kiufix: Weapon Size. Hand Size brings a big weapon down to its class's hand-held
+// length; Weapon Scale goes on top; scaled about the grip, so the grip stays in the palm and the
+// muzzle on the aim ray, pointing ahead.
+TEST_CASE("Weapon Size: big weapons to a hand size, about the grip", "[kiufix]") {
+    // The Ball Cannon as converted (weapon 73: RArmN, muzzle and bounds from its manifest).
+    const Vis::FitWeapon cannon{6, {-6.8f, -2.4000006f, 1.4999999f}, true};
+    const std::array<float, 3> lo{-9.30427f, -4.9350095f, -3.92186f};
+    const std::array<float, 3> hi{2.7301297f, 7.699711f, 3.54042f};
+    const float s = Vis::FitClassScale(6);
+    CHECK(Vis::WeaponSizeFactor(6, lo, hi, s, Vis::WeaponSize::Game, 100) == 1.0f);
+    const float hand = Vis::WeaponSizeFactor(6, lo, hi, s, Vis::WeaponSize::Hand, 100);
+    CHECK(hand < 1.0f);
+    // Its longest side (12.6 units, 76 cm at the class scale) becomes the cap.
+    CHECK((hi[1] - lo[1]) * s * hand == Approx(Vis::HandSizeCapM(6)).epsilon(0.01));
+    CHECK(Vis::WeaponSizeFactor(6, lo, hi, s, Vis::WeaponSize::Hand, 150) ==
+          Approx(hand * 1.5f));
+    CHECK(Vis::WeaponSizeFactor(6, lo, hi, s, Vis::WeaponSize::Game, 10) == Approx(0.5f));
+    // A small weapon stays as it is.
+    const std::array<float, 3> slo{-1, -1, -1}, shi{1, 1, 1};
+    CHECK(Vis::WeaponSizeFactor(0, slo, shi, Vis::FitClassScale(0), Vis::WeaponSize::Hand, 100) ==
+          1.0f);
+    for (const float f : {1.0f, hand, hand * 0.5f, 1.5f}) {
+        INFO("factor " << f);
+        Vis::FitOverride tune;
+        tune.scale = f;
+        const auto parts = Vis::FitWeaponToHand(cannon, false, {Vis::FitSide::Centre}, tune);
+        REQUIRE(parts.size() == 1);
+        // The grip (where Pit's hand would be, 2.17 units out along the forearm) in the palm.
+        const auto grip = Point(parts[0].transform, {-2.17f, 0, 0});
+        CHECK(grip[0] == Approx(0.0f).margin(1e-5));
+        CHECK(grip[1] == Approx(-0.0525f).margin(1e-5));
+        CHECK(grip[2] == Approx(0.043f).margin(1e-5));
+        // The muzzle on the ray, ahead.
+        const auto muzzle = Point(parts[0].transform, cannon.muzzle);
+        CHECK(muzzle[0] == Approx(0.0f).margin(1e-4));
+        CHECK(muzzle[1] == Approx(0.0f).margin(1e-4));
+        CHECK(muzzle[2] < 0.0f);
+        const auto mz = Vis::FitMuzzle(cannon, false, {Vis::FitSide::Centre}, tune);
+        REQUIRE(mz.has_value());
+        CHECK((*mz)[0] == Approx(0.0f).margin(1e-4));
+        CHECK((*mz)[1] == Approx(0.0f).margin(1e-4));
+    }
+}
