@@ -195,6 +195,12 @@ def quad_yaw(r):
     return math.degrees(2 * math.atan2(y, w))
 
 
+def head_yaw(r):
+    """projscreen: the head yaw a refresh's screen was placed for: the display's for a quad, the
+    view's it was drawn for in the projection layer (a refresh or two before)."""
+    return getattr(r[3], "yaw_drawn", r[1])
+
+
 def camera_yaw(r, hold, gx):
     """r31: the head yaw a picture was drawn for, read from one refresh's quad (a level screen,
     no Immersive Offset). rigid: the quad faces it. warp: the quad is the eye's head-locked quad
@@ -202,9 +208,9 @@ def camera_yaw(r, hold, gx):
     turn since is read back from it."""
     if hold == "rigid":
         return quad_yaw(r)
-    ang = math.radians(quad_yaw(r) - r[1])
+    ang = math.radians(quad_yaw(r) - head_yaw(r))
     since = math.degrees(math.atan(-math.tan(ang) / gx)) / gx
-    return r[1] - since
+    return head_yaw(r) - since
 
 
 def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, before=10,
@@ -305,7 +311,7 @@ def check(rows, gx, gy, eye, ipd, neck, tol, rel=0.1, out=print, heads=None, bef
                 continue
             errs = tuple({} for _ in p)
             for i, r in enumerate(p):
-                psi = r[1]
+                psi = head_yaw(r)  # projscreen: the head it was drawn for
                 e = eye_at(psi, eye, ipd, neck)
                 for across, up, u, v in pts:
                     ang = math.radians(gx * (cams[p[0][2]] - psi))
@@ -484,6 +490,8 @@ class ProjQuad(tuple):
         height = 2 * math.sqrt(sum(x * x for x in b))
         quad = ProjQuad((add(eye_pos, c), yawq(yaw), width, height))
         quad.eye = eye_pos
+        # The head yaw the image was drawn for (its view; SteamVR keeps its room directions).
+        quad.yaw_drawn = math.degrees(2 * math.atan2(view_q[1], view_q[3]))
         quad.axes = (a, b, c)
         quad.hm = hm
         quad.tang = tang
@@ -628,7 +636,7 @@ def check_world(path, tol=0.05, out=print):
     return worst <= tol, worst, frames
 
 
-def proj_lines(lines, eye=1, ipd=0.064, w_px=1680, h_px=1760, fov=0.84, noise=0.02):
+def proj_lines(lines, eye=1, ipd=0.064, w_px=1680, h_px=1760, fov=0.84, noise=0.005):
     """projscreen selftest: a quad trace as the projection layer would carry it: the marks
     projected for the eye at that refresh (the image drawn for it) into projscan lines, the
     picture's serial from img= or the releases, pixel noise of +-`noise` (centroids)."""
@@ -944,11 +952,12 @@ def selftest():
         ok &= got == want
     # projscreen: the same pictures carried by the projection layer (dots found in the images,
     # the screen rebuilt per refresh): rigid fails at gain 0.6, warp passes; cameras read too.
-    # (Cameras are not read from the rebuilt screen: a nearly frontal plane's turn is poorly
-    # fixed by its dots, so --proj runs without --camera.)
+    # (The dots on the Frame mock fit to 0.0001 degrees, about 0.002 pixels; the selftest adds 0.005
+    # pixels of noise and reads the cameras too, at a looser limit for the held refresh, 0.05.)
     for hold, g, want, camera in (("rigid", 0.6, False, None), ("rigid", 1.0, True, None),
                                   ("warp", 0.6, True, None), ("warp", 1.4, True, None),
-                                  ("rigid", 1.4, False, None)):
+                                  ("rigid", 1.4, False, None), ("warp", 0.6, True, "warp"),
+                                  ("warp", 1.4, True, "warp")):
         fd, path = tempfile.mkstemp(suffix=".trace", dir=os.path.dirname(os.path.abspath(__file__)))
         with os.fdopen(fd, "w") as f:
             f.write("\n".join(proj_lines(synthetic(hold, g, g))) + "\n")
@@ -960,7 +969,7 @@ def selftest():
         got = pairs > 0 and fails == 0
         jump = getattr(check, "jump", None)
         if camera == "warp" and jump is not None:
-            got = got and jump[0] < 0.01
+            got = got and jump[0] < 0.05
         check.jump = None
         print("selftest proj %-5s gain %.1f%s: %d step pairs, worst %.4f degrees -> %s (want %s)"
               % (hold, g, ", cameras read" if camera else "", pairs, worst,
