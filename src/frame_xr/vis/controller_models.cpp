@@ -973,7 +973,10 @@ void ControllerModels::Setup(Runtime& rt) {
         .srcColorBlendFactor = vk::BlendFactor::eOne,
         .dstColorBlendFactor = vk::BlendFactor::eOne,
         .colorBlendOp = vk::BlendOp::eAdd,
-        .srcAlphaBlendFactor = vk::BlendFactor::eZero,
+        // AzaharFrame kiufix: the glow's coverage (the shader's alpha) adds up too, so the layer
+        // holds it as premultiplied light the compositor keeps; with alpha 0 everywhere a
+        // runtime may drop the pixels as clear, and the palm's flames did not show.
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
         .dstAlphaBlendFactor = vk::BlendFactor::eOne,
         .alphaBlendOp = vk::BlendOp::eAdd,
         .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
@@ -1162,7 +1165,9 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         // elbow (from the wrist up to the cut); else one draw.
         for (int pass = 0; pass < (forearm_turn ? 2 : 1); pass++) {
         Mat model = Multiply(aim_m, fit_m);
-        float cut = clip_x;
+        // AzaharFrame kiufix: a palm's flames run the length of Pit's forearm, past the wrist
+        // mode's cut: they are drawn whole (the player's own forearm is there), so they show.
+        float cut = glow_pass && w.info.cls == FrameWeapons::kPalm && !forearm_turn ? 0.0f : clip_x;
         float w_flags = fit.mirrored ? 1.0f : 0.0f;
         if (glow_pass) {
             w_flags += 4.0f; // added, unlit
