@@ -482,6 +482,7 @@ struct FrameTraceLog {
     // The stereo line: summed, and what it last said.
     std::array<u32, 3> eyes{};
     u32 shown_3d = 0, swaps = 0;
+    u32 pairs = 0, pairs_apart = 0; ///< AzaharFrame natural: the eyes line, summed likewise
     int secs = 0;
     int said_main = -1;      ///< 0, 1 or 2: the game's eyes in most swaps
     bool said_3d = false;    ///< some swaps in the 3D format
@@ -658,6 +659,8 @@ public:
                 lg.eyes[e] += eyes_[e];
             }
             lg.shown_3d += shown_3d_;
+            lg.pairs += pairs_;
+            lg.pairs_apart += pairs_apart_;
             lg.swaps += swaps_;
             ++lg.secs;
             const int main = eyes_[2] >= eyes_[1] && eyes_[2] >= eyes_[0] ? 2
@@ -692,7 +695,7 @@ public:
                          "parallax at {} units; eye matrices [{:.4f} {:.4f} {:.4f} {:.4f} | {:.4f} "
                          "{:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f}] and [{:.4f} {:.4f} "
                          "{:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f} | {:.4f} {:.4f} {:.4f} {:.4f}]",
-                         pairs_apart_, pairs_,
+                         lg.pairs_apart, lg.pairs,
                          last_pair_.eye_apart >= 0.0f ? fmt::format("{:.4f}", last_pair_.eye_apart)
                                                       : std::string("not"),
                          last_pair_.far_ndc, last_pair_.p00,
@@ -707,6 +710,7 @@ public:
                          mb[2][1], mb[2][2], mb[2][3]);
                 lg.eyes = {};
                 lg.shown_3d = lg.swaps = 0;
+                lg.pairs = lg.pairs_apart = 0;
                 lg.secs = 0;
                 lg.said_main = main;
                 lg.said_3d = shown_3d_ > 0;
@@ -816,7 +820,9 @@ private:
     FarPerSlider far_per_slider_;      ///< AzaharFrame stereo: the game's 3D per slider unit
     EyePerFar eye_per_far_;            ///< AzaharFrame natural: its eyes apart per far width
     StereoFrame::Result last_pair_;    ///< the last swap whose two eyes' matrices were read
-    u32 pairs_ = 0, pairs_apart_ = 0;  ///< this second: swaps with both read, with eyes apart
+    u32 pairs_ = 0, pairs_apart_ = 0;  ///< this second (reset with the rest each second, summed
+                                       ///< into g_frame_trace_log): swaps with both eyes' matrices
+                                       ///< read, and with the eyes apart
     WorldOnceRun world_once_;          ///< AzaharFrame oot: a menu of the game's own
     ZeroParallaxMeasure zero_;         ///< AzaharFrame dbl: where the game's two eyes agree
     u32 generation_ = 0;               ///< g_stereo_generation it was reset for
