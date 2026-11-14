@@ -37,6 +37,8 @@
 #include "frame_xr/toast_depth.h"   // AzaharFrame integ9: ScreenUse
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
+#include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
+#include "frame_xr/vis/proj_screen_layer.h"
 #include "frame_xr/watchdog.h"
 #include "frame_xr/xr_loader.h"
 #include "video_core/vr_dynamic_resolution.h" // AzaharFrame menuux
@@ -566,6 +568,25 @@ void Runtime::FrameLoop() {
             Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
     };
     read_clarity_switches();
+    // AzaharFrame projscreen: AZAHARFRAME_XR_SCREENS_IN_PROJECTION and AZAHARFRAME_XR_PROJ_SCALE,
+    // live (vis/proj_screen.h): the top screen drawn into the projection layer, not sent as a quad.
+    const auto read_proj = [] {
+        return TestSwitches::OnFrom(
+            Common::FrameTestSwitches::Value(Vis::kScreensInProjectionSwitch));
+    };
+    bool test_proj = read_proj();
+    float test_proj_scale =
+        Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
+    if (test_proj) {
+        LOG_INFO(Frontend, "xr: projection screens on at start (scale {:.2f})", test_proj_scale);
+    }
+    Vis::ProjScreens proj;
+    // The top screen's quads, sent instead while the projection layer has no image with it yet.
+    struct TopFallback {
+        ScreenOrQuadLayer layer;
+        uint64_t serial;
+    };
+    std::vector<TopFallback> proj_fallback;
     // AzaharFrame integ9: the test-switch file read again when it changed (once a second, after
     // xrEndFrame): the live switches applied, each change logged and shown in a toast.
     const auto poll_test_switches = [&] {
@@ -583,6 +604,15 @@ void Runtime::FrameLoop() {
             if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH" || c.name == "AZAHARFRAME_XR_FLASH_SLOW" ||
                 c.name == "AZAHARFRAME_XR_FLASH_BACKING") {
                 read_clarity_switches(); // AzaharFrame flash
+            } else if (c.name == Vis::kScreensInProjectionSwitch ||
+                       c.name == Vis::kProjScaleSwitch) { // AzaharFrame projscreen
+                test_proj = read_proj();
+                test_proj_scale =
+                    Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
+                LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f})",
+                         test_proj ? "on" : "off", test_proj_scale);
+            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch) {
+                // read by the pass every frame
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag
             } else if (c.name == "AZAHARFRAME_XR_REFRESH_RATE") {
@@ -786,6 +816,7 @@ void Runtime::FrameLoop() {
         }
         ui_quads.clear();
         if (ui) {
+            ui->SetScreensInProjection(test_proj, test_proj_scale); // AzaharFrame projscreen
             ui->Frame(*this, info, ui_quads);
         }
 
@@ -849,6 +880,15 @@ void Runtime::FrameLoop() {
         // serial (what the compositor shows on the next refresh, with the image lag).
         bool top_carried = false;
         uint64_t top_serial = 0;
+        // AzaharFrame projscreen: the top screen for the projection layer, and where in the list
+        // of layers its quads would have gone.
+        proj = {};
+        proj_fallback.clear();
+        std::size_t proj_at = 0;
+        bool proj_placed = false;
+        const bool proj_mode = test_proj && ui && fs.shouldRender;
+        const bool proj_also_quads = // AzaharFrame projscreen: a mock check only
+            proj_mode && TestSwitches::OnFrom(Common::FrameTestSwitches::Value(Vis::kProjAlsoQuadsSwitch));
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
             {
@@ -878,8 +918,14 @@ void Runtime::FrameLoop() {
                 const ScreenChain& t =
                     LayerChain(static_cast<std::size_t>(VideoCore::XrScreen::TopLeft));
                 MotionClarity::Refresh rf;
+                // projb: not with the top screen in the projection layer (projection screens):
+                // it is drawn there every refresh at that refresh's own views, so a held picture
+                // never reaches the display with another picture's pose, which is what the
+                // flashing hid; nor would a flashed picture stay one: a refresh the pass is late
+                // shows the image before again.
                 rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
-                                                clarity_override, shown.full_mode);
+                                                clarity_override, shown.full_mode) &&
+                        !proj_mode;
                 // flash2: in a Full mode, played only while immersive is engaged (paused, the
                 // top screen is not the head-driven one: on the beat).
                 rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top &&
@@ -956,15 +1002,25 @@ void Runtime::FrameLoop() {
                     }
                 }
                 if (!use.layer) {
+                    // projb: the top screen's swapchain made again (Dynamic Resolution, a new
+                    // size) and no picture in it yet: the projection layer keeps its last image a
+                    // few refreshes rather than show the room (proj_screen_layer.h `gap`).
+                    if (proj_mode && top && chain.handle != XR_NULL_HANDLE && !chain.has_image) {
+                        proj.gap = true;
+                    }
                     return; // no picture, or (AZAHARFRAME_XR_FLASH_BACKING=0) shown once already
                 }
-                if (s == VideoCore::XrScreen::TopLeft) { // AzaharFrame imglag
+                // AzaharFrame projscreen: the top screen into the projection layer, at the pose
+                // its quad would have had (LOCAL; a VIEW-space quad through this frame's head).
+                const bool to_proj = proj_mode && top && (space == local_space || space == view_space) &&
+                                     chain.shown_index < chain.images.size();
+                if (!to_proj && s == VideoCore::XrScreen::TopLeft) { // AzaharFrame imglag
                     top_carried = true;
                     top_serial = chain.frame_serial;
                 }
                 // AzaharFrame flash: the black backing, a layer of its own under the screen, the
                 // same pose, size, shape and eye, on every refresh while Motion Clarity is on.
-                if (top && top_layers.backing) {
+                if (top && top_layers.backing && !(to_proj && !proj_also_quads)) {
                     Quad b = backing;
                     b.pose = pose;
                     b.size = size;
@@ -996,6 +1052,43 @@ void Runtime::FrameLoop() {
                               size.height * MotionClarity::kCollapse};
                 }
                 q.eye = eye;
+                if (to_proj) {
+                    Vis::ProjScreenEye& pe =
+                        proj.eye[eye == XR_EYE_VISIBILITY_RIGHT ? 1 : 0];
+                    pe.shown = true;
+                    pe.image = chain.images[chain.shown_index];
+                    pe.image_width = chain.width;
+                    pe.image_height = chain.height;
+                    pe.rect = q.image_rect;
+                    pe.pose = space == view_space ? Vis::ComposePose(LatestViewPose().head, pose)
+                                                  : pose;
+                    pe.size = size;
+                    pe.curve = curve;
+                    pe.serial = chain.frame_serial;
+                    // projb: "Controllers in Front of Screen" as on the quad path (ctrlfront's
+                    // occluders above): by depth when the choice takes this screen's slot (the
+                    // immersive screen then never hides them: what it shows is far away), else
+                    // the screen covers the controllers wherever they are.
+                    {
+                        const bool by_depth =
+                            Vis::InFrontOfScreen(in_front, top != screens_swapped);
+                        pe.depth = !by_depth       ? Vis::ProjDepth::Front
+                                   : top_immersive ? Vis::ProjDepth::Back
+                                                   : Vis::ProjDepth::Real;
+                    }
+                    if (!proj_placed) {
+                        proj_placed = true;
+                        proj_at = quad_layers.size();
+                    }
+                    proj_fallback.push_back({curve > 0.0f
+                                                 ? ScreenOrQuadLayer(MakeCylinder(space, q, curve))
+                                                 : ScreenOrQuadLayer(MakeQuad(space, q)),
+                                             s == VideoCore::XrScreen::TopLeft ? chain.frame_serial
+                                                                               : 0});
+                    if (!proj_also_quads) {
+                        return;
+                    }
+                }
                 if (curve > 0.0f) {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
                 } else {
@@ -1085,6 +1178,31 @@ void Runtime::FrameLoop() {
                 if (!shown.bottom_first) {
                     add_bottom();
                 }
+            }
+        }
+        // AzaharFrame projscreen: the top screen drawn into the models' projection layer, which
+        // then takes the top screen's place in the order (SteamVR draws every quad over the
+        // projection layer anyway). Until the layer's image has the screen, its quads go instead.
+        // projb: here, before the screens' layers are counted (the slots and the layer budget
+        // after them, flash2), so fallback quads count as screens.
+        Vis::ProjLayer proj_layer;
+        if (proj_mode) {
+            proj_layer = ui->ProjectionScreens(*this, proj);
+            if (proj.Any()) {
+                proj_screens_used = true; // projb: EnsureSwapchain waits for the pass
+            }
+            if (proj_placed && !proj_also_quads && !(proj_layer.layer && proj_layer.has_screen)) {
+                std::vector<ScreenOrQuadLayer> fallback;
+                for (const TopFallback& f : proj_fallback) {
+                    fallback.push_back(f.layer);
+                    if (f.serial) {
+                        top_carried = true;
+                        top_serial = f.serial;
+                    }
+                }
+                quad_layers.insert(quad_layers.begin() + static_cast<std::ptrdiff_t>(proj_at),
+                                   fallback.begin(), fallback.end());
+                proj_placed = false;
             }
         }
         // AzaharFrame flash: the quads after the screens go through the slot map.
@@ -1199,12 +1317,18 @@ void Runtime::FrameLoop() {
         if (fs.shouldRender && ui) {
             // flash2: what comes before the Top group (its own slots from earlier frames are its
             // room, not in use).
+            // projb: the projection screens' layer is the one projection layer (the models are
+            // in it), counted as the passthrough square is.
+            const bool proj_counted = proj_mode && proj_layer.layer && !passthrough;
             models_layer = ui->TopLayers(
                 top_quads, screen_layers + layer_slots.SizeBefore(LayerSlots::Group::Top) +
-                               (passthrough ? 1 : 0));
+                               (passthrough ? 1 : 0) + (proj_counted ? 1 : 0));
             for (const Quad& q : top_quads) {
                 slot_add(LayerSlots::Group::Top, local_space, q);
             }
+        }
+        if (proj_mode && proj_layer.layer) { // AzaharFrame projscreen (projb: before the budget)
+            models_layer = proj_layer.layer;
         }
         if (fs.shouldRender) {
             // AzaharFrame flash: the slots in their fixed order, absent quads collapsed in place
@@ -1226,6 +1350,9 @@ void Runtime::FrameLoop() {
                     models_at++;
                 }
             }
+        }
+        if (proj_mode && proj_layer.layer && proj_placed) { // AzaharFrame projscreen
+            models_at = proj_at; // in the top screen's place
         }
         // AzaharFrame vis: one projection layer a frame (vis/layer_plan.h). With the models
         // showing, their layer stands in for the passthrough square; the blend mode stays.

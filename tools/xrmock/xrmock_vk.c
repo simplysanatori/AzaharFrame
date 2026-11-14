@@ -357,4 +357,154 @@ static int readImage(void* images, int index, int w, int h, int64_t format, uint
     return rc;
 }
 
-const MockGfx kMockGfxVk = {"vk", ownsBinding, describeBinding, getProc, formats, formatOf, createImages, fillImages, releaseWaitMs, readImage};
+// AzaharFrame projscreen: MOCK_XR_PROJ_SCAN's copies (copy_regions, read_copy, free_copy).
+typedef struct {
+    VkBuffer buf;
+    VkDeviceMemory mem;
+    VkCommandPool pool;
+    VkFence fence;
+    VkDeviceSize size;
+    int bgra;
+} ScanCopy;
+
+static void freeCopy(void* h) {
+    ScanCopy* c = (ScanCopy*)h;
+    if (!c) return;
+    if (c->fence) DEV(vkDestroyFence)(gDevice, c->fence, NULL);
+    if (c->pool) DEV(vkDestroyCommandPool)(gDevice, c->pool, NULL);
+    if (c->mem) DEV(vkFreeMemory)(gDevice, c->mem, NULL);
+    if (c->buf) DEV(vkDestroyBuffer)(gDevice, c->buf, NULL);
+    free(c);
+}
+
+static void* copyRegions(void* images, int index, int64_t format, const int* rects, int n) {
+    int bgra = format == VK_FORMAT_B8G8R8A8_SRGB || format == VK_FORMAT_B8G8R8A8_UNORM;
+    if (!gQueue || !images || index < 0 || n <= 0 || n > 8 ||
+        !(bgra || format == VK_FORMAT_R8G8B8A8_SRGB || format == VK_FORMAT_R8G8B8A8_UNORM))
+        return NULL;
+    VkImage image = ((const VkImage*)images)[index];
+    ScanCopy* c = (ScanCopy*)calloc(1, sizeof(ScanCopy));
+    if (!c) return NULL;
+    c->bgra = bgra;
+    for (int i = 0; i < n; i++) c->size += (VkDeviceSize)rects[4 * i + 2] * (VkDeviceSize)rects[4 * i + 3] * 4;
+    VkBufferCreateInfo bci;
+    memset(&bci, 0, sizeof(bci));
+    bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bci.size = c->size;
+    bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if (DEV(vkCreateBuffer)(gDevice, &bci, NULL, &c->buf) != VK_SUCCESS) {
+        free(c);
+        return NULL;
+    }
+    VkMemoryRequirements req;
+    DEV(vkGetBufferMemoryRequirements)(gDevice, c->buf, &req);
+    VkPhysicalDeviceMemoryProperties mp;
+    INST(vkGetPhysicalDeviceMemoryProperties)(gPhys, &mp);
+    uint32_t type = UINT32_MAX;
+    // Cached host memory first (the pixels are read by the CPU), then any host-visible.
+    const VkMemoryPropertyFlags wants[2] = {VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+                                                VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    for (int k = 0; k < 2 && type == UINT32_MAX; k++)
+        for (uint32_t t = 0; t < mp.memoryTypeCount; t++)
+            if ((req.memoryTypeBits & (1u << t)) && (mp.memoryTypes[t].propertyFlags & wants[k]) == wants[k]) {
+                type = t;
+                break;
+            }
+    VkMemoryAllocateInfo ai;
+    memset(&ai, 0, sizeof(ai));
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize = req.size;
+    ai.memoryTypeIndex = type;
+    if (type == UINT32_MAX || DEV(vkAllocateMemory)(gDevice, &ai, NULL, &c->mem) != VK_SUCCESS) {
+        freeCopy(c);
+        return NULL;
+    }
+    DEV(vkBindBufferMemory)(gDevice, c->buf, c->mem, 0);
+    VkCommandPoolCreateInfo pci;
+    memset(&pci, 0, sizeof(pci));
+    pci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pci.queueFamilyIndex = gQueueFamily;
+    DEV(vkCreateCommandPool)(gDevice, &pci, NULL, &c->pool);
+    VkFenceCreateInfo fci;
+    memset(&fci, 0, sizeof(fci));
+    fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    DEV(vkCreateFence)(gDevice, &fci, NULL, &c->fence);
+    VkCommandBufferAllocateInfo cai;
+    memset(&cai, 0, sizeof(cai));
+    cai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cai.commandPool = c->pool;
+    cai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cai.commandBufferCount = 1;
+    VkCommandBuffer cb;
+    DEV(vkAllocateCommandBuffers)(gDevice, &cai, &cb);
+    VkCommandBufferBeginInfo bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    DEV(vkBeginCommandBuffer)(cb, &bi);
+    VkImageMemoryBarrier b;
+    memset(&b, 0, sizeof(b));
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    b.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = image;
+    b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    b.subresourceRange.levelCount = 1;
+    b.subresourceRange.layerCount = 1;
+    DEV(vkCmdPipelineBarrier)(cb, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &b);
+    VkBufferImageCopy cp[8];
+    VkDeviceSize off = 0;
+    memset(cp, 0, sizeof(cp));
+    for (int i = 0; i < n; i++) {
+        cp[i].bufferOffset = off;
+        cp[i].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        cp[i].imageSubresource.layerCount = 1;
+        cp[i].imageOffset.x = rects[4 * i];
+        cp[i].imageOffset.y = rects[4 * i + 1];
+        cp[i].imageExtent.width = (uint32_t)rects[4 * i + 2];
+        cp[i].imageExtent.height = (uint32_t)rects[4 * i + 3];
+        cp[i].imageExtent.depth = 1;
+        off += (VkDeviceSize)rects[4 * i + 2] * (VkDeviceSize)rects[4 * i + 3] * 4;
+    }
+    DEV(vkCmdCopyImageToBuffer)(cb, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, c->buf, (uint32_t)n, cp);
+    b.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    b.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    DEV(vkCmdPipelineBarrier)(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &b);
+    DEV(vkEndCommandBuffer)(cb);
+    VkSubmitInfo si;
+    memset(&si, 0, sizeof(si));
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &cb;
+    if (DEV(vkQueueSubmit)(gQueue, 1, &si, c->fence) != VK_SUCCESS) {
+        freeCopy(c);
+        return NULL;
+    }
+    return c;
+}
+
+static int readCopy(void* h, uint8_t* rgba) {
+    ScanCopy* c = (ScanCopy*)h;
+    if (!c || DEV(vkWaitForFences)(gDevice, 1, &c->fence, VK_TRUE, 2000000000ull) != VK_SUCCESS) return -1;
+    void* map = NULL;
+    if (DEV(vkMapMemory)(gDevice, c->mem, 0, VK_WHOLE_SIZE, 0, &map) != VK_SUCCESS) return -1;
+    memcpy(rgba, map, (size_t)c->size);
+    DEV(vkUnmapMemory)(gDevice, c->mem);
+    if (c->bgra) {
+        for (VkDeviceSize i = 0; i < c->size; i += 4) {
+            uint8_t t = rgba[i];
+            rgba[i] = rgba[i + 2];
+            rgba[i + 2] = t;
+        }
+    }
+    return 0;
+}
+
+const MockGfx kMockGfxVk = {"vk", ownsBinding, describeBinding, getProc, formats, formatOf, createImages, fillImages, releaseWaitMs, readImage,
+                            copyRegions, readCopy, freeCopy};

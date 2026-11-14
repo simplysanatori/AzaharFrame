@@ -1152,6 +1152,14 @@ std::size_t Visuals::MaxLayers() const {
     return impl->max_layers;
 }
 
+void Visuals::SetScreensInProjection(bool on, float scale) { // AzaharFrame projscreen
+    impl->models.SetScreensMode(on, scale);
+}
+
+ProjLayer Visuals::ProjectionScreens(Runtime& rt, const ProjScreens& screens) {
+    return impl->models.FrameScreens(rt, screens);
+}
+
 } // namespace FrameXr::Vis
 
 // ---- frame_xr.h ---------------------------------------------------------------------------------

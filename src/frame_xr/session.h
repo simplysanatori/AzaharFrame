@@ -100,6 +100,9 @@ struct ScreenChain {
     bool has_image = false;  ///< released at least once since made (may be shown)
     /// AzaharFrame doubling: the game frame (Runtime::release_serial) of the image released last.
     uint64_t frame_serial = 0;
+    /// AzaharFrame projscreen: the index of the image released last (`index` moves on as soon as
+    /// the renderer acquires the next one); under screens_mutex.
+    uint32_t shown_index = 0;
 };
 
 /// Where one display frame's time went (milliseconds), from one xrWaitFrame return to the next.
@@ -244,6 +247,10 @@ public:
     /// AzaharFrame imglag: the release serial the last xrEndFrame carried in its top screen
     /// layer, 0: none (written by the XR thread after each xrEndFrame; image_lag.h).
     std::atomic<uint64_t> sent_serial{0};
+    /// projb: the projection pass has sampled a screen's swapchain images this session (the XR
+    /// thread sets it, DestroySession clears it): EnsureSwapchain lets the queue go idle before it
+    /// destroys a swapchain, so a pass still on the GPU never reads freed images.
+    std::atomic<bool> proj_screens_used{false};
     /// AzaharFrame imglag: the fallbacks and silent mispairs, counted for the per-second line
     /// (ImageLagCounts): frames that left nothing sent, by reason (XR thread writes); refreshes the
     /// loop missed; xrEndFrames that may carry an image ahead of its serial (set releases off).
