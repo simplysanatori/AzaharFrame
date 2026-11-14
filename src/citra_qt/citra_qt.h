@@ -548,6 +548,7 @@ private:
     // AzaharFrame memwarn
     std::unique_ptr<FrameMemWarn> frame_memwarn;
     bool frame_memwarn_asking = false;       ///< its dialog shows (VR menu or Qt)
+    bool frame_memwarn_textures = false; ///< AzaharFrame savemem: it offers Turn Off Custom Textures
     QDialog* frame_memwarn_dialog = nullptr; ///< the Qt one, while it shows
     bool frame_memwarn_resume = false;       ///< the Qt one paused the game: its answer resumes
     QString frame_memwarn_answer_test;       ///< AZAHARFRAME_TEST_MEMWARN_ANSWER's choice

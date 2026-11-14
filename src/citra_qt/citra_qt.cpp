@@ -57,6 +57,7 @@
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
 #include "citra_qt/frame_memwarn.h"         // AzaharFrame memwarn
 #include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
+#include "video_core/custom_textures/custom_tex_manager.h" // AzaharFrame savemem
 #include "citra_qt/camera/qt_multimedia_camera.h"
 #include "citra_qt/camera/still_image_camera.h"
 #include "citra_qt/citra_qt.h"
@@ -6081,11 +6082,19 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
         return;
     }
     frame_memwarn_asking = true;
-    // No Save State in this dialog: a save state needs about 0.9 GB more while it is written (the
-    // serialized system, then its compressed copy), so at this level it could cross the limit and
-    // get Azahar closed in the middle of it. The autosaves wait for the same reason
+    // No Save State in this dialog: a save state needs its serialized system more while it is
+    // written (about 300 MB for a big game), so at this level it could cross the limit and get
+    // Azahar closed in the middle of it. The autosaves wait for the same reason
     // (FrameMemWarn::Critical in FrameAutosaveGates). Saving in the game costs nothing.
-    const bool textures = Settings::values.custom_textures.GetValue();
+    // AzaharFrame savemem: Turn Off Custom Textures, and the advice, only when they hold enough to
+    // matter (MW::TexturesMatter); with a few MB of them, or none loaded, it would not help.
+    const u64 texture_bytes = Settings::values.custom_textures.GetValue()
+                                  ? system.CustomTexManager().HeldBytesHint()
+                                  : 0;
+    const bool textures = MW::TexturesMatter(texture_bytes, max);
+    frame_memwarn_textures = textures;
+    LOG_INFO(Frontend, "memwarn: custom textures hold {} MiB{}", texture_bytes >> 20,
+             textures ? "" : ": not worth turning off");
     const MW::PauseText t = MW::MakePauseText(used, max, textures);
     LOG_WARNING(Frontend, "memwarn: paused: {}: {}", t.title, t.body);
     const QString shots = FrameTestEnv("AZAHARFRAME_TEST_MEMWARN_SHOTS");
@@ -6107,7 +6116,7 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
 #ifdef ENABLE_FRAME_XR
             } else if (frame_notice_answer) {
                 // as the in-game menu's buttons: confirm 1, cancel 0, extra 2
-                const bool tex = Settings::values.custom_textures.GetValue();
+                const bool tex = frame_memwarn_textures; // AzaharFrame savemem: as offered
                 FrameNoticeAnswer(code == kMemoryStop       ? 2
                                   : code == kMemoryTextures ? (tex ? 1 : 0)
                                                             : (tex ? 0 : 1));
@@ -8409,7 +8418,7 @@ Core::Autosave::Gates GMainWindow::FrameAutosaveGates() const {
     // The game stands for its shaders (or the disk cache loads at the start)
     g.shaders_busy =
         loading_shaders_label->isVisible() || (backlog && (last <= 0 || now_us - last > 500'000));
-    // AzaharFrame memwarn: at the pause level a save state's extra 0.9 GB could cross the limit
+    // AzaharFrame memwarn: at the pause level a save state's extra ~300 MB could cross the limit
     g.memory_low = FrameMemWarn::Critical();
     return g;
 }

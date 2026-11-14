@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the misc/licenses/gplv2.txt file included.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <QDialog>
@@ -10,6 +11,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include "common/test_hooks.h"
+#include "common/transient_memory.h" // AzaharFrame savemem
 #include "citra_qt/frame_memwarn.h"
 #include "common/logging/log.h"
 
@@ -92,8 +94,22 @@ void FrameMemWarn::Run() {
             ballast.emplace_back(mb << 20, '\1'); // filled: every page is touched and counted
             LOG_INFO(Frontend, "memwarn test: {} MiB of ballast held", mb);
         }
+        // AzaharFrame savemem: a save state's memory held for a moment is left out of the rules
+        // (mem_watch.h). Read before and after the counters, the smaller: a save that let its
+        // memory go meanwhile is not taken off memory no longer counted.
+        const std::uint64_t transient_before = Common::TransientMemory::Bytes();
         const MW::Sample s = MW::Read(dir);
-        const MW::Action a = watcher.Step(s, now_ms);
+        const std::uint64_t transient =
+            std::min(transient_before, Common::TransientMemory::Bytes());
+        const bool held = Common::TransientMemory::Holds() > 0 || transient > 0;
+        const MW::Action a = watcher.Step(s, now_ms, transient);
+        if (watcher.Spared()) {
+            LOG_INFO(Frontend,
+                     "memwarn: a save state holds {} MiB for a moment: not counted ({} of {} MiB "
+                     "with it, {} without)",
+                     transient >> 20, s.Used() >> 20, s.max >> 20,
+                     (s.Used() - std::min(transient, s.Used())) >> 20);
+        }
         const bool was = critical.exchange(watcher.Critical(), std::memory_order_relaxed);
         if (was != watcher.Critical()) {
             LOG_INFO(Frontend, "memwarn: {} ({} of {} MiB)",
@@ -112,7 +128,11 @@ void FrameMemWarn::Run() {
             callback(a, s.Used(), s.max);
             lock.lock();
         }
-        cv.wait_for(lock, std::chrono::milliseconds(MW::kPeriodMs), [this] { return quit; });
+        // While a save holds memory, again soon: the sample right after it ends sees the memory
+        // without it (and pauses then if that is still too much)
+        cv.wait_for(lock,
+                    std::chrono::milliseconds(held ? MW::kTransientPeriodMs : MW::kPeriodMs),
+                    [this] { return quit; });
     }
 }
 

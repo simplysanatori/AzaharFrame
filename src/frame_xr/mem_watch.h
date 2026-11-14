@@ -12,10 +12,19 @@
 //     8.2 GB"). Again only after falling under kWarnRearm and coming back, and at most once in
 //     kWarnGapMs.
 //   Level 2, at kPauseAt (or a memory.events "high" step while at Level 1): the game pauses and a
-//     dialog says why, with Turn Off Custom Textures (when they are on), Resume and Stop Game.
+//     dialog says why, with Turn Off Custom Textures (when they hold enough: TexturesMatter), Resume and Stop Game.
 //     Again only after falling under kPauseRearm, or after growing kPauseAgain more (the last
 //     chance before the limit). While at Level 2 (Critical) the autosaves of the menu and the
-//     timer wait: writing a save state needs about 0.9 GB more for a moment.
+//     timer wait: writing a save state needs its serialized system more for a moment (about
+//     300 MB for a big game).
+//
+// AzaharFrame savemem: a save state being made or loaded holds its serialized system (about 300 MB
+// for a big game) for about a second (common/transient_memory.h counts it). Those bytes are left
+// out of the rules while held: a save does not pause the game for its own short, bounded spike
+// (on the Frame a quick save paused the game with this dialog), while everything else still
+// counts, so memory that is near the limit without the save still pauses it. The watch samples
+// every kTransientPeriodMs while such memory is held and once right after, and a memory.events
+// "high" step taken while it was held does not count (the save made it).
 //
 // "Used" is what the kernel cannot simply drop: memory.current less the page cache (memory.stat
 // file - shmem; GPU buffers are shmem and stay counted) plus what went to swap. The page cache
@@ -41,6 +50,11 @@ constexpr double kPauseAgain = 0.03; ///< ...or after growing this share of the 
 constexpr double kPauseRearmBelowPause = 0.05;
 constexpr std::int64_t kWarnGapMs = 120'000;
 constexpr std::int64_t kPeriodMs = 2'000;
+constexpr std::int64_t kTransientPeriodMs = 250; ///< AzaharFrame savemem: while a save is held
+/// AzaharFrame savemem: the dialog offers Turn Off Custom Textures only when their pixel data is
+/// at least this share of the limit (and kTexturesMatterMin): less is not worth the advice.
+constexpr double kTexturesMatter = 0.10;
+constexpr std::uint64_t kTexturesMatterMin = 128ull << 20;
 
 /// The scope's counters at one moment.
 struct Sample {
@@ -113,16 +127,25 @@ enum class Action { None, Warn, Pause };
 /// The two levels' rules, fed one Sample at a time.
 class Watcher {
 public:
-    Action Step(const Sample& s, std::int64_t now_ms) {
+    /// `transient`: the bytes a save state holds for a moment now (common/transient_memory.h),
+    /// left out of the rules (see the top of this file).
+    Action Step(const Sample& s, std::int64_t now_ms, std::uint64_t transient = 0) {
+        spared = false;
         if (!s.ok || s.max == 0) {
             critical = false;
+            had_transient = transient > 0;
             return Action::None;
         }
-        const std::uint64_t used = s.Used();
+        const std::uint64_t all = s.Used();
+        const std::uint64_t used = all - std::min(transient, all);
         const double share = static_cast<double>(used) / static_cast<double>(s.max);
-        const bool high_step = have_events && s.high_events > last_high_events;
+        // A "high" step while a save held memory (now, or at the last sample) is the save's
+        const bool in_transient = transient > 0 || had_transient;
+        had_transient = transient > 0;
+        const bool high_step = have_events && s.high_events > last_high_events && !in_transient;
         last_high_events = s.high_events;
         have_events = true;
+        const double all_share = static_cast<double>(all) / static_cast<double>(s.max);
 
         if (share < kWarnRearm) {
             warn_armed = true;
@@ -153,7 +176,15 @@ public:
             last_warn_ms = now_ms;
         }
         critical = share >= kPauseAt || pause_latched;
+        // For the log: the save's own memory is all that put it at a level
+        spared = transient > 0 && a == Action::None && all_share >= kWarnAt && share < kWarnAt;
         return a;
+    }
+
+    /// AzaharFrame savemem: the last Step stayed quiet only because a save's transient memory was
+    /// left out (it would have warned or paused with it).
+    [[nodiscard]] bool Spared() const {
+        return spared;
     }
 
     /// At Level 2 (or paused for it and not yet under kPauseRearm): autosaves wait.
@@ -170,7 +201,16 @@ private:
     bool have_events = false;
     std::uint64_t last_high_events = 0;
     bool critical = false;
+    bool had_transient = false; ///< AzaharFrame savemem
+    bool spared = false;
 };
+
+/// AzaharFrame savemem: custom textures hold enough (`texture_bytes` of pixel data) for the
+/// dialog to offer turning them off and to advise it (kTexturesMatter of `max`).
+inline bool TexturesMatter(std::uint64_t texture_bytes, std::uint64_t max) {
+    const auto share = static_cast<std::uint64_t>(kTexturesMatter * static_cast<double>(max));
+    return texture_bytes >= std::max(share, kTexturesMatterMin);
+}
 
 // ---- Texts (Title Case like Azahar's own; the numbers as SteamOS counts them, GbText) ----------
 
@@ -194,9 +234,10 @@ struct PauseText {
     std::string stop;
 };
 
-/// Level 2's dialog. No Save State button on purpose: writing one needs about 0.9 GB more for a
-/// moment (the serialized system and its compressed copy), which at this level could cross the
-/// limit and get Azahar closed in the middle of it. Saving in the game costs nothing.
+/// Level 2's dialog. No Save State button on purpose: writing one needs about the serialized
+/// system more for a moment (300 MB for a big game), which at this level could cross the limit
+/// and get Azahar closed in the middle of it. Saving in the game costs nothing.
+/// `custom_textures`: they are on and hold enough to matter (TexturesMatter).
 inline PauseText MakePauseText(std::uint64_t used, std::uint64_t max, bool custom_textures) {
     PauseText t;
     t.title = "Azahar Is Almost Out of Memory";
